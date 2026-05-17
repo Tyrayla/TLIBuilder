@@ -1,6 +1,7 @@
 import tkinter as tk
 from models.passive_tree import PassiveTree, COLUMN_COUNT
 from persistence import save_manager
+from gui.sidebar import ActiveTreesSidebar
 
 COLUMN_LABELS = [col * 3 for col in range(COLUMN_COUNT)]
 
@@ -64,18 +65,30 @@ class TreeViewer(tk.Frame):
         super().__init__(parent, bg=BG_MAIN)
         self.app = app
         self.tree = tree
-        self._build_header()
-        self._build_columns()
-        self._build_status_bar()
+
+        main_row = tk.Frame(self, bg=BG_MAIN)
+        main_row.pack(fill="both", expand=True)
+
+        sidebar = ActiveTreesSidebar(
+            main_row, app,
+            on_overview=app.show_tree_selector,
+        )
+        sidebar.pack(side="left", fill="y")
+
+        content = tk.Frame(main_row, bg=BG_MAIN)
+        content.pack(side="left", fill="both", expand=True)
+
+        self._build_header(content)
+        self._build_columns(content)
+        self._build_status_bar(content)
         self._refresh()
 
     # ── Header ─────────────────────────────────────────────────────────────────
 
-    def _build_header(self):
-        frame = tk.Frame(self, bg=BG_MAIN, pady=8)
+    def _build_header(self, parent):
+        frame = tk.Frame(parent, bg=BG_MAIN, pady=8)
         frame.pack(fill="x", padx=12)
 
-        # Back button — top left
         tk.Button(
             frame, text="← Back",
             font=("Segoe UI", 9), bg=BG_MAIN, fg=FG_HEADER,
@@ -88,7 +101,6 @@ class TreeViewer(tk.Frame):
                  font=("Segoe UI", 16, "bold"),
                  bg=BG_MAIN, fg=ACCENT).pack(side="left")
 
-        # Reset button — top right
         tk.Button(
             frame, text="Reset",
             font=("Segoe UI", 9), bg="#3a1a1a", fg="#ff6b6b",
@@ -104,8 +116,8 @@ class TreeViewer(tk.Frame):
 
     # ── Status bar ─────────────────────────────────────────────────────────────
 
-    def _build_status_bar(self):
-        self.status_bar = tk.Label(self, text="",
+    def _build_status_bar(self, parent):
+        self.status_bar = tk.Label(parent, text="",
                                    font=("Segoe UI", 9, "italic"),
                                    bg=BG_MAIN, fg=STATUS_ERROR,
                                    anchor="w", padx=14, pady=4)
@@ -119,8 +131,8 @@ class TreeViewer(tk.Frame):
 
     # ── Columns ────────────────────────────────────────────────────────────────
 
-    def _build_columns(self):
-        container = tk.Frame(self, bg=BG_MAIN)
+    def _build_columns(self, parent):
+        container = tk.Frame(parent, bg=BG_MAIN)
         container.pack(fill="both", expand=True, padx=12, pady=(0, 4))
 
         self.col_frames: dict[int, tk.LabelFrame] = {}
@@ -145,9 +157,9 @@ class TreeViewer(tk.Frame):
             for node in self.tree.nodes_in_column(col):
                 btn = tk.Button(lf, text=self._node_label(node),
                                 font=("Segoe UI", 9),
-                                width=14, wraplength=100,
+                                wraplength=100,
                                 relief="raised", bd=2, cursor="hand2")
-                btn.pack(pady=4)
+                btn.pack(pady=4, fill="x")
                 btn.bind("<Button-1>", lambda e, nid=node.id: self._on_left_click(nid))
                 btn.bind("<Button-3>", lambda e, nid=node.id: self._on_right_click(nid))
                 self.node_buttons[node.id] = btn

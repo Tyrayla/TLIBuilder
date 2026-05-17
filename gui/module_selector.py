@@ -29,12 +29,6 @@ class ModuleSelector(tk.Frame):
             bg=BG, fg=ACCENT,
         ).pack(pady=(60, 8))
 
-        tk.Label(
-            self, text="Select a module to begin",
-            font=("Segoe UI", 11),
-            bg=BG, fg=FG_HEADER,
-        ).pack(pady=(0, 40))
-
         # Module buttons
         btn_frame = tk.Frame(self, bg=BG)
         btn_frame.pack()

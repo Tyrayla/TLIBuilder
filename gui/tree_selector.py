@@ -1,30 +1,41 @@
 import tkinter as tk
 from trees.registry import TREES
+from gui.sidebar import ActiveTreesSidebar
 
-BG        = "#1a1a2e"
-ACCENT    = "#e94560"
+BG     = "#1a1a2e"
+ACCENT = "#e94560"
 FG_HEADER = "#e0e0e0"
 FG_NAME   = "#ffffff"
-FG_DIM    = "#888899"
 
-CARD_W    = 140
-PORTRAIT_H = 110
+GROUPS = [
+    ("God of Might",         ["The Brave", "Onslaughter", "Warlord", "Warrior"]),
+    ("Goddess of Hunting",   ["Marksman", "Bladerunner", "Druid", "Assassin"]),
+    ("Goddess of Knowledge", ["Magister", "Arcanist", "Elementalist", "Prophet"]),
+    ("God of War",           ["Shadowdancer", "Ronin", "Ranger", "Sentinel"]),
+    ("Goddess of Deception", ["Shadowmaster", "Psychic", "Warlock", "Lich"]),
+    ("God of Machines",      ["Machinist", "Steel Vanguard", "Alchemist", "Artisan"]),
+]
 
 
 class TreeSelector(tk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, bg=BG)
         self.app = app
+        self._card_btns: dict[str, tk.Button] = {}
+        self._card_borders: dict[str, tk.Frame] = {}
+        self._status_label: tk.Label | None = None
+        self._sidebar: ActiveTreesSidebar | None = None
         self._build()
 
+    # ── Build ──────────────────────────────────────────────────────────────────
+
     def _build(self):
-        # Back button — top left
         nav = tk.Frame(self, bg=BG)
         nav.pack(fill="x", padx=12, pady=(10, 0))
         tk.Button(
             nav, text="← Back",
-            font=("Segoe UI", 9), bg=BG, fg="#e0e0e0",
-            activebackground="#0f3460", activeforeground="#e0e0e0",
+            font=("Segoe UI", 9), bg=BG, fg=FG_HEADER,
+            activebackground="#0f3460", activeforeground=FG_HEADER,
             relief="flat", bd=0, cursor="hand2",
             command=self.app.show_module_selector,
         ).pack(side="left")
@@ -33,70 +44,96 @@ class TreeSelector(tk.Frame):
             self, text="Select a Passive Tree",
             font=("Segoe UI", 18, "bold"),
             bg=BG, fg=ACCENT,
-        ).pack(pady=(20, 6))
+        ).pack(pady=(16, 4))
 
-        tk.Label(
-            self, text="This choice is saved and will be loaded on next launch.",
-            font=("Segoe UI", 9, "italic"),
-            bg=BG, fg=FG_DIM,
-        ).pack(pady=(0, 30))
+        self._status_label = tk.Label(
+            self, text="", font=("Segoe UI", 9, "italic"),
+            bg=BG, fg="#ff6b6b", anchor="w", padx=14)
+        self._status_label.pack(fill="x")
 
-        cards_frame = tk.Frame(self, bg=BG)
-        cards_frame.pack()
+        panel = tk.Frame(self, bg=BG)
+        panel.pack(fill="both", expand=True, padx=8, pady=(4, 8))
 
-        for name, meta in TREES.items():
-            self._make_card(cards_frame, name, meta["color"])
+        self._sidebar = ActiveTreesSidebar(panel, self.app, on_overview=None)
+        self._sidebar.pack(side="left", fill="y", padx=(0, 8))
 
-    def _make_card(self, parent, name: str, color: str):
-        # Outer border frame uses tree color
-        border = tk.Frame(parent, bg=color, padx=2, pady=2)
-        border.pack(side="left", padx=10)
+        self._build_grid(panel)
 
-        card = tk.Frame(border, bg="#111122", width=CARD_W, padx=8, pady=10)
-        card.pack()
-        card.pack_propagate(False)
-        card.config(width=CARD_W, height=260)
+    def _build_grid(self, parent):
+        grid_frame = tk.Frame(parent, bg=BG)
+        grid_frame.pack(side="left", fill="both", expand=True)
 
-        # Portrait placeholder
-        portrait = tk.Canvas(card, width=CARD_W - 16, height=PORTRAIT_H,
-                             bg=color, highlightthickness=0)
-        portrait.pack(pady=(0, 8))
-        cx = (CARD_W - 16) // 2
-        portrait.create_text(cx, PORTRAIT_H // 2, text="?",
-                              font=("Segoe UI", 28, "bold"), fill="#ffffff")
+        for col_idx in range(6):
+            grid_frame.columnconfigure(col_idx, weight=1, minsize=130)
+        for row_idx in range(5):
+            grid_frame.rowconfigure(row_idx, weight=1, minsize=100)
 
-        # Tree name
+        for col_idx, (primary, secondaries) in enumerate(GROUPS):
+            self._make_card(grid_frame, primary, TREES[primary]["color"], col_idx, 0)
+            for row_idx, name in enumerate(secondaries, start=1):
+                self._make_card(grid_frame, name, TREES[name]["color"], col_idx, row_idx)
+
+    def _make_card(self, parent, name: str, color: str, col: int, row: int):
+        is_selected = name in self.app.selected_trees
+        border_color = ACCENT if is_selected else color
+
+        border = tk.Frame(parent, bg=border_color, padx=2, pady=2)
+        border.grid(row=row, column=col, padx=5, pady=4, sticky="nsew")
+        self._card_borders[name] = border
+
+        card = tk.Frame(border, bg="#111122", padx=6, pady=6)
+        card.pack(fill="both", expand=True)
+
+        tk.Frame(card, bg=color, height=28).pack(fill="x", pady=(0, 6))
+
         tk.Label(
             card, text=name,
             font=("Segoe UI", 9, "bold"),
             bg="#111122", fg=FG_NAME,
-            wraplength=CARD_W - 12,
-            justify="center",
-        ).pack(pady=(0, 10))
+            wraplength=115, justify="center",
+        ).pack(expand=True)
 
-        # 5 placeholder talent circles
-        dots = tk.Frame(card, bg="#111122")
-        dots.pack()
-        for _ in range(5):
-            c = tk.Canvas(dots, width=20, height=20, bg="#111122", highlightthickness=0)
-            c.pack(side="left", padx=2)
-            c.create_oval(2, 2, 18, 18, outline=color, fill="#1a1a2e", width=2)
-
-        # Select button
         btn = tk.Button(
             card,
-            text="Select",
-            font=("Segoe UI", 9, "bold"),
-            bg=color, fg="#ffffff",
+            text="Remove" if is_selected else "Select",
+            font=("Segoe UI", 8, "bold"),
+            bg=ACCENT if is_selected else color, fg="#ffffff",
             activebackground=ACCENT,
-            relief="flat", bd=0,
-            padx=10, pady=6,
+            relief="flat", bd=0, padx=8, pady=4,
             cursor="hand2",
             command=lambda n=name: self._select(n),
         )
-        btn.pack(pady=(12, 0))
+        btn.pack(pady=(4, 0))
+        self._card_btns[name] = btn
 
-    def _select(self, tree_name: str):
-        from trees.registry import TREES
-        tree = TREES[tree_name]["builder"]()
-        self.app.show_tree_viewer(tree)
+    # ── Select / deselect ──────────────────────────────────────────────────────
+
+    def _select(self, name: str):
+        if name in self.app.selected_trees:
+            self.app.selected_trees.remove(name)
+            self._update_card(name)
+            self._sidebar.refresh()
+        elif len(self.app.selected_trees) >= 4:
+            self._set_status("Max 4 trees selected.")
+        else:
+            self.app.selected_trees.append(name)
+            self._update_card(name)
+            self._sidebar.refresh()
+            tree = TREES[name]["builder"]()
+            self.app.show_tree_viewer(tree)
+
+    def _update_card(self, name: str):
+        is_sel = name in self.app.selected_trees
+        color = TREES[name]["color"]
+        btn = self._card_btns.get(name)
+        if btn:
+            btn.config(text="Remove" if is_sel else "Select",
+                       bg=ACCENT if is_sel else color)
+        border = self._card_borders.get(name)
+        if border:
+            border.config(bg=ACCENT if is_sel else color)
+
+    def _set_status(self, message: str):
+        if self._status_label:
+            self._status_label.config(text=message)
+            self.after(3000, lambda: self._status_label.config(text=""))
