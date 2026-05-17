@@ -1,56 +1,65 @@
 import tkinter as tk
+import inspect
+import re
 from models.passive_tree import PassiveTree, COLUMN_COUNT
+from models.passive_node import NodeType
 from persistence import save_manager
 from gui.sidebar import ActiveTreesSidebar
+from trees.registry import TREES
 
 COLUMN_LABELS = [col * 3 for col in range(COLUMN_COUNT)]
+ROW_COUNT = 5
+HEADER_H  = 28   # px at top of canvas for column label + lock text
+NODE_R    = 30   # circle radius (diameter = 60 px)
 
 BG_MAIN        = "#1a1a2e"
-BG_COLUMN      = "#16213e"
-BG_COL_LOCKED  = "#111111"
 FG_HEADER      = "#e0e0e0"
-FG_LOCKED_TEXT = "#444444"
+FG_LOCKED_TEXT = "#666677"
 BTN_NORMAL_BG  = "#0f3460"
 BTN_NORMAL_FG  = "#e0e0e0"
+BTN_NORMAL_OUT = "#3a5a9a"
 BTN_FULL_BG    = "#533483"
 BTN_FULL_FG    = "#ffffff"
-BTN_LOCKED_BG  = "#222222"
-BTN_LOCKED_FG  = "#444444"
+BTN_FULL_OUT   = "#e94560"
+BTN_LOCKED_BG  = "#222233"
+BTN_LOCKED_FG  = "#444455"
+BTN_LOCKED_OUT = "#333344"
 ACCENT         = "#e94560"
 STATUS_ERROR   = "#ff6b6b"
 STATUS_OK      = "#6bcb77"
+CONN_COLOR     = "#3a3a5a"
 TOOLTIP_BG     = "#0d1b2a"
 TOOLTIP_FG     = "#e0e0e0"
 TOOLTIP_BORDER = "#e94560"
+DEBUG_BAR_BG   = "#0d1520"
+LINK_PENDING   = "#ffcc00"
 
 
-# ── Tooltip ────────────────────────────────────────────────────────────────────
+# ── Canvas tooltip ─────────────────────────────────────────────────────────────
 
-class Tooltip:
-    def __init__(self, widget: tk.Widget, text_func):
-        self._widget = widget
+class CanvasTooltip:
+    def __init__(self, canvas: tk.Canvas, tag: str, text_func):
+        self._canvas = canvas
         self._text_func = text_func
         self._tip: tk.Toplevel | None = None
-        widget.bind("<Enter>", self._show, add="+")
-        widget.bind("<Leave>", self._hide, add="+")
-        widget.bind("<ButtonPress>", self._hide, add="+")
+        canvas.tag_bind(tag, "<Enter>", self._show, add="+")
+        canvas.tag_bind(tag, "<Leave>", self._hide, add="+")
+        canvas.tag_bind(tag, "<ButtonPress>", self._hide, add="+")
 
     def _show(self, event: tk.Event):
         text = self._text_func()
         if not text:
             return
         self._hide(None)
-        x = event.x_root + 16
-        y = event.y_root + 12
-        self._tip = tw = tk.Toplevel(self._widget)
+        self._tip = tw = tk.Toplevel(self._canvas)
         tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
+        tw.wm_geometry(f"+{event.x_root + 16}+{event.y_root + 12}")
         tw.configure(bg=TOOLTIP_BORDER)
-        inner = tk.Frame(tw, bg=TOOLTIP_BG, padx=8, pady=6)
+        inner = tk.Frame(tw, bg=TOOLTIP_BG, padx=6, pady=4)
         inner.pack(padx=1, pady=1)
         tk.Label(inner, text=text, justify="left",
                  bg=TOOLTIP_BG, fg=TOOLTIP_FG,
-                 font=("Segoe UI", 9)).pack()
+                 font=("Segoe UI", 8)).pack()
 
     def _hide(self, event):
         if self._tip:
@@ -63,8 +72,21 @@ class Tooltip:
 class TreeViewer(tk.Frame):
     def __init__(self, parent, app, tree: PassiveTree):
         super().__init__(parent, bg=BG_MAIN)
-        self.app = app
+        self.app  = app
         self.tree = tree
+
+        self._debug_mode = False
+        self._link_mode  = False
+        self._type_mode  = False
+        self._link_first: str | None = None
+        self._source_file: str | None = None
+
+        entry = TREES.get(tree.name)
+        if entry:
+            try:
+                self._source_file = inspect.getfile(entry["builder"])
+            except (TypeError, OSError):
+                pass
 
         main_row = tk.Frame(self, bg=BG_MAIN)
         main_row.pack(fill="both", expand=True)
@@ -77,9 +99,12 @@ class TreeViewer(tk.Frame):
 
         content = tk.Frame(main_row, bg=BG_MAIN)
         content.pack(side="left", fill="both", expand=True)
+        content.grid_rowconfigure(2, weight=1)
+        content.grid_columnconfigure(0, weight=1)
 
         self._build_header(content)
-        self._build_columns(content)
+        self._build_debug_bar(content)
+        self._build_canvas(content)
         self._build_status_bar(content)
         self._refresh()
 
@@ -87,41 +112,109 @@ class TreeViewer(tk.Frame):
 
     def _build_header(self, parent):
         frame = tk.Frame(parent, bg=BG_MAIN, pady=8)
-        frame.pack(fill="x", padx=12)
+        frame.grid(row=0, column=0, sticky="ew", padx=12)
 
+        # Left: back button + tree name
+        left = tk.Frame(frame, bg=BG_MAIN)
+        left.pack(side="left")
         tk.Button(
-            frame, text="← Back",
+            left, text="← Back",
             font=("Segoe UI", 9), bg=BG_MAIN, fg=FG_HEADER,
             activebackground="#0f3460", activeforeground=FG_HEADER,
             relief="flat", bd=0, cursor="hand2",
             command=self.app.show_tree_selector,
         ).pack(side="left", padx=(0, 12))
-
-        tk.Label(frame, text=self.tree.name,
+        tk.Label(left, text=self.tree.name,
                  font=("Segoe UI", 16, "bold"),
                  bg=BG_MAIN, fg=ACCENT).pack(side="left")
 
+        # Right: Debug toggle + points label
+        right = tk.Frame(frame, bg=BG_MAIN)
+        right.pack(side="right")
+
+        self._debug_btn = tk.Button(
+            right, text="Debug",
+            font=("Segoe UI", 9), bg="#132213", fg="#6bcb77",
+            activebackground="#6bcb77", activeforeground="#000000",
+            relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
+            command=self._toggle_debug,
+        )
+        self._debug_btn.pack(side="left", padx=(0, 10))
+
+        self.points_label = tk.Label(
+            right, text="Points: 0",
+            font=("Segoe UI", 12), bg=BG_MAIN, fg=FG_HEADER,
+        )
+        self.points_label.pack(side="left")
+
+        # Center: Reselect + Reset
+        center = tk.Frame(frame, bg=BG_MAIN)
+        center.pack(side="left", expand=True, fill="x")
+        btn_group = tk.Frame(center, bg=BG_MAIN)
+        btn_group.pack(anchor="center")
         tk.Button(
-            frame, text="Reset",
+            btn_group, text="Reselect",
+            font=("Segoe UI", 9), bg=BTN_NORMAL_BG, fg=FG_HEADER,
+            activebackground="#1a4a8a", activeforeground="#ffffff",
+            relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
+            command=self._reselect,
+        ).pack(side="left", padx=(0, 6))
+        tk.Button(
+            btn_group, text="Reset",
             font=("Segoe UI", 9), bg="#3a1a1a", fg="#ff6b6b",
             activebackground=ACCENT, activeforeground="#ffffff",
             relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
             command=self._reset,
-        ).pack(side="right", padx=(8, 0))
+        ).pack(side="left")
 
-        self.points_label = tk.Label(frame, text="Points: 0",
-                                     font=("Segoe UI", 12),
-                                     bg=BG_MAIN, fg=FG_HEADER)
-        self.points_label.pack(side="right")
+    # ── Debug bar ──────────────────────────────────────────────────────────────
+
+    def _build_debug_bar(self, parent):
+        bar = tk.Frame(parent, bg=DEBUG_BAR_BG, pady=5)
+        bar.grid(row=1, column=0, sticky="ew")
+        bar.grid_remove()
+        self._debug_bar = bar
+
+        tk.Label(bar, text="Debug:", bg=DEBUG_BAR_BG, fg="#6bcb77",
+                 font=("Segoe UI", 8, "bold")).pack(side="left", padx=(10, 8))
+
+        self._link_btn = tk.Button(
+            bar, text="Link",
+            font=("Segoe UI", 9), bg=DEBUG_BAR_BG, fg="#e0e0e0",
+            activebackground="#1a4a8a", activeforeground="#ffffff",
+            relief="flat", bd=0, padx=10, pady=3, cursor="hand2",
+            command=self._toggle_link,
+        )
+        self._link_btn.pack(side="left", padx=(0, 4))
+
+        self._type_btn = tk.Button(
+            bar, text="Type",
+            font=("Segoe UI", 9), bg=DEBUG_BAR_BG, fg="#e0e0e0",
+            activebackground="#1a4a8a", activeforeground="#ffffff",
+            relief="flat", bd=0, padx=10, pady=3, cursor="hand2",
+            command=self._toggle_type,
+        )
+        self._type_btn.pack(side="left", padx=(0, 4))
+
+        tk.Label(bar, text="— right-click cancels selection",
+                 bg=DEBUG_BAR_BG, fg="#555577",
+                 font=("Segoe UI", 8, "italic")).pack(side="left", padx=(8, 0))
+
+        if not self._source_file:
+            tk.Label(bar, text="  ⚠ source file not found — changes will not persist",
+                     bg=DEBUG_BAR_BG, fg=STATUS_ERROR,
+                     font=("Segoe UI", 8)).pack(side="left", padx=(8, 0))
 
     # ── Status bar ─────────────────────────────────────────────────────────────
 
     def _build_status_bar(self, parent):
-        self.status_bar = tk.Label(parent, text="",
-                                   font=("Segoe UI", 9, "italic"),
-                                   bg=BG_MAIN, fg=STATUS_ERROR,
-                                   anchor="w", padx=14, pady=4)
-        self.status_bar.pack(fill="x", side="bottom")
+        self.status_bar = tk.Label(
+            parent, text="",
+            font=("Segoe UI", 9, "italic"),
+            bg=BG_MAIN, fg=STATUS_ERROR,
+            anchor="w", padx=14, pady=4,
+        )
+        self.status_bar.grid(row=3, column=0, sticky="ew")
 
     def _set_status(self, message: str, error: bool = True):
         self.status_bar.config(text=message,
@@ -129,42 +222,110 @@ class TreeViewer(tk.Frame):
         if message:
             self.after(3000, lambda: self.status_bar.config(text=""))
 
-    # ── Columns ────────────────────────────────────────────────────────────────
+    # ── Canvas renderer ────────────────────────────────────────────────────────
 
-    def _build_columns(self, parent):
-        container = tk.Frame(parent, bg=BG_MAIN)
-        container.pack(fill="both", expand=True, padx=12, pady=(0, 4))
+    def _build_canvas(self, parent):
+        self._canvas = tk.Canvas(parent, bg=BG_MAIN, highlightthickness=0)
+        self._canvas.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 4))
 
-        self.col_frames: dict[int, tk.LabelFrame] = {}
-        self.col_lock_labels: dict[int, tk.Label] = {}
-        self.node_buttons: dict[str, tk.Button] = {}
-        self._tooltips: dict[str, Tooltip] = {}
+        self._col_label_items: dict[int, int] = {}
+        self._col_lock_items:  dict[int, int] = {}
+        self._node_oval_items: dict[str, int] = {}
+        self._node_text_items: dict[str, int] = {}
+        self._conn_lines: list[tuple[int, str, str]] = []
+        self._tooltips: list[CanvasTooltip] = []
 
+        # Connection lines first — lowest z-order
+        for id1, id2 in self.tree.connections:
+            lid = self._canvas.create_line(0, 0, 0, 0,
+                                           fill=CONN_COLOR, width=2, tags="conn")
+            self._conn_lines.append((lid, id1, id2))
+
+        # Column labels + lock status text
         for col in range(COLUMN_COUNT):
-            label = COLUMN_LABELS[col]
-            lf = tk.LabelFrame(container, text=f"  {label}  ",
-                               font=("Segoe UI", 10, "bold"),
-                               bg=BG_COLUMN, fg=FG_HEADER,
-                               padx=8, pady=8, relief="ridge", bd=2)
-            lf.pack(side="left", fill="both", expand=True, padx=4)
-            self.col_frames[col] = lf
+            lbl = self._canvas.create_text(
+                0, 0, text=str(COLUMN_LABELS[col]),
+                font=("Segoe UI", 10, "bold"), fill=FG_HEADER)
+            self._col_label_items[col] = lbl
 
-            lock_lbl = tk.Label(lf, text="", bg=BG_COLUMN, fg=FG_LOCKED_TEXT,
-                                font=("Segoe UI", 9, "italic"))
-            lock_lbl.pack()
-            self.col_lock_labels[col] = lock_lbl
+            lck = self._canvas.create_text(
+                0, 0, text="",
+                font=("Segoe UI", 7, "italic"), fill=FG_LOCKED_TEXT)
+            self._col_lock_items[col] = lck
 
-            for node in self.tree.nodes_in_column(col):
-                btn = tk.Button(lf, text=self._node_label(node),
-                                font=("Segoe UI", 9),
-                                wraplength=100,
-                                relief="raised", bd=2, cursor="hand2")
-                btn.pack(pady=4, fill="x")
-                btn.bind("<Button-1>", lambda e, nid=node.id: self._on_left_click(nid))
-                btn.bind("<Button-3>", lambda e, nid=node.id: self._on_right_click(nid))
-                self.node_buttons[node.id] = btn
-                self._tooltips[node.id] = Tooltip(
-                    btn, text_func=lambda nid=node.id: self._tooltip_text(nid))
+        # Node circles — highest z-order
+        for node in self.tree.nodes.values():
+            pts, mx = node.current_points, node.max_points
+            nid = node.id
+
+            oval_id = self._canvas.create_oval(
+                0, 0, 0, 0,
+                fill=BTN_NORMAL_BG, outline=BTN_NORMAL_OUT, width=2,
+                tags=("node", nid))
+            text_id = self._canvas.create_text(
+                0, 0, text=f"{pts}/{mx}",
+                font=("Segoe UI", 9, "bold"), fill=BTN_NORMAL_FG,
+                tags=("node", nid))
+
+            self._node_oval_items[nid] = oval_id
+            self._node_text_items[nid] = text_id
+
+            self._canvas.tag_bind(nid, "<Button-1>",
+                                  lambda e, n=nid: self._on_left_click(n, e))
+            self._canvas.tag_bind(nid, "<Button-3>",
+                                  lambda e, n=nid: self._on_right_click(n, e))
+            self._canvas.tag_bind(nid, "<Enter>",
+                                  lambda e: self._canvas.config(cursor="hand2"), add="+")
+            self._canvas.tag_bind(nid, "<Leave>",
+                                  lambda e: self._canvas.config(cursor=""), add="+")
+
+            self._tooltips.append(
+                CanvasTooltip(self._canvas, nid,
+                              text_func=lambda n=nid: self._tooltip_text(n)))
+
+        self._canvas.bind("<Configure>", self._on_canvas_resize)
+
+    def _node_pos(self, node, cell_w: float, cell_h: float) -> tuple[float, float]:
+        return (node.column * cell_w + cell_w / 2,
+                HEADER_H + node.row * cell_h + cell_h / 2)
+
+    def _on_canvas_resize(self, event):
+        w, h = event.width, event.height
+        if w <= 1 or h <= 1:
+            return
+
+        cell_w = w / COLUMN_COUNT
+        cell_h = (h - HEADER_H) / ROW_COUNT
+        R = NODE_R
+
+        # Column labels and lock text
+        for col in range(COLUMN_COUNT):
+            cx = col * cell_w + cell_w / 2
+            self._canvas.coords(self._col_label_items[col], cx, HEADER_H / 2 - 7)
+            self._canvas.coords(self._col_lock_items[col],  cx, HEADER_H / 2 + 7)
+
+        # Node circles
+        for node in self.tree.nodes.values():
+            x, y = self._node_pos(node, cell_w, cell_h)
+            self._canvas.coords(self._node_oval_items[node.id],
+                                x - R, y - R, x + R, y + R)
+            self._canvas.coords(self._node_text_items[node.id], x, y)
+
+        # Connection lines (endpoints offset to circle edge)
+        for lid, id1, id2 in self._conn_lines:
+            n1 = self.tree.nodes.get(id1)
+            n2 = self.tree.nodes.get(id2)
+            if not (n1 and n2):
+                continue
+            x1, y1 = self._node_pos(n1, cell_w, cell_h)
+            x2, y2 = self._node_pos(n2, cell_w, cell_h)
+            dx, dy = x2 - x1, y2 - y1
+            dist = (dx ** 2 + dy ** 2) ** 0.5
+            if dist:
+                nx, ny = dx / dist * R, dy / dist * R
+            else:
+                nx = ny = 0
+            self._canvas.coords(lid, x1 + nx, y1 + ny, x2 - nx, y2 - ny)
 
     # ── Tooltip ────────────────────────────────────────────────────────────────
 
@@ -172,17 +333,19 @@ class TreeViewer(tk.Frame):
         node = self.tree.nodes.get(node_id)
         if node is None:
             return ""
-        pts = node.current_points
-        mx  = node.max_points
-        header  = f"{node.node_type.value:<28}{pts}/{mx}"
-        divider = "─" * len(header)
-        lines = [header, divider,
-                 f"Current ({pts} pt{'s' if pts != 1 else ''}):",
-                 "  — No stats assigned —"]
-        if not node.is_full:
-            lines += ["",
-                      f"Next ({pts + 1} pt{'s' if pts + 1 != 1 else ''}):",
-                      "  — No stats assigned —"]
+        pts, mx = node.current_points, node.max_points
+        lines = [f"{node.node_type.value}  {pts}/{mx}"]
+
+        if not node.stats:
+            lines.append("— No stats assigned —")
+        else:
+            if pts > 0:
+                for s in node.stats:
+                    lines.append(f"Now:  {s.display(pts)}")
+            if not node.is_full:
+                for s in node.stats:
+                    lines.append(f"Next: {s.display(pts + 1)}")
+
         return "\n".join(lines)
 
     # ── Refresh ────────────────────────────────────────────────────────────────
@@ -192,38 +355,42 @@ class TreeViewer(tk.Frame):
 
         for col in range(COLUMN_COUNT):
             unlocked = self.tree.is_column_unlocked(col)
-            lf = self.col_frames[col]
-            lock_lbl = self.col_lock_labels[col]
+            lck = self._col_lock_items[col]
 
             if unlocked:
-                lf.config(bg=BG_COLUMN, fg=FG_HEADER)
-                col_pts = self.tree.points_in_column(col)
-                lock_lbl.config(
-                    text=f"{col_pts}/3 to advance" if col < COLUMN_COUNT - 1 else "",
-                    bg=BG_COLUMN, fg=FG_LOCKED_TEXT)
+                self._canvas.itemconfig(lck, text="", fill=FG_LOCKED_TEXT)
             else:
-                lf.config(bg=BG_COL_LOCKED, fg=FG_LOCKED_TEXT)
-                lock_lbl.config(text="LOCKED", bg=BG_COL_LOCKED, fg=FG_LOCKED_TEXT)
+                needed = col * 3
+                self._canvas.itemconfig(lck, text=f"Need {needed} pts", fill=STATUS_ERROR)
 
             for node in self.tree.nodes_in_column(col):
-                btn = self.node_buttons[node.id]
-                btn.config(text=self._node_label(node))
+                oid = self._node_oval_items[node.id]
+                tid = self._node_text_items[node.id]
+                self._canvas.itemconfig(tid,
+                                        text=f"{node.current_points}/{node.max_points}")
                 if not unlocked:
-                    btn.config(state="disabled", bg=BTN_LOCKED_BG, fg=BTN_LOCKED_FG,
-                               activebackground=BTN_LOCKED_BG)
+                    self._canvas.itemconfig(oid, fill=BTN_LOCKED_BG, outline=BTN_LOCKED_OUT)
+                    self._canvas.itemconfig(tid, fill=BTN_LOCKED_FG)
                 elif node.is_full:
-                    btn.config(state="normal", bg=BTN_FULL_BG, fg=BTN_FULL_FG,
-                               activebackground=BTN_FULL_BG)
+                    self._canvas.itemconfig(oid, fill=BTN_FULL_BG, outline=BTN_FULL_OUT)
+                    self._canvas.itemconfig(tid, fill=BTN_FULL_FG)
                 else:
-                    btn.config(state="normal", bg=BTN_NORMAL_BG, fg=BTN_NORMAL_FG,
-                               activebackground=BTN_NORMAL_BG)
+                    self._canvas.itemconfig(oid, fill=BTN_NORMAL_BG, outline=BTN_NORMAL_OUT)
+                    self._canvas.itemconfig(tid, fill=BTN_NORMAL_FG)
 
-    def _node_label(self, node) -> str:
-        return f"{node.node_type.value}\n{node.current_points}/{node.max_points}"
+                # Re-apply link highlight after normal colours are set
+                if self._link_first == node.id:
+                    self._canvas.itemconfig(oid, outline=LINK_PENDING, width=3)
 
     # ── Click handlers ─────────────────────────────────────────────────────────
 
-    def _on_left_click(self, node_id: str):
+    def _on_left_click(self, node_id: str, event: tk.Event | None = None):
+        if self._link_mode:
+            self._handle_link_click(node_id)
+            return
+        if self._type_mode:
+            self._handle_type_click(node_id, event)
+            return
         try:
             self.tree.allocate(node_id)
             self._save()
@@ -232,7 +399,12 @@ class TreeViewer(tk.Frame):
             self._set_status(str(e), error=True)
         self._refresh()
 
-    def _on_right_click(self, node_id: str):
+    def _on_right_click(self, node_id: str, event: tk.Event | None = None):
+        if self._link_mode:
+            self._cancel_link_selection()
+            return
+        if self._type_mode:
+            return
         try:
             self.tree.deallocate(node_id)
             self._save()
@@ -240,6 +412,17 @@ class TreeViewer(tk.Frame):
         except ValueError as e:
             self._set_status(str(e), error=True)
         self._refresh()
+
+    def _reselect(self):
+        trees = self.app.selected_trees
+        slot = next((i for i, t in enumerate(trees) if t == self.tree.name), None)
+        if slot is not None:
+            if slot == 0:
+                for i in range(4):
+                    trees[i] = None
+            else:
+                trees[slot] = None
+        self.app.show_tree_selector()
 
     def _reset(self):
         for node in self.tree.nodes.values():
@@ -251,3 +434,229 @@ class TreeViewer(tk.Frame):
     def _save(self):
         node_points = {nid: n.current_points for nid, n in self.tree.nodes.items()}
         save_manager.save(self.tree.name, node_points)
+
+    # ── Debug mode toggle ──────────────────────────────────────────────────────
+
+    def _toggle_debug(self):
+        self._debug_mode = not self._debug_mode
+        if self._debug_mode:
+            self._debug_bar.grid()
+            self._debug_btn.config(relief="sunken", bg="#1a3a1a")
+        else:
+            self._debug_bar.grid_remove()
+            self._debug_btn.config(relief="flat", bg="#132213")
+            self._exit_link_mode()
+            self._exit_type_mode()
+
+    def _toggle_link(self):
+        if self._link_mode:
+            self._exit_link_mode()
+            self._set_status("")
+        else:
+            self._exit_type_mode()
+            self._link_mode = True
+            self._link_btn.config(relief="sunken", bg="#0f3460")
+            self._set_status("Link: click the first node", error=False)
+
+    def _toggle_type(self):
+        if self._type_mode:
+            self._exit_type_mode()
+            self._set_status("")
+        else:
+            self._exit_link_mode()
+            self._type_mode = True
+            self._type_btn.config(relief="sunken", bg="#0f3460")
+            self._set_status("Type: click any node to change its type", error=False)
+
+    def _exit_link_mode(self):
+        if self._link_first is not None:
+            oid = self._node_oval_items.get(self._link_first)
+            if oid:
+                self._canvas.itemconfig(oid, outline=BTN_NORMAL_OUT, width=2)
+            self._link_first = None
+        self._link_mode = False
+        if hasattr(self, "_link_btn"):
+            self._link_btn.config(relief="flat", bg=DEBUG_BAR_BG)
+
+    def _exit_type_mode(self):
+        self._type_mode = False
+        if hasattr(self, "_type_btn"):
+            self._type_btn.config(relief="flat", bg=DEBUG_BAR_BG)
+
+    def _cancel_link_selection(self):
+        """Clear the pending first-node selection but stay in link mode."""
+        if self._link_first is not None:
+            oid = self._node_oval_items.get(self._link_first)
+            if oid:
+                self._canvas.itemconfig(oid, outline=BTN_NORMAL_OUT, width=2)
+            self._link_first = None
+        self._set_status("Link: selection cleared — click the first node", error=False)
+
+    # ── Link handling ──────────────────────────────────────────────────────────
+
+    def _handle_link_click(self, node_id: str):
+        if self._link_first is None:
+            # First node selected — highlight it
+            self._link_first = node_id
+            self._canvas.itemconfig(self._node_oval_items[node_id],
+                                    outline=LINK_PENDING, width=3)
+            self._set_status("Link: now click the second node", error=False)
+        elif self._link_first == node_id:
+            # Same node clicked twice — cancel selection
+            self._cancel_link_selection()
+        else:
+            id1, id2 = self._link_first, node_id
+            # Restore first-node outline
+            self._canvas.itemconfig(self._node_oval_items[id1],
+                                    outline=BTN_NORMAL_OUT, width=2)
+            self._link_first = None
+
+            # Determine stored order (connection may be (id1,id2) or (id2,id1))
+            if (id1, id2) in self.tree.connections:
+                stored = (id1, id2)
+            elif (id2, id1) in self.tree.connections:
+                stored = (id2, id1)
+            else:
+                stored = None
+
+            if stored is not None:
+                # Already linked — remove it
+                self.tree.connections.remove(stored)
+                self._remove_connection_from_canvas(stored[0], stored[1])
+                if self._source_file:
+                    try:
+                        self._remove_connection_from_file(stored[0], stored[1])
+                        self._set_status(f"Unlinked {stored[0]} ↔ {stored[1]} and saved.", error=False)
+                    except Exception as exc:
+                        self._set_status(f"Unlinked in memory; file write failed: {exc}", error=True)
+                else:
+                    self._set_status(f"Unlinked {stored[0]} ↔ {stored[1]} (not persisted).", error=True)
+            else:
+                # Not linked — create connection
+                self.tree.add_connection(id1, id2)
+                self._add_connection_to_canvas(id1, id2)
+                if self._source_file:
+                    try:
+                        self._write_connection_to_file(id1, id2)
+                        self._set_status(f"Linked {id1} → {id2} and saved to file.", error=False)
+                    except Exception as exc:
+                        self._set_status(f"Linked in memory; file write failed: {exc}", error=True)
+                else:
+                    self._set_status(f"Linked {id1} → {id2} (no source file — not persisted).", error=True)
+
+    def _add_connection_to_canvas(self, id1: str, id2: str):
+        lid = self._canvas.create_line(0, 0, 0, 0, fill=CONN_COLOR, width=2, tags="conn")
+        self._canvas.tag_lower(lid, "node")
+        self._conn_lines.append((lid, id1, id2))
+        w = self._canvas.winfo_width()
+        h = self._canvas.winfo_height()
+        if w > 1 and h > 1:
+            cell_w = w / COLUMN_COUNT
+            cell_h = (h - HEADER_H) / ROW_COUNT
+            n1 = self.tree.nodes.get(id1)
+            n2 = self.tree.nodes.get(id2)
+            if n1 and n2:
+                x1, y1 = self._node_pos(n1, cell_w, cell_h)
+                x2, y2 = self._node_pos(n2, cell_w, cell_h)
+                dx, dy = x2 - x1, y2 - y1
+                dist = (dx ** 2 + dy ** 2) ** 0.5
+                if dist:
+                    nx, ny = dx / dist * NODE_R, dy / dist * NODE_R
+                else:
+                    nx = ny = 0
+                self._canvas.coords(lid, x1 + nx, y1 + ny, x2 - nx, y2 - ny)
+
+    def _remove_connection_from_canvas(self, id1: str, id2: str):
+        for entry in self._conn_lines:
+            lid, a, b = entry
+            if (a == id1 and b == id2) or (a == id2 and b == id1):
+                self._canvas.delete(lid)
+                self._conn_lines.remove(entry)
+                break
+
+    # ── Type handling ──────────────────────────────────────────────────────────
+
+    def _handle_type_click(self, node_id: str, event: tk.Event | None):
+        node = self.tree.nodes.get(node_id)
+        if node is None or event is None:
+            return
+
+        menu = tk.Menu(self, tearoff=0,
+                       bg="#1a1a2e", fg="#e0e0e0",
+                       activebackground="#0f3460", activeforeground="#ffffff",
+                       font=("Segoe UI", 9))
+
+        for nt in NodeType:
+            indicator = "→ " if nt == node.node_type else "   "
+            menu.add_command(
+                label=f"{indicator}{nt.value}",
+                command=lambda t=nt: self._change_node_type(node_id, t),
+            )
+
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _change_node_type(self, node_id: str, new_type: NodeType):
+        node = self.tree.nodes.get(node_id)
+        if node is None or node.node_type == new_type:
+            return
+
+        new_max = 1 if new_type == NodeType.LEGENDARY_MEDIUM else 3
+        node.node_type = new_type
+        node.max_points = new_max
+        if node.current_points > new_max:
+            node.current_points = new_max
+
+        if self._source_file:
+            try:
+                self._write_node_type_to_file(node_id, new_type, new_max)
+                self._set_status(f"Changed {node_id} → {new_type.value} and saved.", error=False)
+            except Exception as exc:
+                self._set_status(f"Changed in memory; file write failed: {exc}", error=True)
+        else:
+            self._set_status(f"Changed {node_id} → {new_type.value} (not persisted).", error=True)
+
+        self._refresh()
+
+    # ── File persistence ───────────────────────────────────────────────────────
+
+    def _write_connection_to_file(self, id1: str, id2: str):
+        with open(self._source_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "    return tree" not in content:
+            raise ValueError("'return tree' not found in source file")
+        insert = f'    tree.add_connection("{id1}", "{id2}")\n'
+        content = content.replace("    return tree", insert + "    return tree", 1)
+        with open(self._source_file, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def _remove_connection_from_file(self, id1: str, id2: str):
+        with open(self._source_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        # Match either order
+        patterns = [
+            f'tree.add_connection("{id1}", "{id2}")',
+            f'tree.add_connection("{id2}", "{id1}")',
+        ]
+        new_lines = [l for l in lines if not any(p in l for p in patterns)]
+        if len(new_lines) == len(lines):
+            raise ValueError(f"Connection {id1} ↔ {id2} not found in source file")
+        with open(self._source_file, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+
+    def _write_node_type_to_file(self, node_id: str, new_type: NodeType, new_max: int):
+        with open(self._source_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        for i, line in enumerate(lines):
+            if f'id="{node_id}"' in line:
+                line = re.sub(r"node_type=NodeType\.\w+",
+                              f"node_type=NodeType.{new_type.name}", line)
+                line = re.sub(r"max_points=\d+", f"max_points={new_max}", line)
+                lines[i] = line
+                break
+        else:
+            raise ValueError(f"Node '{node_id}' not found in source file")
+        with open(self._source_file, "w", encoding="utf-8") as f:
+            f.writelines(lines)
