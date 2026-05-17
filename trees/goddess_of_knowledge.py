@@ -1,5 +1,6 @@
 from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
+from models.core_talent import CoreTalent, CoreTalentSlot
 
 
 def build_tree() -> PassiveTree:
@@ -61,4 +62,22 @@ def build_tree() -> PassiveTree:
     tree.add_connection("knowledge_c5_r3", "knowledge_c6_r3")
     tree.add_connection("knowledge_c5_r4", "knowledge_c6_r4")
 
+
+    # ── Core Talents ──────────────────────────────────────────────────────────
+    tree.add_core_talent_slot(CoreTalentSlot(
+        threshold=12,
+        options=[
+            CoreTalent(id="knowledge_ct12_1", name="Knowledge 1"),
+            CoreTalent(id="knowledge_ct12_2", name="Knowledge 2"),
+            CoreTalent(id="knowledge_ct12_3", name="Knowledge 3"),
+        ],
+    ))
+    tree.add_core_talent_slot(CoreTalentSlot(
+        threshold=24,
+        options=[
+            CoreTalent(id="knowledge_ct24_1", name="Knowledge 1"),
+            CoreTalent(id="knowledge_ct24_2", name="Knowledge 2"),
+            CoreTalent(id="knowledge_ct24_3", name="Knowledge 3"),
+        ],
+    ))
     return tree

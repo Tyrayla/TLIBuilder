@@ -1,5 +1,6 @@
 from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
+from models.core_talent import CoreTalent, CoreTalentSlot
 
 
 def build_tree() -> PassiveTree:
@@ -69,4 +70,15 @@ def build_tree() -> PassiveTree:
     tree.add_connection("assassin_c5_r1", "assassin_c6_r2")
     tree.add_connection("assassin_c5_r3", "assassin_c6_r3")
     tree.add_connection("assassin_c5_r4", "assassin_c6_r4")
+
+    # ── Core Talents ──────────────────────────────────────────────────────────
+    tree.add_core_talent_slot(CoreTalentSlot(
+        threshold=24,
+        options=[
+            CoreTalent(id="assassin_ct24_1", name="Assassin 1"),
+            CoreTalent(id="assassin_ct24_2", name="Assassin 2"),
+            CoreTalent(id="assassin_ct24_3", name="Assassin 3"),
+            CoreTalent(id="assassin_ct24_4", name="Assassin 4"),
+        ],
+    ))
     return tree

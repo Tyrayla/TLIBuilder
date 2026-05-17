@@ -1,5 +1,6 @@
 from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
+from models.core_talent import CoreTalent, CoreTalentSlot
 
 
 def build_tree() -> PassiveTree:
@@ -69,4 +70,15 @@ def build_tree() -> PassiveTree:
     tree.add_connection("shadowmaster_c5_r0", "shadowmaster_c6_r0")
     tree.add_connection("shadowmaster_c4_r0", "shadowmaster_c5_r1")
     tree.add_connection("shadowmaster_c5_r1", "shadowmaster_c6_r1")
+
+    # ── Core Talents ──────────────────────────────────────────────────────────
+    tree.add_core_talent_slot(CoreTalentSlot(
+        threshold=24,
+        options=[
+            CoreTalent(id="shadowmaster_ct24_1", name="Shadowmaster 1"),
+            CoreTalent(id="shadowmaster_ct24_2", name="Shadowmaster 2"),
+            CoreTalent(id="shadowmaster_ct24_3", name="Shadowmaster 3"),
+            CoreTalent(id="shadowmaster_ct24_4", name="Shadowmaster 4"),
+        ],
+    ))
     return tree
