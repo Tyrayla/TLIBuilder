@@ -1,5 +1,6 @@
 from typing import Dict, List
 from models.passive_node import PassiveNode, NodeType
+from models.core_talent import CoreTalentSlot
 
 COLUMN_COUNT = 7          # columns 0-6, displayed as 0, 3, 6, 9, 12, 15, 18
 
@@ -14,12 +15,16 @@ class PassiveTree:
         self.name = name
         self.nodes: Dict[str, PassiveNode] = {}
         self.connections: list[tuple[str, str]] = []
+        self.core_talent_slots: list[CoreTalentSlot] = []
 
     def add_node(self, node: PassiveNode):
         self.nodes[node.id] = node
 
     def add_connection(self, id1: str, id2: str):
         self.connections.append((id1, id2))
+
+    def add_core_talent_slot(self, slot: CoreTalentSlot):
+        self.core_talent_slots.append(slot)
 
     def nodes_in_column(self, col: int) -> List[PassiveNode]:
         return sorted(

@@ -1,5 +1,6 @@
 from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
+from models.core_talent import CoreTalent, CoreTalentSlot
 
 
 def build_tree() -> PassiveTree:
@@ -63,4 +64,22 @@ def build_tree() -> PassiveTree:
     tree.add_connection("deception_c4_r2", "deception_c5_r2")
     tree.add_connection("deception_c5_r3", "deception_c6_r3")
     tree.add_connection("deception_c5_r4", "deception_c6_r4")
+
+    # ── Core Talents ──────────────────────────────────────────────────────────
+    tree.add_core_talent_slot(CoreTalentSlot(
+        threshold=12,
+        options=[
+            CoreTalent(id="deception_ct12_1", name="Deception 1"),
+            CoreTalent(id="deception_ct12_2", name="Deception 2"),
+            CoreTalent(id="deception_ct12_3", name="Deception 3"),
+        ],
+    ))
+    tree.add_core_talent_slot(CoreTalentSlot(
+        threshold=24,
+        options=[
+            CoreTalent(id="deception_ct24_1", name="Deception 1"),
+            CoreTalent(id="deception_ct24_2", name="Deception 2"),
+            CoreTalent(id="deception_ct24_3", name="Deception 3"),
+        ],
+    ))
     return tree

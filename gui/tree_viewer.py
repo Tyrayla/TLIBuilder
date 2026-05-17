@@ -42,24 +42,33 @@ class CanvasTooltip:
         self._canvas = canvas
         self._text_func = text_func
         self._tip: tk.Toplevel | None = None
+        self._label: tk.Label | None = None
         canvas.tag_bind(tag, "<Enter>", self._show, add="+")
         canvas.tag_bind(tag, "<Leave>", self._hide, add="+")
-        canvas.tag_bind(tag, "<ButtonPress>", self._hide, add="+")
+        # No ButtonPress hide — tooltip stays open after a click so the
+        # updated pts/max value is immediately visible without re-hovering.
 
     def _show(self, event: tk.Event):
         text = self._text_func()
         if not text:
             return
-        self._hide(None)
+        if self._tip:
+            self.refresh()
+            return
         self._tip = tw = tk.Toplevel(self._canvas)
         tw.wm_overrideredirect(True)
         tw.wm_geometry(f"+{event.x_root + 16}+{event.y_root + 12}")
         tw.configure(bg=TOOLTIP_BORDER)
         inner = tk.Frame(tw, bg=TOOLTIP_BG, padx=6, pady=4)
         inner.pack(padx=1, pady=1)
-        tk.Label(inner, text=text, justify="left",
-                 bg=TOOLTIP_BG, fg=TOOLTIP_FG,
-                 font=("Segoe UI", 8)).pack()
+        self._label = tk.Label(inner, text=text, justify="left",
+                               bg=TOOLTIP_BG, fg=TOOLTIP_FG,
+                               font=("Segoe UI", 8))
+        self._label.pack()
+
+    def refresh(self):
+        if self._tip and self._label:
+            self._label.config(text=self._text_func())
 
     def _hide(self, event):
         if self._tip:
@@ -127,6 +136,15 @@ class TreeViewer(tk.Frame):
         tk.Label(left, text=self.tree.name,
                  font=("Segoe UI", 16, "bold"),
                  bg=BG_MAIN, fg=ACCENT).pack(side="left")
+
+        self._ct_btn = tk.Button(
+            left, text=self._ct_btn_label(),
+            font=("Segoe UI", 9), bg="#1e0e3a", fg="#c084fc",
+            activebackground="#3b1f6e", activeforeground="#e9d5ff",
+            relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
+            command=self._open_core_talent_overlay,
+        )
+        self._ct_btn.pack(side="left", padx=(14, 0))
 
         # Right: Debug toggle + points label
         right = tk.Frame(frame, bg=BG_MAIN)
@@ -382,6 +400,9 @@ class TreeViewer(tk.Frame):
                 if self._link_first == node.id:
                     self._canvas.itemconfig(oid, outline=LINK_PENDING, width=3)
 
+        for tt in self._tooltips:
+            tt.refresh()
+
     # ── Click handlers ─────────────────────────────────────────────────────────
 
     def _on_left_click(self, node_id: str, event: tk.Event | None = None):
@@ -433,7 +454,126 @@ class TreeViewer(tk.Frame):
 
     def _save(self):
         node_points = {nid: n.current_points for nid, n in self.tree.nodes.items()}
-        save_manager.save(self.tree.name, node_points)
+        core_talents = {str(s.threshold): s.selected_id
+                        for s in self.tree.core_talent_slots}
+        save_manager.save(self.tree.name, node_points, core_talents)
+
+    # ── Core Talent overlay ────────────────────────────────────────────────────
+
+    def _ct_btn_label(self) -> str:
+        slots = self.tree.core_talent_slots
+        if not slots:
+            return "Core Talents"
+        selected = sum(1 for s in slots if s.is_selected)
+        return f"Core Talents ({selected}/{len(slots)})"
+
+    def _update_ct_btn(self):
+        self._ct_btn.config(text=self._ct_btn_label())
+
+    def _open_core_talent_overlay(self):
+        if hasattr(self, "_ct_overlay") and self._ct_overlay and self._ct_overlay.winfo_exists():
+            self._dismiss_ct_overlay()
+            return
+        overlay = tk.Frame(self._canvas, bg="#06060f")
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.lift()
+        self._ct_overlay = overlay
+        self._build_ct_overlay_content(overlay)
+        self._bind_dismiss(overlay)
+
+    def _dismiss_ct_overlay(self):
+        if hasattr(self, "_ct_overlay") and self._ct_overlay and self._ct_overlay.winfo_exists():
+            self._ct_overlay.destroy()
+        self._ct_overlay = None
+
+    def _bind_dismiss(self, widget):
+        if not isinstance(widget, tk.Button):
+            widget.bind("<Button-1>", lambda e: self._dismiss_ct_overlay(), add="+")
+        for child in widget.winfo_children():
+            self._bind_dismiss(child)
+
+    def _build_ct_overlay_content(self, overlay: tk.Frame):
+        total = self.tree.total_points()
+        slots = self.tree.core_talent_slots
+
+        card = tk.Frame(overlay, bg="#0d1527", relief="flat", bd=0)
+        card.place(relx=0.5, rely=0.5, anchor="center")
+
+        # Accent top border
+        tk.Frame(card, bg=ACCENT, height=2).pack(fill="x")
+
+        # Title
+        tk.Label(card, text=f"Core Talents — {self.tree.name}",
+                 font=("Segoe UI", 13, "bold"), bg="#0d1527", fg=ACCENT,
+                 padx=24, pady=12).pack(anchor="w")
+
+        if not slots:
+            tk.Label(card, text="No core talents defined for this tree.",
+                     font=("Segoe UI", 10), bg="#0d1527", fg=FG_LOCKED_TEXT,
+                     padx=24, pady=8).pack()
+        else:
+            for slot in slots:
+                unlocked = total >= slot.threshold
+                self._build_ct_overlay_slot(card, slot, unlocked, total)
+
+        # Dismiss hint
+        tk.Label(card, text="Click anywhere outside to dismiss",
+                 font=("Segoe UI", 8, "italic"), bg="#0d1527", fg="#444466",
+                 pady=10).pack()
+
+    def _build_ct_overlay_slot(self, card: tk.Frame, slot, unlocked: bool, total: int):
+        # Slot header
+        hdr = tk.Frame(card, bg="#0d1527")
+        hdr.pack(fill="x", padx=24, pady=(6, 2))
+        tk.Label(hdr, text=f"Threshold: {slot.threshold} pts",
+                 font=("Segoe UI", 10, "bold"), bg="#0d1527", fg=FG_HEADER
+                 ).pack(side="left")
+        if unlocked:
+            if slot.is_selected:
+                status_text = f"  — {slot.selected_talent().name} selected"
+                status_fg = STATUS_OK
+            else:
+                status_text = "  — choose one"
+                status_fg = "#c084fc"
+        else:
+            status_text = f"  — need {slot.threshold - total} more pts"
+            status_fg = FG_LOCKED_TEXT
+        tk.Label(hdr, text=status_text, font=("Segoe UI", 9, "italic"),
+                 bg="#0d1527", fg=status_fg).pack(side="left")
+
+        tk.Frame(card, bg="#1e2040", height=1).pack(fill="x", padx=24, pady=(2, 6))
+
+        # Option buttons
+        opts = tk.Frame(card, bg="#0d1527")
+        opts.pack(padx=24, pady=(0, 12))
+        for talent in slot.options:
+            is_sel = slot.selected_id == talent.id
+            if not unlocked:
+                bg, fg, border_col, state = BTN_LOCKED_BG, BTN_LOCKED_FG, BTN_LOCKED_OUT, "disabled"
+            elif is_sel:
+                bg, fg, border_col, state = BTN_FULL_BG, BTN_FULL_FG, ACCENT, "normal"
+            else:
+                bg, fg, border_col, state = BTN_NORMAL_BG, BTN_NORMAL_FG, "#2a2a5a", "normal"
+
+            wrap = tk.Frame(opts, bg=border_col, padx=1, pady=1)
+            wrap.pack(side="left", padx=(0, 10))
+            tk.Button(
+                wrap, text=talent.name,
+                font=("Segoe UI", 10), width=12, height=2,
+                bg=bg, fg=fg,
+                activebackground="#1a4a8a", activeforeground="#ffffff",
+                relief="flat", bd=0, state=state,
+                command=lambda s=slot, t=talent: self._select_core_talent(s, t),
+            ).pack()
+
+    def _select_core_talent(self, slot, talent):
+        if slot.selected_id == talent.id:
+            slot.selected_id = None
+        else:
+            slot.selected_id = talent.id
+        self._save()
+        self._update_ct_btn()
+        self._dismiss_ct_overlay()
 
     # ── Debug mode toggle ──────────────────────────────────────────────────────
 
