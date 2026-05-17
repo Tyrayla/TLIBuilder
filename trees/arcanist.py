@@ -53,4 +53,20 @@ def build_tree() -> PassiveTree:
     # ── Connections ────────────────────────────────────────────────────────────
     # tree.add_connection("arcanist_cCOL_rROW", "arcanist_cCOL_rROW")
 
+    tree.add_connection("arcanist_c0_r0", "arcanist_c1_r0")
+    tree.add_connection("arcanist_c1_r1", "arcanist_c2_r1")
+    tree.add_connection("arcanist_c0_r2", "arcanist_c1_r2")
+    tree.add_connection("arcanist_c1_r3", "arcanist_c2_r3")
+    tree.add_connection("arcanist_c0_r4", "arcanist_c1_r4")
+    tree.add_connection("arcanist_c2_r4", "arcanist_c3_r4")
+    tree.add_connection("arcanist_c3_r3", "arcanist_c4_r3")
+    tree.add_connection("arcanist_c5_r3", "arcanist_c6_r3")
+    tree.add_connection("arcanist_c5_r4", "arcanist_c6_r4")
+    tree.add_connection("arcanist_c5_r1", "arcanist_c6_r1")
+    tree.add_connection("arcanist_c5_r0", "arcanist_c6_r0")
+    tree.add_connection("arcanist_c4_r2", "arcanist_c5_r2")
+    tree.add_connection("arcanist_c2_r0", "arcanist_c3_r0")
+    tree.add_connection("arcanist_c3_r1", "arcanist_c4_r0")
+    tree.add_connection("arcanist_c3_r1", "arcanist_c4_r1")
+    tree.add_connection("arcanist_c2_r2", "arcanist_c3_r2")
     return tree

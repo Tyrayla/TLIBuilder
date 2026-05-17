@@ -47,4 +47,18 @@ def build_tree() -> PassiveTree:
     # ── Connections ────────────────────────────────────────────────────────────
     # tree.add_connection("hunting_cCOL_rROW", "hunting_cCOL_rROW")
 
+    tree.add_connection("hunting_c0_r2", "hunting_c1_r2")
+    tree.add_connection("hunting_c1_r1", "hunting_c2_r1")
+    tree.add_connection("hunting_c1_r3", "hunting_c2_r3")
+    tree.add_connection("hunting_c2_r2", "hunting_c3_r2")
+    tree.add_connection("hunting_c2_r4", "hunting_c3_r4")
+    tree.add_connection("hunting_c3_r3", "hunting_c4_r3")
+    tree.add_connection("hunting_c3_r1", "hunting_c4_r1")
+    tree.add_connection("hunting_c4_r0", "hunting_c5_r0")
+    tree.add_connection("hunting_c5_r0", "hunting_c6_r0")
+    tree.add_connection("hunting_c4_r0", "hunting_c5_r1")
+    tree.add_connection("hunting_c5_r1", "hunting_c6_r1")
+    tree.add_connection("hunting_c5_r2", "hunting_c6_r2")
+    tree.add_connection("hunting_c5_r3", "hunting_c6_r3")
+    tree.add_connection("hunting_c4_r4", "hunting_c5_r4")
     return tree

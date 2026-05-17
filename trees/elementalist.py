@@ -53,4 +53,22 @@ def build_tree() -> PassiveTree:
     # ── Connections ────────────────────────────────────────────────────────────
     # tree.add_connection("elementalist_cCOL_rROW", "elementalist_cCOL_rROW")
 
+    tree.add_connection("elementalist_c0_r0", "elementalist_c1_r0")
+    tree.add_connection("elementalist_c1_r1", "elementalist_c2_r1")
+    tree.add_connection("elementalist_c0_r2", "elementalist_c1_r2")
+    tree.add_connection("elementalist_c1_r3", "elementalist_c2_r3")
+    tree.add_connection("elementalist_c0_r4", "elementalist_c1_r4")
+    tree.add_connection("elementalist_c2_r4", "elementalist_c3_r4")
+    tree.add_connection("elementalist_c2_r2", "elementalist_c3_r2")
+    tree.add_connection("elementalist_c2_r0", "elementalist_c3_r0")
+    tree.add_connection("elementalist_c4_r0", "elementalist_c5_r0")
+    tree.add_connection("elementalist_c5_r0", "elementalist_c6_r0")
+    tree.add_connection("elementalist_c4_r0", "elementalist_c5_r1")
+    tree.add_connection("elementalist_c5_r1", "elementalist_c6_r1")
+    tree.add_connection("elementalist_c4_r2", "elementalist_c5_r2")
+    tree.add_connection("elementalist_c5_r3", "elementalist_c6_r2")
+    tree.add_connection("elementalist_c6_r3", "elementalist_c5_r3")
+    tree.add_connection("elementalist_c5_r3", "elementalist_c6_r4")
+    tree.add_connection("elementalist_c4_r4", "elementalist_c5_r4")
+    tree.add_connection("elementalist_c3_r1", "elementalist_c4_r1")
     return tree

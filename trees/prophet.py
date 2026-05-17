@@ -53,4 +53,21 @@ def build_tree() -> PassiveTree:
     # ── Connections ────────────────────────────────────────────────────────────
     # tree.add_connection("prophet_cCOL_rROW", "prophet_cCOL_rROW")
 
+    tree.add_connection("prophet_c0_r0", "prophet_c1_r0")
+    tree.add_connection("prophet_c0_r2", "prophet_c1_r2")
+    tree.add_connection("prophet_c0_r4", "prophet_c1_r4")
+    tree.add_connection("prophet_c1_r3", "prophet_c2_r3")
+    tree.add_connection("prophet_c1_r1", "prophet_c2_r1")
+    tree.add_connection("prophet_c2_r0", "prophet_c3_r0")
+    tree.add_connection("prophet_c2_r1", "prophet_c3_r1")
+    tree.add_connection("prophet_c3_r2", "prophet_c2_r2")
+    tree.add_connection("prophet_c3_r3", "prophet_c4_r3")
+    tree.add_connection("prophet_c3_r4", "prophet_c4_r4")
+    tree.add_connection("prophet_c4_r0", "prophet_c5_r0")
+    tree.add_connection("prophet_c5_r0", "prophet_c6_r0")
+    tree.add_connection("prophet_c4_r1", "prophet_c5_r1")
+    tree.add_connection("prophet_c5_r1", "prophet_c6_r1")
+    tree.add_connection("prophet_c4_r2", "prophet_c5_r2")
+    tree.add_connection("prophet_c5_r3", "prophet_c6_r3")
+    tree.add_connection("prophet_c5_r4", "prophet_c6_r4")
     return tree

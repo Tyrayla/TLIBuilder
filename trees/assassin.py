@@ -52,4 +52,21 @@ def build_tree() -> PassiveTree:
     # ── Connections ────────────────────────────────────────────────────────────
     # tree.add_connection("assassin_cCOL_rROW", "assassin_cCOL_rROW")
 
+    tree.add_connection("assassin_c0_r0", "assassin_c1_r0")
+    tree.add_connection("assassin_c0_r2", "assassin_c1_r2")
+    tree.add_connection("assassin_c0_r4", "assassin_c1_r4")
+    tree.add_connection("assassin_c1_r3", "assassin_c2_r3")
+    tree.add_connection("assassin_c2_r2", "assassin_c3_r2")
+    tree.add_connection("assassin_c1_r1", "assassin_c2_r1")
+    tree.add_connection("assassin_c2_r0", "assassin_c3_r0")
+    tree.add_connection("assassin_c3_r1", "assassin_c4_r1")
+    tree.add_connection("assassin_c3_r3", "assassin_c4_r2")
+    tree.add_connection("assassin_c3_r3", "assassin_c4_r3")
+    tree.add_connection("assassin_c2_r4", "assassin_c3_r4")
+    tree.add_connection("assassin_c3_r4", "assassin_c4_r4")
+    tree.add_connection("assassin_c5_r1", "assassin_c6_r0")
+    tree.add_connection("assassin_c5_r1", "assassin_c6_r1")
+    tree.add_connection("assassin_c5_r1", "assassin_c6_r2")
+    tree.add_connection("assassin_c5_r3", "assassin_c6_r3")
+    tree.add_connection("assassin_c5_r4", "assassin_c6_r4")
     return tree
