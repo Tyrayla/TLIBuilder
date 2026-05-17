@@ -5,7 +5,7 @@ from gui.app import App
 def main():
     root = tk.Tk()
     root.title("TLI Passive Planner")
-    root.minsize(900, 500)
+    root.minsize(980, 640)
     App(root)
     root.mainloop()
 
