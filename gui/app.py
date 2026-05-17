@@ -8,7 +8,7 @@ class App:
         self.root.configure(bg="#1a1a2e")
         self.root.minsize(900, 500)
         self._current: tk.Frame | None = None
-        self.selected_trees: list[str] = []
+        self.selected_trees: list[str | None] = [None, None, None, None]
         self.show_module_selector()
 
     # ── Screen switching ───────────────────────────────────────────────────────

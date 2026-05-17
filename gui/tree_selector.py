@@ -2,10 +2,13 @@ import tkinter as tk
 from trees.registry import TREES
 from gui.sidebar import ActiveTreesSidebar
 
-BG     = "#1a1a2e"
-ACCENT = "#e94560"
-FG_HEADER = "#e0e0e0"
-FG_NAME   = "#ffffff"
+BG          = "#1a1a2e"
+ACCENT      = "#e94560"
+FG_HEADER   = "#e0e0e0"
+FG_NAME     = "#ffffff"
+BG_BLOCKED  = "#1e1e2a"
+FG_BLOCKED  = "#444455"
+OUT_BLOCKED = "#2a2a3a"
 
 GROUPS = [
     ("God of Might",         ["The Brave", "Onslaughter", "Warlord", "Warrior"]),
@@ -15,6 +18,8 @@ GROUPS = [
     ("Goddess of Deception", ["Shadowmaster", "Psychic", "Warlock", "Lich"]),
     ("God of Machines",      ["Machinist", "Steel Vanguard", "Alchemist", "Artisan"]),
 ]
+
+PRIMARIES = {g[0] for g in GROUPS}
 
 
 class TreeSelector(tk.Frame):
@@ -74,10 +79,7 @@ class TreeSelector(tk.Frame):
                 self._make_card(grid_frame, name, TREES[name]["color"], col_idx, row_idx)
 
     def _make_card(self, parent, name: str, color: str, col: int, row: int):
-        is_selected = name in self.app.selected_trees
-        border_color = ACCENT if is_selected else color
-
-        border = tk.Frame(parent, bg=border_color, padx=2, pady=2)
+        border = tk.Frame(parent, bg=color, padx=2, pady=2)
         border.grid(row=row, column=col, padx=5, pady=4, sticky="nsew")
         self._card_borders[name] = border
 
@@ -94,44 +96,134 @@ class TreeSelector(tk.Frame):
         ).pack(expand=True)
 
         btn = tk.Button(
-            card,
-            text="Remove" if is_selected else "Select",
+            card, text="Select",
             font=("Segoe UI", 8, "bold"),
-            bg=ACCENT if is_selected else color, fg="#ffffff",
+            fg="#ffffff",
             activebackground=ACCENT,
             relief="flat", bd=0, padx=8, pady=4,
-            cursor="hand2",
             command=lambda n=name: self._select(n),
         )
         btn.pack(pady=(4, 0))
         self._card_btns[name] = btn
 
+        self._update_card(name)
+
     # ── Select / deselect ──────────────────────────────────────────────────────
 
+    def _has_valid_primary(self) -> bool:
+        return self.app.selected_trees[0] is not None
+
+    def _get_primary_group(self) -> set[str]:
+        primary = self.app.selected_trees[0]
+        if primary is None:
+            return set()
+        for p, secs in GROUPS:
+            if p == primary:
+                return set(secs)
+        return set()
+
+    def _has_valid_secondary(self) -> bool:
+        return self.app.selected_trees[1] is not None
+
+    def _is_blocked(self, name: str) -> bool:
+        trees = self.app.selected_trees
+        if name in PRIMARIES:
+            # Slot 0 is taken by a different primary
+            return trees[0] is not None
+        group = self._get_primary_group()
+        if name in group:
+            if trees[0] is None:
+                return True  # No primary yet
+            if trees[1] is None:
+                return False  # Slot 1 is open — this tree can fill it
+            # Slot 1 taken; this tree can still go into slots 2 or 3
+            return trees[2] is not None and trees[3] is not None
+        # Foreign secondary: needs primary + matched secondary, and a free slot 2 or 3
+        if trees[0] is None or trees[1] is None:
+            return True
+        return trees[2] is not None and trees[3] is not None
+
+    def _refresh_all_cards(self):
+        for name in self._card_btns:
+            self._update_card(name)
+
     def _select(self, name: str):
-        if name in self.app.selected_trees:
-            self.app.selected_trees.remove(name)
-            self._update_card(name)
+        trees = self.app.selected_trees
+        slot = next((i for i, t in enumerate(trees) if t == name), None)
+
+        if slot is not None:
+            # Removing — cascade based on which slot
+            if slot == 0:
+                for i in range(4):
+                    trees[i] = None
+            elif slot == 1:
+                trees[1] = None
+                # Promote any group subtree sitting in slots 2/3 up to slot 1
+                group = self._get_primary_group()
+                for i in [2, 3]:
+                    if trees[i] is not None and trees[i] in group:
+                        trees[1] = trees[i]
+                        trees[i] = None
+                        break
+            else:
+                trees[slot] = None
+            self._refresh_all_cards()
             self._sidebar.refresh()
-        elif len(self.app.selected_trees) >= 4:
-            self._set_status("Max 4 trees selected.")
+        elif self._is_blocked(name):
+            if name in PRIMARIES:
+                self._set_status("Only 1 base tree allowed. Remove your current base tree first.")
+            elif trees[0] is None:
+                self._set_status("Select a base tree first.")
+            else:
+                self._set_status("Select a tree from your base group for slot 2 first.")
         else:
-            self.app.selected_trees.append(name)
-            self._update_card(name)
+            # Adding — assign to the correct slot
+            if name in PRIMARIES:
+                trees[0] = name
+            elif name in self._get_primary_group():
+                if trees[1] is None:
+                    trees[1] = name
+                else:
+                    for i in [2, 3]:
+                        if trees[i] is None:
+                            trees[i] = name
+                            break
+            else:
+                for i in [2, 3]:
+                    if trees[i] is None:
+                        trees[i] = name
+                        break
+            self._refresh_all_cards()
             self._sidebar.refresh()
-            tree = TREES[name]["builder"]()
-            self.app.show_tree_viewer(tree)
+            tree_obj = TREES[name]["builder"]()
+            self.app.show_tree_viewer(tree_obj)
 
     def _update_card(self, name: str):
         is_sel = name in self.app.selected_trees
+        is_blocked = self._is_blocked(name)
         color = TREES[name]["color"]
+
         btn = self._card_btns.get(name)
-        if btn:
-            btn.config(text="Remove" if is_sel else "Select",
-                       bg=ACCENT if is_sel else color)
         border = self._card_borders.get(name)
-        if border:
-            border.config(bg=ACCENT if is_sel else color)
+
+        if is_sel:
+            if btn:
+                btn.config(text="Remove", bg=ACCENT, fg="#ffffff",
+                           state="normal", cursor="hand2")
+            if border:
+                border.config(bg=ACCENT)
+        elif is_blocked:
+            if btn:
+                btn.config(text="Select", bg=BG_BLOCKED, fg=FG_BLOCKED,
+                           state="disabled", cursor="")
+            if border:
+                border.config(bg=OUT_BLOCKED)
+        else:
+            if btn:
+                btn.config(text="Select", bg=color, fg="#ffffff",
+                           state="normal", cursor="hand2")
+            if border:
+                border.config(bg=color)
 
     def _set_status(self, message: str):
         if self._status_label:

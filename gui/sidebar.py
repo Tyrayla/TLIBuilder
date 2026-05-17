@@ -51,8 +51,8 @@ class ActiveTreesSidebar(tk.Frame):
             self._slot_btns.append(btn)
 
     def _slot_label(self, idx: int) -> str:
-        trees = self.app.selected_trees
-        return trees[idx] if idx < len(trees) else "— Empty —"
+        val = self.app.selected_trees[idx]
+        return val if val is not None else "— Empty —"
 
     def refresh(self):
         for i, btn in enumerate(self._slot_btns):
@@ -63,8 +63,9 @@ class ActiveTreesSidebar(tk.Frame):
             self._on_overview()
 
     def _open_slot(self, idx: int):
-        trees = self.app.selected_trees
-        if idx < len(trees):
-            name = trees[idx]
-            tree = TREES[name]["builder"]()
+        val = self.app.selected_trees[idx]
+        if val is not None:
+            tree = TREES[val]["builder"]()
             self.app.show_tree_viewer(tree)
+        elif self._on_overview:
+            self._on_overview()
