@@ -12,8 +12,8 @@ from trees.registry import TREES
 
 COLUMN_LABELS = [col * 3 for col in range(COLUMN_COUNT)]
 ROW_COUNT = 5
-HEADER_H  = 28   # px at top of canvas for column label + lock text
-NODE_R    = 30   # circle radius (diameter = 60 px)
+HEADER_H  = 32   # px at top of canvas for column label + lock text
+NODE_R    = 32   # circle radius (diameter = 64 px)
 
 BG_MAIN        = "#1a1a2e"
 FG_HEADER      = "#e0e0e0"
@@ -107,6 +107,7 @@ class TreeViewer(tk.Frame):
         sidebar = ActiveTreesSidebar(
             main_row, app,
             on_overview=app.show_tree_selector,
+            current_tree=self.tree.name,
         )
         sidebar.pack(side="left", fill="y")
 
@@ -140,7 +141,7 @@ class TreeViewer(tk.Frame):
         ).pack(side="left", padx=(0, 12))
         tk.Label(left, text=self.tree.name,
                  font=("Segoe UI", 16, "bold"),
-                 bg=BG_MAIN, fg=ACCENT).pack(side="left")
+                 bg=BG_MAIN, fg=TREES[self.tree.name]["color"]).pack(side="left")
 
         self._ct_btn = tk.Button(
             left, text=self._ct_btn_label(),
@@ -199,7 +200,7 @@ class TreeViewer(tk.Frame):
         self._debug_bar = bar
 
         tk.Label(bar, text="Debug:", bg=DEBUG_BAR_BG, fg="#6bcb77",
-                 font=("Segoe UI", 8, "bold")).pack(side="left", padx=(10, 8))
+                 font=("Segoe UI", 9, "bold")).pack(side="left", padx=(10, 8))
 
         self._link_btn = tk.Button(
             bar, text="Link",
@@ -230,12 +231,12 @@ class TreeViewer(tk.Frame):
 
         tk.Label(bar, text="— right-click cancels selection",
                  bg=DEBUG_BAR_BG, fg="#555577",
-                 font=("Segoe UI", 8, "italic")).pack(side="left", padx=(8, 0))
+                 font=("Segoe UI", 9, "italic")).pack(side="left", padx=(8, 0))
 
         if not self._source_file:
             tk.Label(bar, text="  ⚠ source file not found — changes will not persist",
                      bg=DEBUG_BAR_BG, fg=STATUS_ERROR,
-                     font=("Segoe UI", 8)).pack(side="left", padx=(8, 0))
+                     font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
 
     # ── Status bar ─────────────────────────────────────────────────────────────
 
@@ -277,12 +278,12 @@ class TreeViewer(tk.Frame):
         for col in range(COLUMN_COUNT):
             lbl = self._canvas.create_text(
                 0, 0, text=str(COLUMN_LABELS[col]),
-                font=("Segoe UI", 10, "bold"), fill=FG_HEADER)
+                font=("Segoe UI", 11, "bold"), fill=FG_HEADER)
             self._col_label_items[col] = lbl
 
             lck = self._canvas.create_text(
                 0, 0, text="",
-                font=("Segoe UI", 7, "italic"), fill=FG_LOCKED_TEXT)
+                font=("Segoe UI", 9, "italic"), fill=FG_LOCKED_TEXT)
             self._col_lock_items[col] = lck
 
         # Node circles — highest z-order
@@ -296,7 +297,7 @@ class TreeViewer(tk.Frame):
                 tags=("node", nid))
             text_id = self._canvas.create_text(
                 0, 0, text=f"{pts}/{mx}",
-                font=("Segoe UI", 9, "bold"), fill=BTN_NORMAL_FG,
+                font=("Segoe UI", 10, "bold"), fill=BTN_NORMAL_FG,
                 tags=("node", nid))
 
             self._node_oval_items[nid] = oval_id
@@ -1071,7 +1072,7 @@ class TreeViewer(tk.Frame):
                   relief="flat", bd=0, padx=14, pady=4, cursor="hand2",
                   command=cancel).pack(side="left")
         tk.Label(btn_frame, text="Click outside to cancel",
-                 font=("Segoe UI", 8, "italic"),
+                 font=("Segoe UI", 9, "italic"),
                  bg="#0d1527", fg="#444466").pack(side="left", padx=(16, 0))
 
     def _save_node_stats(self, node):

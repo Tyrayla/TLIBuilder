@@ -24,7 +24,7 @@ class ModuleSelector(tk.Frame):
     def _build(self):
         # Title
         tk.Label(
-            self, text="TLI Passive Planner",
+            self, text="TLI Planner",
             font=("Segoe UI", 22, "bold"),
             bg=BG, fg=ACCENT,
         ).pack(pady=(60, 8))
