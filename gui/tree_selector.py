@@ -69,9 +69,9 @@ class TreeSelector(tk.Frame):
         grid_frame.pack(side="left", fill="both", expand=True)
 
         for col_idx in range(6):
-            grid_frame.columnconfigure(col_idx, weight=1, minsize=130)
+            grid_frame.columnconfigure(col_idx, weight=1, minsize=145)
         for row_idx in range(5):
-            grid_frame.rowconfigure(row_idx, weight=1, minsize=100)
+            grid_frame.rowconfigure(row_idx, weight=1, minsize=110)
 
         for col_idx, (primary, secondaries) in enumerate(GROUPS):
             self._make_card(grid_frame, primary, TREES[primary]["color"], col_idx, 0)
@@ -90,14 +90,14 @@ class TreeSelector(tk.Frame):
 
         tk.Label(
             card, text=name,
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 10, "bold"),
             bg="#111122", fg=FG_NAME,
-            wraplength=115, justify="center",
+            wraplength=130, justify="center",
         ).pack(expand=True)
 
         btn = tk.Button(
             card, text="Select",
-            font=("Segoe UI", 8, "bold"),
+            font=("Segoe UI", 9, "bold"),
             fg="#ffffff",
             activebackground=ACCENT,
             relief="flat", bd=0, padx=8, pady=4,

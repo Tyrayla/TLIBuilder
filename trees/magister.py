@@ -57,7 +57,6 @@ def build_tree() -> PassiveTree:
 
     tree.add_connection("magister_c0_r0", "magister_c1_r0")
     tree.add_connection("magister_c1_r1", "magister_c2_r1")
-    tree.add_connection("magister_c1_r2", "magister_c1_r3")
     tree.add_connection("magister_c0_r4", "magister_c1_r4")
     tree.add_connection("magister_c1_r3", "magister_c2_r3")
     tree.add_connection("magister_c2_r4", "magister_c3_r4")
@@ -83,4 +82,5 @@ def build_tree() -> PassiveTree:
             CoreTalent(id="magister_ct24_4", name="Magister 4"),
         ],
     ))
+    tree.add_connection("magister_c0_r2", "magister_c1_r2")
     return tree

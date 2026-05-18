@@ -6,7 +6,7 @@ class App:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.configure(bg="#1a1a2e")
-        self.root.minsize(900, 500)
+        self.root.minsize(1100, 680)
         self._current: tk.Frame | None = None
         self.selected_trees: list[str | None] = [None, None, None, None]
         self.show_module_selector()
@@ -29,5 +29,5 @@ class App:
 
     def show_tree_viewer(self, tree):
         from gui.tree_viewer import TreeViewer
-        self.root.title(f"TLI Passive Planner — {tree.name}")
+        self.root.title(f"TLI Planner — {tree.name}")
         self.show(TreeViewer, tree=tree)
