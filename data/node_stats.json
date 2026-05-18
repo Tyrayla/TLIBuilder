@@ -1,0 +1,14 @@
+{
+  "Goddess of Knowledge": {
+    "knowledge_c0_r2": [
+      {
+        "stat": "spell_dmg_inc",
+        "values": [
+          0.09,
+          0.18,
+          0.27
+        ]
+      }
+    ]
+  }
+}

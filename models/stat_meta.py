@@ -128,7 +128,7 @@ STAT_META: dict[Stat, StatMeta] = {
     # ── Elemental ─────────────────────────────────────────────────────────────
     Stat.ELEMENTAL_DMG_INC:        StatMeta("Increased Elemental Damage",   "Elemental", "increased",  "%"),
     Stat.ELEMENTAL_DMG_ADDITIONAL: StatMeta("Additional Elemental Damage",  "Elemental", "additional", "%"),
-    Stat.ELEMENETAL_PEN:           StatMeta("Elemental Penetration",        "Elemental", "penetration","%"),
+    Stat.ELEMENTAL_PEN:           StatMeta("Elemental Penetration",        "Elemental", "penetration","%"),
 
     # ── Steep Strike ──────────────────────────────────────────────────────────
     Stat.STEEP_STRIKE_CHANCE:        StatMeta("Steep Strike Chance",             "Steep Strike", "chance",     "%"),
