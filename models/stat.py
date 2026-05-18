@@ -19,35 +19,70 @@ class Stat(Enum):
     DEXTERITY = "dexterity"
     INTELLIGENCE = "intelligence"
 
-    # ── Baseline/MISC ──────────────────────────────────────────────────────────────
+    # ── Generic ──────────────────────────────────────────────────────────────
     ARMOR_PEN = "armor_pen"
     DOUBLE_DMG_CHANCE = "double_dmg_chance"
+    DMG_INC = "dmg_inc"
+    DMG_ADDITIONAL = "dmg_additional"
+    ALL_SKILL_LEVEL = "all_skill_level"
+    ACTIVE_SKILL_LEVEL = "active_skill_level"
+    SUPPORT_SKILL_LEVEL = "support_skill_level"
 
-    # ── Attack Damage ─────────────────────────────────────────────────────────
+    # ── Attack ─────────────────────────────────────────────────────────
     ATTACK_DMG_INC = "attack_dmg_inc"
     ATTACK_DMG_ADDITIONAL = "attack_dmg_additional"
     ATTACK_DOUBLE_DMG_CHANCE = "attack_double_dmg_chance"
+    ATTACK_SKILL_LEVEL = "attack_skill_level"
 
-    # ── Spell Damage ──────────────────────────────────────────────────────────
+    # ── Spell ──────────────────────────────────────────────────────────
     SPELL_DMG_INC = "spell_dmg_inc"
     SPELL_DMG_ADDITIONAL = "spell_dmg_additional"
     SPELL_DOUBLE_DMG_CHANCE = "spell_double_dmg_chance"
+    SPELL_SKILL_LEVEL = "spell_skill_level"
 
-    # ── Minion Damage ─────────────────────────────────────────────────────────
+    # ── Melee ─────────────────────────────────────────────────────────
+    MELEE_DMG_INC = "melee_dmg_inc"
+    MELEE_DMG_ADDITIONAL = "melee_dmg_additional"
+    MELEE_SKILL_LEVEL = "melee_skill_level"
+
+    # ── Area ─────────────────────────────────────────────────────────
+    AREA_DMG_INC = "area_dmg_inc"
+    AREA_DMG_ADDITIONAL = "area_dmg_additional"
+
+    # ── Projectile ─────────────────────────────────────────────────────────
+    PROJECTILE_DMG_INC = "projectile_dmg_inc"
+    PROJECTILE_DMG_ADDITIONAL = "projectile_dmg_additional"
+    PROJECTILE_SPEED_INC = "projectile_speed_inc"
+    PROJECTILE_SKILL_LEVEL = "projectile_skill_level"
+
+    # ── Minion ─────────────────────────────────────────────────────────
     MINION_DMG_INC = "minion_dmg_inc"
     MINION_DMG_ADDITIONAL = "minion_dmg_additional"
     MINION_DOUBLE_DMG_CHANCE = "minion_double_dmg_chance"
+    MINION_SKILL_LEVEL = "minion_skill_level"
+    
+    # Synthetic Troops
+    SYNTH_DOUBLE_DMG_CHANCE = "synth_double_dmg_chance"
+    SYNTH_SKILL_LEVEL = "synth_skill_level"
 
-    # ── Sentry Damage ─────────────────────────────────────────────────────────
+    # Spirit Magi
+
+    # ── Sentry ─────────────────────────────────────────────────────────
     SENTRY_DMG_ADDITIONAL = "sentry_dmg_additional"
     SENTRY_SKILL_CAST_FREQUENCY_INC = "sentry_skill_cast_frequency_inc"
-    SENTRY_SKILL_FREQUENCY_ADDITIONAL = "sentry_skill_frequency_additional"
+    SENTRY_SKILL_CAST_FREQUENCY_ADDITIONAL = "sentry_skill_cast_frequency_additional"
 
-    # ── Physical Damage ───────────────────────────────────────────────────────
-    PHYS_DMG_INC = "phys_dmg_inc"
-    PHYS_DMG_ADDITIONAL = "phys_dmg_additional"
+    # ── Physical ───────────────────────────────────────────────────────
+    PHYSICAL_DMG_INC = "physical_dmg_inc"
+    PHYSICAL_DMG_ADDITIONAL = "physical_dmg_additional"
+    PHYSICAL_AS_LIGHTNING = "physical_as_lightning"
+    PHYSICAL_AS_COLD = "physical_as_cold"
+    PHYSICAL_AS_FIRE = "physical_as_fire"
+    PHYSICAL_AS_EROSION = "physical_as_erosion"
+    PHYSICAL_SKILL_LEVEL = "physical_skill_level"
+    
 
-    # ── Lightning Damage ──────────────────────────────────────────────────────
+    # ── Lightning ──────────────────────────────────────────────────────
     LIGHTNING_DMG_INC = "lightning_dmg_inc"
     LIGHTNING_DMG_ADDITIONAL = "lightning_dmg_additional"
     LIGHTNING_PEN = "lightning_pen"
@@ -55,8 +90,9 @@ class Stat(Enum):
     LIGHTNING_ATTACK_DMG_FLAT_MAX = "lightning_attack_dmg_flat_max"
     LIGHTNING_SPELL_DMG_FLAT_MIN = "lightning_spell_dmg_flat_min"
     LIGHTNING_SPELL_DMG_FLAT_MAX = "lightning_spell_dmg_flat_max"
+    LIGHTNING_SKILL_LEVEL = "lightning_skill_level"
 
-    # ── Cold Damage ───────────────────────────────────────────────────────────
+    # ── Cold ───────────────────────────────────────────────────────────
     COLD_DMG_INC = "cold_dmg_inc"
     COLD_DMG_ADDITIONAL = "cold_dmg_additional"
     COLD_PEN = "cold_pen"
@@ -64,8 +100,9 @@ class Stat(Enum):
     COLD_ATTACK_DMG_FLAT_MAX = "cold_attack_dmg_flat_max"
     COLD_SPELL_DMG_FLAT_MIN = "cold_spell_dmg_flat_min"
     COLD_SPELL_DMG_FLAT_MAX = "cold_spell_dmg_flat_max"
+    COLD_SKILL_LEVEL = "cold_skill_level"
 
-    # ── Fire Damage ───────────────────────────────────────────────────────────
+    # ── Fire ───────────────────────────────────────────────────────────
     FIRE_DMG_INC = "fire_dmg_inc"
     FIRE_DMG_ADDITIONAL = "fire_dmg_additional"
     FIRE_PEN = "fire_pen"
@@ -73,8 +110,9 @@ class Stat(Enum):
     FIRE_ATTACK_DMG_FLAT_MAX = "fire_attack_dmg_flat_max"
     FIRE_SPELL_DMG_FLAT_MIN = "fire_spell_dmg_flat_min"
     FIRE_SPELL_DMG_FLAT_MAX = "fire_spell_dmg_flat_max"
+    FIRE_SKILL_LEVEL = "fire_skill_level"
 
-    # ── Erosion Damage ────────────────────────────────────────────────────────
+    # ── Erosion ────────────────────────────────────────────────────────
     EROSION_DMG_INC = "erosion_dmg_inc"
     EROSION_DMG_ADDITIONAL = "erosion_dmg_additional"
     EROSION_PEN = "erosion_pen"
@@ -82,11 +120,17 @@ class Stat(Enum):
     EROSION_ATTACK_DMG_FLAT_MAX = "erosion_attack_dmg_flat_max"
     EROSION_SPELL_DMG_FLAT_MIN = "erosion_spell_dmg_flat_min"
     EROSION_SPELL_DMG_FLAT_MAX = "erosion_spell_dmg_flat_max"
+    EROSION_SKILL_LEVEL = "erosion_skill_level"
 
-    # ── Elemental Damage ──────────────────────────────────────────────────────
+    # ── Elemental ───────────────────────────────────────────────────────────
     ELEMENTAL_DMG_INC = "elemental_dmg_inc"
     ELEMENTAL_DMG_ADDITIONAL = "elemental_dmg_additional"
-    ELEMENETAL_PEN = "elemental_pen"
+    ELEMENTAL_PEN = "elemental_pen"
+
+    # ── Steep Strike ───────────────────────────────────────────────────────────
+    STEEP_STRIKE_CHANCE = "steep_strike_chance"
+    STEEP_STRIKE_ADDITIONAL_DMG = "steep_strike_additional_dmg"
+    SWEEP_SLASH_ADDITIONAL_DMG = "sweep_slash_additional_dmg"
 
     # ── Cast Speed ────────────────────────────────────────────────────────────
     CAST_SPEED_INC = "cast_speed_inc"
@@ -136,11 +180,10 @@ class Stat(Enum):
     FIRE_RESISTANCE       = "fire_resistance"
     COLD_RESISTANCE       = "cold_resistance"
     LIGHTNING_RESISTANCE  = "lightning_resistance"
+    EROSION_RESISTANCE    = "erosion_resistance"
 
     # ── Utility ───────────────────────────────────────────────────────────────
-    MOVEMENT_SPEED      = "movement_speed"
-    AREA_OF_EFFECT      = "area_of_effect"
-    COOLDOWN_REDUCTION  = "cooldown_reduction"
+
 
     # ── Blessings ─────────────────────────────────────────────────────────────
     TENACITY_BLESSING = "tenacity_blessing"
