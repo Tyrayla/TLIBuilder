@@ -2,8 +2,11 @@ import tkinter as tk
 import inspect
 import re
 from models.passive_tree import PassiveTree, COLUMN_COUNT
-from models.passive_node import NodeType
-from persistence import save_manager
+from models.passive_node import NodeType, NodeStat
+from models.stat import Stat
+from models.stat_meta import STAT_META, CATEGORIES
+from data.node_modifier_pool import NODE_MODIFIER_POOL
+from persistence import save_manager, node_stats_manager
 from gui.sidebar import ActiveTreesSidebar
 from trees.registry import TREES
 
@@ -87,6 +90,7 @@ class TreeViewer(tk.Frame):
         self._debug_mode = False
         self._link_mode  = False
         self._type_mode  = False
+        self._stat_mode  = False
         self._link_first: str | None = None
         self._source_file: str | None = None
 
@@ -115,6 +119,7 @@ class TreeViewer(tk.Frame):
         self._build_debug_bar(content)
         self._build_canvas(content)
         self._build_status_bar(content)
+        self._load_node_stats()
         self._refresh()
 
     # ── Header ─────────────────────────────────────────────────────────────────
@@ -213,6 +218,15 @@ class TreeViewer(tk.Frame):
             command=self._toggle_type,
         )
         self._type_btn.pack(side="left", padx=(0, 4))
+
+        self._stat_btn = tk.Button(
+            bar, text="Stat",
+            font=("Segoe UI", 9), bg=DEBUG_BAR_BG, fg="#e0e0e0",
+            activebackground="#1a4a8a", activeforeground="#ffffff",
+            relief="flat", bd=0, padx=10, pady=3, cursor="hand2",
+            command=self._toggle_stat,
+        )
+        self._stat_btn.pack(side="left", padx=(0, 4))
 
         tk.Label(bar, text="— right-click cancels selection",
                  bg=DEBUG_BAR_BG, fg="#555577",
@@ -359,10 +373,13 @@ class TreeViewer(tk.Frame):
         else:
             if pts > 0:
                 for s in node.stats:
-                    lines.append(f"Now:  {s.display(pts)}")
+                    lines.append(s.display(pts))
             if not node.is_full:
+                if pts > 0:
+                    lines.append("")          # blank line separator
+                lines.append("Next level")
                 for s in node.stats:
-                    lines.append(f"Next: {s.display(pts + 1)}")
+                    lines.append(s.display(pts + 1))
 
         return "\n".join(lines)
 
@@ -411,6 +428,9 @@ class TreeViewer(tk.Frame):
             return
         if self._type_mode:
             self._handle_type_click(node_id, event)
+            return
+        if self._stat_mode:
+            self._handle_stat_click(node_id)
             return
         try:
             self.tree.allocate(node_id)
@@ -587,6 +607,7 @@ class TreeViewer(tk.Frame):
             self._debug_btn.config(relief="flat", bg="#132213")
             self._exit_link_mode()
             self._exit_type_mode()
+            self._exit_stat_mode()
 
     def _toggle_link(self):
         if self._link_mode:
@@ -622,6 +643,22 @@ class TreeViewer(tk.Frame):
         self._type_mode = False
         if hasattr(self, "_type_btn"):
             self._type_btn.config(relief="flat", bg=DEBUG_BAR_BG)
+
+    def _toggle_stat(self):
+        if self._stat_mode:
+            self._exit_stat_mode()
+            self._set_status("")
+        else:
+            self._exit_link_mode()
+            self._exit_type_mode()
+            self._stat_mode = True
+            self._stat_btn.config(relief="sunken", bg="#0f3460")
+            self._set_status("Stat: click any node to assign its stats", error=False)
+
+    def _exit_stat_mode(self):
+        self._stat_mode = False
+        if hasattr(self, "_stat_btn"):
+            self._stat_btn.config(relief="flat", bg=DEBUG_BAR_BG)
 
     def _cancel_link_selection(self):
         """Clear the pending first-node selection but stay in link mode."""
@@ -759,6 +796,300 @@ class TreeViewer(tk.Frame):
             self._set_status(f"Changed {node_id} → {new_type.value} (not persisted).", error=True)
 
         self._refresh()
+
+    # ── Stat handling ─────────────────────────────────────────────────────────
+
+    def _handle_stat_click(self, node_id: str):
+        node = self.tree.nodes.get(node_id)
+        if node is None:
+            return
+        self._open_stat_editor(node)
+
+    def _open_stat_editor(self, node):
+        if hasattr(self, "_stat_overlay") and self._stat_overlay and \
+                self._stat_overlay.winfo_exists():
+            self._stat_overlay.destroy()
+
+        ranks = node.max_points
+        working_stats: list[NodeStat] = list(node.stats)
+
+        # Build pool lookups
+        pool_by_cat: dict[str, list] = {}
+        all_pool_stats: list = []
+        for stat_key, mod_def in NODE_MODIFIER_POOL.items():
+            meta = STAT_META.get(stat_key)
+            if not meta:
+                continue
+            entry = (meta.display_name, stat_key, mod_def)
+            pool_by_cat.setdefault(meta.category, []).append(entry)
+            all_pool_stats.append(entry)
+        all_pool_stats.sort(key=lambda x: x[0])
+        categories = [c for c in CATEGORIES if c in pool_by_cat]
+
+        # ── Overlay (full-canvas dark backdrop) ───────────────────────────────
+        overlay = tk.Frame(self._canvas, bg="#06060f")
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.lift()
+        self._stat_overlay = overlay
+
+        card = tk.Frame(overlay, bg="#0d1527", relief="flat", bd=0)
+        card.place(relx=0.5, rely=0.5, anchor="center")
+
+        def cancel():
+            overlay.destroy()
+            self._stat_overlay = None
+
+        def maybe_dismiss(event):
+            cx, cy = card.winfo_rootx(), card.winfo_rooty()
+            cw, ch = card.winfo_width(), card.winfo_height()
+            if not (cx <= event.x_root < cx + cw and
+                    cy <= event.y_root < cy + ch):
+                cancel()
+
+        overlay.bind("<Button-1>", maybe_dismiss)
+
+        # ── Card title ────────────────────────────────────────────────────────
+        tk.Frame(card, bg=ACCENT, height=2).pack(fill="x")
+        rank_label = f"{ranks} rank{'s' if ranks > 1 else ''}"
+        tk.Label(card,
+                 text=f"Node Stats — {node.id}  ·  "
+                      f"{node.node_type.value}  ({rank_label})",
+                 font=("Segoe UI", 12, "bold"),
+                 bg="#0d1527", fg=ACCENT, padx=20, pady=10).pack(anchor="w")
+
+        # ── Main panels ───────────────────────────────────────────────────────
+        main = tk.Frame(card, bg="#0d1527")
+        main.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+
+        # Left: current stats ─────────────────────────────────────────────────
+        left = tk.Frame(main, bg="#0d1527", width=230, height=360)
+        left.pack(side="left", fill="y", padx=(0, 10))
+        left.pack_propagate(False)
+
+        tk.Label(left, text="Current Stats",
+                 font=("Segoe UI", 10, "bold"),
+                 bg="#0d1527", fg=FG_HEADER).pack(anchor="w", pady=(0, 6))
+
+        stats_frame = tk.Frame(left, bg="#0d1527")
+        stats_frame.pack(fill="both", expand=True)
+
+        def refresh_stats_list():
+            for w in stats_frame.winfo_children():
+                w.destroy()
+            if not working_stats:
+                tk.Label(stats_frame, text="— No stats assigned —",
+                         font=("Segoe UI", 9, "italic"),
+                         bg="#0d1527", fg=FG_LOCKED_TEXT,
+                         wraplength=200, anchor="w").pack(anchor="w")
+                return
+            for i, ns in enumerate(working_stats):
+                meta = STAT_META.get(ns.stat)
+                name = meta.display_name if meta else ns.stat.value
+                unit = meta.unit if meta else ""
+                if ns.values:
+                    inc = ns.values[0]
+                    fmt = lambda v: (f"+{v*100:.0f}%" if unit == "%" else
+                                     f"+{v:.0f}" if v == int(v) else f"+{v:.1f}")
+                    if ranks > 1:
+                        sub = "  /  ".join(fmt(v) for v in ns.values)
+                    else:
+                        sub = fmt(inc)
+                else:
+                    sub = ""
+
+                row_f = tk.Frame(stats_frame, bg="#111830", padx=6, pady=4)
+                row_f.pack(fill="x", pady=2)
+
+                def _make_remove(idx):
+                    def _remove():
+                        working_stats.pop(idx)
+                        refresh_stats_list()
+                    return _remove
+
+                tk.Button(row_f, text="✕", font=("Segoe UI", 8),
+                          bg="#3a1a1a", fg=ACCENT, relief="flat", bd=0,
+                          cursor="hand2", width=2,
+                          command=_make_remove(i)).pack(side="right",
+                                                        padx=(4, 0))
+                tk.Label(row_f, text=name,
+                         font=("Segoe UI", 9, "bold"),
+                         bg="#111830", fg=BTN_FULL_FG,
+                         wraplength=160, anchor="w",
+                         justify="left").pack(anchor="w")
+                if sub:
+                    tk.Label(row_f, text=sub, font=("Segoe UI", 7),
+                             bg="#111830", fg=FG_HEADER,
+                             wraplength=160, anchor="w",
+                             justify="left").pack(anchor="w")
+
+        refresh_stats_list()
+
+        tk.Frame(main, bg="#1e2040", width=1).pack(side="left", fill="y",
+                                                    padx=(0, 10))
+
+        # Right: add stat ─────────────────────────────────────────────────────
+        right = tk.Frame(main, bg="#0d1527", width=290, height=360)
+        right.pack(side="left", fill="y")
+        right.pack_propagate(False)
+
+        tk.Label(right, text="Add Stat",
+                 font=("Segoe UI", 10, "bold"),
+                 bg="#0d1527", fg=FG_HEADER).pack(anchor="w", pady=(0, 6))
+
+        # Search
+        sf = tk.Frame(right, bg="#0d1527")
+        sf.pack(fill="x", pady=(0, 4))
+        tk.Label(sf, text="Search:", font=("Segoe UI", 9),
+                 bg="#0d1527", fg=FG_HEADER).pack(side="left")
+        search_var = tk.StringVar()
+        tk.Entry(sf, textvariable=search_var, font=("Segoe UI", 9),
+                 bg="#0f1e35", fg=FG_HEADER, insertbackground=FG_HEADER,
+                 relief="flat", width=22).pack(side="left", padx=(6, 0))
+
+        # Category
+        cf = tk.Frame(right, bg="#0d1527")
+        cf.pack(fill="x", pady=(0, 4))
+        tk.Label(cf, text="Category:", font=("Segoe UI", 9),
+                 bg="#0d1527", fg=FG_HEADER).pack(side="left")
+        cat_var = tk.StringVar(value=categories[0] if categories else "")
+        cat_menu = tk.OptionMenu(cf, cat_var, *categories)
+        cat_menu.config(font=("Segoe UI", 9), bg="#0f3460", fg=FG_HEADER,
+                        activebackground="#1a4a8a", highlightthickness=0,
+                        relief="flat")
+        cat_menu["menu"].config(bg="#0f3460", fg=FG_HEADER,
+                                font=("Segoe UI", 9))
+        cat_menu.pack(side="left", padx=(6, 0))
+
+        # Stat listbox
+        lf = tk.Frame(right, bg="#0d1527")
+        lf.pack(fill="x", pady=(0, 8))
+        stat_lb = tk.Listbox(lf, font=("Segoe UI", 9),
+                             bg="#0f1e35", fg=FG_HEADER,
+                             selectbackground="#0f3460",
+                             selectforeground="#ffffff",
+                             height=9, width=36, relief="flat", bd=0)
+        lb_scroll = tk.Scrollbar(lf, orient="vertical", command=stat_lb.yview)
+        stat_lb.config(yscrollcommand=lb_scroll.set)
+        stat_lb.pack(side="left")
+        lb_scroll.pack(side="right", fill="y")
+
+        current_stat_refs: list = []
+
+        def populate_stat_list(*_):
+            query = search_var.get().strip().lower()
+            stat_lb.delete(0, "end")
+            current_stat_refs.clear()
+            if query:
+                for display, sk, md in all_pool_stats:
+                    if query in display.lower():
+                        stat_lb.insert("end", display)
+                        current_stat_refs.append((sk, md))
+            else:
+                for display, sk, md in pool_by_cat.get(cat_var.get(), []):
+                    stat_lb.insert("end", display)
+                    current_stat_refs.append((sk, md))
+
+        search_var.trace_add("write", populate_stat_list)
+        cat_var.trace_add("write", populate_stat_list)
+        populate_stat_list()
+
+        # Rank increment
+        inc_row = tk.Frame(right, bg="#0d1527")
+        inc_row.pack(fill="x", pady=(0, 8))
+        inc_label = "Value" if ranks == 1 else "Rank Increment"
+        tk.Label(inc_row, text=f"{inc_label}:", font=("Segoe UI", 9),
+                 bg="#0d1527", fg=FG_HEADER).pack(side="left")
+        increment_entry = tk.Entry(inc_row, font=("Segoe UI", 9),
+                                   bg="#0f1e35", fg=FG_HEADER,
+                                   insertbackground=FG_HEADER,
+                                   width=10, relief="flat")
+        increment_entry.pack(side="left", padx=(8, 0))
+
+        def on_stat_select(_event=None):
+            sel = stat_lb.curselection()
+            if not sel:
+                return
+            _, mod_def = current_stat_refs[sel[0]]
+            if node.node_type == NodeType.LEGENDARY_MEDIUM:
+                step = mod_def.legendary_increment
+            elif node.node_type == NodeType.MEDIUM:
+                step = mod_def.medium_increment
+            else:
+                step = mod_def.micro_increment
+            increment_entry.delete(0, "end")
+            increment_entry.insert(0, str(round(step, 6)))
+
+        stat_lb.bind("<<ListboxSelect>>", on_stat_select)
+
+        def add_stat():
+            sel = stat_lb.curselection()
+            if not sel:
+                self._set_status("Select a stat from the list first.",
+                                 error=True)
+                return
+            stat_key, _ = current_stat_refs[sel[0]]
+            try:
+                step = float(increment_entry.get())
+            except ValueError:
+                self._set_status("Rank Increment must be a number.", error=True)
+                return
+            if node.node_type == NodeType.LEGENDARY_MEDIUM:
+                values = [step]
+            else:
+                values = [round(step * (r + 1), 8) for r in range(ranks)]
+            working_stats.append(NodeStat(stat_key, values))
+            refresh_stats_list()
+            self._set_status("")
+
+        tk.Button(right, text="Add Stat",
+                  font=("Segoe UI", 9), bg=BTN_NORMAL_BG, fg=FG_HEADER,
+                  activebackground="#1a4a8a", activeforeground="#ffffff",
+                  relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
+                  command=add_stat).pack(anchor="w")
+
+        # ── Bottom buttons ────────────────────────────────────────────────────
+        tk.Frame(card, bg=ACCENT, height=1).pack(fill="x")
+        btn_frame = tk.Frame(card, bg="#0d1527", pady=10)
+        btn_frame.pack(fill="x", padx=20)
+
+        def save():
+            node.stats = working_stats
+            self._save_node_stats(node)
+            self._refresh()
+            self._set_status(f"Stats saved for {node.id}.", error=False)
+            overlay.destroy()
+            self._stat_overlay = None
+
+        tk.Button(btn_frame, text="Save",
+                  font=("Segoe UI", 9), bg="#132213", fg="#6bcb77",
+                  activebackground="#6bcb77", activeforeground="#000000",
+                  relief="flat", bd=0, padx=14, pady=4, cursor="hand2",
+                  command=save).pack(side="left", padx=(0, 8))
+        tk.Button(btn_frame, text="Cancel",
+                  font=("Segoe UI", 9), bg="#3a1a1a", fg="#ff6b6b",
+                  activebackground=ACCENT, activeforeground="#ffffff",
+                  relief="flat", bd=0, padx=14, pady=4, cursor="hand2",
+                  command=cancel).pack(side="left")
+        tk.Label(btn_frame, text="Click outside to cancel",
+                 font=("Segoe UI", 8, "italic"),
+                 bg="#0d1527", fg="#444466").pack(side="left", padx=(16, 0))
+
+    def _save_node_stats(self, node):
+        node_stats_manager.save_node(self.tree.name, node.id, node.stats)
+
+    def _load_node_stats(self):
+        data = node_stats_manager.load()
+        tree_data = data.get(self.tree.name, {})
+        for node_id, stat_list in tree_data.items():
+            node = self.tree.nodes.get(node_id)
+            if node is None:
+                continue
+            node.stats = []
+            for s in stat_list:
+                try:
+                    node.stats.append(NodeStat(Stat(s["stat"]), s["values"]))
+                except (ValueError, KeyError):
+                    pass
 
     # ── File persistence ───────────────────────────────────────────────────────
 
