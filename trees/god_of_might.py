@@ -49,7 +49,6 @@ def build_tree() -> PassiveTree:
     # ── Connections ────────────────────────────────────────────────────────────
     # Add connections manually once you have confirmed the tree layout:
     # tree.add_connection("might_cX_rY", "might_cX_rY")
-    tree.add_connection("might_c0_r2", "might_c1_r2")
     tree.add_connection("might_c1_r1", "might_c2_r1")
     tree.add_connection("might_c1_r3", "might_c2_r3")
     tree.add_connection("might_c2_r0", "might_c3_r0")
@@ -82,4 +81,5 @@ def build_tree() -> PassiveTree:
             CoreTalent(id="might_ct24_3", name="Might 3"),
         ],
     ))
+    tree.add_connection("might_c0_r2", "might_c1_r2")
     return tree

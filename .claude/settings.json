@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Invoke-WebRequest \"http://127.0.0.1:8765/api/tree/God%20of%20Might\" -UseBasicParsing -Headers @{\"Origin\"=\"http://localhost:5173\"} | Select-Object StatusCode,@{N='cors';E={$_.Headers[\"Access-Control-Allow-Origin\"]}})",
+      "PowerShell($pid = \\(netstat -ano | Select-String \":8765\" | ForEach-Object { \\($_ -split '\\\\s+'\\)[-1] } | Select-Object -First 1\\); if \\($pid\\) { taskkill /F /PID $pid 2>&1 })",
+      "Bash(python -c ' *)",
+      "Bash(npx tsc *)",
+      "Bash(python -c \"import server; print\\('server.py OK'\\)\")"
+    ]
+  }
+}
