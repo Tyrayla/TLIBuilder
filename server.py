@@ -583,6 +583,94 @@ def import_season(req: ImportSeasonRequest):
     return {"ok": True, "trees_imported": sorted(trees_imported), "skipped": sorted(skipped)}
 
 
+class DiffSeasonsRequest(BaseModel):
+    season_a: str
+    season_b: str
+
+
+@app.post("/api/dev/diff-seasons")
+def diff_seasons(req: DiffSeasonsRequest):
+    for name in (req.season_a, req.season_b):
+        if name not in season_manager.list_seasons():
+            raise HTTPException(status_code=404, detail=f"Season '{name}' not found")
+
+    def _load_all(season: str) -> dict[str, dict]:
+        result: dict[str, dict] = {}
+        for tree_name in TREES:
+            slug = tree_name.lower().replace(" ", "_")
+            data = season_manager.load_season_tree(season, slug)
+            if data:
+                result[tree_name] = data
+        return result
+
+    trees_a = _load_all(req.season_a)
+    trees_b = _load_all(req.season_b)
+    all_trees = sorted(set(trees_a) | set(trees_b))
+
+    summary = {"trees_added": 0, "trees_removed": 0,
+               "nodes_added": 0, "nodes_removed": 0, "nodes_changed": 0,
+               "connections_added": 0, "connections_removed": 0}
+    trees_diff: dict[str, dict] = {}
+
+    for tree_name in all_trees:
+        a = trees_a.get(tree_name)
+        b = trees_b.get(tree_name)
+
+        if a is None:
+            summary["trees_added"] += 1
+            nodes_b = b["nodes"]
+            summary["nodes_added"] += len(nodes_b)
+            trees_diff[tree_name] = {
+                "status": "added",
+                "nodes_added": nodes_b, "nodes_removed": [], "nodes_changed": [],
+                "connections_added": b.get("connections", []), "connections_removed": [],
+            }
+            continue
+        if b is None:
+            summary["trees_removed"] += 1
+            nodes_a = a["nodes"]
+            summary["nodes_removed"] += len(nodes_a)
+            trees_diff[tree_name] = {
+                "status": "removed",
+                "nodes_added": [], "nodes_removed": nodes_a, "nodes_changed": [],
+                "connections_added": [], "connections_removed": a.get("connections", []),
+            }
+            continue
+
+        nodes_a = {n["id"]: n for n in a["nodes"]}
+        nodes_b = {n["id"]: n for n in b["nodes"]}
+        conns_a = {(c["from"], c["to"]) for c in a.get("connections", [])}
+        conns_b = {(c["from"], c["to"]) for c in b.get("connections", [])}
+
+        added = [nodes_b[nid] for nid in nodes_b if nid not in nodes_a]
+        removed = [nodes_a[nid] for nid in nodes_a if nid not in nodes_b]
+        changed = []
+        for nid in nodes_a:
+            if nid not in nodes_b:
+                continue
+            na, nb = nodes_a[nid], nodes_b[nid]
+            if na["node_type"] != nb["node_type"] or na["max_points"] != nb["max_points"] or na.get("effects") != nb.get("effects"):
+                changed.append({"id": nid, "old": na, "new": nb})
+
+        conns_added = [{"from": f, "to": t} for f, t in conns_b - conns_a]
+        conns_removed = [{"from": f, "to": t} for f, t in conns_a - conns_b]
+
+        summary["nodes_added"] += len(added)
+        summary["nodes_removed"] += len(removed)
+        summary["nodes_changed"] += len(changed)
+        summary["connections_added"] += len(conns_added)
+        summary["connections_removed"] += len(conns_removed)
+
+        any_change = added or removed or changed or conns_added or conns_removed
+        trees_diff[tree_name] = {
+            "status": "changed" if any_change else "unchanged",
+            "nodes_added": added, "nodes_removed": removed, "nodes_changed": changed,
+            "connections_added": conns_added, "connections_removed": conns_removed,
+        }
+
+    return {"summary": summary, "trees": trees_diff}
+
+
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 def find_free_port(preferred: int) -> int:

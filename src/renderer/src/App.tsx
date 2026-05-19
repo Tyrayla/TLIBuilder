@@ -47,6 +47,7 @@ function App() {
   const [previewTree, setPreviewTree] = useState<string | null>(null)
   const [previewSource, setPreviewSource] = useState<Screen>('build-overview')
   const [devMode, setDevMode] = useState(() => localStorage.getItem('devMode') === '1')
+  const [deprecatedTools, setDeprecatedTools] = useState(false)
 
   useEffect(() => {
     initApi()
@@ -274,7 +275,7 @@ function App() {
   )
 
   if (screen === 'dev-tools') {
-    return <DevToolsScreen onBack={() => setScreen('build-select')} />
+    return <DevToolsScreen onBack={() => setScreen('build-select')} deprecatedTools={deprecatedTools} onToggleDeprecatedTools={() => setDeprecatedTools(d => !d)} />
   }
 
   if (screen === 'build-select') {
@@ -390,6 +391,7 @@ function App() {
           onSlotReorder={handleSlotReorder}
           onPreview={goToPreview}
           devMode={devMode}
+          deprecatedTools={deprecatedTools}
         />
         {cascadeOverlay}
       </>

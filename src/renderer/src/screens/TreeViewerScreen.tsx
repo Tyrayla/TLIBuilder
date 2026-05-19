@@ -91,12 +91,13 @@ interface Props {
   onPreview?: () => void
   previewMode?: boolean
   devMode?: boolean
+  deprecatedTools?: boolean
 }
 
 export default function TreeViewerScreen({
   treeName, treeColor, treeColors, initialNodeStates, slots, activeSlot,
   onBack, onSlotClick, onNodeStatesChange, onReselect, onSlotReorder, onPreview,
-  previewMode = false, devMode = false,
+  previewMode = false, devMode = false, deprecatedTools = false,
 }: Props) {
   const [treeData, setTreeData] = useState<TreeData | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -131,6 +132,10 @@ export default function TreeViewerScreen({
     loadTree()
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [treeName])
+
+  useEffect(() => {
+    if (!deprecatedTools) { setDebugMode(false); setLinkFrom(null) }
+  }, [deprecatedTools])
 
 
   const total = sumPoints(nodeStates)
@@ -319,7 +324,7 @@ export default function TreeViewerScreen({
             >Reselect</button>
           </div>
           <div className="viewer-header-right">
-            {devMode && (
+            {devMode && deprecatedTools && (
               <button
                 className={`btn btn-sm debug-toggle${debugMode ? ' active' : ''}`}
                 onClick={() => { setDebugMode(d => !d); setLinkFrom(null) }}

@@ -257,6 +257,41 @@ export interface SeasonSummary {
   is_active: boolean
 }
 
+export interface SeasonDiffNode {
+  id: string
+  node_type: string
+  max_points: number
+  effects: string[]
+}
+
+export interface SeasonDiffNodeChange {
+  id: string
+  old: SeasonDiffNode | null
+  new: SeasonDiffNode | null
+}
+
+export interface SeasonDiffTree {
+  status: 'added' | 'removed' | 'changed' | 'unchanged'
+  nodes_added: SeasonDiffNode[]
+  nodes_removed: SeasonDiffNode[]
+  nodes_changed: SeasonDiffNodeChange[]
+  connections_added: { from: string; to: string }[]
+  connections_removed: { from: string; to: string }[]
+}
+
+export interface SeasonDiff {
+  summary: {
+    trees_added: number
+    trees_removed: number
+    nodes_added: number
+    nodes_removed: number
+    nodes_changed: number
+    connections_added: number
+    connections_removed: number
+  }
+  trees: Record<string, SeasonDiffTree>
+}
+
 export const api = {
   getTrees: () => get<{ name: string; color: string }[]>('/trees'),
 
@@ -320,6 +355,8 @@ export const api = {
     post<{ ok: boolean; trees_imported: string[]; skipped: string[] }>(
       '/dev/import-season', { season_name: seasonName, nodes }
     ),
+  diffSeasons: (seasonA: string, seasonB: string) =>
+    post<SeasonDiff>('/dev/diff-seasons', { season_a: seasonA, season_b: seasonB }),
 
   validateAllocate: (
     tree_name: string,
