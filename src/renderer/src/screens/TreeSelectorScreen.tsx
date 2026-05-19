@@ -1,34 +1,40 @@
 import React, { useEffect, useState } from 'react'
 import { api, TreeSlot } from '../api/client'
-import { GROUPS, isPrimary, getSubtrees } from '../treeGroups'
+import { GROUPS, canAddTree, findShiftCandidate } from '../treeGroups'
 import SlotSidebar from '../components/SlotSidebar'
 
 interface Props {
   slots: (TreeSlot | null)[]
-  targetSlot: number
+  activeSlot: number
   treeColors: Record<string, string>
   onSelectTree: (treeName: string) => void
   onRemoveTree: (slotIndex: number) => void
   onSlotClick: (slotIndex: number) => void
+  onSlotReorder: (fromSlot: number, toSlot: number) => void
   onBack: () => void
+  onGoToSelector: () => void
+  onShiftUp: (fromSlot: number) => void
+  onPreview: () => void
+  previewMode?: boolean
 }
 
-function isSelectable(treeName: string, targetSlot: number, slots: (TreeSlot | null)[]): boolean {
-  if (targetSlot === 0) return isPrimary(treeName)
-  if (targetSlot === 1) {
-    const primary = slots[0]?.treeName
-    if (!primary) return false
-    return getSubtrees(primary).includes(treeName)
-  }
-  return true
-}
+const ORDINALS = ['', '1st', '2nd', '3rd', '4th']
 
 function slotOf(treeName: string, slots: (TreeSlot | null)[]): number {
   return slots.findIndex(s => s?.treeName === treeName)
 }
 
+function contextLabel(slots: (TreeSlot | null)[]): string {
+  if (!slots[0]) return 'Choose your Primary — one of the 6 Gods or Goddesses'
+  if (!slots[1]) return `Choose a Subtree for ${slots[0].treeName}`
+  const filled = slots.filter(Boolean).length
+  if (filled === 4) return 'All slots filled — Remove a tree to replace it'
+  return `Select your ${ORDINALS[filled + 1]} tree`
+}
+
 export default function TreeSelectorScreen({
-  slots, targetSlot, treeColors, onSelectTree, onRemoveTree, onSlotClick, onBack,
+  slots, activeSlot, treeColors, onSelectTree, onRemoveTree, onSlotClick,
+  onSlotReorder, onBack, onGoToSelector, onShiftUp, onPreview, previewMode = false,
 }: Props) {
   const [localColors, setLocalColors] = useState<Record<string, string>>(treeColors)
 
@@ -44,25 +50,49 @@ export default function TreeSelectorScreen({
     }
   }, [treeColors])
 
-  const slotLabel = targetSlot === 0
-    ? 'Select a Primary (God / Goddess)'
-    : targetSlot === 1
-      ? `Select a Subtree for ${slots[0]?.treeName ?? '—'}`
-      : `Select any Tree for Slot ${targetSlot + 1}`
+  const shiftCandidate = findShiftCandidate(slots)
+
+  const normalHeader = (
+    <div className="screen-header">
+      <button className="btn-back" onClick={onBack}>← Back</button>
+      <h2 style={{ fontSize: 16, color: '#aaa', fontWeight: 500 }}>
+        {contextLabel(slots)}
+      </h2>
+    </div>
+  )
+
+  const previewHeader = (
+    <div className="screen-header preview-mode-header">
+      <button className="btn-back" onClick={onBack} style={{ alignSelf: 'flex-start', marginTop: 2 }}>
+        ← Back
+      </button>
+      <div className="preview-header-content">
+        <div className="preview-header-badge">◈ PREVIEW MODE</div>
+        <div className="preview-header-title">Browse Trees</div>
+        <div className="preview-header-sub">
+          Click any tree to explore its nodes — nothing is saved to your build
+        </div>
+      </div>
+      <div style={{ width: 60, flexShrink: 0 }} />
+    </div>
+  )
 
   return (
     <div className="screen tree-selector">
-      <div className="screen-header">
-        <button className="btn-back" onClick={onBack}>← Back</button>
-        <h2 className="title-accent" style={{ fontSize: 18 }}>{slotLabel}</h2>
-      </div>
+      {previewMode ? previewHeader : normalHeader}
       <div className="selector-body">
-        <SlotSidebar
-          slots={slots}
-          activeSlot={targetSlot}
-          onOverview={onBack}
-          onSlotClick={onSlotClick}
-        />
+        {!previewMode && (
+          <SlotSidebar
+            slots={slots}
+            activeSlot={activeSlot}
+            treeColors={localColors}
+            onOverview={onGoToSelector}
+            onSlotClick={onSlotClick}
+            onPreview={onPreview}
+            dragDropEnabled
+            onSlotReorder={onSlotReorder}
+          />
+        )}
         <div className="tree-grid">
           {GROUPS.map(({ primary, trees }) => (
             <div key={primary} className="tree-group-col">
@@ -70,24 +100,31 @@ export default function TreeSelectorScreen({
                 name={primary}
                 color={localColors[primary] || '#e94560'}
                 isPrimary
-                selected={slotOf(primary, slots) !== -1}
-                selectable={isSelectable(primary, targetSlot, slots)}
-                selectedSlot={slotOf(primary, slots)}
+                selectedSlot={previewMode ? -1 : slotOf(primary, slots)}
+                selectable={previewMode ? true : canAddTree(primary, slots)}
                 onSelect={() => onSelectTree(primary)}
                 onRemove={() => onRemoveTree(slotOf(primary, slots))}
+                previewMode={previewMode}
               />
-              {trees.map(name => (
-                <TreeCard
-                  key={name}
-                  name={name}
-                  color={localColors[name] || '#0f3460'}
-                  selected={slotOf(name, slots) !== -1}
-                  selectable={isSelectable(name, targetSlot, slots)}
-                  selectedSlot={slotOf(name, slots)}
-                  onSelect={() => onSelectTree(name)}
-                  onRemove={() => onRemoveTree(slotOf(name, slots))}
-                />
-              ))}
+              <div className="tree-subtrees">
+                {trees.map(name => {
+                  const isShiftTarget = !previewMode && shiftCandidate?.treeName === name
+                  return (
+                    <TreeCard
+                      key={name}
+                      name={name}
+                      color={localColors[name] || '#0f3460'}
+                      selectedSlot={previewMode ? -1 : slotOf(name, slots)}
+                      selectable={previewMode ? true : canAddTree(name, slots)}
+                      onSelect={() => onSelectTree(name)}
+                      onRemove={() => onRemoveTree(slotOf(name, slots))}
+                      shiftCandidate={isShiftTarget ? shiftCandidate : null}
+                      onShiftUp={onShiftUp}
+                      previewMode={previewMode}
+                    />
+                  )
+                })}
+              </div>
             </div>
           ))}
         </div>
@@ -96,44 +133,51 @@ export default function TreeSelectorScreen({
   )
 }
 
-function TreeCard({ name, color, isPrimary, selected, selectable, selectedSlot, onSelect, onRemove }: {
+function TreeCard({
+  name, color, isPrimary: isPrim, selectedSlot, selectable,
+  onSelect, onRemove, shiftCandidate, onShiftUp, previewMode = false,
+}: {
   name: string
   color: string
   isPrimary?: boolean
-  selected: boolean
-  selectable: boolean
   selectedSlot: number
+  selectable: boolean
   onSelect: () => void
   onRemove: () => void
+  shiftCandidate?: { treeName: string; fromSlot: number } | null
+  onShiftUp?: (fromSlot: number) => void
+  previewMode?: boolean
 }) {
+  const isSelected = !previewMode && selectedSlot !== -1
+  const isLocked = !isSelected && !selectable
+  const isSelectable = selectable && !isSelected
+
+  const borderColor = isSelected ? '#3a5a8a' : '#1e2535'
+
   return (
     <div
-      className={`tree-card${isPrimary ? ' tree-card-primary' : ''}${selected ? ' tree-card-selected' : ''}${!selectable && !selected ? ' tree-card-locked' : ''}`}
-      style={{ borderColor: selected ? color : selectable ? color : '#2a2a3a' }}
+      className={`tree-card${isPrim ? ' tree-card-primary' : ''}${isSelected ? ' tree-card-selected' : ''}${isLocked ? ' tree-card-locked' : ''}${isSelectable ? ' tree-card-selectable' : ''}`}
+      style={{ borderColor, cursor: isSelectable ? 'pointer' : 'default' }}
+      onClick={isSelectable ? onSelect : undefined}
     >
-      <div className="tree-card-accent" style={{ background: selected ? color : selectable ? color : '#2a2a3a' }} />
-      <div className="tree-card-name" style={{ color: selectable || selected ? '#ffffff' : '#555566' }}>
+      <div className="tree-card-accent" style={{ background: color }} />
+      <div className="tree-card-name" style={{ color: isLocked ? '#444455' : '#ffffff' }}>
         {name}
       </div>
-      {selected ? (
+      {isSelected && (
         <div
-          className="tree-card-btn"
-          style={{ background: '#3a1a1a', color: '#ff6b6b', cursor: 'pointer' }}
-          onClick={onRemove}
+          className="tree-card-btn tree-card-btn-remove"
+          onClick={e => { e.stopPropagation(); onRemove() }}
         >
-          Remove (S{selectedSlot + 1})
+          Remove
         </div>
-      ) : selectable ? (
+      )}
+      {shiftCandidate && onShiftUp && (
         <div
-          className="tree-card-btn"
-          style={{ background: color, cursor: 'pointer' }}
-          onClick={onSelect}
+          className="tree-card-shift"
+          onClick={e => { e.stopPropagation(); onShiftUp(shiftCandidate.fromSlot) }}
         >
-          Select
-        </div>
-      ) : (
-        <div className="tree-card-btn" style={{ background: '#1a1a2a', color: '#444455' }}>
-          —
+          ↑ Move to Slot 2
         </div>
       )}
     </div>

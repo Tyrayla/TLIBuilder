@@ -59,17 +59,22 @@ interface StatModal {
 interface Props {
   treeName: string
   treeColor: string
+  treeColors: Record<string, string>
   initialNodeStates: Record<string, number>
   slots: (TreeSlot | null)[]
   activeSlot: number
   onBack: () => void
   onSlotClick: (slotIndex: number) => void
   onNodeStatesChange: (s: Record<string, number>) => void
+  onReselect: () => void
+  onSlotReorder?: (fromSlot: number, toSlot: number) => void
+  onPreview?: () => void
+  previewMode?: boolean
 }
 
 export default function TreeViewerScreen({
-  treeName, treeColor, initialNodeStates, slots, activeSlot,
-  onBack, onSlotClick, onNodeStatesChange,
+  treeName, treeColor, treeColors, initialNodeStates, slots, activeSlot,
+  onBack, onSlotClick, onNodeStatesChange, onReselect, onSlotReorder, onPreview, previewMode = false,
 }: Props) {
   const [treeData, setTreeData] = useState<TreeData | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -285,7 +290,21 @@ export default function TreeViewerScreen({
 
   // ── Header ─────────────────────────────────────────────────────────────────
 
-  const header = (
+  const header = previewMode ? (
+    <div className="viewer-header preview-viewer-header">
+      <div className="viewer-header-left">
+        <button className="btn-back" onClick={onBack}>← Back to Preview</button>
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+        <div className="preview-header-badge" style={{ fontSize: 10, padding: '2px 10px' }}>◈ PREVIEW MODE</div>
+        <span className="viewer-tree-name" style={{ color: treeColor, fontSize: 20 }}>{treeName}</span>
+      </div>
+      <div className="viewer-header-right">
+        <span style={{ fontSize: 11, color: '#555577', fontStyle: 'italic' }}>explore freely — nothing saved</span>
+        <span className="viewer-points">Points: {total}</span>
+      </div>
+    </div>
+  ) : (
     <div className="viewer-header">
       <div className="viewer-header-left">
         <button className="btn-back" onClick={onBack}>← Back</button>
@@ -299,6 +318,12 @@ export default function TreeViewerScreen({
               style={{ background: '#3a1a1a', color: '#ff6b6b' }}
               onClick={handleReset}
             >Reset</button>
+            <button
+              className="btn btn-sm"
+              style={{ background: '#1a1a3a', color: '#8888ff' }}
+              onClick={onReselect}
+              title="Clear this tree and pick a different one"
+            >Reselect</button>
           </div>
           <div className="viewer-header-right">
             <button
@@ -380,12 +405,19 @@ export default function TreeViewerScreen({
       )}
 
       <div className="viewer-body">
-        <SlotSidebar
-          slots={slots}
-          activeSlot={activeSlot}
-          onOverview={onBack}
-          onSlotClick={onSlotClick}
-        />
+        {!previewMode && (
+          <SlotSidebar
+            slots={slots}
+            activeSlot={activeSlot}
+            treeColors={treeColors}
+            onOverview={onBack}
+            onSlotClick={onSlotClick}
+            onPreview={onPreview}
+            viewerMode
+            dragDropEnabled
+            onSlotReorder={onSlotReorder}
+          />
+        )}
 
         <div className="viewer-main">
           <div className="viewer-canvas">
@@ -480,14 +512,10 @@ export default function TreeViewerScreen({
                       stroke={isLinkSrc ? '#6be946' : colors.stroke}
                       strokeWidth={isLinkSrc ? 3 : 2}
                     />
-                    {debugMode && (
+                    {(node.node_type === 'Medium Talent' || node.node_type === 'Legendary Medium Talent') && (
                       <circle cx={cx} cy={cy} r={NODE_R - 4}
                         fill="none"
-                        stroke={
-                          node.node_type === 'Legendary Medium Talent' ? '#e9c046'
-                          : node.node_type === 'Medium Talent' ? '#60a5fa'
-                          : 'none'
-                        }
+                        stroke={node.node_type === 'Legendary Medium Talent' ? '#e9c046' : '#60a5fa'}
                         strokeWidth={1.5}
                         style={{ pointerEvents: 'none' }}
                       />

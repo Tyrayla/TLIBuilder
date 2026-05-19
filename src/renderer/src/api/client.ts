@@ -1,8 +1,9 @@
 let BASE = ''
 export function getApiBase(): string { return BASE }
 
-const rlog = (...args: unknown[]) => console.log('[api]', ...args)
-const rerr = (...args: unknown[]) => console.error('[api]', ...args)
+const verbose = typeof window !== 'undefined' && window.api?.isVerbose === true
+const rlog = (...args: unknown[]) => { if (verbose) console.log('[api]', ...args) }
+const rerr = (...args: unknown[]) => { if (verbose) console.error('[api]', ...args) }
 
 async function probePort(port: number): Promise<boolean> {
   rlog(`probePort(${port}) — fetching /api/trees`)
