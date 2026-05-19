@@ -2,7 +2,7 @@ import argparse
 import re
 import socket
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -312,6 +312,31 @@ def post_node_stats(tree_name: str, node_id: str, req: NodeStatsRequest):
     ns_list = [NodeStat(stat=Stat(s["stat"]), values=s["values"]) for s in req.stats]
     node_stats_manager.save_node(tree_name, node_id, ns_list)
     return {"ok": True}
+
+
+# ── Dev tools ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/dev/parse-talent-doc")
+async def parse_talent_doc(file: UploadFile = File(...)):
+    from tools.talent_parser import parse_document
+    data = await file.read()
+    try:
+        result = parse_document(data, file.filename or "upload",
+                                known_tree_names=list(TREES.keys()))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return result
+
+
+class DiffRequest(BaseModel):
+    snapshot_a: dict
+    snapshot_b: dict
+
+
+@app.post("/api/dev/diff-snapshots")
+def diff_talent_snapshots(req: DiffRequest):
+    from tools.snapshot_diff import diff_snapshots
+    return diff_snapshots(req.snapshot_a, req.snapshot_b)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

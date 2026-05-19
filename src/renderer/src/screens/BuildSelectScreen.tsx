@@ -4,6 +4,8 @@ import { api, Build } from '../api/client'
 interface Props {
   onNewBuild: () => void
   onOpenBuild: (build: Build) => void
+  devMode?: boolean
+  onDevTools?: () => void
 }
 
 function slotSummary(build: Build): string {
@@ -16,7 +18,7 @@ function totalPoints(build: Build): number {
     sum + Object.values(s!.nodeStates).reduce((a, b) => a + b, 0), 0)
 }
 
-export default function BuildSelectScreen({ onNewBuild, onOpenBuild }: Props) {
+export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, onDevTools }: Props) {
   const [builds, setBuilds] = useState<Build[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -39,7 +41,19 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild }: Props) {
     <div className="screen build-select">
       <div className="build-select-header">
         <h1 className="title-accent">TLI Planner</h1>
-        <button className="btn btn-primary" onClick={onNewBuild}>+ New Build</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {devMode && (
+            <button
+              className="btn btn-sm"
+              onClick={onDevTools}
+              style={{ color: '#ff9800', borderColor: '#5a3a00', background: '#1a0e00' }}
+              title="Developer Tools"
+            >
+              Dev Tools
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={onNewBuild}>+ New Build</button>
+        </div>
       </div>
 
       {loading ? (

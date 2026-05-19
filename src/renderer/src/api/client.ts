@@ -140,6 +140,72 @@ export interface ModPoolEntry {
   legendary_increment: number
 }
 
+export interface TalentStat {
+  text: string
+  max_divinity_effect?: true
+}
+
+export interface TalentNode {
+  node_type: string
+  stats: TalentStat[]
+}
+
+export interface CoreTalentEntry {
+  name: string
+  stats: TalentStat[]
+}
+
+export interface NewGodTalent {
+  name: string
+  stats: TalentStat[]
+}
+
+export interface TreeSnapshot {
+  nodes: TalentNode[]
+  core_talents: CoreTalentEntry[]
+}
+
+export interface TalentSnapshot {
+  generated_at: string
+  source_file: string
+  trees: Record<string, TreeSnapshot>
+  new_god_talents: NewGodTalent[]
+}
+
+export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
+
+export interface DiffNode {
+  index: number
+  node_type: string
+  status: DiffStatus
+  stats_a: TalentStat[] | null
+  stats_b: TalentStat[] | null
+}
+
+export interface DiffNamedTalent {
+  name: string
+  status: DiffStatus
+  stats_a: TalentStat[] | null
+  stats_b: TalentStat[] | null
+}
+
+export interface DiffTree {
+  status: DiffStatus
+  nodes: DiffNode[]
+  core_talents: DiffNamedTalent[]
+}
+
+export interface TalentDiff {
+  summary: {
+    trees_added: number; trees_removed: number
+    nodes_added: number; nodes_removed: number; nodes_changed: number
+    core_talents_added: number; core_talents_removed: number; core_talents_changed: number
+    new_god_added: number; new_god_removed: number; new_god_changed: number
+  }
+  trees: Record<string, DiffTree>
+  new_god_talents: DiffNamedTalent[]
+}
+
 export const api = {
   getTrees: () => get<{ name: string; color: string }[]>('/trees'),
 
@@ -167,6 +233,16 @@ export const api = {
     ),
   postNodeStats: (treeName: string, nodeId: string, stats: { stat: string; values: number[] }[]) =>
     post(`/node-stats/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeId)}`, { stats }),
+
+  // Dev tools
+  parseTalentDoc: (file: File): Promise<TalentSnapshot> => {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch(`${BASE}/dev/parse-talent-doc`, { method: 'POST', body: form })
+      .then(r => { if (!r.ok) return r.json().then(j => Promise.reject(j.detail ?? r.statusText)); return r.json() })
+  },
+  diffSnapshots: (a: TalentSnapshot, b: TalentSnapshot): Promise<TalentDiff> =>
+    post<TalentDiff>('/dev/diff-snapshots', { snapshot_a: a, snapshot_b: b }),
 
   validateAllocate: (
     tree_name: string,

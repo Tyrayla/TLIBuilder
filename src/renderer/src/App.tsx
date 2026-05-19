@@ -5,8 +5,9 @@ import BuildSelectScreen from './screens/BuildSelectScreen'
 import BuildOverviewScreen from './screens/BuildOverviewScreen'
 import TreeSelectorScreen from './screens/TreeSelectorScreen'
 import TreeViewerScreen from './screens/TreeViewerScreen'
+import DevToolsScreen from './screens/DevToolsScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools'
 
 interface Session {
   buildId: string | null
@@ -45,6 +46,7 @@ function App() {
   const [cascadeModal, setCascadeModal] = useState<CascadeModal | null>(null)
   const [previewTree, setPreviewTree] = useState<string | null>(null)
   const [previewSource, setPreviewSource] = useState<Screen>('build-overview')
+  const [devMode, setDevMode] = useState(() => localStorage.getItem('devMode') === '1')
 
   useEffect(() => {
     initApi()
@@ -57,6 +59,21 @@ function App() {
         })
       })
       .catch(e => setAppError(String(e)))
+  }, [])
+
+  // Ctrl+Shift+D toggles dev mode globally
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        setDevMode(prev => {
+          const next = !prev
+          localStorage.setItem('devMode', next ? '1' : '0')
+          return next
+        })
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [])
 
   if (!appReady) {
@@ -256,8 +273,19 @@ function App() {
     </div>
   )
 
+  if (screen === 'dev-tools') {
+    return <DevToolsScreen onBack={() => setScreen('build-select')} />
+  }
+
   if (screen === 'build-select') {
-    return <BuildSelectScreen onNewBuild={startNewBuild} onOpenBuild={openBuild} />
+    return (
+      <BuildSelectScreen
+        onNewBuild={startNewBuild}
+        onOpenBuild={openBuild}
+        devMode={devMode}
+        onDevTools={() => setScreen('dev-tools')}
+      />
+    )
   }
 
   if (screen === 'build-overview') {
@@ -356,6 +384,7 @@ function App() {
           onReselect={handleReselect}
           onSlotReorder={handleSlotReorder}
           onPreview={goToPreview}
+          devMode={devMode}
         />
         {cascadeOverlay}
       </>

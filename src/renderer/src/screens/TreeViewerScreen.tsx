@@ -70,11 +70,13 @@ interface Props {
   onSlotReorder?: (fromSlot: number, toSlot: number) => void
   onPreview?: () => void
   previewMode?: boolean
+  devMode?: boolean
 }
 
 export default function TreeViewerScreen({
   treeName, treeColor, treeColors, initialNodeStates, slots, activeSlot,
-  onBack, onSlotClick, onNodeStatesChange, onReselect, onSlotReorder, onPreview, previewMode = false,
+  onBack, onSlotClick, onNodeStatesChange, onReselect, onSlotReorder, onPreview,
+  previewMode = false, devMode = false,
 }: Props) {
   const [treeData, setTreeData] = useState<TreeData | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -326,11 +328,13 @@ export default function TreeViewerScreen({
             >Reselect</button>
           </div>
           <div className="viewer-header-right">
-            <button
-              className={`btn btn-sm debug-toggle${debugMode ? ' active' : ''}`}
-              onClick={() => { setDebugMode(d => !d); setLinkFrom(null) }}
-              title="Toggle debug tools"
-            >⚙ Debug</button>
+            {devMode && (
+              <button
+                className={`btn btn-sm debug-toggle${debugMode ? ' active' : ''}`}
+                onClick={() => { setDebugMode(d => !d); setLinkFrom(null) }}
+                title="Toggle debug tools"
+              >⚙ Debug</button>
+            )}
             <span className="viewer-points">Points: {total}</span>
           </div>
         </>
