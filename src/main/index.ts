@@ -6,11 +6,12 @@ import { spawn, execFileSync, ChildProcess } from 'child_process'
 import { Socket } from 'net'
 
 const isDev = process.env.NODE_ENV === 'development'
+const isVerbose = process.env.VERBOSE === 'true'
 let PYTHON_PORT = 8765
 let pythonProcess: ChildProcess | null = null
 
-const log = (...args: unknown[]) => console.log('[main]', ...args)
-const err = (...args: unknown[]) => console.error('[main]', ...args)
+const log = (...args: unknown[]) => { if (isVerbose) console.log('[main]', ...args) }
+const err = (...args: unknown[]) => { if (isVerbose) console.error('[main]', ...args) }
 
 // Port readiness tracking — IPC callers wait until Python confirms its port
 let isPortReady = false
@@ -93,7 +94,9 @@ function startPython(): Promise<void> {
     log(`startPython — spawning: python ${script} --port ${PYTHON_PORT}`)
     log(`startPython — cwd: ${cwd}`)
 
-    pythonProcess = spawn('python', [script, '--port', String(PYTHON_PORT)], { cwd })
+    const pythonArgs = ['--port', String(PYTHON_PORT)]
+    if (isVerbose) pythonArgs.push('--verbose')
+    pythonProcess = spawn('python', [script, ...pythonArgs], { cwd })
 
     pythonProcess.stdout?.on('data', (data: Buffer) => {
       const msg = data.toString().trim()
@@ -152,10 +155,12 @@ function createWindow(): void {
     },
   })
 
+  mainWindow.removeMenu()
+
   mainWindow.on('ready-to-show', () => {
     log('createWindow — ready-to-show, displaying window')
     mainWindow.show()
-    if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' })
+    if (isDev && isVerbose) mainWindow.webContents.openDevTools({ mode: 'detach' })
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

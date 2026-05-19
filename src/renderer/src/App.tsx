@@ -1,18 +1,25 @@
 import React, { useEffect, useState } from 'react'
 import { initApi, api, Build, TreeSlot } from './api/client'
-import { isPrimary, getSubtrees } from './treeGroups'
+import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
 import BuildOverviewScreen from './screens/BuildOverviewScreen'
 import TreeSelectorScreen from './screens/TreeSelectorScreen'
 import TreeViewerScreen from './screens/TreeViewerScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer'
 
 interface Session {
   buildId: string | null
   buildName: string
   slots: (TreeSlot | null)[]
   activeSlot: number
+}
+
+interface CascadeModal {
+  removingSlot: number
+  shiftingTree: string
+  shiftingFromSlot: number
+  primaryName: string
 }
 
 const emptySession = (): Session => ({
@@ -35,6 +42,9 @@ function App() {
   const [screen, setScreen] = useState<Screen>('build-select')
   const [session, setSession] = useState<Session>(emptySession())
   const [treeColors, setTreeColors] = useState<Record<string, string>>({})
+  const [cascadeModal, setCascadeModal] = useState<CascadeModal | null>(null)
+  const [previewTree, setPreviewTree] = useState<string | null>(null)
+  const [previewSource, setPreviewSource] = useState<Screen>('build-overview')
 
   useEffect(() => {
     initApi()
@@ -62,7 +72,7 @@ function App() {
     )
   }
 
-  // ── Navigation helpers ────────────────────────────────────────────────────
+  // ── Navigation ────────────────────────────────────────────────────────────
 
   const goToBuildSelect = () => setScreen('build-select')
 
@@ -88,44 +98,107 @@ function App() {
     setScreen('tree-selector')
   }
 
+  const goToPreview = () => {
+    setPreviewSource(screen)
+    setScreen('preview-selector')
+  }
+
+  const handlePreviewTree = (treeName: string) => {
+    setPreviewTree(treeName)
+    setScreen('preview-viewer')
+  }
+
   // ── Tree selection ────────────────────────────────────────────────────────
 
-  const canSelectInSlot = (treeName: string, slot: number, slots: (TreeSlot | null)[]): boolean => {
-    if (slot === 0) return isPrimary(treeName)
-    if (slot === 1) {
-      const primary = slots[0]?.treeName
-      return !!primary && getSubtrees(primary).includes(treeName)
-    }
-    return true
+  const handleSlotReorder = (fromSlot: number, toSlot: number) => {
+    setSession(s => {
+      const slots = [...s.slots] as (TreeSlot | null)[]
+      const moving = slots[fromSlot]
+      if (!moving) return s
+
+      const target = slots[toSlot]
+      const result = [...slots] as (TreeSlot | null)[]
+      result[fromSlot] = target ?? null
+      result[toSlot] = moving
+
+      if (!isValidBuildState(result)) return s
+
+      let { activeSlot } = s
+      if (activeSlot === fromSlot) activeSlot = toSlot
+      else if (activeSlot === toSlot && target) activeSlot = fromSlot
+
+      return { ...s, slots: result, activeSlot }
+    })
   }
 
   const handleSelectTree = (treeName: string) => {
     setSession(s => {
       const slots = [...s.slots] as (TreeSlot | null)[]
-      const target = s.activeSlot
-      if (!canSelectInSlot(treeName, target, slots)) return s
-      slots[target] = { treeName, nodeStates: {} }
-      return { ...s, slots, activeSlot: target }
+      const targetSlot = autoAssignSlot(treeName, slots)
+      if (targetSlot === -1) return s
+      slots[targetSlot] = { treeName, nodeStates: {} }
+      return { ...s, slots, activeSlot: targetSlot }
     })
-    // Navigate to viewer for the newly selected tree
     setScreen('tree-viewer')
   }
 
   const handleRemoveTree = (slotIndex: number) => {
+    // Removing slot 1 (index 1): check if a qualifying subtree exists in slots 2/3
+    if (slotIndex === 1) {
+      const primary = session.slots[0]?.treeName
+      if (primary) {
+        const subtrees = getSubtrees(primary)
+        for (const i of [2, 3]) {
+          const candidate = session.slots[i]?.treeName
+          if (candidate && subtrees.includes(candidate)) {
+            setCascadeModal({ removingSlot: 1, shiftingTree: candidate, shiftingFromSlot: i, primaryName: primary })
+            return
+          }
+        }
+      }
+    }
+    doRemoveTree(slotIndex)
+  }
+
+  const doRemoveTree = (slotIndex: number) => {
     setSession(s => {
       const slots = [...s.slots] as (TreeSlot | null)[]
       slots[slotIndex] = null
-      // Removing slot 1 (primary) cascades to slot 2
-      if (slotIndex === 0) slots[1] = null
-      return { ...s, slots, activeSlot: slotIndex }
+      if (slotIndex === 0) slots[1] = null  // removing primary cascades slot 2
+      return { ...s, slots, activeSlot: firstEmptySlot(slots) }
     })
   }
 
-  // Sidebar slot click: empty → go to tree-selector targeting that slot; filled → go to viewer
+  const handleCascadeYes = () => {
+    if (!cascadeModal) return
+    setSession(s => {
+      const slots = [...s.slots] as (TreeSlot | null)[]
+      slots[cascadeModal.removingSlot] = slots[cascadeModal.shiftingFromSlot]
+      slots[cascadeModal.shiftingFromSlot] = null
+      return { ...s, slots, activeSlot: firstEmptySlot(slots) }
+    })
+    setCascadeModal(null)
+  }
+
+  const handleCascadeNo = () => {
+    if (!cascadeModal) return
+    doRemoveTree(cascadeModal.removingSlot)
+    setCascadeModal(null)
+  }
+
+  const handleShiftUp = (fromSlot: number) => {
+    setSession(s => {
+      const slots = [...s.slots] as (TreeSlot | null)[]
+      slots[1] = slots[fromSlot]
+      slots[fromSlot] = null
+      return { ...s, slots }
+    })
+  }
+
+  // Sidebar slot click: empty → tree-selector; filled → tree-viewer
   const handleSlotClick = (slotIndex: number) => {
     setSession(s => ({ ...s, activeSlot: slotIndex }))
-    const slot = session.slots[slotIndex]
-    if (slot) {
+    if (session.slots[slotIndex]) {
       setScreen('tree-viewer')
     } else {
       setScreen('tree-selector')
@@ -141,17 +214,47 @@ function App() {
     })
   }
 
+  const handleReselect = () => {
+    setSession(s => {
+      const slots = [...s.slots] as (TreeSlot | null)[]
+      slots[s.activeSlot] = null
+      if (s.activeSlot === 0) slots[1] = null  // cascade
+      return { ...s, slots }
+    })
+    setScreen('tree-selector')
+  }
+
   const saveBuild = async (name: string) => {
-    const build = {
-      id: session.buildId ?? undefined,
-      name,
-      slots: session.slots,
-    }
+    const build = { id: session.buildId ?? undefined, name, slots: session.slots }
+    const saved = await api.postBuild(build)
+    setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
+  }
+
+  const saveAsBuild = async (name: string) => {
+    const build = { id: undefined, name, slots: session.slots }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  const cascadeOverlay = cascadeModal && (
+    <div className="modal-backdrop" onClick={handleCascadeNo}>
+      <div className="modal-card" onClick={e => e.stopPropagation()}>
+        <div className="modal-accent" />
+        <h3 className="modal-title">Shift Subtree Up?</h3>
+        <p style={{ padding: '10px 20px 16px', color: '#aaa', fontSize: 13, lineHeight: 1.6 }}>
+          <strong style={{ color: '#e0e0e0' }}>{cascadeModal.shiftingTree}</strong> is also a subtree
+          of <strong style={{ color: '#e0e0e0' }}>{cascadeModal.primaryName}</strong>.
+          Move it up to Slot 2?
+        </p>
+        <div className="modal-actions">
+          <button className="btn btn-primary" onClick={handleCascadeYes}>Yes, shift up</button>
+          <button className="btn btn-danger" onClick={handleCascadeNo}>No, leave it</button>
+        </div>
+      </div>
+    </div>
+  )
 
   if (screen === 'build-select') {
     return <BuildSelectScreen onNewBuild={startNewBuild} onOpenBuild={openBuild} />
@@ -159,27 +262,75 @@ function App() {
 
   if (screen === 'build-overview') {
     return (
-      <BuildOverviewScreen
-        buildName={session.buildName}
-        buildId={session.buildId}
-        slots={session.slots}
-        onBack={goToBuildSelect}
-        onTalentTree={goToTreeSelector}
-        onSave={saveBuild}
-      />
+      <>
+        <BuildOverviewScreen
+          buildName={session.buildName}
+          buildId={session.buildId}
+          slots={session.slots}
+          onBack={goToBuildSelect}
+          onTalentTree={goToTreeSelector}
+          onSave={saveBuild}
+          onSaveAs={saveAsBuild}
+        />
+        {cascadeOverlay}
+      </>
     )
   }
 
   if (screen === 'tree-selector') {
     return (
+      <>
+        <TreeSelectorScreen
+          slots={session.slots}
+          activeSlot={session.activeSlot}
+          treeColors={treeColors}
+          onSelectTree={handleSelectTree}
+          onRemoveTree={handleRemoveTree}
+          onSlotClick={handleSlotClick}
+          onSlotReorder={handleSlotReorder}
+          onBack={() => setScreen('build-overview')}
+          onGoToSelector={() => {}}
+          onShiftUp={handleShiftUp}
+          onPreview={goToPreview}
+        />
+        {cascadeOverlay}
+      </>
+    )
+  }
+
+  if (screen === 'preview-selector') {
+    return (
       <TreeSelectorScreen
-        slots={session.slots}
-        targetSlot={session.activeSlot}
+        slots={[null, null, null, null]}
+        activeSlot={0}
         treeColors={treeColors}
-        onSelectTree={handleSelectTree}
-        onRemoveTree={handleRemoveTree}
-        onSlotClick={handleSlotClick}
-        onBack={() => setScreen('build-overview')}
+        onSelectTree={handlePreviewTree}
+        onRemoveTree={() => {}}
+        onSlotClick={() => {}}
+        onSlotReorder={() => {}}
+        onBack={() => setScreen(previewSource)}
+        onGoToSelector={() => {}}
+        onShiftUp={() => {}}
+        onPreview={() => {}}
+        previewMode
+      />
+    )
+  }
+
+  if (screen === 'preview-viewer' && previewTree) {
+    return (
+      <TreeViewerScreen
+        treeName={previewTree}
+        treeColor={treeColors[previewTree] ?? '#e94560'}
+        treeColors={treeColors}
+        initialNodeStates={{}}
+        slots={[null, null, null, null]}
+        activeSlot={0}
+        onBack={() => setScreen('preview-selector')}
+        onSlotClick={() => {}}
+        onNodeStatesChange={() => {}}
+        onReselect={() => setScreen('preview-selector')}
+        previewMode
       />
     )
   }
@@ -191,16 +342,23 @@ function App() {
       return null
     }
     return (
-      <TreeViewerScreen
-        treeName={slot.treeName}
-        treeColor={treeColors[slot.treeName] ?? '#e94560'}
-        initialNodeStates={slot.nodeStates}
-        slots={session.slots}
-        activeSlot={session.activeSlot}
-        onBack={() => setScreen('tree-selector')}
-        onSlotClick={handleSlotClick}
-        onNodeStatesChange={updateNodeStates}
-      />
+      <>
+        <TreeViewerScreen
+          treeName={slot.treeName}
+          treeColor={treeColors[slot.treeName] ?? '#e94560'}
+          treeColors={treeColors}
+          initialNodeStates={slot.nodeStates}
+          slots={session.slots}
+          activeSlot={session.activeSlot}
+          onBack={() => setScreen('tree-selector')}
+          onSlotClick={handleSlotClick}
+          onNodeStatesChange={updateNodeStates}
+          onReselect={handleReselect}
+          onSlotReorder={handleSlotReorder}
+          onPreview={goToPreview}
+        />
+        {cascadeOverlay}
+      </>
     )
   }
 

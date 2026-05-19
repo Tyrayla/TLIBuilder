@@ -5,6 +5,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:verbose": "set VERBOSE=true&& electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "build:win": "npm run build && electron-builder --win",

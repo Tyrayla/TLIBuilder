@@ -8,33 +8,59 @@ interface Props {
   onBack: () => void
   onTalentTree: () => void
   onSave: (name: string) => Promise<void>
+  onSaveAs: (name: string) => Promise<void>
 }
 
+type SaveMode = 'save' | 'saveas'
+
 export default function BuildOverviewScreen({
-  buildName, buildId, slots, onBack, onTalentTree, onSave,
+  buildName, buildId, slots, onBack, onTalentTree, onSave, onSaveAs,
 }: Props) {
-  const [saveName, setSaveName] = useState(buildName)
   const [saveOpen, setSaveOpen] = useState(false)
+  const [saveMode, setSaveMode] = useState<SaveMode>('save')
+  const [saveName, setSaveName] = useState(buildName)
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
 
-  const openSave = () => {
-    setSaveName(buildName)
-    setSaveOpen(true)
+  const showMsg = (msg: string) => {
+    setSavedMsg(msg)
+    setTimeout(() => setSavedMsg(''), 2500)
   }
 
   const handleSave = async () => {
+    if (buildId) {
+      setSaving(true)
+      try {
+        await onSave(buildName || 'Untitled')
+        showMsg('Saved!')
+      } catch { showMsg('Save failed.') }
+      finally { setSaving(false) }
+    } else {
+      setSaveMode('save')
+      setSaveName(buildName || '')
+      setSaveOpen(true)
+    }
+  }
+
+  const handleSaveAs = () => {
+    setSaveMode('saveas')
+    setSaveName(buildName || '')
+    setSaveOpen(true)
+  }
+
+  const handleModalConfirm = async () => {
+    const name = saveName.trim() || 'Untitled'
     setSaving(true)
     try {
-      await onSave(saveName.trim() || 'Untitled')
+      if (saveMode === 'saveas') {
+        await onSaveAs(name)
+      } else {
+        await onSave(name)
+      }
       setSaveOpen(false)
-      setSavedMsg('Build saved!')
-      setTimeout(() => setSavedMsg(''), 3000)
-    } catch {
-      setSavedMsg('Save failed.')
-    } finally {
-      setSaving(false)
-    }
+      showMsg('Saved!')
+    } catch { showMsg('Save failed.') }
+    finally { setSaving(false) }
   }
 
   const filledSlots = slots.filter(Boolean).length
@@ -46,25 +72,27 @@ export default function BuildOverviewScreen({
         <h2 className="title-accent" style={{ fontSize: 20 }}>
           {buildName || 'New Build'}
         </h2>
-        <button className="btn btn-primary btn-sm" onClick={openSave}>
-          {buildId ? 'Save Build' : 'Save Build'}
-        </button>
+        <div className="overview-save-btns">
+          <button
+            className="btn btn-sm overview-save-btn"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            className="btn btn-sm overview-saveas-btn"
+            onClick={handleSaveAs}
+            disabled={saving}
+          >
+            Save As
+          </button>
+        </div>
       </div>
 
       {savedMsg && (
-        <div style={{ textAlign: 'center', color: '#6bcb77', fontSize: 12, padding: '4px 0' }}>
-          {savedMsg}
-        </div>
+        <div className="overview-saved-msg">{savedMsg}</div>
       )}
-
-      <div className="overview-slot-preview">
-        {slots.map((slot, i) => (
-          <div key={i} className={`overview-slot-chip${slot ? ' filled' : ''}`}>
-            <span className="overview-slot-num">Slot {i + 1}</span>
-            <span className="overview-slot-tree">{slot?.treeName ?? 'Empty'}</span>
-          </div>
-        ))}
-      </div>
 
       <div className="overview-nav-area">
         <button className="overview-nav-btn active" onClick={onTalentTree}>
@@ -90,18 +118,20 @@ export default function BuildOverviewScreen({
         <div className="modal-backdrop" onClick={() => setSaveOpen(false)}>
           <div className="modal-card" onClick={e => e.stopPropagation()}>
             <div className="modal-accent" />
-            <h3 className="modal-title">Save Build</h3>
+            <h3 className="modal-title">
+              {saveMode === 'saveas' ? 'Save As New Build' : 'Name Your Build'}
+            </h3>
             <input
               className="modal-input"
               type="text"
               placeholder="Enter a build name…"
               value={saveName}
               onChange={e => setSaveName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSave()}
+              onKeyDown={e => e.key === 'Enter' && handleModalConfirm()}
               autoFocus
             />
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              <button className="btn btn-primary" onClick={handleModalConfirm} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button className="btn btn-danger" onClick={() => setSaveOpen(false)}>Cancel</button>

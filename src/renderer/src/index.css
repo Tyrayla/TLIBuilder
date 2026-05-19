@@ -124,8 +124,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .tree-grid {
   display: flex;
   flex: 1;
-  gap: 5px;
-  padding: 8px;
+  gap: 12px;
+  padding: 10px 14px;
   overflow: hidden;
 }
 
@@ -133,7 +133,18 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   display: flex;
   flex-direction: column;
   flex: 1;
-  gap: 4px;
+  gap: 0;
+}
+
+.tree-subtrees {
+  display: flex;
+  flex-direction: column;
+  flex: 4;
+  gap: 8px;
+  min-height: 0;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #1a1a2a;
 }
 
 .tree-card {
@@ -143,16 +154,27 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   align-items: stretch;
   background: var(--bg-card);
   border: 2px solid;
-  border-radius: 4px;
+  border-radius: 5px;
   overflow: hidden;
-  transition: transform 0.1s;
+  transition: transform 0.12s, box-shadow 0.12s;
   min-height: 0;
+  position: relative;
 }
-.tree-card:hover:not(.tree-card-locked) { transform: scale(1.025); }
-.tree-card-locked { opacity: 0.45; }
-.tree-card-selected { box-shadow: 0 0 0 1px rgba(255,255,255,0.1) inset; }
+.tree-card-locked { opacity: 0.28; }
+.tree-card-selected { background: #131a2a; }
 
-.tree-card-accent { width: 100%; height: 5px; flex-shrink: 0; }
+.tree-card-selectable:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.7), 0 0 0 2px rgba(140,175,240,0.5);
+  z-index: 2;
+}
+
+.tree-card.dragging {
+  opacity: 0.4;
+  transform: scale(0.97);
+}
+
+.tree-card-accent { width: 100%; height: 6px; flex-shrink: 0; }
 
 .tree-card-name {
   flex: 1;
@@ -160,30 +182,62 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   align-items: center;
   justify-content: center;
   text-align: center;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 3px 5px;
+  padding: 5px 6px;
   line-height: 1.3;
 }
 
 .tree-card-btn {
-  padding: 4px 0;
-  font-size: 10px;
+  padding: 6px 0;
+  font-size: 11px;
   font-weight: 700;
   color: #ffffff;
   text-align: center;
   flex-shrink: 0;
 }
+.tree-card-btn-select {
+  background: #14233a;
+  color: #6a90b8;
+  cursor: pointer;
+}
+.tree-card-btn-select:hover { background: #1a2e4a; color: #90b8d8; }
+
+.tree-card-btn-remove {
+  background: #2a1010;
+  color: #ff8888;
+  cursor: pointer;
+}
+.tree-card-btn-remove:hover { background: #3a1515; }
+
+.tree-card-btn-locked {
+  background: #0e1018;
+  color: #2a2a3a;
+}
+
+.tree-card-shift {
+  padding: 4px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #e9c046;
+  text-align: center;
+  background: #1a1500;
+  border-top: 1px solid #3a3000;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1.3;
+}
+.tree-card-shift:hover { background: #2a2000; color: #ffd060; }
 
 /* ── Slot Sidebar ─────────────────────────────────────────────────────────── */
 
 .slot-sidebar {
-  width: 148px;
+  width: 192px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 6px;
+  gap: 5px;
+  padding: 10px 8px;
   border-right: 1px solid #1e1e3a;
   background: #0e0e1e;
 }
@@ -191,52 +245,95 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .slot-sidebar-overview {
   background: #0f3460;
   color: var(--fg);
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 700;
-  padding: 8px 6px;
-  border-radius: 4px;
+  padding: 10px 8px;
+  border-radius: 5px;
   text-align: center;
   margin-bottom: 4px;
 }
 .slot-sidebar-overview:hover { opacity: 0.82; }
 
-.slot-sidebar-btn {
+.slot-sidebar-preview {
+  background: #1a1040;
+  color: #9988ee;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #3a2a6a;
+  text-align: center;
+  margin-bottom: 6px;
+}
+.slot-sidebar-preview:hover { background: #221050; color: #bbaaff; }
+
+/* ── Preview mode header ──────────────────────────────────────────────────── */
+
+.preview-mode-header {
+  min-height: 82px;
+  padding: 12px 16px;
+  align-items: center;
+  border-bottom: 2px solid #2a1a5a;
+  background: linear-gradient(180deg, #0e0a1e 0%, #1a1a2e 100%);
+}
+
+.preview-header-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  padding: 7px 8px;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.preview-header-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  color: #9988ee;
+  text-transform: uppercase;
+  background: #1a1040;
+  padding: 3px 12px;
   border-radius: 4px;
+  border: 1px solid #4a3a8a;
+}
+
+.preview-header-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.preview-header-sub {
+  font-size: 12px;
+  color: #7766aa;
+  font-style: italic;
+}
+
+.slot-sidebar-btn {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10px 8px 20px;
+  border-radius: 5px;
   background: #111122;
   border: 1px solid #1e1e3a;
-  text-align: left;
-  gap: 2px;
+  text-align: center;
   transition: border-color 0.1s;
+  flex: 1;
 }
 .slot-sidebar-btn:hover { border-color: #3a3a6a; }
-.slot-sidebar-btn.active { border-color: var(--accent); background: #1a0f1f; }
-.slot-sidebar-btn.filled { border-color: #3a5a3a; background: #0f1a0f; }
-.slot-sidebar-btn.active.filled { border-color: #6bcb77; background: #0a180a; }
-
-.slot-sidebar-num {
-  font-size: 9px;
-  color: #555566;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.slot-sidebar-btn.active .slot-sidebar-num { color: var(--accent); }
-.slot-sidebar-btn.filled .slot-sidebar-num { color: #4a8a4a; }
-.slot-sidebar-btn.active.filled .slot-sidebar-num { color: var(--ok); }
 
 .slot-sidebar-name {
-  font-size: 10px;
+  font-size: 16px;
   font-weight: 600;
-  color: #555566;
   line-height: 1.2;
+  word-break: break-word;
+  text-align: center;
+  width: 100%;
 }
-.slot-sidebar-btn.active .slot-sidebar-name { color: var(--fg); }
-.slot-sidebar-btn.filled .slot-sidebar-name { color: #8ecf8e; }
-.slot-sidebar-btn.active.filled .slot-sidebar-name { color: var(--ok); }
 
 /* ── Build Overview ────────────────────────────────────────────────────────── */
 
@@ -255,42 +352,30 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex-shrink: 0;
 }
 
-.overview-slot-preview {
+.overview-save-btns {
   display: flex;
-  gap: 8px;
-  padding: 12px 20px;
-  border-bottom: 1px solid #1e1e3a;
+  gap: 6px;
+}
+
+.overview-save-btn {
+  background: #14233a;
+  color: #6a90b8;
+}
+.overview-save-btn:hover:not(:disabled) { background: #1a2e4a; color: #90b8d8; }
+
+.overview-saveas-btn {
+  background: #1a1a3a;
+  color: #8888cc;
+}
+.overview-saveas-btn:hover:not(:disabled) { background: #222244; color: #aaaaee; }
+
+.overview-saved-msg {
+  text-align: center;
+  color: #6bcb77;
+  font-size: 15px;
+  padding: 4px 0;
   flex-shrink: 0;
 }
-
-.overview-slot-chip {
-  flex: 1;
-  background: #111122;
-  border: 1px solid #1e1e3a;
-  border-radius: 5px;
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.overview-slot-chip.filled { border-color: #2a4a2a; background: #0f1a0f; }
-
-.overview-slot-num {
-  font-size: 9px;
-  color: #555566;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.overview-slot-chip.filled .overview-slot-num { color: #4a8a4a; }
-
-.overview-slot-tree {
-  font-size: 11px;
-  font-weight: 600;
-  color: #444455;
-  line-height: 1.2;
-}
-.overview-slot-chip.filled .overview-slot-tree { color: #8ecf8e; }
 
 .overview-nav-area {
   display: flex;
@@ -311,7 +396,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   border-radius: 6px;
   background: #111122;
   border: 1px solid #2a2a4a;
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 600;
   color: var(--fg);
   transition: border-color 0.1s, background 0.1s;
@@ -322,12 +407,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .overview-nav-btn.active:hover { border-color: var(--ok); }
 .overview-nav-btn.disabled { opacity: 0.35; cursor: default; }
 
-.overview-nav-icon { font-size: 20px; width: 24px; text-align: center; flex-shrink: 0; }
+.overview-nav-icon { font-size: 25px; width: 28px; text-align: center; flex-shrink: 0; }
 
 .overview-nav-label { flex: 1; }
 
 .overview-nav-sub {
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 400;
   color: #666677;
 }

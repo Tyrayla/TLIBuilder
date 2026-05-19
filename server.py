@@ -15,14 +15,20 @@ from persistence import tree_config_manager
 
 # Set in __main__ so the lifespan handler can print it after uvicorn is ready
 _SERVER_PORT = 8765
+_VERBOSE = False
+
+
+def vlog(*args):
+    if _VERBOSE:
+        print(*args, flush=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(f"[server] lifespan startup — uvicorn bound, now accepting connections", flush=True)
-    print(f"TLI backend running on port {_SERVER_PORT}", flush=True)
+    vlog(f"[server] lifespan startup — uvicorn bound, now accepting connections")
+    print(f"TLI backend running on port {_SERVER_PORT}", flush=True)  # always needed for port detection
     yield
-    print(f"[server] lifespan shutdown", flush=True)
+    vlog(f"[server] lifespan shutdown")
 
 
 app = FastAPI(lifespan=lifespan)
@@ -324,10 +330,12 @@ def find_free_port(preferred: int) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--verbose", action="store_true", default=False)
     args = parser.parse_args()
-    print(f"[server] __main__ start — preferred port: {args.port}", flush=True)
+    _VERBOSE = args.verbose
+    vlog(f"[server] __main__ start — preferred port: {args.port}")
     _SERVER_PORT = find_free_port(args.port)
-    print(f"[server] find_free_port selected: {_SERVER_PORT}", flush=True)
-    print(f"[server] calling uvicorn.run — lifespan will print ready signal", flush=True)
+    vlog(f"[server] find_free_port selected: {_SERVER_PORT}")
+    vlog(f"[server] calling uvicorn.run — lifespan will print ready signal")
     uvicorn.run(app, host="127.0.0.1", port=_SERVER_PORT, log_level="warning")
-    print(f"[server] uvicorn.run returned (process exiting)", flush=True)
+    vlog(f"[server] uvicorn.run returned (process exiting)")
