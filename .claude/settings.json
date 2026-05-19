@@ -5,7 +5,23 @@
       "PowerShell($pid = \\(netstat -ano | Select-String \":8765\" | ForEach-Object { \\($_ -split '\\\\s+'\\)[-1] } | Select-Object -First 1\\); if \\($pid\\) { taskkill /F /PID $pid 2>&1 })",
       "Bash(python -c ' *)",
       "Bash(npx tsc *)",
-      "Bash(python -c \"import server; print\\('server.py OK'\\)\")"
+      "Bash(python -c \"import server; print\\('server.py OK'\\)\")",
+      "Bash(Get-ChildItem -Recurse -Depth 2)",
+      "Bash(Select-Object -Property Mode, Name)",
+      "Bash(Format-Table)",
+      "Bash(python -c \"import pdfplumber; print\\('pdfplumber ok'\\)\")",
+      "Bash(python -c \"import docx; print\\('docx ok'\\)\")",
+      "Bash(python -c \"import fitz; print\\('pymupdf ok'\\)\")",
+      "Bash(python -c \"from tools.talent_parser import parse_document; from tools.snapshot_diff import diff_snapshots; print\\('imports ok'\\)\")",
+      "Bash(python -c \"import python_multipart; print\\('multipart ok'\\)\")",
+      "Bash(pip show *)",
+      "Bash(python -c \"import multipart; print\\('multipart ok'\\)\")",
+      "Bash(python -c \"from multipart import MultipartParser; print\\('ok'\\)\")",
+      "Bash(python -c \"import python_multipart; print\\(python_multipart.__version__\\)\")",
+      "Bash(python -c \"import starlette; print\\(starlette.__version__\\)\")",
+      "Bash(python -c \"import sys; [print\\(p\\) for p in sys.path]\")",
+      "Bash(python -c \"import fastapi; f=fastapi.FastAPI\\(\\); print\\('fastapi ok'\\)\")",
+      "Bash(python -m pip install pdfplumber python-docx python-multipart)"
     ]
   }
 }
