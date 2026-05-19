@@ -12,6 +12,7 @@ from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
 from persistence import save_manager, node_stats_manager, builds_manager
 from persistence import tree_config_manager
+from persistence import season_manager
 
 # Set in __main__ so the lifespan handler can print it after uvicorn is ready
 _SERVER_PORT = 8765
@@ -58,7 +59,32 @@ def _tree_from_config(name: str, config: dict) -> PassiveTree:
     return tree
 
 
+def _tree_from_season_data(name: str, data: dict) -> PassiveTree:
+    tree = PassiveTree(name)
+    for n in data["nodes"]:
+        tree.add_node(PassiveNode(
+            id=n["id"],
+            node_type=NodeType(n["node_type"]),
+            column=n["column"],
+            row=n["row"],
+            max_points=n["max_points"],
+        ))
+    for conn in data.get("connections", []):
+        tree.add_connection(conn["from"], conn["to"])
+    return tree
+
+
+def _tree_name_to_slug(name: str) -> str:
+    return name.lower().replace(" ", "_")
+
+
 def _build_tree(name: str) -> PassiveTree:
+    active = season_manager.get_active_season()
+    if active:
+        slug = _tree_name_to_slug(name)
+        data = season_manager.load_season_tree(active, slug)
+        if data:
+            return _tree_from_season_data(name, data)
     config = tree_config_manager.load(name)
     if config is not None:
         return _tree_from_config(name, config)
@@ -92,6 +118,16 @@ def get_tree(name: str):
     all_stats = node_stats_manager.load()
     tree_stats = all_stats.get(name, {})
 
+    # Load season effects if a season is active
+    effects_by_id: dict[str, list[str]] = {}
+    active = season_manager.get_active_season()
+    if active:
+        slug = _tree_name_to_slug(name)
+        season_data = season_manager.load_season_tree(active, slug)
+        if season_data:
+            for sn in season_data.get("nodes", []):
+                effects_by_id[sn["id"]] = sn.get("effects", [])
+
     nodes = []
     for n in tree.nodes.values():
         raw_stats = tree_stats.get(n.id, [])
@@ -116,6 +152,7 @@ def get_tree(name: str):
             "node_type": n.node_type.value,
             "current_points": n.current_points,
             "stats": enhanced_stats,
+            "effects": effects_by_id.get(n.id, []),
         })
 
     connections = [{"from": id1, "to": id2} for id1, id2 in tree.connections]
@@ -433,7 +470,19 @@ def get_snapshot_modifiers(tree_name: str, node_type: str):
 def get_node_modifiers(tree_name: str, node_id: str):
     from persistence import node_modifiers_manager
     all_mods = node_modifiers_manager.load()
-    return all_mods.get(tree_name, {}).get(node_id, [])
+    mods = all_mods.get(tree_name, {}).get(node_id)
+    if mods is not None:
+        return mods
+    # Fall back to season effects (raw text, no numeric values yet)
+    active = season_manager.get_active_season()
+    if active:
+        slug = _tree_name_to_slug(tree_name)
+        data = season_manager.load_season_tree(active, slug)
+        if data:
+            node = next((n for n in data.get("nodes", []) if n["id"] == node_id), None)
+            if node:
+                return [{"text": e, "values": []} for e in node.get("effects", [])]
+    return []
 
 
 class NodeModifiersRequest(BaseModel):
@@ -471,6 +520,67 @@ def get_stat_recipes(tree_name: str, node_type: str):
             "display_name": display_name,
         })
     return result
+
+
+# ── Seasons ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/seasons")
+def get_seasons():
+    names = season_manager.list_seasons()
+    active = season_manager.get_active_season()
+    result = []
+    for name in names:
+        summary = season_manager.get_season_summary(name)
+        summary["is_active"] = (name == active)
+        result.append(summary)
+    return result
+
+
+@app.get("/api/active-season")
+def get_active_season():
+    return {"name": season_manager.get_active_season()}
+
+
+class SetActiveSeasonRequest(BaseModel):
+    name: str | None = None
+
+
+@app.post("/api/active-season")
+def set_active_season(req: SetActiveSeasonRequest):
+    season_manager.set_active_season(req.name)
+    return {"ok": True}
+
+
+@app.delete("/api/seasons/{season_name}")
+def delete_season(season_name: str):
+    season_manager.delete_season(season_name)
+    return {"ok": True}
+
+
+class ImportSeasonRequest(BaseModel):
+    season_name: str
+    nodes: list[dict]
+
+
+@app.post("/api/dev/import-season")
+def import_season(req: ImportSeasonRequest):
+    from tools.season_importer import build_slug_map, import_nodes
+    if not req.season_name.strip():
+        raise HTTPException(status_code=400, detail="season_name must not be empty")
+    slug_map = build_slug_map()
+    tree_data = import_nodes(req.nodes, slug_map)
+    trees_imported: list[str] = []
+    skipped: list[str] = []
+    for slug, data in tree_data.items():
+        if slug not in slug_map:
+            skipped.append(slug)
+            continue
+        tree_name = slug_map[slug]
+        canonical_slug = tree_name.lower().replace(" ", "_")
+        data["season"] = req.season_name
+        season_manager.save_season_tree(req.season_name, tree_name, canonical_slug, data)
+        trees_imported.append(tree_name)
+    return {"ok": True, "trees_imported": sorted(trees_imported), "skipped": sorted(skipped)}
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

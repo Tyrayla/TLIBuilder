@@ -1,0 +1,433 @@
+{
+  "tree_name": "Magister",
+  "nodes": [
+    {
+      "id": "magister_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Spell Damage"
+      ]
+    },
+    {
+      "id": "magister_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Max Mana"
+      ]
+    },
+    {
+      "id": "magister_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "magister_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Spell Damage"
+      ]
+    },
+    {
+      "id": "magister_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Cast Speed"
+      ]
+    },
+    {
+      "id": "magister_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Mana",
+        "+18% Mana Regeneration Speed"
+      ]
+    },
+    {
+      "id": "magister_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Spell Damage when holding a Shield"
+      ]
+    },
+    {
+      "id": "magister_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "magister_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Spell Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "magister_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Cast Speed"
+      ]
+    },
+    {
+      "id": "magister_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "magister_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+24% Spell Damage when holding a Shield"
+      ]
+    },
+    {
+      "id": "magister_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Spell Block Chance"
+      ]
+    },
+    {
+      "id": "magister_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Spell Critical Strike Rating",
+        "+5% Spell Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "magister_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+10% Focus Blessing Duration",
+        "+10% Spell Damage when having Focus Blessing"
+      ]
+    },
+    {
+      "id": "magister_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "When activating Spell Burst or generating Tangle, immediately starts Charging Energy Shield. Interval: 2 s (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "magister_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.25% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "magister_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+12% Spell Block Chance",
+        "+15% Energy Shield gained from Shield"
+      ]
+    },
+    {
+      "id": "magister_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Spell Burst Charge Speed"
+      ]
+    },
+    {
+      "id": "magister_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Gains 1 stack(s) of Focus Blessing when activating Spell Burst or generating Tangle (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "magister_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8 Intelligence"
+      ]
+    },
+    {
+      "id": "magister_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "-8% additional Energy Shield Regain Interval",
+        "+7% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "magister_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+75 Max Energy Shield"
+      ]
+    },
+    {
+      "id": "magister_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Spell Burst Charge Speed"
+      ]
+    },
+    {
+      "id": "magister_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+10% Focus Blessing Duration",
+        "+4% Cast Speed when Focus Blessing is active"
+      ]
+    },
+    {
+      "id": "magister_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+12% Intelligence"
+      ]
+    },
+    {
+      "id": "magister_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Spell Damage"
+      ]
+    },
+    {
+      "id": "magister_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+2 Max Energy Shield per 5 Intelligence (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "magister_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 Max Spell Burst (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "magister_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+5% Spell Critical Strike Damage per stack of Focus Blessing owned (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "magister_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Inflicts Frail on Spell hit (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "magister_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Immediately starts Energy Shield Charge upon entering Low Energy Shield status (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "magister_c0_r0",
+      "to": "magister_c1_r0"
+    },
+    {
+      "from": "magister_c0_r2",
+      "to": "magister_c1_r2"
+    },
+    {
+      "from": "magister_c0_r4",
+      "to": "magister_c1_r4"
+    },
+    {
+      "from": "magister_c1_r1",
+      "to": "magister_c2_r1"
+    },
+    {
+      "from": "magister_c1_r3",
+      "to": "magister_c2_r3"
+    },
+    {
+      "from": "magister_c2_r0",
+      "to": "magister_c3_r0"
+    },
+    {
+      "from": "magister_c2_r2",
+      "to": "magister_c3_r2"
+    },
+    {
+      "from": "magister_c2_r4",
+      "to": "magister_c3_r4"
+    },
+    {
+      "from": "magister_c3_r1",
+      "to": "magister_c4_r1"
+    },
+    {
+      "from": "magister_c3_r3",
+      "to": "magister_c4_r3"
+    },
+    {
+      "from": "magister_c4_r0",
+      "to": "magister_c5_r0"
+    },
+    {
+      "from": "magister_c4_r2",
+      "to": "magister_c5_r2"
+    },
+    {
+      "from": "magister_c4_r4",
+      "to": "magister_c5_r4"
+    },
+    {
+      "from": "magister_c5_r0",
+      "to": "magister_c6_r0"
+    },
+    {
+      "from": "magister_c5_r1",
+      "to": "magister_c6_r1"
+    },
+    {
+      "from": "magister_c5_r3",
+      "to": "magister_c6_r3"
+    },
+    {
+      "from": "magister_c5_r4",
+      "to": "magister_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "magister_bunch",
+      "effects": [
+        "+1 to Max Focus Blessing Stacks",
+        "+3% additional Spell Damage per stack of Focus Blessing owned (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "magister_play_safe",
+      "effects": [
+        "100% of the bonuses and additional bonuses to Cast Speed is also applied to Spell Burst Charge Speed",
+        "-33% additional Spell Burst Charge Speed",
+        "+40% additional Hit Damage for skills cast by Spell Burst (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "magister_shell",
+      "effects": [
+        "+35% additional Max Energy Shield",
+        "Your Max Life is set to 100 (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "magister_barrier_of_radiance",
+      "effects": [
+        "Energy Shield Charge started recently cannot be interrupted by damage",
+        "+50% Energy Shield Charge Speed (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "Season 12 Lunaria"
+}

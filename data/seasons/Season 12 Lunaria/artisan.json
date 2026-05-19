@@ -1,0 +1,426 @@
+{
+  "tree_name": "Artisan",
+  "nodes": [
+    {
+      "id": "artisan_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Sentry Damage"
+      ]
+    },
+    {
+      "id": "artisan_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life"
+      ]
+    },
+    {
+      "id": "artisan_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Sentry Skill Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "artisan_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+24% Sentry Damage"
+      ]
+    },
+    {
+      "id": "artisan_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Sentry Skill cast frequency"
+      ]
+    },
+    {
+      "id": "artisan_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life"
+      ]
+    },
+    {
+      "id": "artisan_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+7% Barrier Shield"
+      ]
+    },
+    {
+      "id": "artisan_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+30% Sentry Skill Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "artisan_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Sentry Skill Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "artisan_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Sentry Skill cast frequency"
+      ]
+    },
+    {
+      "id": "artisan_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "artisan_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+14% Barrier Shield"
+      ]
+    },
+    {
+      "id": "artisan_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2% Movement Speed"
+      ]
+    },
+    {
+      "id": "artisan_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Sentry Skill Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "artisan_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Sentry Damage"
+      ]
+    },
+    {
+      "id": "artisan_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "artisan_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Gains 1 stack(s) of Tenacity Blessing every 1 s when having Barrier (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "artisan_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Movement Speed",
+        "+20% Sentry Damage when moving"
+      ]
+    },
+    {
+      "id": "artisan_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Sentry Damage",
+        "+18% Sentry Skill Area",
+        "+9% Sentry Projectile Speed"
+      ]
+    },
+    {
+      "id": "artisan_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Sentry Damage",
+        "-8% additional Sentry Start Time"
+      ]
+    },
+    {
+      "id": "artisan_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+7% Barrier Shield"
+      ]
+    },
+    {
+      "id": "artisan_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+7% Armor"
+      ]
+    },
+    {
+      "id": "artisan_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Sentry Damage"
+      ]
+    },
+    {
+      "id": "artisan_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Sentry Skill cast frequency"
+      ]
+    },
+    {
+      "id": "artisan_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% additional Sentry Damage",
+        "-25% additional Sentry Start Time (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "artisan_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+14% Barrier Shield"
+      ]
+    },
+    {
+      "id": "artisan_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% Armor",
+        "Adds 0.5% of Armor to Barrier Shield"
+      ]
+    },
+    {
+      "id": "artisan_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 Sentry quantity that can be deployed at a time"
+      ]
+    },
+    {
+      "id": "artisan_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+30% Sentry Skill cast frequency",
+        "-5% additional Sentry Damage"
+      ]
+    },
+    {
+      "id": "artisan_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% Barrier Absorption Rate (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "artisan_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+40% Barrier Shield"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "artisan_c0_r0",
+      "to": "artisan_c1_r0"
+    },
+    {
+      "from": "artisan_c0_r2",
+      "to": "artisan_c1_r2"
+    },
+    {
+      "from": "artisan_c0_r4",
+      "to": "artisan_c1_r4"
+    },
+    {
+      "from": "artisan_c1_r1",
+      "to": "artisan_c2_r1"
+    },
+    {
+      "from": "artisan_c1_r3",
+      "to": "artisan_c2_r3"
+    },
+    {
+      "from": "artisan_c2_r0",
+      "to": "artisan_c3_r0"
+    },
+    {
+      "from": "artisan_c2_r2",
+      "to": "artisan_c3_r2"
+    },
+    {
+      "from": "artisan_c2_r3",
+      "to": "artisan_c3_r3"
+    },
+    {
+      "from": "artisan_c2_r4",
+      "to": "artisan_c3_r4"
+    },
+    {
+      "from": "artisan_c3_r1",
+      "to": "artisan_c4_r1"
+    },
+    {
+      "from": "artisan_c4_r2",
+      "to": "artisan_c5_r2"
+    },
+    {
+      "from": "artisan_c4_r3",
+      "to": "artisan_c5_r3"
+    },
+    {
+      "from": "artisan_c4_r4",
+      "to": "artisan_c5_r4"
+    },
+    {
+      "from": "artisan_c5_r0",
+      "to": "artisan_c6_r0"
+    },
+    {
+      "from": "artisan_c5_r1",
+      "to": "artisan_c6_r1"
+    },
+    {
+      "from": "artisan_c5_r3",
+      "to": "artisan_c6_r3"
+    },
+    {
+      "from": "artisan_c5_r3",
+      "to": "artisan_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "artisan_heat_up",
+      "effects": [
+        "+30% additional Sentry Damage if Sentry Skill has been cast recently",
+        "-30% additional Sentry Start Time (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "artisan_co_resonance",
+      "effects": [
+        "+25% additional Sentry Damage",
+        "Attack Speed bonus and 100% of additional bonus are also applied to Attack Sentries' Cast Frequency",
+        "Cast Speed bonus and 100% of additional bonus are also applied to Spell Sentries' Cast Frequency (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "artisan_kinetic_conversion",
+      "effects": [
+        "100% chance to gain a Barrier for every 5 m you move",
+        "Refreshes Barrier when gaining Barrier",
+        "-40% additional Barrier Shield (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "artisan_shared_fate",
+      "effects": [
+        "Triggers the Sentry Main Skill when there are no Sentries within 10 m. Interval: 1 s",
+        "The number of Sentries that can be deployed at a time is equal to the Max Sentry Quantity",
+        "+25% additional Sentry Damage (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "Season 12 Lunaria"
+}

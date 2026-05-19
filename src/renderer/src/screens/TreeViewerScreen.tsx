@@ -46,11 +46,6 @@ function nodeColors(node: TreeNode, states: Record<string, number>, total: numbe
   }
 }
 
-function fmtStatVal(v: number, unit: string) {
-  if (unit === '%') return `${(v * 100).toFixed(0)}%`
-  return v % 1 === 0 ? String(v) : v.toFixed(2)
-}
-
 function parseRank1(text: string): number {
   const m = text.match(/[+-]?\d+(?:\.\d+)?/)
   if (!m) return 0
@@ -61,6 +56,15 @@ function parseRank1(text: string): number {
 function deriveValues(rank1: number, maxPoints: number): number[] {
   if (maxPoints === 1) return [Math.round(rank1 * 1e6) / 1e6]
   return Array.from({ length: maxPoints }, (_, i) => Math.round(rank1 * (i + 1) * 1e6) / 1e6)
+}
+
+function scaleEffect(text: string, pts: number): string {
+  const rank = Math.max(pts, 1)
+  if (rank === 1) return text
+  return text.replace(/(\d+(?:\.\d+)?)/, (_, num) => {
+    const scaled = parseFloat(num) * rank
+    return scaled % 1 === 0 ? String(scaled) : scaled.toFixed(2)
+  })
 }
 
 interface Tip { nodeId: string; x: number; y: number }
@@ -537,19 +541,35 @@ export default function TreeViewerScreen({
       {tip && nodeMap[tip.nodeId] && (() => {
         const node = nodeMap[tip.nodeId]
         const pts = nodeStates[node.id] ?? 0
+        const effects = node.effects ?? []
+        const atMax = pts >= node.max_points
+        const flipX = tip.x > window.innerWidth - 230
+        const flipY = tip.y > window.innerHeight - 160
+        const tipStyle: React.CSSProperties = {
+          left:   flipX ? undefined : tip.x + 14,
+          right:  flipX ? window.innerWidth - tip.x + 14 : undefined,
+          top:    flipY ? undefined : tip.y + 8,
+          bottom: flipY ? window.innerHeight - tip.y + 8 : undefined,
+        }
         return (
-          <div className="tooltip" style={{ left: tip.x + 14, top: tip.y + 8 }}>
-            <div className="tooltip-type">{node.node_type}</div>
-            <div>{pts} / {node.max_points} pts</div>
-            {node.stats.length > 0 && (
+          <div className="tooltip" style={tipStyle}>
+            <div className="tooltip-type">{node.node_type} {pts}/{node.max_points}</div>
+            {pts > 0 && effects.length > 0 && (
               <div className="tooltip-stats">
-                {node.stats.map((s, i) => (
-                  <div key={i} className="tooltip-stat-row">
-                    <span>{s.display_name}:</span>
-                    <span>{s.values.map(v => fmtStatVal(v, s.unit)).join(' / ')}</span>
-                  </div>
+                {effects.map((e, i) => (
+                  <div key={i} className="tooltip-stat-row">{scaleEffect(e, pts)}</div>
                 ))}
               </div>
+            )}
+            {!atMax && effects.length > 0 && (
+              <>
+                <div className="tooltip-next-level">Next Level</div>
+                <div className="tooltip-stats">
+                  {effects.map((e, i) => (
+                    <div key={i} className="tooltip-stat-row">{scaleEffect(e, pts + 1)}</div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )

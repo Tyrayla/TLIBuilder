@@ -1,0 +1,420 @@
+{
+  "tree_name": "Shadowmaster",
+  "nodes": [
+    {
+      "id": "shadowmaster_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Erosion Damage",
+        "+9% Minion Erosion Damage"
+      ]
+    },
+    {
+      "id": "shadowmaster_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Energy Shield",
+        "+3% Max Life"
+      ]
+    },
+    {
+      "id": "shadowmaster_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Wilt chance"
+      ]
+    },
+    {
+      "id": "shadowmaster_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Erosion Damage",
+        "+18% Minion Erosion Damage"
+      ]
+    },
+    {
+      "id": "shadowmaster_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "shadowmaster_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Energy Shield",
+        "+6% Max Life"
+      ]
+    },
+    {
+      "id": "shadowmaster_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Deterioration Chance"
+      ]
+    },
+    {
+      "id": "shadowmaster_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Wilt chance"
+      ]
+    },
+    {
+      "id": "shadowmaster_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "shadowmaster_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "shadowmaster_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Erosion Resistance"
+      ]
+    },
+    {
+      "id": "shadowmaster_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Deterioration Damage"
+      ]
+    },
+    {
+      "id": "shadowmaster_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Critical Strike Rating",
+        "+10% Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "shadowmaster_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Erosion Damage",
+        "+9% Minion Erosion Damage"
+      ]
+    },
+    {
+      "id": "shadowmaster_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Immune to Wilt",
+        "Minions are immune to Erosion Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "shadowmaster_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.25% Life Regain",
+        "1.25% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "shadowmaster_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Wilt chance",
+        "Adds 1 - 1 Base Wilt Damage"
+      ]
+    },
+    {
+      "id": "shadowmaster_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Erosion Damage"
+      ]
+    },
+    {
+      "id": "shadowmaster_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Gains Profane when inflicting Wilt or Deterioration (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "shadowmaster_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Erosion Damage",
+        "+9% Minion Erosion Damage"
+      ]
+    },
+    {
+      "id": "shadowmaster_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "2.5% Life Regain",
+        "2.5% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "shadowmaster_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+12% Wilt chance",
+        "+6% Wilt Duration (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "shadowmaster_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "6% chance to inflict 1 additional stack(s) of Wilt"
+      ]
+    },
+    {
+      "id": "shadowmaster_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Deterioration Chance"
+      ]
+    },
+    {
+      "id": "shadowmaster_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 Erosion Skill Level"
+      ]
+    },
+    {
+      "id": "shadowmaster_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Erosion Damage",
+        "+9% Minion Erosion Damage"
+      ]
+    },
+    {
+      "id": "shadowmaster_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Gains Blur per 5 stacks of Wilt inflicted"
+      ]
+    },
+    {
+      "id": "shadowmaster_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "1.2% Erosion Damage per stack of Wilt inflicted, stacking up to 60 times"
+      ]
+    },
+    {
+      "id": "shadowmaster_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% additional Deterioration Damage",
+        "+5% additional Deterioration Duration"
+      ]
+    },
+    {
+      "id": "shadowmaster_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Converts 100% of Physical Damage to Erosion Damage",
+        "Converts 100% of Minion Physical Damage to Erosion Damage (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "shadowmaster_c0_r0",
+      "to": "shadowmaster_c1_r0"
+    },
+    {
+      "from": "shadowmaster_c0_r2",
+      "to": "shadowmaster_c1_r2"
+    },
+    {
+      "from": "shadowmaster_c0_r4",
+      "to": "shadowmaster_c1_r4"
+    },
+    {
+      "from": "shadowmaster_c1_r1",
+      "to": "shadowmaster_c2_r1"
+    },
+    {
+      "from": "shadowmaster_c1_r3",
+      "to": "shadowmaster_c2_r3"
+    },
+    {
+      "from": "shadowmaster_c2_r0",
+      "to": "shadowmaster_c3_r0"
+    },
+    {
+      "from": "shadowmaster_c2_r2",
+      "to": "shadowmaster_c3_r2"
+    },
+    {
+      "from": "shadowmaster_c3_r1",
+      "to": "shadowmaster_c4_r1"
+    },
+    {
+      "from": "shadowmaster_c3_r3",
+      "to": "shadowmaster_c4_r3"
+    },
+    {
+      "from": "shadowmaster_c3_r4",
+      "to": "shadowmaster_c4_r4"
+    },
+    {
+      "from": "shadowmaster_c4_r0",
+      "to": "shadowmaster_c5_r0"
+    },
+    {
+      "from": "shadowmaster_c4_r0",
+      "to": "shadowmaster_c5_r1"
+    },
+    {
+      "from": "shadowmaster_c4_r2",
+      "to": "shadowmaster_c5_r2"
+    },
+    {
+      "from": "shadowmaster_c4_r4",
+      "to": "shadowmaster_c5_r4"
+    },
+    {
+      "from": "shadowmaster_c5_r0",
+      "to": "shadowmaster_c6_r0"
+    },
+    {
+      "from": "shadowmaster_c5_r1",
+      "to": "shadowmaster_c6_r1"
+    },
+    {
+      "from": "shadowmaster_c5_r3",
+      "to": "shadowmaster_c6_r3"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "shadowmaster_dirt",
+      "effects": [
+        "+15% additional Erosion Damage",
+        "10% additional damage applied to Life (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "shadowmaster_stealth_stab",
+      "effects": [
+        "-15% additional damage taken while Blur is active",
+        "+25% additional damage for 3 s after Blur ends (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "shadowmaster_beyond_cure",
+      "effects": [
+        "Deals more Wilt Damage to enemies with more Life, up to +60% additional Wilt Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "shadowmaster_twisted_belief",
+      "effects": [
+        "+3 Erosion Skill Level",
+        "-5% Max Erosion Resistance (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "Season 12 Lunaria"
+}

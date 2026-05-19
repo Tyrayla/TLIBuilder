@@ -1,0 +1,237 @@
+{
+  "nodes": [
+    {
+      "id": "hunting_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1
+    },
+    {
+      "id": "hunting_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1
+    },
+    {
+      "id": "hunting_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1
+    },
+    {
+      "id": "hunting_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1
+    },
+    {
+      "id": "hunting_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3
+    },
+    {
+      "id": "hunting_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1
+    }
+  ],
+  "connections": [
+    {
+      "from": "hunting_c0_r2",
+      "to": "hunting_c1_r2"
+    },
+    {
+      "from": "hunting_c1_r3",
+      "to": "hunting_c2_r3"
+    },
+    {
+      "from": "hunting_c2_r2",
+      "to": "hunting_c3_r2"
+    },
+    {
+      "from": "hunting_c2_r4",
+      "to": "hunting_c3_r4"
+    },
+    {
+      "from": "hunting_c3_r3",
+      "to": "hunting_c4_r3"
+    },
+    {
+      "from": "hunting_c3_r1",
+      "to": "hunting_c4_r1"
+    },
+    {
+      "from": "hunting_c4_r0",
+      "to": "hunting_c5_r0"
+    },
+    {
+      "from": "hunting_c5_r0",
+      "to": "hunting_c6_r0"
+    },
+    {
+      "from": "hunting_c4_r0",
+      "to": "hunting_c5_r1"
+    },
+    {
+      "from": "hunting_c5_r1",
+      "to": "hunting_c6_r1"
+    },
+    {
+      "from": "hunting_c5_r2",
+      "to": "hunting_c6_r2"
+    },
+    {
+      "from": "hunting_c5_r3",
+      "to": "hunting_c6_r3"
+    },
+    {
+      "from": "hunting_c4_r4",
+      "to": "hunting_c5_r4"
+    },
+    {
+      "from": "hunting_c1_r1",
+      "to": "hunting_c2_r1"
+    }
+  ]
+}

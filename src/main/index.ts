@@ -181,7 +181,7 @@ function createWindow(): void {
 
 app.whenReady().then(async () => {
   log('app.whenReady — start')
-  app.setAppUserModelId('com.tliplanner')
+  app.setAppUserModelId('com.tlibuilder')
 
   ipcMain.handle('get-python-port', (): Promise<number> | number => {
     if (isPortReady) {

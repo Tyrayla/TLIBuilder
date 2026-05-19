@@ -1,0 +1,435 @@
+{
+  "tree_name": "Prophet",
+  "nodes": [
+    {
+      "id": "prophet_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Cold Damage"
+      ]
+    },
+    {
+      "id": "prophet_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life",
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "prophet_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Cold Damage",
+        "+9% Minion Cold Damage"
+      ]
+    },
+    {
+      "id": "prophet_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Cold Damage"
+      ]
+    },
+    {
+      "id": "prophet_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack and Cast Speed",
+        "+3% Minion Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "prophet_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life",
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "prophet_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Max Mana"
+      ]
+    },
+    {
+      "id": "prophet_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Cold Damage",
+        "+18% Minion Cold Damage"
+      ]
+    },
+    {
+      "id": "prophet_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Critical Strike Rating",
+        "+15% Minion Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "prophet_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack and Cast Speed",
+        "+6% Minion Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "prophet_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Cold Resistance"
+      ]
+    },
+    {
+      "id": "prophet_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Max Mana"
+      ]
+    },
+    {
+      "id": "prophet_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Critical Strike Rating",
+        "+20% Minion Critical Strike Rating",
+        "+5% Critical Strike Damage",
+        "+5% Minion Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "prophet_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Inflicts Frostbite when dealing Hit Cold Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "prophet_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+18% Cold Resistance",
+        "Minions are immune to Cold Damage",
+        "Minions are immune to Frostbite and Freeze (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "prophet_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.25% Life Regain",
+        "1.25% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "prophet_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.5% Cold Penetration",
+        "1.5% Cold Penetration for Minions"
+      ]
+    },
+    {
+      "id": "prophet_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2 to Max Frostbite Rating"
+      ]
+    },
+    {
+      "id": "prophet_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Frostbite Effect"
+      ]
+    },
+    {
+      "id": "prophet_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8 Intelligence"
+      ]
+    },
+    {
+      "id": "prophet_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "2.5% Life Regain",
+        "2.5% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "prophet_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Inflicts Cold Infiltration when dealing damage to Frozen enemies (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "prophet_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+5 to Max Frostbite Rating"
+      ]
+    },
+    {
+      "id": "prophet_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Frostbite Effect"
+      ]
+    },
+    {
+      "id": "prophet_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+5% Intelligence"
+      ]
+    },
+    {
+      "id": "prophet_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+10% Focus Blessing Duration",
+        "+10% damage while Focus Blessing is active"
+      ]
+    },
+    {
+      "id": "prophet_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Cold Damage",
+        "+9% Minion Cold Damage"
+      ]
+    },
+    {
+      "id": "prophet_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+10% additional damage against Frozen enemies"
+      ]
+    },
+    {
+      "id": "prophet_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+20% Frostbite Effect"
+      ]
+    },
+    {
+      "id": "prophet_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+100% chance to gain a stack of Focus Blessing upon inflicting damage to a Frostbitten enemy. Interval: 0.1s (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "prophet_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Converts 100% of Physical Damage to Cold Damage",
+        "Converts 100% of Minion Physical Damage to Cold Damage (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "prophet_c0_r0",
+      "to": "prophet_c1_r0"
+    },
+    {
+      "from": "prophet_c0_r2",
+      "to": "prophet_c1_r2"
+    },
+    {
+      "from": "prophet_c0_r4",
+      "to": "prophet_c1_r4"
+    },
+    {
+      "from": "prophet_c1_r1",
+      "to": "prophet_c2_r1"
+    },
+    {
+      "from": "prophet_c1_r3",
+      "to": "prophet_c2_r3"
+    },
+    {
+      "from": "prophet_c2_r0",
+      "to": "prophet_c3_r0"
+    },
+    {
+      "from": "prophet_c2_r1",
+      "to": "prophet_c3_r1"
+    },
+    {
+      "from": "prophet_c2_r2",
+      "to": "prophet_c3_r2"
+    },
+    {
+      "from": "prophet_c3_r3",
+      "to": "prophet_c4_r3"
+    },
+    {
+      "from": "prophet_c3_r4",
+      "to": "prophet_c4_r4"
+    },
+    {
+      "from": "prophet_c4_r0",
+      "to": "prophet_c5_r0"
+    },
+    {
+      "from": "prophet_c4_r1",
+      "to": "prophet_c5_r1"
+    },
+    {
+      "from": "prophet_c4_r2",
+      "to": "prophet_c5_r2"
+    },
+    {
+      "from": "prophet_c5_r0",
+      "to": "prophet_c6_r0"
+    },
+    {
+      "from": "prophet_c5_r1",
+      "to": "prophet_c6_r1"
+    },
+    {
+      "from": "prophet_c5_r3",
+      "to": "prophet_c6_r3"
+    },
+    {
+      "from": "prophet_c5_r4",
+      "to": "prophet_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "prophet_frostbitten",
+      "effects": [
+        "Inflicts Frostbite when dealing Hit Cold Damage",
+        "+40% Frostbite Effect (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "prophet_extreme_coldness",
+      "effects": [
+        "+50 to Max Frostbite Rating",
+        "You can only deal Cold Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "prophet_mind_blade",
+      "effects": [
+        "Adds 30% Physical Damage as Cold Damage when not wielding a Wand or Tin Staff",
+        "+25% additional Cold Damage when wielding a Wand or Tin Staff (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "prophet_frozen_lotus",
+      "effects": [
+        "+25% additional Cold Damage",
+        "+25% additional Minion Cold Damage",
+        "Skills no longer cost Mana (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "Season 12 Lunaria"
+}

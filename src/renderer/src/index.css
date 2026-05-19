@@ -482,7 +482,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   z-index: 999;
   min-width: 110px;
 }
-.tooltip-type { color: var(--accent); font-weight: 600; margin-bottom: 3px; }
+.tooltip-type { color: var(--accent); font-weight: 600; margin-bottom: 4px; font-size: 14px; }
+.tooltip-next-level { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #666; margin-top: 6px; margin-bottom: 2px; }
 
 /* ── Modal ────────────────────────────────────────────────────────────────── */
 
@@ -590,7 +591,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .tooltip-stat-row {
   display: flex;
   gap: 6px;
-  font-size: 10px;
+  font-size: 14px;
 }
 .tooltip-stat-row span:first-child { color: #8888cc; }
 .tooltip-stat-row span:last-child  { color: var(--ok); }

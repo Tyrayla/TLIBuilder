@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { TreeSlot } from '../api/client'
+import React, { useEffect, useState } from 'react'
+import { api, TreeSlot, SeasonSummary } from '../api/client'
 
 interface Props {
   buildName: string
@@ -9,14 +9,36 @@ interface Props {
   onTalentTree: () => void
   onSave: (name: string) => Promise<void>
   onSaveAs: (name: string) => Promise<void>
+  devMode?: boolean
+  onSeasonChange?: () => void
 }
 
 type SaveMode = 'save' | 'saveas'
 
 export default function BuildOverviewScreen({
   buildName, buildId, slots, onBack, onTalentTree, onSave, onSaveAs,
+  devMode = false, onSeasonChange,
 }: Props) {
   const [saveOpen, setSaveOpen] = useState(false)
+  const [seasons, setSeasons] = useState<SeasonSummary[]>([])
+  const [activeSeason, setActiveSeason] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!devMode) return
+    api.listSeasons().then(s => {
+      setSeasons(s)
+      setActiveSeason(s.find(x => x.is_active)?.name ?? null)
+    }).catch(() => {})
+  }, [devMode])
+
+  const handleSeasonChange = async (name: string | null) => {
+    try {
+      await api.setActiveSeason(name)
+      setActiveSeason(name)
+      setSeasons(prev => prev.map(s => ({ ...s, is_active: s.name === name })))
+      onSeasonChange?.()
+    } catch { /* ignore */ }
+  }
   const [saveMode, setSaveMode] = useState<SaveMode>('save')
   const [saveName, setSaveName] = useState(buildName)
   const [saving, setSaving] = useState(false)
@@ -92,6 +114,27 @@ export default function BuildOverviewScreen({
 
       {savedMsg && (
         <div className="overview-saved-msg">{savedMsg}</div>
+      )}
+
+      {devMode && seasons.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', background: '#0e0e28', borderBottom: '1px solid #2a2a4a', fontSize: 12 }}>
+          <span style={{ color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Season:</span>
+          <select
+            value={activeSeason ?? ''}
+            onChange={e => handleSeasonChange(e.target.value || null)}
+            style={{ background: '#1a1a3a', color: '#ddd', border: '1px solid #3a3a5a', borderRadius: 4, padding: '3px 8px', fontSize: 12 }}
+          >
+            <option value="">— Current (Python builders) —</option>
+            {seasons.map(s => (
+              <option key={s.name} value={s.name}>{s.name}</option>
+            ))}
+          </select>
+          {activeSeason && (
+            <span style={{ fontSize: 11, color: '#c0a0ff' }}>
+              {seasons.find(s => s.name === activeSeason)?.trees.length ?? 0} trees loaded
+            </span>
+          )}
+        </div>
       )}
 
       <div className="overview-nav-area">

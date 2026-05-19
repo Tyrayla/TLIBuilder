@@ -299,6 +299,11 @@ function App() {
           onTalentTree={goToTreeSelector}
           onSave={saveBuild}
           onSaveAs={saveAsBuild}
+          devMode={devMode}
+          onSeasonChange={() => {
+            // Force tree data reload on next tree-viewer visit by bumping session key
+            setSession(s => ({ ...s }))
+          }}
         />
         {cascadeOverlay}
       </>

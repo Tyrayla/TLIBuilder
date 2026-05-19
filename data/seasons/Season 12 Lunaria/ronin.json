@@ -1,0 +1,405 @@
+{
+  "tree_name": "Ronin",
+  "nodes": [
+    {
+      "id": "ronin_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Melee Damage"
+      ]
+    },
+    {
+      "id": "ronin_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life",
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "ronin_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Attack Damage"
+      ]
+    },
+    {
+      "id": "ronin_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Melee Damage"
+      ]
+    },
+    {
+      "id": "ronin_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack Speed"
+      ]
+    },
+    {
+      "id": "ronin_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life",
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "ronin_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+5% Armor",
+        "+5% Evasion"
+      ]
+    },
+    {
+      "id": "ronin_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Attack Damage"
+      ]
+    },
+    {
+      "id": "ronin_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "ronin_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack Speed"
+      ]
+    },
+    {
+      "id": "ronin_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2% Attack Block Chance",
+        "+2% Spell Block Chance"
+      ]
+    },
+    {
+      "id": "ronin_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+10% Armor",
+        "+10% Evasion"
+      ]
+    },
+    {
+      "id": "ronin_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Critical Strike Rating",
+        "+10% Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "ronin_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6 Strength",
+        "+6 Dexterity"
+      ]
+    },
+    {
+      "id": "ronin_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Attack Block Chance",
+        "+4% Spell Block Chance"
+      ]
+    },
+    {
+      "id": "ronin_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack Speed",
+        "-6% Melee Damage"
+      ]
+    },
+    {
+      "id": "ronin_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Strength",
+        "+4% Dexterity"
+      ]
+    },
+    {
+      "id": "ronin_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Melee Damage",
+        "-4% Attack Speed"
+      ]
+    },
+    {
+      "id": "ronin_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.25% Life Regain",
+        "1.25% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "ronin_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Fervor effect"
+      ]
+    },
+    {
+      "id": "ronin_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+32% chance to Multistrike"
+      ]
+    },
+    {
+      "id": "ronin_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Melee Damage"
+      ]
+    },
+    {
+      "id": "ronin_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Every 1 s, +10% additional Melee Damage for the next Main Skill used"
+      ]
+    },
+    {
+      "id": "ronin_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "2.5% Life Regain",
+        "2.5% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "ronin_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Fervor effect"
+      ]
+    },
+    {
+      "id": "ronin_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+12% Steep Strike chance."
+      ]
+    },
+    {
+      "id": "ronin_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+33% Demolisher Charge Restoration Speed"
+      ]
+    },
+    {
+      "id": "ronin_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Shadow Quantity +1 (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "ronin_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+20% Fervor effect"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "ronin_c0_r0",
+      "to": "ronin_c1_r0"
+    },
+    {
+      "from": "ronin_c0_r2",
+      "to": "ronin_c1_r2"
+    },
+    {
+      "from": "ronin_c0_r4",
+      "to": "ronin_c1_r4"
+    },
+    {
+      "from": "ronin_c1_r1",
+      "to": "ronin_c2_r1"
+    },
+    {
+      "from": "ronin_c1_r3",
+      "to": "ronin_c2_r3"
+    },
+    {
+      "from": "ronin_c2_r0",
+      "to": "ronin_c3_r0"
+    },
+    {
+      "from": "ronin_c2_r2",
+      "to": "ronin_c3_r2"
+    },
+    {
+      "from": "ronin_c3_r1",
+      "to": "ronin_c4_r1"
+    },
+    {
+      "from": "ronin_c4_r0",
+      "to": "ronin_c5_r0"
+    },
+    {
+      "from": "ronin_c4_r2",
+      "to": "ronin_c5_r2"
+    },
+    {
+      "from": "ronin_c4_r3",
+      "to": "ronin_c5_r3"
+    },
+    {
+      "from": "ronin_c4_r4",
+      "to": "ronin_c5_r4"
+    },
+    {
+      "from": "ronin_c5_r1",
+      "to": "ronin_c6_r0"
+    },
+    {
+      "from": "ronin_c5_r1",
+      "to": "ronin_c6_r1"
+    },
+    {
+      "from": "ronin_c5_r1",
+      "to": "ronin_c6_r2"
+    },
+    {
+      "from": "ronin_c5_r4",
+      "to": "ronin_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "ronin_falling_leaves",
+      "effects": [
+        "-20% additional damage for Weapons",
+        "+40% additional Attack Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "ronin_tradeoff",
+      "effects": [
+        "+20% additional Attack Speed when Dexterity is no less than Strength",
+        "+25% additional Attack Damage when Strength is no less than Dexterity (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "ronin_centralize",
+      "effects": [
+        "Gains additional Fervor Rating equal to 25% of the current Fervor Rating on hit. Cooldown: 0.3 s",
+        "Consumes half of current Fervor Rating when hit. -0.8% additional damage per 1 point consumed (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "ronin_endless_fervor",
+      "effects": [
+        "Have Fervor",
+        "+12% Fervor effect (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "Season 12 Lunaria"
+}

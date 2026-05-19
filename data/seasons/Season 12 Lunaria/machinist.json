@@ -1,0 +1,401 @@
+{
+  "tree_name": "Machinist",
+  "nodes": [
+    {
+      "id": "machinist_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Minion Damage"
+      ]
+    },
+    {
+      "id": "machinist_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life",
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "machinist_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2% Max Life",
+        "Regenerates 0.75% Life per second"
+      ]
+    },
+    {
+      "id": "machinist_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Minion Damage"
+      ]
+    },
+    {
+      "id": "machinist_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Minion Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "machinist_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life",
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "machinist_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Minion Damage",
+        "+12% chance for Minions to inflict Damaging Ailments"
+      ]
+    },
+    {
+      "id": "machinist_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Max Life",
+        "Regenerates 0.6% Life per second"
+      ]
+    },
+    {
+      "id": "machinist_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Minion Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "machinist_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Minion Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "machinist_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+7% Minion Max Life"
+      ]
+    },
+    {
+      "id": "machinist_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+16% Minion Damage",
+        "+24% chance for Minions to inflict Damaging Ailments"
+      ]
+    },
+    {
+      "id": "machinist_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2% Max Energy Shield",
+        "+2% Energy Shield Charge Speed"
+      ]
+    },
+    {
+      "id": "machinist_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Minion Critical Strike Rating",
+        "+5% Minion Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "machinist_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+14% Minion Max Life"
+      ]
+    },
+    {
+      "id": "machinist_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Adds 10 - 10 Base Ailment Damage to Minions (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "machinist_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Max Energy Shield",
+        "+4% Energy Shield Charge Speed"
+      ]
+    },
+    {
+      "id": "machinist_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Minion Damage"
+      ]
+    },
+    {
+      "id": "machinist_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+ 1 Command per second"
+      ]
+    },
+    {
+      "id": "machinist_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Minion Life Regeneration Speed"
+      ]
+    },
+    {
+      "id": "machinist_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Minion Damage"
+      ]
+    },
+    {
+      "id": "machinist_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Minion Damage if a Synthetic Troop Skill has been cast recently"
+      ]
+    },
+    {
+      "id": "machinist_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% chance for Synthetic Troop Minions to deal Double Damage"
+      ]
+    },
+    {
+      "id": "machinist_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+ 2 Command per second"
+      ]
+    },
+    {
+      "id": "machinist_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Minion Life Regeneration Speed"
+      ]
+    },
+    {
+      "id": "machinist_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 to Max Summonable Synthetic Troops (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "machinist_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% additional Minion Damage if a Synthetic Troop Skill has been cast recently"
+      ]
+    },
+    {
+      "id": "machinist_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 Synthetic Troop Skill Level",
+        "-40% additional damage taken by Synthetic Troop Minions"
+      ]
+    },
+    {
+      "id": "machinist_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1% Minion Attack and Cast Speed for every 2 Command owned (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "machinist_c0_r0",
+      "to": "machinist_c1_r0"
+    },
+    {
+      "from": "machinist_c0_r2",
+      "to": "machinist_c1_r2"
+    },
+    {
+      "from": "machinist_c0_r4",
+      "to": "machinist_c1_r4"
+    },
+    {
+      "from": "machinist_c1_r1",
+      "to": "machinist_c2_r1"
+    },
+    {
+      "from": "machinist_c1_r3",
+      "to": "machinist_c2_r3"
+    },
+    {
+      "from": "machinist_c2_r0",
+      "to": "machinist_c3_r0"
+    },
+    {
+      "from": "machinist_c2_r2",
+      "to": "machinist_c3_r2"
+    },
+    {
+      "from": "machinist_c2_r3",
+      "to": "machinist_c3_r3"
+    },
+    {
+      "from": "machinist_c2_r4",
+      "to": "machinist_c3_r4"
+    },
+    {
+      "from": "machinist_c4_r0",
+      "to": "machinist_c5_r0"
+    },
+    {
+      "from": "machinist_c4_r1",
+      "to": "machinist_c5_r1"
+    },
+    {
+      "from": "machinist_c4_r2",
+      "to": "machinist_c5_r2"
+    },
+    {
+      "from": "machinist_c4_r3",
+      "to": "machinist_c5_r3"
+    },
+    {
+      "from": "machinist_c4_r4",
+      "to": "machinist_c5_r4"
+    },
+    {
+      "from": "machinist_c5_r0",
+      "to": "machinist_c6_r0"
+    },
+    {
+      "from": "machinist_c5_r1",
+      "to": "machinist_c6_r1"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "machinist_boss",
+      "effects": [
+        "+1 to Max Summonable Synthetic Troops",
+        "+15% additional Minion Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "machinist_rally",
+      "effects": [
+        "Synthetic Troop Minions summoned at a time +1",
+        "+25% additional Minion Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "machinist_burning_aggression",
+      "effects": [
+        "Gains 30 point(s) of Command every 2 s when there is an Elite within 10 m (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "machinist_united_stand",
+      "effects": [
+        "+20% Life Regain and Energy Shield Regain for Minions",
+        "20% of the Life and Energy Shield Regain Effect of Synthetic Troop Minions is also applied to you (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "Season 12 Lunaria"
+}
