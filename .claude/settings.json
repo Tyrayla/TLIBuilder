@@ -25,7 +25,16 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('tools/node_type_filter_builder.py'\\).read\\(\\)\\); print\\('filter_builder OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('persistence/snapshot_manager.py'\\).read\\(\\)\\); print\\('snapshot_manager OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('server.py'\\).read\\(\\)\\); print\\('server OK'\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('server.py'\\).read\\(\\)\\); print\\('OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('server.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLICalc\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\tyray\\\\Documents\\\\TLICalc\\\\src\\\\renderer\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object FullName)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('data/seasons/Season 12 Lunaria/alchemist.json'\\)\\); print\\('nodes:', len\\(d['nodes']\\)\\); print\\('connections:', len\\(d.get\\('connections', []\\)\\)\\); print\\('first 3 connections:', d.get\\('connections', []\\)[:3]\\)\")",
+      "Bash(pip list *)",
+      "Bash(findstr -i \"fastapi uvicorn\")",
+      "Bash(findstr -i \"pydantic python-multipart\")",
+      "Bash(npm --version)"
     ]
   }
 }

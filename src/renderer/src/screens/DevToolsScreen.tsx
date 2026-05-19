@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   api, TalentSnapshot, TalentStat, TalentDiff, DiffStatus, DiffNamedTalent,
-  SnapshotStatus, RebuildFilterResult, UnresolvedStat,
+  SnapshotStatus, RebuildFilterResult, UnresolvedStat, SeasonSummary,
 } from '../api/client'
 
-type Tab = 'parser' | 'diff' | 'snapshot'
+type Tab = 'parser' | 'diff' | 'snapshot' | 'seasons'
 
 interface Props { onBack: () => void }
 
@@ -708,6 +708,192 @@ function SnapshotTab() {
   )
 }
 
+// ── Seasons tab ────────────────────────────────────────────────────────────
+
+function extractNodes(data: unknown): object[] {
+  if (Array.isArray(data)) {
+    const nodes: object[] = []
+    for (const item of data) {
+      if (item && typeof item === 'object') {
+        if ('global_node_id' in item) nodes.push(item)
+        else if ('nodes' in item && Array.isArray((item as { nodes: unknown[] }).nodes))
+          nodes.push(...(item as { nodes: object[] }).nodes)
+      }
+    }
+    return nodes
+  }
+  if (data && typeof data === 'object' && 'nodes' in data && Array.isArray((data as { nodes: unknown[] }).nodes))
+    return (data as { nodes: object[] }).nodes
+  return []
+}
+
+function SeasonsTab() {
+  const filesRef = useRef<HTMLInputElement>(null)
+  const [seasons, setSeasons] = useState<SeasonSummary[]>([])
+  const [seasonName, setSeasonName] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ trees_imported: string[]; skipped: string[] } | null>(null)
+  const [importErr, setImportErr] = useState('')
+  const [settingActive, setSettingActive] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+
+  const loadSeasons = useCallback(() => {
+    api.listSeasons().then(setSeasons).catch(() => {})
+  }, [])
+
+  useEffect(() => { loadSeasons() }, [loadSeasons])
+
+  const handleImport = async () => {
+    const files = filesRef.current?.files
+    if (!seasonName.trim() || !files || files.length === 0) return
+    setImporting(true); setImportErr(''); setImportResult(null)
+    try {
+      const allNodes: object[] = []
+      for (const file of Array.from(files)) {
+        const data = JSON.parse(await file.text())
+        allNodes.push(...extractNodes(data))
+      }
+      const res = await api.importSeason(seasonName.trim(), allNodes)
+      setImportResult({ trees_imported: res.trees_imported, skipped: res.skipped })
+      loadSeasons()
+    } catch (ex) { setImportErr(String(ex)) }
+    finally {
+      setImporting(false)
+      if (filesRef.current) filesRef.current.value = ''
+    }
+  }
+
+  const handleSetActive = async (name: string | null) => {
+    setSettingActive(true)
+    try {
+      await api.setActiveSeason(name)
+      loadSeasons()
+    } catch { /* ignore */ }
+    finally { setSettingActive(false) }
+  }
+
+  const handleDelete = async (name: string) => {
+    setConfirmDelete(null)
+    try {
+      await api.deleteSeason(name)
+      loadSeasons()
+    } catch { /* ignore */ }
+  }
+
+  const activeSeasonName = seasons.find(s => s.is_active)?.name ?? null
+
+  return (
+    <div>
+      <p style={{ color: '#888', fontSize: 13, marginBottom: 14 }}>
+        Import game-data JSON files to create a season snapshot. Once active, the tree viewer loads
+        nodes and modifiers from the season instead of Python builders.
+      </p>
+
+      {/* Active season info */}
+      <div style={{ background: '#12122a', border: '1px solid #2a2a4a', borderRadius: 8, padding: '10px 16px', marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Active:</span>
+        <span style={{ fontSize: 13, color: activeSeasonName ? '#c0a0ff' : '#444' }}>
+          {activeSeasonName ?? '— Current (Python builders) —'}
+        </span>
+        {activeSeasonName && (
+          <button
+            className="btn btn-sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => handleSetActive(null)}
+            disabled={settingActive}
+          >
+            Reset to Current
+          </button>
+        )}
+      </div>
+
+      {/* Season list */}
+      {seasons.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+            Saved Seasons ({seasons.length})
+          </div>
+          {seasons.map(s => (
+            <div key={s.name} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px', marginBottom: 4,
+              background: s.is_active ? '#1a103a' : '#12122a',
+              border: `1px solid ${s.is_active ? '#533483' : '#2a2a4a'}`,
+              borderRadius: 6,
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, color: s.is_active ? '#c0a0ff' : '#ddd', fontWeight: s.is_active ? 700 : 400 }}>
+                  {s.name}
+                  {s.is_active && <span style={{ fontSize: 10, color: '#533483', marginLeft: 8, background: '#2a1a5a', padding: '1px 6px', borderRadius: 3 }}>ACTIVE</span>}
+                </div>
+                <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>
+                  {s.trees.length} trees · {Object.values(s.node_counts).reduce((a, b) => a + b, 0)} nodes
+                </div>
+              </div>
+              {!s.is_active && (
+                <button className="btn btn-sm btn-primary" onClick={() => handleSetActive(s.name)} disabled={settingActive}>
+                  Set Active
+                </button>
+              )}
+              {confirmDelete === s.name ? (
+                <>
+                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s.name)}>Confirm Delete</button>
+                  <button className="btn btn-sm" onClick={() => setConfirmDelete(null)}>Cancel</button>
+                </>
+              ) : (
+                <button className="btn btn-sm btn-danger" onClick={() => setConfirmDelete(s.name)}>Delete</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Import section */}
+      <div style={{ background: '#12122a', border: '1px solid #2a2a4a', borderRadius: 8, padding: 16 }}>
+        <div style={{ fontSize: 11, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+          Import New Season
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <input
+            className="stat-val-input"
+            type="text"
+            placeholder="Season name (e.g. Season 12 Lunaria)"
+            value={seasonName}
+            onChange={e => setSeasonName(e.target.value)}
+            style={{ flex: 1, padding: '6px 10px', fontSize: 13 }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            Choose JSON Files
+            <input ref={filesRef} type="file" accept=".json" multiple style={{ display: 'none' }} />
+          </label>
+          <button
+            className="btn btn-primary"
+            onClick={handleImport}
+            disabled={importing || !seasonName.trim()}
+          >
+            {importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {importErr && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 8 }}>{importErr}</div>}
+        {importResult && (
+          <div style={{ marginTop: 10, fontSize: 12 }}>
+            <div style={{ color: '#4caf50', marginBottom: 4 }}>
+              Imported: {importResult.trees_imported.join(', ') || '(none)'}
+            </div>
+            {importResult.skipped.length > 0 && (
+              <div style={{ color: '#ff9800' }}>
+                Skipped (unknown slug): {importResult.skipped.join(', ')}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main screen ────────────────────────────────────────────────────────────
 
 export default function DevToolsScreen({ onBack }: Props) {
@@ -735,6 +921,7 @@ export default function DevToolsScreen({ onBack }: Props) {
           { id: 'parser',   label: 'Talent Doc Parser' },
           { id: 'diff',     label: 'Snapshot Diff' },
           { id: 'snapshot', label: 'Canonical Snapshot' },
+          { id: 'seasons',  label: 'Seasons' },
         ] as { id: Tab; label: string }[]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             padding: '6px 16px', border: 'none', cursor: 'pointer', fontSize: 13,
@@ -750,6 +937,7 @@ export default function DevToolsScreen({ onBack }: Props) {
         {tab === 'parser'   && <ParserTab />}
         {tab === 'diff'     && <DiffTab />}
         {tab === 'snapshot' && <SnapshotTab />}
+        {tab === 'seasons'  && <SeasonsTab />}
       </div>
     </div>
   )

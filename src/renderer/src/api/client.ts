@@ -113,6 +113,7 @@ export interface TreeNode {
   node_type: string
   current_points: number
   stats: NodeStatData[]
+  effects: string[]
 }
 
 export interface TreeData {
@@ -249,6 +250,13 @@ export interface TalentDiff {
   new_god_talents: DiffNamedTalent[]
 }
 
+export interface SeasonSummary {
+  name: string
+  trees: string[]
+  node_counts: Record<string, number>
+  is_active: boolean
+}
+
 export const api = {
   getTrees: () => get<{ name: string; color: string }[]>('/trees'),
 
@@ -302,6 +310,16 @@ export const api = {
 
   clearSnapshot: () => del<{ ok: boolean }>('/dev/snapshot'),
   clearNodeTypeFilter: () => del<{ ok: boolean }>('/dev/node-type-filter'),
+
+  // Seasons
+  listSeasons: () => get<SeasonSummary[]>('/seasons'),
+  getActiveSeason: () => get<{ name: string | null }>('/active-season'),
+  setActiveSeason: (name: string | null) => post<{ ok: boolean }>('/active-season', { name }),
+  deleteSeason: (name: string) => del<{ ok: boolean }>(`/seasons/${encodeURIComponent(name)}`),
+  importSeason: (seasonName: string, nodes: object[]) =>
+    post<{ ok: boolean; trees_imported: string[]; skipped: string[] }>(
+      '/dev/import-season', { season_name: seasonName, nodes }
+    ),
 
   validateAllocate: (
     tree_name: string,
