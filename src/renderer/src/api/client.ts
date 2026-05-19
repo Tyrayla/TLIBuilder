@@ -138,6 +138,49 @@ export interface ModPoolEntry {
   micro_increment: number
   medium_increment: number
   legendary_increment: number
+  node_types: string[]
+}
+
+export interface SnapshotModifier {
+  text: string
+}
+
+export interface NodeModifierEntry {
+  text: string
+  values: number[]
+}
+
+export interface StatRecipe {
+  stat: string
+  rank1: number
+  values: number[]
+  display_name: string
+}
+
+export interface UnresolvedStat {
+  tree: string
+  node_type: string
+  text: string
+}
+
+export interface SnapshotStatus {
+  exists: boolean
+  source_file: string | null
+  generated_at: string | null
+}
+
+export interface NodeTypeFilterMeta {
+  generated_at: string
+  snapshot_source: string
+  matched: number
+  ambiguous: number
+  unmatched: number
+}
+
+export interface RebuildFilterResult {
+  _meta: NodeTypeFilterMeta
+  stats: Record<string, string[]>
+  unresolved: UnresolvedStat[]
 }
 
 export interface TalentStat {
@@ -243,6 +286,22 @@ export const api = {
   },
   diffSnapshots: (a: TalentSnapshot, b: TalentSnapshot): Promise<TalentDiff> =>
     post<TalentDiff>('/dev/diff-snapshots', { snapshot_a: a, snapshot_b: b }),
+
+  saveCanonicalSnapshot: (snapshot: TalentSnapshot): Promise<{ ok: boolean; source_file: string; generated_at: string }> =>
+    post<{ ok: boolean; source_file: string; generated_at: string }>('/dev/save-snapshot', { snapshot }),
+  getSnapshotStatus: () => get<SnapshotStatus>('/dev/snapshot-status'),
+  rebuildNodeTypeFilter: () => post<RebuildFilterResult>('/dev/rebuild-node-type-filter', {}),
+  getStatRecipes: (treeName: string, nodeType: string) =>
+    get<StatRecipe[]>(`/dev/stat-recipes/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeType)}`),
+  getSnapshotModifiers: (treeName: string, nodeType: string) =>
+    get<SnapshotModifier[]>(`/dev/snapshot-modifiers/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeType)}`),
+  getNodeModifiers: (treeName: string, nodeId: string) =>
+    get<NodeModifierEntry[]>(`/node-modifiers/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeId)}`),
+  postNodeModifiers: (treeName: string, nodeId: string, modifiers: NodeModifierEntry[]) =>
+    post<{ ok: boolean }>(`/node-modifiers/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeId)}`, { modifiers }),
+
+  clearSnapshot: () => del<{ ok: boolean }>('/dev/snapshot'),
+  clearNodeTypeFilter: () => del<{ ok: boolean }>('/dev/node-type-filter'),
 
   validateAllocate: (
     tree_name: string,

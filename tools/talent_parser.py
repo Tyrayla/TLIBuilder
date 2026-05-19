@@ -166,19 +166,19 @@ def _parse_lines(lines: list[str], known_trees: list[str]) -> tuple[dict, list]:
 
         if kind == "node":
             stats = [_process_stat(s) for s in body if s.startswith(("+", "-"))]
-            if current_tree is not None and node_type_str is not None:
+            if stats and current_tree is not None and node_type_str is not None:
                 bucket = all_trees.setdefault(current_tree, {"nodes": [], "core_talents": []})
                 bucket["nodes"].append({"node_type": node_type_str, "stats": stats})
 
         elif kind == "core_talent":
             stats = [_process_stat(s) for s in body if s]
-            if current_tree is not None and talent_name is not None:
+            if stats and current_tree is not None and talent_name is not None:
                 bucket = all_trees.setdefault(current_tree, {"nodes": [], "core_talents": []})
                 bucket["core_talents"].append({"name": talent_name, "stats": stats})
 
         elif kind == "new_god":
             stats = [_process_stat(s) for s in body if s]
-            if talent_name is not None:
+            if stats and talent_name is not None:
                 new_god_talents.append({"name": talent_name, "stats": stats})
 
         body = []

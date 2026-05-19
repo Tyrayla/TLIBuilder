@@ -1,0 +1,5917 @@
+{
+  "_meta": {
+    "generated_at": "2026-05-19T04:32:48",
+    "snapshot_source": "TLI_All_Talent_Nodes.pdf",
+    "matched": 136,
+    "ambiguous": 579,
+    "unmatched": 324
+  },
+  "stats": {
+    "attack_crit_rating_flat": [
+      "medium",
+      "micro"
+    ],
+    "attack_skill_level": [
+      "legendary_medium",
+      "medium"
+    ],
+    "projectile_speed_inc": [
+      "legendary_medium",
+      "medium",
+      "micro"
+    ],
+    "strength": [
+      "legendary_medium",
+      "medium",
+      "micro"
+    ],
+    "tenacity_blessing": [
+      "legendary_medium",
+      "micro"
+    ],
+    "minion_crit_rating_flat": [
+      "medium",
+      "micro"
+    ],
+    "fire_pen": [
+      "micro"
+    ],
+    "dexterity": [
+      "legendary_medium",
+      "medium",
+      "micro"
+    ],
+    "spell_crit_rating_flat": [
+      "medium",
+      "micro"
+    ],
+    "agility_blessing": [
+      "legendary_medium",
+      "micro"
+    ],
+    "elemental_pen": [
+      "legendary_medium",
+      "medium",
+      "micro"
+    ],
+    "intelligence": [
+      "legendary_medium",
+      "medium",
+      "micro"
+    ],
+    "focus_blessing": [
+      "legendary_medium",
+      "micro"
+    ],
+    "spell_skill_level": [
+      "legendary_medium"
+    ],
+    "physical_skill_level": [
+      "legendary_medium"
+    ],
+    "steep_strike_chance": [
+      "legendary_medium"
+    ],
+    "crit_dmg": [
+      "legendary_medium"
+    ],
+    "sentry_dmg_additional": [
+      "legendary_medium",
+      "medium",
+      "micro"
+    ],
+    "minion_skill_level": [
+      "legendary_medium",
+      "medium",
+      "micro"
+    ],
+    "spirit_magi_crit_rating_flat": [
+      "legendary_medium",
+      "medium",
+      "micro"
+    ],
+    "sentry_skill_cast_frequency_inc": [
+      "legendary_medium",
+      "medium",
+      "micro"
+    ],
+    "synth_skill_level": [
+      "legendary_medium"
+    ]
+  },
+  "recipes": {
+    "God of Might": {
+      "micro": [
+        {
+          "stat": "attack_crit_rating_flat",
+          "rank1": 0.1,
+          "values": [
+            0.1,
+            0.2,
+            0.3
+          ]
+        },
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        },
+        {
+          "stat": "strength",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        },
+        {
+          "stat": "tenacity_blessing",
+          "rank1": 0.1,
+          "values": [
+            0.1,
+            0.2,
+            0.3
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "attack_skill_level",
+          "rank1": -4.0,
+          "values": [
+            -4.0,
+            -8.0,
+            -12.0
+          ]
+        },
+        {
+          "stat": "attack_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        },
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.12,
+          "values": [
+            0.12,
+            0.24,
+            0.36
+          ]
+        },
+        {
+          "stat": "strength",
+          "rank1": 16.0,
+          "values": [
+            16.0,
+            32.0,
+            48.0
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "tenacity_blessing",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        },
+        {
+          "stat": "attack_skill_level",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        }
+      ]
+    },
+    "The Brave": {
+      "micro": [
+        {
+          "stat": "attack_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        },
+        {
+          "stat": "strength",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "attack_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        }
+      ]
+    },
+    "Onslaughter": {
+      "micro": [
+        {
+          "stat": "attack_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        },
+        {
+          "stat": "tenacity_blessing",
+          "rank1": 0.1,
+          "values": [
+            0.1,
+            0.2,
+            0.3
+          ]
+        },
+        {
+          "stat": "strength",
+          "rank1": 0.04,
+          "values": [
+            0.04,
+            0.08,
+            0.12
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "attack_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "strength",
+          "rank1": 0.12,
+          "values": [
+            0.12
+          ]
+        }
+      ]
+    },
+    "Warlord": {
+      "micro": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        },
+        {
+          "stat": "fire_pen",
+          "rank1": 0.02,
+          "values": [
+            0.02,
+            0.04,
+            0.06
+          ]
+        },
+        {
+          "stat": "strength",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        }
+      ]
+    },
+    "Warrior": {
+      "micro": [
+        {
+          "stat": "strength",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "strength",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        }
+      ]
+    },
+    "Goddess of Hunting": {
+      "micro": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        },
+        {
+          "stat": "dexterity",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        },
+        {
+          "stat": "agility_blessing",
+          "rank1": 0.1,
+          "values": [
+            0.1,
+            0.2,
+            0.3
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.12,
+          "values": [
+            0.12,
+            0.24,
+            0.36
+          ]
+        },
+        {
+          "stat": "dexterity",
+          "rank1": 16.0,
+          "values": [
+            16.0,
+            32.0,
+            48.0
+          ]
+        },
+        {
+          "stat": "attack_crit_rating_flat",
+          "rank1": 0.4,
+          "values": [
+            0.4,
+            0.8,
+            1.2
+          ]
+        },
+        {
+          "stat": "spell_crit_rating_flat",
+          "rank1": 0.4,
+          "values": [
+            0.4,
+            0.8,
+            1.2
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "agility_blessing",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        }
+      ]
+    },
+    "Marksman": {
+      "micro": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.03,
+          "values": [
+            0.03,
+            0.06,
+            0.09
+          ]
+        },
+        {
+          "stat": "dexterity",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        },
+        {
+          "stat": "agility_blessing",
+          "rank1": 0.1,
+          "values": [
+            0.1,
+            0.2,
+            0.3
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.12,
+          "values": [
+            0.12,
+            0.24,
+            0.36
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.08,
+          "values": [
+            0.08
+          ]
+        },
+        {
+          "stat": "elemental_pen",
+          "rank1": 0.12,
+          "values": [
+            0.12
+          ]
+        },
+        {
+          "stat": "dexterity",
+          "rank1": 0.01,
+          "values": [
+            0.01
+          ]
+        },
+        {
+          "stat": "agility_blessing",
+          "rank1": 0.06,
+          "values": [
+            0.06
+          ]
+        }
+      ]
+    },
+    "Bladerunner": {
+      "micro": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        },
+        {
+          "stat": "dexterity",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.12,
+          "values": [
+            0.12,
+            0.24,
+            0.36
+          ]
+        }
+      ]
+    },
+    "Druid": {
+      "micro": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.12,
+          "values": [
+            0.12,
+            0.24,
+            0.36
+          ]
+        }
+      ]
+    },
+    "Assassin": {
+      "micro": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        },
+        {
+          "stat": "dexterity",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.12,
+          "values": [
+            0.12,
+            0.24,
+            0.36
+          ]
+        },
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        },
+        {
+          "stat": "dexterity",
+          "rank1": 0.05,
+          "values": [
+            0.05,
+            0.1,
+            0.15
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "dexterity",
+          "rank1": 0.12,
+          "values": [
+            0.12
+          ]
+        }
+      ]
+    },
+    "Goddess of Knowledge": {
+      "micro": [
+        {
+          "stat": "spell_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        },
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        },
+        {
+          "stat": "focus_blessing",
+          "rank1": 0.1,
+          "values": [
+            0.1,
+            0.2,
+            0.3
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "spell_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        },
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.12,
+          "values": [
+            0.12,
+            0.24,
+            0.36
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 16.0,
+          "values": [
+            16.0,
+            32.0,
+            48.0
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "spell_skill_level",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        },
+        {
+          "stat": "focus_blessing",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        }
+      ]
+    },
+    "Magister": {
+      "micro": [
+        {
+          "stat": "spell_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        },
+        {
+          "stat": "focus_blessing",
+          "rank1": 0.1,
+          "values": [
+            0.1,
+            0.2,
+            0.3
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "spell_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "intelligence",
+          "rank1": 0.12,
+          "values": [
+            0.12
+          ]
+        }
+      ]
+    },
+    "Arcanist": {
+      "micro": [
+        {
+          "stat": "focus_blessing",
+          "rank1": 0.1,
+          "values": [
+            0.1,
+            0.2,
+            0.3
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "focus_blessing",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        }
+      ]
+    },
+    "Elementalist": {
+      "micro": [
+        {
+          "stat": "elemental_pen",
+          "rank1": 0.03,
+          "values": [
+            0.03,
+            0.06,
+            0.09
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "elemental_pen",
+          "rank1": 0.07,
+          "values": [
+            0.07,
+            0.14,
+            0.21
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 0.05,
+          "values": [
+            0.05,
+            0.1,
+            0.15
+          ]
+        }
+      ]
+    },
+    "Prophet": {
+      "micro": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 8.0,
+          "values": [
+            8.0,
+            16.0,
+            24.0
+          ]
+        },
+        {
+          "stat": "focus_blessing",
+          "rank1": 0.1,
+          "values": [
+            0.1,
+            0.2,
+            0.3
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 0.05,
+          "values": [
+            0.05,
+            0.1,
+            0.15
+          ]
+        }
+      ]
+    },
+    "God of War": {
+      "micro": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.12,
+          "values": [
+            0.12,
+            0.24,
+            0.36
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "physical_skill_level",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        }
+      ]
+    },
+    "Shadowdancer": {
+      "micro": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.3,
+          "values": [
+            0.3,
+            0.6,
+            0.9
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "physical_skill_level",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        }
+      ]
+    },
+    "Ronin": {
+      "micro": [
+        {
+          "stat": "strength",
+          "rank1": 6.0,
+          "values": [
+            6.0,
+            12.0,
+            18.0
+          ]
+        },
+        {
+          "stat": "dexterity",
+          "rank1": 6.0,
+          "values": [
+            6.0,
+            12.0,
+            18.0
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "strength",
+          "rank1": 0.04,
+          "values": [
+            0.04,
+            0.08,
+            0.12
+          ]
+        },
+        {
+          "stat": "dexterity",
+          "rank1": 0.04,
+          "values": [
+            0.04,
+            0.08,
+            0.12
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "steep_strike_chance",
+          "rank1": 0.12,
+          "values": [
+            0.12
+          ]
+        }
+      ]
+    },
+    "Ranger": {
+      "micro": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.03,
+          "values": [
+            0.03,
+            0.06,
+            0.09
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "crit_dmg",
+          "rank1": 0.25,
+          "values": [
+            0.25
+          ]
+        }
+      ]
+    },
+    "Goddess of Deception": {
+      "micro": [
+        {
+          "stat": "dexterity",
+          "rank1": 5.0,
+          "values": [
+            5.0,
+            10.0,
+            15.0
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 5.0,
+          "values": [
+            5.0,
+            10.0,
+            15.0
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "dexterity",
+          "rank1": 10.0,
+          "values": [
+            10.0,
+            20.0,
+            30.0
+          ]
+        },
+        {
+          "stat": "intelligence",
+          "rank1": 10.0,
+          "values": [
+            10.0,
+            20.0,
+            30.0
+          ]
+        }
+      ]
+    },
+    "Warlock": {
+      "micro": [
+        {
+          "stat": "elemental_pen",
+          "rank1": 0.03,
+          "values": [
+            0.03,
+            0.06,
+            0.09
+          ]
+        },
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "elemental_pen",
+          "rank1": 0.2,
+          "values": [
+            0.2
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        }
+      ]
+    },
+    "Lich": {
+      "micro": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        }
+      ]
+    },
+    "God of Machines": {
+      "micro": [
+        {
+          "stat": "sentry_dmg_additional",
+          "rank1": 0.1,
+          "values": [
+            0.1,
+            0.2,
+            0.3
+          ]
+        },
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        },
+        {
+          "stat": "minion_skill_level",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        },
+        {
+          "stat": "sentry_skill_cast_frequency_inc",
+          "rank1": 0.04,
+          "values": [
+            0.04,
+            0.08,
+            0.12
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "sentry_dmg_additional",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        },
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.09,
+          "values": [
+            0.09,
+            0.18,
+            0.27
+          ]
+        },
+        {
+          "stat": "minion_skill_level",
+          "rank1": 0.12,
+          "values": [
+            0.12,
+            0.24,
+            0.36
+          ]
+        },
+        {
+          "stat": "spirit_magi_crit_rating_flat",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        },
+        {
+          "stat": "sentry_skill_cast_frequency_inc",
+          "rank1": 0.08,
+          "values": [
+            0.08,
+            0.16,
+            0.24
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "minion_skill_level",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        }
+      ]
+    },
+    "Machinist": {
+      "micro": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "synth_skill_level",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        }
+      ]
+    },
+    "Steel Vanguard": {
+      "micro": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        }
+      ]
+    },
+    "Alchemist": {
+      "micro": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.15,
+          "values": [
+            0.15,
+            0.3,
+            0.45
+          ]
+        },
+        {
+          "stat": "spirit_magi_crit_rating_flat",
+          "rank1": 0.02,
+          "values": [
+            0.02,
+            0.04,
+            0.06
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "minion_crit_rating_flat",
+          "rank1": 0.2,
+          "values": [
+            0.2,
+            0.4,
+            0.6
+          ]
+        },
+        {
+          "stat": "spirit_magi_crit_rating_flat",
+          "rank1": 0.04,
+          "values": [
+            0.04,
+            0.08,
+            0.12
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "spirit_magi_crit_rating_flat",
+          "rank1": 1.0,
+          "values": [
+            1.0
+          ]
+        }
+      ]
+    },
+    "Artisan": {
+      "micro": [
+        {
+          "stat": "sentry_skill_cast_frequency_inc",
+          "rank1": 0.03,
+          "values": [
+            0.03,
+            0.06,
+            0.09
+          ]
+        },
+        {
+          "stat": "sentry_dmg_additional",
+          "rank1": -0.08,
+          "values": [
+            -0.08,
+            -0.16,
+            -0.24
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "stat": "sentry_skill_cast_frequency_inc",
+          "rank1": 0.06,
+          "values": [
+            0.06,
+            0.12,
+            0.18
+          ]
+        },
+        {
+          "stat": "projectile_speed_inc",
+          "rank1": 0.09,
+          "values": [
+            0.09,
+            0.18,
+            0.27
+          ]
+        }
+      ],
+      "legendary_medium": [
+        {
+          "stat": "sentry_dmg_additional",
+          "rank1": -0.25,
+          "values": [
+            -0.25
+          ]
+        },
+        {
+          "stat": "sentry_skill_cast_frequency_inc",
+          "rank1": 0.3,
+          "values": [
+            0.3
+          ]
+        }
+      ]
+    }
+  },
+  "unresolved": [
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+3% Attack Speed"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+9% Attack Damage"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+3% Critical Strike Damage"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+6% Attack Speed"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+5% Armor"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+2% Max Life"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+18% Attack Damage"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+6% Skill Area"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+10% Armor"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+4% Max Life"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+12% Skill Area"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+9% Attack Damage"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+2% Movement Speed"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+2% Max Life"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+10% Attack Damage while Tenacity Blessing is active"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "micro",
+      "text": "+9% Attack Damage"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+18% Attack Damage"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+4% Movement Speed"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+4% Max Life"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "medium",
+      "text": "+10% Warcry Cooldown Recovery Speed"
+    },
+    {
+      "tree": "God of Might",
+      "node_type": "legendary_medium",
+      "text": "+8% additional Attack Damage if you have used a Warcry Skill in the last 8s"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+9% Attack Damage"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+7% Armor"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+18% Attack Damage"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+3% Attack Speed"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+5% Max Life"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+450 Armor"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+14% Armor"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+6% Attack Speed"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+4% Attack Block Chance"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+900 Armor"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+7% Armor"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+8% Attack Block Chance"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+25% chance to gain 1 stacks of Tenacity Blessing when taking damage. Interval: 1 s"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "legendary_medium",
+      "text": "+40% Defense gained from Chest Armor"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+9% Attack Damage when holding a One-Handed Weapon"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+5% Warcry Cooldown Recovery Speed"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "legendary_medium",
+      "text": "+6% Armor per stack of Tenacity Blessing owned"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+18% Attack Damage when holding a One-Handed Weapon"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+12% damage dealt when holding a Shield"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+4% Attack Block Chance when holding a Shield"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "medium",
+      "text": "+6% Warcry Effect"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+2% Elemental Resistance"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "micro",
+      "text": "+2% Erosion Resistance"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "legendary_medium",
+      "text": "+8% additional Attack Damage when holding a One-Handed Weapon"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "legendary_medium",
+      "text": "+5% Block Ratio when holding a Shield"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "legendary_medium",
+      "text": "+4 to the minimum number of enemies affected by Warcry"
+    },
+    {
+      "tree": "The Brave",
+      "node_type": "legendary_medium",
+      "text": "+1% Armor for every 24 Strength"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "+9% Attack Damage"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "+9% Area Damage"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "medium",
+      "text": "+18% Attack Damage"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "+18% Attack Damage"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "-4% Attack Speed"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "medium",
+      "text": "+5% Max Life"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "medium",
+      "text": "+18% Area Damage"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "medium",
+      "text": "+30% Attack Damage"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "medium",
+      "text": "-5% Attack Speed"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "+3% Defense"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "+6% Skill Area"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "medium",
+      "text": "+6% Defense"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "+10% Attack Damage while Tenacity Blessing is active"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "medium",
+      "text": "+12% Skill Area"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "+12% Attack Damage when holding a Two-Handed Weapon"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "-4% additional Physical Damage taken"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "micro",
+      "text": "+9% Area Damage"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "medium",
+      "text": "+4% additional Base Damage for Two-Handed Weapons"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "legendary_medium",
+      "text": "-6% additional damage taken"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "legendary_medium",
+      "text": "+40% Skill Area if Main Skill is not used in the last 2 s"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "legendary_medium",
+      "text": "+10% additional Base Damage for Two-Handed Weapons"
+    },
+    {
+      "tree": "Onslaughter",
+      "node_type": "legendary_medium",
+      "text": "+80% inflicted Paralysis Effect when holding a Two-Handed Weapon"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Minion Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Fire Damage Over Time"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Minion Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+18% Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+18% Minion Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+3% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+4% Fire Resistance"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+18% Fire Damage Over Time"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+18% Minion Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+6% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "legendary_medium",
+      "text": "+4% Max Fire Resistance"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+3% chance to Ignite targets"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+6% Ignite chance for Minions"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+5% Minion Critical Strike Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Minion Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+6% chance to Ignite targets"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+12% Ignite chance for Minions"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Minion Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+18% Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+18% Minion Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Fire Damage Over Time"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Minion Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "micro",
+      "text": "+9% Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+15% Affliction Effect"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+15% Minion Affliction Effect"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+8 Affliction inflicted per second"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "medium",
+      "text": "+8 Affliction inflicted per second by Minions"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "legendary_medium",
+      "text": "+1% Fire Damage per 12 Strength"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "legendary_medium",
+      "text": "+1% Minion Fire Damage per 12 Strength"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "legendary_medium",
+      "text": "+4% additional Fire Damage"
+    },
+    {
+      "tree": "Warlord",
+      "node_type": "legendary_medium",
+      "text": "+8% chance to Ignite targets"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+3% Defense"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+3% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+6% Defense"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+40 Max Life"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+6% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+80 Max Life"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+4% Life Regeneration Speed"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "legendary_medium",
+      "text": "-15% additional Life Regain Interval"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "legendary_medium",
+      "text": "+8% additional damage if you have lost Life recently"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+50% damage against Low Life enemies"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+8% Life Regeneration Speed"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+12% damage if you have taken damage recently"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "legendary_medium",
+      "text": "+25% additional damage against Low Life enemies"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "legendary_medium",
+      "text": "+30% Life Regeneration Speed"
+    },
+    {
+      "tree": "Warrior",
+      "node_type": "medium",
+      "text": "+3% Injury Buffer"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+2% Movement Speed"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "medium",
+      "text": "+4% Movement Speed"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+6% Skill Area"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+7% Evasion"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "medium",
+      "text": "+12% Skill Area"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+12% damage if you have defeated an enemy recently"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "medium",
+      "text": "+14% Evasion"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "legendary_medium",
+      "text": "+5% damage and +1% Movement Speed for 4 s on defeat. Stacks up to 8 time(s) (Max"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "micro",
+      "text": "+3% Attack Speed and Cast Speed when having Agility Blessing"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "legendary_medium",
+      "text": "+10% additional damage for 4s after using Mobility Skills"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "legendary_medium",
+      "text": "+6% additional Attack Speed if you have dealt a Critical Strike recently (Max Divinity"
+    },
+    {
+      "tree": "Goddess of Hunting",
+      "node_type": "legendary_medium",
+      "text": "+6% additional Cast Speed if you have dealt a Critical Strike recently (Max Divinity"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "micro",
+      "text": "+9% Projectile Damage"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "micro",
+      "text": "+7% Evasion"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "medium",
+      "text": "+18% Projectile Damage"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "micro",
+      "text": "+450 Evasion"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "medium",
+      "text": "+14% Evasion"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "micro",
+      "text": "+15% Projectile Critical Strike Rating"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "medium",
+      "text": "+900 Evasion"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "medium",
+      "text": "+30% Projectile Critical Strike Rating"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "medium",
+      "text": "+15% Projectile Critical Strike Damage"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "micro",
+      "text": "+7% Evasion"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "medium",
+      "text": "+3% chance to avoid damage"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "legendary_medium",
+      "text": "+60% Projectile Damage against enemies in proximity"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "legendary_medium",
+      "text": "+12% Evasion"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "micro",
+      "text": "+9% Projectile Damage"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "micro",
+      "text": "+7% Evasion"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "legendary_medium",
+      "text": "+1 to Parabolic Projectile Splits quantity"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "legendary_medium",
+      "text": "+1 Jumps"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "legendary_medium",
+      "text": "+2 Horizontal Projectile Penetration(s)"
+    },
+    {
+      "tree": "Marksman",
+      "node_type": "legendary_medium",
+      "text": "+20% additional Evasion on Spell Damage"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+9% Attack Damage"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+3% Attack Speed"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+18% Attack Damage"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+3% Attack Speed"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+6% Attack Speed"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+6% Attack Speed"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+7% Evasion"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+14% Evasion"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+9% Attack Damage while Dual Wielding"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+2% Movement Speed"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+6% chance to Multistrike"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "micro",
+      "text": "+6% Minion Multistrike chance"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+6% Attack Speed while Dual Wielding"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+18% Attack Damage while Dual Wielding"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "medium",
+      "text": "+3% additional Attack Speed when performing Multistrikes"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "legendary_medium",
+      "text": "+6% additional Attack Speed while Dual Wielding"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "legendary_medium",
+      "text": "+5% additional Attack Damage for each unique type of weapon equipped while Dual"
+    },
+    {
+      "tree": "Bladerunner",
+      "node_type": "legendary_medium",
+      "text": "+1% Attack and Cast Speed per 40 Dexterity"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "micro",
+      "text": "+3% Defense"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "medium",
+      "text": "+6% Defense"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "micro",
+      "text": "+12% damage if you have Regained in the last 8s"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "legendary_medium",
+      "text": "-16% additional Regain Interval"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "legendary_medium",
+      "text": "+8% Injury Buffer if you have triggered Life Regain in the last 8s"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "legendary_medium",
+      "text": "+8% additional Max Energy Shield if you have triggered Shield Regain in the last 8s (Max"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "medium",
+      "text": "+24% Attack Damage if you have Regained in the last 8s"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "medium",
+      "text": "+24% Spell Damage if you have Regained in the last 8s"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "legendary_medium",
+      "text": "+2% additional Attack Speed for each time you have Regained in the last 8s. Stacks up"
+    },
+    {
+      "tree": "Druid",
+      "node_type": "legendary_medium",
+      "text": "+2% additional Cast Speed for each time you have Regained in the last 8s. Stacks up to"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+9% Lightning Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+9% Minion Lightning Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "medium",
+      "text": "+18% Lightning Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "medium",
+      "text": "+18% Minion Lightning Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+7% Evasion"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+4% Lightning Resistance"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "medium",
+      "text": "+14% Evasion"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "medium",
+      "text": "+5% Minion Critical Strike Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+9% Lightning Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+9% Minion Lightning Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+9% Lightning Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+9% Lightning Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+2% additional Max Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "micro",
+      "text": "+2% additional Max Damage for Minions"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "legendary_medium",
+      "text": "+20% Numbed Effect"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "legendary_medium",
+      "text": "-4% to the Max Life and Energy Shield thresholds for inflicting Numbed"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "legendary_medium",
+      "text": "+12% additional Max Damage"
+    },
+    {
+      "tree": "Assassin",
+      "node_type": "legendary_medium",
+      "text": "+12% additional Max Damage for Minions"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+3% Cast Speed"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+2% Movement Speed"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+4% Max Mana"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "medium",
+      "text": "+6% Cast Speed"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "medium",
+      "text": "+4% Movement Speed"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "medium",
+      "text": "+8% Max Mana"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+6% Skill Area"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "medium",
+      "text": "+5% Spell Critical Strike Damage"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+4% Spell Burst Charge Speed"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+9% Tangle Damage"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+5% Tangle Duration"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "medium",
+      "text": "+12% Skill Area"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "legendary_medium",
+      "text": "+20% Spell Burst Charge Speed"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "legendary_medium",
+      "text": "+2% Movement Speed for each activated Tangle"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+9% Spell Damage"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+10% damage while Focus Blessing is active"
+    },
+    {
+      "tree": "Goddess of Knowledge",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+9% Spell Damage"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+4% Max Mana"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "medium",
+      "text": "+18% Spell Damage"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+3% Cast Speed"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "medium",
+      "text": "+6% Max Mana"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "medium",
+      "text": "+18% Mana Regeneration Speed"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+12% Spell Damage when holding a Shield"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "medium",
+      "text": "+6% Cast Speed"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "medium",
+      "text": "+24% Spell Damage when holding a Shield"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+4% Spell Block Chance"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "medium",
+      "text": "+5% Spell Critical Strike Damage"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+10% Spell Damage when having Focus Blessing"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "legendary_medium",
+      "text": "+12% Spell Block Chance"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "legendary_medium",
+      "text": "+15% Energy Shield gained from Shield"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+4% Spell Burst Charge Speed"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "legendary_medium",
+      "text": "-8% additional Energy Shield Regain Interval"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "legendary_medium",
+      "text": "+7% Energy Shield Regain"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+75 Max Energy Shield"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "medium",
+      "text": "+8% Spell Burst Charge Speed"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+4% Cast Speed when Focus Blessing is active"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "micro",
+      "text": "+9% Spell Damage"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "legendary_medium",
+      "text": "+1 Max Spell Burst"
+    },
+    {
+      "tree": "Magister",
+      "node_type": "legendary_medium",
+      "text": "+5% Spell Critical Strike Damage per stack of Focus Blessing owned (Max Divinity"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+9% Spell Damage"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+6% Max Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "medium",
+      "text": "+18% Spell Damage"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+15 Max Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "medium",
+      "text": "+8% Max Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "medium",
+      "text": "+30 Max Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+4% Max Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "medium",
+      "text": "+20% Mana Regeneration Speed"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "legendary_medium",
+      "text": "+20% Attack and Cast Speed when at Full Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "legendary_medium",
+      "text": "+15% Max Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "legendary_medium",
+      "text": "+20% Spell Damage at Low Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "legendary_medium",
+      "text": "+15% Max Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+4% Max Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+4% Max Mana"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+10% damage while Focus Blessing is active"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "medium",
+      "text": "+3% Sealed Mana Compensation"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+9% Spell Damage"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "micro",
+      "text": "+8% Skill Cost"
+    },
+    {
+      "tree": "Arcanist",
+      "node_type": "legendary_medium",
+      "text": "+8% additional Spell Damage"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "micro",
+      "text": "+9% damage for Channeled Skills"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "micro",
+      "text": "+9% Elemental Damage"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "+18% damage for Channeled Skills"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "+18% Elemental Damage"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "micro",
+      "text": "+4% Max Mana"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "+8% Max Mana"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "micro",
+      "text": "+9% damage for Channeled Skills"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed for Channeled Skills"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "legendary_medium",
+      "text": "+60% damage while standing still"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "micro",
+      "text": "+2% Elemental Resistance"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "+6% damage for every +1 additional Max Channeled Stack(s)"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "medium",
+      "text": "+12% Attack and Cast Speed when channeled stacks have not reached cap"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "legendary_medium",
+      "text": "-5% additional Elemental Damage taken for every type of Elemental Damage recently"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "legendary_medium",
+      "text": "+1 to Max Channeled Stacks"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "legendary_medium",
+      "text": "+40% additional Beam Length"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "legendary_medium",
+      "text": "+1 Fire Skill Level"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "legendary_medium",
+      "text": "+1 Lightning Skill Level"
+    },
+    {
+      "tree": "Elementalist",
+      "node_type": "legendary_medium",
+      "text": "+1 Cold Skill Level"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+9% Cold Damage"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+9% Cold Damage"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+9% Minion Cold Damage"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+18% Cold Damage"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+3% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+4% Max Mana"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+18% Cold Damage"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+18% Minion Cold Damage"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+6% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+4% Cold Resistance"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+8% Max Mana"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+5% Minion Critical Strike Damage"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "legendary_medium",
+      "text": "+18% Cold Resistance"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+2 to Max Frostbite Rating"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+4% Frostbite Effect"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+5 to Max Frostbite Rating"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "medium",
+      "text": "+8% Frostbite Effect"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+10% damage while Focus Blessing is active"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+9% Cold Damage"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "micro",
+      "text": "+9% Minion Cold Damage"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "legendary_medium",
+      "text": "+10% additional damage against Frozen enemies"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "legendary_medium",
+      "text": "+20% Frostbite Effect"
+    },
+    {
+      "tree": "Prophet",
+      "node_type": "legendary_medium",
+      "text": "+100% chance to gain a stack of Focus Blessing upon inflicting damage to a Frostbitten"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+6% Skill Area"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "+25% Critical Strike Rating"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+2% Attack Block Chance"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+2% Spell Block Chance"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "+12% Skill Area"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+8% Critical Strike Damage"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "+4% Attack Block Chance"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "+4% Spell Block Chance"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+3% chance to inflict Trauma"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+9% Physical Damage"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "+16% Critical Strike Damage"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "legendary_medium",
+      "text": "+8% chance to inflict Trauma"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "legendary_medium",
+      "text": "+16% Trauma Reaping Duration"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "medium",
+      "text": "+18% Physical Damage"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "micro",
+      "text": "+9% Physical Damage"
+    },
+    {
+      "tree": "God of War",
+      "node_type": "legendary_medium",
+      "text": "+8% additional Physical Damage while having Fervor"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+9% Physical Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+9% Physical Damage for Minions"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+3% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+18% Physical Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+18% Physical Damage for Minions"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+3% chance to inflict Trauma"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+6% chance for Minions to inflict Trauma"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+5% Max Life"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+7% Armor"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+6% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+8% Critical Strike Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+8% Minion Critical Strike Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+6% chance to inflict Trauma"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+12% chance for Minions to inflict Trauma"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+16% Critical Strike Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+16% Minion Critical Strike Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+5% Armor"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+5% Evasion"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+4% Fervor effect"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+30% Critical Strike Rating"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+9% Physical Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+9% Physical Damage for Minions"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+9% Armor"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+9% Evasion"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "-4% additional Physical Damage taken"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "legendary_medium",
+      "text": "+1% Movement Speed per 10 Fervor Rating"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+22% Physical Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "-12% Elemental Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "medium",
+      "text": "+22% Physical Damage for Minions"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+9% Physical Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+9% Physical Damage for Minions"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+9% Trauma Damage"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "micro",
+      "text": "+9% damage for Triggered Skills"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "legendary_medium",
+      "text": "+8% Armor DMG Mitigation Penetration"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "legendary_medium",
+      "text": "+8% Armor DMG Mitigation Penetration for Minions"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "legendary_medium",
+      "text": "+12% additional Trauma Damage dealt by Critical Strikes"
+    },
+    {
+      "tree": "Shadowdancer",
+      "node_type": "legendary_medium",
+      "text": "+50% chance to Weaken nearby enemies when triggering any skill (Max Divinity Effect:"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+9% Melee Damage"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+9% Attack Damage"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+18% Melee Damage"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+3% Attack Speed"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+5% Armor"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+5% Evasion"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+18% Attack Damage"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+6% Attack Speed"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+2% Attack Block Chance"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+2% Spell Block Chance"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+10% Armor"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+10% Evasion"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+10% Critical Strike Damage"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+4% Attack Block Chance"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+4% Spell Block Chance"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+6% Attack Speed"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "-6% Melee Damage"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+18% Melee Damage"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "-4% Attack Speed"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+4% Fervor effect"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "legendary_medium",
+      "text": "+32% chance to Multistrike"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "micro",
+      "text": "+9% Melee Damage"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "medium",
+      "text": "+8% Fervor effect"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "legendary_medium",
+      "text": "+33% Demolisher Charge Restoration Speed"
+    },
+    {
+      "tree": "Ronin",
+      "node_type": "legendary_medium",
+      "text": "+20% Fervor effect"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+30% Critical Strike Rating"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+25% damage dealt to Nearby enemies"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+25% damage to Distant enemies"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+15% Critical Strike Damage"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+2% Attack Block Chance"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+2% Spell Block Chance"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+4% Attack Block Chance"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+4% Spell Block Chance"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+9% Projectile Damage"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+4% Fervor effect"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+9% Melee Damage"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "micro",
+      "text": "+10% Knockback Chance"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "legendary_medium",
+      "text": "+20% Mark effect"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+18% Melee Damage"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "medium",
+      "text": "+15% Knockback distance"
+    },
+    {
+      "tree": "Ranger",
+      "node_type": "legendary_medium",
+      "text": "+15% additional damage taken by enemies in Proximity"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+2% Attack Block Chance"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+6% damage"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+4% Spell Block Chance"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+4% Attack Block Chance"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+12% damage"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+8% Spell Block Chance"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+3% Defense"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+10% Critical Strike Damage"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+12% damage dealt when holding a Shield"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "legendary_medium",
+      "text": "+5% Life Regain"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "legendary_medium",
+      "text": "+5% Energy Shield Regain"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "legendary_medium",
+      "text": "+3 Defensive Skill Level"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+2% Attack Block Chance"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+2% Spell Block Chance"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+12% damage dealt when holding a Shield"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "medium",
+      "text": "+4% Attack and Cast Speed when holding a Shield"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+4% Defense when holding a Shield"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+7% Armor"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+2% Attack Block Chance"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "micro",
+      "text": "+2% Spell Block Chance"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "legendary_medium",
+      "text": "+25% Defense from Shield"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "legendary_medium",
+      "text": "+5% Block Ratio"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "legendary_medium",
+      "text": "+35% Armor if you have Blocked recently"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "legendary_medium",
+      "text": "+4% Attack Block Chance"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "legendary_medium",
+      "text": "+4% Spell Block Chance"
+    },
+    {
+      "tree": "Sentinel",
+      "node_type": "legendary_medium",
+      "text": "+40% damage if you have Blocked recently"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+2% Movement Speed"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+6% Skill Area"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+4% Movement Speed"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+12% Skill Area"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "legendary_medium",
+      "text": "+100% chance to gain Blur on defeat"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+9% Damage Over Time"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+5% Max Life"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+6% Ill Omen Cumulative Efficiency"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+10% Critical Strike Damage"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+6 Affliction inflicted per second"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+9% Damage Over Time"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+9% Damage Over Time"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+2% Skill Effect Duration"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "legendary_medium",
+      "text": "+30% Ill Omen Cumulative Efficiency"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+12 Affliction inflicted per second"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+18% Damage Over Time"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+4% Max Energy Shield"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "medium",
+      "text": "+4% Energy Shield Charge Speed"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+4% Deterioration Chance"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "micro",
+      "text": "+9% Erosion Damage"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "legendary_medium",
+      "text": "+1 Persistent Skill Level"
+    },
+    {
+      "tree": "Goddess of Deception",
+      "node_type": "legendary_medium",
+      "text": "-15% additional Deterioration Duration"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+9% Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+9% Minion Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+3% Wilt chance"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "medium",
+      "text": "+18% Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "medium",
+      "text": "+18% Minion Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+4% Deterioration Chance"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "medium",
+      "text": "+6% Wilt chance"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+4% Erosion Resistance"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "medium",
+      "text": "+8% Deterioration Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "medium",
+      "text": "+10% Critical Strike Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+9% Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+9% Minion Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+3% Wilt chance"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+9% Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+9% Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+9% Minion Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "legendary_medium",
+      "text": "+12% Wilt chance"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "legendary_medium",
+      "text": "+6% Wilt Duration"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "medium",
+      "text": "+8% Deterioration Chance"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "legendary_medium",
+      "text": "+1 Erosion Skill Level"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+9% Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "micro",
+      "text": "+9% Minion Erosion Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "legendary_medium",
+      "text": "+8% additional Deterioration Damage"
+    },
+    {
+      "tree": "Shadowmaster",
+      "node_type": "legendary_medium",
+      "text": "+5% additional Deterioration Duration"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+9% Damage Over Time"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "medium",
+      "text": "+18% Damage Over Time"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+2% Skill Effect Duration"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+3% Defense"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+9% Damage Over Time"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "medium",
+      "text": "+4% Skill Effect Duration"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "medium",
+      "text": "+3% Injury Buffer"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+6% Affliction Effect"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+6 Affliction inflicted per second"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+6% Affliction Effect"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+6% Reaping Duration"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "medium",
+      "text": "+12% Affliction Effect"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "micro",
+      "text": "+6% Reaping Recovery Speed"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "legendary_medium",
+      "text": "+18 Affliction inflicted per second"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "legendary_medium",
+      "text": "-8% All Resistance when the enemy has max Affliction"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "medium",
+      "text": "+12% Reaping Duration"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "medium",
+      "text": "+12% Reaping Recovery Speed"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "medium",
+      "text": "+12% Reaping Duration"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "legendary_medium",
+      "text": "+50% chance to gain Blur when Reaping"
+    },
+    {
+      "tree": "Psychic",
+      "node_type": "legendary_medium",
+      "text": "+16% Blur Effect"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+9% Ailment Damage"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+18% Minion Damage"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+6% Affliction Effect"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+3% chance to inflict Damaging Ailments"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+6% chance for Minions to inflict Damaging Ailments"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+18% Ailment Damage"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+8% damage against Cursed enemies"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+8% Curse Skill Area"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+12% Affliction Effect"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+6% chance to inflict Damaging Ailments"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+12% chance for Minions to inflict Damaging Ailments"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+16% damage against Cursed enemies"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+16% Curse Skill Area"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+4% Curse Effect"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+6% Affliction Effect"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+14% Critical Strike Damage against enemies affected by Ailments"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+14% Minion Critical Strike Damage against enemies affected by Ailments"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "legendary_medium",
+      "text": "+8% additional damage against Cursed enemies"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "medium",
+      "text": "+12% Affliction Effect"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+9% Ailment Damage"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+2% Crowd Control Effects"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "legendary_medium",
+      "text": "+20% chance to gain Blur when inflicting crowd control effects"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "legendary_medium",
+      "text": "+5% chance to inflict Slow on hit"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "legendary_medium",
+      "text": "+20% chance to Blind the target on hit"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "legendary_medium",
+      "text": "+25% Critical Strike Damage Mitigation against Blinded enemies"
+    },
+    {
+      "tree": "Warlock",
+      "node_type": "legendary_medium",
+      "text": "+30% chance to inflict Damaging Ailments"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+4% Max Mana"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+18% Minion Damage"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+6% Affliction Effect"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+3% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+8% Max Mana"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+12% Affliction Effect"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+3% Energy Shield Charge Speed"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+6% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "-4 Skill Cost"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+5% Minion Critical Strike Damage"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+5 to All Stats"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "legendary_medium",
+      "text": "+10% Max Energy Shield"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+10 to All Stats"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+2% Skill Effect Duration"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "legendary_medium",
+      "text": "+10% Movement Speed while Blur is active"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+6% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+4% Skill Effect Duration"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "medium",
+      "text": "+3% Sealed Mana Compensation"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "legendary_medium",
+      "text": "+1 to All Skills' Levels"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "legendary_medium",
+      "text": "+8% Cooldown Recovery Speed"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "legendary_medium",
+      "text": "+1 Max Charges"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "legendary_medium",
+      "text": "+10% additional damage when having both Sealed Mana and Life"
+    },
+    {
+      "tree": "Lich",
+      "node_type": "legendary_medium",
+      "text": "+8% Sealed Mana Compensation"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+3% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+18% Minion Damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+7% Sentry Skill Area"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+6% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+7% Sentry Skill Area"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+15% Sentry Skill Critical Strike Rating"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+15% Minion Critical Strike Damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+8% Barrier Shield"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+20% Sentry Skill Critical Strike Rating"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+5% Sentry Skill Critical Strike Damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+ 2 Command per second"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+27% Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate."
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+16% Barrier Shield"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+12% Sentry Damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "medium",
+      "text": "+24% Sentry Damage"
+    },
+    {
+      "tree": "God of Machines",
+      "node_type": "legendary_medium",
+      "text": "+10% additional Sentry Damage if Sentry Skill is not used in the last 1 s"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+2% Max Life"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+18% Minion Damage"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+3% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+8% Minion Damage"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+12% chance for Minions to inflict Damaging Ailments"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+4% Max Life"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+6% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+7% Minion Max Life"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+16% Minion Damage"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+24% chance for Minions to inflict Damaging Ailments"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+2% Max Energy Shield"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+2% Energy Shield Charge Speed"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+5% Minion Critical Strike Damage"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+14% Minion Max Life"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+4% Max Energy Shield"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+4% Energy Shield Charge Speed"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+ 1 Command per second"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+3% Minion Life Regeneration Speed"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "micro",
+      "text": "+12% Minion Damage if a Synthetic Troop Skill has been cast recently"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+4% chance for Synthetic Troop Minions to deal Double Damage"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+ 2 Command per second"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "medium",
+      "text": "+6% Minion Life Regeneration Speed"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "legendary_medium",
+      "text": "+1 to Max Summonable Synthetic Troops"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "legendary_medium",
+      "text": "+8% additional Minion Damage if a Synthetic Troop Skill has been cast recently"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "legendary_medium",
+      "text": "-40% additional damage taken by Synthetic Troop Minions"
+    },
+    {
+      "tree": "Machinist",
+      "node_type": "legendary_medium",
+      "text": "+1% Minion Attack and Cast Speed for every 2 Command owned"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+2% Elemental Resistance"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+18% Minion Damage"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+3% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+4% Erosion Resistance"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+4% Elemental Resistance"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+15% Critical Strike Rating"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+6% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+8% Erosion Resistance"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+20% Critical Strike Rating"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+5% Critical Strike Damage"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+5% Minion Critical Strike Damage"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+2% Aura Effect"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+1 Empower Skill Level"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+12% damage while an Elixir Skill is active"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "-4% additional Elemental Damage taken"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+3% Aura Effect"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+9% Focus Speed"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "medium",
+      "text": "+8% Elixir Skill Effect"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "legendary_medium",
+      "text": "+1 Focus Skill Level"
+    },
+    {
+      "tree": "Steel Vanguard",
+      "node_type": "legendary_medium",
+      "text": "+20% Elixir Skill Effect"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+18% Minion Damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+18% damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+3% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+3% Attack and Cast Speed"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+8% Minion Damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+12% chance for Minions to inflict Damaging Ailments"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+6% Minion Attack and Cast Speed"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+6% Attack and Cast Speed"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+16% Minion Damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+24% chance for Minions to inflict Damaging Ailments"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+5% Minion Critical Strike Damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+12% Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate."
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+9% Spirit Magus Ultimate Cooldown Recovery Speed"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+24% Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate."
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+9% Spirit Magus Skill Damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+4% Origin of Spirit Magus effect"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+9% Minion Damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "micro",
+      "text": "+9% damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "legendary_medium",
+      "text": "+1 Spirit Magus Skill Level"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "legendary_medium",
+      "text": "-80% additional damage taken by Spirit Magi"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "legendary_medium",
+      "text": "-40% additional Spirit Magus Skill Damage"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "legendary_medium",
+      "text": "+1 Passive Skill Level"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "legendary_medium",
+      "text": "-80% additional damage taken by Spirit Magi"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "legendary_medium",
+      "text": "+15% Life Regeneration Speed"
+    },
+    {
+      "tree": "Alchemist",
+      "node_type": "legendary_medium",
+      "text": "-15% additional Energy Shield Charge Interval"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+12% Sentry Damage"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+3% Max Life"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+15% Sentry Skill Critical Strike Rating"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+24% Sentry Damage"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+6% Max Life"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+7% Barrier Shield"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+30% Sentry Skill Critical Strike Rating"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+8% Sentry Skill Critical Strike Damage"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+3% Max Energy Shield"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+14% Barrier Shield"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+2% Movement Speed"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+15% Sentry Skill Critical Strike Damage"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+12% Sentry Damage"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+6% Max Energy Shield"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+4% Movement Speed"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+20% Sentry Damage when moving"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+20% Sentry Damage"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+18% Sentry Skill Area"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+8% Sentry Damage"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+7% Barrier Shield"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+7% Armor"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "micro",
+      "text": "+12% Sentry Damage"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "legendary_medium",
+      "text": "+8% additional Sentry Damage"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "medium",
+      "text": "+14% Barrier Shield"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "legendary_medium",
+      "text": "+8% Armor"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "legendary_medium",
+      "text": "-5% additional Sentry Damage"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "legendary_medium",
+      "text": "+8% Barrier Absorption Rate"
+    },
+    {
+      "tree": "Artisan",
+      "node_type": "legendary_medium",
+      "text": "+40% Barrier Shield"
+    }
+  ]
+}

@@ -1,0 +1,252 @@
+{
+  "God of Might": {
+    "might_c0_r2": [
+      {
+        "text": "+9% damage",
+        "values": [
+          0.09,
+          0.18,
+          0.27
+        ]
+      }
+    ],
+    "might_c1_r1": [
+      {
+        "text": "+3% Attack Speed",
+        "values": [
+          0.03,
+          0.06,
+          0.09
+        ]
+      }
+    ],
+    "might_c1_r2": [
+      {
+        "text": "+18% damage",
+        "values": [
+          0.18,
+          0.36,
+          0.54
+        ]
+      }
+    ],
+    "might_c1_r3": [
+      {
+        "text": "+9% Attack Damage",
+        "values": [
+          0.09,
+          0.18,
+          0.27
+        ]
+      }
+    ],
+    "might_c2_r0": [
+      {
+        "text": "+10% Attack Critical Strike Rating",
+        "values": [
+          0.1,
+          0.2,
+          0.3
+        ]
+      },
+      {
+        "text": "+3% Critical Strike Damage",
+        "values": [
+          0.03,
+          0.06,
+          0.09
+        ]
+      }
+    ],
+    "might_c2_r1": [
+      {
+        "text": "+6% Attack Speed",
+        "values": [
+          0.06,
+          0.12,
+          0.18
+        ]
+      },
+      {
+        "text": "-4 Attack Skill Cost",
+        "values": [
+          -4,
+          -8,
+          -12
+        ]
+      }
+    ],
+    "might_c2_r2": [
+      {
+        "text": "+5% Armor",
+        "values": [
+          0.05,
+          0.1,
+          0.15
+        ]
+      },
+      {
+        "text": "+2% Max Life",
+        "values": [
+          0.02,
+          0.04,
+          0.06
+        ]
+      }
+    ],
+    "might_c2_r3": [
+      {
+        "text": "+18% Attack Damage",
+        "values": [
+          0.18,
+          0.36,
+          0.54
+        ]
+      }
+    ],
+    "might_c2_r4": [
+      {
+        "text": "+6% Skill Area",
+        "values": [
+          0.06,
+          0.12,
+          0.18
+        ]
+      },
+      {
+        "text": "+6% Projectile Speed",
+        "values": [
+          0.06,
+          0.12,
+          0.18
+        ]
+      }
+    ],
+    "might_c3_r0": [
+      {
+        "text": "+20% Attack Critical Strike Rating",
+        "values": [
+          0.2,
+          0.4,
+          0.6
+        ]
+      },
+      {
+        "text": "+5% Critical Strike Damage",
+        "values": [
+          0.05,
+          0.1,
+          0.15
+        ]
+      }
+    ],
+    "might_c3_r2": [
+      {
+        "text": "+10% Armor",
+        "values": [
+          0.1,
+          0.2,
+          0.3
+        ]
+      },
+      {
+        "text": "+4% Max Life",
+        "values": [
+          0.04,
+          0.08,
+          0.12
+        ]
+      }
+    ],
+    "might_c3_r3": [
+      {
+        "text": "+8 Strength",
+        "values": [
+          8,
+          16,
+          24
+        ]
+      }
+    ],
+    "might_c3_r4": [
+      {
+        "text": "+12% Skill Area",
+        "values": [
+          0.12,
+          0.24,
+          0.36
+        ]
+      },
+      {
+        "text": "+12% Projectile Speed",
+        "values": [
+          0.12,
+          0.24,
+          0.36
+        ]
+      }
+    ],
+    "might_c4_r2": [
+      {
+        "text": "+10% Tenacity Blessing Duration",
+        "values": [
+          0.1,
+          0.2,
+          0.3
+        ]
+      },
+      {
+        "text": "+10% Attack Damage while Tenacity Blessing is active",
+        "values": [
+          0.1,
+          0.2,
+          0.3
+        ]
+      }
+    ],
+    "might_c4_r3": [
+      {
+        "text": "+16 Strength",
+        "values": [
+          16,
+          32,
+          48
+        ]
+      }
+    ],
+    "might_c5_r1": [
+      {
+        "text": "+4% Max Life",
+        "values": [
+          0.04,
+          0.08,
+          0.12
+        ]
+      }
+    ],
+    "might_c5_r2": [
+      {
+        "text": "+1 to Max Tenacity Blessing Stacks",
+        "values": [
+          1
+        ]
+      }
+    ],
+    "might_c6_r3": [
+      {
+        "text": "+2% Life Regeneration Speed per stack of Tenacity Blessing owned",
+        "values": [
+          0.02
+        ]
+      }
+    ],
+    "might_c6_r4": [
+      {
+        "text": "+8% additional Attack Damage if you have used a Warcry Skill in the last 8s",
+        "values": [
+          0.08
+        ]
+      }
+    ]
+  }
+}

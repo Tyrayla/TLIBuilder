@@ -21,7 +21,11 @@
       "Bash(python -c \"import starlette; print\\(starlette.__version__\\)\")",
       "Bash(python -c \"import sys; [print\\(p\\) for p in sys.path]\")",
       "Bash(python -c \"import fastapi; f=fastapi.FastAPI\\(\\); print\\('fastapi ok'\\)\")",
-      "Bash(python -m pip install pdfplumber python-docx python-multipart)"
+      "Bash(python -m pip install pdfplumber python-docx python-multipart)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('tools/node_type_filter_builder.py'\\).read\\(\\)\\); print\\('filter_builder OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('persistence/snapshot_manager.py'\\).read\\(\\)\\); print\\('snapshot_manager OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('server.py'\\).read\\(\\)\\); print\\('server OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('server.py'\\).read\\(\\)\\); print\\('OK'\\)\")"
     ]
   }
 }
