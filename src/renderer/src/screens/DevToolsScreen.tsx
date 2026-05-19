@@ -1,9 +1,10 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   api, TalentSnapshot, TalentStat, TalentDiff, DiffStatus, DiffNamedTalent,
+  SnapshotStatus, RebuildFilterResult, UnresolvedStat,
 } from '../api/client'
 
-type Tab = 'parser' | 'diff'
+type Tab = 'parser' | 'diff' | 'snapshot'
 
 interface Props { onBack: () => void }
 
@@ -521,6 +522,192 @@ function DiffTab() {
   )
 }
 
+// ── Snapshot tab ───────────────────────────────────────────────────────────
+
+const NT_BADGE: Record<string, { label: string; color: string; bg: string }> = {
+  micro:            { label: 'Micro',       color: '#90caf9', bg: '#0a1929' },
+  medium:           { label: 'Medium',      color: '#ce93d8', bg: '#1a0a29' },
+  legendary_medium: { label: 'Legendary',   color: '#ffd54f', bg: '#1a1500' },
+}
+
+function SnapshotTab() {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [status, setStatus] = useState<SnapshotStatus | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadErr, setUploadErr] = useState('')
+  const [rebuilding, setRebuilding] = useState(false)
+  const [rebuildResult, setRebuildResult] = useState<RebuildFilterResult | null>(null)
+  const [rebuildErr, setRebuildErr] = useState('')
+  const [unresolvedOpen, setUnresolvedOpen] = useState(false)
+
+  useEffect(() => {
+    api.getSnapshotStatus().then(setStatus).catch(() => {})
+  }, [])
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true); setUploadErr('')
+    try {
+      const snapshot = JSON.parse(await file.text())
+      const res = await api.saveCanonicalSnapshot(snapshot)
+      setStatus({ exists: true, source_file: res.source_file, generated_at: res.generated_at })
+      setRebuildResult(null)
+    } catch (ex) { setUploadErr(String(ex)) }
+    finally {
+      setUploading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  const handleRebuild = async () => {
+    setRebuilding(true); setRebuildErr('')
+    try {
+      setRebuildResult(await api.rebuildNodeTypeFilter())
+    } catch (ex) { setRebuildErr(String(ex)) }
+    finally { setRebuilding(false) }
+  }
+
+  return (
+    <div>
+      <p style={{ color: '#888', fontSize: 13, marginBottom: 14 }}>
+        Upload a talent document as the canonical snapshot, then rebuild the node-type filter to power
+        stat filtering and Quick Add in the stat editor.
+      </p>
+
+      {/* Snapshot status */}
+      <div style={{ background: '#12122a', border: '1px solid #2a2a4a', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: '#666', fontWeight: 700, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
+          Canonical Snapshot
+        </div>
+        {status?.exists ? (
+          <div style={{ fontSize: 13, color: '#ccc', marginBottom: 12 }}>
+            <span style={{ color: '#aaa', fontWeight: 600 }}>{status.source_file}</span>
+            {' '}&middot;{' '}
+            <span style={{ color: '#666' }}>{status.generated_at}</span>
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: '#555', marginBottom: 12 }}>No canonical snapshot saved yet.</div>
+        )}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+            {uploading ? 'Saving…' : 'Upload Snapshot JSON'}
+            <input ref={inputRef} type="file" accept=".json"
+              style={{ display: 'none' }} onChange={handleFile} disabled={uploading} />
+          </label>
+          <button
+            className="btn btn-sm"
+            onClick={handleRebuild}
+            disabled={!status?.exists || rebuilding}
+          >
+            {rebuilding ? 'Rebuilding…' : 'Rebuild Node-Type Filter'}
+          </button>
+          <button
+            className="btn btn-sm btn-danger"
+            onClick={async () => {
+              await api.clearSnapshot()
+              await api.clearNodeTypeFilter()
+              setStatus({ exists: false, source_file: null, generated_at: null })
+              setRebuildResult(null)
+            }}
+            disabled={!status?.exists}
+          >
+            Clear All
+          </button>
+        </div>
+        {uploadErr && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 8 }}>{uploadErr}</div>}
+        {rebuildErr && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 8 }}>{rebuildErr}</div>}
+      </div>
+
+      {/* Rebuild result */}
+      {rebuildResult && (
+        <div>
+          {/* Meta summary badges */}
+          <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Matched',   val: rebuildResult._meta.matched,   color: '#4caf50' },
+              { label: 'Ambiguous', val: rebuildResult._meta.ambiguous,  color: '#ff9800' },
+              { label: 'Unmatched', val: rebuildResult._meta.unmatched,  color: '#ef5350' },
+            ].map(({ label, val, color }) => (
+              <div key={label} style={{ textAlign: 'center', background: '#12122a', borderRadius: 6, padding: '8px 14px', border: '1px solid #2a2a4a' }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color }}>{val}</div>
+                <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>{label}</div>
+              </div>
+            ))}
+            <div style={{ fontSize: 11, color: '#555', alignSelf: 'center', marginLeft: 4 }}>
+              {rebuildResult._meta.snapshot_source} · {rebuildResult._meta.generated_at}
+            </div>
+          </div>
+
+          {/* Filter preview */}
+          {Object.keys(rebuildResult.stats).length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                Filter Preview — {Object.keys(rebuildResult.stats).length} stats mapped
+              </div>
+              <div style={{ maxHeight: 260, overflowY: 'auto', background: '#12122a', borderRadius: 6, border: '1px solid #2a2a4a', padding: '4px 0' }}>
+                {Object.entries(rebuildResult.stats).map(([stat, types]) => (
+                  <div key={stat} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', borderBottom: '1px solid #1a1a2e' }}>
+                    <span style={{ fontSize: 12, color: '#aaa', flex: 1 }}>{stat}</span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {(types as string[]).map(nt => {
+                        const b = NT_BADGE[nt] ?? { label: nt, color: '#aaa', bg: '#1a1a3a' }
+                        return (
+                          <span key={nt} style={{
+                            fontSize: 10, color: b.color, background: b.bg,
+                            padding: '1px 6px', borderRadius: 3, border: `1px solid ${b.color}33`,
+                          }}>{b.label}</span>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Unresolved stats */}
+          {rebuildResult.unresolved.length > 0 && (
+            <div>
+              <button
+                onClick={() => setUnresolvedOpen(o => !o)}
+                style={{
+                  width: '100%', textAlign: 'left', background: '#1a0a00', border: '1px solid #5a2a00',
+                  borderRadius: 6, padding: '8px 12px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center',
+                  marginBottom: unresolvedOpen ? 0 : 0, borderBottomLeftRadius: unresolvedOpen ? 0 : 6, borderBottomRightRadius: unresolvedOpen ? 0 : 6,
+                }}
+              >
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#ef5350' }}>UNRESOLVED</span>
+                <span style={{ fontSize: 13, color: '#ccc' }}>
+                  {rebuildResult.unresolved.length} stat text{rebuildResult.unresolved.length !== 1 ? 's' : ''} need attention
+                </span>
+                <span style={{ marginLeft: 'auto', color: '#666', fontSize: 12 }}>{unresolvedOpen ? '▲' : '▼'}</span>
+              </button>
+              {unresolvedOpen && (
+                <div style={{ background: '#120800', border: '1px solid #5a2a00', borderTop: 'none', borderRadius: '0 0 6px 6px', maxHeight: 300, overflowY: 'auto', padding: '4px 0' }}>
+                  {(rebuildResult.unresolved as UnresolvedStat[]).map((u, i) => {
+                    const b = NT_BADGE[u.node_type] ?? { label: u.node_type, color: '#aaa', bg: '#1a1a3a' }
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', borderBottom: '1px solid #1a0800' }}>
+                        <span style={{ fontSize: 12, color: '#ccc', flex: 1 }}>{u.text}</span>
+                        <span style={{ fontSize: 10, color: '#888' }}>{u.tree}</span>
+                        <span style={{
+                          fontSize: 10, color: b.color, background: b.bg,
+                          padding: '1px 6px', borderRadius: 3,
+                        }}>{b.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main screen ────────────────────────────────────────────────────────────
 
 export default function DevToolsScreen({ onBack }: Props) {
@@ -545,8 +732,9 @@ export default function DevToolsScreen({ onBack }: Props) {
         background: '#0e0e28', borderBottom: '1px solid #2a2a4a', flexShrink: 0,
       }}>
         {([
-          { id: 'parser', label: 'Talent Doc Parser' },
-          { id: 'diff',   label: 'Snapshot Diff' },
+          { id: 'parser',   label: 'Talent Doc Parser' },
+          { id: 'diff',     label: 'Snapshot Diff' },
+          { id: 'snapshot', label: 'Canonical Snapshot' },
         ] as { id: Tab; label: string }[]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             padding: '6px 16px', border: 'none', cursor: 'pointer', fontSize: 13,
@@ -559,8 +747,9 @@ export default function DevToolsScreen({ onBack }: Props) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-        {tab === 'parser' && <ParserTab />}
-        {tab === 'diff'   && <DiffTab />}
+        {tab === 'parser'   && <ParserTab />}
+        {tab === 'diff'     && <DiffTab />}
+        {tab === 'snapshot' && <SnapshotTab />}
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { api, getApiBase, TreeData, TreeNode, ModPoolEntry, TreeSlot } from '../api/client'
+import { api, getApiBase, TreeData, TreeNode, NodeModifierEntry, TreeSlot } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 
 const COLS = 7
@@ -21,6 +21,13 @@ function sumPoints(states: Record<string, number>) {
 
 const NODE_TYPES = ['Micro Talent', 'Medium Talent', 'Legendary Medium Talent'] as const
 type NodeTypeStr = typeof NODE_TYPES[number]
+
+const NODE_TYPE_CANONICAL: Record<NodeTypeStr, string> = {
+  'Micro Talent': 'micro',
+  'Medium Talent': 'medium',
+  'Legendary Medium Talent': 'legendary_medium',
+}
+
 
 function nextType(t: NodeTypeStr): NodeTypeStr {
   const i = NODE_TYPES.indexOf(t)
@@ -44,16 +51,25 @@ function fmtStatVal(v: number, unit: string) {
   return v % 1 === 0 ? String(v) : v.toFixed(2)
 }
 
+function parseRank1(text: string): number {
+  const m = text.match(/[+-]?\d+(?:\.\d+)?/)
+  if (!m) return 0
+  const raw = parseFloat(m[0])
+  return text.includes('%') ? raw / 100 : raw
+}
+
+function deriveValues(rank1: number, maxPoints: number): number[] {
+  if (maxPoints === 1) return [Math.round(rank1 * 1e6) / 1e6]
+  return Array.from({ length: maxPoints }, (_, i) => Math.round(rank1 * (i + 1) * 1e6) / 1e6)
+}
+
 interface Tip { nodeId: string; x: number; y: number }
 type DebugTool = 'create' | 'type' | 'link' | 'stat'
-
-interface StatEdit { stat: string; values: number[] }
 
 interface StatModal {
   nodeId: string
   nodeType: NodeTypeStr
   maxPoints: number
-  stats: StatEdit[]
 }
 
 interface Props {
@@ -91,11 +107,12 @@ export default function TreeViewerScreen({
   const [debugTool, setDebugTool] = useState<DebugTool>('create')
   const [linkFrom, setLinkFrom] = useState<string | null>(null)
   const [statModal, setStatModal] = useState<StatModal | null>(null)
-  const [modPool, setModPool] = useState<ModPoolEntry[]>([])
-  const [addStatKey, setAddStatKey] = useState('')
-  const [addStatVals, setAddStatVals] = useState(['', '', ''])
-  const [savingStats, setSavingStats] = useState(false)
+  const [nodeModifiers, setNodeModifiers] = useState<NodeModifierEntry[]>([])
+  const [snapshotMods, setSnapshotMods] = useState<string[]>([])
+  const [loadingMods, setLoadingMods] = useState(false)
+  const [savingMods, setSavingMods] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ nodeId: string } | null>(null)
+  const [modSearch, setModSearch] = useState('')
 
   const loadTree = useCallback(() => {
     setTreeData(null)
@@ -111,11 +128,6 @@ export default function TreeViewerScreen({
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [treeName])
 
-  useEffect(() => {
-    if (debugMode && modPool.length === 0) {
-      api.getModifierPool().then(setModPool).catch(() => {})
-    }
-  }, [debugMode])
 
   const total = sumPoints(nodeStates)
 
@@ -208,67 +220,42 @@ export default function TreeViewerScreen({
   }
 
   const openStatModal = (node: TreeNode) => {
-    const existing = node.stats.map(s => ({ stat: s.stat, values: s.values }))
-    setStatModal({
-      nodeId: node.id,
-      nodeType: node.node_type as NodeTypeStr,
-      maxPoints: node.max_points,
-      stats: existing,
-    })
-    setAddStatKey('')
-    setAddStatVals(['', '', ''])
+    const nt = node.node_type as NodeTypeStr
+    setStatModal({ nodeId: node.id, nodeType: nt, maxPoints: node.max_points })
+    setNodeModifiers([])
+    setSnapshotMods([])
+    setModSearch('')
+    setLoadingMods(true)
+    const canonical = NODE_TYPE_CANONICAL[nt]
+    Promise.all([
+      api.getNodeModifiers(treeName, node.id),
+      api.getSnapshotModifiers(treeName, canonical),
+    ]).then(([mods, snap]) => {
+      setNodeModifiers(mods)
+      setSnapshotMods(snap.map(s => s.text))
+    }).catch(() => {}).finally(() => setLoadingMods(false))
   }
 
-  const removePendingStat = (i: number) => {
+  const handleAddModifier = (text: string, maxPoints: number) => {
+    const rank1 = parseRank1(text)
+    const values = deriveValues(rank1, maxPoints)
+    setNodeModifiers(prev => [...prev.filter(m => m.text !== text), { text, values }])
+  }
+
+  const handleSaveModifiers = async () => {
     if (!statModal) return
-    setStatModal({ ...statModal, stats: statModal.stats.filter((_, j) => j !== i) })
-  }
-
-  const handleAutoFill = () => {
-    if (!statModal || !addStatKey) return
-    const entry = modPool.find(m => m.stat === addStatKey)
-    if (!entry) return
-    if (statModal.nodeType === 'Legendary Medium Talent') {
-      setAddStatVals([String(entry.legendary_increment), '', ''])
-    } else if (statModal.nodeType === 'Medium Talent') {
-      setAddStatVals([
-        String(entry.medium_increment),
-        String(entry.medium_increment * 2),
-        String(entry.medium_increment * 3),
-      ])
-    } else {
-      setAddStatVals([
-        String(entry.micro_increment),
-        String(entry.micro_increment * 2),
-        String(entry.micro_increment * 3),
-      ])
-    }
-  }
-
-  const handleAddStat = () => {
-    if (!statModal || !addStatKey) return
-    const rankCount = statModal.maxPoints
-    const vals = addStatVals.slice(0, rankCount).map(v => parseFloat(v) || 0)
-    if (vals.some(isNaN)) { flash('Enter valid numbers for stat values'); return }
-    setStatModal({
-      ...statModal,
-      stats: [...statModal.stats.filter(s => s.stat !== addStatKey), { stat: addStatKey, values: vals }],
-    })
-    setAddStatKey('')
-    setAddStatVals(['', '', ''])
-  }
-
-  const handleSaveStats = async () => {
-    if (!statModal) return
-    setSavingStats(true)
+    setSavingMods(true)
     try {
-      await api.postNodeStats(treeName, statModal.nodeId, statModal.stats)
-      flash('Stats saved!', true)
+      await api.postNodeModifiers(treeName, statModal.nodeId, nodeModifiers)
+      flash('Modifiers saved!', true)
       setStatModal(null)
-      loadTree()
     } catch (e) { flash(String(e)) }
-    finally { setSavingStats(false) }
+    finally { setSavingMods(false) }
   }
+
+  const filteredSnapshotMods = modSearch.trim()
+    ? snapshotMods.filter(t => t.toLowerCase().includes(modSearch.toLowerCase()))
+    : snapshotMods
 
   const handleNodeInteract = (node: TreeNode, isRight: boolean) => {
     if (!debugMode) {
@@ -591,69 +578,83 @@ export default function TreeViewerScreen({
         <div className="modal-backdrop" onClick={() => setStatModal(null)}>
           <div className="modal-card stat-editor-card" onClick={e => e.stopPropagation()}>
             <div className="modal-accent" />
-            <h3 className="modal-title">Stats — {statModal.nodeId}</h3>
+            <h3 className="modal-title">Modifiers — {statModal.nodeId}</h3>
             <div className="stat-editor-type">{statModal.nodeType}</div>
 
+            {/* Assigned modifiers */}
             <div className="stat-list">
-              {statModal.stats.length === 0 && (
-                <p className="stat-empty">No stats assigned yet.</p>
+              {nodeModifiers.length === 0 && (
+                <p className="stat-empty">No modifiers assigned yet.</p>
               )}
-              {statModal.stats.map((s, i) => {
-                const meta = modPool.find(m => m.stat === s.stat)
-                const name = meta?.display_name ?? s.stat
-                return (
-                  <div key={i} className="stat-row">
-                    <span className="stat-name">{name}</span>
-                    <span className="stat-values">
-                      {s.values.map(v => fmtStatVal(v, meta?.unit ?? '')).join(' / ')}
-                    </span>
-                    <button className="stat-remove" onClick={() => removePendingStat(i)}>✕</button>
+              {nodeModifiers.map((mod, i) => (
+                <div key={i} className="stat-row">
+                  <span className="stat-name" style={{ flex: 1 }}>{mod.text}</span>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    {mod.values.map((v, vi) => (
+                      <input
+                        key={vi}
+                        className="stat-val-input"
+                        type="number"
+                        step="any"
+                        value={v}
+                        style={{ width: 58 }}
+                        onChange={e => {
+                          const next = nodeModifiers.map((m, mi) =>
+                            mi !== i ? m : {
+                              ...m,
+                              values: m.values.map((vv, vvi) => vvi === vi ? (parseFloat(e.target.value) || 0) : vv),
+                            }
+                          )
+                          setNodeModifiers(next)
+                        }}
+                      />
+                    ))}
                   </div>
-                )
-              })}
+                  <button className="stat-remove" onClick={() => setNodeModifiers(nodeModifiers.filter((_, j) => j !== i))}>✕</button>
+                </div>
+              ))}
             </div>
 
+            {/* Snapshot modifier picker */}
             <div className="stat-add-section">
-              <div className="stat-add-row">
-                <select
-                  className="stat-select"
-                  value={addStatKey}
-                  onChange={e => setAddStatKey(e.target.value)}
-                >
-                  <option value="">— Select stat —</option>
-                  {modPool.map(m => (
-                    <option key={m.stat} value={m.stat}>{m.display_name}</option>
-                  ))}
-                </select>
-                <button className="btn btn-sm" onClick={handleAutoFill} disabled={!addStatKey}>
-                  Auto-fill
-                </button>
+              <div style={{ fontSize: 11, color: '#666', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>
+                {loadingMods ? 'Loading…' : `From Snapshot (${filteredSnapshotMods.length}${modSearch ? ` of ${snapshotMods.length}` : ''})`}
               </div>
-              <div className="stat-vals-row">
-                {Array.from({ length: statModal.maxPoints }, (_, i) => (
-                  <input
-                    key={i}
-                    className="stat-val-input"
-                    type="number"
-                    step="any"
-                    placeholder={`Rank ${i + 1}`}
-                    value={addStatVals[i] ?? ''}
-                    onChange={e => {
-                      const v = [...addStatVals]
-                      v[i] = e.target.value
-                      setAddStatVals(v)
-                    }}
-                  />
-                ))}
-                <button className="btn btn-sm btn-primary" onClick={handleAddStat} disabled={!addStatKey}>
-                  Add
-                </button>
+              <input
+                className="stat-val-input"
+                style={{ width: '100%', marginBottom: 6, boxSizing: 'border-box' }}
+                type="text"
+                placeholder="Search…"
+                value={modSearch}
+                onChange={e => setModSearch(e.target.value)}
+              />
+              <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #2a2a4a', borderRadius: 4 }}>
+                {filteredSnapshotMods.length === 0 ? (
+                  <div style={{ color: '#555', fontSize: 12, padding: '8px 10px' }}>
+                    {snapshotMods.length === 0 ? 'No snapshot loaded — upload one in Dev Tools → Canonical Snapshot.' : 'No matches.'}
+                  </div>
+                ) : filteredSnapshotMods.map(text => {
+                  const already = nodeModifiers.some(m => m.text === text)
+                  return (
+                    <div
+                      key={text}
+                      className="stat-row"
+                      style={{ cursor: already ? 'default' : 'pointer', opacity: already ? 0.4 : 1, borderRadius: 0, borderBottom: '1px solid #1a1a2e' }}
+                      onClick={() => { if (!already) handleAddModifier(text, statModal.maxPoints) }}
+                    >
+                      <span className="stat-name" style={{ flex: 1 }}>{text}</span>
+                      <span style={{ fontSize: 11, color: already ? '#555' : '#4caf50', minWidth: 36, textAlign: 'right' }}>
+                        {already ? '✓' : '+ add'}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={handleSaveStats} disabled={savingStats}>
-                {savingStats ? 'Saving…' : 'Save Stats'}
+              <button className="btn btn-primary" onClick={handleSaveModifiers} disabled={savingMods}>
+                {savingMods ? 'Saving…' : 'Save Modifiers'}
               </button>
               <button className="btn btn-danger" onClick={() => setStatModal(null)}>Cancel</button>
             </div>

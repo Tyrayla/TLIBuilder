@@ -217,9 +217,14 @@ def toggle_connection(name: str, req: ConnectionRequest):
 def get_modifier_pool():
     from data.node_modifier_pool import NODE_MODIFIER_POOL
     from models.stat_meta import STAT_META
+    from tools.node_type_filter_builder import load_filter
+    _ALL_TYPES = ["micro", "medium", "legendary_medium"]
+    filt = load_filter()
+    stats_map: dict = filt["stats"] if filt else {}
     result = []
     for stat, mod in NODE_MODIFIER_POOL.items():
         meta = STAT_META.get(stat)
+        node_types = stats_map.get(stat.value, _ALL_TYPES)
         result.append({
             "stat": stat.value,
             "display_name": meta.display_name if meta else stat.value,
@@ -227,6 +232,7 @@ def get_modifier_pool():
             "micro_increment": mod.micro_increment,
             "medium_increment": mod.medium_increment,
             "legendary_increment": mod.legendary_increment,
+            "node_types": node_types,
         })
     return result
 
@@ -337,6 +343,134 @@ class DiffRequest(BaseModel):
 def diff_talent_snapshots(req: DiffRequest):
     from tools.snapshot_diff import diff_snapshots
     return diff_snapshots(req.snapshot_a, req.snapshot_b)
+
+
+class SaveSnapshotRequest(BaseModel):
+    snapshot: dict
+
+
+@app.post("/api/dev/save-snapshot")
+def save_snapshot(req: SaveSnapshotRequest):
+    from persistence import snapshot_manager
+    snap = req.snapshot
+    if "trees" not in snap or "generated_at" not in snap:
+        raise HTTPException(status_code=400, detail="Invalid snapshot format")
+    snapshot_manager.save(snap)
+    return {"ok": True, "source_file": snap.get("source_file", ""), "generated_at": snap.get("generated_at", "")}
+
+
+@app.get("/api/dev/snapshot-status")
+def snapshot_status():
+    from persistence import snapshot_manager
+    if not snapshot_manager.exists():
+        return {"exists": False, "source_file": None, "generated_at": None}
+    snap = snapshot_manager.load()
+    return {
+        "exists": True,
+        "source_file": snap.get("source_file"),
+        "generated_at": snap.get("generated_at"),
+    }
+
+
+@app.post("/api/dev/rebuild-node-type-filter")
+def rebuild_node_type_filter():
+    from persistence import snapshot_manager
+    from tools.node_type_filter_builder import build_filter, save_filter
+    snap = snapshot_manager.load()
+    if snap is None:
+        raise HTTPException(status_code=400, detail="No canonical snapshot saved. Upload one first.")
+    result = build_filter(snap)
+    save_filter(result)
+    return {
+        "_meta": result["_meta"],
+        "stats": result["stats"],
+        "unresolved": result["unresolved"],
+    }
+
+
+@app.delete("/api/dev/snapshot")
+def clear_snapshot():
+    from persistence import snapshot_manager
+    import os
+    path = snapshot_manager._PATH
+    if os.path.exists(path):
+        os.remove(path)
+    return {"ok": True}
+
+
+@app.delete("/api/dev/node-type-filter")
+def clear_node_type_filter():
+    from tools.node_type_filter_builder import _FILTER_PATH
+    import os
+    if os.path.exists(_FILTER_PATH):
+        os.remove(_FILTER_PATH)
+    return {"ok": True}
+
+
+@app.get("/api/dev/snapshot-modifiers/{tree_name}/{node_type}")
+def get_snapshot_modifiers(tree_name: str, node_type: str):
+    from persistence import snapshot_manager
+    snap = snapshot_manager.load()
+    if not snap:
+        return []
+    tree = snap.get("trees", {}).get(tree_name)
+    if not tree:
+        return []
+    seen: set[str] = set()
+    texts: list[dict] = []
+    for node in tree.get("nodes", []):
+        if node.get("node_type") != node_type:
+            continue
+        for stat in node.get("stats", []):
+            text = stat.get("text", "")
+            if text and text not in seen:
+                seen.add(text)
+                texts.append({"text": text})
+    return texts
+
+
+@app.get("/api/node-modifiers/{tree_name}/{node_id}")
+def get_node_modifiers(tree_name: str, node_id: str):
+    from persistence import node_modifiers_manager
+    all_mods = node_modifiers_manager.load()
+    return all_mods.get(tree_name, {}).get(node_id, [])
+
+
+class NodeModifiersRequest(BaseModel):
+    modifiers: list[dict]
+
+
+@app.post("/api/node-modifiers/{tree_name}/{node_id}")
+def post_node_modifiers(tree_name: str, node_id: str, req: NodeModifiersRequest):
+    from persistence import node_modifiers_manager
+    node_modifiers_manager.save_node(tree_name, node_id, req.modifiers)
+    return {"ok": True}
+
+
+@app.get("/api/dev/stat-recipes/{tree_name}/{node_type}")
+def get_stat_recipes(tree_name: str, node_type: str):
+    from tools.node_type_filter_builder import load_filter
+    from models.stat_meta import STAT_META
+    from models.stat import Stat
+    filt = load_filter()
+    if not filt:
+        return []
+    recipes = filt.get("recipes", {}).get(tree_name, {}).get(node_type, [])
+    result = []
+    for r in recipes:
+        try:
+            stat_enum = Stat(r["stat"])
+            meta = STAT_META.get(stat_enum)
+            display_name = meta.display_name if meta else r["stat"]
+        except ValueError:
+            display_name = r["stat"]
+        result.append({
+            "stat": r["stat"],
+            "rank1": r["rank1"],
+            "values": r["values"],
+            "display_name": display_name,
+        })
+    return result
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
