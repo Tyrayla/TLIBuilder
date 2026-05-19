@@ -71,12 +71,3 @@ TLICalc/
         └── components/        # Shared UI components
 ```
 
----
-
-## Building a Distributable
-
-```bash
-npm run build:win
-```
-
-Output goes to `dist/`. The packaged app bundles the Python backend and launches it automatically — no separate Python install needed on the target machine (when built with PyInstaller integration).
