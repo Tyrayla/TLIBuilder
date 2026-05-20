@@ -687,18 +687,20 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
       const sameCell = hover && hover[0] === dragSlate.startCell[0] && hover[1] === dragSlate.startCell[1]
 
       if (sameCell || !hover) {
-        // Click — open edit panel
-        const slate = dragSlate.slate
-        setMode({
-          type: 'editing', slateId: slate.id, creator: {
-            kind: slate.kind, shapeIndex: slate.shapeIndex, treeType: slate.treeType ?? null,
-            slots: slate.slots.map(s => ({ ...s })), orientationIndex: slate.orientationIndex,
-            pool: slate.pool ?? null, poolLoading: false, openPicker: null, pickerSearch: '',
-            mothDirection: slate.mothDirection ?? null,
-          },
-        })
+        // Click on idle mode — open edit panel; in editing mode the panel is already open
+        if (mode.type !== 'editing') {
+          const slate = dragSlate.slate
+          setMode({
+            type: 'editing', slateId: slate.id, creator: {
+              kind: slate.kind, shapeIndex: slate.shapeIndex, treeType: slate.treeType ?? null,
+              slots: slate.slots.map(s => ({ ...s })), orientationIndex: slate.orientationIndex,
+              pool: slate.pool ?? null, poolLoading: false, openPicker: null, pickerSearch: '',
+              mothDirection: slate.mothDirection ?? null,
+            },
+          })
+        }
       } else if (hover) {
-        // Drag — move to new position (allow anywhere within grid bounds)
+        // Drag — move to new position (allow anywhere within grid bounds); mode stays unchanged
         const { slate } = dragSlate
         const anchor = centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover)
         const cells = anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor)
@@ -711,7 +713,7 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
     }
     window.addEventListener('pointerup', handler)
     return () => window.removeEventListener('pointerup', handler)
-  }, [dragSlate, hover, placed])
+  }, [dragSlate, hover, placed, mode])
 
   // Right-click anywhere exits editing/creating mode (saves editing state)
   useEffect(() => {
@@ -883,7 +885,14 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
   // ── Board interactions ──────────────────────────────────────────────────────
 
   function handleCellPointerDown(row: number, col: number) {
-    if (creator) return
+    if (mode.type === 'creating') return
+    if (mode.type === 'editing') {
+      const editingSlate = placed.find(s => s.id === editingSlateId)
+      if (!editingSlate) return
+      if (!editingSlate.cells.some(([r, c]) => r === row && c === col)) return
+      setDragSlate({ slate: editingSlate, startCell: [row, col] })
+      return
+    }
     const slateId = occupied.get(`${row},${col}`)
     if (!slateId) return
     const slate = placed.find(s => s.id === slateId)
