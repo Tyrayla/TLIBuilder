@@ -216,6 +216,27 @@ export interface TalentSnapshot {
   new_god_talents: NewGodTalent[]
 }
 
+export interface SlateModifierOption {
+  nodeId: string
+  treeName: string
+  nodeType: string
+  effects: string[]
+}
+
+export interface CoreTalentOption {
+  key: string       // "{treeName}:{display_name_key}"
+  treeName: string
+  name: string
+  effects: string[]
+}
+
+export interface SlatePool {
+  magic: SlateModifierOption[]
+  rare: SlateModifierOption[]
+  legendary: SlateModifierOption[]
+  core: CoreTalentOption[]
+}
+
 export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
 
 export interface DiffNode {
@@ -357,6 +378,10 @@ export const api = {
     ),
   diffSeasons: (seasonA: string, seasonB: string) =>
     post<SeasonDiff>('/dev/diff-seasons', { season_a: seasonA, season_b: seasonB }),
+
+  getSlatePool: (primaryTree: string) =>
+    get<SlatePool>(`/slate-pool/${encodeURIComponent(primaryTree)}`),
+  getSlatePoolAll: () => get<SlatePool>('/slate-pool-all'),
 
   validateAllocate: (
     tree_name: string,

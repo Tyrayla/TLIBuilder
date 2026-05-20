@@ -7,6 +7,7 @@ interface Props {
   slots: (TreeSlot | null)[]
   onBack: () => void
   onTalentTree: () => void
+  onSlates: () => void
   onSave: (name: string) => Promise<void>
   onSaveAs: (name: string) => Promise<void>
   devMode?: boolean
@@ -16,7 +17,7 @@ interface Props {
 type SaveMode = 'save' | 'saveas'
 
 export default function BuildOverviewScreen({
-  buildName, buildId, slots, onBack, onTalentTree, onSave, onSaveAs,
+  buildName, buildId, slots, onBack, onTalentTree, onSlates, onSave, onSaveAs,
   devMode = false, onSeasonChange,
 }: Props) {
   const [saveOpen, setSaveOpen] = useState(false)
@@ -145,10 +146,9 @@ export default function BuildOverviewScreen({
             <span className="overview-nav-sub">{filledSlots} / 4 slots</span>
           )}
         </button>
-        <button className="overview-nav-btn disabled" disabled>
+        <button className="overview-nav-btn active" onClick={onSlates}>
           <span className="overview-nav-icon">📋</span>
           <span className="overview-nav-label">Slates</span>
-          <span className="overview-nav-sub">Coming soon</span>
         </button>
         <button className="overview-nav-btn disabled" disabled>
           <span className="overview-nav-icon">⚔️</span>

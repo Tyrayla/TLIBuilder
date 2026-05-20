@@ -274,6 +274,79 @@ def get_modifier_pool():
     return result
 
 
+def _collect_pool(tree_names: list[str]) -> dict:
+    from persistence import snapshot_manager as _snap_mgr
+    magic_pool: list[dict] = []
+    rare_pool: list[dict] = []
+    legendary_pool: list[dict] = []
+    core_pool: list[dict] = []
+    seen_mods: set[tuple] = set()
+    seen_core_names: set[str] = set()
+
+    # Season-based modifier nodes (magic / rare / legendary)
+    active = season_manager.get_active_season()
+    for tree_name in tree_names:
+        if not active:
+            break
+        slug = _tree_name_to_slug(tree_name)
+        data = season_manager.load_season_tree(active, slug)
+        if not data:
+            continue
+        for node in data.get("nodes", []):
+            effects = node.get("effects", [])
+            if not effects:
+                continue
+            mod_key = tuple(sorted(effects))
+            if mod_key in seen_mods:
+                continue
+            seen_mods.add(mod_key)
+            entry = {"nodeId": node["id"], "treeName": tree_name, "nodeType": node["node_type"], "effects": effects}
+            nt = node["node_type"]
+            if nt == "Micro Talent":
+                magic_pool.append(entry)
+            elif nt == "Medium Talent":
+                rare_pool.append(entry)
+            elif nt == "Legendary Medium Talent":
+                legendary_pool.append(entry)
+
+    # Core talents always come from the snapshot (all trees, deduplicated by name)
+    snapshot = _snap_mgr.load()
+    if snapshot:
+        for tree_name in TREES:
+            tree_snap = snapshot.get("trees", {}).get(tree_name, {})
+            for ct in tree_snap.get("core_talents", []):
+                name = ct.get("name", "")
+                if not name or name in seen_core_names:
+                    continue
+                seen_core_names.add(name)
+                effects = [s["text"] for s in ct.get("stats", []) if s.get("text")]
+                core_pool.append({"key": f"{tree_name}:{name}", "treeName": tree_name, "name": name, "effects": effects})
+
+        for ct in snapshot.get("new_god_talents", []):
+            name = ct.get("name", "")
+            if not name or name in seen_core_names:
+                continue
+            seen_core_names.add(name)
+            effects = [s["text"] for s in ct.get("stats", []) if s.get("text")]
+            core_pool.append({"key": f"new_god:{name}", "treeName": "New God", "name": name, "effects": effects})
+
+    return {"magic": magic_pool, "rare": rare_pool, "legendary": legendary_pool, "core": core_pool}
+
+
+@app.get("/api/slate-pool-all")
+def get_slate_pool_all():
+    return _collect_pool(list(TREES.keys()))
+
+
+@app.get("/api/slate-pool/{primary_tree}")
+def get_slate_pool(primary_tree: str):
+    if primary_tree not in TREES:
+        raise HTTPException(status_code=404, detail="Tree not found")
+    primary_color = TREES[primary_tree]["color"]
+    group = [name for name, info in TREES.items() if info.get("color") == primary_color]
+    return _collect_pool(group)
+
+
 # ── Named builds ───────────────────────────────────────────────────────────────
 
 @app.get("/api/builds")
