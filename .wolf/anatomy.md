@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-05-20T15:39:34.551Z
-> Files: 103 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-05-20T18:56:57.845Z
+> Files: 110 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ./
 
@@ -27,7 +27,7 @@
 ## backend/
 
 - `requirements-dev.txt` (~3 tok)
-- `server.py` — API: 9 endpoints (~7773 tok)
+- `server.py` — API: 9 endpoints (~8450 tok)
 
 ## backend/engine/
 
@@ -37,26 +37,17 @@
 - `pipeline.py` — run_pipeline (~2298 tok)
 - `resolver.py` — compute (~458 tok)
 
-## backend/tests/
-
-- `conftest.py` — adds backend root to sys.path for test imports (~50 tok)
-- `test_models_stat.py` — Stat enum integrity: snake_case, no dupes, string values (~200 tok)
-- `test_models_stat_meta.py` — StatMeta coverage: every pool entry has meta, valid categories (~300 tok)
-- `test_engine_pipeline.py` — pipeline math unit tests: all 8 stages, composite formula (~750 tok)
-- `test_engine_aggregator.py` — aggregator: slug extraction, recipe application, slate/slot accumulation (~600 tok)
-- `test_persistence_builds.py` — builds_manager save/load/delete, slates round-trip, backward compat (~500 tok)
-
 ## backend/models/
 
 - `__init__.py` (~0 tok)
 - `core_talent.py` — class: is_selected, selected_talent (~161 tok)
 - `node_modifier_def.py` — NodeModifierDef dataclass; used by node_modifier_pool.py (~247 tok)
-- `node_modifier_pool.py` — NODE_MODIFIER_POOL dict: ~80 stats with micro/medium/legendary increments (~3961 tok)
+- `node_modifier_pool.py` — ── MANUAL COMPLETION REQUIRED ──────────────────────────────────────────────── (~3961 tok)
 - `passive_node.py` — NodeType: display, column_label, is_full, is_empty (~462 tok)
 - `passive_tree.py` — PassiveTree: add_node, add_connection, add_core_talent_slot, nodes_in_column + 5 more (~1216 tok)
 - `stat_contribution.py` — StatContribution dataclass; planned for future engine (~173 tok)
-- `stat_meta.py` — Declares from (~12220 tok)
-- `stat.py` — ── MANUAL COMPLETION REQUIRED ──────────────────────────────────────────────── (~2546 tok)
+- `stat_meta.py` — Declares from (~23615 tok)
+- `stat.py` — Declares import (~5045 tok)
 
 ## backend/persistence/
 
@@ -69,17 +60,24 @@
 
 ## backend/tests/
 
+- `conftest.py` — adds backend root to sys.path for test imports (~50 tok)
 - `conftest.py` (~96 tok)
+- `test_engine_aggregator.py` — aggregator: slug extraction, recipe application, slate/slot accumulation (~600 tok)
 - `test_engine_aggregator.py` — TestSlugExtraction: test_valid_node_id, test_multi_segment_slug, test_invalid_format_returns_none, t (~2616 tok)
+- `test_engine_pipeline.py` — pipeline math unit tests: all 8 stages, composite formula (~750 tok)
 - `test_engine_pipeline.py` — TestBaselinePipeline: test_no_stats_no_mitigation_equals_base, test_avg_hit_is_midpoint, test_100pct (~3412 tok)
+- `test_models_stat_meta.py` — StatMeta coverage: every pool entry has meta, valid categories (~300 tok)
 - `test_models_stat_meta.py` — TestStatMetaStructure: test_all_entries_are_stat_meta, test_display_names_non_empty, test_categories (~636 tok)
+- `test_models_stat.py` — Stat enum integrity: snake_case, no dupes, string values (~200 tok)
 - `test_models_stat.py` — test_all_values_are_strings, test_no_duplicate_values, test_values_are_snake_case, test_enum_lookup_ (~285 tok)
+- `test_persistence_builds.py` — builds_manager save/load/delete, slates round-trip, backward compat (~500 tok)
 - `test_persistence_builds.py` — TestSaveLoadRoundTrip: isolated_builds_dir, test_save_assigns_id, test_save_then_load_returns_same_n (~1747 tok)
 
 ## backend/tools/
 
 - `__init__.py` (~0 tok)
-- `node_type_filter_builder.py` — build_filter(); outputs data/node_type_filter.json (~1857 tok)
+- `export_stat_meta.py` — build_csv, build_unmatched_review, main (~1622 tok)
+- `node_type_filter_builder.py` — load_overrides, save_overrides, add_override, remove_override (~2556 tok)
 - `season_importer.py` — make_node_id, build_slug_map, import_nodes, extract_nodes_from_file (~1931 tok)
 - `snapshot_diff.py` — diff_snapshots (~1957 tok)
 - `talent_parser.py` — parse_document (~2378 tok)
@@ -133,7 +131,7 @@
 ## docs/
 
 - `engine-plan.md` — TLIBuilder Calculation Engine — Implementation Plan (~6942 tok)
-- `stat-audit.md` — Stat Audit — Modifier Verification (~3160 tok)
+- `stat-audit.md` — Stat Audit — Modifier Verification (~4547 tok)
 
 ## out/main/
 
@@ -169,7 +167,7 @@
 
 ## src/renderer/src/api/
 
-- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 32 more (~3597 tok)
+- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 34 more (~3852 tok)
 
 ## src/renderer/src/components/
 
@@ -179,7 +177,7 @@
 
 - `BuildOverviewScreen.tsx` — Build stat overview screen (~1803 tok)
 - `BuildSelectScreen.tsx` — Build selection/management screen (~822 tok)
-- `DevToolsScreen.tsx` — Dev tools: snapshot diff, season diff, import (~7087 tok)
+- `DevToolsScreen.tsx` — DIFF_COLOR (~11172 tok)
 - `SlateScreen.tsx` — ── Board ───────────────────────────────────────────────────────────────────── (~17176 tok)
 - `TreeSelectorScreen.tsx` — Tree selector screen (~1858 tok)
 - `TreeViewerScreen.tsx` — Tree viewer with node allocation and debug tools (~5884 tok)

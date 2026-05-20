@@ -304,6 +304,182 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-05-20T15:07:02.354Z"
+    },
+    {
+      "id": "bug-020",
+      "timestamp": "2026-05-20T17:02:07.155Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/tools/node_type_filter_builder.py",
+      "root_cause": "Had \"increased\"",
+      "fix": "Changed to \"of\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T17:02:07.155Z"
+    },
+    {
+      "id": "bug-021",
+      "timestamp": "2026-05-20T18:21:59.964Z",
+      "error_message": "Missing error handling in ToolsTab",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T18:21:59.965Z"
+    },
+    {
+      "id": "bug-022",
+      "timestamp": "2026-05-20T18:24:27.167Z",
+      "error_message": "Wrong reference: _dn should be _",
+      "file": "backend/tools/node_type_filter_builder.py",
+      "root_cause": "Used \"_dn\" instead of \"_\"",
+      "fix": "Changed _dn → _",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T18:24:27.167Z"
+    },
+    {
+      "id": "bug-023",
+      "timestamp": "2026-05-20T18:25:13.978Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T18:25:13.978Z"
+    },
+    {
+      "id": "bug-024",
+      "timestamp": "2026-05-20T18:34:59.382Z",
+      "error_message": "Missing guard clause",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "No early return/throw for edge case: entries.length === 0",
+      "fix": "Added guard clause: if (entries.length === 0)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T18:34:59.382Z"
+    },
+    {
+      "id": "bug-025",
+      "timestamp": "2026-05-20T18:46:36.291Z",
+      "error_message": "Incorrect value in code",
+      "file": "src/renderer/src/api/client.ts",
+      "root_cause": "Had '/dev/node-type-filter/overrides'",
+      "fix": "Changed to '/dev/export-stat-meta'",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T18:46:36.291Z"
+    },
+    {
+      "id": "bug-026",
+      "timestamp": "2026-05-20T18:46:50.080Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T18:46:50.080Z"
+    },
+    {
+      "id": "bug-027",
+      "timestamp": "2026-05-20T18:49:13.943Z",
+      "error_message": "Incorrect value in code",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Had `Exported ${r.stat_count} stats → docs/stat-meta-r",
+      "fix": "Changed to `Exported ${r.stat_count} stats → docs/stat-meta-r",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T18:49:13.943Z"
+    },
+    {
+      "id": "bug-028",
+      "timestamp": "2026-05-20T18:55:43.818Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/tools/export_stat_meta.py",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 19→79 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T18:55:43.818Z"
+    },
+    {
+      "id": "bug-029",
+      "timestamp": "2026-05-20T18:56:15.164Z",
+      "error_message": "Missing await",
+      "file": "src/renderer/src/api/client.ts",
+      "root_cause": "Async call without await — returned Promise instead of value",
+      "fix": "Added await to async call",
+      "tags": [
+        "auto-detected",
+        "async-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T18:56:15.164Z"
+    },
+    {
+      "id": "bug-030",
+      "timestamp": "2026-05-20T18:56:57.865Z",
+      "error_message": "CSS fix: fontSize, padding",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "fontSize: 12, color: exportMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50' → 12, color: exportUnmatchedMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50'; padding: '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', alignItems: 'center', gap: 12 → '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', flexDirection: 'column', gap: 10",
+      "fix": "Changed fontSize: 12, color: exportMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50' → 12, color: exportUnmatchedMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50'; padding: '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', alignItems: 'center', gap: 12 → '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', flexDirection: 'column', gap: 10",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T18:56:57.865Z"
     }
   ]
 }

@@ -154,7 +154,7 @@ NODE_MODIFIER_POOL: dict[Stat, NodeModifierDef] = {
     Stat.EROSION_CRIT_DMG:             NodeModifierDef(Stat.EROSION_CRIT_DMG,             0.05, 0.10, 0.15, "%"),
 
     # ── Defense ───────────────────────────────────────────────────────────────
-    Stat.ARMOR:                NodeModifierDef(Stat.ARMOR,                10.0, 20.0, 30.0),
+    Stat.ARMOR_FLAT:           NodeModifierDef(Stat.ARMOR_FLAT,           10.0, 20.0, 30.0),
     Stat.ELEMENTAL_RESISTANCE: NodeModifierDef(Stat.ELEMENTAL_RESISTANCE,  5.0, 10.0, 15.0),
     Stat.FIRE_RESISTANCE:      NodeModifierDef(Stat.FIRE_RESISTANCE,       5.0, 10.0, 15.0),
     Stat.COLD_RESISTANCE:      NodeModifierDef(Stat.COLD_RESISTANCE,       5.0, 10.0, 15.0),

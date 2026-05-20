@@ -506,7 +506,67 @@ def rebuild_node_type_filter():
         "_meta": result["_meta"],
         "stats": result["stats"],
         "unresolved": result["unresolved"],
+        "matched_texts": result["matched_texts"],
     }
+
+
+@app.get("/api/dev/node-type-filter/overrides")
+def get_node_type_filter_overrides():
+    from tools.node_type_filter_builder import load_overrides
+    return {"overrides": load_overrides()}
+
+
+@app.post("/api/dev/node-type-filter/overrides")
+def add_node_type_filter_override(data: dict):
+    from tools.node_type_filter_builder import add_override
+    text = data.get("text", "")
+    stat = data.get("stat", "")
+    if not text or not stat:
+        raise HTTPException(status_code=400, detail="text and stat required")
+    key = add_override(text, stat)
+    return {"ok": True, "key": key}
+
+
+@app.delete("/api/dev/node-type-filter/overrides/{key}")
+def delete_node_type_filter_override(key: str):
+    from tools.node_type_filter_builder import remove_override
+    remove_override(key)
+    return {"ok": True}
+
+
+@app.post("/api/dev/export-unmatched")
+def export_unmatched():
+    from tools.node_type_filter_builder import load_filter
+    from tools.export_stat_meta import build_unmatched_review
+    import os
+    data = load_filter()
+    if data is None:
+        raise HTTPException(status_code=400, detail="No filter built yet — run a rebuild first.")
+    md = build_unmatched_review(data.get("unresolved", []))
+    out_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "docs", "stat-unmatched-review.md")
+    )
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(md)
+    unmatched_count = sum(1 for u in data.get("unresolved", []) if u.get("reason") == "unmatched")
+    unique_count = len({u["text"] for u in data.get("unresolved", []) if u.get("reason") == "unmatched"})
+    return {"ok": True, "total": unmatched_count, "unique": unique_count, "path": out_path}
+
+
+@app.post("/api/dev/export-stat-meta")
+def export_stat_meta():
+    from tools.export_stat_meta import build_csv
+    import os
+    csv_data = build_csv()
+    out_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "docs", "stat-meta-review.csv")
+    )
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8-sig", newline="") as f:
+        f.write(csv_data)
+    from models.stat_meta import STAT_META
+    return {"ok": True, "stat_count": len(STAT_META), "path": out_path}
 
 
 @app.delete("/api/dev/snapshot")

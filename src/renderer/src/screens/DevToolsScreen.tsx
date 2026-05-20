@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { api, SeasonSummary, SeasonDiff } from '../api/client'
+import { api, SeasonSummary, SeasonDiff, RebuildFilterResult, UnresolvedStat, FilterOverride } from '../api/client'
 
-type Tab = 'diff' | 'seasons'
+type Tab = 'diff' | 'seasons' | 'tools'
 
 interface Props {
   onBack: () => void
@@ -448,6 +448,295 @@ function SeasonsTab() {
   )
 }
 
+// ── Tools tab ──────────────────────────────────────────────────────────────
+
+type DetailSection = 'matched' | 'ambiguous' | 'unmatched' | null
+
+function AmbiguousTable({ items, onOverride }: {
+  items: UnresolvedStat[]
+  onOverride: (text: string, stat: string) => Promise<void>
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [saving, setSaving] = useState<string | null>(null)
+  const [resolved, setResolved] = useState<Record<string, string>>({})
+
+  const unique = Array.from(new Map(items.map(i => [i.text, i])).values())
+
+  const handleUse = async (item: UnresolvedStat, stat: string) => {
+    setSaving(item.text)
+    try {
+      await onOverride(item.text, stat)
+      setResolved(r => ({ ...r, [item.text]: stat }))
+      setExpanded(null)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>
+        {unique.length} unique texts ({items.length} total occurrences) — click a row to resolve
+      </div>
+      <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid #1a1a3a', borderRadius: 4 }}>
+        {unique.map((item, i) => {
+          const isResolved = !!resolved[item.text]
+          const isOpen = expanded === item.text
+          return (
+            <div key={i} style={{ borderBottom: '1px solid #1a1a3a', background: isResolved ? '#0a1a0a' : i % 2 === 0 ? '#0a0a1e' : '#0e0e24' }}>
+              <div
+                onClick={() => !isResolved && setExpanded(isOpen ? null : item.text)}
+                style={{ padding: '6px 10px', cursor: isResolved ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+              >
+                <span style={{ fontSize: 12, color: isResolved ? '#4caf50' : '#ccc', flex: 1 }}>{item.text}</span>
+                {isResolved
+                  ? <span style={{ fontSize: 10, color: '#4caf50', fontFamily: 'monospace' }}>{resolved[item.text]} ✓</span>
+                  : item.tied && <span style={{ fontSize: 10, color: '#ff9800' }}>{item.tied.length} tied · {isOpen ? '▲' : '▼'}</span>
+                }
+              </div>
+              {isOpen && !isResolved && item.tied && (
+                <div style={{ padding: '4px 10px 8px 20px', background: '#0a0a1a' }}>
+                  {item.tied.map((c, j) => (
+                    <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#ff9800', minWidth: 220 }}>{c.stat}</span>
+                      <span style={{ fontSize: 11, color: '#666', flex: 1 }}>{c.display_name}</span>
+                      <span style={{ fontSize: 10, color: '#555', minWidth: 60 }}>score {c.score}</span>
+                      <button
+                        className="btn btn-sm btn-primary"
+                        style={{ fontSize: 10, padding: '2px 8px' }}
+                        disabled={saving === item.text}
+                        onClick={e => { e.stopPropagation(); handleUse(item, c.stat) }}
+                      >
+                        Use this
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function UnmatchedTable({ items }: { items: UnresolvedStat[] }) {
+  const unique = Array.from(new Map(items.map(i => [i.text, i])).values())
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>
+        {unique.length} unique texts ({items.length} total occurrences)
+      </div>
+      <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid #1a1a3a', borderRadius: 4 }}>
+        {unique.map((item, i) => (
+          <div key={i} style={{ padding: '5px 10px', borderBottom: '1px solid #1a1a3a', background: i % 2 === 0 ? '#0a0a1e' : '#0e0e24' }}>
+            <span style={{ fontSize: 12, color: '#888' }}>{item.text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MatchedTable({ matchedTexts }: { matchedTexts: Record<string, string[]> }) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const entries = Object.entries(matchedTexts).sort(([a], [b]) => a.localeCompare(b))
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>
+        {entries.length} stats matched — click to see which texts resolved to each stat
+      </div>
+      <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid #1a1a3a', borderRadius: 4 }}>
+        {entries.map(([stat, texts], i) => {
+          const isOpen = expanded === stat
+          return (
+            <div key={i} style={{ borderBottom: '1px solid #1a1a3a', background: i % 2 === 0 ? '#0a0a1e' : '#0e0e24' }}>
+              <div
+                onClick={() => setExpanded(isOpen ? null : stat)}
+                style={{ padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+              >
+                <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#4caf50', flex: 1 }}>{stat}</span>
+                <span style={{ fontSize: 10, color: '#555' }}>{texts.length} text{texts.length !== 1 ? 's' : ''} · {isOpen ? '▲' : '▼'}</span>
+              </div>
+              {isOpen && (
+                <div style={{ padding: '4px 10px 8px 20px', background: '#0a0a1a' }}>
+                  {texts.map((t, j) => (
+                    <div key={j} style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>{t}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function OverridesPanel({ overrides, onDelete }: {
+  overrides: Record<string, FilterOverride>
+  onDelete: (key: string) => void
+}) {
+  const entries = Object.entries(overrides)
+  if (entries.length === 0) return null
+  return (
+    <div style={{ marginTop: 12, border: '1px solid #2a2a4a', borderRadius: 6, overflow: 'hidden' }}>
+      <div style={{ padding: '7px 12px', background: '#14142a', fontSize: 12, fontWeight: 600, color: '#aaa' }}>
+        Manual Overrides ({entries.length})
+      </div>
+      <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+        {entries.map(([key, ov], i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px', borderBottom: '1px solid #1a1a3a', background: i % 2 === 0 ? '#0a0a1e' : '#0e0e24' }}>
+            <span style={{ fontSize: 11, color: '#888', flex: 1 }}>{ov.example}</span>
+            <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#4caf50', minWidth: 180 }}>{ov.stat}</span>
+            <button className="btn btn-sm btn-danger" style={{ fontSize: 10, padding: '2px 6px' }} onClick={() => onDelete(key)}>✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ToolsTab() {
+  const [building, setBuilding] = useState(false)
+  const [result, setResult] = useState<RebuildFilterResult | null>(null)
+  const [err, setErr] = useState('')
+  const [detail, setDetail] = useState<DetailSection>(null)
+  const [overrides, setOverrides] = useState<Record<string, FilterOverride>>({})
+  const [exporting, setExporting] = useState(false)
+  const [exportMsg, setExportMsg] = useState('')
+  const [exportingUnmatched, setExportingUnmatched] = useState(false)
+  const [exportUnmatchedMsg, setExportUnmatchedMsg] = useState('')
+
+  useEffect(() => {
+    api.getNodeTypeFilterOverrides().then(r => setOverrides(r.overrides)).catch(() => {})
+  }, [])
+
+  const handleRebuild = async () => {
+    setBuilding(true); setErr(''); setResult(null); setDetail(null)
+    try {
+      setResult(await api.rebuildNodeTypeFilter())
+    } catch (ex) {
+      setErr(String(ex))
+    } finally {
+      setBuilding(false)
+    }
+  }
+
+  const handleExport = async () => {
+    setExporting(true); setExportMsg('')
+    try {
+      const r = await api.exportStatMeta()
+      setExportMsg(`Exported ${r.stat_count} stats → docs/stat-meta-review.csv`)
+    } catch (ex) {
+      setExportMsg(`Error: ${String(ex)}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleExportUnmatched = async () => {
+    setExportingUnmatched(true); setExportUnmatchedMsg('')
+    try {
+      const r = await api.exportUnmatched()
+      setExportUnmatchedMsg(`${r.unique} unique texts → docs/stat-unmatched-review.md`)
+    } catch (ex) {
+      setExportUnmatchedMsg(`Error: ${String(ex)}`)
+    } finally {
+      setExportingUnmatched(false)
+    }
+  }
+
+  const handleOverride = async (text: string, stat: string) => {
+    const r = await api.addNodeTypeFilterOverride(text, stat)
+    setOverrides(prev => ({ ...prev, [r.key]: { stat, example: text } }))
+  }
+
+  const handleDeleteOverride = async (key: string) => {
+    await api.deleteNodeTypeFilterOverride(key)
+    setOverrides(prev => { const n = { ...prev }; delete n[key]; return n })
+  }
+
+  const meta = result?._meta
+  const ambiguous = result?.unresolved.filter(u => u.reason === 'ambiguous') ?? []
+  const unmatched = result?.unresolved.filter(u => u.reason === 'unmatched') ?? []
+
+  const toggleDetail = (section: DetailSection) => setDetail(d => d === section ? null : section)
+
+  return (
+    <div>
+      <div style={{ border: '1px solid #2a2a4a', borderRadius: 7, overflow: 'hidden', marginBottom: 10 }}>
+        <div style={{ padding: '9px 14px', background: '#14142a' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#ccc' }}>Exports</span>
+          <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>
+            Generate review documents from current stat definitions and filter state.
+          </div>
+        </div>
+        <div style={{ padding: '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className="btn btn-sm" onClick={handleExport} disabled={exporting} style={{ minWidth: 170 }}>
+              {exporting ? 'Exporting…' : 'Export Stat Meta (CSV)'}
+            </button>
+            {exportMsg && (
+              <span style={{ fontSize: 12, color: exportMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50' }}>{exportMsg}</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className="btn btn-sm" onClick={handleExportUnmatched} disabled={exportingUnmatched} style={{ minWidth: 170 }}>
+              {exportingUnmatched ? 'Exporting…' : 'Export Unmatched (MD)'}
+            </button>
+            {exportUnmatchedMsg && (
+              <span style={{ fontSize: 12, color: exportUnmatchedMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50' }}>{exportUnmatchedMsg}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ border: '1px solid #2a2a4a', borderRadius: 7, overflow: 'hidden', marginBottom: 10 }}>
+        <div style={{ padding: '9px 14px', background: '#14142a' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#ccc' }}>Node Type Filter</span>
+          <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>
+            Rebuilds data/node_type_filter.json by matching talent snapshot modifier texts to stat definitions.
+          </div>
+        </div>
+        <div style={{ padding: '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a' }}>
+          <button className="btn btn-primary btn-sm" onClick={handleRebuild} disabled={building}>
+            {building ? 'Rebuilding…' : 'Rebuild Node Type Filter'}
+          </button>
+          {err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 8 }}>{err}</div>}
+          {meta && (
+            <>
+              <div style={{ display: 'flex', gap: 20, marginTop: 10, alignItems: 'flex-end' }}>
+                <button onClick={() => toggleDetail('matched')} style={{ textAlign: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: detail === 'matched' ? '#81c784' : '#4caf50' }}>{meta.matched}</div>
+                  <div style={{ fontSize: 10, color: detail === 'matched' ? '#4caf50' : '#555' }}>matched {detail === 'matched' ? '▲' : '▼'}</div>
+                </button>
+                <button onClick={() => toggleDetail('ambiguous')} style={{ textAlign: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: detail === 'ambiguous' ? '#ffb74d' : '#ff9800' }}>{meta.ambiguous}</div>
+                  <div style={{ fontSize: 10, color: detail === 'ambiguous' ? '#ff9800' : '#555' }}>ambiguous {detail === 'ambiguous' ? '▲' : '▼'}</div>
+                </button>
+                <button onClick={() => toggleDetail('unmatched')} style={{ textAlign: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: detail === 'unmatched' ? '#e57373' : (meta.unmatched > 0 ? '#ef5350' : '#4caf50') }}>{meta.unmatched}</div>
+                  <div style={{ fontSize: 10, color: detail === 'unmatched' ? '#ef5350' : '#555' }}>unmatched {detail === 'unmatched' ? '▲' : '▼'}</div>
+                </button>
+                <div style={{ textAlign: 'right', marginLeft: 'auto' }}>
+                  <div style={{ fontSize: 11, color: '#555' }}>built at</div>
+                  <div style={{ fontSize: 11, color: '#888' }}>{meta.generated_at}</div>
+                </div>
+              </div>
+              {detail === 'matched'   && <MatchedTable matchedTexts={result!.matched_texts} />}
+              {detail === 'ambiguous' && <AmbiguousTable items={ambiguous} onOverride={handleOverride} />}
+              {detail === 'unmatched' && <UnmatchedTable items={unmatched} />}
+            </>
+          )}
+          <OverridesPanel overrides={overrides} onDelete={handleDeleteOverride} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main screen ────────────────────────────────────────────────────────────
 
 export default function DevToolsScreen({ onBack, deprecatedTools, onToggleDeprecatedTools }: Props) {
@@ -482,6 +771,7 @@ export default function DevToolsScreen({ onBack, deprecatedTools, onToggleDeprec
         {([
           { id: 'seasons', label: 'Seasons' },
           { id: 'diff',    label: 'Season Diff' },
+          { id: 'tools',   label: 'Tools' },
         ] as { id: Tab; label: string }[]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             padding: '6px 16px', border: 'none', cursor: 'pointer', fontSize: 13,
@@ -496,6 +786,7 @@ export default function DevToolsScreen({ onBack, deprecatedTools, onToggleDeprec
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
         {tab === 'seasons' && <SeasonsTab />}
         {tab === 'diff'    && <DiffTab />}
+        {tab === 'tools'   && <ToolsTab />}
       </div>
     </div>
   )

@@ -169,10 +169,18 @@ export interface StatRecipe {
   display_name: string
 }
 
+export interface TiedCandidate {
+  stat: string
+  display_name: string
+  score: number
+}
+
 export interface UnresolvedStat {
   tree: string
   node_type: string
   text: string
+  reason?: 'ambiguous' | 'unmatched'
+  tied?: TiedCandidate[]
 }
 
 export interface SnapshotStatus {
@@ -189,10 +197,16 @@ export interface NodeTypeFilterMeta {
   unmatched: number
 }
 
+export interface FilterOverride {
+  stat: string
+  example: string
+}
+
 export interface RebuildFilterResult {
   _meta: NodeTypeFilterMeta
   stats: Record<string, string[]>
   unresolved: UnresolvedStat[]
+  matched_texts: Record<string, string[]>
 }
 
 export interface TalentStat {
@@ -347,11 +361,12 @@ export const api = {
   getModifierPool: () => get<ModPoolEntry[]>('/modifier-pool'),
 
   // Dev tools
-  parseTalentDoc: (file: File): Promise<TalentSnapshot> => {
+  parseTalentDoc: async (file: File): Promise<TalentSnapshot> => {
     const form = new FormData()
     form.append('file', file)
-    return fetch(`${BASE}/dev/parse-talent-doc`, { method: 'POST', body: form })
-      .then(r => { if (!r.ok) return r.json().then(j => Promise.reject(j.detail ?? r.statusText)); return r.json() })
+    const r = await fetch(`${BASE}/dev/parse-talent-doc`, { method: 'POST', body: form })
+    if (!r.ok) return Promise.reject((await r.json()).detail ?? r.statusText)
+    return r.json()
   },
   diffSnapshots: (a: TalentSnapshot, b: TalentSnapshot): Promise<TalentDiff> =>
     post<TalentDiff>('/dev/diff-snapshots', { snapshot_a: a, snapshot_b: b }),
@@ -360,6 +375,11 @@ export const api = {
     post<{ ok: boolean; source_file: string; generated_at: string }>('/dev/save-snapshot', { snapshot }),
   getSnapshotStatus: () => get<SnapshotStatus>('/dev/snapshot-status'),
   rebuildNodeTypeFilter: () => post<RebuildFilterResult>('/dev/rebuild-node-type-filter', {}),
+  exportStatMeta: () => post<{ ok: boolean; stat_count: number; path: string }>('/dev/export-stat-meta', {}),
+  exportUnmatched: () => post<{ ok: boolean; total: number; unique: number; path: string }>('/dev/export-unmatched', {}),
+  getNodeTypeFilterOverrides: () => get<{ overrides: Record<string, FilterOverride> }>('/dev/node-type-filter/overrides'),
+  addNodeTypeFilterOverride: (text: string, stat: string) => post<{ ok: boolean; key: string }>('/dev/node-type-filter/overrides', { text, stat }),
+  deleteNodeTypeFilterOverride: (key: string) => del<{ ok: boolean }>(`/dev/node-type-filter/overrides/${encodeURIComponent(key)}`),
   getStatRecipes: (treeName: string, nodeType: string) =>
     get<StatRecipe[]>(`/dev/stat-recipes/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeType)}`),
   getSnapshotModifiers: (treeName: string, nodeType: string) =>

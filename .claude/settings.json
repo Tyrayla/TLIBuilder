@@ -42,7 +42,24 @@
       "Bash(git rm *)",
       "Bash(git add *)",
       "Bash(git push *)",
-      "Bash(python -c \"import ast, os; errors=[]; [errors.append\\(\\(f,e\\)\\) for f in [os.path.join\\(r,fn\\) for r,_,fs in os.walk\\('.'\\) for fn in fs if fn.endswith\\('.py'\\)] for e in [None] if \\(ast.parse\\(open\\(f\\).read\\(\\)\\),False\\)[0] is None or True]; print\\('syntax ok'\\)\")"
+      "Bash(python -c \"import ast, os; errors=[]; [errors.append\\(\\(f,e\\)\\) for f in [os.path.join\\(r,fn\\) for r,_,fs in os.walk\\('.'\\) for fn in fs if fn.endswith\\('.py'\\)] for e in [None] if \\(ast.parse\\(open\\(f\\).read\\(\\)\\),False\\)[0] is None or True]; print\\('syntax ok'\\)\")",
+      "Bash(python -c \"from models.stat_meta import STAT_META, StatMeta; from models.stat import Stat; print\\(f'OK: {len\\(STAT_META\\)} entries'\\)\")",
+      "Bash(python -m pytest --version)",
+      "Bash(python -c \"import fastapi, uvicorn, pydantic; print\\('core deps OK'\\)\")",
+      "Bash(python -c \"import sys; print\\(sys.version\\)\")",
+      "Bash(where python *)",
+      "Bash(py -3.12 -m pytest --version)",
+      "Bash(py -3.12 -c \"import fastapi\")",
+      "Bash(py -3.12 -c \"import fastapi, pydantic; print\\('OK'\\)\")",
+      "Bash(py -3.12 -m pip install fastapi pydantic --quiet)",
+      "Bash(py -3.12 -c \"from models.stat import Stat; from models.stat_meta import STAT_META; from models.node_modifier_pool import NODE_MODIFIER_POOL; print\\('imports OK'\\)\")",
+      "Bash(py -3.12 -c \"from engine.pipeline import run_pipeline; from engine.aggregator import aggregate; from engine.models import BuildInput, SkillConfig, EnemyConfig; print\\('engine imports OK'\\)\")",
+      "Bash(py -3.12 -m pytest tests/ -v)",
+      "Bash(Get-Date -Format 'HH:mm')",
+      "Bash(echo \"| $\\(Get-Date -Format 'HH:mm'\\) | Created test suite \\(73 tests\\) | backend/tests/ | all pass | ~4800 |\")",
+      "Bash(echo \"| $\\(Get-Date -Format 'HH:mm'\\) | Created stat-audit.md for modifier review | docs/stat-audit.md | pending user review | ~1200 |\")",
+      "PowerShell($time = Get-Date -Format 'HH:mm'; Add-Content -Path \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\\\\.wolf\\\\memory.md\" -Value \"| $time | Created test suite \\(73 tests, 4 files\\) | backend/tests/ | all pass | ~4800 |\"; Add-Content -Path \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\\\\.wolf\\\\memory.md\" -Value \"| $time | Created stat-audit.md for modifier review | docs/stat-audit.md | pending user review | ~1200 |\")",
+      "Bash(py -3.12 -m pytest tests/test_models_stat.py tests/test_models_stat_meta.py -v)"
     ]
   },
   "hooks": {

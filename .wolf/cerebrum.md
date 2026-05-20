@@ -14,8 +14,12 @@
 - **Description:** TLI Builder — talent tree build planner for The Last Immortal
 - **TLI terminology:** "Life Regain" not "Life Leech"; "Cooldown Recovery Speed" not "Cooldown Reduction"; "Life Regeneration Speed" for regen rate stats.
 - **Test runner:** `py -3.12 -m pytest tests/` from backend/. All 73 tests pass. `requirements-dev.txt` in backend/ has pytest.
-- **node_type_filter matched vs total:** Only 22 stats matched in the snapshot (out of many in stat.py). The filter_builder's word-overlap scoring fails on many stats because display_names in stat_meta.py don't align with snapshot wording. Fixing display_names and rebuilding the filter will improve coverage substantially.
-- **stat-audit.md:** Created at docs/stat-audit.md. Contains: wrong stats in stat.py (section ①), suspect stats (②), and ~100 missing modifier texts organized by category (③–⑩). User needs to go through it and flag YES/NO/RENAME per entry.
+- **node_type_filter matched vs total:** Only 22 stats matched originally. Root causes were (1) display_names used "Increased X" but snapshot text says just "X", (2) stop word collision for _inc/_additional variants. Both fixed: display_names now match snapshot plain text, _STOP_WORDS reduced to {"of","the","a","an"}.
+- **node_type_filter_builder candidate pool:** Builder uses STAT_META (all ~180 stats) as candidates, NOT NODE_MODIFIER_POOL. The pool's min/max values were never used in build_filter — it was only acting as a whitelist, blocking newly-added stats.
+- **node_type_filter scoring:** Jaccard `overlap/|union|` instead of `overlap/len(dn_words)`. Longer/more-specific display names win over generic single-word ones automatically. Threshold 0.5.
+- **stat-audit.md:** Completed by user. All YES/RENAME/NO decisions applied — stat.py and stat_meta.py now have ~180 enum members covering damage, ailments, life/mana/ES, defense, buffs, gear, and utility stats. node_modifier_pool.py updated for ARMOR→ARMOR_FLAT rename.
+- **Stat renames from audit:** MAX_LIFE→MAX_LIFE_FLAT, MAX_MANA→MAX_MANA_FLAT, ARMOR→ARMOR_FLAT, COOLDOWN_REDUCTION_INC→CDR_SPEED_INC. LIFE_LEECH_RATE removed entirely.
+- **LIFE_REGEN_INC semantics:** Repurposed — now stores "% of max life per second" (e.g. 0.6%). LIFE_REGEN_SPEED_INC stores the speed multiplier (+4% Life Regeneration Speed).
 
 ## Do-Not-Repeat
 
