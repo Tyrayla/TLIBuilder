@@ -11,7 +11,7 @@ import uvicorn
 
 from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
-from persistence import save_manager, node_stats_manager, builds_manager
+from persistence import save_manager, builds_manager
 from persistence import tree_config_manager
 from persistence import season_manager
 
@@ -136,13 +136,6 @@ def get_tree(name: str):
         raise HTTPException(status_code=404, detail="Tree not found")
     tree = _build_tree(name)
 
-    # Join node stats from node_stats.json
-    from models.stat import Stat
-    from models.stat_meta import STAT_META
-    all_stats = node_stats_manager.load()
-    tree_stats = all_stats.get(name, {})
-
-    # Load season effects if a season is active
     effects_by_id: dict[str, list[str]] = {}
     active = season_manager.get_active_season()
     if active:
@@ -154,20 +147,6 @@ def get_tree(name: str):
 
     nodes = []
     for n in tree.nodes.values():
-        raw_stats = tree_stats.get(n.id, [])
-        enhanced_stats = []
-        for s in raw_stats:
-            try:
-                stat_enum = Stat(s["stat"])
-                meta = STAT_META.get(stat_enum)
-                enhanced_stats.append({
-                    "stat": s["stat"],
-                    "display_name": meta.display_name if meta else s["stat"],
-                    "unit": meta.unit if meta else "",
-                    "values": s["values"],
-                })
-            except (ValueError, KeyError):
-                pass
         nodes.append({
             "id": n.id,
             "column": n.column,
@@ -175,7 +154,6 @@ def get_tree(name: str):
             "max_points": n.max_points,
             "node_type": n.node_type.value,
             "current_points": n.current_points,
-            "stats": enhanced_stats,
             "effects": effects_by_id.get(n.id, []),
         })
 
@@ -421,32 +399,6 @@ def delete_save():
     return {"ok": True}
 
 
-# ── Node stats ─────────────────────────────────────────────────────────────────
-
-@app.get("/api/node-stats")
-def get_node_stats():
-    return node_stats_manager.load()
-
-
-@app.get("/api/node-stats/{tree_name}/{node_id}")
-def get_node_stats_for_node(tree_name: str, node_id: str):
-    all_stats = node_stats_manager.load()
-    return all_stats.get(tree_name, {}).get(node_id, [])
-
-
-class NodeStatsRequest(BaseModel):
-    stats: list[dict]
-
-
-@app.post("/api/node-stats/{tree_name}/{node_id}")
-def post_node_stats(tree_name: str, node_id: str, req: NodeStatsRequest):
-    from models.passive_node import NodeStat
-    from models.stat import Stat
-    ns_list = [NodeStat(stat=Stat(s["stat"]), values=s["values"]) for s in req.stats]
-    node_stats_manager.save_node(tree_name, node_id, ns_list)
-    return {"ok": True}
-
-
 # ── Dev tools ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/dev/parse-talent-doc")
@@ -554,36 +506,6 @@ def get_snapshot_modifiers(tree_name: str, node_type: str):
                 seen.add(text)
                 texts.append({"text": text})
     return texts
-
-
-@app.get("/api/node-modifiers/{tree_name}/{node_id}")
-def get_node_modifiers(tree_name: str, node_id: str):
-    from persistence import node_modifiers_manager
-    all_mods = node_modifiers_manager.load()
-    mods = all_mods.get(tree_name, {}).get(node_id)
-    if mods is not None:
-        return mods
-    # Fall back to season effects (raw text, no numeric values yet)
-    active = season_manager.get_active_season()
-    if active:
-        slug = _tree_name_to_slug(tree_name)
-        data = season_manager.load_season_tree(active, slug)
-        if data:
-            node = next((n for n in data.get("nodes", []) if n["id"] == node_id), None)
-            if node:
-                return [{"text": e, "values": []} for e in node.get("effects", [])]
-    return []
-
-
-class NodeModifiersRequest(BaseModel):
-    modifiers: list[dict]
-
-
-@app.post("/api/node-modifiers/{tree_name}/{node_id}")
-def post_node_modifiers(tree_name: str, node_id: str, req: NodeModifiersRequest):
-    from persistence import node_modifiers_manager
-    node_modifiers_manager.save_node(tree_name, node_id, req.modifiers)
-    return {"ok": True}
 
 
 @app.get("/api/dev/stat-recipes/{tree_name}/{node_type}")

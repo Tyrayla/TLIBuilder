@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { api, getApiBase, TreeData, TreeNode, NodeModifierEntry, TreeSlot } from '../api/client'
+import { api, getApiBase, TreeData, TreeNode, TreeSlot } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 
 const COLS = 7
@@ -46,18 +46,6 @@ function nodeColors(node: TreeNode, states: Record<string, number>, total: numbe
   }
 }
 
-function parseRank1(text: string): number {
-  const m = text.match(/[+-]?\d+(?:\.\d+)?/)
-  if (!m) return 0
-  const raw = parseFloat(m[0])
-  return text.includes('%') ? raw / 100 : raw
-}
-
-function deriveValues(rank1: number, maxPoints: number): number[] {
-  if (maxPoints === 1) return [Math.round(rank1 * 1e6) / 1e6]
-  return Array.from({ length: maxPoints }, (_, i) => Math.round(rank1 * (i + 1) * 1e6) / 1e6)
-}
-
 function scaleEffect(text: string, pts: number): string {
   const rank = Math.max(pts, 1)
   if (rank === 1) return text
@@ -68,13 +56,7 @@ function scaleEffect(text: string, pts: number): string {
 }
 
 interface Tip { nodeId: string; x: number; y: number }
-type DebugTool = 'create' | 'type' | 'link' | 'stat'
-
-interface StatModal {
-  nodeId: string
-  nodeType: NodeTypeStr
-  maxPoints: number
-}
+type DebugTool = 'create' | 'type' | 'link'
 
 interface Props {
   treeName: string
@@ -111,13 +93,7 @@ export default function TreeViewerScreen({
   const [debugMode, setDebugMode] = useState(false)
   const [debugTool, setDebugTool] = useState<DebugTool>('create')
   const [linkFrom, setLinkFrom] = useState<string | null>(null)
-  const [statModal, setStatModal] = useState<StatModal | null>(null)
-  const [nodeModifiers, setNodeModifiers] = useState<NodeModifierEntry[]>([])
-  const [snapshotMods, setSnapshotMods] = useState<string[]>([])
-  const [loadingMods, setLoadingMods] = useState(false)
-  const [savingMods, setSavingMods] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ nodeId: string } | null>(null)
-  const [modSearch, setModSearch] = useState('')
 
   const loadTree = useCallback(() => {
     setTreeData(null)
@@ -228,44 +204,6 @@ export default function TreeViewerScreen({
     }
   }
 
-  const openStatModal = (node: TreeNode) => {
-    const nt = node.node_type as NodeTypeStr
-    setStatModal({ nodeId: node.id, nodeType: nt, maxPoints: node.max_points })
-    setNodeModifiers([])
-    setSnapshotMods([])
-    setModSearch('')
-    setLoadingMods(true)
-    const canonical = NODE_TYPE_CANONICAL[nt]
-    Promise.all([
-      api.getNodeModifiers(treeName, node.id),
-      api.getSnapshotModifiers(treeName, canonical),
-    ]).then(([mods, snap]) => {
-      setNodeModifiers(mods)
-      setSnapshotMods(snap.map(s => s.text))
-    }).catch(() => {}).finally(() => setLoadingMods(false))
-  }
-
-  const handleAddModifier = (text: string, maxPoints: number) => {
-    const rank1 = parseRank1(text)
-    const values = deriveValues(rank1, maxPoints)
-    setNodeModifiers(prev => [...prev.filter(m => m.text !== text), { text, values }])
-  }
-
-  const handleSaveModifiers = async () => {
-    if (!statModal) return
-    setSavingMods(true)
-    try {
-      await api.postNodeModifiers(treeName, statModal.nodeId, nodeModifiers)
-      flash('Modifiers saved!', true)
-      setStatModal(null)
-    } catch (e) { flash(String(e)) }
-    finally { setSavingMods(false) }
-  }
-
-  const filteredSnapshotMods = modSearch.trim()
-    ? snapshotMods.filter(t => t.toLowerCase().includes(modSearch.toLowerCase()))
-    : snapshotMods
-
   const handleNodeInteract = (node: TreeNode, isRight: boolean) => {
     if (!debugMode) {
       handleClick(node.id, isRight ? 'deallocate' : 'allocate')
@@ -275,7 +213,6 @@ export default function TreeViewerScreen({
       case 'create': setConfirmDelete({ nodeId: node.id }); break
       case 'type':   handleTypeNode(node); break
       case 'link':   handleLinkNode(node.id); break
-      case 'stat':   openStatModal(node); break
     }
   }
 
@@ -387,7 +324,7 @@ export default function TreeViewerScreen({
       {debugMode && (
         <div className="debug-toolbar">
           <div className="debug-tools">
-            {(['create', 'type', 'link', 'stat'] as DebugTool[]).map(t => (
+            {(['create', 'type', 'link'] as DebugTool[]).map(t => (
               <button
                 key={t}
                 className={`btn btn-sm debug-tool-btn${debugTool === t ? ' active' : ''}`}
@@ -396,7 +333,6 @@ export default function TreeViewerScreen({
                 {t === 'create' && '+ Create'}
                 {t === 'type'   && '◎ Type'}
                 {t === 'link'   && '⟷ Link'}
-                {t === 'stat'   && '≡ Stat'}
               </button>
             ))}
           </div>
@@ -599,93 +535,6 @@ export default function TreeViewerScreen({
         </div>
       )}
 
-      {statModal && (
-        <div className="modal-backdrop" onClick={() => setStatModal(null)}>
-          <div className="modal-card stat-editor-card" onClick={e => e.stopPropagation()}>
-            <div className="modal-accent" />
-            <h3 className="modal-title">Modifiers — {statModal.nodeId}</h3>
-            <div className="stat-editor-type">{statModal.nodeType}</div>
-
-            {/* Assigned modifiers */}
-            <div className="stat-list">
-              {nodeModifiers.length === 0 && (
-                <p className="stat-empty">No modifiers assigned yet.</p>
-              )}
-              {nodeModifiers.map((mod, i) => (
-                <div key={i} className="stat-row">
-                  <span className="stat-name" style={{ flex: 1 }}>{mod.text}</span>
-                  <div style={{ display: 'flex', gap: 3 }}>
-                    {mod.values.map((v, vi) => (
-                      <input
-                        key={vi}
-                        className="stat-val-input"
-                        type="number"
-                        step="any"
-                        value={v}
-                        style={{ width: 58 }}
-                        onChange={e => {
-                          const next = nodeModifiers.map((m, mi) =>
-                            mi !== i ? m : {
-                              ...m,
-                              values: m.values.map((vv, vvi) => vvi === vi ? (parseFloat(e.target.value) || 0) : vv),
-                            }
-                          )
-                          setNodeModifiers(next)
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <button className="stat-remove" onClick={() => setNodeModifiers(nodeModifiers.filter((_, j) => j !== i))}>✕</button>
-                </div>
-              ))}
-            </div>
-
-            {/* Snapshot modifier picker */}
-            <div className="stat-add-section">
-              <div style={{ fontSize: 11, color: '#666', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>
-                {loadingMods ? 'Loading…' : `From Snapshot (${filteredSnapshotMods.length}${modSearch ? ` of ${snapshotMods.length}` : ''})`}
-              </div>
-              <input
-                className="stat-val-input"
-                style={{ width: '100%', marginBottom: 6, boxSizing: 'border-box' }}
-                type="text"
-                placeholder="Search…"
-                value={modSearch}
-                onChange={e => setModSearch(e.target.value)}
-              />
-              <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #2a2a4a', borderRadius: 4 }}>
-                {filteredSnapshotMods.length === 0 ? (
-                  <div style={{ color: '#555', fontSize: 12, padding: '8px 10px' }}>
-                    {snapshotMods.length === 0 ? 'No snapshot loaded — upload one in Dev Tools → Canonical Snapshot.' : 'No matches.'}
-                  </div>
-                ) : filteredSnapshotMods.map(text => {
-                  const already = nodeModifiers.some(m => m.text === text)
-                  return (
-                    <div
-                      key={text}
-                      className="stat-row"
-                      style={{ cursor: already ? 'default' : 'pointer', opacity: already ? 0.4 : 1, borderRadius: 0, borderBottom: '1px solid #1a1a2e' }}
-                      onClick={() => { if (!already) handleAddModifier(text, statModal.maxPoints) }}
-                    >
-                      <span className="stat-name" style={{ flex: 1 }}>{text}</span>
-                      <span style={{ fontSize: 11, color: already ? '#555' : '#4caf50', minWidth: 36, textAlign: 'right' }}>
-                        {already ? '✓' : '+ add'}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div className="modal-actions">
-              <button className="btn btn-primary" onClick={handleSaveModifiers} disabled={savingMods}>
-                {savingMods ? 'Saving…' : 'Save Modifiers'}
-              </button>
-              <button className="btn btn-danger" onClick={() => setStatModal(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

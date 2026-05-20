@@ -98,13 +98,6 @@ export interface Build {
   slots: (TreeSlot | null)[]
 }
 
-export interface NodeStatData {
-  stat: string
-  display_name: string
-  unit: string
-  values: number[]
-}
-
 export interface TreeNode {
   id: string
   column: number
@@ -112,7 +105,6 @@ export interface TreeNode {
   max_points: number
   node_type: string
   current_points: number
-  stats: NodeStatData[]
   effects: string[]
 }
 
@@ -144,11 +136,6 @@ export interface ModPoolEntry {
 
 export interface SnapshotModifier {
   text: string
-}
-
-export interface NodeModifierEntry {
-  text: string
-  values: number[]
 }
 
 export interface StatRecipe {
@@ -335,14 +322,6 @@ export const api = {
 
   getModifierPool: () => get<ModPoolEntry[]>('/modifier-pool'),
 
-  getNodeStats: () => get<Record<string, unknown>>('/node-stats'),
-  getNodeStatsForNode: (treeName: string, nodeId: string) =>
-    get<{ stat: string; values: number[] }[]>(
-      `/node-stats/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeId)}`
-    ),
-  postNodeStats: (treeName: string, nodeId: string, stats: { stat: string; values: number[] }[]) =>
-    post(`/node-stats/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeId)}`, { stats }),
-
   // Dev tools
   parseTalentDoc: (file: File): Promise<TalentSnapshot> => {
     const form = new FormData()
@@ -361,10 +340,6 @@ export const api = {
     get<StatRecipe[]>(`/dev/stat-recipes/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeType)}`),
   getSnapshotModifiers: (treeName: string, nodeType: string) =>
     get<SnapshotModifier[]>(`/dev/snapshot-modifiers/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeType)}`),
-  getNodeModifiers: (treeName: string, nodeId: string) =>
-    get<NodeModifierEntry[]>(`/node-modifiers/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeId)}`),
-  postNodeModifiers: (treeName: string, nodeId: string, modifiers: NodeModifierEntry[]) =>
-    post<{ ok: boolean }>(`/node-modifiers/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeId)}`, { modifiers }),
 
   clearSnapshot: () => del<{ ok: boolean }>('/dev/snapshot'),
   clearNodeTypeFilter: () => del<{ ok: boolean }>('/dev/node-type-filter'),
