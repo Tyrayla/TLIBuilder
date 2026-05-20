@@ -3,7 +3,7 @@ import os
 import shutil
 
 _SEASONS_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "data", "seasons")
+    os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons")
 )
 _ACTIVE_FILE = os.path.join(_SEASONS_DIR, ".active")
 

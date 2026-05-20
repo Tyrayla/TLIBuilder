@@ -37,7 +37,12 @@
       "Bash(npm --version)",
       "Bash(python -c \"import json; d = json.load\\(open\\('data/talent_snapshot.json', encoding='utf-8'\\)\\); t = list\\(d['trees'].keys\\(\\)\\)[:2]; print\\(t\\); print\\(json.dumps\\(d['trees'][t[0]]['core_talents'][:2], indent=2\\)\\); print\\('new_god sample:', json.dumps\\(d.get\\('new_god_talents', []\\)[:2], indent=2\\)\\)\")",
       "Bash(python -c \"import server; print\\('OK'\\)\")",
-      "Bash(python -c \"import server; print\\('server OK'\\)\")"
+      "Bash(python -c \"import server; print\\('server OK'\\)\")",
+      "Bash(git commit -m ' *)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git push *)",
+      "Bash(python -c \"import ast, os; errors=[]; [errors.append\\(\\(f,e\\)\\) for f in [os.path.join\\(r,fn\\) for r,_,fs in os.walk\\('.'\\) for fn in fs if fn.endswith\\('.py'\\)] for e in [None] if \\(ast.parse\\(open\\(f\\).read\\(\\)\\),False\\)[0] is None or True]; print\\('syntax ok'\\)\")"
     ]
   },
   "hooks": {

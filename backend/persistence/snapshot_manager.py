@@ -2,7 +2,7 @@ import json
 import os
 
 _PATH = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "data", "talent_snapshot.json")
+    os.path.join(os.path.dirname(__file__), "..", "..", "data", "talent_snapshot.json")
 )
 
 

@@ -17,7 +17,7 @@ import re
 from datetime import datetime
 
 _FILTER_PATH = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "data", "node_type_filter.json")
+    os.path.join(os.path.dirname(__file__), "..", "..", "data", "node_type_filter.json")
 )
 
 _STOP_WORDS = {"increased", "additional", "chance", "penetration", "of", "the", "a", "an"}
@@ -63,7 +63,7 @@ def build_filter(snapshot: dict) -> dict:
     Given a TalentSnapshot dict, produce the filter dict with stats, recipes,
     unresolved, and _meta. Does NOT write to disk.
     """
-    from data.node_modifier_pool import NODE_MODIFIER_POOL
+    from models.node_modifier_pool import NODE_MODIFIER_POOL
     from models.stat_meta import STAT_META
 
     # Build lookup: stat_value → display_name words (only pool entries with meta)

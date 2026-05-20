@@ -15,7 +15,7 @@ from persistence import save_manager, builds_manager
 from persistence import tree_config_manager
 from persistence import season_manager
 
-_TREES_META_PATH = os.path.join(os.path.dirname(__file__), 'data', 'trees_meta.json')
+_TREES_META_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'trees_meta.json')
 with open(_TREES_META_PATH) as _f:
     TREES: dict[str, dict] = json.load(_f)
 
@@ -254,7 +254,7 @@ def toggle_connection(name: str, req: ConnectionRequest):
 
 @app.get("/api/modifier-pool")
 def get_modifier_pool():
-    from data.node_modifier_pool import NODE_MODIFIER_POOL
+    from models.node_modifier_pool import NODE_MODIFIER_POOL
     from models.stat_meta import STAT_META
     from tools.node_type_filter_builder import load_filter
     _ALL_TYPES = ["micro", "medium", "legendary_medium"]

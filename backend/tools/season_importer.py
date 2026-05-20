@@ -40,7 +40,7 @@ def build_slug_map() -> dict[str, str]:
     import os
     from persistence import season_manager
 
-    meta_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'trees_meta.json')
+    meta_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'trees_meta.json')
     with open(meta_path) as f:
         trees_meta: dict[str, dict] = json.load(f)
 

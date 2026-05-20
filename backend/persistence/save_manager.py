@@ -1,7 +1,7 @@
 import json
 import os
 
-_SAVE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "save.json")
+_SAVE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "save.json")
 _SAVE_PATH = os.path.normpath(_SAVE_PATH)
 
 
