@@ -1,23 +1,18 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-05-20T12:08:39.290Z
+> Auto-maintained by OpenWolf. Last scanned: 2026-05-20T13:10:21.952Z
 > Files: 141 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ./
 
-- `.gitignore` — Git ignore rules (~19 tok)
-- `build.bat` (~80 tok)
+- `.gitignore` — Git ignore rules (~25 tok)
 - `CLAUDE.md` — OpenWolf (~57 tok)
-- `dev-err.txt` (~48 tok)
-- `dev-out.txt` (~244 tok)
 - `DEVELOPMENT.md` — Development Notes (~406 tok)
 - `electron.vite.config.ts` (~120 tok)
-- `main.py` — main (~149 tok)
 - `package-lock.json` — npm lock file (~62938 tok)
 - `package.json` — Node.js package manifest (~394 tok)
 - `README.md` — Project documentation (~446 tok)
 - `server.py` — API: GET, POST, DELETE (7 endpoints) (~8128 tok)
-- `TLI Planner - Shortcut.lnk` (~249 tok)
 - `TLI Planner.spec` — -*- mode: python ; coding: utf-8 -*- (~272 tok)
 - `tsconfig.json` — TypeScript configuration (~34 tok)
 - `tsconfig.node.json` — /*", "src/preload/**/*"], (~66 tok)
@@ -84,19 +79,9 @@
 - `goddess_of_hunting.json` (~1343 tok)
 - `goddess_of_knowledge.json` (~1391 tok)
 
-## gui/
-
-- `__init__.py` (~0 tok)
-- `app.py` — App: show, show_module_selector, show_tree_selector, show_tree_viewer (~321 tok)
-- `module_selector.py` — Declares ModuleSelector (~495 tok)
-- `sidebar.py` — ActiveTreesSidebar: refresh (~866 tok)
-- `tree_selector.py` — Declares TreeSelector (~2520 tok)
-- `tree_viewer.py` — CanvasTooltip: refresh (~13587 tok)
-
 ## models/
 
 - `__init__.py` (~0 tok)
-- `character_sheet.py` — ── NO MANUAL WORK REQUIRED ─────────────────────────────────────────────────── (~533 tok)
 - `core_talent.py` — class: is_selected, selected_talent (~161 tok)
 - `node_modifier_def.py` — ── NO MANUAL WORK REQUIRED ─────────────────────────────────────────────────── (~247 tok)
 - `passive_node.py` — NodeType: display, column_label, is_full, is_empty (~462 tok)

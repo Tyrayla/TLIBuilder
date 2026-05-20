@@ -7,3 +7,5 @@ build/
 *.spec
 node_modules/
 out/
+dev-err.txt
+dev-out.txt
