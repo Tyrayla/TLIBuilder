@@ -1,0 +1,417 @@
+{
+  "tree_name": "Bladerunner",
+  "nodes": [
+    {
+      "id": "bladerunner_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Attack Damage"
+      ]
+    },
+    {
+      "id": "bladerunner_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life",
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "bladerunner_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack Speed"
+      ]
+    },
+    {
+      "id": "bladerunner_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Attack Damage"
+      ]
+    },
+    {
+      "id": "bladerunner_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack Speed"
+      ]
+    },
+    {
+      "id": "bladerunner_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life",
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "bladerunner_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Projectile Speed"
+      ]
+    },
+    {
+      "id": "bladerunner_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack Speed",
+        "-4 Skill Cost"
+      ]
+    },
+    {
+      "id": "bladerunner_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "bladerunner_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack Speed"
+      ]
+    },
+    {
+      "id": "bladerunner_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.25% Life Regain",
+        "1.25% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "bladerunner_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Projectile Speed"
+      ]
+    },
+    {
+      "id": "bladerunner_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+7% Evasion"
+      ]
+    },
+    {
+      "id": "bladerunner_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Critical Strike Rating",
+        "+5% Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "bladerunner_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "25% chance to gain Attack Aggression on defeat (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "bladerunner_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "2.5% Life Regain",
+        "2.5% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "bladerunner_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+14% Evasion"
+      ]
+    },
+    {
+      "id": "bladerunner_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Attack Damage while Dual Wielding"
+      ]
+    },
+    {
+      "id": "bladerunner_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2% Movement Speed"
+      ]
+    },
+    {
+      "id": "bladerunner_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% chance to Multistrike",
+        "+6% Minion Multistrike chance"
+      ]
+    },
+    {
+      "id": "bladerunner_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack Speed while Dual Wielding"
+      ]
+    },
+    {
+      "id": "bladerunner_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Attack Damage while Dual Wielding"
+      ]
+    },
+    {
+      "id": "bladerunner_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "35% of the bonuses for Movement Speed is also applied to the Cooldown Recovery Speed of Mobility skills",
+        "70% of the bonuses for Movement Speed is also applied to the Attack and Cast Speed of Mobility Skills (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "bladerunner_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% additional Attack Speed when performing Multistrikes"
+      ]
+    },
+    {
+      "id": "bladerunner_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8 Dexterity"
+      ]
+    },
+    {
+      "id": "bladerunner_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+6% additional Attack Speed while Dual Wielding (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "bladerunner_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+5% additional Attack Damage for each unique type of weapon equipped while Dual Wielding"
+      ]
+    },
+    {
+      "id": "bladerunner_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Gains a stack Agility Blessing when using Mobility Skills (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "bladerunner_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Multistrikes deal 16% increasing damage"
+      ]
+    },
+    {
+      "id": "bladerunner_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1% Attack and Cast Speed per 40 Dexterity (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "bladerunner_c0_r0",
+      "to": "bladerunner_c1_r0"
+    },
+    {
+      "from": "bladerunner_c0_r2",
+      "to": "bladerunner_c1_r2"
+    },
+    {
+      "from": "bladerunner_c0_r4",
+      "to": "bladerunner_c1_r4"
+    },
+    {
+      "from": "bladerunner_c1_r1",
+      "to": "bladerunner_c2_r1"
+    },
+    {
+      "from": "bladerunner_c1_r3",
+      "to": "bladerunner_c2_r3"
+    },
+    {
+      "from": "bladerunner_c2_r0",
+      "to": "bladerunner_c3_r0"
+    },
+    {
+      "from": "bladerunner_c2_r1",
+      "to": "bladerunner_c3_r1"
+    },
+    {
+      "from": "bladerunner_c2_r2",
+      "to": "bladerunner_c3_r2"
+    },
+    {
+      "from": "bladerunner_c2_r4",
+      "to": "bladerunner_c3_r4"
+    },
+    {
+      "from": "bladerunner_c4_r0",
+      "to": "bladerunner_c5_r0"
+    },
+    {
+      "from": "bladerunner_c4_r0",
+      "to": "bladerunner_c5_r1"
+    },
+    {
+      "from": "bladerunner_c4_r2",
+      "to": "bladerunner_c5_r2"
+    },
+    {
+      "from": "bladerunner_c4_r3",
+      "to": "bladerunner_c5_r3"
+    },
+    {
+      "from": "bladerunner_c5_r0",
+      "to": "bladerunner_c6_r0"
+    },
+    {
+      "from": "bladerunner_c5_r1",
+      "to": "bladerunner_c6_r1"
+    },
+    {
+      "from": "bladerunner_c5_r2",
+      "to": "bladerunner_c6_r2"
+    },
+    {
+      "from": "bladerunner_c5_r3",
+      "to": "bladerunner_c6_r3"
+    },
+    {
+      "from": "bladerunner_c5_r4",
+      "to": "bladerunner_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "bladerunner_waiting_attack",
+      "effects": [
+        "Consumes all Agility Blessing every 8s. For each stack consumed, +5% additional damage in the next 8s (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "bladerunner_joined_force",
+      "effects": [
+        "Off-Hand Weapons do not participate in Attacks while Dual Wielding",
+        "Adds 60% of the damage of the Off-Hand Weapon to the final damage of the Main-Hand Weapon (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "bladerunner_quick_advancement",
+      "effects": [
+        "Multistrikes deal 55% increasing damage",
+        "Minions' Multistrikes deal 55% increasing damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "bladerunner_preemptive_strike",
+      "effects": [
+        "+1 initial Multistrike Count",
+        "-20% Attack Speed when performing Multistrikes (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "SS12 Lunaria"
+}

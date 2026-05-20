@@ -1,0 +1,371 @@
+{
+  "tree_name": "Goddess of Knowledge",
+  "nodes": [
+    {
+      "id": "goddess_of_knowledge_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% damage"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Cast Speed",
+        "+2% Movement Speed"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% damage"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Max Mana"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Spell Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Cast Speed",
+        "-4 Skill Cost",
+        "+4% Movement Speed"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life",
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Max Mana"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Skill Area",
+        "+6% Projectile Speed"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Spell Critical Strike Rating",
+        "+5% Spell Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Spell Burst Charge Speed"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life",
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Tangle Damage",
+        "+5% Tangle Duration"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Skill Area",
+        "+12% Projectile Speed"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+20% Spell Burst Charge Speed"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.25% Life Regain",
+        "1.25% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+2% Movement Speed for each activated Tangle (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8 Intelligence"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Spell Damage"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "2.5% Life Regain",
+        "2.5% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+10% Focus Blessing Duration",
+        "+10% damage while Focus Blessing is active"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+16 Intelligence"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 Spell Skill Level"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 to Max Focus Blessing Stacks (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "goddess_of_knowledge_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Energy Shield Charge cannot be interrupted by damage for 1 s after it starts (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "goddess_of_knowledge_c0_r2",
+      "to": "goddess_of_knowledge_c1_r2"
+    },
+    {
+      "from": "goddess_of_knowledge_c1_r1",
+      "to": "goddess_of_knowledge_c2_r1"
+    },
+    {
+      "from": "goddess_of_knowledge_c1_r3",
+      "to": "goddess_of_knowledge_c2_r3"
+    },
+    {
+      "from": "goddess_of_knowledge_c2_r0",
+      "to": "goddess_of_knowledge_c3_r0"
+    },
+    {
+      "from": "goddess_of_knowledge_c2_r2",
+      "to": "goddess_of_knowledge_c3_r2"
+    },
+    {
+      "from": "goddess_of_knowledge_c2_r4",
+      "to": "goddess_of_knowledge_c3_r4"
+    },
+    {
+      "from": "goddess_of_knowledge_c3_r1",
+      "to": "goddess_of_knowledge_c4_r1"
+    },
+    {
+      "from": "goddess_of_knowledge_c3_r3",
+      "to": "goddess_of_knowledge_c4_r3"
+    },
+    {
+      "from": "goddess_of_knowledge_c4_r2",
+      "to": "goddess_of_knowledge_c5_r2"
+    },
+    {
+      "from": "goddess_of_knowledge_c5_r1",
+      "to": "goddess_of_knowledge_c6_r1"
+    },
+    {
+      "from": "goddess_of_knowledge_c5_r3",
+      "to": "goddess_of_knowledge_c6_r3"
+    },
+    {
+      "from": "goddess_of_knowledge_c5_r4",
+      "to": "goddess_of_knowledge_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "goddess_of_knowledge_beacon",
+      "effects": [
+        "+2 Max Spell Burst (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "goddess_of_knowledge_insight",
+      "effects": [
+        "+30% additional Spell Damage",
+        "+25% additional Skill Cost (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "goddess_of_knowledge_peculiar_vibe",
+      "effects": [
+        "You can apply 1 additional Tangle(s) to enemies",
+        "-30% additional Tangle Duration (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "goddess_of_knowledge_chilly",
+      "effects": [
+        "+100% chance to gain 1 stack of Focus Blessing on hit",
+        "+1 to Max Focus Blessing Stacks (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "goddess_of_knowledge_burning_touch",
+      "effects": [
+        "Has Spell Aggression",
+        "+10% Spell Aggression Effect for every Main Spell Skill cast recently. Stacks up to 10 times (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "goddess_of_knowledge_acquaintance",
+      "effects": [
+        "Has Dormant Entanglement",
+        "+1 Max Tangle Quantity (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "SS12 Lunaria"
+}

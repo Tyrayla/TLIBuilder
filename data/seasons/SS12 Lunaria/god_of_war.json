@@ -1,0 +1,352 @@
+{
+  "tree_name": "God of War",
+  "nodes": [
+    {
+      "id": "god_of_war_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% damage"
+      ]
+    },
+    {
+      "id": "god_of_war_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "god_of_war_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% damage"
+      ]
+    },
+    {
+      "id": "god_of_war_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Skill Area",
+        "+6% Projectile Speed"
+      ]
+    },
+    {
+      "id": "god_of_war_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "god_of_war_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+25% Critical Strike Rating",
+        "-4 Skill Cost"
+      ]
+    },
+    {
+      "id": "god_of_war_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2% Attack Block Chance",
+        "+2% Spell Block Chance"
+      ]
+    },
+    {
+      "id": "god_of_war_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Skill Area",
+        "+12% Projectile Speed"
+      ]
+    },
+    {
+      "id": "god_of_war_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life",
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "god_of_war_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "god_of_war_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "god_of_war_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Attack Block Chance",
+        "+4% Spell Block Chance"
+      ]
+    },
+    {
+      "id": "god_of_war_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% chance to inflict Trauma"
+      ]
+    },
+    {
+      "id": "god_of_war_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life",
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "god_of_war_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Physical Damage"
+      ]
+    },
+    {
+      "id": "god_of_war_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+16% Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "god_of_war_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "10% chance to restore 15% of Life, Energy Shield, and Mana when Blocking (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "god_of_war_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% chance to inflict Trauma",
+        "+16% Trauma Reaping Duration"
+      ]
+    },
+    {
+      "id": "god_of_war_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Physical Damage"
+      ]
+    },
+    {
+      "id": "god_of_war_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.25% Life Regain",
+        "1.25% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "god_of_war_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Physical Damage"
+      ]
+    },
+    {
+      "id": "god_of_war_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 Physical Skill Level"
+      ]
+    },
+    {
+      "id": "god_of_war_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "2.5% Life Regain",
+        "2.5% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "god_of_war_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% additional Physical Damage while having Fervor"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "god_of_war_c0_r2",
+      "to": "god_of_war_c1_r2"
+    },
+    {
+      "from": "god_of_war_c1_r1",
+      "to": "god_of_war_c2_r1"
+    },
+    {
+      "from": "god_of_war_c1_r3",
+      "to": "god_of_war_c2_r3"
+    },
+    {
+      "from": "god_of_war_c2_r0",
+      "to": "god_of_war_c3_r0"
+    },
+    {
+      "from": "god_of_war_c2_r2",
+      "to": "god_of_war_c3_r2"
+    },
+    {
+      "from": "god_of_war_c2_r4",
+      "to": "god_of_war_c3_r4"
+    },
+    {
+      "from": "god_of_war_c3_r1",
+      "to": "god_of_war_c4_r1"
+    },
+    {
+      "from": "god_of_war_c3_r2",
+      "to": "god_of_war_c4_r2"
+    },
+    {
+      "from": "god_of_war_c3_r3",
+      "to": "god_of_war_c4_r3"
+    },
+    {
+      "from": "god_of_war_c4_r0",
+      "to": "god_of_war_c5_r0"
+    },
+    {
+      "from": "god_of_war_c5_r0",
+      "to": "god_of_war_c6_r0"
+    },
+    {
+      "from": "god_of_war_c5_r2",
+      "to": "god_of_war_c6_r2"
+    },
+    {
+      "from": "god_of_war_c5_r4",
+      "to": "god_of_war_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "god_of_war_cohesion",
+      "effects": [
+        "+50% additional Critical Strike Rating for the next Main Skill used every 1 s (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "god_of_war_blunt",
+      "effects": [
+        "+30% additional Physical Damage",
+        "Enemies +20% Injury Buffer (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "god_of_war_determined",
+      "effects": [
+        "Upon taking fatal damage, you have a 50% chance to keep at least 1 Life (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "god_of_war_ambition",
+      "effects": [
+        "+100% chance to gain 10 Fervor rating on hit",
+        "Gains Fervor when there are enemies Nearby (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "god_of_war_gravity",
+      "effects": [
+        "+25% additional Melee Damage",
+        "Melee Skill has reversed knockback direction (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "god_of_war_shooting_arrows",
+      "effects": [
+        "+25% additional Projectile Damage",
+        "+50% Knockback distance (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "SS12 Lunaria"
+}

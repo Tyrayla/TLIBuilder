@@ -1,0 +1,421 @@
+{
+  "tree_name": "Marksman",
+  "nodes": [
+    {
+      "id": "marksman_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Projectile Damage"
+      ]
+    },
+    {
+      "id": "marksman_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life"
+      ]
+    },
+    {
+      "id": "marksman_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+7% Evasion"
+      ]
+    },
+    {
+      "id": "marksman_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Projectile Damage"
+      ]
+    },
+    {
+      "id": "marksman_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "marksman_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life"
+      ]
+    },
+    {
+      "id": "marksman_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+450 Evasion"
+      ]
+    },
+    {
+      "id": "marksman_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+14% Evasion"
+      ]
+    },
+    {
+      "id": "marksman_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "4.5% Projectile Damage",
+        "+3% Projectile Speed"
+      ]
+    },
+    {
+      "id": "marksman_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "marksman_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Projectile Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "marksman_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+900 Evasion"
+      ]
+    },
+    {
+      "id": "marksman_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.5% chance to avoid damage"
+      ]
+    },
+    {
+      "id": "marksman_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Projectile Speed"
+      ]
+    },
+    {
+      "id": "marksman_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+30% Projectile Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "marksman_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Projectile Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "marksman_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+7% Evasion"
+      ]
+    },
+    {
+      "id": "marksman_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% chance to avoid damage"
+      ]
+    },
+    {
+      "id": "marksman_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% Projectile Speed",
+        "Projectile Damage increases with the distance traveled, dealing up to +48% damage to distant enemies"
+      ]
+    },
+    {
+      "id": "marksman_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+60% Projectile Damage against enemies in proximity"
+      ]
+    },
+    {
+      "id": "marksman_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8 Dexterity"
+      ]
+    },
+    {
+      "id": "marksman_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+12% Evasion",
+        "+12% chance to avoid Elemental Ailments"
+      ]
+    },
+    {
+      "id": "marksman_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Projectile Damage"
+      ]
+    },
+    {
+      "id": "marksman_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1% Evasion per 24 Dexterity (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "marksman_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+10% Agility Blessing Duration",
+        "+7% Evasion while Agility Blessing is active"
+      ]
+    },
+    {
+      "id": "marksman_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+7% Evasion"
+      ]
+    },
+    {
+      "id": "marksman_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 to Parabolic Projectile Splits quantity (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "marksman_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 Jumps"
+      ]
+    },
+    {
+      "id": "marksman_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+2 Horizontal Projectile Penetration(s)"
+      ]
+    },
+    {
+      "id": "marksman_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+6% Evasion per stack of Agility Blessing owned (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "marksman_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+20% additional Evasion on Spell Damage (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "marksman_c0_r0",
+      "to": "marksman_c1_r0"
+    },
+    {
+      "from": "marksman_c0_r2",
+      "to": "marksman_c1_r2"
+    },
+    {
+      "from": "marksman_c0_r4",
+      "to": "marksman_c1_r4"
+    },
+    {
+      "from": "marksman_c1_r1",
+      "to": "marksman_c2_r1"
+    },
+    {
+      "from": "marksman_c1_r3",
+      "to": "marksman_c2_r3"
+    },
+    {
+      "from": "marksman_c2_r0",
+      "to": "marksman_c3_r0"
+    },
+    {
+      "from": "marksman_c2_r0",
+      "to": "marksman_c3_r1"
+    },
+    {
+      "from": "marksman_c2_r2",
+      "to": "marksman_c3_r2"
+    },
+    {
+      "from": "marksman_c2_r4",
+      "to": "marksman_c3_r4"
+    },
+    {
+      "from": "marksman_c3_r0",
+      "to": "marksman_c4_r0"
+    },
+    {
+      "from": "marksman_c3_r1",
+      "to": "marksman_c4_r1"
+    },
+    {
+      "from": "marksman_c3_r3",
+      "to": "marksman_c4_r3"
+    },
+    {
+      "from": "marksman_c4_r2",
+      "to": "marksman_c5_r2"
+    },
+    {
+      "from": "marksman_c5_r1",
+      "to": "marksman_c6_r0"
+    },
+    {
+      "from": "marksman_c5_r1",
+      "to": "marksman_c6_r1"
+    },
+    {
+      "from": "marksman_c5_r1",
+      "to": "marksman_c6_r2"
+    },
+    {
+      "from": "marksman_c5_r3",
+      "to": "marksman_c6_r3"
+    },
+    {
+      "from": "marksman_c5_r4",
+      "to": "marksman_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "marksman_gale",
+      "effects": [
+        "60% of the Projectile Speed bonus is also applied to the additional bonus for Projectile Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "marksman_euphoria",
+      "effects": [
+        "+4% additional Evasion for every stack of Agility Blessing (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "marksman_close_range_fire",
+      "effects": [
+        "Projectiles deal up to +35% additional damage to enemies in Proximity, and this damage reduces with the distance traveled by the Projectiles (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "marksman_master_escapist",
+      "effects": [
+        "+1 Max Deflection stacks",
+        "For every 5 m moved, gains 1 stack(s) of Deflection (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "SS12 Lunaria"
+}

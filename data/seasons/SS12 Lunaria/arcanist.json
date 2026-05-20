@@ -1,0 +1,418 @@
+{
+  "tree_name": "Arcanist",
+  "nodes": [
+    {
+      "id": "arcanist_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Spell Damage"
+      ]
+    },
+    {
+      "id": "arcanist_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "arcanist_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Mana"
+      ]
+    },
+    {
+      "id": "arcanist_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Spell Damage"
+      ]
+    },
+    {
+      "id": "arcanist_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "arcanist_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "arcanist_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15 Max Mana"
+      ]
+    },
+    {
+      "id": "arcanist_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Max Mana"
+      ]
+    },
+    {
+      "id": "arcanist_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "arcanist_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "arcanist_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.25% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "arcanist_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+30 Max Mana",
+        "Restores 6 Mana on hit. Interval: 0.1s"
+      ]
+    },
+    {
+      "id": "arcanist_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "Regenerates 0.6% Mana per second"
+      ]
+    },
+    {
+      "id": "arcanist_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Critical Strike Rating",
+        "+5% Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "arcanist_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Max Mana"
+      ]
+    },
+    {
+      "id": "arcanist_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "2.5% Energy Shield Regain"
+      ]
+    },
+    {
+      "id": "arcanist_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "arcanist_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Mana Regeneration Speed"
+      ]
+    },
+    {
+      "id": "arcanist_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+20% Attack and Cast Speed when at Full Mana",
+        "+15% Max Mana"
+      ]
+    },
+    {
+      "id": "arcanist_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+20% Spell Damage at Low Mana",
+        "+15% Max Mana"
+      ]
+    },
+    {
+      "id": "arcanist_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Max Mana"
+      ]
+    },
+    {
+      "id": "arcanist_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "Adds 2% of Max Mana as Energy Shield"
+      ]
+    },
+    {
+      "id": "arcanist_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Max Mana"
+      ]
+    },
+    {
+      "id": "arcanist_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+10% Focus Blessing Duration",
+        "+10% damage while Focus Blessing is active"
+      ]
+    },
+    {
+      "id": "arcanist_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Sealed Mana Compensation"
+      ]
+    },
+    {
+      "id": "arcanist_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8 Intelligence"
+      ]
+    },
+    {
+      "id": "arcanist_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Spell Damage",
+        "+8% Skill Cost"
+      ]
+    },
+    {
+      "id": "arcanist_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "8% of damage is taken from Mana before life"
+      ]
+    },
+    {
+      "id": "arcanist_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 to Max Focus Blessing Stacks",
+        "Regenerates 0.4% Mana per second while Focus Blessing is active (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "arcanist_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 Mana per 6 Intelligence (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "arcanist_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Consumes 4% of current Mana when casting a Main Skill. Interval: 0.03s",
+        "+8% additional Spell Damage (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "arcanist_c0_r0",
+      "to": "arcanist_c1_r0"
+    },
+    {
+      "from": "arcanist_c0_r2",
+      "to": "arcanist_c1_r2"
+    },
+    {
+      "from": "arcanist_c0_r4",
+      "to": "arcanist_c1_r4"
+    },
+    {
+      "from": "arcanist_c1_r1",
+      "to": "arcanist_c2_r1"
+    },
+    {
+      "from": "arcanist_c1_r3",
+      "to": "arcanist_c2_r3"
+    },
+    {
+      "from": "arcanist_c2_r0",
+      "to": "arcanist_c3_r0"
+    },
+    {
+      "from": "arcanist_c2_r2",
+      "to": "arcanist_c3_r2"
+    },
+    {
+      "from": "arcanist_c2_r4",
+      "to": "arcanist_c3_r4"
+    },
+    {
+      "from": "arcanist_c3_r1",
+      "to": "arcanist_c4_r0"
+    },
+    {
+      "from": "arcanist_c3_r1",
+      "to": "arcanist_c4_r1"
+    },
+    {
+      "from": "arcanist_c3_r3",
+      "to": "arcanist_c4_r3"
+    },
+    {
+      "from": "arcanist_c4_r2",
+      "to": "arcanist_c5_r2"
+    },
+    {
+      "from": "arcanist_c5_r0",
+      "to": "arcanist_c6_r0"
+    },
+    {
+      "from": "arcanist_c5_r1",
+      "to": "arcanist_c6_r1"
+    },
+    {
+      "from": "arcanist_c5_r3",
+      "to": "arcanist_c6_r3"
+    },
+    {
+      "from": "arcanist_c5_r4",
+      "to": "arcanist_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "arcanist_mana",
+      "effects": [
+        "20% of damage is taken from Mana before life",
+        "+12% additional Max Mana (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "arcanist_mind_focus",
+      "effects": [
+        "Changes the base effect of Focus Blessing to: Adds Physical Damage equal to 1% of Max Mana to Attacks and Spells (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "arcanist_quick_wits",
+      "effects": [
+        "+25% additional Spell Damage when the Energy Shield is not low",
+        "-20% additional damage taken at Low Energy Shield (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "arcanist_preparation",
+      "effects": [
+        "Adds 1 Max Energy Shield for every 50 Mana consumed recently (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "SS12 Lunaria"
+}

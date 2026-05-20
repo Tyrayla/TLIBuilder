@@ -1,0 +1,435 @@
+{
+  "tree_name": "Warlock",
+  "nodes": [
+    {
+      "id": "warlock_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% damage",
+        "+9% Minion Damage"
+      ]
+    },
+    {
+      "id": "warlock_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life",
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "warlock_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Ailment Damage"
+      ]
+    },
+    {
+      "id": "warlock_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% damage",
+        "+18% Minion Damage"
+      ]
+    },
+    {
+      "id": "warlock_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Affliction Effect"
+      ]
+    },
+    {
+      "id": "warlock_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life",
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "warlock_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% chance to inflict Damaging Ailments",
+        "+6% chance for Minions to inflict Damaging Ailments"
+      ]
+    },
+    {
+      "id": "warlock_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Ailment Damage"
+      ]
+    },
+    {
+      "id": "warlock_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% damage against Cursed enemies",
+        "+8% Curse Skill Area"
+      ]
+    },
+    {
+      "id": "warlock_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "-4 Skill Cost",
+        "+12% Affliction Effect"
+      ]
+    },
+    {
+      "id": "warlock_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% chance to avoid Elemental Ailments"
+      ]
+    },
+    {
+      "id": "warlock_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% chance to inflict Damaging Ailments",
+        "+12% chance for Minions to inflict Damaging Ailments"
+      ]
+    },
+    {
+      "id": "warlock_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Critical Strike Rating",
+        "+15% Minion Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "warlock_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+16% damage against Cursed enemies",
+        "+16% Curse Skill Area"
+      ]
+    },
+    {
+      "id": "warlock_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Curse Effect"
+      ]
+    },
+    {
+      "id": "warlock_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+20% chance to avoid Elemental Ailments"
+      ]
+    },
+    {
+      "id": "warlock_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Affliction Effect"
+      ]
+    },
+    {
+      "id": "warlock_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Critical Strike Rating",
+        "+20% Minion Critical Strike Rating",
+        "+14% Critical Strike Damage against enemies affected by Ailments",
+        "+14% Minion Critical Strike Damage against enemies affected by Ailments"
+      ]
+    },
+    {
+      "id": "warlock_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Upon dealing damage to a Cursed target, there is a +25% chance to Paralyze it"
+      ]
+    },
+    {
+      "id": "warlock_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% additional damage against Cursed enemies"
+      ]
+    },
+    {
+      "id": "warlock_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.5% Blur Effect"
+      ]
+    },
+    {
+      "id": "warlock_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Affliction Effect"
+      ]
+    },
+    {
+      "id": "warlock_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Ailment Damage"
+      ]
+    },
+    {
+      "id": "warlock_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2% Crowd Control Effects"
+      ]
+    },
+    {
+      "id": "warlock_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+20% chance to gain Blur when inflicting crowd control effects (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "warlock_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% damage",
+        "+9% Minion Damage"
+      ]
+    },
+    {
+      "id": "warlock_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "For every +2% Ignite, Wilt, and Trauma Chance, +1% Ignite, Wilt, and Trauma Damage respectively (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "warlock_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+5% chance to inflict Slow on hit (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "warlock_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+20% chance to Blind the target on hit",
+        "+25% Critical Strike Damage Mitigation against Blinded enemies (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "warlock_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Upon inflicting damage, +15% Hit Damage for every type of Ailment the enemy has",
+        "When Minions deal damage, +15% Hit Damage for every type of Ailment the enemy has"
+      ]
+    },
+    {
+      "id": "warlock_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+30% chance to inflict Damaging Ailments",
+        "Ailments inflicted are reflected back onto you (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "warlock_c0_r0",
+      "to": "warlock_c1_r0"
+    },
+    {
+      "from": "warlock_c0_r2",
+      "to": "warlock_c1_r2"
+    },
+    {
+      "from": "warlock_c0_r4",
+      "to": "warlock_c1_r4"
+    },
+    {
+      "from": "warlock_c1_r1",
+      "to": "warlock_c2_r1"
+    },
+    {
+      "from": "warlock_c1_r3",
+      "to": "warlock_c2_r3"
+    },
+    {
+      "from": "warlock_c2_r0",
+      "to": "warlock_c3_r0"
+    },
+    {
+      "from": "warlock_c2_r0",
+      "to": "warlock_c3_r1"
+    },
+    {
+      "from": "warlock_c2_r2",
+      "to": "warlock_c3_r2"
+    },
+    {
+      "from": "warlock_c2_r4",
+      "to": "warlock_c3_r4"
+    },
+    {
+      "from": "warlock_c3_r0",
+      "to": "warlock_c4_r0"
+    },
+    {
+      "from": "warlock_c3_r1",
+      "to": "warlock_c4_r1"
+    },
+    {
+      "from": "warlock_c3_r3",
+      "to": "warlock_c4_r3"
+    },
+    {
+      "from": "warlock_c4_r2",
+      "to": "warlock_c5_r2"
+    },
+    {
+      "from": "warlock_c4_r4",
+      "to": "warlock_c5_r4"
+    },
+    {
+      "from": "warlock_c5_r1",
+      "to": "warlock_c6_r0"
+    },
+    {
+      "from": "warlock_c5_r1",
+      "to": "warlock_c6_r1"
+    },
+    {
+      "from": "warlock_c5_r3",
+      "to": "warlock_c6_r3"
+    },
+    {
+      "from": "warlock_c5_r3",
+      "to": "warlock_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "warlock_verbal_abuse",
+      "effects": [
+        "You can cast 1 additional Curses",
+        "+10% Curse Effect (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "warlock_vile",
+      "effects": [
+        "When Reaping, +10% additional Reaping Duration for each type of Damaging Ailment the enemy has (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "warlock_dirty_tricks",
+      "effects": [
+        "Upon inflicting damage, +12% additional Hit Damage (multiplies) for every type of Ailment the enemy has",
+        "When Minions deal damage, +12% additional Hit Damage (multiplies) for every type of Ailment the enemy has (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "warlock_daze",
+      "effects": [
+        "+40% Crowd Control Effects and +25% additional Ailment Damage while Blur is active (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "SS12 Lunaria"
+}

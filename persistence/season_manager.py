@@ -63,21 +63,71 @@ def delete_season(name: str) -> None:
         set_active_season(None)
 
 
+def save_legendary_gear(season: str, data: dict) -> None:
+    d = _season_dir(season)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "_legendary_gear.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_legendary_gear(season: str) -> dict | None:
+    path = os.path.join(_season_dir(season), "_legendary_gear.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_new_god_talents(season: str, talents: list[dict]) -> None:
+    d = _season_dir(season)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "_new_god_talents.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(talents, f, indent=2)
+
+
+def load_new_god_talents(season: str) -> list[dict] | None:
+    path = os.path.join(_season_dir(season), "_new_god_talents.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
 def get_season_summary(name: str) -> dict:
     d = _season_dir(name)
     trees: list[str] = []
     node_counts: dict[str, int] = {}
+    new_god_count: int | None = None
+    legendary_gear_count: int | None = None
     if os.path.isdir(d):
         for fname in sorted(os.listdir(d)):
-            if fname.endswith(".json"):
-                slug = fname[:-5]
+            if not fname.endswith(".json"):
+                continue
+            if fname.startswith("_"):
+                fpath = os.path.join(d, fname)
                 try:
-                    path = os.path.join(d, fname)
-                    with open(path, encoding="utf-8") as f:
-                        data = json.load(f)
-                    display = data.get("tree_name", slug)
-                    trees.append(display)
-                    node_counts[display] = len(data.get("nodes", []))
+                    with open(fpath, encoding="utf-8") as f:
+                        fdata = json.load(f)
+                    if fname == "_new_god_talents.json":
+                        new_god_count = len(fdata)
+                    elif fname == "_legendary_gear.json":
+                        legendary_gear_count = len(fdata.get("items", []))
                 except Exception:
                     pass
-    return {"name": name, "trees": trees, "node_counts": node_counts}
+                continue
+            slug = fname[:-5]
+            try:
+                path = os.path.join(d, fname)
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                display = data.get("tree_name", slug)
+                trees.append(display)
+                node_counts[display] = len(data.get("nodes", []))
+            except Exception:
+                pass
+    return {
+        "name": name, "trees": trees, "node_counts": node_counts,
+        "new_god_count": new_god_count, "legendary_gear_count": legendary_gear_count,
+    }

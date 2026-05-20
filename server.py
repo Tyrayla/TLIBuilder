@@ -78,6 +78,28 @@ def _tree_name_to_slug(name: str) -> str:
     return name.lower().replace(" ", "_")
 
 
+_TITLE_SMALL = {"of", "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "with", "by", "from"}
+
+
+def _format_core_talent_name(raw_key: str, tree_name: str) -> str:
+    """Strip tree slug prefix from a display_name_key, then title-case (respecting small words)."""
+    words = tree_name.lower().split()
+    candidates = [
+        "_".join(words) + "_",          # "god_of_might_"
+        (words[-1] if words else "") + "_",  # "might_"
+    ]
+    stripped = raw_key
+    for prefix in candidates:
+        if prefix and raw_key.lower().startswith(prefix):
+            stripped = raw_key[len(prefix):]
+            break
+    parts = stripped.split("_")
+    return " ".join(
+        p.capitalize() if (i == 0 or p not in _TITLE_SMALL) else p
+        for i, p in enumerate(parts)
+    )
+
+
 def _build_tree(name: str) -> PassiveTree:
     active = season_manager.get_active_season()
     if active:
@@ -85,10 +107,7 @@ def _build_tree(name: str) -> PassiveTree:
         data = season_manager.load_season_tree(active, slug)
         if data:
             return _tree_from_season_data(name, data)
-    config = tree_config_manager.load(name)
-    if config is not None:
-        return _tree_from_config(name, config)
-    return TREES[name]["builder"]()
+    return PassiveTree(name=name, nodes=[], connections=[])
 
 
 def _node_prefix(tree: PassiveTree) -> str:
@@ -275,7 +294,6 @@ def get_modifier_pool():
 
 
 def _collect_pool(tree_names: list[str]) -> dict:
-    from persistence import snapshot_manager as _snap_mgr
     magic_pool: list[dict] = []
     rare_pool: list[dict] = []
     legendary_pool: list[dict] = []
@@ -283,11 +301,11 @@ def _collect_pool(tree_names: list[str]) -> dict:
     seen_mods: set[tuple] = set()
     seen_core_names: set[str] = set()
 
-    # Season-based modifier nodes (magic / rare / legendary)
     active = season_manager.get_active_season()
+    if not active:
+        return {"magic": [], "rare": [], "legendary": [], "core": []}
+
     for tree_name in tree_names:
-        if not active:
-            break
         slug = _tree_name_to_slug(tree_name)
         data = season_manager.load_season_tree(active, slug)
         if not data:
@@ -308,27 +326,21 @@ def _collect_pool(tree_names: list[str]) -> dict:
                 rare_pool.append(entry)
             elif nt == "Legendary Medium Talent":
                 legendary_pool.append(entry)
-
-    # Core talents always come from the snapshot (all trees, deduplicated by name)
-    snapshot = _snap_mgr.load()
-    if snapshot:
-        for tree_name in TREES:
-            tree_snap = snapshot.get("trees", {}).get(tree_name, {})
-            for ct in tree_snap.get("core_talents", []):
-                name = ct.get("name", "")
-                if not name or name in seen_core_names:
-                    continue
-                seen_core_names.add(name)
-                effects = [s["text"] for s in ct.get("stats", []) if s.get("text")]
-                core_pool.append({"key": f"{tree_name}:{name}", "treeName": tree_name, "name": name, "effects": effects})
-
-        for ct in snapshot.get("new_god_talents", []):
-            name = ct.get("name", "")
-            if not name or name in seen_core_names:
+        for ct in data.get("core_talents", []):
+            raw_key = ct.get("display_name_key", "") or ct.get("name", "")
+            if not raw_key or raw_key in seen_core_names:
                 continue
-            seen_core_names.add(name)
-            effects = [s["text"] for s in ct.get("stats", []) if s.get("text")]
-            core_pool.append({"key": f"new_god:{name}", "treeName": "New God", "name": name, "effects": effects})
+            seen_core_names.add(raw_key)
+            # Prefer an explicit name field (may have apostrophes from source); otherwise auto-format
+            display_name = ct.get("name") or _format_core_talent_name(raw_key, tree_name)
+            core_pool.append({"key": f"{tree_name}:{raw_key}", "treeName": tree_name, "name": display_name, "effects": ct.get("effects", [])})
+
+    for ct in (season_manager.load_new_god_talents(active) or []):
+        name = ct.get("name", "")
+        if not name or name in seen_core_names:
+            continue
+        seen_core_names.add(name)
+        core_pool.append({"key": f"new_god:{name}", "treeName": "New God", "name": name, "effects": ct.get("effects", [])})
 
     return {"magic": magic_pool, "rare": rare_pool, "legendary": legendary_pool, "core": core_pool}
 
@@ -654,6 +666,69 @@ def import_season(req: ImportSeasonRequest):
         season_manager.save_season_tree(req.season_name, tree_name, canonical_slug, data)
         trees_imported.append(tree_name)
     return {"ok": True, "trees_imported": sorted(trees_imported), "skipped": sorted(skipped)}
+
+
+class ImportNewGodTalentsRequest(BaseModel):
+    season_name: str
+    items: list[dict]
+
+
+@app.post("/api/dev/import-new-god-talents")
+def import_new_god_talents(req: ImportNewGodTalentsRequest):
+    if not req.season_name.strip():
+        raise HTTPException(status_code=400, detail="season_name must not be empty")
+    talents = [
+        {
+            "name": item.get("name", ""),
+            "item_id": item.get("item_id", ""),
+            "effects": item.get("effect_lines", []),
+            "note": " ".join(item.get("note_lines", [])),
+        }
+        for item in req.items
+        if item.get("name")
+    ]
+    season_manager.save_new_god_talents(req.season_name, talents)
+    return {"ok": True, "count": len(talents)}
+
+
+class ImportLegendaryGearRequest(BaseModel):
+    season_name: str
+    file_data: dict
+
+
+@app.post("/api/dev/import-legendary-gear")
+def import_legendary_gear(req: ImportLegendaryGearRequest):
+    if not req.season_name.strip():
+        raise HTTPException(status_code=400, detail="season_name must not be empty")
+    raw = req.file_data
+    items_raw = raw.get("items", [])
+    if not isinstance(items_raw, list):
+        raise HTTPException(status_code=400, detail="file_data.items must be a list")
+
+    def _clean_affix(affix: dict) -> dict:
+        return {k: v for k, v in affix.items() if k != "source_line"}
+
+    items = [
+        {
+            "item_id": item.get("item_id", ""),
+            "name": item.get("name", ""),
+            "required_level": item.get("required_level"),
+            "affix_count": item.get("affix_count"),
+            "affixes": [_clean_affix(a) for a in (item.get("affixes") or [])],
+        }
+        for item in items_raw
+        if isinstance(item, dict) and item.get("item_id")
+    ]
+
+    stored = {
+        "season": req.season_name,
+        "set_name": raw.get("set_name", "Legendary Gear"),
+        "extract_date": raw.get("extract_date"),
+        "parsed_item_count": raw.get("parsed_item_count", len(items)),
+        "items": items,
+    }
+    season_manager.save_legendary_gear(req.season_name, stored)
+    return {"ok": True, "count": len(items), "set_name": stored["set_name"]}
 
 
 class DiffSeasonsRequest(BaseModel):

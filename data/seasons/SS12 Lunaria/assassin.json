@@ -1,0 +1,418 @@
+{
+  "tree_name": "Assassin",
+  "nodes": [
+    {
+      "id": "assassin_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Lightning Damage",
+        "+9% Minion Lightning Damage"
+      ]
+    },
+    {
+      "id": "assassin_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life",
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "assassin_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Projectile Speed"
+      ]
+    },
+    {
+      "id": "assassin_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% Lightning Damage",
+        "+18% Minion Lightning Damage"
+      ]
+    },
+    {
+      "id": "assassin_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "assassin_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life",
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "assassin_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+7% Evasion"
+      ]
+    },
+    {
+      "id": "assassin_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+12% Projectile Speed"
+      ]
+    },
+    {
+      "id": "assassin_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "assassin_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "assassin_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Lightning Resistance"
+      ]
+    },
+    {
+      "id": "assassin_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+14% Evasion"
+      ]
+    },
+    {
+      "id": "assassin_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+8 Dexterity"
+      ]
+    },
+    {
+      "id": "assassin_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Critical Strike Rating",
+        "+20% Minion Critical Strike Rating",
+        "+5% Critical Strike Damage",
+        "+5% Minion Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "assassin_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Lightning Damage",
+        "+9% Minion Lightning Damage"
+      ]
+    },
+    {
+      "id": "assassin_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Immune to Numbed",
+        "Minions are immune to Lightning Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "assassin_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Lightning Damage"
+      ]
+    },
+    {
+      "id": "assassin_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+5% Dexterity"
+      ]
+    },
+    {
+      "id": "assassin_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Converts 100% of Physical Damage to Lightning Damage",
+        "Converts 100% of Minion Physical Damage to Lightning Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "assassin_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Converts 50% of Lightning Damage to Fire Damage"
+      ]
+    },
+    {
+      "id": "assassin_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Converts 50% of Lightning Damage to Cold Damage"
+      ]
+    },
+    {
+      "id": "assassin_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+12% Dexterity"
+      ]
+    },
+    {
+      "id": "assassin_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Lightning Damage"
+      ]
+    },
+    {
+      "id": "assassin_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.5% Lightning Penetration",
+        "1.5% Lightning Penetration for Minions"
+      ]
+    },
+    {
+      "id": "assassin_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2% additional Max Damage",
+        "+2% additional Max Damage for Minions"
+      ]
+    },
+    {
+      "id": "assassin_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+20% Numbed Effect (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "assassin_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "-4% to the Max Life and Energy Shield thresholds for inflicting Numbed",
+        "Inflicts 1 additional stack(s) of Numbed (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "assassin_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Inflicts Numbed when dealing Hit Lightning Damage"
+      ]
+    },
+    {
+      "id": "assassin_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "Inflicts Lightning Infiltration on Critical Strike (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "assassin_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+12% additional Max Damage",
+        "+12% additional Max Damage for Minions"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "assassin_c0_r0",
+      "to": "assassin_c1_r0"
+    },
+    {
+      "from": "assassin_c0_r2",
+      "to": "assassin_c1_r2"
+    },
+    {
+      "from": "assassin_c0_r4",
+      "to": "assassin_c1_r4"
+    },
+    {
+      "from": "assassin_c1_r1",
+      "to": "assassin_c2_r1"
+    },
+    {
+      "from": "assassin_c1_r3",
+      "to": "assassin_c2_r3"
+    },
+    {
+      "from": "assassin_c2_r0",
+      "to": "assassin_c3_r0"
+    },
+    {
+      "from": "assassin_c2_r2",
+      "to": "assassin_c3_r2"
+    },
+    {
+      "from": "assassin_c2_r4",
+      "to": "assassin_c3_r4"
+    },
+    {
+      "from": "assassin_c3_r1",
+      "to": "assassin_c4_r1"
+    },
+    {
+      "from": "assassin_c3_r3",
+      "to": "assassin_c4_r2"
+    },
+    {
+      "from": "assassin_c3_r3",
+      "to": "assassin_c4_r3"
+    },
+    {
+      "from": "assassin_c3_r4",
+      "to": "assassin_c4_r4"
+    },
+    {
+      "from": "assassin_c5_r1",
+      "to": "assassin_c6_r0"
+    },
+    {
+      "from": "assassin_c5_r1",
+      "to": "assassin_c6_r1"
+    },
+    {
+      "from": "assassin_c5_r1",
+      "to": "assassin_c6_r2"
+    },
+    {
+      "from": "assassin_c5_r3",
+      "to": "assassin_c6_r3"
+    },
+    {
+      "from": "assassin_c5_r4",
+      "to": "assassin_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "assassin_conductive",
+      "effects": [
+        "Changes the base effect of Numbed to: +11% additional Lightning Damage taken (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "assassin_transition",
+      "effects": [
+        "When casting a skill, there is a 50% chance for that cast to deal +16% additional damage",
+        "When casting a skill, there is a 25% chance for that cast to deal +32% additional damage",
+        "When casting a skill, there is a 10% chance for that cast to deal +80% additional damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "assassin_queer_angle",
+      "effects": [
+        "You and Minions deal Lucky Damage against Numbed enemies (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "assassin_thunderclap",
+      "effects": [
+        "If you have Agility Blessing stacks when casting the Main Skill, consumes 1 stack(s) of Agility Blessing to make that cast deal +35% additional Lightning Damage (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "SS12 Lunaria"
+}

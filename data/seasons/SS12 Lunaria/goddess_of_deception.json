@@ -1,0 +1,389 @@
+{
+  "tree_name": "Goddess of Deception",
+  "nodes": [
+    {
+      "id": "goddess_of_deception_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% damage"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2% Movement Speed",
+        "+6% Skill Area"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% damage"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% damage"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Movement Speed",
+        "+12% Skill Area"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack and Cast Speed",
+        "-4 Skill Cost"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+100% chance to gain Blur on defeat (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Damage Over Time"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+5% Max Life",
+        "Regenerates 0.5% Life per second"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Ill Omen Cumulative Efficiency"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Critical Strike Rating",
+        "+10% Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6 Affliction inflicted per second",
+        "+9% Damage Over Time"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Damage Over Time",
+        "+2% Skill Effect Duration"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+30% Ill Omen Cumulative Efficiency"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+12 Affliction inflicted per second",
+        "+18% Damage Over Time"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+5 Dexterity",
+        "+5 Intelligence"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Max Energy Shield",
+        "+4% Energy Shield Charge Speed"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Deterioration Chance"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% Erosion Damage"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 Persistent Skill Level"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+10 Dexterity",
+        "+10 Intelligence"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "10% chance to inflict 1 additional stack(s) of Deterioration",
+        "-15% additional Deterioration Duration"
+      ]
+    },
+    {
+      "id": "goddess_of_deception_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "8% additional damage applied to Life"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "goddess_of_deception_c0_r2",
+      "to": "goddess_of_deception_c1_r2"
+    },
+    {
+      "from": "goddess_of_deception_c1_r1",
+      "to": "goddess_of_deception_c2_r1"
+    },
+    {
+      "from": "goddess_of_deception_c1_r3",
+      "to": "goddess_of_deception_c2_r3"
+    },
+    {
+      "from": "goddess_of_deception_c2_r0",
+      "to": "goddess_of_deception_c3_r0"
+    },
+    {
+      "from": "goddess_of_deception_c2_r2",
+      "to": "goddess_of_deception_c3_r2"
+    },
+    {
+      "from": "goddess_of_deception_c2_r4",
+      "to": "goddess_of_deception_c3_r4"
+    },
+    {
+      "from": "goddess_of_deception_c3_r1",
+      "to": "goddess_of_deception_c4_r1"
+    },
+    {
+      "from": "goddess_of_deception_c3_r3",
+      "to": "goddess_of_deception_c4_r3"
+    },
+    {
+      "from": "goddess_of_deception_c4_r0",
+      "to": "goddess_of_deception_c5_r0"
+    },
+    {
+      "from": "goddess_of_deception_c4_r2",
+      "to": "goddess_of_deception_c5_r2"
+    },
+    {
+      "from": "goddess_of_deception_c5_r0",
+      "to": "goddess_of_deception_c6_r0"
+    },
+    {
+      "from": "goddess_of_deception_c5_r1",
+      "to": "goddess_of_deception_c6_r1"
+    },
+    {
+      "from": "goddess_of_deception_c5_r3",
+      "to": "goddess_of_deception_c6_r3"
+    },
+    {
+      "from": "goddess_of_deception_c5_r4",
+      "to": "goddess_of_deception_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "goddess_of_deception_plague",
+      "effects": [
+        "+20% Movement Speed when defeating Wilted enemies recently",
+        "+15% additional Wilt Damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "goddess_of_deception_mixture",
+      "effects": [
+        "+50% Deterioration Chance (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "goddess_of_deception_affliction",
+      "effects": [
+        "+30 Affliction inflicted per second",
+        "+30% additional Affliction effect (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "goddess_of_deception_subtle_impact",
+      "effects": [
+        "+30% additional Damage Over Time while Blur is active (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "goddess_of_deception_forbidden_power",
+      "effects": [
+        "+35% additional Erosion Damage",
+        "-10% Elemental Resistance (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "goddess_of_deception_deceiver_s_might",
+      "effects": [
+        "+1 to Max Tenacity Blessing Stacks if you have taken damage in the last 8s",
+        "+1 to Max Agility Blessing Stacks if you have used a Mobility Skill in the last 8s",
+        "+1 to Max Focus Blessing Stacks if you have landed a Critical Strike or Reaped in the last 8s (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "SS12 Lunaria"
+}

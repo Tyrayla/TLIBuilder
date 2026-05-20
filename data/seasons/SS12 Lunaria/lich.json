@@ -1,0 +1,419 @@
+{
+  "tree_name": "Lich",
+  "nodes": [
+    {
+      "id": "lich_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% damage",
+        "+9% Minion Damage"
+      ]
+    },
+    {
+      "id": "lich_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life",
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "lich_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Max Mana"
+      ]
+    },
+    {
+      "id": "lich_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+18% damage",
+        "+18% Minion Damage"
+      ]
+    },
+    {
+      "id": "lich_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Affliction Effect"
+      ]
+    },
+    {
+      "id": "lich_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Max Life",
+        "+6% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "lich_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Attack and Cast Speed",
+        "+3% Minion Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "lich_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+8% Max Mana"
+      ]
+    },
+    {
+      "id": "lich_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+15% Critical Strike Rating",
+        "+15% Minion Critical Strike Rating"
+      ]
+    },
+    {
+      "id": "lich_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "-4 Skill Cost",
+        "+12% Affliction Effect"
+      ]
+    },
+    {
+      "id": "lich_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Energy Shield",
+        "+3% Energy Shield Charge Speed"
+      ]
+    },
+    {
+      "id": "lich_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack and Cast Speed",
+        "+6% Minion Attack and Cast Speed",
+        "-4 Skill Cost"
+      ]
+    },
+    {
+      "id": "lich_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+20% Critical Strike Rating",
+        "+20% Minion Critical Strike Rating",
+        "+5% Critical Strike Damage",
+        "+5% Minion Critical Strike Damage"
+      ]
+    },
+    {
+      "id": "lich_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+5 to All Stats"
+      ]
+    },
+    {
+      "id": "lich_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+10% Max Energy Shield",
+        "Gains Blur when Energy Shield starts to Charge (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "lich_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.5% Blur Effect"
+      ]
+    },
+    {
+      "id": "lich_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+9% damage",
+        "+9% Minion Damage"
+      ]
+    },
+    {
+      "id": "lich_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+10 to All Stats"
+      ]
+    },
+    {
+      "id": "lich_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+2% Skill Effect Duration"
+      ]
+    },
+    {
+      "id": "lich_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+10% Movement Speed while Blur is active",
+        "Movement Speed cannot be reduced to below the base value while Blur is active"
+      ]
+    },
+    {
+      "id": "lich_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.5% Sealed Mana Compensation"
+      ]
+    },
+    {
+      "id": "lich_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+6% Attack and Cast Speed",
+        "+6% Minion Attack and Cast Speed"
+      ]
+    },
+    {
+      "id": "lich_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "1.5% Cooldown Recovery Speed"
+      ]
+    },
+    {
+      "id": "lich_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+4% Skill Effect Duration"
+      ]
+    },
+    {
+      "id": "lich_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Max Life",
+        "+3% Max Energy Shield"
+      ]
+    },
+    {
+      "id": "lich_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_points": 3,
+      "effects": [
+        "+3% Sealed Mana Compensation"
+      ]
+    },
+    {
+      "id": "lich_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+1 to All Skills' Levels (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "lich_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% Cooldown Recovery Speed",
+        "+1 Max Charges (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "id": "lich_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+10% additional damage when having both Sealed Mana and Life"
+      ]
+    },
+    {
+      "id": "lich_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_points": 1,
+      "effects": [
+        "+8% Sealed Mana Compensation (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "lich_c0_r0",
+      "to": "lich_c1_r0"
+    },
+    {
+      "from": "lich_c0_r2",
+      "to": "lich_c1_r2"
+    },
+    {
+      "from": "lich_c0_r4",
+      "to": "lich_c1_r4"
+    },
+    {
+      "from": "lich_c1_r1",
+      "to": "lich_c2_r1"
+    },
+    {
+      "from": "lich_c1_r3",
+      "to": "lich_c2_r3"
+    },
+    {
+      "from": "lich_c2_r0",
+      "to": "lich_c3_r0"
+    },
+    {
+      "from": "lich_c2_r2",
+      "to": "lich_c3_r2"
+    },
+    {
+      "from": "lich_c3_r1",
+      "to": "lich_c4_r1"
+    },
+    {
+      "from": "lich_c3_r3",
+      "to": "lich_c4_r3"
+    },
+    {
+      "from": "lich_c4_r0",
+      "to": "lich_c5_r0"
+    },
+    {
+      "from": "lich_c4_r2",
+      "to": "lich_c5_r2"
+    },
+    {
+      "from": "lich_c4_r4",
+      "to": "lich_c5_r4"
+    },
+    {
+      "from": "lich_c5_r0",
+      "to": "lich_c6_r0"
+    },
+    {
+      "from": "lich_c5_r1",
+      "to": "lich_c6_r1"
+    },
+    {
+      "from": "lich_c5_r3",
+      "to": "lich_c6_r3"
+    },
+    {
+      "from": "lich_c5_r4",
+      "to": "lich_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "lich_indifference",
+      "effects": [
+        "+1% additional damage and +1% additional Minion Damage for every 5 remaining Energy, up to +50% additional damage (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "lich_ward",
+      "effects": [
+        "Adds 13% of Sealed Mana as Energy Shield",
+        "Adds 13% of Sealed Life as Energy Shield (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "lich_off_the_beaten_track",
+      "effects": [
+        "+4 Support Skill Level",
+        "Support Skill's Mana Multiplier is fixed at 95%. (Max Divinity Effect: 1)"
+      ]
+    },
+    {
+      "display_name_key": "lich_stab_in_the_back",
+      "effects": [
+        "While Blur is active, loses Blur after casting a Main Skill, and +40% additional damage for that cast (Max Divinity Effect: 1)"
+      ]
+    }
+  ],
+  "season": "SS12 Lunaria"
+}

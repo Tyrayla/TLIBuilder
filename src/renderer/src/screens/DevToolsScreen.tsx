@@ -167,7 +167,7 @@ function DiffTab() {
 
 // ── Seasons tab ────────────────────────────────────────────────────────────
 
-function extractNodes(data: unknown): object[] {
+function extractTalentNodes(data: unknown): object[] {
   if (Array.isArray(data)) {
     const nodes: object[] = []
     for (const item of data) {
@@ -184,15 +184,74 @@ function extractNodes(data: unknown): object[] {
   return []
 }
 
+function extractNewGodItems(data: unknown): object[] {
+  if (!data || typeof data !== 'object') return []
+  const d = data as Record<string, unknown>
+  if (Array.isArray(d.items)) {
+    const items = d.items as object[]
+    if (items.length > 0 && 'effect_lines' in (items[0] as object))
+      return items.filter(i => i && typeof i === 'object' && 'name' in i)
+  }
+  return []
+}
+
+interface ImportState {
+  importing: boolean
+  result: string | null
+  err: string
+}
+
+const emptyImport = (): ImportState => ({ importing: false, result: null, err: '' })
+
+interface CategoryCardProps {
+  label: string
+  description: string
+  badge?: string
+  enabled: boolean
+  children?: React.ReactNode
+}
+
+function CategoryCard({ label, description, badge, enabled, children }: CategoryCardProps) {
+  return (
+    <div style={{
+      border: `1px solid ${enabled ? '#2a2a4a' : '#1a1a2a'}`,
+      borderRadius: 7, marginBottom: 10, overflow: 'hidden',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '9px 14px', background: enabled ? '#14142a' : '#0f0f1e',
+      }}>
+        <div style={{ flex: 1 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: enabled ? '#ccc' : '#3a3a5a' }}>{label}</span>
+          {badge && (
+            <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#4a8', background: '#0a2a1a', padding: '1px 6px', borderRadius: 3 }}>
+              {badge}
+            </span>
+          )}
+          <div style={{ fontSize: 11, color: enabled ? '#555' : '#2a2a3a', marginTop: 2 }}>{description}</div>
+        </div>
+        {!enabled && (
+          <span style={{ fontSize: 10, color: '#2a2a4a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Coming Soon</span>
+        )}
+      </div>
+      {enabled && children && (
+        <div style={{ padding: '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SeasonsTab() {
-  const filesRef = useRef<HTMLInputElement>(null)
+  const talentFilesRef = useRef<HTMLInputElement>(null)
+  const legendaryFilesRef = useRef<HTMLInputElement>(null)
   const [seasons, setSeasons] = useState<SeasonSummary[]>([])
   const [seasonName, setSeasonName] = useState('')
-  const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState<{ trees_imported: string[]; skipped: string[] } | null>(null)
-  const [importErr, setImportErr] = useState('')
   const [settingActive, setSettingActive] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [talentImport, setTalentImport] = useState<ImportState>(emptyImport())
+  const [legendaryImport, setLegendaryImport] = useState<ImportState>(emptyImport())
 
   const loadSeasons = useCallback(() => {
     api.listSeasons().then(setSeasons).catch(() => {})
@@ -200,65 +259,88 @@ function SeasonsTab() {
 
   useEffect(() => { loadSeasons() }, [loadSeasons])
 
-  const handleImport = async () => {
-    const files = filesRef.current?.files
+  const handleImportTalents = async () => {
+    const files = talentFilesRef.current?.files
     if (!seasonName.trim() || !files || files.length === 0) return
-    setImporting(true); setImportErr(''); setImportResult(null)
+    setTalentImport({ importing: true, result: null, err: '' })
     try {
       const allNodes: object[] = []
+      const allNewGodItems: object[] = []
       for (const file of Array.from(files)) {
         const data = JSON.parse(await file.text())
-        allNodes.push(...extractNodes(data))
+        const newGod = extractNewGodItems(data)
+        if (newGod.length > 0) allNewGodItems.push(...newGod)
+        else allNodes.push(...extractTalentNodes(data))
       }
-      const res = await api.importSeason(seasonName.trim(), allNodes)
-      setImportResult({ trees_imported: res.trees_imported, skipped: res.skipped })
+      const parts: string[] = []
+      if (allNodes.length > 0) {
+        const res = await api.importSeason(seasonName.trim(), allNodes)
+        parts.push(`Trees: ${res.trees_imported.join(', ') || '(none)'}`)
+        if (res.skipped.length) parts.push(`Skipped: ${res.skipped.join(', ')}`)
+      }
+      if (allNewGodItems.length > 0) {
+        const res = await api.importNewGodTalents(seasonName.trim(), allNewGodItems)
+        parts.push(`${res.count} New God talent${res.count !== 1 ? 's' : ''}`)
+      }
+      setTalentImport({ importing: false, result: parts.join(' · ') || 'Nothing imported', err: '' })
       loadSeasons()
-    } catch (ex) { setImportErr(String(ex)) }
-    finally {
-      setImporting(false)
-      if (filesRef.current) filesRef.current.value = ''
+    } catch (ex) {
+      setTalentImport({ importing: false, result: null, err: String(ex) })
+    } finally {
+      if (talentFilesRef.current) talentFilesRef.current.value = ''
+    }
+  }
+
+  const handleImportLegendaryGear = async () => {
+    const files = legendaryFilesRef.current?.files
+    if (!seasonName.trim() || !files || files.length === 0) return
+    setLegendaryImport({ importing: true, result: null, err: '' })
+    try {
+      let totalCount = 0
+      let setName = 'Legendary Gear'
+      for (const file of Array.from(files)) {
+        const data = JSON.parse(await file.text())
+        if (!data || !Array.isArray(data.items)) {
+          throw new Error(`${file.name}: not a valid legendary gear JSON (missing items array)`)
+        }
+        const res = await api.importLegendaryGear(seasonName.trim(), data)
+        totalCount += res.count
+        setName = res.set_name
+      }
+      setLegendaryImport({ importing: false, result: `${setName}: ${totalCount} items imported`, err: '' })
+      loadSeasons()
+    } catch (ex) {
+      setLegendaryImport({ importing: false, result: null, err: String(ex) })
+    } finally {
+      if (legendaryFilesRef.current) legendaryFilesRef.current.value = ''
     }
   }
 
   const handleSetActive = async (name: string | null) => {
     setSettingActive(true)
-    try {
-      await api.setActiveSeason(name)
-      loadSeasons()
-    } catch { /* ignore */ }
+    try { await api.setActiveSeason(name); loadSeasons() }
+    catch { /* ignore */ }
     finally { setSettingActive(false) }
   }
 
   const handleDelete = async (name: string) => {
     setConfirmDelete(null)
-    try {
-      await api.deleteSeason(name)
-      loadSeasons()
-    } catch { /* ignore */ }
+    try { await api.deleteSeason(name); loadSeasons() }
+    catch { /* ignore */ }
   }
 
   const activeSeasonName = seasons.find(s => s.is_active)?.name ?? null
 
   return (
     <div>
-      <p style={{ color: '#888', fontSize: 13, marginBottom: 14 }}>
-        Import game-data JSON files to create a season snapshot. Once active, the tree viewer loads
-        nodes and modifiers from the season instead of Python builders.
-      </p>
-
-      {/* Active season info */}
+      {/* Active season bar */}
       <div style={{ background: '#12122a', border: '1px solid #2a2a4a', borderRadius: 8, padding: '10px 16px', marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
         <span style={{ fontSize: 12, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Active:</span>
         <span style={{ fontSize: 13, color: activeSeasonName ? '#c0a0ff' : '#444' }}>
           {activeSeasonName ?? '— Current (Python builders) —'}
         </span>
         {activeSeasonName && (
-          <button
-            className="btn btn-sm"
-            style={{ marginLeft: 'auto' }}
-            onClick={() => handleSetActive(null)}
-            disabled={settingActive}
-          >
+          <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => handleSetActive(null)} disabled={settingActive}>
             Reset to Current
           </button>
         )}
@@ -270,83 +352,98 @@ function SeasonsTab() {
           <div style={{ fontSize: 11, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
             Saved Seasons ({seasons.length})
           </div>
-          {seasons.map(s => (
-            <div key={s.name} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 12px', marginBottom: 4,
-              background: s.is_active ? '#1a103a' : '#12122a',
-              border: `1px solid ${s.is_active ? '#533483' : '#2a2a4a'}`,
-              borderRadius: 6,
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, color: s.is_active ? '#c0a0ff' : '#ddd', fontWeight: s.is_active ? 700 : 400 }}>
-                  {s.name}
-                  {s.is_active && <span style={{ fontSize: 10, color: '#533483', marginLeft: 8, background: '#2a1a5a', padding: '1px 6px', borderRadius: 3 }}>ACTIVE</span>}
+          {seasons.map(s => {
+            const nodeTotal = Object.values(s.node_counts).reduce((a, b) => a + b, 0)
+            return (
+              <div key={s.name} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 4,
+                background: s.is_active ? '#1a103a' : '#12122a',
+                border: `1px solid ${s.is_active ? '#533483' : '#2a2a4a'}`, borderRadius: 6,
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: s.is_active ? '#c0a0ff' : '#ddd', fontWeight: s.is_active ? 700 : 400 }}>
+                    {s.name}
+                    {s.is_active && <span style={{ fontSize: 10, color: '#533483', marginLeft: 8, background: '#2a1a5a', padding: '1px 6px', borderRadius: 3 }}>ACTIVE</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#555', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <span>{s.trees.length} trees · {nodeTotal} nodes</span>
+                    {s.new_god_count != null && <span>{s.new_god_count} new god talents</span>}
+                    {s.legendary_gear_count != null && <span>{s.legendary_gear_count} legendary items</span>}
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>
-                  {s.trees.length} trees · {Object.values(s.node_counts).reduce((a, b) => a + b, 0)} nodes
-                </div>
+                {!s.is_active && (
+                  <button className="btn btn-sm btn-primary" onClick={() => handleSetActive(s.name)} disabled={settingActive}>Set Active</button>
+                )}
+                {confirmDelete === s.name ? (
+                  <>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s.name)}>Confirm Delete</button>
+                    <button className="btn btn-sm" onClick={() => setConfirmDelete(null)}>Cancel</button>
+                  </>
+                ) : (
+                  <button className="btn btn-sm btn-danger" onClick={() => setConfirmDelete(s.name)}>Delete</button>
+                )}
               </div>
-              {!s.is_active && (
-                <button className="btn btn-sm btn-primary" onClick={() => handleSetActive(s.name)} disabled={settingActive}>
-                  Set Active
-                </button>
-              )}
-              {confirmDelete === s.name ? (
-                <>
-                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s.name)}>Confirm Delete</button>
-                  <button className="btn btn-sm" onClick={() => setConfirmDelete(null)}>Cancel</button>
-                </>
-              ) : (
-                <button className="btn btn-sm btn-danger" onClick={() => setConfirmDelete(s.name)}>Delete</button>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
-      {/* Import section */}
-      <div style={{ background: '#12122a', border: '1px solid #2a2a4a', borderRadius: 8, padding: 16 }}>
-        <div style={{ fontSize: 11, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-          Import New Season
+      {/* Season name (shared across all import sections) */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+          Season
         </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <input
-            className="stat-val-input"
-            type="text"
-            placeholder="Season name (e.g. Season 12 Lunaria)"
-            value={seasonName}
-            onChange={e => setSeasonName(e.target.value)}
-            style={{ flex: 1, padding: '6px 10px', fontSize: 13 }}
-          />
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
-            Choose JSON Files
-            <input ref={filesRef} type="file" accept=".json" multiple style={{ display: 'none' }} />
-          </label>
-          <button
-            className="btn btn-primary"
-            onClick={handleImport}
-            disabled={importing || !seasonName.trim()}
-          >
-            {importing ? 'Importing…' : 'Import'}
-          </button>
-        </div>
-        {importErr && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 8 }}>{importErr}</div>}
-        {importResult && (
-          <div style={{ marginTop: 10, fontSize: 12 }}>
-            <div style={{ color: '#4caf50', marginBottom: 4 }}>
-              Imported: {importResult.trees_imported.join(', ') || '(none)'}
-            </div>
-            {importResult.skipped.length > 0 && (
-              <div style={{ color: '#ff9800' }}>
-                Skipped (unknown slug): {importResult.skipped.join(', ')}
-              </div>
-            )}
-          </div>
+        <input
+          className="stat-val-input"
+          type="text"
+          placeholder="Season name (e.g. SS12 Lunaria)"
+          value={seasonName}
+          onChange={e => setSeasonName(e.target.value)}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', fontSize: 13 }}
+        />
+        {!seasonName.trim() && (
+          <div style={{ fontSize: 11, color: '#4a4a6a', marginTop: 4 }}>Enter a season name to enable imports below.</div>
         )}
       </div>
+
+      {/* Data category sections */}
+      <div style={{ fontSize: 11, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+        Import Data
+      </div>
+
+      <CategoryCard label="Talent Trees" description="Tree nodes, connections, modifiers, core talents, and New God talents" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            Choose Files
+            <input ref={talentFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }} />
+          </label>
+          <button className="btn btn-primary btn-sm" onClick={handleImportTalents}
+            disabled={talentImport.importing || !seasonName.trim()}>
+            {talentImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {talentImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{talentImport.err}</div>}
+        {talentImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{talentImport.result}</div>}
+      </CategoryCard>
+
+      <CategoryCard label="Legendary Gear" description="Legendary equipment pool, affixes, and numeric ranges" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            Choose File
+            <input ref={legendaryFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }} />
+          </label>
+          <button className="btn btn-primary btn-sm" onClick={handleImportLegendaryGear}
+            disabled={legendaryImport.importing || !seasonName.trim()}>
+            {legendaryImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {legendaryImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{legendaryImport.err}</div>}
+        {legendaryImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{legendaryImport.result}</div>}
+      </CategoryCard>
+      <CategoryCard label="Normal Gear" description="Normal and magic equipment pool" enabled={false} />
+      <CategoryCard label="Skills" description="Active skill definitions and modifiers" enabled={false} />
+      <CategoryCard label="Hero Traits" description="Hero-specific passive trait trees" enabled={false} />
+      <CategoryCard label="Pact Spirits" description="Pact spirit bonuses and tiers" enabled={false} />
     </div>
   )
 }

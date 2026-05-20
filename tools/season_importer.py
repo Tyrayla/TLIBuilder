@@ -112,12 +112,16 @@ def import_nodes(raw_nodes: list[dict], slug_map: dict[str, str]) -> dict[str, d
         max_stacks = node.get("max_stacks") or 1
 
         if category == "core_talent" or col is None or row is None:
-            # Store as core talent raw data
+            # Store as core talent raw data; capture name if present (may include apostrophes)
             td = _get_tree_data(slug)
-            td["core_talents"].append({
+            entry: dict = {
                 "display_name_key": node.get("display_name_key", old_id),
                 "effects": effects,
-            })
+            }
+            raw_name = node.get("name")
+            if raw_name:
+                entry["name"] = raw_name
+            td["core_talents"].append(entry)
             continue
 
         node_type = _NODE_CATEGORY_MAP.get(category)
