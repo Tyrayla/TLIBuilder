@@ -1,7 +1,7 @@
 import os
 import uuid
 
-_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'data', 'builds'))
+_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'builds'))
 
 
 def _file(build_id: str) -> str:

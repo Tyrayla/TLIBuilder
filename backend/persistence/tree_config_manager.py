@@ -2,7 +2,7 @@ import json
 import os
 import re
 
-_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'data', 'trees'))
+_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'trees'))
 
 
 def _slug(tree_name: str) -> str:

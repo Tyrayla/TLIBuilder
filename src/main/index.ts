@@ -89,8 +89,8 @@ function startPython(): Promise<void> {
     log('startPython — begin')
     killPortProcess(8765)
 
-    const script = join(__dirname, '../../server.py')
-    const cwd = join(__dirname, '../..')
+    const script = join(__dirname, '../../backend/server.py')
+    const cwd = join(__dirname, '../../backend')
     log(`startPython — spawning: python ${script} --port ${PYTHON_PORT}`)
     log(`startPython — cwd: ${cwd}`)
 
