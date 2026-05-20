@@ -30,34 +30,35 @@ def make_node_id(tree_slug: str, col: int, row: int) -> str:
 
 def build_slug_map() -> dict[str, str]:
     """
-    Returns a mapping of all known slug forms to the TREES display name.
+    Returns a mapping of all known slug forms to a tree display name.
 
     Includes two aliases per tree:
-      - short node-prefix slug ("might" → "God of Might")
       - full snake_case display name ("god_of_might" → "God of Might")
-
-    This handles JSON files that use either convention.
+      - short node-prefix slug derived from season data ("might" → "God of Might")
     """
-    from trees.registry import TREES
+    import json
+    import os
+    from persistence import season_manager
 
+    meta_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'trees_meta.json')
+    with open(meta_path) as f:
+        trees_meta: dict[str, dict] = json.load(f)
+
+    active = season_manager.get_active_season()
     slug_map: dict[str, str] = {}
-    for tree_name, entry in TREES.items():
-        # Always add the full snake_case form of the display name
+
+    for tree_name in trees_meta:
         full_slug = tree_name.lower().replace(" ", "_")
         slug_map[full_slug] = tree_name
 
-        # Also extract the short prefix from the actual node IDs
-        try:
-            tree = entry["builder"]()
-            if not tree.nodes:
-                continue
-            first_id = next(iter(tree.nodes))
-            m = re.match(r"^(.+)_c\d+_r\d+$", first_id)
-            if m:
-                short_slug = m.group(1)  # e.g. "might"
-                slug_map[short_slug] = tree_name
-        except Exception:
-            pass
+        if active:
+            data = season_manager.load_season_tree(active, full_slug)
+            if data and data.get("nodes"):
+                first_id = data["nodes"][0]["id"]
+                m = re.match(r"^(.+)_c\d+_r\d+$", first_id)
+                if m:
+                    slug_map[m.group(1)] = tree_name
+
     return slug_map
 
 

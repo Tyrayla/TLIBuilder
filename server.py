@@ -1,4 +1,6 @@
 import argparse
+import json
+import os
 import re
 import socket
 from contextlib import asynccontextmanager
@@ -7,12 +9,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
-from trees.registry import TREES
 from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
 from persistence import save_manager, node_stats_manager, builds_manager
 from persistence import tree_config_manager
 from persistence import season_manager
+
+_TREES_META_PATH = os.path.join(os.path.dirname(__file__), 'data', 'trees_meta.json')
+with open(_TREES_META_PATH) as _f:
+    TREES: dict[str, dict] = json.load(_f)
 
 # Set in __main__ so the lifespan handler can print it after uvicorn is ready
 _SERVER_PORT = 8765
@@ -239,7 +244,7 @@ class NodeEditRequest(BaseModel):
 def upsert_node(name: str, req: NodeEditRequest):
     if name not in TREES:
         raise HTTPException(status_code=404, detail="Tree not found")
-    base_tree = TREES[name]["builder"]()
+    base_tree = _build_tree(name)
     tree_config_manager.upsert_node(name, base_tree, req.model_dump())
     return {"ok": True}
 
@@ -248,7 +253,7 @@ def upsert_node(name: str, req: NodeEditRequest):
 def remove_node(name: str, node_id: str):
     if name not in TREES:
         raise HTTPException(status_code=404, detail="Tree not found")
-    base_tree = TREES[name]["builder"]()
+    base_tree = _build_tree(name)
     tree_config_manager.remove_node(name, base_tree, node_id)
     return {"ok": True}
 
@@ -262,7 +267,7 @@ class ConnectionRequest(BaseModel):
 def toggle_connection(name: str, req: ConnectionRequest):
     if name not in TREES:
         raise HTTPException(status_code=404, detail="Tree not found")
-    base_tree = TREES[name]["builder"]()
+    base_tree = _build_tree(name)
     tree_config_manager.toggle_connection(name, base_tree, req.src, req.dst)
     return {"ok": True}
 
