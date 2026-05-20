@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { api, SlatePool, SlateModifierOption, CoreTalentOption } from '../api/client'
+import { api, SlatePool, SlateModifierOption, CoreTalentOption, SavedSlate } from '../api/client'
 
 // ── Board ─────────────────────────────────────────────────────────────────────
 
@@ -659,10 +659,14 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-interface Props { treeColors: Record<string, string>; onBack: () => void }
+interface Props {
+  treeColors: Record<string, string>
+  initialSlates: SavedSlate[]
+  onBack: (slates: SavedSlate[]) => void
+}
 
-export default function SlateScreen({ treeColors, onBack }: Props) {
-  const [placed, setPlaced] = useState<PlacedSlate[]>([])
+export default function SlateScreen({ treeColors, initialSlates, onBack }: Props) {
+  const [placed, setPlaced] = useState<PlacedSlate[]>(() => initialSlates as unknown as PlacedSlate[])
   const [mode, setMode] = useState<PanelMode>({ type: 'idle' })
   const [hover, setHover] = useState<[number, number] | null>(null)
   const [hoverSlateId, setHoverSlateId] = useState<string | null>(null)
@@ -1156,7 +1160,7 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0e0e1e', color: '#e0e0e0', userSelect: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid #2a2a4a', background: '#1a1a2e', flexShrink: 0 }}>
-        <button className="btn-back" onClick={onBack}>← Back</button>
+        <button className="btn-back" onClick={() => onBack(placed.map(({ pool: _p, ...s }) => s as SavedSlate))}>← Back</button>
         <h2 style={{ margin: 0, fontSize: 18, color: '#c0a0ff' }}>Slate Board</h2>
         <span style={{ marginLeft: 'auto', fontSize: 13, color: '#555' }}>{usedCells} / {TOTAL_CELLS} cells</span>
         {placed.length > 0 && !creator && !dragSlate && (

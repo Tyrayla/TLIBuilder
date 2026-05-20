@@ -169,10 +169,18 @@ class Stat(Enum):
     EROSION_CRIT_DMG = "erosion_crit_dmg"
 
     # ── Life ──────────────────────────────────────────────────────────────────
-
+    MAX_LIFE            = "max_life"
+    MAX_LIFE_INC        = "max_life_inc"
+    LIFE_REGEN_FLAT     = "life_regen_flat"
+    LIFE_REGEN_INC      = "life_regen_inc"
+    LIFE_LEECH_RATE     = "life_leech_rate"
 
     # ── Mana ──────────────────────────────────────────────────────────────────
-
+    MAX_MANA            = "max_mana"
+    MAX_MANA_INC        = "max_mana_inc"
+    MANA_REGEN_FLAT     = "mana_regen_flat"
+    MANA_REGEN_INC      = "mana_regen_inc"
+    SKILL_COST_REDUCTION = "skill_cost_reduction"
 
     # ── Defense ───────────────────────────────────────────────────────────────
     ARMOR                 = "armor"
@@ -183,6 +191,8 @@ class Stat(Enum):
     EROSION_RESISTANCE    = "erosion_resistance"
 
     # ── Utility ───────────────────────────────────────────────────────────────
+    MOVEMENT_SPEED_INC      = "movement_speed_inc"
+    COOLDOWN_REDUCTION_INC  = "cooldown_reduction_inc"
 
 
     # ── Blessings ─────────────────────────────────────────────────────────────

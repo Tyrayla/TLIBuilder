@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-05-20
-> Files: tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-05-20T15:39:34.551Z
+> Files: 103 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ./
 
@@ -26,7 +26,25 @@
 
 ## backend/
 
-- `server.py` — FastAPI app; loads TREES from data/trees_meta.json at startup; ~9 API endpoints (~7368 tok)
+- `requirements-dev.txt` (~3 tok)
+- `server.py` — API: 9 endpoints (~7773 tok)
+
+## backend/engine/
+
+- `__init__.py` (~0 tok)
+- `aggregator.py` — aggregate (~1048 tok)
+- `models.py` — class: add, total, all_stats (~584 tok)
+- `pipeline.py` — run_pipeline (~2298 tok)
+- `resolver.py` — compute (~458 tok)
+
+## backend/tests/
+
+- `conftest.py` — adds backend root to sys.path for test imports (~50 tok)
+- `test_models_stat.py` — Stat enum integrity: snake_case, no dupes, string values (~200 tok)
+- `test_models_stat_meta.py` — StatMeta coverage: every pool entry has meta, valid categories (~300 tok)
+- `test_engine_pipeline.py` — pipeline math unit tests: all 8 stages, composite formula (~750 tok)
+- `test_engine_aggregator.py` — aggregator: slug extraction, recipe application, slate/slot accumulation (~600 tok)
+- `test_persistence_builds.py` — builds_manager save/load/delete, slates round-trip, backward compat (~500 tok)
 
 ## backend/models/
 
@@ -37,17 +55,26 @@
 - `passive_node.py` — NodeType: display, column_label, is_full, is_empty (~462 tok)
 - `passive_tree.py` — PassiveTree: add_node, add_connection, add_core_talent_slot, nodes_in_column + 5 more (~1216 tok)
 - `stat_contribution.py` — StatContribution dataclass; planned for future engine (~173 tok)
-- `stat_meta.py` — STAT_META: stat display names and units (~4306 tok)
-- `stat.py` — Stat enum: all game stat identifiers (~2395 tok)
+- `stat_meta.py` — Declares from (~12220 tok)
+- `stat.py` — ── MANUAL COMPLETION REQUIRED ──────────────────────────────────────────────── (~2546 tok)
 
 ## backend/persistence/
 
 - `__init__.py` (~0 tok)
-- `builds_manager.py` — load/save/delete builds from data/builds/ (~738 tok)
+- `builds_manager.py` — load, save_build, delete_build (~811 tok)
 - `save_manager.py` — load/save/clear tree state in data/save.json (~226 tok)
 - `season_manager.py` — list/get/set active season; load season tree/gear/talents from data/seasons/ (~1191 tok)
 - `snapshot_manager.py` — exists/load/save talent_snapshot.json in data/ (~151 tok)
 - `tree_config_manager.py` — snapshot/upsert_node/remove_node/toggle_connection for data/trees/ legacy config (~746 tok)
+
+## backend/tests/
+
+- `conftest.py` (~96 tok)
+- `test_engine_aggregator.py` — TestSlugExtraction: test_valid_node_id, test_multi_segment_slug, test_invalid_format_returns_none, t (~2616 tok)
+- `test_engine_pipeline.py` — TestBaselinePipeline: test_no_stats_no_mitigation_equals_base, test_avg_hit_is_midpoint, test_100pct (~3412 tok)
+- `test_models_stat_meta.py` — TestStatMetaStructure: test_all_entries_are_stat_meta, test_display_names_non_empty, test_categories (~636 tok)
+- `test_models_stat.py` — test_all_values_are_strings, test_no_duplicate_values, test_values_are_snake_case, test_enum_lookup_ (~285 tok)
+- `test_persistence_builds.py` — TestSaveLoadRoundTrip: isolated_builds_dir, test_save_assigns_id, test_save_then_load_returns_same_n (~1747 tok)
 
 ## backend/tools/
 
@@ -105,11 +132,8 @@
 
 ## docs/
 
-- `architecture.md` — High-level project architecture overview
-- `damage-pipeline.md` — Damage calculation pipeline design
-- `importer-pipeline.md` — Season import pipeline
-- `modifier-system.md` — Three-layer modifier system design (planned engine)
-- `persistence.md` — Persistence layer overview
+- `engine-plan.md` — TLIBuilder Calculation Engine — Implementation Plan (~6942 tok)
+- `stat-audit.md` — Stat Audit — Modifier Verification (~3160 tok)
 
 ## out/main/
 
@@ -138,14 +162,14 @@
 
 ## src/renderer/src/
 
-- `App.tsx` — Root component; session/screen state management (~3715 tok)
+- `App.tsx` — emptySession (~3784 tok)
 - `index.css` — Global styles; CSS vars (~4027 tok)
 - `main.tsx` — Renderer entry point (~70 tok)
 - `treeGroups.ts` — GROUPS, isPrimary, getSubtrees, getPrimaryFor + tree grouping helpers (~1134 tok)
 
 ## src/renderer/src/api/
 
-- `client.ts` — API client: initApi, all typed API methods (~3232 tok)
+- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 32 more (~3597 tok)
 
 ## src/renderer/src/components/
 
@@ -156,6 +180,6 @@
 - `BuildOverviewScreen.tsx` — Build stat overview screen (~1803 tok)
 - `BuildSelectScreen.tsx` — Build selection/management screen (~822 tok)
 - `DevToolsScreen.tsx` — Dev tools: snapshot diff, season diff, import (~7087 tok)
-- `SlateScreen.tsx` — Slate builder screen (~17123 tok)
+- `SlateScreen.tsx` — ── Board ───────────────────────────────────────────────────────────────────── (~17176 tok)
 - `TreeSelectorScreen.tsx` — Tree selector screen (~1858 tok)
 - `TreeViewerScreen.tsx` — Tree viewer with node allocation and debug tools (~5884 tok)

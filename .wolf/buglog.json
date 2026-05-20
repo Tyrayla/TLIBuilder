@@ -240,6 +240,70 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-05-20T13:55:20.907Z"
+    },
+    {
+      "id": "bug-016",
+      "timestamp": "2026-05-20T14:57:35.473Z",
+      "error_message": "CSS fix: onBack",
+      "file": "src/renderer/src/screens/SlateScreen.tsx",
+      "root_cause": "onBack: () => void → (slates: SavedSlate[]) => void",
+      "fix": "Changed onBack: () => void → (slates: SavedSlate[]) => void",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T14:57:35.473Z"
+    },
+    {
+      "id": "bug-017",
+      "timestamp": "2026-05-20T14:57:39.596Z",
+      "error_message": "Type error",
+      "file": "src/renderer/src/screens/SlateScreen.tsx",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation | Also: <button className=\"btn-back\" onClick={() => onBack(placed.ma",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-20T14:57:44.954Z"
+    },
+    {
+      "id": "bug-018",
+      "timestamp": "2026-05-20T14:58:14.236Z",
+      "error_message": "CSS fix: id",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "id: undefined, name, slots: session.slots → undefined, name, slots: session.slots, slates: session.slates",
+      "fix": "Changed id: undefined, name, slots: session.slots → undefined, name, slots: session.slots, slates: session.slates",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T14:58:14.236Z"
+    },
+    {
+      "id": "bug-019",
+      "timestamp": "2026-05-20T15:07:02.354Z",
+      "error_message": "Significant refactor of ",
+      "file": "docs/engine-plan.md",
+      "root_cause": "25 lines replaced/restructured",
+      "fix": "Rewrote 43→61 lines (25 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T15:07:02.354Z"
     }
   ]
 }

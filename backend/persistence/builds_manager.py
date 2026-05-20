@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 
@@ -41,16 +42,21 @@ def _read_file(build_id: str) -> dict:
         else:
             slots.append(None)
 
+    slates_raw = data.get('slates', '')
+    slates = json.loads(slates_raw) if slates_raw else []
+
     return {
         'id': data.get('id', build_id),
         'name': data.get('name', ''),
         'slots': slots,
+        'slates': slates,
     }
 
 
 def _write_file(build: dict) -> None:
     os.makedirs(_DIR, exist_ok=True)
     slots = build.get('slots') or [None, None, None, None]
+    slates = build.get('slates') or []
     with open(_file(build['id']), 'w') as f:
         f.write(f"id={build['id']}\n")
         f.write(f"name={build['name']}\n")
@@ -64,6 +70,7 @@ def _write_file(build: dict) -> None:
                 nodes_str = ''
             f.write(f"slot{i}_tree={tree}\n")
             f.write(f"slot{i}_nodes={nodes_str}\n")
+        f.write(f"slates={json.dumps(slates, separators=(',', ':'))}\n")
 
 
 def load() -> list[dict]:

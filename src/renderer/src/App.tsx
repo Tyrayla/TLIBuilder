@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { initApi, api, Build, TreeSlot } from './api/client'
+import { initApi, api, Build, TreeSlot, SavedSlate } from './api/client'
 import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
 import BuildOverviewScreen from './screens/BuildOverviewScreen'
@@ -15,6 +15,7 @@ interface Session {
   buildName: string
   slots: (TreeSlot | null)[]
   activeSlot: number
+  slates: SavedSlate[]
 }
 
 interface CascadeModal {
@@ -29,6 +30,7 @@ const emptySession = (): Session => ({
   buildName: '',
   slots: [null, null, null, null],
   activeSlot: 0,
+  slates: [],
 })
 
 function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
@@ -108,6 +110,7 @@ function App() {
       buildName: build.name,
       slots,
       activeSlot: firstEmptySlot(slots),
+      slates: build.slates ?? [],
     })
     setScreen('build-overview')
   }
@@ -246,13 +249,13 @@ function App() {
   }
 
   const saveBuild = async (name: string) => {
-    const build = { id: session.buildId ?? undefined, name, slots: session.slots }
+    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
   }
 
   const saveAsBuild = async (name: string) => {
-    const build = { id: undefined, name, slots: session.slots }
+    const build = { id: undefined, name, slots: session.slots, slates: session.slates }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
   }
@@ -319,7 +322,11 @@ function App() {
     return (
       <SlateScreen
         treeColors={treeColors}
-        onBack={() => setScreen('build-overview')}
+        initialSlates={session.slates}
+        onBack={(slates) => {
+          setSession(s => ({ ...s, slates }))
+          setScreen('build-overview')
+        }}
       />
     )
   }

@@ -358,6 +358,7 @@ class BuildRequest(BaseModel):
     id: str | None = None
     name: str
     slots: list[SlotData | None]
+    slates: list[dict] | None = None
 
 
 @app.post("/api/builds")
@@ -371,6 +372,47 @@ def delete_build(build_id: str):
     if not builds_manager.delete_build(build_id):
         raise HTTPException(status_code=404, detail="Build not found")
     return {"ok": True}
+
+
+# ── Engine ─────────────────────────────────────────────────────────────────────
+
+class SkillConfigRequest(BaseModel):
+    name:          str
+    skill_type:    str           # "attack" | "spell"
+    tags:          list[str]
+    damage_types:  list[str]
+    base_level:    int
+    extra_levels:  int   = 0
+    base_dmg_min:  float = 0.0
+    base_dmg_max:  float = 0.0
+    base_csr:      float = 0.0
+
+class EnemyConfigRequest(BaseModel):
+    fire_resistance:       float = 0.0
+    cold_resistance:       float = 0.0
+    lightning_resistance:  float = 0.0
+    erosion_resistance:    float = 0.0
+    armor:                 float = 0.0
+
+class EngineComputeRequest(BaseModel):
+    slots:   list[SlotData | None]
+    slates:  list[dict] = []
+    skill:   SkillConfigRequest
+    enemy:   EnemyConfigRequest = EnemyConfigRequest()
+
+@app.post("/api/engine/compute")
+def engine_compute(req: EngineComputeRequest):
+    from engine.resolver import compute
+    from engine.models import BuildInput, SkillConfig, EnemyConfig
+    result = compute(BuildInput(
+        slots=[s.model_dump() if s else None for s in req.slots],
+        slates=req.slates,
+        skill=SkillConfig(**req.skill.model_dump()),
+        enemy=EnemyConfig(**req.enemy.model_dump()),
+        season=season_manager.get_active_season() or "",
+    ))
+    from dataclasses import asdict
+    return asdict(result)
 
 
 # ── Legacy single save ─────────────────────────────────────────────────────────

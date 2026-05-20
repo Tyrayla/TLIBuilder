@@ -92,10 +92,34 @@ export interface TreeSlot {
   nodeStates: Record<string, number>
 }
 
+export interface SavedSlateSlot {
+  slotType: 'magic' | 'rare' | 'legendary'
+  maxType: 'magic' | 'rare' | 'legendary'
+  canBeCore: boolean
+  isCore: boolean
+  selectedNodeId: string | null
+  selectedCoreKey: string | null
+  coreName: string | null
+  effects: string[]
+}
+
+export interface SavedSlate {
+  id: string
+  kind: string
+  cells: [number, number][]
+  orientationIndex: number
+  shapeIndex: number
+  anchor: [number, number]
+  slots: SavedSlateSlot[]
+  treeType?: string
+  mothDirection?: string
+}
+
 export interface Build {
   id?: string
   name: string
   slots: (TreeSlot | null)[]
+  slates?: SavedSlate[]
 }
 
 export interface TreeNode {
@@ -308,7 +332,7 @@ export const api = {
   getTree: (name: string) => get<TreeData>(`/tree/${encodeURIComponent(name)}`),
 
   getBuilds: () => get<Build[]>('/builds'),
-  postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[] }) =>
+  postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[]; slates?: SavedSlate[] }) =>
     post<Build>('/builds', build),
   deleteBuild: (id: string) => del<{ ok: boolean }>(`/builds/${id}`),
 
@@ -367,6 +391,24 @@ export const api = {
   getSlatePool: (primaryTree: string) =>
     get<SlatePool>(`/slate-pool/${encodeURIComponent(primaryTree)}`),
   getSlatePoolAll: () => get<SlatePool>('/slate-pool-all'),
+
+  engineCompute: (payload: {
+    slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
+    slates?: SavedSlate[]
+    skill: {
+      name: string; skill_type: string; tags: string[]; damage_types: string[]
+      base_level: number; extra_levels?: number
+      base_dmg_min?: number; base_dmg_max?: number; base_csr?: number
+    }
+    enemy?: {
+      fire_resistance?: number; cold_resistance?: number
+      lightning_resistance?: number; erosion_resistance?: number; armor?: number
+    }
+  }) => post<{
+    avg_hit: number; min_hit: number; max_hit: number
+    crit_chance: number; crit_multiplier: number; effective_dps: number
+    breakdown: Record<string, unknown>
+  }>('/engine/compute', payload),
 
   validateAllocate: (
     tree_name: string,
