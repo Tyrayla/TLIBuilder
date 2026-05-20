@@ -206,6 +206,7 @@ interface CreatorSlot {
   isCore: boolean
   selectedNodeId: string | null
   selectedCoreKey: string | null
+  coreName: string | null
   effects: string[]
 }
 
@@ -213,8 +214,8 @@ function initSlots(kind: SlateKind): CreatorSlot[] {
   return (SLOT_CONFIG[kind]?.sections ?? []).flatMap(s =>
     Array.from({ length: s.count }, () => ({
       slotType: s.maxType, maxType: s.maxType,
-      canBeCore: s.canBeCore ?? false, isCore: false,
-      selectedNodeId: null, selectedCoreKey: null, effects: [] as string[],
+      canBeCore: s.canBeCore ?? false, isCore: s.canBeCore ?? false,
+      selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [] as string[],
     }))
   )
 }
@@ -355,7 +356,7 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
     ? (Array.from(usedCoreKeys).filter(k => k === slot.selectedCoreKey).length > 1) : false
 
   const displayText = slot.isCore
-    ? (slot.selectedCoreKey ? pool?.core.find(c => c.key === slot.selectedCoreKey)?.effects.join(' / ') : null)
+    ? (slot.selectedCoreKey ? slot.effects.join(' / ') : null)
     : (slot.selectedNodeId ? slot.effects.join(' / ') : null)
 
   const modOptions = !slot.isCore && pool
@@ -396,9 +397,12 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
 
         <div onClick={onTogglePicker} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
           {displayText
-            ? <div style={{ fontSize: 14, color: isDuplicate ? '#cc4444' : '#ddd', lineHeight: 1.4 }}>
+            ? <div style={{ lineHeight: 1.4 }}>
                 {isDuplicate && <span style={{ fontSize: 11, color: '#cc4444' }}>[duplicate] </span>}
-                {displayText}
+                {slot.coreName && (
+                  <div style={{ fontSize: 13, fontWeight: 700, color: LEGEND_GOLD, marginBottom: 2 }}>{slot.coreName}</div>
+                )}
+                <div style={{ fontSize: 13, color: isDuplicate ? '#cc4444' : '#bbb' }}>{displayText}</div>
               </div>
             : <div style={{ fontSize: 13, color: '#404058', fontStyle: 'italic' }}>Empty Talent Node</div>
           }
@@ -441,7 +445,7 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
                     borderLeft: selected ? `2px solid ${accentColor}` : '2px solid transparent',
                     opacity: (!selected && usedCoreKeys.has(core.key)) ? 0.4 : 1,
                   }}>
-                    <div style={{ fontSize: 14, color: selected ? '#fff' : '#bbb' }}>{core.name.replace(/_/g, ' ')}</div>
+                    <div style={{ fontSize: 14, color: selected ? '#fff' : '#bbb' }}>{core.name}</div>
                     {core.effects.map((e, i) => <div key={i} style={{ fontSize: 12, color: '#888' }}>{e}</div>)}
                     <div style={{ fontSize: 11, color: '#444', marginTop: 2 }}>{core.treeName}</div>
                   </div>
@@ -632,12 +636,17 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
             return (
               <div key={i} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', opacity: filled ? 1 : 0.28 }}>
                 <div style={{
-                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0, marginTop: 2,
                   background: badgeColor, color: '#fff', fontSize: 9, fontWeight: 700,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>{badgeLabel}</div>
-                <div style={{ fontSize: 12, color: filled ? '#ccc' : '#3a3a5a', lineHeight: 1.5, fontStyle: filled ? 'normal' : 'italic' }}>
-                  {text ?? 'Empty Talent Node'}
+                <div style={{ minWidth: 0 }}>
+                  {slot.coreName && filled && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: LEGEND_GOLD, marginBottom: 2 }}>{slot.coreName}</div>
+                  )}
+                  <div style={{ fontSize: 12, color: filled ? '#ccc' : '#3a3a5a', lineHeight: 1.5, fontStyle: filled ? 'normal' : 'italic' }}>
+                    {text ?? 'Empty Talent Node'}
+                  </div>
                 </div>
               </div>
             )
@@ -748,10 +757,10 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
     for (const [r, c] of s.cells) occupied.set(`${r},${c}`, s.id)
   }
 
-  // Ghost cells
+  // Ghost cells — only during creating mode or drag (not while editing an existing slate)
   let ghostCells: [number, number][] = []
   if (hover) {
-    if (creator) {
+    if (creator && mode.type === 'creating') {
       const anchor = centeredAnchor(creator.kind, creator.shapeIndex, creator.orientationIndex, hover)
       ghostCells = anchorCells(creator.kind, creator.shapeIndex, creator.orientationIndex, anchor)
     } else if (dragSlate) {
@@ -843,7 +852,7 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
   function handleCycleSlotType(idx: number) {
     if (!creator) return
     const slot = creator.slots[idx]
-    updateSlot(idx, { slotType: cycleSlotType(slot.slotType, slot.maxType), selectedNodeId: null, selectedCoreKey: null, effects: [], isCore: false })
+    updateSlot(idx, { slotType: cycleSlotType(slot.slotType, slot.maxType), selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [], isCore: false })
   }
 
   function handleTogglePicker(idx: number) {
@@ -856,7 +865,7 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
   }
 
   function handleSelectCore(idx: number, core: CoreTalentOption) {
-    updateSlot(idx, { selectedCoreKey: core.key, selectedNodeId: null, effects: core.effects })
+    updateSlot(idx, { selectedCoreKey: core.key, selectedNodeId: null, coreName: core.name, effects: core.effects })
     updateCreator({ openPicker: null })
   }
 
@@ -1030,7 +1039,7 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
                   onCycleType={() => handleCycleSlotType(idx)}
                   onSelect={mod => handleSelectModifier(idx, mod)}
                   onSelectCore={core => handleSelectCore(idx, core)}
-                  onClear={() => updateSlot(idx, { selectedNodeId: null, selectedCoreKey: null, effects: [] })}
+                  onClear={() => updateSlot(idx, { selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [] })}
                   onToggleCoreMode={() => handleToggleCoreMode(idx)}
                   onSearchChange={s => updateCreator({ pickerSearch: s })}
                 />
@@ -1186,14 +1195,14 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
 
                 const bg = isGhost
                   ? (isGhostValid ? `${ghostColor}28` : '#ff444418')
-                  : isDragging ? '#12122020'
+                  : isDragging ? (valid ? '#15152a' : 'transparent')
                   : isConflicted ? '#ff222218'
                   : isEditing ? `${sColor}40`
                   : sColor ? `${sColor}22` : (valid ? '#15152a' : 'transparent')
 
                 const borderColor = isGhost
                   ? (isGhostValid ? ghostColor : '#ff4444')
-                  : isDragging ? '#1e1e3a'
+                  : isDragging ? (valid ? '#1e1e3a' : 'transparent')
                   : isConflicted ? '#cc3333'
                   : isHovered ? '#9090b8'
                   : isEditing || isSelected ? (sColor ?? '#888')
@@ -1217,10 +1226,11 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
                     style={{
                       width: CELL, height: CELL, boxSizing: 'border-box',
                       background: bg, border: `2px solid ${borderColor}`, borderRadius: 6,
-                      cursor: creator ? 'crosshair' : dragSlate ? 'grabbing' : slate ? 'grab' : 'default',
+                      cursor: (creator && mode.type === 'creating') ? 'crosshair' : dragSlate ? 'grabbing' : slate ? 'grab' : 'default',
                       transition: 'border-color 60ms, background 60ms',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end',
                       padding: '3px 2px', position: 'relative', overflow: 'hidden',
+                      boxShadow: (isPlacedHere && !isGhost && !isDragging) ? 'inset 0 0 0 2px rgba(0,0,0,0.88)' : undefined,
                     }}
                   >
                     {isPrairie && prairieMods.length > 0 && (

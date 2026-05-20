@@ -275,6 +275,8 @@ export interface SeasonSummary {
   name: string
   trees: string[]
   node_counts: Record<string, number>
+  new_god_count: number | null
+  legendary_gear_count: number | null
   is_active: boolean
 }
 
@@ -375,6 +377,14 @@ export const api = {
   importSeason: (seasonName: string, nodes: object[]) =>
     post<{ ok: boolean; trees_imported: string[]; skipped: string[] }>(
       '/dev/import-season', { season_name: seasonName, nodes }
+    ),
+  importNewGodTalents: (seasonName: string, items: object[]) =>
+    post<{ ok: boolean; count: number }>(
+      '/dev/import-new-god-talents', { season_name: seasonName, items }
+    ),
+  importLegendaryGear: (seasonName: string, fileData: object) =>
+    post<{ ok: boolean; count: number; set_name: string }>(
+      '/dev/import-legendary-gear', { season_name: seasonName, file_data: fileData }
     ),
   diffSeasons: (seasonA: string, seasonB: string) =>
     post<SeasonDiff>('/dev/diff-seasons', { season_a: seasonA, season_b: seasonB }),
