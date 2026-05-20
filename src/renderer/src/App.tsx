@@ -6,8 +6,9 @@ import BuildOverviewScreen from './screens/BuildOverviewScreen'
 import TreeSelectorScreen from './screens/TreeSelectorScreen'
 import TreeViewerScreen from './screens/TreeViewerScreen'
 import DevToolsScreen from './screens/DevToolsScreen'
+import SlateScreen from './screens/SlateScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board'
 
 interface Session {
   buildId: string | null
@@ -115,6 +116,8 @@ function App() {
     setSession(s => ({ ...s, activeSlot: firstEmptySlot(s.slots) }))
     setScreen('tree-selector')
   }
+
+  const goToSlates = () => setScreen('slate-board')
 
   const goToPreview = () => {
     setPreviewSource(screen)
@@ -298,6 +301,7 @@ function App() {
           slots={session.slots}
           onBack={goToBuildSelect}
           onTalentTree={goToTreeSelector}
+          onSlates={goToSlates}
           onSave={saveBuild}
           onSaveAs={saveAsBuild}
           devMode={devMode}
@@ -308,6 +312,15 @@ function App() {
         />
         {cascadeOverlay}
       </>
+    )
+  }
+
+  if (screen === 'slate-board') {
+    return (
+      <SlateScreen
+        treeColors={treeColors}
+        onBack={() => setScreen('build-overview')}
+      />
     )
   }
 

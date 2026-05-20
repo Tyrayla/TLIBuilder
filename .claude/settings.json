@@ -34,7 +34,9 @@
       "Bash(pip list *)",
       "Bash(findstr -i \"fastapi uvicorn\")",
       "Bash(findstr -i \"pydantic python-multipart\")",
-      "Bash(npm --version)"
+      "Bash(npm --version)",
+      "Bash(python -c \"import json; d = json.load\\(open\\('data/talent_snapshot.json', encoding='utf-8'\\)\\); t = list\\(d['trees'].keys\\(\\)\\)[:2]; print\\(t\\); print\\(json.dumps\\(d['trees'][t[0]]['core_talents'][:2], indent=2\\)\\); print\\('new_god sample:', json.dumps\\(d.get\\('new_god_talents', []\\)[:2], indent=2\\)\\)\")",
+      "Bash(python -c \"import server; print\\('OK'\\)\")"
     ]
   }
 }
