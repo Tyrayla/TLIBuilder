@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, TreeSlot, SavedSlate, SeasonSummary, StatSheetResponse, StatEntry, StatSource, ConditionDef, ConditionValues, ConditionMaximums } from '../api/client'
+import { api, TreeSlot, SavedSlate, SeasonSummary, StatSheetResponse, StatEntry, StatSource, ConditionDef, ConditionValues, ConditionMaximums, EquippedGearItem, GearEngineItem, GearAffixContribution } from '../api/client'
 
 const NUMERIC_CONDITION_KEYS = new Set(['tenacity_active', 'agility_active', 'focus_active', 'channeled_not_capped'])
 
@@ -8,7 +8,7 @@ const CATEGORY_ORDER = [
   'Minion', 'Sentry', 'Spirit Magi', 'Physical', 'Lightning', 'Cold', 'Fire',
   'Erosion', 'Elemental', 'Ailments', 'Steep Strike', 'Cast Speed', 'Attack Speed',
   'Critical Strike', 'Life', 'Mana', 'Energy Shield', 'Defense', 'Damage Taken',
-  'Buffs', 'Gear',
+  'Buffs', 'Utility', 'Gear',
 ]
 
 const TOOLTIP_WIDTH = 230
@@ -43,11 +43,46 @@ function shortenLabel(label: string): string {
   return parts.length > 2 ? parts.slice(-2).join(' ') : label
 }
 
+function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
+  return gear.filter(item => item.slot !== null).map(item => {
+    const contributions: GearAffixContribution[] = []
+    item.affixes.forEach((affix, affixIdx) => {
+      if (!affix.stat_key || affix.affix_kind === 'placeholder') return
+      const cust = item.customizations.find(c => c.affix_index === affixIdx)
+      // For numeric affixes with ranges, find the first range value and use chosen value
+      // For fixed-only numeric affixes, use the fixed value directly
+      if (affix.affix_kind === 'numeric') {
+        let display_value: number | null = null
+        const rangeIdx = affix.numeric_values.findIndex(v => v.kind === 'range')
+        if (rangeIdx >= 0) {
+          const nv = affix.numeric_values[rangeIdx]
+          display_value = cust?.chosen_values[rangeIdx] ??
+            Math.round(((nv.min ?? 0) + (nv.max ?? 0)) / 2)
+        } else {
+          const fixedNv = affix.numeric_values.find(v => v.kind === 'fixed')
+          if (fixedNv) display_value = fixedNv.value ?? 0
+        }
+        if (display_value !== null) {
+          contributions.push({
+            stat: affix.stat_key,
+            display_value,
+            unit: affix.unit ?? '',
+            item_name: item.name,
+            slot: item.slot,
+          })
+        }
+      }
+    })
+    return { contributions }
+  })
+}
+
 interface Props {
   buildName: string
   buildId: string | null
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
+  gear: EquippedGearItem[]
   conditions: string[]
   conditionValues: ConditionValues
   conditionMaximums: ConditionMaximums | null
@@ -58,6 +93,7 @@ interface Props {
   onBack: () => void
   onTalentTree: () => void
   onSlates: () => void
+  onGear: () => void
   onSave: (name: string) => Promise<void>
   onSaveAs: (name: string) => Promise<void>
   devMode?: boolean
@@ -69,7 +105,8 @@ type SaveMode = 'save' | 'saveas'
 export default function BuildOverviewScreen({
   buildName, buildId, slots, slates, conditions, conditionValues, conditionMaximums, effectiveConditions,
   onConditionsChange, onConditionValuesChange, onConditionMaximumsChange,
-  onBack, onTalentTree, onSlates, onSave, onSaveAs,
+  onBack, onTalentTree, onSlates, onGear, onSave, onSaveAs,
+  gear = [],
   devMode = false, onSeasonChange,
 }: Props) {
   const [saveOpen, setSaveOpen] = useState(false)
@@ -103,17 +140,21 @@ export default function BuildOverviewScreen({
   }, [])
 
   useEffect(() => {
-    if (slots.every(s => !s)) { setStatSheet(null); return }
+    const hasSource =
+      slots.some(s => !!s) ||
+      slates.some(s => s.slots?.some(sl => sl.selectedNodeId !== null)) ||
+      gear.some(item => item.slot !== null)
+    if (!hasSource) { setStatSheet(null); return }
     setStatsLoading(true)
     setStatsError('')
-    api.engineStats({ slots, slates, conditions: effectiveConditions })
+    api.engineStats({ slots, slates, conditions: effectiveConditions, gear: buildGearPayload(gear) })
       .then(res => {
         setStatSheet(res)
         if (res.condition_maximums) onConditionMaximumsChange(res.condition_maximums)
       })
       .catch(() => setStatsError('Failed to load stats.'))
       .finally(() => setStatsLoading(false))
-  }, [slots, slates, effectiveConditions])
+  }, [slots, slates, effectiveConditions, gear])
 
   useEffect(() => {
     if (!selectedStat) return
@@ -201,6 +242,10 @@ export default function BuildOverviewScreen({
   }
 
   const filledSlots = slots.filter(Boolean).length
+  const hasAnySource =
+    slots.some(s => !!s) ||
+    slates.some(s => s.slots?.some(sl => sl.selectedNodeId !== null)) ||
+    gear.some(item => item.slot !== null)
 
   const groupedStats: { category: string; entries: [string, StatEntry][] }[] = []
   if (statSheet) {
@@ -283,11 +328,10 @@ export default function BuildOverviewScreen({
               <span className="overview-nav-label">Slates</span>
             </div>
           </button>
-          <button className="overview-nav-btn disabled" disabled>
+          <button className="overview-nav-btn active" onClick={onGear}>
             <span className="overview-nav-icon">⚔️</span>
             <div className="overview-nav-text">
               <span className="overview-nav-label">Gear</span>
-              <span className="overview-nav-sub">Coming soon</span>
             </div>
           </button>
         </div>
@@ -398,13 +442,13 @@ export default function BuildOverviewScreen({
           <div className="panel-header">Stats</div>
           <div className="stat-sheet">
             {statsLoading && <div className="stat-sheet-empty">Computing…</div>}
-            {!statsLoading && filledSlots === 0 && (
-              <div className="stat-sheet-empty">No trees selected.</div>
+            {!statsLoading && !hasAnySource && (
+              <div className="stat-sheet-empty">Nothing allocated yet.</div>
             )}
             {!statsLoading && statsError && (
               <div className="stat-sheet-empty" style={{ color: '#ff6b6b' }}>{statsError}</div>
             )}
-            {!statsLoading && !statsError && filledSlots > 0 && groupedStats.length === 0 && (
+            {!statsLoading && !statsError && hasAnySource && groupedStats.length === 0 && (
               <div className="stat-sheet-empty">No stats. Rebuild filter in Dev Tools.</div>
             )}
             {groupedStats.map(({ category, entries }) => (

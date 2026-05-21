@@ -360,6 +360,7 @@ class BuildRequest(BaseModel):
     slots: list[SlotData | None]
     slates: list[dict] | None = None
     conditions: list[str] | None = None
+    gear: list[dict] | None = None
 
 
 @app.post("/api/builds")
@@ -422,6 +423,7 @@ class EngineStatsRequest(BaseModel):
     slots:      list[SlotData | None]
     slates:     list[dict] = []
     conditions: list[str] = []
+    gear:       list[dict] = []
 
 
 @app.post("/api/engine/stats")
@@ -460,7 +462,7 @@ def engine_stats(req: EngineStatsRequest):
         if tree_data:
             season_trees[slug] = tree_data
 
-    build = BuildInput(slots=slots, slates=slates, season=active_season, conditions=req.conditions)
+    build = BuildInput(slots=slots, slates=slates, season=active_season, conditions=req.conditions, gear=req.gear)
     source = aggregate(build, season_trees, filter_data)
 
     stat_map: dict = {}
@@ -950,6 +952,90 @@ def get_hero_traits():
     if not data:
         return {"season": active, "traits": []}
     return {"season": active, "traits": data.get("traits", [])}
+
+
+# ── Gear affix stat resolver ───────────────────────────────────────────────────
+
+_GEAR_STOP_WORDS = {"of", "the", "a", "an", "to", "by", "from", "with", "and", "or", "in", "on", "per", "second"}
+_GEAR_NORMALIZE_MAP = {
+    "regenerates": "regeneration",
+    "regenerate":  "regeneration",
+    "reduces":     "reduction",
+    "reduce":      "reduction",
+}
+_GEAR_COND_RE = re.compile(
+    r"\s+(?:while\b|when\b|if\b|against\b|recently\b|on\s+hit\b|upon\b|"
+    r"for\s+every\b|for\s+each\b|per\s+(?!second))",
+    re.I,
+)
+
+_gear_candidates: list | None = None
+
+
+def _gear_normalize(text: str) -> set[str]:
+    clean = re.sub(r"[^a-z\s]", " ", text.lower())
+    return {_GEAR_NORMALIZE_MAP.get(w, w) for w in clean.split()
+            if w not in _GEAR_STOP_WORDS and not re.fullmatch(r"\d+", w)}
+
+
+def _get_gear_candidates() -> list:
+    global _gear_candidates
+    if _gear_candidates is None:
+        from models.stat_meta import STAT_META
+        _gear_candidates = []
+        for stat, meta in STAT_META.items():
+            words = _gear_normalize(meta.display_name)
+            if words:
+                _gear_candidates.append((stat.value, meta.display_name, words, meta.unit))
+    return _gear_candidates
+
+
+def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
+    """Return (stat_key, unit) for a gear affix, or (None, '') if unresolved."""
+    text = _GEAR_COND_RE.sub("", raw_text)
+    query = _gear_normalize(text)
+    if not query:
+        return None, ""
+    is_pct = "%" in raw_text
+    scores = []
+    for stat_val, dn, dn_words, unit in _get_gear_candidates():
+        overlap = len(query & dn_words)
+        if not overlap:
+            continue
+        scores.append((overlap / len(query | dn_words), stat_val, dn, unit))
+    if not scores:
+        return None, ""
+    scores.sort(key=lambda x: x[0], reverse=True)
+    best_score, best_stat, best_dn, best_unit = scores[0]
+    extra = query - _gear_normalize(best_dn)
+    if best_score < (0.7 if extra else 0.5):
+        return None, ""
+    tied = [s for s in scores if s[0] == best_score]
+    if len(tied) == 1:
+        return best_stat, best_unit
+    pref = [s for s in tied if s[1].endswith("_inc" if is_pct else "_flat")]
+    return (pref[0][1], pref[0][3]) if len(pref) == 1 else (None, "")
+
+
+@app.get("/api/legendary-gear")
+def get_legendary_gear():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "items": []}
+    data = season_manager.load_legendary_gear(active)
+    if not data:
+        return {"season": active, "items": []}
+    items = data.get("items", [])
+    for item in items:
+        for affix in item.get("affixes", []):
+            if affix.get("affix_kind") == "placeholder":
+                affix["stat_key"] = None
+                affix["unit"] = ""
+            else:
+                stat_key, unit = _resolve_gear_stat(affix.get("raw_text", ""))
+                affix["stat_key"] = stat_key
+                affix["unit"] = unit
+    return {"season": active, "items": items}
 
 
 @app.delete("/api/dev/hero-traits")

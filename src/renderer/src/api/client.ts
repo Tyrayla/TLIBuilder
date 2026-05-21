@@ -122,6 +122,7 @@ export interface Build {
   slates?: SavedSlate[]
   conditions?: string[]
   conditionValues?: ConditionValues
+  gear?: EquippedGearItem[]
 }
 
 export interface TreeNode {
@@ -382,6 +383,67 @@ export interface SkillItem {
   skill_tags: string[]
 }
 
+export interface LegendaryNumericValue {
+  kind: 'range' | 'fixed'
+  sign: string | null
+  // range
+  min?: number
+  max?: number
+  // fixed
+  value?: number
+  raw: string
+}
+
+export interface LegendaryAffix {
+  raw_text: string
+  expression: string
+  condition: string | null
+  affix_kind: 'numeric' | 'special' | 'tagged' | 'placeholder'
+  numeric_values: LegendaryNumericValue[]
+  // resolved by backend at load time
+  stat_key?: string | null
+  unit?: string
+}
+
+export interface LegendaryGearItem {
+  item_id: string
+  name: string
+  required_level: number
+  affix_count: number
+  affixes: LegendaryAffix[]
+}
+
+export type GearSlot = 'helmet' | 'amulet' | 'chest' | 'gloves' | 'belt'
+                     | 'boots' | 'ring1' | 'ring2' | 'weapon1' | 'weapon2'
+
+export interface CustomizedAffix {
+  affix_index: number
+  chosen_values: Record<number, number>   // value_index → chosen number
+  chosen_placeholder_key: string | null
+}
+
+export interface EquippedGearItem {
+  item_id: string
+  name: string
+  required_level: number
+  affixes: LegendaryAffix[]
+  customizations: CustomizedAffix[]
+  slot: GearSlot | null
+  base_stats?: Record<string, number>    // reserved for future base_type data
+}
+
+export interface GearAffixContribution {
+  stat: string
+  display_value: number
+  unit: string
+  item_name: string
+  slot: string | null
+}
+
+export interface GearEngineItem {
+  contributions: GearAffixContribution[]
+}
+
 export interface SeasonDiffNode {
   id: string
   node_type: string
@@ -487,6 +549,7 @@ export const api = {
       '/dev/import-skills', { season_name: seasonName, file_data: fileData }
     ),
   getSkills: () => get<{ season: string | null; skills: SkillItem[] }>('/skills'),
+  getLegendaryGear: () => get<{ season: string | null; items: LegendaryGearItem[] }>('/legendary-gear'),
   clearSkills: () => del<{ ok: boolean }>('/dev/skills'),
 
   importHeroTrait: (seasonName: string, fileData: object) =>
@@ -525,6 +588,7 @@ export const api = {
     slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
     slates?: SavedSlate[]
     conditions?: string[]
+    gear?: GearEngineItem[]
   }) => post<StatSheetResponse>('/engine/stats', payload),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),

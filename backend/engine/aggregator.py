@@ -63,7 +63,11 @@ def _apply_node_recipes(
     per_node = (node_recipes_by_id or {}).get(node_id)
     if per_node is not None:
         type_recipes = per_node
+    elif node_recipes_by_id:
+        # Per-node filter exists but this node wasn't matched — no contribution
+        return
     else:
+        # Old filter without per-node data — fall back to tree-level aggregate
         tree_recipes = recipes_by_tree.get(tree_name, {})
         type_recipes = tree_recipes.get(node_type, [])
 
@@ -175,5 +179,24 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
                 node_recipes_by_id=node_recipes_by_id,
                 active_conditions=conds,
             )
+
+    # ── Equipped gear affixes ──────────────────────────────────────────────────
+    for contrib in (c for item in build.gear for c in item.get("contributions", [])):
+        stat = contrib.get("stat")
+        if not stat:
+            continue
+        val = contrib.get("display_value", 0)
+        unit = contrib.get("unit", "")
+        amount = val / 100.0 if unit == "%" else float(val)
+        slot_label = (contrib.get("slot") or "item").replace("1", " 1").replace("2", " 2").title()
+        entry = SourceEntry(
+            stat=stat,
+            amount=amount,
+            source_type="gear",
+            label=f"Gear · {slot_label}",
+            text=contrib.get("item_name", ""),
+            points=1,
+        )
+        source.add_with_source(stat, amount, entry)
 
     return source

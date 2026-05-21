@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums } from './api/client'
+import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums, EquippedGearItem } from './api/client'
 import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
 import BuildOverviewScreen from './screens/BuildOverviewScreen'
@@ -8,8 +8,9 @@ import TreeViewerScreen from './screens/TreeViewerScreen'
 import DevToolsScreen from './screens/DevToolsScreen'
 import SlateScreen from './screens/SlateScreen'
 import StatsScreen from './screens/StatsScreen'
+import GearScreen from './screens/GearScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear'
 
 const DEFAULT_CONDITION_VALUES: ConditionValues = {
   tenacity_stacks: 0,
@@ -41,6 +42,7 @@ interface Session {
   slates: SavedSlate[]
   conditions: string[]          // boolean conditions (manual toggles, not numeric-derived)
   conditionValues: ConditionValues  // numeric slider values for blessing/channeled stacks
+  gear: EquippedGearItem[]
 }
 
 interface CascadeModal {
@@ -58,6 +60,7 @@ const emptySession = (): Session => ({
   slates: [],
   conditions: [],
   conditionValues: DEFAULT_CONDITION_VALUES,
+  gear: [],
 })
 
 function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
@@ -105,7 +108,7 @@ function App() {
     window.api?.onRequestSave?.(() => {
       const sess = sessionRef.current
       if (sess.buildId) {
-        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions }
+        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, gear: sess.gear }
         api.postBuild(build)
           .then(saved => {
             setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: sess.buildName }))
@@ -169,6 +172,7 @@ function App() {
       slates: build.slates ?? [],
       conditions: build.conditions ?? [],
       conditionValues: build.conditionValues ?? DEFAULT_CONDITION_VALUES,
+      gear: build.gear ?? [],
     })
     setIsDirty(false)
     setScreen('build-overview')
@@ -181,6 +185,7 @@ function App() {
 
   const goToSlates = () => setScreen('slate-board')
   const goToStats = () => setScreen('stats')
+  const goToGear = () => setScreen('gear')
 
   const goToPreview = () => {
     setPreviewSource(screen)
@@ -332,17 +337,22 @@ function App() {
   ]
 
   const saveBuild = async (name: string) => {
-    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues }
+    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
   }
 
   const saveAsBuild = async (name: string) => {
-    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues }
+    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
+  }
+
+  const handleGearChange = (gear: EquippedGearItem[]) => {
+    setSession(s => ({ ...s, gear }))
+    markDirty()
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -397,9 +407,11 @@ function App() {
           onConditionsChange={handleConditionsChange}
           onConditionValuesChange={handleConditionValuesChange}
           onConditionMaximumsChange={setConditionMaximums}
+          gear={session.gear}
           onBack={goToBuildSelect}
           onTalentTree={goToTreeSelector}
           onSlates={goToSlates}
+          onGear={goToGear}
           onSave={saveBuild}
           onSaveAs={saveAsBuild}
           devMode={devMode}
@@ -435,6 +447,16 @@ function App() {
           onBack={() => setScreen('build-overview')}
         />
       </>
+    )
+  }
+
+  if (screen === 'gear') {
+    return (
+      <GearScreen
+        equippedItems={session.gear}
+        onGearChange={handleGearChange}
+        onBack={() => setScreen('build-overview')}
+      />
     )
   }
 

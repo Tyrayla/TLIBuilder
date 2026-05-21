@@ -48,12 +48,16 @@ def _read_file(build_id: str) -> dict:
     conditions_raw = data.get('conditions', '')
     conditions = json.loads(conditions_raw) if conditions_raw else []
 
+    gear_raw = data.get('gear', '')
+    gear = json.loads(gear_raw) if gear_raw else []
+
     return {
         'id': data.get('id', build_id),
         'name': data.get('name', ''),
         'slots': slots,
         'slates': slates,
         'conditions': conditions,
+        'gear': gear,
     }
 
 
@@ -77,6 +81,8 @@ def _write_file(build: dict) -> None:
         f.write(f"slates={json.dumps(slates, separators=(',', ':'))}\n")
         conditions = build.get('conditions') or []
         f.write(f"conditions={json.dumps(conditions, separators=(',', ':'))}\n")
+        gear = build.get('gear') or []
+        f.write(f"gear={json.dumps(gear, separators=(',', ':'))}\n")
 
 
 def load() -> list[dict]:
