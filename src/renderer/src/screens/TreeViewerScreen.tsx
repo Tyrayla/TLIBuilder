@@ -87,6 +87,7 @@ export default function TreeViewerScreen({
   const [tip, setTip] = useState<Tip | null>(null)
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [search, setSearch] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Debug state
@@ -105,6 +106,7 @@ export default function TreeViewerScreen({
 
   useEffect(() => {
     setNodeStates(initialNodeStates)
+    setSearch('')
     loadTree()
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [treeName])
@@ -115,6 +117,16 @@ export default function TreeViewerScreen({
 
 
   const total = sumPoints(nodeStates)
+
+  const searchWords = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const isSearching = searchWords.length > 0
+  const searchHits = new Set<string>()
+  if (isSearching && treeData) {
+    for (const node of treeData.nodes) {
+      const haystack = (node.effects ?? []).join(' ').toLowerCase()
+      if (searchWords.every(w => haystack.includes(w))) searchHits.add(node.id)
+    }
+  }
 
   const flash = (msg: string, ok = false) => {
     setStatus({ msg, ok })
@@ -259,6 +271,23 @@ export default function TreeViewerScreen({
               onClick={onReselect}
               title="Clear this tree and pick a different one"
             >Reselect</button>
+            <div className="tree-search-bar">
+              <input
+                className="tree-search-input"
+                type="text"
+                placeholder="Search nodes…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              {search && (
+                <button className="tree-search-clear" onClick={() => setSearch('')}>✕</button>
+              )}
+            </div>
+            {isSearching && (
+              <span className="tree-search-count">
+                {searchHits.size} match{searchHits.size !== 1 ? 'es' : ''}
+              </span>
+            )}
           </div>
           <div className="viewer-header-right">
             {devMode && deprecatedTools && (
@@ -433,16 +462,28 @@ export default function TreeViewerScreen({
                 const colors = nodeColors(node, nodeStates, total)
                 const locked = !colUnlocked(node.column, total)
                 const isLinkSrc = debugMode && debugTool === 'link' && linkFrom === node.id
+                const isHit = !isSearching || searchHits.has(node.id)
                 return (
                   <g
                     key={node.id}
-                    style={{ cursor: (locked && !debugMode) || processing ? 'default' : 'pointer' }}
+                    style={{
+                      cursor: (locked && !debugMode) || processing ? 'default' : 'pointer',
+                      opacity: isSearching && !isHit ? 0.15 : 1,
+                    }}
                     onClick={e => { e.preventDefault(); handleNodeInteract(node, false) }}
                     onContextMenu={e => { e.preventDefault(); handleNodeInteract(node, true) }}
                     onMouseEnter={e => setTip({ nodeId: node.id, x: e.clientX, y: e.clientY })}
                     onMouseLeave={() => setTip(null)}
                     onMouseMove={e => setTip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
                   >
+                    {isSearching && isHit && (
+                      <circle cx={cx} cy={cy} r={NODE_R + 6}
+                        fill="rgba(233,192,70,0.12)"
+                        stroke="#e9c046"
+                        strokeWidth={2}
+                        style={{ pointerEvents: 'none' }}
+                      />
+                    )}
                     <circle cx={cx} cy={cy} r={NODE_R}
                       fill={isLinkSrc ? '#2a4a2a' : colors.fill}
                       stroke={isLinkSrc ? '#6be946' : colors.stroke}
