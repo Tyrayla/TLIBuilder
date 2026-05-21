@@ -592,6 +592,38 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-05-21T03:01:55.474Z"
+    },
+    {
+      "id": "bug-038",
+      "timestamp": "2026-05-21T03:52:20.769Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "src/renderer/src/screens/SlateScreen.tsx",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T03:52:20.769Z"
+    },
+    {
+      "id": "bug-039",
+      "timestamp": "2026-05-21T03:52:59.439Z",
+      "error_message": "CSS fix: onSelect, cursor",
+      "file": "src/renderer/src/screens/TreeSelectorScreen.tsx",
+      "root_cause": "onSelect: undefined → () => void; cursor: isSelectable ? 'pointer' : 'default' → isClickable ? 'pointer' : 'default'",
+      "fix": "Changed onSelect: undefined → () => void; cursor: isSelectable ? 'pointer' : 'default' → isClickable ? 'pointer' : 'default'",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T03:52:59.439Z"
     }
   ]
 }
