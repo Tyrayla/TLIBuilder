@@ -359,6 +359,7 @@ class BuildRequest(BaseModel):
     name: str
     slots: list[SlotData | None]
     slates: list[dict] | None = None
+    conditions: list[str] | None = None
 
 
 @app.post("/api/builds")
@@ -395,10 +396,11 @@ class EnemyConfigRequest(BaseModel):
     armor:                 float = 0.0
 
 class EngineComputeRequest(BaseModel):
-    slots:   list[SlotData | None]
-    slates:  list[dict] = []
-    skill:   SkillConfigRequest
-    enemy:   EnemyConfigRequest = EnemyConfigRequest()
+    slots:      list[SlotData | None]
+    slates:     list[dict] = []
+    skill:      SkillConfigRequest
+    enemy:      EnemyConfigRequest = EnemyConfigRequest()
+    conditions: list[str] = []
 
 @app.post("/api/engine/compute")
 def engine_compute(req: EngineComputeRequest):
@@ -410,14 +412,16 @@ def engine_compute(req: EngineComputeRequest):
         skill=SkillConfig(**req.skill.model_dump()),
         enemy=EnemyConfig(**req.enemy.model_dump()),
         season=season_manager.get_active_season() or "",
+        conditions=req.conditions,
     ))
     from dataclasses import asdict
     return asdict(result)
 
 
 class EngineStatsRequest(BaseModel):
-    slots:  list[SlotData | None]
-    slates: list[dict] = []
+    slots:      list[SlotData | None]
+    slates:     list[dict] = []
+    conditions: list[str] = []
 
 
 @app.post("/api/engine/stats")
@@ -456,7 +460,7 @@ def engine_stats(req: EngineStatsRequest):
         if tree_data:
             season_trees[slug] = tree_data
 
-    build = BuildInput(slots=slots, slates=slates, season=active_season)
+    build = BuildInput(slots=slots, slates=slates, season=active_season, conditions=req.conditions)
     source = aggregate(build, season_trees, filter_data)
 
     stat_map: dict = {}
@@ -476,8 +480,20 @@ def engine_stats(req: EngineStatsRequest):
             "label": entry.label,
             "text": entry.text,
             "amount": entry.amount,
+            "points": entry.points,
         })
     return {"stats": stat_map}
+
+
+# ── Conditions ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/conditions")
+def get_conditions():
+    from models.conditions import ALL_CONDITIONS
+    result: dict[str, list[dict]] = {}
+    for c in ALL_CONDITIONS:
+        result.setdefault(c.category, []).append({"key": c.key, "label": c.label})
+    return result
 
 
 # ── Legacy single save ─────────────────────────────────────────────────────────

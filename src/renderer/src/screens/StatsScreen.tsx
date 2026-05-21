@@ -20,25 +20,29 @@ function formatStatValue(total: number, unit: string): string {
   return rounded >= 0 ? `+${rounded}` : `${rounded}`
 }
 
+import { StatSource } from '../api/client'
+
 interface GroupedSource { text: string; label: string; amount: number; count: number }
 
-function groupSources(sources: { text: string; label: string; amount: number }[]): GroupedSource[] {
+function groupSources(sources: StatSource[]): GroupedSource[] {
   const out: GroupedSource[] = []
   for (const src of sources) {
     const match = out.find(g => g.text === src.text && g.label === src.label)
-    if (match) match.count++
-    else out.push({ text: src.text, label: src.label, amount: src.amount, count: 1 })
+    if (match) {
+      match.count += src.points ?? 1
+    } else {
+      out.push({ text: src.text, label: src.label, amount: src.amount, count: src.points ?? 1 })
+    }
   }
   return out
 }
 
 function shortenLabel(label: string): string {
-  const isSlate = label.startsWith('Slate — ')
-  const base = isSlate ? label.slice('Slate — '.length) : label
-  const parts = base.split(' ')
-  // "Goddess of Hunting Micro" → "Hunting Micro", "Marksman Micro" stays as-is
-  const short = parts.length > 2 ? parts.slice(-2).join(' ') : base
-  return isSlate ? `Slate · ${short}` : short
+  // Slate labels are pre-formatted by the aggregator: "Slate · Corner Legendary"
+  if (label.startsWith('Slate · ')) return label
+  // Talent labels: "Goddess of Hunting Micro" → "Hunting Micro"
+  const parts = label.split(' ')
+  return parts.length > 2 ? parts.slice(-2).join(' ') : label
 }
 
 interface Props {
@@ -134,16 +138,18 @@ export default function StatsScreen({ slots, slates, onBack }: Props) {
         {groupedStats.map(({ category, entries }) => (
           <div key={category} className="stat-category-group">
             <div className="stat-category-header">{category}</div>
-            {entries.map(([key, entry]) => (
-              <button
-                key={key}
-                className={`stat-sheet-row${selectedStat === key ? ' selected' : ''}`}
-                onClick={e => handleStatClick(e, key)}
-              >
-                <span className="stat-sheet-row-name">{entry.display_name}</span>
-                <span className="stat-sheet-row-value">{formatStatValue(entry.total, entry.unit)}</span>
-              </button>
-            ))}
+            <div className="stat-category-entries">
+              {entries.map(([key, entry]) => (
+                <button
+                  key={key}
+                  className={`stat-sheet-row${selectedStat === key ? ' selected' : ''}`}
+                  onClick={e => handleStatClick(e, key)}
+                >
+                  <span className="stat-sheet-row-name">{entry.display_name}</span>
+                  <span className="stat-sheet-row-value">{formatStatValue(entry.total, entry.unit)}</span>
+                </button>
+              ))}
+            </div>
           </div>
         ))}
       </div>
