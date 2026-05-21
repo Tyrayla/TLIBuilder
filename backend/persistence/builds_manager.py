@@ -45,11 +45,15 @@ def _read_file(build_id: str) -> dict:
     slates_raw = data.get('slates', '')
     slates = json.loads(slates_raw) if slates_raw else []
 
+    conditions_raw = data.get('conditions', '')
+    conditions = json.loads(conditions_raw) if conditions_raw else []
+
     return {
         'id': data.get('id', build_id),
         'name': data.get('name', ''),
         'slots': slots,
         'slates': slates,
+        'conditions': conditions,
     }
 
 
@@ -71,6 +75,8 @@ def _write_file(build: dict) -> None:
             f.write(f"slot{i}_tree={tree}\n")
             f.write(f"slot{i}_nodes={nodes_str}\n")
         f.write(f"slates={json.dumps(slates, separators=(',', ':'))}\n")
+        conditions = build.get('conditions') or []
+        f.write(f"conditions={json.dumps(conditions, separators=(',', ':'))}\n")
 
 
 def load() -> list[dict]:

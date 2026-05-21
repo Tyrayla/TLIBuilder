@@ -120,6 +120,7 @@ export interface Build {
   name: string
   slots: (TreeSlot | null)[]
   slates?: SavedSlate[]
+  conditions?: string[]
 }
 
 export interface TreeNode {
@@ -262,11 +263,17 @@ export interface SlatePool {
   core: CoreTalentOption[]
 }
 
+export interface ConditionDef {
+  key: string
+  label: string
+}
+
 export interface StatSource {
-  source_type: string   // "talent" | "slate" — extendable to "gear", "hero_memory", etc.
-  label: string         // e.g. "Goddess of Knowledge Micro", "Ranger Slate Medium"
-  text: string          // original game text: "+15% Critical Strike Rating"
+  source_type: string
+  label: string
+  text: string
   amount: number
+  points: number  // allocated points; >1 for multi-rank talent nodes
 }
 
 export interface StatEntry {
@@ -365,7 +372,7 @@ export const api = {
   getTree: (name: string) => get<TreeData>(`/tree/${encodeURIComponent(name)}`),
 
   getBuilds: () => get<Build[]>('/builds'),
-  postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[]; slates?: SavedSlate[] }) =>
+  postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[]; slates?: SavedSlate[]; conditions?: string[] }) =>
     post<Build>('/builds', build),
   deleteBuild: (id: string) => del<{ ok: boolean }>(`/builds/${id}`),
 
@@ -434,6 +441,7 @@ export const api = {
   engineCompute: (payload: {
     slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
     slates?: SavedSlate[]
+    conditions?: string[]
     skill: {
       name: string; skill_type: string; tags: string[]; damage_types: string[]
       base_level: number; extra_levels?: number
@@ -452,7 +460,10 @@ export const api = {
   engineStats: (payload: {
     slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
     slates?: SavedSlate[]
+    conditions?: string[]
   }) => post<StatSheetResponse>('/engine/stats', payload),
+
+  getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),
 
   validateAllocate: (
     tree_name: string,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { initApi, api, Build, TreeSlot, SavedSlate } from './api/client'
 import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
@@ -17,6 +17,7 @@ interface Session {
   slots: (TreeSlot | null)[]
   activeSlot: number
   slates: SavedSlate[]
+  conditions: string[]
 }
 
 interface CascadeModal {
@@ -32,6 +33,7 @@ const emptySession = (): Session => ({
   slots: [null, null, null, null],
   activeSlot: 0,
   slates: [],
+  conditions: [],
 })
 
 function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
@@ -52,6 +54,13 @@ function App() {
   const [previewSource, setPreviewSource] = useState<Screen>('build-overview')
   const [devMode, setDevMode] = useState(() => localStorage.getItem('devMode') === '1')
   const [deprecatedTools, setDeprecatedTools] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
+  const sessionRef = useRef(session)
+
+  useEffect(() => { sessionRef.current = session }, [session])
+
+  // Sync dirty state to main process for the native close dialog
+  useEffect(() => { window.api?.notifyDirty?.(isDirty) }, [isDirty])
 
   useEffect(() => {
     initApi()
@@ -64,6 +73,26 @@ function App() {
         })
       })
       .catch(e => setAppError(String(e)))
+  }, [])
+
+  // Handle save request from main process (native close dialog "Save" button)
+  useEffect(() => {
+    window.api?.onRequestSave?.(() => {
+      const sess = sessionRef.current
+      if (sess.buildId) {
+        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions }
+        api.postBuild(build)
+          .then(saved => {
+            setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: sess.buildName }))
+            setIsDirty(false)
+          })
+          .catch(() => {})
+          .finally(() => window.api.notifySaveDone())
+      } else {
+        // New unsaved build — can't auto-save without a name, just proceed
+        window.api.notifySaveDone()
+      }
+    })
   }, [])
 
   // Ctrl+Shift+D toggles dev mode globally
@@ -100,6 +129,7 @@ function App() {
 
   const startNewBuild = () => {
     setSession(emptySession())
+    setIsDirty(false)
     setScreen('build-overview')
   }
 
@@ -112,7 +142,9 @@ function App() {
       slots,
       activeSlot: firstEmptySlot(slots),
       slates: build.slates ?? [],
+      conditions: build.conditions ?? [],
     })
+    setIsDirty(false)
     setScreen('build-overview')
   }
 
@@ -136,6 +168,8 @@ function App() {
 
   // ── Tree selection ────────────────────────────────────────────────────────
 
+  const markDirty = () => setIsDirty(true)
+
   const handleSlotReorder = (fromSlot: number, toSlot: number) => {
     setSession(s => {
       const slots = [...s.slots] as (TreeSlot | null)[]
@@ -155,6 +189,7 @@ function App() {
 
       return { ...s, slots: result, activeSlot }
     })
+    markDirty()
   }
 
   const handleSelectTree = (treeName: string) => {
@@ -165,6 +200,7 @@ function App() {
       slots[targetSlot] = { treeName, nodeStates: {} }
       return { ...s, slots, activeSlot: targetSlot }
     })
+    markDirty()
     setScreen('tree-viewer')
   }
 
@@ -193,6 +229,7 @@ function App() {
       if (slotIndex === 0) slots[1] = null  // removing primary cascades slot 2
       return { ...s, slots, activeSlot: firstEmptySlot(slots) }
     })
+    markDirty()
   }
 
   const handleCascadeYes = () => {
@@ -219,6 +256,7 @@ function App() {
       slots[fromSlot] = null
       return { ...s, slots }
     })
+    markDirty()
   }
 
   // Sidebar slot click: empty → tree-selector; filled → tree-viewer
@@ -238,6 +276,7 @@ function App() {
       if (current) slots[s.activeSlot] = { ...current, nodeStates }
       return { ...s, slots }
     })
+    markDirty()
   }
 
   const handleReselect = () => {
@@ -250,16 +289,23 @@ function App() {
     setScreen('tree-selector')
   }
 
+  const handleConditionsChange = (conditions: string[]) => {
+    setSession(s => ({ ...s, conditions }))
+    markDirty()
+  }
+
   const saveBuild = async (name: string) => {
-    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates }
+    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
+    setIsDirty(false)
   }
 
   const saveAsBuild = async (name: string) => {
-    const build = { id: undefined, name, slots: session.slots, slates: session.slates }
+    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
+    setIsDirty(false)
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -288,12 +334,14 @@ function App() {
 
   if (screen === 'build-select') {
     return (
-      <BuildSelectScreen
-        onNewBuild={startNewBuild}
-        onOpenBuild={openBuild}
-        devMode={devMode}
-        onDevTools={() => setScreen('dev-tools')}
-      />
+      <>
+        <BuildSelectScreen
+          onNewBuild={startNewBuild}
+          onOpenBuild={openBuild}
+          devMode={devMode}
+          onDevTools={() => setScreen('dev-tools')}
+        />
+      </>
     )
   }
 
@@ -304,17 +352,16 @@ function App() {
           buildName={session.buildName}
           buildId={session.buildId}
           slots={session.slots}
+          slates={session.slates}
+          conditions={session.conditions}
+          onConditionsChange={handleConditionsChange}
           onBack={goToBuildSelect}
           onTalentTree={goToTreeSelector}
           onSlates={goToSlates}
-          onStats={goToStats}
           onSave={saveBuild}
           onSaveAs={saveAsBuild}
           devMode={devMode}
-          onSeasonChange={() => {
-            // Force tree data reload on next tree-viewer visit by bumping session key
-            setSession(s => ({ ...s }))
-          }}
+          onSeasonChange={() => setSession(s => ({ ...s }))}
         />
         {cascadeOverlay}
       </>
@@ -323,24 +370,29 @@ function App() {
 
   if (screen === 'slate-board') {
     return (
-      <SlateScreen
-        treeColors={treeColors}
-        initialSlates={session.slates}
-        onBack={(slates) => {
-          setSession(s => ({ ...s, slates }))
-          setScreen('build-overview')
-        }}
-      />
+      <>
+        <SlateScreen
+          treeColors={treeColors}
+          initialSlates={session.slates}
+          onBack={(slates) => {
+            setSession(s => ({ ...s, slates }))
+            markDirty()
+            setScreen('build-overview')
+          }}
+        />
+      </>
     )
   }
 
   if (screen === 'stats') {
     return (
-      <StatsScreen
-        slots={session.slots}
-        slates={session.slates}
-        onBack={() => setScreen('build-overview')}
-      />
+      <>
+        <StatsScreen
+          slots={session.slots}
+          slates={session.slates}
+          onBack={() => setScreen('build-overview')}
+        />
+      </>
     )
   }
 
