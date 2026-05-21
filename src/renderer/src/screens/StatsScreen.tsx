@@ -20,6 +20,18 @@ function formatStatValue(total: number, unit: string): string {
   return rounded >= 0 ? `+${rounded}` : `${rounded}`
 }
 
+interface GroupedSource { text: string; label: string; amount: number; count: number }
+
+function groupSources(sources: { text: string; label: string; amount: number }[]): GroupedSource[] {
+  const out: GroupedSource[] = []
+  for (const src of sources) {
+    const match = out.find(g => g.text === src.text && g.label === src.label)
+    if (match) match.count++
+    else out.push({ text: src.text, label: src.label, amount: src.amount, count: 1 })
+  }
+  return out
+}
+
 function shortenLabel(label: string): string {
   const isSlate = label.startsWith('Slate — ')
   const base = isSlate ? label.slice('Slate — '.length) : label
@@ -143,12 +155,13 @@ export default function StatsScreen({ slots, slates, onBack }: Props) {
             <span className="stat-tooltip-total">{formatStatValue(selectedEntry.total, selectedEntry.unit)}</span>
           </div>
           <div className="stat-tooltip-list">
-            {selectedEntry.sources.map((src, i) => (
+            {groupSources(selectedEntry.sources).map((g, i) => (
               <div key={i} className="stat-tooltip-entry">
                 <span className="stat-tooltip-entry-value">
-                  {src.text || formatStatValue(src.amount, selectedEntry.unit)}
+                  {g.text || formatStatValue(g.amount, selectedEntry.unit)}
+                  {g.count > 1 && <span className="stat-tooltip-entry-count"> ×{g.count}</span>}
                 </span>
-                <span className="stat-tooltip-entry-source">{shortenLabel(src.label)}</span>
+                <span className="stat-tooltip-entry-source">{shortenLabel(g.label)}</span>
               </div>
             ))}
           </div>
