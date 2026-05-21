@@ -370,6 +370,13 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=10,
         source_types=_T,
     ),
+    Stat.MINION_FIRE_PEN_INC: StatMeta(
+        "Minion Fire Penetration", "Minion", "penetration", "%",
+        subgroup="minion_penetration",  pipeline_stage="penetration",
+        tags=("minion", "fire"),        affects=_HIT_DOT,
+        stacking_rule="additive",       ui_priority=9,
+        source_types=_T,
+    ),
     Stat.MINION_COLD_DMG_INC: StatMeta(
         "Minion Cold Damage", "Minion", "increased", "%",
         subgroup="minion_damage",      pipeline_stage="increased_reduced",
@@ -1214,7 +1221,7 @@ STAT_META: dict[Stat, StatMeta] = {
         ui_priority=22,                source_types=_T,
     ),
     Stat.PARALYSIS_EFFECT_2H_INC: StatMeta(
-        "Paralysis Effect Two-Handed", "Ailments", "increased", "%",
+        "Inflicted Paralysis Effect", "Ailments", "increased", "%",
         subgroup="status_effects",     stacking_rule="additive",
         ui_priority=70,                source_types=_T,
     ),

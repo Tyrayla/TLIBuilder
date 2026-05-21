@@ -69,6 +69,7 @@ class Stat(Enum):
     MINION_DOUBLE_DMG_CHANCE = "minion_double_dmg_chance"
     MINION_SKILL_LEVEL = "minion_skill_level"
     MINION_FIRE_DMG_INC = "minion_fire_dmg_inc"
+    MINION_FIRE_PEN_INC = "minion_fire_pen_inc"
     MINION_COLD_DMG_INC = "minion_cold_dmg_inc"
     MINION_LIGHTNING_DMG_INC = "minion_lightning_dmg_inc"
     MINION_EROSION_DMG_INC = "minion_erosion_dmg_inc"

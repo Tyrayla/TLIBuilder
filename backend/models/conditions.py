@@ -63,6 +63,9 @@ ALL_CONDITIONS: list[ConditionDef] = [
     ConditionDef("sentry_not_used_recently",    "Sentry Not Used Recently",          "Skill State"),
     ConditionDef("main_skill_not_used_recently","Main Skill Not Used Recently",      "Skill State"),
     ConditionDef("channeled_not_capped",        "Channeled Stacks Not Capped",       "Skill State"),
+
+    # ── Trigger ───────────────────────────────────────────────────────────────
+    ConditionDef("on_hit",                      "On Hit",                            "Trigger"),
 ]
 
 # Fast lookup by key

@@ -48,6 +48,8 @@ _COND_STRIP_RE = re.compile(
     r"in\s+the\s+last\b|per\s+(?!second))",
     re.I,
 )
+# Strips trailing prepositions/verbs left over after conditional clause removal.
+_TRAILING_STRIP_RE = re.compile(r"\s+\b(to|by|from|dealt|against|taken)\s*$", re.I)
 
 # ── Split rules ───────────────────────────────────────────────────────────────
 
@@ -175,9 +177,15 @@ def _strip_conditional(text: str) -> str:
     """Return the stat-value portion of a conditional text (before the conditional clause).
     Used to improve Jaccard matching by removing words that describe the condition."""
     m = _COND_STRIP_RE.search(text)
-    if m and m.start() > 0:
-        return text[:m.start()].strip()
-    return text
+    result = text[:m.start()].strip() if m and m.start() > 0 else text
+    # Strip trailing prepositions/verbs iteratively (e.g. "damage dealt to" → "damage")
+    while True:
+        m2 = _TRAILING_STRIP_RE.search(result)
+        if m2:
+            result = result[:m2.start()].strip()
+        else:
+            break
+    return result
 
 
 # ── Condition key detection ───────────────────────────────────────────────────
@@ -189,7 +197,7 @@ _CONDITION_MAP: list[tuple[re.Pattern, str]] = [
     (re.compile(r"holding a shield|when.*shield|while.*shield", re.I), "holding_shield"),
     (re.compile(r"two.handed weapon",                           re.I), "holding_two_handed"),
     (re.compile(r"one.handed weapon",                           re.I), "holding_one_handed"),
-    (re.compile(r"dual wield",                                  re.I), "dual_wielding"),
+    (re.compile(r"dual.wield|while\s+dual\b",                   re.I), "dual_wielding"),
     (re.compile(r"tenacity blessing",                           re.I), "tenacity_active"),
     (re.compile(r"focus blessing",                              re.I), "focus_active"),
     (re.compile(r"agility blessing",                            re.I), "agility_active"),
@@ -223,6 +231,7 @@ _CONDITION_MAP: list[tuple[re.Pattern, str]] = [
     (re.compile(r"sentry.*not used",                            re.I), "sentry_not_used_recently"),
     (re.compile(r"main skill.*not used",                        re.I), "main_skill_not_used_recently"),
     (re.compile(r"channeled stacks.*not.*cap|stacks have not reached cap", re.I), "channeled_not_capped"),
+    (re.compile(r"\bon hit\b",                                  re.I), "on_hit"),
 ]
 
 
@@ -462,7 +471,14 @@ def build_filter(snapshot: dict) -> dict:
         if _is_conditional(text):
             cond_key = _detect_condition(text)
             if cond_key:
-                result = _jaccard_match(_strip_conditional(text), candidates, overrides)
+                stripped = _strip_conditional(text)
+                # Try split first (handles "X% Attack and Cast Speed when Y" combos)
+                split = _try_split(stripped)
+                if split:
+                    for stat_val, sv in split:
+                        _apply_match(stat_val, sv, text, node_type, tree, condition=cond_key)
+                    return
+                result = _jaccard_match(stripped, candidates, overrides)
                 if result:
                     _apply_match(result[0], result[1], text, node_type, tree, condition=cond_key)
                     return

@@ -1,1 +1,4 @@
-{}
+{
+  "chance to blind the target on hit": {"stat": "blind_chance", "example": "+20% chance to Blind the target on hit"},
+  "chance to inflict slow on hit": {"stat": "slow_chance", "example": "+5% chance to inflict Slow on hit"}
+}
