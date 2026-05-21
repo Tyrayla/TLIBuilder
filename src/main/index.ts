@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { app, shell, BrowserWindow, ipcMain } =
+const { app, shell, BrowserWindow, ipcMain, dialog } =
   require('electron') as typeof import('electron')
 import { join } from 'path'
 import { spawn, execFileSync, ChildProcess } from 'child_process'
@@ -9,6 +9,9 @@ const isDev = process.env.NODE_ENV === 'development'
 const isVerbose = process.env.VERBOSE === 'true'
 let PYTHON_PORT = 8765
 let pythonProcess: ChildProcess | null = null
+let isDirtyMain = false
+
+ipcMain.on('dirty-change', (_event, dirty: boolean) => { isDirtyMain = dirty })
 
 const log = (...args: unknown[]) => { if (isVerbose) console.log('[main]', ...args) }
 const err = (...args: unknown[]) => { if (isVerbose) console.error('[main]', ...args) }
@@ -156,6 +159,30 @@ function createWindow(): void {
   })
 
   mainWindow.removeMenu()
+
+  mainWindow.on('close', async (e) => {
+    e.preventDefault()
+    if (!isDirtyMain) {
+      mainWindow.destroy()
+      return
+    }
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      buttons: ['Save', "Don't Save"],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Unsaved Changes',
+      message: 'Your build has unsaved changes.',
+      detail: 'Do you want to save before closing?',
+      noLink: true,
+    })
+    if (response === 0) {
+      mainWindow.webContents.send('request-save')
+      ipcMain.once('save-done', () => mainWindow.destroy())
+    } else {
+      mainWindow.destroy()
+    }
+  })
 
   mainWindow.on('ready-to-show', () => {
     log('createWindow — ready-to-show, displaying window')
