@@ -10,6 +10,7 @@ class SourceEntry:
     source_type:  str   # "talent" | "slate" — extendable to "gear", "hero_memory", etc.
     label:        str   # human-readable origin: "Goddess of Knowledge Micro", "Ranger Slate Medium"
     text:         str   # original game text: "+15% Critical Strike Rating"
+    points:       int = 1  # points allocated (>1 for multi-rank talent nodes)
 
 
 @dataclass
@@ -68,8 +69,9 @@ class ComputedResult:
 @dataclass
 class BuildInput:
     """Everything the engine needs to run a calculation."""
-    slots:    list[dict | None]       # TreeSlot dicts: {treeName, nodeStates}
-    slates:   list[dict]              # SavedSlate dicts from the build
-    season:   str                     # active season name for data lookups
-    skill:    SkillConfig | None = None
-    enemy:    EnemyConfig | None = None
+    slots:      list[dict | None]       # TreeSlot dicts: {treeName, nodeStates}
+    slates:     list[dict]              # SavedSlate dicts from the build
+    season:     str                     # active season name for data lookups
+    skill:      SkillConfig | None = None
+    enemy:      EnemyConfig | None = None
+    conditions: list[str] = field(default_factory=list)  # active condition keys

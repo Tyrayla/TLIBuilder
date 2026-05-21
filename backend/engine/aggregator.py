@@ -11,6 +11,14 @@ _NODE_TYPE_LABELS = {
     "legendary_medium": "Legendary",
 }
 
+_SLATE_KIND_LABELS = {
+    "pedigree":                       "Pedigree",
+    "fallen_starlight":               "Starlight",
+    "corner_of_divinity":             "Corner",
+    "spark_of_moth_fire":             "Moth",
+    "when_sparks_set_prairie_ablaze": "Prairie",
+}
+
 def _node_type_display(node_type: str) -> str:
     return _NODE_TYPE_LABELS.get(node_type, node_type.replace("_", " ").title())
 
@@ -43,6 +51,8 @@ def _apply_node_recipes(
     source_type: str = "talent",
     label_prefix: str = "",
     node_recipes_by_id: dict | None = None,
+    points: int = 1,
+    active_conditions: frozenset[str] = frozenset(),
 ) -> None:
     """Look up recipes for this specific node and add stat values at the correct rank.
 
@@ -64,6 +74,9 @@ def _apply_node_recipes(
     label = f"{label_prefix}{_node_type_display(node_type)}"
 
     for recipe in type_recipes:
+        cond = recipe.get("condition")
+        if cond and cond not in active_conditions:
+            continue
         values = recipe.get("values", [])
         if not values:
             continue
@@ -74,11 +87,13 @@ def _apply_node_recipes(
             source_type=source_type,
             label=label,
             text=recipe.get("text", ""),
+            points=points,
         )
         source.add_with_source(recipe["stat"], values[idx], entry)
 
 
-def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dict) -> BuildSource:
+def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dict,
+              active_conditions: frozenset[str] | None = None) -> BuildSource:
     """
     Collect all stat contributions from talent nodes and slates into a BuildSource.
 
@@ -86,6 +101,7 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
     filter_data:  the node_type_filter.json dict with a "recipes" key
     """
     source = BuildSource()
+    conds = active_conditions if active_conditions is not None else frozenset(build.conditions)
     recipes_by_tree = filter_data.get("recipes", {})
     node_recipes_by_id = filter_data.get("node_recipes", {})
 
@@ -117,6 +133,8 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
                 source, tree_name, node_id, current_points, max_points, node_type, recipes_by_tree,
                 source_type="talent", label_prefix=f"{tree_name} ",
                 node_recipes_by_id=node_recipes_by_id,
+                points=current_points,
+                active_conditions=conds,
             )
 
     # ── Slate slots ────────────────────────────────────────────────────────────
@@ -144,10 +162,18 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
                 continue
 
             node_type = _normalize_node_type(node.get("node_type", ""))
+            slate_kind = slate.get("kind", "base")
+            if slate_kind == "base":
+                tree_short = tree_name.split()[-1] if tree_name else tree_name
+                slate_label_prefix = f"Slate · {tree_short} "
+            else:
+                kind_label = _SLATE_KIND_LABELS.get(slate_kind, slate_kind.replace("_", " ").title())
+                slate_label_prefix = f"Slate · {kind_label} "
             _apply_node_recipes(
                 source, tree_name, node_id, 1, 1, node_type, recipes_by_tree,
-                source_type="slate", label_prefix=f"Slate — {tree_name} ",
+                source_type="slate", label_prefix=slate_label_prefix,
                 node_recipes_by_id=node_recipes_by_id,
+                active_conditions=conds,
             )
 
     return source
