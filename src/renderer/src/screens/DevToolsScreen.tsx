@@ -246,12 +246,16 @@ function CategoryCard({ label, description, badge, enabled, children }: Category
 function SeasonsTab() {
   const talentFilesRef = useRef<HTMLInputElement>(null)
   const legendaryFilesRef = useRef<HTMLInputElement>(null)
+  const skillsFilesRef = useRef<HTMLInputElement>(null)
+  const heroTraitFilesRef = useRef<HTMLInputElement>(null)
   const [seasons, setSeasons] = useState<SeasonSummary[]>([])
   const [seasonName, setSeasonName] = useState('')
   const [settingActive, setSettingActive] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [talentImport, setTalentImport] = useState<ImportState>(emptyImport())
   const [legendaryImport, setLegendaryImport] = useState<ImportState>(emptyImport())
+  const [skillsImport, setSkillsImport] = useState<ImportState>(emptyImport())
+  const [heroTraitImport, setHeroTraitImport] = useState<ImportState>(emptyImport())
 
   const loadSeasons = useCallback(() => {
     api.listSeasons().then(setSeasons).catch(() => {})
@@ -316,6 +320,72 @@ function SeasonsTab() {
     }
   }
 
+  const handleImportSkills = async () => {
+    const files = skillsFilesRef.current?.files
+    if (!seasonName.trim() || !files || files.length === 0) return
+    setSkillsImport({ importing: true, result: null, err: '' })
+    try {
+      let totalAdded = 0
+      let finalTotal = 0
+      for (const file of Array.from(files)) {
+        const data = JSON.parse(await file.text())
+        if (!data || !Array.isArray(data.items)) {
+          throw new Error(`${file.name}: not a valid skill JSON (missing items array)`)
+        }
+        const res = await api.importSkills(seasonName.trim(), data)
+        totalAdded += res.added
+        finalTotal = res.total
+      }
+      setSkillsImport({ importing: false, result: `Imported ${totalAdded} skill(s) — ${finalTotal} stored in season`, err: '' })
+      loadSeasons()
+    } catch (ex) {
+      setSkillsImport({ importing: false, result: null, err: String(ex) })
+    } finally {
+      if (skillsFilesRef.current) skillsFilesRef.current.value = ''
+    }
+  }
+
+  const handleClearSkills = async () => {
+    try {
+      await api.clearSkills()
+      setSkillsImport(emptyImport())
+      loadSeasons()
+    } catch { /* ignore */ }
+  }
+
+  const handleImportHeroTraits = async () => {
+    const files = heroTraitFilesRef.current?.files
+    if (!seasonName.trim() || !files || files.length === 0) return
+    setHeroTraitImport({ importing: true, result: null, err: '' })
+    try {
+      let finalTotal = 0
+      let finalHeroes = 0
+      for (const file of Array.from(files)) {
+        const data = JSON.parse(await file.text())
+        if (!data || typeof data !== 'object' || !data.trait_id) {
+          throw new Error(`${file.name}: not a valid hero trait JSON (missing trait_id)`)
+        }
+        const res = await api.importHeroTrait(seasonName.trim(), data)
+        finalTotal = res.total
+        finalHeroes = res.heroes
+      }
+      setHeroTraitImport({ importing: false, result: `${finalTotal} trait(s) across ${finalHeroes} hero(es)`, err: '' })
+      loadSeasons()
+    } catch (ex) {
+      setHeroTraitImport({ importing: false, result: null, err: String(ex) })
+    } finally {
+      if (heroTraitFilesRef.current) heroTraitFilesRef.current.value = ''
+    }
+  }
+
+  const handleClearHeroTraits = async () => {
+    try {
+      await api.clearHeroTraits()
+      setHeroTraitImport(emptyImport())
+      loadSeasons()
+    } catch { /* ignore */ }
+  }
+
   const handleSetActive = async (name: string | null) => {
     setSettingActive(true)
     try { await api.setActiveSeason(name); loadSeasons() }
@@ -369,6 +439,8 @@ function SeasonsTab() {
                     <span>{s.trees.length} trees · {nodeTotal} nodes</span>
                     {s.new_god_count != null && <span>{s.new_god_count} new god talents</span>}
                     {s.legendary_gear_count != null && <span>{s.legendary_gear_count} legendary items</span>}
+                    {s.skill_count != null && <span>{s.skill_count} skills</span>}
+                    {s.hero_trait_count != null && <span>{s.hero_trait_count} hero traits</span>}
                   </div>
                 </div>
                 {!s.is_active && (
@@ -441,8 +513,42 @@ function SeasonsTab() {
         {legendaryImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{legendaryImport.result}</div>}
       </CategoryCard>
       <CategoryCard label="Normal Gear" description="Normal and magic equipment pool" enabled={false} />
-      <CategoryCard label="Skills" description="Active skill definitions and modifiers" enabled={false} />
-      <CategoryCard label="Hero Traits" description="Hero-specific passive trait trees" enabled={false} />
+      <CategoryCard label="Skills" description="Active skill definitions, tags, and effect text" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            Choose Files
+            <input ref={skillsFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }} />
+          </label>
+          <button className="btn btn-primary btn-sm" onClick={handleImportSkills}
+            disabled={skillsImport.importing || !seasonName.trim()}>
+            {skillsImport.importing ? 'Importing…' : 'Import'}
+          </button>
+          <button className="btn btn-danger btn-sm" onClick={handleClearSkills}
+            disabled={skillsImport.importing || !seasonName.trim()}>
+            Clear
+          </button>
+        </div>
+        {skillsImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{skillsImport.err}</div>}
+        {skillsImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{skillsImport.result}</div>}
+      </CategoryCard>
+      <CategoryCard label="Hero Traits" description="Hero and trait variant definitions, base levels, and advanced traits" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            Choose Files
+            <input ref={heroTraitFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }} />
+          </label>
+          <button className="btn btn-primary btn-sm" onClick={handleImportHeroTraits}
+            disabled={heroTraitImport.importing || !seasonName.trim()}>
+            {heroTraitImport.importing ? 'Importing…' : 'Import'}
+          </button>
+          <button className="btn btn-danger btn-sm" onClick={handleClearHeroTraits}
+            disabled={heroTraitImport.importing || !seasonName.trim()}>
+            Clear
+          </button>
+        </div>
+        {heroTraitImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{heroTraitImport.err}</div>}
+        {heroTraitImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{heroTraitImport.result}</div>}
+      </CategoryCard>
       <CategoryCard label="Pact Spirits" description="Pact spirit bonuses and tiers" enabled={false} />
     </div>
   )

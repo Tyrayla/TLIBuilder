@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-05-21T08:36:14.591Z
-> Files: 116 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-05-21T09:37:26.121Z
+> Files: 118 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ../../.claude/plans/
 
@@ -32,7 +32,7 @@
 ## backend/
 
 - `requirements-dev.txt` (~3 tok)
-- `server.py` — API: 9 endpoints (~9452 tok)
+- `server.py` — API: 9 endpoints (~10404 tok)
 
 ## backend/engine/
 
@@ -60,7 +60,7 @@
 - `__init__.py` (~0 tok)
 - `builds_manager.py` — load, save_build, delete_build (~892 tok)
 - `save_manager.py` — load/save/clear tree state in data/save.json (~226 tok)
-- `season_manager.py` — list_seasons, get_active_season, set_active_season, load_all_season_trees (~1347 tok)
+- `season_manager.py` — list_seasons, get_active_season, set_active_season, load_all_season_trees (~1829 tok)
 - `snapshot_manager.py` — exists/load/save talent_snapshot.json in data/ (~151 tok)
 - `tree_config_manager.py` — snapshot/upsert_node/remove_node/toggle_connection for data/trees/ legacy config (~746 tok)
 
@@ -84,8 +84,10 @@
 
 - `__init__.py` (~0 tok)
 - `export_stat_meta.py` — build_csv, build_unmatched_review, main (~2780 tok)
+- `hero_trait_importer.py` — clean_hero_trait, parse_hero_trait_file, merge_hero_traits (~970 tok)
 - `node_type_filter_builder.py` — load_overrides, save_overrides, add_override, remove_override (~8084 tok)
 - `season_importer.py` — make_node_id, build_slug_map, import_nodes, extract_nodes_from_file (~1931 tok)
+- `skill_importer.py` — clean_skill, parse_skill_file, merge_skills (~567 tok)
 - `snapshot_diff.py` — diff_snapshots (~1957 tok)
 - `talent_parser.py` — parse_document (~2378 tok)
 
@@ -175,7 +177,7 @@
 
 ## src/renderer/src/api/
 
-- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 40 more (~4235 tok)
+- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 44 more (~4638 tok)
 
 ## src/renderer/src/components/
 
@@ -185,7 +187,7 @@
 
 - `BuildOverviewScreen.tsx` — NUMERIC_CONDITION_KEYS (~5638 tok)
 - `BuildSelectScreen.tsx` — Build selection/management screen (~822 tok)
-- `DevToolsScreen.tsx` — DIFF_COLOR (~11376 tok)
+- `DevToolsScreen.tsx` — DIFF_COLOR (~12786 tok)
 - `SlateScreen.tsx` — ── Board ───────────────────────────────────────────────────────────────────── (~17456 tok)
 - `StatsScreen.tsx` — CATEGORY_ORDER (~1993 tok)
 - `TreeSelectorScreen.tsx` — ORDINALS (~1993 tok)
