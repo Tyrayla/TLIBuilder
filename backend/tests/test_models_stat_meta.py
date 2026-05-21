@@ -32,6 +32,13 @@ class TestStatMetaStructure:
                 f"Known: {CATEGORIES}"
             )
 
+    def test_all_stat_meta_keys_are_valid_enum_members(self):
+        """Every key in STAT_META must be a live Stat enum member.
+        Guards against stat_meta entries surviving after a rename/delete in stat.py."""
+        stat_values = {s.value for s in Stat}
+        stale = [stat.value for stat in STAT_META if stat.value not in stat_values]
+        assert not stale, f"STAT_META has entries for deleted/renamed stats: {stale}"
+
 
 class TestPoolMetaCoverage:
     def test_every_pool_entry_has_meta(self):

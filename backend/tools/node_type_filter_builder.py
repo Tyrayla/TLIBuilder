@@ -41,6 +41,14 @@ _NUM_RE = re.compile(r"[+-]?\d+(?:\.\d+)?")
 _STRIP_NUMS_RE = re.compile(r"[+-]?\d+(?:\.\d+)?%?\s*")
 _RANGE_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\b")
 
+# Strips the conditional suffix so Jaccard matches on the stat portion only.
+_COND_STRIP_RE = re.compile(
+    r"\s+(?:while\b|when\b|if\b|against\b|recently\b|on\s+hit\b|on\s+defeat\b|"
+    r"upon\b|for\s+every\b|for\s+each\b|nearby\b|distant\b|in\s+proximity\b|"
+    r"in\s+the\s+last\b|per\s+(?!second))",
+    re.I,
+)
+
 # ── Split rules ───────────────────────────────────────────────────────────────
 
 # Speed combos: word-set subset → list of stat values to emit (same value each)
@@ -161,6 +169,15 @@ def _is_conditional(text: str) -> bool:
     if "per " in lower and "per second" not in lower:
         return True
     return any(p in lower for p in _COND_PHRASES)
+
+
+def _strip_conditional(text: str) -> str:
+    """Return the stat-value portion of a conditional text (before the conditional clause).
+    Used to improve Jaccard matching by removing words that describe the condition."""
+    m = _COND_STRIP_RE.search(text)
+    if m and m.start() > 0:
+        return text[:m.start()].strip()
+    return text
 
 
 # ── Condition key detection ───────────────────────────────────────────────────
@@ -445,7 +462,7 @@ def build_filter(snapshot: dict) -> dict:
         if _is_conditional(text):
             cond_key = _detect_condition(text)
             if cond_key:
-                result = _jaccard_match(text, candidates, overrides)
+                result = _jaccard_match(_strip_conditional(text), candidates, overrides)
                 if result:
                     _apply_match(result[0], result[1], text, node_type, tree, condition=cond_key)
                     return
