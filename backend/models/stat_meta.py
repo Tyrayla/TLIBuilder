@@ -863,6 +863,11 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=15,
         source_types=_T,
     ),
+    Stat.COLD_DMG_REFLECTION: StatMeta(
+        "Cold Damage Reflection", "Cold", "added_flat",
+        subgroup="reflection",         stacking_rule="additive",
+        ui_priority=75,                source_types=_TB,
+    ),
 
     # ── Fire ──────────────────────────────────────────────────────────────────
     Stat.FIRE_DMG_INC: StatMeta(
@@ -990,6 +995,11 @@ STAT_META: dict[Stat, StatMeta] = {
         tags=("erosion",),             affects=_HIT_DOT,
         stacking_rule="additive",      ui_priority=15,
         source_types=_T,
+    ),
+    Stat.EROSION_DMG_REFLECTION: StatMeta(
+        "Erosion Damage Reflection", "Erosion", "added_flat",
+        subgroup="reflection",         stacking_rule="additive",
+        ui_priority=75,                source_types=_TB,
     ),
 
     # ── Elemental ─────────────────────────────────────────────────────────────
