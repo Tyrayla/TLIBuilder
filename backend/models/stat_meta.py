@@ -32,22 +32,37 @@ _ALL_DMGF = ("hit", "dot", "secondary", "reflect")
 STAT_META: dict[Stat, StatMeta] = {
 
     # ── Attributes ────────────────────────────────────────────────────────────
-    Stat.STRENGTH: StatMeta(
+    Stat.STRENGTH_FLAT: StatMeta(
         "Strength", "Attributes", "base_stat",
         subgroup="attribute",     pipeline_stage="attribute",
         affects=_HIT_DOT,         stacking_rule="additive",
         ui_priority=5,            source_types=_TB,
     ),
-    Stat.DEXTERITY: StatMeta(
+    Stat.STRENGTH_INC: StatMeta(
+        "Strength", "Attributes", "increased", "%",
+        subgroup="attribute",     stacking_rule="additive",
+        ui_priority=5,            source_types=_TB,
+    ),
+    Stat.DEXTERITY_FLAT: StatMeta(
         "Dexterity", "Attributes", "base_stat",
         subgroup="attribute",     pipeline_stage="attribute",
         affects=_HIT_DOT,         stacking_rule="additive",
         ui_priority=5,            source_types=_TB,
     ),
-    Stat.INTELLIGENCE: StatMeta(
+    Stat.DEXTERITY_INC: StatMeta(
+        "Dexterity", "Attributes", "increased", "%",
+        subgroup="attribute",     stacking_rule="additive",
+        ui_priority=5,            source_types=_TB,
+    ),
+    Stat.INTELLIGENCE_FLAT: StatMeta(
         "Intelligence", "Attributes", "base_stat",
         subgroup="attribute",     pipeline_stage="attribute",
         affects=_HIT_DOT,         stacking_rule="additive",
+        ui_priority=5,            source_types=_TB,
+    ),
+    Stat.INTELLIGENCE_INC: StatMeta(
+        "Intelligence", "Attributes", "increased", "%",
+        subgroup="attribute",     stacking_rule="additive",
         ui_priority=5,            source_types=_TB,
     ),
     Stat.ALL_STATS_FLAT: StatMeta(
@@ -151,12 +166,6 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",     ui_priority=11,
         source_types=_T,
     ),
-    Stat.ATTACK_CAST_SPEED_INC: StatMeta(
-        "Attack and Cast Speed", "Attack Speed", "increased", "%",
-        subgroup="speed",             stacking_rule="additive",
-        ui_priority=59,               source_types=_T,
-    ),
-
     # ── Spell ─────────────────────────────────────────────────────────────────
     Stat.SPELL_DMG_INC: StatMeta(
         "Spell Damage", "Spell", "increased", "%",
@@ -360,10 +369,16 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="minion_life",        stacking_rule="additive",
         ui_priority=31,                source_types=_T,
     ),
-    Stat.MINION_ATTACK_CAST_SPEED_INC: StatMeta(
-        "Minion Attack and Cast Speed", "Minion", "increased", "%",
+    Stat.MINION_ATTACK_SPEED_INC: StatMeta(
+        "Minion Attack Speed", "Minion", "increased", "%",
         subgroup="speed",              tags=("minion",),
         stacking_rule="additive",      ui_priority=60,
+        source_types=_T,
+    ),
+    Stat.MINION_CAST_SPEED_INC: StatMeta(
+        "Minion Cast Speed", "Minion", "increased", "%",
+        subgroup="speed",              tags=("minion",),
+        stacking_rule="additive",      ui_priority=61,
         source_types=_T,
     ),
     Stat.MINION_LIFE_REGEN_SPEED_INC: StatMeta(
@@ -1071,6 +1086,18 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=10,
         source_types=_T,
     ),
+    Stat.CHANNELED_ATTACK_SPEED_INC: StatMeta(
+        "Channeled Attack Speed", "Attack Speed", "increased", "%",
+        subgroup="speed",              tags=("channeled", "attack"),
+        stacking_rule="additive",      ui_priority=59,
+        source_types=_T,
+    ),
+    Stat.CHANNELED_CAST_SPEED_INC: StatMeta(
+        "Channeled Cast Speed", "Cast Speed", "increased", "%",
+        subgroup="speed",              tags=("channeled", "spell"),
+        stacking_rule="additive",      ui_priority=59,
+        source_types=_T,
+    ),
     Stat.TRIGGERED_DMG_INC: StatMeta(
         "Triggered Skill Damage", "Generic", "increased", "%",
         subgroup="generic_damage",     pipeline_stage="increased_reduced",
@@ -1489,6 +1516,11 @@ STAT_META: dict[Stat, StatMeta] = {
         "Armor", "Defense", "added_flat",
         subgroup="defense",            stacking_rule="additive",
         ui_priority=31,                source_types=_TB,
+    ),
+    Stat.ARMOR_INC: StatMeta(
+        "Armor", "Defense", "increased", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=31,                source_types=_T,
     ),
     Stat.EVASION_FLAT: StatMeta(
         "Evasion", "Defense", "added_flat",
