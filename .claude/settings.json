@@ -62,7 +62,22 @@
       "Bash(py -3.12 -m pytest tests/test_models_stat.py tests/test_models_stat_meta.py -v)",
       "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\\\\src\\\\renderer\\\\src\\\\index.css' | Measure-Object -Line\\).Lines\")",
       "Bash(py -3.12 -m pytest tests/ -q)",
-      "Bash(python -c \"import json; d=json.load\\(open\\('data/seasons/SS12 Lunaria/goddess_of_hunting.json'\\)\\); node=d['nodes'][0]; print\\(json.dumps\\(node, indent=2\\)\\)\")"
+      "Bash(python -c \"import json; d=json.load\\(open\\('data/seasons/SS12 Lunaria/goddess_of_hunting.json'\\)\\); node=d['nodes'][0]; print\\(json.dumps\\(node, indent=2\\)\\)\")",
+      "Bash(py -3.12 -c ' *)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('.wolf/buglog.json'\\)\\); print\\(len\\(d['bugs']\\), 'bugs; last id:', d['bugs'][-1]['id']\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:9420/api/health)",
+      "Bash(py -3.12 -m pytest tests/ -v --tb=no -q)",
+      "Bash(py -3.12 -m pytest tests/ -v --tb=no)",
+      "Bash(py -3.12 -m pytest tests/ -v --tb=short)",
+      "Bash(py -3.12 -m pytest tests/ -v --tb=short -q)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('data/node_type_filter.json'\\)\\); print\\(d['_meta']\\)\")",
+      "Bash(py -3.12 -c \"from tools.node_type_filter_builder import build_filter, save_filter; from persistence.snapshot_manager import load_snapshot; snap = load_snapshot\\(\\); f = build_filter\\(snap\\); save_filter\\(f\\); m = f.get\\('_meta', {}\\); print\\(f'matched={m.get\\(\\\\\"matched\\\\\"\\)}, ambiguous={m.get\\(\\\\\"ambiguous\\\\\"\\)}, unmatched={m.get\\(\\\\\"unmatched\\\\\"\\)}, conditional={m.get\\(\\\\\"conditional\\\\\"\\)}'\\)\")",
+      "Bash(py -3.12 -c \"from tools.node_type_filter_builder import build_filter, save_filter; from persistence.snapshot_manager import SnapshotManager; snap = SnapshotManager\\(\\).load\\(\\); f = build_filter\\(snap\\); save_filter\\(f\\); m = f.get\\('_meta', {}\\); print\\(f'matched={m.get\\(\\\\\"matched\\\\\"\\)}, ambiguous={m.get\\(\\\\\"ambiguous\\\\\"\\)}, unmatched={m.get\\(\\\\\"unmatched\\\\\"\\)}, conditional={m.get\\(\\\\\"conditional\\\\\"\\)}'\\)\")",
+      "Bash(py -3.12 -c \"from tools.node_type_filter_builder import build_filter, save_filter; from persistence import snapshot_manager; snap = snapshot_manager.load\\(\\); f = build_filter\\(snap\\); save_filter\\(f\\); m = f.get\\('_meta', {}\\); print\\(f'matched={m.get\\(\\\\\"matched\\\\\"\\)}, ambiguous={m.get\\(\\\\\"ambiguous\\\\\"\\)}, unmatched={m.get\\(\\\\\"unmatched\\\\\"\\)}, conditional={m.get\\(\\\\\"conditional\\\\\"\\)}'\\)\")",
+      "Bash(git -C \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\" status)",
+      "Bash(git -C \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\" log --oneline -6)",
+      "Bash(git -C \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\" diff --stat HEAD)",
+      "Bash(git -C \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\" add backend/engine/pipeline.py backend/models/stat.py backend/models/stat_meta.py backend/server.py data/node_type_filter.json data/node_type_filter_overrides.json src/renderer/src/App.tsx src/renderer/src/api/client.ts src/renderer/src/index.css src/renderer/src/screens/BuildOverviewScreen.tsx .wolf/anatomy.md .wolf/buglog.json .wolf/cerebrum.md .claude/settings.json)"
     ]
   },
   "hooks": {

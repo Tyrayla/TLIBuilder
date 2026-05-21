@@ -18,7 +18,8 @@
 - **node_type_filter_builder candidate pool:** Builder uses STAT_META (all ~180 stats) as candidates, NOT NODE_MODIFIER_POOL. The pool's min/max values were never used in build_filter — it was only acting as a whitelist, blocking newly-added stats.
 - **node_type_filter scoring:** Jaccard `overlap/|union|` instead of `overlap/len(dn_words)`. Longer/more-specific display names win over generic single-word ones automatically. Threshold 0.5.
 - **stat-audit.md:** Completed by user. All YES/RENAME/NO decisions applied — stat.py and stat_meta.py now have ~180 enum members covering damage, ailments, life/mana/ES, defense, buffs, gear, and utility stats. node_modifier_pool.py updated for ARMOR→ARMOR_FLAT rename.
-- **Stat renames from audit:** MAX_LIFE→MAX_LIFE_FLAT, MAX_MANA→MAX_MANA_FLAT, ARMOR→ARMOR_FLAT, COOLDOWN_REDUCTION_INC→CDR_SPEED_INC. LIFE_LEECH_RATE removed entirely.
+- **Stat renames from audit:** MAX_LIFE→MAX_LIFE_FLAT, MAX_MANA→MAX_MANA_FLAT, ARMOR→ARMOR_FLAT, COOLDOWN_REDUCTION_INC→CDR_SPEED_INC. LIFE_LEECH_RATE removed entirely. STRENGTH/DEXTERITY/INTELLIGENCE → _FLAT variants, _INC added.
+- **Flat-vs-inc bug pattern:** Any stat that exists only as a flat variant will absorb % modifier texts (Jaccard tiebreaker needs both flat and inc to exist to route correctly). When a % stat displays as a tiny decimal, check whether the _inc variant is missing from stat.py.
 - **LIFE_REGEN_INC semantics:** Repurposed — now stores "% of max life per second" (e.g. 0.6%). LIFE_REGEN_SPEED_INC stores the speed multiplier (+4% Life Regeneration Speed).
 
 ## Do-Not-Repeat

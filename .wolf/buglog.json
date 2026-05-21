@@ -7,7 +7,7 @@
       "error_message": "Wrong reference: node_stats_manager should be builds_manager",
       "file": "server.py",
       "root_cause": "Used \"node_stats_manager\" instead of \"builds_manager\"",
-      "fix": "Changed node_stats_manager → builds_manager",
+      "fix": "Changed node_stats_manager â†’ builds_manager",
       "tags": [
         "auto-detected",
         "wrong-reference",
@@ -23,7 +23,7 @@
       "error_message": "Significant refactor of ",
       "file": "server.py",
       "root_cause": "20 lines replaced/restructured",
-      "fix": "Rewrote 44→22 lines (20 removed)",
+      "fix": "Rewrote 44â†’22 lines (20 removed)",
       "tags": [
         "auto-detected",
         "refactor",
@@ -39,7 +39,7 @@
       "error_message": "Significant refactor of ",
       "file": "src/renderer/src/api/client.ts",
       "root_cause": "6 lines replaced/restructured",
-      "fix": "Rewrote 17→9 lines (6 removed) | Also: getNodeModifiers: (treeName: string, nodeId: strin; get<NodeModifierEntry[]>(`/node-modifiers/${encode",
+      "fix": "Rewrote 17â†’9 lines (6 removed) | Also: getNodeModifiers: (treeName: string, nodeId: strin; get<NodeModifierEntry[]>(`/node-modifiers/${encode",
       "tags": [
         "auto-detected",
         "refactor",
@@ -55,7 +55,7 @@
       "error_message": "Significant refactor of ",
       "file": "src/renderer/src/screens/TreeViewerScreen.tsx",
       "root_cause": "70 lines replaced/restructured",
-      "fix": "Rewrote 90→3 lines (70 removed)",
+      "fix": "Rewrote 90â†’3 lines (70 removed)",
       "tags": [
         "auto-detected",
         "refactor",
@@ -71,7 +71,7 @@
       "error_message": "Wrong reference: data should be models",
       "file": "server.py",
       "root_cause": "Used \"data\" instead of \"models\"",
-      "fix": "Changed data → models",
+      "fix": "Changed data â†’ models",
       "tags": [
         "auto-detected",
         "wrong-reference",
@@ -87,7 +87,7 @@
       "error_message": "Wrong reference: data should be models",
       "file": "tools/node_type_filter_builder.py",
       "root_cause": "Used \"data\" instead of \"models\"",
-      "fix": "Changed data → models",
+      "fix": "Changed data â†’ models",
       "tags": [
         "auto-detected",
         "wrong-reference",
@@ -246,8 +246,8 @@
       "timestamp": "2026-05-20T14:57:35.473Z",
       "error_message": "CSS fix: onBack",
       "file": "src/renderer/src/screens/SlateScreen.tsx",
-      "root_cause": "onBack: () => void → (slates: SavedSlate[]) => void",
-      "fix": "Changed onBack: () => void → (slates: SavedSlate[]) => void",
+      "root_cause": "onBack: () => void â†’ (slates: SavedSlate[]) => void",
+      "fix": "Changed onBack: () => void â†’ (slates: SavedSlate[]) => void",
       "tags": [
         "auto-detected",
         "style-fix",
@@ -278,8 +278,8 @@
       "timestamp": "2026-05-20T14:58:14.236Z",
       "error_message": "CSS fix: id",
       "file": "src/renderer/src/App.tsx",
-      "root_cause": "id: undefined, name, slots: session.slots → undefined, name, slots: session.slots, slates: session.slates",
-      "fix": "Changed id: undefined, name, slots: session.slots → undefined, name, slots: session.slots, slates: session.slates",
+      "root_cause": "id: undefined, name, slots: session.slots â†’ undefined, name, slots: session.slots, slates: session.slates",
+      "fix": "Changed id: undefined, name, slots: session.slots â†’ undefined, name, slots: session.slots, slates: session.slates",
       "tags": [
         "auto-detected",
         "style-fix",
@@ -295,7 +295,7 @@
       "error_message": "Significant refactor of ",
       "file": "docs/engine-plan.md",
       "root_cause": "25 lines replaced/restructured",
-      "fix": "Rewrote 43→61 lines (25 removed)",
+      "fix": "Rewrote 43â†’61 lines (25 removed)",
       "tags": [
         "auto-detected",
         "refactor",
@@ -326,7 +326,7 @@
       "timestamp": "2026-05-20T18:21:59.964Z",
       "error_message": "Missing error handling in ToolsTab",
       "file": "src/renderer/src/screens/DevToolsScreen.tsx",
-      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "root_cause": "Code path had no error handling â€” exceptions would propagate uncaught",
       "fix": "Added try/catch block",
       "tags": [
         "auto-detected",
@@ -343,7 +343,7 @@
       "error_message": "Wrong reference: _dn should be _",
       "file": "backend/tools/node_type_filter_builder.py",
       "root_cause": "Used \"_dn\" instead of \"_\"",
-      "fix": "Changed _dn → _",
+      "fix": "Changed _dn â†’ _",
       "tags": [
         "auto-detected",
         "wrong-reference",
@@ -406,7 +406,7 @@
       "timestamp": "2026-05-20T18:46:50.080Z",
       "error_message": "Missing error handling in unknown",
       "file": "src/renderer/src/screens/DevToolsScreen.tsx",
-      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "root_cause": "Code path had no error handling â€” exceptions would propagate uncaught",
       "fix": "Added try/catch block",
       "tags": [
         "auto-detected",
@@ -422,8 +422,8 @@
       "timestamp": "2026-05-20T18:49:13.943Z",
       "error_message": "Incorrect value in code",
       "file": "src/renderer/src/screens/DevToolsScreen.tsx",
-      "root_cause": "Had `Exported ${r.stat_count} stats → docs/stat-meta-r",
-      "fix": "Changed to `Exported ${r.stat_count} stats → docs/stat-meta-r",
+      "root_cause": "Had `Exported ${r.stat_count} stats â†’ docs/stat-meta-r",
+      "fix": "Changed to `Exported ${r.stat_count} stats â†’ docs/stat-meta-r",
       "tags": [
         "auto-detected",
         "wrong-value",
@@ -439,7 +439,7 @@
       "error_message": "Significant refactor of ",
       "file": "backend/tools/export_stat_meta.py",
       "root_cause": "3 lines replaced/restructured",
-      "fix": "Rewrote 19→79 lines (3 removed)",
+      "fix": "Rewrote 19â†’79 lines (3 removed)",
       "tags": [
         "auto-detected",
         "refactor",
@@ -454,7 +454,7 @@
       "timestamp": "2026-05-20T18:56:15.164Z",
       "error_message": "Missing await",
       "file": "src/renderer/src/api/client.ts",
-      "root_cause": "Async call without await — returned Promise instead of value",
+      "root_cause": "Async call without await â€” returned Promise instead of value",
       "fix": "Added await to async call",
       "tags": [
         "auto-detected",
@@ -470,8 +470,8 @@
       "timestamp": "2026-05-20T18:56:57.865Z",
       "error_message": "CSS fix: fontSize, padding",
       "file": "src/renderer/src/screens/DevToolsScreen.tsx",
-      "root_cause": "fontSize: 12, color: exportMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50' → 12, color: exportUnmatchedMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50'; padding: '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', alignItems: 'center', gap: 12 → '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', flexDirection: 'column', gap: 10",
-      "fix": "Changed fontSize: 12, color: exportMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50' → 12, color: exportUnmatchedMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50'; padding: '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', alignItems: 'center', gap: 12 → '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', flexDirection: 'column', gap: 10",
+      "root_cause": "fontSize: 12, color: exportMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50' â†’ 12, color: exportUnmatchedMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50'; padding: '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', alignItems: 'center', gap: 12 â†’ '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', flexDirection: 'column', gap: 10",
+      "fix": "Changed fontSize: 12, color: exportMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50' â†’ 12, color: exportUnmatchedMsg.startsWith('Error') ? '#ff6b6b' : '#4caf50'; padding: '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', alignItems: 'center', gap: 12 â†’ '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a', display: 'flex', flexDirection: 'column', gap: 10",
       "tags": [
         "auto-detected",
         "style-fix",
@@ -487,7 +487,7 @@
       "error_message": "Significant refactor of ",
       "file": "backend/tools/node_type_filter_builder.py",
       "root_cause": "3 lines replaced/restructured",
-      "fix": "Rewrote 28→35 lines (3 removed)",
+      "fix": "Rewrote 28â†’35 lines (3 removed)",
       "tags": [
         "auto-detected",
         "refactor",
@@ -503,7 +503,7 @@
       "error_message": "Significant refactor of ",
       "file": "backend/tools/export_stat_meta.py",
       "root_cause": "24 lines replaced/restructured",
-      "fix": "Rewrote 44→137 lines (24 removed)",
+      "fix": "Rewrote 44â†’137 lines (24 removed)",
       "tags": [
         "auto-detected",
         "refactor",
@@ -518,8 +518,8 @@
       "timestamp": "2026-05-20T19:10:10.103Z",
       "error_message": "Incorrect value in code",
       "file": "src/renderer/src/screens/DevToolsScreen.tsx",
-      "root_cause": "Had `${r.unique} unique texts → docs/stat-unmatched-re",
-      "fix": "Changed to `${r.unique} unique texts → docs/stat-audit.md`",
+      "root_cause": "Had `${r.unique} unique texts â†’ docs/stat-unmatched-re",
+      "fix": "Changed to `${r.unique} unique texts â†’ docs/stat-audit.md`",
       "tags": [
         "auto-detected",
         "wrong-value",
@@ -535,7 +535,7 @@
       "error_message": "Wrong reference: stat_val should be _",
       "file": "backend/tools/node_type_filter_builder.py",
       "root_cause": "Used \"stat_val\" instead of \"_\"",
-      "fix": "Changed stat_val → _",
+      "fix": "Changed stat_val â†’ _",
       "tags": [
         "auto-detected",
         "wrong-reference",
@@ -566,8 +566,8 @@
       "timestamp": "2026-05-21T02:49:58.556Z",
       "error_message": "CSS fix: color",
       "file": "src/renderer/src/index.css",
-      "root_cause": "color: #6666aa → #6a6a8a",
-      "fix": "Changed color: #6666aa → #6a6a8a",
+      "root_cause": "color: #6666aa â†’ #6a6a8a",
+      "fix": "Changed color: #6666aa â†’ #6a6a8a",
       "tags": [
         "auto-detected",
         "style-fix",
@@ -598,7 +598,7 @@
       "timestamp": "2026-05-21T03:52:20.769Z",
       "error_message": "Missing error handling in unknown",
       "file": "src/renderer/src/screens/SlateScreen.tsx",
-      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "root_cause": "Code path had no error handling â€” exceptions would propagate uncaught",
       "fix": "Added try/catch block",
       "tags": [
         "auto-detected",
@@ -614,8 +614,8 @@
       "timestamp": "2026-05-21T03:52:59.439Z",
       "error_message": "CSS fix: onSelect, cursor",
       "file": "src/renderer/src/screens/TreeSelectorScreen.tsx",
-      "root_cause": "onSelect: undefined → () => void; cursor: isSelectable ? 'pointer' : 'default' → isClickable ? 'pointer' : 'default'",
-      "fix": "Changed onSelect: undefined → () => void; cursor: isSelectable ? 'pointer' : 'default' → isClickable ? 'pointer' : 'default'",
+      "root_cause": "onSelect: undefined â†’ () => void; cursor: isSelectable ? 'pointer' : 'default' â†’ isClickable ? 'pointer' : 'default'",
+      "fix": "Changed onSelect: undefined â†’ () => void; cursor: isSelectable ? 'pointer' : 'default' â†’ isClickable ? 'pointer' : 'default'",
       "tags": [
         "auto-detected",
         "style-fix",
@@ -624,6 +624,729 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-05-21T03:52:59.439Z"
+    },
+    {
+      "id": "bug-040",
+      "timestamp": "2026-05-21T04:01:07.068Z",
+      "error_message": "CSS fix: color",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "color: #55556a â†’ #7070a0",
+      "fix": "Changed color: #55556a â†’ #7070a0",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T04:01:07.068Z"
+    },
+    {
+      "id": "bug-041",
+      "timestamp": "2026-05-21T04:25:00.985Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/api/client.ts",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 6â†’7 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T04:25:00.985Z"
+    },
+    {
+      "id": "bug-042",
+      "timestamp": "2026-05-21T04:25:12.921Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/StatsScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T04:25:12.921Z"
+    },
+    {
+      "id": "bug-043",
+      "timestamp": "2026-05-21T04:25:41.780Z",
+      "error_message": "CSS fix: padding, margin-bottom, width",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "padding: 3px 16px â†’ 3px 12px; margin-bottom: 1px â†’ 4px; width: 100% â†’ 220px",
+      "fix": "Changed padding: 3px 16px â†’ 3px 12px; margin-bottom: 1px â†’ 4px; width: 100% â†’ 220px",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T04:25:41.780Z"
+    },
+    {
+      "id": "bug-044",
+      "timestamp": "2026-05-21T05:12:30.084Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/models/stat.py",
+      "root_cause": "Had \"evasion_flat\"",
+      "fix": "Changed to \"armor_inc\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T05:12:30.084Z"
+    },
+    {
+      "id": "bug-045",
+      "timestamp": "2026-05-21T05:24:24.010Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/models/stat.py",
+      "root_cause": "Had \"minion_attack_cast_speed_inc\"",
+      "fix": "Changed to \"minion_attack_speed_inc\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T05:24:24.010Z"
+    },
+    {
+      "id": "bug-046",
+      "timestamp": "2026-05-21T05:24:35.702Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/models/stat_meta.py",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 6â†’12 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T05:24:35.702Z"
+    },
+    {
+      "id": "bug-047",
+      "timestamp": "2026-05-21T05:43:22.476Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/models/stat.py",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 4â†’7 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T05:43:22.476Z"
+    },
+    {
+      "id": "bug-048",
+      "timestamp": "2026-05-21T05:43:32.103Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/models/stat_meta.py",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 18â†’33 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T05:43:32.103Z"
+    },
+    {
+      "id": "bug-049",
+      "timestamp": "2026-05-21T05:43:49.243Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/tests/test_models_stat.py",
+      "root_cause": "Had ') should resolve back to Stat.STRENGTH.\"",
+      "fix": "Changed to ') should resolve back to Stat.STRENGTH_FLAT.\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T05:43:49.243Z"
+    },
+    {
+      "id": "bug-050",
+      "timestamp": "2026-05-21T00:00:00.000Z",
+      "error_message": "Strength (and Dexterity/Intelligence) nodes with +% modifier showing as flat value (e.g. +24% Strength displayed as 0.24 flat)",
+      "file": "backend/models/stat.py, stat_meta.py, node_modifier_pool.py",
+      "root_cause": "STRENGTH/DEXTERITY/INTELLIGENCE existed only as flat stats; Jaccard tiebreaker could not prefer _inc because no _inc variant existed, so % modifier texts fell through to the flat stat",
+      "fix": "Renamed STRENGTH->STRENGTH_FLAT, added STRENGTH_INC; same for DEXTERITY and INTELLIGENCE. Updated stat_meta.py, node_modifier_pool.py, and test_models_stat.py.",
+      "tags": [
+        "attributes",
+        "stat-split",
+        "flat-vs-inc",
+        "jaccard"
+      ],
+      "related_bugs": [
+        "bug-043"
+      ],
+      "occurrences": 1,
+      "last_seen": "2026-05-21"
+    },
+    {
+      "id": "bug-051",
+      "timestamp": "2026-05-21T05:52:50.362Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T05:52:50.362Z"
+    },
+    {
+      "id": "bug-052",
+      "timestamp": "2026-05-21T05:53:52.306Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T05:53:52.306Z"
+    },
+    {
+      "id": "bug-053",
+      "timestamp": "2026-05-21T05:54:00.593Z",
+      "error_message": "Wrong condition in logic",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Condition was: if (!appReady)",
+      "fix": "Changed to: if (e.key === 'Enter')",
+      "tags": [
+        "auto-detected",
+        "logic-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T05:54:00.593Z"
+    },
+    {
+      "id": "bug-054",
+      "timestamp": "2026-05-21T06:02:31.279Z",
+      "error_message": "Missing await",
+      "file": "src/main/index.ts",
+      "root_cause": "Async call without await — returned Promise instead of value",
+      "fix": "Added await to async call",
+      "tags": [
+        "auto-detected",
+        "async-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:02:31.279Z"
+    },
+    {
+      "id": "bug-055",
+      "timestamp": "2026-05-21T06:03:18.999Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:03:18.999Z"
+    },
+    {
+      "id": "bug-056",
+      "timestamp": "2026-05-21T06:03:28.536Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:03:28.536Z"
+    },
+    {
+      "id": "bug-057",
+      "timestamp": "2026-05-21T06:03:52.056Z",
+      "error_message": "Wrong return value",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Was returning: <><DevToolsScreen onBack={() => setScreen('build-s",
+      "fix": "Now returns: <DevToolsScreen onBack={() => setScreen('build-sel",
+      "tags": [
+        "auto-detected",
+        "return-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-21T06:04:00.092Z"
+    },
+    {
+      "id": "bug-058",
+      "timestamp": "2026-05-21T06:14:15.656Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/tools/node_type_filter_builder.py",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 10→21 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:14:15.656Z"
+    },
+    {
+      "id": "bug-059",
+      "timestamp": "2026-05-21T06:15:07.995Z",
+      "error_message": "Wrong reference: BuildSource should be active_conditions",
+      "file": "backend/engine/aggregator.py",
+      "root_cause": "Used \"BuildSource\" instead of \"active_conditions\"",
+      "fix": "Changed BuildSource → active_conditions",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:15:07.995Z"
+    },
+    {
+      "id": "bug-060",
+      "timestamp": "2026-05-21T06:18:31.194Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/server.py",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 3→4 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:18:31.194Z"
+    },
+    {
+      "id": "bug-061",
+      "timestamp": "2026-05-21T06:18:50.475Z",
+      "error_message": "Type error",
+      "file": "src/renderer/src/api/client.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:18:50.475Z"
+    },
+    {
+      "id": "bug-062",
+      "timestamp": "2026-05-21T06:22:31.223Z",
+      "error_message": "CSS fix: id",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "id: undefined, name, slots: session.slots, slates: session.slates → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions",
+      "fix": "Changed id: undefined, name, slots: session.slots, slates: session.slates → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-21T06:22:36.194Z"
+    },
+    {
+      "id": "bug-063",
+      "timestamp": "2026-05-21T06:24:06.718Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "9 lines replaced/restructured",
+      "fix": "Rewrote 39→140 lines (9 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:24:06.718Z"
+    },
+    {
+      "id": "bug-064",
+      "timestamp": "2026-05-21T06:44:18.178Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/models/stat.py",
+      "root_cause": "Had \"dot_dmg_inc\"",
+      "fix": "Changed to \"elemental_ailment_avoid_chance\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:44:18.178Z"
+    },
+    {
+      "id": "bug-065",
+      "timestamp": "2026-05-21T06:45:08.305Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/models/stat.py",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 4→4 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:45:08.305Z"
+    },
+    {
+      "id": "bug-066",
+      "timestamp": "2026-05-21T06:45:25.914Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/models/node_modifier_pool.py",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 3→3 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T06:45:25.914Z"
+    },
+    {
+      "id": "bug-067",
+      "timestamp": "2026-05-21T07:14:08.969Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/models/stat.py",
+      "root_cause": "Had \"cc_effect_inc\"",
+      "fix": "Changed to \"mark_on_crit_chance\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T07:14:08.969Z"
+    },
+    {
+      "id": "bug-068",
+      "timestamp": "2026-05-21T07:14:20.199Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/models/stat_meta.py",
+      "root_cause": "Had \"Maximum Damage\"",
+      "fix": "Changed to \"Additional Max Damage\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 13,
+      "last_seen": "2026-05-21T07:15:17.137Z"
+    },
+    {
+      "id": "bug-069",
+      "timestamp": "2026-05-21T07:26:37.801Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/models/stat.py",
+      "root_cause": "Had \"cc_effect_inc\"",
+      "fix": "Changed to \"mark_on_crit_chance\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T07:26:37.801Z"
+    },
+    {
+      "id": "bug-070",
+      "timestamp": "2026-05-21T07:35:27.668Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/models/stat.py",
+      "root_cause": "Had \"spirit_magi_ultimate_dmg_inc\"",
+      "fix": "Changed to \"spirit_magi_dmg_additional\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 3,
+      "last_seen": "2026-05-21T07:35:43.315Z"
+    },
+    {
+      "id": "bug-071",
+      "timestamp": "2026-05-21T07:47:21.620Z",
+      "error_message": "Wrong reference: null should be conditional",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Used \"null\" instead of \"conditional\"",
+      "fix": "Changed null → conditional",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T07:47:21.620Z"
+    },
+    {
+      "id": "bug-072",
+      "timestamp": "2026-05-21T07:47:38.076Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T07:47:38.076Z"
+    },
+    {
+      "id": "bug-073",
+      "timestamp": "2026-05-21T07:47:43.555Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 3→4 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T07:47:43.555Z"
+    },
+    {
+      "id": "bug-074",
+      "timestamp": "2026-05-21T08:08:09.124Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/tools/node_type_filter_builder.py",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 7→13 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:08:09.124Z"
+    },
+    {
+      "id": "bug-075",
+      "timestamp": "2026-05-21T08:08:14.675Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/tools/node_type_filter_builder.py",
+      "root_cause": "Had \"dual wield\"",
+      "fix": "Changed to \"dual.wield|while\\s+dual\\b\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:08:14.675Z"
+    },
+    {
+      "id": "bug-076",
+      "timestamp": "2026-05-21T08:08:55.904Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/models/stat.py",
+      "root_cause": "Had \"minion_cold_dmg_inc\"",
+      "fix": "Changed to \"minion_fire_pen_inc\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:08:55.904Z"
+    },
+    {
+      "id": "bug-077",
+      "timestamp": "2026-05-21T08:09:15.533Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/models/stat_meta.py",
+      "root_cause": "Had \"Paralysis Effect Two-Handed\"",
+      "fix": "Changed to \"Inflicted Paralysis Effect\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:09:15.533Z"
+    },
+    {
+      "id": "bug-078",
+      "timestamp": "2026-05-21T08:33:13.638Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:33:13.638Z"
+    },
+    {
+      "id": "bug-079",
+      "timestamp": "2026-05-21T08:33:51.132Z",
+      "error_message": "CSS fix: id",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues",
+      "fix": "Changed id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:33:51.132Z"
+    },
+    {
+      "id": "bug-080",
+      "timestamp": "2026-05-21T08:34:59.534Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 9→12 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:34:59.534Z"
+    },
+    {
+      "id": "bug-081",
+      "timestamp": "2026-05-21T08:35:06.836Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:35:06.836Z"
+    },
+    {
+      "id": "bug-082",
+      "timestamp": "2026-05-21T08:35:33.974Z",
+      "error_message": "Missing guard clause",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "No early return/throw for edge case: filtered.length === 0",
+      "fix": "Added guard clause: if (filtered.length === 0)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:35:33.974Z"
+    },
+    {
+      "id": "bug-083",
+      "timestamp": "2026-05-21T08:36:02.661Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/models/stat.py",
+      "root_cause": "Had \"enemy_nearby_dmg_taken_inc\"",
+      "fix": "Changed to \"enemy_nearby_dmg_taken_additional\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:36:02.661Z"
+    },
+    {
+      "id": "bug-084",
+      "timestamp": "2026-05-21T08:36:14.607Z",
+      "error_message": "Incorrect value in code",
+      "file": "backend/engine/pipeline.py",
+      "root_cause": "Had \"enemy_nearby_dmg_taken_inc\"",
+      "fix": "Changed to \"enemy_nearby_dmg_taken_additional\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T08:36:14.607Z"
     }
   ]
 }

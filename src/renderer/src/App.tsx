@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, SavedSlate } from './api/client'
+import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums } from './api/client'
 import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
 import BuildOverviewScreen from './screens/BuildOverviewScreen'
@@ -11,13 +11,36 @@ import StatsScreen from './screens/StatsScreen'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats'
 
+const DEFAULT_CONDITION_VALUES: ConditionValues = {
+  tenacity_stacks: 0,
+  agility_stacks: 0,
+  focus_stacks: 0,
+  channeled_stacks: 0,
+  channeled_base_max: 0,
+}
+
+// Derive boolean condition keys from numeric condition values + computed maximums
+function deriveNumericConditions(values: ConditionValues, maximums: ConditionMaximums | null): string[] {
+  const derived: string[] = []
+  if (values.tenacity_stacks > 0) derived.push('tenacity_active')
+  if (values.agility_stacks > 0) derived.push('agility_active')
+  if (values.focus_stacks > 0) derived.push('focus_active')
+  const channeledMax = values.channeled_base_max + (maximums?.channeled_max_bonus ?? 0)
+  if (channeledMax > 0 && values.channeled_stacks < channeledMax) derived.push('channeled_not_capped')
+  return derived
+}
+
+// Keys managed by conditionValues sliders — excluded from the manual boolean toggle list
+const NUMERIC_CONDITION_KEYS = new Set(['tenacity_active', 'agility_active', 'focus_active', 'channeled_not_capped'])
+
 interface Session {
   buildId: string | null
   buildName: string
   slots: (TreeSlot | null)[]
   activeSlot: number
   slates: SavedSlate[]
-  conditions: string[]
+  conditions: string[]          // boolean conditions (manual toggles, not numeric-derived)
+  conditionValues: ConditionValues  // numeric slider values for blessing/channeled stacks
 }
 
 interface CascadeModal {
@@ -34,6 +57,7 @@ const emptySession = (): Session => ({
   activeSlot: 0,
   slates: [],
   conditions: [],
+  conditionValues: DEFAULT_CONDITION_VALUES,
 })
 
 function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
@@ -55,6 +79,7 @@ function App() {
   const [devMode, setDevMode] = useState(() => localStorage.getItem('devMode') === '1')
   const [deprecatedTools, setDeprecatedTools] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+  const [conditionMaximums, setConditionMaximums] = useState<ConditionMaximums | null>(null)
   const sessionRef = useRef(session)
 
   useEffect(() => { sessionRef.current = session }, [session])
@@ -143,6 +168,7 @@ function App() {
       activeSlot: firstEmptySlot(slots),
       slates: build.slates ?? [],
       conditions: build.conditions ?? [],
+      conditionValues: build.conditionValues ?? DEFAULT_CONDITION_VALUES,
     })
     setIsDirty(false)
     setScreen('build-overview')
@@ -294,15 +320,26 @@ function App() {
     markDirty()
   }
 
+  const handleConditionValuesChange = (values: ConditionValues) => {
+    setSession(s => ({ ...s, conditionValues: values }))
+    markDirty()
+  }
+
+  // Derive the full conditions list combining manual boolean toggles + numeric-derived conditions
+  const effectiveConditions = [
+    ...session.conditions.filter(c => !NUMERIC_CONDITION_KEYS.has(c)),
+    ...deriveNumericConditions(session.conditionValues, conditionMaximums),
+  ]
+
   const saveBuild = async (name: string) => {
-    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions }
+    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
   }
 
   const saveAsBuild = async (name: string) => {
-    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions }
+    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
@@ -354,7 +391,12 @@ function App() {
           slots={session.slots}
           slates={session.slates}
           conditions={session.conditions}
+          conditionValues={session.conditionValues}
+          conditionMaximums={conditionMaximums}
+          effectiveConditions={effectiveConditions}
           onConditionsChange={handleConditionsChange}
+          onConditionValuesChange={handleConditionValuesChange}
+          onConditionMaximumsChange={setConditionMaximums}
           onBack={goToBuildSelect}
           onTalentTree={goToTreeSelector}
           onSlates={goToSlates}

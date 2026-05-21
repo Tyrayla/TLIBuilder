@@ -48,15 +48,16 @@ def run_pipeline(
     # ── Stage 3: Additional (each qualifying bucket × independently) ───────────
     # Same stat value pools additively within its bucket; different stat keys multiply.
     additional_buckets: list[tuple[str, bool]] = [
-        ("dmg_additional",             True),
-        ("attack_dmg_additional",      "attack"      in tags),
-        ("spell_dmg_additional",       "spell"       in tags),
-        ("melee_dmg_additional",       "melee"       in tags),
-        ("area_dmg_additional",        "area"        in tags),
-        ("projectile_dmg_additional",  "projectile"  in tags),
-        ("minion_dmg_additional",      "minion"      in tags),
-        ("sentry_dmg_additional",      "sentry"      in tags),
-        ("elemental_dmg_additional",   is_elemental),
+        ("dmg_additional",                True),
+        ("attack_dmg_additional",         "attack"      in tags),
+        ("spell_dmg_additional",          "spell"       in tags),
+        ("melee_dmg_additional",          "melee"       in tags),
+        ("area_dmg_additional",           "area"        in tags),
+        ("projectile_dmg_additional",     "projectile"  in tags),
+        ("minion_dmg_additional",         "minion"      in tags),
+        ("sentry_dmg_additional",         "sentry"      in tags),
+        ("elemental_dmg_additional",      is_elemental),
+        ("enemy_nearby_dmg_taken_additional", True),
     ]
     for dt in dmg_types:
         additional_buckets.append((f"{dt}_dmg_additional", True))
@@ -144,7 +145,8 @@ def run_pipeline(
         elif dt in _ELEMENTAL_TYPES:
             pen = source.total(f"{dt}_pen") + source.total("elemental_pen")
             enemy_res = getattr(enemy, f"{dt}_resistance", 0.0)
-            eff_res   = enemy_res - pen           # can go negative
+            # all_resistance_reduction is stored as a negative value (e.g. -0.08 for -8%)
+            eff_res   = enemy_res - pen + source.total("all_resistance_reduction")
             mitigation_factor *= (1.0 - eff_res)
 
     # ── Combine ────────────────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, TreeSlot, SavedSlate, SeasonSummary, StatSheetResponse, StatEntry, StatSource, ConditionDef } from '../api/client'
+import { api, TreeSlot, SavedSlate, SeasonSummary, StatSheetResponse, StatEntry, StatSource, ConditionDef, ConditionValues, ConditionMaximums } from '../api/client'
+
+const NUMERIC_CONDITION_KEYS = new Set(['tenacity_active', 'agility_active', 'focus_active', 'channeled_not_capped'])
 
 const CATEGORY_ORDER = [
   'Attributes', 'Generic', 'Attack', 'Spell', 'Melee', 'Area', 'Projectile',
@@ -47,7 +49,12 @@ interface Props {
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
   conditions: string[]
+  conditionValues: ConditionValues
+  conditionMaximums: ConditionMaximums | null
+  effectiveConditions: string[]
   onConditionsChange: (conditions: string[]) => void
+  onConditionValuesChange: (values: ConditionValues) => void
+  onConditionMaximumsChange: (maximums: ConditionMaximums) => void
   onBack: () => void
   onTalentTree: () => void
   onSlates: () => void
@@ -60,7 +67,8 @@ interface Props {
 type SaveMode = 'save' | 'saveas'
 
 export default function BuildOverviewScreen({
-  buildName, buildId, slots, slates, conditions, onConditionsChange,
+  buildName, buildId, slots, slates, conditions, conditionValues, conditionMaximums, effectiveConditions,
+  onConditionsChange, onConditionValuesChange, onConditionMaximumsChange,
   onBack, onTalentTree, onSlates, onSave, onSaveAs,
   devMode = false, onSeasonChange,
 }: Props) {
@@ -98,11 +106,14 @@ export default function BuildOverviewScreen({
     if (slots.every(s => !s)) { setStatSheet(null); return }
     setStatsLoading(true)
     setStatsError('')
-    api.engineStats({ slots, slates, conditions })
-      .then(setStatSheet)
+    api.engineStats({ slots, slates, conditions: effectiveConditions })
+      .then(res => {
+        setStatSheet(res)
+        if (res.condition_maximums) onConditionMaximumsChange(res.condition_maximums)
+      })
       .catch(() => setStatsError('Failed to load stats.'))
       .finally(() => setStatsLoading(false))
-  }, [slots, slates, conditions])
+  }, [slots, slates, effectiveConditions])
 
   useEffect(() => {
     if (!selectedStat) return
@@ -170,6 +181,15 @@ export default function BuildOverviewScreen({
     onConditionsChange(next)
   }
 
+  const setConditionValue = (field: keyof ConditionValues, value: number) => {
+    onConditionValuesChange({ ...conditionValues, [field]: value })
+  }
+
+  const tenacityMax = conditionMaximums?.tenacity_max ?? 4
+  const agilityMax  = conditionMaximums?.agility_max  ?? 4
+  const focusMax    = conditionMaximums?.focus_max    ?? 4
+  const channeledMax = conditionValues.channeled_base_max + (conditionMaximums?.channeled_max_bonus ?? 0)
+
   function handleStatClick(e: React.MouseEvent, key: string) {
     if (selectedStat === key) {
       setSelectedStat(null)
@@ -204,7 +224,12 @@ export default function BuildOverviewScreen({
   } : {}
 
   const condCategories = conditionsData ? Object.entries(conditionsData) : []
-  const activeCondCount = conditions.length
+  const numericActive =
+    (conditionValues.tenacity_stacks > 0 ? 1 : 0) +
+    (conditionValues.agility_stacks > 0 ? 1 : 0) +
+    (conditionValues.focus_stacks > 0 ? 1 : 0) +
+    (channeledMax > 0 && conditionValues.channeled_stacks < channeledMax ? 1 : 0)
+  const activeCondCount = conditions.length + numericActive
 
   return (
     <div className="screen build-overview">
@@ -277,22 +302,94 @@ export default function BuildOverviewScreen({
             {condCategories.length === 0 && (
               <div className="panel-empty">Loading…</div>
             )}
-            {condCategories.map(([cat, items]) => (
-              <div key={cat} className="cond-category">
-                <div className="cond-category-label">{cat}</div>
-                {items.map(cond => (
-                  <label key={cond.key} className="cond-item">
-                    <input
-                      type="checkbox"
-                      className="cond-check"
-                      checked={conditions.includes(cond.key)}
-                      onChange={() => toggleCondition(cond.key)}
-                    />
-                    <span className="cond-label">{cond.label}</span>
-                  </label>
-                ))}
+
+            {/* Blessing stacks — numeric inputs replacing Blessings checkboxes */}
+            <div className="cond-category">
+              <div className="cond-category-label">Blessings</div>
+              {([
+                { field: 'tenacity_stacks' as const, label: 'Tenacity Stacks', max: tenacityMax },
+                { field: 'agility_stacks'  as const, label: 'Agility Stacks',  max: agilityMax },
+                { field: 'focus_stacks'    as const, label: 'Focus Stacks',    max: focusMax },
+              ]).map(({ field, label, max }) => (
+                <div key={field} className="cond-stack-row">
+                  <span className="cond-stack-label">{label}</span>
+                  <div className="cond-stack-controls">
+                    <button
+                      className="cond-stack-btn"
+                      onClick={() => setConditionValue(field, Math.max(0, conditionValues[field] - 1))}
+                      disabled={conditionValues[field] <= 0}
+                    >−</button>
+                    <span className="cond-stack-value">{conditionValues[field]}<span className="cond-stack-max">/{max}</span></span>
+                    <button
+                      className="cond-stack-btn"
+                      onClick={() => setConditionValue(field, Math.min(max, conditionValues[field] + 1))}
+                      disabled={conditionValues[field] >= max}
+                    >+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Channeled stacks */}
+            <div className="cond-category">
+              <div className="cond-category-label">Channeled Stacks</div>
+              <div className="cond-stack-row">
+                <span className="cond-stack-label">Skill Base Max</span>
+                <input
+                  type="number"
+                  className="cond-stack-input"
+                  min={0}
+                  max={99}
+                  value={conditionValues.channeled_base_max}
+                  onChange={e => setConditionValue('channeled_base_max', Math.max(0, parseInt(e.target.value) || 0))}
+                />
               </div>
-            ))}
+              {channeledMax > 0 && (
+                <div className="cond-stack-row">
+                  <span className="cond-stack-label">Current Stacks</span>
+                  <div className="cond-stack-controls">
+                    <button
+                      className="cond-stack-btn"
+                      onClick={() => setConditionValue('channeled_stacks', Math.max(0, conditionValues.channeled_stacks - 1))}
+                      disabled={conditionValues.channeled_stacks <= 0}
+                    >−</button>
+                    <span className="cond-stack-value">{conditionValues.channeled_stacks}<span className="cond-stack-max">/{channeledMax}</span></span>
+                    <button
+                      className="cond-stack-btn"
+                      onClick={() => setConditionValue('channeled_stacks', Math.min(channeledMax, conditionValues.channeled_stacks + 1))}
+                      disabled={conditionValues.channeled_stacks >= channeledMax}
+                    >+</button>
+                  </div>
+                </div>
+              )}
+              {channeledMax === 0 && (
+                <div className="cond-stack-hint">Set skill base max above to enable</div>
+              )}
+            </div>
+
+            {/* Boolean condition checkboxes — skip keys managed by numeric inputs */}
+            {condCategories
+              .filter(([cat]) => cat !== 'Blessings')
+              .map(([cat, items]) => {
+                const filtered = items.filter(c => !NUMERIC_CONDITION_KEYS.has(c.key))
+                if (filtered.length === 0) return null
+                return (
+                  <div key={cat} className="cond-category">
+                    <div className="cond-category-label">{cat}</div>
+                    {filtered.map(cond => (
+                      <label key={cond.key} className="cond-item">
+                        <input
+                          type="checkbox"
+                          className="cond-check"
+                          checked={conditions.includes(cond.key)}
+                          onChange={() => toggleCondition(cond.key)}
+                        />
+                        <span className="cond-label">{cond.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )
+              })}
           </div>
         </div>
 

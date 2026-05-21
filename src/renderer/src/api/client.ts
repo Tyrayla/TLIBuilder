@@ -121,6 +121,7 @@ export interface Build {
   slots: (TreeSlot | null)[]
   slates?: SavedSlate[]
   conditions?: string[]
+  conditionValues?: ConditionValues
 }
 
 export interface TreeNode {
@@ -285,8 +286,24 @@ export interface StatEntry {
   sources: StatSource[]
 }
 
+export interface ConditionMaximums {
+  tenacity_max: number
+  agility_max: number
+  focus_max: number
+  channeled_max_bonus: number  // add to skill's base channeled max to get the cap
+}
+
+export interface ConditionValues {
+  tenacity_stacks: number
+  agility_stacks: number
+  focus_stacks: number
+  channeled_stacks: number
+  channeled_base_max: number  // inherited from skill; UI lets user set it
+}
+
 export interface StatSheetResponse {
   stats: Record<string, StatEntry>
+  condition_maximums: ConditionMaximums
 }
 
 export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'

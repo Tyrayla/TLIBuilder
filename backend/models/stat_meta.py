@@ -144,6 +144,18 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",     ui_priority=17,
         source_types=_T,
     ),
+    Stat.ALL_RESISTANCE_REDUCTION: StatMeta(
+        "Enemy All Elemental Resistance", "Generic", "penetration", "%",
+        subgroup="mitigation",        pipeline_stage="mitigation",
+        affects=_ALL_DMGF,            stacking_rule="additive",
+        ui_priority=26,               source_types=_T,
+    ),
+    Stat.ENEMY_NEARBY_DMG_TAKEN_ADDITIONAL: StatMeta(
+        "Additional Damage Taken by Nearby Enemies", "Generic", "additional", "%",
+        subgroup="generic_damage",    pipeline_stage="additional",
+        affects=_HIT_DOT,             stacking_rule="additive",
+        ui_priority=4,                source_types=_T,
+    ),
 
     # ── Attack ────────────────────────────────────────────────────────────────
     Stat.ATTACK_DMG_INC: StatMeta(

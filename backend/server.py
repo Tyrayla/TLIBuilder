@@ -482,7 +482,14 @@ def engine_stats(req: EngineStatsRequest):
             "amount": entry.amount,
             "points": entry.points,
         })
-    return {"stats": stat_map}
+
+    condition_maximums = {
+        "tenacity_max": 4 + int(source.total("max_tenacity_blessing_stacks_flat")),
+        "agility_max":  4 + int(source.total("max_agility_blessing_stacks_flat")),
+        "focus_max":    4 + int(source.total("max_focus_blessing_stacks_flat")),
+        "channeled_max_bonus": int(source.total("max_channeled_stacks_flat")),
+    }
+    return {"stats": stat_map, "condition_maximums": condition_maximums}
 
 
 # ── Conditions ─────────────────────────────────────────────────────────────────

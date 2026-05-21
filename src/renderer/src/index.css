@@ -518,6 +518,77 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .cond-item:has(.cond-check:checked) .cond-label { color: #bbbbd8; }
 
+.cond-stack-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  gap: 8px;
+}
+
+.cond-stack-label {
+  font-size: 11px;
+  color: #888899;
+  flex: 1;
+}
+
+.cond-stack-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cond-stack-btn {
+  width: 20px;
+  height: 20px;
+  background: #1e1e3a;
+  border: 1px solid #3a3a5a;
+  border-radius: 3px;
+  color: #9999cc;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.1s;
+}
+.cond-stack-btn:hover:not(:disabled) { background: #2a2a50; color: #c8c8ff; }
+.cond-stack-btn:disabled { opacity: 0.35; cursor: default; }
+
+.cond-stack-value {
+  font-size: 12px;
+  color: #c8c8ff;
+  min-width: 30px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.cond-stack-max {
+  font-size: 10px;
+  color: #555577;
+  font-weight: 400;
+}
+
+.cond-stack-input {
+  width: 48px;
+  background: #1a1a36;
+  border: 1px solid #3a3a5a;
+  border-radius: 3px;
+  color: #c8c8ff;
+  font-size: 12px;
+  padding: 2px 6px;
+  text-align: center;
+}
+
+.cond-stack-hint {
+  font-size: 10px;
+  color: #444466;
+  padding: 3px 12px 6px;
+  font-style: italic;
+}
+
 /* ── Tree Viewer ──────────────────────────────────────────────────────────── */
 
 .tree-viewer { display: flex; flex-direction: column; }

@@ -25,6 +25,8 @@ class Stat(Enum):
     ALL_SKILL_LEVEL = "all_skill_level"
     ACTIVE_SKILL_LEVEL = "active_skill_level"
     SUPPORT_SKILL_LEVEL = "support_skill_level"
+    ALL_RESISTANCE_REDUCTION = "all_resistance_reduction"   # negative value; reduces enemy elemental res
+    ENEMY_NEARBY_DMG_TAKEN_ADDITIONAL = "enemy_nearby_dmg_taken_additional"  # additional dmg multiplier vs nearby enemies
 
     # ── Attack ───────────────────────────────────────────────────────────────
     ATTACK_DMG_INC = "attack_dmg_inc"
