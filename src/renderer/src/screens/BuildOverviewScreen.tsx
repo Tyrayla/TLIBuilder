@@ -8,6 +8,7 @@ interface Props {
   onBack: () => void
   onTalentTree: () => void
   onSlates: () => void
+  onStats: () => void
   onSave: (name: string) => Promise<void>
   onSaveAs: (name: string) => Promise<void>
   devMode?: boolean
@@ -17,7 +18,7 @@ interface Props {
 type SaveMode = 'save' | 'saveas'
 
 export default function BuildOverviewScreen({
-  buildName, buildId, slots, onBack, onTalentTree, onSlates, onSave, onSaveAs,
+  buildName, buildId, slots, onBack, onTalentTree, onSlates, onStats, onSave, onSaveAs,
   devMode = false, onSeasonChange,
 }: Props) {
   const [saveOpen, setSaveOpen] = useState(false)
@@ -40,6 +41,7 @@ export default function BuildOverviewScreen({
       onSeasonChange?.()
     } catch { /* ignore */ }
   }
+
   const [saveMode, setSaveMode] = useState<SaveMode>('save')
   const [saveName, setSaveName] = useState(buildName)
   const [saving, setSaving] = useState(false)
@@ -149,6 +151,10 @@ export default function BuildOverviewScreen({
         <button className="overview-nav-btn active" onClick={onSlates}>
           <span className="overview-nav-icon">📋</span>
           <span className="overview-nav-label">Slates</span>
+        </button>
+        <button className="overview-nav-btn active" onClick={onStats}>
+          <span className="overview-nav-icon">📊</span>
+          <span className="overview-nav-label">Stats</span>
         </button>
         <button className="overview-nav-btn disabled" disabled>
           <span className="overview-nav-icon">⚔️</span>

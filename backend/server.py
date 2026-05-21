@@ -415,6 +415,71 @@ def engine_compute(req: EngineComputeRequest):
     return asdict(result)
 
 
+class EngineStatsRequest(BaseModel):
+    slots:  list[SlotData | None]
+    slates: list[dict] = []
+
+
+@app.post("/api/engine/stats")
+def engine_stats(req: EngineStatsRequest):
+    import re
+    from engine.aggregator import aggregate
+    from engine.models import BuildInput
+    from tools.node_type_filter_builder import load_filter
+    from models.stat_meta import STAT_META
+
+    active_season = season_manager.get_active_season() or ""
+    filter_data = load_filter() or {}
+
+    slots = [s.model_dump() if s else None for s in req.slots]
+    slates = req.slates
+
+    # Collect tree slugs needed from talent slots + slates
+    def _slug(name: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+    needed_slugs: set[str] = set()
+    for slot in slots:
+        if slot and slot.get("treeName"):
+            needed_slugs.add(_slug(slot["treeName"]))
+    for slate in slates:
+        for sd in slate.get("slots", []):
+            node_id = sd.get("selectedNodeId")
+            if node_id:
+                m = re.match(r"^(.+)_c\d+_r\d+$", node_id)
+                if m:
+                    needed_slugs.add(m.group(1))
+
+    season_trees: dict[str, dict] = {}
+    for slug in needed_slugs:
+        tree_data = season_manager.load_season_tree(active_season, slug)
+        if tree_data:
+            season_trees[slug] = tree_data
+
+    build = BuildInput(slots=slots, slates=slates, season=active_season)
+    source = aggregate(build, season_trees, filter_data)
+
+    stat_map: dict = {}
+    for entry in source.source_log:
+        if entry.stat not in stat_map:
+            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
+            stat_map[entry.stat] = {
+                "display_name": meta.display_name if meta else entry.stat,
+                "category": meta.category if meta else "Other",
+                "unit": meta.unit if meta else "",
+                "total": 0.0,
+                "sources": [],
+            }
+        stat_map[entry.stat]["total"] = round(stat_map[entry.stat]["total"] + entry.amount, 6)
+        stat_map[entry.stat]["sources"].append({
+            "source_type": entry.source_type,
+            "label": entry.label,
+            "text": entry.text,
+            "amount": entry.amount,
+        })
+    return {"stats": stat_map}
+
+
 # ── Legacy single save ─────────────────────────────────────────────────────────
 
 class SaveRequest(BaseModel):
@@ -496,17 +561,25 @@ def snapshot_status():
 @app.post("/api/dev/rebuild-node-type-filter")
 def rebuild_node_type_filter():
     from persistence import snapshot_manager
-    from tools.node_type_filter_builder import build_filter, save_filter
+    from tools.node_type_filter_builder import build_filter, build_node_recipes, save_filter
     snap = snapshot_manager.load()
     if snap is None:
         raise HTTPException(status_code=400, detail="No canonical snapshot saved. Upload one first.")
     result = build_filter(snap)
+
+    # Build per-node-id recipes from the active season's tree data
+    active = season_manager.get_active_season()
+    if active:
+        season_trees = season_manager.load_all_season_trees(active)
+        result["node_recipes"] = build_node_recipes(season_trees)
+
     save_filter(result)
     return {
         "_meta": result["_meta"],
         "stats": result["stats"],
         "unresolved": result["unresolved"],
         "matched_texts": result["matched_texts"],
+        "node_recipe_count": len(result.get("node_recipes", {})),
     }
 
 
@@ -544,14 +617,13 @@ def export_unmatched():
         raise HTTPException(status_code=400, detail="No filter built yet — run a rebuild first.")
     md = build_unmatched_review(data.get("unresolved", []))
     out_path = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "docs", "stat-unmatched-review.md")
+        os.path.join(os.path.dirname(__file__), "..", "docs", "stat-audit.md")
     )
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(md)
-    unmatched_count = sum(1 for u in data.get("unresolved", []) if u.get("reason") == "unmatched")
     unique_count = len({u["text"] for u in data.get("unresolved", []) if u.get("reason") == "unmatched"})
-    return {"ok": True, "total": unmatched_count, "unique": unique_count, "path": out_path}
+    return {"ok": True, "unique": unique_count, "path": out_path}
 
 
 @app.post("/api/dev/export-stat-meta")

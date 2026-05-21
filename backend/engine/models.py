@@ -3,6 +3,16 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class SourceEntry:
+    """A single stat contribution with its origin metadata."""
+    stat:         str
+    amount:       float
+    source_type:  str   # "talent" | "slate" — extendable to "gear", "hero_memory", etc.
+    label:        str   # human-readable origin: "Goddess of Knowledge Micro", "Ranger Slate Medium"
+    text:         str   # original game text: "+15% Critical Strike Rating"
+
+
+@dataclass
 class SkillConfig:
     name:           str
     skill_type:     str              # "attack" | "spell"
@@ -28,9 +38,14 @@ class EnemyConfig:
 class BuildSource:
     """Flat list of (stat_value_string, numeric_amount) from all build sources."""
     _entries: list[tuple[str, float]] = field(default_factory=list)
+    source_log: list[SourceEntry] = field(default_factory=list)
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
+
+    def add_with_source(self, stat: str, amount: float, entry: SourceEntry) -> None:
+        self._entries.append((stat, amount))
+        self.source_log.append(entry)
 
     def total(self, stat: str) -> float:
         return sum(v for s, v in self._entries if s == stat)
@@ -53,8 +68,8 @@ class ComputedResult:
 @dataclass
 class BuildInput:
     """Everything the engine needs to run a calculation."""
-    slots:    list[dict | None]   # TreeSlot dicts: {treeName, nodeStates}
-    slates:   list[dict]          # SavedSlate dicts from the build
-    skill:    SkillConfig
-    enemy:    EnemyConfig
-    season:   str                 # active season name for data lookups
+    slots:    list[dict | None]       # TreeSlot dicts: {treeName, nodeStates}
+    slates:   list[dict]              # SavedSlate dicts from the build
+    season:   str                     # active season name for data lookups
+    skill:    SkillConfig | None = None
+    enemy:    EnemyConfig | None = None

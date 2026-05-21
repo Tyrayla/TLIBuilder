@@ -640,7 +640,7 @@ function ToolsTab() {
     setExportingUnmatched(true); setExportUnmatchedMsg('')
     try {
       const r = await api.exportUnmatched()
-      setExportUnmatchedMsg(`${r.unique} unique texts → docs/stat-unmatched-review.md`)
+      setExportUnmatchedMsg(`${r.unique} unique texts → docs/stat-audit.md`)
     } catch (ex) {
       setExportUnmatchedMsg(`Error: ${String(ex)}`)
     } finally {
@@ -660,7 +660,7 @@ function ToolsTab() {
 
   const meta = result?._meta
   const ambiguous = result?.unresolved.filter(u => u.reason === 'ambiguous') ?? []
-  const unmatched = result?.unresolved.filter(u => u.reason === 'unmatched') ?? []
+  const unmatched = result?.unresolved.filter(u => u.reason === 'unmatched' || u.reason === 'multi_text') ?? []
 
   const toggleDetail = (section: DetailSection) => setDetail(d => d === section ? null : section)
 
