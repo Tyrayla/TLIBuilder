@@ -855,6 +855,111 @@ def import_legendary_gear(req: ImportLegendaryGearRequest):
     return {"ok": True, "count": len(items), "set_name": stored["set_name"]}
 
 
+# ── Skills ─────────────────────────────────────────────────────────────────────
+
+class ImportSkillsRequest(BaseModel):
+    season_name: str
+    file_data: dict
+
+
+@app.post("/api/dev/import-skills")
+def import_skills(req: ImportSkillsRequest):
+    from tools.skill_importer import parse_skill_file, merge_skills
+
+    if not req.season_name.strip():
+        raise HTTPException(status_code=400, detail="season_name must not be empty")
+
+    try:
+        incoming = parse_skill_file(req.file_data)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Load existing skills for this season and merge
+    existing_data = season_manager.load_skills(req.season_name) or {"skills": []}
+    merged = merge_skills(existing_data.get("skills", []), incoming)
+
+    stored = {
+        "season": req.season_name,
+        "skill_count": len(merged),
+        "skills": merged,
+    }
+    season_manager.save_skills(req.season_name, stored)
+    return {"ok": True, "added": len(incoming), "total": len(merged)}
+
+
+@app.get("/api/skills")
+def get_skills():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "skills": []}
+    data = season_manager.load_skills(active)
+    if not data:
+        return {"season": active, "skills": []}
+    return {"season": active, "skills": data.get("skills", [])}
+
+
+@app.delete("/api/dev/skills")
+def clear_skills():
+    active = season_manager.get_active_season()
+    if active:
+        season_manager.delete_skills(active)
+    return {"ok": True}
+
+
+# ── Hero Traits ────────────────────────────────────────────────────────────────
+
+class ImportHeroTraitRequest(BaseModel):
+    season_name: str
+    file_data: dict
+
+
+@app.post("/api/dev/import-hero-traits")
+def import_hero_traits(req: ImportHeroTraitRequest):
+    from tools.hero_trait_importer import parse_hero_trait_file, merge_hero_traits
+
+    if not req.season_name.strip():
+        raise HTTPException(status_code=400, detail="season_name must not be empty")
+
+    try:
+        incoming = parse_hero_trait_file(req.file_data)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    existing_data = season_manager.load_hero_traits(req.season_name) or {"traits": []}
+    merged = merge_hero_traits(existing_data.get("traits", []), incoming)
+
+    # Derive unique hero count from merged traits
+    heroes = len({t["hero"] for t in merged if t.get("hero")})
+
+    stored = {
+        "season": req.season_name,
+        "hero_count": heroes,
+        "trait_count": len(merged),
+        "traits": merged,
+    }
+    season_manager.save_hero_traits(req.season_name, stored)
+    return {"ok": True, "hero": incoming.get("hero", ""), "total": len(merged), "heroes": heroes}
+
+
+@app.get("/api/hero-traits")
+def get_hero_traits():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "traits": []}
+    data = season_manager.load_hero_traits(active)
+    if not data:
+        return {"season": active, "traits": []}
+    return {"season": active, "traits": data.get("traits", [])}
+
+
+@app.delete("/api/dev/hero-traits")
+def clear_hero_traits():
+    active = season_manager.get_active_season()
+    if active:
+        season_manager.delete_hero_traits(active)
+    return {"ok": True}
+
+
 class DiffSeasonsRequest(BaseModel):
     season_a: str
     season_b: str

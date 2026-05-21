@@ -1347,6 +1347,86 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-05-21T08:36:14.607Z"
+    },
+    {
+      "id": "bug-085",
+      "timestamp": "2026-05-21T09:14:55.616Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T09:14:55.616Z"
+    },
+    {
+      "id": "bug-086",
+      "timestamp": "2026-05-21T09:15:05.155Z",
+      "error_message": "Type error",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T09:15:05.155Z"
+    },
+    {
+      "id": "bug-087",
+      "timestamp": "2026-05-21T09:20:30.639Z",
+      "error_message": "Incorrect value in code",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Had `${totalAdded} skill(s) added — ${finalTotal} tota",
+      "fix": "Changed to `Imported ${totalAdded} skill(s) — ${finalTotal} s",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T09:20:30.639Z"
+    },
+    {
+      "id": "bug-088",
+      "timestamp": "2026-05-21T09:37:08.238Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T09:37:08.238Z"
+    },
+    {
+      "id": "bug-089",
+      "timestamp": "2026-05-21T09:37:26.137Z",
+      "error_message": "Type error",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T09:37:26.137Z"
     }
   ]
 }

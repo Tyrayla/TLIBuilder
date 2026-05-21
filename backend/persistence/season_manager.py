@@ -94,6 +94,50 @@ def load_legendary_gear(season: str) -> dict | None:
         return json.load(f)
 
 
+def save_skills(season: str, data: dict) -> None:
+    d = _season_dir(season)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "_skills.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_skills(season: str) -> dict | None:
+    path = os.path.join(_season_dir(season), "_skills.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def delete_skills(season: str) -> None:
+    path = os.path.join(_season_dir(season), "_skills.json")
+    if os.path.exists(path):
+        os.remove(path)
+
+
+def save_hero_traits(season: str, data: dict) -> None:
+    d = _season_dir(season)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "_hero_traits.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_hero_traits(season: str) -> dict | None:
+    path = os.path.join(_season_dir(season), "_hero_traits.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def delete_hero_traits(season: str) -> None:
+    path = os.path.join(_season_dir(season), "_hero_traits.json")
+    if os.path.exists(path):
+        os.remove(path)
+
+
 def save_new_god_talents(season: str, talents: list[dict]) -> None:
     d = _season_dir(season)
     os.makedirs(d, exist_ok=True)
@@ -116,6 +160,8 @@ def get_season_summary(name: str) -> dict:
     node_counts: dict[str, int] = {}
     new_god_count: int | None = None
     legendary_gear_count: int | None = None
+    skill_count: int | None = None
+    hero_trait_count: int | None = None
     if os.path.isdir(d):
         for fname in sorted(os.listdir(d)):
             if not fname.endswith(".json"):
@@ -129,6 +175,10 @@ def get_season_summary(name: str) -> dict:
                         new_god_count = len(fdata)
                     elif fname == "_legendary_gear.json":
                         legendary_gear_count = len(fdata.get("items", []))
+                    elif fname == "_skills.json":
+                        skill_count = len(fdata.get("skills", []))
+                    elif fname == "_hero_traits.json":
+                        hero_trait_count = len(fdata.get("traits", []))
                 except Exception:
                     pass
                 continue
@@ -145,4 +195,5 @@ def get_season_summary(name: str) -> dict:
     return {
         "name": name, "trees": trees, "node_counts": node_counts,
         "new_god_count": new_god_count, "legendary_gear_count": legendary_gear_count,
+        "skill_count": skill_count, "hero_trait_count": hero_trait_count,
     }

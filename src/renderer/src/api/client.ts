@@ -346,7 +346,40 @@ export interface SeasonSummary {
   node_counts: Record<string, number>
   new_god_count: number | null
   legendary_gear_count: number | null
+  skill_count: number | null
+  hero_trait_count: number | null
   is_active: boolean
+}
+
+export interface HeroTraitLevel {
+  level: number
+  effects: string[]
+  unlock_level: number
+}
+
+export interface HeroAdvancedTrait {
+  name: string
+  unlock_level: number          // 45 | 60 | 75
+  is_pick_one_from_two: boolean
+  effects: string[]
+}
+
+export interface HeroTrait {
+  trait_id: string
+  hero: string
+  variant_name: string
+  description: string
+  levels: HeroTraitLevel[]
+  artificial_moon: { description: string; effects: string[] }
+  advanced_traits: HeroAdvancedTrait[]
+}
+
+export interface SkillItem {
+  item_id: string
+  name: string
+  description_lines: string[]
+  raw_text: string
+  skill_tags: string[]
 }
 
 export interface SeasonDiffNode {
@@ -449,6 +482,19 @@ export const api = {
     post<{ ok: boolean; count: number; set_name: string }>(
       '/dev/import-legendary-gear', { season_name: seasonName, file_data: fileData }
     ),
+  importSkills: (seasonName: string, fileData: object) =>
+    post<{ ok: boolean; added: number; total: number }>(
+      '/dev/import-skills', { season_name: seasonName, file_data: fileData }
+    ),
+  getSkills: () => get<{ season: string | null; skills: SkillItem[] }>('/skills'),
+  clearSkills: () => del<{ ok: boolean }>('/dev/skills'),
+
+  importHeroTrait: (seasonName: string, fileData: object) =>
+    post<{ ok: boolean; hero: string; total: number; heroes: number }>(
+      '/dev/import-hero-traits', { season_name: seasonName, file_data: fileData }
+    ),
+  getHeroTraits: () => get<{ season: string | null; traits: HeroTrait[] }>('/hero-traits'),
+  clearHeroTraits: () => del<{ ok: boolean }>('/dev/hero-traits'),
   diffSeasons: (seasonA: string, seasonB: string) =>
     post<SeasonDiff>('/dev/diff-seasons', { season_a: seasonA, season_b: seasonB }),
 
