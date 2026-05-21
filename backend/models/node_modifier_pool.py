@@ -16,9 +16,9 @@ from models.node_modifier_def import NodeModifierDef
 NODE_MODIFIER_POOL: dict[Stat, NodeModifierDef] = {
 
     # ── Attributes ────────────────────────────────────────────────────────────
-    Stat.STRENGTH:     NodeModifierDef(Stat.STRENGTH,      5.0,  10.0, 15.0),
-    Stat.DEXTERITY:    NodeModifierDef(Stat.DEXTERITY,     5.0,  10.0, 15.0),
-    Stat.INTELLIGENCE: NodeModifierDef(Stat.INTELLIGENCE,  5.0,  10.0, 15.0),
+    Stat.STRENGTH_FLAT:     NodeModifierDef(Stat.STRENGTH_FLAT,      5.0,  10.0, 15.0),
+    Stat.DEXTERITY_FLAT:    NodeModifierDef(Stat.DEXTERITY_FLAT,     5.0,  10.0, 15.0),
+    Stat.INTELLIGENCE_FLAT: NodeModifierDef(Stat.INTELLIGENCE_FLAT,  5.0,  10.0, 15.0),
 
     # ── Baseline / Generic ────────────────────────────────────────────────────
     Stat.ARMOR_PEN:           NodeModifierDef(Stat.ARMOR_PEN,           0.05, 0.10, 0.15, "%"),

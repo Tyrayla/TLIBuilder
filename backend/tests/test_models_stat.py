@@ -34,6 +34,6 @@ def test_values_are_snake_case():
 
 
 def test_enum_lookup_by_value():
-    """Stat('strength') should resolve back to Stat.STRENGTH."""
-    assert Stat("strength") is Stat.STRENGTH
+    """Stat('strength_flat') should resolve back to Stat.STRENGTH_FLAT."""
+    assert Stat("strength_flat") is Stat.STRENGTH_FLAT
     assert Stat("dmg_inc") is Stat.DMG_INC

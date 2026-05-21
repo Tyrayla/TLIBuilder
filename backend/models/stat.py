@@ -4,9 +4,12 @@ from enum import Enum
 class Stat(Enum):
 
     # ── Attributes ───────────────────────────────────────────────────────────
-    STRENGTH = "strength"
-    DEXTERITY = "dexterity"
-    INTELLIGENCE = "intelligence"
+    STRENGTH_FLAT = "strength_flat"
+    STRENGTH_INC = "strength_inc"
+    DEXTERITY_FLAT = "dexterity_flat"
+    DEXTERITY_INC = "dexterity_inc"
+    INTELLIGENCE_FLAT = "intelligence_flat"
+    INTELLIGENCE_INC = "intelligence_inc"
     ALL_STATS_FLAT = "all_stats_flat"
     ALL_STATS_INC = "all_stats_inc"
 
@@ -26,7 +29,6 @@ class Stat(Enum):
     ATTACK_SKILL_LEVEL = "attack_skill_level"
     TWO_HANDED_BASE_DMG_ADDITIONAL = "two_handed_base_dmg_additional"
     SHIELD_DMG_INC = "shield_dmg_inc"
-    ATTACK_CAST_SPEED_INC = "attack_cast_speed_inc"  # combined; aggregator splits into attack_speed_inc + cast_speed_inc
 
     # ── Spell ────────────────────────────────────────────────────────────────
     SPELL_DMG_INC = "spell_dmg_inc"
@@ -66,7 +68,8 @@ class Stat(Enum):
     MINION_EROSION_DMG_INC = "minion_erosion_dmg_inc"
     MINION_PHYSICAL_DMG_INC = "minion_physical_dmg_inc"
     MINION_MAX_LIFE_INC = "minion_max_life_inc"
-    MINION_ATTACK_CAST_SPEED_INC = "minion_attack_cast_speed_inc"  # combined; split in aggregator
+    MINION_ATTACK_SPEED_INC = "minion_attack_speed_inc"
+    MINION_CAST_SPEED_INC = "minion_cast_speed_inc"
     MINION_LIFE_REGEN_SPEED_INC = "minion_life_regen_speed_inc"
     MINION_MULTISTRIKE_CHANCE = "minion_multistrike_chance"
     MINION_IGNITE_CHANCE = "minion_ignite_chance"
@@ -212,6 +215,8 @@ class Stat(Enum):
 
     # ── Channeled / Triggered / Combo Mechanics ──────────────────────────────
     CHANNELED_DMG_INC = "channeled_dmg_inc"
+    CHANNELED_ATTACK_SPEED_INC = "channeled_attack_speed_inc"
+    CHANNELED_CAST_SPEED_INC = "channeled_cast_speed_inc"
     TRIGGERED_DMG_INC = "triggered_dmg_inc"
     COMBO_FINISHER_ADDITIONAL = "combo_finisher_additional"
     MULTISTRIKE_DMG_ADDITIONAL = "multistrike_dmg_additional"
@@ -298,6 +303,7 @@ class Stat(Enum):
 
     # ── Defense ───────────────────────────────────────────────────────────────
     ARMOR_FLAT = "armor_flat"
+    ARMOR_INC = "armor_inc"
     EVASION_FLAT = "evasion_flat"
     EVASION_INC = "evasion_inc"
     DEFENSE_INC = "defense_inc"
