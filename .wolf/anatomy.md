@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-05-21T03:16:33.377Z
-> Files: 112 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-05-21T03:53:09.476Z
+> Files: 113 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ../../.claude/plans/
 
@@ -13,6 +13,7 @@
 - `CLAUDE.md` — OpenWolf (~57 tok)
 - `DEVELOPMENT.md` — Development Notes (~406 tok)
 - `electron.vite.config.ts` — Vite/Electron build config; renderer alias @renderer→src/renderer/src (~120 tok)
+- `LICENSE` (~284 tok)
 - `package-lock.json` — npm lock file (~62938 tok)
 - `package.json` — Node.js package manifest (~394 tok)
 - `README.md` — Project documentation (~446 tok)
@@ -164,8 +165,8 @@
 
 ## src/renderer/src/
 
-- `App.tsx` — emptySession (~3878 tok)
-- `index.css` — Styles: 93 rules, 8 vars (~4748 tok)
+- `App.tsx` — emptySession (~3889 tok)
+- `index.css` — Styles: 93 rules, 8 vars (~4643 tok)
 - `main.tsx` — Renderer entry point (~70 tok)
 - `treeGroups.ts` — GROUPS, isPrimary, getSubtrees, getPrimaryFor + tree grouping helpers (~1134 tok)
 
@@ -182,7 +183,7 @@
 - `BuildOverviewScreen.tsx` — Build hub with nav buttons (Talent Tree, Slates, Stats, Gear) (~1600 tok)
 - `BuildSelectScreen.tsx` — Build selection/management screen (~822 tok)
 - `DevToolsScreen.tsx` — DIFF_COLOR (~11177 tok)
-- `SlateScreen.tsx` — ── Board ───────────────────────────────────────────────────────────────────── (~17176 tok)
-- `StatsScreen.tsx` — Character stat sheet; category-grouped stats + click-to-open source drawer (~1565 tok)
-- `TreeSelectorScreen.tsx` — Tree selector screen (~1858 tok)
+- `SlateScreen.tsx` — ── Board ───────────────────────────────────────────────────────────────────── (~17456 tok)
+- `StatsScreen.tsx` — CATEGORY_ORDER (~1799 tok)
+- `TreeSelectorScreen.tsx` — ORDINALS (~1993 tok)
 - `TreeViewerScreen.tsx` — Tree viewer with node allocation and debug tools (~5884 tok)
