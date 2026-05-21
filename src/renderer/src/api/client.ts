@@ -196,6 +196,7 @@ export interface NodeTypeFilterMeta {
   matched: number
   ambiguous: number
   unmatched: number
+  conditional: number
 }
 
 export interface FilterOverride {

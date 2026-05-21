@@ -18,6 +18,10 @@ class Stat(Enum):
     DOUBLE_DMG_CHANCE = "double_dmg_chance"
     DMG_INC = "dmg_inc"
     DMG_ADDITIONAL = "dmg_additional"
+    DMG_MAX_ADDITIONAL = "dmg_max_additional"
+    POST_MOBILITY_DMG_ADDITIONAL = "post_mobility_dmg_additional"
+    DMG_AVOID_CHANCE = "dmg_avoid_chance"
+    BEAM_LENGTH_ADDITIONAL = "beam_length_additional"
     ALL_SKILL_LEVEL = "all_skill_level"
     ACTIVE_SKILL_LEVEL = "active_skill_level"
     SUPPORT_SKILL_LEVEL = "support_skill_level"
@@ -36,6 +40,7 @@ class Stat(Enum):
     SPELL_DOUBLE_DMG_CHANCE = "spell_double_dmg_chance"
     SPELL_SKILL_LEVEL = "spell_skill_level"
     SPELL_BURST_CHARGE_SPEED_INC = "spell_burst_charge_speed_inc"
+    LOW_MANA_SPELL_DMG_INC = "low_mana_spell_dmg_inc"
 
     # ── Melee ────────────────────────────────────────────────────────────────
     MELEE_DMG_INC = "melee_dmg_inc"
@@ -55,6 +60,7 @@ class Stat(Enum):
     PROJECTILE_CRIT_RATING_INC = "projectile_crit_rating_inc"
     PROJECTILE_QUANTITY_FLAT = "projectile_quantity_flat"
     HORIZONTAL_PROJECTILE_PENETRATION_FLAT = "horizontal_projectile_penetration_flat"
+    PARABOLIC_PROJECTILE_SPLITS_FLAT = "parabolic_projectile_splits_flat"
 
     # ── Minion ───────────────────────────────────────────────────────────────
     MINION_DMG_INC = "minion_dmg_inc"
@@ -79,6 +85,9 @@ class Stat(Enum):
     MINION_DURATION_INC = "minion_duration_inc"
     MINION_PHYSIQUE_INC = "minion_physique_inc"
     MINION_LIFE_REGAIN_INC = "minion_life_regain_inc"
+    MINION_SKILL_AREA_INC = "minion_skill_area_inc"
+    MINION_DAMAGING_AILMENT_CHANCE = "minion_damaging_ailment_chance"
+    MINION_TRAUMA_CHANCE = "minion_trauma_chance"
 
     # Synthetic Troops
     SYNTH_DOUBLE_DMG_CHANCE = "synth_double_dmg_chance"
@@ -86,21 +95,32 @@ class Stat(Enum):
     MAX_SYNTH_TROOPS_FLAT = "max_synth_troops_flat"
     COMMAND_PER_SECOND_FLAT = "command_per_second_flat"
     MAX_COMMAND_FLAT = "max_command_flat"
+    SYNTH_TROOP_DMG_TAKEN_ADDITIONAL = "synth_troop_dmg_taken_additional"
 
     # ── Sentry ───────────────────────────────────────────────────────────────
+    SENTRY_DMG_INC = "sentry_dmg_inc"
     SENTRY_DMG_ADDITIONAL = "sentry_dmg_additional"
     SENTRY_SKILL_CAST_FREQUENCY_INC = "sentry_skill_cast_frequency_inc"
     SENTRY_SKILL_CAST_FREQUENCY_ADDITIONAL = "sentry_skill_cast_frequency_additional"
     SENTRY_CRIT_DMG = "sentry_crit_dmg"
     SENTRY_CRIT_RATING_INC = "sentry_crit_rating_inc"
     MAX_SENTRY_QUANTITY_FLAT = "max_sentry_quantity_flat"
+    SENTRY_DURATION_INC = "sentry_duration_inc"
+    SENTRY_SKILL_AREA_INC = "sentry_skill_area_inc"
+    SENTRY_START_TIME_ADDITIONAL = "sentry_start_time_additional"
+    SENTRY_PROJECTILE_SPEED_INC = "sentry_projectile_speed_inc"
 
     # ── Spirit Magi ──────────────────────────────────────────────────────────
     SPIRIT_MAGI_DMG_INC = "spirit_magi_dmg_inc"
+    SPIRIT_MAGI_DMG_ADDITIONAL = "spirit_magi_dmg_additional"
     SPIRIT_MAGI_ULTIMATE_DMG_INC = "spirit_magi_ultimate_dmg_inc"
     SPIRIT_MAGI_ORIGIN_EFFECT_INC = "spirit_magi_origin_effect_inc"
     SPIRIT_MAGI_SKILL_LEVEL = "spirit_magi_skill_level"
     SPIRIT_MAGI_CRIT_RATING_FLAT = "spirit_magi_crit_rating_flat"
+    SPIRIT_MAGI_ENHANCED_SKILL_CHANCE = "spirit_magi_enhanced_skill_chance"
+    SPIRIT_MAGI_CDR_SPEED_INC = "spirit_magi_cdr_speed_inc"
+    SPIRIT_MAGI_DMG_TAKEN_ADDITIONAL = "spirit_magi_dmg_taken_additional"
+    MAX_SPIRIT_MAGI_FLAT = "max_spirit_magi_flat"
 
     # ── Physical ─────────────────────────────────────────────────────────────
     PHYSICAL_DMG_INC = "physical_dmg_inc"
@@ -147,6 +167,7 @@ class Stat(Enum):
     FIRE_SPELL_DMG_FLAT_MIN = "fire_spell_dmg_flat_min"
     FIRE_SPELL_DMG_FLAT_MAX = "fire_spell_dmg_flat_max"
     FIRE_SKILL_LEVEL = "fire_skill_level"
+    FIRE_DOT_DMG_INC = "fire_dot_dmg_inc"
     FIRE_DMG_REFLECTION = "fire_dmg_reflection"
 
     # ── Erosion ──────────────────────────────────────────────────────────────
@@ -169,6 +190,7 @@ class Stat(Enum):
     AILMENT_DMG_FLAT_MIN = "ailment_dmg_flat_min"
     AILMENT_DMG_FLAT_MAX = "ailment_dmg_flat_max"
     DAMAGING_AILMENT_CHANCE = "damaging_ailment_chance"
+    ELEMENTAL_AILMENT_AVOID_CHANCE = "elemental_ailment_avoid_chance"
     DOT_DMG_INC = "dot_dmg_inc"
 
     # ── Ignite ───────────────────────────────────────────────────────────────
@@ -192,6 +214,8 @@ class Stat(Enum):
     # ── Trauma ───────────────────────────────────────────────────────────────
     TRAUMA_DMG_INC = "trauma_dmg_inc"
     TRAUMA_CHANCE = "trauma_chance"
+    TRAUMA_DMG_ADDITIONAL_ON_CRIT = "trauma_dmg_additional_on_crit"
+    TRAUMA_REAPING_DURATION_INC = "trauma_reaping_duration_inc"
 
     # ── Frostbite ────────────────────────────────────────────────────────────
     FROSTBITE_EFFECT_INC = "frostbite_effect_inc"
@@ -204,10 +228,12 @@ class Stat(Enum):
     # ── Deterioration ────────────────────────────────────────────────────────
     DETERIORATION_CHANCE = "deterioration_chance"
     DETERIORATION_DMG_INC = "deterioration_dmg_inc"
+    DETERIORATION_DMG_ADDITIONAL = "deterioration_dmg_additional"
     DETERIORATION_DURATION_ADDITIONAL = "deterioration_duration_additional"
 
     # ── Status Effects ───────────────────────────────────────────────────────
     NUMBED_EFFECT_INC = "numbed_effect_inc"
+    NUMBED_THRESHOLD_INC = "numbed_threshold_inc"
     SLOW_CHANCE = "slow_chance"
     SLOW_EFFECT_RECEIVED_INC = "slow_effect_received_inc"
     BLIND_CHANCE = "blind_chance"
@@ -222,6 +248,7 @@ class Stat(Enum):
     MULTISTRIKE_DMG_ADDITIONAL = "multistrike_dmg_additional"
     BARRAGE_DMG_ADDITIONAL = "barrage_dmg_additional"           # revisit in-game behavior
     MULTISTRIKE_CHANCE = "multistrike_chance"
+    MAX_CHANNELED_STACKS_FLAT = "max_channeled_stacks_flat"
 
     # ── Steep Strike ─────────────────────────────────────────────────────────
     STEEP_STRIKE_CHANCE = "steep_strike_chance"
@@ -245,6 +272,7 @@ class Stat(Enum):
     # ── Critical Strike — Rating ─────────────────────────────────────────────
     ATTACK_CRIT_RATING_GEAR = "attack_crit_rating_gear"
     ATTACK_CRIT_RATING_MH = "attack_crit_rating_mh"
+    CRIT_RATING_INC = "crit_rating_inc"
     ATTACK_CRIT_RATING_INC = "attack_crit_rating_inc"
     SPELL_CRIT_RATING_INC = "spell_crit_rating_inc"
     MINION_CRIT_RATING_INC = "minion_crit_rating_inc"
@@ -275,6 +303,7 @@ class Stat(Enum):
     LIFE_REGEN_SPEED_INC = "life_regen_speed_inc"    # multiplier to regen rate
     LIFE_REGAIN_INC = "life_regain_inc"
     LIFE_REGAIN_INTERVAL_ADDITIONAL = "life_regain_interval_additional"
+    REGAIN_INTERVAL_ADDITIONAL = "regain_interval_additional"
     LIFE_ON_SKILL_USE_FLAT = "life_on_skill_use_flat"
     LIFE_ON_DEFEAT_PCT = "life_on_defeat_pct"
     INJURY_BUFFER_INC = "injury_buffer_inc"
@@ -287,6 +316,8 @@ class Stat(Enum):
     MANA_REGEN_PCT = "mana_regen_pct"                # % of max mana per second
     MANA_BEFORE_LIFE_INC = "mana_before_life_inc"
     SKILL_COST_FLAT = "skill_cost_flat"              # flat addition to skill cost (negative = reduction)
+    ATTACK_SKILL_COST_FLAT = "attack_skill_cost_flat"
+    SPELL_SKILL_COST_FLAT = "spell_skill_cost_flat"
     SKILL_COST_INC = "skill_cost_inc"
     SKILL_COST_REDUCTION = "skill_cost_reduction"    # legacy / talent-tree source
     SEALED_MANA_COMPENSATION_INC = "sealed_mana_compensation_inc"
@@ -296,6 +327,8 @@ class Stat(Enum):
     MAX_ENERGY_SHIELD_INC = "max_energy_shield_inc"
     ENERGY_SHIELD_REGAIN_INC = "energy_shield_regain_inc"
     ENERGY_SHIELD_CHARGE_SPEED_INC = "energy_shield_charge_speed_inc"
+    ENERGY_SHIELD_REGAIN_INTERVAL_ADDITIONAL = "energy_shield_regain_interval_additional"
+    ENERGY_SHIELD_CHARGE_INTERVAL_ADDITIONAL = "energy_shield_charge_interval_additional"
 
     # ── Barrier ───────────────────────────────────────────────────────────────
     BARRIER_ABSORPTION_RATE_INC = "barrier_absorption_rate_inc"
@@ -306,6 +339,7 @@ class Stat(Enum):
     ARMOR_INC = "armor_inc"
     EVASION_FLAT = "evasion_flat"
     EVASION_INC = "evasion_inc"
+    EVASION_ON_SPELL_DMG_INC = "evasion_on_spell_dmg_inc"
     DEFENSE_INC = "defense_inc"
     SHIELD_DEFENSE_INC = "shield_defense_inc"
     ELEMENTAL_RESISTANCE = "elemental_resistance"
@@ -318,6 +352,8 @@ class Stat(Enum):
     SPELL_BLOCK_CHANCE_INC = "spell_block_chance_inc"
     BLOCK_RATIO_INC = "block_ratio_inc"
     INTIMIDATING_EFFECT_INC = "intimidating_effect_inc"
+    SHIELD_ENERGY_SHIELD_INC = "shield_energy_shield_inc"
+    CHEST_DEFENSE_INC = "chest_defense_inc"
 
     # ── Damage Taken ─────────────────────────────────────────────────────────
     DMG_TAKEN_ADDITIONAL = "dmg_taken_additional"
@@ -352,9 +388,15 @@ class Stat(Enum):
     CURSE_EFFECT_INC = "curse_effect_inc"
     CURSE_SKILL_AREA_INC = "curse_skill_area_inc"
     MARK_EFFECT_INC = "mark_effect_inc"
+    MARK_ON_CRIT_CHANCE = "mark_on_crit_chance"
     CC_EFFECT_INC = "cc_effect_inc"
     ILL_OMEN_EFFICIENCY_INC = "ill_omen_efficiency_inc"
     DEMOLISHER_CHARGE_SPEED_INC = "demolisher_charge_speed_inc"
+    AGILITY_BLESSING_DURATION_INC = "agility_blessing_duration_inc"
+    FOCUS_BLESSING_DURATION_INC = "focus_blessing_duration_inc"
+    TENACITY_BLESSING_DURATION_INC = "tenacity_blessing_duration_inc"
+    WARCRY_MIN_TARGETS_FLAT = "warcry_min_targets_flat"
+    FOCUS_SKILL_LEVEL = "focus_skill_level"
 
     # ── Gear-Specific Stats ───────────────────────────────────────────────────
     GEAR_PHYSICAL_DMG_INC = "gear_physical_dmg_inc"
@@ -373,6 +415,6 @@ class Stat(Enum):
     PERSISTENT_SKILL_LEVEL = "persistent_skill_level"
 
     # ── Blessings ─────────────────────────────────────────────────────────────
-    TENACITY_BLESSING = "tenacity_blessing"
-    AGILITY_BLESSING = "agility_blessing"
-    FOCUS_BLESSING = "focus_blessing"
+    MAX_TENACITY_BLESSING_STACKS_FLAT = "max_tenacity_blessing_stacks_flat"
+    MAX_AGILITY_BLESSING_STACKS_FLAT = "max_agility_blessing_stacks_flat"
+    MAX_FOCUS_BLESSING_STACKS_FLAT = "max_focus_blessing_stacks_flat"

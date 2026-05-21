@@ -400,6 +400,7 @@ def build_filter(snapshot: dict) -> dict:
     matched_count = 0
     ambiguous_count = 0
     unmatched_count = 0
+    conditional_count = 0
 
     staged: list[dict] = []
 
@@ -428,7 +429,7 @@ def build_filter(snapshot: dict) -> dict:
             matched_count += 1
 
     def _process_stat_text(text: str, node_type: str, tree: str):
-        nonlocal ambiguous_count, unmatched_count
+        nonlocal ambiguous_count, unmatched_count, conditional_count
 
         rank1, _ = _parse_value(text)
 
@@ -447,7 +448,8 @@ def build_filter(snapshot: dict) -> dict:
                 result = _jaccard_match(text, candidates, overrides)
                 if result:
                     _apply_match(result[0], result[1], text, node_type, tree, condition=cond_key)
-            unmatched_count += 1
+                    return
+            conditional_count += 1
             unresolved.append({"tree": tree, "node_type": node_type, "text": text, "reason": "conditional"})
             return
 
@@ -540,6 +542,7 @@ def build_filter(snapshot: dict) -> dict:
         "matched": matched_count,
         "ambiguous": ambiguous_count,
         "unmatched": unmatched_count,
+        "conditional": conditional_count,
     }
 
     matched_texts_out = {k: sorted(v.values()) for k, v in matched_texts.items()}

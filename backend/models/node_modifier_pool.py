@@ -162,7 +162,7 @@ NODE_MODIFIER_POOL: dict[Stat, NodeModifierDef] = {
     Stat.EROSION_RESISTANCE:   NodeModifierDef(Stat.EROSION_RESISTANCE,    5.0, 10.0, 15.0),
 
     # ── Blessings ─────────────────────────────────────────────────────────────
-    Stat.TENACITY_BLESSING: NodeModifierDef(Stat.TENACITY_BLESSING, 1.0, 1.0, 1.0),
-    Stat.AGILITY_BLESSING:  NodeModifierDef(Stat.AGILITY_BLESSING,  1.0, 1.0, 1.0),
-    Stat.FOCUS_BLESSING:    NodeModifierDef(Stat.FOCUS_BLESSING,    1.0, 1.0, 1.0),
+    Stat.MAX_TENACITY_BLESSING_STACKS_FLAT: NodeModifierDef(Stat.MAX_TENACITY_BLESSING_STACKS_FLAT, 1.0, 1.0, 1.0),
+    Stat.MAX_AGILITY_BLESSING_STACKS_FLAT:  NodeModifierDef(Stat.MAX_AGILITY_BLESSING_STACKS_FLAT,  1.0, 1.0, 1.0),
+    Stat.MAX_FOCUS_BLESSING_STACKS_FLAT:    NodeModifierDef(Stat.MAX_FOCUS_BLESSING_STACKS_FLAT,    1.0, 1.0, 1.0),
 }

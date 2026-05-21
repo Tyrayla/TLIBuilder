@@ -66,7 +66,7 @@ STAT_META: dict[Stat, StatMeta] = {
         ui_priority=5,            source_types=_TB,
     ),
     Stat.ALL_STATS_FLAT: StatMeta(
-        "All Stats", "Attributes", "added_flat",
+        "to All Stats", "Attributes", "added_flat",
         subgroup="attribute",     stacking_rule="additive",
         ui_priority=6,            source_types=_TB,
     ),
@@ -78,7 +78,7 @@ STAT_META: dict[Stat, StatMeta] = {
 
     # ── Generic ───────────────────────────────────────────────────────────────
     Stat.ARMOR_PEN: StatMeta(
-        "Armor Penetration", "Generic", "penetration", "%",
+        "Armor DMG Mitigation Penetration", "Generic", "penetration", "%",
         subgroup="mitigation",    pipeline_stage="mitigation",
         tags=("physical",),       affects=_ALL_DMGF,
         stacking_rule="additive", ui_priority=25,
@@ -102,8 +102,30 @@ STAT_META: dict[Stat, StatMeta] = {
         affects=_HIT_DOT,             stacking_rule="additive",
         ui_priority=2,                source_types=_T,
     ),
+    Stat.POST_MOBILITY_DMG_ADDITIONAL: StatMeta(
+        "Additional Damage after Using Mobility Skills", "Generic", "additional", "%",
+        subgroup="generic_damage",    pipeline_stage="additional",
+        affects=_HIT_DOT,             stacking_rule="additive",
+        ui_priority=4,                source_types=_T,
+    ),
+    Stat.DMG_MAX_ADDITIONAL: StatMeta(
+        "Additional Max Damage", "Generic", "additional", "%",
+        subgroup="generic_damage",    pipeline_stage="additional",
+        affects=_HIT_DOT,             stacking_rule="additive",
+        ui_priority=3,                source_types=_T,
+    ),
+    Stat.DMG_AVOID_CHANCE: StatMeta(
+        "Chance to Avoid Damage", "Generic", "chance", "%",
+        subgroup="generic_damage",    stacking_rule="additive_chance",
+        ui_priority=25,               source_types=_T,
+    ),
+    Stat.BEAM_LENGTH_ADDITIONAL: StatMeta(
+        "Additional Beam Length", "Generic", "added_flat",
+        subgroup="mechanics",         stacking_rule="additive",
+        ui_priority=70,               source_types=_T,
+    ),
     Stat.ALL_SKILL_LEVEL: StatMeta(
-        "All Skill Level", "Generic", "skill_level",
+        "All Skills' Levels", "Generic", "skill_level",
         subgroup="skill_level",       pipeline_stage="skill_level",
         affects=_HIT_DOT,             stacking_rule="additive",
         ui_priority=15,               source_types=_T,
@@ -200,6 +222,13 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="speed",             stacking_rule="additive",
         ui_priority=62,               source_types=_TB,
     ),
+    Stat.LOW_MANA_SPELL_DMG_INC: StatMeta(
+        "Spell Damage at Low Mana", "Spell", "increased", "%",
+        subgroup="spell_damage",      pipeline_stage="increased_reduced",
+        tags=("spell",),              affects=_HIT_DOT,
+        stacking_rule="additive",     ui_priority=14,
+        source_types=_T,
+    ),
 
     # ── Melee ─────────────────────────────────────────────────────────────────
     Stat.MELEE_DMG_INC: StatMeta(
@@ -286,6 +315,11 @@ STAT_META: dict[Stat, StatMeta] = {
         "Projectile Quantity", "Projectile", "added_flat",
         subgroup="mechanics",          stacking_rule="additive",
         ui_priority=70,                source_types=_TB,
+    ),
+    Stat.PARABOLIC_PROJECTILE_SPLITS_FLAT: StatMeta(
+        "Parabolic Projectile Splits Quantity", "Projectile", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=71,                source_types=_T,
     ),
     Stat.HORIZONTAL_PROJECTILE_PENETRATION_FLAT: StatMeta(
         "Horizontal Projectile Penetration", "Projectile", "added_flat",
@@ -391,8 +425,23 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="minion_mechanics",   stacking_rule="additive_chance",
         ui_priority=22,                source_types=_T,
     ),
+    Stat.MINION_SKILL_AREA_INC: StatMeta(
+        "Minion Skill Area", "Minion", "increased", "%",
+        subgroup="minion_mechanics",   stacking_rule="additive",
+        ui_priority=30,                source_types=_T,
+    ),
+    Stat.MINION_DAMAGING_AILMENT_CHANCE: StatMeta(
+        "Chance for Minions to Inflict Damaging Ailments", "Minion", "chance", "%",
+        subgroup="minion_mechanics",   stacking_rule="additive_chance",
+        ui_priority=23,                source_types=_T,
+    ),
+    Stat.MINION_TRAUMA_CHANCE: StatMeta(
+        "Chance for Minions to Inflict Trauma", "Minion", "chance", "%",
+        subgroup="minion_mechanics",   stacking_rule="additive_chance",
+        ui_priority=24,                source_types=_T,
+    ),
     Stat.MINION_IGNITE_CHANCE: StatMeta(
-        "Minion Ignite Chance", "Ailments", "chance", "%",
+        "Ignite Chance for Minions", "Ailments", "chance", "%",
         subgroup="ignite",             stacking_rule="additive_chance",
         ui_priority=22,                source_types=_T,
     ),
@@ -431,7 +480,7 @@ STAT_META: dict[Stat, StatMeta] = {
 
     # Synthetic Troops
     Stat.SYNTH_DOUBLE_DMG_CHANCE: StatMeta(
-        "Synthetic Troop Double Damage Chance", "Minion", "chance", "%",
+        "Chance for Synthetic Troop Minions to Deal Double Damage", "Minion", "chance", "%",
         subgroup="double_damage",      pipeline_stage="double_damage",
         tags=("synth",),               affects=_HIT,
         stacking_rule="additive_chance", ui_priority=22,
@@ -449,6 +498,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="minion_mechanics",   stacking_rule="additive",
         ui_priority=70,                source_types=_TB,
     ),
+    Stat.SYNTH_TROOP_DMG_TAKEN_ADDITIONAL: StatMeta(
+        "Synthetic Troop Additional Damage Taken", "Minion", "additional", "%",
+        subgroup="minion_mechanics",   stacking_rule="additive",
+        ui_priority=73,                source_types=_T,
+    ),
     Stat.COMMAND_PER_SECOND_FLAT: StatMeta(
         "Command per second", "Minion", "added_flat",
         subgroup="minion_mechanics",   stacking_rule="additive",
@@ -461,6 +515,13 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Sentry ────────────────────────────────────────────────────────────────
+    Stat.SENTRY_DMG_INC: StatMeta(
+        "Sentry Damage", "Sentry", "increased", "%",
+        subgroup="sentry_damage",      pipeline_stage="increased",
+        tags=("sentry",),              affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=10,
+        source_types=_T,
+    ),
     Stat.SENTRY_DMG_ADDITIONAL: StatMeta(
         "Additional Sentry Damage", "Sentry", "additional", "%",
         subgroup="sentry_damage",      pipeline_stage="additional",
@@ -495,9 +556,29 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_T,
     ),
     Stat.MAX_SENTRY_QUANTITY_FLAT: StatMeta(
-        "Max Sentry Quantity", "Sentry", "added_flat",
+        "Sentry Quantity that can be Deployed at a Time", "Sentry", "added_flat",
         subgroup="sentry_mechanics",   stacking_rule="additive",
         ui_priority=70,                source_types=_TB,
+    ),
+    Stat.SENTRY_DURATION_INC: StatMeta(
+        "Sentry Duration", "Sentry", "increased", "%",
+        subgroup="sentry_mechanics",   stacking_rule="additive",
+        ui_priority=71,                source_types=_T,
+    ),
+    Stat.SENTRY_SKILL_AREA_INC: StatMeta(
+        "Sentry Skill Area", "Sentry", "increased", "%",
+        subgroup="sentry_mechanics",   stacking_rule="additive",
+        ui_priority=72,                source_types=_T,
+    ),
+    Stat.SENTRY_START_TIME_ADDITIONAL: StatMeta(
+        "Sentry Start Time", "Sentry", "added_flat",
+        subgroup="sentry_mechanics",   stacking_rule="additive",
+        ui_priority=73,                source_types=_T,
+    ),
+    Stat.SENTRY_PROJECTILE_SPEED_INC: StatMeta(
+        "Sentry Projectile Speed", "Sentry", "increased", "%",
+        subgroup="sentry_mechanics",   stacking_rule="additive",
+        ui_priority=74,                source_types=_T,
     ),
 
     # ── Spirit Magi ───────────────────────────────────────────────────────────
@@ -508,8 +589,15 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=10,
         source_types=_T,
     ),
+    Stat.SPIRIT_MAGI_DMG_ADDITIONAL: StatMeta(
+        "Additional Spirit Magus Skill Damage", "Spirit Magi", "additional", "%",
+        subgroup="spirit_magi_damage", pipeline_stage="additional",
+        tags=("spirit_magi",),         affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_T,
+    ),
     Stat.SPIRIT_MAGI_ULTIMATE_DMG_INC: StatMeta(
-        "Spirit Magus Ultimate Damage", "Spirit Magi", "increased", "%",
+        "Spirit Magus Ultimate Damage and Ailment Damage", "Spirit Magi", "increased", "%",
         subgroup="spirit_magi_damage", pipeline_stage="increased_reduced",
         tags=("spirit_magi",),         affects=_HIT_DOT,
         stacking_rule="additive",      ui_priority=10,
@@ -533,6 +621,26 @@ STAT_META: dict[Stat, StatMeta] = {
         tags=("spirit_magi",),         affects=_HIT,
         stacking_rule="additive",      ui_priority=12,
         source_types=_TB,
+    ),
+    Stat.SPIRIT_MAGI_ENHANCED_SKILL_CHANCE: StatMeta(
+        "Chance for Spirit Magi to Use an Enhanced Skill", "Spirit Magi", "chance", "%",
+        subgroup="spirit_magi_mechanics", stacking_rule="additive_chance",
+        ui_priority=22,                source_types=_T,
+    ),
+    Stat.SPIRIT_MAGI_CDR_SPEED_INC: StatMeta(
+        "Spirit Magus Ultimate Cooldown Recovery Speed", "Spirit Magi", "increased", "%",
+        subgroup="spirit_magi_mechanics", stacking_rule="additive",
+        ui_priority=30,                source_types=_T,
+    ),
+    Stat.SPIRIT_MAGI_DMG_TAKEN_ADDITIONAL: StatMeta(
+        "Additional Damage Taken by Spirit Magi", "Spirit Magi", "additional", "%",
+        subgroup="spirit_magi_mechanics", stacking_rule="additive",
+        ui_priority=50,                source_types=_T,
+    ),
+    Stat.MAX_SPIRIT_MAGI_FLAT: StatMeta(
+        "Max Spirit Magi in Map", "Spirit Magi", "added_flat",
+        subgroup="spirit_magi_mechanics", stacking_rule="additive",
+        ui_priority=70,                source_types=_TB,
     ),
 
     # ── Physical ──────────────────────────────────────────────────────────────
@@ -794,6 +902,13 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=15,
         source_types=_T,
     ),
+    Stat.FIRE_DOT_DMG_INC: StatMeta(
+        "Fire Damage over Time", "Fire", "increased", "%",
+        subgroup="fire_damage",        pipeline_stage="increased_reduced",
+        tags=("fire", "dot"),          affects=("dot",),
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_T,
+    ),
     Stat.FIRE_DMG_REFLECTION: StatMeta(
         "Fire Damage Reflection", "Fire", "added_flat",
         subgroup="reflection",         stacking_rule="additive",
@@ -904,9 +1019,14 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_TB,
     ),
     Stat.DAMAGING_AILMENT_CHANCE: StatMeta(
-        "Damaging Ailments Chance", "Ailments", "chance", "%",
+        "Chance to Inflict Damaging Ailments", "Ailments", "chance", "%",
         subgroup="ailment_chance",     stacking_rule="additive_chance",
         ui_priority=22,                source_types=_T,
+    ),
+    Stat.ELEMENTAL_AILMENT_AVOID_CHANCE: StatMeta(
+        "Chance to Avoid Elemental Ailments", "Ailments", "chance", "%",
+        subgroup="ailment_chance",     stacking_rule="additive_chance",
+        ui_priority=23,                source_types=_T,
     ),
     Stat.DOT_DMG_INC: StatMeta(
         "Damage Over Time", "Ailments", "increased", "%",
@@ -939,7 +1059,7 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_TB,
     ),
     Stat.IGNITE_CHANCE: StatMeta(
-        "Ignite Chance", "Ailments", "chance", "%",
+        "Chance to Ignite targets", "Ailments", "chance", "%",
         subgroup="ignite",             stacking_rule="additive_chance",
         ui_priority=22,                source_types=_T,
     ),
@@ -1005,9 +1125,20 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_T,
     ),
     Stat.TRAUMA_CHANCE: StatMeta(
-        "Trauma Chance", "Ailments", "chance", "%",
+        "Chance to inflict Trauma", "Ailments", "chance", "%",
         subgroup="trauma",             stacking_rule="additive_chance",
         ui_priority=22,                source_types=_T,
+    ),
+    Stat.TRAUMA_DMG_ADDITIONAL_ON_CRIT: StatMeta(
+        "Additional Trauma Damage Dealt by Critical Strikes", "Ailments", "additional", "%",
+        subgroup="trauma",             pipeline_stage="additional",
+        stacking_rule="additive",      ui_priority=12,
+        source_types=_T,
+    ),
+    Stat.TRAUMA_REAPING_DURATION_INC: StatMeta(
+        "Trauma Reaping Duration", "Ailments", "increased", "%",
+        subgroup="trauma",             stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
     ),
 
     # ── Frostbite ─────────────────────────────────────────────────────────────
@@ -1045,6 +1176,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="deterioration",      stacking_rule="additive",
         ui_priority=10,                source_types=_T,
     ),
+    Stat.DETERIORATION_DMG_ADDITIONAL: StatMeta(
+        "Additional Deterioration Damage", "Ailments", "additional", "%",
+        subgroup="deterioration",      stacking_rule="additive",
+        ui_priority=10,                source_types=_T,
+    ),
     Stat.DETERIORATION_DURATION_ADDITIONAL: StatMeta(
         "Additional Deterioration Duration", "Ailments", "additional", "%",
         subgroup="deterioration",      stacking_rule="additive",
@@ -1056,6 +1192,11 @@ STAT_META: dict[Stat, StatMeta] = {
         "Numbed Effect", "Ailments", "increased", "%",
         subgroup="status_effects",     stacking_rule="additive",
         ui_priority=70,                source_types=_T,
+    ),
+    Stat.NUMBED_THRESHOLD_INC: StatMeta(
+        "to the Max Life and Energy Shield Thresholds for Inflicting Numbed", "Ailments", "increased", "%",
+        subgroup="status_effects",     stacking_rule="additive",
+        ui_priority=71,                source_types=_T,
     ),
     Stat.SLOW_CHANCE: StatMeta(
         "Slow Chance", "Ailments", "chance", "%",
@@ -1080,7 +1221,7 @@ STAT_META: dict[Stat, StatMeta] = {
 
     # ── Channeled / Triggered / Combo ─────────────────────────────────────────
     Stat.CHANNELED_DMG_INC: StatMeta(
-        "Channeled Skill Damage", "Generic", "increased", "%",
+        "Damage for Channeled Skills", "Generic", "increased", "%",
         subgroup="generic_damage",     pipeline_stage="increased_reduced",
         tags=("channeled",),           affects=_HIT_DOT,
         stacking_rule="additive",      ui_priority=10,
@@ -1099,7 +1240,7 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_T,
     ),
     Stat.TRIGGERED_DMG_INC: StatMeta(
-        "Triggered Skill Damage", "Generic", "increased", "%",
+        "Damage for Triggered Skills", "Generic", "increased", "%",
         subgroup="generic_damage",     pipeline_stage="increased_reduced",
         tags=("triggered",),           affects=_HIT_DOT,
         stacking_rule="additive",      ui_priority=10,
@@ -1127,9 +1268,14 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_TB,
     ),
     Stat.MULTISTRIKE_CHANCE: StatMeta(
-        "Multistrike Chance", "Generic", "chance", "%",
+        "Chance to Multistrike", "Generic", "chance", "%",
         subgroup="mechanics",          stacking_rule="additive_chance",
         ui_priority=22,                source_types=_T,
+    ),
+    Stat.MAX_CHANNELED_STACKS_FLAT: StatMeta(
+        "Max Channeled Stacks", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=75,                source_types=_T,
     ),
 
     # ── Steep Strike ──────────────────────────────────────────────────────────
@@ -1218,6 +1364,12 @@ STAT_META: dict[Stat, StatMeta] = {
         tags=("attack",),              affects=_HIT,
         stacking_rule="additive",      ui_priority=11,
         source_types=_G,
+    ),
+    Stat.CRIT_RATING_INC: StatMeta(
+        "Critical Strike Rating", "Critical Strike", "crit_rating", "%",
+        subgroup="crit_rating",        pipeline_stage="crit_rating",
+        affects=_HIT,                  stacking_rule="additive",
+        ui_priority=10,                source_types=_T,
     ),
     Stat.ATTACK_CRIT_RATING_INC: StatMeta(
         "Attack Critical Strike Rating", "Critical Strike", "crit_rating", "%",
@@ -1409,6 +1561,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="life",               stacking_rule="additive",
         ui_priority=37,                source_types=_T,
     ),
+    Stat.REGAIN_INTERVAL_ADDITIONAL: StatMeta(
+        "Additional Regain Interval", "Life", "additional", "%",
+        subgroup="life",               stacking_rule="additive",
+        ui_priority=38,                source_types=_T,
+    ),
     Stat.LIFE_ON_SKILL_USE_FLAT: StatMeta(
         "Life on Skill Use", "Life", "added_flat",
         subgroup="life",               stacking_rule="additive",
@@ -1461,6 +1618,16 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="mana",               stacking_rule="additive",
         ui_priority=37,                source_types=_TB,
     ),
+    Stat.ATTACK_SKILL_COST_FLAT: StatMeta(
+        "Attack Skill Cost", "Mana", "added_flat",
+        subgroup="mana",               stacking_rule="additive",
+        ui_priority=37,                source_types=_TB,
+    ),
+    Stat.SPELL_SKILL_COST_FLAT: StatMeta(
+        "Spell Skill Cost", "Mana", "added_flat",
+        subgroup="mana",               stacking_rule="additive",
+        ui_priority=38,                source_types=_TB,
+    ),
     Stat.SKILL_COST_INC: StatMeta(
         "Skill Cost", "Mana", "increased", "%",
         subgroup="mana",               stacking_rule="additive",
@@ -1498,6 +1665,16 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="energy_shield",      stacking_rule="additive",
         ui_priority=34,                source_types=_T,
     ),
+    Stat.ENERGY_SHIELD_REGAIN_INTERVAL_ADDITIONAL: StatMeta(
+        "Energy Shield Regain Interval", "Energy Shield", "added_flat",
+        subgroup="energy_shield",      stacking_rule="additive",
+        ui_priority=35,                source_types=_T,
+    ),
+    Stat.ENERGY_SHIELD_CHARGE_INTERVAL_ADDITIONAL: StatMeta(
+        "Energy Shield Charge Interval", "Energy Shield", "added_flat",
+        subgroup="energy_shield",      stacking_rule="additive",
+        ui_priority=36,                source_types=_T,
+    ),
 
     # ── Barrier ───────────────────────────────────────────────────────────────
     Stat.BARRIER_ABSORPTION_RATE_INC: StatMeta(
@@ -1531,6 +1708,11 @@ STAT_META: dict[Stat, StatMeta] = {
         "Evasion", "Defense", "increased", "%",
         subgroup="defense",            stacking_rule="additive",
         ui_priority=33,                source_types=_T,
+    ),
+    Stat.EVASION_ON_SPELL_DMG_INC: StatMeta(
+        "Additional Evasion on Spell Damage", "Defense", "increased", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=34,                source_types=_T,
     ),
     Stat.DEFENSE_INC: StatMeta(
         "Defense", "Defense", "increased", "%",
@@ -1591,6 +1773,16 @@ STAT_META: dict[Stat, StatMeta] = {
         "Intimidating Effect", "Defense", "increased", "%",
         subgroup="defense",            stacking_rule="additive",
         ui_priority=40,                source_types=_TB,
+    ),
+    Stat.SHIELD_ENERGY_SHIELD_INC: StatMeta(
+        "Energy Shield gained from Shield", "Defense", "increased", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=41,                source_types=_T,
+    ),
+    Stat.CHEST_DEFENSE_INC: StatMeta(
+        "Defense from Chest Armor", "Defense", "increased", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=42,                source_types=_T,
     ),
 
     # ── Damage Taken ──────────────────────────────────────────────────────────
@@ -1714,6 +1906,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=70,                source_types=_T,
     ),
+    Stat.MARK_ON_CRIT_CHANCE: StatMeta(
+        "Chance to Mark Enemy on Critical Strike", "Buffs", "chance", "%",
+        subgroup="buff_effect",        stacking_rule="additive_chance",
+        ui_priority=71,                source_types=_T,
+    ),
     Stat.CC_EFFECT_INC: StatMeta(
         "Crowd Control Effects", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
@@ -1728,6 +1925,32 @@ STAT_META: dict[Stat, StatMeta] = {
         "Demolisher Charge Restoration Speed", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=72,                source_types=_T,
+    ),
+    Stat.AGILITY_BLESSING_DURATION_INC: StatMeta(
+        "Agility Blessing Duration", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=73,                source_types=_T,
+    ),
+    Stat.FOCUS_BLESSING_DURATION_INC: StatMeta(
+        "Focus Blessing Duration", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=74,                source_types=_T,
+    ),
+    Stat.TENACITY_BLESSING_DURATION_INC: StatMeta(
+        "Tenacity Blessing Duration", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=75,                source_types=_T,
+    ),
+    Stat.WARCRY_MIN_TARGETS_FLAT: StatMeta(
+        "Minimum Enemies Affected by Warcry", "Buffs", "added_flat",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=76,                source_types=_T,
+    ),
+    Stat.FOCUS_SKILL_LEVEL: StatMeta(
+        "Focus Skill Level", "Buffs", "skill_level",
+        subgroup="skill_level",        pipeline_stage="skill_level",
+        stacking_rule="additive",      ui_priority=17,
+        source_types=_T,
     ),
 
     # ── Gear-Specific Stats ───────────────────────────────────────────────────
@@ -1795,20 +2018,20 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Blessings ─────────────────────────────────────────────────────────────
-    Stat.TENACITY_BLESSING: StatMeta(
-        "Tenacity Blessing", "Blessings", "added_flat",
+    Stat.MAX_TENACITY_BLESSING_STACKS_FLAT: StatMeta(
+        "Max Tenacity Blessing Stacks", "Blessings", "added_flat",
         subgroup="blessing",           stacking_rule="additive",
         ui_priority=70,                source_types=_T,
     ),
-    Stat.AGILITY_BLESSING: StatMeta(
-        "Agility Blessing", "Blessings", "added_flat",
+    Stat.MAX_AGILITY_BLESSING_STACKS_FLAT: StatMeta(
+        "Max Agility Blessing Stacks", "Blessings", "added_flat",
         subgroup="blessing",           stacking_rule="additive",
-        ui_priority=70,                source_types=_T,
+        ui_priority=71,                source_types=_T,
     ),
-    Stat.FOCUS_BLESSING: StatMeta(
-        "Focus Blessing", "Blessings", "added_flat",
+    Stat.MAX_FOCUS_BLESSING_STACKS_FLAT: StatMeta(
+        "Max Focus Blessing Stacks", "Blessings", "added_flat",
         subgroup="blessing",           stacking_rule="additive",
-        ui_priority=70,                source_types=_T,
+        ui_priority=72,                source_types=_T,
     ),
 }
 

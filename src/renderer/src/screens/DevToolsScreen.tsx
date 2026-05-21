@@ -450,7 +450,7 @@ function SeasonsTab() {
 
 // ── Tools tab ──────────────────────────────────────────────────────────────
 
-type DetailSection = 'matched' | 'ambiguous' | 'unmatched' | null
+type DetailSection = 'matched' | 'ambiguous' | 'unmatched' | 'conditional' | null
 
 function AmbiguousTable({ items, onOverride }: {
   items: UnresolvedStat[]
@@ -661,6 +661,7 @@ function ToolsTab() {
   const meta = result?._meta
   const ambiguous = result?.unresolved.filter(u => u.reason === 'ambiguous') ?? []
   const unmatched = result?.unresolved.filter(u => u.reason === 'unmatched' || u.reason === 'multi_text') ?? []
+  const conditional = result?.unresolved.filter(u => u.reason === 'conditional') ?? []
 
   const toggleDetail = (section: DetailSection) => setDetail(d => d === section ? null : section)
 
@@ -720,14 +721,19 @@ function ToolsTab() {
                   <div style={{ fontSize: 20, fontWeight: 700, color: detail === 'unmatched' ? '#e57373' : (meta.unmatched > 0 ? '#ef5350' : '#4caf50') }}>{meta.unmatched}</div>
                   <div style={{ fontSize: 10, color: detail === 'unmatched' ? '#ef5350' : '#555' }}>unmatched {detail === 'unmatched' ? '▲' : '▼'}</div>
                 </button>
+                <button onClick={() => toggleDetail('conditional')} style={{ textAlign: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: detail === 'conditional' ? '#ce93d8' : '#9c27b0' }}>{meta.conditional ?? 0}</div>
+                  <div style={{ fontSize: 10, color: detail === 'conditional' ? '#9c27b0' : '#555' }}>conditional {detail === 'conditional' ? '▲' : '▼'}</div>
+                </button>
                 <div style={{ textAlign: 'right', marginLeft: 'auto' }}>
                   <div style={{ fontSize: 11, color: '#555' }}>built at</div>
                   <div style={{ fontSize: 11, color: '#888' }}>{meta.generated_at}</div>
                 </div>
               </div>
-              {detail === 'matched'   && <MatchedTable matchedTexts={result!.matched_texts} />}
-              {detail === 'ambiguous' && <AmbiguousTable items={ambiguous} onOverride={handleOverride} />}
-              {detail === 'unmatched' && <UnmatchedTable items={unmatched} />}
+              {detail === 'matched'     && <MatchedTable matchedTexts={result!.matched_texts} />}
+              {detail === 'ambiguous'   && <AmbiguousTable items={ambiguous} onOverride={handleOverride} />}
+              {detail === 'unmatched'   && <UnmatchedTable items={unmatched} />}
+              {detail === 'conditional' && <UnmatchedTable items={conditional} />}
             </>
           )}
           <OverridesPanel overrides={overrides} onDelete={handleDeleteOverride} />
