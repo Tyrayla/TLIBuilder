@@ -86,47 +86,140 @@ def build_csv() -> str:
     return buf.getvalue()
 
 
+# ── Unmatched audit ────────────────────────────────────────────────────────────
+
+# Texts matching any of these patterns are flagged as conditionals (defer for now).
+_CONDITIONAL_MARKERS = ["when ", "if ", " while ", "recently", "against ", "on hit", "on kill", "upon "]
+
+# Keyword groups for categorising unmatched texts. First match wins.
+_THEME_GROUPS: list[tuple[str, list[str]]] = [
+    ("Minion",            ["minion", "synthetic troop", "synth"]),
+    ("Spirit Magus",      ["spirit magus", "spirit magi"]),
+    ("Ailments",          ["ailment", "ignite", "wilt", "tangle", "trauma", "frostbite",
+                           "affliction", "deterioration", "numbed", "slow", "blind",
+                           "paralysis", "damaging ailment"]),
+    ("Critical Strike",   ["critical strike", "critical"]),
+    ("Projectile",        ["projectile"]),
+    ("Sentry",            ["sentry"]),
+    ("Damage",            ["damage", " dmg"]),
+    ("Life",              ["life", "regain", "injury buffer"]),
+    ("Defense",           ["armor", "evasion", "defense", "shield", "block", "barrier"]),
+    ("Mana & Energy",     ["mana", "energy shield", "sealed mana", "skill cost"]),
+    ("Speed & Cooldown",  ["speed", "cooldown"]),
+    ("Buffs & Mechanics", ["fervor", "blur", "warcry", "elixir", "aura", "curse", "mark",
+                           "reaping", "multistrike", "barrage", "knockback",
+                           "crowd control", "ill omen", "demolisher", "spell burst"]),
+    ("Utility",           ["skill area", "skill effect duration", "skill level",
+                           "extra jump", "movement"]),
+]
+
+
+def _classify_text(text: str) -> tuple[str, bool]:
+    """Return (theme, is_conditional) for a modifier text."""
+    lo = text.lower()
+    is_cond = any(m in lo for m in _CONDITIONAL_MARKERS)
+    for theme, keywords in _THEME_GROUPS:
+        if any(kw in lo for kw in keywords):
+            return theme, is_cond
+    return "Other", is_cond
+
+
 def build_unmatched_review(unresolved: list[dict]) -> str:
     """
-    Build a Markdown review document from the unresolved list produced by build_filter().
-    Only includes entries with reason == "unmatched". Deduplicates by text and splits
-    into % (likely _inc) and flat (likely _flat) sections.
+    Build a Markdown stat-audit survey from the unresolved list produced by build_filter().
+    Only includes entries with reason == "unmatched". Groups by theme, separates conditionals.
     """
     from datetime import datetime
 
-    unmatched = [u for u in unresolved if u.get("reason") == "unmatched"]
-    unique: dict[str, str] = {}
-    for u in unmatched:
-        t = u["text"]
-        if t not in unique:
-            unique[t] = t
+    # Deduplicate by text
+    seen: set[str] = set()
+    unique: list[str] = []
+    for u in unresolved:
+        if u.get("reason") == "unmatched" and u["text"] not in seen:
+            seen.add(u["text"])
+            unique.append(u["text"])
 
-    pct_texts  = sorted(t for t in unique if "%" in t)
-    flat_texts = sorted(t for t in unique if "%" not in t)
+    # Classify each unique text
+    by_theme: dict[str, list[str]] = {}
+    conditionals: list[str] = []
 
+    for text in sorted(unique):
+        theme, is_cond = _classify_text(text)
+        if is_cond:
+            conditionals.append(text)
+        else:
+            by_theme.setdefault(theme, []).append(text)
+
+    # Build output in stat-audit.md format
     lines: list[str] = []
-    lines.append("# Unmatched Stat Texts")
+    lines.append("# Stat Audit — Unmatched Modifier Texts")
     lines.append("")
     lines.append(f"> Generated {datetime.now().strftime('%Y-%m-%d')} from last filter rebuild.")
-    lines.append("> These modifier texts appear in the talent snapshot but have no matching stat.")
-    lines.append("> **% texts** likely need an `_inc` stat added to `stat.py` + `stat_meta.py`.")
-    lines.append("> **Flat texts** likely need a `_flat` stat.")
+    lines.append("> These modifier texts appear in the talent snapshot but have no matching stat in `stat.py`.")
+    lines.append(">")
+    lines.append("> **How to fill in:**")
+    lines.append("> - **Answer** column: `YES`, `NO`, or `SKIP`")
+    lines.append(">   - `YES` → add new stat key to `stat.py` + `stat_meta.py`")
+    lines.append(">   - `NO` → intentionally out of scope, skip")
+    lines.append(">   - `SKIP` → conditional/situational, defer for now")
+    lines.append("> - **Notes** column: write the suggested stat key or any reasoning")
+    lines.append(">   - `%` texts → key usually ends in `_inc`")
+    lines.append(">   - Flat texts → key usually ends in `_flat`")
+    non_cond = sum(len(v) for v in by_theme.values())
     lines.append(f">")
-    lines.append(f"> Total: {len(unique)} unique texts ({len(pct_texts)} percent, {len(flat_texts)} flat)")
+    lines.append(f"> Total: {len(unique)} unique unmatched texts "
+                 f"({non_cond} reviewable, {len(conditionals)} conditional)")
+    lines.append("")
+    lines.append("---")
     lines.append("")
 
-    if pct_texts:
-        lines.append(f"## % Modifier Texts — likely `_inc`  ({len(pct_texts)})")
-        lines.append("")
-        for t in pct_texts:
-            lines.append(f"- {t}")
+    # Emit each theme group
+    theme_order = [t for t, _ in _THEME_GROUPS] + ["Other"]
+    section_num = 1
+
+    for theme in theme_order:
+        texts = by_theme.get(theme)
+        if not texts:
+            continue
+        pct   = [t for t in texts if "%" in t]
+        flat  = [t for t in texts if "%" not in t]
+
+        lines.append(f"## {'①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮'[section_num - 1]} {theme}")
         lines.append("")
 
-    if flat_texts:
-        lines.append(f"## Flat Modifier Texts — likely `_flat`  ({len(flat_texts)})")
+        if pct:
+            lines.append(f"### % Modifier Texts")
+            lines.append("")
+            lines.append("| Answer | Notes | Modifier text | Suggested key |")
+            lines.append("|---|---|---|---|")
+            for t in pct:
+                lines.append(f"| | | {t} | |")
+            lines.append("")
+
+        if flat:
+            lines.append(f"### Flat Modifier Texts")
+            lines.append("")
+            lines.append("| Answer | Notes | Modifier text | Suggested key |")
+            lines.append("|---|---|---|---|")
+            for t in flat:
+                lines.append(f"| | | {t} | |")
+            lines.append("")
+
+        lines.append("---")
         lines.append("")
-        for t in flat_texts:
-            lines.append(f"- {t}")
+        section_num += 1
+
+    # Conditionals at the end
+    if conditionals:
+        lines.append(f"## {'①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮'[section_num - 1]} Conditionals (defer)")
+        lines.append("")
+        lines.append("> These texts contain conditional language (when/if/while/recently/against).")
+        lines.append("> Answer `SKIP` for all unless you want to handle them now.")
+        lines.append("")
+        lines.append("| Answer | Notes | Modifier text |")
+        lines.append("|---|---|---|")
+        for t in sorted(conditionals):
+            lines.append(f"| SKIP | | {t} |")
         lines.append("")
 
     return "\n".join(lines)
@@ -145,13 +238,13 @@ def main():
             print("ERROR: no node_type_filter.json found — run a rebuild first.")
             sys.exit(1)
         out_path = args.out or os.path.normpath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "docs", "stat-unmatched-review.md")
+            os.path.join(os.path.dirname(__file__), "..", "..", "docs", "stat-audit.md")
         )
         md = build_unmatched_review(data.get("unresolved", []))
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(md)
-        print(f"Exported unmatched review → {out_path}")
+        print(f"Exported unmatched audit → {out_path}")
     else:
         out_path = args.out or os.path.normpath(
             os.path.join(os.path.dirname(__file__), "..", "..", "docs", "stat-meta-review.csv")

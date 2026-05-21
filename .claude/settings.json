@@ -59,7 +59,10 @@
       "Bash(echo \"| $\\(Get-Date -Format 'HH:mm'\\) | Created test suite \\(73 tests\\) | backend/tests/ | all pass | ~4800 |\")",
       "Bash(echo \"| $\\(Get-Date -Format 'HH:mm'\\) | Created stat-audit.md for modifier review | docs/stat-audit.md | pending user review | ~1200 |\")",
       "PowerShell($time = Get-Date -Format 'HH:mm'; Add-Content -Path \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\\\\.wolf\\\\memory.md\" -Value \"| $time | Created test suite \\(73 tests, 4 files\\) | backend/tests/ | all pass | ~4800 |\"; Add-Content -Path \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\\\\.wolf\\\\memory.md\" -Value \"| $time | Created stat-audit.md for modifier review | docs/stat-audit.md | pending user review | ~1200 |\")",
-      "Bash(py -3.12 -m pytest tests/test_models_stat.py tests/test_models_stat_meta.py -v)"
+      "Bash(py -3.12 -m pytest tests/test_models_stat.py tests/test_models_stat_meta.py -v)",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\\\\src\\\\renderer\\\\src\\\\index.css' | Measure-Object -Line\\).Lines\")",
+      "Bash(py -3.12 -m pytest tests/ -q)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('data/seasons/SS12 Lunaria/goddess_of_hunting.json'\\)\\); node=d['nodes'][0]; print\\(json.dumps\\(node, indent=2\\)\\)\")"
     ]
   },
   "hooks": {

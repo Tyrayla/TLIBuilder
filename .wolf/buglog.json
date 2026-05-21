@@ -480,6 +480,118 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-05-20T18:56:57.865Z"
+    },
+    {
+      "id": "bug-031",
+      "timestamp": "2026-05-20T19:09:07.077Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/tools/node_type_filter_builder.py",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 28→35 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T19:09:07.077Z"
+    },
+    {
+      "id": "bug-032",
+      "timestamp": "2026-05-20T19:09:46.275Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/tools/export_stat_meta.py",
+      "root_cause": "24 lines replaced/restructured",
+      "fix": "Rewrote 44→137 lines (24 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T19:09:46.275Z"
+    },
+    {
+      "id": "bug-033",
+      "timestamp": "2026-05-20T19:10:10.103Z",
+      "error_message": "Incorrect value in code",
+      "file": "src/renderer/src/screens/DevToolsScreen.tsx",
+      "root_cause": "Had `${r.unique} unique texts → docs/stat-unmatched-re",
+      "fix": "Changed to `${r.unique} unique texts → docs/stat-audit.md`",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T19:10:10.103Z"
+    },
+    {
+      "id": "bug-034",
+      "timestamp": "2026-05-20T19:17:04.885Z",
+      "error_message": "Wrong reference: stat_val should be _",
+      "file": "backend/tools/node_type_filter_builder.py",
+      "root_cause": "Used \"stat_val\" instead of \"_\"",
+      "fix": "Changed stat_val → _",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-20T19:17:04.885Z"
+    },
+    {
+      "id": "bug-035",
+      "timestamp": "2026-05-21T02:47:30.874Z",
+      "error_message": "Type error",
+      "file": "src/renderer/src/api/client.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T02:47:30.874Z"
+    },
+    {
+      "id": "bug-036",
+      "timestamp": "2026-05-21T02:49:58.556Z",
+      "error_message": "CSS fix: color",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "color: #6666aa → #6a6a8a",
+      "fix": "Changed color: #6666aa → #6a6a8a",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T02:49:58.556Z"
+    },
+    {
+      "id": "bug-037",
+      "timestamp": "2026-05-21T03:01:55.474Z",
+      "error_message": "Wrong condition in logic",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Condition was: if (screen === 'tree-selector')",
+      "fix": "Changed to: if (screen === 'stats')",
+      "tags": [
+        "auto-detected",
+        "logic-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T03:01:55.474Z"
     }
   ]
 }

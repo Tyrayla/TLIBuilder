@@ -1,7 +1,11 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-05-20T18:56:57.845Z
-> Files: 110 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-05-21T03:16:33.377Z
+> Files: 112 tracked | Anatomy hits: 0 | Misses: 0
+
+## ../../.claude/plans/
+
+- `twinkling-giggling-lynx.md` — Character Stat Sheet — Implementation Plan (~2446 tok)
 
 ## ./
 
@@ -27,13 +31,13 @@
 ## backend/
 
 - `requirements-dev.txt` (~3 tok)
-- `server.py` — API: 9 endpoints (~8450 tok)
+- `server.py` — API: 9 endpoints (~9173 tok)
 
 ## backend/engine/
 
 - `__init__.py` (~0 tok)
-- `aggregator.py` — aggregate (~1048 tok)
-- `models.py` — class: add, total, all_stats (~584 tok)
+- `aggregator.py` — aggregate (~1528 tok)
+- `models.py` — class: add, add_with_source, total, all_stats (~779 tok)
 - `pipeline.py` — run_pipeline (~2298 tok)
 - `resolver.py` — compute (~458 tok)
 
@@ -54,7 +58,7 @@
 - `__init__.py` (~0 tok)
 - `builds_manager.py` — load, save_build, delete_build (~811 tok)
 - `save_manager.py` — load/save/clear tree state in data/save.json (~226 tok)
-- `season_manager.py` — list/get/set active season; load season tree/gear/talents from data/seasons/ (~1191 tok)
+- `season_manager.py` — list_seasons, get_active_season, set_active_season, load_all_season_trees (~1347 tok)
 - `snapshot_manager.py` — exists/load/save talent_snapshot.json in data/ (~151 tok)
 - `tree_config_manager.py` — snapshot/upsert_node/remove_node/toggle_connection for data/trees/ legacy config (~746 tok)
 
@@ -76,8 +80,8 @@
 ## backend/tools/
 
 - `__init__.py` (~0 tok)
-- `export_stat_meta.py` — build_csv, build_unmatched_review, main (~1622 tok)
-- `node_type_filter_builder.py` — load_overrides, save_overrides, add_override, remove_override (~2556 tok)
+- `export_stat_meta.py` — build_csv, build_unmatched_review, main (~2780 tok)
+- `node_type_filter_builder.py` — load_overrides, save_overrides, add_override, remove_override (~4082 tok)
 - `season_importer.py` — make_node_id, build_slug_map, import_nodes, extract_nodes_from_file (~1931 tok)
 - `snapshot_diff.py` — diff_snapshots (~1957 tok)
 - `talent_parser.py` — parse_document (~2378 tok)
@@ -131,7 +135,7 @@
 ## docs/
 
 - `engine-plan.md` — TLIBuilder Calculation Engine — Implementation Plan (~6942 tok)
-- `stat-audit.md` — Stat Audit — Modifier Verification (~4547 tok)
+- `stat-audit.md` — Stat Audit — Unmatched Modifier Texts (~3706 tok)
 
 ## out/main/
 
@@ -160,14 +164,14 @@
 
 ## src/renderer/src/
 
-- `App.tsx` — emptySession (~3784 tok)
-- `index.css` — Global styles; CSS vars (~4027 tok)
+- `App.tsx` — emptySession (~3878 tok)
+- `index.css` — Styles: 93 rules, 8 vars (~4748 tok)
 - `main.tsx` — Renderer entry point (~70 tok)
 - `treeGroups.ts` — GROUPS, isPrimary, getSubtrees, getPrimaryFor + tree grouping helpers (~1134 tok)
 
 ## src/renderer/src/api/
 
-- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 34 more (~3852 tok)
+- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 37 more (~4060 tok)
 
 ## src/renderer/src/components/
 
@@ -175,9 +179,10 @@
 
 ## src/renderer/src/screens/
 
-- `BuildOverviewScreen.tsx` — Build stat overview screen (~1803 tok)
+- `BuildOverviewScreen.tsx` — Build hub with nav buttons (Talent Tree, Slates, Stats, Gear) (~1600 tok)
 - `BuildSelectScreen.tsx` — Build selection/management screen (~822 tok)
-- `DevToolsScreen.tsx` — DIFF_COLOR (~11172 tok)
+- `DevToolsScreen.tsx` — DIFF_COLOR (~11177 tok)
 - `SlateScreen.tsx` — ── Board ───────────────────────────────────────────────────────────────────── (~17176 tok)
+- `StatsScreen.tsx` — Character stat sheet; category-grouped stats + click-to-open source drawer (~1565 tok)
 - `TreeSelectorScreen.tsx` — Tree selector screen (~1858 tok)
 - `TreeViewerScreen.tsx` — Tree viewer with node allocation and debug tools (~5884 tok)
