@@ -123,6 +123,10 @@ def build_filter(snapshot: dict) -> dict:
     ambiguous_count = 0
     unmatched_count = 0
 
+    # Staging: auto-matched texts held until multi-text collision check.
+    # Overrides bypass staging and go directly to _apply_match.
+    staged: list[dict] = []
+
     ALL_NODE_TYPES = ["micro", "medium", "legendary_medium"]
 
     def _apply_match(stat_val: str, rank1: float, text: str, node_type: str, tree: str):
@@ -133,7 +137,7 @@ def build_filter(snapshot: dict) -> dict:
         tree_recipes = recipes.setdefault(tree, {})
         type_recipes = tree_recipes.setdefault(node_type, [])
         if not any(r["stat"] == stat_val for r in type_recipes):
-            type_recipes.append({"stat": stat_val, "rank1": round(rank1, 6), "values": values})
+            type_recipes.append({"stat": stat_val, "rank1": round(rank1, 6), "values": values, "text": text})
         matched_count += 1
 
     def _process_stat_text(text: str, node_type: str, tree: str):
@@ -166,29 +170,36 @@ def build_filter(snapshot: dict) -> dict:
 
         scores.sort(key=lambda x: x[0], reverse=True)
 
-        if scores and scores[0][0] >= 0.5:
-            best_score = scores[0][0]
-            tied = [s for s in scores if s[0] == best_score]
-            if len(tied) == 1:
-                _, stat, _ = scores[0]
-                _apply_match(stat.value, rank1, text, node_type, tree)
-                return
+        if scores:
+            best_score, best_stat, best_dn = scores[0]
 
-            # Tiebreaker: % in text → prefer _inc; no % → prefer _flat
-            is_pct = "%" in text
-            preferred = [s for s in tied if s[1].value.endswith("_inc" if is_pct else "_flat")]
-            if len(preferred) == 1:
-                _, stat, _ = preferred[0]
-                _apply_match(stat.value, rank1, text, node_type, tree)
-                return
+            # If the text contains words beyond the display name, it's more specific
+            # than this stat — require a higher Jaccard score to avoid false matches
+            # (e.g. "Spirit Magus Ultimate CDR Speed" should NOT claim cdr_speed_inc).
+            extra_words = query_words - _normalize_words(best_dn)
+            threshold = 0.7 if extra_words else 0.5
 
-            ambiguous_count += 1
-            unresolved.append({
-                "tree": tree, "node_type": node_type, "text": text,
-                "reason": "ambiguous",
-                "tied": [{"stat": s.value, "display_name": dn, "score": round(sc, 3)} for sc, s, dn in tied],
-            })
-            return
+            if best_score >= threshold:
+                tied = [s for s in scores if s[0] == best_score]
+                if len(tied) == 1:
+                    staged.append({"stat_val": best_stat.value, "rank1": rank1, "text": text, "node_type": node_type, "tree": tree})
+                    return
+
+                # Tiebreaker: % in text → prefer _inc; no % → prefer _flat
+                is_pct = "%" in text
+                preferred = [s for s in tied if s[1].value.endswith("_inc" if is_pct else "_flat")]
+                if len(preferred) == 1:
+                    _, stat, _ = preferred[0]
+                    staged.append({"stat_val": stat.value, "rank1": rank1, "text": text, "node_type": node_type, "tree": tree})
+                    return
+
+                ambiguous_count += 1
+                unresolved.append({
+                    "tree": tree, "node_type": node_type, "text": text,
+                    "reason": "ambiguous",
+                    "tied": [{"stat": s.value, "display_name": dn, "score": round(sc, 3)} for sc, s, dn in tied],
+                })
+                return
 
         unmatched_count += 1
         unresolved.append({"tree": tree, "node_type": node_type, "text": text, "reason": "unmatched"})
@@ -212,6 +223,23 @@ def build_filter(snapshot: dict) -> dict:
     for ng in snapshot.get("new_god_talents", []):
         for stat_obj in ng.get("stats", []):
             pass
+
+    # Multi-text collision check: if >1 distinct normalized text claims the same stat,
+    # reject all of them so they go to unmatched for manual override assignment.
+    # Overrides bypass this (they were applied directly and are not in staged).
+    by_stat: dict[str, list[dict]] = {}
+    for m in staged:
+        by_stat.setdefault(m["stat_val"], []).append(m)
+
+    for _, matches in by_stat.items():
+        distinct_keys = {_override_key(m["text"]) for m in matches}
+        if len(distinct_keys) > 1:
+            for m in matches:
+                unmatched_count += 1
+                unresolved.append({"tree": m["tree"], "node_type": m["node_type"], "text": m["text"], "reason": "multi_text"})
+        else:
+            for m in matches:
+                _apply_match(m["stat_val"], m["rank1"], m["text"], m["node_type"], m["tree"])
 
     # Convert sets → sorted lists
     stats_out = {k: sorted(v) for k, v in stat_node_types.items()}
@@ -246,3 +274,110 @@ def load_filter() -> dict | None:
         return None
     with open(_FILTER_PATH, encoding="utf-8") as f:
         return json.load(f)
+
+
+def _match_effect(text: str, candidates: list, overrides: dict) -> tuple[str, float] | None:
+    """
+    Pure version of the Jaccard matcher: returns (stat_value_string, rank1) or None.
+    Used by build_node_recipes for per-node-id matching from season effect strings.
+    Same scoring as build_filter, but no side effects (no staging, no unresolved list).
+    """
+    query_words = _normalize_words(text)
+    if not query_words:
+        return None
+
+    rank1, _ = _parse_value(text)
+    key = _override_key(text)
+
+    if key in overrides:
+        stat_val = overrides[key]["stat"]
+        if any(s.value == stat_val for s, _, _ in candidates):
+            return stat_val, rank1
+
+    scores: list[tuple[float, object, str]] = []
+    for stat, display_name, dn_words in candidates:
+        overlap = len(query_words & dn_words)
+        if overlap == 0:
+            continue
+        score = overlap / len(query_words | dn_words)
+        scores.append((score, stat, display_name))
+
+    if not scores:
+        return None
+
+    scores.sort(key=lambda x: x[0], reverse=True)
+    best_score, best_stat, best_dn = scores[0]
+
+    extra_words = query_words - _normalize_words(best_dn)
+    threshold = 0.7 if extra_words else 0.5
+
+    if best_score < threshold:
+        return None
+
+    tied = [s for s in scores if s[0] == best_score]
+    if len(tied) == 1:
+        return best_stat.value, rank1
+
+    is_pct = "%" in text
+    preferred = [s for s in tied if s[1].value.endswith("_inc" if is_pct else "_flat")]
+    if len(preferred) == 1:
+        return preferred[0][1].value, rank1
+
+    return None  # ambiguous
+
+
+def build_node_recipes(season_trees: dict[str, dict]) -> dict[str, list[dict]]:
+    """
+    Build per-node-id stat recipes directly from season tree data.
+
+    season_trees: {tree_slug: {tree_name, nodes: [{id, node_type, effects: [...]}]}}
+    Returns: {node_id: [{stat, rank1, values, text}]}
+
+    Each node's effects are matched independently, so different micro nodes in
+    the same tree produce separate recipe entries — unlike the snapshot-based
+    recipes which merge all micros of a tree together.
+    """
+    from models.stat_meta import STAT_META
+
+    candidates: list[tuple] = []
+    for stat, meta in STAT_META.items():
+        dn_words = _normalize_words(meta.display_name)
+        if dn_words:
+            candidates.append((stat, meta.display_name, dn_words))
+
+    overrides = load_overrides()
+    node_recipes: dict[str, list[dict]] = {}
+
+    for tree_data in season_trees.values():
+        for node in tree_data.get("nodes", []):
+            node_id = node.get("id", "")
+            if not node_id:
+                continue
+            raw_node_type = node.get("node_type", "")
+            node_type = raw_node_type.lower().replace(" talent", "").strip().replace(" ", "_")
+            if node_type not in ("micro", "medium", "legendary_medium"):
+                continue
+            effects = node.get("effects", [])
+
+            recipes_for_node: list[dict] = []
+            seen_stats: set[str] = set()
+            for effect_text in effects:
+                result = _match_effect(effect_text, candidates, overrides)
+                if result is None:
+                    continue
+                stat_val, rank1 = result
+                if stat_val in seen_stats:
+                    continue
+                seen_stats.add(stat_val)
+                values = _build_values(rank1, node_type)
+                recipes_for_node.append({
+                    "stat": stat_val,
+                    "rank1": round(rank1, 6),
+                    "values": values,
+                    "text": effect_text,
+                })
+
+            if recipes_for_node:
+                node_recipes[node_id] = recipes_for_node
+
+    return node_recipes

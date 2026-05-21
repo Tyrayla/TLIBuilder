@@ -7,8 +7,9 @@ import TreeSelectorScreen from './screens/TreeSelectorScreen'
 import TreeViewerScreen from './screens/TreeViewerScreen'
 import DevToolsScreen from './screens/DevToolsScreen'
 import SlateScreen from './screens/SlateScreen'
+import StatsScreen from './screens/StatsScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats'
 
 interface Session {
   buildId: string | null
@@ -121,6 +122,7 @@ function App() {
   }
 
   const goToSlates = () => setScreen('slate-board')
+  const goToStats = () => setScreen('stats')
 
   const goToPreview = () => {
     setPreviewSource(screen)
@@ -305,6 +307,7 @@ function App() {
           onBack={goToBuildSelect}
           onTalentTree={goToTreeSelector}
           onSlates={goToSlates}
+          onStats={goToStats}
           onSave={saveBuild}
           onSaveAs={saveAsBuild}
           devMode={devMode}
@@ -327,6 +330,16 @@ function App() {
           setSession(s => ({ ...s, slates }))
           setScreen('build-overview')
         }}
+      />
+    )
+  }
+
+  if (screen === 'stats') {
+    return (
+      <StatsScreen
+        slots={session.slots}
+        slates={session.slates}
+        onBack={() => setScreen('build-overview')}
       />
     )
   }

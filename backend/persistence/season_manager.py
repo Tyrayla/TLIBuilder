@@ -38,6 +38,21 @@ def _season_dir(season: str) -> str:
     return os.path.join(_SEASONS_DIR, season)
 
 
+def load_all_season_trees(season: str) -> dict[str, dict]:
+    """Return {slug: tree_data} for all tree files in the season (excludes _ prefixed files)."""
+    d = _season_dir(season)
+    result: dict[str, dict] = {}
+    if not os.path.isdir(d):
+        return result
+    for fname in os.listdir(d):
+        if fname.endswith(".json") and not fname.startswith("_"):
+            slug = fname[:-5]
+            tree_data = load_season_tree(season, slug)
+            if tree_data:
+                result[slug] = tree_data
+    return result
+
+
 def load_season_tree(season: str, tree_slug: str) -> dict | None:
     path = os.path.join(_season_dir(season), f"{tree_slug}.json")
     if not os.path.exists(path):

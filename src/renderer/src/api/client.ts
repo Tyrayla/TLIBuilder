@@ -179,7 +179,7 @@ export interface UnresolvedStat {
   tree: string
   node_type: string
   text: string
-  reason?: 'ambiguous' | 'unmatched'
+  reason?: 'ambiguous' | 'unmatched' | 'multi_text'
   tied?: TiedCandidate[]
 }
 
@@ -260,6 +260,25 @@ export interface SlatePool {
   rare: SlateModifierOption[]
   legendary: SlateModifierOption[]
   core: CoreTalentOption[]
+}
+
+export interface StatSource {
+  source_type: string   // "talent" | "slate" — extendable to "gear", "hero_memory", etc.
+  label: string         // e.g. "Goddess of Knowledge Micro", "Ranger Slate Medium"
+  text: string          // original game text: "+15% Critical Strike Rating"
+  amount: number
+}
+
+export interface StatEntry {
+  display_name: string
+  category: string
+  unit: string    // "" | "%"
+  total: number
+  sources: StatSource[]
+}
+
+export interface StatSheetResponse {
+  stats: Record<string, StatEntry>
 }
 
 export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
@@ -429,6 +448,11 @@ export const api = {
     crit_chance: number; crit_multiplier: number; effective_dps: number
     breakdown: Record<string, unknown>
   }>('/engine/compute', payload),
+
+  engineStats: (payload: {
+    slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
+    slates?: SavedSlate[]
+  }) => post<StatSheetResponse>('/engine/stats', payload),
 
   validateAllocate: (
     tree_name: string,

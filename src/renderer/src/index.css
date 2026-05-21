@@ -578,6 +578,147 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   font-style: italic;
 }
 
+/* ── Stat Sheet ─────────────────────────────────────────────────────────────── */
+
+.stat-sheet {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0 16px;
+}
+
+.stat-sheet-empty {
+  padding: 24px 20px;
+  color: #666;
+  font-size: 13px;
+  font-style: italic;
+  text-align: center;
+}
+
+.stat-category-group {
+  margin-bottom: 2px;
+}
+
+.stat-category-header {
+  padding: 6px 16px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #4a4a6a;
+  border-bottom: 1px solid #1e1e3a;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 5px 16px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.1s;
+}
+.stat-row:hover { background: #1e1e3a; }
+.stat-row.selected { background: #1a1a42; }
+
+.stat-row-name {
+  flex: 1;
+  color: #bbbbd0;
+}
+
+.stat-row-value {
+  font-weight: 600;
+  color: #9090e0;
+  min-width: 52px;
+  text-align: right;
+  font-size: 12px;
+}
+
+.stat-row-chevron {
+  color: #44445a;
+  margin-left: 8px;
+  font-size: 14px;
+  line-height: 1;
+}
+.stat-row.selected .stat-row-chevron,
+.stat-row:hover .stat-row-chevron { color: #8888cc; }
+
+/* ── Source Drawer ────────────────────────────────────────────────────────────── */
+
+.source-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 300px;
+  height: 100%;
+  background: #0d0d22;
+  border-left: 1px solid #2a2a4a;
+  display: flex;
+  flex-direction: column;
+  z-index: 200;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.source-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #2a2a4a;
+  flex-shrink: 0;
+}
+
+.source-drawer-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.source-drawer-close {
+  background: transparent;
+  color: #666;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  line-height: 1;
+}
+.source-drawer-close:hover { color: var(--fg); background: #1e1e3a; }
+
+.source-drawer-total {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9090e0;
+  border-bottom: 1px solid #1e1e3a;
+  flex-shrink: 0;
+}
+
+.source-drawer-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0 16px;
+}
+
+.source-entry {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 16px;
+  border-bottom: 1px solid #161628;
+}
+
+.source-entry-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9898c8;
+  margin-bottom: 2px;
+}
+
+.source-entry-text {
+  font-size: 11px;
+  color: #6a6a8a;
+}
+
 /* ── Tooltip stats ────────────────────────────────────────────────────────── */
 
 .tooltip-stats {
