@@ -11,8 +11,6 @@
 > - **Notes** column: write the suggested stat key or any reasoning
 >   - `%` texts → key usually ends in `_inc`
 >   - Flat texts → key usually ends in `_flat`
->
-> Total: 171 unique unmatched texts (100 reviewable, 71 conditional)
 
 ---
 
@@ -24,17 +22,12 @@
 |---|---|---|---|
 | SKIP | | +1% Minion Attack and Cast Speed for every 2 Command owned | |
 | SKIP | | +1% Minion Fire Damage per 12 Strength | |
-| | | +12% Ignite chance for Minions | `minion_ignite_chance` |
-| | | +12% Minion Skill Area | `minion_skill_area_inc` |
-| | | +12% chance for Minions to inflict Damaging Ailments | `minion_damaging_ailment_chance` |
-| | | +12% chance for Minions to inflict Trauma | `minion_trauma_chance` |
-| | | +24% chance for Minions to inflict Damaging Ailments | `minion_damaging_ailment_chance` |
-| | | +4% chance for Synthetic Troop Minions to deal Double Damage | `synth_double_dmg_chance` |
-| | | +6% Ignite chance for Minions | `minion_ignite_chance` |
-| | | +6% Minion Skill Area | `minion_skill_area_inc` |
-| | | +6% chance for Minions to inflict Damaging Ailments | `minion_damaging_ailment_chance` |
-| | | +6% chance for Minions to inflict Trauma | `minion_trauma_chance` |
-| | | -40% additional damage taken by Synthetic Troop Minions | `synth_troop_dmg_taken_additional` |
+|Y | | +12% Ignite chance for Minions | `minion_ignite_chance` |
+|Y | | +12% Minion Skill Area | `minion_skill_area_inc` |
+|Y | | +12% chance for Minions to inflict Damaging Ailments | `minion_damaging_ailment_chance` |
+|Y | | +12% chance for Minions to inflict Trauma | `minion_trauma_chance` |
+|Y | | +4% chance for Synthetic Troop Minions to deal Double Damage | `synth_double_dmg_chance` |
+|Y | | -40% additional damage taken by Synthetic Troop Minions | `synth_troop_dmg_taken_additional` |
 
 ---
 
@@ -46,10 +39,6 @@
 |---|---|---|---|
 | | | +12% Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate. | `spirit_magi_ultimate_dmg_inc` |
 | | | +2% chance for Spirit Magi to use an Enhanced Skill | `spirit_magi_enhanced_skill_chance` |
-| | | +24% Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate. | `spirit_magi_ultimate_dmg_inc` |
-| | | +27% Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate. | `spirit_magi_ultimate_dmg_inc` |
-| | | +4% chance for Spirit Magi to use an Enhanced Skill | `spirit_magi_enhanced_skill_chance` |
-| | | +6% chance for Spirit Magi to use an Enhanced Skill | `spirit_magi_enhanced_skill_chance` |
 | | | +9% Spirit Magus Ultimate Cooldown Recovery Speed | `spirit_magi_cdr_speed_inc` |
 | | | -80% additional damage taken by Spirit Magi | `spirit_magi_dmg_taken_additional` |
 
@@ -68,23 +57,14 @@
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
 | SKIP | | +12% additional Trauma Damage dealt by Critical Strikes | |
-| | | +12% chance to avoid Elemental Ailments | `elemental_ailment_avoid_chance` |
-| | | +16% Trauma Reaping Duration | `trauma_reaping_duration_inc` |
+|Y | | +12% chance to avoid Elemental Ailments | `elemental_ailment_avoid_chance` |
+|Y | | +16% Trauma Reaping Duration | `trauma_reaping_duration_inc` |
 | SKIP | | +2% Movement Speed for each activated Tangle | |
-| | | +20% chance to avoid Elemental Ailments | `elemental_ailment_avoid_chance` |
-| | | +3% chance to Ignite targets | `ignite_chance` |
-| | | +3% chance to avoid Elemental Ailments | `elemental_ailment_avoid_chance` |
-| | | +3% chance to inflict Damaging Ailments | `damaging_ailment_chance` |
-| | | +3% chance to inflict Trauma | `trauma_chance` |
-| | | +30% chance to inflict Damaging Ailments | `damaging_ailment_chance` |
-| | | +6% chance to Ignite targets | `ignite_chance` |
-| | | +6% chance to inflict Damaging Ailments | `damaging_ailment_chance` |
-| | | +6% chance to inflict Trauma | `trauma_chance` |
-| | | +7% chance to avoid Elemental Ailments | `elemental_ailment_avoid_chance` |
-| | | +8% additional Deterioration Damage | `deterioration_dmg_inc` |
-| | | +8% chance to Ignite targets | `ignite_chance` |
-| | | +8% chance to inflict Trauma | `trauma_chance` |
-| | | -4% to the Max Life and Energy Shield thresholds for inflicting Numbed | `numbed_threshold_inc` |
+|Y | | +3% chance to Ignite targets | `ignite_chance` |
+|Y | | +3% chance to inflict Damaging Ailments | `damaging_ailment_chance` |
+|Y | | +3% chance to inflict Trauma | `trauma_chance` |
+|Rename |deterioration_dmg_additional | +8% additional Deterioration Damage | `deterioration_dmg_inc` |
+|Y | | -4% to the Max Life and Energy Shield thresholds for inflicting Numbed | `numbed_threshold_inc` |
 
 ---
 
@@ -105,13 +85,13 @@
 
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
-| | | +9% Sentry Projectile Speed | `sentry_projectile_speed_inc` |
+|Y | | +9% Sentry Projectile Speed | `sentry_projectile_speed_inc` |
 
 ### Flat Modifier Texts
 
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
-| | | +1 to Parabolic Projectile Splits quantity | `parabolic_projectile_splits_flat` |
+|Y | | +1 to Parabolic Projectile Splits quantity | `parabolic_projectile_splits_flat` |
 
 ---
 
@@ -121,18 +101,15 @@
 
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
-| | | +10% Sentry Duration | `sentry_duration_inc` |
-| | | +18% Sentry Skill Area | `sentry_skill_area_inc` |
-| | | +20% Sentry Duration | `sentry_duration_inc` |
-| | | +7% Sentry Skill Area | `sentry_skill_area_inc` |
-| | | -25% additional Sentry Start Time | `sentry_start_time_additional` |
-| | | -8% additional Sentry Start Time | `sentry_start_time_additional` |
+|Y | | +10% Sentry Duration | `sentry_duration_inc` |
+|Y | | +18% Sentry Skill Area | `sentry_skill_area_inc` |
+|Y | | -25% additional Sentry Start Time | `sentry_start_time_additional` |
 
 ### Flat Modifier Texts
 
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
-| | | +1 Sentry quantity that can be deployed at a time | `max_sentry_quantity_flat` |
+|Y | | +1 Sentry quantity that can be deployed at a time | `max_sentry_quantity_flat` |
 
 ---
 
@@ -144,19 +121,17 @@
 |---|---|---|---|
 | SKIP | | +1% Fire Damage per 12 Strength | |
 | SKIP | | +10% additional damage for 4s after using Mobility Skills | |
-| | | +12% additional Max Damage | `dmg_max_additional` |
+|Y | | +12% additional Max Damage | `dmg_max_additional` |
 | SKIP | | +15% additional damage taken by enemies in Proximity | |
-| | | +18% damage for Channeled Skills | `channeled_dmg_inc` |
-| | | +2% additional Max Damage | `dmg_max_additional` |
+|Y | | +18% damage for Channeled Skills | `channeled_dmg_inc` |
 | SKIP | | +20% Spell Damage at Low Mana | |
 | SKIP | | +20% additional Evasion on Spell Damage | |
 | SKIP | | +25% damage dealt to Nearby enemies | |
 | SKIP | | +25% damage to Distant enemies | |
-| | | +3% chance to avoid damage | `dmg_avoid_chance` |
+|Y | | +3% chance to avoid damage | `dmg_avoid_chance` |
 | SKIP | | +5% damage and +1% Movement Speed for 4 s on defeat. Stacks up to 8 time(s) (Max | |
 | SKIP | | +6% damage for every +1 additional Max Channeled Stack(s) | |
-| | | +9% damage for Channeled Skills | `channeled_dmg_inc` |
-| | | +9% damage for Triggered Skills | `triggered_dmg_inc` |
+|Y | | +9% damage for Triggered Skills | `triggered_dmg_inc` |
 
 ---
 
@@ -169,7 +144,7 @@
 | SKIP | | +2% Life Regeneration Speed per stack of Tenacity Blessing owned | |
 | SKIP | | +2% additional Attack Speed for each time you have Regained in the last 8s. Stacks up | |
 | SKIP | | +2% additional Cast Speed for each time you have Regained in the last 8s. Stacks up to | |
-| | | -8% additional Energy Shield Regain Interval | `energy_shield_regain_interval_additional` |
+|Y | | -8% additional Energy Shield Regain Interval | `energy_shield_regain_interval_additional` |
 
 ### Flat Modifier Texts
 
@@ -187,11 +162,11 @@
 |---|---|---|---|
 | SKIP | | +1% Armor for every 24 Strength | |
 | SKIP | | +1% Evasion per 24 Dexterity | |
-| | | +15% Energy Shield gained from Shield | `shield_energy_shield_inc` |
-| | | +40% Defense gained from Chest Armor | `chest_defense_inc` |
+|Y | | +15% Energy Shield gained from Shield | `shield_energy_shield_inc` |
+|Y | | +40% Defense gained from Chest Armor | `chest_defense_inc` |
 | SKIP | | +6% Armor per stack of Tenacity Blessing owned | |
 | SKIP | | +6% Evasion per stack of Agility Blessing owned | |
-| | | -15% additional Energy Shield Charge Interval | `energy_shield_charge_interval_additional` |
+|Y | | -15% additional Energy Shield Charge Interval | `energy_shield_charge_interval_additional` |
 
 ### Flat Modifier Texts
 
@@ -208,7 +183,7 @@
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
 | SKIP | | +1 Mana per 6 Intelligence | |
-| | | -4 Attack Skill Cost | `attack_skill_cost_flat` |
+|Y |Also add spell_skill_cost_flat and general skill_cost_flat | -4 Attack Skill Cost | `attack_skill_cost_flat` |
 
 ---
 
@@ -220,7 +195,7 @@
 |---|---|---|---|
 | SKIP | | +1% Attack and Cast Speed per 40 Dexterity | |
 | SKIP | | +1% Movement Speed per 10 Fervor Rating | |
-| | | +3% Attack and Cast Speed for Channeled Skills | `channeled_attack_cast_speed_inc` |
+|Y |This must be renamed and split into 2 categories where this node splits into 3% attack speed for channeled skills and 3% cast speed for channeled skills | +3% Attack and Cast Speed for Channeled Skills | `channeled_attack_cast_speed_inc` |
 
 ---
 
@@ -230,15 +205,13 @@
 
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
-| SKIP | | +100% chance to gain Blur on defeat | |
-| | | +32% chance to Multistrike | `multistrike_chance` |
-| | | +6% chance to Multistrike | `multistrike_chance` |
+|Y | | +32% chance to Multistrike | `multistrike_chance` |
 
 ### Flat Modifier Texts
 
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
-| | | +4 to the minimum number of enemies affected by Warcry | `warcry_min_targets_flat` |
+|Y | | +4 to the minimum number of enemies affected by Warcry | `warcry_min_targets_flat` |
 
 ---
 
@@ -248,7 +221,7 @@
 
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
-| | | +1 Focus Skill Level | `focus_skill_level` |
+|Y | | +1 Focus Skill Level | `focus_skill_level` |
 
 ---
 
@@ -258,22 +231,21 @@
 
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
-| | | +10% Agility Blessing Duration | `agility_blessing_duration_inc` |
-| | | +10% Focus Blessing Duration | `focus_blessing_duration_inc` |
-| | | +10% Tenacity Blessing Duration | `tenacity_blessing_duration_inc` |
-| | | +40% additional Beam Length | `beam_length_additional` |
+|Y | | +10% Agility Blessing Duration | `agility_blessing_duration_inc` |
+|Y | | +10% Focus Blessing Duration | `focus_blessing_duration_inc` |
+|Y | | +10% Tenacity Blessing Duration | `tenacity_blessing_duration_inc` |
+|Y | | +40% additional Beam Length | `beam_length_additional` |
 
 ### Flat Modifier Texts
 
 | Answer | Notes | Modifier text | Suggested key |
 |---|---|---|---|
-| | | +1 to All Skills' Levels | `all_skill_level` |
-| | | +1 to Max Agility Blessing Stacks | `max_agility_blessing_stacks_flat` |
-| | | +1 to Max Channeled Stacks | `max_channeled_stacks_flat` |
-| | | +1 to Max Focus Blessing Stacks | `max_focus_blessing_stacks_flat` |
-| | | +1 to Max Tenacity Blessing Stacks | `max_tenacity_blessing_stacks_flat` |
-| | | +10 to All Stats | `all_stats_flat` |
-| | | +5 to All Stats | `all_stats_flat` |
+|Y | | +1 to All Skills' Levels | `all_skill_level` |
+|Y |This should replace agility_blessing in the stat.py entry | +1 to Max Agility Blessing Stacks | `max_agility_blessing_stacks_flat` |
+|Y | | +1 to Max Channeled Stacks | `max_channeled_stacks_flat` |
+|Y |Replace the focus_blessing entry in stat.py | +1 to Max Focus Blessing Stacks | `max_focus_blessing_stacks_flat` |
+|Y |replace tenacity_blessing entry in stats.py | +1 to Max Tenacity Blessing Stacks | `max_tenacity_blessing_stacks_flat` |
+|Y | | +10 to All Stats | `all_stats_flat` |
 
 ---
 
