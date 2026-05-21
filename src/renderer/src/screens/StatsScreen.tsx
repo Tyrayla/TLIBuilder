@@ -9,6 +9,8 @@ const CATEGORY_ORDER = [
   'Buffs', 'Gear',
 ]
 
+const TOOLTIP_WIDTH = 230
+
 function formatStatValue(total: number, unit: string): string {
   if (unit === '%') {
     const pct = Math.round(total * 100)
@@ -16,6 +18,15 @@ function formatStatValue(total: number, unit: string): string {
   }
   const rounded = Math.round(total * 1000) / 1000
   return rounded >= 0 ? `+${rounded}` : `${rounded}`
+}
+
+function shortenLabel(label: string): string {
+  const isSlate = label.startsWith('Slate — ')
+  const base = isSlate ? label.slice('Slate — '.length) : label
+  const parts = base.split(' ')
+  // "Goddess of Hunting Micro" → "Hunting Micro", "Marksman Micro" stays as-is
+  const short = parts.length > 2 ? parts.slice(-2).join(' ') : base
+  return isSlate ? `Slate · ${short}` : short
 }
 
 interface Props {
@@ -27,15 +38,13 @@ interface Props {
 export default function StatsScreen({ slots, slates, onBack }: Props) {
   const [statSheet, setStatSheet] = useState<StatSheetResponse | null>(null)
   const [selectedStat, setSelectedStat] = useState<string | null>(null)
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const drawerRef = useRef<HTMLDivElement>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (slots.every(s => !s)) {
-      setStatSheet(null)
-      return
-    }
+    if (slots.every(s => !s)) { setStatSheet(null); return }
     setLoading(true)
     setError('')
     api.engineStats({ slots, slates })
@@ -47,8 +56,9 @@ export default function StatsScreen({ slots, slates, onBack }: Props) {
   useEffect(() => {
     if (!selectedStat) return
     const handler = (e: MouseEvent) => {
-      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+      if (tooltipRef.current && !tooltipRef.current.contains(e.target as Node)) {
         setSelectedStat(null)
+        setTooltipPos(null)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -66,14 +76,27 @@ export default function StatsScreen({ slots, slates, onBack }: Props) {
     }
     const orderedCats = [...CATEGORY_ORDER, 'Other'].filter(c => byCategory[c]?.length)
     for (const cat of orderedCats) {
-      if (byCategory[cat]) {
-        groupedStats.push({ category: cat, entries: byCategory[cat] })
-      }
+      if (byCategory[cat]) groupedStats.push({ category: cat, entries: byCategory[cat] })
     }
   }
 
   const selectedEntry = selectedStat && statSheet ? statSheet.stats[selectedStat] : null
   const filledSlots = slots.filter(Boolean).length
+
+  function handleStatClick(e: React.MouseEvent, key: string) {
+    if (selectedStat === key) {
+      setSelectedStat(null)
+      setTooltipPos(null)
+    } else {
+      setSelectedStat(key)
+      setTooltipPos({ x: e.clientX, y: e.clientY })
+    }
+  }
+
+  const tooltipStyle = tooltipPos ? {
+    left: Math.min(tooltipPos.x + 16, window.innerWidth - TOOLTIP_WIDTH - 8),
+    top: Math.min(tooltipPos.y - 10, window.innerHeight - 320),
+  } : {}
 
   return (
     <div className="screen stats-screen">
@@ -84,9 +107,7 @@ export default function StatsScreen({ slots, slates, onBack }: Props) {
       </div>
 
       <div className="stat-sheet">
-        {loading && (
-          <div className="stat-sheet-empty">Computing stats…</div>
-        )}
+        {loading && <div className="stat-sheet-empty">Computing stats…</div>}
         {!loading && filledSlots === 0 && (
           <div className="stat-sheet-empty">No talent trees selected. Add trees to see stats.</div>
         )}
@@ -104,34 +125,30 @@ export default function StatsScreen({ slots, slates, onBack }: Props) {
             {entries.map(([key, entry]) => (
               <button
                 key={key}
-                className={`stat-row${selectedStat === key ? ' selected' : ''}`}
-                onClick={() => setSelectedStat(selectedStat === key ? null : key)}
+                className={`stat-sheet-row${selectedStat === key ? ' selected' : ''}`}
+                onClick={e => handleStatClick(e, key)}
               >
-                <span className="stat-row-name">{entry.display_name}</span>
-                <span className="stat-row-value">{formatStatValue(entry.total, entry.unit)}</span>
-                <span className="stat-row-chevron">›</span>
+                <span className="stat-sheet-row-name">{entry.display_name}</span>
+                <span className="stat-sheet-row-value">{formatStatValue(entry.total, entry.unit)}</span>
               </button>
             ))}
           </div>
         ))}
       </div>
 
-      {selectedStat && selectedEntry && (
-        <div className="source-drawer" ref={drawerRef}>
-          <div className="source-drawer-header">
-            <span className="source-drawer-title">{selectedEntry.display_name}</span>
-            <button className="source-drawer-close" onClick={() => setSelectedStat(null)}>✕</button>
+      {selectedStat && selectedEntry && tooltipPos && (
+        <div className="stat-tooltip" ref={tooltipRef} style={tooltipStyle}>
+          <div className="stat-tooltip-header">
+            <span className="stat-tooltip-name">{selectedEntry.display_name}</span>
+            <span className="stat-tooltip-total">{formatStatValue(selectedEntry.total, selectedEntry.unit)}</span>
           </div>
-          <div className="source-drawer-total">
-            Total: {formatStatValue(selectedEntry.total, selectedEntry.unit)}
-          </div>
-          <div className="source-drawer-list">
+          <div className="stat-tooltip-list">
             {selectedEntry.sources.map((src, i) => (
-              <div key={i} className="source-entry">
-                <span className="source-entry-label">{src.label}</span>
-                {src.text && (
-                  <span className="source-entry-text">{src.text}</span>
-                )}
+              <div key={i} className="stat-tooltip-entry">
+                <span className="stat-tooltip-entry-value">
+                  {src.text || formatStatValue(src.amount, selectedEntry.unit)}
+                </span>
+                <span className="stat-tooltip-entry-source">{shortenLabel(src.label)}</span>
               </div>
             ))}
           </div>
