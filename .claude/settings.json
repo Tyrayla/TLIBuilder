@@ -77,7 +77,13 @@
       "Bash(git -C \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\" status)",
       "Bash(git -C \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\" log --oneline -6)",
       "Bash(git -C \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\" diff --stat HEAD)",
-      "Bash(git -C \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\" add backend/engine/pipeline.py backend/models/stat.py backend/models/stat_meta.py backend/server.py data/node_type_filter.json data/node_type_filter_overrides.json src/renderer/src/App.tsx src/renderer/src/api/client.ts src/renderer/src/index.css src/renderer/src/screens/BuildOverviewScreen.tsx .wolf/anatomy.md .wolf/buglog.json .wolf/cerebrum.md .claude/settings.json)"
+      "Bash(git -C \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\" add backend/engine/pipeline.py backend/models/stat.py backend/models/stat_meta.py backend/server.py data/node_type_filter.json data/node_type_filter_overrides.json src/renderer/src/App.tsx src/renderer/src/api/client.ts src/renderer/src/index.css src/renderer/src/screens/BuildOverviewScreen.tsx .wolf/anatomy.md .wolf/buglog.json .wolf/cerebrum.md .claude/settings.json)",
+      "Bash(git -C 'c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder' commit -m ' *)",
+      "Bash(powershell -NoProfile -Command 'Get-Content \"data/seasons/SS12 Lunaria/_legendary_gear.json\" -Raw | ConvertFrom-Json | Select-Object -ExpandProperty items | ForEach-Object { $_.affixes } | Select-Object -ExpandProperty affix_kind | Sort-Object -Unique')",
+      "Bash(powershell -NoProfile -Command 'Get-Content \"data/seasons/SS12 Lunaria/_legendary_gear.json\" -Raw | ConvertFrom-Json | Select-Object -ExpandProperty items | ForEach-Object { $_.affixes } | ForEach-Object { $_.numeric_values } | Select-Object -ExpandProperty kind | Sort-Object -Unique')",
+      "Bash(powershell -NoProfile -Command ' *)",
+      "Bash(python -c \"import json; [print\\(f[:-5], json.load\\(open\\(f'c:/Users/tyray/Documents/TLIBuilder/data/seasons/SS12 Lunaria/{f}'\\)\\)['color']\\) for f in ['god_of_machines.json','god_of_might.json','god_of_war.json','goddess_of_deception.json','goddess_of_hunting.json','goddess_of_knowledge.json']]\")",
+      "PowerShell(cd \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\\\\backend\"; $proc = Start-Process -NoNewWindow -PassThru -FilePath \"py\" -ArgumentList \"-3.12 server.py\"; Start-Sleep -Seconds 3; try { $resp = Invoke-WebRequest -Uri \"http://127.0.0.1:8765/api/legendary-gear\" -UseBasicParsing; $data = $resp.Content | ConvertFrom-Json; $item = $data.items[0]; Write-Output \"Item: $\\($item.name\\)\"; $affix = $item.affixes[0]; Write-Output \"Affix raw_text: $\\($affix.raw_text\\)\"; Write-Output \"stat_key: $\\($affix.stat_key\\)\"; Write-Output \"unit: $\\($affix.unit\\)\" } catch { Write-Output \"Error: $_\" } finally { $proc.Kill\\(\\) })"
     ]
   },
   "hooks": {

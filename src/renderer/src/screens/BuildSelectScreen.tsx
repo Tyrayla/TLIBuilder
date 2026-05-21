@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api, Build } from '../api/client'
+import logoSrc from '../assets/logo.png'
 
 interface Props {
   onNewBuild: () => void
@@ -39,9 +40,10 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
 
   return (
     <div className="screen build-select">
-      <div className="build-select-header">
-        <h1 className="title-accent">TLI Planner</h1>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div className="build-select-top">
+        <div className="build-select-spacer" />
+        <img src={logoSrc} className="build-select-logo" alt="TLI Builder" />
+        <div className="build-select-actions">
           {devMode && (
             <button
               className="btn btn-sm"
@@ -57,7 +59,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
       </div>
 
       {loading ? (
-        <p style={{ color: '#888', marginTop: 24 }}>Loading…</p>
+        <p style={{ color: '#888', marginTop: 8 }}>Loading…</p>
       ) : builds.length === 0 ? (
         <div className="empty-state">
           <p>No saved builds yet.</p>

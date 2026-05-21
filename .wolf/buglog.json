@@ -1427,6 +1427,377 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-05-21T09:37:26.137Z"
+    },
+    {
+      "id": "bug-090",
+      "timestamp": "2026-05-21T20:32:59.645Z",
+      "error_message": "Wrong condition in logic",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Condition was: if (screen === 'tree-selector')",
+      "fix": "Changed to: if (screen === 'gear')",
+      "tags": [
+        "auto-detected",
+        "logic-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T20:32:59.645Z"
+    },
+    {
+      "id": "bug-091",
+      "timestamp": "2026-05-21T20:54:45.148Z",
+      "error_message": "Significant refactor of ",
+      "file": "../../.claude/plans/okay-so-we-want-silly-raven.md",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 3→4 lines (2 removed) | Also: 3. Confirm three-panel layout renders with 10 empt; 5. Click an item → right panel appears with slider",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-21T20:57:48.468Z"
+    },
+    {
+      "id": "bug-092",
+      "timestamp": "2026-05-21T21:04:32.297Z",
+      "error_message": "Wrong operator: === should be !==",
+      "file": "../../.claude/plans/okay-so-we-want-silly-raven.md",
+      "root_cause": "Used \"===\" instead of \"!==\"",
+      "fix": "Changed operator === → !==",
+      "tags": [
+        "auto-detected",
+        "operator-fix",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T21:04:32.297Z"
+    },
+    {
+      "id": "bug-093",
+      "timestamp": "2026-05-21T21:10:39.546Z",
+      "error_message": "CSS fix: id",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear",
+      "fix": "Changed id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T21:10:39.546Z"
+    },
+    {
+      "id": "bug-094",
+      "timestamp": "2026-05-21T21:10:45.690Z",
+      "error_message": "Wrong return value",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Was returning: <GearScreen onBack={() => setScreen('build-overvie",
+      "fix": "Now returns: (",
+      "tags": [
+        "auto-detected",
+        "return-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T21:10:45.690Z"
+    },
+    {
+      "id": "bug-095",
+      "timestamp": "2026-05-21T21:11:27.671Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T21:11:27.671Z"
+    },
+    {
+      "id": "bug-096",
+      "timestamp": "2026-05-21T21:11:42.375Z",
+      "error_message": "CSS fix: conditions",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "conditions: effectiveConditions → effectiveConditions, gear: buildGearPayload(gear)",
+      "fix": "Changed conditions: effectiveConditions → effectiveConditions, gear: buildGearPayload(gear)",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T21:11:42.375Z"
+    },
+    {
+      "id": "bug-097",
+      "timestamp": "2026-05-21T21:12:44.855Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "42 lines replaced/restructured",
+      "fix": "Rewrote 139→295 lines (42 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T21:12:44.855Z"
+    },
+    {
+      "id": "bug-098",
+      "timestamp": "2026-05-21T21:31:37.383Z",
+      "error_message": "CSS fix: id",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions → sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, gear: sess.gear",
+      "fix": "Changed id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions → sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, gear: sess.gear",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T21:31:37.383Z"
+    },
+    {
+      "id": "bug-099",
+      "timestamp": "2026-05-21T21:32:37.145Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "12 lines replaced/restructured",
+      "fix": "Rewrote 295→401 lines (12 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T21:32:37.145Z"
+    },
+    {
+      "id": "bug-100",
+      "timestamp": "2026-05-21T21:35:45.297Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/GearScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T21:35:45.297Z"
+    },
+    {
+      "id": "bug-101",
+      "timestamp": "2026-05-21T22:15:07.563Z",
+      "error_message": "CSS fix: padding, gap, justify-content",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "padding: 40px 60px → 32px 60px 40px; gap: 24px → 12px; justify-content: space-between → flex-end",
+      "fix": "Changed padding: 40px 60px → 32px 60px 40px; gap: 24px → 12px; justify-content: space-between → flex-end",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T22:15:07.563Z"
+    },
+    {
+      "id": "bug-102",
+      "timestamp": "2026-05-21T22:18:59.321Z",
+      "error_message": "Wrong reference: Planner should be Builder",
+      "file": "src/renderer/index.html",
+      "root_cause": "Used \"Planner\" instead of \"Builder\"",
+      "fix": "Changed Planner → Builder",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "html"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T22:18:59.321Z"
+    },
+    {
+      "id": "bug-103",
+      "timestamp": "2026-05-21T22:22:46.481Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "23 lines replaced/restructured",
+      "fix": "Rewrote 42→26 lines (23 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T22:22:46.481Z"
+    },
+    {
+      "id": "bug-104",
+      "timestamp": "2026-05-21T00:00:00.000Z",
+      "error_message": "Gear stats not showing in stat page",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "useEffect early-return guard `if (slots.every(s => !s))` skipped the engine/stats fetch entirely when no talent trees were selected, so gear-only builds never computed stats. Display condition `filledSlots === 0` also showed 'No trees selected' even when gear was equipped.",
+      "fix": "Changed early-return to `if (slots.every(s => !s) && gear.length === 0)` so stats are fetched when gear is present. Updated 'No trees selected' display condition to `filledSlots === 0 && gear.length === 0`. Updated 'No stats' fallback to trigger when filledSlots > 0 || gear.length > 0.",
+      "tags": [
+        "gear",
+        "stats",
+        "build-overview",
+        "early-return"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21"
+    },
+    {
+      "id": "bug-105",
+      "timestamp": "2026-05-21T22:43:09.685Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check) | Also: const hasSource =; slots.some(s => !!s) ||",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-21T22:43:17.431Z"
+    },
+    {
+      "id": "bug-106",
+      "timestamp": "2026-05-21T23:07:59.679Z",
+      "error_message": "Incorrect value in code",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "Had 'Gear'",
+      "fix": "Changed to 'Utility'",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T23:07:59.679Z"
+    },
+    {
+      "id": "bug-107",
+      "timestamp": "2026-05-21T23:08:00.922Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T23:08:00.922Z"
+    },
+    {
+      "id": "bug-108",
+      "timestamp": "2026-05-21T23:08:09.173Z",
+      "error_message": "Wrong return value",
+      "file": "backend/server.py",
+      "root_cause": "Was returning: {w for w in clean.split() if w not in _GEAR_STOP_W",
+      "fix": "Now returns: {_GEAR_NORMALIZE_MAP.get(w, w) for w in clean.spli",
+      "tags": [
+        "auto-detected",
+        "return-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T23:08:09.173Z"
+    },
+    {
+      "id": "bug-109",
+      "timestamp": "2026-05-21T23:09:33.085Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "5 lines replaced/restructured",
+      "fix": "Rewrote 11→28 lines (5 removed) | Also: cursor: pointer;; .gear-build-item-name:hover { color: #e0b860; }",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-21T23:09:43.064Z"
+    },
+    {
+      "id": "bug-110",
+      "timestamp": "2026-05-21T23:20:00.000Z",
+      "error_message": "Selecting one micro talent shows stats for all micro talents in the tree; same for slate medium talents",
+      "file": "backend/engine/aggregator.py",
+      "root_cause": "_apply_node_recipes fell back to recipes_by_tree[tree][node_type] when a node was missing from node_recipes_by_id. That tree-level recipe contains aggregated stats for ALL nodes of that type, so selecting one node applied the whole group.",
+      "fix": "Added elif node_recipes_by_id: return — when per-node filter is populated but a specific node is missing, contribute nothing instead of falling back. Old filter (node_recipes_by_id empty) still uses tree-level fallback for backward compat.",
+      "tags": [
+        "aggregator",
+        "talent-tree",
+        "slate",
+        "stat-sheet",
+        "regression"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T23:20:00.000Z"
+    },
+    {
+      "id": "bug-111",
+      "timestamp": "2026-05-21T23:29:14.053Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/TreeViewerScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T23:29:14.053Z"
+    },
+    {
+      "id": "bug-112",
+      "timestamp": "2026-05-21T23:29:41.112Z",
+      "error_message": "CSS fix: cursor",
+      "file": "src/renderer/src/screens/TreeViewerScreen.tsx",
+      "root_cause": "cursor: (locked && !debugMode) || processing ? 'default' : 'pointer' → (locked && !debugMode) || processing ? 'default' : 'pointer',",
+      "fix": "Changed cursor: (locked && !debugMode) || processing ? 'default' : 'pointer' → (locked && !debugMode) || processing ? 'default' : 'pointer',",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-21T23:29:41.112Z"
     }
   ]
 }

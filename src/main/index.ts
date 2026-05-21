@@ -149,6 +149,8 @@ function createWindow(): void {
     height: 800,
     minWidth: 1100,
     minHeight: 680,
+    title: 'TLI Builder',
+    icon: join(__dirname, '../../resources/icon.png'),
     show: false,
     autoHideMenuBar: true,
     webPreferences: {

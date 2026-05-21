@@ -1,10 +1,11 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-05-21T09:37:26.121Z
-> Files: 118 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-05-21T23:29:59.995Z
+> Files: 121 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ../../.claude/plans/
 
+- `okay-so-we-want-silly-raven.md` — Gear Screen — Full Rebuild Plan (~3552 tok)
 - `twinkling-giggling-lynx.md` — Character Stat Sheet — Implementation Plan (~2446 tok)
 
 ## ./
@@ -32,13 +33,13 @@
 ## backend/
 
 - `requirements-dev.txt` (~3 tok)
-- `server.py` — API: 9 endpoints (~10404 tok)
+- `server.py` — API: 9 endpoints (~11293 tok)
 
 ## backend/engine/
 
 - `__init__.py` (~0 tok)
-- `aggregator.py` — aggregate (~1862 tok)
-- `models.py` — class: add, add_with_source, total, all_stats (~827 tok)
+- `aggregator.py` — aggregate (~2141 tok)
+- `models.py` — class: add, add_with_source, total, all_stats (~850 tok)
 - `pipeline.py` — run_pipeline (~2351 tok)
 - `resolver.py` — compute (~458 tok)
 
@@ -52,13 +53,13 @@
 - `passive_node.py` — NodeType: display, column_label, is_full, is_empty (~462 tok)
 - `passive_tree.py` — PassiveTree: add_node, add_connection, add_core_talent_slot, nodes_in_column + 5 more (~1216 tok)
 - `stat_contribution.py` — StatContribution dataclass; planned for future engine (~173 tok)
-- `stat_meta.py` — Declares from (~27443 tok)
-- `stat.py` — Declares import (~5914 tok)
+- `stat_meta.py` — Declares from (~27574 tok)
+- `stat.py` — Declares import (~5943 tok)
 
 ## backend/persistence/
 
 - `__init__.py` (~0 tok)
-- `builds_manager.py` — load, save_build, delete_build (~892 tok)
+- `builds_manager.py` — load, save_build, delete_build (~955 tok)
 - `save_manager.py` — load/save/clear tree state in data/save.json (~226 tok)
 - `season_manager.py` — list_seasons, get_active_season, set_active_season, load_all_season_trees (~1829 tok)
 - `snapshot_manager.py` — exists/load/save talent_snapshot.json in data/ (~151 tok)
@@ -157,7 +158,7 @@
 
 ## src/main/
 
-- `index.ts` — isDev: resolvePort, waitForPort, killPortProcess, startPython, createWindow (~2244 tok)
+- `index.ts` — isDev: resolvePort, waitForPort, killPortProcess, startPython, createWindow (~2267 tok)
 
 ## src/preload/
 
@@ -166,18 +167,22 @@
 
 ## src/renderer/
 
-- `index.html` — Renderer entry HTML (~102 tok)
+- `index.html` — TLI Builder (~102 tok)
 
 ## src/renderer/src/
 
-- `App.tsx` — DEFAULT_CONDITION_VALUES (~4986 tok)
-- `index.css` — Styles: 97 rules, 8 vars (~5571 tok)
+- `App.tsx` — DEFAULT_CONDITION_VALUES (~5164 tok)
+- `env.d.ts` — / <reference types="vite/client" /> (~11 tok)
+- `index.css` — Styles: 99 rules, 8 vars (~8218 tok)
 - `main.tsx` — Renderer entry point (~70 tok)
 - `treeGroups.ts` — GROUPS, isPrimary, getSubtrees, getPrimaryFor + tree grouping helpers (~1134 tok)
 
 ## src/renderer/src/api/
 
-- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 44 more (~4638 tok)
+- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 52 more (~5089 tok)
+
+## src/renderer/src/assets/
+
 
 ## src/renderer/src/components/
 
@@ -185,10 +190,11 @@
 
 ## src/renderer/src/screens/
 
-- `BuildOverviewScreen.tsx` — NUMERIC_CONDITION_KEYS (~5638 tok)
-- `BuildSelectScreen.tsx` — Build selection/management screen (~822 tok)
+- `BuildOverviewScreen.tsx` — NUMERIC_CONDITION_KEYS (~6158 tok)
+- `BuildSelectScreen.tsx` — slotSummary (~846 tok)
 - `DevToolsScreen.tsx` — DIFF_COLOR (~12786 tok)
+- `GearScreen.tsx` — SLOT_ORDER (~5326 tok)
 - `SlateScreen.tsx` — ── Board ───────────────────────────────────────────────────────────────────── (~17456 tok)
 - `StatsScreen.tsx` — CATEGORY_ORDER (~1993 tok)
 - `TreeSelectorScreen.tsx` — ORDINALS (~1993 tok)
-- `TreeViewerScreen.tsx` — Tree viewer with node allocation and debug tools (~5884 tok)
+- `TreeViewerScreen.tsx` — COLS (~6348 tok)
