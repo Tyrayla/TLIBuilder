@@ -355,6 +355,7 @@ function App() {
           onRemoveTree={handleRemoveTree}
           onSlotClick={handleSlotClick}
           onSlotReorder={handleSlotReorder}
+          onGoToTree={handleSlotClick}
           onBack={() => setScreen('build-overview')}
           onGoToSelector={() => {}}
           onShiftUp={handleShiftUp}

@@ -11,6 +11,7 @@ interface Props {
   onRemoveTree: (slotIndex: number) => void
   onSlotClick: (slotIndex: number) => void
   onSlotReorder: (fromSlot: number, toSlot: number) => void
+  onGoToTree?: (slotIndex: number) => void
   onBack: () => void
   onGoToSelector: () => void
   onShiftUp: (fromSlot: number) => void
@@ -34,7 +35,7 @@ function contextLabel(slots: (TreeSlot | null)[]): string {
 
 export default function TreeSelectorScreen({
   slots, activeSlot, treeColors, onSelectTree, onRemoveTree, onSlotClick,
-  onSlotReorder, onBack, onGoToSelector, onShiftUp, onPreview, previewMode = false,
+  onSlotReorder, onGoToTree, onBack, onGoToSelector, onShiftUp, onPreview, previewMode = false,
 }: Props) {
   const [localColors, setLocalColors] = useState<Record<string, string>>(treeColors)
 
@@ -104,6 +105,7 @@ export default function TreeSelectorScreen({
                 selectable={previewMode ? true : canAddTree(primary, slots)}
                 onSelect={() => onSelectTree(primary)}
                 onRemove={() => onRemoveTree(slotOf(primary, slots))}
+                onGoToTree={onGoToTree ? () => onGoToTree(slotOf(primary, slots)) : undefined}
                 previewMode={previewMode}
               />
               <div className="tree-subtrees">
@@ -118,6 +120,7 @@ export default function TreeSelectorScreen({
                       selectable={previewMode ? true : canAddTree(name, slots)}
                       onSelect={() => onSelectTree(name)}
                       onRemove={() => onRemoveTree(slotOf(name, slots))}
+                      onGoToTree={onGoToTree ? () => onGoToTree(slotOf(name, slots)) : undefined}
                       shiftCandidate={isShiftTarget ? shiftCandidate : null}
                       onShiftUp={onShiftUp}
                       previewMode={previewMode}
@@ -135,7 +138,7 @@ export default function TreeSelectorScreen({
 
 function TreeCard({
   name, color, isPrimary: isPrim, selectedSlot, selectable,
-  onSelect, onRemove, shiftCandidate, onShiftUp, previewMode = false,
+  onSelect, onRemove, onGoToTree, shiftCandidate, onShiftUp, previewMode = false,
 }: {
   name: string
   color: string
@@ -144,6 +147,7 @@ function TreeCard({
   selectable: boolean
   onSelect: () => void
   onRemove: () => void
+  onGoToTree?: () => void
   shiftCandidate?: { treeName: string; fromSlot: number } | null
   onShiftUp?: (fromSlot: number) => void
   previewMode?: boolean
@@ -151,14 +155,20 @@ function TreeCard({
   const isSelected = !previewMode && selectedSlot !== -1
   const isLocked = !isSelected && !selectable
   const isSelectable = selectable && !isSelected
+  const isClickable = isSelectable || (isSelected && !!onGoToTree)
 
   const borderColor = isSelected ? '#3a5a8a' : '#1e2535'
+
+  function handleClick() {
+    if (isSelectable) onSelect()
+    else if (isSelected && onGoToTree) onGoToTree()
+  }
 
   return (
     <div
       className={`tree-card${isPrim ? ' tree-card-primary' : ''}${isSelected ? ' tree-card-selected' : ''}${isLocked ? ' tree-card-locked' : ''}${isSelectable ? ' tree-card-selectable' : ''}`}
-      style={{ borderColor, cursor: isSelectable ? 'pointer' : 'default' }}
-      onClick={isSelectable ? onSelect : undefined}
+      style={{ borderColor, cursor: isClickable ? 'pointer' : 'default' }}
+      onClick={isClickable ? handleClick : undefined}
     >
       <div className="tree-card-accent" style={{ background: color }} />
       <div className="tree-card-name" style={{ color: isLocked ? '#444455' : '#ffffff' }}>

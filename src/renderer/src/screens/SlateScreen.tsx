@@ -694,14 +694,34 @@ export default function SlateScreen({ treeColors, initialSlates, onBack }: Props
         // Click on idle mode — open edit panel; in editing mode the panel is already open
         if (mode.type !== 'editing') {
           const slate = dragSlate.slate
+          const poolScope = SLOT_CONFIG[slate.kind]?.poolScope
+          const needsPoolLoad = !slate.pool && poolScope !== 'none'
           setMode({
             type: 'editing', slateId: slate.id, creator: {
               kind: slate.kind, shapeIndex: slate.shapeIndex, treeType: slate.treeType ?? null,
               slots: slate.slots.map(s => ({ ...s })), orientationIndex: slate.orientationIndex,
-              pool: slate.pool ?? null, poolLoading: false, openPicker: null, pickerSearch: '',
+              pool: slate.pool ?? null, poolLoading: needsPoolLoad, openPicker: null, pickerSearch: '',
               mothDirection: slate.mothDirection ?? null,
             },
           })
+          // Reload pool from API — always stripped from SavedSlate on back-navigation
+          if (needsPoolLoad) {
+            const slateId = slate.id
+            const poolPromise = poolScope === 'tree' && slate.treeType
+              ? api.getSlatePool(slate.treeType as PrimaryTree)
+              : api.getSlatePoolAll()
+            poolPromise
+              .then(pool => setMode(prev =>
+                prev.type === 'editing' && prev.slateId === slateId
+                  ? { ...prev, creator: { ...prev.creator, pool, poolLoading: false } }
+                  : prev
+              ))
+              .catch(() => setMode(prev =>
+                prev.type === 'editing' && prev.slateId === slateId
+                  ? { ...prev, creator: { ...prev.creator, poolLoading: false } }
+                  : prev
+              ))
+          }
         }
       } else if (hover) {
         // Drag — move to new position (allow anywhere within grid bounds); mode stays unchanged
