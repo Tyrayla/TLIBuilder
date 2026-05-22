@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { api, getApiBase, TreeData, TreeNode, TreeSlot } from '../api/client'
+import { api, getApiBase, TreeData, TreeNode, TreeSlot, CoreTalentSlot } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 
 const COLS = 7
@@ -63,11 +63,13 @@ interface Props {
   treeColor: string
   treeColors: Record<string, string>
   initialNodeStates: Record<string, number>
+  initialCoreTalentSelections?: Record<number, string>
   slots: (TreeSlot | null)[]
   activeSlot: number
   onBack: () => void
   onSlotClick: (slotIndex: number) => void
   onNodeStatesChange: (s: Record<string, number>) => void
+  onCoreTalentSelectionsChange?: (s: Record<number, string>) => void
   onReselect: () => void
   onSlotReorder?: (fromSlot: number, toSlot: number) => void
   onPreview?: () => void
@@ -77,13 +79,17 @@ interface Props {
 }
 
 export default function TreeViewerScreen({
-  treeName, treeColor, treeColors, initialNodeStates, slots, activeSlot,
-  onBack, onSlotClick, onNodeStatesChange, onReselect, onSlotReorder, onPreview,
+  treeName, treeColor, treeColors, initialNodeStates, initialCoreTalentSelections,
+  slots, activeSlot,
+  onBack, onSlotClick, onNodeStatesChange, onCoreTalentSelectionsChange, onReselect,
+  onSlotReorder, onPreview,
   previewMode = false, devMode = false, deprecatedTools = false,
 }: Props) {
   const [treeData, setTreeData] = useState<TreeData | null>(null)
   const [loadError, setLoadError] = useState('')
   const [nodeStates, setNodeStates] = useState<Record<string, number>>(initialNodeStates)
+  const [coreTalentSelections, setCoreTalentSelections] = useState<Record<number, string>>(initialCoreTalentSelections ?? {})
+  const [expandedSlot, setExpandedSlot] = useState<number | null>(null)
   const [tip, setTip] = useState<Tip | null>(null)
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null)
   const [processing, setProcessing] = useState(false)
@@ -106,6 +112,7 @@ export default function TreeViewerScreen({
 
   useEffect(() => {
     setNodeStates(initialNodeStates)
+    setCoreTalentSelections(initialCoreTalentSelections ?? {})
     setSearch('')
     loadTree()
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
@@ -144,6 +151,23 @@ export default function TreeViewerScreen({
       if (res.allowed) {
         setNodeStates(res.node_states)
         onNodeStatesChange(res.node_states)
+        if (treeData && Object.keys(coreTalentSelections).length > 0) {
+          const newTotal = sumPoints(res.node_states)
+          const next = { ...coreTalentSelections }
+          let changed = false
+          for (const idxStr of Object.keys(coreTalentSelections)) {
+            const idx = Number(idxStr)
+            const slot = treeData.core_talent_slots[idx]
+            if (slot && newTotal < slot.threshold) {
+              delete next[idx]
+              changed = true
+            }
+          }
+          if (changed) {
+            setCoreTalentSelections(next)
+            onCoreTalentSelectionsChange?.(next)
+          }
+        }
       } else {
         flash(
           action === 'allocate'
@@ -235,6 +259,18 @@ export default function TreeViewerScreen({
     flash('All points reset.', true)
   }
 
+  const handleCoreTalentSelect = (slotIndex: number, talentId: string) => {
+    const next = { ...coreTalentSelections }
+    if (next[slotIndex] === talentId) {
+      delete next[slotIndex]
+    } else {
+      next[slotIndex] = talentId
+      setExpandedSlot(null)
+    }
+    setCoreTalentSelections(next)
+    onCoreTalentSelectionsChange?.(next)
+  }
+
   // ── Header ─────────────────────────────────────────────────────────────────
 
   const header = previewMode ? (
@@ -256,6 +292,63 @@ export default function TreeViewerScreen({
       <div className="viewer-header-left">
         <button className="btn-back" onClick={onBack}>← Back</button>
         <span className="viewer-tree-name" style={{ color: treeColor }}>{treeName}</span>
+        {treeData && treeData.core_talent_slots.length > 0 && (
+          <div className="core-talent-header-widget">
+            <div className="core-talent-circles">
+              {treeData.core_talent_slots.map((slot, slotIdx) => {
+                const unlocked = total >= slot.threshold
+                const selectedId = coreTalentSelections[slotIdx]
+                const isOpen = expandedSlot === slotIdx
+                const ptsToward = Math.min(total, slot.threshold)
+                const selectedTalentName = selectedId
+                  ? (slot.options.find(o => o.id === selectedId)?.name ?? null)
+                  : null
+                return (
+                  <div key={slotIdx} className="core-talent-slot-item">
+                    <button
+                      className={`core-talent-circle${unlocked ? ' unlocked' : ''}${isOpen ? ' open' : ''}${selectedId ? ' has-selection' : ''}`}
+                      onClick={() => unlocked && setExpandedSlot(isOpen ? null : slotIdx)}
+                      disabled={!unlocked}
+                      title={unlocked ? `Core Talent Slot ${slotIdx + 1} — click to expand` : `Need ${slot.threshold} pts`}
+                    >
+                      <span className="core-talent-circle-progress">
+                        {unlocked ? (selectedId ? '✓' : '?') : `${ptsToward}/${slot.threshold}`}
+                      </span>
+                    </button>
+                    <span className="core-talent-circle-label">
+                      {selectedTalentName ?? `Core Talent ${slotIdx + 1}`}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            {expandedSlot !== null && (() => {
+              const slot = treeData.core_talent_slots[expandedSlot]
+              const selectedId = coreTalentSelections[expandedSlot]
+              return (
+                <div className="core-talent-cards">
+                  {slot.options.map(opt => {
+                    const selected = selectedId === opt.id
+                    return (
+                      <div key={opt.id} className={`core-talent-card${selected ? ' selected' : ''}`}>
+                        <div className="core-talent-card-name">{opt.name}</div>
+                        <div className="core-talent-card-desc">
+                          {opt.effects.map((e, i) => <p key={i}>{e}</p>)}
+                        </div>
+                        <button
+                          className={`core-talent-card-select${selected ? ' selected' : ''}`}
+                          onClick={() => handleCoreTalentSelect(expandedSlot, opt.id)}
+                        >
+                          {selected ? 'Selected' : 'Select'}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+          </div>
+        )}
       </div>
       {treeData && (
         <>
@@ -517,6 +610,7 @@ export default function TreeViewerScreen({
           <div className="viewer-status" style={{ color: status?.ok ? '#6bcb77' : '#ff6b6b' }}>
             {status?.msg ?? ''}
           </div>
+
         </div>
       </div>
 
