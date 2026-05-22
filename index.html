@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TLI Builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -38,11 +41,14 @@
       background: var(--bg2);
     }
 
-    .nav-logo {
-      font-size: 17px;
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .nav-logo-img { width: 28px; height: 28px; border-radius: 4px; }
+    .nav-logo-text {
+      font-family: 'Rajdhani', sans-serif;
       font-weight: 700;
+      font-size: 20px;
+      letter-spacing: -0.025em;
       color: var(--gold);
-      letter-spacing: 0.5px;
     }
 
     .nav-links {
@@ -132,11 +138,29 @@
       border: 1px solid var(--border);
     }
 
-    .btn-patreon {
-      background: #ff424d;
-      color: #fff;
-      border: none;
+    .hero-logo { width: 72px; height: 72px; margin-bottom: 20px; border-radius: 12px; }
+
+    .btn-support-split {
+      display: inline-flex;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
     }
+    .btn-split-kofi, .btn-split-patreon {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 11px 20px;
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-split-kofi:hover, .btn-split-patreon:hover { opacity: 0.85; transform: translateY(-1px); }
+    .btn-split-kofi    { background: #29abe0; }
+    .btn-split-patreon { background: #ff424d; }
+    .btn-split-divider { width: 1px; background: rgba(255,255,255,0.25); flex-shrink: 0; }
 
     /* ── Divider ── */
     .divider {
@@ -215,14 +239,19 @@
 <body>
 
   <nav>
-    <span class="nav-logo">TLI Builder</span>
+    <a class="nav-logo" href="/">
+      <img src="icon.png" alt="" class="nav-logo-img">
+      <span class="nav-logo-text">TLI Builder</span>
+    </a>
     <ul class="nav-links">
       <li><a href="https://github.com/Tyrayla/TLIBuilder" target="_blank">GitHub</a></li>
-      <li><a href="https://www.patreon.com/" target="_blank">Patreon</a></li>
+      <li><a href="https://ko-fi.com/tlibuilder" target="_blank">Ko-fi</a></li>
+      <li><a href="https://www.patreon.com/tlibuilder" target="_blank">Patreon</a></li>
     </ul>
   </nav>
 
   <section class="hero">
+    <img src="icon.png" alt="TLI Builder" class="hero-logo">
     <div class="hero-badge">Torchlight: Infinite</div>
     <h1>Plan your <span>perfect build</span></h1>
     <p class="hero-sub">
@@ -237,9 +266,21 @@
       <a class="btn btn-outline" href="https://github.com/Tyrayla/TLIBuilder" target="_blank">
         View on GitHub
       </a>
-      <a class="btn btn-patreon" href="https://www.patreon.com/" target="_blank">
-        Support on Patreon
-      </a>
+      <div class="btn-support-split">
+        <a class="btn-split-kofi" href="https://ko-fi.com/tlibuilder" target="_blank">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M18 8h-1V7a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v11a4 4 0 0 0 4 4h8a4 4 0 0 0 4-4v-2h1a3 3 0 0 0 0-6zM15 18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8h11v10zm3-4h-1v-2h1a1 1 0 0 1 0 2z"/>
+          </svg>
+          Ko-fi
+        </a>
+        <div class="btn-split-divider"></div>
+        <a class="btn-split-patreon" href="https://www.patreon.com/tlibuilder" target="_blank">
+          <svg width="16" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M14.82 2.41C11.57 2.41 8.95 5.03 8.95 8.29c0 3.25 2.62 5.88 5.87 5.88 3.25 0 5.88-2.63 5.88-5.88 0-3.26-2.63-5.88-5.88-5.88zM3.05 21.6h3.19V2.41H3.05V21.6z"/>
+          </svg>
+          Patreon
+        </a>
+      </div>
     </div>
   </section>
 
