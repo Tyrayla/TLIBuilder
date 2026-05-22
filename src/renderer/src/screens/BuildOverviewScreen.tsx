@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, TreeSlot, SavedSlate, SeasonSummary, StatSheetResponse, StatEntry, StatSource, ConditionDef, ConditionValues, ConditionMaximums, EquippedGearItem, GearEngineItem, GearAffixContribution } from '../api/client'
+import { api, TreeSlot, SavedSlate, SeasonSummary, StatSheetResponse, StatEntry, StatSource, ConditionDef, ConditionValues, ConditionMaximums, EquippedGearItem, GearEngineItem, GearAffixContribution, buildEnergyContributions, HeroTrait } from '../api/client'
 
 const NUMERIC_CONDITION_KEYS = new Set(['tenacity_active', 'agility_active', 'focus_active', 'channeled_not_capped'])
 
@@ -83,6 +83,8 @@ interface Props {
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
   gear: EquippedGearItem[]
+  characterLevel: number
+  hasPrism: boolean
   conditions: string[]
   conditionValues: ConditionValues
   conditionMaximums: ConditionMaximums | null
@@ -99,6 +101,9 @@ interface Props {
   onSaveAs: (name: string) => Promise<void>
   devMode?: boolean
   onSeasonChange?: () => void
+  traitId?: string | null
+  traitLevel?: number
+  onGoToHeroTraits?: () => void
 }
 
 type SaveMode = 'save' | 'saveas'
@@ -107,8 +112,9 @@ export default function BuildOverviewScreen({
   buildName, buildId, slots, slates, conditions, conditionValues, conditionMaximums, effectiveConditions,
   onConditionsChange, onConditionValuesChange, onConditionMaximumsChange,
   onBack, onTalentTree, onSlates, onGear, onSkills, onSave, onSaveAs,
-  gear = [],
+  gear = [], characterLevel = 1, hasPrism = false,
   devMode = false, onSeasonChange,
+  traitId = null, onGoToHeroTraits,
 }: Props) {
   const [saveOpen, setSaveOpen] = useState(false)
   const [saveMode, setSaveMode] = useState<SaveMode>('save')
@@ -118,6 +124,7 @@ export default function BuildOverviewScreen({
 
   const [seasons, setSeasons] = useState<SeasonSummary[]>([])
   const [activeSeason, setActiveSeason] = useState<string | null>(null)
+  const [allTraits, setAllTraits] = useState<HeroTrait[]>([])
 
   const [conditionsData, setConditionsData] = useState<Record<string, ConditionDef[]> | null>(null)
 
@@ -141,6 +148,10 @@ export default function BuildOverviewScreen({
   }, [])
 
   useEffect(() => {
+    api.getHeroTraits().then(res => setAllTraits(res.traits)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     const hasSource =
       slots.some(s => !!s) ||
       slates.some(s => s.slots?.some(sl => sl.selectedNodeId !== null)) ||
@@ -148,14 +159,19 @@ export default function BuildOverviewScreen({
     if (!hasSource) { setStatSheet(null); return }
     setStatsLoading(true)
     setStatsError('')
-    api.engineStats({ slots, slates, conditions: effectiveConditions, gear: buildGearPayload(gear) })
+    api.engineStats({
+      slots, slates,
+      conditions: effectiveConditions,
+      gear: buildGearPayload(gear),
+      character: buildEnergyContributions(gear, characterLevel, hasPrism),
+    })
       .then(res => {
         setStatSheet(res)
         if (res.condition_maximums) onConditionMaximumsChange(res.condition_maximums)
       })
       .catch(() => setStatsError('Failed to load stats.'))
       .finally(() => setStatsLoading(false))
-  }, [slots, slates, effectiveConditions, gear])
+  }, [slots, slates, effectiveConditions, gear, characterLevel, hasPrism])
 
   useEffect(() => {
     if (!selectedStat) return
@@ -193,14 +209,16 @@ export default function BuildOverviewScreen({
       finally { setSaving(false) }
     } else {
       setSaveMode('save')
-      setSaveName(buildName || '')
+      const t = allTraits.find(x => x.trait_id === traitId) ?? null
+      setSaveName(buildName || (t ? `${t.hero} ${t.variant_name}` : ''))
       setSaveOpen(true)
     }
   }
 
   const handleSaveAs = () => {
     setSaveMode('saveas')
-    setSaveName(buildName || '')
+    const t = allTraits.find(x => x.trait_id === traitId) ?? null
+    setSaveName(buildName || (t ? `${t.hero} ${t.variant_name}` : ''))
     setSaveOpen(true)
   }
 
@@ -270,6 +288,8 @@ export default function BuildOverviewScreen({
   } : {}
 
   const condCategories = conditionsData ? Object.entries(conditionsData) : []
+
+  const selectedTrait = allTraits.find(t => t.trait_id === traitId) ?? null
   const numericActive =
     (conditionValues.tenacity_stacks > 0 ? 1 : 0) +
     (conditionValues.agility_stacks > 0 ? 1 : 0) +
@@ -339,6 +359,13 @@ export default function BuildOverviewScreen({
             <span className="overview-nav-icon">✦</span>
             <div className="overview-nav-text">
               <span className="overview-nav-label">Skills</span>
+            </div>
+          </button>
+          <button className="overview-nav-btn active" onClick={onGoToHeroTraits}>
+            <span className="overview-nav-icon">◈</span>
+            <div className="overview-nav-text">
+              <span className="overview-nav-label">Hero Trait</span>
+              {selectedTrait && <span className="overview-nav-sub">{selectedTrait.hero} · {selectedTrait.variant_name}</span>}
             </div>
           </button>
         </div>
