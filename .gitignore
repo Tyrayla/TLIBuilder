@@ -13,11 +13,6 @@ dev-out.txt
 # Local user data
 data/builds/
 
-# OpenWolf session/machine state
-.wolf/token-ledger.json
-.wolf/memory.md
-.wolf/cron-state.json
-.wolf/cron-manifest.json
-.wolf/suggestions.json
-.wolf/designqc-report.json
-.wolf/hooks/_session.json
+# OpenWolf and Claude Code — local AI tooling, not for version control
+.wolf/
+.claude/
