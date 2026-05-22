@@ -2000,6 +2000,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Flat Quantity / Mechanic Stats ────────────────────────────────────────
+    Stat.MAX_ENERGY_FLAT: StatMeta(
+        "Max Energy", "Utility", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=69,                source_types=("talent_node", "character"),
+    ),
     Stat.MAX_CHARGES_FLAT: StatMeta(
         "Max Charges", "Utility", "added_flat",
         subgroup="mechanics",          stacking_rule="additive",

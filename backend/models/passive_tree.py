@@ -82,8 +82,11 @@ class PassiveTree:
             raise ValueError(f"'{node.node_type.value}' already has 0 points.")
 
         # Column unlock check: removing a point must not strand any occupied column.
+        # Skip the node's own column — reducing within it can't strand itself.
         total_after = self.total_points() - 1
         for col in range(1, COLUMN_COUNT):
+            if col == node.column:
+                continue
             if self.points_in_column(col) > 0 and total_after < col * 3:
                 raise ValueError(
                     f"Cannot remove: column {col * 3} requires "

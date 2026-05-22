@@ -65,6 +65,7 @@ def _tree_from_config(name: str, config: dict) -> PassiveTree:
 
 
 def _tree_from_season_data(name: str, data: dict) -> PassiveTree:
+    from models.core_talent import CoreTalent, CoreTalentSlot
     tree = PassiveTree(name)
     for n in data["nodes"]:
         tree.add_node(PassiveNode(
@@ -76,6 +77,27 @@ def _tree_from_season_data(name: str, data: dict) -> PassiveTree:
         ))
     for conn in data.get("connections", []):
         tree.add_connection(conn["from"], conn["to"])
+
+    raw_cts = data.get("core_talents", [])
+
+    def _make_options(items):
+        return [
+            CoreTalent(
+                id=ct["display_name_key"],
+                name=_format_core_talent_name(ct["display_name_key"], name),
+                effects=ct.get("effects", []),
+            )
+            for ct in items
+        ]
+
+    if len(raw_cts) == 6:
+        # God/Goddess tree: 2 slots of 3 options each
+        tree.add_core_talent_slot(CoreTalentSlot(threshold=12, options=_make_options(raw_cts[0:3])))
+        tree.add_core_talent_slot(CoreTalentSlot(threshold=24, options=_make_options(raw_cts[3:6])))
+    elif len(raw_cts) == 4:
+        # Subtree: 1 slot of 4 options
+        tree.add_core_talent_slot(CoreTalentSlot(threshold=24, options=_make_options(raw_cts[0:4])))
+
     return tree
 
 
@@ -159,8 +181,15 @@ def get_tree(name: str):
 
     connections = [{"from": id1, "to": id2} for id1, id2 in tree.connections]
     core_talent_slots = [
-        {"id": getattr(slot, "id", str(i)), "label": getattr(slot, "label", "")}
-        for i, slot in enumerate(tree.core_talent_slots or [])
+        {
+            "threshold": slot.threshold,
+            "options": [
+                {"id": opt.id, "name": opt.name, "effects": opt.effects}
+                for opt in slot.options
+            ],
+            "selected_id": slot.selected_id,
+        }
+        for slot in (tree.core_talent_slots or [])
     ]
     return {
         "name": name,
@@ -352,6 +381,7 @@ def get_builds():
 class SlotData(BaseModel):
     treeName: str
     nodeStates: dict[str, int]
+    coreTalentSelections: dict[str, str] | None = None
 
 
 class BuildRequest(BaseModel):
@@ -360,7 +390,11 @@ class BuildRequest(BaseModel):
     slots: list[SlotData | None]
     slates: list[dict] | None = None
     conditions: list[str] | None = None
+    conditionValues: dict | None = None
     gear: list[dict] | None = None
+    skills: list[dict] | None = None
+    characterLevel: int | None = None
+    hasPrism: bool | None = None
 
 
 @app.post("/api/builds")
@@ -424,6 +458,7 @@ class EngineStatsRequest(BaseModel):
     slates:     list[dict] = []
     conditions: list[str] = []
     gear:       list[dict] = []
+    character:  list[dict] = []
 
 
 @app.post("/api/engine/stats")
@@ -462,7 +497,7 @@ def engine_stats(req: EngineStatsRequest):
         if tree_data:
             season_trees[slug] = tree_data
 
-    build = BuildInput(slots=slots, slates=slates, season=active_season, conditions=req.conditions, gear=req.gear)
+    build = BuildInput(slots=slots, slates=slates, season=active_season, conditions=req.conditions, gear=req.gear, character=req.character)
     source = aggregate(build, season_trees, filter_data)
 
     stat_map: dict = {}
