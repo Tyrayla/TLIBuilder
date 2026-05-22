@@ -38,7 +38,9 @@ def _read_file(build_id: str) -> dict:
         tree = data.get(f'slot{i}_tree', '').strip()
         if tree:
             nodes = _parse_nodes(data.get(f'slot{i}_nodes', ''))
-            slots.append({'treeName': tree, 'nodeStates': nodes})
+            core_raw = data.get(f'slot{i}_core_talents', '')
+            core_selections = json.loads(core_raw) if core_raw else {}
+            slots.append({'treeName': tree, 'nodeStates': nodes, 'coreTalentSelections': core_selections})
         else:
             slots.append(None)
 
@@ -54,14 +56,36 @@ def _read_file(build_id: str) -> dict:
     skills_raw = data.get('skills', '')
     skills = json.loads(skills_raw) if skills_raw else []
 
+    character_level_raw = data.get('characterLevel', '')
+    character_level = int(character_level_raw) if character_level_raw.isdigit() else 1
+    has_prism = data.get('hasPrism', 'false').lower() == 'true'
+
+    condition_values_raw = data.get('conditionValues', '')
+    condition_values = json.loads(condition_values_raw) if condition_values_raw else {}
+
+    trait_id = data.get('trait_id', '') or None
+    trait_level_raw = data.get('trait_level', '1')
+    trait_level = int(trait_level_raw) if trait_level_raw.isdigit() else 1
+    slot_levels_raw = data.get('trait_slot_levels', '')
+    trait_slot_levels = json.loads(slot_levels_raw) if slot_levels_raw else [trait_level, 1, 1, 1]
+    advanced_raw = data.get('advanced_trait_selections', '')
+    advanced_trait_selections = json.loads(advanced_raw) if advanced_raw else []
+
     return {
         'id': data.get('id', build_id),
         'name': data.get('name', ''),
         'slots': slots,
         'slates': slates,
         'conditions': conditions,
+        'conditionValues': condition_values,
         'gear': gear,
         'skills': skills,
+        'characterLevel': character_level,
+        'hasPrism': has_prism,
+        'traitId': trait_id,
+        'traitLevel': trait_level,
+        'traitSlotLevels': trait_slot_levels,
+        'advancedTraitSelections': advanced_trait_selections,
     }
 
 
@@ -77,18 +101,30 @@ def _write_file(build: dict) -> None:
                 tree = slot.get('treeName', '')
                 node_states = slot.get('nodeStates', {})
                 nodes_str = ','.join(f"{k}:{v}" for k, v in node_states.items() if v > 0)
+                core = slot.get('coreTalentSelections') or {}
             else:
                 tree = ''
                 nodes_str = ''
+                core = {}
             f.write(f"slot{i}_tree={tree}\n")
             f.write(f"slot{i}_nodes={nodes_str}\n")
+            f.write(f"slot{i}_core_talents={json.dumps(core, separators=(',', ':'))}\n")
         f.write(f"slates={json.dumps(slates, separators=(',', ':'))}\n")
         conditions = build.get('conditions') or []
         f.write(f"conditions={json.dumps(conditions, separators=(',', ':'))}\n")
+        condition_values = build.get('conditionValues') or {}
+        f.write(f"conditionValues={json.dumps(condition_values, separators=(',', ':'))}\n")
         gear = build.get('gear') or []
         f.write(f"gear={json.dumps(gear, separators=(',', ':'))}\n")
         skills = build.get('skills') or []
         f.write(f"skills={json.dumps(skills, separators=(',', ':'))}\n")
+        f.write(f"characterLevel={build.get('characterLevel', 1)}\n")
+        f.write(f"hasPrism={'true' if build.get('hasPrism') else 'false'}\n")
+        f.write(f"trait_id={build.get('traitId', '') or ''}\n")
+        slot_levels = build.get('traitSlotLevels') or [1, 1, 1, 1]
+        f.write(f"trait_slot_levels={json.dumps(slot_levels, separators=(',', ':'))}\n")
+        advanced = build.get('advancedTraitSelections') or []
+        f.write(f"advanced_trait_selections={json.dumps(advanced, separators=(',', ':'))}\n")
 
 
 def load() -> list[dict]:
