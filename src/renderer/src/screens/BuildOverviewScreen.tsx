@@ -94,6 +94,7 @@ interface Props {
   onTalentTree: () => void
   onSlates: () => void
   onGear: () => void
+  onSkills: () => void
   onSave: (name: string) => Promise<void>
   onSaveAs: (name: string) => Promise<void>
   devMode?: boolean
@@ -105,7 +106,7 @@ type SaveMode = 'save' | 'saveas'
 export default function BuildOverviewScreen({
   buildName, buildId, slots, slates, conditions, conditionValues, conditionMaximums, effectiveConditions,
   onConditionsChange, onConditionValuesChange, onConditionMaximumsChange,
-  onBack, onTalentTree, onSlates, onGear, onSave, onSaveAs,
+  onBack, onTalentTree, onSlates, onGear, onSkills, onSave, onSaveAs,
   gear = [],
   devMode = false, onSeasonChange,
 }: Props) {
@@ -332,6 +333,12 @@ export default function BuildOverviewScreen({
             <span className="overview-nav-icon">⚔️</span>
             <div className="overview-nav-text">
               <span className="overview-nav-label">Gear</span>
+            </div>
+          </button>
+          <button className="overview-nav-btn active" onClick={onSkills}>
+            <span className="overview-nav-icon">✦</span>
+            <div className="overview-nav-text">
+              <span className="overview-nav-label">Skills</span>
             </div>
           </button>
         </div>
