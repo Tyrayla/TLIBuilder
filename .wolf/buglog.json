@@ -1814,6 +1814,728 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-05-22T01:10:19.900Z"
+    },
+    {
+      "id": "bug-114",
+      "timestamp": "2026-05-22T01:25:40.342Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/api/client.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T01:25:40.342Z"
+    },
+    {
+      "id": "bug-115",
+      "timestamp": "2026-05-22T01:27:18.383Z",
+      "error_message": "CSS fix: padding",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "padding: 4px 14px 10px → 6px 14px 4px",
+      "fix": "Changed padding: 4px 14px 10px → 6px 14px 4px",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 3,
+      "last_seen": "2026-05-22T01:27:49.646Z"
+    },
+    {
+      "id": "bug-116",
+      "timestamp": "2026-05-22T01:28:00.893Z",
+      "error_message": "CSS fix: skills",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "skills: build.skills ?? [], → (build.skills ?? []).map(s => ({ ...s, supports: s.supports ?? []",
+      "fix": "Changed skills: build.skills ?? [], → (build.skills ?? []).map(s => ({ ...s, supports: s.supports ?? []",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T01:28:00.893Z"
+    },
+    {
+      "id": "bug-117",
+      "timestamp": "2026-05-22T01:43:54.493Z",
+      "error_message": "Missing guard clause",
+      "file": "src/renderer/src/api/client.ts",
+      "root_cause": "No early return/throw for edge case: slot >= 1 && slot <= 5",
+      "fix": "Added guard clause: if (slot >= 1 && slot <= 5)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T01:43:54.493Z"
+    },
+    {
+      "id": "bug-118",
+      "timestamp": "2026-05-22T01:44:12.843Z",
+      "error_message": "CSS fix: slot",
+      "file": "src/renderer/src/screens/SkillsScreen.tsx",
+      "root_cause": "slot: number) { return isPassiveSlot(slot) ? PASSIVE_SUPPORT_COUNT : ACTIVE_SUPPORT_COUNT → number) { return slot > 5",
+      "fix": "Changed slot: number) { return isPassiveSlot(slot) ? PASSIVE_SUPPORT_COUNT : ACTIVE_SUPPORT_COUNT → number) { return slot > 5",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T01:44:12.843Z"
+    },
+    {
+      "id": "bug-119",
+      "timestamp": "2026-05-22T01:44:29.612Z",
+      "error_message": "Wrong reference: supportCount should be SUPPORT_COUNT",
+      "file": "src/renderer/src/screens/SkillsScreen.tsx",
+      "root_cause": "Used \"supportCount\" instead of \"SUPPORT_COUNT\"",
+      "fix": "Changed supportCount → SUPPORT_COUNT",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T01:44:29.612Z"
+    },
+    {
+      "id": "bug-120",
+      "timestamp": "2026-05-22T01:45:40.235Z",
+      "error_message": "CSS fix: id",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism",
+      "fix": "Changed id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T01:45:40.235Z"
+    },
+    {
+      "id": "bug-121",
+      "timestamp": "2026-05-22T01:46:41.554Z",
+      "error_message": "CSS fix: font-size, color",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "font-size: 12px → 10px; color: var(--gold) → #333",
+      "fix": "Changed font-size: 12px → 10px; color: var(--gold) → #333",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T01:46:41.554Z"
+    },
+    {
+      "id": "bug-122",
+      "timestamp": "2026-05-22T01:56:19.656Z",
+      "error_message": "CSS fix: conditions",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "conditions: effectiveConditions, gear: buildGearPayload(gear) → effectiveConditions,",
+      "fix": "Changed conditions: effectiveConditions, gear: buildGearPayload(gear) → effectiveConditions,",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T01:56:19.656Z"
+    },
+    {
+      "id": "bug-123",
+      "timestamp": "2026-05-22T02:11:16.060Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 3→4 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T02:11:16.060Z"
+    },
+    {
+      "id": "bug-124",
+      "timestamp": "2026-05-22T02:26:52.836Z",
+      "error_message": "CSS fix: characterLevel",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "characterLevel: 1, → 100,",
+      "fix": "Changed characterLevel: 1, → 100,",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T02:26:52.836Z"
+    },
+    {
+      "id": "bug-125",
+      "timestamp": "2026-05-22T02:28:09.028Z",
+      "error_message": "Wrong reference: nrg should be Energy",
+      "file": "src/renderer/src/screens/SkillsScreen.tsx",
+      "root_cause": "Used \"nrg\" instead of \"Energy\"",
+      "fix": "Changed nrg → Energy",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T02:28:09.028Z"
+    },
+    {
+      "id": "bug-126",
+      "timestamp": "2026-05-22T02:28:48.933Z",
+      "error_message": "CSS fix: color",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "color: var(--gold) → #9090aa",
+      "fix": "Changed color: var(--gold) → #9090aa",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T02:28:48.933Z"
+    },
+    {
+      "id": "bug-127",
+      "timestamp": "2026-05-22T02:42:26.170Z",
+      "error_message": "Significant refactor of ",
+      "file": "../../.claude/plans/okay-so-we-want-silly-raven.md",
+      "root_cause": "11 lines replaced/restructured",
+      "fix": "Rewrote 23→31 lines (11 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T02:42:26.170Z"
+    },
+    {
+      "id": "bug-128",
+      "timestamp": "2026-05-22T02:44:32.735Z",
+      "error_message": "CSS fix: name",
+      "file": "src/renderer/src/screens/SkillsScreen.tsx",
+      "root_cause": "name: item.name, lines: item.description_lines, x: e.clientX + 14, y: e.clientY - 8 → item.name, lines: getAdvancedLines(item.description_lines), x: e.clientX + 14, y: e.clientY - 8",
+      "fix": "Changed name: item.name, lines: item.description_lines, x: e.clientX + 14, y: e.clientY - 8 → item.name, lines: getAdvancedLines(item.description_lines), x: e.clientX + 14, y: e.clientY - 8",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T02:44:32.735Z"
+    },
+    {
+      "id": "bug-129",
+      "timestamp": "2026-05-22T02:45:03.328Z",
+      "error_message": "CSS fix: color, background",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "color: #666688 → #44aa55; background: #1a1a30 → #081408",
+      "fix": "Changed color: #666688 → #44aa55; background: #1a1a30 → #081408",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-22T02:49:18.476Z"
+    },
+    {
+      "id": "bug-130",
+      "timestamp": "2026-05-22T02:52:04.321Z",
+      "error_message": "Incorrect value in code",
+      "file": "src/renderer/src/screens/SkillsScreen.tsx",
+      "root_cause": "Had \"back-btn\"",
+      "fix": "Changed to \"btn-back\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T02:52:04.321Z"
+    },
+    {
+      "id": "bug-131",
+      "timestamp": "2026-05-22T03:24:59.402Z",
+      "error_message": "Significant refactor of ",
+      "file": "../tli-site/index.html",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 6→9 lines (3 removed) | Also: .btn-patreon {; background: #ff424d; | Also: <span class=\"nav-logo\">TLI Builder</span>; <li><a href=\"https://www.patreon.com/\" target=\"_bl | Also: <a class=\"btn btn-patreon\" href=\"https://www.patre; Support on Patreon",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "html"
+      ],
+      "related_bugs": [],
+      "occurrences": 4,
+      "last_seen": "2026-05-22T03:25:28.901Z"
+    },
+    {
+      "id": "bug-132",
+      "timestamp": "2026-05-22T03:25:18.153Z",
+      "error_message": "Incorrect value in code",
+      "file": "../tli-site/index.html",
+      "root_cause": "Had \"hero-badge\"",
+      "fix": "Changed to \"icon.png\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "html"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T03:25:18.153Z"
+    },
+    {
+      "id": "bug-133",
+      "timestamp": "2026-05-22T03:32:34.397Z",
+      "error_message": "Wrong reference: 32px should be 3em",
+      "file": "../tli-site/index.html",
+      "root_cause": "Used \"32px\" instead of \"3em\"",
+      "fix": "Changed 32px → 3em",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "html"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T03:32:34.397Z"
+    },
+    {
+      "id": "bug-134",
+      "timestamp": "2026-05-22T03:41:26.217Z",
+      "error_message": "Incorrect value in code",
+      "file": "../tli-site/index.html",
+      "root_cause": "Had \"16\"",
+      "fix": "Changed to \"18\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "html"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T03:41:26.217Z"
+    },
+    {
+      "id": "bug-135",
+      "timestamp": "2026-05-22T04:25:46.307Z",
+      "error_message": "Significant refactor of ",
+      "file": "backend/server.py",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 12→19 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T04:25:46.307Z"
+    },
+    {
+      "id": "bug-136",
+      "timestamp": "2026-05-22T04:26:23.205Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/TreeViewerScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check) | Also: setCoreTalentSelections(initialCoreTalentSelections ?? {}) | Also: const handleCoreTalentSelect = (slotIndex: number, talentId:; const next = { ...coreTalentSelections }",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 3,
+      "last_seen": "2026-05-22T04:26:42.147Z"
+    },
+    {
+      "id": "bug-137",
+      "timestamp": "2026-05-22T04:28:19.188Z",
+      "error_message": "CSS fix: padding, font-size",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "padding: 3px 14px → 8px 12px; font-size: 12px → 10px",
+      "fix": "Changed padding: 3px 14px → 8px 12px; font-size: 12px → 10px",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T04:28:19.188Z"
+    },
+    {
+      "id": "bug-138",
+      "timestamp": "2026-05-22T04:40:27.111Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/TreeViewerScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T04:40:27.111Z"
+    },
+    {
+      "id": "bug-139",
+      "timestamp": "2026-05-22T04:40:57.705Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "51 lines replaced/restructured",
+      "fix": "Rewrote 62→38 lines (51 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T04:40:57.705Z"
+    },
+    {
+      "id": "bug-140",
+      "timestamp": "2026-05-22T04:53:09.925Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/TreeViewerScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check) | Also: {treeData.core_talent_slots.length > 0 && (; <div className=\"core-talent-header-widget\">",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-22T04:53:25.389Z"
+    },
+    {
+      "id": "bug-141",
+      "timestamp": "2026-05-22T04:54:02.909Z",
+      "error_message": "CSS fix: height, letter-spacing, min-height",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "height: 64px → 44px; letter-spacing: 0.8px → 0.5px; min-height: 160px → 150px",
+      "fix": "Changed height: 64px → 44px; letter-spacing: 0.8px → 0.5px; min-height: 160px → 150px",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T04:54:02.909Z"
+    },
+    {
+      "id": "bug-142",
+      "timestamp": "2026-05-22T05:03:36.842Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/TreeViewerScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T05:03:36.842Z"
+    },
+    {
+      "id": "bug-143",
+      "timestamp": "2026-05-22T00:00:00.000Z",
+      "error_message": "Cannot remove point from node at column C when total points == C*3 threshold (impossible deadlock)",
+      "file": "backend/models/passive_tree.py",
+      "root_cause": "Column unlock check in deallocate() iterates ALL columns including the node's own. When removing from col 4 with exactly 12 total: total_after=11, col 4 still has points, 11 < 12 → blocked. The node's column was checking itself, creating a state from which escape is impossible.",
+      "fix": "Added `if col == node.column: continue` in the deallocate() column check loop. Removing from column C can never strand C itself; only higher columns with points can be stranded.",
+      "tags": [
+        "deallocation",
+        "column-unlock",
+        "passive-tree",
+        "deadlock"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22"
+    },
+    {
+      "id": "bug-144",
+      "timestamp": "2026-05-22T05:39:22.657Z",
+      "error_message": "CSS fix: id",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitLevel: session.traitLevel, advancedTraitSelections: session.advancedTraitSelections",
+      "fix": "Changed id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitLevel: session.traitLevel, advancedTraitSelections: session.advancedTraitSelections",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-22T05:43:38.915Z"
+    },
+    {
+      "id": "bug-145",
+      "timestamp": "2026-05-22T05:41:43.264Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check) | Also: {/* Hero trait selector bar */}; <div className=\"hero-trait-bar\">",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-22T05:41:59.497Z"
+    },
+    {
+      "id": "bug-146",
+      "timestamp": "2026-05-22T05:43:03.679Z",
+      "error_message": "CSS fix: gap",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "gap: 4px → 12px",
+      "fix": "Changed gap: 4px → 12px",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T05:43:03.679Z"
+    },
+    {
+      "id": "bug-147",
+      "timestamp": "2026-05-22T06:08:19.312Z",
+      "error_message": "Significant refactor of ",
+      "file": "../../.claude/plans/okay-so-we-want-silly-raven.md",
+      "root_cause": "43 lines replaced/restructured",
+      "fix": "Rewrote 84→110 lines (43 removed) | Also: Remove: `.hero-trait-bar` styles (and its children; /* Two-panel layout */",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-22T06:09:02.441Z"
+    },
+    {
+      "id": "bug-148",
+      "timestamp": "2026-05-22T06:11:01.685Z",
+      "error_message": "Missing guard clause",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "No early return/throw for edge case: prev &&\n        prev.tenacity_max === maximums.tenacity_max ",
+      "fix": "Added guard clause: if (prev &&\n        prev.tenacity_max === ma)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T06:11:01.685Z"
+    },
+    {
+      "id": "bug-149",
+      "timestamp": "2026-05-22T06:11:24.464Z",
+      "error_message": "Wrong reference: setConditionMaximums should be handleConditionMaximumsChange",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Used \"setConditionMaximums\" instead of \"handleConditionMaximumsChange\"",
+      "fix": "Changed setConditionMaximums → handleConditionMaximumsChange",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T06:11:24.464Z"
+    },
+    {
+      "id": "bug-150",
+      "timestamp": "2026-05-22T06:16:49.446Z",
+      "error_message": "Wrong reference: onTraitIdChange should be onGoToHeroTraits",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "Used \"onTraitIdChange\" instead of \"onGoToHeroTraits\"",
+      "fix": "Changed onTraitIdChange → onGoToHeroTraits",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-05-22T06:19:02.127Z"
+    },
+    {
+      "id": "bug-151",
+      "timestamp": "2026-05-22T06:23:52.887Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "20 lines replaced/restructured",
+      "fix": "Rewrote 31→9 lines (20 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T06:23:52.887Z"
+    },
+    {
+      "id": "bug-152",
+      "timestamp": "2026-05-22T06:24:03.583Z",
+      "error_message": "Missing guard clause",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "No early return/throw for edge case: prev &&\n        prev.tenacity_max === maximums.tenacity_max ",
+      "fix": "Added guard clause: if (prev &&\n        prev.tenacity_max === ma)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T06:24:03.583Z"
+    },
+    {
+      "id": "bug-153",
+      "timestamp": "2026-05-22T06:31:59.180Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/renderer/src/index.css",
+      "root_cause": "35 lines replaced/restructured",
+      "fix": "Rewrote 51→51 lines (35 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "css"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T06:31:59.180Z"
+    },
+    {
+      "id": "bug-154",
+      "timestamp": "2026-05-22T06:33:26.606Z",
+      "error_message": "Type error",
+      "file": "src/renderer/src/screens/HeroTraitScreen.tsx",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T06:33:26.606Z"
+    },
+    {
+      "id": "bug-155",
+      "timestamp": "2026-05-22T06:39:56.995Z",
+      "error_message": "CSS fix: characterLevel",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "characterLevel: build.characterLevel ?? 1, → build.characterLevel ?? 100,",
+      "fix": "Changed characterLevel: build.characterLevel ?? 1, → build.characterLevel ?? 100,",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 4,
+      "last_seen": "2026-05-22T06:40:27.688Z"
+    },
+    {
+      "id": "bug-156",
+      "timestamp": "2026-05-22T06:46:18.106Z",
+      "error_message": "CSS fix: id",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, gear: sess.gear, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections → sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, conditionValues: sess.conditionValues, gear: sess.gear, skills: sess.skills, characterLevel: sess.characterLevel, hasPrism: sess.hasPrism, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections",
+      "fix": "Changed id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, gear: sess.gear, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections → sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, conditionValues: sess.conditionValues, gear: sess.gear, skills: sess.skills, characterLevel: sess.characterLevel, hasPrism: sess.hasPrism, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T06:46:18.106Z"
+    },
+    {
+      "id": "bug-157",
+      "timestamp": "2026-05-22T06:46:55.724Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/screens/BuildOverviewScreen.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T06:46:55.724Z"
+    },
+    {
+      "id": "bug-158",
+      "timestamp": "2026-05-22T00:00:00Z",
+      "error_message": "Native onRequestSave handler missing conditionValues, skills, characterLevel, hasPrism — these fields not saved when closing app via native dialog",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "The onRequestSave build object was constructed manually and omitted 4 session fields: conditionValues, skills, characterLevel, hasPrism. Regular saveBuild included them but the native close-dialog path did not.",
+      "fix": "Added conditionValues, skills, characterLevel, hasPrism to the build object in the onRequestSave handler.",
+      "tags": [
+        "persistence",
+        "save",
+        "session",
+        "hero-traits"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T00:00:00Z"
     }
   ]
 }

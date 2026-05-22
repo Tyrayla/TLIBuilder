@@ -22,6 +22,15 @@
 - **Flat-vs-inc bug pattern:** Any stat that exists only as a flat variant will absorb % modifier texts (Jaccard tiebreaker needs both flat and inc to exist to route correctly). When a % stat displays as a tiny decimal, check whether the _inc variant is missing from stat.py.
 - **LIFE_REGEN_INC semantics:** Repurposed — now stores "% of max life per second" (e.g. 0.6%). LIFE_REGEN_SPEED_INC stores the speed multiplier (+4% Life Regeneration Speed).
 
+## User Preferences
+
+- Never commit without asking first ("Don't send random commits ever, ask me if you feel something should be committed first before doing so")
+- Hero trait is_pick_one_from_two: `false` = radio group (pick 1 at that unlock_level among all `false` traits), `true` = sub-row pick-1 submenu at that unlock_level. NOT a pair/sibling relationship.
+- Hero Trait screen layout: dropdown for hero/variant selection in header, horizontal columns (one per unlock_level 45/60/75), circles with name inside, hover/click shows floating info card. Base trait is on LEFT, always-selected, vertically centered.
+- Hero trait base level: set by RARITY of the hero trait item (Normal/white=L1, Rare/purple=L2, Ultimate/red=L3). A "+2 trait level" modifier can push higher (up to L5). Artificial Moon appears at level 5. NOT derived from character level.
+- Hero memories: physical items socketed into trait slots. Types: Origin (LV45), Discipline (LV60), Progress (LV75). A special mod allows a different type to be socketed in the base slot, leveling up the base trait. Advanced traits at 45/60/75 unlock when the respective memory is socketed.
+- Hero trait rarity levels: White(Normal)=L1, Blue(Magic)=?, Purple(Rare)=L2, Orange(Epic)=?, Red(Ultimate)=L3. Magic and Epic mapping is unknown. +2 modifier can raise level further.
+
 ## Do-Not-Repeat
 
 <!-- Mistakes made and corrected. Each entry prevents the same mistake recurring. -->

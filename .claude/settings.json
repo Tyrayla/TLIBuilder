@@ -83,7 +83,18 @@
       "Bash(powershell -NoProfile -Command 'Get-Content \"data/seasons/SS12 Lunaria/_legendary_gear.json\" -Raw | ConvertFrom-Json | Select-Object -ExpandProperty items | ForEach-Object { $_.affixes } | ForEach-Object { $_.numeric_values } | Select-Object -ExpandProperty kind | Sort-Object -Unique')",
       "Bash(powershell -NoProfile -Command ' *)",
       "Bash(python -c \"import json; [print\\(f[:-5], json.load\\(open\\(f'c:/Users/tyray/Documents/TLIBuilder/data/seasons/SS12 Lunaria/{f}'\\)\\)['color']\\) for f in ['god_of_machines.json','god_of_might.json','god_of_war.json','goddess_of_deception.json','goddess_of_hunting.json','goddess_of_knowledge.json']]\")",
-      "PowerShell(cd \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\\\\backend\"; $proc = Start-Process -NoNewWindow -PassThru -FilePath \"py\" -ArgumentList \"-3.12 server.py\"; Start-Sleep -Seconds 3; try { $resp = Invoke-WebRequest -Uri \"http://127.0.0.1:8765/api/legendary-gear\" -UseBasicParsing; $data = $resp.Content | ConvertFrom-Json; $item = $data.items[0]; Write-Output \"Item: $\\($item.name\\)\"; $affix = $item.affixes[0]; Write-Output \"Affix raw_text: $\\($affix.raw_text\\)\"; Write-Output \"stat_key: $\\($affix.stat_key\\)\"; Write-Output \"unit: $\\($affix.unit\\)\" } catch { Write-Output \"Error: $_\" } finally { $proc.Kill\\(\\) })"
+      "PowerShell(cd \"c:\\\\Users\\\\tyray\\\\Documents\\\\TLIBuilder\\\\backend\"; $proc = Start-Process -NoNewWindow -PassThru -FilePath \"py\" -ArgumentList \"-3.12 server.py\"; Start-Sleep -Seconds 3; try { $resp = Invoke-WebRequest -Uri \"http://127.0.0.1:8765/api/legendary-gear\" -UseBasicParsing; $data = $resp.Content | ConvertFrom-Json; $item = $data.items[0]; Write-Output \"Item: $\\($item.name\\)\"; $affix = $item.affixes[0]; Write-Output \"Affix raw_text: $\\($affix.raw_text\\)\"; Write-Output \"stat_key: $\\($affix.stat_key\\)\"; Write-Output \"unit: $\\($affix.unit\\)\" } catch { Write-Output \"Error: $_\" } finally { $proc.Kill\\(\\) })",
+      "Bash(python3)",
+      "Bash(git ls-tree *)",
+      "Bash(grep -E \"\\\\.\\(png|jpg|jpeg|svg|ico|webp\\)$\")",
+      "Bash(git worktree *)",
+      "Bash(cp resources/icon.png ../tli-site/icon.png)",
+      "Read(//c/Users/tyray/Documents/tli-site/**)",
+      "Bash(python3 -c \"import json; data = json.load\\(open\\('data/seasons/SS12 Lunaria/god_of_might.json'\\)\\); print\\('Connections count:', len\\(data.get\\('connections', []\\)\\)\\); print\\('Core talents count:', len\\(data.get\\('core_talents', []\\)\\)\\); print\\('First core talent:', json.dumps\\(data.get\\('core_talents', []\\)[0] if data.get\\('core_talents'\\) else {}, indent=2\\)\\)\")",
+      "Bash(python -c \"import json; d=json.load\\(open\\('c:/Users/tyray/Documents/TLIBuilder/data/seasons/SS12 Lunaria/god_of_might.json'\\)\\); print\\(json.dumps\\(d.get\\('core_talents',[]\\), indent=2\\)\\)\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\tyray\\Documents\\tli-site"
     ]
   },
   "hooks": {
