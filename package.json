@@ -9,7 +9,8 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "build:win": "npm run build && electron-builder --win",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
@@ -22,7 +23,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.5.2",
-    "vite": "^5.3.1"
+    "vite": "^5.3.1",
+    "vitest": "^2.1.9"
   },
   "build": {
     "appId": "com.tlibuilder.app",

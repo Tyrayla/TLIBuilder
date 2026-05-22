@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums, EquippedGearItem, EquippedSkill } from './api/client'
+import HeroTraitScreen from './screens/HeroTraitScreen'
 import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
 import BuildOverviewScreen from './screens/BuildOverviewScreen'
@@ -11,7 +12,7 @@ import StatsScreen from './screens/StatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits'
 
 const DEFAULT_CONDITION_VALUES: ConditionValues = {
   tenacity_stacks: 0,
@@ -41,10 +42,15 @@ interface Session {
   slots: (TreeSlot | null)[]
   activeSlot: number
   slates: SavedSlate[]
-  conditions: string[]          // boolean conditions (manual toggles, not numeric-derived)
-  conditionValues: ConditionValues  // numeric slider values for blessing/channeled stacks
+  conditions: string[]
+  conditionValues: ConditionValues
   gear: EquippedGearItem[]
   skills: EquippedSkill[]
+  characterLevel: number
+  hasPrism: boolean
+  traitId: string | null
+  traitSlotLevels: number[]  // [base, lv45, lv60, lv75], each 1–5
+  advancedTraitSelections: string[]
 }
 
 interface CascadeModal {
@@ -64,6 +70,11 @@ const emptySession = (): Session => ({
   conditionValues: DEFAULT_CONDITION_VALUES,
   gear: [],
   skills: [],
+  characterLevel: 100,
+  hasPrism: false,
+  traitId: null,
+  traitSlotLevels: [1, 1, 1, 1],
+  advancedTraitSelections: [],
 })
 
 function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
@@ -111,7 +122,7 @@ function App() {
     window.api?.onRequestSave?.(() => {
       const sess = sessionRef.current
       if (sess.buildId) {
-        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, gear: sess.gear }
+        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, conditionValues: sess.conditionValues, gear: sess.gear, skills: sess.skills, characterLevel: sess.characterLevel, hasPrism: sess.hasPrism, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections }
         api.postBuild(build)
           .then(saved => {
             setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: sess.buildName }))
@@ -139,6 +150,26 @@ function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  // useMemo/useCallback must be before the early return to satisfy React's hooks rules.
+  // effectiveConditions: prevents new array ref every render → stops infinite stats useEffect loop.
+  const effectiveConditions = useMemo(() => [
+    ...session.conditions.filter(c => !NUMERIC_CONDITION_KEYS.has(c)),
+    ...deriveNumericConditions(session.conditionValues, conditionMaximums),
+  ], [session.conditions, session.conditionValues, conditionMaximums])
+
+  // Stable setter: bails out if maximums values are unchanged, preventing unnecessary re-renders.
+  const handleConditionMaximumsChange = useCallback((maximums: ConditionMaximums) => {
+    setConditionMaximums(prev => {
+      if (prev &&
+        prev.tenacity_max === maximums.tenacity_max &&
+        prev.agility_max === maximums.agility_max &&
+        prev.focus_max === maximums.focus_max &&
+        prev.channeled_max_bonus === maximums.channeled_max_bonus
+      ) return prev
+      return maximums
+    })
   }, [])
 
   if (!appReady) {
@@ -176,7 +207,12 @@ function App() {
       conditions: build.conditions ?? [],
       conditionValues: build.conditionValues ?? DEFAULT_CONDITION_VALUES,
       gear: build.gear ?? [],
-      skills: build.skills ?? [],
+      skills: (build.skills ?? []).map(s => ({ ...s, supports: s.supports ?? [] })),
+      characterLevel: build.characterLevel ?? 100,
+      hasPrism: build.hasPrism ?? false,
+      traitId: build.traitId ?? null,
+      traitSlotLevels: build.traitSlotLevels ?? [build.traitLevel ?? 1, 1, 1, 1],
+      advancedTraitSelections: build.advancedTraitSelections ?? [],
     })
     setIsDirty(false)
     setScreen('build-overview')
@@ -191,6 +227,7 @@ function App() {
   const goToStats = () => setScreen('stats')
   const goToGear = () => setScreen('gear')
   const goToSkills = () => setScreen('skills')
+  const goToHeroTraits = () => setScreen('hero-traits')
 
   const goToPreview = () => {
     setPreviewSource(screen)
@@ -315,6 +352,16 @@ function App() {
     markDirty()
   }
 
+  const updateCoreTalentSelections = (coreTalentSelections: Record<number, string>) => {
+    setSession(s => {
+      const slots = [...s.slots] as (TreeSlot | null)[]
+      const current = slots[s.activeSlot]
+      if (current) slots[s.activeSlot] = { ...current, coreTalentSelections }
+      return { ...s, slots }
+    })
+    markDirty()
+  }
+
   const handleReselect = () => {
     setSession(s => {
       const slots = [...s.slots] as (TreeSlot | null)[]
@@ -335,21 +382,15 @@ function App() {
     markDirty()
   }
 
-  // Derive the full conditions list combining manual boolean toggles + numeric-derived conditions
-  const effectiveConditions = [
-    ...session.conditions.filter(c => !NUMERIC_CONDITION_KEYS.has(c)),
-    ...deriveNumericConditions(session.conditionValues, conditionMaximums),
-  ]
-
   const saveBuild = async (name: string) => {
-    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills }
+    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
   }
 
   const saveAsBuild = async (name: string) => {
-    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills }
+    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
@@ -362,6 +403,11 @@ function App() {
 
   const handleSkillsChange = (skills: EquippedSkill[]) => {
     setSession(s => ({ ...s, skills }))
+    markDirty()
+  }
+
+  const handleTraitChange = (traitId: string, slotLevels: number[], advanced: string[]) => {
+    setSession(s => ({ ...s, traitId, traitSlotLevels: slotLevels, advancedTraitSelections: advanced }))
     markDirty()
   }
 
@@ -416,13 +462,17 @@ function App() {
           effectiveConditions={effectiveConditions}
           onConditionsChange={handleConditionsChange}
           onConditionValuesChange={handleConditionValuesChange}
-          onConditionMaximumsChange={setConditionMaximums}
+          onConditionMaximumsChange={handleConditionMaximumsChange}
           gear={session.gear}
+          characterLevel={session.characterLevel}
+          hasPrism={session.hasPrism}
           onBack={goToBuildSelect}
           onTalentTree={goToTreeSelector}
           onSlates={goToSlates}
           onGear={goToGear}
           onSkills={goToSkills}
+          onGoToHeroTraits={goToHeroTraits}
+          traitId={session.traitId}
           onSave={saveBuild}
           onSaveAs={saveAsBuild}
           devMode={devMode}
@@ -476,6 +526,24 @@ function App() {
       <SkillsScreen
         equippedSkills={session.skills}
         onSkillsChange={handleSkillsChange}
+        gear={session.gear}
+        characterLevel={session.characterLevel}
+        hasPrism={session.hasPrism}
+        onCharacterLevelChange={v => setSession(s => ({ ...s, characterLevel: v }))}
+        onHasPrismChange={v => setSession(s => ({ ...s, hasPrism: v }))}
+        onBack={() => setScreen('build-overview')}
+      />
+    )
+  }
+
+  if (screen === 'hero-traits') {
+    return (
+      <HeroTraitScreen
+        traitId={session.traitId}
+        traitSlotLevels={session.traitSlotLevels}
+        advancedTraitSelections={session.advancedTraitSelections}
+        characterLevel={session.characterLevel}
+        onTraitChange={handleTraitChange}
         onBack={() => setScreen('build-overview')}
       />
     )
@@ -553,11 +621,13 @@ function App() {
           treeColor={treeColors[slot.treeName] ?? '#e94560'}
           treeColors={treeColors}
           initialNodeStates={slot.nodeStates}
+          initialCoreTalentSelections={slot.coreTalentSelections}
           slots={session.slots}
           activeSlot={session.activeSlot}
           onBack={() => setScreen('tree-selector')}
           onSlotClick={handleSlotClick}
           onNodeStatesChange={updateNodeStates}
+          onCoreTalentSelectionsChange={updateCoreTalentSelections}
           onReselect={handleReselect}
           onSlotReorder={handleSlotReorder}
           onPreview={goToPreview}

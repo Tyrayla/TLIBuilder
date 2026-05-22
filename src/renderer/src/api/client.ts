@@ -68,6 +68,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
   })
   rlog(`POST ${url} — status ${res.status}`)
   if (!res.ok) throw new Error(`POST ${path} → ${res.status}`)
@@ -90,6 +91,7 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
 export interface TreeSlot {
   treeName: string
   nodeStates: Record<string, number>
+  coreTalentSelections?: Record<number, string>  // slot index → selected talent id
 }
 
 export interface SavedSlateSlot {
@@ -124,6 +126,12 @@ export interface Build {
   conditionValues?: ConditionValues
   gear?: EquippedGearItem[]
   skills?: EquippedSkill[]
+  characterLevel?: number
+  hasPrism?: boolean
+  traitId?: string | null
+  traitLevel?: number          // legacy field — kept for loading old saves
+  traitSlotLevels?: number[]   // [base, lv45, lv60, lv75], each 1–5
+  advancedTraitSelections?: string[]
 }
 
 export interface TreeNode {
@@ -136,11 +144,23 @@ export interface TreeNode {
   effects: string[]
 }
 
+export interface CoreTalentSlotOption {
+  id: string
+  name: string
+  effects: string[]
+}
+
+export interface CoreTalentSlot {
+  threshold: number
+  options: CoreTalentSlotOption[]
+  selected_id: string | null
+}
+
 export interface TreeData {
   name: string
   nodes: TreeNode[]
   connections: { from: string; to: string }[]
-  core_talent_slots: { id: string; label: string }[]
+  core_talent_slots: CoreTalentSlot[]
   node_prefix: string
 }
 
@@ -384,13 +404,169 @@ export interface SkillItem {
   skill_tags: string[]
 }
 
-export interface EquippedSkill {
-  slot: number        // 1-5; 1 = main skill
+export interface EquippedSupportSkill {
+  support_index: number   // 1-5
   item_id: string
   name: string
-  level: number       // 20 = base; 21-30 = +10%/level; 31+ = +8%/level
   skill_tags: string[]
   description_lines: string[]
+}
+
+export interface EquippedSkill {
+  slot: number            // 1-5 = active; 6-9 = passive
+  item_id: string
+  name: string
+  level: number           // 20 = base; 21-30 = +10%/level; 31+ = +8%/level
+  skill_tags: string[]
+  description_lines: string[]
+  supports: EquippedSupportSkill[]
+}
+
+const PASSIVE_TAGS = new Set(['Aura', 'Spirit Magus', 'Focus'])
+
+export function isPassiveSkillItem(s: SkillItem): boolean {
+  return s.skill_tags.some(t => PASSIVE_TAGS.has(t))
+}
+
+export function isActiveSkillItem(s: SkillItem): boolean {
+  return !isPassiveSkillItem(s) &&
+    !s.skill_tags.includes('Support') &&
+    !s.description_lines[0]?.startsWith('Supports') &&
+    !s.name.includes(':')
+}
+
+// Compound tag aliases: support text spelling → canonical skill tag
+const TAG_ALIASES: Record<string, string> = {
+  'Slash Strike': 'Slash-Strike',
+}
+
+function parseRequiredTags(phrase: string): string[] {
+  let remaining = phrase
+  const tags: string[] = []
+  const sortedAliases = Object.keys(TAG_ALIASES).sort((a, b) => b.length - a.length)
+  while (remaining.length > 0) {
+    let matched = false
+    for (const alias of sortedAliases) {
+      if (remaining.toLowerCase().startsWith(alias.toLowerCase())) {
+        tags.push(TAG_ALIASES[alias])
+        remaining = remaining.slice(alias.length).trim()
+        matched = true
+        break
+      }
+    }
+    if (!matched) {
+      const m = remaining.match(/^(\S+)\s*(.*)$/)
+      if (m) { tags.push(m[1]); remaining = m[2] }
+      else break
+    }
+  }
+  return tags
+}
+
+function checkTag(tag: string, skillTags: string[], isPassiveSlot: boolean): boolean {
+  if (tag.toLowerCase() === 'active') return !isPassiveSlot
+  if (tag.toLowerCase() === 'passive') return isPassiveSlot
+  return skillTags.some(t => t.toLowerCase() === tag.toLowerCase())
+}
+
+export function isSupportCompatible(
+  support: SkillItem,
+  parentSkill: EquippedSkill,
+  isPassiveSlot: boolean,
+  supportIdx: number
+): boolean {
+  // Tag-based exclusion: certain support tags require the parent to share that tag
+  if (support.skill_tags.includes('Spirit Magus') && !parentSkill.skill_tags.includes('Spirit Magus')) return false
+  if (support.skill_tags.includes('Summon') && !parentSkill.skill_tags.includes('Summon')) return false
+  if (support.skill_tags.includes('Spell') && !support.skill_tags.includes('Attack') &&
+      !parentSkill.skill_tags.includes('Spell')) return false
+  if (support.skill_tags.includes('Attack') && !support.skill_tags.includes('Spell') &&
+      !parentSkill.skill_tags.includes('Attack')) return false
+
+  // Activation Medium: any active skill, slot 1 only (checked before description guard)
+  if (support.skill_tags.includes('Activation Medium')) {
+    return !isPassiveSlot && supportIdx === 1
+  }
+
+  // Colon = skill-specific support (Magnificent → slot 3, Noble → slot 5)
+  if (support.name.includes(':')) {
+    const parentPart = support.name.split(':')[0].trim()
+    if (parentSkill.name !== parentPart) return false
+    const ordinals: [string, number][] = [
+      ['first', 1], ['second', 2], ['third', 3], ['fourth', 4], ['fifth', 5],
+    ]
+    for (const descLine of support.description_lines) {
+      if (descLine.includes('Support Skill Slot')) {
+        for (const [word, num] of ordinals) {
+          if (descLine.toLowerCase().includes(word)) return num === supportIdx
+        }
+      }
+    }
+    return true
+  }
+
+  // Generic "Supports X Skills" description parsing
+  const firstLine = support.description_lines[0] || ''
+  if (!firstLine.startsWith('Supports')) return false
+
+  const raw = firstLine.replace(/^Supports\s+/, '').replace(/\.\s*$/, '').trim()
+  if (raw.toLowerCase() === 'any skill' || raw.toLowerCase() === 'any skills') return true
+  if (/^skills?\s+that/i.test(raw)) return true
+
+  const alternatives = raw.split(/\s+or\s+/i)
+  return alternatives.some(alt => {
+    const andGroups = alt.split(/\s+and\s+/i)
+    return andGroups.every(group => {
+      const phrase = group.replace(/\s+skills?\s*$/i, '').trim()
+      const required = parseRequiredTags(phrase)
+      return required.every(tag => checkTag(tag, parentSkill.skill_tags, isPassiveSlot))
+    })
+  })
+}
+
+// Support slot energy costs (index 1-5 within each skill)
+const SUPPORT_ACTIVE_COSTS  = [0, 10, 15, 50, 100]
+const SUPPORT_PASSIVE_COSTS = [10, 10, 15, 50, 100]
+
+export function getSupportEnergyCost(isPassive: boolean, supportIdx: number): number {
+  const costs = isPassive ? SUPPORT_PASSIVE_COSTS : SUPPORT_ACTIVE_COSTS
+  return costs[Math.max(0, Math.min(4, supportIdx - 1))]
+}
+
+// Per-gear-slot energy contribution (helm/gloves/boots/each 1H = 61; chest/2H = 122)
+function gearSlotEnergy(slot: GearSlot | null): number {
+  if (!slot) return 0
+  if (slot === 'chest') return 122
+  if (slot === 'weapon1' || slot === 'weapon2') return 61  // refined when base_type known
+  if (slot === 'helmet' || slot === 'gloves' || slot === 'boots') return 61
+  return 0  // amulet, belt, ring1, ring2
+}
+
+export function getMaxEnergy(level: number, gear: EquippedGearItem[], hasPrism: boolean): number {
+  const fromGear = gear.reduce((s, g) => s + gearSlotEnergy(g.slot), 0)
+  return 4 + fromGear + Math.min(Math.max(level, 0), 100) + (hasPrism ? 1000 : 0)
+}
+
+export interface CharacterStatContribution {
+  stat: string
+  amount: number
+  label: string
+  text: string
+}
+
+export function buildEnergyContributions(
+  gear: EquippedGearItem[],
+  characterLevel: number,
+  hasPrism: boolean,
+): CharacterStatContribution[] {
+  const contribs: CharacterStatContribution[] = []
+  contribs.push({ stat: 'max_energy_flat', amount: 4, label: 'Base', text: '+4 Max Energy' })
+  const gearE = gear.reduce((s, g) => s + gearSlotEnergy(g.slot), 0)
+  if (gearE > 0) contribs.push({ stat: 'max_energy_flat', amount: gearE, label: 'Gear', text: `+${gearE} Max Energy` })
+  const lvlE = Math.min(Math.max(characterLevel, 0), 100)
+  if (lvlE > 0) contribs.push({ stat: 'max_energy_flat', amount: lvlE, label: 'Levels', text: `+${lvlE} Max Energy` })
+  if (hasPrism) contribs.push({ stat: 'max_energy_flat', amount: 1000, label: 'Prism', text: '+1000 Max Energy (Effortless Command)' })
+  return contribs
 }
 
 export interface LegendaryNumericValue {
@@ -599,6 +775,7 @@ export const api = {
     slates?: SavedSlate[]
     conditions?: string[]
     gear?: GearEngineItem[]
+    character?: CharacterStatContribution[]
   }) => post<StatSheetResponse>('/engine/stats', payload),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),
