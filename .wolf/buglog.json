@@ -1798,6 +1798,22 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-05-21T23:29:41.112Z"
+    },
+    {
+      "id": "bug-113",
+      "timestamp": "2026-05-22T01:10:19.900Z",
+      "error_message": "CSS fix: id",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills",
+      "fix": "Changed id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear → undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T01:10:19.900Z"
     }
   ]
 }

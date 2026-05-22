@@ -123,6 +123,7 @@ export interface Build {
   conditions?: string[]
   conditionValues?: ConditionValues
   gear?: EquippedGearItem[]
+  skills?: EquippedSkill[]
 }
 
 export interface TreeNode {
@@ -381,6 +382,15 @@ export interface SkillItem {
   description_lines: string[]
   raw_text: string
   skill_tags: string[]
+}
+
+export interface EquippedSkill {
+  slot: number        // 1-5; 1 = main skill
+  item_id: string
+  name: string
+  level: number       // 20 = base; 21-30 = +10%/level; 31+ = +8%/level
+  skill_tags: string[]
+  description_lines: string[]
 }
 
 export interface LegendaryNumericValue {
