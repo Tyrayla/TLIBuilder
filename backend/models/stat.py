@@ -409,6 +409,7 @@ class Stat(Enum):
     GEAR_ENERGY_SHIELD_INC = "gear_energy_shield_inc"
 
     # ── Flat Quantity / Mechanic Stats ────────────────────────────────────────
+    MAX_ENERGY_FLAT = "max_energy_flat"
     MAX_CHARGES_FLAT = "max_charges_flat"
     MAX_SPELL_BURST_FLAT = "max_spell_burst_flat"
     EXTRA_JUMPS_FLAT = "extra_jumps_flat"

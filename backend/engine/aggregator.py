@@ -199,4 +199,20 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
         )
         source.add_with_source(stat, amount, entry)
 
+    # ── Character contributions (energy base/gear/level/prism) ─────────────────
+    for contrib in build.character:
+        stat = contrib.get("stat")
+        if not stat:
+            continue
+        amount = float(contrib.get("amount", 0))
+        entry = SourceEntry(
+            stat=stat,
+            amount=amount,
+            source_type="character",
+            label=f"Character · {contrib.get('label', '')}",
+            text=contrib.get("text", ""),
+            points=1,
+        )
+        source.add_with_source(stat, amount, entry)
+
     return source

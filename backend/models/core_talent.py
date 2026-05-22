@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 class CoreTalent:
     id: str
     name: str
+    effects: list[str] = field(default_factory=list)
 
 
 @dataclass

@@ -76,3 +76,4 @@ class BuildInput:
     enemy:      EnemyConfig | None = None
     conditions: list[str] = field(default_factory=list)  # active condition keys
     gear:       list[dict] = field(default_factory=list)  # GearEngineItem dicts
+    character:  list[dict] = field(default_factory=list)  # CharacterStatContribution dicts
