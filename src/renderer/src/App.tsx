@@ -129,10 +129,10 @@ function App() {
             setIsDirty(false)
           })
           .catch(() => {})
-          .finally(() => window.api.notifySaveDone())
+          .finally(() => window.api?.notifySaveDone())
       } else {
         // New unsaved build — can't auto-save without a name, just proceed
-        window.api.notifySaveDone()
+        window.api?.notifySaveDone()
       }
     })
   }, [])

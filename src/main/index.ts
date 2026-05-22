@@ -156,7 +156,7 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      webSecurity: false, // allow renderer to connect to 127.0.0.1:8765 (local backend)
+      contextIsolation: true,
     },
   })
 
@@ -228,6 +228,36 @@ app.whenReady().then(async () => {
         resolve(PYTHON_PORT)
       }, 12000)
     })
+  })
+
+  ipcMain.handle('api-request', async (_event, { method, path, body }: { method: string; path: string; body?: unknown }) => {
+    const url = `http://127.0.0.1:${PYTHON_PORT}/api${path}`
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(30000),
+      })
+      const data = await res.json().catch(() => null)
+      return { ok: res.ok, status: res.status, data }
+    } catch (e) {
+      return { ok: false, status: 0, data: null, error: String(e) }
+    }
+  })
+
+  ipcMain.handle('api-form-upload', async (_event, path: string, fileBytes: Uint8Array, fileName: string) => {
+    const url = `http://127.0.0.1:${PYTHON_PORT}/api${path}`
+    try {
+      const form = new FormData()
+      form.append('file', new Blob([Buffer.from(fileBytes)]), fileName)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = await fetch(url, { method: 'POST', body: form as any })
+      const data = await res.json().catch(() => null)
+      return { ok: res.ok, status: res.status, data }
+    } catch (e) {
+      return { ok: false, status: 0, data: null, error: String(e) }
+    }
   })
 
   log('app.whenReady — calling startPython')

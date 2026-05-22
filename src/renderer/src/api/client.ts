@@ -1,4 +1,5 @@
 let BASE = ''
+let ipcMode = false
 export function getApiBase(): string { return BASE }
 
 const verbose = typeof window !== 'undefined' && window.api?.isVerbose === true
@@ -21,11 +22,11 @@ async function probePort(port: number): Promise<boolean> {
 
 export async function initApi(): Promise<void> {
   rlog('initApi — start, window.api defined:', typeof window !== 'undefined' && 'api' in window)
-  if (window.api) {
-    rlog('initApi — Electron path: calling getPythonPort via IPC')
-    const port = await window.api.getPythonPort()
-    BASE = `http://127.0.0.1:${port}/api`
-    rlog(`initApi — IPC returned port ${port}, BASE set to: ${BASE}`)
+  if (window.api?.apiRequest) {
+    ipcMode = true
+    rlog('initApi — Electron IPC path: waiting for port readiness via getPythonPort')
+    await window.api.getPythonPort()
+    rlog('initApi — IPC ready, ipcMode=true')
     return
   }
   rlog('initApi — browser path: scanning ports 8765-8774')
@@ -41,6 +42,12 @@ export async function initApi(): Promise<void> {
 }
 
 async function get<T>(path: string, retries = 4): Promise<T> {
+  if (ipcMode) {
+    rlog(`GET (IPC) ${path}`)
+    const result = await window.api!.apiRequest('GET', path) as { ok: boolean; status: number; data: T }
+    if (!result.ok) throw new Error(`GET ${path} → ${result.status}`)
+    return result.data
+  }
   const url = `${BASE}${path}`
   for (let attempt = 0; attempt <= retries; attempt++) {
     rlog(`GET ${url} — attempt ${attempt + 1}/${retries + 1}`)
@@ -62,6 +69,12 @@ async function get<T>(path: string, retries = 4): Promise<T> {
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
+  if (ipcMode) {
+    rlog(`POST (IPC) ${path}`)
+    const result = await window.api!.apiRequest('POST', path, body) as { ok: boolean; status: number; data: T }
+    if (!result.ok) throw new Error(`POST ${path} → ${result.status}`)
+    return result.data
+  }
   const url = `${BASE}${path}`
   rlog(`POST ${url}`)
   const res = await fetch(url, {
@@ -76,6 +89,12 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del<T>(path: string, body?: unknown): Promise<T> {
+  if (ipcMode) {
+    rlog(`DELETE (IPC) ${path}`)
+    const result = await window.api!.apiRequest('DELETE', path, body) as { ok: boolean; status: number; data: T }
+    if (!result.ok) throw new Error(`DELETE ${path} → ${result.status}`)
+    return result.data
+  }
   const url = `${BASE}${path}`
   rlog(`DELETE ${url}`)
   const res = await fetch(url, {
@@ -687,6 +706,13 @@ export const api = {
 
   // Dev tools
   parseTalentDoc: async (file: File): Promise<TalentSnapshot> => {
+    if (ipcMode) {
+      rlog('parseTalentDoc (IPC) — reading file bytes')
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      const result = await window.api!.apiFormUpload('/dev/parse-talent-doc', bytes, file.name) as { ok: boolean; status: number; data: TalentSnapshot }
+      if (!result.ok) return Promise.reject(result.data ?? 'Upload failed')
+      return result.data
+    }
     const form = new FormData()
     form.append('file', file)
     const r = await fetch(`${BASE}/dev/parse-talent-doc`, { method: 'POST', body: form })

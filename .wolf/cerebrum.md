@@ -31,6 +31,12 @@
 - Hero memories: physical items socketed into trait slots. Types: Origin (LV45), Discipline (LV60), Progress (LV75). A special mod allows a different type to be socketed in the base slot, leveling up the base trait. Advanced traits at 45/60/75 unlock when the respective memory is socketed.
 - Hero trait rarity levels: White(Normal)=L1, Blue(Magic)=?, Purple(Rare)=L2, Orange(Epic)=?, Red(Ultimate)=L3. Magic and Epic mapping is unknown. +2 modifier can raise level further.
 
+## Key Learnings (continued)
+
+- **IPC proxy pattern:** All renderer→backend API calls go through `ipcMain.handle('api-request', ...)` in the main process. The renderer calls `window.api!.apiRequest(method, path, body)`. This removes the need for `webSecurity: false` and eliminates the mixed-content warning from `file://` loading HTTP resources. Browser dev mode falls back to direct HTTP fetch when `window.api?.apiRequest` is undefined.
+- **`window.api` type must be optional (`api?:`)** in `src/preload/index.d.ts` so `window.api?.apiRequest` passes the TS2774 check. Use `window.api!.method()` inside branches already guarded by an `if (ipcMode)` check.
+- **`FormData` file upload over IPC:** Renderer reads `File` as `new Uint8Array(await file.arrayBuffer())`, passes through IPC, main process does `new Blob([Buffer.from(fileBytes)])` to reconstruct for Node's FormData. Direct `new Blob([fileBytes])` fails TS type check in tsconfig.node.json (ArrayBufferLike vs ArrayBuffer).
+
 ## Do-Not-Repeat
 
 <!-- Mistakes made and corrected. Each entry prevents the same mistake recurring. -->

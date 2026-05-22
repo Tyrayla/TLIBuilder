@@ -2536,6 +2536,104 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-05-22T00:00:00Z"
+    },
+    {
+      "id": "bug-159",
+      "timestamp": "2026-05-22T11:57:31.025Z",
+      "error_message": "Missing error handling in function",
+      "file": "../../.claude/plans/okay-so-we-want-silly-raven.md",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T11:57:31.025Z"
+    },
+    {
+      "id": "bug-160",
+      "timestamp": "2026-05-22T11:59:05.328Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "src/main/index.ts",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T11:59:05.328Z"
+    },
+    {
+      "id": "bug-161",
+      "timestamp": "2026-05-22T11:59:21.011Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/api/client.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T11:59:21.011Z"
+    },
+    {
+      "id": "bug-162",
+      "timestamp": "2026-05-22T11:59:31.085Z",
+      "error_message": "Type error",
+      "file": "src/renderer/src/api/client.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation | Also: if (ipcMode) {; rlog(`POST (IPC) ${path}`) | Also: if (ipcMode) {; rlog(`DELETE (IPC) ${path}`) | Also: if (ipcMode) {; rlog('parseTalentDoc (IPC) — reading file bytes')",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 4,
+      "last_seen": "2026-05-22T11:59:54.458Z"
+    },
+    {
+      "id": "bug-163",
+      "timestamp": "2026-05-22T12:01:02.367Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/renderer/src/App.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T12:01:02.367Z"
+    },
+    {
+      "id": "bug-159",
+      "timestamp": "2026-05-22T00:00:00Z",
+      "error_message": "Electron allowRunningInsecureContent warning — renderer fetching http://127.0.0.1 from file:// context",
+      "file": "src/main/index.ts",
+      "root_cause": "Renderer loaded from file:// (secure context) made direct HTTP fetch calls to http://127.0.0.1:port. Chromium blocks this as mixed content. webSecurity: false was used as a workaround, disabling CORS/SOP protections.",
+      "fix": "Routed all renderer API calls through Electron IPC. Main process makes HTTP requests; renderer never touches network. Removed webSecurity: false, added contextIsolation: true. Tightened backend CORS to localhost-only regex.",
+      "tags": [
+        "security",
+        "electron",
+        "ipc",
+        "cors",
+        "webSecurity"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-05-22T00:00:00Z"
     }
   ]
 }

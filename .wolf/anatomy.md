@@ -1,11 +1,16 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-05-22T06:46:55.708Z
-> Files: 21 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-05-22T12:01:27.791Z
+> Files: 27 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ../../.claude/plans/
 
-- `okay-so-we-want-silly-raven.md` — Stats Fix + Hero Trait Screen Redesign (~4119 tok)
+- `okay-so-we-want-silly-raven.md` — Fix Electron Security: IPC API Proxy (~6595 tok)
+
+## ../../.claude/projects/c--Users-tyray-Documents-TLIBuilder/memory/
+
+- `MEMORY.md` — Memory Index (~45 tok)
+- `project_crawler_import_rework.md` (~218 tok)
 
 ## ../tli-site/
 
@@ -24,7 +29,7 @@
 
 ## backend/
 
-- `server.py` — API: 7 endpoints (~11999 tok)
+- `server.py` — API: 7 endpoints (~12011 tok)
 
 ## backend/engine/
 
@@ -51,6 +56,9 @@
 ## data/
 
 
+## data/images/
+
+
 ## data/seasons/
 
 
@@ -72,16 +80,19 @@
 
 ## src/main/
 
+- `index.ts` — isDev: resolvePort, waitForPort, killPortProcess, startPython, createWindow (~2702 tok)
 
 ## src/preload/
 
+- `index.d.ts` — Declares Window (~152 tok)
+- `index.ts` (~236 tok)
 
 ## src/renderer/
 
 
 ## src/renderer/src/
 
-- `App.tsx` — DEFAULT_CONDITION_VALUES (~6523 tok)
+- `App.tsx` — DEFAULT_CONDITION_VALUES (~6524 tok)
 - `env.d.ts` — Vite client type reference (~1 tok)
 - `index.css` — Styles: 95 rules, 8 vars (~15500 tok)
 
@@ -91,15 +102,10 @@
 
 ## src/renderer/src/api/
 
-- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 46 more (~7295 tok)
+- `client.ts` — Exports getApiBase, initApi, TreeSlot, SavedSlateSlot + 45 more (~7633 tok)
 
 ## src/renderer/src/assets/
 
-- `logo.png` — App logo image (~binary)
-
-## data/images/
-
-- `TLI-builder-icon-*.png` — App icons at 128/256/512px (~binary)
 
 ## src/renderer/src/components/
 
