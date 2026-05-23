@@ -95,3 +95,77 @@ def merge_hero_traits(existing: list[dict], incoming: dict) -> list[dict]:
     by_id: dict[str, dict] = {t["trait_id"]: t for t in existing}
     by_id[incoming["trait_id"]] = incoming
     return list(by_id.values())
+
+
+# ── Crawler-format importer ────────────────────────────────────────────────
+
+import re as _re
+from collections import Counter as _Counter
+
+_HERO_RE = _re.compile(r"HeroTraits/([^/]+)/")
+_AM_RE = _re.compile(r"Artificial Moon:\s*.+", _re.I)
+
+
+def import_crawler_hero_trait(data: dict) -> dict:
+    """Import a single crawler hero trait file (one JSON file per trait variant)."""
+    name = data.get("name", "")
+    trait_id = _re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+    traits = data.get("traits") or []
+
+    # Base trait = first entry with levels; advanced = entries without levels
+    base = next((t for t in traits if t.get("levels")), {})
+    advanced_raw = [t for t in traits if not t.get("levels")]
+
+    # Extract hero from base trait icon_url
+    icon_url = base.get("icon_url", "")
+    hero_m = _HERO_RE.search(icon_url)
+    hero = hero_m.group(1) if hero_m else ""
+
+    # Build levels; extract Artificial Moon text when found
+    am_effects: list[str] = []
+    levels: list[dict] = []
+    for lv in (base.get("levels") or []):
+        desc = lv.get("description", "")
+        am_m = _AM_RE.search(desc)
+        if am_m and not am_effects:
+            am_effects = [am_m.group(0)]
+            desc = desc[: am_m.start()].rstrip()
+        levels.append({
+            "level": lv.get("level", 0),
+            "effects": [desc] if desc else [],
+            "unlock_level": 1,
+        })
+
+    # Determine is_pick_one_from_two by counting traits per required_level
+    level_counts = _Counter(t.get("required_level", 0) for t in advanced_raw)
+    advanced_traits = [
+        {
+            "name": t.get("name", ""),
+            "unlock_level": t.get("required_level", 0),
+            "is_pick_one_from_two": level_counts[t.get("required_level", 0)] > 1,
+            "effects": [t["description"]] if t.get("description") else [],
+        }
+        for t in advanced_raw
+    ]
+
+    glossary = {
+        g["term_id"]: {"name": g.get("name", ""), "description": g.get("description", "")}
+        for g in (data.get("glossary") or [])
+        if g.get("term_id")
+    }
+
+    return {
+        "trait_id": trait_id,
+        "hero": hero,
+        "variant_name": name,
+        "description": "",
+        "levels": levels,
+        "artificial_moon": {"description": "", "effects": am_effects},
+        "advanced_traits": advanced_traits,
+        "max_level": data.get("max_level"),
+        "glossary": glossary,
+    }
+
+
+def import_crawler_hero_traits(items_data: list[dict]) -> list[dict]:
+    return [import_crawler_hero_trait(item) for item in items_data if item.get("name")]

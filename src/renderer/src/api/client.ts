@@ -413,14 +413,25 @@ export interface HeroTrait {
   levels: HeroTraitLevel[]
   artificial_moon: { description: string; effects: string[] }
   advanced_traits: HeroAdvancedTrait[]
+  max_level?: number | null
+  glossary?: Record<string, { name: string; description: string }>
 }
 
 export interface SkillItem {
   item_id: string
   name: string
+  internal_id?: number | null
+  skill_type?: string
   description_lines: string[]
   raw_text: string
   skill_tags: string[]
+  max_level?: number | null
+  mana_cost?: string | null
+  cast_speed?: string | null
+  weapon_restriction?: string | null
+  main_stat?: string | null
+  progression?: object[]
+  glossary?: Record<string, { name: string; description: string }>
 }
 
 export interface EquippedSupportSkill {
@@ -791,6 +802,10 @@ export const api = {
     post<{ ok: boolean; added: number; total: number }>(
       '/dev/import-skills', { season_name: seasonName, file_data: fileData }
     ),
+  importCrawlerSkills: (seasonName: string, items: object[]) =>
+    post<{ ok: boolean; added: number; total: number }>(
+      '/dev/import-crawler-skills', { season_name: seasonName, items }
+    ),
   getSkills: () => get<{ season: string | null; skills: SkillItem[] }>('/skills'),
   getLegendaryGear: () => get<{ season: string | null; items: LegendaryGearItem[] }>('/legendary-gear'),
   clearSkills: () => del<{ ok: boolean }>('/dev/skills'),
@@ -804,6 +819,10 @@ export const api = {
   importHeroTrait: (seasonName: string, fileData: object) =>
     post<{ ok: boolean; hero: string; total: number; heroes: number }>(
       '/dev/import-hero-traits', { season_name: seasonName, file_data: fileData }
+    ),
+  importCrawlerHeroTraits: (seasonName: string, items: object[]) =>
+    post<{ ok: boolean; added: number; total: number; heroes: number }>(
+      '/dev/import-crawler-hero-traits', { season_name: seasonName, items }
     ),
   getHeroTraits: () => get<{ season: string | null; traits: HeroTrait[] }>('/hero-traits'),
   clearHeroTraits: () => del<{ ok: boolean }>('/dev/hero-traits'),

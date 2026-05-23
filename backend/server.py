@@ -970,6 +970,27 @@ class ImportSkillsRequest(BaseModel):
     file_data: dict
 
 
+class ImportCrawlerSkillsRequest(BaseModel):
+    season_name: str
+    items: list[dict]
+
+
+@app.post("/api/dev/import-crawler-skills")
+def import_crawler_skills_endpoint(req: ImportCrawlerSkillsRequest):
+    from tools.skill_importer import import_crawler_skills, merge_skills
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    items = import_crawler_skills(req.items)
+    existing = season_manager.load_skills(req.season_name) or {"skills": []}
+    merged = merge_skills(existing.get("skills", []), items)
+    season_manager.save_skills(req.season_name, {
+        "season": req.season_name,
+        "skill_count": len(merged),
+        "skills": merged,
+    })
+    return {"ok": True, "added": len(items), "total": len(merged)}
+
+
 @app.post("/api/dev/import-skills")
 def import_skills(req: ImportSkillsRequest):
     from tools.skill_importer import parse_skill_file, merge_skills
@@ -1019,6 +1040,31 @@ def clear_skills():
 class ImportHeroTraitRequest(BaseModel):
     season_name: str
     file_data: dict
+
+
+class ImportCrawlerHeroTraitsRequest(BaseModel):
+    season_name: str
+    items: list[dict]
+
+
+@app.post("/api/dev/import-crawler-hero-traits")
+def import_crawler_hero_traits_endpoint(req: ImportCrawlerHeroTraitsRequest):
+    from tools.hero_trait_importer import import_crawler_hero_traits, merge_hero_traits
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    items = import_crawler_hero_traits(req.items)
+    existing = season_manager.load_hero_traits(req.season_name) or {"traits": []}
+    merged: list[dict] = existing.get("traits", [])
+    for item in items:
+        merged = merge_hero_traits(merged, item)
+    heroes = len({t["hero"] for t in merged if t.get("hero")})
+    season_manager.save_hero_traits(req.season_name, {
+        "season": req.season_name,
+        "hero_count": heroes,
+        "trait_count": len(merged),
+        "traits": merged,
+    })
+    return {"ok": True, "added": len(items), "total": len(merged), "heroes": heroes}
 
 
 @app.post("/api/dev/import-hero-traits")

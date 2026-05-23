@@ -296,18 +296,14 @@ function SeasonsTab() {
     if (!seasonName.trim() || !files || files.length === 0) return
     setSkillsImport({ importing: true, result: null, err: '' })
     try {
-      let totalAdded = 0
-      let finalTotal = 0
+      const items: object[] = []
       for (const file of Array.from(files)) {
         const data = JSON.parse(await file.text())
-        if (!data || !Array.isArray(data.items)) {
-          throw new Error(`${file.name}: not a valid skill JSON (missing items array)`)
-        }
-        const res = await api.importSkills(seasonName.trim(), data)
-        totalAdded += res.added
-        finalTotal = res.total
+        if (!data?.name) throw new Error(`${file.name}: missing "name" field`)
+        items.push(data)
       }
-      setSkillsImport({ importing: false, result: `Imported ${totalAdded} skill(s) — ${finalTotal} stored in season`, err: '' })
+      const res = await api.importCrawlerSkills(seasonName.trim(), items)
+      setSkillsImport({ importing: false, result: `${res.added} skill(s) imported — ${res.total} total in season`, err: '' })
       loadSeasons()
     } catch (ex) {
       setSkillsImport({ importing: false, result: null, err: String(ex) })
@@ -330,18 +326,14 @@ function SeasonsTab() {
     if (!seasonName.trim() || !files || files.length === 0) return
     setHeroTraitImport({ importing: true, result: null, err: '' })
     try {
-      let finalTotal = 0
-      let finalHeroes = 0
+      const items: object[] = []
       for (const file of Array.from(files)) {
         const data = JSON.parse(await file.text())
-        if (!data || typeof data !== 'object' || !data.trait_id) {
-          throw new Error(`${file.name}: not a valid hero trait JSON (missing trait_id)`)
-        }
-        const res = await api.importHeroTrait(seasonName.trim(), data)
-        finalTotal = res.total
-        finalHeroes = res.heroes
+        if (!data?.name) throw new Error(`${file.name}: missing "name" field`)
+        items.push(data)
       }
-      setHeroTraitImport({ importing: false, result: `${finalTotal} trait(s) across ${finalHeroes} hero(es)`, err: '' })
+      const res = await api.importCrawlerHeroTraits(seasonName.trim(), items)
+      setHeroTraitImport({ importing: false, result: `${res.added} trait(s) imported — ${res.total} total across ${res.heroes} hero(es)`, err: '' })
       loadSeasons()
     } catch (ex) {
       setHeroTraitImport({ importing: false, result: null, err: String(ex) })
