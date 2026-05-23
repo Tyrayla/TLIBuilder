@@ -59,6 +59,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .build-select {
   padding: 24px 40px 40px;
   gap: 16px;
+  position: relative;
 }
 
 .build-select-top {
@@ -81,6 +82,26 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.build-select-footer {
+  position: absolute;
+  bottom: 20px;
+  left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.build-select-version {
+  font-size: 11px;
+  color: #444;
+  letter-spacing: 0.04em;
+}
+
+.build-select-footer-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .build-list {
