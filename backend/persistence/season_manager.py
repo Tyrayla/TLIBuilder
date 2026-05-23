@@ -78,16 +78,45 @@ def delete_season(name: str) -> None:
         set_active_season(None)
 
 
+_legendary_gear_cache: dict[str, dict] = {}
+
+
 def save_legendary_gear(season: str, data: dict) -> None:
     d = _season_dir(season)
     os.makedirs(d, exist_ok=True)
     path = os.path.join(d, "_legendary_gear.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+    _legendary_gear_cache[season] = data
+    # Also save lightweight index (name/id/level/base_type only)
+    index_items = [
+        {
+            "item_id": item["item_id"],
+            "name": item["name"],
+            "required_level": item.get("required_level") or 0,
+            "base_type": item.get("base_type") or "",
+        }
+        for item in data.get("items", [])
+    ]
+    index_path = os.path.join(d, "_legendary_gear_index.json")
+    with open(index_path, "w", encoding="utf-8") as f:
+        json.dump({"season": season, "items": index_items}, f, indent=2)
 
 
 def load_legendary_gear(season: str) -> dict | None:
+    if season in _legendary_gear_cache:
+        return _legendary_gear_cache[season]
     path = os.path.join(_season_dir(season), "_legendary_gear.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    _legendary_gear_cache[season] = data
+    return data
+
+
+def load_legendary_gear_index(season: str) -> dict | None:
+    path = os.path.join(_season_dir(season), "_legendary_gear_index.json")
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as f:
@@ -178,6 +207,24 @@ def delete_craft_base_types(season: str) -> None:
     path = os.path.join(_season_dir(season), "_craft_base_types.json")
     if os.path.exists(path):
         os.remove(path)
+    path2 = os.path.join(_season_dir(season), "_craft_base_items.json")
+    if os.path.exists(path2):
+        os.remove(path2)
+
+
+def save_craft_base_items(season: str, data: dict) -> None:
+    d = _season_dir(season)
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "_craft_base_items.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_craft_base_items(season: str) -> dict | None:
+    path = os.path.join(_season_dir(season), "_craft_base_items.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def save_grafts(season: str, data: dict) -> None:
@@ -280,6 +327,18 @@ def load_tower_sequence(season: str) -> dict | None:
 
 def delete_tower_sequence(season: str) -> None:
     _delete_singleton(season, "_tower_sequence.json")
+
+
+def save_divinity_slates(season: str, data: dict) -> None:
+    _save_singleton(season, "_divinity_slates.json", data)
+
+
+def load_divinity_slates(season: str) -> dict | None:
+    return _load_singleton(season, "_divinity_slates.json")
+
+
+def delete_divinity_slates(season: str) -> None:
+    _delete_singleton(season, "_divinity_slates.json")
 
 
 def save_new_god_talents(season: str, talents: list[dict]) -> None:

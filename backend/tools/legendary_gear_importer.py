@@ -92,5 +92,14 @@ def import_crawler_item(item_data: dict) -> dict:
     }
 
 
+_DIVINITY_SLATE_NAMES = {
+    "a corner of divinity", "fallen starlight", "pedigree of gods", "space rift",
+    "sparks of moth fire", "residence of stars", "when sparks set the prairie ablaze",
+}
+
+
 def import_crawler_items(items_data: list[dict]) -> list[dict]:
-    return [import_crawler_item(item) for item in items_data if item.get("name")]
+    return [
+        import_crawler_item(item) for item in items_data
+        if item.get("name") and item["name"].lower() not in _DIVINITY_SLATE_NAMES
+    ]

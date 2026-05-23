@@ -1169,6 +1169,17 @@ def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
     return (pref[0][1], pref[0][3]) if len(pref) == 1 else (None, "")
 
 
+@app.get("/api/legendary-gear-index")
+def get_legendary_gear_index():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "items": []}
+    data = season_manager.load_legendary_gear_index(active)
+    if not data:
+        return {"season": active, "items": []}
+    return {"season": active, "items": data.get("items", [])}
+
+
 @app.get("/api/legendary-gear")
 def get_legendary_gear():
     active = season_manager.get_active_season()
@@ -1218,6 +1229,17 @@ def get_legendary_gear():
                 affix["stat_key"] = stat_key
                 affix["unit"] = unit
     return {"season": active, "items": items}
+
+
+@app.get("/api/divinity-slates")
+def get_divinity_slates():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "items": []}
+    data = season_manager.load_divinity_slates(active)
+    if not data:
+        return {"season": active, "items": []}
+    return {"season": active, "items": data.get("items", [])}
 
 
 @app.delete("/api/dev/hero-traits")
@@ -1286,6 +1308,15 @@ def import_crawler_craft_base_types_endpoint(req: ImportCrawlerCraftBaseTypesReq
         "type_count": len(base_types),
         "base_types": base_types,
     })
+    # Also save lightweight base-items-only file (no affix pools)
+    base_items_only = [
+        {"item_id": bt["item_id"], "name": bt["name"], "base_items": bt["base_items"]}
+        for bt in base_types
+    ]
+    season_manager.save_craft_base_items(req.season_name, {
+        "season": req.season_name,
+        "base_types": base_items_only,
+    })
     return {"ok": True, "count": len(base_types)}
 
 
@@ -1295,6 +1326,17 @@ def get_craft_base_types():
     if not active:
         return {"season": None, "base_types": []}
     data = season_manager.load_craft_base_types(active)
+    if not data:
+        return {"season": active, "base_types": []}
+    return {"season": active, "base_types": data.get("base_types", [])}
+
+
+@app.get("/api/craft-base-items")
+def get_craft_base_items():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "base_types": []}
+    data = season_manager.load_craft_base_items(active)
     if not data:
         return {"season": active, "base_types": []}
     return {"season": active, "base_types": data.get("base_types", [])}
