@@ -7,6 +7,7 @@ interface Props {
   onBack: () => void
   deprecatedTools: boolean
   onToggleDeprecatedTools: () => void
+  onSeasonChange?: () => void
 }
 
 // ── Diff tab ───────────────────────────────────────────────────────────────
@@ -215,7 +216,7 @@ function CategoryCard({ label, description, badge, enabled, children }: Category
   )
 }
 
-function SeasonsTab() {
+function SeasonsTab({ onSeasonChange }: { onSeasonChange?: () => void }) {
   const talentFilesRef = useRef<HTMLInputElement>(null)
   const legendaryFilesRef = useRef<HTMLInputElement>(null)
   const skillsFilesRef = useRef<HTMLInputElement>(null)
@@ -462,7 +463,7 @@ function SeasonsTab() {
 
   const handleSetActive = async (name: string | null) => {
     setSettingActive(true)
-    try { await api.setActiveSeason(name); loadSeasons() }
+    try { await api.setActiveSeason(name); loadSeasons(); onSeasonChange?.() }
     catch { /* ignore */ }
     finally { setSettingActive(false) }
   }
@@ -1092,7 +1093,7 @@ function ToolsTab() {
 
 // ── Main screen ────────────────────────────────────────────────────────────
 
-export default function DevToolsScreen({ onBack, deprecatedTools, onToggleDeprecatedTools }: Props) {
+export default function DevToolsScreen({ onBack, deprecatedTools, onToggleDeprecatedTools, onSeasonChange }: Props) {
   const [tab, setTab] = useState<Tab>('seasons')
 
   return (
@@ -1137,7 +1138,7 @@ export default function DevToolsScreen({ onBack, deprecatedTools, onToggleDeprec
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-        {tab === 'seasons' && <SeasonsTab />}
+        {tab === 'seasons' && <SeasonsTab onSeasonChange={onSeasonChange} />}
         {tab === 'diff'    && <DiffTab />}
         {tab === 'tools'   && <ToolsTab />}
       </div>
