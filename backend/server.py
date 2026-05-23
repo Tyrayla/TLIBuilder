@@ -1228,6 +1228,238 @@ def clear_hero_traits():
     return {"ok": True}
 
 
+# ── Pact Spirits ───────────────────────────────────────────────────────────────
+
+class ImportCrawlerPactSpiritsRequest(BaseModel):
+    season_name: str
+    items: list[dict]
+
+
+@app.post("/api/dev/import-crawler-pact-spirits")
+def import_crawler_pact_spirits_endpoint(req: ImportCrawlerPactSpiritsRequest):
+    from tools.pact_spirit_importer import import_crawler_spirits
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    spirits = import_crawler_spirits(req.items)
+    season_manager.save_pact_spirits(req.season_name, {
+        "season": req.season_name,
+        "spirit_count": len(spirits),
+        "spirits": spirits,
+    })
+    return {"ok": True, "count": len(spirits)}
+
+
+@app.get("/api/pact-spirits")
+def get_pact_spirits():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "spirits": []}
+    data = season_manager.load_pact_spirits(active)
+    if not data:
+        return {"season": active, "spirits": []}
+    return {"season": active, "spirits": data.get("spirits", [])}
+
+
+@app.delete("/api/dev/pact-spirits")
+def clear_pact_spirits():
+    active = season_manager.get_active_season()
+    if active:
+        season_manager.delete_pact_spirits(active)
+    return {"ok": True}
+
+
+# ── Craft Base Types ───────────────────────────────────────────────────────────
+
+class ImportCrawlerCraftBaseTypesRequest(BaseModel):
+    season_name: str
+    items: list[dict]
+
+
+@app.post("/api/dev/import-crawler-craft-base-types")
+def import_crawler_craft_base_types_endpoint(req: ImportCrawlerCraftBaseTypesRequest):
+    from tools.craft_base_type_importer import import_crawler_craft_base_types
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    base_types = import_crawler_craft_base_types(req.items)
+    season_manager.save_craft_base_types(req.season_name, {
+        "season": req.season_name,
+        "type_count": len(base_types),
+        "base_types": base_types,
+    })
+    return {"ok": True, "count": len(base_types)}
+
+
+@app.get("/api/craft-base-types")
+def get_craft_base_types():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "base_types": []}
+    data = season_manager.load_craft_base_types(active)
+    if not data:
+        return {"season": active, "base_types": []}
+    return {"season": active, "base_types": data.get("base_types", [])}
+
+
+@app.delete("/api/dev/craft-base-types")
+def clear_craft_base_types():
+    active = season_manager.get_active_season()
+    if active:
+        season_manager.delete_craft_base_types(active)
+    return {"ok": True}
+
+
+# ── Grafts ─────────────────────────────────────────────────────────────────────
+
+class ImportCrawlerGraftsRequest(BaseModel):
+    season_name: str
+    items: list[dict]
+
+
+@app.post("/api/dev/import-crawler-grafts")
+def import_crawler_grafts_endpoint(req: ImportCrawlerGraftsRequest):
+    from tools.graft_importer import import_crawler_grafts
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    grafts = import_crawler_grafts(req.items)
+    season_manager.save_grafts(req.season_name, {
+        "season": req.season_name,
+        "graft_count": len(grafts),
+        "grafts": grafts,
+    })
+    return {"ok": True, "count": len(grafts)}
+
+
+@app.get("/api/grafts")
+def get_grafts():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "grafts": []}
+    data = season_manager.load_grafts(active)
+    if not data:
+        return {"season": active, "grafts": []}
+    return {"season": active, "grafts": data.get("grafts", [])}
+
+
+@app.delete("/api/dev/grafts")
+def clear_grafts():
+    active = season_manager.get_active_season()
+    if active:
+        season_manager.delete_grafts(active)
+    return {"ok": True}
+
+
+# ── Singletons ─────────────────────────────────────────────────────────────────
+
+class ImportSingletonRequest(BaseModel):
+    season_name: str
+    data: dict
+
+
+@app.post("/api/dev/import-destiny")
+def import_destiny_endpoint(req: ImportSingletonRequest):
+    from tools.singleton_importer import import_destiny
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    parsed = import_destiny(req.data, req.season_name)
+    season_manager.save_destiny(req.season_name, parsed)
+    return {"ok": True, "count": parsed["item_count"]}
+
+
+@app.get("/api/destiny")
+def get_destiny():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "items": []}
+    data = season_manager.load_destiny(active)
+    if not data:
+        return {"season": active, "items": []}
+    return {"season": active, "items": data.get("items", [])}
+
+
+@app.post("/api/dev/import-ethereal-prism")
+def import_ethereal_prism_endpoint(req: ImportSingletonRequest):
+    from tools.singleton_importer import import_ethereal_prism
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    parsed = import_ethereal_prism(req.data, req.season_name)
+    season_manager.save_ethereal_prism(req.season_name, parsed)
+    return {"ok": True, "count": parsed["modifier_count"]}
+
+
+@app.get("/api/ethereal-prism")
+def get_ethereal_prism():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "modifiers": []}
+    data = season_manager.load_ethereal_prism(active)
+    if not data:
+        return {"season": active, "modifiers": []}
+    return {"season": active, "modifiers": data.get("modifiers", [])}
+
+
+@app.post("/api/dev/import-hero-memories")
+def import_hero_memories_endpoint(req: ImportSingletonRequest):
+    from tools.singleton_importer import import_hero_memories
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    parsed = import_hero_memories(req.data, req.season_name)
+    season_manager.save_hero_memories(req.season_name, parsed)
+    return {"ok": True, "count": parsed["affix_count"]}
+
+
+@app.get("/api/hero-memories")
+def get_hero_memories():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "affixes": []}
+    data = season_manager.load_hero_memories(active)
+    if not data:
+        return {"season": active, "affixes": []}
+    return {"season": active, "affixes": data.get("affixes", [])}
+
+
+@app.post("/api/dev/import-memory-revival")
+def import_memory_revival_endpoint(req: ImportSingletonRequest):
+    from tools.singleton_importer import import_memory_revival
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    parsed = import_memory_revival(req.data, req.season_name)
+    season_manager.save_memory_revival(req.season_name, parsed)
+    return {"ok": True, "count": parsed["affix_count"]}
+
+
+@app.get("/api/memory-revival")
+def get_memory_revival():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "affixes": []}
+    data = season_manager.load_memory_revival(active)
+    if not data:
+        return {"season": active, "affixes": []}
+    return {"season": active, "affixes": data.get("affixes", [])}
+
+
+@app.post("/api/dev/import-tower-sequence")
+def import_tower_sequence_endpoint(req: ImportSingletonRequest):
+    from tools.singleton_importer import import_tower_sequence
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    parsed = import_tower_sequence(req.data, req.season_name)
+    season_manager.save_tower_sequence(req.season_name, parsed)
+    return {"ok": True, "count": parsed["entry_count"]}
+
+
+@app.get("/api/tower-sequence")
+def get_tower_sequence():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "entries": []}
+    data = season_manager.load_tower_sequence(active)
+    if not data:
+        return {"season": active, "entries": []}
+    return {"season": active, "entries": data.get("entries", [])}
+
+
 class DiffSeasonsRequest(BaseModel):
     season_a: str
     season_b: str

@@ -138,6 +138,150 @@ def delete_hero_traits(season: str) -> None:
         os.remove(path)
 
 
+def save_pact_spirits(season: str, data: dict) -> None:
+    d = _season_dir(season)
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "_pact_spirits.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_pact_spirits(season: str) -> dict | None:
+    path = os.path.join(_season_dir(season), "_pact_spirits.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def delete_pact_spirits(season: str) -> None:
+    path = os.path.join(_season_dir(season), "_pact_spirits.json")
+    if os.path.exists(path):
+        os.remove(path)
+
+
+def save_craft_base_types(season: str, data: dict) -> None:
+    d = _season_dir(season)
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "_craft_base_types.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_craft_base_types(season: str) -> dict | None:
+    path = os.path.join(_season_dir(season), "_craft_base_types.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def delete_craft_base_types(season: str) -> None:
+    path = os.path.join(_season_dir(season), "_craft_base_types.json")
+    if os.path.exists(path):
+        os.remove(path)
+
+
+def save_grafts(season: str, data: dict) -> None:
+    d = _season_dir(season)
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "_grafts.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_grafts(season: str) -> dict | None:
+    path = os.path.join(_season_dir(season), "_grafts.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def delete_grafts(season: str) -> None:
+    path = os.path.join(_season_dir(season), "_grafts.json")
+    if os.path.exists(path):
+        os.remove(path)
+
+
+def _save_singleton(season: str, filename: str, data: dict) -> None:
+    d = _season_dir(season)
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, filename), "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def _load_singleton(season: str, filename: str) -> dict | None:
+    path = os.path.join(_season_dir(season), filename)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _delete_singleton(season: str, filename: str) -> None:
+    path = os.path.join(_season_dir(season), filename)
+    if os.path.exists(path):
+        os.remove(path)
+
+
+def save_destiny(season: str, data: dict) -> None:
+    _save_singleton(season, "_destiny.json", data)
+
+
+def load_destiny(season: str) -> dict | None:
+    return _load_singleton(season, "_destiny.json")
+
+
+def delete_destiny(season: str) -> None:
+    _delete_singleton(season, "_destiny.json")
+
+
+def save_ethereal_prism(season: str, data: dict) -> None:
+    _save_singleton(season, "_ethereal_prism.json", data)
+
+
+def load_ethereal_prism(season: str) -> dict | None:
+    return _load_singleton(season, "_ethereal_prism.json")
+
+
+def delete_ethereal_prism(season: str) -> None:
+    _delete_singleton(season, "_ethereal_prism.json")
+
+
+def save_hero_memories(season: str, data: dict) -> None:
+    _save_singleton(season, "_hero_memories.json", data)
+
+
+def load_hero_memories(season: str) -> dict | None:
+    return _load_singleton(season, "_hero_memories.json")
+
+
+def delete_hero_memories(season: str) -> None:
+    _delete_singleton(season, "_hero_memories.json")
+
+
+def save_memory_revival(season: str, data: dict) -> None:
+    _save_singleton(season, "_memory_revival.json", data)
+
+
+def load_memory_revival(season: str) -> dict | None:
+    return _load_singleton(season, "_memory_revival.json")
+
+
+def delete_memory_revival(season: str) -> None:
+    _delete_singleton(season, "_memory_revival.json")
+
+
+def save_tower_sequence(season: str, data: dict) -> None:
+    _save_singleton(season, "_tower_sequence.json", data)
+
+
+def load_tower_sequence(season: str) -> dict | None:
+    return _load_singleton(season, "_tower_sequence.json")
+
+
+def delete_tower_sequence(season: str) -> None:
+    _delete_singleton(season, "_tower_sequence.json")
+
+
 def save_new_god_talents(season: str, talents: list[dict]) -> None:
     d = _season_dir(season)
     os.makedirs(d, exist_ok=True)
@@ -162,6 +306,14 @@ def get_season_summary(name: str) -> dict:
     legendary_gear_count: int | None = None
     skill_count: int | None = None
     hero_trait_count: int | None = None
+    pact_spirit_count: int | None = None
+    craft_base_type_count: int | None = None
+    graft_count: int | None = None
+    destiny_count: int | None = None
+    ethereal_prism_count: int | None = None
+    hero_memories_count: int | None = None
+    memory_revival_count: int | None = None
+    tower_sequence_count: int | None = None
     if os.path.isdir(d):
         for fname in sorted(os.listdir(d)):
             if not fname.endswith(".json"):
@@ -179,6 +331,22 @@ def get_season_summary(name: str) -> dict:
                         skill_count = len(fdata.get("skills", []))
                     elif fname == "_hero_traits.json":
                         hero_trait_count = len(fdata.get("traits", []))
+                    elif fname == "_pact_spirits.json":
+                        pact_spirit_count = len(fdata.get("spirits", []))
+                    elif fname == "_craft_base_types.json":
+                        craft_base_type_count = len(fdata.get("base_types", []))
+                    elif fname == "_grafts.json":
+                        graft_count = len(fdata.get("grafts", []))
+                    elif fname == "_destiny.json":
+                        destiny_count = fdata.get("item_count", len(fdata.get("items", [])))
+                    elif fname == "_ethereal_prism.json":
+                        ethereal_prism_count = fdata.get("modifier_count", len(fdata.get("modifiers", [])))
+                    elif fname == "_hero_memories.json":
+                        hero_memories_count = fdata.get("affix_count", len(fdata.get("affixes", [])))
+                    elif fname == "_memory_revival.json":
+                        memory_revival_count = fdata.get("affix_count", len(fdata.get("affixes", [])))
+                    elif fname == "_tower_sequence.json":
+                        tower_sequence_count = fdata.get("entry_count", len(fdata.get("entries", [])))
                 except Exception:
                     pass
                 continue
@@ -196,4 +364,9 @@ def get_season_summary(name: str) -> dict:
         "name": name, "trees": trees, "node_counts": node_counts,
         "new_god_count": new_god_count, "legendary_gear_count": legendary_gear_count,
         "skill_count": skill_count, "hero_trait_count": hero_trait_count,
+        "pact_spirit_count": pact_spirit_count, "craft_base_type_count": craft_base_type_count,
+        "graft_count": graft_count,
+        "destiny_count": destiny_count, "ethereal_prism_count": ethereal_prism_count,
+        "hero_memories_count": hero_memories_count, "memory_revival_count": memory_revival_count,
+        "tower_sequence_count": tower_sequence_count,
     }

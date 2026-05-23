@@ -220,6 +220,14 @@ function SeasonsTab() {
   const legendaryFilesRef = useRef<HTMLInputElement>(null)
   const skillsFilesRef = useRef<HTMLInputElement>(null)
   const heroTraitFilesRef = useRef<HTMLInputElement>(null)
+  const pactSpiritFilesRef = useRef<HTMLInputElement>(null)
+  const craftBaseTypeFilesRef = useRef<HTMLInputElement>(null)
+  const graftFilesRef = useRef<HTMLInputElement>(null)
+  const destinyFileRef = useRef<HTMLInputElement>(null)
+  const etherealPrismFileRef = useRef<HTMLInputElement>(null)
+  const heroMemoriesFileRef = useRef<HTMLInputElement>(null)
+  const memoryRevivalFileRef = useRef<HTMLInputElement>(null)
+  const towerSequenceFileRef = useRef<HTMLInputElement>(null)
   const [seasons, setSeasons] = useState<SeasonSummary[]>([])
   const [seasonName, setSeasonName] = useState('')
   const [settingActive, setSettingActive] = useState(false)
@@ -228,10 +236,22 @@ function SeasonsTab() {
   const [legendaryImport, setLegendaryImport] = useState<ImportState>(emptyImport())
   const [skillsImport, setSkillsImport] = useState<ImportState>(emptyImport())
   const [heroTraitImport, setHeroTraitImport] = useState<ImportState>(emptyImport())
+  const [pactSpiritImport, setPactSpiritImport] = useState<ImportState>(emptyImport())
+  const [craftBaseTypeImport, setCraftBaseTypeImport] = useState<ImportState>(emptyImport())
+  const [graftImport, setGraftImport] = useState<ImportState>(emptyImport())
+  const [destinyImport, setDestinyImport] = useState<ImportState>(emptyImport())
+  const [etherealPrismImport, setEtherealPrismImport] = useState<ImportState>(emptyImport())
+  const [heroMemoriesImport, setHeroMemoriesImport] = useState<ImportState>(emptyImport())
+  const [memoryRevivalImport, setMemoryRevivalImport] = useState<ImportState>(emptyImport())
+  const [towerSequenceImport, setTowerSequenceImport] = useState<ImportState>(emptyImport())
   const [talentFileNames, setTalentFileNames] = useState<string[]>([])
   const [legendaryFileNames, setLegendaryFileNames] = useState<string[]>([])
   const [skillsFileNames, setSkillsFileNames] = useState<string[]>([])
   const [heroTraitFileNames, setHeroTraitFileNames] = useState<string[]>([])
+  const [pactSpiritFileNames, setPactSpiritFileNames] = useState<string[]>([])
+  const [craftBaseTypeFileNames, setCraftBaseTypeFileNames] = useState<string[]>([])
+  const [graftFileNames, setGraftFileNames] = useState<string[]>([])
+  const [singletonFileName, setSingletonFileName] = useState<Record<string, string>>({})
 
   const loadSeasons = useCallback(() => {
     api.listSeasons().then(setSeasons).catch(() => {})
@@ -351,6 +371,95 @@ function SeasonsTab() {
     } catch { /* ignore */ }
   }
 
+  const handleImportPactSpirits = async () => {
+    const files = pactSpiritFilesRef.current?.files
+    if (!seasonName.trim() || !files || files.length === 0) return
+    setPactSpiritImport({ importing: true, result: null, err: '' })
+    try {
+      const items: object[] = []
+      for (const file of Array.from(files)) {
+        const data = JSON.parse(await file.text())
+        if (!data?.name) throw new Error(`${file.name}: missing "name" field`)
+        items.push(data)
+      }
+      const res = await api.importCrawlerPactSpirits(seasonName.trim(), items)
+      setPactSpiritImport({ importing: false, result: `${res.count} pact spirit(s) imported`, err: '' })
+      loadSeasons()
+    } catch (ex) {
+      setPactSpiritImport({ importing: false, result: null, err: String(ex) })
+    } finally {
+      if (pactSpiritFilesRef.current) pactSpiritFilesRef.current.value = ''
+      setPactSpiritFileNames([])
+    }
+  }
+
+  const handleImportCraftBaseTypes = async () => {
+    const files = craftBaseTypeFilesRef.current?.files
+    if (!seasonName.trim() || !files || files.length === 0) return
+    setCraftBaseTypeImport({ importing: true, result: null, err: '' })
+    try {
+      const items: object[] = []
+      for (const file of Array.from(files)) {
+        const data = JSON.parse(await file.text())
+        if (!data?.name) throw new Error(`${file.name}: missing "name" field`)
+        items.push(data)
+      }
+      const res = await api.importCrawlerCraftBaseTypes(seasonName.trim(), items)
+      setCraftBaseTypeImport({ importing: false, result: `${res.count} base type(s) imported`, err: '' })
+      loadSeasons()
+    } catch (ex) {
+      setCraftBaseTypeImport({ importing: false, result: null, err: String(ex) })
+    } finally {
+      if (craftBaseTypeFilesRef.current) craftBaseTypeFilesRef.current.value = ''
+      setCraftBaseTypeFileNames([])
+    }
+  }
+
+  const handleImportGrafts = async () => {
+    const files = graftFilesRef.current?.files
+    if (!seasonName.trim() || !files || files.length === 0) return
+    setGraftImport({ importing: true, result: null, err: '' })
+    try {
+      const items: object[] = []
+      for (const file of Array.from(files)) {
+        const data = JSON.parse(await file.text())
+        if (!data?.name) throw new Error(`${file.name}: missing "name" field`)
+        items.push(data)
+      }
+      const res = await api.importCrawlerGrafts(seasonName.trim(), items)
+      setGraftImport({ importing: false, result: `${res.count} graft(s) imported`, err: '' })
+      loadSeasons()
+    } catch (ex) {
+      setGraftImport({ importing: false, result: null, err: String(ex) })
+    } finally {
+      if (graftFilesRef.current) graftFilesRef.current.value = ''
+      setGraftFileNames([])
+    }
+  }
+
+  const handleImportSingleton = async (
+    key: string,
+    fileRef: React.RefObject<HTMLInputElement>,
+    setImport: React.Dispatch<React.SetStateAction<ImportState>>,
+    importFn: (seasonName: string, data: object) => Promise<{ ok: boolean; count: number }>,
+    label: string,
+  ) => {
+    const file = fileRef.current?.files?.[0]
+    if (!seasonName.trim() || !file) return
+    setImport({ importing: true, result: null, err: '' })
+    try {
+      const data = JSON.parse(await file.text())
+      const res = await importFn(seasonName.trim(), data)
+      setImport({ importing: false, result: `${res.count} ${label} imported`, err: '' })
+      loadSeasons()
+    } catch (ex) {
+      setImport({ importing: false, result: null, err: String(ex) })
+    } finally {
+      if (fileRef.current) fileRef.current.value = ''
+      setSingletonFileName(prev => ({ ...prev, [key]: '' }))
+    }
+  }
+
   const handleSetActive = async (name: string | null) => {
     setSettingActive(true)
     try { await api.setActiveSeason(name); loadSeasons() }
@@ -395,7 +504,7 @@ function SeasonsTab() {
             const nodeTotal = Object.values(s.node_counts).reduce((a, b) => a + b, 0)
             return (
               <div key={s.name} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 4,
+                display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', marginBottom: 4,
                 background: s.is_active ? '#1a103a' : '#12122a',
                 border: `1px solid ${s.is_active ? '#533483' : '#2a2a4a'}`, borderRadius: 6,
               }}>
@@ -410,6 +519,14 @@ function SeasonsTab() {
                     {s.legendary_gear_count != null && <span>{s.legendary_gear_count} legendary items</span>}
                     {s.skill_count != null && <span>{s.skill_count} skills</span>}
                     {s.hero_trait_count != null && <span>{s.hero_trait_count} hero traits</span>}
+                    {s.pact_spirit_count != null && <span>{s.pact_spirit_count} pact spirits</span>}
+                    {s.craft_base_type_count != null && <span>{s.craft_base_type_count} base types</span>}
+                    {s.graft_count != null && <span>{s.graft_count} grafts</span>}
+                    {s.destiny_count != null && <span>{s.destiny_count} destiny</span>}
+                    {s.ethereal_prism_count != null && <span>{s.ethereal_prism_count} ethereal prism</span>}
+                    {s.hero_memories_count != null && <span>{s.hero_memories_count} hero memories</span>}
+                    {s.memory_revival_count != null && <span>{s.memory_revival_count} revival affixes</span>}
+                    {s.tower_sequence_count != null && <span>{s.tower_sequence_count} tower entries</span>}
                   </div>
                 </div>
                 {!s.is_active && (
@@ -489,7 +606,6 @@ function SeasonsTab() {
         {legendaryImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{legendaryImport.err}</div>}
         {legendaryImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{legendaryImport.result}</div>}
       </CategoryCard>
-      <CategoryCard label="Normal Gear" description="Normal and magic equipment pool" enabled={false} />
       <CategoryCard label="Skills" description="Active skill definitions, tags, and effect text" enabled>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
@@ -534,7 +650,147 @@ function SeasonsTab() {
         {heroTraitImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{heroTraitImport.err}</div>}
         {heroTraitImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{heroTraitImport.result}</div>}
       </CategoryCard>
-      <CategoryCard label="Pact Spirits" description="Pact spirit bonuses and tiers" enabled={false} />
+      <CategoryCard label="Pact Spirits" description="Pact spirit definitions, upgrade ranks, ring slots, and glossary (166 files)" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            Choose Files
+            <input ref={pactSpiritFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }}
+              onChange={e => setPactSpiritFileNames(Array.from(e.target.files ?? []).map(f => f.name))} />
+          </label>
+          <button className="btn btn-primary btn-sm" onClick={handleImportPactSpirits}
+            disabled={pactSpiritImport.importing || !seasonName.trim()}>
+            {pactSpiritImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {pactSpiritFileNames.length > 0 && !pactSpiritImport.result && !pactSpiritImport.err && (
+          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>{pactSpiritFileNames.length} file(s) selected</div>
+        )}
+        {pactSpiritImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{pactSpiritImport.err}</div>}
+        {pactSpiritImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{pactSpiritImport.result}</div>}
+      </CategoryCard>
+
+      <CategoryCard label="Craft Base Types" description="Gear base type affix pools and ranges (38 files)" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            Choose Files
+            <input ref={craftBaseTypeFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }}
+              onChange={e => setCraftBaseTypeFileNames(Array.from(e.target.files ?? []).map(f => f.name))} />
+          </label>
+          <button className="btn btn-primary btn-sm" onClick={handleImportCraftBaseTypes}
+            disabled={craftBaseTypeImport.importing || !seasonName.trim()}>
+            {craftBaseTypeImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {craftBaseTypeFileNames.length > 0 && !craftBaseTypeImport.result && !craftBaseTypeImport.err && (
+          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>{craftBaseTypeFileNames.length} file(s) selected</div>
+        )}
+        {craftBaseTypeImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{craftBaseTypeImport.err}</div>}
+        {craftBaseTypeImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{craftBaseTypeImport.result}</div>}
+      </CategoryCard>
+
+      <CategoryCard label="Grafts" description="Graft body part affix tiers and weights (10 files)" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            Choose Files
+            <input ref={graftFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }}
+              onChange={e => setGraftFileNames(Array.from(e.target.files ?? []).map(f => f.name))} />
+          </label>
+          <button className="btn btn-primary btn-sm" onClick={handleImportGrafts}
+            disabled={graftImport.importing || !seasonName.trim()}>
+            {graftImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {graftFileNames.length > 0 && !graftImport.result && !graftImport.err && (
+          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>{graftFileNames.length} file(s) selected</div>
+        )}
+        {graftImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{graftImport.err}</div>}
+        {graftImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{graftImport.result}</div>}
+      </CategoryCard>
+
+      <CategoryCard label="Destiny" description="Fate items installable in talent nodes (single file)" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            {singletonFileName['destiny'] || 'Choose File'}
+            <input ref={destinyFileRef} type="file" accept=".json" style={{ display: 'none' }}
+              onChange={e => setSingletonFileName(p => ({ ...p, destiny: e.target.files?.[0]?.name ?? '' }))} />
+          </label>
+          <button className="btn btn-primary btn-sm"
+            onClick={() => handleImportSingleton('destiny', destinyFileRef, setDestinyImport, api.importDestiny, 'items')}
+            disabled={destinyImport.importing || !seasonName.trim()}>
+            {destinyImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {destinyImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{destinyImport.err}</div>}
+        {destinyImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{destinyImport.result}</div>}
+      </CategoryCard>
+
+      <CategoryCard label="Ethereal Prism" description="Core talent additional modifiers (single file)" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            {singletonFileName['ethereal_prism'] || 'Choose File'}
+            <input ref={etherealPrismFileRef} type="file" accept=".json" style={{ display: 'none' }}
+              onChange={e => setSingletonFileName(p => ({ ...p, ethereal_prism: e.target.files?.[0]?.name ?? '' }))} />
+          </label>
+          <button className="btn btn-primary btn-sm"
+            onClick={() => handleImportSingleton('ethereal_prism', etherealPrismFileRef, setEtherealPrismImport, api.importEtherealPrism, 'modifiers')}
+            disabled={etherealPrismImport.importing || !seasonName.trim()}>
+            {etherealPrismImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {etherealPrismImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{etherealPrismImport.err}</div>}
+        {etherealPrismImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{etherealPrismImport.result}</div>}
+      </CategoryCard>
+
+      <CategoryCard label="Hero Memories" description="Memory affix pool by origin, discipline, and progress types (single file)" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            {singletonFileName['hero_memories'] || 'Choose File'}
+            <input ref={heroMemoriesFileRef} type="file" accept=".json" style={{ display: 'none' }}
+              onChange={e => setSingletonFileName(p => ({ ...p, hero_memories: e.target.files?.[0]?.name ?? '' }))} />
+          </label>
+          <button className="btn btn-primary btn-sm"
+            onClick={() => handleImportSingleton('hero_memories', heroMemoriesFileRef, setHeroMemoriesImport, api.importHeroMemories, 'affixes')}
+            disabled={heroMemoriesImport.importing || !seasonName.trim()}>
+            {heroMemoriesImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {heroMemoriesImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{heroMemoriesImport.err}</div>}
+        {heroMemoriesImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{heroMemoriesImport.result}</div>}
+      </CategoryCard>
+
+      <CategoryCard label="Memory Revival" description="Tiered revival affix pool with weights (single file)" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            {singletonFileName['memory_revival'] || 'Choose File'}
+            <input ref={memoryRevivalFileRef} type="file" accept=".json" style={{ display: 'none' }}
+              onChange={e => setSingletonFileName(p => ({ ...p, memory_revival: e.target.files?.[0]?.name ?? '' }))} />
+          </label>
+          <button className="btn btn-primary btn-sm"
+            onClick={() => handleImportSingleton('memory_revival', memoryRevivalFileRef, setMemoryRevivalImport, api.importMemoryRevival, 'affixes')}
+            disabled={memoryRevivalImport.importing || !seasonName.trim()}>
+            {memoryRevivalImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {memoryRevivalImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{memoryRevivalImport.err}</div>}
+        {memoryRevivalImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{memoryRevivalImport.result}</div>}
+      </CategoryCard>
+
+      <CategoryCard label="Tower Sequence" description="Tower sequence affixes by weapon source (single file)" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            {singletonFileName['tower_sequence'] || 'Choose File'}
+            <input ref={towerSequenceFileRef} type="file" accept=".json" style={{ display: 'none' }}
+              onChange={e => setSingletonFileName(p => ({ ...p, tower_sequence: e.target.files?.[0]?.name ?? '' }))} />
+          </label>
+          <button className="btn btn-primary btn-sm"
+            onClick={() => handleImportSingleton('tower_sequence', towerSequenceFileRef, setTowerSequenceImport, api.importTowerSequence, 'entries')}
+            disabled={towerSequenceImport.importing || !seasonName.trim()}>
+            {towerSequenceImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {towerSequenceImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{towerSequenceImport.err}</div>}
+        {towerSequenceImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{towerSequenceImport.result}</div>}
+      </CategoryCard>
     </div>
   )
 }

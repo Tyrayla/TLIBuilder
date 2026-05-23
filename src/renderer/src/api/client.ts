@@ -389,6 +389,14 @@ export interface SeasonSummary {
   legendary_gear_count: number | null
   skill_count: number | null
   hero_trait_count: number | null
+  pact_spirit_count: number | null
+  craft_base_type_count: number | null
+  graft_count: number | null
+  destiny_count: number | null
+  ethereal_prism_count: number | null
+  hero_memories_count: number | null
+  memory_revival_count: number | null
+  tower_sequence_count: number | null
   is_active: boolean
 }
 
@@ -415,6 +423,86 @@ export interface HeroTrait {
   advanced_traits: HeroAdvancedTrait[]
   max_level?: number | null
   glossary?: Record<string, { name: string; description: string }>
+}
+
+export interface PactSpiritSlot {
+  name: string
+  effect: string
+  ring: 'inner' | 'mid' | 'outer'
+}
+
+export interface PactSpiritRank {
+  rank: number
+  modifiers: string[]
+}
+
+export interface PactSpirit {
+  item_id: string
+  name: string
+  description: string
+  affinities: string[]
+  main_skill_name: string
+  main_skill_effect: string
+  upgrade_ranks: PactSpiritRank[]
+  slots: PactSpiritSlot[]
+  glossary: Record<string, { name: string; description: string }>
+}
+
+export interface CraftAffix {
+  raw_text: string
+  expression: string
+  condition: string | null
+  affix_kind: 'numeric' | 'special' | 'placeholder'
+  numeric_values: LegendaryNumericValue[]
+  source: string
+  affix_type: string
+}
+
+export interface CraftBaseType {
+  item_id: string
+  name: string
+  affixes: CraftAffix[]
+}
+
+export interface GraftAffix {
+  raw_text: string
+  expression: string
+  condition: string | null
+  affix_kind: 'numeric' | 'special' | 'placeholder'
+  numeric_values: LegendaryNumericValue[]
+  tier: string
+  level: number
+  weight: number
+  affix_type: string
+}
+
+export interface Graft {
+  item_id: string
+  name: string
+  affixes: GraftAffix[]
+}
+
+export interface DestinyItem {
+  name: string
+  text: string
+}
+
+export interface HeroMemoryAffix {
+  effect: string
+  source: string
+  affix_type: string
+}
+
+export interface MemoryRevivalAffix {
+  tier: number
+  modifier: string
+  level: number
+  weight: number
+}
+
+export interface TowerSequenceEntry {
+  affix: string
+  source: string
 }
 
 export interface SkillItem {
@@ -826,6 +914,48 @@ export const api = {
     ),
   getHeroTraits: () => get<{ season: string | null; traits: HeroTrait[] }>('/hero-traits'),
   clearHeroTraits: () => del<{ ok: boolean }>('/dev/hero-traits'),
+
+  importCrawlerPactSpirits: (seasonName: string, items: object[]) =>
+    post<{ ok: boolean; count: number }>(
+      '/dev/import-crawler-pact-spirits', { season_name: seasonName, items }
+    ),
+  getPactSpirits: () => get<{ season: string | null; spirits: PactSpirit[] }>('/pact-spirits'),
+  clearPactSpirits: () => del<{ ok: boolean }>('/dev/pact-spirits'),
+
+  importCrawlerCraftBaseTypes: (seasonName: string, items: object[]) =>
+    post<{ ok: boolean; count: number }>(
+      '/dev/import-crawler-craft-base-types', { season_name: seasonName, items }
+    ),
+  getCraftBaseTypes: () => get<{ season: string | null; base_types: CraftBaseType[] }>('/craft-base-types'),
+  clearCraftBaseTypes: () => del<{ ok: boolean }>('/dev/craft-base-types'),
+
+  importCrawlerGrafts: (seasonName: string, items: object[]) =>
+    post<{ ok: boolean; count: number }>(
+      '/dev/import-crawler-grafts', { season_name: seasonName, items }
+    ),
+  getGrafts: () => get<{ season: string | null; grafts: Graft[] }>('/grafts'),
+  clearGrafts: () => del<{ ok: boolean }>('/dev/grafts'),
+
+  importDestiny: (seasonName: string, data: object) =>
+    post<{ ok: boolean; count: number }>('/dev/import-destiny', { season_name: seasonName, data }),
+  getDestiny: () => get<{ season: string | null; items: DestinyItem[] }>('/destiny'),
+
+  importEtherealPrism: (seasonName: string, data: object) =>
+    post<{ ok: boolean; count: number }>('/dev/import-ethereal-prism', { season_name: seasonName, data }),
+  getEtherealPrism: () => get<{ season: string | null; modifiers: string[] }>('/ethereal-prism'),
+
+  importHeroMemories: (seasonName: string, data: object) =>
+    post<{ ok: boolean; count: number }>('/dev/import-hero-memories', { season_name: seasonName, data }),
+  getHeroMemories: () => get<{ season: string | null; affixes: HeroMemoryAffix[] }>('/hero-memories'),
+
+  importMemoryRevival: (seasonName: string, data: object) =>
+    post<{ ok: boolean; count: number }>('/dev/import-memory-revival', { season_name: seasonName, data }),
+  getMemoryRevival: () => get<{ season: string | null; affixes: MemoryRevivalAffix[] }>('/memory-revival'),
+
+  importTowerSequence: (seasonName: string, data: object) =>
+    post<{ ok: boolean; count: number }>('/dev/import-tower-sequence', { season_name: seasonName, data }),
+  getTowerSequence: () => get<{ season: string | null; entries: TowerSequenceEntry[] }>('/tower-sequence'),
+
   diffSeasons: (seasonA: string, seasonB: string) =>
     post<SeasonDiff>('/dev/diff-seasons', { season_a: seasonA, season_b: seasonB }),
 

@@ -22,6 +22,25 @@ const SLOT_ORDER: { id: GearSlot; label: string }[] = [
 
 // ── Affix helpers ─────────────────────────────────────────────────────────────
 
+function getItemAffixes(item: LegendaryGearItem | EquippedGearItem): LegendaryAffix[] {
+  if ('customizations' in item) return item.affixes
+  const variantKey = Object.keys(item.variants)[0] ?? 'base'
+  const variant = item.variants[variantKey]
+  if (!variant) return []
+  const affixes: LegendaryAffix[] = [...variant.implicits, ...variant.explicits]
+  for (const group of (item.random_affixes[variantKey] ?? [])) {
+    affixes.push({
+      raw_text: group.placeholder,
+      modifier_id: null,
+      expression: group.placeholder,
+      condition: null,
+      affix_kind: 'placeholder',
+      numeric_values: [],
+    })
+  }
+  return affixes
+}
+
 function hasRangeValues(affix: LegendaryAffix): boolean {
   return affix.affix_kind === 'numeric' &&
     affix.numeric_values.some(v => v.kind === 'range')
@@ -33,8 +52,22 @@ function getRangeIndices(affix: LegendaryAffix): number[] {
     .filter(i => i >= 0)
 }
 
+function decimalPlaces(n: number): number {
+  const s = String(n)
+  const dot = s.indexOf('.')
+  return dot === -1 ? 0 : s.length - dot - 1
+}
+
+function rangeDecimals(nv: LegendaryNumericValue): number {
+  return Math.max(decimalPlaces(nv.min ?? 0), decimalPlaces(nv.max ?? 0))
+}
+
 function midpoint(v: LegendaryNumericValue): number {
-  if (v.kind === 'range') return Math.round(((v.min ?? 0) + (v.max ?? 0)) / 2)
+  if (v.kind === 'range') {
+    const mid = ((v.min ?? 0) + (v.max ?? 0)) / 2
+    const dp = rangeDecimals(v)
+    return dp > 0 ? parseFloat(mid.toFixed(dp)) : Math.round(mid)
+  }
   return v.value ?? 0
 }
 
@@ -45,7 +78,9 @@ function reconstructAffixText(affix: LegendaryAffix, chosenValues: Record<number
     if (nv.kind !== 'range') continue
     const chosen = chosenValues[i] ?? midpoint(nv)
     const sign = nv.sign ?? ''
-    text = text.replace(nv.raw, `${sign}${chosen}`)
+    const dp = rangeDecimals(nv)
+    const formatted = dp > 0 ? chosen.toFixed(dp) : String(chosen)
+    text = text.replace(nv.raw, `${sign}${formatted}`)
   }
   return text
 }
@@ -71,7 +106,7 @@ function GearTooltip({ state }: { state: TooltipState }) {
       <div className="gear-tooltip-name">{state.item.name}</div>
       <div className="gear-tooltip-level">Required Level: {state.item.required_level}</div>
       <div className="gear-tooltip-divider" />
-      {state.item.affixes.map((affix, i) => (
+      {getItemAffixes(state.item).map((affix, i) => (
         <div key={i} className="gear-tooltip-affix">{tooltipAffixText(affix, i, customizations)}</div>
       ))}
     </div>,
@@ -172,7 +207,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
       <div className="gear-customize-divider" />
 
       <div className="gear-customize-affixes">
-        {item.affixes.map((affix, affixIdx) => {
+        {getItemAffixes(item).map((affix, affixIdx) => {
           if (affix.affix_kind === 'placeholder') {
             return (
               <div key={affixIdx} className="gear-affix-row gear-affix-placeholder">
@@ -206,7 +241,10 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
                 const nv = affix.numeric_values[valIdx]
                 const min = nv.min ?? 0
                 const max = nv.max ?? 0
+                const dp = rangeDecimals(nv)
+                const step = dp > 0 ? parseFloat((1 / Math.pow(10, dp)).toFixed(dp)) : 1
                 const chosen = chosenMap[valIdx] ?? midpoint(nv)
+                const displayChosen = dp > 0 ? chosen.toFixed(dp) : chosen
                 return (
                   <div key={valIdx} className="gear-slider-row">
                     <input
@@ -214,11 +252,11 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
                       className="gear-affix-slider"
                       min={min}
                       max={max}
-                      step={1}
+                      step={step}
                       value={chosen}
                       onChange={e => setChosenValue(affixIdx, valIdx, Number(e.target.value))}
                     />
-                    <span className="gear-affix-value">{chosen}</span>
+                    <span className="gear-affix-value">{displayChosen}</span>
                   </div>
                 )
               })}
@@ -270,7 +308,7 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
   const filtered = q
     ? catalog.filter(item =>
         item.name.toLowerCase().includes(q) ||
-        item.affixes.some(a => a.raw_text.toLowerCase().includes(q))
+        getItemAffixes(item).some(a => a.raw_text.toLowerCase().includes(q))
       )
     : catalog
 
@@ -309,7 +347,7 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
       item_id: selectedCatalogItem.item_id,
       name: selectedCatalogItem.name,
       required_level: selectedCatalogItem.required_level,
-      affixes: selectedCatalogItem.affixes,
+      affixes: getItemAffixes(selectedCatalogItem),
       customizations,
       slot: null,
     }
