@@ -601,6 +601,7 @@ export interface LegendaryNumericValue {
 
 export interface LegendaryAffix {
   raw_text: string
+  modifier_id: string | null
   expression: string
   condition: string | null
   affix_kind: 'numeric' | 'special' | 'tagged' | 'placeholder'
@@ -610,12 +611,28 @@ export interface LegendaryAffix {
   unit?: string
 }
 
+export interface LegendaryGearVariant {
+  implicits: LegendaryAffix[]
+  explicits: LegendaryAffix[]
+}
+
+export interface LegendaryRandomAffixGroup {
+  placeholder: string
+  options: LegendaryAffix[]
+}
+
 export interface LegendaryGearItem {
   item_id: string
   name: string
+  internal_id: number | null
+  base_type: string
   required_level: number
-  affix_count: number
-  affixes: LegendaryAffix[]
+  drop_level: number | null
+  flavor_text: string | null
+  drop_sources: string[]
+  glossary: Record<string, { name: string; description: string }>
+  variants: Record<string, LegendaryGearVariant>
+  random_affixes: Record<string, LegendaryRandomAffixGroup[]>
 }
 
 export type GearSlot = 'helmet' | 'amulet' | 'chest' | 'gloves' | 'belt'
@@ -669,6 +686,15 @@ export interface SeasonDiffTree {
   nodes_changed: SeasonDiffNodeChange[]
   connections_added: { from: string; to: string }[]
   connections_removed: { from: string; to: string }[]
+}
+
+export interface ImportCrawlerTreeResult {
+  ok: boolean
+  tree_name: string
+  node_count?: number
+  core_talent_count?: number
+  connection_count?: number
+  count?: number
 }
 
 export interface SeasonDiff {
@@ -756,6 +782,11 @@ export const api = {
     post<{ ok: boolean; count: number; set_name: string }>(
       '/dev/import-legendary-gear', { season_name: seasonName, file_data: fileData }
     ),
+  importCrawlerLegendaryGear: (seasonName: string, items: object[]) =>
+    post<{ ok: boolean; count: number }>(
+      '/dev/import-crawler-legendary-gear',
+      { season_name: seasonName, items }
+    ),
   importSkills: (seasonName: string, fileData: object) =>
     post<{ ok: boolean; added: number; total: number }>(
       '/dev/import-skills', { season_name: seasonName, file_data: fileData }
@@ -763,6 +794,12 @@ export const api = {
   getSkills: () => get<{ season: string | null; skills: SkillItem[] }>('/skills'),
   getLegendaryGear: () => get<{ season: string | null; items: LegendaryGearItem[] }>('/legendary-gear'),
   clearSkills: () => del<{ ok: boolean }>('/dev/skills'),
+
+  importCrawlerTree: (seasonName: string, treeName: string, crawlerData: object) =>
+    post<ImportCrawlerTreeResult>(
+      '/dev/import-crawler-tree',
+      { season_name: seasonName, tree_name: treeName, crawler_data: crawlerData }
+    ),
 
   importHeroTrait: (seasonName: string, fileData: object) =>
     post<{ ok: boolean; hero: string; total: number; heroes: number }>(

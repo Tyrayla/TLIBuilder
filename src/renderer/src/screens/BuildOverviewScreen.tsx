@@ -318,11 +318,10 @@ export default function BuildOverviewScreen({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', background: '#0e0e28', borderBottom: '1px solid #2a2a4a', fontSize: 12 }}>
           <span style={{ color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Season:</span>
           <select
-            value={activeSeason ?? ''}
+            value={activeSeason ?? seasons[0]?.name ?? ''}
             onChange={e => handleSeasonChange(e.target.value || null)}
             style={{ background: '#1a1a3a', color: '#ddd', border: '1px solid #3a3a5a', borderRadius: 4, padding: '3px 8px', fontSize: 12 }}
           >
-            <option value="">— Current (Python builders) —</option>
             {seasons.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
           </select>
           {activeSeason && (

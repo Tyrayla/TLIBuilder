@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { api, SeasonSummary, SeasonDiff, RebuildFilterResult, UnresolvedStat, FilterOverride } from '../api/client'
+import { api, SeasonSummary, SeasonDiff, RebuildFilterResult, UnresolvedStat, FilterOverride, ImportCrawlerTreeResult } from '../api/client'
 
 type Tab = 'diff' | 'seasons' | 'tools'
 
@@ -167,34 +167,6 @@ function DiffTab() {
 
 // ── Seasons tab ────────────────────────────────────────────────────────────
 
-function extractTalentNodes(data: unknown): object[] {
-  if (Array.isArray(data)) {
-    const nodes: object[] = []
-    for (const item of data) {
-      if (item && typeof item === 'object') {
-        if ('global_node_id' in item) nodes.push(item)
-        else if ('nodes' in item && Array.isArray((item as { nodes: unknown[] }).nodes))
-          nodes.push(...(item as { nodes: object[] }).nodes)
-      }
-    }
-    return nodes
-  }
-  if (data && typeof data === 'object' && 'nodes' in data && Array.isArray((data as { nodes: unknown[] }).nodes))
-    return (data as { nodes: object[] }).nodes
-  return []
-}
-
-function extractNewGodItems(data: unknown): object[] {
-  if (!data || typeof data !== 'object') return []
-  const d = data as Record<string, unknown>
-  if (Array.isArray(d.items)) {
-    const items = d.items as object[]
-    if (items.length > 0 && 'effect_lines' in (items[0] as object))
-      return items.filter(i => i && typeof i === 'object' && 'name' in i)
-  }
-  return []
-}
-
 interface ImportState {
   importing: boolean
   result: string | null
@@ -256,6 +228,10 @@ function SeasonsTab() {
   const [legendaryImport, setLegendaryImport] = useState<ImportState>(emptyImport())
   const [skillsImport, setSkillsImport] = useState<ImportState>(emptyImport())
   const [heroTraitImport, setHeroTraitImport] = useState<ImportState>(emptyImport())
+  const [talentFileNames, setTalentFileNames] = useState<string[]>([])
+  const [legendaryFileNames, setLegendaryFileNames] = useState<string[]>([])
+  const [skillsFileNames, setSkillsFileNames] = useState<string[]>([])
+  const [heroTraitFileNames, setHeroTraitFileNames] = useState<string[]>([])
 
   const loadSeasons = useCallback(() => {
     api.listSeasons().then(setSeasons).catch(() => {})
@@ -268,30 +244,28 @@ function SeasonsTab() {
     if (!seasonName.trim() || !files || files.length === 0) return
     setTalentImport({ importing: true, result: null, err: '' })
     try {
-      const allNodes: object[] = []
-      const allNewGodItems: object[] = []
+      const lines: string[] = []
       for (const file of Array.from(files)) {
-        const data = JSON.parse(await file.text())
-        const newGod = extractNewGodItems(data)
-        if (newGod.length > 0) allNewGodItems.push(...newGod)
-        else allNodes.push(...extractTalentNodes(data))
+        const data = JSON.parse(await file.text()) as Record<string, unknown>
+        const treeName = (data.name as string | undefined)?.trim()
+        if (!treeName) {
+          lines.push(`${file.name}: missing "name" field`)
+          continue
+        }
+        const res: ImportCrawlerTreeResult = await api.importCrawlerTree(seasonName.trim(), treeName, data)
+        if (res.count != null) {
+          lines.push(`${treeName}: ${res.count} talent${res.count !== 1 ? 's' : ''}`)
+        } else {
+          lines.push(`${treeName}: ${res.node_count ?? 0} nodes, ${res.connection_count ?? 0} connections`)
+        }
       }
-      const parts: string[] = []
-      if (allNodes.length > 0) {
-        const res = await api.importSeason(seasonName.trim(), allNodes)
-        parts.push(`Trees: ${res.trees_imported.join(', ') || '(none)'}`)
-        if (res.skipped.length) parts.push(`Skipped: ${res.skipped.join(', ')}`)
-      }
-      if (allNewGodItems.length > 0) {
-        const res = await api.importNewGodTalents(seasonName.trim(), allNewGodItems)
-        parts.push(`${res.count} New God talent${res.count !== 1 ? 's' : ''}`)
-      }
-      setTalentImport({ importing: false, result: parts.join(' · ') || 'Nothing imported', err: '' })
+      setTalentImport({ importing: false, result: lines.join(' · ') || 'Nothing imported', err: '' })
       loadSeasons()
     } catch (ex) {
       setTalentImport({ importing: false, result: null, err: String(ex) })
     } finally {
       if (talentFilesRef.current) talentFilesRef.current.value = ''
+      setTalentFileNames([])
     }
   }
 
@@ -300,23 +274,20 @@ function SeasonsTab() {
     if (!seasonName.trim() || !files || files.length === 0) return
     setLegendaryImport({ importing: true, result: null, err: '' })
     try {
-      let totalCount = 0
-      let setName = 'Legendary Gear'
+      const items: object[] = []
       for (const file of Array.from(files)) {
         const data = JSON.parse(await file.text())
-        if (!data || !Array.isArray(data.items)) {
-          throw new Error(`${file.name}: not a valid legendary gear JSON (missing items array)`)
-        }
-        const res = await api.importLegendaryGear(seasonName.trim(), data)
-        totalCount += res.count
-        setName = res.set_name
+        if (!data?.name) throw new Error(`${file.name}: missing "name" field`)
+        items.push(data)
       }
-      setLegendaryImport({ importing: false, result: `${setName}: ${totalCount} items imported`, err: '' })
+      const res = await api.importCrawlerLegendaryGear(seasonName.trim(), items)
+      setLegendaryImport({ importing: false, result: `${res.count} items imported`, err: '' })
       loadSeasons()
     } catch (ex) {
       setLegendaryImport({ importing: false, result: null, err: String(ex) })
     } finally {
       if (legendaryFilesRef.current) legendaryFilesRef.current.value = ''
+      setLegendaryFileNames([])
     }
   }
 
@@ -342,6 +313,7 @@ function SeasonsTab() {
       setSkillsImport({ importing: false, result: null, err: String(ex) })
     } finally {
       if (skillsFilesRef.current) skillsFilesRef.current.value = ''
+      setSkillsFileNames([])
     }
   }
 
@@ -375,6 +347,7 @@ function SeasonsTab() {
       setHeroTraitImport({ importing: false, result: null, err: String(ex) })
     } finally {
       if (heroTraitFilesRef.current) heroTraitFilesRef.current.value = ''
+      setHeroTraitFileNames([])
     }
   }
 
@@ -400,18 +373,22 @@ function SeasonsTab() {
   }
 
   const activeSeasonName = seasons.find(s => s.is_active)?.name ?? null
+  const displaySeasonName = activeSeasonName ?? seasons[0]?.name ?? null
 
   return (
     <div>
       {/* Active season bar */}
       <div style={{ background: '#12122a', border: '1px solid #2a2a4a', borderRadius: 8, padding: '10px 16px', marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
         <span style={{ fontSize: 12, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Active:</span>
-        <span style={{ fontSize: 13, color: activeSeasonName ? '#c0a0ff' : '#444' }}>
-          {activeSeasonName ?? '— Current (Python builders) —'}
+        <span style={{ fontSize: 13, color: displaySeasonName ? '#c0a0ff' : '#444' }}>
+          {displaySeasonName ?? '—'}
+          {!activeSeasonName && displaySeasonName && (
+            <span style={{ fontSize: 10, color: '#555', marginLeft: 8 }}>(default)</span>
+          )}
         </span>
         {activeSeasonName && (
           <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => handleSetActive(null)} disabled={settingActive}>
-            Reset to Current
+            Reset to Default
           </button>
         )}
       </div>
@@ -487,13 +464,17 @@ function SeasonsTab() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
             Choose Files
-            <input ref={talentFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }} />
+            <input ref={talentFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }}
+              onChange={e => setTalentFileNames(Array.from(e.target.files ?? []).map(f => f.name))} />
           </label>
           <button className="btn btn-primary btn-sm" onClick={handleImportTalents}
             disabled={talentImport.importing || !seasonName.trim()}>
             {talentImport.importing ? 'Importing…' : 'Import'}
           </button>
         </div>
+        {talentFileNames.length > 0 && !talentImport.result && !talentImport.err && (
+          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>{talentFileNames.join(', ')}</div>
+        )}
         {talentImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{talentImport.err}</div>}
         {talentImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{talentImport.result}</div>}
       </CategoryCard>
@@ -502,13 +483,17 @@ function SeasonsTab() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
             Choose File
-            <input ref={legendaryFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }} />
+            <input ref={legendaryFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }}
+              onChange={e => setLegendaryFileNames(Array.from(e.target.files ?? []).map(f => f.name))} />
           </label>
           <button className="btn btn-primary btn-sm" onClick={handleImportLegendaryGear}
             disabled={legendaryImport.importing || !seasonName.trim()}>
             {legendaryImport.importing ? 'Importing…' : 'Import'}
           </button>
         </div>
+        {legendaryFileNames.length > 0 && !legendaryImport.result && !legendaryImport.err && (
+          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>{legendaryFileNames.join(', ')}</div>
+        )}
         {legendaryImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{legendaryImport.err}</div>}
         {legendaryImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{legendaryImport.result}</div>}
       </CategoryCard>
@@ -517,7 +502,8 @@ function SeasonsTab() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
             Choose Files
-            <input ref={skillsFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }} />
+            <input ref={skillsFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }}
+              onChange={e => setSkillsFileNames(Array.from(e.target.files ?? []).map(f => f.name))} />
           </label>
           <button className="btn btn-primary btn-sm" onClick={handleImportSkills}
             disabled={skillsImport.importing || !seasonName.trim()}>
@@ -528,6 +514,9 @@ function SeasonsTab() {
             Clear
           </button>
         </div>
+        {skillsFileNames.length > 0 && !skillsImport.result && !skillsImport.err && (
+          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>{skillsFileNames.join(', ')}</div>
+        )}
         {skillsImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{skillsImport.err}</div>}
         {skillsImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{skillsImport.result}</div>}
       </CategoryCard>
@@ -535,7 +524,8 @@ function SeasonsTab() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
             Choose Files
-            <input ref={heroTraitFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }} />
+            <input ref={heroTraitFilesRef} type="file" accept=".json" multiple style={{ display: 'none' }}
+              onChange={e => setHeroTraitFileNames(Array.from(e.target.files ?? []).map(f => f.name))} />
           </label>
           <button className="btn btn-primary btn-sm" onClick={handleImportHeroTraits}
             disabled={heroTraitImport.importing || !seasonName.trim()}>
@@ -546,6 +536,9 @@ function SeasonsTab() {
             Clear
           </button>
         </div>
+        {heroTraitFileNames.length > 0 && !heroTraitImport.result && !heroTraitImport.err && (
+          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>{heroTraitFileNames.join(', ')}</div>
+        )}
         {heroTraitImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{heroTraitImport.err}</div>}
         {heroTraitImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{heroTraitImport.result}</div>}
       </CategoryCard>

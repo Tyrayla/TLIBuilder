@@ -73,7 +73,7 @@ def _tree_from_season_data(name: str, data: dict) -> PassiveTree:
             node_type=NodeType(n["node_type"]),
             column=n["column"],
             row=n["row"],
-            max_points=n["max_points"],
+            max_points=n.get("max_rank") or n.get("max_points", 1),
         ))
     for conn in data.get("connections", []):
         tree.add_connection(conn["from"], conn["to"])
@@ -852,6 +852,58 @@ def import_new_god_talents(req: ImportNewGodTalentsRequest):
     return {"ok": True, "count": len(talents)}
 
 
+class ImportCrawlerTreeRequest(BaseModel):
+    season_name: str
+    tree_name: str
+    crawler_data: dict
+
+
+@app.post("/api/dev/import-crawler-tree")
+def import_crawler_tree_endpoint(req: ImportCrawlerTreeRequest):
+    from tools.season_importer import import_crawler_tree, _make_display_name_key
+
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+
+    tree_name = req.tree_name.strip()
+
+    # New God — routes to _new_god_talents.json, not a regular tree file
+    if tree_name == "New God":
+        talents = []
+        for node in req.crawler_data.get("nodes", []):
+            if node.get("type") != "core_talent":
+                continue
+            raw_name = node.get("name", "")
+            if not raw_name:
+                continue
+            item_id = re.sub(r"[^a-z0-9]+", "_", raw_name.lower()).strip("_")
+            talents.append({
+                "name": raw_name,
+                "item_id": item_id,
+                "effects": node.get("effects") or [],
+                "icon_url": node.get("icon_url", ""),
+                "note": "",
+            })
+        season_manager.save_new_god_talents(req.season_name, talents)
+        return {"ok": True, "tree_name": "New God", "count": len(talents)}
+
+    if tree_name not in TREES:
+        raise HTTPException(400, f"Unknown tree '{tree_name}'")
+
+    tree_slug = _tree_name_to_slug(tree_name)
+    data = import_crawler_tree(req.crawler_data, tree_name)
+    data["season"] = req.season_name
+    season_manager.save_season_tree(req.season_name, tree_name, tree_slug, data)
+
+    return {
+        "ok": True,
+        "tree_name": tree_name,
+        "node_count": len(data["nodes"]),
+        "core_talent_count": len(data["core_talents"]),
+        "connection_count": len(data["connections"]),
+    }
+
+
 class ImportLegendaryGearRequest(BaseModel):
     season_name: str
     file_data: dict
@@ -890,6 +942,25 @@ def import_legendary_gear(req: ImportLegendaryGearRequest):
     }
     season_manager.save_legendary_gear(req.season_name, stored)
     return {"ok": True, "count": len(items), "set_name": stored["set_name"]}
+
+
+class ImportCrawlerLegendaryGearRequest(BaseModel):
+    season_name: str
+    items: list[dict]
+
+
+@app.post("/api/dev/import-crawler-legendary-gear")
+def import_crawler_legendary_gear_endpoint(req: ImportCrawlerLegendaryGearRequest):
+    from tools.legendary_gear_importer import import_crawler_items
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    items = import_crawler_items(req.items)
+    season_manager.save_legendary_gear(req.season_name, {
+        "season": req.season_name,
+        "item_count": len(items),
+        "items": items,
+    })
+    return {"ok": True, "count": len(items)}
 
 
 # ── Skills ─────────────────────────────────────────────────────────────────────
@@ -1060,6 +1131,36 @@ def get_legendary_gear():
     data = season_manager.load_legendary_gear(active)
     if not data:
         return {"season": active, "items": []}
+
+    def _resolve(affix: dict) -> dict:
+        if affix.get("affix_kind") == "placeholder":
+            return {**affix, "stat_key": None, "unit": ""}
+        stat_key, unit = _resolve_gear_stat(affix.get("raw_text", ""))
+        return {**affix, "stat_key": stat_key, "unit": unit}
+
+    # New crawler format: items have "variants" dict
+    if data.get("items") and data["items"][0].get("variants"):
+        items = []
+        for item in data.get("items", []):
+            resolved = {k: v for k, v in item.items() if k not in ("variants", "random_affixes")}
+            resolved["variants"] = {
+                state: {
+                    "implicits": [_resolve(a) for a in v.get("implicits", [])],
+                    "explicits": [_resolve(a) for a in v.get("explicits", [])],
+                }
+                for state, v in item.get("variants", {}).items()
+            }
+            resolved["random_affixes"] = {
+                state: [
+                    {**entry, "options": [_resolve(o) for o in entry.get("options", [])]}
+                    for entry in pool
+                ]
+                for state, pool in item.get("random_affixes", {}).items()
+            }
+            items.append(resolved)
+        return {"season": active, "items": items}
+
+    # Legacy flat format
     items = data.get("items", [])
     for item in items:
         for affix in item.get("affixes", []):

@@ -189,3 +189,96 @@ def extract_nodes_from_file(data: object) -> list[dict]:
         if "nodes" in data and isinstance(data["nodes"], list):
             return data["nodes"]
     return []
+
+
+# ── Crawler format importer ────────────────────────────────────────────────────
+
+_CRAWLER_TYPE_MAP = {
+    "micro_talent":            "Micro Talent",
+    "medium_talent":           "Medium Talent",
+    "legendary_medium_talent": "Legendary Medium Talent",
+}
+
+
+def _make_display_name_key(tree_name: str, talent_name: str) -> str:
+    tree_slug = tree_name.lower().replace(" ", "_")
+    talent_slug = re.sub(r"[^a-z0-9]+", "_", talent_name.lower()).strip("_")
+    return f"{tree_slug}_{talent_slug}"
+
+
+def import_crawler_tree(crawler_data: dict, tree_name: str) -> dict:
+    tree_slug = tree_name.lower().replace(" ", "_")
+    raw_nodes = crawler_data.get("nodes", [])
+
+    # Build talent_id → node_id map for prerequisite resolution
+    tid_to_node_id: dict[str, str] = {}
+    for node in raw_nodes:
+        tid = node.get("talent_id", "")
+        col, row = node.get("column"), node.get("row")
+        if tid and col is not None and row is not None:
+            tid_to_node_id[tid] = f"{tree_slug}_c{col - 1}_r{row - 1}"
+
+    regular_nodes: list[dict] = []
+    core_talents: list[dict] = []
+    edge_set: set[frozenset] = set()
+
+    glossary_dict = {
+        g["term_id"]: {"name": g.get("name", ""), "description": g.get("description", "")}
+        for g in (crawler_data.get("glossary") or [])
+        if g.get("term_id")
+    }
+
+    for node in raw_nodes:
+        ntype = node.get("type", "")
+        col, row = node.get("column"), node.get("row")
+
+        if ntype == "core_talent":
+            raw_name = node.get("name", "")
+            core_talents.append({
+                "display_name_key": _make_display_name_key(tree_name, raw_name),
+                "name": raw_name,
+                "effects": node.get("effects") or [],
+                "pts_required": node.get("pts_required"),
+                "icon_url": node.get("icon_url", ""),
+            })
+            continue
+
+        mapped_type = _CRAWLER_TYPE_MAP.get(ntype)
+        if mapped_type is None or col is None or row is None:
+            continue
+
+        node_id = f"{tree_slug}_c{col - 1}_r{row - 1}"
+        regular_nodes.append({
+            "id": node_id,
+            "column": col - 1,
+            "row": row - 1,
+            "node_type": mapped_type,
+            "max_rank": node.get("max_rank") or 1,
+            "effects": node.get("effects") or [],
+            "pts_required": node.get("pts_required"),
+            "icon_url": node.get("icon_url", ""),
+        })
+
+        for prereq_tid in (node.get("prerequisites") or []):
+            prereq_id = tid_to_node_id.get(prereq_tid)
+            if prereq_id:
+                edge_set.add(frozenset({prereq_id, node_id}))
+
+    regular_nodes.sort(key=lambda n: (n["column"], n["row"]))
+
+    connections = []
+    for edge in edge_set:
+        ids = sorted(edge)
+        if len(ids) == 2:
+            connections.append({"from": ids[0], "to": ids[1]})
+    connections.sort(key=lambda c: (c["from"], c["to"]))
+
+    return {
+        "tree_name": tree_name,
+        "total_points": crawler_data.get("total_points"),
+        "tags": crawler_data.get("tags", []),
+        "glossary": glossary_dict,
+        "nodes": regular_nodes,
+        "connections": connections,
+        "core_talents": core_talents,
+    }
