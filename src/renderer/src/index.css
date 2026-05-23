@@ -808,6 +808,106 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 14px 20px;
 }
 
+/* ── Share / Import modals ────────────────────────────────────────────────── */
+
+.overview-share-btn {
+  background: #0e2e3f;
+  color: #5abfdf;
+  border: 1px solid #1a4a6a;
+}
+.overview-share-btn:hover:not(:disabled) { background: #123548; }
+
+.share-modal-card {
+  min-width: 420px;
+  max-width: 560px;
+}
+
+.share-modal-hint {
+  font-size: 12px;
+  color: #7070aa;
+  padding: 0 20px 10px;
+}
+
+.share-code-area {
+  display: block;
+  width: calc(100% - 40px);
+  margin: 0 20px 4px;
+  height: 90px;
+  background: #060610;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: #aaaacc;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+  padding: 8px 10px;
+  resize: vertical;
+  outline: none;
+}
+
+.share-code-area--input {
+  height: 80px;
+  color: var(--fg);
+}
+.share-code-area--input::placeholder { color: #444466; }
+
+.share-import-error {
+  font-size: 12px;
+  color: var(--err);
+  padding: 4px 20px 0;
+}
+
+.share-copied {
+  background: #0e3a1a !important;
+  color: var(--ok) !important;
+  border-color: #1a5a2a !important;
+}
+
+/* ── Update Banner ─────────────────────────────────────────── */
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background: #111d11;
+  border-bottom: 1px solid #2a4a2a;
+  font-size: 13px;
+  color: #88cc88;
+  flex-shrink: 0;
+}
+
+.update-banner-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.update-banner-dismiss:hover {
+  color: #aaa;
+}
+
+.changelog-modal {
+  max-width: 560px;
+}
+
+.changelog-body {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #ccc;
+  white-space: pre-wrap;
+  max-height: 400px;
+  overflow-y: auto;
+  background: #0d0d0d;
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin: 0;
+}
+
 /* ── Debug toolbar ────────────────────────────────────────────────────────── */
 
 .debug-toggle {

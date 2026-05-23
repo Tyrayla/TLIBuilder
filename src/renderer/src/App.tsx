@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums, EquippedGearItem, EquippedSkill } from './api/client'
+import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import HeroTraitScreen from './screens/HeroTraitScreen'
 import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
@@ -93,10 +94,17 @@ function App() {
   const [cascadeModal, setCascadeModal] = useState<CascadeModal | null>(null)
   const [previewTree, setPreviewTree] = useState<string | null>(null)
   const [previewSource, setPreviewSource] = useState<Screen>('build-overview')
-  const [devMode, setDevMode] = useState(() => localStorage.getItem('devMode') === '1')
+  const [devMode, setDevMode] = useState(false)
   const [deprecatedTools, setDeprecatedTools] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+  const [unsavedPromptOpen, setUnsavedPromptOpen] = useState(false)
+  const [unsavedSaveName, setUnsavedSaveName] = useState('')
+  const [unsavedSaving, setUnsavedSaving] = useState(false)
   const [conditionMaximums, setConditionMaximums] = useState<ConditionMaximums | null>(null)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [updateDownloading, setUpdateDownloading] = useState(false)
+  const [updateProgress, setUpdateProgress] = useState(0)
+  const [updateDownloaded, setUpdateDownloaded] = useState(false)
   const sessionRef = useRef(session)
 
   useEffect(() => { sessionRef.current = session }, [session])
@@ -137,20 +145,41 @@ function App() {
     })
   }, [])
 
-  // Ctrl+Shift+D toggles dev mode globally
+  // Initialize devMode from main process — false in packaged builds, localStorage in dev
+  useEffect(() => {
+    window.api?.getIsDev?.().then(isDev => {
+      if (isDev) setDevMode(localStorage.getItem('devMode') === '1')
+    })
+  }, [])
+
+  // Ctrl+Shift+D toggles dev mode — only active when running in dev (not packaged)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+      if (!(e.ctrlKey && e.shiftKey && e.key === 'D')) return
+      window.api?.getIsDev?.().then(isDev => {
+        if (!isDev) return
         setDevMode(prev => {
           const next = !prev
           localStorage.setItem('devMode', next ? '1' : '0')
           return next
         })
-      }
+      })
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
+
+  // Subscribe to auto-updater events from main process (registered once, never unmounts)
+  useEffect(() => {
+    window.api?.onUpdateAvailable?.(setUpdateInfo)
+    window.api?.onUpdateProgress?.(setUpdateProgress)
+    window.api?.onUpdateDownloaded?.(() => { setUpdateDownloaded(true); setUpdateDownloading(false) })
+  }, [])
+
+  const handleUpdateDownload = async () => {
+    setUpdateDownloading(true)
+    await window.api?.downloadUpdate?.()
+  }
 
   // useMemo/useCallback must be before the early return to satisfy React's hooks rules.
   // effectiveConditions: prevents new array ref every render → stops infinite stats useEffect loop.
@@ -187,7 +216,31 @@ function App() {
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
-  const goToBuildSelect = () => setScreen('build-select')
+  const goToBuildSelect = () => {
+    if (isDirty) {
+      setUnsavedSaveName(session.buildName)
+      setUnsavedPromptOpen(true)
+    } else {
+      setScreen('build-select')
+    }
+  }
+
+  const handleUnsavedSave = async () => {
+    const name = session.buildId ? session.buildName : (unsavedSaveName.trim() || 'Untitled')
+    setUnsavedSaving(true)
+    try {
+      await saveBuild(name)        // already calls setIsDirty(false)
+      setUnsavedPromptOpen(false)
+      setScreen('build-select')
+    } catch { /* save failed — leave prompt open so user can retry */ }
+    finally { setUnsavedSaving(false) }
+  }
+
+  const handleUnsavedDiscard = () => {
+    setIsDirty(false)
+    setUnsavedPromptOpen(false)
+    setScreen('build-select')
+  }
 
   const startNewBuild = () => {
     setSession(emptySession())
@@ -438,6 +491,7 @@ function App() {
   if (screen === 'build-select') {
     return (
       <>
+        {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
         <BuildSelectScreen
           onNewBuild={startNewBuild}
           onOpenBuild={openBuild}
@@ -451,6 +505,7 @@ function App() {
   if (screen === 'build-overview') {
     return (
       <>
+        {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
         <BuildOverviewScreen
           buildName={session.buildName}
           buildId={session.buildId}
@@ -475,9 +530,54 @@ function App() {
           traitId={session.traitId}
           onSave={saveBuild}
           onSaveAs={saveAsBuild}
+          getBuildPayload={() => ({
+            name: session.buildName,
+            characterLevel: session.characterLevel,
+            hasPrism: session.hasPrism,
+            slots: session.slots,
+            slates: session.slates,
+            conditions: session.conditions,
+            conditionValues: session.conditionValues,
+            gear: session.gear,
+            skills: session.skills,
+            traitId: session.traitId,
+            traitSlotLevels: session.traitSlotLevels,
+            advancedTraitSelections: session.advancedTraitSelections,
+          })}
           devMode={devMode}
         />
         {cascadeOverlay}
+        {unsavedPromptOpen && (
+          <div className="modal-backdrop">
+            <div className="modal-card" onClick={e => e.stopPropagation()}>
+              <div className="modal-accent" />
+              <h3 className="modal-title">Unsaved Changes</h3>
+              <p style={{ padding: '0 20px 12px', color: '#aaa', fontSize: 13, lineHeight: 1.6 }}>
+                {session.buildId
+                  ? `Save "${session.buildName || 'this build'}" before leaving?`
+                  : 'This build has unsaved changes. Save it before leaving?'}
+              </p>
+              {!session.buildId && (
+                <input
+                  className="modal-input"
+                  type="text"
+                  placeholder="Build name…"
+                  value={unsavedSaveName}
+                  onChange={e => setUnsavedSaveName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleUnsavedSave()}
+                  autoFocus
+                />
+              )}
+              <div className="modal-actions">
+                <button className="btn btn-primary" onClick={handleUnsavedSave} disabled={unsavedSaving}>
+                  {unsavedSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button className="btn btn-danger" onClick={handleUnsavedDiscard}>Discard</button>
+                <button className="btn btn-secondary" onClick={() => setUnsavedPromptOpen(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
       </>
     )
   }

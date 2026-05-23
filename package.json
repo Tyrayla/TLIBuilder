@@ -1,6 +1,6 @@
 {
   "name": "tli-builder",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "TLI Builder — talent tree build planner for The Last Immortal",
   "main": "./out/main/index.js",
   "scripts": {
@@ -9,6 +9,8 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "build:win": "npm run build && electron-builder --win",
+    "build:backend": "cd backend && python -m PyInstaller backend.spec --distpath ../backend-dist --workpath ../backend-build --noconfirm",
+    "build:release": "npm run build:backend && npm run build && electron-builder --win",
     "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false",
     "test": "vitest run"
   },
@@ -41,6 +43,34 @@
     ],
     "win": {
       "executableName": "TLIBuilder"
+    },
+    "extraResources": [
+      {
+        "from": "backend-dist/backend.exe",
+        "to": "backend.exe"
+      },
+      {
+        "from": "data",
+        "to": "data",
+        "filter": [
+          "**/*",
+          "!builds/.gitkeep"
+        ]
+      }
+    ],
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Tyrayla",
+      "repo": "TLIBuilder"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
   }
 }

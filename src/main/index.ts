@@ -4,6 +4,8 @@ const { app, shell, BrowserWindow, ipcMain, dialog } =
 import { join } from 'path'
 import { spawn, execFileSync, ChildProcess } from 'child_process'
 import { Socket } from 'net'
+import { existsSync, cpSync } from 'fs'
+import { autoUpdater } from 'electron-updater'
 
 const isDev = process.env.NODE_ENV === 'development'
 const isVerbose = process.env.VERBOSE === 'true'
@@ -87,19 +89,48 @@ function killPortProcess(port: number): void {
   }
 }
 
+function bootstrapDataDir(): string {
+  if (!app.isPackaged) {
+    return join(__dirname, '../../data')
+  }
+  const userDataPath = join(app.getPath('userData'), 'data')
+  if (!existsSync(userDataPath)) {
+    log(`bootstrapDataDir — first launch, copying bundled data to ${userDataPath}`)
+    cpSync(join(process.resourcesPath, 'data'), userDataPath, { recursive: true })
+  }
+  return userDataPath
+}
+
 function startPython(): Promise<void> {
   return new Promise((resolve) => {
     log('startPython — begin')
     killPortProcess(8765)
 
-    const script = join(__dirname, '../../backend/server.py')
-    const cwd = join(__dirname, '../../backend')
-    log(`startPython — spawning: python ${script} --port ${PYTHON_PORT}`)
-    log(`startPython — cwd: ${cwd}`)
-
+    const dataDir = bootstrapDataDir()
     const pythonArgs = ['--port', String(PYTHON_PORT)]
     if (isVerbose) pythonArgs.push('--verbose')
-    pythonProcess = spawn('python', [script, ...pythonArgs], { cwd })
+
+    let spawnCmd: string
+    let spawnArgs: string[]
+    let spawnOpts: { cwd?: string; env?: NodeJS.ProcessEnv }
+
+    if (app.isPackaged) {
+      spawnCmd = join(process.resourcesPath, 'backend.exe')
+      spawnArgs = pythonArgs
+      spawnOpts = { env: { ...process.env, TLI_DATA_DIR: dataDir } }
+      log(`startPython — packaged mode, spawning: ${spawnCmd}`)
+      log(`startPython — TLI_DATA_DIR: ${dataDir}`)
+    } else {
+      const script = join(__dirname, '../../backend/server.py')
+      const cwd = join(__dirname, '../../backend')
+      spawnCmd = 'python'
+      spawnArgs = [script, ...pythonArgs]
+      spawnOpts = { cwd }
+      log(`startPython — dev mode, spawning: python ${script} --port ${PYTHON_PORT}`)
+      log(`startPython — cwd: ${cwd}`)
+    }
+
+    pythonProcess = spawn(spawnCmd, spawnArgs, spawnOpts)
 
     pythonProcess.stdout?.on('data', (data: Buffer) => {
       const msg = data.toString().trim()
@@ -139,6 +170,32 @@ function startPython(): Promise<void> {
         resolve()
       }
     }, 5000)
+  })
+}
+
+function initUpdater(win: typeof BrowserWindow.prototype): void {
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
+
+  autoUpdater.on('update-available', (info) => {
+    win.webContents.send('update-available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes ?? '',
+      releaseDate: info.releaseDate,
+    })
+  })
+  autoUpdater.on('download-progress', (p) => {
+    win.webContents.send('update-download-progress', Math.round(p.percent))
+  })
+  autoUpdater.on('update-downloaded', () => {
+    win.webContents.send('update-downloaded')
+  })
+  autoUpdater.on('error', (e) => {
+    err('autoUpdater error:', e)
+  })
+
+  win.once('ready-to-show', () => {
+    setTimeout(() => autoUpdater.checkForUpdates(), 3000)
   })
 }
 
@@ -230,6 +287,8 @@ app.whenReady().then(async () => {
     })
   })
 
+  ipcMain.handle('get-is-dev', () => !app.isPackaged)
+
   ipcMain.handle('api-request', async (_event, { method, path, body }: { method: string; path: string; body?: unknown }) => {
     const url = `http://127.0.0.1:${PYTHON_PORT}/api${path}`
     try {
@@ -260,6 +319,9 @@ app.whenReady().then(async () => {
     }
   })
 
+  ipcMain.handle('download-update', () => autoUpdater.downloadUpdate())
+  ipcMain.handle('install-update', () => autoUpdater.quitAndInstall(false, true))
+
   log('app.whenReady — calling startPython')
   await startPython()
   log(`app.whenReady — startPython done, PYTHON_PORT=${PYTHON_PORT}`)
@@ -269,6 +331,11 @@ app.whenReady().then(async () => {
   log('app.whenReady — waitForPort done, calling createWindow')
 
   createWindow()
+
+  if (app.isPackaged) {
+    const mainWin = BrowserWindow.getAllWindows()[0]
+    if (mainWin) initUpdater(mainWin)
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
