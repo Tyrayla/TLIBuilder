@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  api, LegendaryGearItem, LegendaryAffix, LegendaryNumericValue,
-  EquippedGearItem, CustomizedAffix, GearSlot,
+  api, LegendaryGearItem, LegendaryGearIndexItem, LegendaryAffix, LegendaryNumericValue,
+  EquippedGearItem, CustomizedAffix, GearSlot, CraftBaseType, CraftAffix, CraftBaseItem, CraftBaseItemGroup,
 } from '../api/client'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -21,6 +21,94 @@ const SLOT_ORDER: { id: GearSlot; label: string }[] = [
 ]
 
 // ── Affix helpers ─────────────────────────────────────────────────────────────
+
+// Maps craft base type item_id to valid gear slots. Used to build a name→slot lookup
+// from the craft_base_types data, covering legendary base type names like "Imperishable Touch".
+const ITEM_ID_TO_SLOTS: Record<string, GearSlot[]> = {
+  belt: ['belt'], ring: ['ring1', 'ring2'], spirit_ring: ['ring1', 'ring2'],
+  necklace: ['amulet'],
+  dex_boots: ['boots'], str_boots: ['boots'], int_boots: ['boots'],
+  dex_gloves: ['gloves'], str_gloves: ['gloves'], int_gloves: ['gloves'],
+  dex_helmet: ['helmet'], str_helmet: ['helmet'], int_helmet: ['helmet'],
+  dex_chest_armor: ['chest'], str_chest_armor: ['chest'], int_chest_armor: ['chest'],
+  dex_shield: ['weapon2'], str_shield: ['weapon2'], int_shield: ['weapon2'],
+  bow: ['weapon1', 'weapon2'], crossbow: ['weapon1', 'weapon2'],
+  two_handed_sword: ['weapon1'], two_handed_axe: ['weapon1'], two_handed_hammer: ['weapon1'],
+  musket: ['weapon1'], fire_cannon: ['weapon1'], tin_staff: ['weapon1'],
+  one_handed_sword: ['weapon1', 'weapon2'], one_handed_axe: ['weapon1', 'weapon2'],
+  one_handed_hammer: ['weapon1', 'weapon2'], dagger: ['weapon1', 'weapon2'],
+  claw: ['weapon1', 'weapon2'], wand: ['weapon1', 'weapon2'], scepter: ['weapon1', 'weapon2'],
+  pistol: ['weapon1', 'weapon2'], cane: ['weapon1', 'weapon2'], rod: ['weapon1', 'weapon2'],
+  cudgel: ['weapon1', 'weapon2'],
+}
+
+// Maps an item's base_type name to the GearSlot(s) it's valid for.
+// slotMap (built from craftBases.base_items) is tried first to handle unusual names
+// like "Imperishable Touch" (gloves) that don't match keyword patterns.
+function getValidSlots(baseType: string, slotMap?: Record<string, GearSlot[]>): GearSlot[] {
+  if (slotMap?.[baseType]?.length) return slotMap[baseType]
+  const b = (baseType ?? '').toLowerCase()
+  if (/belt|girdle|waistguard/.test(b)) return ['belt']
+  if (/necklace|pendant|amulet/.test(b)) return ['amulet']
+  if (/\bring\b/.test(b)) return ['ring1', 'ring2']
+  if (/crown|helmet|mask|miter|headdress|headscarf|hood/.test(b)) return ['helmet']
+  if (/robe|coat|chestguard|chest armor|outerwear|armor|vest|skin|protection|body/.test(b)) return ['chest']
+  if (/gloves|handguards|gauntlets|wristband|wrists|wristguard|grip/.test(b)) return ['gloves']
+  if (/boots|sabatons|slippers|treads|greaves|shoes|feet/.test(b)) return ['boots']
+  if (/shield/.test(b)) return ['weapon2']
+  if (/sword|axe|hammer|bow|crossbow|dagger|claw|wand|staff|scepter|musket|pistol|cannon|rod|spear|mace|cudgel|cane/.test(b)) return ['weapon1', 'weapon2']
+  return []
+}
+
+function getItemSlots(item: EquippedGearItem): GearSlot[] {
+  if (!item.slot) return []
+  return Array.isArray(item.slot) ? item.slot : [item.slot]
+}
+
+function itemHasSlot(item: EquippedGearItem, slot: GearSlot): boolean {
+  return getItemSlots(item).includes(slot)
+}
+
+function isLegendaryGearItem(item: LegendaryGearItem | EquippedGearItem): item is LegendaryGearItem {
+  return 'variants' in item
+}
+
+function getGearTypeLabel(baseType: string): string {
+  const b = (baseType ?? '').toLowerCase()
+  if (/belt|girdle|waistguard/.test(b)) return 'Belt'
+  if (/necklace|pendant|amulet/.test(b)) return 'Amulet'
+  if (/\bring\b/.test(b)) return 'Ring'
+  if (/crown|helmet|mask|miter|headdress|headscarf|hood/.test(b)) return 'Helmet'
+  if (/robe|coat|chestguard|chest armor|outerwear|armor|vest|skin|protection|body/.test(b)) return 'Chest Armor'
+  if (/gloves|handguards|gauntlets|wristband|wrists|wristguard|grip/.test(b)) return 'Gloves'
+  if (/boots|sabatons|slippers|treads|greaves|shoes|feet/.test(b)) return 'Boots'
+  if (/shield/.test(b)) return 'Shield'
+  if (/sword|axe|hammer|bow|crossbow|dagger|claw|wand|staff|scepter|musket|pistol|cannon|rod|spear|mace|cudgel|cane/.test(b)) return 'Weapon'
+  return ''
+}
+
+function getItemImplicits(item: LegendaryGearItem): LegendaryAffix[] {
+  const variantKey = Object.keys(item.variants)[0] ?? 'base'
+  return item.variants[variantKey]?.implicits ?? []
+}
+
+function getItemExplicits(item: LegendaryGearItem): LegendaryAffix[] {
+  const variantKey = Object.keys(item.variants)[0] ?? 'base'
+  const variant = item.variants[variantKey]
+  if (!variant) return []
+  const affixes: LegendaryAffix[] = [...variant.explicits]
+  for (const group of (item.random_affixes[variantKey] ?? [])) {
+    affixes.push({
+      raw_text: group.placeholder,
+      modifier_id: null,
+      expression: group.placeholder,
+      condition: null,
+      affix_kind: 'placeholder',
+      numeric_values: [],
+    })
+  }
+  return affixes
+}
 
 function getItemAffixes(item: LegendaryGearItem | EquippedGearItem): LegendaryAffix[] {
   if ('customizations' in item) return item.affixes
@@ -56,6 +144,21 @@ function decimalPlaces(n: number): number {
   const s = String(n)
   const dot = s.indexOf('.')
   return dot === -1 ? 0 : s.length - dot - 1
+}
+
+// Returns midpoints between each consecutive snap position, for datalist tick marks.
+// n steps → n ticks. Empty array when range is trivial or too dense.
+function buildTicks(sliderMin: number, sliderMax: number, step: number): number[] {
+  if (step <= 0) return []
+  const n = Math.round((sliderMax - sliderMin) / step)
+  if (n <= 1 || n > 200) return []
+  const ticks: number[] = []
+  for (let i = 0; i < n; i++) {
+    const v = sliderMin + i * step
+    const next = sliderMin + (i + 1) * step
+    ticks.push(+(((v + next) / 2).toFixed(10)))
+  }
+  return ticks
 }
 
 function rangeDecimals(nv: LegendaryNumericValue): number {
@@ -101,14 +204,50 @@ function tooltipAffixText(affix: LegendaryAffix, affixIdx: number, customization
 
 function GearTooltip({ state }: { state: TooltipState }) {
   const customizations = 'customizations' in state.item ? state.item.customizations : undefined
+  const baseType = ('base_type' in state.item ? state.item.base_type : undefined) ?? ''
+  const typeLabel = getGearTypeLabel(baseType)
+  const lgItem = isLegendaryGearItem(state.item) ? state.item : null
+  const implicits = lgItem ? getItemImplicits(lgItem) : []
+  const explicits = lgItem ? getItemExplicits(lgItem) : []
+
   return createPortal(
     <div className="gear-tooltip-portal" style={{ left: state.x + 16, top: state.y - 10 }}>
+      {typeLabel && <div className="gear-tooltip-type">{typeLabel}</div>}
       <div className="gear-tooltip-name">{state.item.name}</div>
+      {baseType && <div className="gear-tooltip-base">Base: {baseType}</div>}
       <div className="gear-tooltip-level">Required Level: {state.item.required_level}</div>
       <div className="gear-tooltip-divider" />
-      {getItemAffixes(state.item).map((affix, i) => (
-        <div key={i} className="gear-tooltip-affix">{tooltipAffixText(affix, i, customizations)}</div>
-      ))}
+      {lgItem ? (
+        <>
+          {implicits.map((affix, i) => (
+            <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">{affix.raw_text}</div>
+          ))}
+          {implicits.length > 0 && explicits.length > 0 && (
+            <div className="gear-tooltip-divider gear-tooltip-section-line" />
+          )}
+          {explicits.map((affix, i) => (
+            <div key={i} className="gear-tooltip-affix">{tooltipAffixText(affix, implicits.length + i, customizations)}</div>
+          ))}
+        </>
+      ) : (() => {
+        const craftItem = state.item as EquippedGearItem
+        const implCount = craftItem.implicit_count ?? 0
+        const craftImplicits = craftItem.affixes.slice(0, implCount)
+        const craftExplicits = craftItem.affixes.slice(implCount)
+        return (
+          <>
+            {craftImplicits.map((affix, i) => (
+              <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">{affix.raw_text}</div>
+            ))}
+            {craftImplicits.length > 0 && craftExplicits.length > 0 && (
+              <div className="gear-tooltip-divider gear-tooltip-section-line" />
+            )}
+            {craftExplicits.map((affix, i) => (
+              <div key={i} className="gear-tooltip-affix">{tooltipAffixText(affix, implCount + i, customizations)}</div>
+            ))}
+          </>
+        )
+      })()}
     </div>,
     document.body
   )
@@ -121,11 +260,13 @@ interface SlotDropdownProps {
   rect: DOMRect
   equippedItems: EquippedGearItem[]
   currentIdx: number
+  slotMap: Record<string, GearSlot[]>
+  weapon1Is2H: boolean
   onSelect: (slot: GearSlot, idx: number | null) => void
   onClose: () => void
 }
 
-function SlotDropdownPortal({ slotId, rect, equippedItems, currentIdx, onSelect, onClose }: SlotDropdownProps) {
+function SlotDropdownPortal({ slotId, rect, equippedItems, currentIdx, slotMap, weapon1Is2H, onSelect, onClose }: SlotDropdownProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -136,27 +277,46 @@ function SlotDropdownPortal({ slotId, rect, equippedItems, currentIdx, onSelect,
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose])
 
+  const slot2HBlocked = slotId === 'weapon2' && weapon1Is2H
+
   return createPortal(
     <div
       ref={ref}
       className="gear-slot-menu"
       style={{ position: 'fixed', left: rect.left, top: rect.bottom + 4, minWidth: rect.width }}
     >
-      <div
-        className="gear-slot-menu-option gear-slot-menu-empty"
-        onClick={() => onSelect(slotId, null)}
-      >
-        — Empty —
-      </div>
-      {equippedItems.map((item, i) => (
-        <div
-          key={i}
-          className={`gear-slot-menu-option${i === currentIdx ? ' gear-slot-menu-option--current' : ''}`}
-          onClick={() => onSelect(slotId, i)}
-        >
-          {item.name}
+      {slot2HBlocked ? (
+        <div className="gear-slot-menu-option gear-slot-menu-option--incompatible" style={{ cursor: 'default' }}>
+          Blocked — 2H weapon in Weapon 1
         </div>
-      ))}
+      ) : (
+        <>
+          <div
+            className="gear-slot-menu-option gear-slot-menu-empty"
+            onClick={() => onSelect(slotId, null)}
+          >
+            — Empty —
+          </div>
+          {equippedItems.map((item, i) => {
+            const validSlots = item.base_type ? getValidSlots(item.base_type, slotMap) : []
+            const slotCompatible = validSlots.length === 0 || validSlots.includes(slotId)
+            // Only show items that can go in this slot type; always show currently equipped item
+            if (!slotCompatible && i !== currentIdx) return null
+            // 2H conflict: item is slot-compatible but weapon1 has 2H
+            const is2HConflict = slotCompatible && slotId === 'weapon2' && weapon1Is2H && i !== currentIdx
+            return (
+              <div
+                key={i}
+                className={`gear-slot-menu-option${i === currentIdx ? ' gear-slot-menu-option--current' : ''}${is2HConflict ? ' gear-slot-menu-option--incompatible' : ''}`}
+                onClick={() => !is2HConflict ? onSelect(slotId, i) : undefined}
+                title={is2HConflict ? `Cannot equip in this slot — 2H weapon in Weapon 1` : undefined}
+              >
+                {item.name}
+              </div>
+            )
+          })}
+        </>
+      )}
     </div>,
     document.body
   )
@@ -171,9 +331,14 @@ interface CustomizePanelProps {
   onCustomizationChange: (customizations: CustomizedAffix[]) => void
   onConfirm: () => void
   onCancel: () => void
+  baseItemImplicits: Record<string, string[]>
 }
 
-function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel }: CustomizePanelProps) {
+function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits }: CustomizePanelProps) {
+  const [hoveredAffix, setHoveredAffix] = useState<{ idx: number; x: number; y: number } | null>(null)
+  const [baseHoverPos, setBaseHoverPos] = useState<{ x: number; y: number } | null>(null)
+  const custPanelId = useId()
+
   if (!item) {
     return (
       <div className="gear-customize-panel gear-customize-empty">
@@ -198,71 +363,152 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
     return cust?.chosen_values ?? {}
   }
 
-  return (
-    <div className="gear-customize-panel">
-      <div className="gear-customize-header">
-        <div className="gear-customize-name">{item.name}</div>
-        <div className="gear-customize-level">Required Level: {item.required_level}</div>
-      </div>
-      <div className="gear-customize-divider" />
+  const isLegendary = isLegendaryGearItem(item)
+  const baseType = ('base_type' in item ? item.base_type : undefined) ?? ''
+  const typeLabel = getGearTypeLabel(baseType || (isLegendary ? '' : ''))
+  const implicits = isLegendary ? getItemImplicits(item) : []
+  const explicits = isLegendary ? getItemExplicits(item) : []
 
-      <div className="gear-customize-affixes">
-        {getItemAffixes(item).map((affix, affixIdx) => {
-          if (affix.affix_kind === 'placeholder') {
-            return (
-              <div key={affixIdx} className="gear-affix-row gear-affix-placeholder">
-                <div className="gear-affix-label gear-affix-label--dim">{affix.raw_text}</div>
-                <select className="gear-placeholder-select" disabled>
-                  <option>— Select affix —</option>
-                </select>
-              </div>
-            )
-          }
-
-          if (!hasRangeValues(affix)) {
-            return (
-              <div key={affixIdx} className="gear-affix-row">
-                <div className="gear-affix-label">{affix.raw_text}</div>
-              </div>
-            )
-          }
-
-          const rangeIndices = getRangeIndices(affix)
-          const chosenMap = getChosenMap(affixIdx)
-          const displayText = reconstructAffixText(affix, {
-            ...Object.fromEntries(rangeIndices.map(i => [i, midpoint(affix.numeric_values[i])])),
-            ...chosenMap,
-          })
-
+  const renderAffixRow = (affix: LegendaryAffix, affixIdx: number) => {
+    if (affix.affix_kind === 'placeholder') {
+      return (
+        <div key={affixIdx} className="gear-affix-row gear-affix-placeholder">
+          <div className="gear-affix-label gear-affix-label--dim">{affix.raw_text}</div>
+          <select className="gear-placeholder-select" disabled>
+            <option>— Select affix —</option>
+          </select>
+        </div>
+      )
+    }
+    if (!hasRangeValues(affix)) {
+      return (
+        <div key={affixIdx} className="gear-affix-row">
+          <div className="gear-affix-label">{affix.raw_text}</div>
+        </div>
+      )
+    }
+    const rangeIndices = getRangeIndices(affix)
+    const chosenMap = getChosenMap(affixIdx)
+    const displayText = reconstructAffixText(affix, {
+      ...Object.fromEntries(rangeIndices.map(i => [i, midpoint(affix.numeric_values[i])])),
+      ...chosenMap,
+    })
+    return (
+      <div key={affixIdx} className="gear-affix-row gear-affix-range-row"
+        onMouseMove={e => setHoveredAffix({ idx: affixIdx, x: e.clientX, y: e.clientY })}
+        onMouseLeave={() => setHoveredAffix(null)}
+      >
+        <div className="gear-affix-label">{displayText}</div>
+        {rangeIndices.map(valIdx => {
+          const nv = affix.numeric_values[valIdx]
+          const nvSign = nv.sign ?? ''
+          const rawMin = nv.min ?? 0
+          const rawMax = nv.max ?? 0
+          const dp = rangeDecimals(nv)
+          const step = dp > 0 ? parseFloat((1 / Math.pow(10, dp)).toFixed(dp)) : 1
+          const sMin = nvSign === '-' ? -rawMin : rawMin
+          const sMax = nvSign === '-' ? -rawMax : rawMax
+          const actualMin = Math.min(sMin, sMax)
+          const actualMax = Math.max(sMin, sMax)
+          const ticks = buildTicks(actualMin, actualMax, step)
+          const listId = `${custPanelId}-${affixIdx}-${valIdx}`
+          const unsignedChosen = chosenMap[valIdx] ?? midpoint(nv)
+          const signedChosen = nvSign === '-' ? -unsignedChosen : unsignedChosen
+          const displayChosen = dp > 0 ? signedChosen.toFixed(dp) : signedChosen
           return (
-            <div key={affixIdx} className="gear-affix-row gear-affix-range-row">
-              <div className="gear-affix-label">{displayText}</div>
-              {rangeIndices.map(valIdx => {
-                const nv = affix.numeric_values[valIdx]
-                const min = nv.min ?? 0
-                const max = nv.max ?? 0
-                const dp = rangeDecimals(nv)
-                const step = dp > 0 ? parseFloat((1 / Math.pow(10, dp)).toFixed(dp)) : 1
-                const chosen = chosenMap[valIdx] ?? midpoint(nv)
-                const displayChosen = dp > 0 ? chosen.toFixed(dp) : chosen
-                return (
-                  <div key={valIdx} className="gear-slider-row">
-                    <input
-                      type="range"
-                      className="gear-affix-slider"
-                      min={min}
-                      max={max}
-                      step={step}
-                      value={chosen}
-                      onChange={e => setChosenValue(affixIdx, valIdx, Number(e.target.value))}
-                    />
-                    <span className="gear-affix-value">{displayChosen}</span>
-                  </div>
-                )
-              })}
+            <div key={valIdx} className="gear-slider-row">
+              <input
+                type="range"
+                className="gear-affix-slider"
+                list={ticks.length > 0 ? listId : undefined}
+                min={actualMin}
+                max={actualMax}
+                step={step}
+                value={signedChosen}
+                onChange={e => {
+                  const signed = Number(e.target.value)
+                  setChosenValue(affixIdx, valIdx, nvSign === '-' ? -signed : signed)
+                }}
+              />
+              {ticks.length > 0 && (
+                <datalist id={listId}>
+                  {ticks.map((t, ti) => <option key={ti} value={t} />)}
+                </datalist>
+              )}
+              <span className="gear-affix-value">{displayChosen}</span>
             </div>
           )
         })}
+      </div>
+    )
+  }
+
+  return (
+    <div className="gear-customize-panel">
+      <div className="gear-customize-header">
+        {typeLabel && <div className="gear-customize-type">{typeLabel}</div>}
+        <div className="gear-customize-name">{item.name}</div>
+        {baseType && (() => {
+          const baseStats = baseItemImplicits[baseType] ?? []
+          const hasStats = baseStats.length > 0
+          return (
+            <div
+              className={`gear-customize-base${hasStats ? ' gear-customize-base--hoverable' : ''}`}
+              onMouseEnter={hasStats ? e => setBaseHoverPos({ x: e.clientX, y: e.clientY }) : undefined}
+              onMouseMove={hasStats ? e => setBaseHoverPos({ x: e.clientX, y: e.clientY }) : undefined}
+              onMouseLeave={hasStats ? () => setBaseHoverPos(null) : undefined}
+            >
+              Base: {baseType}
+            </div>
+          )
+        })()}
+        <div className="gear-customize-level">Required Level: {item.required_level}</div>
+      </div>
+      {baseHoverPos && (() => {
+        const baseStats = baseItemImplicits[baseType] ?? []
+        if (!baseStats.length) return null
+        return createPortal(
+          <div
+            className="gear-base-stat-tooltip"
+            style={{
+              left: Math.min(baseHoverPos.x + 16, window.innerWidth - 260),
+              top: Math.min(baseHoverPos.y - 10, window.innerHeight - 150),
+            }}
+          >
+            <div className="gear-base-stat-tooltip-name">{baseType}</div>
+            {baseStats.map((line, i) => (
+              <div key={i} className="gear-base-stat-tooltip-stat">{line}</div>
+            ))}
+          </div>,
+          document.body
+        )
+      })()}
+      <div className="gear-customize-divider" />
+
+      <div className="gear-customize-affixes">
+        {isLegendary ? (
+          <>
+            {implicits.map((affix, i) => renderAffixRow(affix, i))}
+            {implicits.length > 0 && explicits.length > 0 && (
+              <div className="gear-affix-section-divider" />
+            )}
+            {explicits.map((affix, i) => renderAffixRow(affix, implicits.length + i))}
+          </>
+        ) : (() => {
+          const craftItem = item as EquippedGearItem
+          const implCount = craftItem.implicit_count ?? 0
+          const craftImplicits = craftItem.affixes.slice(0, implCount)
+          const craftExplicits = craftItem.affixes.slice(implCount)
+          return (
+            <>
+              {craftImplicits.map((affix, i) => renderAffixRow(affix, i))}
+              {craftImplicits.length > 0 && craftExplicits.length > 0 && (
+                <div className="gear-affix-section-divider" />
+              )}
+              {craftExplicits.map((affix, i) => renderAffixRow(affix, implCount + i))}
+            </>
+          )
+        })()}
       </div>
 
       <div className="gear-customize-actions">
@@ -271,6 +517,613 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
           {isEditing ? 'Save' : 'Add to Build'}
         </button>
       </div>
+      {hoveredAffix && item && (() => {
+        const hAffix = getItemAffixes(item)[hoveredAffix.idx]
+        if (!hAffix || !hasRangeValues(hAffix)) return null
+        const text = tooltipAffixText(hAffix, hoveredAffix.idx, customizations)
+        return createPortal(
+          <div className="gear-slider-tooltip" style={{ left: hoveredAffix.x + 16, top: Math.min(hoveredAffix.y - 10, window.innerHeight - 80) }}>
+            {text}
+          </div>,
+          document.body
+        )
+      })()}
+    </div>
+  )
+}
+
+// ── Craft metadata ────────────────────────────────────────────────────────────
+
+const CRAFT_CLASSIFICATIONS: Record<string, string> = {
+  bow: 'Two-Handed', crossbow: 'Two-Handed', two_handed_sword: 'Two-Handed',
+  two_handed_axe: 'Two-Handed', two_handed_hammer: 'Two-Handed',
+  musket: 'Two-Handed', fire_cannon: 'Two-Handed', tin_staff: 'Two-Handed',
+  one_handed_sword: 'One-Handed', one_handed_axe: 'One-Handed',
+  one_handed_hammer: 'One-Handed', dagger: 'One-Handed', claw: 'One-Handed',
+  wand: 'One-Handed', scepter: 'One-Handed', pistol: 'One-Handed',
+  cane: 'One-Handed', rod: 'One-Handed', cudgel: 'One-Handed',
+  str_shield: 'Shield', dex_shield: 'Shield', int_shield: 'Shield',
+}
+
+const TWO_HANDED_IDS = new Set(
+  Object.entries(CRAFT_CLASSIFICATIONS)
+    .filter(([, v]) => v === 'Two-Handed')
+    .map(([k]) => k)
+)
+
+function isTwoHandedBaseType(baseType: string, baseTypeToItemId: Record<string, string>): boolean {
+  const bt = baseType ?? ''
+  const typeId = baseTypeToItemId[bt] ?? bt.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+  return TWO_HANDED_IDS.has(typeId)
+}
+
+// Fixed crit + attack speed shared by all weapons of a type
+const CRAFT_WEAPON_STATS: Record<string, { crit: number; speed: number }> = {
+  bow: { crit: 500, speed: 1.5 }, crossbow: { crit: 500, speed: 1.5 },
+  two_handed_sword: { crit: 500, speed: 1.5 }, two_handed_axe: { crit: 500, speed: 1.5 },
+  two_handed_hammer: { crit: 500, speed: 1.5 }, musket: { crit: 500, speed: 1.5 },
+  fire_cannon: { crit: 500, speed: 1.5 }, tin_staff: { crit: 500, speed: 1.5 },
+  one_handed_sword: { crit: 500, speed: 1.5 }, one_handed_axe: { crit: 500, speed: 1.5 },
+  one_handed_hammer: { crit: 500, speed: 1.5 }, dagger: { crit: 500, speed: 1.5 },
+  claw: { crit: 500, speed: 1.5 }, pistol: { crit: 500, speed: 1.5 },
+  cudgel: { crit: 500, speed: 1.5 },
+  wand: { crit: 500, speed: 1.2 }, scepter: { crit: 500, speed: 1.2 },
+  cane: { crit: 500, speed: 1.2 }, rod: { crit: 500, speed: 1.2 },
+}
+
+// ── Craft helpers ─────────────────────────────────────────────────────────────
+
+interface CraftSlotState {
+  expression: string | null
+  affix: CraftAffix | null
+  chosenValues: Record<number, number>
+}
+
+const emptyCraftSlot = (): CraftSlotState => ({ expression: null, affix: null, chosenValues: {} })
+
+function tiersForModifier(pool: CraftAffix[], expression: string): CraftAffix[] {
+  return pool.filter(a => a.expression === expression)
+}
+
+function parseTierNum(tier: string): number {
+  const s = (tier ?? '').trim()
+  if (s.endsWith('+')) return parseFloat(s.slice(0, -1)) - 0.5
+  return parseFloat(s) || 0
+}
+
+function sortedTiers(tiers: CraftAffix[]): CraftAffix[] {
+  return [...tiers].sort((a, b) => parseTierNum(a.tier) - parseTierNum(b.tier))
+}
+
+function craftAffixToLegendary(a: CraftAffix): LegendaryAffix {
+  return {
+    raw_text: a.raw_text,
+    modifier_id: null,
+    expression: a.expression,
+    condition: a.condition,
+    affix_kind: a.affix_kind,
+    numeric_values: a.numeric_values,
+    stat_key: null,
+    unit: '',
+  }
+}
+
+// ── Grouped modifiers helper ───────────────────────────────────────────────────
+
+interface ModifierGroup { quality: string; expressions: string[] }
+
+function groupedModifiers(pool: CraftAffix[]): ModifierGroup[] {
+  const groups: Record<string, Set<string>> = {}
+  for (const a of pool) {
+    const quality = a.affix_type.replace(/\s*(Pre-fix|Suffix|Affix).*$/i, '').trim() || 'Other'
+    if (!groups[quality]) groups[quality] = new Set()
+    groups[quality].add(a.expression)
+  }
+  return ['Base', 'Basic', 'Advanced', 'Ultimate', 'Other']
+    .filter(q => groups[q])
+    .map(q => ({ quality: q, expressions: [...groups[q]].sort() }))
+}
+
+// ── Modifier searchable select ─────────────────────────────────────────────────
+
+interface ModifierSearchSelectProps {
+  pool: CraftAffix[]
+  value: string
+  onChange: (expr: string) => void
+}
+
+function ModifierSearchSelect({ pool, value, onChange }: ModifierSearchSelectProps) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!open) { setQuery(''); return }
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const groups = useMemo(() => groupedModifiers(pool), [pool])
+
+  const filteredExprs = useMemo(() => {
+    if (!query.trim()) return null
+    const q = query.toLowerCase()
+    return groups.flatMap(g => g.expressions).filter(e => e.toLowerCase().includes(q))
+  }, [query, groups])
+
+  return (
+    <div ref={containerRef} className="gear-craft-mod-select">
+      <div className={`gear-craft-mod-trigger${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)}>
+        <span className={value ? 'gear-craft-mod-value' : 'gear-craft-mod-placeholder'}>
+          {value || '— modifier —'}
+        </span>
+        {value && (
+          <span
+            className="gear-craft-mod-clear"
+            onMouseDown={e => { e.stopPropagation(); onChange(''); setOpen(false) }}
+          >×</span>
+        )}
+      </div>
+      {open && (
+        <div className="gear-craft-mod-dropdown">
+          <input
+            ref={inputRef}
+            className="gear-craft-mod-search"
+            placeholder="Search…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onMouseDown={e => e.stopPropagation()}
+          />
+          <div className="gear-craft-mod-list">
+            {filteredExprs !== null ? (
+              filteredExprs.length === 0
+                ? <div className="gear-craft-mod-empty">No matches</div>
+                : filteredExprs.map(expr => (
+                    <div
+                      key={expr}
+                      className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`}
+                      onMouseDown={() => { onChange(expr); setOpen(false) }}
+                    >{expr}</div>
+                  ))
+            ) : (
+              groups.map(g => (
+                <React.Fragment key={g.quality}>
+                  <div className="gear-craft-mod-group">{g.quality}</div>
+                  {g.expressions.map(expr => (
+                    <div
+                      key={expr}
+                      className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`}
+                      onMouseDown={() => { onChange(expr); setOpen(false) }}
+                    >{expr}</div>
+                  ))}
+                </React.Fragment>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Craft Slot Row ─────────────────────────────────────────────────────────────
+
+interface CraftSlotRowProps {
+  pool: CraftAffix[]
+  slot: CraftSlotState
+  onChange: (next: CraftSlotState) => void
+}
+
+function CraftSlotRow({ pool, slot, onChange }: CraftSlotRowProps) {
+  const [sliderHoverPos, setSliderHoverPos] = useState<{ x: number; y: number } | null>(null)
+  const craftSlotId = useId()
+  const rawTiers = useMemo(() => slot.expression ? tiersForModifier(pool, slot.expression) : [], [pool, slot.expression])
+  const tiers = useMemo(() => sortedTiers(rawTiers), [rawTiers])
+
+  // For slider: span the full range across all tiers when only 1 tier (no tier dropdown)
+  const sliderAffix = slot.affix
+  const dp = sliderAffix ? Math.max(...sliderAffix.numeric_values.map(nv => rangeDecimals(nv)), 0) : 0
+  const step = dp > 0 ? parseFloat((1 / Math.pow(10, dp)).toFixed(dp)) : 1
+
+  const handleModifierChange = (expr: string) => {
+    if (!expr) { onChange(emptyCraftSlot()); return }
+    const available = sortedTiers(tiersForModifier(pool, expr))
+    onChange({ expression: expr, affix: available[0] ?? null, chosenValues: {} })
+  }
+
+  const handleTierChange = (rawText: string) => {
+    const affix = tiers.find(a => a.raw_text === rawText) ?? null
+    onChange({ ...slot, affix, chosenValues: {} })
+  }
+
+  const handleSliderChange = (valIdx: number, val: number) => {
+    onChange({ ...slot, chosenValues: { ...slot.chosenValues, [valIdx]: val } })
+  }
+
+  return (
+    <div className="gear-craft-slot">
+      <div className="gear-craft-slot-row">
+        <ModifierSearchSelect pool={pool} value={slot.expression ?? ''} onChange={handleModifierChange} />
+        {slot.expression && tiers.length > 1 && (
+          <select
+            className="gear-craft-select gear-craft-select--tier"
+            value={slot.affix?.raw_text ?? ''}
+            onChange={e => handleTierChange(e.target.value)}
+          >
+            {tiers.map(a => (
+              <option key={a.raw_text} value={a.raw_text}>Tier: {a.tier}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {sliderAffix && sliderAffix.numeric_values.some(v => v.kind === 'range') && (
+        <div className="gear-craft-sliders"
+          onMouseMove={e => setSliderHoverPos({ x: e.clientX, y: e.clientY })}
+          onMouseLeave={() => setSliderHoverPos(null)}
+        >
+          {sliderAffix.numeric_values.map((nv, valIdx) => {
+            if (nv.kind !== 'range') return null
+            const nvSign = nv.sign ?? ''
+            const rawMin = nv.min ?? 0
+            const rawMax = nv.max ?? 0
+            const sMin = nvSign === '-' ? -rawMin : rawMin
+            const sMax = nvSign === '-' ? -rawMax : rawMax
+            const actualMin = Math.min(sMin, sMax)
+            const actualMax = Math.max(sMin, sMax)
+            const ticks = buildTicks(actualMin, actualMax, step)
+            const listId = `${craftSlotId}-${valIdx}`
+            const unsignedChosen = slot.chosenValues[valIdx] ?? midpoint(nv)
+            const signedChosen = nvSign === '-' ? -unsignedChosen : unsignedChosen
+            const display = dp > 0 ? signedChosen.toFixed(dp) : signedChosen
+            return (
+              <div key={valIdx} className="gear-slider-row">
+                <input
+                  type="range" className="gear-affix-slider"
+                  list={ticks.length > 0 ? listId : undefined}
+                  min={actualMin} max={actualMax} step={step} value={signedChosen}
+                  onChange={e => {
+                    const signed = Number(e.target.value)
+                    handleSliderChange(valIdx, nvSign === '-' ? -signed : signed)
+                  }}
+                />
+                {ticks.length > 0 && (
+                  <datalist id={listId}>
+                    {ticks.map((t, ti) => <option key={ti} value={t} />)}
+                  </datalist>
+                )}
+                <span className="gear-affix-value">{display}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {sliderHoverPos && sliderAffix && createPortal(
+        <div className="gear-slider-tooltip" style={{ left: sliderHoverPos.x + 16, top: Math.min(sliderHoverPos.y - 10, window.innerHeight - 80) }}>
+          {reconstructAffixText(craftAffixToLegendary(sliderAffix), slot.chosenValues)}
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+// ── Base Item Selector (with hover tooltip) ────────────────────────────────────
+
+interface BaseItemSelectProps {
+  items: CraftBaseItem[]
+  selected: CraftBaseItem | null
+  onSelect: (bi: CraftBaseItem) => void
+  getTooltipLines: (bi: CraftBaseItem) => string[]
+}
+
+function BaseItemSelect({ items, selected, onSelect, getTooltipLines }: BaseItemSelectProps) {
+  const [open, setOpen] = useState(false)
+  const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null)
+  const [tooltipState, setTooltipState] = useState<{ item: CraftBaseItem; x: number; y: number } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const MAX_DROPDOWN_H = 200
+
+  useEffect(() => {
+    if (!open) setTooltipState(null)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) setOpen(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  const getDropdownStyle = (rect: DOMRect) => {
+    const spaceBelow = window.innerHeight - rect.bottom
+    const showAbove = spaceBelow < MAX_DROPDOWN_H + 4 && rect.top > MAX_DROPDOWN_H
+    return {
+      position: 'fixed' as const,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: MAX_DROPDOWN_H,
+      ...(showAbove
+        ? { bottom: window.innerHeight - rect.top + 2 }
+        : { top: rect.bottom + 2 }),
+    }
+  }
+
+  return (
+    <div className="gear-base-item-select">
+      <button
+        ref={triggerRef}
+        className="gear-base-item-trigger"
+        onClick={() => {
+          if (!open && triggerRef.current) setDropdownRect(triggerRef.current.getBoundingClientRect())
+          setOpen(o => !o)
+        }}
+      >
+        <span>{selected ? `${selected.name}` : '— select base —'}</span>
+        {selected && <span className="gear-base-item-trigger-level">Lv. {selected.required_level}</span>}
+        <span className="gear-base-item-trigger-arrow">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && dropdownRect && createPortal(
+        <div
+          ref={dropdownRef}
+          className="gear-base-item-dropdown"
+          style={getDropdownStyle(dropdownRect)}
+        >
+          {items.map(bi => (
+            <div
+              key={bi.name}
+              className={`gear-base-item-option${bi.name === selected?.name ? ' selected' : ''}`}
+              onMouseDown={() => { onSelect(bi); setOpen(false) }}
+              onMouseEnter={e => setTooltipState({ item: bi, x: e.clientX, y: e.clientY })}
+              onMouseMove={e => setTooltipState(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
+              onMouseLeave={() => setTooltipState(null)}
+            >
+              <span className="gear-base-item-name">{bi.name}</span>
+              <span className="gear-base-item-level">Lv. {bi.required_level}</span>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+      {tooltipState && createPortal(
+        <div
+          className="gear-base-item-tooltip"
+          style={{
+            left: Math.min(tooltipState.x + 16, window.innerWidth - 300),
+            top: Math.min(tooltipState.y - 10, window.innerHeight - 150),
+          }}
+        >
+          <div className="gear-base-item-tooltip-name">{tooltipState.item.name}</div>
+          <div className="gear-base-item-tooltip-level">Required Level: {tooltipState.item.required_level}</div>
+          {getTooltipLines(tooltipState.item).map((line, i) => (
+            <div key={i} className="gear-base-item-tooltip-stat">{line}</div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+// ── Craft Editor Panel ─────────────────────────────────────────────────────────
+
+interface CraftEditorProps {
+  craftBases: CraftBaseType[]
+  baseType: CraftBaseType | null
+  setBaseType: (bt: CraftBaseType | null) => void
+  baseItem: CraftBaseItem | null
+  setBaseItem: (bi: CraftBaseItem | null) => void
+  slots: CraftSlotState[]
+  setSlots: (slots: CraftSlotState[]) => void
+  onAddToBuild: (item: EquippedGearItem) => void
+  onClose: () => void
+  craftSearch: string
+  setCraftSearch: (s: string) => void
+  baseItemImplicits: Record<string, string[]>
+}
+
+function CraftEditorPanel({ craftBases, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits }: CraftEditorProps) {
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!baseType) setTimeout(() => searchRef.current?.focus(), 0)
+  }, [baseType])
+
+  const filteredBases = craftSearch.trim()
+    ? craftBases.filter(b => b.name.toLowerCase().includes(craftSearch.toLowerCase()))
+    : craftBases
+
+  const selectBase = (bt: CraftBaseType) => {
+    setBaseType(bt)
+    const sorted = [...bt.base_items].sort((a, b) => b.required_level - a.required_level)
+    setBaseItem(sorted[0] ?? null)
+    setSlots(Array.from({ length: 8 }, emptyCraftSlot))
+    setCraftSearch('')
+  }
+
+  const handleAddToBuild = () => {
+    if (!baseType) return
+    const filledAffixes = slots.map(s => s.affix).filter((a): a is CraftAffix => a !== null)
+    const itemName = baseItem?.name ?? baseType.name
+    const implicitTexts = baseItemImplicits[itemName] ?? []
+    const implicitAffixes: LegendaryAffix[] = implicitTexts.map(text => ({
+      raw_text: text,
+      modifier_id: null,
+      expression: text,
+      condition: null,
+      affix_kind: 'implicit' as const,
+      numeric_values: [],
+    }))
+    const implicitCount = implicitAffixes.length
+    const customizations: CustomizedAffix[] = []
+    let affixIdx = implicitCount
+    for (const s of slots) {
+      if (!s.affix) continue
+      if (Object.keys(s.chosenValues).length > 0) {
+        customizations.push({ affix_index: affixIdx, chosen_values: s.chosenValues, chosen_placeholder_key: null })
+      }
+      affixIdx++
+    }
+    onAddToBuild({
+      item_id: itemName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
+      name: `${itemName} (Crafted)`,
+      required_level: baseItem?.required_level ?? 0,
+      affixes: [...implicitAffixes, ...filledAffixes.map(craftAffixToLegendary)],
+      customizations,
+      slot: null,
+      base_type: itemName,
+      is_crafted: true,
+      implicit_count: implicitCount,
+    })
+    onClose()
+  }
+
+  const updateSlot = (i: number, next: CraftSlotState) =>
+    setSlots(slots.map((s, idx) => idx === i ? next : s))
+
+  const basePool = useMemo(() => baseType?.affixes.filter(a => a.affix_type === 'Base Affix') ?? [], [baseType])
+  const prefixPool = useMemo(() => baseType?.affixes.filter(a => a.affix_type.includes('Pre-fix')) ?? [], [baseType])
+  const suffixPool = useMemo(() => baseType?.affixes.filter(a => a.affix_type.includes('Suffix')) ?? [], [baseType])
+  const pools = useMemo(() => [basePool, basePool, prefixPool, prefixPool, prefixPool, suffixPool, suffixPool, suffixPool], [basePool, prefixPool, suffixPool])
+  const sortedBaseItems = useMemo(
+    () => baseType ? [...baseType.base_items].sort((a, b) => b.required_level - a.required_level) : [],
+    [baseType]
+  )
+
+  if (!baseType) {
+    return (
+      <div className="gear-customize-panel">
+        <div className="gear-slots-title">Craft Item</div>
+        <div className="gear-search-bar" style={{ margin: '8px 10px 4px' }}>
+          <input
+            ref={searchRef}
+            className="gear-search-input"
+            type="text"
+            placeholder="Search base type…"
+            value={craftSearch}
+            onChange={e => setCraftSearch(e.target.value)}
+          />
+          {craftSearch && <button className="gear-search-clear" onClick={() => setCraftSearch('')}>✕</button>}
+        </div>
+        <div className="gear-craft-results">
+          {filteredBases.map(bt => (
+            <div key={bt.item_id} className="gear-craft-result-row" onClick={() => selectBase(bt)}>{bt.name}</div>
+          ))}
+          {filteredBases.length === 0 && <div className="gear-empty" style={{ padding: '12px 10px' }}>No matches</div>}
+        </div>
+        <div style={{ padding: '8px 10px' }}>
+          <button className="btn btn-sm" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    )
+  }
+
+  const sectionLabels = ['BASE AFFIXES', '', 'PREFIXES', '', '', 'SUFFIXES', '', '']
+  const classification = CRAFT_CLASSIFICATIONS[baseType.item_id]
+  const weaponStats = CRAFT_WEAPON_STATS[baseType.item_id]
+  const currentItemName = baseItem?.name ?? baseType.name
+  const implicitTexts = baseItemImplicits[currentItemName] ?? []
+
+  return (
+    <div className="gear-customize-panel">
+      <div className="gear-craft-editing-header">
+        <div className="gear-craft-editing-header-top">
+          {classification && <span className="gear-craft-classification">{classification}</span>}
+          <span className="gear-craft-base-name">{baseType.name} (Crafted)</span>
+          <button className="gear-craft-reset-btn" onClick={() => { setBaseType(null); setBaseItem(null); setSlots(Array.from({ length: 8 }, emptyCraftSlot)) }} title="Back to search">←</button>
+        </div>
+        {sortedBaseItems.length > 0 && (
+          <BaseItemSelect
+            items={sortedBaseItems}
+            selected={baseItem}
+            onSelect={setBaseItem}
+            getTooltipLines={bi => {
+              const implicits = baseItemImplicits[bi.name] ?? []
+              if (implicits.length > 0) return implicits
+              const ws = CRAFT_WEAPON_STATS[baseType.item_id]
+              return ws ? [`${ws.crit} Critical Strike Rating`, `${ws.speed} Attack Speed`] : []
+            }}
+          />
+        )}
+        {baseItem && (
+          <div className="gear-craft-base-stats">
+            <span>Lv. {baseItem.required_level}</span>
+            {implicitTexts.length > 0
+              ? implicitTexts.map((text, i) => <span key={i} className="gear-craft-implicit">{text}</span>)
+              : weaponStats
+                ? <>
+                    <span>{weaponStats.crit} Crit</span>
+                    <span>{weaponStats.speed} APS</span>
+                  </>
+                : null
+            }
+          </div>
+        )}
+      </div>
+      <div className="gear-craft-slots-scroll">
+        {slots.map((slot, i) => (
+          <React.Fragment key={i}>
+            {sectionLabels[i] && <div className="gear-craft-section-label">{sectionLabels[i]}</div>}
+            <CraftSlotRow pool={pools[i]} slot={slot} onChange={next => updateSlot(i, next)} />
+          </React.Fragment>
+        ))}
+      </div>
+      <div className="gear-craft-actions">
+        <button className="btn btn-sm" onClick={onClose}>Cancel</button>
+        <button className="btn btn-sm btn-primary" onClick={handleAddToBuild} disabled={slots.every(s => !s.affix)}>
+          Add to Build
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Item Preview Card ─────────────────────────────────────────────────────────
+
+function ItemPreviewCard({ name, lines }: { name: string | null; lines: (string | null)[] | null }) {
+  if (!name || !lines) return null
+
+  const dividerIdx = lines.indexOf(null)
+  const hasImplicitExplicitSplit = dividerIdx !== -1
+  const implicitLines = hasImplicitExplicitSplit ? lines.slice(0, dividerIdx) as string[] : []
+  const explicitLines = hasImplicitExplicitSplit ? lines.slice(dividerIdx + 1).filter((l): l is string => l !== null) : []
+  const allLines = hasImplicitExplicitSplit ? null : lines.filter((l): l is string => l !== null)
+
+  return (
+    <div className="gear-preview-card">
+      <div className="gear-preview-name">{name}</div>
+      <div className="gear-preview-divider" />
+      {lines.length === 0 ? (
+        <div className="gear-preview-empty">No modifiers selected</div>
+      ) : hasImplicitExplicitSplit ? (
+        <>
+          {implicitLines.map((text, i) => (
+            <div key={`imp-${i}`} className="gear-preview-affix gear-preview-affix--implicit">{text}</div>
+          ))}
+          <div className="gear-preview-section-divider" />
+          {explicitLines.map((text, i) => (
+            <div key={`exp-${i}`} className="gear-preview-affix">{text}</div>
+          ))}
+        </>
+      ) : (
+        allLines!.map((text, i) => (
+          <div key={i} className="gear-preview-affix">{text}</div>
+        ))
+      )}
     </div>
   )
 }
@@ -283,50 +1136,110 @@ interface Props {
   onBack: () => void
 }
 
+function getItemQualityClass(item: EquippedGearItem): string {
+  if (!item.is_crafted) return 'quality-legendary'
+  const n = item.affixes.length
+  if (n === 0) return 'quality-normal'
+  if (n <= 2) return 'quality-magic'
+  if (n <= 5) return 'quality-rare'
+  return 'quality-unique'
+}
+
 export default function GearScreen({ equippedItems, onGearChange, onBack }: Props) {
+  const [catalogIndex, setCatalogIndex] = useState<LegendaryGearIndexItem[]>([])
   const [catalog, setCatalog] = useState<LegendaryGearItem[]>([])
+  const [catalogLoaded, setCatalogLoaded] = useState(false)
+  const [craftBaseItems, setCraftBaseItems] = useState<CraftBaseItemGroup[]>([])
+  const [craftBases, setCraftBases] = useState<CraftBaseType[]>([])
+  const [craftBasesLoaded, setCraftBasesLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<LegendaryGearItem | null>(null)
   const [editingBuildIdx, setEditingBuildIdx] = useState<number | null>(null)
   const [customizations, setCustomizations] = useState<CustomizedAffix[]>([])
+  // Craft state
+  const [craftOpen, setCraftOpen] = useState(false)
+  const [craftBaseType, setCraftBaseType] = useState<CraftBaseType | null>(null)
+  const [craftBaseItem, setCraftBaseItem] = useState<CraftBaseItem | null>(null)
+  const [craftSlots, setCraftSlots] = useState<CraftSlotState[]>(Array.from({ length: 8 }, emptyCraftSlot))
+  const [craftSearch, setCraftSearch] = useState('')
   const [slotDropdown, setSlotDropdown] = useState<{ slotId: GearSlot; rect: DOMRect } | null>(null)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOverSlot, setDragOverSlot] = useState<GearSlot | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
+  const openCraft = () => {
+    setCraftOpen(true)
+    setCraftBaseType(null)
+    setCraftBaseItem(null)
+    setCraftSlots(Array.from({ length: 8 }, emptyCraftSlot))
+    setCraftSearch('')
+    setSelectedCatalogItem(null)
+    setEditingBuildIdx(null)
+    setCustomizations([])
+    if (!craftBasesLoaded) {
+      api.getCraftBaseTypes()
+        .then(res => { setCraftBases(res.base_types); setCraftBasesLoaded(true) })
+        .catch(() => {})
+    }
+  }
+
+  const closeCraft = () => {
+    setCraftOpen(false)
+    setCraftBaseType(null)
+    setCraftBaseItem(null)
+    setCraftSlots(Array.from({ length: 8 }, emptyCraftSlot))
+    setCraftSearch('')
+  }
+
   useEffect(() => {
-    api.getLegendaryGear()
-      .then(res => setCatalog(res.items))
+    api.getLegendaryGearIndex()
+      .then(res => setCatalogIndex(res.items))
       .catch(() => {})
       .finally(() => setLoading(false))
+    api.getLegendaryGear()
+      .then(res => { setCatalog(res.items); setCatalogLoaded(true) })
+      .catch(() => {})
+    api.getCraftBaseItems()
+      .then(res => setCraftBaseItems(res.base_types))
+      .catch(() => {})
     searchRef.current?.focus()
   }, [])
 
+  const catalogMap = useMemo(() => new Map(catalog.map(item => [item.item_id, item])), [catalog])
+
   const q = search.trim().toLowerCase()
-  const filtered = q
-    ? catalog.filter(item =>
-        item.name.toLowerCase().includes(q) ||
-        getItemAffixes(item).some(a => a.raw_text.toLowerCase().includes(q))
-      )
-    : catalog
+  const filtered = useMemo(() => {
+    if (!q) return catalogIndex
+    return catalogIndex.filter(item => {
+      if (item.name.toLowerCase().includes(q)) return true
+      const full = catalogMap.get(item.item_id)
+      return full ? getItemAffixes(full).some(a => a.raw_text.toLowerCase().includes(q)) : false
+    })
+  }, [q, catalogIndex, catalogMap])
 
   const customizeItem: LegendaryGearItem | EquippedGearItem | null =
     editingBuildIdx !== null ? (equippedItems[editingBuildIdx] ?? null) : selectedCatalogItem
 
   const isEditing = editingBuildIdx !== null
 
-  const handleSelectCatalogItem = (item: LegendaryGearItem) => {
-    setSelectedCatalogItem(item)
+  const handleSelectCatalogItem = (indexItem: LegendaryGearIndexItem) => {
+    const full = catalogMap.get(indexItem.item_id)
+    if (!full) return
+    setSelectedCatalogItem(full)
     setEditingBuildIdx(null)
     setCustomizations([])
+    setCraftOpen(false)
+    setCraftBaseType(null)
   }
 
   const handleSelectBuildItem = (idx: number) => {
     setEditingBuildIdx(idx)
     setSelectedCatalogItem(null)
     setCustomizations(equippedItems[idx].customizations)
+    setCraftOpen(false)
+    setCraftBaseType(null)
   }
 
   const handleRemoveBuildItem = (idx: number) => {
@@ -350,6 +1263,7 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
       affixes: getItemAffixes(selectedCatalogItem),
       customizations,
       slot: null,
+      base_type: selectedCatalogItem.base_type,
     }
     onGearChange([...equippedItems, newItem])
     setSelectedCatalogItem(null)
@@ -372,11 +1286,31 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
   }
 
   const handleSlotAssign = (slot: GearSlot, buildItemIdx: number | null) => {
-    const next = equippedItems.map((item, i) => {
-      if (buildItemIdx !== null && i === buildItemIdx) return { ...item, slot }
-      if (item.slot === slot) return { ...item, slot: null as GearSlot | null }
+    let next = equippedItems.map((item, i) => {
+      if (buildItemIdx !== null && i === buildItemIdx) {
+        const current = getItemSlots(item)
+        if (current.includes(slot)) return item
+        const newSlots = [...current, slot]
+        return { ...item, slot: (newSlots.length === 1 ? newSlots[0] : newSlots) as GearSlot | GearSlot[] }
+      }
+      if (itemHasSlot(item, slot)) {
+        const newSlots = getItemSlots(item).filter(s => s !== slot)
+        return { ...item, slot: (newSlots.length === 0 ? null : newSlots.length === 1 ? newSlots[0] : newSlots) as GearSlot | GearSlot[] | null }
+      }
       return item
     })
+    // When assigning a 2H weapon to weapon1, clear weapon2 from all other items
+    if (slot === 'weapon1' && buildItemIdx !== null) {
+      const assignedItem = next[buildItemIdx]
+      if (isTwoHandedBaseType(assignedItem?.base_type ?? '', baseTypeToItemId)) {
+        next = next.map((item, i) => {
+          if (i === buildItemIdx) return item
+          const slots = getItemSlots(item).filter(s => s !== 'weapon2')
+          if (slots.length === getItemSlots(item).length) return item
+          return { ...item, slot: (slots.length === 0 ? null : slots.length === 1 ? slots[0] : slots) as GearSlot | GearSlot[] | null }
+        })
+      }
+    }
     onGearChange(next as EquippedGearItem[])
     setSlotDropdown(null)
   }
@@ -387,10 +1321,10 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
   }
 
   const getEquippedForSlot = (slotId: GearSlot): EquippedGearItem | null =>
-    equippedItems.find(item => item.slot === slotId) ?? null
+    equippedItems.find(item => itemHasSlot(item, slotId)) ?? null
 
   const getEquippedIdxForSlot = (slotId: GearSlot): number =>
-    equippedItems.findIndex(item => item.slot === slotId)
+    equippedItems.findIndex(item => itemHasSlot(item, slotId))
 
   const showTooltip = (item: LegendaryGearItem | EquippedGearItem, e: React.MouseEvent) =>
     setTooltip({ item, x: e.clientX, y: e.clientY })
@@ -400,13 +1334,123 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
 
   const hideTooltip = () => setTooltip(null)
 
+  const craftBaseSlotMap = useMemo((): Record<string, GearSlot[]> => {
+    const map: Record<string, GearSlot[]> = {}
+    for (const bt of craftBaseItems) {
+      const slots = ITEM_ID_TO_SLOTS[bt.item_id]
+      if (slots) {
+        for (const bi of bt.base_items) {
+          if (bi.name) map[bi.name] = slots
+        }
+      }
+    }
+    return map
+  }, [craftBaseItems])
+
+  const baseTypeToItemId = useMemo((): Record<string, string> => {
+    const map: Record<string, string> = {}
+    for (const bt of craftBaseItems) {
+      for (const bi of bt.base_items) {
+        if (bi.name) map[bi.name] = bt.item_id
+      }
+    }
+    return map
+  }, [craftBaseItems])
+
+  const weapon1Is2H = useMemo((): boolean => {
+    const w1 = equippedItems.find(item => itemHasSlot(item, 'weapon1'))
+    return isTwoHandedBaseType(w1?.base_type ?? '', baseTypeToItemId)
+  }, [equippedItems, baseTypeToItemId])
+
+  // Maps base item name → implicit raw texts (array). Sources in priority order:
+  // 1. Crawler base_items.implicits (from _craft_base_items.json)
+  // 2. Legendary catalog implicits (fallback for any base type with a matching legendary)
+  // 3. Craft base armor field for STR items
+  const baseItemImplicits = useMemo((): Record<string, string[]> => {
+    const map: Record<string, string[]> = {}
+    for (const bt of craftBaseItems) {
+      for (const bi of bt.base_items) {
+        if (bi.implicits && bi.implicits.length > 0) map[bi.name] = bi.implicits
+      }
+    }
+    for (const item of catalog) {
+      if (!item.base_type || map[item.base_type]) continue
+      const implicits = getItemImplicits(item)
+      if (implicits.length > 0) map[item.base_type] = implicits.map(a => a.raw_text)
+    }
+    for (const bt of craftBaseItems) {
+      for (const bi of bt.base_items) {
+        if (bi.armor && !map[bi.name]) {
+          map[bi.name] = [bi.armor.replace(/(\d)([A-Za-z])/g, '$1 $2')]
+        }
+      }
+    }
+    return map
+  }, [catalog, craftBaseItems])
+
+  const dragValidSlots = useMemo((): GearSlot[] => {
+    if (dragIdx === null) return []
+    const bt = equippedItems[dragIdx]?.base_type
+    if (!bt) return SLOT_ORDER.map(s => s.id)
+    const valid = getValidSlots(bt, craftBaseSlotMap)
+    let slots = valid.length > 0 ? valid : SLOT_ORDER.map(s => s.id)
+    // Block weapon2 when weapon1 has a 2H weapon (unless dragging that 2H weapon itself)
+    if (weapon1Is2H) {
+      const w1 = equippedItems.find(item => itemHasSlot(item, 'weapon1'))
+      if (equippedItems[dragIdx] !== w1) {
+        slots = slots.filter(s => s !== 'weapon2')
+      }
+    }
+    return slots
+  }, [dragIdx, equippedItems, craftBaseSlotMap, weapon1Is2H])
+
+  const previewName = useMemo((): string | null => {
+    if (craftOpen && craftBaseType) {
+      const baseName = craftBaseItem?.name ?? craftBaseType.name
+      return `${baseName} (Crafted)`
+    }
+    if (customizeItem) return customizeItem.name
+    return null
+  }, [craftOpen, craftBaseType, craftBaseItem, customizeItem])
+
+  const previewLines = useMemo((): (string | null)[] | null => {
+    if (craftOpen && craftBaseType) {
+      const itemName = craftBaseItem?.name ?? craftBaseType.name
+      const implicitTexts = baseItemImplicits[itemName] ?? []
+      const craftLines = craftSlots
+        .filter(s => s.affix !== null)
+        .map(s => reconstructAffixText(craftAffixToLegendary(s.affix!), s.chosenValues))
+      if (implicitTexts.length > 0 && craftLines.length > 0) return [...implicitTexts, null, ...craftLines]
+      if (implicitTexts.length > 0) return implicitTexts
+      return craftLines
+    }
+    if (customizeItem) {
+      if (isLegendaryGearItem(customizeItem)) {
+        const implicits = getItemImplicits(customizeItem)
+        const explicits = getItemExplicits(customizeItem)
+        const implicitLines = implicits.map((a, i) => tooltipAffixText(a, i, customizations))
+        const explicitLines = explicits.map((a, i) => tooltipAffixText(a, implicits.length + i, customizations))
+        if (implicits.length > 0 && explicits.length > 0) {
+          return [...implicitLines, null, ...explicitLines]
+        }
+        return [...implicitLines, ...explicitLines]
+      }
+      return getItemAffixes(customizeItem).map((affix, i) =>
+        tooltipAffixText(affix, i, customizations)
+      )
+    }
+    return null
+  }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, customizeItem, customizations, baseItemImplicits])
+
   const handleDragStart = (idx: number) => {
     setDragIdx(idx)
     setTooltip(null)
   }
 
   const handleDrop = (slotId: GearSlot) => {
-    if (dragIdx !== null) handleSlotAssign(slotId, dragIdx)
+    if (dragIdx !== null && dragValidSlots.includes(slotId)) {
+      handleSlotAssign(slotId, dragIdx)
+    }
     setDragIdx(null)
     setDragOverSlot(null)
   }
@@ -415,8 +1459,8 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
     <div className="screen gear-screen">
       <div className="gear-header">
         <button className="btn-back" onClick={onBack}>← Back</button>
-        <h2 className="title-accent" style={{ fontSize: 20 }}>Legendary Gear</h2>
-        <span className="gear-header-count">{catalog.length} items</span>
+        <h2 className="title-accent" style={{ fontSize: 20 }}>Gear</h2>
+        <span className="gear-header-count">{catalogIndex.length} items</span>
       </div>
 
       <div className="gear-body">
@@ -425,20 +1469,24 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
           <div className="gear-slots-title">Equipment</div>
           {SLOT_ORDER.map(slotDef => {
             const equipped = getEquippedForSlot(slotDef.id)
-            const equippedIdx = getEquippedIdxForSlot(slotDef.id)
-            const isDragOver = dragOverSlot === slotDef.id
+            const isDragging = dragIdx !== null
+            const isValidTarget = !isDragging || dragValidSlots.includes(slotDef.id)
+            const isDragOver = dragOverSlot === slotDef.id && isValidTarget
+            const is2HBlocked = slotDef.id === 'weapon2' && weapon1Is2H
             return (
               <div
                 key={slotDef.id}
-                className={`gear-slot-row${equipped ? ' gear-slot-occupied' : ''}${isDragOver ? ' gear-slot-drag-over' : ''}`}
-                onDragOver={e => { e.preventDefault(); setDragOverSlot(slotDef.id) }}
+                className={`gear-slot-row${equipped && !is2HBlocked ? ' gear-slot-occupied' : ''}${isDragOver ? ' gear-slot-drag-over' : ''}${isDragging && !isValidTarget ? ' gear-slot-invalid-target' : ''}${isDragging && isValidTarget ? ' gear-slot-valid-target' : ''}${is2HBlocked ? ' gear-slot-2h-blocked' : ''}`}
+                onDragOver={e => { if (isValidTarget && !is2HBlocked) e.preventDefault(); setDragOverSlot(slotDef.id) }}
                 onDragLeave={() => setDragOverSlot(null)}
-                onDrop={() => handleDrop(slotDef.id)}
+                onDrop={() => !is2HBlocked && handleDrop(slotDef.id)}
               >
                 <span className="gear-slot-name">{slotDef.label}</span>
-                {equipped ? (
+                {is2HBlocked ? (
+                  <span className="gear-slot-2h-label">2H</span>
+                ) : equipped ? (
                   <button
-                    className="gear-slot-item-name"
+                    className={`gear-slot-item-name ${getItemQualityClass(equipped)}`}
                     onClick={e => openSlotDropdown(slotDef.id, e)}
                     onMouseEnter={e => showTooltip(equipped, e)}
                     onMouseMove={moveTooltip}
@@ -477,12 +1525,12 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
                 onMouseMove={moveTooltip}
                 onMouseLeave={hideTooltip}
               >
-                <span className="gear-build-item-label">{item.name}</span>
-                {item.slot && (
-                  <span className="gear-build-item-slot">
-                    {SLOT_ORDER.find(s => s.id === item.slot)?.label}
+                <span className={`gear-build-item-label ${getItemQualityClass(item)}`}>{item.name}</span>
+                {getItemSlots(item).map(slotId => (
+                  <span key={slotId} className="gear-build-item-slot">
+                    {SLOT_ORDER.find(s => s.id === slotId)?.label}
                   </span>
-                )}
+                ))}
               </button>
               <button
                 className="gear-slot-remove"
@@ -493,18 +1541,45 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
           ))}
         </div>
 
-        {/* Panel 3: Customization */}
-        <CustomizePanel
-          item={customizeItem}
-          customizations={customizations}
-          isEditing={isEditing}
-          onCustomizationChange={setCustomizations}
-          onConfirm={isEditing ? handleSaveBuildItem : handleAddFromCatalog}
-          onCancel={handleCancel}
-        />
+        {/* Panel 3: Customize or Craft */}
+        <div className="gear-editor-column">
+          {craftOpen ? (
+            <CraftEditorPanel
+              craftBases={craftBases}
+              baseType={craftBaseType}
+              setBaseType={setCraftBaseType}
+              baseItem={craftBaseItem}
+              setBaseItem={setCraftBaseItem}
+              slots={craftSlots}
+              setSlots={setCraftSlots}
+              onAddToBuild={item => onGearChange([...equippedItems, item])}
+              onClose={closeCraft}
+              craftSearch={craftSearch}
+              setCraftSearch={setCraftSearch}
+              baseItemImplicits={baseItemImplicits}
+            />
+          ) : (
+            <CustomizePanel
+              item={customizeItem}
+              customizations={customizations}
+              isEditing={isEditing}
+              onCustomizationChange={setCustomizations}
+              onConfirm={isEditing ? handleSaveBuildItem : handleAddFromCatalog}
+              onCancel={handleCancel}
+              baseItemImplicits={baseItemImplicits}
+            />
+          )}
+          <ItemPreviewCard name={previewName} lines={previewLines} />
+        </div>
 
         {/* Panel 4: Legendary Catalog */}
         <div className="gear-catalog">
+          <div className="gear-catalog-header">
+            <button
+              className={`btn btn-sm btn-primary gear-craft-create-btn${craftOpen ? ' active' : ''}`}
+              onClick={openCraft}
+            >+ Create Item</button>
+          </div>
           <div className="gear-search-bar">
             <input
               ref={searchRef}
@@ -521,19 +1596,22 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
           <div className="gear-catalog-list">
             {loading && <div className="gear-empty">Loading…</div>}
             {!loading && filtered.length === 0 && <div className="gear-empty">No items found.</div>}
-            {filtered.map(item => (
-              <div
-                key={item.item_id}
-                className={`gear-catalog-item${selectedCatalogItem?.item_id === item.item_id && editingBuildIdx === null ? ' gear-catalog-item--selected' : ''}`}
-                onClick={() => handleSelectCatalogItem(item)}
-                onMouseEnter={e => showTooltip(item, e)}
-                onMouseMove={moveTooltip}
-                onMouseLeave={hideTooltip}
-              >
-                <span className="gear-catalog-item-name">{item.name}</span>
-                <span className="gear-catalog-item-level">Lv. {item.required_level}</span>
-              </div>
-            ))}
+            {filtered.map(item => {
+              const full = catalogMap.get(item.item_id)
+              return (
+                <div
+                  key={item.item_id}
+                  className={`gear-catalog-item${selectedCatalogItem?.item_id === item.item_id && editingBuildIdx === null && !craftOpen ? ' gear-catalog-item--selected' : ''}${!catalogLoaded ? ' gear-catalog-item--loading' : ''}`}
+                  onClick={() => handleSelectCatalogItem(item)}
+                  onMouseEnter={e => full && showTooltip(full, e)}
+                  onMouseMove={moveTooltip}
+                  onMouseLeave={hideTooltip}
+                >
+                  <span className="gear-catalog-item-name">{item.name}</span>
+                  <span className="gear-catalog-item-level">Lv. {item.required_level}</span>
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -544,6 +1622,8 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
           rect={slotDropdown.rect}
           equippedItems={equippedItems}
           currentIdx={getEquippedIdxForSlot(slotDropdown.slotId)}
+          slotMap={craftBaseSlotMap}
+          weapon1Is2H={weapon1Is2H}
           onSelect={handleSlotAssign}
           onClose={() => setSlotDropdown(null)}
         />

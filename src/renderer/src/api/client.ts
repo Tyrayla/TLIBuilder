@@ -456,12 +456,28 @@ export interface CraftAffix {
   numeric_values: LegendaryNumericValue[]
   source: string
   affix_type: string
+  tier: string
+}
+
+export interface CraftBaseItem {
+  name: string
+  required_level: number
+  armor: string | null
+  implicits: string[]  // base item implicit stats (from crawler when available)
 }
 
 export interface CraftBaseType {
   item_id: string
   name: string
   affixes: CraftAffix[]
+  base_items: CraftBaseItem[]
+}
+
+// Lightweight version — no affix pools, just base item metadata
+export interface CraftBaseItemGroup {
+  item_id: string
+  name: string
+  base_items: CraftBaseItem[]
 }
 
 export interface GraftAffix {
@@ -652,8 +668,9 @@ export function getSupportEnergyCost(isPassive: boolean, supportIdx: number): nu
 }
 
 // Per-gear-slot energy contribution (helm/gloves/boots/each 1H = 61; chest/2H = 122)
-function gearSlotEnergy(slot: GearSlot | null): number {
+function gearSlotEnergy(slot: GearSlot | GearSlot[] | null): number {
   if (!slot) return 0
+  if (Array.isArray(slot)) return slot.reduce((s, sl) => s + gearSlotEnergy(sl), 0)
   if (slot === 'chest') return 122
   if (slot === 'weapon1' || slot === 'weapon2') return 61  // refined when base_type known
   if (slot === 'helmet' || slot === 'gloves' || slot === 'boots') return 61
@@ -703,7 +720,7 @@ export interface LegendaryAffix {
   modifier_id: string | null
   expression: string
   condition: string | null
-  affix_kind: 'numeric' | 'special' | 'tagged' | 'placeholder'
+  affix_kind: 'numeric' | 'special' | 'tagged' | 'placeholder' | 'implicit'
   numeric_values: LegendaryNumericValue[]
   // resolved by backend at load time
   stat_key?: string | null
@@ -718,6 +735,13 @@ export interface LegendaryGearVariant {
 export interface LegendaryRandomAffixGroup {
   placeholder: string
   options: LegendaryAffix[]
+}
+
+export interface LegendaryGearIndexItem {
+  item_id: string
+  name: string
+  required_level: number
+  base_type: string
 }
 
 export interface LegendaryGearItem {
@@ -749,8 +773,11 @@ export interface EquippedGearItem {
   required_level: number
   affixes: LegendaryAffix[]
   customizations: CustomizedAffix[]
-  slot: GearSlot | null
-  base_stats?: Record<string, number>    // reserved for future base_type data
+  slot: GearSlot | GearSlot[] | null
+  base_type?: string
+  is_crafted?: boolean
+  base_stats?: Record<string, number>
+  implicit_count?: number
 }
 
 export interface GearAffixContribution {
@@ -895,6 +922,7 @@ export const api = {
       '/dev/import-crawler-skills', { season_name: seasonName, items }
     ),
   getSkills: () => get<{ season: string | null; skills: SkillItem[] }>('/skills'),
+  getLegendaryGearIndex: () => get<{ season: string | null; items: LegendaryGearIndexItem[] }>('/legendary-gear-index'),
   getLegendaryGear: () => get<{ season: string | null; items: LegendaryGearItem[] }>('/legendary-gear'),
   clearSkills: () => del<{ ok: boolean }>('/dev/skills'),
 
@@ -927,6 +955,7 @@ export const api = {
       '/dev/import-crawler-craft-base-types', { season_name: seasonName, items }
     ),
   getCraftBaseTypes: () => get<{ season: string | null; base_types: CraftBaseType[] }>('/craft-base-types'),
+  getCraftBaseItems: () => get<{ season: string | null; base_types: CraftBaseItemGroup[] }>('/craft-base-items'),
   clearCraftBaseTypes: () => del<{ ok: boolean }>('/dev/craft-base-types'),
 
   importCrawlerGrafts: (seasonName: string, items: object[]) =>

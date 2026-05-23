@@ -1107,7 +1107,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 /* ── Equipment Slots (panel 1) ────────────────────────────────────────────── */
 
 .gear-slots-panel {
-  width: 200px;
+  width: 230px;
   flex-shrink: 0;
   background: #0e0e1e;
   border-right: 1px solid #1e1e3a;
@@ -1158,6 +1158,17 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .gear-slot-empty:hover { color: #555; }
 
+.gear-slot-2h-blocked { opacity: 0.45; cursor: default; }
+.gear-slot-2h-label {
+  flex: 1;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #5a4a2a;
+  padding-left: 2px;
+}
+
 .gear-slot-item-name {
   flex: 1;
   background: transparent;
@@ -1189,6 +1200,15 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   outline: 1px solid #5555aa;
 }
 
+.gear-slot-valid-target {
+  outline: 1px solid #3a3a6a;
+}
+
+.gear-slot-invalid-target {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .gear-slot-menu {
   z-index: 9000;
   background: #111122;
@@ -1212,11 +1232,13 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .gear-slot-menu-empty { color: #555; font-style: italic; }
 .gear-slot-menu-empty:hover { color: #888; }
 .gear-slot-menu-option--current { color: #8080cc; font-weight: 600; }
+.gear-slot-menu-option--incompatible { opacity: 0.35; cursor: not-allowed; }
+.gear-slot-menu-option--incompatible:hover { background: transparent; color: inherit; }
 
 /* ── Items in Build (panel 2) ─────────────────────────────────────────────── */
 
 .gear-build-panel {
-  width: 180px;
+  width: 230px;
   flex-shrink: 0;
   background: #0e0e1e;
   border-right: 1px solid #1e1e3a;
@@ -1313,6 +1335,50 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   color: #c8a050;
 }
 
+.gear-customize-type {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #5a5a8a;
+  margin-bottom: 2px;
+}
+
+.gear-customize-base {
+  font-size: 11px;
+  color: #7070aa;
+  margin-top: 2px;
+}
+
+.gear-customize-base--hoverable {
+  cursor: help;
+}
+
+.gear-base-stat-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: #0d0d1e;
+  border: 1px solid #4a4a8a;
+  border-radius: 6px;
+  padding: 8px 12px;
+  min-width: 180px;
+  max-width: 260px;
+  pointer-events: none;
+}
+
+.gear-base-stat-tooltip-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c8a050;
+  margin-bottom: 5px;
+}
+
+.gear-base-stat-tooltip-stat {
+  font-size: 11px;
+  color: #8888cc;
+  line-height: 1.5;
+}
+
 .gear-customize-level {
   font-size: 11px;
   color: #666;
@@ -1350,6 +1416,11 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .gear-affix-label--dim {
   color: #444;
   font-style: italic;
+}
+
+.gear-affix-section-divider {
+  border-top: 1px solid #2a2a3a;
+  margin: 4px 0;
 }
 
 .gear-slider-row {
@@ -1395,10 +1466,455 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .gear-confirm-btn { background: #4a3a10; color: #e0b860; }
 
+/* ── Item quality colors ───────────────────────────────────────────────────── */
+
+.quality-legendary { color: #c8a050; }
+.quality-normal    { color: #cccccc; }
+.quality-magic     { color: #6699ff; }
+.quality-rare      { color: #aa66ff; }
+.quality-unique    { color: #ff66bb; }
+
+/* ── Editor column wrapper (Panel 3) ─────────────────────────────────────────── */
+
+.gear-editor-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #1e1e3a;
+  overflow: hidden;
+  min-width: 340px;
+}
+
+.gear-editor-column .gear-customize-panel {
+  width: auto;
+  border-right: none;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Item preview card (bottom of Panel 3) ────────────────────────────────── */
+
+.gear-preview-card {
+  flex-shrink: 0;
+  background: #090914;
+  border-top: 1px solid #1e1e3a;
+  padding: 10px 14px 18px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.gear-preview-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #c8a050;
+  margin-bottom: 4px;
+}
+
+.gear-preview-divider {
+  height: 1px;
+  background: #1e1e2e;
+  margin-bottom: 6px;
+}
+
+.gear-preview-affix {
+  font-size: 11px;
+  color: #aaaacc;
+  line-height: 1.55;
+  margin-bottom: 1px;
+}
+
+.gear-preview-empty {
+  font-size: 11px;
+  color: #333;
+  font-style: italic;
+}
+
+.gear-preview-section-divider {
+  border-top: 1px solid #1e1e2e;
+  margin: 3px 0;
+}
+
+.gear-preview-affix--implicit {
+  color: #6a8acc;
+}
+
+.gear-preview-section-label-divider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0;
+}
+
+.gear-preview-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #444466;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.gear-preview-section-dashes {
+  flex: 1;
+  height: 1px;
+  background: #252535;
+}
+
+/* ── Slider hover tooltip ──────────────────────────────────────────────────── */
+
+.gear-slider-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: #0d0d1e;
+  border: 1px solid #4a4a8a;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #c8c4a0;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.65);
+  white-space: nowrap;
+  max-width: 380px;
+  margin-bottom: 16px;
+}
+
+/* ── Craft Editor (rendered inside Panel 3) ────────────────────────────────── */
+
+.gear-craft-editing-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 8px;
+  border-bottom: 1px solid #1e1e3a;
+  flex-shrink: 0;
+}
+
+.gear-craft-editing-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.gear-craft-classification {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #5a5a8a;
+}
+
+.gear-craft-base-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #c0a0ff;
+  flex: 1;
+}
+
+.gear-craft-reset-btn {
+  background: none;
+  border: none;
+  color: #444;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  line-height: 1;
+}
+.gear-craft-reset-btn:hover { color: #ef5350; }
+
+.gear-craft-base-select {
+  width: 100%;
+  background: #0e0e1e;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: #c8c4a0;
+  font-size: 11px;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+.gear-craft-base-select:focus { outline: 1px solid #5a5aaa; }
+
+.gear-craft-base-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gear-craft-base-stats span {
+  font-size: 10px;
+  color: #7070aa;
+}
+.gear-craft-implicit {
+  color: #8888cc !important;
+  font-style: italic;
+}
+
+.gear-base-item-select {
+  position: relative;
+  width: 100%;
+}
+.gear-base-item-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: #1a1a2e;
+  border: 1px solid #3a3a5c;
+  border-radius: 4px;
+  color: #c8c8e8;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+.gear-base-item-trigger:hover { border-color: #6060a0; }
+.gear-base-item-trigger-level { color: #6060a0; margin-left: auto; flex-shrink: 0; }
+.gear-base-item-trigger-arrow { color: #6060a0; font-size: 9px; }
+.gear-base-item-dropdown {
+  background: #12121e;
+  border: 1px solid #3a3a5c;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 9998;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}
+.gear-base-item-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #b0b0d0;
+}
+.gear-base-item-option:hover { background: #22223a; color: #e0e0ff; }
+.gear-base-item-option.selected { color: #a0a0ff; background: #1a1a30; }
+.gear-base-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gear-base-item-level { color: #5858a0; font-size: 10px; margin-left: 6px; flex-shrink: 0; }
+.gear-base-item-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: #10101c;
+  border: 1px solid #4040a0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  min-width: 180px;
+  max-width: 280px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.7);
+  pointer-events: none;
+}
+.gear-base-item-tooltip-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e0e0ff;
+  margin-bottom: 4px;
+}
+.gear-base-item-tooltip-level {
+  font-size: 10px;
+  color: #6060a0;
+  margin-bottom: 6px;
+}
+.gear-base-item-tooltip-stat {
+  font-size: 11px;
+  color: #8888cc;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.gear-craft-slots-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0 8px;
+}
+
+.gear-craft-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #444;
+  padding: 8px 10px 4px;
+}
+
+.gear-craft-slot {
+  padding: 3px 10px 2px;
+}
+
+.gear-craft-slot-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.gear-craft-select {
+  background: #12122a;
+  color: #bbb;
+  border: 1px solid #2a2a4a;
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  min-width: 0;
+}
+.gear-craft-select:focus { outline: none; border-color: #533483; }
+
+.gear-craft-select--modifier { flex: 1; }
+
+.gear-craft-select--tier {
+  width: 90px;
+  flex-shrink: 0;
+}
+
+.gear-craft-sliders {
+  padding: 4px 0 2px 2px;
+}
+
+.gear-craft-results {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.gear-craft-result-row {
+  padding: 7px 12px;
+  font-size: 12px;
+  color: #bbb;
+  cursor: pointer;
+  border-bottom: 1px solid #14142a;
+}
+.gear-craft-result-row:hover { background: #16162e; color: #ddd; }
+
+.gear-craft-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid #1e1e3a;
+  flex-shrink: 0;
+}
+.gear-craft-actions .btn { flex: 1; }
+
+/* ── Catalog header with Create Item button ───────────────────────────────── */
+
+.gear-catalog-header {
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid #1a1a3a;
+  flex-shrink: 0;
+}
+
+.gear-craft-create-btn {
+  width: 100%;
+}
+.gear-craft-create-btn.active {
+  background: #3a1a6a;
+  border-color: #6633aa;
+}
+
+/* ── Modifier searchable dropdown ─────────────────────────────────────────── */
+
+.gear-craft-mod-select {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.gear-craft-mod-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #12122a;
+  border: 1px solid #2a2a4a;
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  min-width: 0;
+  user-select: none;
+}
+.gear-craft-mod-trigger:hover { border-color: #4a4a6a; }
+.gear-craft-mod-trigger.open { border-color: #533483; }
+
+.gear-craft-mod-value { color: #ddd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gear-craft-mod-placeholder { color: #555; font-style: italic; }
+
+.gear-craft-mod-clear {
+  color: #555;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0 2px;
+  line-height: 1;
+}
+.gear-craft-mod-clear:hover { color: #ef5350; }
+
+.gear-craft-mod-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 500;
+  background: #111122;
+  border: 1px solid #333355;
+  border-radius: 3px;
+  margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}
+
+.gear-craft-mod-search {
+  background: #0e0e1e;
+  border: none;
+  border-bottom: 1px solid #1e1e3a;
+  color: #ccc;
+  font-size: 11px;
+  padding: 6px 8px;
+  outline: none;
+  flex-shrink: 0;
+}
+.gear-craft-mod-search::placeholder { color: #444; }
+
+.gear-craft-mod-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.gear-craft-mod-group {
+  padding: 5px 8px 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #4a4a7a;
+  background: #0c0c1e;
+  border-top: 1px solid #1a1a3a;
+  pointer-events: none;
+  user-select: none;
+}
+
+.gear-craft-mod-option {
+  padding: 5px 10px;
+  font-size: 11px;
+  color: #bbb;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gear-craft-mod-option:hover { background: #1a1a3e; color: #eee; }
+.gear-craft-mod-option.selected { color: #9966ff; background: #1a1040; }
+
+.gear-craft-mod-empty {
+  padding: 10px 10px;
+  font-size: 11px;
+  color: #444;
+  font-style: italic;
+}
+
 /* ── Legendary Catalog (panel 4, rightmost) ───────────────────────────────── */
 
 .gear-catalog {
-  flex: 1;
+  width: 230px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1464,6 +1980,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .gear-catalog-item:hover { background: #16162e; border-color: #2a2a4a; }
 .gear-catalog-item--selected { background: #1a1a3e; border-color: #4a4a8a; }
+.gear-catalog-item--loading { cursor: default; opacity: 0.85; }
 
 .gear-catalog-item-name {
   font-size: 12px;
@@ -1496,11 +2013,26 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   pointer-events: none;
 }
 
+.gear-tooltip-type {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #5a5a8a;
+  margin-bottom: 2px;
+}
+
 .gear-tooltip-name {
   font-size: 13px;
   font-weight: 700;
   color: #c8a050;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+}
+
+.gear-tooltip-base {
+  font-size: 11px;
+  color: #7070aa;
+  margin-bottom: 2px;
 }
 
 .gear-tooltip-level {
@@ -1514,11 +2046,20 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   margin-bottom: 6px;
 }
 
+.gear-tooltip-section-line {
+  border-top: 1px solid #2a2a3a;
+  margin: 4px 0 6px;
+}
+
 .gear-tooltip-affix {
   font-size: 11px;
   color: #aaa;
   line-height: 1.5;
   margin-bottom: 1px;
+}
+
+.gear-tooltip-affix--implicit {
+  color: #8888cc;
 }
 
 /* ── Skills Screen ──────────────────────────────────────────────────────────── */
