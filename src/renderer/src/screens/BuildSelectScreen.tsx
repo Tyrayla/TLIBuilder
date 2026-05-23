@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { api, Build } from '../api/client'
 import logoSrc from '../assets/logo.png'
 
@@ -23,6 +23,12 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   const [builds, setBuilds] = useState<Build[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [importOpen, setImportOpen] = useState(false)
+  const [importCode, setImportCode] = useState('')
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const importRef = useRef<HTMLTextAreaElement>(null)
+
   const loadBuilds = () => {
     setLoading(true)
     api.getBuilds()
@@ -31,6 +37,33 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   }
 
   useEffect(() => { loadBuilds() }, [])
+
+  useEffect(() => {
+    if (importOpen) setTimeout(() => importRef.current?.focus(), 50)
+  }, [importOpen])
+
+  const openImport = () => {
+    setImportCode('')
+    setImportError(null)
+    setImportOpen(true)
+  }
+
+  const handleImport = async () => {
+    const code = importCode.trim()
+    if (!code) return
+    setImporting(true)
+    setImportError(null)
+    try {
+      const { build } = await api.decodeBuildCode(code)
+      setImportOpen(false)
+      onOpenBuild(build as unknown as Build)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setImportError(msg.includes('400') ? 'Invalid or unrecognized build code.' : 'Failed to import — try again.')
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -54,6 +87,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               Dev Tools
             </button>
           )}
+          <button className="btn btn-secondary btn-sm" onClick={openImport}>Import Code</button>
           <button className="btn btn-primary" onClick={onNewBuild}>+ New Build</button>
         </div>
       </div>
@@ -82,6 +116,31 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {importOpen && (
+        <div className="modal-backdrop" onClick={() => setImportOpen(false)}>
+          <div className="modal-card share-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-accent" />
+            <h3 className="modal-title">Import Build Code</h3>
+            <p className="share-modal-hint">Paste a build code shared by someone else to load their build.</p>
+            <textarea
+              ref={importRef}
+              className="share-code-area share-code-area--input"
+              placeholder="Paste tli1_… code here"
+              value={importCode}
+              onChange={e => { setImportCode(e.target.value); setImportError(null) }}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleImport() }}
+            />
+            {importError && <p className="share-import-error">{importError}</p>}
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={handleImport} disabled={importing || !importCode.trim()}>
+                {importing ? 'Importing…' : 'Import'}
+              </button>
+              <button className="btn btn-secondary" onClick={() => setImportOpen(false)}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

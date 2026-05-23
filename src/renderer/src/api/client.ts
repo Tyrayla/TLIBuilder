@@ -846,6 +846,11 @@ export const api = {
     post<Build>('/builds', build),
   deleteBuild: (id: string) => del<{ ok: boolean }>(`/builds/${id}`),
 
+  encodeBuildCode: (build: object) =>
+    post<{ code: string }>('/build-code/encode', { build }),
+  decodeBuildCode: (code: string) =>
+    post<{ build: Record<string, unknown> }>('/build-code/decode', { code }),
+
   // Tree editing (debug tools)
   upsertNode: (tree: string, node: NodeEditData) =>
     post<{ ok: boolean }>(`/tree/${encodeURIComponent(tree)}/node`, node),

@@ -99,6 +99,7 @@ interface Props {
   onSkills: () => void
   onSave: (name: string) => Promise<void>
   onSaveAs: (name: string) => Promise<void>
+  getBuildPayload?: () => Record<string, unknown>
   devMode?: boolean
   traitId?: string | null
   traitLevel?: number
@@ -110,7 +111,7 @@ type SaveMode = 'save' | 'saveas'
 export default function BuildOverviewScreen({
   buildName, buildId, slots, slates, conditions, conditionValues, conditionMaximums, effectiveConditions,
   onConditionsChange, onConditionValuesChange, onConditionMaximumsChange,
-  onBack, onTalentTree, onSlates, onGear, onSkills, onSave, onSaveAs,
+  onBack, onTalentTree, onSlates, onGear, onSkills, onSave, onSaveAs, getBuildPayload,
   gear = [], characterLevel = 1, hasPrism = false,
   devMode = false,
   traitId = null, onGoToHeroTraits,
@@ -120,6 +121,10 @@ export default function BuildOverviewScreen({
   const [saveName, setSaveName] = useState(buildName)
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
+
+  const [shareCode, setShareCode] = useState<string | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
+  const [shareLoading, setShareLoading] = useState(false)
 
   const [allTraits, setAllTraits] = useState<HeroTrait[]>([])
 
@@ -200,6 +205,25 @@ export default function BuildOverviewScreen({
     const t = allTraits.find(x => x.trait_id === traitId) ?? null
     setSaveName(buildName || (t ? `${t.hero} ${t.variant_name}` : ''))
     setSaveOpen(true)
+  }
+
+  const handleShare = async () => {
+    if (!getBuildPayload) return
+    setShareLoading(true)
+    try {
+      const { code } = await api.encodeBuildCode(getBuildPayload())
+      setShareCode(code)
+      setShareCopied(false)
+    } catch { /* silent — share unavailable */ }
+    finally { setShareLoading(false) }
+  }
+
+  const handleCopyCode = () => {
+    if (!shareCode) return
+    navigator.clipboard.writeText(shareCode).then(() => {
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    })
   }
 
   const handleModalConfirm = async () => {
@@ -289,6 +313,11 @@ export default function BuildOverviewScreen({
           <button className="btn btn-sm overview-saveas-btn" onClick={handleSaveAs} disabled={saving}>
             Save As
           </button>
+          {getBuildPayload && (
+            <button className="btn btn-sm overview-share-btn" onClick={handleShare} disabled={shareLoading}>
+              {shareLoading ? 'Sharing…' : 'Share'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -508,6 +537,31 @@ export default function BuildOverviewScreen({
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button className="btn btn-danger" onClick={() => setSaveOpen(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shareCode !== null && (
+        <div className="modal-backdrop" onClick={() => setShareCode(null)}>
+          <div className="modal-card share-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-accent" />
+            <h3 className="modal-title">Share Build</h3>
+            <p className="share-modal-hint">Copy this code and share it. Anyone can import it to load your build.</p>
+            <textarea
+              className="share-code-area"
+              readOnly
+              value={shareCode}
+              onFocus={e => e.target.select()}
+            />
+            <div className="modal-actions">
+              <button
+                className={`btn btn-primary${shareCopied ? ' share-copied' : ''}`}
+                onClick={handleCopyCode}
+              >
+                {shareCopied ? 'Copied!' : 'Copy Code'}
+              </button>
+              <button className="btn btn-secondary" onClick={() => setShareCode(null)}>Close</button>
             </div>
           </div>
         </div>
