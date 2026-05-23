@@ -5,7 +5,10 @@ __pycache__/
 dist/
 build/
 *.spec
+!backend/backend.spec
 node_modules/
+backend-dist/
+backend-build/
 out/
 dev-err.txt
 dev-out.txt
