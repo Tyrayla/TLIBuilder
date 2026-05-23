@@ -432,7 +432,7 @@ function App() {
   )
 
   if (screen === 'dev-tools') {
-    return <DevToolsScreen onBack={() => setScreen('build-select')} deprecatedTools={deprecatedTools} onToggleDeprecatedTools={() => setDeprecatedTools(d => !d)} />
+    return <DevToolsScreen onBack={() => setScreen('build-select')} deprecatedTools={deprecatedTools} onToggleDeprecatedTools={() => setDeprecatedTools(d => !d)} onSeasonChange={() => setSession(s => ({ ...s }))} />
   }
 
   if (screen === 'build-select') {
@@ -476,7 +476,6 @@ function App() {
           onSave={saveBuild}
           onSaveAs={saveAsBuild}
           devMode={devMode}
-          onSeasonChange={() => setSession(s => ({ ...s }))}
         />
         {cascadeOverlay}
       </>

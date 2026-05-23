@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, TreeSlot, SavedSlate, SeasonSummary, StatSheetResponse, StatEntry, StatSource, ConditionDef, ConditionValues, ConditionMaximums, EquippedGearItem, GearEngineItem, GearAffixContribution, buildEnergyContributions, HeroTrait } from '../api/client'
+import { api, TreeSlot, SavedSlate, StatSheetResponse, StatEntry, StatSource, ConditionDef, ConditionValues, ConditionMaximums, EquippedGearItem, GearEngineItem, GearAffixContribution, buildEnergyContributions, HeroTrait } from '../api/client'
 
 const NUMERIC_CONDITION_KEYS = new Set(['tenacity_active', 'agility_active', 'focus_active', 'channeled_not_capped'])
 
@@ -68,7 +68,7 @@ function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
             display_value,
             unit: affix.unit ?? '',
             item_name: item.name,
-            slot: item.slot,
+            slot: Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot,
           })
         }
       }
@@ -100,7 +100,6 @@ interface Props {
   onSave: (name: string) => Promise<void>
   onSaveAs: (name: string) => Promise<void>
   devMode?: boolean
-  onSeasonChange?: () => void
   traitId?: string | null
   traitLevel?: number
   onGoToHeroTraits?: () => void
@@ -113,7 +112,7 @@ export default function BuildOverviewScreen({
   onConditionsChange, onConditionValuesChange, onConditionMaximumsChange,
   onBack, onTalentTree, onSlates, onGear, onSkills, onSave, onSaveAs,
   gear = [], characterLevel = 1, hasPrism = false,
-  devMode = false, onSeasonChange,
+  devMode = false,
   traitId = null, onGoToHeroTraits,
 }: Props) {
   const [saveOpen, setSaveOpen] = useState(false)
@@ -122,8 +121,6 @@ export default function BuildOverviewScreen({
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
 
-  const [seasons, setSeasons] = useState<SeasonSummary[]>([])
-  const [activeSeason, setActiveSeason] = useState<string | null>(null)
   const [allTraits, setAllTraits] = useState<HeroTrait[]>([])
 
   const [conditionsData, setConditionsData] = useState<Record<string, ConditionDef[]> | null>(null)
@@ -134,14 +131,6 @@ export default function BuildOverviewScreen({
   const [selectedStat, setSelectedStat] = useState<string | null>(null)
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!devMode) return
-    api.listSeasons().then(s => {
-      setSeasons(s)
-      setActiveSeason(s.find(x => x.is_active)?.name ?? null)
-    }).catch(() => {})
-  }, [devMode])
 
   useEffect(() => {
     api.getConditions().then(setConditionsData).catch(() => {})
@@ -184,15 +173,6 @@ export default function BuildOverviewScreen({
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [selectedStat])
-
-  const handleSeasonChange = async (name: string | null) => {
-    try {
-      await api.setActiveSeason(name)
-      setActiveSeason(name)
-      setSeasons(prev => prev.map(s => ({ ...s, is_active: s.name === name })))
-      onSeasonChange?.()
-    } catch { /* ignore */ }
-  }
 
   const showMsg = (msg: string) => {
     setSavedMsg(msg)
@@ -313,24 +293,6 @@ export default function BuildOverviewScreen({
       </div>
 
       {savedMsg && <div className="overview-saved-msg">{savedMsg}</div>}
-
-      {devMode && seasons.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', background: '#0e0e28', borderBottom: '1px solid #2a2a4a', fontSize: 12 }}>
-          <span style={{ color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Season:</span>
-          <select
-            value={activeSeason ?? seasons[0]?.name ?? ''}
-            onChange={e => handleSeasonChange(e.target.value || null)}
-            style={{ background: '#1a1a3a', color: '#ddd', border: '1px solid #3a3a5a', borderRadius: 4, padding: '3px 8px', fontSize: 12 }}
-          >
-            {seasons.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-          </select>
-          {activeSeason && (
-            <span style={{ fontSize: 11, color: '#c0a0ff' }}>
-              {seasons.find(s => s.name === activeSeason)?.trees.length ?? 0} trees loaded
-            </span>
-          )}
-        </div>
-      )}
 
       <div className="overview-body">
         {/* Nav column */}
