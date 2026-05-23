@@ -1,0 +1,514 @@
+{
+  "tree_name": "Assassin",
+  "total_points": 34,
+  "tags": [
+    "Goddess of Hunting Legacy",
+    "Lightning",
+    "Silent as a shadow, fast as lightning"
+  ],
+  "glossary": {
+    "762": {
+      "name": "Numbed",
+      "description": "An Elemental Ailment that has a chance to be inflicted when Lightning Damage hits its target.When hitting a Numbed enemy, Lightning Damage inflicts 1 stack of Numbed for every 10% of the sum of Max Energy Shield and Life dealt by Lightning Damage. This threshold can be lowered or raised, but the minimum is 1%.The default duration of Numbed is 2s, and the duration of each stack is calculated independently.Max Numbed stacks: 10. Each stack of Numbed increases the Lightning Damage taken by an additional +5%."
+    },
+    "116": {
+      "name": "Lucky",
+      "description": "Performs a random check or random roll twice and picks the result that benefits you the most"
+    },
+    "716": {
+      "name": "Agility Blessing",
+      "description": "Every stack of Agility Blessing grants +4% Attack and Cast Speed and +2% additional damage. Initial max stacks: 4"
+    },
+    "10000105": {
+      "name": "Lightning Infiltration",
+      "description": "Additionally increases Lightning Damage taken by 13%. Reduces Attack Speed by 5%"
+    }
+  },
+  "nodes": [
+    {
+      "id": "assassin_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Lightning Damage",
+        "+9 % Minion Lightning Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "assassin_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Aura_64.webp"
+    },
+    {
+      "id": "assassin_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Projectile Speed"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Area_64.webp"
+    },
+    {
+      "id": "assassin_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Lightning Damage",
+        "+18 % Minion Lightning Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "assassin_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_CastSpeed_64.webp"
+    },
+    {
+      "id": "assassin_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Aura_64.webp"
+    },
+    {
+      "id": "assassin_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+7 % Evasion"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "assassin_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Projectile Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Area_64.webp"
+    },
+    {
+      "id": "assassin_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Crit04_64.webp"
+    },
+    {
+      "id": "assassin_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack and Cast Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_CastSpeed_64.webp"
+    },
+    {
+      "id": "assassin_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Lightning Resistance"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Defence02_64.webp"
+    },
+    {
+      "id": "assassin_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+14 % Evasion"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "assassin_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 Dexterity"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    },
+    {
+      "id": "assassin_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Critical Strike Rating",
+        "+20 % Minion Critical Strike Rating",
+        "+5 % Critical Strike Damage",
+        "+5 % Minion Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Crit04_64.webp"
+    },
+    {
+      "id": "assassin_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Lightning Damage",
+        "+9 % Minion Lightning Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "assassin_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Immune to Numbed",
+        "Minions are immune to Lightning Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Defence02_64.webp"
+    },
+    {
+      "id": "assassin_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Lightning Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "assassin_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+5 % Dexterity"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    },
+    {
+      "id": "assassin_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Converts 100 % of Physical Damage to Lightning Damage",
+        "Converts 100 % of Minion Physical Damage to Lightning Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "assassin_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Converts 50 % of Lightning Damage to Fire Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "assassin_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Converts 50 % of Lightning Damage to Cold Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "assassin_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+12 % Dexterity"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    },
+    {
+      "id": "assassin_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Lightning Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgAll_64.webp"
+    },
+    {
+      "id": "assassin_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.5 % Lightning Penetration",
+        "1.5 % Lightning Penetration for Minions"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "assassin_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+2 % additional Max Damage",
+        "+2 % additional Max Damage for Minions"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "assassin_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+20 % Numbed Effect (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgAll_64.webp"
+    },
+    {
+      "id": "assassin_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "-4 % to the Max Life and Energy Shield thresholds for inflicting Numbed",
+        "Inflicts 1 additional stack(s) of Numbed (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgAll_64.webp"
+    },
+    {
+      "id": "assassin_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Inflicts Numbed when dealing Hit Lightning Damage"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgAll_64.webp"
+    },
+    {
+      "id": "assassin_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Inflicts Lightning Infiltration on Critical Strike (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "assassin_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+12 % additional Max Damage",
+        "+12 % additional Max Damage for Minions"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "assassin_c0_r0",
+      "to": "assassin_c1_r0"
+    },
+    {
+      "from": "assassin_c0_r2",
+      "to": "assassin_c1_r2"
+    },
+    {
+      "from": "assassin_c0_r4",
+      "to": "assassin_c1_r4"
+    },
+    {
+      "from": "assassin_c1_r1",
+      "to": "assassin_c2_r1"
+    },
+    {
+      "from": "assassin_c1_r3",
+      "to": "assassin_c2_r3"
+    },
+    {
+      "from": "assassin_c2_r0",
+      "to": "assassin_c3_r0"
+    },
+    {
+      "from": "assassin_c2_r2",
+      "to": "assassin_c3_r2"
+    },
+    {
+      "from": "assassin_c2_r4",
+      "to": "assassin_c3_r4"
+    },
+    {
+      "from": "assassin_c3_r1",
+      "to": "assassin_c4_r1"
+    },
+    {
+      "from": "assassin_c3_r3",
+      "to": "assassin_c4_r2"
+    },
+    {
+      "from": "assassin_c3_r3",
+      "to": "assassin_c4_r3"
+    },
+    {
+      "from": "assassin_c3_r4",
+      "to": "assassin_c4_r4"
+    },
+    {
+      "from": "assassin_c5_r1",
+      "to": "assassin_c6_r0"
+    },
+    {
+      "from": "assassin_c5_r1",
+      "to": "assassin_c6_r1"
+    },
+    {
+      "from": "assassin_c5_r1",
+      "to": "assassin_c6_r2"
+    },
+    {
+      "from": "assassin_c5_r3",
+      "to": "assassin_c6_r3"
+    },
+    {
+      "from": "assassin_c5_r4",
+      "to": "assassin_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "assassin_conductive",
+      "name": "Conductive",
+      "effects": [
+        "Changes the base effect of Numbed to: +11 % additional Lightning Damage taken (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_daodian_Icon_128.webp"
+    },
+    {
+      "display_name_key": "assassin_transition",
+      "name": "Transition",
+      "effects": [
+        "When casting a skill, there is a 50 % chance for that cast to deal +16 % additional damage",
+        "When casting a skill, there is a 25 % chance for that cast to deal +32 % additional damage",
+        "When casting a skill, there is a 10 % chance for that cast to deal +80 % additional damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yueqian_Icon_128.webp"
+    },
+    {
+      "display_name_key": "assassin_queer_angle",
+      "name": "Queer Angle",
+      "effects": [
+        "You and Minions deal Lucky Damage against Numbed enemies (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_qimiaojiaodu_Icon_128.webp"
+    },
+    {
+      "display_name_key": "assassin_thunderclap",
+      "name": "Thunderclap",
+      "effects": [
+        "If you have Agility Blessing stacks when casting the Main Skill, consumes 1 stack(s) of Agility Blessing to make that cast deal +35 % additional Lightning Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_pingdijinglei_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

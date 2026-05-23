@@ -1,0 +1,509 @@
+{
+  "tree_name": "Shadowdancer",
+  "total_points": 33,
+  "tags": [
+    "God of War Legacy",
+    "Physical, Triggered",
+    "Comes from the shadows and vanishes into thin air"
+  ],
+  "glossary": {
+    "740": {
+      "name": "Fervor rating",
+      "description": "+2% Critical Strike Rating for every point of Fervor Rating you have. The Max Fervor Rating is 100."
+    },
+    "711": {
+      "name": "Trauma",
+      "description": "An Ailment that may be triggered on hit, dealing Physical Damage per second for 4s based on Base Trauma Damage. Unable to stackTrauma cannot be inflicted when Base Trauma Damage is 0"
+    },
+    "739": {
+      "name": "Fighting Will",
+      "description": "Accumulates Fervor Rating when you defeat enemies or hit Elite enemies while having Fervor. +2% Critical Strike Rating for every point of Fervor Rating. The Max Fervor Rating is 100 points."
+    },
+    "120": {
+      "name": "Elemental",
+      "description": "Fire, Cold, and Lightning"
+    },
+    "701": {
+      "name": "Weaken",
+      "description": "Reduces damage dealt by 10%"
+    }
+  },
+  "nodes": [
+    {
+      "id": "shadowdancer_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Physical Damage",
+        "+9 % Physical Damage for Minions"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "shadowdancer_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Bow01_64.webp"
+    },
+    {
+      "id": "shadowdancer_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed",
+        "+3 % Minion Attack and Cast Speed"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_CastSpeed_64.webp"
+    },
+    {
+      "id": "shadowdancer_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Physical Damage",
+        "+18 % Physical Damage for Minions"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "shadowdancer_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % chance to inflict Trauma",
+        "+6 % chance for Minions to inflict Trauma"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Bleed_64.webp"
+    },
+    {
+      "id": "shadowdancer_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+5 % Max Life",
+        "Regenerates 0.6 % Life per second"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Bow01_64.webp"
+    },
+    {
+      "id": "shadowdancer_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+7 % Armor"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Armor_64.webp"
+    },
+    {
+      "id": "shadowdancer_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack and Cast Speed",
+        "+6 % Minion Attack and Cast Speed",
+        "-4 Skill Cost"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_CastSpeed_64.webp"
+    },
+    {
+      "id": "shadowdancer_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 % Critical Strike Damage",
+        "+8 % Minion Critical Strike Damage"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit03_64.webp"
+    },
+    {
+      "id": "shadowdancer_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % chance to inflict Trauma",
+        "+12 % chance for Minions to inflict Trauma"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Bleed_64.webp"
+    },
+    {
+      "id": "shadowdancer_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Defence02_64.webp"
+    },
+    {
+      "id": "shadowdancer_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Immune to Trauma",
+        "Minions are immune to Physical Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Armor_64.webp"
+    },
+    {
+      "id": "shadowdancer_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating",
+        "+15 % Minion Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit02_64.webp"
+    },
+    {
+      "id": "shadowdancer_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+16 % Critical Strike Damage",
+        "+16 % Minion Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit03_64.webp"
+    },
+    {
+      "id": "shadowdancer_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+5 % Armor",
+        "+5 % Evasion"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Armor_64.webp"
+    },
+    {
+      "id": "shadowdancer_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Defence02_64.webp"
+    },
+    {
+      "id": "shadowdancer_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Fervor effect"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Channel01_64.webp"
+    },
+    {
+      "id": "shadowdancer_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+30 % Critical Strike Rating",
+        "+30 % Minion Critical Strike Rating"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit02_64.webp"
+    },
+    {
+      "id": "shadowdancer_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Physical Damage",
+        "+9 % Physical Damage for Minions"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "shadowdancer_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Armor",
+        "+9 % Evasion",
+        "-4 % additional Physical Damage taken"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Armor_64.webp"
+    },
+    {
+      "id": "shadowdancer_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 % Movement Speed per 10 Fervor Rating"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Channel01_64.webp"
+    },
+    {
+      "id": "shadowdancer_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+22 % Physical Damage",
+        "-12 % Elemental Damage",
+        "+22 % Physical Damage for Minions"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "shadowdancer_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Physical Damage",
+        "+9 % Physical Damage for Minions"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "shadowdancer_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Trauma Damage",
+        "Adds 8 - 8 Base Trauma Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgAll_64.webp"
+    },
+    {
+      "id": "shadowdancer_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage for Triggered Skills"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Area_64.webp"
+    },
+    {
+      "id": "shadowdancer_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 Physical Skill Level",
+        "Physical Damage can't be converted to other types of damage"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "shadowdancer_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+8 % Armor DMG Mitigation Penetration",
+        "+8 % Armor DMG Mitigation Penetration for Minions"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "shadowdancer_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+12 % additional Trauma Damage dealt by Critical Strikes"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgAll_64.webp"
+    },
+    {
+      "id": "shadowdancer_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+50 % chance to Weaken nearby enemies when triggering any skill (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Area_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "shadowdancer_c0_r0",
+      "to": "shadowdancer_c1_r0"
+    },
+    {
+      "from": "shadowdancer_c0_r2",
+      "to": "shadowdancer_c1_r2"
+    },
+    {
+      "from": "shadowdancer_c0_r4",
+      "to": "shadowdancer_c1_r4"
+    },
+    {
+      "from": "shadowdancer_c1_r1",
+      "to": "shadowdancer_c2_r1"
+    },
+    {
+      "from": "shadowdancer_c1_r3",
+      "to": "shadowdancer_c2_r3"
+    },
+    {
+      "from": "shadowdancer_c2_r0",
+      "to": "shadowdancer_c3_r0"
+    },
+    {
+      "from": "shadowdancer_c2_r2",
+      "to": "shadowdancer_c3_r2"
+    },
+    {
+      "from": "shadowdancer_c2_r4",
+      "to": "shadowdancer_c3_r4"
+    },
+    {
+      "from": "shadowdancer_c3_r1",
+      "to": "shadowdancer_c4_r1"
+    },
+    {
+      "from": "shadowdancer_c3_r3",
+      "to": "shadowdancer_c4_r3"
+    },
+    {
+      "from": "shadowdancer_c4_r0",
+      "to": "shadowdancer_c5_r0"
+    },
+    {
+      "from": "shadowdancer_c5_r0",
+      "to": "shadowdancer_c6_r0"
+    },
+    {
+      "from": "shadowdancer_c5_r1",
+      "to": "shadowdancer_c6_r1"
+    },
+    {
+      "from": "shadowdancer_c5_r2",
+      "to": "shadowdancer_c6_r2"
+    },
+    {
+      "from": "shadowdancer_c5_r4",
+      "to": "shadowdancer_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "shadowdancer_brutality",
+      "name": "Brutality",
+      "effects": [
+        "+30 % additional Physical Damage",
+        "+30 % additional Minion Physical Damage",
+        "-1 % additional Elemental Damage for every 3 level(s). (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_canbao_Icon_128.webp"
+    },
+    {
+      "display_name_key": "shadowdancer_hair_trigger",
+      "name": "Hair-trigger",
+      "effects": [
+        "+2 % additional damage of a skill for every 7 points of Fervor Rating when the skill is triggered (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_lingguangzhaxian_Icon_128.webp"
+    },
+    {
+      "display_name_key": "shadowdancer_instant_smash",
+      "name": "Instant Smash",
+      "effects": [
+        "+1 % additional Trauma Damage for every +2 % Critical Strike Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yingtoutongji_Icon_128.webp"
+    },
+    {
+      "display_name_key": "shadowdancer_open_wounds",
+      "name": "Open Wounds",
+      "effects": [
+        "+2 Trauma Limit",
+        "-99 % additional Trauma Damage",
+        "+12 % additional Hit Physical Damage taken, up to +60 % , for every stack of Trauma the enemy has (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_shangkousilie_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

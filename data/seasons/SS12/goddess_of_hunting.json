@@ -1,0 +1,464 @@
+{
+  "tree_name": "Goddess of Hunting",
+  "total_points": 31,
+  "tags": [
+    "Speed",
+    "Hannah, Huntress of Stars"
+  ],
+  "glossary": {
+    "716": {
+      "name": "Agility Blessing",
+      "description": "Every stack of Agility Blessing grants +4% Attack and Cast Speed and +2% additional damage. Initial max stacks: 4"
+    },
+    "10000106": {
+      "name": "Quickness",
+      "description": "Additionally increases Attack Speed, Cast Speed, Movement Speed, and Mobility Skill Cooldown Recovery Time by 8%"
+    },
+    "106": {
+      "name": "Split",
+      "description": "Upon hitting a target, a Parabolic Projectile Splits into multiple secondary Projectiles"
+    },
+    "733": {
+      "name": "Life Regain",
+      "description": "Based on the Missing Life (including Sealed Life), restores a portion of Life on hit. This effect has a 0.5s interval."
+    },
+    "734": {
+      "name": "Shield regain",
+      "description": "Based on the Missing Energy Shield, restores a portion of Energy Shield on hit. This effect may only appear once every 0.5s."
+    }
+  },
+  "nodes": [
+    {
+      "id": "goddess_of_hunting_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgAll_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed",
+        "+2 % Movement Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Atk_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgAll_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Aura_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack and Cast Speed",
+        "+4 % Movement Speed",
+        "-4 Skill Cost"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Atk_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Skill Area",
+        "+6 % Projectile Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Aura_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+7 % Evasion"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 Dexterity"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Skill Area",
+        "+12 % Projectile Speed"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % damage if you have defeated an enemy recently"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Axe01_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+14 % Evasion"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Atk_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+16 Dexterity"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+5 % damage and +1 % Movement Speed for 4 s on defeat. Stacks up to 8 time(s) (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Axe01_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgAll_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+40 % Attack Critical Strike Rating"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Atk_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+40 % Spell Critical Strike Rating"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Atk_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.25 % Life Regain",
+        "1.25 % Energy Shield Regain"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Es_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+10 % Agility Blessing Duration",
+        "+3 % Attack Speed and Cast Speed when having Agility Blessing"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Claw03_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+10 % additional damage for 4s after using Mobility Skills"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgAll_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+6 % additional Attack Speed if you have dealt a Critical Strike recently (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Atk_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+6 % additional Cast Speed if you have dealt a Critical Strike recently (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Atk_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "2.5 % Life Regain",
+        "2.5 % Energy Shield Regain"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Es_64.webp"
+    },
+    {
+      "id": "goddess_of_hunting_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 to Max Agility Blessing Stacks (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Claw03_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "goddess_of_hunting_c0_r2",
+      "to": "goddess_of_hunting_c1_r2"
+    },
+    {
+      "from": "goddess_of_hunting_c1_r1",
+      "to": "goddess_of_hunting_c2_r1"
+    },
+    {
+      "from": "goddess_of_hunting_c1_r3",
+      "to": "goddess_of_hunting_c2_r3"
+    },
+    {
+      "from": "goddess_of_hunting_c2_r2",
+      "to": "goddess_of_hunting_c3_r2"
+    },
+    {
+      "from": "goddess_of_hunting_c2_r4",
+      "to": "goddess_of_hunting_c3_r4"
+    },
+    {
+      "from": "goddess_of_hunting_c3_r1",
+      "to": "goddess_of_hunting_c4_r1"
+    },
+    {
+      "from": "goddess_of_hunting_c3_r3",
+      "to": "goddess_of_hunting_c4_r3"
+    },
+    {
+      "from": "goddess_of_hunting_c4_r0",
+      "to": "goddess_of_hunting_c5_r0"
+    },
+    {
+      "from": "goddess_of_hunting_c4_r0",
+      "to": "goddess_of_hunting_c5_r1"
+    },
+    {
+      "from": "goddess_of_hunting_c4_r4",
+      "to": "goddess_of_hunting_c5_r4"
+    },
+    {
+      "from": "goddess_of_hunting_c5_r0",
+      "to": "goddess_of_hunting_c6_r0"
+    },
+    {
+      "from": "goddess_of_hunting_c5_r1",
+      "to": "goddess_of_hunting_c6_r1"
+    },
+    {
+      "from": "goddess_of_hunting_c5_r2",
+      "to": "goddess_of_hunting_c6_r2"
+    },
+    {
+      "from": "goddess_of_hunting_c5_r3",
+      "to": "goddess_of_hunting_c6_r3"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "goddess_of_hunting_perception",
+      "name": "Perception",
+      "effects": [
+        "+100 % chance to gain 1 stacks of Agility Blessing on hit",
+        "+1 to Max Agility Blessing Stacks (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_minrui_Icon_128.webp"
+    },
+    {
+      "display_name_key": "goddess_of_hunting_third_time_s_a_charm",
+      "name": "Third time's a charm",
+      "effects": [
+        "Has Hasten",
+        "When you have Hasten , +7 % Attack Speed and Cast Speed for every 3m of movement made recently. Stacks up to 3 time(s) (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_sansierdong_Icon_128.webp"
+    },
+    {
+      "display_name_key": "goddess_of_hunting_impermanence",
+      "name": "Impermanence",
+      "effects": [
+        "-90 % additional Min Physical Damage, and +80 % additional Max Physical Damage",
+        "-32 % additional min damage",
+        "+32 % additional Max Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_shishiwuchang_Icon_128.webp"
+    },
+    {
+      "display_name_key": "goddess_of_hunting_rushed",
+      "name": "Rushed",
+      "effects": [
+        "+30 % additional damage if you have recently moved more than 5 m (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_xingsecongcong_Icon_128.webp"
+    },
+    {
+      "display_name_key": "goddess_of_hunting_three_birds_with_one_stone",
+      "name": "Three Birds with One Stone",
+      "effects": [
+        "Projectile Quantity +2",
+        "+2 to Parabolic Projectile Splits quantity",
+        "+10 % additional Projectile Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yijiansandiao_Icon_128.webp"
+    },
+    {
+      "display_name_key": "goddess_of_hunting_steady_accumulation",
+      "name": "Steady Accumulation",
+      "effects": [
+        "+40 % additional Hit Damage",
+        "Additional -30 % Skill Effect Duration (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_shanshuo_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

@@ -1,0 +1,537 @@
+{
+  "tree_name": "Magister",
+  "total_points": 36,
+  "tags": [
+    "Goddess of Knowledge Legacy",
+    "Spell, Shield",
+    "A Magister who seeks the origin of the world"
+  ],
+  "glossary": {
+    "737": {
+      "name": "Focus Blessing",
+      "description": "Every stack of Focus Blessing grants +5% additional damage. Initial max stacks: 4"
+    },
+    "756": {
+      "name": "Spell Burst",
+      "description": "Automatically uses a Spell Skill a certain number of times.When Spell Burst is fully charged, the next Spell Skill used will activate Spell Burst, which will consume all stacks charged and automatically use the Spell Skill the same number of times.Skills that have a cooldown, Triggered Skills, Sentry Skills, Channeled Skills, and Combo Skills cannot activate Spell Burst."
+    },
+    "129": {
+      "name": "Charge",
+      "description": "Energy Shield starts to charge after the character hasn't taken any damage for 2s at the rate of 20% of Max Energy Shield per second and stops charging if the character takes damage"
+    },
+    "734": {
+      "name": "Shield regain",
+      "description": "Based on the Missing Energy Shield, restores a portion of Energy Shield on hit. This effect may only appear once every 0.5s."
+    },
+    "10000102": {
+      "name": "Frail",
+      "description": "Additionally increases Spell Damage taken by 15%"
+    }
+  },
+  "nodes": [
+    {
+      "id": "magister_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Spell Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    },
+    {
+      "id": "magister_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Max Mana"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "magister_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Es_64.webp"
+    },
+    {
+      "id": "magister_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Spell Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    },
+    {
+      "id": "magister_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Cast Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_CastSpeed_64.webp"
+    },
+    {
+      "id": "magister_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Mana",
+        "+18 % Mana Regeneration Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "magister_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Spell Damage when holding a Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Area_64.webp"
+    },
+    {
+      "id": "magister_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Es_64.webp"
+    },
+    {
+      "id": "magister_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Spell Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Crit04_64.webp"
+    },
+    {
+      "id": "magister_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Cast Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_CastSpeed_64.webp"
+    },
+    {
+      "id": "magister_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Es_64.webp"
+    },
+    {
+      "id": "magister_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+24 % Spell Damage when holding a Shield"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Area_64.webp"
+    },
+    {
+      "id": "magister_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Spell Block Chance"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_BlockSpell_64.webp"
+    },
+    {
+      "id": "magister_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Spell Critical Strike Rating",
+        "+5 % Spell Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Crit04_64.webp"
+    },
+    {
+      "id": "magister_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+10 % Focus Blessing Duration",
+        "+10 % Spell Damage when having Focus Blessing"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Crit01_64.webp"
+    },
+    {
+      "id": "magister_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "When activating Spell Burst or generating Tangle, immediately starts Charging Energy Shield. Interval: 2 s (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Es_64.webp"
+    },
+    {
+      "id": "magister_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.25 % Energy Shield Regain"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence02_64.webp"
+    },
+    {
+      "id": "magister_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+12 % Spell Block Chance",
+        "+15 % Energy Shield gained from Shield"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_BlockSpell_64.webp"
+    },
+    {
+      "id": "magister_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Spell Burst Charge Speed"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    },
+    {
+      "id": "magister_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Gains 1 stack(s) of Focus Blessing when activating Spell Burst or generating Tangle (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Crit01_64.webp"
+    },
+    {
+      "id": "magister_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 Intelligence"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Blind_64.webp"
+    },
+    {
+      "id": "magister_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "-8 % additional Energy Shield Regain Interval",
+        "+7 % Energy Shield Regain"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence02_64.webp"
+    },
+    {
+      "id": "magister_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+75 Max Energy Shield"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence02_64.webp"
+    },
+    {
+      "id": "magister_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 % Spell Burst Charge Speed"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    },
+    {
+      "id": "magister_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+10 % Focus Blessing Duration",
+        "+4 % Cast Speed when Focus Blessing is active"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Crit01_64.webp"
+    },
+    {
+      "id": "magister_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+12 % Intelligence"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Blind_64.webp"
+    },
+    {
+      "id": "magister_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Spell Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    },
+    {
+      "id": "magister_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+2 Max Energy Shield per 5 Intelligence (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence02_64.webp"
+    },
+    {
+      "id": "magister_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 Max Spell Burst (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    },
+    {
+      "id": "magister_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+5 % Spell Critical Strike Damage per stack of Focus Blessing owned (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Crit01_64.webp"
+    },
+    {
+      "id": "magister_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Inflicts Frail on Spell hit (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    },
+    {
+      "id": "magister_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Immediately starts Energy Shield Charge upon entering Low Energy Shield status (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence02_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "magister_c0_r0",
+      "to": "magister_c1_r0"
+    },
+    {
+      "from": "magister_c0_r2",
+      "to": "magister_c1_r2"
+    },
+    {
+      "from": "magister_c0_r4",
+      "to": "magister_c1_r4"
+    },
+    {
+      "from": "magister_c1_r1",
+      "to": "magister_c2_r1"
+    },
+    {
+      "from": "magister_c1_r3",
+      "to": "magister_c2_r3"
+    },
+    {
+      "from": "magister_c2_r0",
+      "to": "magister_c3_r0"
+    },
+    {
+      "from": "magister_c2_r2",
+      "to": "magister_c3_r2"
+    },
+    {
+      "from": "magister_c2_r4",
+      "to": "magister_c3_r4"
+    },
+    {
+      "from": "magister_c3_r1",
+      "to": "magister_c4_r1"
+    },
+    {
+      "from": "magister_c3_r3",
+      "to": "magister_c4_r3"
+    },
+    {
+      "from": "magister_c4_r0",
+      "to": "magister_c5_r0"
+    },
+    {
+      "from": "magister_c4_r2",
+      "to": "magister_c5_r2"
+    },
+    {
+      "from": "magister_c4_r4",
+      "to": "magister_c5_r4"
+    },
+    {
+      "from": "magister_c5_r0",
+      "to": "magister_c6_r0"
+    },
+    {
+      "from": "magister_c5_r1",
+      "to": "magister_c6_r1"
+    },
+    {
+      "from": "magister_c5_r3",
+      "to": "magister_c6_r3"
+    },
+    {
+      "from": "magister_c5_r4",
+      "to": "magister_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "magister_bunch",
+      "name": "Bunch",
+      "effects": [
+        "+1 to Max Focus Blessing Stacks",
+        "+3 % additional Spell Damage per stack of Focus Blessing owned (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_jiju_Icon_128.webp"
+    },
+    {
+      "display_name_key": "magister_play_safe",
+      "name": "Play Safe",
+      "effects": [
+        "100 % of the bonuses and additional bonuses to Cast Speed is also applied to Spell Burst Charge Speed",
+        "-33 % additional Spell Burst Charge Speed",
+        "+40 % additional Hit Damage for skills cast by Spell Burst (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_wenzhawenda_Icon_128.webp"
+    },
+    {
+      "display_name_key": "magister_shell",
+      "name": "Shell",
+      "effects": [
+        "+35 % additional Max Energy Shield",
+        "Your Max Life is set to 100 (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_jiaqiao_Icon_128.webp"
+    },
+    {
+      "display_name_key": "magister_barrier_of_radiance",
+      "name": "Barrier of Radiance",
+      "effects": [
+        "Energy Shield Charge started recently cannot be interrupted by damage",
+        "+50 % Energy Shield Charge Speed (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_guanghuijiejie_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

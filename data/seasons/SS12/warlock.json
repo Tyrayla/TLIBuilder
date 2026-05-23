@@ -1,0 +1,569 @@
+{
+  "tree_name": "Warlock",
+  "total_points": 35,
+  "tags": [
+    "Servant of Goddess of Deception, fused with Power of Knowledge",
+    "Ailment, Debuff",
+    "An Archmage who believes in the power of darkness"
+  ],
+  "glossary": {
+    "503": {
+      "name": "Ailment",
+      "description": "Trauma, Ignite, Frostbite, Freeze, Numbed, and Wilt"
+    },
+    "742": {
+      "name": "Crowd Control Effects",
+      "description": "Frostbite, Freeze, Paralysis, Knockback, Weaken, Slow, Taunt, and Blinding"
+    },
+    "721": {
+      "name": "Blur",
+      "description": "Gains 100 points of Blur Rating10 Blur Rating is lost per second. Blur is lost once Blur Rating drops to 0+0.25% Chance to Avoid Damage for every point of Blur Rating you haveMax Blur Rating is 100"
+    },
+    "504": {
+      "name": "Ailment Damage",
+      "description": "Trauma, Ignite, and Wilt"
+    },
+    "137": {
+      "name": "Affliction",
+      "description": "When the Affliction inflicted per second is not 0, the Damage Over Time dealt will continuously inflicts Affliction on the targetThe target takes 1% additional Damage Over Time for every Affliction pointThe max Affliction is 100"
+    },
+    "511": {
+      "name": "Damaging Ailment",
+      "description": "Trauma, Ignite, and Wilt"
+    },
+    "101": {
+      "name": "Elemental Ailment",
+      "description": "Ignite, Frostbite, Freeze, and Numbed"
+    },
+    "704": {
+      "name": "Paralysis",
+      "description": "Increases damage taken by 15%"
+    },
+    "710": {
+      "name": "Ignite",
+      "description": "An Ailment that may be triggered on hit, dealing Fire Damage per second for 4s based on Base Ignite Damage. Unable to stackIgnite cannot be inflicted when Base Ignite Damage is 0"
+    },
+    "709": {
+      "name": "Wilt",
+      "description": "An Ailment that may be triggered on hit, dealing Erosion Damage per second for 1.5s based on Base Wilt Damage. Stacks up to 30 time(s)Wilt cannot be inflicted when Base Wilt Damage is 0"
+    },
+    "711": {
+      "name": "Trauma",
+      "description": "An Ailment that may be triggered on hit, dealing Physical Damage per second for 4s based on Base Trauma Damage. Unable to stackTrauma cannot be inflicted when Base Trauma Damage is 0"
+    },
+    "706": {
+      "name": "Slow",
+      "description": "Each stack reduces Attack Speed, Cast Speed, and Movement Speed by 6%. Stacks up to 5 times"
+    },
+    "702": {
+      "name": "Blind",
+      "description": "Target's damage has a 20% chance to miss before addressed"
+    }
+  },
+  "nodes": [
+    {
+      "id": "warlock_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage",
+        "+9 % Minion Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "warlock_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Defence02_64.webp"
+    },
+    {
+      "id": "warlock_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Ailment Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "warlock_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % damage",
+        "+18 % Minion Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "warlock_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Affliction Effect"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "warlock_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Defence02_64.webp"
+    },
+    {
+      "id": "warlock_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % chance to inflict Damaging Ailments",
+        "+6 % chance for Minions to inflict Damaging Ailments"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Ailment_64.webp"
+    },
+    {
+      "id": "warlock_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Ailment Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "warlock_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 % damage against Cursed enemies",
+        "+8 % Curse Skill Area"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Cannon03_64.webp"
+    },
+    {
+      "id": "warlock_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "-4 Skill Cost",
+        "+12 % Affliction Effect"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "warlock_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % chance to avoid Elemental Ailments"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgAll_64.webp"
+    },
+    {
+      "id": "warlock_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % chance to inflict Damaging Ailments",
+        "+12 % chance for Minions to inflict Damaging Ailments"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Ailment_64.webp"
+    },
+    {
+      "id": "warlock_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating",
+        "+15 % Minion Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Crit01_64.webp"
+    },
+    {
+      "id": "warlock_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+16 % damage against Cursed enemies",
+        "+16 % Curse Skill Area"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Cannon03_64.webp"
+    },
+    {
+      "id": "warlock_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Curse Effect"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Cannon03_64.webp"
+    },
+    {
+      "id": "warlock_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+20 % chance to avoid Elemental Ailments"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgAll_64.webp"
+    },
+    {
+      "id": "warlock_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Affliction Effect"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "warlock_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Critical Strike Rating",
+        "+20 % Minion Critical Strike Rating",
+        "+14 % Critical Strike Damage against enemies affected by Ailments",
+        "+14 % Minion Critical Strike Damage against enemies affected by Ailments"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Crit01_64.webp"
+    },
+    {
+      "id": "warlock_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Upon dealing damage to a Cursed target, there is a +25 % chance to Paralyze it"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Cannon03_64.webp"
+    },
+    {
+      "id": "warlock_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+8 % additional damage against Cursed enemies"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Cannon03_64.webp"
+    },
+    {
+      "id": "warlock_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.5 % Blur Effect"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgEle_64.webp"
+    },
+    {
+      "id": "warlock_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Affliction Effect"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "warlock_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Ailment Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "warlock_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+2 % Crowd Control Effects"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Crit03_64.webp"
+    },
+    {
+      "id": "warlock_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+20 % chance to gain Blur when inflicting crowd control effects (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgEle_64.webp"
+    },
+    {
+      "id": "warlock_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage",
+        "+9 % Minion Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "warlock_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "For every +2 % Ignite , Wilt , and Trauma Chance, +1 % Ignite , Wilt , and Trauma Damage respectively (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "warlock_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+5 % chance to inflict Slow on hit (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Crit03_64.webp"
+    },
+    {
+      "id": "warlock_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+20 % chance to Blind the target on hit",
+        "+25 % Critical Strike Damage Mitigation against Blinded enemies (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Crit03_64.webp"
+    },
+    {
+      "id": "warlock_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Upon inflicting damage, +15 % Hit Damage for every type of Ailment the enemy has",
+        "When Minions deal damage, +15 % Hit Damage for every type of Ailment the enemy has"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "warlock_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+30 % chance to inflict Damaging Ailments",
+        "Ailments inflicted are reflected back onto you (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "warlock_c0_r0",
+      "to": "warlock_c1_r0"
+    },
+    {
+      "from": "warlock_c0_r2",
+      "to": "warlock_c1_r2"
+    },
+    {
+      "from": "warlock_c0_r4",
+      "to": "warlock_c1_r4"
+    },
+    {
+      "from": "warlock_c1_r1",
+      "to": "warlock_c2_r1"
+    },
+    {
+      "from": "warlock_c1_r3",
+      "to": "warlock_c2_r3"
+    },
+    {
+      "from": "warlock_c2_r0",
+      "to": "warlock_c3_r0"
+    },
+    {
+      "from": "warlock_c2_r0",
+      "to": "warlock_c3_r1"
+    },
+    {
+      "from": "warlock_c2_r2",
+      "to": "warlock_c3_r2"
+    },
+    {
+      "from": "warlock_c2_r4",
+      "to": "warlock_c3_r4"
+    },
+    {
+      "from": "warlock_c3_r0",
+      "to": "warlock_c4_r0"
+    },
+    {
+      "from": "warlock_c3_r1",
+      "to": "warlock_c4_r1"
+    },
+    {
+      "from": "warlock_c3_r3",
+      "to": "warlock_c4_r3"
+    },
+    {
+      "from": "warlock_c4_r2",
+      "to": "warlock_c5_r2"
+    },
+    {
+      "from": "warlock_c4_r4",
+      "to": "warlock_c5_r4"
+    },
+    {
+      "from": "warlock_c5_r1",
+      "to": "warlock_c6_r0"
+    },
+    {
+      "from": "warlock_c5_r1",
+      "to": "warlock_c6_r1"
+    },
+    {
+      "from": "warlock_c5_r3",
+      "to": "warlock_c6_r3"
+    },
+    {
+      "from": "warlock_c5_r3",
+      "to": "warlock_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "warlock_verbal_abuse",
+      "name": "Verbal Abuse",
+      "effects": [
+        "You can cast 1 additional Curses",
+        "+10 % Curse Effect (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_wuyanhuiyu_Icon_128.webp"
+    },
+    {
+      "display_name_key": "warlock_vile",
+      "name": "Vile",
+      "effects": [
+        "When Reaping, +10 % additional Reaping Duration for each type of Damaging Ailment the enemy has (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_beilie_Icon_128.webp"
+    },
+    {
+      "display_name_key": "warlock_dirty_tricks",
+      "name": "Dirty Tricks",
+      "effects": [
+        "Upon inflicting damage, +12 % additional Hit Damage (multiplies) for every type of Ailment the enemy has",
+        "When Minions deal damage, +12 % additional Hit Damage (multiplies) for every type of Ailment the enemy has (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_angzangjiqiao_Icon_128.webp"
+    },
+    {
+      "display_name_key": "warlock_daze",
+      "name": "Daze",
+      "effects": [
+        "+40 % Crowd Control Effects and +25 % additional Ailment Damage while Blur is active (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_miluan_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

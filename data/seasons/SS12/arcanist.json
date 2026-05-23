@@ -1,0 +1,516 @@
+{
+  "tree_name": "Arcanist",
+  "total_points": 35,
+  "tags": [
+    "Servant of Goddess of Knowledge, fused with Power of Deception",
+    "Spell, Mana",
+    "An occultist obsessed with arcane knowledge"
+  ],
+  "glossary": {
+    "737": {
+      "name": "Focus Blessing",
+      "description": "Every stack of Focus Blessing grants +5% additional damage. Initial max stacks: 4"
+    },
+    "734": {
+      "name": "Shield regain",
+      "description": "Based on the Missing Energy Shield, restores a portion of Energy Shield on hit. This effect may only appear once every 0.5s."
+    },
+    "163": {
+      "name": "Full Mana",
+      "description": "When the current Mana is higher than 95% of the Max Mana"
+    },
+    "130": {
+      "name": "Sealed Mana",
+      "description": "A portion of Mana is reserved to maintain persistent effects such as auras"
+    }
+  },
+  "nodes": [
+    {
+      "id": "arcanist_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Spell Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    },
+    {
+      "id": "arcanist_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence02_64.webp"
+    },
+    {
+      "id": "arcanist_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Mana"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "arcanist_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Spell Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    },
+    {
+      "id": "arcanist_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Atk_64.webp"
+    },
+    {
+      "id": "arcanist_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence02_64.webp"
+    },
+    {
+      "id": "arcanist_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 Max Mana"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Bow03_64.webp"
+    },
+    {
+      "id": "arcanist_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 % Max Mana"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "arcanist_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Crit01_64.webp"
+    },
+    {
+      "id": "arcanist_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack and Cast Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Atk_64.webp"
+    },
+    {
+      "id": "arcanist_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.25 % Energy Shield Regain"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence02_64.webp"
+    },
+    {
+      "id": "arcanist_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+30 Max Mana",
+        "Restores 6 Mana on hit. Interval: 0.1s"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Bow03_64.webp"
+    },
+    {
+      "id": "arcanist_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "Regenerates 0.6 % Mana per second"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Flask02_64.webp"
+    },
+    {
+      "id": "arcanist_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Critical Strike Rating",
+        "+5 % Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Crit01_64.webp"
+    },
+    {
+      "id": "arcanist_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Max Mana"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "arcanist_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "2.5 % Energy Shield Regain"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence02_64.webp"
+    },
+    {
+      "id": "arcanist_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Es_64.webp"
+    },
+    {
+      "id": "arcanist_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Mana Regeneration Speed"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Flask02_64.webp"
+    },
+    {
+      "id": "arcanist_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+20 % Attack and Cast Speed when at Full Mana",
+        "+15 % Max Mana"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "arcanist_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+20 % Spell Damage at Low Mana",
+        "+15 % Max Mana"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "arcanist_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Max Mana"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "arcanist_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "Adds 2 % of Max Mana as Energy Shield"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Es_64.webp"
+    },
+    {
+      "id": "arcanist_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Max Mana"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "arcanist_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+10 % Focus Blessing Duration",
+        "+10 % damage while Focus Blessing is active"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Crit01_64.webp"
+    },
+    {
+      "id": "arcanist_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Sealed Mana Compensation"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "arcanist_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 Intelligence"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Blind_64.webp"
+    },
+    {
+      "id": "arcanist_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Spell Damage",
+        "+8 % Skill Cost"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    },
+    {
+      "id": "arcanist_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "8 % of damage is taken from Mana before life"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Defence03_64.webp"
+    },
+    {
+      "id": "arcanist_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 to Max Focus Blessing Stacks",
+        "Regenerates 0.4 % Mana per second while Focus Blessing is active (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Crit01_64.webp"
+    },
+    {
+      "id": "arcanist_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 Mana per 6 Intelligence (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_Blind_64.webp"
+    },
+    {
+      "id": "arcanist_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Consumes 4 % of current Mana when casting a Main Skill. Interval: 0.03s",
+        "+8 % additional Spell Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZS_DmgExtra_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "arcanist_c0_r0",
+      "to": "arcanist_c1_r0"
+    },
+    {
+      "from": "arcanist_c0_r2",
+      "to": "arcanist_c1_r2"
+    },
+    {
+      "from": "arcanist_c0_r4",
+      "to": "arcanist_c1_r4"
+    },
+    {
+      "from": "arcanist_c1_r1",
+      "to": "arcanist_c2_r1"
+    },
+    {
+      "from": "arcanist_c1_r3",
+      "to": "arcanist_c2_r3"
+    },
+    {
+      "from": "arcanist_c2_r0",
+      "to": "arcanist_c3_r0"
+    },
+    {
+      "from": "arcanist_c2_r2",
+      "to": "arcanist_c3_r2"
+    },
+    {
+      "from": "arcanist_c2_r4",
+      "to": "arcanist_c3_r4"
+    },
+    {
+      "from": "arcanist_c3_r1",
+      "to": "arcanist_c4_r0"
+    },
+    {
+      "from": "arcanist_c3_r1",
+      "to": "arcanist_c4_r1"
+    },
+    {
+      "from": "arcanist_c3_r3",
+      "to": "arcanist_c4_r3"
+    },
+    {
+      "from": "arcanist_c4_r2",
+      "to": "arcanist_c5_r2"
+    },
+    {
+      "from": "arcanist_c5_r0",
+      "to": "arcanist_c6_r0"
+    },
+    {
+      "from": "arcanist_c5_r1",
+      "to": "arcanist_c6_r1"
+    },
+    {
+      "from": "arcanist_c5_r3",
+      "to": "arcanist_c6_r3"
+    },
+    {
+      "from": "arcanist_c5_r4",
+      "to": "arcanist_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "arcanist_mana",
+      "name": "Mana",
+      "effects": [
+        "20 % of damage is taken from Mana before life",
+        "+12 % additional Max Mana (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_moneng_Icon_128.webp"
+    },
+    {
+      "display_name_key": "arcanist_mind_focus",
+      "name": "Mind Focus",
+      "effects": [
+        "Changes the base effect of Focus Blessing to: Adds Physical Damage equal to 1% of Max Mana to Attacks and Spells (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_juqiningshen_Icon_128.webp"
+    },
+    {
+      "display_name_key": "arcanist_quick_wits",
+      "name": "Quick Wits",
+      "effects": [
+        "+25 % additional Spell Damage when the Energy Shield is not low",
+        "-20 % additional damage taken at Low Energy Shield (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yongdongzhizhou_Icon_128.webp"
+    },
+    {
+      "display_name_key": "arcanist_preparation",
+      "name": "Preparation",
+      "effects": [
+        "Adds 1 Max Energy Shield for every 50 Mana consumed recently (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yangjingxurui_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

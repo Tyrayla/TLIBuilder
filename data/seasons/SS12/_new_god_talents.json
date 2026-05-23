@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Dying Dragon",
+    "item_id": "dying_dragon",
+    "effects": [
+      "+60 % Skill Area and +30 % additional damage for the next several Main Attack Skills after the Tenacity Blessing is devoured .+1 to the number of Main Attack Skill buffed for every stack of Tenacity Blessing devoured.",
+      "The new god is devouring Six Gods' blessings (Max Divinity Effect: 1)"
+    ],
+    "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yuanquan_Icon_128.webp",
+    "note": ""
+  },
+  {
+    "name": "Falling Stars",
+    "item_id": "falling_stars",
+    "effects": [
+      "After a stack of Agility Blessing is devoured , the next certain instances of Hit Damage taken do not lose Deflection. +1 to the number of instances for every 1 stack of Agility Blessing devoured",
+      "The new god is devouring Six Gods' blessings (Max Divinity Effect: 1)"
+    ],
+    "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yuanquan_Icon_128.webp",
+    "note": ""
+  },
+  {
+    "name": "Broken Dream",
+    "item_id": "broken_dream",
+    "effects": [
+      "+100 % chance to deal Double Damage for the next several Main Spell Skills after the Focus Blessing is devoured . +1 to the number of Main Spell Skill buffed for every stack of Focus Blessing devoured.",
+      "The new god is devouring Six Gods' blessings (Max Divinity Effect: 1)"
+    ],
+    "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yuanquan_Icon_128.webp",
+    "note": ""
+  },
+  {
+    "name": "End of War",
+    "item_id": "end_of_war",
+    "effects": [
+      "After Fervor is devoured , -25 % additional Critical Strike Rating for the next 4s. +1 % additional damage on Critical Strike for every 1 Fervor Rating devoured",
+      "The new god is devouring Six Gods' blessings (Max Divinity Effect: 1)"
+    ],
+    "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yuanquan_Icon_128.webp",
+    "note": ""
+  },
+  {
+    "name": "Revealed Truth",
+    "item_id": "revealed_truth",
+    "effects": [
+      "After Blur is devoured , cannot avoid damage for the next 4s. 1.5 % chance to avoid Ailments , and 1.5 % chance to avoid Crowd Control Effects for every 1 Blur Rating devoured",
+      "The new god is devouring Six Gods' blessings (Max Divinity Effect: 1)"
+    ],
+    "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yuanquan_Icon_128.webp",
+    "note": ""
+  },
+  {
+    "name": "Ruined City",
+    "item_id": "ruined_city",
+    "effects": [
+      "After Barrier is devoured , Barrier Absorption Rate is fixed at 0 for the next 4s. Restores 1.5 Life and Energy Shield over the next 4 s for every 1 Barrier Rating devoured, and the healing cannot exceed 400 % of Max Life and Max Energy Shield",
+      "The new god is devouring Six Gods' blessings (Max Divinity Effect: 1)"
+    ],
+    "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yuanquan_Icon_128.webp",
+    "note": ""
+  }
+]

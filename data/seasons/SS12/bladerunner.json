@@ -1,0 +1,533 @@
+{
+  "tree_name": "Bladerunner",
+  "total_points": 34,
+  "tags": [
+    "Servant of Goddess of Hunting, fused with Power of War",
+    "Dual Wielding, Attack Speed",
+    "A cold blade that shines in shadows"
+  ],
+  "glossary": {
+    "716": {
+      "name": "Agility Blessing",
+      "description": "Every stack of Agility Blessing grants +4% Attack and Cast Speed and +2% additional damage. Initial max stacks: 4"
+    },
+    "112": {
+      "name": "Off-Hand Weapon",
+      "description": "The weapon held in the Character's left hand is the Off-Hand Weapon"
+    },
+    "132": {
+      "name": "Dual Wielding",
+      "description": "When using two One-Handed Weapons, one in each hand"
+    },
+    "111": {
+      "name": "Main-Hand Weapon",
+      "description": "The weapon held in the Character's right hand is the Main-Hand Weapon"
+    },
+    "108": {
+      "name": "Multistrike",
+      "description": "Chance to perform an additional attack when using Attack Skills. If the chance exceeds 100%, one additional attack will be performed with every 100% of the chance.+20% Attack Speed during Multistrikes.Multistrikes consume skill resources as normal and will be interrupted if there are insufficient resources. Moving or using other non-instant skills will interrupt Multistrike.Mobility, Channeled Skills, and Sentry skills cannot Multistrike"
+    },
+    "629": {
+      "name": "Multistrike Count",
+      "description": "Records the current attack's number of attacks during Multistrike when a Multistrike is triggered. The next attack's count during Multistrike +1 for each attack made"
+    },
+    "733": {
+      "name": "Life Regain",
+      "description": "Based on the Missing Life (including Sealed Life), restores a portion of Life on hit. This effect has a 0.5s interval."
+    },
+    "734": {
+      "name": "Shield regain",
+      "description": "Based on the Missing Energy Shield, restores a portion of Energy Shield on hit. This effect may only appear once every 0.5s."
+    },
+    "10000100": {
+      "name": "Attack Aggression",
+      "description": "Additionally increases Attack Speed and Attack Damage by 5%. Increases Movement Speed by 10%"
+    }
+  },
+  "nodes": [
+    {
+      "id": "bladerunner_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Attack Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "bladerunner_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Aura_64.webp"
+    },
+    {
+      "id": "bladerunner_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack Speed"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Agi_64.webp"
+    },
+    {
+      "id": "bladerunner_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Attack Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "bladerunner_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Agi_64.webp"
+    },
+    {
+      "id": "bladerunner_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Aura_64.webp"
+    },
+    {
+      "id": "bladerunner_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Projectile Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Area_64.webp"
+    },
+    {
+      "id": "bladerunner_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack Speed",
+        "-4 Skill Cost"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Agi_64.webp"
+    },
+    {
+      "id": "bladerunner_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Crit01_64.webp"
+    },
+    {
+      "id": "bladerunner_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Agi_64.webp"
+    },
+    {
+      "id": "bladerunner_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.25 % Life Regain",
+        "1.25 % Energy Shield Regain"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Es_64.webp"
+    },
+    {
+      "id": "bladerunner_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Projectile Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Area_64.webp"
+    },
+    {
+      "id": "bladerunner_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+7 % Evasion"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "bladerunner_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Critical Strike Rating",
+        "+5 % Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Crit01_64.webp"
+    },
+    {
+      "id": "bladerunner_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "25 % chance to gain Attack Aggression on defeat (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Agi_64.webp"
+    },
+    {
+      "id": "bladerunner_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "2.5 % Life Regain",
+        "2.5 % Energy Shield Regain"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Es_64.webp"
+    },
+    {
+      "id": "bladerunner_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+14 % Evasion"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "bladerunner_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Attack Damage while Dual Wielding"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgLightning_64.webp"
+    },
+    {
+      "id": "bladerunner_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+2 % Movement Speed"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Agi_64.webp"
+    },
+    {
+      "id": "bladerunner_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % chance to Multistrike",
+        "+6 % Minion Multistrike chance"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Atk_64.webp"
+    },
+    {
+      "id": "bladerunner_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack Speed while Dual Wielding"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgLightning_64.webp"
+    },
+    {
+      "id": "bladerunner_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Attack Damage while Dual Wielding"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgLightning_64.webp"
+    },
+    {
+      "id": "bladerunner_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "35 % of the bonuses for Movement Speed is also applied to the Cooldown Recovery Speed of Mobility skills",
+        "70 % of the bonuses for Movement Speed is also applied to the Attack and Cast Speed of Mobility Skills (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Agi_64.webp"
+    },
+    {
+      "id": "bladerunner_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % additional Attack Speed when performing Multistrikes"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Atk_64.webp"
+    },
+    {
+      "id": "bladerunner_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 Dexterity"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    },
+    {
+      "id": "bladerunner_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+6 % additional Attack Speed while Dual Wielding (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgLightning_64.webp"
+    },
+    {
+      "id": "bladerunner_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+5 % additional Attack Damage for each unique type of weapon equipped while Dual Wielding"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgLightning_64.webp"
+    },
+    {
+      "id": "bladerunner_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Gains a stack Agility Blessing when using Mobility Skills (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Agi_64.webp"
+    },
+    {
+      "id": "bladerunner_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Multistrikes deal 16 % increasing damage"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Atk_64.webp"
+    },
+    {
+      "id": "bladerunner_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 % Attack and Cast Speed per 40 Dexterity (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "bladerunner_c0_r0",
+      "to": "bladerunner_c1_r0"
+    },
+    {
+      "from": "bladerunner_c0_r2",
+      "to": "bladerunner_c1_r2"
+    },
+    {
+      "from": "bladerunner_c0_r4",
+      "to": "bladerunner_c1_r4"
+    },
+    {
+      "from": "bladerunner_c1_r1",
+      "to": "bladerunner_c2_r1"
+    },
+    {
+      "from": "bladerunner_c1_r3",
+      "to": "bladerunner_c2_r3"
+    },
+    {
+      "from": "bladerunner_c2_r0",
+      "to": "bladerunner_c3_r0"
+    },
+    {
+      "from": "bladerunner_c2_r1",
+      "to": "bladerunner_c3_r1"
+    },
+    {
+      "from": "bladerunner_c2_r2",
+      "to": "bladerunner_c3_r2"
+    },
+    {
+      "from": "bladerunner_c2_r4",
+      "to": "bladerunner_c3_r4"
+    },
+    {
+      "from": "bladerunner_c4_r0",
+      "to": "bladerunner_c5_r0"
+    },
+    {
+      "from": "bladerunner_c4_r0",
+      "to": "bladerunner_c5_r1"
+    },
+    {
+      "from": "bladerunner_c4_r2",
+      "to": "bladerunner_c5_r2"
+    },
+    {
+      "from": "bladerunner_c4_r3",
+      "to": "bladerunner_c5_r3"
+    },
+    {
+      "from": "bladerunner_c5_r0",
+      "to": "bladerunner_c6_r0"
+    },
+    {
+      "from": "bladerunner_c5_r1",
+      "to": "bladerunner_c6_r1"
+    },
+    {
+      "from": "bladerunner_c5_r2",
+      "to": "bladerunner_c6_r2"
+    },
+    {
+      "from": "bladerunner_c5_r3",
+      "to": "bladerunner_c6_r3"
+    },
+    {
+      "from": "bladerunner_c5_r4",
+      "to": "bladerunner_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "bladerunner_waiting_attack",
+      "name": "Waiting Attack",
+      "effects": [
+        "Consumes all Agility Blessing every 8 s. For each stack consumed, +5 % additional damage in the next 8 s (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_sijierdong_Icon_128.webp"
+    },
+    {
+      "display_name_key": "bladerunner_joined_force",
+      "name": "Joined Force",
+      "effects": [
+        "Off-Hand Weapons do not participate in Attacks while Dual Wielding",
+        "Adds 60 % of the damage of the Off-Hand Weapon to the final damage of the Main-Hand Weapon (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_heli_Icon_128.webp"
+    },
+    {
+      "display_name_key": "bladerunner_quick_advancement",
+      "name": "Quick Advancement",
+      "effects": [
+        "Multistrikes deal 55 % increasing damage",
+        "Minions' Multistrikes deal 55 % increasing damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_shirupozhu_Icon_128.webp"
+    },
+    {
+      "display_name_key": "bladerunner_preemptive_strike",
+      "name": "Preemptive Strike",
+      "effects": [
+        "+1 initial Multistrike Count",
+        "-20 % Attack Speed when performing Multistrikes (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_xianfazhiren_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

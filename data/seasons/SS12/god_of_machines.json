@@ -1,0 +1,532 @@
+{
+  "tree_name": "God of Machines",
+  "total_points": 34,
+  "tags": [
+    "Summon, Sentry",
+    "Uros, Maker of Immortality"
+  ],
+  "glossary": {
+    "720": {
+      "name": "Barrier",
+      "description": "Gains a Shield equal to 20% of the sum of Max Life and Max Energy Shield, absorbing 50% of the Hit Damage taken. Cannot gain another Barrier when a Barrier is present."
+    },
+    "750": {
+      "name": "Command",
+      "description": "Every point of Command will grant Synthetic Troop Minions +3% additional damage, +-2% additional damage taken, ++2% Movement Speed, and a bigger Tracking Area.The lowest Command is -100 while the highest is 100. When Command is not 0, 13 point(s) will be returned (reduced/granted) every second until it becomes 0. For every 10 Command increased, +7 additional points will be returned.Synthetic Troop Minions' Duration will not reduce when Command is a positive value."
+    },
+    "759": {
+      "name": "Growth",
+      "description": "Spirit Magi grow into the next Stage for every 100 Growth. They start at Stage 1 and can grow until they reach Stage 5. For every 8 Growth they have, Spirit Magi gain +1% Physique, +10% additional Skill Area, and a bonus every stage:At Stage 2, +30% chance for them to use Enhanced Skill chance.At Stage 3, their Enhanced Skills become stronger.At Stage 4, their Empower Skills become stronger.At Stage 5, they +50% additional damage, +10% additional Skill Area, and gain increased Movement Speed and Tracking Area.The max Growth is 1000."
+    },
+    "173": {
+      "name": "Applied Weapon Bonuses",
+      "description": "Includes a weapon's Base Damage and affixes, but does not affect Minions' Base Attack Speed and Base Critical Strike Rating."
+    },
+    "157": {
+      "name": "Enhanced Skill",
+      "description": "Chance to change the skill into a stronger Enhanced Skill when Spirit Magus uses a Base Skill. The chance can be increased, and at 100%, Spirit Magi will no longer use Base Skills and always use Enhanced Skills"
+    },
+    "158": {
+      "name": "Ultimate",
+      "description": "When in a certain state, Spirit Magi use their Ultimate with extremely high strength"
+    },
+    "504": {
+      "name": "Ailment Damage",
+      "description": "Trauma, Ignite, and Wilt"
+    },
+    "10000106": {
+      "name": "Quickness",
+      "description": "Additionally increases Attack Speed, Cast Speed, Movement Speed, and Mobility Skill Cooldown Recovery Time by 8%"
+    },
+    "10000100": {
+      "name": "Attack Aggression",
+      "description": "Additionally increases Attack Speed and Attack Damage by 5%. Increases Movement Speed by 10%"
+    },
+    "10000101": {
+      "name": "Spell Aggression",
+      "description": "Additionally increases Cast Speed and Spell Damage by 7%. Increases Mobility Skill Cooldown Recovery Speed by 7%"
+    }
+  },
+  "nodes": [
+    {
+      "id": "god_of_machines_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage",
+        "+9 % Minion Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_AtkSpeed_64.webp"
+    },
+    {
+      "id": "god_of_machines_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Minion Attack and Cast Speed",
+        "Regenerates 4 Mana per second"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Atk_64.webp"
+    },
+    {
+      "id": "god_of_machines_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % damage",
+        "+18 % Minion Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_AtkSpeed_64.webp"
+    },
+    {
+      "id": "god_of_machines_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+7 % Sentry Skill Area",
+        "+10 % Sentry Duration",
+        "4.5 % Sentry Projectile Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Bow01_64.webp"
+    },
+    {
+      "id": "god_of_machines_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Minion Critical Strike Rating",
+        "+6 % Minion Skill Area"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Crit03_64.webp"
+    },
+    {
+      "id": "god_of_machines_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Minion Attack and Cast Speed",
+        "Regenerates 8 Mana per second"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Atk_64.webp"
+    },
+    {
+      "id": "god_of_machines_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Es_64.webp"
+    },
+    {
+      "id": "god_of_machines_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+7 % Sentry Skill Area",
+        "+20 % Sentry Duration",
+        "+9 % Sentry Projectile Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Bow01_64.webp"
+    },
+    {
+      "id": "god_of_machines_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Sentry Skill Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Channel02_64.webp"
+    },
+    {
+      "id": "god_of_machines_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Minion Critical Strike Damage",
+        "+12 % Minion Skill Area"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Crit03_64.webp"
+    },
+    {
+      "id": "god_of_machines_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Minion Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_machines_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Es_64.webp"
+    },
+    {
+      "id": "god_of_machines_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 % Barrier Shield"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "god_of_machines_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Sentry Skill Critical Strike Rating",
+        "+5 % Sentry Skill Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Channel02_64.webp"
+    },
+    {
+      "id": "god_of_machines_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+ 2 Command per second"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_machines_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % chance for Spirit Magi to use an Enhanced Skill",
+        "+27 % Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate ."
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_machines_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Minion Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_machines_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+16 % Barrier Shield"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "god_of_machines_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Sentry Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_AtkSpeed_64.webp"
+    },
+    {
+      "id": "god_of_machines_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Minion Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_machines_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Gains Hasten when Minions land a Critical Strike (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_machines_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Sentry Skill cast frequency"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Duration_64.webp"
+    },
+    {
+      "id": "god_of_machines_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+24 % Sentry Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_AtkSpeed_64.webp"
+    },
+    {
+      "id": "god_of_machines_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 Minion Skill Level"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_machines_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Gains Attack Aggression when Minions land a Critical Strike (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_machines_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Gains Spell Aggression when Minion Spells land a Critical Strike (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_machines_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 % Sentry Skill cast frequency"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Duration_64.webp"
+    },
+    {
+      "id": "god_of_machines_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+10 % additional Sentry Damage if Sentry Skill is not used in the last 1 s"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_AtkSpeed_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "god_of_machines_c0_r2",
+      "to": "god_of_machines_c1_r2"
+    },
+    {
+      "from": "god_of_machines_c1_r1",
+      "to": "god_of_machines_c2_r1"
+    },
+    {
+      "from": "god_of_machines_c1_r3",
+      "to": "god_of_machines_c2_r3"
+    },
+    {
+      "from": "god_of_machines_c2_r0",
+      "to": "god_of_machines_c3_r0"
+    },
+    {
+      "from": "god_of_machines_c2_r2",
+      "to": "god_of_machines_c3_r2"
+    },
+    {
+      "from": "god_of_machines_c2_r4",
+      "to": "god_of_machines_c3_r4"
+    },
+    {
+      "from": "god_of_machines_c3_r1",
+      "to": "god_of_machines_c4_r0"
+    },
+    {
+      "from": "god_of_machines_c3_r1",
+      "to": "god_of_machines_c4_r1"
+    },
+    {
+      "from": "god_of_machines_c3_r3",
+      "to": "god_of_machines_c4_r3"
+    },
+    {
+      "from": "god_of_machines_c4_r2",
+      "to": "god_of_machines_c5_r2"
+    },
+    {
+      "from": "god_of_machines_c4_r4",
+      "to": "god_of_machines_c5_r4"
+    },
+    {
+      "from": "god_of_machines_c5_r0",
+      "to": "god_of_machines_c6_r0"
+    },
+    {
+      "from": "god_of_machines_c5_r2",
+      "to": "god_of_machines_c6_r1"
+    },
+    {
+      "from": "god_of_machines_c5_r2",
+      "to": "god_of_machines_c6_r2"
+    },
+    {
+      "from": "god_of_machines_c5_r3",
+      "to": "god_of_machines_c6_r3"
+    },
+    {
+      "from": "god_of_machines_c5_r4",
+      "to": "god_of_machines_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "god_of_machines_orders",
+      "name": "Orders",
+      "effects": [
+        "+25 % additional Minion Damage",
+        "+50 % additional Summon Skill Cast Speed",
+        "-90 % additional damage taken by Minions (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_haoling_Icon_128.webp"
+    },
+    {
+      "display_name_key": "god_of_machines_sentry",
+      "name": "Sentry",
+      "effects": [
+        "Max Sentry Quantity +1",
+        "+100 % additional Cast Speed for Sentry Skills (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_shaobing_Icon_128.webp"
+    },
+    {
+      "display_name_key": "god_of_machines_shrink_back",
+      "name": "Shrink Back",
+      "effects": [
+        "Gains Barrier every 1s",
+        "+50 % Barrier Shield (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_guisuo_Icon_128.webp"
+    },
+    {
+      "display_name_key": "god_of_machines_mighty_guard",
+      "name": "Mighty Guard",
+      "effects": [
+        "+2 Minion Skill Level",
+        "+ 4 Command per second",
+        "+40 initial Growth for Spirit Magi (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_qianglihuwei_Icon_128.webp"
+    },
+    {
+      "display_name_key": "god_of_machines_overly_modified",
+      "name": "Overly Modified",
+      "effects": [
+        "+30 % additional Sentry Damage, -50 % non-Sentry Active Skill damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_guodugaizhuang_Icon_128.webp"
+    },
+    {
+      "display_name_key": "god_of_machines_isomorphic_arms",
+      "name": "Isomorphic Arms",
+      "effects": [
+        "Minions gain the Main-Hand Weapon's bonuses .",
+        "+30 % additional Spell Damage for Minions when wielding a Wand or Tin Staff (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_tonggouwuzhuang_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

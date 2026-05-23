@@ -1,0 +1,535 @@
+{
+  "tree_name": "Marksman",
+  "total_points": 35,
+  "tags": [
+    "Goddess of Hunting Legacy",
+    "Projectile, Evade",
+    "A sniper who masters the art of speed"
+  ],
+  "glossary": {
+    "716": {
+      "name": "Agility Blessing",
+      "description": "Every stack of Agility Blessing grants +4% Attack and Cast Speed and +2% additional damage. Initial max stacks: 4"
+    },
+    "160": {
+      "name": "Proximity",
+      "description": "Within 4m"
+    },
+    "159": {
+      "name": "Deflection",
+      "description": "Reduces additional damage taken by 8% for every stack of Deflection, up to 3 stack(s). When hit, consumes all stacks of Deflection"
+    },
+    "150": {
+      "name": "Distant",
+      "description": "6m away"
+    },
+    "101": {
+      "name": "Elemental Ailment",
+      "description": "Ignite, Frostbite, Freeze, and Numbed"
+    },
+    "106": {
+      "name": "Split",
+      "description": "Upon hitting a target, a Parabolic Projectile Splits into multiple secondary Projectiles"
+    },
+    "107": {
+      "name": "Jump",
+      "description": "Upon hitting a target, a horizontal Projectile or Chain Skill jumps to another target nearby"
+    },
+    "109": {
+      "name": "Penetrate",
+      "description": "Horizontal Projectiles pass through the targets they hit, continuing along their original trajectory until reaching the Penetration limit."
+    }
+  },
+  "nodes": [
+    {
+      "id": "marksman_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Projectile Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_AtkSpeed_64.webp"
+    },
+    {
+      "id": "marksman_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+7 % Evasion"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "marksman_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Projectile Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_CastSpeed_64.webp"
+    },
+    {
+      "id": "marksman_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_AtkSpeed_64.webp"
+    },
+    {
+      "id": "marksman_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+450 Evasion"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "marksman_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+14 % Evasion"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "marksman_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "4.5 % Projectile Damage",
+        "+3 % Projectile Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack and Cast Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_CastSpeed_64.webp"
+    },
+    {
+      "id": "marksman_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Projectile Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Es_64.webp"
+    },
+    {
+      "id": "marksman_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+900 Evasion"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "marksman_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.5 % chance to avoid damage"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Defence01_64.webp"
+    },
+    {
+      "id": "marksman_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Projectile Speed"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+30 % Projectile Critical Strike Rating"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Projectile Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Es_64.webp"
+    },
+    {
+      "id": "marksman_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+7 % Evasion"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "marksman_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % chance to avoid damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Defence01_64.webp"
+    },
+    {
+      "id": "marksman_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+8 % Projectile Speed",
+        "Projectile Damage increases with the distance traveled, dealing up to +48 % damage to distant enemies"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+60 % Projectile Damage against enemies in proximity"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 Dexterity"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    },
+    {
+      "id": "marksman_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+12 % Evasion",
+        "+12 % chance to avoid Elemental Ailments"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Evasion_64.webp"
+    },
+    {
+      "id": "marksman_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Projectile Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 % Evasion per 24 Dexterity (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Armor_64.webp"
+    },
+    {
+      "id": "marksman_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+10 % Agility Blessing Duration",
+        "+7 % Evasion while Agility Blessing is active"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Area_64.webp"
+    },
+    {
+      "id": "marksman_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+7 % Evasion"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Agi_64.webp"
+    },
+    {
+      "id": "marksman_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 to Parabolic Projectile Splits quantity (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 Jumps"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+2 Horizontal Projectile Penetration(s)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_DmgExtra_64.webp"
+    },
+    {
+      "id": "marksman_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+6 % Evasion per stack of Agility Blessing owned (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Area_64.webp"
+    },
+    {
+      "id": "marksman_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+20 % additional Evasion on Spell Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/SL_Agi_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "marksman_c0_r0",
+      "to": "marksman_c1_r0"
+    },
+    {
+      "from": "marksman_c0_r2",
+      "to": "marksman_c1_r2"
+    },
+    {
+      "from": "marksman_c0_r4",
+      "to": "marksman_c1_r4"
+    },
+    {
+      "from": "marksman_c1_r1",
+      "to": "marksman_c2_r1"
+    },
+    {
+      "from": "marksman_c1_r3",
+      "to": "marksman_c2_r3"
+    },
+    {
+      "from": "marksman_c2_r0",
+      "to": "marksman_c3_r0"
+    },
+    {
+      "from": "marksman_c2_r0",
+      "to": "marksman_c3_r1"
+    },
+    {
+      "from": "marksman_c2_r2",
+      "to": "marksman_c3_r2"
+    },
+    {
+      "from": "marksman_c2_r4",
+      "to": "marksman_c3_r4"
+    },
+    {
+      "from": "marksman_c3_r0",
+      "to": "marksman_c4_r0"
+    },
+    {
+      "from": "marksman_c3_r1",
+      "to": "marksman_c4_r1"
+    },
+    {
+      "from": "marksman_c3_r3",
+      "to": "marksman_c4_r3"
+    },
+    {
+      "from": "marksman_c4_r2",
+      "to": "marksman_c5_r2"
+    },
+    {
+      "from": "marksman_c5_r1",
+      "to": "marksman_c6_r0"
+    },
+    {
+      "from": "marksman_c5_r1",
+      "to": "marksman_c6_r1"
+    },
+    {
+      "from": "marksman_c5_r1",
+      "to": "marksman_c6_r2"
+    },
+    {
+      "from": "marksman_c5_r3",
+      "to": "marksman_c6_r3"
+    },
+    {
+      "from": "marksman_c5_r4",
+      "to": "marksman_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "marksman_gale",
+      "name": "Gale",
+      "effects": [
+        "60 % of the Projectile Speed bonus is also applied to the additional bonus for Projectile Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_kuangfeng_Icon_128.webp"
+    },
+    {
+      "display_name_key": "marksman_euphoria",
+      "name": "Euphoria",
+      "effects": [
+        "+4 % additional Evasion for every stack of Agility Blessing (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_kangfen_Icon_128.webp"
+    },
+    {
+      "display_name_key": "marksman_close_range_fire",
+      "name": "Close Range Fire",
+      "effects": [
+        "Projectiles deal up to +35 % additional damage to enemies in Proximity , and this damage reduces with the distance traveled by the Projectiles (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_dijinsheji_Icon_128.webp"
+    },
+    {
+      "display_name_key": "marksman_master_escapist",
+      "name": "Master Escapist",
+      "effects": [
+        "+1 Max Deflection stacks",
+        "For every 5 m moved, gains 1 stack(s) of Deflection (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_taotuodashi_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

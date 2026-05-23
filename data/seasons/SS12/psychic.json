@@ -1,0 +1,498 @@
+{
+  "tree_name": "Psychic",
+  "total_points": 32,
+  "tags": [
+    "Servant of Goddess of Deception, fused with Power of Hunting",
+    "Persistent",
+    "A Berserker who turns his back on common sense and seeks supernatural power in the forbidden knowledge"
+  ],
+  "glossary": {
+    "180": {
+      "name": "Ill Omen",
+      "description": "Inflicts enemies affected by Ominous Curse with 1 stack of Ill Omen whenever their Damage Over Time, Reaping Damage, Spacetime Turbulence Damage, and additional damage taken reaches a certain percentage of their Max Life (8% for non-Elite enemies and 5% for Elite enemies)Maximum stacks of Ill Omen: 10Upon reaching max stacks, eliminates non-Elite enemies and deals True Damage equal to 20% of Max Life to Elite enemies"
+    },
+    "102": {
+      "name": "Nearby",
+      "description": "Within 6m"
+    },
+    "124": {
+      "name": "Elite",
+      "description": "Elite monsters include rare monsters and bosses"
+    },
+    "500": {
+      "name": "Defense",
+      "description": "The sum of Armor, Evasion, and Energy Shield"
+    },
+    "139": {
+      "name": "Injury Buffer",
+      "description": "Delays a portion of Hit Damage taken in the next 4s."
+    },
+    "137": {
+      "name": "Affliction",
+      "description": "When the Affliction inflicted per second is not 0, the Damage Over Time dealt will continuously inflicts Affliction on the targetThe target takes 1% additional Damage Over Time for every Affliction pointThe max Affliction is 100"
+    },
+    "10000108": {
+      "name": "Torment",
+      "description": "Each stack of Torment additionally increases Damage Over Time dealt by 5% for 4s. Stacks up to 3 times"
+    },
+    "138": {
+      "name": "Reaping",
+      "description": "Deals a certain amount of True Damage to the target, equivalent to the damage from all DoT effects over a certain period of time"
+    },
+    "721": {
+      "name": "Blur",
+      "description": "Gains 100 points of Blur Rating10 Blur Rating is lost per second. Blur is lost once Blur Rating drops to 0+0.25% Chance to Avoid Damage for every point of Blur Rating you haveMax Blur Rating is 100"
+    },
+    "129": {
+      "name": "Charge",
+      "description": "Energy Shield starts to charge after the character hasn't taken any damage for 2s at the rate of 20% of Max Energy Shield per second and stops charging if the character takes damage"
+    }
+  },
+  "nodes": [
+    {
+      "id": "psychic_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Damage Over Time"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Duration_64.webp"
+    },
+    {
+      "id": "psychic_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Defence02_64.webp"
+    },
+    {
+      "id": "psychic_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Agi_64.webp"
+    },
+    {
+      "id": "psychic_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Damage Over Time"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Duration_64.webp"
+    },
+    {
+      "id": "psychic_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+2 % Skill Effect Duration"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Duration_64.webp"
+    },
+    {
+      "id": "psychic_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Defence02_64.webp"
+    },
+    {
+      "id": "psychic_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Defense"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Area_64.webp"
+    },
+    {
+      "id": "psychic_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack and Cast Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Agi_64.webp"
+    },
+    {
+      "id": "psychic_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Damage Over Time"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Duration_64.webp"
+    },
+    {
+      "id": "psychic_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Skill Effect Duration"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Duration_64.webp"
+    },
+    {
+      "id": "psychic_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Agi_64.webp"
+    },
+    {
+      "id": "psychic_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Injury Buffer"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Area_64.webp"
+    },
+    {
+      "id": "psychic_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Affliction Effect"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "psychic_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Gains a stack of Torment when dealing damage to enemies with max Affliction (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Duration_64.webp"
+    },
+    {
+      "id": "psychic_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 Affliction inflicted per second",
+        "+6 % Affliction Effect"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "psychic_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Agi_64.webp"
+    },
+    {
+      "id": "psychic_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Reaping Duration"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "psychic_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Affliction Effect"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "psychic_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Reaping Recovery Speed"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "psychic_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+18 Affliction inflicted per second",
+        "-8 % All Resistance when the enemy has max Affliction"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "psychic_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Reaping Duration"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "psychic_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Reaping Recovery Speed"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "psychic_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Reaping Duration"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "psychic_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.5 % Blur Effect"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgEle_64.webp"
+    },
+    {
+      "id": "psychic_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+50 % chance to gain Blur when Reaping (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "psychic_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Gains 1 stack(s) of Focus Blessing when Reaping (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "psychic_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "When Reaping, immediately starts Charging Energy Shield. Interval: 2 s (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_Curse_64.webp"
+    },
+    {
+      "id": "psychic_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+16 % Blur Effect"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/QZ_DmgEle_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "psychic_c0_r0",
+      "to": "psychic_c1_r0"
+    },
+    {
+      "from": "psychic_c0_r2",
+      "to": "psychic_c1_r2"
+    },
+    {
+      "from": "psychic_c0_r4",
+      "to": "psychic_c1_r4"
+    },
+    {
+      "from": "psychic_c1_r1",
+      "to": "psychic_c2_r1"
+    },
+    {
+      "from": "psychic_c1_r3",
+      "to": "psychic_c2_r3"
+    },
+    {
+      "from": "psychic_c2_r0",
+      "to": "psychic_c3_r0"
+    },
+    {
+      "from": "psychic_c2_r2",
+      "to": "psychic_c3_r2"
+    },
+    {
+      "from": "psychic_c2_r4",
+      "to": "psychic_c3_r4"
+    },
+    {
+      "from": "psychic_c3_r1",
+      "to": "psychic_c4_r1"
+    },
+    {
+      "from": "psychic_c3_r3",
+      "to": "psychic_c4_r3"
+    },
+    {
+      "from": "psychic_c4_r0",
+      "to": "psychic_c5_r0"
+    },
+    {
+      "from": "psychic_c4_r0",
+      "to": "psychic_c5_r1"
+    },
+    {
+      "from": "psychic_c4_r3",
+      "to": "psychic_c5_r3"
+    },
+    {
+      "from": "psychic_c5_r0",
+      "to": "psychic_c6_r0"
+    },
+    {
+      "from": "psychic_c5_r1",
+      "to": "psychic_c6_r1"
+    },
+    {
+      "from": "psychic_c5_r2",
+      "to": "psychic_c6_r2"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "psychic_windwalk",
+      "name": "Windwalk",
+      "effects": [
+        "+60 % additional Reaping Duration against enemies with Max Affliction. Lasts for 4 s. Only takes effect once on each enemy (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_jixu_Icon_128.webp"
+    },
+    {
+      "display_name_key": "psychic_holiness",
+      "name": "Holiness",
+      "effects": [
+        "-95 % Curse effect against you",
+        "-15 % additional damage taken from Cursed enemies (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_shengjie_Icon_128.webp"
+    },
+    {
+      "display_name_key": "psychic_inexorable_doom",
+      "name": "Inexorable Doom",
+      "effects": [
+        "Inflicts 1 additional stacks of Ill Omen when inflicting Ill Omen for the first time",
+        "When triggering Ill Omen , inflicts 3 stack(s) of Ill Omen on 1 Nearby non- Elite enemy (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_shibangongbei_Icon_128.webp"
+    },
+    {
+      "display_name_key": "psychic_reap_purification",
+      "name": "Reap Purification",
+      "effects": [
+        "Ill Omen Effect becomes: Enemies take True Damage equal to 2% of Max Life when gaining 1 stack of Ill Omen (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_jinghuaqiege_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

@@ -1,0 +1,469 @@
+{
+  "tree_name": "God of War",
+  "total_points": 30,
+  "tags": [
+    "Physical",
+    "Ralph, Invincible Champion of Eternal Coliseum"
+  ],
+  "glossary": {
+    "139": {
+      "name": "Injury Buffer",
+      "description": "Delays a portion of Hit Damage taken in the next 4s."
+    },
+    "105": {
+      "name": "Fatal Damage",
+      "description": "The instance of damage that defeats the target"
+    },
+    "740": {
+      "name": "Fervor rating",
+      "description": "+2% Critical Strike Rating for every point of Fervor Rating you have. The Max Fervor Rating is 100."
+    },
+    "739": {
+      "name": "Fighting Will",
+      "description": "Accumulates Fervor Rating when you defeat enemies or hit Elite enemies while having Fervor. +2% Critical Strike Rating for every point of Fervor Rating. The Max Fervor Rating is 100 points."
+    },
+    "102": {
+      "name": "Nearby",
+      "description": "Within 6m"
+    },
+    "738": {
+      "name": "Knockback direction is reversed",
+      "description": "Inverts the Knockback direction"
+    },
+    "703": {
+      "name": "Knockback",
+      "description": "Forced to move back by a short distance"
+    },
+    "711": {
+      "name": "Trauma",
+      "description": "An Ailment that may be triggered on hit, dealing Physical Damage per second for 4s based on Base Trauma Damage. Unable to stackTrauma cannot be inflicted when Base Trauma Damage is 0"
+    },
+    "138": {
+      "name": "Reaping",
+      "description": "Deals a certain amount of True Damage to the target, equivalent to the damage from all DoT effects over a certain period of time"
+    },
+    "733": {
+      "name": "Life Regain",
+      "description": "Based on the Missing Life (including Sealed Life), restores a portion of Life on hit. This effect has a 0.5s interval."
+    },
+    "734": {
+      "name": "Shield regain",
+      "description": "Based on the Missing Energy Shield, restores a portion of Energy Shield on hit. This effect may only appear once every 0.5s."
+    }
+  },
+  "nodes": [
+    {
+      "id": "god_of_war_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgAll_64.webp"
+    },
+    {
+      "id": "god_of_war_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit04_64.webp"
+    },
+    {
+      "id": "god_of_war_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgAll_64.webp"
+    },
+    {
+      "id": "god_of_war_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Skill Area",
+        "+6 % Projectile Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Area_64.webp"
+    },
+    {
+      "id": "god_of_war_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_CastSpeed_64.webp"
+    },
+    {
+      "id": "god_of_war_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+25 % Critical Strike Rating",
+        "-4 Skill Cost"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit04_64.webp"
+    },
+    {
+      "id": "god_of_war_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+2 % Attack Block Chance",
+        "+2 % Spell Block Chance"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Atk_64.webp"
+    },
+    {
+      "id": "god_of_war_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Skill Area",
+        "+12 % Projectile Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Area_64.webp"
+    },
+    {
+      "id": "god_of_war_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Aura_64.webp"
+    },
+    {
+      "id": "god_of_war_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack and Cast Speed"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_CastSpeed_64.webp"
+    },
+    {
+      "id": "god_of_war_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 % Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgAll_64.webp"
+    },
+    {
+      "id": "god_of_war_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Attack Block Chance",
+        "+4 % Spell Block Chance"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Atk_64.webp"
+    },
+    {
+      "id": "god_of_war_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % chance to inflict Trauma"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Bleed_64.webp"
+    },
+    {
+      "id": "god_of_war_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Aura_64.webp"
+    },
+    {
+      "id": "god_of_war_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Physical Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_war_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+16 % Critical Strike Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgAll_64.webp"
+    },
+    {
+      "id": "god_of_war_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "10 % chance to restore 15 % of Life, Energy Shield, and Mana when Blocking (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Atk_64.webp"
+    },
+    {
+      "id": "god_of_war_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+8 % chance to inflict Trauma",
+        "+16 % Trauma Reaping Duration"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Bleed_64.webp"
+    },
+    {
+      "id": "god_of_war_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Physical Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_war_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.25 % Life Regain",
+        "1.25 % Energy Shield Regain"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Accuracy_64.webp"
+    },
+    {
+      "id": "god_of_war_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Physical Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_war_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 Physical Skill Level"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "god_of_war_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "2.5 % Life Regain",
+        "2.5 % Energy Shield Regain"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Accuracy_64.webp"
+    },
+    {
+      "id": "god_of_war_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+8 % additional Physical Damage while having Fervor"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "god_of_war_c0_r2",
+      "to": "god_of_war_c1_r2"
+    },
+    {
+      "from": "god_of_war_c1_r1",
+      "to": "god_of_war_c2_r1"
+    },
+    {
+      "from": "god_of_war_c1_r3",
+      "to": "god_of_war_c2_r3"
+    },
+    {
+      "from": "god_of_war_c2_r0",
+      "to": "god_of_war_c3_r0"
+    },
+    {
+      "from": "god_of_war_c2_r2",
+      "to": "god_of_war_c3_r2"
+    },
+    {
+      "from": "god_of_war_c2_r4",
+      "to": "god_of_war_c3_r4"
+    },
+    {
+      "from": "god_of_war_c3_r1",
+      "to": "god_of_war_c4_r1"
+    },
+    {
+      "from": "god_of_war_c3_r2",
+      "to": "god_of_war_c4_r2"
+    },
+    {
+      "from": "god_of_war_c3_r3",
+      "to": "god_of_war_c4_r3"
+    },
+    {
+      "from": "god_of_war_c4_r0",
+      "to": "god_of_war_c5_r0"
+    },
+    {
+      "from": "god_of_war_c5_r0",
+      "to": "god_of_war_c6_r0"
+    },
+    {
+      "from": "god_of_war_c5_r2",
+      "to": "god_of_war_c6_r2"
+    },
+    {
+      "from": "god_of_war_c5_r4",
+      "to": "god_of_war_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "god_of_war_cohesion",
+      "name": "Cohesion",
+      "effects": [
+        "+50 % additional Critical Strike Rating for the next Main Skill used every 1 s (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_ningju_Icon_128.webp"
+    },
+    {
+      "display_name_key": "god_of_war_blunt",
+      "name": "Blunt",
+      "effects": [
+        "+30 % additional Physical Damage",
+        "Enemies +20 % Injury Buffer (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_dunqi_Icon_128.webp"
+    },
+    {
+      "display_name_key": "god_of_war_determined",
+      "name": "Determined",
+      "effects": [
+        "Upon taking fatal damage , you have a 50 % chance to keep at least 1 Life (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_jianqiang_Icon_128.webp"
+    },
+    {
+      "display_name_key": "god_of_war_ambition",
+      "name": "Ambition",
+      "effects": [
+        "+100 % chance to gain 10 Fervor rating on hit",
+        "Gains Fervor when there are enemies Nearby (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yexin_Icon_128.webp"
+    },
+    {
+      "display_name_key": "god_of_war_gravity",
+      "name": "Gravity",
+      "effects": [
+        "+25 % additional Melee Damage",
+        "Melee Skill has reversed knockback direction (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yinli_Icon_128.webp"
+    },
+    {
+      "display_name_key": "god_of_war_shooting_arrows",
+      "name": "Shooting Arrows",
+      "effects": [
+        "+25 % additional Projectile Damage",
+        "+50 % Knockback distance (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_liushi_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

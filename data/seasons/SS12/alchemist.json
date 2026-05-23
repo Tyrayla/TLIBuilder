@@ -1,0 +1,547 @@
+{
+  "tree_name": "Alchemist",
+  "total_points": 35,
+  "tags": [
+    "Servant of God of Machines, fused with Power of Knowledge",
+    "Spirit Magus, Summon",
+    "With greater risks come greater hope"
+  ],
+  "glossary": {
+    "130": {
+      "name": "Sealed Mana",
+      "description": "A portion of Mana is reserved to maintain persistent effects such as auras"
+    },
+    "743": {
+      "name": "Origin of Spirit Magus",
+      "description": "Buff effect gained after Activating a Spirit Magus summoning skill."
+    },
+    "157": {
+      "name": "Enhanced Skill",
+      "description": "Chance to change the skill into a stronger Enhanced Skill when Spirit Magus uses a Base Skill. The chance can be increased, and at 100%, Spirit Magi will no longer use Base Skills and always use Enhanced Skills"
+    },
+    "759": {
+      "name": "Growth",
+      "description": "Spirit Magi grow into the next Stage for every 100 Growth. They start at Stage 1 and can grow until they reach Stage 5. For every 8 Growth they have, Spirit Magi gain +1% Physique, +10% additional Skill Area, and a bonus every stage:At Stage 2, +30% chance for them to use Enhanced Skill chance.At Stage 3, their Enhanced Skills become stronger.At Stage 4, their Empower Skills become stronger.At Stage 5, they +50% additional damage, +10% additional Skill Area, and gain increased Movement Speed and Tracking Area.The max Growth is 1000."
+    },
+    "511": {
+      "name": "Damaging Ailment",
+      "description": "Trauma, Ignite, and Wilt"
+    },
+    "129": {
+      "name": "Charge",
+      "description": "Energy Shield starts to charge after the character hasn't taken any damage for 2s at the rate of 20% of Max Energy Shield per second and stops charging if the character takes damage"
+    },
+    "158": {
+      "name": "Ultimate",
+      "description": "When in a certain state, Spirit Magi use their Ultimate with extremely high strength"
+    },
+    "504": {
+      "name": "Ailment Damage",
+      "description": "Trauma, Ignite, and Wilt"
+    },
+    "154": {
+      "name": "Damage Transfer",
+      "description": "Transfers a part of the Hit Damage and Secondary Damage taken to other units.Up to 60% of the damage taken from each hit can be transferred, and up to 90% of total damage taken can be transferred"
+    }
+  },
+  "nodes": [
+    {
+      "id": "alchemist_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Minion Damage",
+        "+9 % damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgAll_64.webp"
+    },
+    {
+      "id": "alchemist_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Es_64.webp"
+    },
+    {
+      "id": "alchemist_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "Regenerates 0.75 % Life per second"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Flask01_64.webp"
+    },
+    {
+      "id": "alchemist_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Minion Damage",
+        "+18 % damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgAll_64.webp"
+    },
+    {
+      "id": "alchemist_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Minion Attack and Cast Speed",
+        "+3 % Attack and Cast Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Agi_64.webp"
+    },
+    {
+      "id": "alchemist_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Es_64.webp"
+    },
+    {
+      "id": "alchemist_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 % Minion Damage",
+        "+12 % chance for Minions to inflict Damaging Ailments"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "alchemist_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "Regenerates 1.5 % Life per second"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Flask01_64.webp"
+    },
+    {
+      "id": "alchemist_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Minion Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Crit04_64.webp"
+    },
+    {
+      "id": "alchemist_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Minion Attack and Cast Speed",
+        "+6 % Attack and Cast Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Agi_64.webp"
+    },
+    {
+      "id": "alchemist_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+16 % Minion Damage",
+        "+24 % chance for Minions to inflict Damaging Ailments"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "alchemist_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "3.75 % Energy Shield Charge Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgEle_64.webp"
+    },
+    {
+      "id": "alchemist_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Minion Critical Strike Rating",
+        "+5 % Minion Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Crit04_64.webp"
+    },
+    {
+      "id": "alchemist_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+2 % chance for Spirit Magi to use an Enhanced Skill"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "alchemist_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "4.5 % Spirit Magus Ultimate Cooldown Recovery Speed"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Agi_64.webp"
+    },
+    {
+      "id": "alchemist_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate ."
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgEle_64.webp"
+    },
+    {
+      "id": "alchemist_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "7.5 % Energy Shield Charge Speed"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgEle_64.webp"
+    },
+    {
+      "id": "alchemist_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % chance for Spirit Magi to use an Enhanced Skill"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "alchemist_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Spirit Magus Ultimate Cooldown Recovery Speed"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Agi_64.webp"
+    },
+    {
+      "id": "alchemist_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+24 % Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate ."
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgEle_64.webp"
+    },
+    {
+      "id": "alchemist_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Es_64.webp"
+    },
+    {
+      "id": "alchemist_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Spirit Magus Skill Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "alchemist_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Origin of Spirit Magus effect"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Flask02_64.webp"
+    },
+    {
+      "id": "alchemist_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Minion Damage",
+        "+9 % damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgAll_64.webp"
+    },
+    {
+      "id": "alchemist_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "12.5 % Sealed Mana Compensation for Spirit Magus Skills"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgEle_64.webp"
+    },
+    {
+      "id": "alchemist_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Es_64.webp"
+    },
+    {
+      "id": "alchemist_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 Spirit Magus Skill Level",
+        "-80 % additional damage taken by Spirit Magi"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "alchemist_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 to Max Spirit Magi In Map",
+        "-40 % additional Spirit Magus Skill Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Flask02_64.webp"
+    },
+    {
+      "id": "alchemist_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 Passive Skill Level"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgAll_64.webp"
+    },
+    {
+      "id": "alchemist_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "8 % of damage taken is transferred to a random Minion",
+        "-80 % additional damage taken by Spirit Magi (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgEle_64.webp"
+    },
+    {
+      "id": "alchemist_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+15 % Life Regeneration Speed",
+        "-15 % additional Energy Shield Charge Interval"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Es_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "alchemist_c0_r0",
+      "to": "alchemist_c1_r0"
+    },
+    {
+      "from": "alchemist_c0_r2",
+      "to": "alchemist_c1_r2"
+    },
+    {
+      "from": "alchemist_c0_r4",
+      "to": "alchemist_c1_r4"
+    },
+    {
+      "from": "alchemist_c1_r1",
+      "to": "alchemist_c2_r1"
+    },
+    {
+      "from": "alchemist_c1_r3",
+      "to": "alchemist_c2_r3"
+    },
+    {
+      "from": "alchemist_c2_r0",
+      "to": "alchemist_c3_r0"
+    },
+    {
+      "from": "alchemist_c2_r4",
+      "to": "alchemist_c3_r4"
+    },
+    {
+      "from": "alchemist_c3_r1",
+      "to": "alchemist_c4_r1"
+    },
+    {
+      "from": "alchemist_c3_r2",
+      "to": "alchemist_c4_r2"
+    },
+    {
+      "from": "alchemist_c3_r3",
+      "to": "alchemist_c4_r3"
+    },
+    {
+      "from": "alchemist_c4_r4",
+      "to": "alchemist_c5_r4"
+    },
+    {
+      "from": "alchemist_c5_r0",
+      "to": "alchemist_c6_r0"
+    },
+    {
+      "from": "alchemist_c5_r1",
+      "to": "alchemist_c6_r1"
+    },
+    {
+      "from": "alchemist_c5_r2",
+      "to": "alchemist_c6_r2"
+    },
+    {
+      "from": "alchemist_c5_r3",
+      "to": "alchemist_c6_r3"
+    },
+    {
+      "from": "alchemist_c5_r4",
+      "to": "alchemist_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "alchemist_source",
+      "name": "Source",
+      "effects": [
+        "+50 % Sealed Mana Compensation for Spirit Magus Skills",
+        "+30 % additional Origin of Spirit Magus Effect",
+        "Spirit Magi +30 % additional Empower Skill Effect (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yuanquan_Icon_128.webp"
+    },
+    {
+      "display_name_key": "alchemist_empower",
+      "name": "Empower",
+      "effects": [
+        "The number of Max Spirit Magi In Map is 1",
+        "+100 % additional Spirit Magus Skill Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_funeng_Icon_128.webp"
+    },
+    {
+      "display_name_key": "alchemist_battle_trumpet",
+      "name": "Battle Trumpet",
+      "effects": [
+        "-10 % additional Minion Attack and Cast Speed",
+        "+50 % chance for Spirit Magi to use an Enhanced Skill (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_chongfenghaojiao_Icon_128.webp"
+    },
+    {
+      "display_name_key": "alchemist_talons_of_abyss",
+      "name": "Talons of Abyss",
+      "effects": [
+        "For every 20 Growth a Spirit Magus has, it deals +1 % additional damage",
+        "For every 40 Growth a Spirit Magus has, it +1 % additional Ultimate Attack and Cast Speed (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_shenyuanzhaoya_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

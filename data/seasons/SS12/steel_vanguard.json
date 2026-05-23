@@ -1,0 +1,517 @@
+{
+  "tree_name": "Steel Vanguard",
+  "total_points": 34,
+  "tags": [
+    "Servant of God of Machines, fused with Power of Might",
+    "Buff, Resistance",
+    "Fear comes from a lack of firepower"
+  ],
+  "glossary": {
+    "120": {
+      "name": "Elemental",
+      "description": "Fire, Cold, and Lightning"
+    },
+    "176": {
+      "name": "Effective",
+      "description": "The portion that doesn't exceed the fixed upper limit"
+    },
+    "130": {
+      "name": "Sealed Mana",
+      "description": "A portion of Mana is reserved to maintain persistent effects such as auras"
+    },
+    "733": {
+      "name": "Life Regain",
+      "description": "Based on the Missing Life (including Sealed Life), restores a portion of Life on hit. This effect has a 0.5s interval."
+    },
+    "734": {
+      "name": "Shield regain",
+      "description": "Based on the Missing Energy Shield, restores a portion of Energy Shield on hit. This effect may only appear once every 0.5s."
+    }
+  },
+  "nodes": [
+    {
+      "id": "steel_vanguard_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage",
+        "+9 % Minion Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Es_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+2 % Elemental Resistance"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgEle_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % damage",
+        "+18 % Minion Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed",
+        "+3 % Minion Attack and Cast Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Agi_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Es_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Erosion Resistance"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgChaos_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Elemental Resistance"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgEle_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating",
+        "+15 % Minion Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Crit04_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack and Cast Speed",
+        "+6 % Minion Attack and Cast Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Agi_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.25 % Life Regain",
+        "1.25 % Energy Shield Regain"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Accuracy_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 % Erosion Resistance"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgChaos_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "Elixir Skills gain 0.5 Charging Progress every second"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Critical Strike Rating",
+        "+20 % Minion Critical Strike Rating",
+        "+5 % Critical Strike Damage",
+        "+5 % Minion Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Crit04_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage",
+        "+9 % Minion Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_AtkSpeed_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "2.5 % Life Regain",
+        "2.5 % Energy Shield Regain"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Accuracy_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Elixir Skills gain 2.5 Charging Progress every second (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+2 % Aura Effect"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Bow03_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+1 Empower Skill Level"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_AtkSpeed_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "4.5 % Focus Speed"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % damage while an Elixir Skill is active"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Armor_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "-4 % additional Elemental Damage taken"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Aura Effect"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Bow03_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage",
+        "+9 % Minion Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Channel01_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Focus Speed"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 % Elixir Skill Effect"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Armor_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Converts 8 % of Physical Damage taken to random Elemental Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_DmgExtra_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "8 % additional damage applied to Life",
+        "Minions deal 8 % additional damage to Life"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Channel01_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c6_r2",
+      "column": 6,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 Focus Skill Level"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Area_64.webp"
+    },
+    {
+      "id": "steel_vanguard_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+20 % Elixir Skill Effect (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JX_Armor_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "steel_vanguard_c0_r0",
+      "to": "steel_vanguard_c1_r0"
+    },
+    {
+      "from": "steel_vanguard_c0_r2",
+      "to": "steel_vanguard_c1_r2"
+    },
+    {
+      "from": "steel_vanguard_c0_r4",
+      "to": "steel_vanguard_c1_r4"
+    },
+    {
+      "from": "steel_vanguard_c1_r1",
+      "to": "steel_vanguard_c2_r1"
+    },
+    {
+      "from": "steel_vanguard_c1_r3",
+      "to": "steel_vanguard_c2_r3"
+    },
+    {
+      "from": "steel_vanguard_c2_r0",
+      "to": "steel_vanguard_c3_r0"
+    },
+    {
+      "from": "steel_vanguard_c2_r2",
+      "to": "steel_vanguard_c3_r2"
+    },
+    {
+      "from": "steel_vanguard_c2_r4",
+      "to": "steel_vanguard_c3_r4"
+    },
+    {
+      "from": "steel_vanguard_c3_r1",
+      "to": "steel_vanguard_c4_r1"
+    },
+    {
+      "from": "steel_vanguard_c4_r0",
+      "to": "steel_vanguard_c5_r0"
+    },
+    {
+      "from": "steel_vanguard_c4_r2",
+      "to": "steel_vanguard_c5_r2"
+    },
+    {
+      "from": "steel_vanguard_c4_r3",
+      "to": "steel_vanguard_c5_r3"
+    },
+    {
+      "from": "steel_vanguard_c4_r4",
+      "to": "steel_vanguard_c5_r4"
+    },
+    {
+      "from": "steel_vanguard_c5_r1",
+      "to": "steel_vanguard_c6_r1"
+    },
+    {
+      "from": "steel_vanguard_c5_r2",
+      "to": "steel_vanguard_c6_r2"
+    },
+    {
+      "from": "steel_vanguard_c5_r3",
+      "to": "steel_vanguard_c6_r3"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "steel_vanguard_reflection",
+      "name": "Reflection",
+      "effects": [
+        "+6 % additional damage for each type of Aura you are affected by",
+        "Minions +6 % additional damage for each type of Aura they are affected by (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_yingshe_Icon_128.webp"
+    },
+    {
+      "display_name_key": "steel_vanguard_resistance",
+      "name": "Resistance",
+      "effects": [
+        "+1 % chance to avoid Elemental Ailments for every 1 % effective Erosion Resistance (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_dikang_Icon_128.webp"
+    },
+    {
+      "display_name_key": "steel_vanguard_knowledgeable",
+      "name": "Knowledgeable",
+      "effects": [
+        "+100 % additional Focus Skill Damage",
+        "+50 % Sealed Mana Compensation for Focus Skills (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_bowenqiangshi_Icon_128.webp"
+    },
+    {
+      "display_name_key": "steel_vanguard_tailored_remedy",
+      "name": "Tailored Remedy",
+      "effects": [
+        "The Restoration Effect from Elixir Skills cannot be removed",
+        "-40 % additional Elixir Skill Effect Duration when equipped with no more than 1 Elixir Skill",
+        "+60 % additional Elixir Skill Effect when equipped with no more than 2 Elixir Skills (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_lingdanmiaoyao_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

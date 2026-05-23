@@ -1,0 +1,549 @@
+{
+  "tree_name": "Warlord",
+  "total_points": 35,
+  "tags": [
+    "Servant of God of Might, fused with Power of Machines",
+    "Fire, Area",
+    "Abide by the ways of knights and punish all evil"
+  ],
+  "glossary": {
+    "710": {
+      "name": "Ignite",
+      "description": "An Ailment that may be triggered on hit, dealing Fire Damage per second for 4s based on Base Ignite Damage. Unable to stackIgnite cannot be inflicted when Base Ignite Damage is 0"
+    },
+    "719": {
+      "name": "Tenacity Blessing",
+      "description": "Every stack of Tenacity Blessing grants an additional 4% damage reduction (multiplies). Initial max stacks: 4."
+    },
+    "137": {
+      "name": "Affliction",
+      "description": "When the Affliction inflicted per second is not 0, the Damage Over Time dealt will continuously inflicts Affliction on the targetThe target takes 1% additional Damage Over Time for every Affliction pointThe max Affliction is 100"
+    },
+    "733": {
+      "name": "Life Regain",
+      "description": "Based on the Missing Life (including Sealed Life), restores a portion of Life on hit. This effect has a 0.5s interval."
+    },
+    "734": {
+      "name": "Shield regain",
+      "description": "Based on the Missing Energy Shield, restores a portion of Energy Shield on hit. This effect may only appear once every 0.5s."
+    },
+    "502": {
+      "name": "Max Resistance",
+      "description": "By default, the Max Resistance is 60%. This limit can be increased."
+    },
+    "10000103": {
+      "name": "Fire Infiltration",
+      "description": "Additionally increases Fire Damage taken by 13%. Reduces Skill Area by 8%"
+    }
+  },
+  "nodes": [
+    {
+      "id": "warlord_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Fire Damage",
+        "+9 % Minion Fire Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgAll_64.webp"
+    },
+    {
+      "id": "warlord_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Es_64.webp"
+    },
+    {
+      "id": "warlord_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Fire Damage Over Time",
+        "+9 % Minion Fire Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Dot_64.webp"
+    },
+    {
+      "id": "warlord_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Fire Damage",
+        "+18 % Minion Fire Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgAll_64.webp"
+    },
+    {
+      "id": "warlord_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed",
+        "+3 % Minion Attack and Cast Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Agi_64.webp"
+    },
+    {
+      "id": "warlord_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Es_64.webp"
+    },
+    {
+      "id": "warlord_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Fire Resistance"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Area_64.webp"
+    },
+    {
+      "id": "warlord_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Fire Damage Over Time",
+        "+18 % Minion Fire Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Dot_64.webp"
+    },
+    {
+      "id": "warlord_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating",
+        "+15 % Minion Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Crit01_64.webp"
+    },
+    {
+      "id": "warlord_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack and Cast Speed",
+        "+6 % Minion Attack and Cast Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Agi_64.webp"
+    },
+    {
+      "id": "warlord_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.25 % Life Regain",
+        "1.25 % Energy Shield Regain"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Defence02_64.webp"
+    },
+    {
+      "id": "warlord_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+4 % Max Fire Resistance"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Area_64.webp"
+    },
+    {
+      "id": "warlord_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % chance to Ignite targets",
+        "+6 % Ignite chance for Minions"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgAll_64.webp"
+    },
+    {
+      "id": "warlord_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Critical Strike Rating",
+        "+20 % Minion Critical Strike Rating",
+        "+5 % Critical Strike Damage",
+        "+5 % Minion Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Crit01_64.webp"
+    },
+    {
+      "id": "warlord_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Fire Damage",
+        "+9 % Minion Fire Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgAll_64.webp"
+    },
+    {
+      "id": "warlord_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "2.5 % Life Regain",
+        "2.5 % Energy Shield Regain"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Defence02_64.webp"
+    },
+    {
+      "id": "warlord_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Es_64.webp"
+    },
+    {
+      "id": "warlord_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % chance to Ignite targets",
+        "+12 % Ignite chance for Minions"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgAll_64.webp"
+    },
+    {
+      "id": "warlord_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Fire Damage",
+        "+9 % Minion Fire Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgAll_64.webp"
+    },
+    {
+      "id": "warlord_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Fire Damage",
+        "+18 % Minion Fire Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgAll_64.webp"
+    },
+    {
+      "id": "warlord_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+2 % Fire Penetration against Ignited enemies",
+        "+2 % Minion Fire Penetration against Ignited enemies"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Es_64.webp"
+    },
+    {
+      "id": "warlord_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Immune to Ignite",
+        "Minions are immune to Fire Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Es_64.webp"
+    },
+    {
+      "id": "warlord_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Fire Damage Over Time",
+        "+9 % Minion Fire Damage",
+        "Adds 10 - 10 Base Ignite Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Dot_64.webp"
+    },
+    {
+      "id": "warlord_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Converts 100 % of Physical Damage to Fire Damage",
+        "Converts 100 % of Minion Physical Damage to Fire Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgAll_64.webp"
+    },
+    {
+      "id": "warlord_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+8 Strength"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgEle_64.webp"
+    },
+    {
+      "id": "warlord_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Inflicts Fire Infiltration when dealing Fire Damage to Ignited enemies (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Es_64.webp"
+    },
+    {
+      "id": "warlord_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Fire Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgAll_64.webp"
+    },
+    {
+      "id": "warlord_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Affliction Effect",
+        "+15 % Minion Affliction Effect",
+        "+8 Affliction inflicted per second",
+        "+8 Affliction inflicted per second by Minions"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Dot_64.webp"
+    },
+    {
+      "id": "warlord_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+1 % Fire Damage per 12 Strength",
+        "+1 % Minion Fire Damage per 12 Strength (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgEle_64.webp"
+    },
+    {
+      "id": "warlord_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+4 % additional Fire Damage",
+        "+8 % chance to Ignite targets"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgAll_64.webp"
+    },
+    {
+      "id": "warlord_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Inflicts 1 additional stack(s) of Ignite"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Dot_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "warlord_c0_r0",
+      "to": "warlord_c1_r0"
+    },
+    {
+      "from": "warlord_c0_r2",
+      "to": "warlord_c1_r2"
+    },
+    {
+      "from": "warlord_c0_r4",
+      "to": "warlord_c1_r4"
+    },
+    {
+      "from": "warlord_c1_r1",
+      "to": "warlord_c2_r1"
+    },
+    {
+      "from": "warlord_c1_r3",
+      "to": "warlord_c2_r3"
+    },
+    {
+      "from": "warlord_c2_r0",
+      "to": "warlord_c3_r0"
+    },
+    {
+      "from": "warlord_c2_r2",
+      "to": "warlord_c3_r2"
+    },
+    {
+      "from": "warlord_c2_r4",
+      "to": "warlord_c3_r4"
+    },
+    {
+      "from": "warlord_c3_r1",
+      "to": "warlord_c4_r1"
+    },
+    {
+      "from": "warlord_c3_r3",
+      "to": "warlord_c4_r3"
+    },
+    {
+      "from": "warlord_c4_r0",
+      "to": "warlord_c5_r0"
+    },
+    {
+      "from": "warlord_c4_r2",
+      "to": "warlord_c5_r2"
+    },
+    {
+      "from": "warlord_c4_r4",
+      "to": "warlord_c5_r4"
+    },
+    {
+      "from": "warlord_c5_r1",
+      "to": "warlord_c6_r1"
+    },
+    {
+      "from": "warlord_c5_r3",
+      "to": "warlord_c6_r3"
+    },
+    {
+      "from": "warlord_c5_r4",
+      "to": "warlord_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "warlord_starfire",
+      "name": "Starfire",
+      "effects": [
+        "+1 Ignite limit",
+        "When Ignite is inflicted, it spreads to enemies within 10m. Interval: 0.3s (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_xinhuo_Icon_128.webp"
+    },
+    {
+      "display_name_key": "warlord_fueling",
+      "name": "Fueling",
+      "effects": [
+        "The Fire Resistance of enemies within 10m is fixed at 0 (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_huoshangjiaoyou_Icon_128.webp"
+    },
+    {
+      "display_name_key": "warlord_rock",
+      "name": "Rock",
+      "effects": [
+        "Converts 5 % of Physical Damage taken to Fire Damage for every stack of Tenacity Blessing you have (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_jianruopanshi_Icon_128.webp"
+    },
+    {
+      "display_name_key": "warlord_true_flame",
+      "name": "True Flame",
+      "effects": [
+        "When an enemy is Ignited , 65 % of the additional bonus to Damage Over Time taken from Affliction is also applied to your Fire Hit Damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_zhenshizhiyan_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

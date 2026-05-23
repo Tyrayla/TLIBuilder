@@ -1,0 +1,498 @@
+{
+  "tree_name": "Onslaughter",
+  "total_points": 33,
+  "tags": [
+    "Servant of God of Might, fused with Power of War",
+    "Two-Handed Weapon, Life",
+    "Valiant and bold, hack and slash"
+  ],
+  "glossary": {
+    "719": {
+      "name": "Tenacity Blessing",
+      "description": "Every stack of Tenacity Blessing grants an additional 4% damage reduction (multiplies). Initial max stacks: 4."
+    },
+    "160": {
+      "name": "Proximity",
+      "description": "Within 4m"
+    },
+    "733": {
+      "name": "Life Regain",
+      "description": "Based on the Missing Life (including Sealed Life), restores a portion of Life on hit. This effect has a 0.5s interval."
+    },
+    "500": {
+      "name": "Defense",
+      "description": "The sum of Armor, Evasion, and Energy Shield"
+    },
+    "152": {
+      "name": "Full Life",
+      "description": "When current Life is above 95% of Max Life"
+    },
+    "704": {
+      "name": "Paralysis",
+      "description": "Increases damage taken by 15%"
+    }
+  },
+  "nodes": [
+    {
+      "id": "onslaughter_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Attack Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Agi_64.webp"
+    },
+    {
+      "id": "onslaughter_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Area Damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Attack Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Attack Damage",
+        "-4 % Attack Speed"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+5 % Max Life",
+        "Regenerates 0.5 % Life per second"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Agi_64.webp"
+    },
+    {
+      "id": "onslaughter_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "1.25 % Life Regain"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Defence02_64.webp"
+    },
+    {
+      "id": "onslaughter_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Area Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Attack Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Atk_64.webp"
+    },
+    {
+      "id": "onslaughter_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+30 % Attack Damage",
+        "-5 % Attack Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Defense"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Armor_64.webp"
+    },
+    {
+      "id": "onslaughter_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "2.5 % Life Regain"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Defence02_64.webp"
+    },
+    {
+      "id": "onslaughter_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Skill Area"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Dagger03_64.webp"
+    },
+    {
+      "id": "onslaughter_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+20 % Attack Critical Strike Rating",
+        "+5 % Critical Strike Damage"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Atk_64.webp"
+    },
+    {
+      "id": "onslaughter_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Defense"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Armor_64.webp"
+    },
+    {
+      "id": "onslaughter_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+10 % Tenacity Blessing Duration",
+        "+10 % Attack Damage while Tenacity Blessing is active"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Dagger01_64.webp"
+    },
+    {
+      "id": "onslaughter_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Skill Area"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Dagger03_64.webp"
+    },
+    {
+      "id": "onslaughter_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+12 % Attack Damage when holding a Two-Handed Weapon"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_AtkSpeed_64.webp"
+    },
+    {
+      "id": "onslaughter_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "-4 % additional Physical Damage taken"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Gains 1 stack(s) of Tenacity Blessing per second when at Full Life (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_Dagger01_64.webp"
+    },
+    {
+      "id": "onslaughter_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Area Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % additional Base Damage for Two-Handed Weapons"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_AtkSpeed_64.webp"
+    },
+    {
+      "id": "onslaughter_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+40 % Attack Critical Strike Rating when holding a Two-Handed Weapon"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_AtkSpeed_64.webp"
+    },
+    {
+      "id": "onslaughter_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "-6 % additional damage taken (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Strength"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+40 % Skill Area if Main Skill is not used in the last 2 s (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    },
+    {
+      "id": "onslaughter_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+10 % additional Base Damage for Two-Handed Weapons"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_AtkSpeed_64.webp"
+    },
+    {
+      "id": "onslaughter_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+80 % inflicted Paralysis Effect when holding a Two-Handed Weapon"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_AtkSpeed_64.webp"
+    },
+    {
+      "id": "onslaughter_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+12 % Strength"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/JL_DmgExtra_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "onslaughter_c0_r0",
+      "to": "onslaughter_c1_r0"
+    },
+    {
+      "from": "onslaughter_c0_r2",
+      "to": "onslaughter_c1_r2"
+    },
+    {
+      "from": "onslaughter_c0_r4",
+      "to": "onslaughter_c1_r4"
+    },
+    {
+      "from": "onslaughter_c1_r1",
+      "to": "onslaughter_c2_r1"
+    },
+    {
+      "from": "onslaughter_c1_r3",
+      "to": "onslaughter_c2_r3"
+    },
+    {
+      "from": "onslaughter_c2_r0",
+      "to": "onslaughter_c3_r0"
+    },
+    {
+      "from": "onslaughter_c2_r2",
+      "to": "onslaughter_c3_r2"
+    },
+    {
+      "from": "onslaughter_c2_r4",
+      "to": "onslaughter_c3_r4"
+    },
+    {
+      "from": "onslaughter_c3_r3",
+      "to": "onslaughter_c4_r3"
+    },
+    {
+      "from": "onslaughter_c4_r0",
+      "to": "onslaughter_c5_r0"
+    },
+    {
+      "from": "onslaughter_c4_r0",
+      "to": "onslaughter_c5_r1"
+    },
+    {
+      "from": "onslaughter_c4_r2",
+      "to": "onslaughter_c5_r2"
+    },
+    {
+      "from": "onslaughter_c4_r4",
+      "to": "onslaughter_c5_r4"
+    },
+    {
+      "from": "onslaughter_c5_r0",
+      "to": "onslaughter_c6_r0"
+    },
+    {
+      "from": "onslaughter_c5_r1",
+      "to": "onslaughter_c6_r1"
+    },
+    {
+      "from": "onslaughter_c5_r3",
+      "to": "onslaughter_c6_r3"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "onslaughter_sweep",
+      "name": "Sweep",
+      "effects": [
+        "+25 % additional Attack Damage when holding a Two-Handed Weapon",
+        "+25 % Attack Skill Area when holding a Two-Handed Weapon (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_qingsao_Icon_128.webp"
+    },
+    {
+      "display_name_key": "onslaughter_focused_strike",
+      "name": "Focused Strike",
+      "effects": [
+        "Area Skills deal up to +32 % additional damage to enemies at the center",
+        "Minions' Area Skills deal up to 32 % additional damage to enemies at the center (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_junengzhiji_Icon_128.webp"
+    },
+    {
+      "display_name_key": "onslaughter_sacrifice",
+      "name": "Sacrifice",
+      "effects": [
+        "Changes the base effect of Tenacity Blessing to: +8% additional damage (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_sheming_Icon_128.webp"
+    },
+    {
+      "display_name_key": "onslaughter_well_matched",
+      "name": "Well Matched",
+      "effects": [
+        "Deals up to +40 % additional Attack Damage to enemies in proximity , and this damage reduces as the distance from the enemy grows",
+        "-15 % additional damage taken from enemies in proximity , and this damage reduces as the distance from the enemy grows (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_shijunlidi_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}

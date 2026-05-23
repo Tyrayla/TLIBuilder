@@ -1,0 +1,563 @@
+{
+  "tree_name": "Ranger",
+  "total_points": 36,
+  "tags": [
+    "Servant of God of War, fused with Power of Might",
+    "Critical Strike, Distance",
+    "An infiltrator who masters the art of both survival and powerful shots"
+  ],
+  "glossary": {
+    "116": {
+      "name": "Lucky",
+      "description": "Performs a random check or random roll twice and picks the result that benefits you the most"
+    },
+    "150": {
+      "name": "Distant",
+      "description": "6m away"
+    },
+    "102": {
+      "name": "Nearby",
+      "description": "Within 6m"
+    },
+    "716": {
+      "name": "Agility Blessing",
+      "description": "Every stack of Agility Blessing grants +4% Attack and Cast Speed and +2% additional damage. Initial max stacks: 4"
+    },
+    "739": {
+      "name": "Fighting Will",
+      "description": "Accumulates Fervor Rating when you defeat enemies or hit Elite enemies while having Fervor. +2% Critical Strike Rating for every point of Fervor Rating. The Max Fervor Rating is 100 points."
+    },
+    "703": {
+      "name": "Knockback",
+      "description": "Forced to move back by a short distance"
+    },
+    "740": {
+      "name": "Fervor rating",
+      "description": "+2% Critical Strike Rating for every point of Fervor Rating you have. The Max Fervor Rating is 100."
+    },
+    "718": {
+      "name": "Mark",
+      "description": "The target is locked on. -20% Evasion and +10% additional Critical Strike Damage taken"
+    },
+    "129": {
+      "name": "Charge",
+      "description": "Energy Shield starts to charge after the character hasn't taken any damage for 2s at the rate of 20% of Max Energy Shield per second and stops charging if the character takes damage"
+    },
+    "160": {
+      "name": "Proximity",
+      "description": "Within 4m"
+    }
+  },
+  "nodes": [
+    {
+      "id": "ranger_c0_r0",
+      "column": 0,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit02_64.webp"
+    },
+    {
+      "id": "ranger_c0_r2",
+      "column": 0,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Defence02_64.webp"
+    },
+    {
+      "id": "ranger_c0_r4",
+      "column": 0,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % damage"
+      ],
+      "pts_required": null,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "ranger_c1_r0",
+      "column": 1,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+30 % Critical Strike Rating"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit02_64.webp"
+    },
+    {
+      "id": "ranger_c1_r1",
+      "column": 1,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "7.5 % Critical Strike Damage"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit01_64.webp"
+    },
+    {
+      "id": "ranger_c1_r2",
+      "column": 1,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Defence02_64.webp"
+    },
+    {
+      "id": "ranger_c1_r3",
+      "column": 1,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+25 % damage dealt to Nearby enemies"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "ranger_c1_r4",
+      "column": 1,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+25 % damage to Distant enemies"
+      ],
+      "pts_required": 3,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgExtra_64.webp"
+    },
+    {
+      "id": "ranger_c2_r0",
+      "column": 2,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Attack and Cast Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_CastSpeed_64.webp"
+    },
+    {
+      "id": "ranger_c2_r1",
+      "column": 2,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Damage"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit01_64.webp"
+    },
+    {
+      "id": "ranger_c2_r2",
+      "column": 2,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+2 % Attack Block Chance",
+        "+2 % Spell Block Chance"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Atk_64.webp"
+    },
+    {
+      "id": "ranger_c2_r3",
+      "column": 2,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit02_64.webp"
+    },
+    {
+      "id": "ranger_c2_r4",
+      "column": 2,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "4.5 % Projectile Damage",
+        "+3 % Projectile Speed"
+      ],
+      "pts_required": 6,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgAll_64.webp"
+    },
+    {
+      "id": "ranger_c3_r0",
+      "column": 3,
+      "row": 0,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Attack and Cast Speed"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_CastSpeed_64.webp"
+    },
+    {
+      "id": "ranger_c3_r1",
+      "column": 3,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "100 % chance to gain Agility Blessing on Critical Strike (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit01_64.webp"
+    },
+    {
+      "id": "ranger_c3_r2",
+      "column": 3,
+      "row": 2,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Attack Block Chance",
+        "+4 % Spell Block Chance"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Atk_64.webp"
+    },
+    {
+      "id": "ranger_c3_r3",
+      "column": 3,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Critical Strikes eliminate enemies under 8 % Life (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit02_64.webp"
+    },
+    {
+      "id": "ranger_c3_r4",
+      "column": 3,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Projectile Damage",
+        "+6 % Projectile Speed"
+      ],
+      "pts_required": 9,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_DmgAll_64.webp"
+    },
+    {
+      "id": "ranger_c4_r0",
+      "column": 4,
+      "row": 0,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+4 % Fervor effect"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Channel01_64.webp"
+    },
+    {
+      "id": "ranger_c4_r1",
+      "column": 4,
+      "row": 1,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+3 % Max Life",
+        "+3 % Max Energy Shield"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Defence02_64.webp"
+    },
+    {
+      "id": "ranger_c4_r2",
+      "column": 4,
+      "row": 2,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Critical Strike Rating"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit02_64.webp"
+    },
+    {
+      "id": "ranger_c4_r3",
+      "column": 4,
+      "row": 3,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+9 % Melee Damage"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Flask01_64.webp"
+    },
+    {
+      "id": "ranger_c4_r4",
+      "column": 4,
+      "row": 4,
+      "node_type": "Micro Talent",
+      "max_rank": 3,
+      "effects": [
+        "+10 % Knockback Chance"
+      ],
+      "pts_required": 12,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Dual01_64.webp"
+    },
+    {
+      "id": "ranger_c5_r0",
+      "column": 5,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "0.5 % Critical Strike Damage per Fervor Rating"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Channel01_64.webp"
+    },
+    {
+      "id": "ranger_c5_r1",
+      "column": 5,
+      "row": 1,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+6 % Max Life",
+        "+6 % Max Energy Shield"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Defence02_64.webp"
+    },
+    {
+      "id": "ranger_c5_r2",
+      "column": 5,
+      "row": 2,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+25 % chance to Mark the enemy on Critical Strike",
+        "+20 % Mark effect (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Crit02_64.webp"
+    },
+    {
+      "id": "ranger_c5_r3",
+      "column": 5,
+      "row": 3,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+18 % Melee Damage"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Flask01_64.webp"
+    },
+    {
+      "id": "ranger_c5_r4",
+      "column": 5,
+      "row": 4,
+      "node_type": "Medium Talent",
+      "max_rank": 3,
+      "effects": [
+        "+15 % Knockback distance"
+      ],
+      "pts_required": 15,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Dual01_64.webp"
+    },
+    {
+      "id": "ranger_c6_r0",
+      "column": 6,
+      "row": 0,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "\u653b\u51fb\u66b4\u51fb\u65f6\uff0c\u56de\u590d 10 % \u5df2\u635f\u751f\u547d\uff0c\u95f4\u9694 1 \u79d2 (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Defence02_64.webp"
+    },
+    {
+      "id": "ranger_c6_r1",
+      "column": 6,
+      "row": 1,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "Immediately starts Charging Energy Shield on attack Critical Strike. Interval: 2 s (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Defence02_64.webp"
+    },
+    {
+      "id": "ranger_c6_r3",
+      "column": 6,
+      "row": 3,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "+15 % additional damage taken by enemies in Proximity (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Flask01_64.webp"
+    },
+    {
+      "id": "ranger_c6_r4",
+      "column": 6,
+      "row": 4,
+      "node_type": "Legendary Medium Talent",
+      "max_rank": 1,
+      "effects": [
+        "120 % of the increase/decrease on Knockback distance is also applied to damage bonus (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 18,
+      "icon_url": "https://cdn.tlidb.com/UIV2/TalentV2/UI/Textures/AtlasTalentPoint/ZZ_Dual01_64.webp"
+    }
+  ],
+  "connections": [
+    {
+      "from": "ranger_c0_r0",
+      "to": "ranger_c1_r0"
+    },
+    {
+      "from": "ranger_c0_r2",
+      "to": "ranger_c1_r2"
+    },
+    {
+      "from": "ranger_c0_r4",
+      "to": "ranger_c1_r3"
+    },
+    {
+      "from": "ranger_c0_r4",
+      "to": "ranger_c1_r4"
+    },
+    {
+      "from": "ranger_c1_r1",
+      "to": "ranger_c2_r1"
+    },
+    {
+      "from": "ranger_c2_r0",
+      "to": "ranger_c3_r0"
+    },
+    {
+      "from": "ranger_c2_r1",
+      "to": "ranger_c3_r1"
+    },
+    {
+      "from": "ranger_c2_r2",
+      "to": "ranger_c3_r2"
+    },
+    {
+      "from": "ranger_c2_r3",
+      "to": "ranger_c3_r3"
+    },
+    {
+      "from": "ranger_c2_r4",
+      "to": "ranger_c3_r4"
+    },
+    {
+      "from": "ranger_c4_r0",
+      "to": "ranger_c5_r0"
+    },
+    {
+      "from": "ranger_c4_r1",
+      "to": "ranger_c5_r1"
+    },
+    {
+      "from": "ranger_c4_r2",
+      "to": "ranger_c5_r2"
+    },
+    {
+      "from": "ranger_c4_r3",
+      "to": "ranger_c5_r3"
+    },
+    {
+      "from": "ranger_c4_r4",
+      "to": "ranger_c5_r4"
+    },
+    {
+      "from": "ranger_c5_r1",
+      "to": "ranger_c6_r0"
+    },
+    {
+      "from": "ranger_c5_r1",
+      "to": "ranger_c6_r1"
+    },
+    {
+      "from": "ranger_c5_r3",
+      "to": "ranger_c6_r3"
+    },
+    {
+      "from": "ranger_c5_r4",
+      "to": "ranger_c6_r4"
+    }
+  ],
+  "core_talents": [
+    {
+      "display_name_key": "ranger_fluke",
+      "name": "Fluke",
+      "effects": [
+        "Lucky Critical Strike (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_jiaoxing_Icon_128.webp"
+    },
+    {
+      "display_name_key": "ranger_keep_it_up",
+      "name": "Keep It Up",
+      "effects": [
+        "When triggering a Critical Strike, gains the following buff for the next 4s: +7 % additional damage and -25 % Critical Strike Rating on Critical Strike. Interval: 0.5s (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_zaijiezaili_Icon_128.webp"
+    },
+    {
+      "display_name_key": "ranger_impending",
+      "name": "Impending",
+      "effects": [
+        "Every 0.25 s, +6% additional damage taken for enemies within 10 m. Stacks up to 5 times (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_jinzaimeijie_Icon_128.webp"
+    },
+    {
+      "display_name_key": "ranger_rapid_shots",
+      "name": "Rapid Shots",
+      "effects": [
+        "Projectile Damage increases with the distance traveled, dealing up to +35 % additional damage to Distant enemies (Max Divinity Effect: 1)"
+      ],
+      "pts_required": 24,
+      "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/CoreTalentIcon/128/UI_CoreTalentIcon_qianggongjinnu_Icon_128.webp"
+    }
+  ],
+  "season": "SS12"
+}
