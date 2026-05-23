@@ -14,8 +14,11 @@ from models.passive_node import PassiveNode, NodeType
 from persistence import save_manager, builds_manager
 from persistence import tree_config_manager
 from persistence import season_manager
+import build_code as _build_code
 
-_TREES_META_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'trees_meta.json')
+_DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+    os.path.join(os.path.dirname(__file__), '..', 'data'))
+_TREES_META_PATH = os.path.join(_DATA_ROOT, 'trees_meta.json')
 with open(_TREES_META_PATH) as _f:
     TREES: dict[str, dict] = json.load(_f)
 
@@ -408,6 +411,35 @@ def delete_build(build_id: str):
     if not builds_manager.delete_build(build_id):
         raise HTTPException(status_code=404, detail="Build not found")
     return {"ok": True}
+
+
+class BuildCodeEncodeRequest(BaseModel):
+    build: dict
+
+
+class BuildCodeDecodeRequest(BaseModel):
+    code: str
+
+
+@app.post("/api/build-code/encode")
+def encode_build_code(req: BuildCodeEncodeRequest):
+    try:
+        code = _build_code.encode_build(req.build)
+        return {"code": code}
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to encode build.")
+
+
+@app.post("/api/build-code/decode")
+def decode_build_code(req: BuildCodeDecodeRequest):
+    active = season_manager.get_active_season()
+    gear_data = season_manager.load_legendary_gear(active) if active else None
+    gear_items = gear_data.get("items", []) if gear_data else []
+    try:
+        build = _build_code.decode_build(req.code, gear_items)
+        return {"build": build}
+    except _build_code.BuildCodeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 # ── Engine ─────────────────────────────────────────────────────────────────────

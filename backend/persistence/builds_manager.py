@@ -2,7 +2,9 @@ import json
 import os
 import uuid
 
-_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'builds'))
+_DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+    os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+_DIR = os.path.normpath(os.path.join(_DATA_ROOT, 'builds'))
 
 
 def _file(build_id: str) -> str:

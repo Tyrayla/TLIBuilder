@@ -2,9 +2,9 @@ import json
 import os
 import shutil
 
-_SEASONS_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons")
-)
+_DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+    os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+_SEASONS_DIR = os.path.normpath(os.path.join(_DATA_ROOT, 'seasons'))
 _ACTIVE_FILE = os.path.join(_SEASONS_DIR, ".active")
 
 

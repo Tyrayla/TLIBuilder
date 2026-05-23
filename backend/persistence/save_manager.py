@@ -1,8 +1,9 @@
 import json
 import os
 
-_SAVE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "save.json")
-_SAVE_PATH = os.path.normpath(_SAVE_PATH)
+_DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+    os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+_SAVE_PATH = os.path.normpath(os.path.join(_DATA_ROOT, 'save.json'))
 
 
 def save(tree_name: str, nodes: dict[str, int],

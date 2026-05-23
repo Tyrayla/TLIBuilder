@@ -1,9 +1,9 @@
 import json
 import os
 
-_PATH = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "talent_snapshot.json")
-)
+_DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+    os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+_PATH = os.path.normpath(os.path.join(_DATA_ROOT, 'talent_snapshot.json'))
 
 
 def exists() -> bool:

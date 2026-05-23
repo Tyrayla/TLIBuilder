@@ -28,12 +28,10 @@ import os
 import re
 from datetime import datetime
 
-_FILTER_PATH = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "node_type_filter.json")
-)
-_OVERRIDES_PATH = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "node_type_filter_overrides.json")
-)
+_DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+    os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+_FILTER_PATH = os.path.normpath(os.path.join(_DATA_ROOT, 'node_type_filter.json'))
+_OVERRIDES_PATH = os.path.normpath(os.path.join(_DATA_ROOT, 'node_type_filter_overrides.json'))
 
 _STOP_WORDS = {"of", "the", "a", "an"}
 

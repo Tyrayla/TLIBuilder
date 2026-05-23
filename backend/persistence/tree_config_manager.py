@@ -2,7 +2,9 @@ import json
 import os
 import re
 
-_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'trees'))
+_DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+    os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+_DIR = os.path.normpath(os.path.join(_DATA_ROOT, 'trees'))
 
 
 def _slug(tree_name: str) -> str:
