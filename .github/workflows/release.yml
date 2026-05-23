@@ -1,0 +1,39 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install fastapi "uvicorn[standard]" pydantic python-multipart pyinstaller
+
+      - name: Build backend with PyInstaller
+        run: python -m PyInstaller backend/backend.spec --distpath backend-dist --workpath backend-build --noconfirm
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build and publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build && npx electron-builder --win --publish always
