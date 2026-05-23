@@ -37,21 +37,74 @@ def import_ethereal_prism(data: dict, season_name: str) -> dict:
     }
 
 
+def _normalize_memory_modifier(modifier: str) -> str:
+    """Ensure modifier has leading '+' if numeric, and capitalize first letter."""
+    if not modifier:
+        return modifier
+    # Add leading + if modifier starts with a digit (e.g. '35.2 % Attack Speed')
+    if modifier[0].isdigit():
+        modifier = '+' + modifier
+    # Capitalize first letter for non-numeric starts (e.g. 'attack Crit...' -> 'Attack Crit...')
+    if modifier and modifier[0] not in ('+', '(', '-'):
+        modifier = modifier[0].upper() + modifier[1:]
+    return modifier
+
+
+def _parse_memory_affix(it: dict) -> dict:
+    try:
+        tier = int(it.get("Tier", 0))
+    except (ValueError, TypeError):
+        tier = 0
+    try:
+        level = int(it.get("Level", 0))
+    except (ValueError, TypeError):
+        level = 0
+    try:
+        weight = int(it.get("Weight", 0))
+    except (ValueError, TypeError):
+        weight = 0
+    return {
+        "tier": tier,
+        "modifier": _normalize_memory_modifier(it.get("Modifier", "")),
+        "level": level,
+        "weight": weight,
+        "source": it.get("Source", ""),
+    }
+
+
 def import_hero_memories(data: dict, season_name: str) -> dict:
-    raw_items = _flatten_sections(data)
-    affixes = [
-        {
-            "effect": it.get("Affix Effect", ""),
-            "source": it.get("Source", ""),
-            "affix_type": it.get("Type", ""),
-        }
-        for it in raw_items
-        if it.get("Affix Effect")
+    fixed_affixes = [
+        _parse_memory_affix(it)
+        for it in (data.get("fixed_affixes") or [])
+        if it.get("Modifier")
     ]
+    random_affixes = [
+        _parse_memory_affix(it)
+        for it in (data.get("random_affixes") or [])
+        if it.get("Modifier")
+    ]
+    base_stats = [
+        _parse_memory_affix(it)
+        for it in (data.get("base_stats") or [])
+        if it.get("Modifier")
+    ]
+    memory_types = [
+        {
+            "name": mt.get("name", ""),
+            "internal_id": mt.get("internal_id"),
+            "icon_url": mt.get("icon_url", ""),
+        }
+        for mt in (data.get("memory_types") or [])
+        if mt.get("name")
+    ]
+    total = len(fixed_affixes) + len(random_affixes) + len(base_stats)
     return {
         "season": season_name,
-        "affix_count": len(affixes),
-        "affixes": affixes,
+        "affix_count": total,
+        "memory_types": memory_types,
+        "fixed_affixes": fixed_affixes,
+        "random_affixes": random_affixes,
+        "base_stats": base_stats,
     }
 
 

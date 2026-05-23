@@ -401,7 +401,11 @@ def get_season_summary(name: str) -> dict:
                     elif fname == "_ethereal_prism.json":
                         ethereal_prism_count = fdata.get("modifier_count", len(fdata.get("modifiers", [])))
                     elif fname == "_hero_memories.json":
-                        hero_memories_count = fdata.get("affix_count", len(fdata.get("affixes", [])))
+                        hero_memories_count = fdata.get("affix_count",
+                            len(fdata.get("fixed_affixes", [])) +
+                            len(fdata.get("random_affixes", [])) +
+                            len(fdata.get("base_stats", []))
+                        )
                     elif fname == "_memory_revival.json":
                         memory_revival_count = fdata.get("affix_count", len(fdata.get("affixes", [])))
                     elif fname == "_tower_sequence.json":

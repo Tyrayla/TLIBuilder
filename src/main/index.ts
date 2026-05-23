@@ -7,6 +7,9 @@ import { Socket } from 'net'
 import { existsSync, cpSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
 
+// Prevent Chromium GPU shader cache conflicts when multiple instances run
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
+
 const isDev = process.env.NODE_ENV === 'development'
 const isVerbose = process.env.VERBOSE === 'true'
 let PYTHON_PORT = 8765
@@ -101,8 +104,10 @@ function bootstrapDataDir(): string {
   return userDataPath
 }
 
-function startPython(): Promise<void> {
-  return new Promise((resolve) => {
+// Spawns Python and resolves with the detected port once Python prints its ready message.
+// Does NOT call resolvePort() — caller does that after TCP confirmation.
+function startPython(): Promise<number> {
+  return new Promise<number>((resolve) => {
     log('startPython — begin')
     killPortProcess(8765)
 
@@ -131,6 +136,8 @@ function startPython(): Promise<void> {
     }
 
     pythonProcess = spawn(spawnCmd, spawnArgs, spawnOpts)
+    let resolved = false
+    const done = (port: number) => { if (!resolved) { resolved = true; PYTHON_PORT = port; resolve(port) } }
 
     pythonProcess.stdout?.on('data', (data: Buffer) => {
       const msg = data.toString().trim()
@@ -139,8 +146,7 @@ function startPython(): Promise<void> {
       if (match) {
         const port = parseInt(match[1], 10)
         log(`startPython — port confirmed from stdout: ${port}`)
-        resolvePort(port)
-        resolve()
+        done(port)
       }
     })
 
@@ -151,24 +157,17 @@ function startPython(): Promise<void> {
 
     pythonProcess.on('error', (e) => {
       err('startPython — spawn error:', e)
-      resolvePort(PYTHON_PORT)
-      resolve()
+      done(PYTHON_PORT)
     })
 
     pythonProcess.on('exit', (code) => {
-      err(`startPython — process exited with code ${code}, isPortReady=${isPortReady}`)
-      if (!isPortReady) {
-        resolvePort(PYTHON_PORT)
-        resolve()
-      }
+      err(`startPython — process exited with code ${code}`)
+      done(PYTHON_PORT)
     })
 
     setTimeout(() => {
-      if (!isPortReady) {
-        err('startPython — 5s safety timeout fired, isPortReady still false')
-        resolvePort(PYTHON_PORT)
-        resolve()
-      }
+      err('startPython — 5s safety timeout fired')
+      done(PYTHON_PORT)
     }, 5000)
   })
 }
@@ -333,18 +332,22 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('open-external', (_event, url: string) => shell.openExternal(url))
 
-  log('app.whenReady — calling startPython')
-  await startPython()
-  log(`app.whenReady — startPython done, PYTHON_PORT=${PYTHON_PORT}`)
-
-  log('app.whenReady — calling waitForPort')
-  await waitForPort(PYTHON_PORT)
-  log('app.whenReady — waitForPort done, calling createWindow')
-
+  // Open the window immediately so users see the "Starting backend…" state
+  // instead of a blank taskbar entry. getPythonPort() IPC calls queue until
+  // resolvePort() fires below.
   createWindow()
-
   const mainWin = BrowserWindow.getAllWindows()[0]
   if (mainWin) initUpdater(mainWin)
+
+  log('app.whenReady — calling startPython')
+  const detectedPort = await startPython()
+  log(`app.whenReady — startPython done, detectedPort=${detectedPort}`)
+
+  log('app.whenReady — calling waitForPort')
+  await waitForPort(detectedPort)
+  log('app.whenReady — waitForPort done, resolving port for renderer')
+
+  resolvePort(detectedPort)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

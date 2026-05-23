@@ -486,11 +486,13 @@ def engine_compute(req: EngineComputeRequest):
 
 
 class EngineStatsRequest(BaseModel):
-    slots:      list[SlotData | None]
-    slates:     list[dict] = []
-    conditions: list[str] = []
-    gear:       list[dict] = []
-    character:  list[dict] = []
+    slots:           list[SlotData | None]
+    slates:          list[dict] = []
+    conditions:      list[str] = []
+    gear:            list[dict] = []
+    character:       list[dict] = []
+    memory_effects:  list[str] = []
+    spirit_effects:  list[str] = []
 
 
 @app.post("/api/engine/stats")
@@ -529,7 +531,7 @@ def engine_stats(req: EngineStatsRequest):
         if tree_data:
             season_trees[slug] = tree_data
 
-    build = BuildInput(slots=slots, slates=slates, season=active_season, conditions=req.conditions, gear=req.gear, character=req.character)
+    build = BuildInput(slots=slots, slates=slates, season=active_season, conditions=req.conditions, gear=req.gear, character=req.character, memory_effects=req.memory_effects, spirit_effects=req.spirit_effects)
     source = aggregate(build, season_trees, filter_data)
 
     stat_map: dict = {}
@@ -1484,12 +1486,19 @@ def import_hero_memories_endpoint(req: ImportSingletonRequest):
 @app.get("/api/hero-memories")
 def get_hero_memories():
     active = season_manager.get_active_season()
+    empty = {"season": None, "memory_types": [], "fixed_affixes": [], "random_affixes": [], "base_stats": []}
     if not active:
-        return {"season": None, "affixes": []}
+        return empty
     data = season_manager.load_hero_memories(active)
     if not data:
-        return {"season": active, "affixes": []}
-    return {"season": active, "affixes": data.get("affixes", [])}
+        return {**empty, "season": active}
+    return {
+        "season": active,
+        "memory_types": data.get("memory_types", []),
+        "fixed_affixes": data.get("fixed_affixes", []),
+        "random_affixes": data.get("random_affixes", []),
+        "base_stats": data.get("base_stats", []),
+    }
 
 
 @app.post("/api/dev/import-memory-revival")
