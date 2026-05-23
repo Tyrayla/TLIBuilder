@@ -19,4 +19,11 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('update-downloaded', () => cb()),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('get-app-version'),
+  checkForUpdate: (): Promise<void> => ipcRenderer.invoke('check-for-update'),
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
+  onUpdateNotAvailable: (cb: () => void) =>
+    ipcRenderer.on('update-not-available', () => cb()),
+  onUpdateCheckError: (cb: (msg: string) => void) =>
+    ipcRenderer.on('update-check-error', (_e, msg) => cb(msg)),
 })

@@ -14,6 +14,11 @@ declare global {
       onUpdateDownloaded: (cb: () => void) => void
       downloadUpdate: () => Promise<void>
       installUpdate: () => Promise<void>
+      getAppVersion: () => Promise<string>
+      checkForUpdate: () => Promise<void>
+      openExternal: (url: string) => Promise<void>
+      onUpdateNotAvailable: (cb: () => void) => void
+      onUpdateCheckError: (cb: (msg: string) => void) => void
     }
   }
 }

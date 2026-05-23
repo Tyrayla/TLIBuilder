@@ -29,6 +29,10 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   const [importing, setImporting] = useState(false)
   const importRef = useRef<HTMLTextAreaElement>(null)
 
+  const [version, setVersion] = useState('')
+  const [checkStatus, setCheckStatus] = useState<'idle' | 'checking' | 'up-to-date' | 'available' | 'error'>('idle')
+  const [checkError, setCheckError] = useState('')
+
   const loadBuilds = () => {
     setLoading(true)
     api.getBuilds()
@@ -37,6 +41,20 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   }
 
   useEffect(() => { loadBuilds() }, [])
+
+  useEffect(() => {
+    window.api?.getAppVersion?.().then(v => setVersion(v)).catch(() => {})
+    window.api?.onUpdateNotAvailable?.(() => setCheckStatus('up-to-date'))
+    window.api?.onUpdateAvailable?.(() => setCheckStatus('available'))
+    window.api?.onUpdateCheckError?.((msg) => { setCheckStatus('error'); setCheckError(msg) })
+  }, [])
+
+  const handleCheckForUpdate = async () => {
+    setCheckStatus('checking')
+    const timeout = setTimeout(() => setCheckStatus('idle'), 10000)
+    await window.api?.checkForUpdate?.().catch(() => {})
+    clearTimeout(timeout)
+  }
 
   useEffect(() => {
     if (importOpen) setTimeout(() => importRef.current?.focus(), 50)
@@ -118,6 +136,30 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
           ))}
         </div>
       )}
+
+      <div className="build-select-footer">
+        {version && <span className="build-select-version">v{version}</span>}
+        <div className="build-select-footer-actions">
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={handleCheckForUpdate}
+            disabled={checkStatus === 'checking'}
+            title={checkStatus === 'error' ? checkError : undefined}
+          >
+            {checkStatus === 'checking' ? 'Checking…'
+              : checkStatus === 'up-to-date' ? '✓ Up to date'
+              : checkStatus === 'available' ? 'Update available'
+              : checkStatus === 'error' ? `Check failed`
+              : 'Check for Update'}
+          </button>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => window.api?.openExternal?.('https://github.com/Tyrayla/TLIBuilder')}
+          >
+            About
+          </button>
+        </div>
+      </div>
 
       {importOpen && (
         <div className="modal-backdrop" onClick={() => setImportOpen(false)}>

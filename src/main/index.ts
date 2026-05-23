@@ -190,13 +190,19 @@ function initUpdater(win: typeof BrowserWindow.prototype): void {
   autoUpdater.on('update-downloaded', () => {
     win.webContents.send('update-downloaded')
   })
+  autoUpdater.on('update-not-available', () => {
+    win.webContents.send('update-not-available')
+  })
   autoUpdater.on('error', (e) => {
     err('autoUpdater error:', e)
+    win.webContents.send('update-check-error', String(e?.message ?? e))
   })
 
-  win.once('ready-to-show', () => {
-    setTimeout(() => autoUpdater.checkForUpdates(), 3000)
-  })
+  if (app.isPackaged) {
+    win.once('ready-to-show', () => {
+      setTimeout(() => autoUpdater.checkForUpdates(), 3000)
+    })
+  }
 }
 
 function createWindow(): void {
@@ -321,6 +327,11 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('download-update', () => autoUpdater.downloadUpdate())
   ipcMain.handle('install-update', () => autoUpdater.quitAndInstall(false, true))
+  ipcMain.handle('get-app-version', () => app.getVersion())
+  ipcMain.handle('check-for-update', async () => {
+    try { await autoUpdater.checkForUpdates() } catch { /* error event fires */ }
+  })
+  ipcMain.handle('open-external', (_event, url: string) => shell.openExternal(url))
 
   log('app.whenReady — calling startPython')
   await startPython()
@@ -332,10 +343,8 @@ app.whenReady().then(async () => {
 
   createWindow()
 
-  if (app.isPackaged) {
-    const mainWin = BrowserWindow.getAllWindows()[0]
-    if (mainWin) initUpdater(mainWin)
-  }
+  const mainWin = BrowserWindow.getAllWindows()[0]
+  if (mainWin) initUpdater(mainWin)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
