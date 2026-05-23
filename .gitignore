@@ -11,7 +11,8 @@ dev-err.txt
 dev-out.txt
 
 # Local user data
-data/builds/
+data/builds/*
+!data/builds/.gitkeep
 
 # OpenWolf and Claude Code — local AI tooling, not for version control
 .wolf/
