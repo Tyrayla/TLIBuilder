@@ -448,6 +448,27 @@ export interface PactSpirit {
   glossary: Record<string, { name: string; description: string }>
 }
 
+export interface SelectedPactSpirit {
+  itemId: string
+  rank: number  // 1–6
+}
+
+export function buildSpiritEffects(
+  selected: (SelectedPactSpirit | null)[],
+  allSpirits: PactSpirit[]
+): string[] {
+  const effects: string[] = []
+  for (const sel of selected) {
+    if (!sel) continue
+    const spirit = allSpirits.find(s => s.item_id === sel.itemId)
+    if (!spirit) continue
+    for (const slot of spirit.slots) effects.push(slot.effect)
+    const rankData = spirit.upgrade_ranks.find(r => r.rank === sel.rank)
+    if (rankData) effects.push(...rankData.modifiers)
+  }
+  return effects
+}
+
 export interface CraftAffix {
   raw_text: string
   expression: string
@@ -504,9 +525,60 @@ export interface DestinyItem {
 }
 
 export interface HeroMemoryAffix {
-  effect: string
+  tier: number
+  modifier: string
+  level: number
+  weight: number
   source: string
-  affix_type: string
+}
+
+export interface HeroMemoryType {
+  name: string
+  internal_id: number | null
+  icon_url: string
+}
+
+export type MemoryRarity = 'normal' | 'magic' | 'rare' | 'epic' | 'ultimate'
+
+export const MEMORY_RARITY_COLORS: Record<MemoryRarity, string> = {
+  normal:   '#e0e0e0',
+  magic:    '#4fc3f7',
+  rare:     '#ce93d8',
+  epic:     '#ffa726',
+  ultimate: '#ef5350',
+}
+
+export interface MemorySlotSelection {
+  modifier: string
+  tier: number
+  rolledValue: number | null
+}
+
+export interface CreatedHeroMemory {
+  memoryType: 'origin' | 'discipline' | 'progress'
+  rarity: MemoryRarity
+  baseStat: MemorySlotSelection | null
+  fixedAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
+  randomAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
+}
+
+export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): string[] {
+  const effects: string[] = []
+  const RANGE_RE = /\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g
+  const resolveModifier = (sel: MemorySlotSelection): string => {
+    // Ensure leading + for modifiers stored without it (handles legacy/missing-plus data)
+    const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
+    if (sel.rolledValue === null) return mod
+    const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : sel.rolledValue.toFixed(1)
+    return mod.replace(RANGE_RE, val)
+  }
+  for (const mem of memories) {
+    if (!mem) continue
+    if (mem.baseStat) effects.push(resolveModifier(mem.baseStat))
+    for (const fa of mem.fixedAffixes) { if (fa) effects.push(resolveModifier(fa)) }
+    for (const ra of mem.randomAffixes) { if (ra) effects.push(resolveModifier(ra)) }
+  }
+  return effects
 }
 
 export interface MemoryRevivalAffix {
@@ -980,7 +1052,13 @@ export const api = {
 
   importHeroMemories: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-hero-memories', { season_name: seasonName, data }),
-  getHeroMemories: () => get<{ season: string | null; affixes: HeroMemoryAffix[] }>('/hero-memories'),
+  getHeroMemories: () => get<{
+    season: string | null
+    memory_types: HeroMemoryType[]
+    fixed_affixes: HeroMemoryAffix[]
+    random_affixes: HeroMemoryAffix[]
+    base_stats: HeroMemoryAffix[]
+  }>('/hero-memories'),
 
   importMemoryRevival: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-memory-revival', { season_name: seasonName, data }),
@@ -1022,6 +1100,7 @@ export const api = {
     conditions?: string[]
     gear?: GearEngineItem[]
     character?: CharacterStatContribution[]
+    memory_effects?: string[]
   }) => post<StatSheetResponse>('/engine/stats', payload),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),

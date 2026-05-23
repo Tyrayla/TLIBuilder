@@ -1,6 +1,22 @@
 from __future__ import annotations
 import re
 from engine.models import BuildInput, BuildSource, SourceEntry
+from models.stat_meta import STAT_META
+
+# Build a lookup: (display_name_lower, is_percent) → stat key string
+# Used to match hero memory modifier strings against known stats.
+def _build_memory_lookup() -> dict[tuple[str, bool], str]:
+    lookup: dict[tuple[str, bool], str] = {}
+    for stat_enum, meta in STAT_META.items():
+        is_pct = meta.unit == "%"
+        key = (meta.display_name.lower(), is_pct)
+        # Don't overwrite — first match wins (flat preferred for non-pct)
+        if key not in lookup:
+            lookup[key] = stat_enum.value
+    return lookup
+
+_MEMORY_STAT_LOOKUP: dict[tuple[str, bool], str] = _build_memory_lookup()
+_MEMORY_EFFECT_RE = re.compile(r'^\+(\d+(?:\.\d+)?)\s*(%?)\s+(.+)$')
 
 
 _ELEMENTAL_TYPES = {"fire", "cold", "lightning", "erosion"}
@@ -214,5 +230,49 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
             points=1,
         )
         source.add_with_source(stat, amount, entry)
+
+    # ── Pact Spirit effects ───────────────────────────────────────────────────
+    for effect in build.spirit_effects:
+        m = _MEMORY_EFFECT_RE.match(effect.strip())
+        if not m:
+            continue
+        raw_val = float(m.group(1))
+        is_pct = bool(m.group(2))
+        stat_name = m.group(3).strip()
+        stat_key = _MEMORY_STAT_LOOKUP.get((stat_name.lower(), is_pct))
+        if not stat_key:
+            continue
+        amount = raw_val / 100.0 if is_pct else raw_val
+        entry = SourceEntry(
+            stat=stat_key,
+            amount=amount,
+            source_type="pact_spirit",
+            label="Pact Spirit",
+            text=effect,
+            points=1,
+        )
+        source.add_with_source(stat_key, amount, entry)
+
+    # ── Hero Memory effects ────────────────────────────────────────────────────
+    for effect in build.memory_effects:
+        m = _MEMORY_EFFECT_RE.match(effect.strip())
+        if not m:
+            continue
+        raw_val = float(m.group(1))
+        is_pct = bool(m.group(2))
+        stat_name = m.group(3).strip()
+        stat_key = _MEMORY_STAT_LOOKUP.get((stat_name.lower(), is_pct))
+        if not stat_key:
+            continue
+        amount = raw_val / 100.0 if is_pct else raw_val
+        entry = SourceEntry(
+            stat=stat_key,
+            amount=amount,
+            source_type="hero_memory",
+            label="Hero Memory",
+            text=effect,
+            points=1,
+        )
+        source.add_with_source(stat_key, amount, entry)
 
     return source

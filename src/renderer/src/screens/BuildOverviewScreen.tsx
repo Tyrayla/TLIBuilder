@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, TreeSlot, SavedSlate, StatSheetResponse, StatEntry, StatSource, ConditionDef, ConditionValues, ConditionMaximums, EquippedGearItem, GearEngineItem, GearAffixContribution, buildEnergyContributions, HeroTrait } from '../api/client'
+import { api, TreeSlot, SavedSlate, StatSheetResponse, StatEntry, StatSource, ConditionDef, ConditionValues, ConditionMaximums, EquippedGearItem, GearEngineItem, GearAffixContribution, buildEnergyContributions, HeroTrait, CreatedHeroMemory, buildMemoryEffects, PactSpirit, SelectedPactSpirit, buildSpiritEffects } from '../api/client'
 
 const NUMERIC_CONDITION_KEYS = new Set(['tenacity_active', 'agility_active', 'focus_active', 'channeled_not_capped'])
 
@@ -103,7 +103,10 @@ interface Props {
   devMode?: boolean
   traitId?: string | null
   traitLevel?: number
+  heroMemories?: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  pactSpirits?: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   onGoToHeroTraits?: () => void
+  onGoToPactSpirits?: () => void
 }
 
 type SaveMode = 'save' | 'saveas'
@@ -114,7 +117,7 @@ export default function BuildOverviewScreen({
   onBack, onTalentTree, onSlates, onGear, onSkills, onSave, onSaveAs, getBuildPayload,
   gear = [], characterLevel = 1, hasPrism = false,
   devMode = false,
-  traitId = null, onGoToHeroTraits,
+  traitId = null, heroMemories, pactSpirits, onGoToHeroTraits, onGoToPactSpirits,
 }: Props) {
   const [saveOpen, setSaveOpen] = useState(false)
   const [saveMode, setSaveMode] = useState<SaveMode>('save')
@@ -127,6 +130,7 @@ export default function BuildOverviewScreen({
   const [shareLoading, setShareLoading] = useState(false)
 
   const [allTraits, setAllTraits] = useState<HeroTrait[]>([])
+  const [allSpirits, setAllSpirits] = useState<PactSpirit[]>([])
 
   const [conditionsData, setConditionsData] = useState<Record<string, ConditionDef[]> | null>(null)
 
@@ -146,6 +150,10 @@ export default function BuildOverviewScreen({
   }, [])
 
   useEffect(() => {
+    api.getPactSpirits().then(res => setAllSpirits(res.spirits.filter(s => !s.affinities.includes('Drop')))).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     const hasSource =
       slots.some(s => !!s) ||
       slates.some(s => s.slots?.some(sl => sl.selectedNodeId !== null)) ||
@@ -158,6 +166,8 @@ export default function BuildOverviewScreen({
       conditions: effectiveConditions,
       gear: buildGearPayload(gear),
       character: buildEnergyContributions(gear, characterLevel, hasPrism),
+      memory_effects: buildMemoryEffects(heroMemories ?? [null, null, null]),
+      spirit_effects: buildSpiritEffects(pactSpirits ?? [null, null, null], allSpirits),
     })
       .then(res => {
         setStatSheet(res)
@@ -165,7 +175,7 @@ export default function BuildOverviewScreen({
       })
       .catch(() => setStatsError('Failed to load stats.'))
       .finally(() => setStatsLoading(false))
-  }, [slots, slates, effectiveConditions, gear, characterLevel, hasPrism])
+  }, [slots, slates, effectiveConditions, gear, characterLevel, hasPrism, heroMemories, pactSpirits, allSpirits])
 
   useEffect(() => {
     if (!selectedStat) return
@@ -356,6 +366,15 @@ export default function BuildOverviewScreen({
             <div className="overview-nav-text">
               <span className="overview-nav-label">Hero Trait</span>
               {selectedTrait && <span className="overview-nav-sub">{selectedTrait.hero} · {selectedTrait.variant_name}</span>}
+            </div>
+          </button>
+          <button className="overview-nav-btn active" onClick={onGoToPactSpirits}>
+            <span className="overview-nav-icon">✦</span>
+            <div className="overview-nav-text">
+              <span className="overview-nav-label">Pact Spirits</span>
+              {(pactSpirits ?? []).filter(Boolean).length > 0 && (
+                <span className="overview-nav-sub">{(pactSpirits ?? []).filter(Boolean).length} / 3 bound</span>
+              )}
             </div>
           </button>
         </div>

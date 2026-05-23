@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums, EquippedGearItem, EquippedSkill } from './api/client'
+import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums, EquippedGearItem, EquippedSkill, CreatedHeroMemory, SelectedPactSpirit } from './api/client'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import HeroTraitScreen from './screens/HeroTraitScreen'
+import PactSpiritScreen from './screens/PactSpiritScreen'
 import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
 import BuildOverviewScreen from './screens/BuildOverviewScreen'
@@ -13,7 +14,7 @@ import StatsScreen from './screens/StatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits'
 
 const DEFAULT_CONDITION_VALUES: ConditionValues = {
   tenacity_stacks: 0,
@@ -52,6 +53,8 @@ interface Session {
   traitId: string | null
   traitSlotLevels: number[]  // [base, lv45, lv60, lv75], each 1–5
   advancedTraitSelections: string[]
+  heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
 }
 
 interface CascadeModal {
@@ -76,6 +79,8 @@ const emptySession = (): Session => ({
   traitId: null,
   traitSlotLevels: [1, 1, 1, 1],
   advancedTraitSelections: [],
+  heroMemories: [null, null, null] as [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null],
+  pactSpirits: [null, null, null] as [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null],
 })
 
 function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
@@ -130,7 +135,7 @@ function App() {
     window.api?.onRequestSave?.(() => {
       const sess = sessionRef.current
       if (sess.buildId) {
-        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, conditionValues: sess.conditionValues, gear: sess.gear, skills: sess.skills, characterLevel: sess.characterLevel, hasPrism: sess.hasPrism, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections }
+        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, conditionValues: sess.conditionValues, gear: sess.gear, skills: sess.skills, characterLevel: sess.characterLevel, hasPrism: sess.hasPrism, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections, heroMemories: sess.heroMemories }
         api.postBuild(build)
           .then(saved => {
             setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: sess.buildName }))
@@ -266,6 +271,8 @@ function App() {
       traitId: build.traitId ?? null,
       traitSlotLevels: build.traitSlotLevels ?? [build.traitLevel ?? 1, 1, 1, 1],
       advancedTraitSelections: build.advancedTraitSelections ?? [],
+      heroMemories: (build.heroMemories ?? [null, null, null]) as [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null],
+      pactSpirits: (build.pactSpirits ?? [null, null, null]) as [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null],
     })
     setIsDirty(false)
     setScreen('build-overview')
@@ -281,6 +288,7 @@ function App() {
   const goToGear = () => setScreen('gear')
   const goToSkills = () => setScreen('skills')
   const goToHeroTraits = () => setScreen('hero-traits')
+  const goToPactSpirits = () => setScreen('pact-spirits')
 
   const goToPreview = () => {
     setPreviewSource(screen)
@@ -436,14 +444,14 @@ function App() {
   }
 
   const saveBuild = async (name: string) => {
-    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections }
+    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections, heroMemories: session.heroMemories, pactSpirits: session.pactSpirits }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
   }
 
   const saveAsBuild = async (name: string) => {
-    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections }
+    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections, heroMemories: session.heroMemories, pactSpirits: session.pactSpirits }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
@@ -461,6 +469,16 @@ function App() {
 
   const handleTraitChange = (traitId: string, slotLevels: number[], advanced: string[]) => {
     setSession(s => ({ ...s, traitId, traitSlotLevels: slotLevels, advancedTraitSelections: advanced }))
+    markDirty()
+  }
+
+  const handleHeroMemoriesChange = (heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]) => {
+    setSession(s => ({ ...s, heroMemories }))
+    markDirty()
+  }
+
+  const handlePactSpiritsChange = (pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => {
+    setSession(s => ({ ...s, pactSpirits }))
     markDirty()
   }
 
@@ -527,7 +545,10 @@ function App() {
           onGear={goToGear}
           onSkills={goToSkills}
           onGoToHeroTraits={goToHeroTraits}
+          onGoToPactSpirits={goToPactSpirits}
           traitId={session.traitId}
+          heroMemories={session.heroMemories}
+          pactSpirits={session.pactSpirits}
           onSave={saveBuild}
           onSaveAs={saveAsBuild}
           getBuildPayload={() => ({
@@ -642,7 +663,19 @@ function App() {
         traitSlotLevels={session.traitSlotLevels}
         advancedTraitSelections={session.advancedTraitSelections}
         characterLevel={session.characterLevel}
+        heroMemories={session.heroMemories}
         onTraitChange={handleTraitChange}
+        onHeroMemoriesChange={handleHeroMemoriesChange}
+        onBack={() => setScreen('build-overview')}
+      />
+    )
+  }
+
+  if (screen === 'pact-spirits') {
+    return (
+      <PactSpiritScreen
+        pactSpirits={session.pactSpirits}
+        onPactSpiritsChange={handlePactSpiritsChange}
         onBack={() => setScreen('build-overview')}
       />
     )
