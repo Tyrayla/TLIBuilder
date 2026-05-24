@@ -1102,7 +1102,7 @@ export default function DevToolsScreen({ onBack, deprecatedTools, onToggleDeprec
         display: 'flex', alignItems: 'center', gap: 16, padding: '12px 20px',
         background: '#0e0e28', borderBottom: '1px solid #2a2a4a', flexShrink: 0,
       }}>
-        <button className="btn btn-sm" onClick={onBack}>← Back</button>
+        <button className="btn btn-sm" onClick={onBack}>← Main Menu</button>
         <h2 style={{ margin: 0, fontSize: 16, color: '#e0e0e0' }}>Dev Tools</h2>
         <span style={{
           fontSize: 10, fontWeight: 700, color: '#ff9800', background: '#2a1a00',

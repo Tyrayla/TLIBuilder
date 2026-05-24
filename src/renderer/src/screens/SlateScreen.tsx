@@ -1178,9 +1178,9 @@ export default function SlateScreen({ treeColors, initialSlates, onBack }: Props
       : '#888'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0e0e1e', color: '#e0e0e0', userSelect: 'none' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e1e', color: '#e0e0e0', userSelect: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid #2a2a4a', background: '#1a1a2e', flexShrink: 0 }}>
-        <button className="btn-back" onClick={() => onBack(placed.map(({ pool: _p, ...s }) => s as SavedSlate))}>← Back</button>
+        <button className="btn-back" onClick={() => onBack(placed.map(({ pool: _p, ...s }) => s as SavedSlate))}>← Done</button>
         <h2 style={{ margin: 0, fontSize: 18, color: '#c0a0ff' }}>Slate Board</h2>
         <span style={{ marginLeft: 'auto', fontSize: 13, color: '#555' }}>{usedCells} / {TOTAL_CELLS} cells</span>
         {placed.length > 0 && !creator && !dragSlate && (

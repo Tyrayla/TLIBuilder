@@ -26,8 +26,14 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   const [importOpen, setImportOpen] = useState(false)
   const [importCode, setImportCode] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
+  const [importWarnings, setImportWarnings] = useState<string[]>([])
+  const [importConfirmed, setImportConfirmed] = useState(false)
   const [importing, setImporting] = useState(false)
   const importRef = useRef<HTMLTextAreaElement>(null)
+
+  const [version, setVersion] = useState('')
+  const [checkStatus, setCheckStatus] = useState<'idle' | 'checking' | 'up-to-date' | 'available' | 'error'>('idle')
+  const [checkError, setCheckError] = useState('')
 
   const loadBuilds = () => {
     setLoading(true)
@@ -39,12 +45,51 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   useEffect(() => { loadBuilds() }, [])
 
   useEffect(() => {
+    window.api?.getAppVersion?.().then(v => setVersion(v)).catch(() => {})
+    window.api?.onUpdateNotAvailable?.(() => setCheckStatus('up-to-date'))
+    window.api?.onUpdateAvailable?.(() => setCheckStatus('available'))
+    window.api?.onUpdateCheckError?.((msg) => { setCheckStatus('error'); setCheckError(msg) })
+  }, [])
+
+  const handleCheckForUpdate = async () => {
+    setCheckStatus('checking')
+    const timeout = setTimeout(() => setCheckStatus('idle'), 10000)
+    await window.api?.checkForUpdate?.().catch(() => {})
+    clearTimeout(timeout)
+  }
+
+  useEffect(() => {
     if (importOpen) setTimeout(() => importRef.current?.focus(), 50)
   }, [importOpen])
+
+  const KNOWN_BUILD_KEYS = new Set([
+    'name', 'id', 'slots', 'slates', 'conditions', 'conditionValues',
+    'gear', 'skills', 'characterLevel', 'hasPrism', 'traitId',
+    'traitLevel', 'traitSlotLevels', 'advancedTraitSelections',
+    'heroMemories', 'pactSpirits',
+  ])
+
+  function checkBuildCompatibility(build: Record<string, unknown>): string[] {
+    const issues: string[] = []
+    if (!Array.isArray(build.slots)) issues.push('Slots data is missing or unreadable.')
+    else if ((build.slots as unknown[]).every(s => !s)) issues.push('Build has no tree slots selected.')
+    if (Array.isArray(build.gear)) {
+      const unmatched = (build.gear as Record<string, unknown>[]).filter(g => !Array.isArray(g.affixes))
+      if (unmatched.length) {
+        const names = unmatched.map(g => g.name ?? g.item_id ?? 'Unknown').join(', ')
+        issues.push(`${unmatched.length} gear item(s) not found in current season data and will contribute no stats: ${names}`)
+      }
+    }
+    const unknown = Object.keys(build).filter(k => !KNOWN_BUILD_KEYS.has(k))
+    if (unknown.length) issues.push(`Unrecognized fields (older format): ${unknown.join(', ')}`)
+    return issues
+  }
 
   const openImport = () => {
     setImportCode('')
     setImportError(null)
+    setImportWarnings([])
+    setImportConfirmed(false)
     setImportOpen(true)
   }
 
@@ -55,7 +100,14 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
     setImportError(null)
     try {
       const { build } = await api.decodeBuildCode(code)
+      const warnings = checkBuildCompatibility(build)
+      if (warnings.length && !importConfirmed) {
+        setImportWarnings(warnings)
+        setImportConfirmed(true)
+        return
+      }
       setImportOpen(false)
+      setImportConfirmed(false)
       onOpenBuild(build as unknown as Build)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -119,6 +171,30 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
         </div>
       )}
 
+      <div className="build-select-footer">
+        {version && <span className="build-select-version">v{version}</span>}
+        <div className="build-select-footer-actions">
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={handleCheckForUpdate}
+            disabled={checkStatus === 'checking'}
+            title={checkStatus === 'error' ? checkError : undefined}
+          >
+            {checkStatus === 'checking' ? 'Checking…'
+              : checkStatus === 'up-to-date' ? '✓ Up to date'
+              : checkStatus === 'available' ? 'Update available'
+              : checkStatus === 'error' ? `Check failed`
+              : 'Check for Update'}
+          </button>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => window.api?.openExternal?.('https://github.com/Tyrayla/TLIBuilder')}
+          >
+            About
+          </button>
+        </div>
+      </div>
+
       {importOpen && (
         <div className="modal-backdrop" onClick={() => setImportOpen(false)}>
           <div className="modal-card share-modal-card" onClick={e => e.stopPropagation()}>
@@ -130,13 +206,20 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               className="share-code-area share-code-area--input"
               placeholder="Paste tli1_… code here"
               value={importCode}
-              onChange={e => { setImportCode(e.target.value); setImportError(null) }}
+              onChange={e => { setImportCode(e.target.value); setImportError(null); setImportWarnings([]); setImportConfirmed(false) }}
               onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleImport() }}
             />
             {importError && <p className="share-import-error">{importError}</p>}
+            {importWarnings.length > 0 && (
+              <div className="share-import-warning">
+                <p>⚠ This code may be from an older version:</p>
+                <ul>{importWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                <p>Unsupported fields will be ignored. Click "Import Anyway" to proceed.</p>
+              </div>
+            )}
             <div className="modal-actions">
               <button className="btn btn-primary" onClick={handleImport} disabled={importing || !importCode.trim()}>
-                {importing ? 'Importing…' : 'Import'}
+                {importing ? 'Importing…' : importConfirmed ? 'Import Anyway' : 'Import'}
               </button>
               <button className="btn btn-secondary" onClick={() => setImportOpen(false)}>Cancel</button>
             </div>

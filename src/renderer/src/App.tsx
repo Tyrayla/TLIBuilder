@@ -1,7 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums, EquippedGearItem, EquippedSkill } from './api/client'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums, EquippedGearItem, EquippedSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit } from './api/client'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
+import BuildSidebar from './components/BuildSidebar'
+import ImportExportOverlay from './components/ImportExportOverlay'
 import HeroTraitScreen from './screens/HeroTraitScreen'
+import PactSpiritScreen from './screens/PactSpiritScreen'
+import NotesScreen from './screens/NotesScreen'
 import { getSubtrees, autoAssignSlot, isValidBuildState } from './treeGroups'
 import BuildSelectScreen from './screens/BuildSelectScreen'
 import BuildOverviewScreen from './screens/BuildOverviewScreen'
@@ -13,7 +17,7 @@ import StatsScreen from './screens/StatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
 
 const DEFAULT_CONDITION_VALUES: ConditionValues = {
   tenacity_stacks: 0,
@@ -23,7 +27,6 @@ const DEFAULT_CONDITION_VALUES: ConditionValues = {
   channeled_base_max: 0,
 }
 
-// Derive boolean condition keys from numeric condition values + computed maximums
 function deriveNumericConditions(values: ConditionValues, maximums: ConditionMaximums | null): string[] {
   const derived: string[] = []
   if (values.tenacity_stacks > 0) derived.push('tenacity_active')
@@ -34,7 +37,6 @@ function deriveNumericConditions(values: ConditionValues, maximums: ConditionMax
   return derived
 }
 
-// Keys managed by conditionValues sliders — excluded from the manual boolean toggle list
 const NUMERIC_CONDITION_KEYS = new Set(['tenacity_active', 'agility_active', 'focus_active', 'channeled_not_capped'])
 
 interface Session {
@@ -50,8 +52,11 @@ interface Session {
   characterLevel: number
   hasPrism: boolean
   traitId: string | null
-  traitSlotLevels: number[]  // [base, lv45, lv60, lv75], each 1–5
+  traitSlotLevels: number[]
   advancedTraitSelections: string[]
+  heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
+  notes: string
 }
 
 interface CascadeModal {
@@ -76,6 +81,9 @@ const emptySession = (): Session => ({
   traitId: null,
   traitSlotLevels: [1, 1, 1, 1],
   advancedTraitSelections: [],
+  heroMemories: [null, null, null] as [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null],
+  pactSpirits: [null, null, null] as [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null],
+  notes: '',
 })
 
 function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
@@ -100,16 +108,20 @@ function App() {
   const [unsavedPromptOpen, setUnsavedPromptOpen] = useState(false)
   const [unsavedSaveName, setUnsavedSaveName] = useState('')
   const [unsavedSaving, setUnsavedSaving] = useState(false)
-  const [conditionMaximums, setConditionMaximums] = useState<ConditionMaximums | null>(null)
+  const conditionMaximums = null
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [updateDownloading, setUpdateDownloading] = useState(false)
   const [updateProgress, setUpdateProgress] = useState(0)
   const [updateDownloaded, setUpdateDownloaded] = useState(false)
+
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [saveModalMode, setSaveModalMode] = useState<'save' | 'save-as'>('save')
+  const [saveModalName, setSaveModalName] = useState('')
+  const [saveModalSaving, setSaveModalSaving] = useState(false)
   const sessionRef = useRef(session)
 
   useEffect(() => { sessionRef.current = session }, [session])
 
-  // Sync dirty state to main process for the native close dialog
   useEffect(() => { window.api?.notifyDirty?.(isDirty) }, [isDirty])
 
   useEffect(() => {
@@ -125,12 +137,11 @@ function App() {
       .catch(e => setAppError(String(e)))
   }, [])
 
-  // Handle save request from main process (native close dialog "Save" button)
   useEffect(() => {
     window.api?.onRequestSave?.(() => {
       const sess = sessionRef.current
       if (sess.buildId) {
-        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, conditionValues: sess.conditionValues, gear: sess.gear, skills: sess.skills, characterLevel: sess.characterLevel, hasPrism: sess.hasPrism, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections }
+        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, conditionValues: sess.conditionValues, gear: sess.gear, skills: sess.skills, characterLevel: sess.characterLevel, hasPrism: sess.hasPrism, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections, heroMemories: sess.heroMemories, pactSpirits: sess.pactSpirits, notes: sess.notes }
         api.postBuild(build)
           .then(saved => {
             setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: sess.buildName }))
@@ -139,20 +150,17 @@ function App() {
           .catch(() => {})
           .finally(() => window.api?.notifySaveDone())
       } else {
-        // New unsaved build — can't auto-save without a name, just proceed
         window.api?.notifySaveDone()
       }
     })
   }, [])
 
-  // Initialize devMode from main process — false in packaged builds, localStorage in dev
   useEffect(() => {
     window.api?.getIsDev?.().then(isDev => {
       if (isDev) setDevMode(localStorage.getItem('devMode') === '1')
     })
   }, [])
 
-  // Ctrl+Shift+D toggles dev mode — only active when running in dev (not packaged)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!(e.ctrlKey && e.shiftKey && e.key === 'D')) return
@@ -169,7 +177,6 @@ function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  // Subscribe to auto-updater events from main process (registered once, never unmounts)
   useEffect(() => {
     window.api?.onUpdateAvailable?.(setUpdateInfo)
     window.api?.onUpdateProgress?.(setUpdateProgress)
@@ -181,25 +188,11 @@ function App() {
     await window.api?.downloadUpdate?.()
   }
 
-  // useMemo/useCallback must be before the early return to satisfy React's hooks rules.
-  // effectiveConditions: prevents new array ref every render → stops infinite stats useEffect loop.
   const effectiveConditions = useMemo(() => [
     ...session.conditions.filter(c => !NUMERIC_CONDITION_KEYS.has(c)),
     ...deriveNumericConditions(session.conditionValues, conditionMaximums),
   ], [session.conditions, session.conditionValues, conditionMaximums])
 
-  // Stable setter: bails out if maximums values are unchanged, preventing unnecessary re-renders.
-  const handleConditionMaximumsChange = useCallback((maximums: ConditionMaximums) => {
-    setConditionMaximums(prev => {
-      if (prev &&
-        prev.tenacity_max === maximums.tenacity_max &&
-        prev.agility_max === maximums.agility_max &&
-        prev.focus_max === maximums.focus_max &&
-        prev.channeled_max_bonus === maximums.channeled_max_bonus
-      ) return prev
-      return maximums
-    })
-  }, [])
 
   if (!appReady) {
     return (
@@ -229,10 +222,10 @@ function App() {
     const name = session.buildId ? session.buildName : (unsavedSaveName.trim() || 'Untitled')
     setUnsavedSaving(true)
     try {
-      await saveBuild(name)        // already calls setIsDirty(false)
+      await saveBuild(name)
       setUnsavedPromptOpen(false)
       setScreen('build-select')
-    } catch { /* save failed — leave prompt open so user can retry */ }
+    } catch { /* save failed — leave prompt open */ }
     finally { setUnsavedSaving(false) }
   }
 
@@ -248,9 +241,60 @@ function App() {
     setScreen('build-overview')
   }
 
+  // ── Build import sanitizers ───────────────────────────────────────────────
+  const sanitizeMemorySlot = (s: unknown): MemorySlotSelection | null => {
+    if (!s || typeof s !== 'object') return null
+    const o = s as Record<string, unknown>
+    if (typeof o.modifier !== 'string' || typeof o.tier !== 'number') return null
+    return { modifier: o.modifier, tier: o.tier, rolledValue: typeof o.rolledValue === 'number' ? o.rolledValue : null }
+  }
+
+  const sanitizeHeroMemory = (m: unknown): CreatedHeroMemory | null => {
+    if (!m || typeof m !== 'object') return null
+    const o = m as Record<string, unknown>
+    if (o.memoryType !== 'origin' && o.memoryType !== 'discipline' && o.memoryType !== 'progress') return null
+    const RARITIES: MemoryRarity[] = ['normal', 'magic', 'rare', 'epic', 'ultimate']
+    const rarity: MemoryRarity = RARITIES.includes(o.rarity as MemoryRarity) ? o.rarity as MemoryRarity : 'epic'
+    const fa = Array.isArray(o.fixedAffixes) ? o.fixedAffixes : []
+    const ra = Array.isArray(o.randomAffixes) ? o.randomAffixes : []
+    return {
+      memoryType: o.memoryType,
+      rarity,
+      baseStat: sanitizeMemorySlot(o.baseStat),
+      fixedAffixes: [sanitizeMemorySlot(fa[0]), sanitizeMemorySlot(fa[1])],
+      randomAffixes: [sanitizeMemorySlot(ra[0]), sanitizeMemorySlot(ra[1])],
+    }
+  }
+
+  const sanitizePactSpirit = (s: unknown): SelectedPactSpirit | null => {
+    if (!s || typeof s !== 'object') return null
+    const o = s as Record<string, unknown>
+    if (typeof o.itemId !== 'string') return null
+    const rank = typeof o.rank === 'number' ? Math.min(6, Math.max(1, Math.round(o.rank))) : 1
+    return { itemId: o.itemId, rank }
+  }
+
+  const sanitizeSlot = (s: unknown): TreeSlot | null => {
+    if (!s || typeof s !== 'object') return null
+    const o = s as Record<string, unknown>
+    if (typeof o.treeName !== 'string' || !o.treeName) return null
+    const nodeStates: Record<string, number> = {}
+    const raw = o.nodeStates
+    if (raw && typeof raw === 'object') {
+      for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof v === 'number') nodeStates[k] = v
+      }
+    }
+    const core = o.coreTalentSelections
+    const coreTalentSelections = (core && typeof core === 'object' && !Array.isArray(core))
+      ? core as Record<string, unknown>
+      : {}
+    return { treeName: o.treeName, nodeStates, coreTalentSelections }
+  }
+
   const openBuild = (build: Build) => {
-    const rawSlots = build.slots ?? []
-    const slots: (TreeSlot | null)[] = Array.from({ length: 4 }, (_, i) => rawSlots[i] ?? null)
+    const rawSlots = (build.slots ?? []) as unknown[]
+    const slots: (TreeSlot | null)[] = Array.from({ length: 4 }, (_, i) => sanitizeSlot(rawSlots[i]))
     setSession({
       buildId: build.id ?? null,
       buildName: build.name,
@@ -258,14 +302,29 @@ function App() {
       activeSlot: firstEmptySlot(slots),
       slates: build.slates ?? [],
       conditions: build.conditions ?? [],
-      conditionValues: build.conditionValues ?? DEFAULT_CONDITION_VALUES,
-      gear: build.gear ?? [],
+      conditionValues: { ...DEFAULT_CONDITION_VALUES, ...(build.conditionValues ?? {}) },
+      gear: (build.gear ?? []).map(g => ({
+        ...g,
+        affixes: Array.isArray(g.affixes) ? g.affixes : [],
+        customizations: Array.isArray(g.customizations) ? g.customizations : [],
+      })),
       skills: (build.skills ?? []).map(s => ({ ...s, supports: s.supports ?? [] })),
       characterLevel: build.characterLevel ?? 100,
       hasPrism: build.hasPrism ?? false,
       traitId: build.traitId ?? null,
       traitSlotLevels: build.traitSlotLevels ?? [build.traitLevel ?? 1, 1, 1, 1],
       advancedTraitSelections: build.advancedTraitSelections ?? [],
+      heroMemories: [
+        sanitizeHeroMemory((build.heroMemories ?? [])[0]),
+        sanitizeHeroMemory((build.heroMemories ?? [])[1]),
+        sanitizeHeroMemory((build.heroMemories ?? [])[2]),
+      ],
+      pactSpirits: [
+        sanitizePactSpirit((build.pactSpirits ?? [])[0]),
+        sanitizePactSpirit((build.pactSpirits ?? [])[1]),
+        sanitizePactSpirit((build.pactSpirits ?? [])[2]),
+      ],
+      notes: typeof build.notes === 'string' ? build.notes : '',
     })
     setIsDirty(false)
     setScreen('build-overview')
@@ -275,12 +334,6 @@ function App() {
     setSession(s => ({ ...s, activeSlot: firstEmptySlot(s.slots) }))
     setScreen('tree-selector')
   }
-
-  const goToSlates = () => setScreen('slate-board')
-  const goToStats = () => setScreen('stats')
-  const goToGear = () => setScreen('gear')
-  const goToSkills = () => setScreen('skills')
-  const goToHeroTraits = () => setScreen('hero-traits')
 
   const goToPreview = () => {
     setPreviewSource(screen)
@@ -331,7 +384,6 @@ function App() {
   }
 
   const handleRemoveTree = (slotIndex: number) => {
-    // Removing slot 1 (index 1): check if a qualifying subtree exists in slots 2/3
     if (slotIndex === 1) {
       const primary = session.slots[0]?.treeName
       if (primary) {
@@ -352,7 +404,7 @@ function App() {
     setSession(s => {
       const slots = [...s.slots] as (TreeSlot | null)[]
       slots[slotIndex] = null
-      if (slotIndex === 0) slots[1] = null  // removing primary cascades slot 2
+      if (slotIndex === 0) slots[1] = null
       return { ...s, slots, activeSlot: firstEmptySlot(slots) }
     })
     markDirty()
@@ -385,7 +437,6 @@ function App() {
     markDirty()
   }
 
-  // Sidebar slot click: empty → tree-selector; filled → tree-viewer
   const handleSlotClick = (slotIndex: number) => {
     setSession(s => ({ ...s, activeSlot: slotIndex }))
     if (session.slots[slotIndex]) {
@@ -419,7 +470,7 @@ function App() {
     setSession(s => {
       const slots = [...s.slots] as (TreeSlot | null)[]
       slots[s.activeSlot] = null
-      if (s.activeSlot === 0) slots[1] = null  // cascade
+      if (s.activeSlot === 0) slots[1] = null
       return { ...s, slots }
     })
     setScreen('tree-selector')
@@ -436,14 +487,14 @@ function App() {
   }
 
   const saveBuild = async (name: string) => {
-    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections }
+    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections, heroMemories: session.heroMemories, pactSpirits: session.pactSpirits, notes: session.notes }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
   }
 
   const saveAsBuild = async (name: string) => {
-    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections }
+    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections, heroMemories: session.heroMemories, pactSpirits: session.pactSpirits, notes: session.notes }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
@@ -464,7 +515,78 @@ function App() {
     markDirty()
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const handleHeroMemoriesChange = (heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]) => {
+    setSession(s => ({ ...s, heroMemories }))
+    markDirty()
+  }
+
+  const handlePactSpiritsChange = (pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => {
+    setSession(s => ({ ...s, pactSpirits }))
+    markDirty()
+  }
+
+  const handleNotesChange = (notes: string) => {
+    setSession(s => ({ ...s, notes }))
+    markDirty()
+  }
+
+  const handleSidebarSave = () => {
+    if (session.buildId) {
+      saveBuild(session.buildName).catch(() => {})
+    } else {
+      setSaveModalName(session.buildName)
+      setSaveModalMode('save')
+      setSaveModalOpen(true)
+    }
+  }
+
+  const handleSidebarSaveAs = () => {
+    setSaveModalName(session.buildName)
+    setSaveModalMode('save-as')
+    setSaveModalOpen(true)
+  }
+
+  const handleSaveModalConfirm = async () => {
+    const name = saveModalName.trim() || 'Untitled'
+    setSaveModalSaving(true)
+    try {
+      if (saveModalMode === 'save-as') {
+        await saveAsBuild(name)
+      } else {
+        await saveBuild(name)
+      }
+      setSaveModalOpen(false)
+    } catch { /* leave modal open */ }
+    finally { setSaveModalSaving(false) }
+  }
+
+  const getBuildPayload = () => ({
+    name: session.buildName,
+    characterLevel: session.characterLevel,
+    hasPrism: session.hasPrism,
+    slots: session.slots,
+    slates: session.slates,
+    conditions: session.conditions,
+    conditionValues: session.conditionValues,
+    gear: session.gear,
+    skills: session.skills,
+    traitId: session.traitId,
+    traitSlotLevels: session.traitSlotLevels,
+    advancedTraitSelections: session.advancedTraitSelections,
+    heroMemories: session.heroMemories,
+    pactSpirits: session.pactSpirits,
+    notes: session.notes,
+  })
+
+  const handleSidebarNav = (target: string) => {
+    if (target === 'tree-selector') {
+      goToTreeSelector()
+    } else {
+      setScreen(target as Screen)
+    }
+  }
+
+  // ── Cascade overlay ───────────────────────────────────────────────────────
 
   const cascadeOverlay = cascadeModal && (
     <div className="modal-backdrop" onClick={handleCascadeNo}>
@@ -484,6 +606,8 @@ function App() {
     </div>
   )
 
+  // ── Sidebar-less screens ──────────────────────────────────────────────────
+
   if (screen === 'dev-tools') {
     return <DevToolsScreen onBack={() => setScreen('build-select')} deprecatedTools={deprecatedTools} onToggleDeprecatedTools={() => setDeprecatedTools(d => !d)} onSeasonChange={() => setSession(s => ({ ...s }))} />
   }
@@ -502,173 +626,6 @@ function App() {
     )
   }
 
-  if (screen === 'build-overview') {
-    return (
-      <>
-        {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
-        <BuildOverviewScreen
-          buildName={session.buildName}
-          buildId={session.buildId}
-          slots={session.slots}
-          slates={session.slates}
-          conditions={session.conditions}
-          conditionValues={session.conditionValues}
-          conditionMaximums={conditionMaximums}
-          effectiveConditions={effectiveConditions}
-          onConditionsChange={handleConditionsChange}
-          onConditionValuesChange={handleConditionValuesChange}
-          onConditionMaximumsChange={handleConditionMaximumsChange}
-          gear={session.gear}
-          characterLevel={session.characterLevel}
-          hasPrism={session.hasPrism}
-          onBack={goToBuildSelect}
-          onTalentTree={goToTreeSelector}
-          onSlates={goToSlates}
-          onGear={goToGear}
-          onSkills={goToSkills}
-          onGoToHeroTraits={goToHeroTraits}
-          traitId={session.traitId}
-          onSave={saveBuild}
-          onSaveAs={saveAsBuild}
-          getBuildPayload={() => ({
-            name: session.buildName,
-            characterLevel: session.characterLevel,
-            hasPrism: session.hasPrism,
-            slots: session.slots,
-            slates: session.slates,
-            conditions: session.conditions,
-            conditionValues: session.conditionValues,
-            gear: session.gear,
-            skills: session.skills,
-            traitId: session.traitId,
-            traitSlotLevels: session.traitSlotLevels,
-            advancedTraitSelections: session.advancedTraitSelections,
-          })}
-          devMode={devMode}
-        />
-        {cascadeOverlay}
-        {unsavedPromptOpen && (
-          <div className="modal-backdrop">
-            <div className="modal-card" onClick={e => e.stopPropagation()}>
-              <div className="modal-accent" />
-              <h3 className="modal-title">Unsaved Changes</h3>
-              <p style={{ padding: '0 20px 12px', color: '#aaa', fontSize: 13, lineHeight: 1.6 }}>
-                {session.buildId
-                  ? `Save "${session.buildName || 'this build'}" before leaving?`
-                  : 'This build has unsaved changes. Save it before leaving?'}
-              </p>
-              {!session.buildId && (
-                <input
-                  className="modal-input"
-                  type="text"
-                  placeholder="Build name…"
-                  value={unsavedSaveName}
-                  onChange={e => setUnsavedSaveName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleUnsavedSave()}
-                  autoFocus
-                />
-              )}
-              <div className="modal-actions">
-                <button className="btn btn-primary" onClick={handleUnsavedSave} disabled={unsavedSaving}>
-                  {unsavedSaving ? 'Saving…' : 'Save'}
-                </button>
-                <button className="btn btn-danger" onClick={handleUnsavedDiscard}>Discard</button>
-                <button className="btn btn-secondary" onClick={() => setUnsavedPromptOpen(false)}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        )}
-      </>
-    )
-  }
-
-  if (screen === 'slate-board') {
-    return (
-      <>
-        <SlateScreen
-          treeColors={treeColors}
-          initialSlates={session.slates}
-          onBack={(slates) => {
-            setSession(s => ({ ...s, slates }))
-            markDirty()
-            setScreen('build-overview')
-          }}
-        />
-      </>
-    )
-  }
-
-  if (screen === 'stats') {
-    return (
-      <>
-        <StatsScreen
-          slots={session.slots}
-          slates={session.slates}
-          onBack={() => setScreen('build-overview')}
-        />
-      </>
-    )
-  }
-
-  if (screen === 'gear') {
-    return (
-      <GearScreen
-        equippedItems={session.gear}
-        onGearChange={handleGearChange}
-        onBack={() => setScreen('build-overview')}
-      />
-    )
-  }
-
-  if (screen === 'skills') {
-    return (
-      <SkillsScreen
-        equippedSkills={session.skills}
-        onSkillsChange={handleSkillsChange}
-        gear={session.gear}
-        characterLevel={session.characterLevel}
-        hasPrism={session.hasPrism}
-        onCharacterLevelChange={v => setSession(s => ({ ...s, characterLevel: v }))}
-        onHasPrismChange={v => setSession(s => ({ ...s, hasPrism: v }))}
-        onBack={() => setScreen('build-overview')}
-      />
-    )
-  }
-
-  if (screen === 'hero-traits') {
-    return (
-      <HeroTraitScreen
-        traitId={session.traitId}
-        traitSlotLevels={session.traitSlotLevels}
-        advancedTraitSelections={session.advancedTraitSelections}
-        characterLevel={session.characterLevel}
-        onTraitChange={handleTraitChange}
-        onBack={() => setScreen('build-overview')}
-      />
-    )
-  }
-
-  if (screen === 'tree-selector') {
-    return (
-      <>
-        <TreeSelectorScreen
-          slots={session.slots}
-          activeSlot={session.activeSlot}
-          treeColors={treeColors}
-          onSelectTree={handleSelectTree}
-          onRemoveTree={handleRemoveTree}
-          onSlotClick={handleSlotClick}
-          onSlotReorder={handleSlotReorder}
-          onGoToTree={handleSlotClick}
-          onBack={() => setScreen('build-overview')}
-          onGoToSelector={() => {}}
-          onShiftUp={handleShiftUp}
-          onPreview={goToPreview}
-        />
-        {cascadeOverlay}
-      </>
-    )
-  }
 
   if (screen === 'preview-selector') {
     return (
@@ -707,38 +664,234 @@ function App() {
     )
   }
 
-  if (screen === 'tree-viewer') {
-    const slot = session.slots[session.activeSlot]
-    if (!slot) {
-      setScreen('tree-selector')
-      return null
-    }
-    return (
+
+  // ── Screens with sidebar ──────────────────────────────────────────────────
+
+  let screenContent: React.ReactNode = <div style={{ color: '#888', padding: 20 }}>Unknown screen state</div>
+
+  if (screen === 'build-overview') {
+    screenContent = (
+      <BuildOverviewScreen
+        conditions={session.conditions}
+        conditionValues={session.conditionValues}
+        conditionMaximums={conditionMaximums}
+        onConditionsChange={handleConditionsChange}
+        onConditionValuesChange={handleConditionValuesChange}
+      />
+    )
+  } else if (screen === 'tree-selector') {
+    screenContent = (
       <>
-        <TreeViewerScreen
-          treeName={slot.treeName}
-          treeColor={treeColors[slot.treeName] ?? '#e94560'}
-          treeColors={treeColors}
-          initialNodeStates={slot.nodeStates}
-          initialCoreTalentSelections={slot.coreTalentSelections}
+        <TreeSelectorScreen
           slots={session.slots}
           activeSlot={session.activeSlot}
-          onBack={() => setScreen('tree-selector')}
+          treeColors={treeColors}
+          onSelectTree={handleSelectTree}
+          onRemoveTree={handleRemoveTree}
           onSlotClick={handleSlotClick}
-          onNodeStatesChange={updateNodeStates}
-          onCoreTalentSelectionsChange={updateCoreTalentSelections}
-          onReselect={handleReselect}
           onSlotReorder={handleSlotReorder}
+          onGoToTree={handleSlotClick}
+          onBack={() => setScreen('build-overview')}
+          onGoToSelector={() => {}}
+          onShiftUp={handleShiftUp}
           onPreview={goToPreview}
-          devMode={devMode}
-          deprecatedTools={deprecatedTools}
         />
         {cascadeOverlay}
       </>
     )
+  } else if (screen === 'tree-viewer') {
+    const slot = session.slots[session.activeSlot]
+    if (!slot) {
+      setScreen('tree-selector')
+    } else {
+      screenContent = (
+        <>
+          <TreeViewerScreen
+            treeName={slot.treeName}
+            treeColor={treeColors[slot.treeName] ?? '#e94560'}
+            treeColors={treeColors}
+            initialNodeStates={slot.nodeStates}
+            initialCoreTalentSelections={slot.coreTalentSelections}
+            slots={session.slots}
+            activeSlot={session.activeSlot}
+            onBack={() => setScreen('tree-selector')}
+            onSlotClick={handleSlotClick}
+            onNodeStatesChange={updateNodeStates}
+            onCoreTalentSelectionsChange={updateCoreTalentSelections}
+            onReselect={handleReselect}
+            onSlotReorder={handleSlotReorder}
+            onPreview={goToPreview}
+            devMode={devMode}
+            deprecatedTools={deprecatedTools}
+          />
+          {cascadeOverlay}
+        </>
+      )
+    }
+  } else if (screen === 'import-export') {
+    screenContent = (
+      <ImportExportOverlay
+        isDirty={isDirty}
+        buildId={session.buildId}
+        buildName={session.buildName}
+        getBuildPayload={getBuildPayload}
+        onImport={openBuild}
+        onSaveFirst={saveBuild}
+        onClose={() => setScreen('build-overview')}
+        asScreen
+      />
+    )
+  } else if (screen === 'slate-board') {
+    screenContent = (
+      <SlateScreen
+        treeColors={treeColors}
+        initialSlates={session.slates}
+        onBack={(slates) => {
+          setSession(s => ({ ...s, slates }))
+          markDirty()
+          setScreen('build-overview')
+        }}
+      />
+    )
+  } else if (screen === 'stats') {
+    screenContent = (
+      <StatsScreen
+        slots={session.slots}
+        slates={session.slates}
+        gear={session.gear}
+        characterLevel={session.characterLevel}
+        hasPrism={session.hasPrism}
+        effectiveConditions={effectiveConditions}
+        heroMemories={session.heroMemories}
+        pactSpirits={session.pactSpirits}
+      />
+    )
+  } else if (screen === 'gear') {
+    screenContent = (
+      <GearScreen
+        equippedItems={session.gear}
+        onGearChange={handleGearChange}
+        onBack={() => setScreen('build-overview')}
+      />
+    )
+  } else if (screen === 'skills') {
+    screenContent = (
+      <SkillsScreen
+        equippedSkills={session.skills}
+        onSkillsChange={handleSkillsChange}
+        gear={session.gear}
+        characterLevel={session.characterLevel}
+        hasPrism={session.hasPrism}
+        onCharacterLevelChange={v => setSession(s => ({ ...s, characterLevel: v }))}
+        onHasPrismChange={v => setSession(s => ({ ...s, hasPrism: v }))}
+        onBack={() => setScreen('build-overview')}
+      />
+    )
+  } else if (screen === 'hero-traits') {
+    screenContent = (
+      <HeroTraitScreen
+        traitId={session.traitId}
+        traitSlotLevels={session.traitSlotLevels}
+        advancedTraitSelections={session.advancedTraitSelections}
+        characterLevel={session.characterLevel}
+        heroMemories={session.heroMemories}
+        onTraitChange={handleTraitChange}
+        onHeroMemoriesChange={handleHeroMemoriesChange}
+        onBack={() => setScreen('build-overview')}
+      />
+    )
+  } else if (screen === 'pact-spirits') {
+    screenContent = (
+      <PactSpiritScreen
+        pactSpirits={session.pactSpirits}
+        onPactSpiritsChange={handlePactSpiritsChange}
+        onBack={() => setScreen('build-overview')}
+      />
+    )
+  } else if (screen === 'notes') {
+    screenContent = (
+      <NotesScreen
+        notes={session.notes}
+        onNotesChange={handleNotesChange}
+      />
+    )
   }
 
-  return <div style={{ color: '#888', padding: 20 }}>Unknown screen state</div>
+  return (
+    <>
+      {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
+      <div className="app-layout">
+        <BuildSidebar
+          screen={screen}
+          buildName={session.buildName}
+          isDirty={isDirty}
+          onNav={handleSidebarNav}
+          onSave={handleSidebarSave}
+          onSaveAs={handleSidebarSaveAs}
+          onGoBack={goToBuildSelect}
+        />
+        <div className="app-content">
+          {screenContent}
+        </div>
+      </div>
+      {cascadeOverlay}
+      {unsavedPromptOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-accent" />
+            <h3 className="modal-title">Unsaved Changes</h3>
+            <p style={{ padding: '0 20px 12px', color: '#aaa', fontSize: 13, lineHeight: 1.6 }}>
+              {session.buildId
+                ? `Save "${session.buildName || 'this build'}" before leaving?`
+                : 'This build has unsaved changes. Save it before leaving?'}
+            </p>
+            {!session.buildId && (
+              <input
+                className="modal-input"
+                type="text"
+                placeholder="Build name…"
+                value={unsavedSaveName}
+                onChange={e => setUnsavedSaveName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleUnsavedSave()}
+                autoFocus
+              />
+            )}
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={handleUnsavedSave} disabled={unsavedSaving}>
+                {unsavedSaving ? 'Saving…' : 'Save'}
+              </button>
+              <button className="btn btn-danger" onClick={handleUnsavedDiscard}>Discard</button>
+              <button className="btn btn-secondary" onClick={() => setUnsavedPromptOpen(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {saveModalOpen && (
+        <div className="modal-backdrop" onClick={() => setSaveModalOpen(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-accent" />
+            <h3 className="modal-title">{saveModalMode === 'save-as' ? 'Save As' : 'Save Build'}</h3>
+            <input
+              className="modal-input"
+              type="text"
+              placeholder="Build name…"
+              value={saveModalName}
+              onChange={e => setSaveModalName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSaveModalConfirm()}
+              autoFocus
+            />
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={handleSaveModalConfirm} disabled={saveModalSaving}>
+                {saveModalSaving ? 'Saving…' : 'Save'}
+              </button>
+              <button className="btn btn-secondary" onClick={() => setSaveModalOpen(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </>
+  )
 }
 
 export default App

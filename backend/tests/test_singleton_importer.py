@@ -30,11 +30,21 @@ _ETHEREAL_DATA = {
 }
 
 _HERO_MEM_DATA = {
-    "entity_type": "hero_memories",
-    "sections": [{"header": "Affix /2", "columns": ["Affix Effect", "Source", "Type"], "items": [
-        {"Affix Effect": "+90 Strength", "Source": "Memory of Origin", "Type": "Base Stats"},
-        {"Affix Effect": "+90 Dexterity", "Source": "Memory of Origin", "Type": "Base Stats"},
-    ]}],
+    "fixed_affixes": [
+        {"Tier": "1", "Modifier": "+2 to Hero Trait Level", "Level": "86", "Weight": "103", "Source": "Memory of Origin"},
+    ],
+    "random_affixes": [
+        {"Tier": "0", "Modifier": "+(39–45) % Skill Area", "Level": "86", "Weight": "1000", "Source": "Memory of Origin"},
+        {"Tier": "1", "Modifier": "+32 % Skill Area", "Level": "86", "Weight": "2000", "Source": "Memory of Origin"},
+    ],
+    "base_stats": [
+        {"Tier": "1", "Modifier": "+90 Strength", "Level": "1", "Weight": "0", "Source": "Memory of Origin"},
+        {"Tier": "2", "Modifier": "+88 Strength", "Level": "1", "Weight": "0", "Source": "Memory of Origin"},
+    ],
+    "memory_types": [
+        {"name": "Memory of Origin", "url_path": "/en/Memory_of_Origin", "internal_id": 71001, "icon_url": "https://cdn.tlidb.com/icon.webp"},
+    ],
+    "glossary": [],
 }
 
 _REVIVAL_DATA = {
@@ -71,13 +81,41 @@ def test_ethereal_prism_flattens_modifiers():
     assert "Core Talent" in r["modifiers"][0]
 
 
-def test_hero_memories_renames_columns():
+def test_hero_memories_new_format():
     r = import_hero_memories(_HERO_MEM_DATA, "SS12")
-    assert r["affix_count"] == 2
-    affix = r["affixes"][0]
-    assert affix["effect"] == "+90 Strength"
-    assert affix["source"] == "Memory of Origin"
-    assert affix["affix_type"] == "Base Stats"
+    assert r["season"] == "SS12"
+    assert r["affix_count"] == 5  # 1 fixed + 2 random + 2 base_stats
+    assert len(r["fixed_affixes"]) == 1
+    assert len(r["random_affixes"]) == 2
+    assert len(r["base_stats"]) == 2
+    assert r["fixed_affixes"][0]["modifier"] == "+2 to Hero Trait Level"
+    assert r["fixed_affixes"][0]["tier"] == 1
+    assert r["fixed_affixes"][0]["source"] == "Memory of Origin"
+    assert r["random_affixes"][0]["tier"] == 0
+    assert r["base_stats"][0]["modifier"] == "+90 Strength"
+    assert r["memory_types"][0]["name"] == "Memory of Origin"
+    assert r["memory_types"][0]["internal_id"] == 71001
+
+
+def test_hero_memories_normalizes_modifiers():
+    """Reimport safety: modifiers missing '+' or starting lowercase must be normalized."""
+    data = {
+        "fixed_affixes": [
+            # lowercase first letter — common crawler output issue
+            {"Tier": "1", "Modifier": "attack Critical Strike Damage", "Level": "86", "Weight": "615", "Source": "Memory of Progress"},
+        ],
+        "random_affixes": [],
+        "base_stats": [
+            # digit-start without '+' — the Memory of Progress base stat bug
+            {"Tier": "1",  "Modifier": "90 Strength",      "Level": "1", "Weight": "0", "Source": "Memory of Progress"},
+            {"Tier": "20", "Modifier": "35.2 % Attack Speed", "Level": "1", "Weight": "0", "Source": "Memory of Progress"},
+        ],
+        "memory_types": [],
+    }
+    r = import_hero_memories(data, "SS12")
+    assert r["fixed_affixes"][0]["modifier"] == "Attack Critical Strike Damage"
+    assert r["base_stats"][0]["modifier"] == "+90 Strength"
+    assert r["base_stats"][1]["modifier"] == "+35.2 % Attack Speed"
 
 
 def test_memory_revival_converts_ints():
