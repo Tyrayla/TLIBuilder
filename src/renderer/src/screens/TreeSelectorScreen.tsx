@@ -55,7 +55,7 @@ export default function TreeSelectorScreen({
 
   const normalHeader = (
     <div className="screen-header">
-      <button className="btn-back" onClick={onBack}>← Back</button>
+      <button className="btn-back" onClick={onBack}>← Build Overview</button>
       <h2 style={{ fontSize: 16, color: '#aaa', fontWeight: 500 }}>
         {contextLabel(slots)}
       </h2>
@@ -65,7 +65,7 @@ export default function TreeSelectorScreen({
   const previewHeader = (
     <div className="screen-header preview-mode-header">
       <button className="btn-back" onClick={onBack} style={{ alignSelf: 'flex-start', marginTop: 2 }}>
-        ← Back
+        ← Build Overview
       </button>
       <div className="preview-header-content">
         <div className="preview-header-badge">◈ PREVIEW MODE</div>

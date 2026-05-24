@@ -527,7 +527,6 @@ export default function SkillsScreen({
     <>
     <div className="skills-screen">
       <div className="skills-header">
-        <button className="btn-back" onClick={onBack}>← Overview</button>
         <span className="skills-header-title">Skills</span>
       </div>
 

@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, TreeSlot, SavedSlate, StatSheetResponse, StatEntry } from '../api/client'
+import { api, TreeSlot, SavedSlate, StatSheetResponse, StatEntry, StatSource, ConditionValues, EquippedGearItem, GearEngineItem, GearAffixContribution, buildEnergyContributions, CreatedHeroMemory, buildMemoryEffects, SelectedPactSpirit, buildSpiritEffects, PactSpirit } from '../api/client'
 
 const CATEGORY_ORDER = [
   'Attributes', 'Generic', 'Attack', 'Spell', 'Melee', 'Area', 'Projectile',
   'Minion', 'Sentry', 'Spirit Magi', 'Physical', 'Lightning', 'Cold', 'Fire',
   'Erosion', 'Elemental', 'Ailments', 'Steep Strike', 'Cast Speed', 'Attack Speed',
   'Critical Strike', 'Life', 'Mana', 'Energy Shield', 'Defense', 'Damage Taken',
-  'Buffs', 'Gear',
+  'Buffs', 'Utility', 'Gear',
 ]
 
 const TOOLTIP_WIDTH = 230
@@ -19,8 +19,6 @@ function formatStatValue(total: number, unit: string): string {
   const rounded = Math.round(total * 1000) / 1000
   return rounded >= 0 ? `+${rounded}` : `${rounded}`
 }
-
-import { StatSource } from '../api/client'
 
 interface GroupedSource { text: string; label: string; amount: number; count: number }
 
@@ -38,36 +36,92 @@ function groupSources(sources: StatSource[]): GroupedSource[] {
 }
 
 function shortenLabel(label: string): string {
-  // Slate labels are pre-formatted by the aggregator: "Slate · Corner Legendary"
   if (label.startsWith('Slate · ')) return label
-  // Talent labels: "Goddess of Hunting Micro" → "Hunting Micro"
   const parts = label.split(' ')
   return parts.length > 2 ? parts.slice(-2).join(' ') : label
+}
+
+function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
+  return gear.filter(item => item.slot !== null).map(item => {
+    const contributions: GearAffixContribution[] = []
+    item.affixes.forEach((affix, affixIdx) => {
+      if (!affix.stat_key || affix.affix_kind === 'placeholder') return
+      const cust = item.customizations.find(c => c.affix_index === affixIdx)
+      if (affix.affix_kind === 'numeric') {
+        let display_value: number | null = null
+        const rangeIdx = affix.numeric_values.findIndex(v => v.kind === 'range')
+        if (rangeIdx >= 0) {
+          const nv = affix.numeric_values[rangeIdx]
+          display_value = cust?.chosen_values[rangeIdx] ??
+            Math.round(((nv.min ?? 0) + (nv.max ?? 0)) / 2)
+        } else {
+          const fixedNv = affix.numeric_values.find(v => v.kind === 'fixed')
+          if (fixedNv) display_value = fixedNv.value ?? 0
+        }
+        if (display_value !== null) {
+          contributions.push({
+            stat: affix.stat_key,
+            display_value,
+            unit: affix.unit ?? '',
+            item_name: item.name,
+            slot: Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot,
+          })
+        }
+      }
+    })
+    return { contributions }
+  })
 }
 
 interface Props {
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
-  onBack: () => void
+  gear?: EquippedGearItem[]
+  characterLevel?: number
+  hasPrism?: boolean
+  effectiveConditions?: string[]
+  heroMemories?: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
+  pactSpirits?: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
 }
 
-export default function StatsScreen({ slots, slates, onBack }: Props) {
+export default function StatsScreen({
+  slots, slates,
+  gear = [], characterLevel = 100, hasPrism = false,
+  effectiveConditions = [],
+  heroMemories, pactSpirits,
+}: Props) {
   const [statSheet, setStatSheet] = useState<StatSheetResponse | null>(null)
   const [selectedStat, setSelectedStat] = useState<string | null>(null)
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [allSpirits, setAllSpirits] = useState<PactSpirit[]>([])
   const tooltipRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (slots.every(s => !s)) { setStatSheet(null); return }
+    api.getPactSpirits().then(res => setAllSpirits(res.spirits.filter(s => !s.affinities.includes('Drop')))).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const hasSource =
+      slots.some(s => !!s) ||
+      slates.some(s => s.slots?.some(sl => sl.selectedNodeId !== null)) ||
+      gear.some(item => item.slot !== null)
+    if (!hasSource) { setStatSheet(null); return }
     setLoading(true)
     setError('')
-    api.engineStats({ slots, slates })
+    api.engineStats({
+      slots, slates,
+      conditions: effectiveConditions,
+      gear: buildGearPayload(gear),
+      character: buildEnergyContributions(gear, characterLevel, hasPrism),
+      memory_effects: buildMemoryEffects(heroMemories ?? [null, null, null]),
+      spirit_effects: buildSpiritEffects(pactSpirits ?? [null, null, null], allSpirits),
+    })
       .then(setStatSheet)
       .catch(() => setError('Failed to load stats. Check that a season is active and the node type filter has been built.'))
       .finally(() => setLoading(false))
-  }, [slots, slates])
+  }, [slots, slates, effectiveConditions, gear, characterLevel, hasPrism, heroMemories, pactSpirits, allSpirits])
 
   useEffect(() => {
     if (!selectedStat) return
@@ -116,10 +170,8 @@ export default function StatsScreen({ slots, slates, onBack }: Props) {
 
   return (
     <div className="screen stats-screen">
-      <div className="overview-header">
-        <button className="btn-back" onClick={onBack}>← Back</button>
+      <div className="stats-screen-header">
         <h2 className="title-accent" style={{ fontSize: 20 }}>Character Stats</h2>
-        <div style={{ width: 100 }} />
       </div>
 
       <div className="stat-sheet">
