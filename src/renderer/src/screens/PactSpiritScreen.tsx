@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, PactSpirit, PactSpiritSlot, SelectedPactSpirit } from '../api/client'
 
 interface Props {
@@ -55,16 +55,22 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange, onB
 
   const allAffinities = Array.from(new Set(spiritData.flatMap(s => s.affinities))).sort()
 
+  const selectedItemId = activeSlot !== null ? (pactSpirits[activeSlot]?.itemId ?? null) : null
+
   const filteredSpirits = spiritData.filter(s => {
     if (affinityFilter && !s.affinities.includes(affinityFilter)) return false
     if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
+  const sortedSpirits = selectedItemId
+    ? [...filteredSpirits.filter(s => s.item_id === selectedItemId), ...filteredSpirits.filter(s => s.item_id !== selectedItemId)]
+    : filteredSpirits
+
   const selectSpirit = (spirit: PactSpirit) => {
     if (activeSlot === null) return
     const next = [...pactSpirits] as typeof pactSpirits
-    next[activeSlot] = { itemId: spirit.item_id, rank: 6 }
+    next[activeSlot] = { itemId: spirit.item_id, rank: 1 }
     onPactSpiritsChange(next)
     setActiveSlot(null)
   }
@@ -91,6 +97,38 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange, onB
     setSearch('')
     setAffinityFilter(null)
   }
+
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (activeSlot === null) return
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current?.contains(e.target as Node)) return
+      if ((e.target as Element).closest('.pact-card-cell')) return
+      setActiveSlot(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [activeSlot])
+
+  useLayoutEffect(() => {
+    if (!nodeTooltip || !tooltipRef.current) return
+    const el = tooltipRef.current
+    const rect = el.getBoundingClientRect()
+    const vw = window.innerWidth
+    const overLeft = 8 - rect.left
+    const overRight = rect.right - (vw - 8)
+    if (overLeft > 0) {
+      el.style.left = (parseFloat(el.style.left || '0') + overLeft) + 'px'
+    } else if (overRight > 0) {
+      el.style.left = (parseFloat(el.style.left || '0') - overRight) + 'px'
+    }
+    if (rect.top < 8) {
+      el.style.top = (nodeTooltip.y + 60) + 'px'
+      el.style.transform = 'translateX(-50%)'
+    }
+  }, [nodeTooltip])
 
   const handleNodeEnter = (lines: string[], e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -176,7 +214,6 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange, onB
   return (
     <div className="screen pact-spirit-screen">
       <div className="pact-spirit-header">
-        <button className="back-btn" onClick={onBack}>← Back</button>
         <h2 className="pact-spirit-title">Pact Spirits</h2>
       </div>
 
@@ -186,7 +223,7 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange, onB
         </div>
 
         {activeSlot !== null && (
-          <div className="pact-spirit-right-panel">
+          <div ref={panelRef} className="pact-spirit-right-panel">
             <div className="pact-spirit-search-row">
               <input
                 className="pact-spirit-search"
@@ -210,24 +247,30 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange, onB
               ))}
             </div>
             <div className="pact-spirit-list">
-              {filteredSpirits.map(spirit => (
-                <div
-                  key={spirit.item_id}
-                  className="pact-spirit-list-item"
-                  onClick={() => selectSpirit(spirit)}
-                >
-                  <div className="pact-spirit-list-header">
-                    <span className="pact-spirit-list-name">{spirit.name}</span>
-                    <div className="pact-spirit-affinities">
-                      {spirit.affinities.map(a => (
-                        <span key={a} className={`pact-affinity-tag affinity-${a.toLowerCase()}`}>{a}</span>
-                      ))}
+              {sortedSpirits.map(spirit => {
+                const isBound = spirit.item_id === selectedItemId
+                return (
+                  <div
+                    key={spirit.item_id}
+                    className={`pact-spirit-list-item${isBound ? ' selected' : ''}`}
+                    onClick={() => selectSpirit(spirit)}
+                  >
+                    <div className="pact-spirit-list-header">
+                      <span className="pact-spirit-list-name">{spirit.name}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {isBound && <span className="pact-spirit-bound-badge">✓ Bound</span>}
+                        <div className="pact-spirit-affinities">
+                          {spirit.affinities.map(a => (
+                            <span key={a} className={`pact-affinity-tag affinity-${a.toLowerCase()}`}>{a}</span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
+                    <span className="pact-spirit-list-desc">{spirit.description}</span>
                   </div>
-                  <span className="pact-spirit-list-desc">{spirit.description}</span>
-                </div>
-              ))}
-              {filteredSpirits.length === 0 && (
+                )
+              })}
+              {sortedSpirits.length === 0 && (
                 <div className="pact-spirit-empty-list">No spirits match.</div>
               )}
             </div>
@@ -237,6 +280,7 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange, onB
 
       {nodeTooltip && (
         <div
+          ref={tooltipRef}
           className="pact-spirit-node-tooltip"
           style={{ left: nodeTooltip.x, top: nodeTooltip.y }}
         >

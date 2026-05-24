@@ -461,9 +461,6 @@ export default function HeroTraitScreen({
   if (loading) {
     return (
       <div className="hero-trait-screen">
-        <div className="hero-trait-header">
-          <button className="btn-back" onClick={onBack}>← Back</button>
-        </div>
         <div className="hero-trait-body"><div className="panel-empty">Loading traits…</div></div>
       </div>
     )
@@ -524,7 +521,6 @@ export default function HeroTraitScreen({
     <div className="hero-trait-screen" ref={screenRef} onClick={() => tooltip?.pinned && setTooltip(null)}>
       {/* Header */}
       <div className="hero-trait-header">
-        <button className="btn-back" onClick={onBack}>← Back</button>
         <select
           className="hero-trait-select"
           value={traitId ?? ''}
