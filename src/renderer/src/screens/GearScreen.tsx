@@ -5,6 +5,7 @@ import {
   EquippedGearItem, CustomizedAffix, GearSlot, CraftBaseType, CraftAffix, CraftBaseItem, CraftBaseItemGroup,
   Graft, GraftAffix,
 } from '../api/client'
+import { useReferenceStore } from '../store/referenceStore'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1632,6 +1633,7 @@ function BaseItemSelect({ items, selected, onSelect, getTooltipLines }: BaseItem
 interface CraftEditorProps {
   craftBases: CraftBaseType[]
   craftBasesLoaded: boolean
+  craftBasesFailed: boolean
   grafts: Graft[]
   onSelectVorax: (g: Graft) => void
   craftBaseItems: CraftBaseItemGroup[]
@@ -1651,7 +1653,7 @@ interface CraftEditorProps {
   onSaveBuildItem?: (item: EquippedGearItem) => void
 }
 
-function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBaseItems, grafts, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, onSaveBuildItem }: CraftEditorProps) {
+function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craftBaseItems, grafts, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, onSaveBuildItem }: CraftEditorProps) {
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -1767,7 +1769,12 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBaseItems, grafts
           {craftSearch && <button className="gear-search-clear" onClick={() => setCraftSearch('')}>✕</button>}
         </div>
         <div className="gear-craft-results">
-          {filteredBases.map(bt => (
+          {craftBasesFailed && (
+            <div className="gear-empty" style={{ padding: '12px 10px', color: '#ff6b6b' }}>
+              Couldn't load craft base types — restart to retry.
+            </div>
+          )}
+          {!craftBasesFailed && filteredBases.map(bt => (
             <div
               key={bt.item_id}
               className={`gear-craft-result-row${!craftBasesLoaded ? ' gear-craft-result-row--loading' : ''}`}
@@ -1910,15 +1917,24 @@ function getItemQualityClass(item: EquippedGearItem): string {
 }
 
 export default function GearScreen({ equippedItems, onGearChange, onBack }: Props) {
-  const [catalogIndex, setCatalogIndex] = useState<LegendaryGearIndexItem[]>([])
-  const [catalog, setCatalog] = useState<LegendaryGearItem[]>([])
-  const [catalogLoaded, setCatalogLoaded] = useState(false)
-  const [craftBaseItems, setCraftBaseItems] = useState<CraftBaseItemGroup[]>([])
-  const [craftBases, setCraftBases] = useState<CraftBaseType[]>([])
-  const [craftBasesLoaded, setCraftBasesLoaded] = useState(false)
-  const [grafts, setGrafts] = useState<Graft[]>([])
+  const legendaryIndex = useReferenceStore(s => s.legendaryIndex)
+  const catalogRaw = useReferenceStore(s => s.legendaryCatalog)
+  const craftBaseItemsRaw = useReferenceStore(s => s.craftBaseItems)
+  const craftBasesRaw = useReferenceStore(s => s.craftBaseTypes)
+  const graftsRaw = useReferenceStore(s => s.grafts)
+  const referenceResolved = useReferenceStore(s => s.referenceResolved)
+  const failedCatalogs = useReferenceStore(s => s.failedCatalogs)
+
+  const catalogIndex = legendaryIndex ?? []
+  const catalog = catalogRaw ?? []
+  const craftBaseItems = craftBaseItemsRaw ?? []
+  const craftBases = craftBasesRaw ?? []
+  const grafts = graftsRaw ?? []
+  const catalogLoaded = catalogRaw !== null
+  const craftBasesLoaded = craftBasesRaw !== null
+  const loading = !referenceResolved && legendaryIndex === null
+
   const [selectedGraft, setSelectedGraft] = useState<Graft | null>(null)
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<LegendaryGearItem | null>(null)
   const [editingBuildIdx, setEditingBuildIdx] = useState<number | null>(null)
@@ -1946,11 +1962,6 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
     setSelectedCatalogItem(null)
     setEditingBuildIdx(null)
     setCustomizations([])
-    if (!craftBasesLoaded) {
-      api.getCraftBaseTypes()
-        .then(res => { setCraftBases(res.base_types); setCraftBasesLoaded(true) })
-        .catch(() => {})
-    }
   }
 
   const closeCraft = () => {
@@ -1965,22 +1976,6 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
   }
 
   useEffect(() => {
-    api.getLegendaryGearIndex()
-      .then(res => setCatalogIndex(res.items))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-    api.getLegendaryGear()
-      .then(res => { setCatalog(res.items); setCatalogLoaded(true) })
-      .catch(() => {})
-    api.getCraftBaseItems()
-      .then(res => setCraftBaseItems(res.base_types))
-      .catch(() => {})
-    api.getCraftBaseTypes()
-      .then(res => { setCraftBases(res.base_types); setCraftBasesLoaded(true) })
-      .catch(() => {})
-    api.getGrafts()
-      .then(res => setGrafts(res.grafts))
-      .catch(() => {})
     searchRef.current?.focus()
   }, [])
 
@@ -2374,6 +2369,7 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
             <CraftEditorPanel
               craftBases={craftBases}
               craftBasesLoaded={craftBasesLoaded}
+              craftBasesFailed={referenceResolved && failedCatalogs.has('craftBaseTypes')}
               craftBaseItems={craftBaseItems}
               grafts={grafts}
               onSelectVorax={g => { setSelectedGraft(g); setCraftBaseType(null) }}
@@ -2432,7 +2428,10 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
           </div>
           <div className="gear-catalog-list">
             {loading && <div className="gear-empty">Loading…</div>}
-            {!loading && filtered.length === 0 && <div className="gear-empty">No items found.</div>}
+            {referenceResolved && legendaryIndex === null && (
+              <div className="gear-empty" style={{ color: '#ff6b6b' }}>Couldn't load gear catalog — restart to retry.</div>
+            )}
+            {!loading && legendaryIndex !== null && filtered.length === 0 && <div className="gear-empty">No items found.</div>}
             {filtered.map(item => {
               const full = catalogMap.get(item.item_id)
               return (
