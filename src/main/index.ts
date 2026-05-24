@@ -232,9 +232,9 @@ function createWindow(): void {
     }
     const { response } = await dialog.showMessageBox(mainWindow, {
       type: 'question',
-      buttons: ['Save', "Don't Save"],
+      buttons: ['Save', "Don't Save", 'Cancel'],
       defaultId: 0,
-      cancelId: 1,
+      cancelId: 2,
       title: 'Unsaved Changes',
       message: 'Your build has unsaved changes.',
       detail: 'Do you want to save before closing?',
@@ -243,9 +243,10 @@ function createWindow(): void {
     if (response === 0) {
       mainWindow.webContents.send('request-save')
       ipcMain.once('save-done', () => mainWindow.destroy())
-    } else {
+    } else if (response === 1) {
       mainWindow.destroy()
     }
+    // response === 2 (Cancel): do nothing, window stays open
   })
 
   mainWindow.on('ready-to-show', () => {
