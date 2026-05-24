@@ -472,6 +472,11 @@ export function buildSpiritEffects(
   return effects
 }
 
+export interface DualStatGroup {
+  value_index: number
+  stat_keys: string[]
+}
+
 export interface CraftAffix {
   raw_text: string
   expression: string
@@ -481,6 +486,13 @@ export interface CraftAffix {
   source: string
   affix_type: string
   tier: string
+  stat_key?: string | null
+  stat_keys?: string[]
+  is_range_split?: boolean
+  min_stat_keys?: string[]
+  max_stat_keys?: string[]
+  dual_stat_groups?: DualStatGroup[]
+  unit?: string
 }
 
 export interface CraftBaseItem {
@@ -801,6 +813,11 @@ export interface LegendaryAffix {
   numeric_values: LegendaryNumericValue[]
   // resolved by backend at load time
   stat_key?: string | null
+  stat_keys?: string[]
+  is_range_split?: boolean
+  min_stat_keys?: string[]
+  max_stat_keys?: string[]
+  dual_stat_groups?: DualStatGroup[]
   unit?: string
   // set for crafted/vorax items: 'Base' | 'Basic Affix' | 'Advanced Affix' | 'Ultimate Affix' | 'Legendary'
   affix_type?: string
