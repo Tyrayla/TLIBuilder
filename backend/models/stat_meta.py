@@ -2084,6 +2084,16 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="gear_base",          stacking_rule="additive",
         ui_priority=43,                source_types=_G,
     ),
+    Stat.ELEMENTAL_DMG_GEAR_FLAT_MIN: StatMeta(
+        "Gear Elemental Damage Min", "Gear", "added_flat",
+        subgroup="gear_base",          stacking_rule="additive",
+        ui_priority=44,                source_types=_G,
+    ),
+    Stat.ELEMENTAL_DMG_GEAR_FLAT_MAX: StatMeta(
+        "Gear Elemental Damage Max", "Gear", "added_flat",
+        subgroup="gear_base",          stacking_rule="additive",
+        ui_priority=44,                source_types=_G,
+    ),
 
     # ── Flat Quantity / Mechanic Stats ────────────────────────────────────────
     Stat.MAX_ENERGY_FLAT: StatMeta(
@@ -2498,7 +2508,12 @@ STAT_META: dict[Stat, StatMeta] = {
     Stat.TAUNT_ON_HIT_CHANCE: StatMeta(
         "Chance to Taunt on Hit", "Utility", "chance", "%",
         subgroup="mechanics",          stacking_rule="additive_chance",
-        ui_priority=65,                source_types=_T,
+        ui_priority=65,                source_types=_TB,
+    ),
+    Stat.ATTACK_TAUNT_ON_HIT_CHANCE: StatMeta(
+        "Attack Chance to Taunt on Hit", "Utility", "chance", "%",
+        subgroup="mechanics",          stacking_rule="additive_chance",
+        ui_priority=65,                source_types=_TB,
     ),
 
     # ── Utility / Mechanic Stats (new) ────────────────────────────────────────
@@ -2541,7 +2556,7 @@ STAT_META: dict[Stat, StatMeta] = {
     Stat.ELIXIR_CHARGING_PROGRESS_FLAT: StatMeta(
         "Elixir Charging Progress per Second", "Buffs", "added_flat",
         subgroup="mechanics",          stacking_rule="additive",
-        ui_priority=60,                source_types=_T,
+        ui_priority=60,                source_types=_TB,
     ),
     Stat.BEAM_DMG_ADDITIONAL: StatMeta(
         "Beam Damage", "Generic", "additional", "%",

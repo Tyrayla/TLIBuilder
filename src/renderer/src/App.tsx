@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums, EquippedGearItem, EquippedSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit } from './api/client'
+import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, ConditionMaximums, EquippedGearItem, EquippedSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
@@ -292,9 +292,53 @@ function App() {
     return { treeName: o.treeName, nodeStates, coreTalentSelections }
   }
 
-  const openBuild = (build: Build) => {
+  const openBuild = async (build: Build) => {
     const rawSlots = (build.slots ?? []) as unknown[]
     const slots: (TreeSlot | null)[] = Array.from({ length: 4 }, (_, i) => sanitizeSlot(rawSlots[i]))
+
+    let gear: EquippedGearItem[] = (build.gear ?? []).map(g => ({
+      ...g,
+      affixes: Array.isArray(g.affixes) ? g.affixes : [],
+      customizations: Array.isArray(g.customizations) ? g.customizations : [],
+    }))
+
+    // Re-resolve stat fields for crafted items — saved values can become stale
+    // when override entries are added or the resolver improves.
+    const craftedItems = gear.filter(g => g.is_crafted)
+    if (craftedItems.length > 0) {
+      const texts = [...new Set(
+        craftedItems.flatMap(g => g.affixes
+          .filter(a => a.affix_kind === 'numeric')
+          .map(a => a.raw_text)
+        )
+      )]
+      try {
+        const { results } = await api.resolveGearAffixes(texts)
+        gear = gear.map(item => {
+          if (!item.is_crafted) return item
+          return {
+            ...item,
+            affixes: item.affixes.map(aff => {
+              const r: ResolvedAffixFields | undefined = results[aff.raw_text]
+              if (!r) return aff
+              return {
+                ...aff,
+                stat_key: r.stat_key ?? null,
+                unit: r.unit ?? aff.unit ?? '',
+                stat_keys: r.stat_keys,
+                is_range_split: r.is_range_split,
+                min_stat_keys: r.min_stat_keys,
+                max_stat_keys: r.max_stat_keys,
+                dual_stat_groups: r.dual_stat_groups,
+              }
+            })
+          }
+        })
+      } catch {
+        // Resolution failure is non-fatal — proceed with whatever was saved
+      }
+    }
+
     setSession({
       buildId: build.id ?? null,
       buildName: build.name,
@@ -303,11 +347,7 @@ function App() {
       slates: build.slates ?? [],
       conditions: build.conditions ?? [],
       conditionValues: { ...DEFAULT_CONDITION_VALUES, ...(build.conditionValues ?? {}) },
-      gear: (build.gear ?? []).map(g => ({
-        ...g,
-        affixes: Array.isArray(g.affixes) ? g.affixes : [],
-        customizations: Array.isArray(g.customizations) ? g.customizations : [],
-      })),
+      gear,
       skills: (build.skills ?? []).map(s => ({ ...s, supports: s.supports ?? [] })),
       characterLevel: build.characterLevel ?? 100,
       hasPrism: build.hasPrism ?? false,

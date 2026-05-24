@@ -2176,6 +2176,7 @@ span.gear-affix-label {
   border-bottom: 1px solid #14142a;
 }
 .gear-craft-result-row:hover { background: #16162e; color: #ddd; }
+.gear-craft-result-row--loading { opacity: 0.45; cursor: wait; pointer-events: none; }
 
 .gear-craft-actions {
   display: flex;

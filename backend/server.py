@@ -1200,12 +1200,14 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     # Spirit magi
     "+(#) initial growth for spirit magi":               "spirit_magi_initial_growth_flat",
     # Elixir
-    "elixir skills gain (#) charging progress every second": "elixir_charging_progress_flat",
+    "elixir skills gain (#) charging progress every second":    "elixir_charging_progress_flat",
+    "elixir skills gain (#) of charging progress every second": "elixir_charging_progress_flat",
     # Minion
     "minion damage penetrates (#) % elemental resistance": "minion_elemental_pen",
     "+(#) % minion elemental damage":                    "minion_elemental_dmg_inc",
     # Hit/taunt — "on hit" is stripped by _GEAR_COND_RE before dict lookup
-    "+(#) % chance for attacks to inflict taunt on enemies": "taunt_on_hit_chance",
+    "+(#) % chance for attacks to inflict taunt on enemies": "attack_taunt_on_hit_chance",
+    "+(#) % chance for attacks to taunt":                   "attack_taunt_on_hit_chance",
     # Curse
     "-(#)-(#) % curse effect against you":               "curse_effect_against_inc",
     # Damage to life
@@ -1272,10 +1274,26 @@ _MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
 }
 
 # Two-value affixes: first (#) → group[0] stats, second (#) → group[1] stats
+# Multi-group affixes with mixed units (% and flat in same affix)
+_MIXED_STAT_OVERRIDES: dict[str, list[dict]] = {
+    "+(#) % gear physical damage adds (#)-(#) physical damage to the gear": [
+        {"value_index": 0, "stat_keys": ["gear_physical_dmg_inc"], "unit": "%"},
+        {"value_index": 1, "stat_keys": ["physical_dmg_gear_flat_min"], "unit": ""},
+        {"value_index": 2, "stat_keys": ["physical_dmg_gear_flat_max"], "unit": ""},
+    ],
+    "adds (#)-(#) elemental damage to the gear -(#) % gear physical damage": [
+        {"value_index": 0, "stat_keys": ["elemental_dmg_gear_flat_min"], "unit": ""},
+        {"value_index": 1, "stat_keys": ["elemental_dmg_gear_flat_max"], "unit": ""},
+        {"value_index": 2, "stat_keys": ["gear_physical_dmg_inc"], "unit": "%"},
+    ],
+}
+
 _DUAL_MULTI_STAT_OVERRIDES: dict[str, tuple[list[str], list[str]]] = {
     "+(#) % attack and cast speed +(#) % minion attack and cast speed":
         (["attack_speed_inc", "cast_speed_inc"],
          ["minion_attack_speed_inc", "minion_cast_speed_inc"]),
+    "+(#) % cast speed +(#) % minion cast speed":
+        (["cast_speed_inc"], ["minion_cast_speed_inc"]),
     "+(#) % additional attack and cast speed for combo starters +(#) % critical strike damage for combo finishers":
         (["combo_starter_attack_speed_additional", "combo_starter_cast_speed_additional"],
          ["combo_finisher_crit_dmg_inc"]),
@@ -1509,6 +1527,40 @@ def get_legendary_gear_index():
     return {"season": active, "items": data.get("items", [])}
 
 
+def _resolve_affix(affix: dict) -> dict:
+    """Resolve a gear affix dict to include stat_key/stat_keys/unit fields."""
+    if affix.get("affix_kind") == "placeholder":
+        return {**affix, "stat_key": None, "unit": ""}
+    raw_text = affix.get("raw_text", "")
+    text = _GEAR_COND_RE.sub("", raw_text)
+    text = _GEAR_SUFFIX_RE.sub("", text)
+    ne = _norm_expr(text)
+    unit = "%" if "%" in raw_text else ""
+    # 1. Range-multi: min and max each fan out to multiple stats
+    if ne in _RANGE_MULTI_STAT_OVERRIDES:
+        rm = _RANGE_MULTI_STAT_OVERRIDES[ne]
+        return {**affix, "stat_key": None, "unit": unit,
+                "min_stat_keys": rm["min_keys"], "max_stat_keys": rm["max_keys"]}
+    # 2a. Mixed-unit multi-group affixes (per-group unit override)
+    if ne in _MIXED_STAT_OVERRIDES:
+        return {**affix, "stat_key": None, "unit": unit, "dual_stat_groups": _MIXED_STAT_OVERRIDES[ne]}
+    # 2b. Dual-value: two separate (#) values → two groups of stats
+    if ne in _DUAL_MULTI_STAT_OVERRIDES:
+        g0, g1 = _DUAL_MULTI_STAT_OVERRIDES[ne]
+        dual_groups = [{"value_index": 0, "stat_keys": g0},
+                       {"value_index": 1, "stat_keys": g1}]
+        return {**affix, "stat_key": None, "unit": unit, "dual_stat_groups": dual_groups}
+    # 3. Multi-stat: single value → multiple stats
+    if ne in _MULTI_STAT_OVERRIDES:
+        stat_keys = _MULTI_STAT_OVERRIDES[ne]
+        is_range_split = any(k.endswith(("_flat_min", "_flat_max")) for k in stat_keys)
+        return {**affix, "stat_key": None, "stat_keys": stat_keys,
+                "is_range_split": is_range_split, "unit": unit}
+    # 4. Expression or fuzzy fallback
+    stat_key, unit = _resolve_gear_stat(raw_text)
+    return {**affix, "stat_key": stat_key, "unit": unit}
+
+
 @app.get("/api/legendary-gear")
 def get_legendary_gear():
     active = season_manager.get_active_season()
@@ -1518,34 +1570,7 @@ def get_legendary_gear():
     if not data:
         return {"season": active, "items": []}
 
-    def _resolve(affix: dict) -> dict:
-        if affix.get("affix_kind") == "placeholder":
-            return {**affix, "stat_key": None, "unit": ""}
-        raw_text = affix.get("raw_text", "")
-        text = _GEAR_COND_RE.sub("", raw_text)
-        text = _GEAR_SUFFIX_RE.sub("", text)
-        ne = _norm_expr(text)
-        unit = "%" if "%" in raw_text else ""
-        # 1. Range-multi: min and max each fan out to multiple stats
-        if ne in _RANGE_MULTI_STAT_OVERRIDES:
-            rm = _RANGE_MULTI_STAT_OVERRIDES[ne]
-            return {**affix, "stat_key": None, "unit": unit,
-                    "min_stat_keys": rm["min_keys"], "max_stat_keys": rm["max_keys"]}
-        # 2. Dual-value: two separate (#) values → two groups of stats
-        if ne in _DUAL_MULTI_STAT_OVERRIDES:
-            g0, g1 = _DUAL_MULTI_STAT_OVERRIDES[ne]
-            dual_groups = [{"value_index": 0, "stat_keys": g0},
-                           {"value_index": 1, "stat_keys": g1}]
-            return {**affix, "stat_key": None, "unit": unit, "dual_stat_groups": dual_groups}
-        # 3. Multi-stat: single value → multiple stats
-        if ne in _MULTI_STAT_OVERRIDES:
-            stat_keys = _MULTI_STAT_OVERRIDES[ne]
-            is_range_split = any(k.endswith(("_flat_min", "_flat_max")) for k in stat_keys)
-            return {**affix, "stat_key": None, "stat_keys": stat_keys,
-                    "is_range_split": is_range_split, "unit": unit}
-        # 4. Expression or fuzzy fallback
-        stat_key, unit = _resolve_gear_stat(raw_text)
-        return {**affix, "stat_key": stat_key, "unit": unit}
+    _resolve = _resolve_affix
 
     # New crawler format: items have "variants" dict
     if data.get("items") and data["items"][0].get("variants"):
@@ -1575,9 +1600,9 @@ def get_legendary_gear():
         for affix in item.get("affixes", []):
             resolved = _resolve(affix)
             affix.update({k: resolved[k] for k in ("stat_key", "unit") if k in resolved})
-            if "stat_keys" in resolved:
-                affix["stat_keys"] = resolved["stat_keys"]
-                affix["is_range_split"] = resolved.get("is_range_split", False)
+            for extra_key in ("stat_keys", "is_range_split", "min_stat_keys", "max_stat_keys", "dual_stat_groups"):
+                if extra_key in resolved:
+                    affix[extra_key] = resolved[extra_key]
     return {"season": active, "items": items}
 
 
@@ -1667,18 +1692,43 @@ def import_crawler_craft_base_types_endpoint(req: ImportCrawlerCraftBaseTypesReq
         "season": req.season_name,
         "base_types": base_items_only,
     })
+    global _craft_bases_cache
+    _craft_bases_cache = None  # invalidate so next request re-resolves
     return {"ok": True, "count": len(base_types)}
+
+
+_craft_bases_cache: list | None = None
+_craft_bases_cache_season: str | None = None
+
+
+def _resolve_craft_base_types(base_types: list) -> list:
+    for bt in base_types:
+        for affix in bt.get("affixes", []):
+            if affix.get("affix_kind") in ("special", "placeholder"):
+                continue
+            resolved = _resolve_affix(affix)
+            affix.update({k: resolved[k] for k in ("stat_key", "unit") if k in resolved})
+            for extra_key in ("stat_keys", "is_range_split", "min_stat_keys", "max_stat_keys", "dual_stat_groups"):
+                if extra_key in resolved:
+                    affix[extra_key] = resolved[extra_key]
+    return base_types
 
 
 @app.get("/api/craft-base-types")
 def get_craft_base_types():
+    global _craft_bases_cache, _craft_bases_cache_season
     active = season_manager.get_active_season()
     if not active:
         return {"season": None, "base_types": []}
+    if _craft_bases_cache is not None and _craft_bases_cache_season == active:
+        return {"season": active, "base_types": _craft_bases_cache}
     data = season_manager.load_craft_base_types(active)
     if not data:
         return {"season": active, "base_types": []}
-    return {"season": active, "base_types": data.get("base_types", [])}
+    base_types = _resolve_craft_base_types(data.get("base_types", []))
+    _craft_bases_cache = base_types
+    _craft_bases_cache_season = active
+    return {"season": active, "base_types": base_types}
 
 
 @app.get("/api/craft-base-items")
@@ -1692,8 +1742,29 @@ def get_craft_base_items():
     return {"season": active, "base_types": data.get("base_types", [])}
 
 
+class ResolveGearAffixesRequest(BaseModel):
+    texts: list[str]
+
+@app.post("/api/resolve-gear-affixes")
+def resolve_gear_affixes(req: ResolveGearAffixesRequest):
+    """Batch-resolve raw affix texts to stat fields. Used to refresh stale saved gear."""
+    results: dict[str, dict] = {}
+    for raw_text in req.texts:
+        if not raw_text or raw_text in results:
+            continue
+        resolved = _resolve_affix({"raw_text": raw_text, "affix_kind": "numeric"})
+        entry: dict = {"stat_key": resolved.get("stat_key"), "unit": resolved.get("unit", "")}
+        for k in ("stat_keys", "is_range_split", "min_stat_keys", "max_stat_keys", "dual_stat_groups"):
+            if k in resolved:
+                entry[k] = resolved[k]
+        results[raw_text] = entry
+    return {"results": results}
+
+
 @app.delete("/api/dev/craft-base-types")
 def clear_craft_base_types():
+    global _craft_bases_cache
+    _craft_bases_cache = None
     active = season_manager.get_active_season()
     if active:
         season_manager.delete_craft_base_types(active)
