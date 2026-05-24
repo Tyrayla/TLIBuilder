@@ -25,6 +25,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
 button { font-family: inherit; cursor: pointer; border: none; outline: none; }
@@ -877,11 +878,256 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 4px 20px 0;
 }
 
+.share-import-warning {
+  margin: 0 20px;
+  background: rgba(255,180,40,0.08);
+  border: 1px solid rgba(255,180,40,0.3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: rgba(255,200,80,0.9);
+  line-height: 1.5;
+}
+.share-import-warning p { margin: 0 0 4px; }
+.share-import-warning p:last-child { margin-bottom: 0; }
+.share-import-warning ul { margin: 2px 0 6px 16px; padding: 0; }
+.share-import-warning li { margin-bottom: 2px; }
+
 .share-copied {
   background: #0e3a1a !important;
   color: var(--ok) !important;
   border-color: #1a5a2a !important;
 }
+
+/* ── App Layout (sidebar + content) ───────────────────────── */
+
+.app-layout {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ── Build Sidebar ─────────────────────────────────────────── */
+
+.build-sidebar {
+  width: 155px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #06060e;
+  border-right: 1px solid #1a1a30;
+  padding: 10px 8px;
+  overflow-y: auto;
+  gap: 2px;
+}
+
+.sidebar-build-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9090bb;
+  padding: 4px 6px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-save-row {
+  display: flex;
+  gap: 4px;
+  padding-bottom: 4px;
+}
+
+.sidebar-save-btn {
+  flex: 1;
+  background: #111122;
+  border: 1px solid #2a2a4a;
+  color: #8888cc;
+  font-size: 11px;
+  padding: 4px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-save-btn:hover { background: #1a1a33; border-color: var(--accent); color: #aaaaee; }
+
+.sidebar-nav-btn {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: #9090bb;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.sidebar-nav-btn:hover { background: #111128; color: #c0c0e0; }
+.sidebar-nav-btn.active { background: #1a1040; color: #c0a0ff; font-weight: 600; }
+
+.sidebar-divider {
+  height: 1px;
+  background: #1a1a30;
+  margin: 4px 0;
+  flex-shrink: 0;
+}
+
+.sidebar-spacer {
+  flex: 1;
+}
+
+.sidebar-back {
+  color: #555577;
+  font-size: 11px;
+  margin-top: 2px;
+}
+.sidebar-back:hover { color: #8888aa; background: #111120; }
+
+/* ── Notes Screen ──────────────────────────────────────────── */
+
+.notes-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px 20px;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.notes-header {
+  flex-shrink: 0;
+}
+
+.notes-textarea {
+  flex: 1;
+  resize: none;
+  background: #0c0c1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 12px 14px;
+  outline: none;
+}
+.notes-textarea:focus { border-color: #4a4a8a; }
+.notes-textarea::placeholder { color: #333355; }
+
+/* ── Conditionals grid layout ──────────────────────────────── */
+
+.build-overview {
+  padding: 16px 20px;
+  gap: 0;
+}
+
+.cond-screen-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #c0c0e0;
+  flex-shrink: 0;
+}
+
+.cond-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+  align-content: start;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.cond-card {
+  background: #0a0a1a;
+  border: 1px solid #1e1e3a;
+  border-radius: 6px;
+  overflow: hidden;
+  align-self: start;
+}
+
+.cond-card-header {
+  background: #101025;
+  padding: 5px 10px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6666aa;
+  border-bottom: 1px solid #1a1a32;
+}
+
+.cond-card-body {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* ── Import / Export Screen ────────────────────────────────── */
+
+.import-export-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px;
+  overflow-y: auto;
+}
+
+.import-export-screen-inner {
+  width: 480px;
+  max-width: 100%;
+  background: #0d1527;
+  border: 1px solid #1e1e3a;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* ── Import / Export Overlay ───────────────────────────────── */
+
+.import-export-modal {
+  min-width: 420px;
+  max-width: 560px;
+}
+
+.import-export-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #1e1e3a;
+  margin-bottom: 12px;
+}
+
+.import-export-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #666688;
+  font-size: 13px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+.import-export-tab:hover { color: #9090bb; }
+.import-export-tab.active { color: #c0a0ff; border-bottom-color: #8060cc; }
 
 /* ── Update Banner ─────────────────────────────────────────── */
 
@@ -1223,6 +1469,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-height: 0;
 }
 
 /* ── Equipment Slots (panel 1) ────────────────────────────────────────────── */
@@ -1368,6 +1615,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   overflow-y: auto;
   padding: 8px 0;
 }
+.gear-build-panel::-webkit-scrollbar { width: 5px; }
+.gear-build-panel::-webkit-scrollbar-track { background: transparent; }
+.gear-build-panel::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+.gear-build-panel::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
 
 .gear-build-empty {
   padding: 10px 14px;
@@ -1521,6 +1772,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex-direction: column;
   gap: 10px;
 }
+.gear-customize-affixes::-webkit-scrollbar { width: 5px; }
+.gear-customize-affixes::-webkit-scrollbar-track { background: transparent; }
+.gear-customize-affixes::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+.gear-customize-affixes::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
 
 .gear-affix-row {
   display: flex;
@@ -1598,6 +1853,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 /* ── Editor column wrapper (Panel 3) ─────────────────────────────────────────── */
 
 .gear-editor-column {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1613,16 +1869,20 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   min-height: 0;
 }
 
-/* ── Item preview card (bottom of Panel 3) ────────────────────────────────── */
+/* ── Item preview card (in-flow, above action buttons) ─────────────────────── */
 
 .gear-preview-card {
+  max-height: 40%;
   flex-shrink: 0;
   background: #090914;
   border-top: 1px solid #1e1e3a;
-  padding: 10px 14px 18px;
-  max-height: 220px;
+  padding: 10px 14px 14px;
   overflow-y: auto;
 }
+.gear-preview-card::-webkit-scrollbar { width: 5px; }
+.gear-preview-card::-webkit-scrollbar-track { background: transparent; }
+.gear-preview-card::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+.gear-preview-card::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
 
 .gear-preview-name {
   font-size: 13px;
@@ -1657,6 +1917,15 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .gear-preview-affix--implicit {
   color: #6a8acc;
+}
+
+span.gear-affix-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: #383858;
+  margin-left: 5px;
+  vertical-align: middle;
 }
 
 .gear-preview-section-label-divider {
@@ -1847,6 +2116,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   overflow-y: auto;
   padding: 4px 0 8px;
 }
+.gear-craft-slots-scroll::-webkit-scrollbar { width: 5px; }
+.gear-craft-slots-scroll::-webkit-scrollbar-track { background: transparent; }
+.gear-craft-slots-scroll::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+.gear-craft-slots-scroll::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
 
 .gear-craft-section-label {
   font-size: 10px;
@@ -1913,6 +2186,48 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .gear-craft-actions .btn { flex: 1; }
 
+/* ── Vorax Gear ───────────────────────────────────────────────────────────── */
+
+.vorax-section-divider {
+  padding: 6px 8px 2px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+  user-select: none;
+  cursor: default;
+  letter-spacing: 0.05em;
+}
+
+.vorax-leg-source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 4px;
+}
+
+.vorax-leg-source-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.45);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.vorax-quality-warning {
+  background: rgba(255, 180, 40, 0.08);
+  border: 1px solid rgba(255, 180, 40, 0.3);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: rgba(255, 200, 80, 0.9);
+  margin: 0 10px 6px;
+  line-height: 1.5;
+}
+
+.vorax-affix-legendary {
+  color: #ffa726;
+}
+
 /* ── Catalog header with Create Item button ───────────────────────────────── */
 
 .gear-catalog-header {
@@ -1967,18 +2282,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .gear-craft-mod-clear:hover { color: #ef5350; }
 
 .gear-craft-mod-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 500;
+  z-index: 9000;
   background: #111122;
   border: 1px solid #333355;
   border-radius: 3px;
-  margin-top: 2px;
   display: flex;
   flex-direction: column;
-  max-height: 260px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.6);
 }
 
@@ -1998,6 +2307,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex: 1;
   overflow-y: auto;
 }
+.gear-craft-mod-list::-webkit-scrollbar { width: 4px; }
+.gear-craft-mod-list::-webkit-scrollbar-track { background: transparent; }
+.gear-craft-mod-list::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 2px; }
+.gear-craft-mod-list::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
 
 .gear-craft-mod-group {
   padding: 5px 8px 3px;
@@ -2081,6 +2394,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex-direction: column;
   gap: 2px;
 }
+.gear-catalog-list::-webkit-scrollbar { width: 5px; }
+.gear-catalog-list::-webkit-scrollbar-track { background: transparent; }
+.gear-catalog-list::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+.gear-catalog-list::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
 
 .gear-empty {
   padding: 24px;
@@ -2188,9 +2505,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .skills-screen {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   background: var(--bg);
   overflow: hidden;
+  min-height: 0;
 }
 
 .skills-header {
@@ -2213,6 +2531,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-height: 0;
 }
 
 /* ── Skill Slots (left panel) ──────────────────────────────────────────────── */
@@ -2602,6 +2921,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 24px 32px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   gap: 24px;
 }
 
@@ -3301,6 +3621,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-height: 0;
 }
 
 /* CSS Grid: 11 columns (1 card + 10 nodes), 3 equal rows */
@@ -3447,18 +3768,23 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   justify-content: center;
 }
 
-/* Horizontal track line through filled node cells */
-.pact-node-cell.has-node::before {
+/* Connector lines: left half (cell-left → node-left) and right half (node-right → cell-right) */
+.pact-node-cell.has-node::before,
+.pact-node-cell.has-node::after {
   content: '';
   position: absolute;
   top: 50%;
-  left: 0;
-  right: 0;
   height: 2px;
   background: rgba(255,255,255,0.18);
   transform: translateY(-50%);
-  z-index: 0;
 }
+
+.pact-node-cell.node-ring-inner::before { left: 0;              right: calc(50% + 13px); }
+.pact-node-cell.node-ring-inner::after  { left: calc(50% + 13px); right: 0; }
+.pact-node-cell.node-ring-mid::before   { left: 0;              right: calc(50% + 16px); }
+.pact-node-cell.node-ring-mid::after    { left: calc(50% + 16px); right: 0; }
+.pact-node-cell.node-ring-outer::before { left: 0;              right: calc(50% + 22px); }
+.pact-node-cell.node-ring-outer::after  { display: none; }
 
 /* Node circles */
 .pact-node {
@@ -3571,6 +3897,22 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .pact-spirit-list-item:hover {
   background: rgba(255,255,255,0.07);
   border-color: rgba(255,255,255,0.18);
+}
+.pact-spirit-list-item.selected {
+  border-color: rgba(120,200,120,0.45);
+  background: rgba(100,180,100,0.06);
+}
+.pact-spirit-list-item.selected:hover {
+  border-color: rgba(120,200,120,0.65);
+  background: rgba(100,180,100,0.1);
+}
+
+.pact-spirit-bound-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(120,220,120,0.85);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .pact-spirit-list-header {
