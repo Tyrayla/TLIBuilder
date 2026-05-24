@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import {
   api, LegendaryGearItem, LegendaryGearIndexItem, LegendaryAffix, LegendaryNumericValue,
   EquippedGearItem, CustomizedAffix, GearSlot, CraftBaseType, CraftAffix, CraftBaseItem, CraftBaseItemGroup,
+  Graft, GraftAffix,
 } from '../api/client'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -223,10 +224,12 @@ function GearTooltip({ state }: { state: TooltipState }) {
             <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">{affix.raw_text}</div>
           ))}
           {implicits.length > 0 && explicits.length > 0 && (
-            <div className="gear-tooltip-divider gear-tooltip-section-line" />
+            <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
           )}
           {explicits.map((affix, i) => (
-            <div key={i} className="gear-tooltip-affix">{tooltipAffixText(affix, implicits.length + i, customizations)}</div>
+            <div key={i} className="gear-tooltip-affix">
+              {tooltipAffixText(affix, implicits.length + i, customizations)}
+            </div>
           ))}
         </>
       ) : (() => {
@@ -237,13 +240,18 @@ function GearTooltip({ state }: { state: TooltipState }) {
         return (
           <>
             {craftImplicits.map((affix, i) => (
-              <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">{affix.raw_text}</div>
+              <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">
+                {affix.raw_text}
+              </div>
             ))}
             {craftImplicits.length > 0 && craftExplicits.length > 0 && (
-              <div className="gear-tooltip-divider gear-tooltip-section-line" />
+              <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
             )}
             {craftExplicits.map((affix, i) => (
-              <div key={i} className="gear-tooltip-affix">{tooltipAffixText(affix, implCount + i, customizations)}</div>
+              <div key={i} className="gear-tooltip-affix">
+                {tooltipAffixText(affix, implCount + i, customizations)}
+                {affixTypeLabel(affix.affix_type) && <span className="gear-affix-label">({affixTypeLabel(affix.affix_type)})</span>}
+              </div>
             ))}
           </>
         )
@@ -332,9 +340,11 @@ interface CustomizePanelProps {
   onConfirm: () => void
   onCancel: () => void
   baseItemImplicits: Record<string, string[]>
+  previewName: string | null
+  previewLines: PreviewLine[] | null
 }
 
-function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits }: CustomizePanelProps) {
+function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines }: CustomizePanelProps) {
   const [hoveredAffix, setHoveredAffix] = useState<{ idx: number; x: number; y: number } | null>(null)
   const [baseHoverPos, setBaseHoverPos] = useState<{ x: number; y: number } | null>(null)
   const custPanelId = useId()
@@ -511,11 +521,12 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
         })()}
       </div>
 
+      <ItemPreviewCard name={previewName} lines={previewLines} />
       <div className="gear-customize-actions">
-        <button className="btn btn-sm" onClick={onCancel}>Cancel</button>
         <button className="btn btn-sm btn-primary gear-confirm-btn" onClick={onConfirm}>
           {isEditing ? 'Save' : 'Add to Build'}
         </button>
+        <button className="btn btn-sm" onClick={onCancel}>Cancel</button>
       </div>
       {hoveredAffix && item && (() => {
         const hAffix = getItemAffixes(item)[hoveredAffix.idx]
@@ -595,6 +606,16 @@ function sortedTiers(tiers: CraftAffix[]): CraftAffix[] {
   return [...tiers].sort((a, b) => parseTierNum(a.tier) - parseTierNum(b.tier))
 }
 
+type PreviewLine = { text: string; label?: string } | null
+
+function affixTypeLabel(affixType: string | undefined): string | undefined {
+  if (!affixType) return undefined
+  if (affixType === 'Base' || affixType === 'Base Affix') return 'Base Affix'
+  if (affixType === 'Legendary') return 'Legendary Affix'
+  const match = affixType.match(/^(Basic|Advanced|Ultimate)/i)
+  return match ? `${match[1]} Affix` : undefined
+}
+
 function craftAffixToLegendary(a: CraftAffix): LegendaryAffix {
   return {
     raw_text: a.raw_text,
@@ -605,8 +626,38 @@ function craftAffixToLegendary(a: CraftAffix): LegendaryAffix {
     numeric_values: a.numeric_values,
     stat_key: null,
     unit: '',
+    affix_type: a.affix_type,
   }
 }
+
+// ── Vorax constants and helpers ───────────────────────────────────────────────
+
+const VORAX_GRAFT_SLOTS: Record<string, GearSlot[]> = {
+  vorax_limb_head:              ['helmet'],
+  vorax_limb_hands:             ['gloves'],
+  vorax_limb_chest:             ['chest'],
+  vorax_limb_legs:              ['boots'],
+  vorax_limb_waist:             ['belt'],
+  vorax_limb_neck:              ['amulet'],
+  vorax_limb_digits:            ['ring1', 'ring2'],
+  vorax_aberrant_limb_digits:   ['ring1', 'ring2'],
+  vorax_aberrant_limb_legs:     ['boots'],
+  vorax_aberrant_limb_waist:    ['belt'],
+}
+
+function getVoraxDisplayName(graft: Graft): string {
+  // "Vorax Limb: Head" → "Vorax Head" | "Vorax Aberrant Limb: Digits" → "Vorax Aberrant Digits"
+  return graft.name.replace('Limb: ', '')
+}
+
+interface VoraxAffixSlot {
+  expression: string | null
+  affix: GraftAffix | LegendaryAffix | null
+  chosenValues: Record<number, number>
+  isLegendary: boolean
+}
+
+const emptyVoraxSlot = (): VoraxAffixSlot => ({ expression: null, affix: null, chosenValues: {}, isLegendary: false })
 
 // ── Grouped modifiers helper ───────────────────────────────────────────────────
 
@@ -630,34 +681,54 @@ interface ModifierSearchSelectProps {
   pool: CraftAffix[]
   value: string
   onChange: (expr: string) => void
+  disabledExpressions?: ReadonlySet<string>
 }
 
-function ModifierSearchSelect({ pool, value, onChange }: ModifierSearchSelectProps) {
+function ModifierSearchSelect({ pool, value, onChange, disabledExpressions }: ModifierSearchSelectProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const MAX_DROPDOWN_H = 260
 
   useEffect(() => {
-    if (!open) { setQuery(''); return }
+    if (!open) { setQuery(''); setTriggerRect(null); return }
+    if (containerRef.current) setTriggerRect(containerRef.current.getBoundingClientRect())
     setTimeout(() => inputRef.current?.focus(), 0)
   }, [open])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        containerRef.current && !containerRef.current.contains(e.target as Node)
+      ) setOpen(false)
     }
     if (open) document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
   const groups = useMemo(() => groupedModifiers(pool), [pool])
-
+  const isDisabled = (expr: string) => !!(disabledExpressions?.has(expr) && expr !== value)
   const filteredExprs = useMemo(() => {
     if (!query.trim()) return null
     const q = query.toLowerCase()
     return groups.flatMap(g => g.expressions).filter(e => e.toLowerCase().includes(q))
   }, [query, groups])
+
+  const dropdownStyle = triggerRect ? (() => {
+    const spaceBelow = window.innerHeight - triggerRect.bottom
+    const showAbove = spaceBelow < MAX_DROPDOWN_H + 4 && triggerRect.top > MAX_DROPDOWN_H
+    return {
+      position: 'fixed' as const,
+      left: triggerRect.left,
+      width: triggerRect.width,
+      maxHeight: MAX_DROPDOWN_H,
+      ...(showAbove ? { bottom: window.innerHeight - triggerRect.top + 2 } : { top: triggerRect.bottom + 2 }),
+    }
+  })() : {}
 
   return (
     <div ref={containerRef} className="gear-craft-mod-select">
@@ -672,8 +743,8 @@ function ModifierSearchSelect({ pool, value, onChange }: ModifierSearchSelectPro
           >×</span>
         )}
       </div>
-      {open && (
-        <div className="gear-craft-mod-dropdown">
+      {open && triggerRect && createPortal(
+        <div ref={dropdownRef} className="gear-craft-mod-dropdown" style={dropdownStyle}>
           <input
             ref={inputRef}
             className="gear-craft-mod-search"
@@ -684,9 +755,9 @@ function ModifierSearchSelect({ pool, value, onChange }: ModifierSearchSelectPro
           />
           <div className="gear-craft-mod-list">
             {filteredExprs !== null ? (
-              filteredExprs.length === 0
+              filteredExprs.filter(e => !isDisabled(e)).length === 0
                 ? <div className="gear-craft-mod-empty">No matches</div>
-                : filteredExprs.map(expr => (
+                : filteredExprs.filter(e => !isDisabled(e)).map(expr => (
                     <div
                       key={expr}
                       className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`}
@@ -694,21 +765,26 @@ function ModifierSearchSelect({ pool, value, onChange }: ModifierSearchSelectPro
                     >{expr}</div>
                   ))
             ) : (
-              groups.map(g => (
-                <React.Fragment key={g.quality}>
-                  <div className="gear-craft-mod-group">{g.quality}</div>
-                  {g.expressions.map(expr => (
-                    <div
-                      key={expr}
-                      className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`}
-                      onMouseDown={() => { onChange(expr); setOpen(false) }}
-                    >{expr}</div>
-                  ))}
-                </React.Fragment>
-              ))
+              groups.map(g => {
+                const visible = g.expressions.filter(e => !isDisabled(e))
+                if (visible.length === 0) return null
+                return (
+                  <React.Fragment key={g.quality}>
+                    <div className="gear-craft-mod-group">{g.quality}</div>
+                    {visible.map(expr => (
+                      <div
+                        key={expr}
+                        className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`}
+                        onMouseDown={() => { onChange(expr); setOpen(false) }}
+                      >{expr}</div>
+                    ))}
+                  </React.Fragment>
+                )
+              })
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -720,9 +796,10 @@ interface CraftSlotRowProps {
   pool: CraftAffix[]
   slot: CraftSlotState
   onChange: (next: CraftSlotState) => void
+  disabledExpressions?: ReadonlySet<string>
 }
 
-function CraftSlotRow({ pool, slot, onChange }: CraftSlotRowProps) {
+function CraftSlotRow({ pool, slot, onChange, disabledExpressions }: CraftSlotRowProps) {
   const [sliderHoverPos, setSliderHoverPos] = useState<{ x: number; y: number } | null>(null)
   const craftSlotId = useId()
   const rawTiers = useMemo(() => slot.expression ? tiersForModifier(pool, slot.expression) : [], [pool, slot.expression])
@@ -751,7 +828,7 @@ function CraftSlotRow({ pool, slot, onChange }: CraftSlotRowProps) {
   return (
     <div className="gear-craft-slot">
       <div className="gear-craft-slot-row">
-        <ModifierSearchSelect pool={pool} value={slot.expression ?? ''} onChange={handleModifierChange} />
+        <ModifierSearchSelect pool={pool} value={slot.expression ?? ''} onChange={handleModifierChange} disabledExpressions={disabledExpressions} />
         {slot.expression && tiers.length > 1 && (
           <select
             className="gear-craft-select gear-craft-select--tier"
@@ -812,6 +889,553 @@ function CraftSlotRow({ pool, slot, onChange }: CraftSlotRowProps) {
         </div>,
         document.body
       )}
+    </div>
+  )
+}
+
+// ── Vorax Modifier Select ─────────────────────────────────────────────────────
+
+interface VoraxModSelectProps {
+  graftPool: GraftAffix[]
+  legPool: LegendaryAffix[]
+  value: string
+  onChange: (expr: string, isLegendary: boolean) => void
+  disabledExpressions?: ReadonlySet<string>
+}
+
+function VoraxModSelect({ graftPool, legPool, value, onChange, disabledExpressions }: VoraxModSelectProps) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const MAX_DROPDOWN_H = 260
+
+  useEffect(() => {
+    if (!open) { setQuery(''); setTriggerRect(null); return }
+    if (containerRef.current) setTriggerRect(containerRef.current.getBoundingClientRect())
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        containerRef.current && !containerRef.current.contains(e.target as Node)
+      ) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const graftGroups = useMemo(() => groupedModifiers(graftPool), [graftPool])
+
+  const legExprs = useMemo(() => {
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const a of legPool) {
+      if (!seen.has(a.expression)) { seen.add(a.expression); result.push(a.expression) }
+    }
+    return result.sort()
+  }, [legPool])
+
+  const allExprs = useMemo(() => {
+    const graft = graftGroups.flatMap(g => g.expressions)
+    return [...graft, ...legExprs]
+  }, [graftGroups, legExprs])
+
+  const filteredGraft = useMemo(() => {
+    if (!query.trim()) return null
+    const q = query.toLowerCase()
+    return graftGroups.flatMap(g => g.expressions).filter(e => e.toLowerCase().includes(q))
+  }, [query, graftGroups])
+
+  const filteredLeg = useMemo(() => {
+    if (!query.trim()) return null
+    const q = query.toLowerCase()
+    return legExprs.filter(e => e.toLowerCase().includes(q))
+  }, [query, legExprs])
+
+  const isLegendaryExpr = (expr: string) => legExprs.includes(expr)
+  const isVoraxDisabled = (expr: string) => !!(disabledExpressions?.has(expr) && expr !== value)
+
+  const handlePick = (expr: string) => {
+    onChange(expr, isLegendaryExpr(expr))
+    setOpen(false)
+  }
+
+  const isValueLegendary = value ? isLegendaryExpr(value) : false
+
+  // Filtered and de-duplicated results for search mode
+  const visibleFilteredLeg = (filteredLeg ?? []).filter(e => !isVoraxDisabled(e))
+  const visibleFilteredGraft = (filteredGraft ?? []).filter(e => !isVoraxDisabled(e))
+
+  const dropdownStyle = triggerRect ? (() => {
+    const spaceBelow = window.innerHeight - triggerRect.bottom
+    const showAbove = spaceBelow < MAX_DROPDOWN_H + 4 && triggerRect.top > MAX_DROPDOWN_H
+    return {
+      position: 'fixed' as const,
+      left: triggerRect.left,
+      width: triggerRect.width,
+      maxHeight: MAX_DROPDOWN_H,
+      ...(showAbove ? { bottom: window.innerHeight - triggerRect.top + 2 } : { top: triggerRect.bottom + 2 }),
+    }
+  })() : {}
+
+  return (
+    <div ref={containerRef} className="gear-craft-mod-select">
+      <div className={`gear-craft-mod-trigger${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)}>
+        <span className={value ? `gear-craft-mod-value${isValueLegendary ? ' vorax-affix-legendary' : ''}` : 'gear-craft-mod-placeholder'}>
+          {value || '— modifier —'}
+        </span>
+        {value && (
+          <span
+            className="gear-craft-mod-clear"
+            onMouseDown={e => { e.stopPropagation(); onChange('', false); setOpen(false) }}
+          >×</span>
+        )}
+      </div>
+      {open && triggerRect && createPortal(
+        <div ref={dropdownRef} className="gear-craft-mod-dropdown" style={dropdownStyle}>
+          <input
+            ref={inputRef}
+            className="gear-craft-mod-search"
+            placeholder="Search…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onMouseDown={e => e.stopPropagation()}
+          />
+          <div className="gear-craft-mod-list">
+            {query.trim() ? (
+              <>
+                {visibleFilteredLeg.length > 0 && visibleFilteredGraft.length > 0 && (
+                  <div className="gear-craft-mod-group vorax-affix-legendary">Legendary</div>
+                )}
+                {visibleFilteredLeg.map(expr => (
+                  <div key={expr} className={`gear-craft-mod-option vorax-affix-legendary${expr === value ? ' selected' : ''}`} onMouseDown={() => handlePick(expr)}>{expr}</div>
+                ))}
+                {visibleFilteredGraft.map(expr => (
+                  <div key={expr} className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`} onMouseDown={() => handlePick(expr)}>{expr}</div>
+                ))}
+                {visibleFilteredLeg.length === 0 && visibleFilteredGraft.length === 0 && (
+                  <div className="gear-craft-mod-empty">No matches</div>
+                )}
+              </>
+            ) : (
+              <>
+                {legExprs.length > 0 && (
+                  <>
+                    <div className="gear-craft-mod-group vorax-affix-legendary">Legendary</div>
+                    {legExprs.filter(e => !isVoraxDisabled(e)).map(expr => (
+                      <div key={expr} className={`gear-craft-mod-option vorax-affix-legendary${expr === value ? ' selected' : ''}`} onMouseDown={() => handlePick(expr)}>{expr}</div>
+                    ))}
+                  </>
+                )}
+                {graftGroups.map(g => {
+                  const visible = g.expressions.filter(e => !isVoraxDisabled(e))
+                  if (visible.length === 0) return null
+                  return (
+                    <React.Fragment key={g.quality}>
+                      <div className="gear-craft-mod-group">{g.quality}</div>
+                      {visible.map(expr => (
+                        <div key={expr} className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`} onMouseDown={() => handlePick(expr)}>{expr}</div>
+                      ))}
+                    </React.Fragment>
+                  )
+                })}
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+// ── Vorax Craft Slot Row ───────────────────────────────────────────────────────
+
+interface VoraxCraftSlotRowProps {
+  graftPool: GraftAffix[]
+  legPool: LegendaryAffix[]
+  slot: VoraxAffixSlot
+  onChange: (next: VoraxAffixSlot) => void
+  disabledExpressions?: ReadonlySet<string>
+}
+
+function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpressions }: VoraxCraftSlotRowProps) {
+  const [sliderHoverPos, setSliderHoverPos] = useState<{ x: number; y: number } | null>(null)
+  const craftSlotId = useId()
+
+  const handleModifierChange = (expr: string, isLeg: boolean) => {
+    if (!expr) { onChange(emptyVoraxSlot()); return }
+    if (isLeg) {
+      const found = legPool.find(a => a.expression === expr) ?? null
+      onChange({ expression: expr, affix: found, chosenValues: {}, isLegendary: true })
+    } else {
+      const available = sortedTiers(tiersForModifier(graftPool, expr))
+      onChange({ expression: expr, affix: available[0] ?? null, chosenValues: {}, isLegendary: false })
+    }
+  }
+
+  const handleTierChange = (rawText: string) => {
+    const affix = sortedTiers(tiersForModifier(graftPool, slot.expression ?? '')).find(a => a.raw_text === rawText) ?? null
+    onChange({ ...slot, affix, chosenValues: {} })
+  }
+
+  const tiers = useMemo(() =>
+    !slot.isLegendary && slot.expression ? sortedTiers(tiersForModifier(graftPool, slot.expression)) : [],
+    [graftPool, slot.expression, slot.isLegendary]
+  )
+
+  const sliderAffix = slot.affix
+  const numericValues: LegendaryNumericValue[] = sliderAffix
+    ? (sliderAffix as GraftAffix).numeric_values ?? (sliderAffix as LegendaryAffix).numeric_values ?? []
+    : []
+  const dp = Math.max(...numericValues.map(nv => rangeDecimals(nv)), 0)
+  const step = dp > 0 ? parseFloat((1 / Math.pow(10, dp)).toFixed(dp)) : 1
+
+  return (
+    <div className="gear-craft-slot">
+      <div className="gear-craft-slot-row">
+        <VoraxModSelect
+          graftPool={graftPool}
+          legPool={legPool}
+          value={slot.expression ?? ''}
+          onChange={handleModifierChange}
+          disabledExpressions={disabledExpressions}
+        />
+        {!slot.isLegendary && slot.expression && tiers.length > 1 && (
+          <select
+            className="gear-craft-select gear-craft-select--tier"
+            value={(slot.affix as GraftAffix)?.raw_text ?? ''}
+            onChange={e => handleTierChange(e.target.value)}
+          >
+            {tiers.map(a => (
+              <option key={a.raw_text} value={a.raw_text}>Tier: {a.tier}</option>
+            ))}
+          </select>
+        )}
+      </div>
+      {sliderAffix && numericValues.some(v => v.kind === 'range') && (
+        <div className="gear-craft-sliders"
+          onMouseMove={e => setSliderHoverPos({ x: e.clientX, y: e.clientY })}
+          onMouseLeave={() => setSliderHoverPos(null)}
+        >
+          {numericValues.map((nv, valIdx) => {
+            if (nv.kind !== 'range') return null
+            const nvSign = nv.sign ?? ''
+            const rawMin = nv.min ?? 0
+            const rawMax = nv.max ?? 0
+            const sMin = nvSign === '-' ? -rawMin : rawMin
+            const sMax = nvSign === '-' ? -rawMax : rawMax
+            const actualMin = Math.min(sMin, sMax)
+            const actualMax = Math.max(sMin, sMax)
+            const ticks = buildTicks(actualMin, actualMax, step)
+            const listId = `${craftSlotId}-${valIdx}`
+            const unsignedChosen = slot.chosenValues[valIdx] ?? midpoint(nv)
+            const signedChosen = nvSign === '-' ? -unsignedChosen : unsignedChosen
+            const display = dp > 0 ? signedChosen.toFixed(dp) : signedChosen
+            return (
+              <div key={valIdx} className="gear-slider-row">
+                <input
+                  type="range" className="gear-affix-slider"
+                  list={ticks.length > 0 ? listId : undefined}
+                  min={actualMin} max={actualMax} step={step} value={signedChosen}
+                  onChange={e => {
+                    const signed = Number(e.target.value)
+                    onChange({ ...slot, chosenValues: { ...slot.chosenValues, [valIdx]: nvSign === '-' ? -signed : signed } })
+                  }}
+                />
+                {ticks.length > 0 && (
+                  <datalist id={listId}>
+                    {ticks.map((t, ti) => <option key={ti} value={t} />)}
+                  </datalist>
+                )}
+                <span className="gear-affix-value">{display}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {sliderHoverPos && sliderAffix && createPortal(
+        <div className="gear-slider-tooltip" style={{ left: sliderHoverPos.x + 16, top: Math.min(sliderHoverPos.y - 10, window.innerHeight - 80) }}>
+          {slot.isLegendary
+            ? reconstructAffixText(sliderAffix as LegendaryAffix, slot.chosenValues)
+            : reconstructAffixText(craftAffixToLegendary(sliderAffix as GraftAffix), slot.chosenValues)
+          }
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+// ── Vorax Editor Panel ────────────────────────────────────────────────────────
+
+interface VoraxEditorPanelProps {
+  graft: Graft
+  catalog: LegendaryGearItem[]
+  catalogIndex: LegendaryGearIndexItem[]
+  onAddToBuild: (item: EquippedGearItem) => void
+  onClose: () => void
+  onBack: () => void
+}
+
+function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose, onBack }: VoraxEditorPanelProps) {
+  const [baseSlots, setBaseSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot]>([emptyVoraxSlot(), emptyVoraxSlot()])
+  const [prefixSlots, setPrefixSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot]>([emptyVoraxSlot(), emptyVoraxSlot(), emptyVoraxSlot()])
+  const [suffixSlots, setSuffixSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot]>([emptyVoraxSlot(), emptyVoraxSlot(), emptyVoraxSlot()])
+  const [legSourceName, setLegSourceName] = useState<string | null>(null)
+  const [legSourceItem, setLegSourceItem] = useState<LegendaryGearItem | null>(null)
+  const [legSearch, setLegSearch] = useState('')
+  const [legDropdownOpen, setLegDropdownOpen] = useState(false)
+  const legDropdownRef = useRef<HTMLDivElement>(null)
+  const legInputRef = useRef<HTMLInputElement>(null)
+  const targetSlot = (VORAX_GRAFT_SLOTS[graft.item_id] ?? ['helmet'])[0] as GearSlot
+
+  useEffect(() => {
+    if (!legDropdownOpen) { setLegSearch(''); return }
+    setTimeout(() => legInputRef.current?.focus(), 0)
+  }, [legDropdownOpen])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (legDropdownRef.current && !legDropdownRef.current.contains(e.target as Node)) setLegDropdownOpen(false)
+    }
+    if (legDropdownOpen) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [legDropdownOpen])
+
+  const availableLegendaries = useMemo(() =>
+    catalogIndex.filter(ci => graft.legendary_items.includes(ci.name)),
+    [catalogIndex, graft.legendary_items]
+  )
+
+  const filteredLegendaries = useMemo(() => {
+    if (!legSearch.trim()) return availableLegendaries
+    const q = legSearch.toLowerCase()
+    return availableLegendaries.filter(ci => ci.name.toLowerCase().includes(q))
+  }, [availableLegendaries, legSearch])
+
+  const legPool: LegendaryAffix[] = useMemo(() => {
+    if (!legSourceItem) return []
+    const variantKey = Object.keys(legSourceItem.variants)[0] ?? 'base'
+    return legSourceItem.variants[variantKey]?.explicits ?? []
+  }, [legSourceItem])
+
+  const handleSelectLegendary = (indexItem: LegendaryGearIndexItem) => {
+    const full = catalog.find(c => c.item_id === indexItem.item_id) ?? null
+    setLegSourceName(indexItem.name)
+    setLegSourceItem(full)
+    setLegDropdownOpen(false)
+    // Clear any legendary slots that were previously selected
+    const clearLeg = (s: VoraxAffixSlot) => s.isLegendary ? emptyVoraxSlot() : s
+    setPrefixSlots(prev => [clearLeg(prev[0]), clearLeg(prev[1]), clearLeg(prev[2])])
+    setSuffixSlots(prev => [clearLeg(prev[0]), clearLeg(prev[1]), clearLeg(prev[2])])
+  }
+
+  const handleClearLegendary = () => {
+    setLegSourceName(null)
+    setLegSourceItem(null)
+    const clearLeg = (s: VoraxAffixSlot) => s.isLegendary ? emptyVoraxSlot() : s
+    setPrefixSlots(prev => [clearLeg(prev[0]), clearLeg(prev[1]), clearLeg(prev[2])])
+    setSuffixSlots(prev => [clearLeg(prev[0]), clearLeg(prev[1]), clearLeg(prev[2])])
+  }
+
+  const allCraftSlots = [...prefixSlots, ...suffixSlots]
+  const ultimateCount = allCraftSlots.filter(s => (s.affix as GraftAffix)?.affix_type === 'Ultimate Affix').length
+  const advancedCount = allCraftSlots.filter(s => (s.affix as GraftAffix)?.affix_type === 'Advanced Affix').length
+  const legendaryCount = allCraftSlots.filter(s => s.isLegendary).length
+  const warnings: string[] = []
+  if (ultimateCount > 2) warnings.push(`${ultimateCount}/2 Ultimate mods (max 2)`)
+  if (advancedCount > 2) warnings.push(`${advancedCount}/2 Advanced mods (max 2)`)
+  if (legendaryCount > 2) warnings.push(`${legendaryCount}/2 Legendary mods (max 2)`)
+
+  const handleAddToBuild = () => {
+    const customizations: CustomizedAffix[] = []
+
+    const baseAffixes: LegendaryAffix[] = baseSlots
+      .filter(s => s.affix)
+      .map(s => ({ ...craftAffixToLegendary(s.affix as GraftAffix), affix_type: 'Base' }))
+
+    const explicitAffixes: LegendaryAffix[] = [...prefixSlots, ...suffixSlots]
+      .filter(s => s.affix)
+      .map(s => s.isLegendary
+        ? { ...(s.affix as LegendaryAffix), affix_type: 'Legendary' }
+        : craftAffixToLegendary(s.affix as GraftAffix))
+
+    const allSlots = [...baseSlots, ...prefixSlots, ...suffixSlots]
+    const allAffixes = [...baseAffixes, ...explicitAffixes]
+    let affixIdx = 0
+    for (const s of allSlots) {
+      if (!s.affix) continue
+      if (Object.keys(s.chosenValues).length > 0) {
+        customizations.push({ affix_index: affixIdx, chosen_values: s.chosenValues, chosen_placeholder_key: null })
+      }
+      affixIdx++
+    }
+
+    const item: EquippedGearItem = {
+      item_id: graft.item_id,
+      name: `${getVoraxDisplayName(graft)} (Vorax)`,
+      required_level: 0,
+      affixes: allAffixes,
+      customizations,
+      slot: null,
+      base_type: null,
+      is_crafted: true,
+      is_vorax: true,
+      implicit_count: baseAffixes.length,
+      legendary_source: legSourceName,
+      legendary_affix_count: legendaryCount,
+    }
+    onAddToBuild(item)
+    onClose()
+  }
+
+  const updateBase = (i: number, next: VoraxAffixSlot) =>
+    setBaseSlots(prev => { const n = [...prev] as [VoraxAffixSlot, VoraxAffixSlot]; n[i] = next; return n })
+  const updatePrefix = (i: number, next: VoraxAffixSlot) =>
+    setPrefixSlots(prev => { const n = [...prev] as [VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot]; n[i] = next; return n })
+  const updateSuffix = (i: number, next: VoraxAffixSlot) =>
+    setSuffixSlots(prev => { const n = [...prev] as [VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot]; n[i] = next; return n })
+
+  const basePool: GraftAffix[] = graft.base_affixes
+
+  // Disabled expressions per slot — prevents selecting the same mod twice
+  const baseDisabled = baseSlots.map((_, i) =>
+    new Set(baseSlots.filter((s, j) => j !== i && s.expression).map(s => s.expression as string))
+  )
+  const allPrefixSuffix = [...prefixSlots, ...suffixSlots]
+  const craftDisabled = allPrefixSuffix.map((_, i) =>
+    new Set(allPrefixSuffix.filter((s, j) => j !== i && s.expression).map(s => s.expression as string))
+  )
+
+  const voraxPreviewName = `${getVoraxDisplayName(graft)} (Vorax)`
+  const voraxPreviewLines = useMemo((): PreviewLine[] => {
+    const baseLines: PreviewLine[] = baseSlots
+      .filter(s => s.affix)
+      .map(s => ({ text: reconstructAffixText(craftAffixToLegendary(s.affix as GraftAffix), s.chosenValues), label: affixTypeLabel((s.affix as GraftAffix).affix_type) }))
+    const explicitLines: PreviewLine[] = [...prefixSlots, ...suffixSlots]
+      .filter(s => s.affix)
+      .map(s => s.isLegendary
+        ? { text: reconstructAffixText(s.affix as LegendaryAffix, s.chosenValues), label: 'Legendary Affix' }
+        : { text: reconstructAffixText(craftAffixToLegendary(s.affix as GraftAffix), s.chosenValues), label: affixTypeLabel((s.affix as GraftAffix).affix_type) })
+    if (baseLines.length > 0 && explicitLines.length > 0) return [...baseLines, null, ...explicitLines]
+    return [...baseLines, ...explicitLines]
+  }, [baseSlots, prefixSlots, suffixSlots])
+
+  return (
+    <div className="gear-customize-panel">
+      <div className="gear-craft-editing-header">
+        <div className="gear-craft-editing-header-top">
+          <span className="gear-craft-base-name">{getVoraxDisplayName(graft)} (Vorax)</span>
+          <button className="gear-craft-reset-btn" onClick={onBack} title="Back to search">←</button>
+        </div>
+      </div>
+
+      <div className="gear-craft-slots-scroll">
+        {/* Legendary source selector */}
+        <div className="vorax-leg-source-row" ref={legDropdownRef}>
+          <span className="vorax-leg-source-label">Legendary Source</span>
+          <div className="gear-craft-mod-select" style={{ flex: 1 }}>
+            <div className={`gear-craft-mod-trigger${legDropdownOpen ? ' open' : ''}`} onClick={() => setLegDropdownOpen(o => !o)}>
+              <span className={legSourceName ? 'gear-craft-mod-value vorax-affix-legendary' : 'gear-craft-mod-placeholder'}>
+                {legSourceName || '— none —'}
+              </span>
+              {legSourceName && (
+                <span
+                  className="gear-craft-mod-clear"
+                  onMouseDown={e => { e.stopPropagation(); handleClearLegendary(); setLegDropdownOpen(false) }}
+                >×</span>
+              )}
+            </div>
+            {legDropdownOpen && (
+              <div className="gear-craft-mod-dropdown">
+                <input
+                  ref={legInputRef}
+                  className="gear-craft-mod-search"
+                  placeholder="Search legendary…"
+                  value={legSearch}
+                  onChange={e => setLegSearch(e.target.value)}
+                  onMouseDown={e => e.stopPropagation()}
+                />
+                <div className="gear-craft-mod-list">
+                  {filteredLegendaries.length === 0
+                    ? <div className="gear-craft-mod-empty">No matches</div>
+                    : filteredLegendaries.map(ci => (
+                        <div
+                          key={ci.item_id}
+                          className={`gear-craft-mod-option${ci.name === legSourceName ? ' selected' : ''}`}
+                          onMouseDown={() => handleSelectLegendary(ci)}
+                        >{ci.name}</div>
+                      ))
+                  }
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Base affix slots (2) — separate pool, not counted in quality limits */}
+        <div className="gear-craft-section-label">BASE AFFIXES</div>
+        {baseSlots.map((slot, i) => (
+          <VoraxCraftSlotRow
+            key={`base-${i}`}
+            graftPool={basePool}
+            legPool={[]}
+            slot={slot}
+            onChange={next => updateBase(i, next)}
+            disabledExpressions={baseDisabled[i]}
+          />
+        ))}
+
+        {/* Prefix slots (3) */}
+        <div className="gear-craft-section-label">PREFIXES</div>
+        {prefixSlots.map((slot, i) => (
+          <VoraxCraftSlotRow
+            key={`prefix-${i}`}
+            graftPool={graft.affixes}
+            legPool={legPool}
+            slot={slot}
+            onChange={next => updatePrefix(i, next)}
+            disabledExpressions={craftDisabled[i]}
+          />
+        ))}
+
+        {/* Suffix slots (3) */}
+        <div className="gear-craft-section-label">SUFFIXES</div>
+        {suffixSlots.map((slot, i) => (
+          <VoraxCraftSlotRow
+            key={`suffix-${i}`}
+            graftPool={graft.affixes}
+            legPool={legPool}
+            slot={slot}
+            onChange={next => updateSuffix(i, next)}
+            disabledExpressions={craftDisabled[i + 3]}
+          />
+        ))}
+      </div>
+
+      {warnings.length > 0 && (
+        <div className="vorax-quality-warning">
+          {warnings.map((w, i) => <div key={i}>{w}</div>)}
+        </div>
+      )}
+
+      <ItemPreviewCard name={voraxPreviewName} lines={voraxPreviewLines} />
+      <div className="gear-craft-actions">
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={handleAddToBuild}
+          disabled={baseSlots.every(s => !s.affix) && prefixSlots.every(s => !s.affix) && suffixSlots.every(s => !s.affix)}
+        >
+          Add to Build
+        </button>
+        <button className="btn btn-sm" onClick={onClose}>Cancel</button>
+      </div>
     </div>
   )
 }
@@ -923,6 +1547,9 @@ function BaseItemSelect({ items, selected, onSelect, getTooltipLines }: BaseItem
 
 interface CraftEditorProps {
   craftBases: CraftBaseType[]
+  grafts: Graft[]
+  onSelectVorax: (g: Graft) => void
+  craftBaseItems: CraftBaseItemGroup[]
   baseType: CraftBaseType | null
   setBaseType: (bt: CraftBaseType | null) => void
   baseItem: CraftBaseItem | null
@@ -934,20 +1561,32 @@ interface CraftEditorProps {
   craftSearch: string
   setCraftSearch: (s: string) => void
   baseItemImplicits: Record<string, string[]>
+  previewName: string | null
+  previewLines: PreviewLine[] | null
 }
 
-function CraftEditorPanel({ craftBases, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits }: CraftEditorProps) {
+function CraftEditorPanel({ craftBases, craftBaseItems, grafts, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines }: CraftEditorProps) {
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!baseType) setTimeout(() => searchRef.current?.focus(), 0)
   }, [baseType])
 
-  const filteredBases = craftSearch.trim()
-    ? craftBases.filter(b => b.name.toLowerCase().includes(craftSearch.toLowerCase()))
-    : craftBases
+  // Use craftBaseItems (loaded on mount) for instant display; fall back to craftBases names if loaded
+  const displayList = useMemo((): { item_id: string; name: string }[] =>
+    craftBases.length > 0
+      ? craftBases.map(bt => ({ item_id: bt.item_id, name: bt.name }))
+      : craftBaseItems.map(bt => ({ item_id: bt.item_id, name: bt.name })),
+    [craftBases, craftBaseItems]
+  )
 
-  const selectBase = (bt: CraftBaseType) => {
+  const filteredBases = craftSearch.trim()
+    ? displayList.filter(b => b.name.toLowerCase().includes(craftSearch.toLowerCase()))
+    : displayList
+
+  const selectBase = (item_id: string) => {
+    const bt = craftBases.find(b => b.item_id === item_id)
+    if (!bt) return
     setBaseType(bt)
     const sorted = [...bt.base_items].sort((a, b) => b.required_level - a.required_level)
     setBaseItem(sorted[0] ?? null)
@@ -967,6 +1606,7 @@ function CraftEditorPanel({ craftBases, baseType, setBaseType, baseItem, setBase
       condition: null,
       affix_kind: 'implicit' as const,
       numeric_values: [],
+      affix_type: 'Implicit',
     }))
     const implicitCount = implicitAffixes.length
     const customizations: CustomizedAffix[] = []
@@ -995,6 +1635,16 @@ function CraftEditorPanel({ craftBases, baseType, setBaseType, baseItem, setBase
   const updateSlot = (i: number, next: CraftSlotState) =>
     setSlots(slots.map((s, idx) => idx === i ? next : s))
 
+  // Disabled sets per slot — same group = [0,1] base, [2,3,4] prefix, [5,6,7] suffix
+  const slotGroups = [[0, 1], [2, 3, 4], [5, 6, 7]]
+  const craftSlotDisabled = useMemo(() =>
+    slots.map((_, i) => {
+      const group = slotGroups.find(g => g.includes(i)) ?? []
+      return new Set(group.filter(j => j !== i && slots[j].expression).map(j => slots[j].expression as string))
+    }),
+    [slots]
+  )
+
   const basePool = useMemo(() => baseType?.affixes.filter(a => a.affix_type === 'Base Affix') ?? [], [baseType])
   const prefixPool = useMemo(() => baseType?.affixes.filter(a => a.affix_type.includes('Pre-fix')) ?? [], [baseType])
   const suffixPool = useMemo(() => baseType?.affixes.filter(a => a.affix_type.includes('Suffix')) ?? [], [baseType])
@@ -1003,6 +1653,10 @@ function CraftEditorPanel({ craftBases, baseType, setBaseType, baseItem, setBase
     () => baseType ? [...baseType.base_items].sort((a, b) => b.required_level - a.required_level) : [],
     [baseType]
   )
+
+  const filteredVorax = craftSearch.trim()
+    ? grafts.filter(g => getVoraxDisplayName(g).toLowerCase().includes(craftSearch.toLowerCase()))
+    : grafts
 
   if (!baseType) {
     return (
@@ -1021,9 +1675,19 @@ function CraftEditorPanel({ craftBases, baseType, setBaseType, baseItem, setBase
         </div>
         <div className="gear-craft-results">
           {filteredBases.map(bt => (
-            <div key={bt.item_id} className="gear-craft-result-row" onClick={() => selectBase(bt)}>{bt.name}</div>
+            <div key={bt.item_id} className="gear-craft-result-row" onClick={() => selectBase(bt.item_id)}>{bt.name}</div>
           ))}
-          {filteredBases.length === 0 && <div className="gear-empty" style={{ padding: '12px 10px' }}>No matches</div>}
+          {filteredVorax.length > 0 && !craftSearch.trim() && (
+            <div className="vorax-section-divider">── Vorax ──</div>
+          )}
+          {filteredVorax.map(g => (
+            <div key={g.item_id} className="gear-craft-result-row" onClick={() => onSelectVorax(g)}>
+              {getVoraxDisplayName(g)}
+            </div>
+          ))}
+          {filteredBases.length === 0 && filteredVorax.length === 0 && (
+            <div className="gear-empty" style={{ padding: '12px 10px' }}>No matches</div>
+          )}
         </div>
         <div style={{ padding: '8px 10px' }}>
           <button className="btn btn-sm" onClick={onClose}>Cancel</button>
@@ -1078,15 +1742,16 @@ function CraftEditorPanel({ craftBases, baseType, setBaseType, baseItem, setBase
         {slots.map((slot, i) => (
           <React.Fragment key={i}>
             {sectionLabels[i] && <div className="gear-craft-section-label">{sectionLabels[i]}</div>}
-            <CraftSlotRow pool={pools[i]} slot={slot} onChange={next => updateSlot(i, next)} />
+            <CraftSlotRow pool={pools[i]} slot={slot} onChange={next => updateSlot(i, next)} disabledExpressions={craftSlotDisabled[i]} />
           </React.Fragment>
         ))}
       </div>
+      <ItemPreviewCard name={previewName} lines={previewLines} />
       <div className="gear-craft-actions">
-        <button className="btn btn-sm" onClick={onClose}>Cancel</button>
         <button className="btn btn-sm btn-primary" onClick={handleAddToBuild} disabled={slots.every(s => !s.affix)}>
           Add to Build
         </button>
+        <button className="btn btn-sm" onClick={onClose}>Cancel</button>
       </div>
     </div>
   )
@@ -1094,14 +1759,22 @@ function CraftEditorPanel({ craftBases, baseType, setBaseType, baseItem, setBase
 
 // ── Item Preview Card ─────────────────────────────────────────────────────────
 
-function ItemPreviewCard({ name, lines }: { name: string | null; lines: (string | null)[] | null }) {
+function ItemPreviewCard({ name, lines }: { name: string | null; lines: PreviewLine[] | null }) {
   if (!name || !lines) return null
 
+  type Line = NonNullable<PreviewLine>
   const dividerIdx = lines.indexOf(null)
   const hasImplicitExplicitSplit = dividerIdx !== -1
-  const implicitLines = hasImplicitExplicitSplit ? lines.slice(0, dividerIdx) as string[] : []
-  const explicitLines = hasImplicitExplicitSplit ? lines.slice(dividerIdx + 1).filter((l): l is string => l !== null) : []
-  const allLines = hasImplicitExplicitSplit ? null : lines.filter((l): l is string => l !== null)
+  const implicitLines = hasImplicitExplicitSplit ? lines.slice(0, dividerIdx) as Line[] : []
+  const explicitLines = hasImplicitExplicitSplit ? lines.slice(dividerIdx + 1).filter((l): l is Line => l !== null) : []
+  const allLines = hasImplicitExplicitSplit ? null : lines.filter((l): l is Line => l !== null)
+
+  const renderLine = (line: Line, key: string, implicit?: boolean) => (
+    <div key={key} className={`gear-preview-affix${implicit ? ' gear-preview-affix--implicit' : ''}`}>
+      {line.text}
+      {line.label && <span className="gear-affix-label">({line.label})</span>}
+    </div>
+  )
 
   return (
     <div className="gear-preview-card">
@@ -1111,18 +1784,12 @@ function ItemPreviewCard({ name, lines }: { name: string | null; lines: (string 
         <div className="gear-preview-empty">No modifiers selected</div>
       ) : hasImplicitExplicitSplit ? (
         <>
-          {implicitLines.map((text, i) => (
-            <div key={`imp-${i}`} className="gear-preview-affix gear-preview-affix--implicit">{text}</div>
-          ))}
-          <div className="gear-preview-section-divider" />
-          {explicitLines.map((text, i) => (
-            <div key={`exp-${i}`} className="gear-preview-affix">{text}</div>
-          ))}
+          {implicitLines.map((line, i) => renderLine(line, `imp-${i}`, true))}
+          <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
+          {explicitLines.map((line, i) => renderLine(line, `exp-${i}`))}
         </>
       ) : (
-        allLines!.map((text, i) => (
-          <div key={i} className="gear-preview-affix">{text}</div>
-        ))
+        allLines!.map((line, i) => renderLine(line, `${i}`))
       )}
     </div>
   )
@@ -1138,7 +1805,7 @@ interface Props {
 
 function getItemQualityClass(item: EquippedGearItem): string {
   if (!item.is_crafted) return 'quality-legendary'
-  const n = item.affixes.length
+  const n = item.affixes.length - (item.implicit_count ?? 0)
   if (n === 0) return 'quality-normal'
   if (n <= 2) return 'quality-magic'
   if (n <= 5) return 'quality-rare'
@@ -1152,6 +1819,8 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
   const [craftBaseItems, setCraftBaseItems] = useState<CraftBaseItemGroup[]>([])
   const [craftBases, setCraftBases] = useState<CraftBaseType[]>([])
   const [craftBasesLoaded, setCraftBasesLoaded] = useState(false)
+  const [grafts, setGrafts] = useState<Graft[]>([])
+  const [selectedGraft, setSelectedGraft] = useState<Graft | null>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<LegendaryGearItem | null>(null)
@@ -1175,6 +1844,7 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
     setCraftBaseItem(null)
     setCraftSlots(Array.from({ length: 8 }, emptyCraftSlot))
     setCraftSearch('')
+    setSelectedGraft(null)
     setSelectedCatalogItem(null)
     setEditingBuildIdx(null)
     setCustomizations([])
@@ -1191,6 +1861,7 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
     setCraftBaseItem(null)
     setCraftSlots(Array.from({ length: 8 }, emptyCraftSlot))
     setCraftSearch('')
+    setSelectedGraft(null)
   }
 
   useEffect(() => {
@@ -1203,6 +1874,12 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
       .catch(() => {})
     api.getCraftBaseItems()
       .then(res => setCraftBaseItems(res.base_types))
+      .catch(() => {})
+    api.getCraftBaseTypes()
+      .then(res => { setCraftBases(res.base_types); setCraftBasesLoaded(true) })
+      .catch(() => {})
+    api.getGrafts()
+      .then(res => setGrafts(res.grafts))
       .catch(() => {})
     searchRef.current?.focus()
   }, [])
@@ -1413,31 +2090,31 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
     return null
   }, [craftOpen, craftBaseType, craftBaseItem, customizeItem])
 
-  const previewLines = useMemo((): (string | null)[] | null => {
+  const previewLines = useMemo((): PreviewLine[] | null => {
     if (craftOpen && craftBaseType) {
       const itemName = craftBaseItem?.name ?? craftBaseType.name
       const implicitTexts = baseItemImplicits[itemName] ?? []
-      const craftLines = craftSlots
+      const implicitLines: PreviewLine[] = implicitTexts.map(t => ({ text: t }))
+      const craftLines: PreviewLine[] = craftSlots
         .filter(s => s.affix !== null)
-        .map(s => reconstructAffixText(craftAffixToLegendary(s.affix!), s.chosenValues))
-      if (implicitTexts.length > 0 && craftLines.length > 0) return [...implicitTexts, null, ...craftLines]
-      if (implicitTexts.length > 0) return implicitTexts
+        .map(s => ({ text: reconstructAffixText(craftAffixToLegendary(s.affix!), s.chosenValues), label: affixTypeLabel(s.affix!.affix_type) }))
+      if (implicitLines.length > 0 && craftLines.length > 0) return [...implicitLines, null, ...craftLines]
+      if (implicitLines.length > 0) return implicitLines
       return craftLines
     }
     if (customizeItem) {
       if (isLegendaryGearItem(customizeItem)) {
         const implicits = getItemImplicits(customizeItem)
         const explicits = getItemExplicits(customizeItem)
-        const implicitLines = implicits.map((a, i) => tooltipAffixText(a, i, customizations))
-        const explicitLines = explicits.map((a, i) => tooltipAffixText(a, implicits.length + i, customizations))
-        if (implicits.length > 0 && explicits.length > 0) {
-          return [...implicitLines, null, ...explicitLines]
-        }
+        const implicitLines: PreviewLine[] = implicits.map((a, i) => ({ text: tooltipAffixText(a, i, customizations) }))
+        const explicitLines: PreviewLine[] = explicits.map((a, i) => ({ text: tooltipAffixText(a, implicits.length + i, customizations) }))
+        if (implicits.length > 0 && explicits.length > 0) return [...implicitLines, null, ...explicitLines]
         return [...implicitLines, ...explicitLines]
       }
-      return getItemAffixes(customizeItem).map((affix, i) =>
-        tooltipAffixText(affix, i, customizations)
-      )
+      return getItemAffixes(customizeItem).map((affix, i) => ({
+        text: tooltipAffixText(affix, i, customizations),
+        label: affixTypeLabel(affix.affix_type),
+      }))
     }
     return null
   }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, customizeItem, customizations, baseItemImplicits])
@@ -1458,7 +2135,6 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
   return (
     <div className="screen gear-screen">
       <div className="gear-header">
-        <button className="btn-back" onClick={onBack}>← Back</button>
         <h2 className="title-accent" style={{ fontSize: 20 }}>Gear</h2>
         <span className="gear-header-count">{catalogIndex.length} items</span>
       </div>
@@ -1543,9 +2219,21 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
 
         {/* Panel 3: Customize or Craft */}
         <div className="gear-editor-column">
-          {craftOpen ? (
+          {craftOpen && selectedGraft ? (
+            <VoraxEditorPanel
+              graft={selectedGraft}
+              catalog={catalog}
+              catalogIndex={catalogIndex}
+              onAddToBuild={item => onGearChange([...equippedItems, item])}
+              onClose={closeCraft}
+              onBack={() => setSelectedGraft(null)}
+            />
+          ) : craftOpen ? (
             <CraftEditorPanel
               craftBases={craftBases}
+              craftBaseItems={craftBaseItems}
+              grafts={grafts}
+              onSelectVorax={g => { setSelectedGraft(g); setCraftBaseType(null) }}
               baseType={craftBaseType}
               setBaseType={setCraftBaseType}
               baseItem={craftBaseItem}
@@ -1557,6 +2245,8 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
               craftSearch={craftSearch}
               setCraftSearch={setCraftSearch}
               baseItemImplicits={baseItemImplicits}
+              previewName={previewName}
+              previewLines={previewLines}
             />
           ) : (
             <CustomizePanel
@@ -1567,9 +2257,10 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
               onConfirm={isEditing ? handleSaveBuildItem : handleAddFromCatalog}
               onCancel={handleCancel}
               baseItemImplicits={baseItemImplicits}
+              previewName={previewName}
+              previewLines={previewLines}
             />
           )}
-          <ItemPreviewCard name={previewName} lines={previewLines} />
         </div>
 
         {/* Panel 4: Legendary Catalog */}

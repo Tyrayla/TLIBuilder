@@ -151,6 +151,9 @@ export interface Build {
   traitLevel?: number          // legacy field — kept for loading old saves
   traitSlotLevels?: number[]   // [base, lv45, lv60, lv75], each 1–5
   advancedTraitSelections?: string[]
+  heroMemories?: (unknown | null)[]
+  pactSpirits?: (unknown | null)[]
+  notes?: string
 }
 
 export interface TreeNode {
@@ -516,6 +519,8 @@ export interface GraftAffix {
 export interface Graft {
   item_id: string
   name: string
+  legendary_items: string[]
+  base_affixes: GraftAffix[]
   affixes: GraftAffix[]
 }
 
@@ -797,6 +802,8 @@ export interface LegendaryAffix {
   // resolved by backend at load time
   stat_key?: string | null
   unit?: string
+  // set for crafted/vorax items: 'Base' | 'Basic Affix' | 'Advanced Affix' | 'Ultimate Affix' | 'Legendary'
+  affix_type?: string
 }
 
 export interface LegendaryGearVariant {
@@ -848,6 +855,9 @@ export interface EquippedGearItem {
   slot: GearSlot | GearSlot[] | null
   base_type?: string
   is_crafted?: boolean
+  is_vorax?: boolean
+  legendary_source?: string | null
+  legendary_affix_count?: number
   base_stats?: Record<string, number>
   implicit_count?: number
 }
