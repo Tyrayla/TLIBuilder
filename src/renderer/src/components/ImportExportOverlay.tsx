@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { api, Build } from '../api/client'
+import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
 
 interface Props {
   isDirty: boolean
@@ -42,6 +43,12 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
   const [exportLoading, setExportLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
+  // Share-via-link state (additive; the raw-code copy path never depends on it).
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareError, setShareError] = useState<string | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
+
   const [importCode, setImportCode] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
   const [importWarnings, setImportWarnings] = useState<string[]>([])
@@ -61,6 +68,8 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
       const { code } = await api.encodeBuildCode(getBuildPayload())
       setExportCode(code)
       setCopied(false)
+      setShareUrl(null)
+      setShareError(null)
     } catch { /* silent */ }
     finally { setExportLoading(false) }
   }
@@ -73,11 +82,39 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
     })
   }
 
+  const handleShare = async () => {
+    if (!exportCode) return
+    setShareLoading(true)
+    setShareError(null)
+    try {
+      const { url } = await api.shareBuildCode(exportCode)
+      setShareUrl(url)
+      setShareCopied(false)
+    } catch {
+      // Link sharing is additive — never a hard dependency. The raw code above
+      // stays fully copyable when the share service is unreachable.
+      setShareError("Couldn't create a share link — the service may be unavailable. You can still copy the code above.")
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  const handleCopyShareUrl = () => {
+    if (!shareUrl) return
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    })
+  }
+
   const doImport = async (code: string) => {
     setImporting(true)
     setImportError(null)
     try {
-      const { build } = await api.decodeBuildCode(code)
+      // Accepts either a raw tli1_ code or a share link; a share link is
+      // resolved to a raw code here, then the existing decode path runs.
+      const resolved = await resolveImportInput(code)
+      const { build } = await api.decodeBuildCode(resolved)
       const warnings = checkBuildCompatibility(build)
       if (warnings.length && !importConfirmed) {
         setImportWarnings(warnings)
@@ -87,8 +124,12 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
       onImport(build as unknown as Build)
       onClose()
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setImportError(msg.includes('400') ? 'Invalid or unrecognized build code.' : 'Failed to import — try again.')
+      if (e instanceof ShareFetchError) {
+        setImportError("Couldn't fetch the shared build (link may be invalid or the service is unavailable).")
+      } else {
+        const msg = e instanceof Error ? e.message : String(e)
+        setImportError(msg.includes('400') ? 'Invalid or unrecognized build code.' : 'Failed to import — try again.')
+      }
     } finally {
       setImporting(false)
     }
@@ -160,8 +201,36 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
                 >
                   {copied ? 'Copied!' : 'Copy Code'}
                 </button>
+                {!shareUrl && (
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handleShare}
+                    disabled={shareLoading}
+                  >
+                    {shareLoading ? 'Creating link…' : 'Share via Link'}
+                  </button>
+                )}
                 {!asScreen && <button className="btn btn-secondary" onClick={onClose}>Close</button>}
               </div>
+              {shareError && <p className="share-import-error">{shareError}</p>}
+              {shareUrl && (
+                <>
+                  <textarea
+                    className="share-code-area"
+                    readOnly
+                    value={shareUrl}
+                    onFocus={e => e.target.select()}
+                  />
+                  <div className="modal-actions">
+                    <button
+                      className={`btn btn-primary${shareCopied ? ' share-copied' : ''}`}
+                      onClick={handleCopyShareUrl}
+                    >
+                      {shareCopied ? 'Copied!' : 'Copy Link'}
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           )}
         </>

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { api, Build } from '../api/client'
+import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
 import logoSrc from '../assets/logo.png'
 
 interface Props {
@@ -99,7 +100,9 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
     setImporting(true)
     setImportError(null)
     try {
-      const { build } = await api.decodeBuildCode(code)
+      // Accepts either a raw tli1_ code or a share link.
+      const resolved = await resolveImportInput(code)
+      const { build } = await api.decodeBuildCode(resolved)
       const warnings = checkBuildCompatibility(build)
       if (warnings.length && !importConfirmed) {
         setImportWarnings(warnings)
@@ -110,8 +113,12 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
       setImportConfirmed(false)
       onOpenBuild(build as unknown as Build)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setImportError(msg.includes('400') ? 'Invalid or unrecognized build code.' : 'Failed to import — try again.')
+      if (e instanceof ShareFetchError) {
+        setImportError("Couldn't fetch the shared build (link may be invalid or the service is unavailable).")
+      } else {
+        const msg = e instanceof Error ? e.message : String(e)
+        setImportError(msg.includes('400') ? 'Invalid or unrecognized build code.' : 'Failed to import — try again.')
+      }
     } finally {
       setImporting(false)
     }
