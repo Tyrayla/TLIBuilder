@@ -475,6 +475,17 @@ export function buildSpiritEffects(
 export interface DualStatGroup {
   value_index: number
   stat_keys: string[]
+  unit?: string
+}
+
+export interface ResolvedAffixFields {
+  stat_key?: string | null
+  unit?: string
+  stat_keys?: string[]
+  is_range_split?: boolean
+  min_stat_keys?: string[]
+  max_stat_keys?: string[]
+  dual_stat_groups?: DualStatGroup[]
 }
 
 export interface CraftAffix {
@@ -877,6 +888,7 @@ export interface EquippedGearItem {
   legendary_affix_count?: number
   base_stats?: Record<string, number>
   implicit_count?: number
+  craft_slot_positions?: number[]
 }
 
 export interface GearAffixContribution {
@@ -1059,6 +1071,8 @@ export const api = {
       '/dev/import-crawler-craft-base-types', { season_name: seasonName, items }
     ),
   getCraftBaseTypes: () => get<{ season: string | null; base_types: CraftBaseType[] }>('/craft-base-types'),
+  resolveGearAffixes: (texts: string[]) =>
+    post<{ results: Record<string, ResolvedAffixFields> }>('/resolve-gear-affixes', { texts }),
   getCraftBaseItems: () => get<{ season: string | null; base_types: CraftBaseItemGroup[] }>('/craft-base-items'),
   clearCraftBaseTypes: () => del<{ ok: boolean }>('/dev/craft-base-types'),
 

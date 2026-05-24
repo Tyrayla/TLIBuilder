@@ -46,7 +46,10 @@ function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     const contributions: GearAffixContribution[] = []
     item.affixes.forEach((affix, affixIdx) => {
       if (affix.affix_kind === 'placeholder') return
-      const hasKey = affix.stat_key || (affix.stat_keys && affix.stat_keys.length > 0)
+      const hasKey = affix.stat_key
+        || (affix.stat_keys && affix.stat_keys.length > 0)
+        || (affix.dual_stat_groups && affix.dual_stat_groups.length > 0)
+        || (affix.min_stat_keys && affix.min_stat_keys.length > 0)
       if (!hasKey) return
       const cust = item.customizations.find(c => c.affix_index === affixIdx)
       const slot = Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot
@@ -67,14 +70,19 @@ function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
             contributions.push({ stat, display_value: maxVal, unit, item_name: item.name, slot })
           }
         } else if (affix.dual_stat_groups && affix.dual_stat_groups.length > 0) {
-          // Dual-value: each group's value_index picks a numeric value
-          const rangeValues = affix.numeric_values.filter(v => v.kind === 'range')
+          // Each group's value_index indexes numeric_values directly (range or fixed)
           for (const group of affix.dual_stat_groups) {
-            const nv = rangeValues[group.value_index]
+            const nv = affix.numeric_values[group.value_index]
             if (!nv) continue
-            const val = cust?.chosen_values[group.value_index] ?? Math.round(((nv.min ?? 0) + (nv.max ?? 0)) / 2)
+            const groupUnit = group.unit !== undefined ? group.unit : unit
+            let val: number
+            if (nv.kind === 'range') {
+              val = cust?.chosen_values[group.value_index] ?? Math.round(((nv.min ?? 0) + (nv.max ?? 0)) / 2)
+            } else {
+              val = (nv.value ?? 0) * (nv.sign === '-' ? -1 : 1)
+            }
             for (const stat of group.stat_keys) {
-              contributions.push({ stat, display_value: val, unit, item_name: item.name, slot })
+              contributions.push({ stat, display_value: val, unit: groupUnit, item_name: item.name, slot })
             }
           }
         } else if (affix.stat_keys && affix.stat_keys.length > 0) {
@@ -222,9 +230,6 @@ export default function StatsScreen({
 
       <div className="stat-sheet">
         {loading && <div className="stat-sheet-empty">Computing stats…</div>}
-        {!loading && filledSlots === 0 && (
-          <div className="stat-sheet-empty">No talent trees selected. Add trees to see stats.</div>
-        )}
         {!loading && error && (
           <div className="stat-sheet-empty" style={{ color: '#ff6b6b' }}>{error}</div>
         )}

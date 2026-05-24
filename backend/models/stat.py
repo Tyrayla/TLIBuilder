@@ -441,6 +441,7 @@ class Stat(Enum):
     MAX_CURSE_FLAT = "max_curse_flat"
     CURSE_EFFECT_AGAINST_INC = "curse_effect_against_inc"
     TAUNT_ON_HIT_CHANCE = "taunt_on_hit_chance"
+    ATTACK_TAUNT_ON_HIT_CHANCE = "attack_taunt_on_hit_chance"
     FERVOR_EFFECT_INC = "fervor_effect_inc"
     BLUR_EFFECT_INC = "blur_effect_inc"
     WARCRY_EFFECT_INC = "warcry_effect_inc"
@@ -480,6 +481,8 @@ class Stat(Enum):
     LIGHTNING_DMG_GEAR_FLAT_MAX = "lightning_dmg_gear_flat_max"
     EROSION_DMG_GEAR_FLAT_MIN = "erosion_dmg_gear_flat_min"
     EROSION_DMG_GEAR_FLAT_MAX = "erosion_dmg_gear_flat_max"
+    ELEMENTAL_DMG_GEAR_FLAT_MIN = "elemental_dmg_gear_flat_min"
+    ELEMENTAL_DMG_GEAR_FLAT_MAX = "elemental_dmg_gear_flat_max"
 
     # ── Flat Quantity / Mechanic Stats ────────────────────────────────────────
     MAX_ENERGY_FLAT = "max_energy_flat"

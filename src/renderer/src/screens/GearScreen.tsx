@@ -592,6 +592,65 @@ interface CraftSlotState {
 
 const emptyCraftSlot = (): CraftSlotState => ({ expression: null, affix: null, chosenValues: {} })
 
+interface VoraxInitialState {
+  baseSlots: [VoraxAffixSlot, VoraxAffixSlot]
+  prefixSlots: [VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot]
+  suffixSlots: [VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot]
+  legSourceName: string | null
+  legSourceItem: LegendaryGearItem | null
+}
+
+function reconstructCraftSlots(item: EquippedGearItem, baseType: CraftBaseType): CraftSlotState[] {
+  const implicitCount = item.implicit_count ?? 0
+  const explicits = item.affixes.slice(implicitCount).filter(
+    a => a.affix_kind === 'numeric' || a.affix_kind === 'special'
+  )
+  const slots: CraftSlotState[] = Array.from({ length: 8 }, emptyCraftSlot)
+  const positions = item.craft_slot_positions
+  explicits.forEach((aff, i) => {
+    const slotIdx = positions ? (positions[i] ?? i) : i
+    if (slotIdx >= 8) return
+    const poolAffix = baseType.affixes.find(pa => pa.raw_text === aff.raw_text) ?? null
+    const cust = item.customizations.find(c => c.affix_index === implicitCount + i)
+    slots[slotIdx] = { expression: poolAffix?.expression ?? null, affix: poolAffix, chosenValues: cust?.chosen_values ?? {} }
+  })
+  return slots
+}
+
+function reconstructVoraxSlots(
+  item: EquippedGearItem,
+  graft: Graft,
+  catalog: LegendaryGearItem[],
+): VoraxInitialState {
+  const toSlot = (aff: LegendaryAffix, custIdx: number): VoraxAffixSlot => {
+    const chosen = item.customizations.find(c => c.affix_index === custIdx)?.chosen_values ?? {}
+    if (aff.affix_type === 'Legendary') {
+      return { expression: aff.expression, affix: aff as unknown as LegendaryAffix, chosenValues: chosen, isLegendary: true }
+    }
+    const poolAffix = graft.affixes.find(pa => pa.raw_text === aff.raw_text) ?? null
+    return { expression: poolAffix?.expression ?? null, affix: poolAffix, chosenValues: chosen, isLegendary: false }
+  }
+  const baseSlots: [VoraxAffixSlot, VoraxAffixSlot] = [emptyVoraxSlot(), emptyVoraxSlot()]
+  const prefixSlots: [VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot] = [emptyVoraxSlot(), emptyVoraxSlot(), emptyVoraxSlot()]
+  const suffixSlots: [VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot] = [emptyVoraxSlot(), emptyVoraxSlot(), emptyVoraxSlot()]
+  const positions = item.craft_slot_positions
+  item.affixes.forEach((aff, affixIdx) => {
+    // Slot indices: 0-1 = base, 2-4 = prefix, 5-7 = suffix
+    const slotIdx = positions ? (positions[affixIdx] ?? affixIdx) : affixIdx
+    const slot = toSlot(aff, affixIdx)
+    if (slotIdx < 2) {
+      baseSlots[slotIdx] = slot
+    } else if (slotIdx < 5) {
+      prefixSlots[slotIdx - 2] = slot
+    } else if (slotIdx < 8) {
+      suffixSlots[slotIdx - 5] = slot
+    }
+  })
+  const legSourceName = item.legendary_source ?? null
+  const legSourceItem = legSourceName ? catalog.find(c => c.name === legSourceName) ?? null : null
+  return { baseSlots, prefixSlots, suffixSlots, legSourceName, legSourceItem }
+}
+
 function tiersForModifier(pool: CraftAffix[], expression: string): CraftAffix[] {
   return pool.filter(a => a.expression === expression)
 }
@@ -604,6 +663,12 @@ function parseTierNum(tier: string): number {
 
 function sortedTiers(tiers: CraftAffix[]): CraftAffix[] {
   return [...tiers].sort((a, b) => parseTierNum(a.tier) - parseTierNum(b.tier))
+}
+
+// Prefer the lowest tier >= 1 as default; fall back to the absolute lowest tier
+function defaultTier(tiers: CraftAffix[]): CraftAffix | null {
+  const sorted = sortedTiers(tiers)
+  return sorted.find(a => parseTierNum(a.tier) >= 1) ?? sorted[0] ?? null
 }
 
 type PreviewLine = { text: string; label?: string } | null
@@ -624,8 +689,13 @@ function craftAffixToLegendary(a: CraftAffix): LegendaryAffix {
     condition: a.condition,
     affix_kind: a.affix_kind,
     numeric_values: a.numeric_values,
-    stat_key: null,
-    unit: '',
+    stat_key: a.stat_key ?? null,
+    stat_keys: a.stat_keys,
+    is_range_split: a.is_range_split,
+    min_stat_keys: a.min_stat_keys,
+    max_stat_keys: a.max_stat_keys,
+    dual_stat_groups: a.dual_stat_groups,
+    unit: a.unit ?? '',
     affix_type: a.affix_type,
   }
 }
@@ -812,8 +882,8 @@ function CraftSlotRow({ pool, slot, onChange, disabledExpressions }: CraftSlotRo
 
   const handleModifierChange = (expr: string) => {
     if (!expr) { onChange(emptyCraftSlot()); return }
-    const available = sortedTiers(tiersForModifier(pool, expr))
-    onChange({ expression: expr, affix: available[0] ?? null, chosenValues: {} })
+    const available = tiersForModifier(pool, expr)
+    onChange({ expression: expr, affix: defaultTier(available), chosenValues: {} })
   }
 
   const handleTierChange = (rawText: string) => {
@@ -1074,8 +1144,8 @@ function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpress
       const found = legPool.find(a => a.expression === expr) ?? null
       onChange({ expression: expr, affix: found, chosenValues: {}, isLegendary: true })
     } else {
-      const available = sortedTiers(tiersForModifier(graftPool, expr))
-      onChange({ expression: expr, affix: available[0] ?? null, chosenValues: {}, isLegendary: false })
+      const available = tiersForModifier(graftPool, expr)
+      onChange({ expression: expr, affix: defaultTier(available), chosenValues: {}, isLegendary: false })
     }
   }
 
@@ -1181,14 +1251,22 @@ interface VoraxEditorPanelProps {
   onAddToBuild: (item: EquippedGearItem) => void
   onClose: () => void
   onBack: () => void
+  initialState?: VoraxInitialState | null
+  onSaveBuildItem?: (item: EquippedGearItem) => void
 }
 
-function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose, onBack }: VoraxEditorPanelProps) {
-  const [baseSlots, setBaseSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot]>([emptyVoraxSlot(), emptyVoraxSlot()])
-  const [prefixSlots, setPrefixSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot]>([emptyVoraxSlot(), emptyVoraxSlot(), emptyVoraxSlot()])
-  const [suffixSlots, setSuffixSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot]>([emptyVoraxSlot(), emptyVoraxSlot(), emptyVoraxSlot()])
-  const [legSourceName, setLegSourceName] = useState<string | null>(null)
-  const [legSourceItem, setLegSourceItem] = useState<LegendaryGearItem | null>(null)
+function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose, onBack, initialState, onSaveBuildItem }: VoraxEditorPanelProps) {
+  const [baseSlots, setBaseSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot]>(
+    () => initialState?.baseSlots ?? [emptyVoraxSlot(), emptyVoraxSlot()]
+  )
+  const [prefixSlots, setPrefixSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot]>(
+    () => initialState?.prefixSlots ?? [emptyVoraxSlot(), emptyVoraxSlot(), emptyVoraxSlot()]
+  )
+  const [suffixSlots, setSuffixSlots] = useState<[VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot]>(
+    () => initialState?.suffixSlots ?? [emptyVoraxSlot(), emptyVoraxSlot(), emptyVoraxSlot()]
+  )
+  const [legSourceName, setLegSourceName] = useState<string | null>(() => initialState?.legSourceName ?? null)
+  const [legSourceItem, setLegSourceItem] = useState<LegendaryGearItem | null>(() => initialState?.legSourceItem ?? null)
   const [legSearch, setLegSearch] = useState('')
   const [legDropdownOpen, setLegDropdownOpen] = useState(false)
   const legDropdownRef = useRef<HTMLDivElement>(null)
@@ -1268,6 +1346,7 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
 
     const allSlots = [...baseSlots, ...prefixSlots, ...suffixSlots]
     const allAffixes = [...baseAffixes, ...explicitAffixes]
+    const craftSlotPositions: number[] = allSlots.map((s, i) => s.affix ? i : -1).filter(i => i >= 0)
     let affixIdx = 0
     for (const s of allSlots) {
       if (!s.affix) continue
@@ -1290,8 +1369,13 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
       implicit_count: baseAffixes.length,
       legendary_source: legSourceName,
       legendary_affix_count: legendaryCount,
+      craft_slot_positions: craftSlotPositions,
     }
-    onAddToBuild(item)
+    if (onSaveBuildItem) {
+      onSaveBuildItem(item)
+    } else {
+      onAddToBuild(item)
+    }
     onClose()
   }
 
@@ -1432,7 +1516,7 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
           onClick={handleAddToBuild}
           disabled={baseSlots.every(s => !s.affix) && prefixSlots.every(s => !s.affix) && suffixSlots.every(s => !s.affix)}
         >
-          Add to Build
+          {onSaveBuildItem ? 'Save Changes' : 'Add to Build'}
         </button>
         <button className="btn btn-sm" onClick={onClose}>Cancel</button>
       </div>
@@ -1547,6 +1631,7 @@ function BaseItemSelect({ items, selected, onSelect, getTooltipLines }: BaseItem
 
 interface CraftEditorProps {
   craftBases: CraftBaseType[]
+  craftBasesLoaded: boolean
   grafts: Graft[]
   onSelectVorax: (g: Graft) => void
   craftBaseItems: CraftBaseItemGroup[]
@@ -1563,9 +1648,10 @@ interface CraftEditorProps {
   baseItemImplicits: Record<string, string[]>
   previewName: string | null
   previewLines: PreviewLine[] | null
+  onSaveBuildItem?: (item: EquippedGearItem) => void
 }
 
-function CraftEditorPanel({ craftBases, craftBaseItems, grafts, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines }: CraftEditorProps) {
+function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBaseItems, grafts, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, onSaveBuildItem }: CraftEditorProps) {
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -1597,6 +1683,7 @@ function CraftEditorPanel({ craftBases, craftBaseItems, grafts, onSelectVorax, b
   const handleAddToBuild = () => {
     if (!baseType) return
     const filledAffixes = slots.map(s => s.affix).filter((a): a is CraftAffix => a !== null)
+    const craftSlotPositions: number[] = slots.map((s, i) => s.affix ? i : -1).filter(i => i >= 0)
     const itemName = baseItem?.name ?? baseType.name
     const implicitTexts = baseItemImplicits[itemName] ?? []
     const implicitAffixes: LegendaryAffix[] = implicitTexts.map(text => ({
@@ -1618,7 +1705,7 @@ function CraftEditorPanel({ craftBases, craftBaseItems, grafts, onSelectVorax, b
       }
       affixIdx++
     }
-    onAddToBuild({
+    const builtItem: EquippedGearItem = {
       item_id: itemName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
       name: `${itemName} (Crafted)`,
       required_level: baseItem?.required_level ?? 0,
@@ -1628,7 +1715,13 @@ function CraftEditorPanel({ craftBases, craftBaseItems, grafts, onSelectVorax, b
       base_type: itemName,
       is_crafted: true,
       implicit_count: implicitCount,
-    })
+      craft_slot_positions: craftSlotPositions,
+    }
+    if (onSaveBuildItem) {
+      onSaveBuildItem(builtItem)
+    } else {
+      onAddToBuild(builtItem)
+    }
     onClose()
   }
 
@@ -1675,7 +1768,11 @@ function CraftEditorPanel({ craftBases, craftBaseItems, grafts, onSelectVorax, b
         </div>
         <div className="gear-craft-results">
           {filteredBases.map(bt => (
-            <div key={bt.item_id} className="gear-craft-result-row" onClick={() => selectBase(bt.item_id)}>{bt.name}</div>
+            <div
+              key={bt.item_id}
+              className={`gear-craft-result-row${!craftBasesLoaded ? ' gear-craft-result-row--loading' : ''}`}
+              onClick={() => craftBasesLoaded && selectBase(bt.item_id)}
+            >{bt.name}</div>
           ))}
           {filteredVorax.length > 0 && !craftSearch.trim() && (
             <div className="vorax-section-divider">── Vorax ──</div>
@@ -1749,7 +1846,7 @@ function CraftEditorPanel({ craftBases, craftBaseItems, grafts, onSelectVorax, b
       <ItemPreviewCard name={previewName} lines={previewLines} />
       <div className="gear-craft-actions">
         <button className="btn btn-sm btn-primary" onClick={handleAddToBuild} disabled={slots.every(s => !s.affix)}>
-          Add to Build
+          {onSaveBuildItem ? 'Save Changes' : 'Add to Build'}
         </button>
         <button className="btn btn-sm" onClick={onClose}>Cancel</button>
       </div>
@@ -1832,6 +1929,7 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
   const [craftBaseItem, setCraftBaseItem] = useState<CraftBaseItem | null>(null)
   const [craftSlots, setCraftSlots] = useState<CraftSlotState[]>(Array.from({ length: 8 }, emptyCraftSlot))
   const [craftSearch, setCraftSearch] = useState('')
+  const [voraxInitialState, setVoraxInitialState] = useState<VoraxInitialState | null>(null)
   const [slotDropdown, setSlotDropdown] = useState<{ slotId: GearSlot; rect: DOMRect } | null>(null)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
@@ -1862,6 +1960,8 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
     setCraftSlots(Array.from({ length: 8 }, emptyCraftSlot))
     setCraftSearch('')
     setSelectedGraft(null)
+    setVoraxInitialState(null)
+    setEditingBuildIdx(null)
   }
 
   useEffect(() => {
@@ -1912,9 +2012,37 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
   }
 
   const handleSelectBuildItem = (idx: number) => {
+    const item = equippedItems[idx]
+    if (item.is_crafted && !item.is_vorax) {
+      const bt = craftBases.find(b => b.base_items.some(bi => bi.name === item.base_type))
+      if (bt) {
+        const bi = bt.base_items.find(bi => bi.name === item.base_type) ?? bt.base_items[0] ?? null
+        setCraftBaseType(bt)
+        setCraftBaseItem(bi)
+        setCraftSlots(reconstructCraftSlots(item, bt))
+        setCraftOpen(true)
+        setEditingBuildIdx(idx)
+        setSelectedCatalogItem(null)
+        setCraftSearch('')
+        return
+      }
+    }
+    if (item.is_vorax) {
+      const graft = grafts.find(g => g.item_id === item.item_id)
+      if (graft) {
+        const state = reconstructVoraxSlots(item, graft, catalog)
+        setVoraxInitialState(state)
+        setSelectedGraft(graft)
+        setCraftOpen(true)
+        setEditingBuildIdx(idx)
+        setSelectedCatalogItem(null)
+        return
+      }
+    }
+    // Fallback: legendary or unresolvable crafted — open CustomizePanel
     setEditingBuildIdx(idx)
     setSelectedCatalogItem(null)
-    setCustomizations(equippedItems[idx].customizations)
+    setCustomizations(item.customizations)
     setCraftOpen(false)
     setCraftBaseType(null)
   }
@@ -1960,6 +2088,7 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
     setSelectedCatalogItem(null)
     setEditingBuildIdx(null)
     setCustomizations([])
+    setVoraxInitialState(null)
   }
 
   const handleSlotAssign = (slot: GearSlot, buildItemIdx: number | null) => {
@@ -2111,10 +2240,19 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
         if (implicits.length > 0 && explicits.length > 0) return [...implicitLines, null, ...explicitLines]
         return [...implicitLines, ...explicitLines]
       }
-      return getItemAffixes(customizeItem).map((affix, i) => ({
+      const craftItem = customizeItem as EquippedGearItem
+      const implicitCount = craftItem.implicit_count ?? 0
+      const allAffixes = getItemAffixes(craftItem)
+      const implicitLines = allAffixes.slice(0, implicitCount).map((affix, i) => ({
         text: tooltipAffixText(affix, i, customizations),
         label: affixTypeLabel(affix.affix_type),
       }))
+      const explicitLines = allAffixes.slice(implicitCount).map((affix, i) => ({
+        text: tooltipAffixText(affix, implicitCount + i, customizations),
+        label: affixTypeLabel(affix.affix_type),
+      }))
+      if (implicitLines.length > 0 && explicitLines.length > 0) return [...implicitLines, null, ...explicitLines]
+      return [...implicitLines, ...explicitLines]
     }
     return null
   }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, customizeItem, customizations, baseItemImplicits])
@@ -2226,11 +2364,16 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
               catalogIndex={catalogIndex}
               onAddToBuild={item => onGearChange([...equippedItems, item])}
               onClose={closeCraft}
-              onBack={() => setSelectedGraft(null)}
+              onBack={() => { setSelectedGraft(null); setVoraxInitialState(null) }}
+              initialState={voraxInitialState}
+              onSaveBuildItem={editingBuildIdx !== null
+                ? (item) => { const orig = equippedItems[editingBuildIdx]; onGearChange(equippedItems.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
+                : undefined}
             />
           ) : craftOpen ? (
             <CraftEditorPanel
               craftBases={craftBases}
+              craftBasesLoaded={craftBasesLoaded}
               craftBaseItems={craftBaseItems}
               grafts={grafts}
               onSelectVorax={g => { setSelectedGraft(g); setCraftBaseType(null) }}
@@ -2247,6 +2390,9 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
               baseItemImplicits={baseItemImplicits}
               previewName={previewName}
               previewLines={previewLines}
+              onSaveBuildItem={editingBuildIdx !== null
+                ? (item) => { const orig = equippedItems[editingBuildIdx]; onGearChange(equippedItems.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
+                : undefined}
             />
           ) : (
             <CustomizePanel
