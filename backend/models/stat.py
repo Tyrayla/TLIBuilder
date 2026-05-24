@@ -35,6 +35,7 @@ class Stat(Enum):
     ATTACK_SKILL_LEVEL = "attack_skill_level"
     TWO_HANDED_BASE_DMG_ADDITIONAL = "two_handed_base_dmg_additional"
     SHIELD_DMG_INC = "shield_dmg_inc"
+    RANGED_DMG_INC = "ranged_dmg_inc"
 
     # ── Spell ────────────────────────────────────────────────────────────────
     SPELL_DMG_INC = "spell_dmg_inc"
@@ -42,6 +43,8 @@ class Stat(Enum):
     SPELL_DOUBLE_DMG_CHANCE = "spell_double_dmg_chance"
     SPELL_SKILL_LEVEL = "spell_skill_level"
     SPELL_BURST_CHARGE_SPEED_INC = "spell_burst_charge_speed_inc"
+    SPELL_BURST_CHANCE_GAIN_STACKS_FLAT = "spell_burst_chance_gain_stacks_flat"
+    SPELL_BURST_HIT_DMG_ADDITIONAL = "spell_burst_hit_dmg_additional"
     LOW_MANA_SPELL_DMG_INC = "low_mana_spell_dmg_inc"
 
     # ── Melee ────────────────────────────────────────────────────────────────
@@ -58,7 +61,7 @@ class Stat(Enum):
     PROJECTILE_DMG_ADDITIONAL = "projectile_dmg_additional"
     PROJECTILE_SPEED_INC = "projectile_speed_inc"
     PROJECTILE_SKILL_LEVEL = "projectile_skill_level"
-    PROJECTILE_CRIT_DMG = "projectile_crit_dmg"
+    PROJECTILE_CRIT_DMG_INC = "projectile_crit_dmg_inc"
     PROJECTILE_CRIT_RATING_INC = "projectile_crit_rating_inc"
     PROJECTILE_QUANTITY_FLAT = "projectile_quantity_flat"
     HORIZONTAL_PROJECTILE_PENETRATION_FLAT = "horizontal_projectile_penetration_flat"
@@ -67,6 +70,9 @@ class Stat(Enum):
     # ── Minion ───────────────────────────────────────────────────────────────
     MINION_DMG_INC = "minion_dmg_inc"
     MINION_DMG_ADDITIONAL = "minion_dmg_additional"
+    MINION_ELEMENTAL_DMG_INC = "minion_elemental_dmg_inc"
+    MINION_ELEMENTAL_PEN = "minion_elemental_pen"
+    MINION_MOVEMENT_SPEED_INC = "minion_movement_speed_inc"
     MINION_DMG_MAX = "minion_dmg_max"                 # increases max damage boundary
     MINION_DOUBLE_DMG_CHANCE = "minion_double_dmg_chance"
     MINION_SKILL_LEVEL = "minion_skill_level"
@@ -91,6 +97,16 @@ class Stat(Enum):
     MINION_SKILL_AREA_INC = "minion_skill_area_inc"
     MINION_DAMAGING_AILMENT_CHANCE = "minion_damaging_ailment_chance"
     MINION_TRAUMA_CHANCE = "minion_trauma_chance"
+    MINION_PHYSICAL_DMG_FLAT_MIN = "minion_physical_dmg_flat_min"
+    MINION_PHYSICAL_DMG_FLAT_MAX = "minion_physical_dmg_flat_max"
+    MINION_FIRE_DMG_FLAT_MIN = "minion_fire_dmg_flat_min"
+    MINION_FIRE_DMG_FLAT_MAX = "minion_fire_dmg_flat_max"
+    MINION_COLD_DMG_FLAT_MIN = "minion_cold_dmg_flat_min"
+    MINION_COLD_DMG_FLAT_MAX = "minion_cold_dmg_flat_max"
+    MINION_LIGHTNING_DMG_FLAT_MIN = "minion_lightning_dmg_flat_min"
+    MINION_LIGHTNING_DMG_FLAT_MAX = "minion_lightning_dmg_flat_max"
+    MINION_EROSION_DMG_FLAT_MIN = "minion_erosion_dmg_flat_min"
+    MINION_EROSION_DMG_FLAT_MAX = "minion_erosion_dmg_flat_max"
 
     # Synthetic Troops
     SYNTH_DOUBLE_DMG_CHANCE = "synth_double_dmg_chance"
@@ -105,7 +121,7 @@ class Stat(Enum):
     SENTRY_DMG_ADDITIONAL = "sentry_dmg_additional"
     SENTRY_SKILL_CAST_FREQUENCY_INC = "sentry_skill_cast_frequency_inc"
     SENTRY_SKILL_CAST_FREQUENCY_ADDITIONAL = "sentry_skill_cast_frequency_additional"
-    SENTRY_CRIT_DMG = "sentry_crit_dmg"
+    SENTRY_CRIT_DMG_INC = "sentry_crit_dmg_inc"
     SENTRY_CRIT_RATING_INC = "sentry_crit_rating_inc"
     MAX_SENTRY_QUANTITY_FLAT = "max_sentry_quantity_flat"
     SENTRY_DURATION_INC = "sentry_duration_inc"
@@ -114,6 +130,7 @@ class Stat(Enum):
     SENTRY_PROJECTILE_SPEED_INC = "sentry_projectile_speed_inc"
 
     # ── Spirit Magi ──────────────────────────────────────────────────────────
+    SPIRIT_MAGI_INITIAL_GROWTH_FLAT = "spirit_magi_initial_growth_flat"
     SPIRIT_MAGI_DMG_INC = "spirit_magi_dmg_inc"
     SPIRIT_MAGI_DMG_ADDITIONAL = "spirit_magi_dmg_additional"
     SPIRIT_MAGI_ULTIMATE_DMG_INC = "spirit_magi_ultimate_dmg_inc"
@@ -144,6 +161,7 @@ class Stat(Enum):
     LIGHTNING_DMG_INC = "lightning_dmg_inc"
     LIGHTNING_DMG_ADDITIONAL = "lightning_dmg_additional"
     LIGHTNING_PEN = "lightning_pen"
+    LIGHTNING_AS_EROSION = "lightning_as_erosion"
     LIGHTNING_ATTACK_DMG_FLAT_MIN = "lightning_attack_dmg_flat_min"
     LIGHTNING_ATTACK_DMG_FLAT_MAX = "lightning_attack_dmg_flat_max"
     LIGHTNING_SPELL_DMG_FLAT_MIN = "lightning_spell_dmg_flat_min"
@@ -155,6 +173,7 @@ class Stat(Enum):
     COLD_DMG_INC = "cold_dmg_inc"
     COLD_DMG_ADDITIONAL = "cold_dmg_additional"
     COLD_PEN = "cold_pen"
+    COLD_AS_EROSION = "cold_as_erosion"
     COLD_DMG_REFLECTION = "cold_dmg_reflection"
     COLD_ATTACK_DMG_FLAT_MIN = "cold_attack_dmg_flat_min"
     COLD_ATTACK_DMG_FLAT_MAX = "cold_attack_dmg_flat_max"
@@ -171,6 +190,7 @@ class Stat(Enum):
     FIRE_SPELL_DMG_FLAT_MIN = "fire_spell_dmg_flat_min"
     FIRE_SPELL_DMG_FLAT_MAX = "fire_spell_dmg_flat_max"
     FIRE_SKILL_LEVEL = "fire_skill_level"
+    FIRE_AS_EROSION = "fire_as_erosion"
     FIRE_DOT_DMG_INC = "fire_dot_dmg_inc"
     FIRE_DMG_REFLECTION = "fire_dmg_reflection"
 
@@ -194,18 +214,24 @@ class Stat(Enum):
     AILMENT_DMG_INC = "ailment_dmg_inc"
     AILMENT_DMG_FLAT_MIN = "ailment_dmg_flat_min"
     AILMENT_DMG_FLAT_MAX = "ailment_dmg_flat_max"
+    AILMENT_DURATION_INC = "ailment_duration_inc"
     DAMAGING_AILMENT_CHANCE = "damaging_ailment_chance"
     ELEMENTAL_AILMENT_AVOID_CHANCE = "elemental_ailment_avoid_chance"
     DOT_DMG_INC = "dot_dmg_inc"
 
     # ── Ignite ───────────────────────────────────────────────────────────────
     IGNITE_DMG_INC = "ignite_dmg_inc"
+    IGNITE_DMG_ADDITIONAL = "ignite_dmg_additional"
     IGNITE_DMG_FLAT_MIN = "ignite_dmg_flat_min"
     IGNITE_DMG_FLAT_MAX = "ignite_dmg_flat_max"
     IGNITE_CHANCE = "ignite_chance"
+    IGNITE_DURATION_INC = "ignite_duration_inc"
+    IGNITE_EFFECT_RECEIVED_INC = "ignite_effect_received_inc"
+    MAX_IGNITE_FLAT = "max_ignite_flat"
 
     # ── Wilt ─────────────────────────────────────────────────────────────────
     WILT_DMG_INC = "wilt_dmg_inc"
+    WILT_DMG_ADDITIONAL = "wilt_dmg_additional"
     WILT_DMG_FLAT_MIN = "wilt_dmg_flat_min"
     WILT_DMG_FLAT_MAX = "wilt_dmg_flat_max"
     WILT_CHANCE = "wilt_chance"
@@ -218,9 +244,16 @@ class Stat(Enum):
 
     # ── Trauma ───────────────────────────────────────────────────────────────
     TRAUMA_DMG_INC = "trauma_dmg_inc"
+    TRAUMA_DMG_ADDITIONAL = "trauma_dmg_additional"
     TRAUMA_CHANCE = "trauma_chance"
     TRAUMA_DMG_ADDITIONAL_ON_CRIT = "trauma_dmg_additional_on_crit"
     TRAUMA_REAPING_DURATION_INC = "trauma_reaping_duration_inc"
+    TRAUMA_BASE_DMG_FLAT_MIN = "trauma_base_dmg_flat_min"
+    TRAUMA_BASE_DMG_FLAT_MAX = "trauma_base_dmg_flat_max"
+    WILT_BASE_DMG_FLAT_MIN = "wilt_base_dmg_flat_min"
+    WILT_BASE_DMG_FLAT_MAX = "wilt_base_dmg_flat_max"
+    IGNITE_BASE_DMG_FLAT_MIN = "ignite_base_dmg_flat_min"
+    IGNITE_BASE_DMG_FLAT_MAX = "ignite_base_dmg_flat_max"
 
     # ── Frostbite ────────────────────────────────────────────────────────────
     FROSTBITE_EFFECT_INC = "frostbite_effect_inc"
@@ -250,10 +283,16 @@ class Stat(Enum):
     CHANNELED_CAST_SPEED_INC = "channeled_cast_speed_inc"
     TRIGGERED_DMG_INC = "triggered_dmg_inc"
     COMBO_FINISHER_ADDITIONAL = "combo_finisher_additional"
-    MULTISTRIKE_DMG_ADDITIONAL = "multistrike_dmg_additional"
-    BARRAGE_DMG_ADDITIONAL = "barrage_dmg_additional"           # revisit in-game behavior
+    COMBO_FINISHER_CRIT_DMG_INC = "combo_finisher_crit_dmg_inc"
+    COMBO_STARTER_ATTACK_SPEED_ADDITIONAL = "combo_starter_attack_speed_additional"
+    COMBO_STARTER_CAST_SPEED_ADDITIONAL = "combo_starter_cast_speed_additional"
+    COMBO_STARTERS_COMBO_POINTS_FLAT = "combo_starters_combo_points_flat"
+    MULTISTRIKE_INCREASING_DMG_INC = "multistrike_increasing_dmg_inc"
+    BARRAGE_DMG_PER_WAVE_INC = "barrage_dmg_per_wave_inc"
     MULTISTRIKE_CHANCE = "multistrike_chance"
     MAX_CHANNELED_STACKS_FLAT = "max_channeled_stacks_flat"
+    MIN_CHANNELED_STACKS_FLAT = "min_channeled_stacks_flat"
+    JUMP_DMG_FOR_EVERY_ADDITIONAL = "jump_dmg_for_every_additional"  # revisit stacking behavior
 
     # ── Steep Strike ─────────────────────────────────────────────────────────
     STEEP_STRIKE_CHANCE = "steep_strike_chance"
@@ -286,15 +325,15 @@ class Stat(Enum):
     MINION_CRIT_RATING_FLAT = "minion_crit_rating_flat"
 
     # ── Critical Strike — Damage ─────────────────────────────────────────────
-    CRIT_DMG = "crit_dmg"
-    ATTACK_CRIT_DMG = "attack_crit_dmg"
-    SPELL_CRIT_DMG = "spell_crit_dmg"
-    MINION_CRIT_DMG = "minion_crit_dmg"
-    PHYS_CRIT_DMG = "phys_crit_dmg"
-    LIGHTNING_CRIT_DMG = "lightning_crit_dmg"
-    COLD_CRIT_DMG = "cold_crit_dmg"
-    FIRE_CRIT_DMG = "fire_crit_dmg"
-    EROSION_CRIT_DMG = "erosion_crit_dmg"
+    CRIT_DMG_INC = "crit_dmg_inc"
+    ATTACK_CRIT_DMG_INC = "attack_crit_dmg_inc"
+    SPELL_CRIT_DMG_INC = "spell_crit_dmg_inc"
+    MINION_CRIT_DMG_INC = "minion_crit_dmg_inc"
+    PHYSICAL_CRIT_DMG_INC = "physical_crit_dmg_inc"
+    LIGHTNING_CRIT_DMG_INC = "lightning_crit_dmg_inc"
+    COLD_CRIT_DMG_INC = "cold_crit_dmg_inc"
+    FIRE_CRIT_DMG_INC = "fire_crit_dmg_inc"
+    EROSION_CRIT_DMG_INC = "erosion_crit_dmg_inc"
 
     # ── Double Damage / Knockback ─────────────────────────────────────────────
     KNOCKBACK_CHANCE = "knockback_chance"
@@ -303,6 +342,7 @@ class Stat(Enum):
     # ── Life ─────────────────────────────────────────────────────────────────
     MAX_LIFE_FLAT = "max_life_flat"
     MAX_LIFE_INC = "max_life_inc"
+    MAX_LIFE_ADDITIONAL = "max_life_additional"
     LIFE_REGEN_FLAT = "life_regen_flat"
     LIFE_REGEN_INC = "life_regen_inc"                # % of max life per second
     LIFE_REGEN_SPEED_INC = "life_regen_speed_inc"    # multiplier to regen rate
@@ -342,17 +382,24 @@ class Stat(Enum):
     # ── Defense ───────────────────────────────────────────────────────────────
     ARMOR_FLAT = "armor_flat"
     ARMOR_INC = "armor_inc"
+    ARMOR_ADDITIONAL = "armor_additional"
     EVASION_FLAT = "evasion_flat"
     EVASION_INC = "evasion_inc"
+    EVASION_ADDITIONAL = "evasion_additional"
     EVASION_ON_SPELL_DMG_INC = "evasion_on_spell_dmg_inc"
     DEFENSE_INC = "defense_inc"
     SHIELD_DEFENSE_INC = "shield_defense_inc"
+    SHIELD_DEFENSE_ADDITIONAL = "shield_defense_additional"
+    ARMOR_EFFECTIVE_RATE_NON_PHYSICAL_INC = "armor_effective_rate_non_physical_inc"
     ELEMENTAL_RESISTANCE = "elemental_resistance"
     FIRE_RESISTANCE = "fire_resistance"
     COLD_RESISTANCE = "cold_resistance"
     LIGHTNING_RESISTANCE = "lightning_resistance"
     EROSION_RESISTANCE = "erosion_resistance"
-    MAX_FIRE_RESISTANCE_INC = "max_fire_resistance_inc"
+    FIRE_RESISTANCE_MAX_INC = "fire_resistance_max_inc"
+    COLD_RESISTANCE_MAX_INC = "cold_resistance_max_inc"
+    LIGHTNING_RESISTANCE_MAX_INC = "lightning_resistance_max_inc"
+    EROSION_RESISTANCE_MAX_INC = "erosion_resistance_max_inc"
     ATTACK_BLOCK_CHANCE_INC = "attack_block_chance_inc"
     SPELL_BLOCK_CHANCE_INC = "spell_block_chance_inc"
     BLOCK_RATIO_INC = "block_ratio_inc"
@@ -370,6 +417,12 @@ class Stat(Enum):
     # ── Damage Taken Conversion ───────────────────────────────────────────────
     COLD_TAKEN_AS_FIRE_INC = "cold_taken_as_fire_inc"
     LIGHTNING_TAKEN_AS_FIRE_INC = "lightning_taken_as_fire_inc"
+    PHYSICAL_TAKEN_AS_LIGHTNING_INC = "physical_taken_as_lightning_inc"
+    PHYSICAL_TAKEN_AS_COLD_INC = "physical_taken_as_cold_inc"
+    PHYSICAL_TAKEN_AS_FIRE_INC = "physical_taken_as_fire_inc"
+    EROSION_TAKEN_AS_LIGHTNING_INC = "erosion_taken_as_lightning_inc"
+    EROSION_TAKEN_AS_COLD_INC = "erosion_taken_as_cold_inc"
+    EROSION_TAKEN_AS_FIRE_INC = "erosion_taken_as_fire_inc"
 
     # ── Cooldown Recovery ────────────────────────────────────────────────────
     CDR_SPEED_INC = "cdr_speed_inc"
@@ -385,6 +438,10 @@ class Stat(Enum):
     REAPING_RECOVERY_SPEED_INC = "reaping_recovery_speed_inc"
 
     # ── Buff / Aura Effects ───────────────────────────────────────────────────
+    MAX_CURSE_FLAT = "max_curse_flat"
+    CURSE_EFFECT_AGAINST_INC = "curse_effect_against_inc"
+    TAUNT_ON_HIT_CHANCE = "taunt_on_hit_chance"
+    ATTACK_TAUNT_ON_HIT_CHANCE = "attack_taunt_on_hit_chance"
     FERVOR_EFFECT_INC = "fervor_effect_inc"
     BLUR_EFFECT_INC = "blur_effect_inc"
     WARCRY_EFFECT_INC = "warcry_effect_inc"
@@ -400,6 +457,9 @@ class Stat(Enum):
     AGILITY_BLESSING_DURATION_INC = "agility_blessing_duration_inc"
     FOCUS_BLESSING_DURATION_INC = "focus_blessing_duration_inc"
     TENACITY_BLESSING_DURATION_INC = "tenacity_blessing_duration_inc"
+    BLESSING_DURATION_INC = "blessing_duration_inc"
+    FOCUS_DMG_ENHANCEMENT_ADDITIONAL = "focus_dmg_enhancement_additional"
+    AILMENT_DMG_ENHANCEMENT_ADDITIONAL = "ailment_dmg_enhancement_additional"
     WARCRY_MIN_TARGETS_FLAT = "warcry_min_targets_flat"
     FOCUS_SKILL_LEVEL = "focus_skill_level"
 
@@ -407,14 +467,40 @@ class Stat(Enum):
     GEAR_PHYSICAL_DMG_INC = "gear_physical_dmg_inc"
     GEAR_ENERGY_SHIELD_FLAT = "gear_energy_shield_flat"
     GEAR_ENERGY_SHIELD_INC = "gear_energy_shield_inc"
+    ARMOR_GEAR_FLAT = "armor_gear_flat"
+    ARMOR_GEAR_INC = "armor_gear_inc"
+    EVASION_GEAR_FLAT = "evasion_gear_flat"
+    EVASION_GEAR_INC = "evasion_gear_inc"
+    PHYSICAL_DMG_GEAR_FLAT_MIN = "physical_dmg_gear_flat_min"
+    PHYSICAL_DMG_GEAR_FLAT_MAX = "physical_dmg_gear_flat_max"
+    FIRE_DMG_GEAR_FLAT_MIN = "fire_dmg_gear_flat_min"
+    FIRE_DMG_GEAR_FLAT_MAX = "fire_dmg_gear_flat_max"
+    COLD_DMG_GEAR_FLAT_MIN = "cold_dmg_gear_flat_min"
+    COLD_DMG_GEAR_FLAT_MAX = "cold_dmg_gear_flat_max"
+    LIGHTNING_DMG_GEAR_FLAT_MIN = "lightning_dmg_gear_flat_min"
+    LIGHTNING_DMG_GEAR_FLAT_MAX = "lightning_dmg_gear_flat_max"
+    EROSION_DMG_GEAR_FLAT_MIN = "erosion_dmg_gear_flat_min"
+    EROSION_DMG_GEAR_FLAT_MAX = "erosion_dmg_gear_flat_max"
+    ELEMENTAL_DMG_GEAR_FLAT_MIN = "elemental_dmg_gear_flat_min"
+    ELEMENTAL_DMG_GEAR_FLAT_MAX = "elemental_dmg_gear_flat_max"
 
     # ── Flat Quantity / Mechanic Stats ────────────────────────────────────────
     MAX_ENERGY_FLAT = "max_energy_flat"
     MAX_CHARGES_FLAT = "max_charges_flat"
     MAX_SPELL_BURST_FLAT = "max_spell_burst_flat"
     EXTRA_JUMPS_FLAT = "extra_jumps_flat"
+    MAX_TERRA_CHARGE_STACKS_FLAT = "max_terra_charge_stacks_flat"
+    TERRA_CHARGE_RECOVERY_SPEED_INC = "terra_charge_recovery_speed_inc"
+    MAX_TERRA_QUANTITY_FLAT = "max_terra_quantity_flat"
+    MAX_WARCRY_SKILL_CHARGES_FLAT = "max_warcry_skill_charges_flat"
+    MAX_SHADOW_QUANTITY_FLAT = "max_shadow_quantity_flat"
+    SHADOW_DMG_ADDITIONAL = "shadow_dmg_additional"
+    DMG_TO_LIFE_ADDITIONAL = "dmg_to_life_additional"
+    ELIXIR_CHARGING_PROGRESS_FLAT = "elixir_charging_progress_flat"
+    BEAM_DMG_ADDITIONAL = "beam_dmg_additional"
 
     # ── Skill Levels ─────────────────────────────────────────────────────────
+    MAIN_SKILL_LEVEL = "main_skill_level"
     PASSIVE_SKILL_LEVEL = "passive_skill_level"
     EMPOWER_SKILL_LEVEL = "empower_skill_level"
     DEFENSIVE_SKILL_LEVEL = "defensive_skill_level"

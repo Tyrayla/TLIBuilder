@@ -107,6 +107,37 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
   return res.json()
 }
 
+// ── Share service ────────────────────────────────────────────────────────────
+// The build-code share service is a PUBLIC host, separate from the local Python
+// backend. Share calls never go through the local backend or Electron IPC —
+// they are plain fetches to SHARE_BASE. The base URL is configurable at build
+// time via the Vite env var VITE_SHARE_BASE_URL; it falls back to production.
+
+const _shareEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
+const SHARE_BASE = (_shareEnv?.VITE_SHARE_BASE_URL ?? 'https://api.tlibuilder.com').replace(/\/+$/, '')
+
+export function getShareBase(): string { return SHARE_BASE }
+
+async function postToShareService<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${SHARE_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
+  })
+  if (!res.ok) throw new Error(`POST ${path} → ${res.status}`)
+  return res.json() as Promise<T>
+}
+
+async function getFromShareService(path: string): Promise<string> {
+  // The share service returns the raw tli1_ code as text/plain.
+  const res = await fetch(`${SHARE_BASE}${path}`, {
+    signal: AbortSignal.timeout(15000),
+  })
+  if (!res.ok) throw new Error(`GET ${path} → ${res.status}`)
+  return res.text()
+}
+
 export interface TreeSlot {
   treeName: string
   nodeStates: Record<string, number>
@@ -350,6 +381,11 @@ export interface StatSheetResponse {
   condition_maximums: ConditionMaximums
 }
 
+export const EMPTY_STAT_SHEET: StatSheetResponse = {
+  stats: {},
+  condition_maximums: { tenacity_max: 0, agility_max: 0, focus_max: 0, channeled_max_bonus: 0 },
+}
+
 export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
 
 export interface DiffNode {
@@ -472,6 +508,22 @@ export function buildSpiritEffects(
   return effects
 }
 
+export interface DualStatGroup {
+  value_index: number
+  stat_keys: string[]
+  unit?: string
+}
+
+export interface ResolvedAffixFields {
+  stat_key?: string | null
+  unit?: string
+  stat_keys?: string[]
+  is_range_split?: boolean
+  min_stat_keys?: string[]
+  max_stat_keys?: string[]
+  dual_stat_groups?: DualStatGroup[]
+}
+
 export interface CraftAffix {
   raw_text: string
   expression: string
@@ -481,6 +533,13 @@ export interface CraftAffix {
   source: string
   affix_type: string
   tier: string
+  stat_key?: string | null
+  stat_keys?: string[]
+  is_range_split?: boolean
+  min_stat_keys?: string[]
+  max_stat_keys?: string[]
+  dual_stat_groups?: DualStatGroup[]
+  unit?: string
 }
 
 export interface CraftBaseItem {
@@ -801,6 +860,11 @@ export interface LegendaryAffix {
   numeric_values: LegendaryNumericValue[]
   // resolved by backend at load time
   stat_key?: string | null
+  stat_keys?: string[]
+  is_range_split?: boolean
+  min_stat_keys?: string[]
+  max_stat_keys?: string[]
+  dual_stat_groups?: DualStatGroup[]
   unit?: string
   // set for crafted/vorax items: 'Base' | 'Basic Affix' | 'Advanced Affix' | 'Ultimate Affix' | 'Legendary'
   affix_type?: string
@@ -860,6 +924,7 @@ export interface EquippedGearItem {
   legendary_affix_count?: number
   base_stats?: Record<string, number>
   implicit_count?: number
+  craft_slot_positions?: number[]
 }
 
 export interface GearAffixContribution {
@@ -932,6 +997,12 @@ export const api = {
     post<{ code: string }>('/build-code/encode', { build }),
   decodeBuildCode: (code: string) =>
     post<{ build: Record<string, unknown> }>('/build-code/decode', { code }),
+
+  // Share service — store/fetch a build code by short id (public host).
+  shareBuildCode: (code: string) =>
+    postToShareService<{ id: string; url: string }>('/b', { code }),
+  fetchSharedBuildCode: (id: string) =>
+    getFromShareService(`/b/${id}`),
 
   // Tree editing (debug tools)
   upsertNode: (tree: string, node: NodeEditData) =>
@@ -1042,6 +1113,8 @@ export const api = {
       '/dev/import-crawler-craft-base-types', { season_name: seasonName, items }
     ),
   getCraftBaseTypes: () => get<{ season: string | null; base_types: CraftBaseType[] }>('/craft-base-types'),
+  resolveGearAffixes: (texts: string[]) =>
+    post<{ results: Record<string, ResolvedAffixFields> }>('/resolve-gear-affixes', { texts }),
   getCraftBaseItems: () => get<{ season: string | null; base_types: CraftBaseItemGroup[] }>('/craft-base-items'),
   clearCraftBaseTypes: () => del<{ ok: boolean }>('/dev/craft-base-types'),
 
@@ -1111,6 +1184,7 @@ export const api = {
     gear?: GearEngineItem[]
     character?: CharacterStatContribution[]
     memory_effects?: string[]
+    spirit_effects?: string[]
   }) => post<StatSheetResponse>('/engine/stats', payload),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),

@@ -10,6 +10,7 @@ node_modules/
 backend-dist/
 backend-build/
 out/
+tsconfig.*.tsbuildinfo
 dev-err.txt
 dev-out.txt
 

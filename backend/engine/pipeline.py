@@ -112,12 +112,12 @@ def run_pipeline(
     crit_chance = min(csr_final / 100.0, 1.0)
 
     crit_dmg = 1.50  # default
-    crit_dmg += source.total("crit_dmg")
-    crit_dmg += source.total(f"{skill.skill_type}_crit_dmg")
+    crit_dmg += source.total("crit_dmg_inc")
+    crit_dmg += source.total(f"{skill.skill_type}_crit_dmg_inc")
     if "minion" in tags:
-        crit_dmg += source.total("minion_crit_dmg")
+        crit_dmg += source.total("minion_crit_dmg_inc")
     for dt in dmg_types:
-        crit_dmg += source.total(f"{dt}_crit_dmg")
+        crit_dmg += source.total(f"{dt}_crit_dmg_inc")
 
     crit_factor = 1.0 + crit_chance * (crit_dmg - 1.0)
 

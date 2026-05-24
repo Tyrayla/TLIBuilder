@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, TreeSlot, SavedSlate, StatSheetResponse, StatEntry, StatSource, ConditionValues, EquippedGearItem, GearEngineItem, GearAffixContribution, buildEnergyContributions, CreatedHeroMemory, buildMemoryEffects, SelectedPactSpirit, buildSpiritEffects, PactSpirit } from '../api/client'
+import { StatEntry, StatSource } from '../api/client'
+import { useBuildStore } from '../store/buildStore'
 
 const CATEGORY_ORDER = [
   'Attributes', 'Generic', 'Attack', 'Spell', 'Melee', 'Area', 'Projectile',
@@ -41,87 +42,15 @@ function shortenLabel(label: string): string {
   return parts.length > 2 ? parts.slice(-2).join(' ') : label
 }
 
-function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
-  return gear.filter(item => item.slot !== null).map(item => {
-    const contributions: GearAffixContribution[] = []
-    item.affixes.forEach((affix, affixIdx) => {
-      if (!affix.stat_key || affix.affix_kind === 'placeholder') return
-      const cust = item.customizations.find(c => c.affix_index === affixIdx)
-      if (affix.affix_kind === 'numeric') {
-        let display_value: number | null = null
-        const rangeIdx = affix.numeric_values.findIndex(v => v.kind === 'range')
-        if (rangeIdx >= 0) {
-          const nv = affix.numeric_values[rangeIdx]
-          display_value = cust?.chosen_values[rangeIdx] ??
-            Math.round(((nv.min ?? 0) + (nv.max ?? 0)) / 2)
-        } else {
-          const fixedNv = affix.numeric_values.find(v => v.kind === 'fixed')
-          if (fixedNv) display_value = fixedNv.value ?? 0
-        }
-        if (display_value !== null) {
-          contributions.push({
-            stat: affix.stat_key,
-            display_value,
-            unit: affix.unit ?? '',
-            item_name: item.name,
-            slot: Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot,
-          })
-        }
-      }
-    })
-    return { contributions }
-  })
-}
+export default function StatsScreen() {
+  const computedStats = useBuildStore((s) => s.computedStats)
+  const loading = useBuildStore((s) => s.statsLoading)
+  const error = useBuildStore((s) => s.statsError)
+  const slots = useBuildStore((s) => s.slots)
 
-interface Props {
-  slots: (TreeSlot | null)[]
-  slates: SavedSlate[]
-  gear?: EquippedGearItem[]
-  characterLevel?: number
-  hasPrism?: boolean
-  effectiveConditions?: string[]
-  heroMemories?: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
-  pactSpirits?: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
-}
-
-export default function StatsScreen({
-  slots, slates,
-  gear = [], characterLevel = 100, hasPrism = false,
-  effectiveConditions = [],
-  heroMemories, pactSpirits,
-}: Props) {
-  const [statSheet, setStatSheet] = useState<StatSheetResponse | null>(null)
   const [selectedStat, setSelectedStat] = useState<string | null>(null)
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [allSpirits, setAllSpirits] = useState<PactSpirit[]>([])
   const tooltipRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    api.getPactSpirits().then(res => setAllSpirits(res.spirits.filter(s => !s.affinities.includes('Drop')))).catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    const hasSource =
-      slots.some(s => !!s) ||
-      slates.some(s => s.slots?.some(sl => sl.selectedNodeId !== null)) ||
-      gear.some(item => item.slot !== null)
-    if (!hasSource) { setStatSheet(null); return }
-    setLoading(true)
-    setError('')
-    api.engineStats({
-      slots, slates,
-      conditions: effectiveConditions,
-      gear: buildGearPayload(gear),
-      character: buildEnergyContributions(gear, characterLevel, hasPrism),
-      memory_effects: buildMemoryEffects(heroMemories ?? [null, null, null]),
-      spirit_effects: buildSpiritEffects(pactSpirits ?? [null, null, null], allSpirits),
-    })
-      .then(setStatSheet)
-      .catch(() => setError('Failed to load stats. Check that a season is active and the node type filter has been built.'))
-      .finally(() => setLoading(false))
-  }, [slots, slates, effectiveConditions, gear, characterLevel, hasPrism, heroMemories, pactSpirits, allSpirits])
 
   useEffect(() => {
     if (!selectedStat) return
@@ -136,9 +65,9 @@ export default function StatsScreen({
   }, [selectedStat])
 
   const groupedStats: { category: string; entries: [string, StatEntry][] }[] = []
-  if (statSheet) {
+  if (computedStats) {
     const byCategory: Record<string, [string, StatEntry][]> = {}
-    for (const [key, entry] of Object.entries(statSheet.stats)) {
+    for (const [key, entry] of Object.entries(computedStats.stats)) {
       if (entry.total === 0) continue
       const cat = entry.category || 'Other'
       if (!byCategory[cat]) byCategory[cat] = []
@@ -150,7 +79,7 @@ export default function StatsScreen({
     }
   }
 
-  const selectedEntry = selectedStat && statSheet ? statSheet.stats[selectedStat] : null
+  const selectedEntry = selectedStat && computedStats ? computedStats.stats[selectedStat] : null
   const filledSlots = slots.filter(Boolean).length
 
   function handleStatClick(e: React.MouseEvent, key: string) {
@@ -176,9 +105,6 @@ export default function StatsScreen({
 
       <div className="stat-sheet">
         {loading && <div className="stat-sheet-empty">Computing stats…</div>}
-        {!loading && filledSlots === 0 && (
-          <div className="stat-sheet-empty">No talent trees selected. Add trees to see stats.</div>
-        )}
         {!loading && error && (
           <div className="stat-sheet-empty" style={{ color: '#ff6b6b' }}>{error}</div>
         )}
