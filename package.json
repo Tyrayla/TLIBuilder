@@ -67,7 +67,8 @@
     "publish": {
       "provider": "github",
       "owner": "Tyrayla",
-      "repo": "TLIBuilder"
+      "repo": "TLIBuilder",
+      "draft": false
     }
   },
   "dependencies": {
