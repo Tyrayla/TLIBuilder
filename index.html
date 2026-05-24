@@ -226,6 +226,25 @@
       line-height: 1.55;
     }
 
+    .feature-card--wide {
+      grid-column: 1 / -1;
+    }
+
+    .feature-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .feature-tag {
+      font-size: 12px;
+      color: var(--fg);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 10px;
+    }
+
     /* ── Footer ── */
     footer {
       margin-top: auto;
@@ -335,6 +354,16 @@
         <div class="feature-icon">🆓</div>
         <div class="feature-title">Free & Open Source</div>
         <div class="feature-desc">TLI Builder is completely free to use. The full source is available on GitHub — contributions welcome.</div>
+      </div>
+      <div class="feature-card feature-card--wide">
+        <div class="feature-title" style="margin-bottom: 10px;">Also Includes</div>
+        <div class="feature-tags">
+          <span class="feature-tag">Hero Traits</span>
+          <span class="feature-tag">Hero Memories</span>
+          <span class="feature-tag">Pact Spirits</span>
+          <span class="feature-tag">Slates</span>
+          <span class="feature-tag">Crafted Gear</span>
+        </div>
       </div>
     </div>
   </section>
