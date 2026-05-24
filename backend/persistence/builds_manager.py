@@ -79,6 +79,9 @@ def _read_file(build_id: str) -> dict:
     pact_spirits_raw = data.get('pact_spirits', '')
     pact_spirits = json.loads(pact_spirits_raw) if pact_spirits_raw else [None, None, None]
 
+    notes_raw = data.get('notes', '')
+    notes = json.loads(notes_raw) if notes_raw else ''
+
     return {
         'id': data.get('id', build_id),
         'name': data.get('name', ''),
@@ -96,6 +99,7 @@ def _read_file(build_id: str) -> dict:
         'advancedTraitSelections': advanced_trait_selections,
         'heroMemories': hero_memories,
         'pactSpirits': pact_spirits,
+        'notes': notes,
     }
 
 
@@ -139,6 +143,8 @@ def _write_file(build: dict) -> None:
         f.write(f"hero_memories={json.dumps(hero_memories, separators=(',', ':'))}\n")
         pact_spirits = build.get('pactSpirits') or [None, None, None]
         f.write(f"pact_spirits={json.dumps(pact_spirits, separators=(',', ':'))}\n")
+        notes = build.get('notes') or ''
+        f.write(f"notes={json.dumps(notes, separators=(',', ':'))}\n")
 
 
 def load() -> list[dict]:

@@ -43,20 +43,26 @@ def _strip_for_share(build: dict) -> dict:
 def _strip_gear_item(item: dict) -> dict:
     """Keep only source-of-truth fields for gear items."""
     is_crafted = bool(item.get("is_crafted", False))
+    is_vorax = bool(item.get("is_vorax", False))
+    keep_affixes = is_crafted or is_vorax
     stripped: dict = {
         "item_id": item.get("item_id"),
         "name": item.get("name"),
         "slot": item.get("slot"),
         "base_type": item.get("base_type") or None,
         "is_crafted": is_crafted,
+        "is_vorax": is_vorax or None,
         "customizations": item.get("customizations") or [],
     }
-    if is_crafted:
+    if keep_affixes:
         stripped["affixes"] = item.get("affixes") or []
         if item.get("implicit_count"):
             stripped["implicit_count"] = item["implicit_count"]
-    # Drop None / empty list values to keep payload lean
-    return {k: v for k, v in stripped.items() if v is not None and v != []}
+    if is_vorax:
+        stripped["legendary_source"] = item.get("legendary_source") or None
+        stripped["legendary_affix_count"] = item.get("legendary_affix_count") or 0
+    # Drop None / empty list / zero values to keep payload lean
+    return {k: v for k, v in stripped.items() if v is not None and v != [] and v != 0}
 
 
 # ── Decode ────────────────────────────────────────────────────────────────────
@@ -89,8 +95,8 @@ def decode_build(code: str, legendary_gear_items: list[dict]) -> dict:
 
 
 def _rehydrate_gear_item(item: dict, gear_by_id: dict[str, dict]) -> dict:
-    """Rehydrate a legendary item from game data; pass crafted items through."""
-    if item.get("is_crafted"):
+    """Rehydrate a legendary item from game data; pass crafted/vorax items through."""
+    if item.get("is_crafted") or item.get("is_vorax"):
         return item
 
     item_id = item.get("item_id")
