@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { api, PactSpirit, PactSpiritSlot, SelectedPactSpirit } from '../api/client'
+import { PactSpirit, PactSpiritSlot, SelectedPactSpirit } from '../api/client'
+import { useBuildStore } from '../store/buildStore'
 
 interface Props {
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
@@ -41,17 +42,11 @@ function reorderSlots(slots: PactSpiritSlot[]): PactSpiritSlot[] {
 }
 
 export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange, onBack }: Props) {
-  const [spiritData, setSpiritData] = useState<PactSpirit[]>([])
+  const spiritData = useBuildStore(s => s.allSpirits)
   const [activeSlot, setActiveSlot] = useState<0 | 1 | 2 | null>(null)
   const [search, setSearch] = useState('')
   const [affinityFilter, setAffinityFilter] = useState<string | null>(null)
   const [nodeTooltip, setNodeTooltip] = useState<{ lines: string[]; x: number; y: number } | null>(null)
-
-  useEffect(() => {
-    api.getPactSpirits().then(d => {
-      setSpiritData(d.spirits.filter(s => !s.affinities.includes('Drop')))
-    })
-  }, [])
 
   const allAffinities = Array.from(new Set(spiritData.flatMap(s => s.affinities))).sort()
 

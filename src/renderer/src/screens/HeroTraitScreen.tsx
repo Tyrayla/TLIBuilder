@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS } from '../api/client'
+import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS } from '../api/client'
+import { useReferenceStore } from '../store/referenceStore'
 
 interface Props {
   traitId: string | null
@@ -227,10 +228,12 @@ export default function HeroTraitScreen({
   onHeroMemoriesChange,
   onBack,
 }: Props) {
-  const [allTraits, setAllTraits] = useState<HeroTrait[]>([])
-  const [loading, setLoading] = useState(true)
+  const allTraits = useReferenceStore(s => s.heroTraits) ?? []
+  const memoryData = useReferenceStore(s => s.heroMemories)
+  const referenceResolved = useReferenceStore(s => s.referenceResolved)
+  const traitsFailed = useReferenceStore(s => s.failedCatalogs.has('heroTraits'))
+
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
-  const [memoryData, setMemoryData] = useState<MemoryData | null>(null)
   const [creatorSlot, setCreatorSlot] = useState<number | null>(null)
   const [draft, setDraft] = useState<CreatedHeroMemory | null>(null)
   // Memory slot hover tooltip
@@ -241,20 +244,7 @@ export default function HeroTraitScreen({
   const [affixHoverPos, setAffixHoverPos] = useState<{ x: number; y: number } | null>(null)
   const screenRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    api.getHeroTraits()
-      .then(res => setAllTraits(res.traits))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => {
-    api.getHeroMemories().then(res => setMemoryData({
-      base_stats: res.base_stats,
-      fixed_affixes: res.fixed_affixes,
-      random_affixes: res.random_affixes,
-    })).catch(() => {})
-  }, [])
+  const loading = !referenceResolved && allTraits.length === 0
 
   // Auto-select first trait when none selected
   useEffect(() => {
@@ -462,6 +452,16 @@ export default function HeroTraitScreen({
     return (
       <div className="hero-trait-screen">
         <div className="hero-trait-body"><div className="panel-empty">Loading traits…</div></div>
+      </div>
+    )
+  }
+
+  if (traitsFailed && allTraits.length === 0) {
+    return (
+      <div className="hero-trait-screen">
+        <div className="hero-trait-body">
+          <div className="panel-empty" style={{ color: '#ff6b6b' }}>Couldn't load trait data — restart to retry.</div>
+        </div>
       </div>
     )
   }

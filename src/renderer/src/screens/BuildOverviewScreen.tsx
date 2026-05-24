@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react'
-import { api, ConditionDef, ConditionValues, ConditionMaximums } from '../api/client'
+import React from 'react'
+import { ConditionValues, ConditionMaximums } from '../api/client'
+import { useReferenceStore } from '../store/referenceStore'
 
 const NUMERIC_CONDITION_KEYS = new Set(['tenacity_active', 'agility_active', 'focus_active', 'channeled_not_capped'])
 
@@ -15,11 +16,9 @@ export default function BuildOverviewScreen({
   conditions, conditionValues, conditionMaximums,
   onConditionsChange, onConditionValuesChange,
 }: Props) {
-  const [conditionsData, setConditionsData] = useState<Record<string, ConditionDef[]> | null>(null)
-
-  useEffect(() => {
-    api.getConditions().then(setConditionsData).catch(() => {})
-  }, [])
+  const conditionsData = useReferenceStore(s => s.conditions)
+  const referenceResolved = useReferenceStore(s => s.referenceResolved)
+  const conditionsFailed = useReferenceStore(s => s.failedCatalogs.has('conditions'))
 
   const toggleCondition = (key: string) => {
     const next = conditions.includes(key)
@@ -45,7 +44,7 @@ export default function BuildOverviewScreen({
   const activeCondCount = conditions.length + numericActive
 
   const condCategories = conditionsData ? Object.entries(conditionsData) : []
-  const loading = conditionsData === null
+  const loading = !referenceResolved && !conditionsData
 
   return (
     <div className="screen build-overview">
@@ -55,8 +54,11 @@ export default function BuildOverviewScreen({
       </div>
 
       {loading && <div className="panel-empty">Loading…</div>}
+      {referenceResolved && conditionsFailed && (
+        <div className="panel-empty" style={{ color: '#ff6b6b' }}>Couldn't load condition data — restart to retry.</div>
+      )}
 
-      {!loading && (
+      {!loading && !conditionsFailed && (
         <div className="cond-grid">
 
           {/* Blessings card — stack counters */}
