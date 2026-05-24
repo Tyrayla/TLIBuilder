@@ -18,6 +18,21 @@ def _build_memory_lookup() -> dict[tuple[str, bool], str]:
 _MEMORY_STAT_LOOKUP: dict[tuple[str, bool], str] = _build_memory_lookup()
 _MEMORY_EFFECT_RE = re.compile(r'^\+(\d+(?:\.\d+)?)\s*(%?)\s+(.+)$')
 
+# Alias lookup: game display text differs from stat_meta display_name
+_MEMORY_ALIAS_LOOKUP: dict[tuple[str, bool], str] = {
+    ("critical strike damage for combo finishers", True): "combo_finisher_crit_dmg_inc",
+}
+
+# Multi-stat lookup: one modifier phrase → multiple stat keys (same value applied to each)
+_MEMORY_MULTI_LOOKUP: dict[tuple[str, bool], list[str]] = {
+    ("attack and cast speed", True):
+        ["attack_speed_inc", "cast_speed_inc"],
+    ("minion attack and cast speed", True):
+        ["minion_attack_speed_inc", "minion_cast_speed_inc"],
+    ("additional attack and cast speed for combo starters", True):
+        ["combo_starter_attack_speed_additional", "combo_starter_cast_speed_additional"],
+}
+
 
 _ELEMENTAL_TYPES = {"fire", "cold", "lightning", "erosion"}
 
@@ -233,7 +248,8 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
 
     # ── Pact Spirit effects ───────────────────────────────────────────────────
     for effect in build.spirit_effects:
-        m = _MEMORY_EFFECT_RE.match(effect.strip())
+        effect = re.sub(r'\s+', ' ', effect.strip())
+        m = _MEMORY_EFFECT_RE.match(effect)
         if not m:
             continue
         raw_val = float(m.group(1))
@@ -255,24 +271,45 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
 
     # ── Hero Memory effects ────────────────────────────────────────────────────
     for effect in build.memory_effects:
-        m = _MEMORY_EFFECT_RE.match(effect.strip())
-        if not m:
-            continue
-        raw_val = float(m.group(1))
-        is_pct = bool(m.group(2))
-        stat_name = m.group(3).strip()
-        stat_key = _MEMORY_STAT_LOOKUP.get((stat_name.lower(), is_pct))
-        if not stat_key:
-            continue
-        amount = raw_val / 100.0 if is_pct else raw_val
-        entry = SourceEntry(
-            stat=stat_key,
-            amount=amount,
-            source_type="hero_memory",
-            label="Hero Memory",
-            text=effect,
-            points=1,
-        )
-        source.add_with_source(stat_key, amount, entry)
+        effect = re.sub(r'\s+', ' ', effect.strip())
+        # Split dual-stat modifiers like "+18 % Attack Speed +12 % Minion Speed"
+        parts = re.split(r' (?=\+\d)', effect, maxsplit=1)
+        for part in parts:
+            m = _MEMORY_EFFECT_RE.match(part)
+            if not m:
+                continue
+            raw_val = float(m.group(1))
+            is_pct = bool(m.group(2))
+            stat_name = m.group(3).strip()
+            stat_name_lower = stat_name.lower()
+            amount = raw_val / 100.0 if is_pct else raw_val
+            # Try single-stat lookup (display_name)
+            stat_key = _MEMORY_STAT_LOOKUP.get((stat_name_lower, is_pct))
+            if not stat_key:
+                stat_key = _MEMORY_ALIAS_LOOKUP.get((stat_name_lower, is_pct))
+            if stat_key:
+                entry = SourceEntry(
+                    stat=stat_key,
+                    amount=amount,
+                    source_type="hero_memory",
+                    label="Hero Memory",
+                    text=effect,
+                    points=1,
+                )
+                source.add_with_source(stat_key, amount, entry)
+                continue
+            # Try multi-stat lookup
+            stat_keys = _MEMORY_MULTI_LOOKUP.get((stat_name_lower, is_pct))
+            if stat_keys:
+                for sk in stat_keys:
+                    entry = SourceEntry(
+                        stat=sk,
+                        amount=amount,
+                        source_type="hero_memory",
+                        label="Hero Memory",
+                        text=effect,
+                        points=1,
+                    )
+                    source.add_with_source(sk, amount, entry)
 
     return source
