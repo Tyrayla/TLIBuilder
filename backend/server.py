@@ -1151,14 +1151,277 @@ _GEAR_NORMALIZE_MAP = {
 }
 _GEAR_COND_RE = re.compile(
     r"\s+(?:while\b|when\b|if\b|against\b|recently\b|on\s+hit\b|upon\b|"
-    r"for\s+every\b|for\s+each\b|per\s+(?!second))",
+    r"for\s+every\b|for\s+each\b)",
     re.I,
 )
+
+_EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
+    "+(#) gear armor":   "armor_gear_flat",
+    "+(#) % gear armor": "armor_gear_inc",
+    "+(#) gear evasion":   "evasion_gear_flat",
+    "+(#) % gear evasion": "evasion_gear_inc",
+    # Damage conversion — physical
+    "adds (#) % of physical damage as lightning damage": "physical_as_lightning",
+    "adds (#) % of physical damage to cold damage":      "physical_as_cold",
+    "adds (#) % of physical damage as fire damage":      "physical_as_fire",
+    "adds (#) % of physical damage as erosion damage":   "physical_as_erosion",
+    # Damage conversion — elemental to erosion
+    "adds (#) % of lightning damage as erosion damage":  "lightning_as_erosion",
+    "adds (#) % of cold damage as erosion damage":       "cold_as_erosion",
+    "adds (#) % of fire damage as erosion damage":       "fire_as_erosion",
+    # Damage taken conversion
+    "converts (#) % of physical damage taken to lightning damage": "physical_taken_as_lightning_inc",
+    "converts (#) % of physical damage taken to cold damage":      "physical_taken_as_cold_inc",
+    "converts (#) % of physical damage taken to fire damage":      "physical_taken_as_fire_inc",
+    "converts (#) % of erosion damage taken to lightning damage":  "erosion_taken_as_lightning_inc",
+    "converts (#) % of erosion damage taken to cold damage":       "erosion_taken_as_cold_inc",
+    "converts (#) % of erosion damage taken to fire damage":       "erosion_taken_as_fire_inc",
+    # Mana/life
+    "(#) % of damage is taken from mana before life":    "mana_before_life_inc",
+    # Attack / ranged
+    "+(#) % ranged damage":                              "ranged_dmg_inc",
+    # Skill levels
+    "+(#) main skill level":                             "main_skill_level",
+    # Channeled
+    "min channeled stacks +(#)":                         "min_channeled_stacks_flat",
+    # Terra
+    "max terra charge stacks +(#)":                      "max_terra_charge_stacks_flat",
+    "+(#) % terra charge recovery speed":                "terra_charge_recovery_speed_inc",
+    "max terra quantity +(#)":                           "max_terra_quantity_flat",
+    # Warcry
+    "+(#) max warcry skill charges":                     "max_warcry_skill_charges_flat",
+    # Shadow
+    "shadow quantity +(#)":                              "max_shadow_quantity_flat",
+    # Ignite
+    "+(#) ignite limit":                                 "max_ignite_flat",
+    # Ailment durations
+    "+(#) % ailment duration":                           "ailment_duration_inc",
+    "+(#) % ignite duration":                            "ignite_duration_inc",
+    # Spirit magi
+    "+(#) initial growth for spirit magi":               "spirit_magi_initial_growth_flat",
+    # Elixir
+    "elixir skills gain (#) charging progress every second": "elixir_charging_progress_flat",
+    # Minion
+    "minion damage penetrates (#) % elemental resistance": "minion_elemental_pen",
+    "+(#) % minion elemental damage":                    "minion_elemental_dmg_inc",
+    # Hit/taunt — "on hit" is stripped by _GEAR_COND_RE before dict lookup
+    "+(#) % chance for attacks to inflict taunt on enemies": "taunt_on_hit_chance",
+    # Curse
+    "-(#)-(#) % curse effect against you":               "curse_effect_against_inc",
+    # Damage to life
+    "(#) % additional damage applied to life":           "dmg_to_life_additional",
+    # Defense additional
+    "+(#) % additional armor":                           "armor_additional",
+    "+(#) % additional evasion":                         "evasion_additional",
+    "+(#) % additional max life":                        "max_life_additional",
+    "+(#) % additional armor while moving":              "armor_additional",
+    "+(#) % armor effective rate for non-physical damage": "armor_effective_rate_non_physical_inc",
+    # Ailment additional
+    "+(#) % additional trauma damage":                   "trauma_dmg_additional",
+    "+(#) % additional wilt damage":                     "wilt_dmg_additional",
+    "+(#) % additional ignite damage":                   "ignite_dmg_additional",
+    # Affliction
+    "+(#) affliction inflicted per second":              "affliction_per_second_flat",
+    # Sentry
+    "max sentry quantity +(#)":                          "max_sentry_quantity_flat",
+    # Barrage
+    "barrage skills +(#) % damage increase per wave":    "barrage_dmg_per_wave_inc",
+    # Warcry (text variant with prefix "Warcry is cast immediately")
+    "warcry is cast immediately +(#) max warcry skill charges": "max_warcry_skill_charges_flat",
+    # Defense
+    "+(#) % additional defense gained from shield":      "shield_defense_additional",
+    # Tangle (single value)
+    "+(#) % tangle damage enhancement":                  "tangle_dmg_inc",
+    # Shadow damage
+    "+(#) % additional shadow damage":                   "shadow_dmg_additional",
+    # Spell burst hit damage (single value)
+    "+(#) % additional hit damage for skills cast by spell burst": "spell_burst_hit_dmg_additional",
+}
+
+_MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
+    "+(#) % attack and cast speed": ["attack_speed_inc", "cast_speed_inc"],
+    "+(#) % max life max mana and max energy shield": ["max_life_inc", "max_mana_inc", "max_energy_shield_inc"],
+    "+(#) % elemental and erosion resistance penetration": ["elemental_pen", "erosion_pen"],
+    # Block chance
+    "+(#) % attack and spell block chance": ["attack_block_chance_inc", "spell_block_chance_inc"],
+    # Max elemental resistance (fire+cold+lightning, not erosion)
+    "+(#) % max elemental resistance": ["fire_resistance_max_inc", "cold_resistance_max_inc", "lightning_resistance_max_inc"],
+    # Single value → multiple stats
+    "+(#) attack and spell critical strike rating": ["attack_crit_rating_flat", "spell_crit_rating_flat"],
+    "+(#) % minion attack and cast speed": ["minion_attack_speed_inc", "minion_cast_speed_inc"],
+    "+(#) % minion movement speed attack speed and cast speed": ["minion_movement_speed_inc", "minion_attack_speed_inc", "minion_cast_speed_inc"],
+    # Elemental + erosion pen for minions
+    "+(#) % elemental and erosion resistance penetration for minions": ["minion_elemental_pen"],
+    # Resistance combos (dual-element)
+    "+(#) % fire and cold resistance":          ["fire_resistance", "cold_resistance"],
+    "+(#) % cold and lightning resistance":     ["cold_resistance", "lightning_resistance"],
+    "+(#) % cold and erosion resistance":       ["cold_resistance", "erosion_resistance"],
+    "+(#) % fire and lightning resistance":     ["fire_resistance", "lightning_resistance"],
+    "+(#) % fire and erosion resistance":       ["fire_resistance", "erosion_resistance"],
+    "+(#) % lightning and erosion resistance":  ["lightning_resistance", "erosion_resistance"],
+    "+(#) % max fire and lightning resistance":  ["fire_resistance_max_inc", "lightning_resistance_max_inc"],
+    # Attribute combos
+    "+(#) dexterity and intelligence":           ["dexterity_flat", "intelligence_flat"],
+    "+(#) strength and intelligence":            ["strength_flat", "intelligence_flat"],
+    "+(#) strength and dexterity":               ["strength_flat", "dexterity_flat"],
+    # Defense combos
+    "+(#) armor and evasion":                    ["armor_flat", "evasion_flat"],
+    # Life / Mana combos
+    "+(#) % max life and max mana":              ["max_life_inc", "max_mana_inc"],
+    "+(#) % additional max life max mana and max energy shield": ["max_life_inc", "max_mana_inc", "max_energy_shield_inc"],
+}
+
+# Two-value affixes: first (#) → group[0] stats, second (#) → group[1] stats
+_DUAL_MULTI_STAT_OVERRIDES: dict[str, tuple[list[str], list[str]]] = {
+    "+(#) % attack and cast speed +(#) % minion attack and cast speed":
+        (["attack_speed_inc", "cast_speed_inc"],
+         ["minion_attack_speed_inc", "minion_cast_speed_inc"]),
+    "+(#) % additional attack and cast speed for combo starters +(#) % critical strike damage for combo finishers":
+        (["combo_starter_attack_speed_additional", "combo_starter_cast_speed_additional"],
+         ["combo_finisher_crit_dmg_inc"]),
+    "+(#) max spell burst +(#) % additional hit damage for skills cast by spell burst":
+        (["max_spell_burst_flat"], ["spell_burst_hit_dmg_additional"]),
+    "+(#) % spell burst charge speed +(#) % chance to immediately gain (#) stack of spell burst charge when using a skill. interval: (#)s":
+        (["spell_burst_charge_speed_inc"], ["spell_burst_chance_gain_stacks_flat"]),
+    "max terra charge stacks +(#) +(#) % terra charge recovery speed":
+        (["max_terra_charge_stacks_flat"], ["terra_charge_recovery_speed_inc"]),
+    "max terra quantity +(#) +(#) % additional damage":
+        (["max_terra_quantity_flat"], ["dmg_additional"]),
+    "+(#) jumps +(#) % additional damage":
+        (["extra_jumps_flat"], ["dmg_additional"]),
+    "+(#) jumps +(#) % additional damage for every jump (multiplies)":
+        (["extra_jumps_flat"], ["jump_dmg_for_every_additional"]),
+    "you can cast (#) additional curses +(#) % curse effect":
+        (["max_curse_flat"], ["curse_effect_inc"]),
+    "+(#) % max mana +(#) skill cost":
+        (["max_mana_inc"], ["skill_cost_flat"]),
+    "+(#) % evasion +(#) max life":
+        (["evasion_inc"], ["max_life_flat"]),
+    "+(#) % armor +(#) max life":
+        (["armor_inc"], ["max_life_flat"]),
+    "shadow quantity +(#) -(#) % additional shadow damage":
+        (["max_shadow_quantity_flat"], ["shadow_dmg_additional"]),
+    "+(#) % knockback distance +(#) % additional damage":
+        (["knockback_distance_inc"], ["dmg_additional"]),
+    "+(#) to max summonable synthetic troops +(#) % additional minion damage":
+        (["max_synth_troops_flat"], ["minion_dmg_additional"]),
+    "+(#) to max tenacity blessing stacks +(#) % additional damage":
+        (["max_tenacity_blessing_stacks_flat"], ["dmg_additional"]),
+    "+(#) to max agility blessing stacks +(#) % additional damage":
+        (["max_agility_blessing_stacks_flat"], ["dmg_additional"]),
+    "+(#) to max focus blessing stacks +(#) % additional damage":
+        (["max_focus_blessing_stacks_flat"], ["dmg_additional"]),
+    "+(#) to max tenacity blessing stacks +(#) % additional minion damage":
+        (["max_tenacity_blessing_stacks_flat"], ["minion_dmg_additional"]),
+    "+(#) to max agility blessing stacks +(#) % additional minion damage":
+        (["max_agility_blessing_stacks_flat"], ["minion_dmg_additional"]),
+    "+(#) to max focus blessing stacks +(#) % additional minion damage":
+        (["max_focus_blessing_stacks_flat"], ["minion_dmg_additional"]),
+    "+(#) % elemental resistance +(#) % erosion resistance":
+        (["elemental_resistance"], ["erosion_resistance"]),
+    "+(#) % elemental resistance +(#) % chance to avoid elemental ailment":
+        (["elemental_resistance"], ["elemental_ailment_avoid_chance"]),
+    "+(#) combo points gained from combo starters +(#) % additional damage":
+        (["combo_starters_combo_points_flat"], ["dmg_additional"]),
+    "+(#) parabolic projectile split quantity +(#) % additional projectile damage":
+        (["parabolic_projectile_splits_flat"], ["projectile_dmg_additional"]),
+    "-(#) % additional cast speed +(#) % additional spell damage":
+        (["cast_speed_additional"], ["spell_dmg_additional"]),
+    "+(#) ignite limit +(#) % additional ignite damage":
+        (["max_ignite_flat"], ["ignite_dmg_additional"]),
+    "+(#) beams +(#) % additional damage":
+        (["beam_dmg_additional"], ["dmg_additional"]),
+    "you can apply (#) additional tangle to enemies +(#) % tangle damage enhancement":
+        (["max_tangle_quantity_flat"], ["tangle_dmg_inc"]),
+    "+(#) % gear attack speed (-(#)-(#) % additional attack damage":
+        (["attack_speed_gear"], ["attack_dmg_additional"]),
+    "+(#) % elemental and erosion resistance penetration +(#) % elemental and erosion resistance penetration for minions":
+        (["elemental_pen", "erosion_pen"], ["minion_elemental_pen"]),
+    # Pen (different text format): elemental+erosion pen → minion elemental pen
+    "+(#) % elemental and erosion resistance penetration minion damage penetrates (#) % elemental resistance":
+        (["elemental_pen", "erosion_pen"], ["minion_elemental_pen"]),
+    # Profane: erosion dmg → minion erosion dmg
+    "has profane . minions have profane +(#) % erosion damage +(#) % minion erosion damage":
+        (["erosion_dmg_additional"], ["minion_erosion_dmg_inc"]),
+}
+
+# Range affixes where min and max each fan out to multiple stats
+_RANGE_MULTI_STAT_OVERRIDES: dict[str, dict] = {
+    "adds (#)-(#) physical damage to attacks and spells":
+        {"min_keys": ["physical_attack_dmg_flat_min", "physical_spell_dmg_flat_min"],
+         "max_keys": ["physical_attack_dmg_flat_max", "physical_spell_dmg_flat_max"]},
+    "adds (#)-(#) fire damage to attacks and spells":
+        {"min_keys": ["fire_attack_dmg_flat_min", "fire_spell_dmg_flat_min"],
+         "max_keys": ["fire_attack_dmg_flat_max", "fire_spell_dmg_flat_max"]},
+    "adds (#)-(#) cold damage to attacks and spells":
+        {"min_keys": ["cold_attack_dmg_flat_min", "cold_spell_dmg_flat_min"],
+         "max_keys": ["cold_attack_dmg_flat_max", "cold_spell_dmg_flat_max"]},
+    "adds (#)-(#) lightning damage to attacks and spells":
+        {"min_keys": ["lightning_attack_dmg_flat_min", "lightning_spell_dmg_flat_min"],
+         "max_keys": ["lightning_attack_dmg_flat_max", "lightning_spell_dmg_flat_max"]},
+    "adds (#)-(#) erosion damage to attacks and spells":
+        {"min_keys": ["erosion_attack_dmg_flat_min", "erosion_spell_dmg_flat_min"],
+         "max_keys": ["erosion_attack_dmg_flat_max", "erosion_spell_dmg_flat_max"]},
+    "adds (#)-(#) physical damage to minions":
+        {"min_keys": ["minion_physical_dmg_flat_min"], "max_keys": ["minion_physical_dmg_flat_max"]},
+    "adds (#)-(#) fire damage to minions":
+        {"min_keys": ["minion_fire_dmg_flat_min"], "max_keys": ["minion_fire_dmg_flat_max"]},
+    "adds (#)-(#) cold damage to minions":
+        {"min_keys": ["minion_cold_dmg_flat_min"], "max_keys": ["minion_cold_dmg_flat_max"]},
+    "adds (#)-(#) lightning damage to minions":
+        {"min_keys": ["minion_lightning_dmg_flat_min"], "max_keys": ["minion_lightning_dmg_flat_max"]},
+    "adds (#)-(#) erosion damage to minions":
+        {"min_keys": ["minion_erosion_dmg_flat_min"], "max_keys": ["minion_erosion_dmg_flat_max"]},
+    "adds (#)-(#) base trauma damage":
+        {"min_keys": ["trauma_base_dmg_flat_min"], "max_keys": ["trauma_base_dmg_flat_max"]},
+    "adds (#)-(#) base wilt damage":
+        {"min_keys": ["wilt_base_dmg_flat_min"], "max_keys": ["wilt_base_dmg_flat_max"]},
+    "adds (#)-(#) base ignite damage":
+        {"min_keys": ["ignite_base_dmg_flat_min"], "max_keys": ["ignite_base_dmg_flat_max"]},
+    "adds (#)-(#) base ailment damage":
+        {"min_keys": ["ailment_dmg_flat_min"], "max_keys": ["ailment_dmg_flat_max"]},
+    # Attacks only (no spells)
+    "adds (#)-(#) physical damage to attacks":
+        {"min_keys": ["physical_attack_dmg_flat_min"], "max_keys": ["physical_attack_dmg_flat_max"]},
+    "adds (#)-(#) fire damage to attacks":
+        {"min_keys": ["fire_attack_dmg_flat_min"], "max_keys": ["fire_attack_dmg_flat_max"]},
+    "adds (#)-(#) cold damage to attacks":
+        {"min_keys": ["cold_attack_dmg_flat_min"], "max_keys": ["cold_attack_dmg_flat_max"]},
+    "adds (#)-(#) lightning damage to attacks":
+        {"min_keys": ["lightning_attack_dmg_flat_min"], "max_keys": ["lightning_attack_dmg_flat_max"]},
+    "adds (#)-(#) erosion damage to attacks":
+        {"min_keys": ["erosion_attack_dmg_flat_min"], "max_keys": ["erosion_attack_dmg_flat_max"]},
+    # Spells only (no attacks)
+    "adds (#)-(#) physical damage to spells":
+        {"min_keys": ["physical_spell_dmg_flat_min"], "max_keys": ["physical_spell_dmg_flat_max"]},
+    "adds (#)-(#) fire damage to spells":
+        {"min_keys": ["fire_spell_dmg_flat_min"], "max_keys": ["fire_spell_dmg_flat_max"]},
+    "adds (#)-(#) cold damage to spells":
+        {"min_keys": ["cold_spell_dmg_flat_min"], "max_keys": ["cold_spell_dmg_flat_max"]},
+    "adds (#)-(#) lightning damage to spells":
+        {"min_keys": ["lightning_spell_dmg_flat_min"], "max_keys": ["lightning_spell_dmg_flat_max"]},
+    "adds (#)-(#) erosion damage to spells":
+        {"min_keys": ["erosion_spell_dmg_flat_min"], "max_keys": ["erosion_spell_dmg_flat_max"]},
+    # Gear flat damage (after suffix strip, "to the gear" is removed)
+    "adds (#)-(#) physical damage":
+        {"min_keys": ["physical_dmg_gear_flat_min"], "max_keys": ["physical_dmg_gear_flat_max"]},
+    "adds (#)-(#) fire damage":
+        {"min_keys": ["fire_dmg_gear_flat_min"], "max_keys": ["fire_dmg_gear_flat_max"]},
+    "adds (#)-(#) cold damage":
+        {"min_keys": ["cold_dmg_gear_flat_min"], "max_keys": ["cold_dmg_gear_flat_max"]},
+    "adds (#)-(#) lightning damage":
+        {"min_keys": ["lightning_dmg_gear_flat_min"], "max_keys": ["lightning_dmg_gear_flat_max"]},
+    "adds (#)-(#) erosion damage":
+        {"min_keys": ["erosion_dmg_gear_flat_min"], "max_keys": ["erosion_dmg_gear_flat_max"]},
+}
+
+_GEAR_SUFFIX_RE = re.compile(r"\s+(?:(?:for|to)\s+this\s+gear|to\s+the\s+gear)\s*$", re.I)
 
 _gear_candidates: list | None = None
 
 
 def _gear_normalize(text: str) -> set[str]:
+    text = _GEAR_SUFFIX_RE.sub("", text)
     clean = re.sub(r"[^a-z\s]", " ", text.lower())
     return {_GEAR_NORMALIZE_MAP.get(w, w) for w in clean.split()
             if w not in _GEAR_STOP_WORDS and not re.fullmatch(r"\d+", w)}
@@ -1176,9 +1439,41 @@ def _get_gear_candidates() -> list:
     return _gear_candidates
 
 
+# Words that appear in both singular and plural forms in raw affix text.
+# All override dict keys use the singular canonical form.
+# Add new pairs here as they're discovered from raw game data.
+_EXPR_WORD_CANON: dict[str, str] = {
+    "splits":    "split",
+    "tangle(s)": "tangle",
+    "stack(s)":  "stack",
+}
+
+
+def _norm_expr(text: str) -> str:
+    """Normalize an affix expression for dict lookup."""
+    # Normalize unicode dashes (en dash U+2013, em dash U+2014) to regular hyphen first
+    s = text.replace("–", "-").replace("—", "-")
+    s = s.replace(",", " ")  # remove commas (e.g., "Life, Mana, and Energy Shield")
+    s = re.sub(r"\d+(?:\.\d+)?", "#", s.lower()).strip()
+    s = re.sub(r"\(#-#\)", "(#)", s)        # collapse ranged value "(#-#)" → "(#)"
+    s = re.sub(r"(?<!\()#(?!\))", "(#)", s) # wrap bare # not already in parens → "(#)"
+    s = re.sub(r"\s*%\s*", " % ", s)        # normalize spaces around %
+    s = re.sub(r"\s+-\s+", "-", s)          # collapse spaced dashes: "(#) - (#)" → "(#)-(#)"
+    s = re.sub(r"\s+", " ", s).strip()
+    # normalize plural/singular word variants
+    words = s.split(" ")
+    s = " ".join(_EXPR_WORD_CANON.get(w, w) for w in words)
+    return s
+
+
 def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
     """Return (stat_key, unit) for a gear affix, or (None, '') if unresolved."""
     text = _GEAR_COND_RE.sub("", raw_text)
+    norm_expr = _norm_expr(text)
+    if norm_expr in _EXPRESSION_STAT_OVERRIDES:
+        stat_key = _EXPRESSION_STAT_OVERRIDES[norm_expr]
+        unit = "%" if "%" in raw_text else ""
+        return stat_key, unit
     query = _gear_normalize(text)
     if not query:
         return None, ""
@@ -1226,7 +1521,30 @@ def get_legendary_gear():
     def _resolve(affix: dict) -> dict:
         if affix.get("affix_kind") == "placeholder":
             return {**affix, "stat_key": None, "unit": ""}
-        stat_key, unit = _resolve_gear_stat(affix.get("raw_text", ""))
+        raw_text = affix.get("raw_text", "")
+        text = _GEAR_COND_RE.sub("", raw_text)
+        text = _GEAR_SUFFIX_RE.sub("", text)
+        ne = _norm_expr(text)
+        unit = "%" if "%" in raw_text else ""
+        # 1. Range-multi: min and max each fan out to multiple stats
+        if ne in _RANGE_MULTI_STAT_OVERRIDES:
+            rm = _RANGE_MULTI_STAT_OVERRIDES[ne]
+            return {**affix, "stat_key": None, "unit": unit,
+                    "min_stat_keys": rm["min_keys"], "max_stat_keys": rm["max_keys"]}
+        # 2. Dual-value: two separate (#) values → two groups of stats
+        if ne in _DUAL_MULTI_STAT_OVERRIDES:
+            g0, g1 = _DUAL_MULTI_STAT_OVERRIDES[ne]
+            dual_groups = [{"value_index": 0, "stat_keys": g0},
+                           {"value_index": 1, "stat_keys": g1}]
+            return {**affix, "stat_key": None, "unit": unit, "dual_stat_groups": dual_groups}
+        # 3. Multi-stat: single value → multiple stats
+        if ne in _MULTI_STAT_OVERRIDES:
+            stat_keys = _MULTI_STAT_OVERRIDES[ne]
+            is_range_split = any(k.endswith(("_flat_min", "_flat_max")) for k in stat_keys)
+            return {**affix, "stat_key": None, "stat_keys": stat_keys,
+                    "is_range_split": is_range_split, "unit": unit}
+        # 4. Expression or fuzzy fallback
+        stat_key, unit = _resolve_gear_stat(raw_text)
         return {**affix, "stat_key": stat_key, "unit": unit}
 
     # New crawler format: items have "variants" dict
@@ -1255,13 +1573,11 @@ def get_legendary_gear():
     items = data.get("items", [])
     for item in items:
         for affix in item.get("affixes", []):
-            if affix.get("affix_kind") == "placeholder":
-                affix["stat_key"] = None
-                affix["unit"] = ""
-            else:
-                stat_key, unit = _resolve_gear_stat(affix.get("raw_text", ""))
-                affix["stat_key"] = stat_key
-                affix["unit"] = unit
+            resolved = _resolve(affix)
+            affix.update({k: resolved[k] for k in ("stat_key", "unit") if k in resolved})
+            if "stat_keys" in resolved:
+                affix["stat_keys"] = resolved["stat_keys"]
+                affix["is_range_split"] = resolved.get("is_range_split", False)
     return {"season": active, "items": items}
 
 
