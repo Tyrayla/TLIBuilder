@@ -180,8 +180,11 @@ export interface Build {
   name: string
   slots: (TreeSlot | null)[]
   slates?: SavedSlate[]
+  conditionState?: Record<string, number | boolean>
+  // Legacy fields — present on builds saved before the conditionState unification.
+  // Read-only: never written by the current client; migrated to conditionState on load.
   conditions?: string[]
-  conditionValues?: ConditionValues
+  conditionValues?: Record<string, number>
   gear?: EquippedGearItem[]
   skills?: EquippedSkill[]
   characterLevel?: number
@@ -351,6 +354,11 @@ export interface SlatePool {
 export interface ConditionDef {
   key: string
   label: string
+  value_type: 'boolean' | 'numeric'
+  numeric_min?: number
+  numeric_max?: number | null
+  unit?: string
+  is_derived?: boolean
 }
 
 export interface StatSource {
@@ -369,29 +377,16 @@ export interface StatEntry {
   sources: StatSource[]
 }
 
-export interface ConditionMaximums {
-  tenacity_max: number
-  agility_max: number
-  focus_max: number
-  channeled_max_bonus: number  // add to skill's base channeled max to get the cap
-}
-
-export interface ConditionValues {
-  tenacity_stacks: number
-  agility_stacks: number
-  focus_stacks: number
-  channeled_stacks: number
-  channeled_base_max: number  // inherited from skill; UI lets user set it
-}
-
 export interface StatSheetResponse {
   stats: Record<string, StatEntry>
-  condition_maximums: ConditionMaximums
+  condition_maximums: Record<string, number>
+  clamp_report: Record<string, { requested: number; applied: number }>
 }
 
 export const EMPTY_STAT_SHEET: StatSheetResponse = {
   stats: {},
-  condition_maximums: { tenacity_max: 0, agility_max: 0, focus_max: 0, channeled_max_bonus: 0 },
+  condition_maximums: {},
+  clamp_report: {},
 }
 
 export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
@@ -1000,7 +995,7 @@ export const api = {
   getTree: (name: string) => get<TreeData>(`/tree/${encodeURIComponent(name)}`),
 
   getBuilds: () => get<Build[]>('/builds'),
-  postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[]; slates?: SavedSlate[]; conditions?: string[] }) =>
+  postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[]; slates?: SavedSlate[]; conditionState?: Record<string, number | boolean> }) =>
     post<Build>('/builds', build),
   deleteBuild: (id: string) => del<{ ok: boolean }>(`/builds/${id}`),
 
@@ -1191,7 +1186,7 @@ export const api = {
   engineStats: (payload: {
     slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
     slates?: SavedSlate[]
-    conditions?: string[]
+    condition_state?: Record<string, number | boolean>
     gear?: GearEngineItem[]
     character?: CharacterStatContribution[]
     memory_effects?: string[]

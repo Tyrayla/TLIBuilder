@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, SavedSlate, ConditionValues, EquippedGearItem, EquippedSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
+import { initApi, api, Build, TreeSlot, SavedSlate, EquippedGearItem, EquippedSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
+import { migrateOldConditions } from './utils/conditions'
 import { useBuildStore } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useReferenceStore } from './store/referenceStore'
@@ -22,23 +23,13 @@ import SkillsScreen from './screens/SkillsScreen'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
 
-const DEFAULT_CONDITION_VALUES: ConditionValues = {
-  tenacity_stacks: 0,
-  agility_stacks: 0,
-  focus_stacks: 0,
-  channeled_stacks: 0,
-  channeled_base_max: 0,
-}
-
-
 interface Session {
   buildId: string | null
   buildName: string
   slots: (TreeSlot | null)[]
   activeSlot: number
   slates: SavedSlate[]
-  conditions: string[]
-  conditionValues: ConditionValues
+  conditionState: Record<string, number | boolean>
   gear: EquippedGearItem[]
   skills: EquippedSkill[]
   characterLevel: number
@@ -64,8 +55,7 @@ const emptySession = (): Session => ({
   slots: [null, null, null, null],
   activeSlot: 0,
   slates: [],
-  conditions: [],
-  conditionValues: DEFAULT_CONDITION_VALUES,
+  conditionState: {},
   gear: [],
   skills: [],
   characterLevel: 100,
@@ -100,7 +90,6 @@ function App() {
   const [unsavedPromptOpen, setUnsavedPromptOpen] = useState(false)
   const [unsavedSaveName, setUnsavedSaveName] = useState('')
   const [unsavedSaving, setUnsavedSaving] = useState(false)
-  const conditionMaximums = null
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [updateDownloading, setUpdateDownloading] = useState(false)
   const [updateProgress, setUpdateProgress] = useState(0)
@@ -143,7 +132,7 @@ function App() {
     window.api?.onRequestSave?.(() => {
       const sess = sessionRef.current
       if (sess.buildId) {
-        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditions: sess.conditions, conditionValues: sess.conditionValues, gear: sess.gear, skills: sess.skills, characterLevel: sess.characterLevel, hasPrism: sess.hasPrism, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections, heroMemories: sess.heroMemories, pactSpirits: sess.pactSpirits, notes: sess.notes }
+        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditionState: sess.conditionState, gear: sess.gear, skills: sess.skills, characterLevel: sess.characterLevel, hasPrism: sess.hasPrism, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections, heroMemories: sess.heroMemories, pactSpirits: sess.pactSpirits, notes: sess.notes }
         api.postBuild(build)
           .then(saved => {
             setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: sess.buildName }))
@@ -198,8 +187,7 @@ function App() {
     useBuildStore.getState().syncStatsInputs({
       slots: session.slots,
       slates: session.slates,
-      conditions: session.conditions,
-      conditionValues: session.conditionValues,
+      conditionState: session.conditionState,
       gear: session.gear,
       characterLevel: session.characterLevel,
       hasPrism: session.hasPrism,
@@ -207,7 +195,7 @@ function App() {
       pactSpirits: session.pactSpirits,
     })
   }, [
-    session.slots, session.slates, session.conditions, session.conditionValues,
+    session.slots, session.slates, session.conditionState,
     session.gear, session.characterLevel, session.hasPrism,
     session.heroMemories, session.pactSpirits,
   ])
@@ -364,8 +352,7 @@ function App() {
       slots,
       activeSlot: firstEmptySlot(slots),
       slates: build.slates ?? [],
-      conditions: build.conditions ?? [],
-      conditionValues: { ...DEFAULT_CONDITION_VALUES, ...(build.conditionValues ?? {}) },
+      conditionState: build.conditionState ?? migrateOldConditions(build.conditions, build.conditionValues),
       gear,
       skills: (build.skills ?? []).map(s => ({ ...s, supports: s.supports ?? [] })),
       characterLevel: build.characterLevel ?? 100,
@@ -535,25 +522,20 @@ function App() {
     setScreen('tree-selector')
   }
 
-  const handleConditionsChange = (conditions: string[]) => {
-    setSession(s => ({ ...s, conditions }))
-    markDirty()
-  }
-
-  const handleConditionValuesChange = (values: ConditionValues) => {
-    setSession(s => ({ ...s, conditionValues: values }))
+  const handleConditionStateChange = (conditionState: Record<string, number | boolean>) => {
+    setSession(s => ({ ...s, conditionState }))
     markDirty()
   }
 
   const saveBuild = async (name: string) => {
-    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections, heroMemories: session.heroMemories, pactSpirits: session.pactSpirits, notes: session.notes }
+    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditionState: session.conditionState, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections, heroMemories: session.heroMemories, pactSpirits: session.pactSpirits, notes: session.notes }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
   }
 
   const saveAsBuild = async (name: string) => {
-    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditions: session.conditions, conditionValues: session.conditionValues, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections, heroMemories: session.heroMemories, pactSpirits: session.pactSpirits, notes: session.notes }
+    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditionState: session.conditionState, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections, heroMemories: session.heroMemories, pactSpirits: session.pactSpirits, notes: session.notes }
     const saved = await api.postBuild(build)
     setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
     setIsDirty(false)
@@ -625,8 +607,7 @@ function App() {
     hasPrism: session.hasPrism,
     slots: session.slots,
     slates: session.slates,
-    conditions: session.conditions,
-    conditionValues: session.conditionValues,
+    conditionState: session.conditionState,
     gear: session.gear,
     skills: session.skills,
     traitId: session.traitId,
@@ -735,11 +716,8 @@ function App() {
   if (screen === 'build-overview') {
     screenContent = (
       <BuildOverviewScreen
-        conditions={session.conditions}
-        conditionValues={session.conditionValues}
-        conditionMaximums={conditionMaximums}
-        onConditionsChange={handleConditionsChange}
-        onConditionValuesChange={handleConditionValuesChange}
+        conditionState={session.conditionState}
+        onConditionStateChange={handleConditionStateChange}
       />
     )
   } else if (screen === 'tree-selector') {

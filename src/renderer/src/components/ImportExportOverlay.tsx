@@ -14,7 +14,9 @@ interface Props {
 }
 
 const KNOWN_BUILD_KEYS = new Set([
-  'name', 'id', 'slots', 'slates', 'conditions', 'conditionValues',
+  'name', 'id', 'slots', 'slates', 'conditionState',
+  // Legacy keys — present on builds saved before conditionState unification
+  'conditions', 'conditionValues',
   'gear', 'skills', 'characterLevel', 'hasPrism', 'traitId',
   'traitLevel', 'traitSlotLevels', 'advancedTraitSelections',
   'heroMemories', 'pactSpirits', 'notes',

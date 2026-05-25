@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { isEqual } from 'lodash-es'
 import type {
-  TreeSlot, SavedSlate, ConditionValues, EquippedGearItem,
+  TreeSlot, SavedSlate, EquippedGearItem,
   CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit,
 } from '../api/client'
 import { EMPTY_STAT_SHEET } from '../api/client'
@@ -12,8 +12,7 @@ import { EMPTY_STAT_SHEET } from '../api/client'
 interface StatsInputs {
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
-  conditions: string[]
-  conditionValues: ConditionValues
+  conditionState: Record<string, number | boolean>
   gear: EquippedGearItem[]
   characterLevel: number
   hasPrism: boolean
@@ -56,14 +55,7 @@ interface BuildStore extends StatsInputs {
 const DEFAULT_INPUTS: StatsInputs = {
   slots: [null, null, null, null],
   slates: [],
-  conditions: [],
-  conditionValues: {
-    tenacity_stacks: 0,
-    agility_stacks: 0,
-    focus_stacks: 0,
-    channeled_stacks: 0,
-    channeled_base_max: 0,
-  },
+  conditionState: {},
   gear: [],
   characterLevel: 100,
   hasPrism: false,
