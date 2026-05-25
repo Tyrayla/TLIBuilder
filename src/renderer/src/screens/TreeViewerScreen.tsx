@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { api, getApiBase, TreeData, TreeNode, TreeSlot, CoreTalentSlot } from '../api/client'
+import { api, getApiBase, TreeData, TreeNode, TreeSlot } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 
 const COLS = 7
@@ -22,11 +22,7 @@ function sumPoints(states: Record<string, number>) {
 const NODE_TYPES = ['Micro Talent', 'Medium Talent', 'Legendary Medium Talent'] as const
 type NodeTypeStr = typeof NODE_TYPES[number]
 
-const NODE_TYPE_CANONICAL: Record<NodeTypeStr, string> = {
-  'Micro Talent': 'micro',
-  'Medium Talent': 'medium',
-  'Legendary Medium Talent': 'legendary_medium',
-}
+
 
 
 function nextType(t: NodeTypeStr): NodeTypeStr {
@@ -436,7 +432,6 @@ export default function TreeViewerScreen({
     link:   linkFrom
       ? `Linking from ${linkFrom} — click another node to toggle connection`
       : 'Click a node to start a link, then click the target (lower col → higher col)',
-    stat:   'Click any node to open the stat editor',
   }
 
   return (

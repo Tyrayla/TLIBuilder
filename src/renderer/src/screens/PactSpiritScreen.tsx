@@ -41,7 +41,7 @@ function reorderSlots(slots: PactSpiritSlot[]): PactSpiritSlot[] {
   return result
 }
 
-export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange, onBack }: Props) {
+export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: Props) {
   const spiritData = useBuildStore(s => s.allSpirits)
   const [activeSlot, setActiveSlot] = useState<0 | 1 | 2 | null>(null)
   const [search, setSearch] = useState('')

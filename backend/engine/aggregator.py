@@ -50,6 +50,18 @@ _SLATE_KIND_LABELS = {
     "when_sparks_set_prairie_ablaze": "Prairie",
 }
 
+_COPY_SLATE_KINDS = frozenset({"spark_of_moth_fire", "when_sparks_set_prairie_ablaze"})
+_MOTH_DELTAS: dict[str, tuple[int, int]] = {
+    "above": (-1, 0),
+    "below": (1, 0),
+    "left":  (0, -1),
+    "right": (0, 1),
+}
+
+def _slate_positions(slate: dict) -> list[tuple[int, int]]:
+    # cells are stored as absolute board positions, not relative offsets
+    return [tuple(c) for c in slate.get("cells", [])]
+
 def _node_type_display(node_type: str) -> str:
     return _NODE_TYPE_LABELS.get(node_type, node_type.replace("_", " ").title())
 
@@ -71,6 +83,30 @@ def _tree_slug_from_node_id(node_id: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _eval_condition(
+    expr,
+    active_booleans: frozenset[str],
+    numeric_vals: dict[str, float],
+) -> bool:
+    if expr is None:
+        return True
+    if isinstance(expr, str):
+        return expr in active_booleans
+    if "and" in expr:
+        return all(_eval_condition(e, active_booleans, numeric_vals) for e in expr["and"])
+    if "or" in expr:
+        return any(_eval_condition(e, active_booleans, numeric_vals) for e in expr["or"])
+    if "not" in expr:
+        return not _eval_condition(expr["not"], active_booleans, numeric_vals)
+    if "op" in expr:
+        lhs = numeric_vals.get(expr["key"], 0.0)
+        rhs, op = expr["value"], expr["op"]
+        return (lhs >= rhs if op == ">=" else lhs > rhs if op == ">" else
+                lhs <= rhs if op == "<=" else lhs < rhs if op == "<" else
+                lhs == rhs if op == "==" else False)
+    return False
+
+
 def _apply_node_recipes(
     source: BuildSource,
     tree_name: str,
@@ -83,7 +119,8 @@ def _apply_node_recipes(
     label_prefix: str = "",
     node_recipes_by_id: dict | None = None,
     points: int = 1,
-    active_conditions: frozenset[str] = frozenset(),
+    active_booleans: frozenset[str] = frozenset(),
+    numeric_vals: dict[str, float] | None = None,
 ) -> None:
     """Look up recipes for this specific node and add stat values at the correct rank.
 
@@ -91,6 +128,9 @@ def _apply_node_recipes(
       1. Per-node-id recipes (node_recipes_by_id[node_id]) — precise, specific to this node
       2. Tree+node_type fallback (recipes_by_tree[tree_name][node_type]) — coarse, for compat
     """
+    if numeric_vals is None:
+        numeric_vals = {}
+
     per_node = (node_recipes_by_id or {}).get(node_id)
     if per_node is not None:
         type_recipes = per_node
@@ -109,34 +149,76 @@ def _apply_node_recipes(
     label = f"{label_prefix}{_node_type_display(node_type)}"
 
     for recipe in type_recipes:
-        cond = recipe.get("condition")
-        if cond and cond not in active_conditions:
+        if not _eval_condition(recipe.get("condition"), active_booleans, numeric_vals):
             continue
+
+        # Rank-based static values
         values = recipe.get("values", [])
-        if not values:
-            continue
-        idx = min(rank_index, len(values) - 1)
-        entry = SourceEntry(
-            stat=recipe["stat"],
-            amount=values[idx],
-            source_type=source_type,
-            label=label,
-            text=recipe.get("text", ""),
-            points=points,
-        )
-        source.add_with_source(recipe["stat"], values[idx], entry)
+        if values:
+            idx = min(rank_index, len(values) - 1)
+            entry = SourceEntry(
+                stat=recipe["stat"],
+                amount=values[idx],
+                source_type=source_type,
+                label=label,
+                text=recipe.get("text", ""),
+                points=points,
+            )
+            source.add_with_source(recipe["stat"], values[idx], entry)
+
+        # Scaling contribution (additive on top of values, separate SourceEntry row)
+        if "scaling" in recipe:
+            s = recipe["scaling"]
+            raw = numeric_vals.get(s["key"], 0.0)
+            floor_val = s.get("floor", 0.0)
+            eff = max(raw, floor_val) if floor_val is not None else raw
+            if "per_n" in s:
+                amount = (eff // s["per_n"]) * s["per"]
+            else:
+                amount = eff * s["per"]
+            if s.get("cap") is not None:
+                amount = min(amount, s["cap"])
+            scale_entry = SourceEntry(
+                stat=recipe["stat"],
+                amount=amount,
+                source_type=source_type,
+                label=label,
+                text=recipe.get("text", ""),
+                points=points,
+            )
+            source.add_with_source(recipe["stat"], amount, scale_entry)
 
 
-def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dict,
-              active_conditions: frozenset[str] | None = None) -> BuildSource:
+def aggregate(
+    build: BuildInput,
+    season_trees: dict[str, dict],
+    filter_data: dict,
+    active_booleans: frozenset[str] | None = None,
+    numeric_vals: dict[str, float] | None = None,
+) -> BuildSource:
     """
     Collect all stat contributions from talent nodes and slates into a BuildSource.
 
-    season_trees: {tree_slug: season_tree_dict} — pre-loaded season tree data
-    filter_data:  the node_type_filter.json dict with a "recipes" key
+    season_trees:    {tree_slug: season_tree_dict} — pre-loaded season tree data
+    filter_data:     the node_type_filter.json dict with a "recipes" key
+    active_booleans: derived from build.condition_state by the fixed-point engine; if None,
+                     derived here for backward-compat single-call usage
+    numeric_vals:    numeric condition values (clamped) for scaling/threshold evaluation
     """
+    from models.conditions import CONDITIONS_BY_KEY
     source = BuildSource()
-    conds = active_conditions if active_conditions is not None else frozenset(build.conditions)
+
+    if active_booleans is None:
+        active_booleans = frozenset(
+            k for k, v in build.condition_state.items()
+            if CONDITIONS_BY_KEY.get(k) and CONDITIONS_BY_KEY[k].value_type == "boolean" and v
+        )
+    if numeric_vals is None:
+        numeric_vals = {
+            k: float(v) for k, v in build.condition_state.items()
+            if CONDITIONS_BY_KEY.get(k) and CONDITIONS_BY_KEY[k].value_type == "numeric"
+        }
+
     recipes_by_tree = filter_data.get("recipes", {})
     node_recipes_by_id = filter_data.get("node_recipes", {})
 
@@ -169,12 +251,20 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
                 source_type="talent", label_prefix=f"{tree_name} ",
                 node_recipes_by_id=node_recipes_by_id,
                 points=current_points,
-                active_conditions=conds,
+                active_booleans=active_booleans,
+                numeric_vals=numeric_vals,
             )
 
     # ── Slate slots ────────────────────────────────────────────────────────────
     # Each CreatorSlot can reference a talent node via selectedNodeId.
     # We treat it as a rank-1 (single point) application of that node's recipes.
+
+    # Build a position→slate map for Moth/Prairie adjacency lookups.
+    position_to_slate: dict[tuple[int, int], dict] = {}
+    for _s in build.slates:
+        for _pos in _slate_positions(_s):
+            position_to_slate[_pos] = _s
+
     for slate in build.slates:
         for slot in slate.get("slots", []):
             node_id = slot.get("selectedNodeId")
@@ -208,7 +298,57 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
                 source, tree_name, node_id, 1, 1, node_type, recipes_by_tree,
                 source_type="slate", label_prefix=slate_label_prefix,
                 node_recipes_by_id=node_recipes_by_id,
-                active_conditions=conds,
+                active_booleans=active_booleans,
+                numeric_vals=numeric_vals,
+            )
+
+        # ── Moth/Prairie copy ───────────────────────────────────────────────
+        slate_kind = slate.get("kind", "base")
+        if slate_kind not in _COPY_SLATE_KINDS:
+            continue
+
+        ar, ac = slate.get("anchor", [0, 0])
+        if slate_kind == "spark_of_moth_fire":
+            moth_dir = slate.get("mothDirection")
+            if not moth_dir:
+                continue
+            dr, dc = _MOTH_DELTAS.get(moth_dir, (0, 0))
+            positions_to_check = [(ar + dr, ac + dc)]
+        else:  # when_sparks_set_prairie_ablaze — all 4 neighbours
+            positions_to_check = [(ar + dr, ac + dc) for dr, dc in _MOTH_DELTAS.values()]
+
+        kind_label = _SLATE_KIND_LABELS.get(slate_kind, slate_kind.replace("_", " ").title())
+
+        for pos in positions_to_check:
+            adj = position_to_slate.get(pos)
+            if not adj or adj.get("kind", "base") in _COPY_SLATE_KINDS:
+                continue  # missing or another copy-slate — skip
+            adj_slots = adj.get("slots", [])
+            if not adj_slots:
+                continue
+            # Only the bottom slot is copied (matches frontend getBottomEffects)
+            adj_slot = adj_slots[-1]
+            node_id = adj_slot.get("selectedNodeId")
+            if not node_id:
+                continue
+            slug = _tree_slug_from_node_id(node_id)
+            if not slug:
+                continue
+            season_tree = season_trees.get(slug, {})
+            if not season_tree:
+                continue
+            tree_name = season_tree.get("tree_name", slug)
+            nodes_by_id = {n["id"]: n for n in season_tree.get("nodes", [])}
+            node = nodes_by_id.get(node_id)
+            if not node:
+                continue
+            node_type = _normalize_node_type(node.get("node_type", ""))
+            _apply_node_recipes(
+                source, tree_name, node_id, 1, 1, node_type, recipes_by_tree,
+                source_type="slate", label_prefix=f"Slate · {kind_label} ",
+                node_recipes_by_id=node_recipes_by_id,
+                active_booleans=active_booleans,
+                numeric_vals=numeric_vals,
             )
 
     # ── Equipped gear affixes ──────────────────────────────────────────────────

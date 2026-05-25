@@ -63,6 +63,14 @@ function getAdvancedLines(lines: string[]): string[] {
 
 function isPassiveSlot(slot: number) { return slot > 5 }
 
+const TIERED_SUPPORT_TYPES = new Set(['activation_medium_skill', 'magnificent_support_skill', 'noble_support_skill'])
+
+function supportLevelRange(skill_type: string | undefined): { min: number; max: number; default: number } {
+  return TIERED_SUPPORT_TYPES.has(skill_type ?? '')
+    ? { min: 0, max: 2, default: 1 }
+    : { min: 1, max: 40, default: 20 }
+}
+
 interface Props {
   equippedSkills: EquippedSkill[]
   onSkillsChange: (skills: EquippedSkill[]) => void
@@ -77,7 +85,6 @@ interface Props {
 export default function SkillsScreen({
   equippedSkills, onSkillsChange,
   gear, characterLevel, hasPrism, onCharacterLevelChange, onHasPrismChange,
-  onBack,
 }: Props) {
   const [allItems, setAllItems] = useState<SkillItem[]>([])
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
@@ -92,8 +99,6 @@ export default function SkillsScreen({
 
   const showTooltip = (item: { name: string; description_lines: string[] }, e: React.MouseEvent) =>
     setTooltip({ name: item.name, lines: getAdvancedLines(item.description_lines), x: e.clientX + 14, y: e.clientY - 8 })
-  const moveTooltip = (e: React.MouseEvent) =>
-    setTooltip(t => t ? { ...t, x: e.clientX + 14, y: e.clientY - 8 } : null)
   const hideTooltip = () => setTooltip(null)
 
   useEffect(() => {
@@ -207,10 +212,13 @@ export default function SkillsScreen({
     if (!selectedSupportItem || focusedSlot === null || focusedSupportIdx === null) return
     const parent = focusedEquipped
     if (!parent) return
+    const range = supportLevelRange(selectedSupportItem.skill_type)
     const newSupport: EquippedSupportSkill = {
       support_index: focusedSupportIdx,
       item_id: selectedSupportItem.item_id,
       name: selectedSupportItem.name,
+      skill_type: selectedSupportItem.skill_type ?? 'support_skill',
+      level: range.default,
       skill_tags: selectedSupportItem.skill_tags,
       description_lines: selectedSupportItem.description_lines,
     }
@@ -462,6 +470,34 @@ export default function SkillsScreen({
               <button className="skill-slot-remove" onClick={e => removeSupport(focusedSupportIdx, e)}>×</button>
             </div>
           )}
+          {existingSupport && (() => {
+            const lvlRange = supportLevelRange(existingSupport.skill_type)
+            const updateLevel = (newLevel: number) => {
+              const clamped = Math.max(lvlRange.min, Math.min(lvlRange.max, newLevel))
+              onSkillsChange(equippedSkills.map(sk =>
+                sk.slot === focusedSlot
+                  ? { ...sk, supports: sk.supports.map(s =>
+                        s.support_index === focusedSupportIdx ? { ...s, level: clamped } : s
+                      )}
+                  : sk
+              ))
+            }
+            return (
+              <div className="skill-level-controls" style={{ marginTop: 6 }}>
+                <span className="skill-level-label">Level</span>
+                <button className="skill-level-btn" onClick={() => updateLevel(existingSupport.level - 1)}>−</button>
+                <input
+                  className="skill-level-input"
+                  type="number"
+                  min={lvlRange.min}
+                  max={lvlRange.max}
+                  value={existingSupport.level}
+                  onChange={e => updateLevel(Number(e.target.value) || lvlRange.min)}
+                />
+                <button className="skill-level-btn" onClick={() => updateLevel(existingSupport.level + 1)}>+</button>
+              </div>
+            )
+          })()}
         </div>
         <div className="skill-panel-divider" />
         <div className="skill-search-bar">
@@ -496,7 +532,7 @@ export default function SkillsScreen({
           <>
             <div className="skill-panel-divider" />
             <div className="skill-detail-desc" style={{ maxHeight: 120, overflowY: 'auto' }}>
-              {selectedSupportItem.description_lines.map((line, i) => (
+              {getAdvancedLines(selectedSupportItem.description_lines).map((line, i) => (
                 <p key={i} className={isSubHeader(line) ? 'skill-desc-subheader' : 'skill-desc-line'}>{line}</p>
               ))}
             </div>

@@ -21,12 +21,6 @@ interface TooltipState {
   pinned: boolean
 }
 
-interface MemoryData {
-  base_stats: HeroMemoryAffix[]
-  fixed_affixes: HeroMemoryAffix[]
-  random_affixes: HeroMemoryAffix[]
-}
-
 // A contiguous segment of the unified slider mapped to one tier's value range
 interface TierRangeInfo {
   tier: number
@@ -226,7 +220,6 @@ export default function HeroTraitScreen({
   heroMemories,
   onTraitChange,
   onHeroMemoriesChange,
-  onBack,
 }: Props) {
   const allTraits = useReferenceStore(s => s.heroTraits) ?? []
   const memoryData = useReferenceStore(s => s.heroMemories)
