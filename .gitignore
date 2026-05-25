@@ -21,3 +21,4 @@ data/builds/*
 # OpenWolf and Claude Code — local AI tooling, not for version control
 .wolf/
 .claude/
+CLAUDE.md

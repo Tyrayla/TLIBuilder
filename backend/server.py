@@ -6,7 +6,7 @@ import socket
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import uvicorn
 
 from models.passive_tree import PassiveTree
@@ -388,6 +388,8 @@ class SlotData(BaseModel):
 
 
 class BuildRequest(BaseModel):
+    model_config = ConfigDict(extra='allow')
+
     id: str | None = None
     name: str
     slots: list[SlotData | None]

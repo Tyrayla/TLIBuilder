@@ -31,8 +31,15 @@ export async function resolveImportInput(input: string): Promise<string> {
   const urlMatch = trimmed.match(/\/b\/([A-Za-z0-9_-]+)\/?$/)
   if (/^https?:\/\//i.test(trimmed) && urlMatch) {
     try {
-      return await api.fetchSharedBuildCode(urlMatch[1])
+      const code = await api.fetchSharedBuildCode(urlMatch[1])
+      // Validate before handing to the decoder — prevents an error page or
+      // malformed response from the share service reaching the Python codec.
+      if (!code.startsWith('tli1_')) {
+        throw new ShareFetchError('Share service returned an invalid build code.')
+      }
+      return code
     } catch (e) {
+      if (e instanceof ShareFetchError) throw e
       throw new ShareFetchError(e instanceof Error ? e.message : String(e))
     }
   }
