@@ -121,7 +121,7 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
         setImportConfirmed(true)
         return
       }
-      onImport(build as unknown as Build)
+      onImport({ ...(build as unknown as Build), name: 'New Build' })
       onClose()
     } catch (e: unknown) {
       if (e instanceof ShareFetchError) {
