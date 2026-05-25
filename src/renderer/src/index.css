@@ -1166,7 +1166,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   font-size: 12px;
   line-height: 1.6;
   color: #ccc;
-  white-space: pre-wrap;
   max-height: 400px;
   overflow-y: auto;
   background: #0d0d0d;
@@ -1174,6 +1173,20 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 10px 12px;
   margin: 0;
 }
+.changelog-body-empty { color: #555; font-style: italic; }
+.changelog-body h1, .changelog-body h2, .changelog-body h3 {
+  color: #c0a0ff;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 12px 0 4px;
+}
+.changelog-body h1:first-child, .changelog-body h2:first-child, .changelog-body h3:first-child { margin-top: 0; }
+.changelog-body ul, .changelog-body ol { padding-left: 18px; margin: 4px 0 8px; }
+.changelog-body li { margin-bottom: 3px; }
+.changelog-body p { margin: 4px 0; }
+.changelog-body code { background: #1e1e3a; border-radius: 3px; padding: 1px 4px; font-size: 11px; color: #a0c0ff; }
+.changelog-body a { color: #7090e8; text-decoration: none; }
+.changelog-body a:hover { text-decoration: underline; }
 
 /* ── Debug toolbar ────────────────────────────────────────────────────────── */
 
