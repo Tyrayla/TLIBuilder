@@ -490,7 +490,7 @@ def engine_compute(req: EngineComputeRequest):
 class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
-    conditions:      list[str] = []
+    condition_state: dict[str, float | bool] = {}
     gear:            list[dict] = []
     character:       list[dict] = []
     memory_effects:  list[str] = []
@@ -500,10 +500,9 @@ class EngineStatsRequest(BaseModel):
 @app.post("/api/engine/stats")
 def engine_stats(req: EngineStatsRequest):
     import re
-    from engine.aggregator import aggregate
+    from engine.compute import compute
     from engine.models import BuildInput
     from tools.node_type_filter_builder import load_filter
-    from models.stat_meta import STAT_META
 
     active_season = season_manager.get_active_season() or ""
     filter_data = load_filter() or {}
@@ -511,7 +510,6 @@ def engine_stats(req: EngineStatsRequest):
     slots = [s.model_dump() if s else None for s in req.slots]
     slates = req.slates
 
-    # Collect tree slugs needed from talent slots + slates
     def _slug(name: str) -> str:
         return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
@@ -533,46 +531,40 @@ def engine_stats(req: EngineStatsRequest):
         if tree_data:
             season_trees[slug] = tree_data
 
-    build = BuildInput(slots=slots, slates=slates, season=active_season, conditions=req.conditions, gear=req.gear, character=req.character, memory_effects=req.memory_effects, spirit_effects=req.spirit_effects)
-    source = aggregate(build, season_trees, filter_data)
-
-    stat_map: dict = {}
-    for entry in source.source_log:
-        if entry.stat not in stat_map:
-            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
-            stat_map[entry.stat] = {
-                "display_name": meta.display_name if meta else entry.stat,
-                "category": meta.category if meta else "Other",
-                "unit": meta.unit if meta else "",
-                "total": 0.0,
-                "sources": [],
-            }
-        stat_map[entry.stat]["total"] = round(stat_map[entry.stat]["total"] + entry.amount, 6)
-        stat_map[entry.stat]["sources"].append({
-            "source_type": entry.source_type,
-            "label": entry.label,
-            "text": entry.text,
-            "amount": entry.amount,
-            "points": entry.points,
-        })
-
-    condition_maximums = {
-        "tenacity_max": 4 + int(source.total("max_tenacity_blessing_stacks_flat")),
-        "agility_max":  4 + int(source.total("max_agility_blessing_stacks_flat")),
-        "focus_max":    4 + int(source.total("max_focus_blessing_stacks_flat")),
-        "channeled_max_bonus": int(source.total("max_channeled_stacks_flat")),
+    build = BuildInput(
+        slots=slots, slates=slates, season=active_season,
+        condition_state=req.condition_state,
+        gear=req.gear, character=req.character,
+        memory_effects=req.memory_effects, spirit_effects=req.spirit_effects,
+    )
+    result = compute(build, season_trees, filter_data)
+    return {
+        "stats": result.stat_map,
+        "condition_maximums": result.condition_maximums,
+        "clamp_report": result.clamp_report,
     }
-    return {"stats": stat_map, "condition_maximums": condition_maximums}
 
 
 # ── Conditions ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/conditions")
 def get_conditions():
-    from models.conditions import ALL_CONDITIONS
+    from models.conditions import ALL_CONDITIONS, DERIVED_ACTIVE_KEYS
+    derived_keys = set(DERIVED_ACTIVE_KEYS.keys())
     result: dict[str, list[dict]] = {}
     for c in ALL_CONDITIONS:
-        result.setdefault(c.category, []).append({"key": c.key, "label": c.label})
+        entry: dict = {
+            "key": c.key,
+            "label": c.label,
+            "value_type": c.value_type,
+        }
+        if c.value_type == "numeric":
+            entry["numeric_min"] = c.numeric_min
+            entry["numeric_max"] = c.numeric_max
+            entry["unit"] = c.unit
+        if c.key in derived_keys:
+            entry["is_derived"] = True
+        result.setdefault(c.category, []).append(entry)
     return result
 
 

@@ -71,6 +71,30 @@ def _tree_slug_from_node_id(node_id: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _eval_condition(
+    expr,
+    active_booleans: frozenset[str],
+    numeric_vals: dict[str, float],
+) -> bool:
+    if expr is None:
+        return True
+    if isinstance(expr, str):
+        return expr in active_booleans
+    if "and" in expr:
+        return all(_eval_condition(e, active_booleans, numeric_vals) for e in expr["and"])
+    if "or" in expr:
+        return any(_eval_condition(e, active_booleans, numeric_vals) for e in expr["or"])
+    if "not" in expr:
+        return not _eval_condition(expr["not"], active_booleans, numeric_vals)
+    if "op" in expr:
+        lhs = numeric_vals.get(expr["key"], 0.0)
+        rhs, op = expr["value"], expr["op"]
+        return (lhs >= rhs if op == ">=" else lhs > rhs if op == ">" else
+                lhs <= rhs if op == "<=" else lhs < rhs if op == "<" else
+                lhs == rhs if op == "==" else False)
+    return False
+
+
 def _apply_node_recipes(
     source: BuildSource,
     tree_name: str,
@@ -83,7 +107,8 @@ def _apply_node_recipes(
     label_prefix: str = "",
     node_recipes_by_id: dict | None = None,
     points: int = 1,
-    active_conditions: frozenset[str] = frozenset(),
+    active_booleans: frozenset[str] = frozenset(),
+    numeric_vals: dict[str, float] | None = None,
 ) -> None:
     """Look up recipes for this specific node and add stat values at the correct rank.
 
@@ -91,6 +116,9 @@ def _apply_node_recipes(
       1. Per-node-id recipes (node_recipes_by_id[node_id]) — precise, specific to this node
       2. Tree+node_type fallback (recipes_by_tree[tree_name][node_type]) — coarse, for compat
     """
+    if numeric_vals is None:
+        numeric_vals = {}
+
     per_node = (node_recipes_by_id or {}).get(node_id)
     if per_node is not None:
         type_recipes = per_node
@@ -109,34 +137,76 @@ def _apply_node_recipes(
     label = f"{label_prefix}{_node_type_display(node_type)}"
 
     for recipe in type_recipes:
-        cond = recipe.get("condition")
-        if cond and cond not in active_conditions:
+        if not _eval_condition(recipe.get("condition"), active_booleans, numeric_vals):
             continue
+
+        # Rank-based static values
         values = recipe.get("values", [])
-        if not values:
-            continue
-        idx = min(rank_index, len(values) - 1)
-        entry = SourceEntry(
-            stat=recipe["stat"],
-            amount=values[idx],
-            source_type=source_type,
-            label=label,
-            text=recipe.get("text", ""),
-            points=points,
-        )
-        source.add_with_source(recipe["stat"], values[idx], entry)
+        if values:
+            idx = min(rank_index, len(values) - 1)
+            entry = SourceEntry(
+                stat=recipe["stat"],
+                amount=values[idx],
+                source_type=source_type,
+                label=label,
+                text=recipe.get("text", ""),
+                points=points,
+            )
+            source.add_with_source(recipe["stat"], values[idx], entry)
+
+        # Scaling contribution (additive on top of values, separate SourceEntry row)
+        if "scaling" in recipe:
+            s = recipe["scaling"]
+            raw = numeric_vals.get(s["key"], 0.0)
+            floor_val = s.get("floor", 0.0)
+            eff = max(raw, floor_val) if floor_val is not None else raw
+            if "per_n" in s:
+                amount = (eff // s["per_n"]) * s["per"]
+            else:
+                amount = eff * s["per"]
+            if s.get("cap") is not None:
+                amount = min(amount, s["cap"])
+            scale_entry = SourceEntry(
+                stat=recipe["stat"],
+                amount=amount,
+                source_type=source_type,
+                label=label,
+                text=recipe.get("text", ""),
+                points=points,
+            )
+            source.add_with_source(recipe["stat"], amount, scale_entry)
 
 
-def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dict,
-              active_conditions: frozenset[str] | None = None) -> BuildSource:
+def aggregate(
+    build: BuildInput,
+    season_trees: dict[str, dict],
+    filter_data: dict,
+    active_booleans: frozenset[str] | None = None,
+    numeric_vals: dict[str, float] | None = None,
+) -> BuildSource:
     """
     Collect all stat contributions from talent nodes and slates into a BuildSource.
 
-    season_trees: {tree_slug: season_tree_dict} — pre-loaded season tree data
-    filter_data:  the node_type_filter.json dict with a "recipes" key
+    season_trees:    {tree_slug: season_tree_dict} — pre-loaded season tree data
+    filter_data:     the node_type_filter.json dict with a "recipes" key
+    active_booleans: derived from build.condition_state by the fixed-point engine; if None,
+                     derived here for backward-compat single-call usage
+    numeric_vals:    numeric condition values (clamped) for scaling/threshold evaluation
     """
+    from models.conditions import CONDITIONS_BY_KEY
     source = BuildSource()
-    conds = active_conditions if active_conditions is not None else frozenset(build.conditions)
+
+    if active_booleans is None:
+        active_booleans = frozenset(
+            k for k, v in build.condition_state.items()
+            if CONDITIONS_BY_KEY.get(k) and CONDITIONS_BY_KEY[k].value_type == "boolean" and v
+        )
+    if numeric_vals is None:
+        numeric_vals = {
+            k: float(v) for k, v in build.condition_state.items()
+            if CONDITIONS_BY_KEY.get(k) and CONDITIONS_BY_KEY[k].value_type == "numeric"
+        }
+
     recipes_by_tree = filter_data.get("recipes", {})
     node_recipes_by_id = filter_data.get("node_recipes", {})
 
@@ -169,7 +239,8 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
                 source_type="talent", label_prefix=f"{tree_name} ",
                 node_recipes_by_id=node_recipes_by_id,
                 points=current_points,
-                active_conditions=conds,
+                active_booleans=active_booleans,
+                numeric_vals=numeric_vals,
             )
 
     # ── Slate slots ────────────────────────────────────────────────────────────
@@ -208,7 +279,8 @@ def aggregate(build: BuildInput, season_trees: dict[str, dict], filter_data: dic
                 source, tree_name, node_id, 1, 1, node_type, recipes_by_tree,
                 source_type="slate", label_prefix=slate_label_prefix,
                 node_recipes_by_id=node_recipes_by_id,
-                active_conditions=conds,
+                active_booleans=active_booleans,
+                numeric_vals=numeric_vals,
             )
 
     # ── Equipped gear affixes ──────────────────────────────────────────────────

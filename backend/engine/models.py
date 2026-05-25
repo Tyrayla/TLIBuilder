@@ -74,8 +74,17 @@ class BuildInput:
     season:     str                     # active season name for data lookups
     skill:      SkillConfig | None = None
     enemy:      EnemyConfig | None = None
-    conditions: list[str] = field(default_factory=list)  # active condition keys
+    # Unified condition state: boolean conditions store True/False, numeric store float.
+    condition_state: dict[str, float | bool] = field(default_factory=dict)
     gear:            list[dict] = field(default_factory=list)  # GearEngineItem dicts
     character:       list[dict] = field(default_factory=list)  # CharacterStatContribution dicts
     memory_effects:  list[str]  = field(default_factory=list)  # resolved hero memory modifier strings
     spirit_effects:  list[str]  = field(default_factory=list)  # pact spirit slot + rank modifier strings
+
+
+@dataclass
+class StatResult:
+    """Output of engine.compute()."""
+    stat_map:            dict                    # {stat_key: {display_name, total, sources, ...}}
+    condition_maximums:  dict[str, float]        # {condition_key: derived_max}
+    clamp_report:        dict[str, dict]         # {key: {"requested": v, "applied": v}}

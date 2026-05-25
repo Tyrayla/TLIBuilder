@@ -593,11 +593,43 @@ def save_filter(filter_data: dict) -> None:
         json.dump(filter_data, f, indent=2)
 
 
+def _collect_condition_keys(expr) -> set[str]:
+    if expr is None: return set()
+    if isinstance(expr, str): return {expr}
+    if "and" in expr: return set().union(*(_collect_condition_keys(e) for e in expr["and"]))
+    if "or"  in expr: return set().union(*(_collect_condition_keys(e) for e in expr["or"]))
+    if "not" in expr: return _collect_condition_keys(expr["not"])
+    if "op"  in expr: return {expr["key"]}
+    return set()
+
+
+def _validate_filter_keys(filter_data: dict) -> None:
+    from models.conditions import ALL_CONDITIONS
+    valid = {c.key for c in ALL_CONDITIONS}
+    numeric_keys = {c.key for c in ALL_CONDITIONS if c.value_type == "numeric"}
+    for tree, types in filter_data.get("recipes", {}).items():
+        for node_type, recipes in types.items():
+            for r in recipes:
+                for k in _collect_condition_keys(r.get("condition")):
+                    if k not in valid:
+                        raise ValueError(f"Unknown condition key {k!r} in {tree}/{node_type}")
+                if "scaling" in r:
+                    sk = r["scaling"]["key"]
+                    if sk not in valid:
+                        raise ValueError(f"Unknown scaling key {sk!r} in {tree}/{node_type}")
+                    if sk not in numeric_keys:
+                        raise ValueError(
+                            f"Scaling key {sk!r} is a boolean condition — scaling requires a numeric condition"
+                        )
+
+
 def load_filter() -> dict | None:
     if not os.path.exists(_FILTER_PATH):
         return None
     with open(_FILTER_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    _validate_filter_keys(data)
+    return data
 
 
 def build_node_recipes(season_trees: dict[str, dict]) -> dict[str, list[dict]]:
