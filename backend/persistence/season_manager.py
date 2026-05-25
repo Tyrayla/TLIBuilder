@@ -35,6 +35,8 @@ def set_active_season(name: str | None) -> None:
 
 
 def _season_dir(season: str) -> str:
+    if not season or ".." in season or "/" in season or "\\" in season:
+        raise ValueError(f"Invalid season name: {season!r}")
     return os.path.join(_SEASONS_DIR, season)
 
 

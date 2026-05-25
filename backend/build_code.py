@@ -111,6 +111,29 @@ def _rehydrate_gear_item(item: dict, gear_by_id: dict[str, dict]) -> dict:
     rehydrated["customizations"] = item.get("customizations", [])
     if item.get("base_type"):
         rehydrated["base_type"] = item["base_type"]
+
+    # Flatten variants → affixes so the frontend receives an EquippedGearItem
+    # shape (flat affixes list) rather than a LegendaryGearItem shape (variants dict).
+    # Mirrors GearScreen.getItemAffixes() on the frontend.
+    variants = rehydrated.get("variants") or {}
+    random_affixes_map = rehydrated.get("random_affixes") or {}
+    variant_key = next(iter(variants), "base")
+    variant = variants.get(variant_key) or {}
+    implicits = list(variant.get("implicits") or [])
+    explicits = list(variant.get("explicits") or [])
+    affixes = implicits + explicits
+    for group in (random_affixes_map.get(variant_key) or []):
+        affixes.append({
+            "raw_text": group["placeholder"],
+            "modifier_id": None,
+            "expression": group["placeholder"],
+            "condition": None,
+            "affix_kind": "placeholder",
+            "numeric_values": [],
+        })
+    rehydrated["affixes"] = affixes
+    rehydrated["implicit_count"] = len(implicits)
+
     return rehydrated
 
 

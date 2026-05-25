@@ -1,13 +1,18 @@
 import json
 import os
+import re
 import uuid
 
 _DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
 _DIR = os.path.normpath(os.path.join(_DATA_ROOT, 'builds'))
 
+_SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
+
 
 def _file(build_id: str) -> str:
+    if not _SAFE_ID.fullmatch(build_id):
+        raise ValueError(f"Invalid build id: {build_id!r}")
     return os.path.join(_DIR, f"{build_id}.txt")
 
 

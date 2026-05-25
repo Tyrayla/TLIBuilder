@@ -44,7 +44,8 @@
       "!{.env,.env.*,.npmrc,pnpm-lock.yaml}"
     ],
     "win": {
-      "executableName": "TLIBuilder"
+      "executableName": "TLIBuilder",
+      "icon": "build/icon.ico"
     },
     "extraResources": [
       {
