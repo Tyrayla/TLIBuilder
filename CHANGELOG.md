@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.1] - 2026-05-25
+
+### Bug Fixes
+- Fixed pact spirit outer/main skill being counted twice in stat calculations — outer effects now come from the selected rank's modifiers only, not the base slot effect.
+- Fixed gear stats missing after importing a build via build code or share link — legendary items are now fully rehydrated with a flat affixes list on decode.
+- Fixed notes, hero traits, hero memories, and pact spirits not being saved — extra fields were silently dropped by Pydantic v2; resolved with `extra='allow'` on `BuildRequest`.
+
+### Security
+- Path traversal guard on build IDs and season names in the Python backend.
+- `shell.openExternal` restricted to `http://` and `https://` URLs only.
+- Renderer sandbox enabled.
+- Share service responses capped at 512 KB; `tli1_` prefix validated before decode.
+
+### Other
+- Windows Start Menu and taskbar now show the TLI Builder icon instead of the default Electron icon.
+
+---
+
 ## [0.3.0] - 2026-05-24
 
 ### New Features

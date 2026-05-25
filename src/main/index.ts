@@ -204,6 +204,10 @@ function initUpdater(win: typeof BrowserWindow.prototype): void {
   }
 }
 
+function safeOpenExternal(url: string): void {
+  if (/^https?:\/\//i.test(url)) shell.openExternal(url)
+}
+
 function createWindow(): void {
   log('createWindow — creating BrowserWindow')
   const mainWindow = new BrowserWindow({
@@ -217,7 +221,7 @@ function createWindow(): void {
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
     },
   })
@@ -256,7 +260,7 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    safeOpenExternal(details.url)
     return { action: 'deny' }
   })
 
@@ -331,7 +335,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('check-for-update', async () => {
     try { await autoUpdater.checkForUpdates() } catch { /* error event fires */ }
   })
-  ipcMain.handle('open-external', (_event, url: string) => shell.openExternal(url))
+  ipcMain.handle('open-external', (_event, url: string) => safeOpenExternal(url))
 
   // Open the window immediately so users see the "Starting backend…" state
   // instead of a blank taskbar entry. getPythonPort() IPC calls queue until

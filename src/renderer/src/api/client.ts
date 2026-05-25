@@ -129,13 +129,21 @@ async function postToShareService<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
+const MAX_SHARE_CODE_BYTES = 512 * 1024 // 512 KB — more than enough for any build code
+
 async function getFromShareService(path: string): Promise<string> {
   // The share service returns the raw tli1_ code as text/plain.
   const res = await fetch(`${SHARE_BASE}${path}`, {
     signal: AbortSignal.timeout(15000),
   })
   if (!res.ok) throw new Error(`GET ${path} → ${res.status}`)
-  return res.text()
+  const len = Number(res.headers.get('content-length') ?? 0)
+  if (len > MAX_SHARE_CODE_BYTES) throw new Error('Shared build code exceeds size limit')
+  // No Content-Length fallback: buffers entire response before rejecting — acceptable
+  // given threat model; a streaming reader would be needed to truly bound a hostile server.
+  const text = await res.text()
+  if (text.length > MAX_SHARE_CODE_BYTES) throw new Error('Shared build code exceeds size limit')
+  return text
 }
 
 export interface TreeSlot {
@@ -501,7 +509,10 @@ export function buildSpiritEffects(
     if (!sel) continue
     const spirit = allSpirits.find(s => s.item_id === sel.itemId)
     if (!spirit) continue
-    for (const slot of spirit.slots) effects.push(slot.effect)
+    // Inner/mid effects are static; outer effects scale with rank and live in rankData.modifiers
+    for (const slot of spirit.slots) {
+      if (slot.ring !== 'outer') effects.push(slot.effect)
+    }
     const rankData = spirit.upgrade_ranks.find(r => r.rank === sel.rank)
     if (rankData) effects.push(...rankData.modifiers)
   }
