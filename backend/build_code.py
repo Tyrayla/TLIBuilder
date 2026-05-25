@@ -10,7 +10,7 @@ import json
 import zlib
 
 CODE_PREFIX = "tli1"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_DECOMPRESSED_BYTES = 1_000_000  # zip-bomb guard
 
 
@@ -181,4 +181,19 @@ def _migrate(build: dict, from_version) -> dict:
 
     Add one branch per schema version bump as the format evolves.
     """
+    if not isinstance(from_version, int) or from_version < 1:
+        raise BuildCodeError(
+            "This build code is from an older version and can't be imported."
+        )
+
+    if from_version < 2:
+        # v1 → v2: unified condition_state replaces separate conditions list + conditionValues dict.
+        # Merge both into a single dict: booleans stored as True, numerics as float.
+        old_conds = build.pop("conditions", None) or []
+        old_vals  = build.pop("conditionValues", None) or {}
+        state: dict = {k: True for k in old_conds if isinstance(k, str)}
+        state.update({k: float(v) for k, v in old_vals.items() if isinstance(k, str)})
+        build["conditionState"] = state
+        build["v"] = 2
+
     return build

@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { debounce } from 'lodash-es'
 import { useBuildStore } from './buildStore'
 import { api, EMPTY_STAT_SHEET } from '../api/client'
-import { effectiveConditionsFrom } from '../utils/conditions'
 import {
   buildGearPayload, buildEnergyContributions,
   buildMemoryEffects, buildSpiritEffects,
@@ -37,7 +36,7 @@ export function useBuildCalculation() {
         const result = await api.engineStats({
           slots: s.slots,
           slates: s.slates,
-          conditions: effectiveConditionsFrom(s.conditions, s.conditionValues),
+          condition_state: s.conditionState,
           gear: buildGearPayload(s.gear),
           character: buildEnergyContributions(s.gear, s.characterLevel, s.hasPrism),
           memory_effects: buildMemoryEffects(s.heroMemories),

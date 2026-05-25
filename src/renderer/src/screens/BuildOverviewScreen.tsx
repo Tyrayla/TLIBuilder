@@ -1,47 +1,45 @@
 import React from 'react'
-import { ConditionValues, ConditionMaximums } from '../api/client'
+import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
-
-const NUMERIC_CONDITION_KEYS = new Set(['tenacity_active', 'agility_active', 'focus_active', 'channeled_not_capped'])
+import type { ConditionDef } from '../api/client'
 
 interface Props {
-  conditions: string[]
-  conditionValues: ConditionValues
-  conditionMaximums: ConditionMaximums | null
-  onConditionsChange: (conditions: string[]) => void
-  onConditionValuesChange: (values: ConditionValues) => void
+  conditionState: Record<string, number | boolean>
+  onConditionStateChange: (state: Record<string, number | boolean>) => void
 }
 
-export default function BuildOverviewScreen({
-  conditions, conditionValues, conditionMaximums,
-  onConditionsChange, onConditionValuesChange,
-}: Props) {
+export default function BuildOverviewScreen({ conditionState, onConditionStateChange }: Props) {
   const conditionsData = useReferenceStore(s => s.conditions)
   const referenceResolved = useReferenceStore(s => s.referenceResolved)
   const conditionsFailed = useReferenceStore(s => s.failedCatalogs.has('conditions'))
+  const conditionMaximums = useBuildStore(s => s.computedStats.condition_maximums)
+  const clampReport = useBuildStore(s => s.computedStats.clamp_report)
 
-  const toggleCondition = (key: string) => {
-    const next = conditions.includes(key)
-      ? conditions.filter(c => c !== key)
-      : [...conditions, key]
-    onConditionsChange(next)
+  const setBoolean = (key: string, value: boolean) =>
+    onConditionStateChange({ ...conditionState, [key]: value })
+
+  const setNumeric = (key: string, value: number) =>
+    onConditionStateChange({ ...conditionState, [key]: value })
+
+  const getNumericMax = (cond: ConditionDef): number => {
+    // Prefer engine-derived max (accounts for talent bonuses), fall back to static definition
+    if (conditionMaximums[cond.key] !== undefined) return conditionMaximums[cond.key]
+    if (cond.numeric_max != null) return cond.numeric_max
+    return 99
   }
 
-  const setConditionValue = (field: keyof ConditionValues, value: number) => {
-    onConditionValuesChange({ ...conditionValues, [field]: value })
+  // Active count: user-controlled booleans that are on + numerics > 0 (excludes derived)
+  let activeCondCount = 0
+  if (conditionsData) {
+    for (const items of Object.values(conditionsData)) {
+      for (const cond of items) {
+        if (cond.is_derived) continue
+        const val = conditionState[cond.key]
+        if (cond.value_type === 'boolean' && val === true) activeCondCount++
+        if (cond.value_type === 'numeric' && (val as number) > 0) activeCondCount++
+      }
+    }
   }
-
-  const tenacityMax = conditionMaximums?.tenacity_max ?? 4
-  const agilityMax  = conditionMaximums?.agility_max  ?? 4
-  const focusMax    = conditionMaximums?.focus_max    ?? 4
-  const channeledMax = conditionValues.channeled_base_max + (conditionMaximums?.channeled_max_bonus ?? 0)
-
-  const numericActive =
-    (conditionValues.tenacity_stacks > 0 ? 1 : 0) +
-    (conditionValues.agility_stacks > 0 ? 1 : 0) +
-    (conditionValues.focus_stacks > 0 ? 1 : 0) +
-    (channeledMax > 0 && conditionValues.channeled_stacks < channeledMax ? 1 : 0)
-  const activeCondCount = conditions.length + numericActive
 
   const condCategories = conditionsData ? Object.entries(conditionsData) : []
   const loading = !referenceResolved && !conditionsData
@@ -60,103 +58,95 @@ export default function BuildOverviewScreen({
 
       {!loading && !conditionsFailed && (
         <div className="cond-grid">
-
-          {/* Blessings card — stack counters */}
-          <div className="cond-card">
-            <div className="cond-card-header">Blessings</div>
-            <div className="cond-card-body">
-              {([
-                { field: 'tenacity_stacks' as const, label: 'Tenacity', max: tenacityMax },
-                { field: 'agility_stacks'  as const, label: 'Agility',  max: agilityMax },
-                { field: 'focus_stacks'    as const, label: 'Focus',    max: focusMax },
-              ]).map(({ field, label, max }) => (
-                <div key={field} className="cond-stack-row">
-                  <span className="cond-stack-label">{label}</span>
-                  <div className="cond-stack-controls">
-                    <button
-                      className="cond-stack-btn"
-                      onClick={() => setConditionValue(field, Math.max(0, conditionValues[field] - 1))}
-                      disabled={conditionValues[field] <= 0}
-                    >−</button>
-                    <span className="cond-stack-value">
-                      {conditionValues[field]}<span className="cond-stack-max">/{max}</span>
-                    </span>
-                    <button
-                      className="cond-stack-btn"
-                      onClick={() => setConditionValue(field, Math.min(max, conditionValues[field] + 1))}
-                      disabled={conditionValues[field] >= max}
-                    >+</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Channeled Stacks card */}
-          <div className="cond-card">
-            <div className="cond-card-header">Channeled Stacks</div>
-            <div className="cond-card-body">
-              <div className="cond-stack-row">
-                <span className="cond-stack-label">Skill Base Max</span>
-                <input
-                  type="number"
-                  className="cond-stack-input"
-                  min={0}
-                  max={99}
-                  value={conditionValues.channeled_base_max}
-                  onChange={e => setConditionValue('channeled_base_max', Math.max(0, parseInt(e.target.value) || 0))}
-                />
-              </div>
-              {channeledMax > 0 ? (
-                <div className="cond-stack-row">
-                  <span className="cond-stack-label">Current</span>
-                  <div className="cond-stack-controls">
-                    <button
-                      className="cond-stack-btn"
-                      onClick={() => setConditionValue('channeled_stacks', Math.max(0, conditionValues.channeled_stacks - 1))}
-                      disabled={conditionValues.channeled_stacks <= 0}
-                    >−</button>
-                    <span className="cond-stack-value">
-                      {conditionValues.channeled_stacks}<span className="cond-stack-max">/{channeledMax}</span>
-                    </span>
-                    <button
-                      className="cond-stack-btn"
-                      onClick={() => setConditionValue('channeled_stacks', Math.min(channeledMax, conditionValues.channeled_stacks + 1))}
-                      disabled={conditionValues.channeled_stacks >= channeledMax}
-                    >+</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="cond-stack-hint">Set skill base max above to enable</div>
-              )}
-            </div>
-          </div>
-
-          {/* Boolean condition category cards */}
-          {condCategories
-            .filter(([cat]) => cat !== 'Blessings')
-            .map(([cat, items]) => {
-              const filtered = items.filter(c => !NUMERIC_CONDITION_KEYS.has(c.key))
-              if (filtered.length === 0) return null
-              return (
-                <div key={cat} className="cond-card">
-                  <div className="cond-card-header">{cat}</div>
-                  <div className="cond-card-body">
-                    {filtered.map(cond => (
+          {condCategories.map(([cat, items]) => {
+            // Skip empty categories (e.g. all items filtered out)
+            if (items.length === 0) return null
+            return (
+              <div key={cat} className="cond-card">
+                <div className="cond-card-header">{cat}</div>
+                <div className="cond-card-body">
+                  {items.map(cond => {
+                    if (cond.value_type === 'numeric') {
+                      return <NumericConditionRow
+                        key={cond.key}
+                        cond={cond}
+                        value={(conditionState[cond.key] as number) ?? 0}
+                        max={getNumericMax(cond)}
+                        clamp={clampReport[cond.key]}
+                        onChange={v => setNumeric(cond.key, v)}
+                      />
+                    }
+                    if (cond.is_derived) {
+                      // Auto-derived from corresponding stacks condition — read-only indicator
+                      const stackKey = cond.key.replace('_active', '_stacks')
+                      const isActive = ((conditionState[stackKey] as number) ?? 0) > 0
+                      return (
+                        <div key={cond.key} className="cond-item cond-item--derived">
+                          <span className={`cond-derived-dot ${isActive ? 'cond-derived-dot--on' : ''}`} />
+                          <span className="cond-label cond-label--derived">{cond.label}</span>
+                          <span className="cond-derived-hint">{isActive ? 'active' : 'inactive'}</span>
+                        </div>
+                      )
+                    }
+                    // Regular boolean — user-togglable checkbox
+                    return (
                       <label key={cond.key} className="cond-item">
                         <input
                           type="checkbox"
                           className="cond-check"
-                          checked={conditions.includes(cond.key)}
-                          onChange={() => toggleCondition(cond.key)}
+                          checked={conditionState[cond.key] === true}
+                          onChange={e => setBoolean(cond.key, e.target.checked)}
                         />
                         <span className="cond-label">{cond.label}</span>
                       </label>
-                    ))}
-                  </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface NumericRowProps {
+  cond: ConditionDef
+  value: number
+  max: number
+  clamp: { requested: number; applied: number } | undefined
+  onChange: (v: number) => void
+}
+
+function NumericConditionRow({ cond, value, max, clamp, onChange }: NumericRowProps) {
+  const min = cond.numeric_min ?? 0
+  const effectiveMax = max
+  const clamped = Math.min(Math.max(value, min), effectiveMax)
+
+  return (
+    <div className="cond-stack-row">
+      <span className="cond-stack-label">{cond.label}</span>
+      <div className="cond-stack-controls">
+        <button
+          className="cond-stack-btn"
+          onClick={() => onChange(Math.max(min, clamped - 1))}
+          disabled={clamped <= min}
+        >−</button>
+        <span className="cond-stack-value">
+          {clamped}
+          {effectiveMax < 999 && <span className="cond-stack-max">/{effectiveMax}</span>}
+          {cond.unit ? <span className="cond-stack-unit"> {cond.unit}</span> : null}
+        </span>
+        <button
+          className="cond-stack-btn"
+          onClick={() => onChange(Math.min(effectiveMax, clamped + 1))}
+          disabled={clamped >= effectiveMax}
+        >+</button>
+      </div>
+      {clamp && (
+        <div className="cond-clamp-warning">
+          ⚠ Capped at {clamp.applied} (entered {clamp.requested})
         </div>
       )}
     </div>

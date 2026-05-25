@@ -128,10 +128,14 @@ function startPython(): Promise<number> {
     } else {
       const script = join(__dirname, '../../backend/server.py')
       const cwd = join(__dirname, '../../backend')
-      spawnCmd = 'python'
+      const venvPython = join(__dirname, '../../venv/Scripts/python.exe')
+      if (!existsSync(venvPython)) {
+        throw new Error(`venv not found at ${venvPython} — run: python -m venv venv && venv\\Scripts\\pip install -r backend\\requirements.txt`)
+      }
+      spawnCmd = venvPython
       spawnArgs = [script, ...pythonArgs]
       spawnOpts = { cwd }
-      log(`startPython — dev mode, spawning: python ${script} --port ${PYTHON_PORT}`)
+      log(`startPython — dev mode, spawning: ${venvPython} ${script} --port ${PYTHON_PORT}`)
       log(`startPython — cwd: ${cwd}`)
     }
 

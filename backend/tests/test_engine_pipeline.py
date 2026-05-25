@@ -159,7 +159,7 @@ class TestCriticalStrike:
 
     def test_additional_crit_dmg_stacks_on_base(self):
         """50% crit, +50% crit_dmg bonus (total 200%): factor = 1 + 0.5 × (2.0 - 1) = 1.5."""
-        source = _source(crit_dmg=0.50)
+        source = _source(crit_dmg_inc=0.50)
         result = run_pipeline(source, _skill(base_csr=50.0, base_dmg_min=100.0, base_dmg_max=100.0), _enemy())
         assert result.crit_chance == pytest.approx(0.5)
         assert result.avg_hit == pytest.approx(150.0, rel=1e-3)

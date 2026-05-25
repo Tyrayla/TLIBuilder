@@ -14,10 +14,17 @@ LEGENDARY_ITEM = {
     "name": "Shield of Judgment",
     "required_level": 60,
     "base_type": "INT Shield",
-    "affixes": [
-        {"raw_text": "+200 Max Life", "expression": "+200 Max Life", "affix_kind": "numeric",
-         "numeric_values": [{"kind": "fixed", "value": 200}], "stat_key": "max_life_flat", "unit": ""},
-    ],
+    # Real catalog shape: affixes nested under variants, not a flat list.
+    "variants": {
+        "base": {
+            "implicits": [
+                {"raw_text": "+200 Max Life", "expression": "+200 Max Life", "affix_kind": "numeric",
+                 "numeric_values": [{"kind": "fixed", "value": 200}], "stat_key": "max_life_flat", "unit": ""},
+            ],
+            "explicits": [],
+        }
+    },
+    "random_affixes": {},
     "is_crafted": False,
     "customizations": [],
     "slot": "weapon2",

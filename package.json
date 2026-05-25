@@ -1,6 +1,6 @@
 {
   "name": "tli-builder",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "TLI Builder - a build planner for Torchlight: Infinite",
   "author": "Tyrayla",
   "main": "./out/main/index.js",

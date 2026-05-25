@@ -1,5 +1,6 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Literal
 
 
 @dataclass(frozen=True)
@@ -7,6 +8,14 @@ class ConditionDef:
     key: str
     label: str
     category: str
+    value_type: Literal["boolean", "numeric"] = "boolean"
+    numeric_min: float = 0
+    # max derivation: if max_from_stat set, max = max_base + source.total(max_from_stat)
+    # if numeric_max set and no max_from_stat, max is that static value; if neither, unbounded
+    numeric_max: float | None = None
+    max_base: float = 0
+    max_from_stat: str | None = None
+    unit: str = ""
 
 
 ALL_CONDITIONS: list[ConditionDef] = [
@@ -16,15 +25,58 @@ ALL_CONDITIONS: list[ConditionDef] = [
     ConditionDef("holding_one_handed",          "Holding One-Handed Weapon",         "Weapon"),
     ConditionDef("dual_wielding",               "Dual Wielding",                     "Weapon"),
 
-    # ── Blessings ─────────────────────────────────────────────────────────────
+    # ── Blessings — boolean active flags (auto-derived from stack count > 0) ─
     ConditionDef("tenacity_active",             "Tenacity Blessing Active",          "Blessings"),
     ConditionDef("focus_active",                "Focus Blessing Active",             "Blessings"),
     ConditionDef("agility_active",              "Agility Blessing Active",           "Blessings"),
+
+    # ── Blessings — numeric stack counts ──────────────────────────────────────
+    ConditionDef(
+        key="tenacity_stacks", label="Tenacity Stacks", category="Blessings",
+        value_type="numeric", numeric_min=0, max_base=4,
+        max_from_stat="max_tenacity_blessing_stacks_flat", unit="stacks",
+    ),
+    ConditionDef(
+        key="agility_stacks", label="Agility Stacks", category="Blessings",
+        value_type="numeric", numeric_min=0, max_base=4,
+        max_from_stat="max_agility_blessing_stacks_flat", unit="stacks",
+    ),
+    ConditionDef(
+        key="focus_stacks", label="Focus Stacks", category="Blessings",
+        value_type="numeric", numeric_min=0, max_base=4,
+        max_from_stat="max_focus_blessing_stacks_flat", unit="stacks",
+    ),
+
+    # ── Channeled stacks ──────────────────────────────────────────────────────
+    ConditionDef(
+        key="channeled_stacks", label="Channeled Stacks", category="Skill State",
+        value_type="numeric", numeric_min=0, max_base=0,
+        max_from_stat="max_channeled_stacks_flat", unit="stacks",
+    ),
+
+    # ── Enemy numeric state ────────────────────────────────────────────────────
+    ConditionDef(
+        key="enemy_ailment_count", label="Enemy Ailment Count", category="Enemy State",
+        value_type="numeric", numeric_min=0, numeric_max=8, unit="count",
+    ),
+    ConditionDef(
+        key="enemy_wilt_stacks", label="Enemy Wilt Stacks", category="Enemy State",
+        value_type="numeric", numeric_min=0, numeric_max=100, unit="stacks",
+    ),
+    ConditionDef(
+        key="enemy_torment_stacks", label="Enemy Torment Stacks", category="Enemy State",
+        value_type="numeric", numeric_min=0, numeric_max=50, unit="stacks",
+    ),
+    ConditionDef(
+        key="trauma_stacks", label="Trauma Stacks", category="Buffs",
+        value_type="numeric", numeric_min=0, unit="stacks",
+    ),
 
     # ── Buffs ─────────────────────────────────────────────────────────────────
     ConditionDef("blur_active",                 "Blur Active",                       "Buffs"),
     ConditionDef("fervor_active",               "Fervor Active",                     "Buffs"),
     ConditionDef("elixir_active",               "Elixir Skill Active",               "Buffs"),
+    ConditionDef("hasten_active",               "Hasten Active",                     "Buffs"),
 
     # ── Positioning ───────────────────────────────────────────────────────────
     ConditionDef("standing_still",              "Standing Still",                    "Positioning"),
@@ -70,3 +122,10 @@ ALL_CONDITIONS: list[ConditionDef] = [
 
 # Fast lookup by key
 CONDITIONS_BY_KEY: dict[str, ConditionDef] = {c.key: c for c in ALL_CONDITIONS}
+
+# Keys of conditions that are auto-derived from a numeric sibling (stacks > 0)
+DERIVED_ACTIVE_KEYS: dict[str, str] = {
+    "tenacity_active": "tenacity_stacks",
+    "agility_active":  "agility_stacks",
+    "focus_active":    "focus_stacks",
+}

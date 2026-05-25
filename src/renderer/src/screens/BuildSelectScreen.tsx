@@ -111,7 +111,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
       }
       setImportOpen(false)
       setImportConfirmed(false)
-      onOpenBuild(build as unknown as Build)
+      onOpenBuild({ ...(build as unknown as Build), name: 'New Build' })
     } catch (e: unknown) {
       if (e instanceof ShareFetchError) {
         setImportError("Couldn't fetch the shared build (link may be invalid or the service is unavailable).")

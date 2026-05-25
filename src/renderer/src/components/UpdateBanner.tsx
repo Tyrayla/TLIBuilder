@@ -43,7 +43,10 @@ export default function UpdateBanner({ info, downloading, progress, downloaded, 
           <div className="modal-card changelog-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-accent" />
             <h3 className="modal-title">What's New in {info.version}</h3>
-            <pre className="changelog-body">{info.releaseNotes || 'No release notes provided.'}</pre>
+            {info.releaseNotes
+              ? <div className="changelog-body" dangerouslySetInnerHTML={{ __html: info.releaseNotes }} />
+              : <div className="changelog-body changelog-body-empty">No release notes provided.</div>
+            }
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={() => setChangelogOpen(false)}>Close</button>
             </div>
