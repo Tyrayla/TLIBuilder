@@ -50,6 +50,18 @@ _SLATE_KIND_LABELS = {
     "when_sparks_set_prairie_ablaze": "Prairie",
 }
 
+_COPY_SLATE_KINDS = frozenset({"spark_of_moth_fire", "when_sparks_set_prairie_ablaze"})
+_MOTH_DELTAS: dict[str, tuple[int, int]] = {
+    "above": (-1, 0),
+    "below": (1, 0),
+    "left":  (0, -1),
+    "right": (0, 1),
+}
+
+def _slate_positions(slate: dict) -> list[tuple[int, int]]:
+    # cells are stored as absolute board positions, not relative offsets
+    return [tuple(c) for c in slate.get("cells", [])]
+
 def _node_type_display(node_type: str) -> str:
     return _NODE_TYPE_LABELS.get(node_type, node_type.replace("_", " ").title())
 
@@ -246,6 +258,13 @@ def aggregate(
     # ── Slate slots ────────────────────────────────────────────────────────────
     # Each CreatorSlot can reference a talent node via selectedNodeId.
     # We treat it as a rank-1 (single point) application of that node's recipes.
+
+    # Build a position→slate map for Moth/Prairie adjacency lookups.
+    position_to_slate: dict[tuple[int, int], dict] = {}
+    for _s in build.slates:
+        for _pos in _slate_positions(_s):
+            position_to_slate[_pos] = _s
+
     for slate in build.slates:
         for slot in slate.get("slots", []):
             node_id = slot.get("selectedNodeId")
@@ -278,6 +297,55 @@ def aggregate(
             _apply_node_recipes(
                 source, tree_name, node_id, 1, 1, node_type, recipes_by_tree,
                 source_type="slate", label_prefix=slate_label_prefix,
+                node_recipes_by_id=node_recipes_by_id,
+                active_booleans=active_booleans,
+                numeric_vals=numeric_vals,
+            )
+
+        # ── Moth/Prairie copy ───────────────────────────────────────────────
+        slate_kind = slate.get("kind", "base")
+        if slate_kind not in _COPY_SLATE_KINDS:
+            continue
+
+        ar, ac = slate.get("anchor", [0, 0])
+        if slate_kind == "spark_of_moth_fire":
+            moth_dir = slate.get("mothDirection")
+            if not moth_dir:
+                continue
+            dr, dc = _MOTH_DELTAS.get(moth_dir, (0, 0))
+            positions_to_check = [(ar + dr, ac + dc)]
+        else:  # when_sparks_set_prairie_ablaze — all 4 neighbours
+            positions_to_check = [(ar + dr, ac + dc) for dr, dc in _MOTH_DELTAS.values()]
+
+        kind_label = _SLATE_KIND_LABELS.get(slate_kind, slate_kind.replace("_", " ").title())
+
+        for pos in positions_to_check:
+            adj = position_to_slate.get(pos)
+            if not adj or adj.get("kind", "base") in _COPY_SLATE_KINDS:
+                continue  # missing or another copy-slate — skip
+            adj_slots = adj.get("slots", [])
+            if not adj_slots:
+                continue
+            # Only the bottom slot is copied (matches frontend getBottomEffects)
+            adj_slot = adj_slots[-1]
+            node_id = adj_slot.get("selectedNodeId")
+            if not node_id:
+                continue
+            slug = _tree_slug_from_node_id(node_id)
+            if not slug:
+                continue
+            season_tree = season_trees.get(slug, {})
+            if not season_tree:
+                continue
+            tree_name = season_tree.get("tree_name", slug)
+            nodes_by_id = {n["id"]: n for n in season_tree.get("nodes", [])}
+            node = nodes_by_id.get(node_id)
+            if not node:
+                continue
+            node_type = _normalize_node_type(node.get("node_type", ""))
+            _apply_node_recipes(
+                source, tree_name, node_id, 1, 1, node_type, recipes_by_tree,
+                source_type="slate", label_prefix=f"Slate · {kind_label} ",
                 node_recipes_by_id=node_recipes_by_id,
                 active_booleans=active_booleans,
                 numeric_vals=numeric_vals,

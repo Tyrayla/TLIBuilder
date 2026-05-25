@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, SavedSlate, EquippedGearItem, EquippedSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
+import { initApi, api, Build, TreeSlot, SavedSlate, EquippedGearItem, EquippedSkill, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
 import { migrateOldConditions } from './utils/conditions'
 import { useBuildStore } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
@@ -292,10 +292,13 @@ function App() {
         if (typeof v === 'number') nodeStates[k] = v
       }
     }
+    const coreTalentSelections: Record<string, string> = {}
     const core = o.coreTalentSelections
-    const coreTalentSelections = (core && typeof core === 'object' && !Array.isArray(core))
-      ? core as Record<string, unknown>
-      : {}
+    if (core && typeof core === 'object' && !Array.isArray(core)) {
+      for (const [k, v] of Object.entries(core as Record<string, unknown>)) {
+        if (typeof v === 'string') coreTalentSelections[k] = v
+      }
+    }
     return { treeName: o.treeName, nodeStates, coreTalentSelections }
   }
 
@@ -354,7 +357,14 @@ function App() {
       slates: build.slates ?? [],
       conditionState: build.conditionState ?? migrateOldConditions(build.conditions, build.conditionValues),
       gear,
-      skills: (build.skills ?? []).map(s => ({ ...s, supports: s.supports ?? [] })),
+      skills: (build.skills ?? []).map(s => ({
+        ...s,
+        supports: (s.supports ?? []).map((sup: EquippedSupportSkill) => ({
+          ...sup,
+          skill_type: sup.skill_type ?? 'support_skill',
+          level: sup.level ?? 20,
+        })),
+      })),
       characterLevel: build.characterLevel ?? 100,
       hasPrism: build.hasPrism ?? false,
       traitId: build.traitId ?? null,
@@ -787,11 +797,11 @@ function App() {
       <SlateScreen
         treeColors={treeColors}
         initialSlates={session.slates}
-        onBack={(slates) => {
+        onChange={(slates) => {
           setSession(s => ({ ...s, slates }))
           markDirty()
-          setScreen('build-overview')
         }}
+        onBack={() => setScreen('build-overview')}
       />
     )
   } else if (screen === 'stats') {

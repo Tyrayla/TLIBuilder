@@ -149,7 +149,7 @@ async function getFromShareService(path: string): Promise<string> {
 export interface TreeSlot {
   treeName: string
   nodeStates: Record<string, number>
-  coreTalentSelections?: Record<number, string>  // slot index → selected talent id
+  coreTalentSelections?: Record<string, string>  // slot index → selected talent id
 }
 
 export interface SavedSlateSlot {
@@ -267,7 +267,7 @@ export interface UnresolvedStat {
   tree: string
   node_type: string
   text: string
-  reason?: 'ambiguous' | 'unmatched' | 'multi_text'
+  reason?: 'ambiguous' | 'unmatched' | 'multi_text' | 'conditional'
   tied?: TiedCandidate[]
 }
 
@@ -684,6 +684,8 @@ export interface EquippedSupportSkill {
   support_index: number   // 1-5
   item_id: string
   name: string
+  skill_type: string
+  level: number
   skill_tags: string[]
   description_lines: string[]
 }

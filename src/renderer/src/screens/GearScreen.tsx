@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  api, LegendaryGearItem, LegendaryGearIndexItem, LegendaryAffix, LegendaryNumericValue,
+  LegendaryGearItem, LegendaryGearIndexItem, LegendaryAffix, LegendaryNumericValue,
   EquippedGearItem, CustomizedAffix, GearSlot, CraftBaseType, CraftAffix, CraftBaseItem, CraftBaseItemGroup,
   Graft, GraftAffix,
 } from '../api/client'
@@ -652,7 +652,9 @@ function reconstructVoraxSlots(
   return { baseSlots, prefixSlots, suffixSlots, legSourceName, legSourceItem }
 }
 
-function tiersForModifier(pool: CraftAffix[], expression: string): CraftAffix[] {
+type AffixWithTier = { expression: string; affix_type: string; tier: string }
+
+function tiersForModifier<T extends AffixWithTier>(pool: T[], expression: string): T[] {
   return pool.filter(a => a.expression === expression)
 }
 
@@ -662,12 +664,12 @@ function parseTierNum(tier: string): number {
   return parseFloat(s) || 0
 }
 
-function sortedTiers(tiers: CraftAffix[]): CraftAffix[] {
+function sortedTiers<T extends AffixWithTier>(tiers: T[]): T[] {
   return [...tiers].sort((a, b) => parseTierNum(a.tier) - parseTierNum(b.tier))
 }
 
 // Prefer the lowest tier >= 1 as default; fall back to the absolute lowest tier
-function defaultTier(tiers: CraftAffix[]): CraftAffix | null {
+function defaultTier<T extends AffixWithTier>(tiers: T[]): T | null {
   const sorted = sortedTiers(tiers)
   return sorted.find(a => parseTierNum(a.tier) >= 1) ?? sorted[0] ?? null
 }
@@ -682,7 +684,8 @@ function affixTypeLabel(affixType: string | undefined): string | undefined {
   return match ? `${match[1]} Affix` : undefined
 }
 
-function craftAffixToLegendary(a: CraftAffix): LegendaryAffix {
+function craftAffixToLegendary(a: CraftAffix | GraftAffix): LegendaryAffix {
+  const c = a as Partial<CraftAffix>
   return {
     raw_text: a.raw_text,
     modifier_id: null,
@@ -690,13 +693,13 @@ function craftAffixToLegendary(a: CraftAffix): LegendaryAffix {
     condition: a.condition,
     affix_kind: a.affix_kind,
     numeric_values: a.numeric_values,
-    stat_key: a.stat_key ?? null,
-    stat_keys: a.stat_keys,
-    is_range_split: a.is_range_split,
-    min_stat_keys: a.min_stat_keys,
-    max_stat_keys: a.max_stat_keys,
-    dual_stat_groups: a.dual_stat_groups,
-    unit: a.unit ?? '',
+    stat_key: c.stat_key ?? null,
+    stat_keys: c.stat_keys,
+    is_range_split: c.is_range_split,
+    min_stat_keys: c.min_stat_keys,
+    max_stat_keys: c.max_stat_keys,
+    dual_stat_groups: c.dual_stat_groups,
+    unit: c.unit ?? '',
     affix_type: a.affix_type,
   }
 }
@@ -734,7 +737,7 @@ const emptyVoraxSlot = (): VoraxAffixSlot => ({ expression: null, affix: null, c
 
 interface ModifierGroup { quality: string; expressions: string[] }
 
-function groupedModifiers(pool: CraftAffix[]): ModifierGroup[] {
+function groupedModifiers(pool: AffixWithTier[]): ModifierGroup[] {
   const groups: Record<string, Set<string>> = {}
   for (const a of pool) {
     const quality = a.affix_type.replace(/\s*(Pre-fix|Suffix|Affix).*$/i, '').trim() || 'Other'
@@ -1011,11 +1014,6 @@ function VoraxModSelect({ graftPool, legPool, value, onChange, disabledExpressio
     return result.sort()
   }, [legPool])
 
-  const allExprs = useMemo(() => {
-    const graft = graftGroups.flatMap(g => g.expressions)
-    return [...graft, ...legExprs]
-  }, [graftGroups, legExprs])
-
   const filteredGraft = useMemo(() => {
     if (!query.trim()) return null
     const q = query.toLowerCase()
@@ -1272,8 +1270,6 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
   const [legDropdownOpen, setLegDropdownOpen] = useState(false)
   const legDropdownRef = useRef<HTMLDivElement>(null)
   const legInputRef = useRef<HTMLInputElement>(null)
-  const targetSlot = (VORAX_GRAFT_SLOTS[graft.item_id] ?? ['helmet'])[0] as GearSlot
-
   useEffect(() => {
     if (!legDropdownOpen) { setLegSearch(''); return }
     setTimeout(() => legInputRef.current?.focus(), 0)
@@ -1363,8 +1359,8 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
       required_level: 0,
       affixes: allAffixes,
       customizations,
-      slot: null,
-      base_type: null,
+      slot: (VORAX_GRAFT_SLOTS[graft.item_id]?.[0] ?? null) as GearSlot | null,
+      base_type: undefined,
       is_crafted: true,
       is_vorax: true,
       implicit_count: baseAffixes.length,
@@ -1916,7 +1912,7 @@ function getItemQualityClass(item: EquippedGearItem): string {
   return 'quality-unique'
 }
 
-export default function GearScreen({ equippedItems, onGearChange, onBack }: Props) {
+export default function GearScreen({ equippedItems, onGearChange }: Props) {
   const legendaryIndex = useReferenceStore(s => s.legendaryIndex)
   const catalogRaw = useReferenceStore(s => s.legendaryCatalog)
   const craftBaseItemsRaw = useReferenceStore(s => s.craftBaseItems)
@@ -2191,7 +2187,9 @@ export default function GearScreen({ equippedItems, onGearChange, onBack }: Prop
 
   const dragValidSlots = useMemo((): GearSlot[] => {
     if (dragIdx === null) return []
-    const bt = equippedItems[dragIdx]?.base_type
+    const item = equippedItems[dragIdx]
+    if (item?.is_vorax) return VORAX_GRAFT_SLOTS[item.item_id] ?? []
+    const bt = item?.base_type
     if (!bt) return SLOT_ORDER.map(s => s.id)
     const valid = getValidSlots(bt, craftBaseSlotMap)
     let slots = valid.length > 0 ? valid : SLOT_ORDER.map(s => s.id)
