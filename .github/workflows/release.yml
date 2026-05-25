@@ -36,12 +36,12 @@ jobs:
       - name: Extract changelog for this release
         shell: pwsh
         run: |
-          $version = node -p "require('./package.json').version"
-          $content = Get-Content CHANGELOG.md -Raw
+          $version = (node -p "require('./package.json').version").Trim()
+          $content = (Get-Content CHANGELOG.md -Raw) -replace "`r`n", "`n" -replace "`r", "`n"
           $escaped = [regex]::Escape($version)
           $pattern = "(?m)^## \[$escaped\][^\n]*\n([\s\S]*?)(?=^## \[|\z)"
           if ($content -match $pattern) {
-            $matches[1].Trim() | Out-File -FilePath release_notes.md -Encoding utf8
+            ($matches[1].Trim() -replace '\s*---\s*$', '') | Out-File -FilePath release_notes.md -Encoding utf8
           } else {
             "See CHANGELOG.md for details." | Out-File -FilePath release_notes.md -Encoding utf8
           }
@@ -56,5 +56,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $version = node -p "require('./package.json').version"
+          $version = (node -p "require('./package.json').version").Trim()
           gh release edit "v$version" --notes-file release_notes.md
