@@ -273,21 +273,21 @@ class TestConditionalRecipes:
         source = BuildSource()
         recipes = {"Warrior": {"micro": [{"stat": "dmg_inc", "rank1": 0.15, "values": [0.15], "condition": "holding_shield"}]}}
         _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 1, "micro", recipes,
-                            active_conditions=frozenset({"holding_shield"}))
+                            active_booleans=frozenset({"holding_shield"}))
         assert source.total("dmg_inc") == pytest.approx(0.15)
 
     def test_conditional_recipe_skipped_when_inactive(self):
         source = BuildSource()
         recipes = {"Warrior": {"micro": [{"stat": "dmg_inc", "rank1": 0.15, "values": [0.15], "condition": "holding_shield"}]}}
         _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 1, "micro", recipes,
-                            active_conditions=frozenset())
+                            active_booleans=frozenset())
         assert source.total("dmg_inc") == 0.0
 
     def test_non_conditional_recipe_always_applied(self):
         source = BuildSource()
         recipes = {"Warrior": {"micro": [{"stat": "dmg_inc", "rank1": 0.15, "values": [0.15]}]}}
         _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 1, "micro", recipes,
-                            active_conditions=frozenset())
+                            active_booleans=frozenset())
         assert source.total("dmg_inc") == pytest.approx(0.15)
 
     def test_mixed_recipes_only_conditional_gated(self):
@@ -302,7 +302,7 @@ class TestConditionalRecipes:
             }
         }
         _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 1, "micro", recipes,
-                            active_conditions=frozenset())
+                            active_booleans=frozenset())
         assert source.total("dmg_inc") == pytest.approx(0.10)
         assert source.total("attack_dmg_inc") == 0.0
 
@@ -318,7 +318,7 @@ class TestConditionalRecipes:
             }
         }
         build_active = _build(slots=[{"treeName": "Warrior", "nodeStates": {"warrior_c0_r0": 1}}])
-        build_active.conditions = ["holding_shield"]
+        build_active.condition_state = {"holding_shield": True}
         source_active = aggregate(build_active, season_trees, filter_data)
         assert source_active.total("dmg_inc") == pytest.approx(0.15)
 
