@@ -4,9 +4,16 @@
 
 ### New Features
 - **Dev data inspector** — browser-based tool at `/api/dev/inspect/` for exploring season JSON files. Supports field discovery, variant exploration, filtered queries (name/has/missing/where/modifier text), and syntax-highlighted result display.
+- **Legendary gear corruption** — Corruption dropdown (None / Desecration / Mutation) on legendary items that have a corroded variant (hidden for Divinity Slate items).
+  - **Desecration** — toggle up to 2 explicit modifiers to their corroded tier; affected rows are highlighted in purple and stats update immediately via eager affix swap.
+  - **Mutation** — select one slot-specific mutation implicit from the craft base pool; the modifier appears in purple above regular implicits and contributes to stats where a stat key can be resolved.
 
 ### Improvements
 - **Dev-mode API gating** — `/api/dev/*` routes now return 404 in packaged builds. Electron passes `TLI_DEV_MODE=1` (dev) or `=0` (packaged) so the backend knows its context without process introspection.
+
+### Bug Fixes
+- Fixed mutation affix pool not populating after reimporting craft base types in DevTools — the reference store now refreshes `craftBaseTypes` immediately after a successful import without requiring an app restart.
+- Fixed mutation affixes having no stat contribution — `corrosion_base` entries are now parsed with `parse_affix_text` at import time and stat keys are resolved in `_resolve_craft_base_types`, matching the pipeline used for all other gear affixes.
 
 ---
 

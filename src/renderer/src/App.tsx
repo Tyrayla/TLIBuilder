@@ -310,6 +310,10 @@ function App() {
       ...g,
       affixes: Array.isArray(g.affixes) ? g.affixes : [],
       customizations: Array.isArray(g.customizations) ? g.customizations : [],
+      corrosion_type: g.corrosion_type ?? 'none',
+      corroded_explicit_indices: g.corroded_explicit_indices ?? [],
+      mutation_affix_text: g.mutation_affix_text ?? null,
+      mutation_resolved_affix: g.mutation_resolved_affix ?? null,
     }))
 
     // Re-resolve stat fields for crafted items — saved values can become stale

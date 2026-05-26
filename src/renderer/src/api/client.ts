@@ -560,6 +560,7 @@ export interface CraftBaseType {
   name: string
   affixes: CraftAffix[]
   base_items: CraftBaseItem[]
+  corrosion_base_affixes?: Array<LegendaryAffix & { modifier_text: string }>
 }
 
 // Lightweight version — no affix pools, just base item metadata
@@ -933,6 +934,10 @@ export interface EquippedGearItem {
   base_stats?: Record<string, number>
   implicit_count?: number
   craft_slot_positions?: number[]
+  corrosion_type?: 'none' | 'desecration' | 'mutation'
+  corroded_explicit_indices?: number[]
+  mutation_affix_text?: string | null
+  mutation_resolved_affix?: LegendaryAffix | null
 }
 
 export interface GearAffixContribution {

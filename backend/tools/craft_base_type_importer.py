@@ -96,11 +96,20 @@ def import_crawler_craft_base_type(data: dict) -> dict:
             "implicits": implicits,
         })
 
+    corrosion_base_affixes = []
+    for a in (data.get("corrosion_base") or []):
+        text = a.get("Modifier", "").strip()
+        if text:
+            parsed = parse_affix_text(text, None)
+            parsed["modifier_text"] = text
+            corrosion_base_affixes.append(parsed)
+
     return {
         "item_id": item_id,
         "name": name,
         "affixes": affixes,
         "base_items": base_items,
+        "corrosion_base_affixes": corrosion_base_affixes,
     }
 
 

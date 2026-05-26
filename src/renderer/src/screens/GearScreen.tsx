@@ -238,8 +238,12 @@ function GearTooltip({ state }: { state: TooltipState }) {
         const implCount = craftItem.implicit_count ?? 0
         const craftImplicits = craftItem.affixes.slice(0, implCount)
         const craftExplicits = craftItem.affixes.slice(implCount)
+        const mutText = craftItem.corrosion_type === 'mutation' ? craftItem.mutation_affix_text : null
         return (
           <>
+            {mutText && (
+              <div className="gear-tooltip-affix gear-tooltip-affix--corroded">{mutText}</div>
+            )}
             {craftImplicits.map((affix, i) => (
               <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">
                 {affix.raw_text}
@@ -343,9 +347,20 @@ interface CustomizePanelProps {
   baseItemImplicits: Record<string, string[]>
   previewName: string | null
   previewLines: PreviewLine[] | null
+  catalogItem: LegendaryGearItem | null
+  corrosionBaseAffixes: Array<LegendaryAffix & { modifier_text: string }>
+  corrosionType: 'none' | 'desecration' | 'mutation'
+  corrodedExplicitIndices: number[]
+  mutationAffixText: string | null
+  onCorrosionChange: (
+    type: 'none' | 'desecration' | 'mutation',
+    indices: number[],
+    mutationText: string | null,
+    updatedAffixes: LegendaryAffix[] | null
+  ) => void
 }
 
-function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines }: CustomizePanelProps) {
+function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines, catalogItem, corrosionBaseAffixes, corrosionType, corrodedExplicitIndices, mutationAffixText, onCorrosionChange }: CustomizePanelProps) {
   const [hoveredAffix, setHoveredAffix] = useState<{ idx: number; x: number; y: number } | null>(null)
   const [baseHoverPos, setBaseHoverPos] = useState<{ x: number; y: number } | null>(null)
   const custPanelId = useId()
@@ -378,9 +393,97 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
   const baseType = ('base_type' in item ? item.base_type : undefined) ?? ''
   const typeLabel = getGearTypeLabel(baseType || (isLegendary ? '' : ''))
   const implicits = isLegendary ? getItemImplicits(item) : []
-  const explicits = isLegendary ? getItemExplicits(item) : []
+  const baseExplicits = isLegendary ? getItemExplicits(item) : []
+  // For catalog view: show corroded affix text for toggled explicits
+  const explicits = isLegendary
+    ? baseExplicits.map((affix, i) =>
+        corrodedExplicitIndices.includes(i) && catalogItem?.variants?.corroded?.explicits[i]
+          ? catalogItem.variants.corroded.explicits[i]
+          : affix
+      )
+    : []
 
-  const renderAffixRow = (affix: LegendaryAffix, affixIdx: number) => {
+  const hasCorroded = !!(catalogItem?.variants?.corroded)
+  // Show corrosion controls for legendary items (both catalog view and equipped view)
+  const showCorrosion = !!catalogItem && hasCorroded
+
+  const getImplicitCount = (): number => {
+    if (isLegendaryGearItem(item)) return implicits.length
+    return (item as EquippedGearItem).implicit_count ?? 0
+  }
+
+  const handleToggleCorroded = (explicitIndex: number) => {
+    if (!catalogItem?.variants?.corroded) return
+    const baseVariant = catalogItem.variants.base
+    const corrodedVariant = catalogItem.variants.corroded
+    const isCurrentlyCorroded = corrodedExplicitIndices.includes(explicitIndex)
+
+    let newIndices: number[]
+    if (isCurrentlyCorroded) {
+      newIndices = corrodedExplicitIndices.filter(i => i !== explicitIndex)
+    } else if (corrodedExplicitIndices.length < 2) {
+      newIndices = [...corrodedExplicitIndices, explicitIndex]
+    } else {
+      return
+    }
+
+    const implCount = getImplicitCount()
+    const affixArrayIndex = implCount + explicitIndex
+
+    let currentAffixes: LegendaryAffix[]
+    if (isLegendaryGearItem(item)) {
+      currentAffixes = getItemAffixes(item)
+    } else {
+      currentAffixes = [...(item as EquippedGearItem).affixes]
+    }
+    const updatedAffixes = [...currentAffixes]
+
+    if (isCurrentlyCorroded) {
+      const baseAffix = baseVariant?.explicits[explicitIndex]
+      if (baseAffix) updatedAffixes[affixArrayIndex] = baseAffix
+    } else {
+      const corrodedAffix = corrodedVariant.explicits[explicitIndex]
+      if (corrodedAffix) updatedAffixes[affixArrayIndex] = corrodedAffix
+    }
+
+    // Clear stale customization for the toggled explicit
+    const newCustomizations = customizations.filter(c => c.affix_index !== affixArrayIndex)
+    onCustomizationChange(newCustomizations)
+
+    onCorrosionChange('desecration', newIndices, null, updatedAffixes)
+  }
+
+  const handleCorrosionTypeChange = (newType: 'none' | 'desecration' | 'mutation') => {
+    if (!catalogItem?.variants?.base) return
+    const baseVariant = catalogItem.variants.base
+    const implCount = getImplicitCount()
+
+    let updatedAffixes: LegendaryAffix[] | null = null
+    if (corrodedExplicitIndices.length > 0) {
+      let currentAffixes: LegendaryAffix[]
+      if (isLegendaryGearItem(item)) {
+        currentAffixes = getItemAffixes(item)
+      } else {
+        currentAffixes = [...(item as EquippedGearItem).affixes]
+      }
+      updatedAffixes = [...currentAffixes]
+      for (const idx of corrodedExplicitIndices) {
+        const baseAffix = baseVariant.explicits[idx]
+        if (baseAffix) updatedAffixes[implCount + idx] = baseAffix
+      }
+      // Clear stale customizations for all formerly corroded explicits
+      const staleIndices = new Set(corrodedExplicitIndices.map(i => implCount + i))
+      onCustomizationChange(customizations.filter(c => !staleIndices.has(c.affix_index)))
+    }
+
+    onCorrosionChange(newType, [], newType === 'mutation' ? mutationAffixText : null, updatedAffixes)
+  }
+
+  const renderAffixRow = (affix: LegendaryAffix, affixIdx: number, explicitIndex?: number) => {
+    const isCorroded = explicitIndex !== undefined && corrodedExplicitIndices.includes(explicitIndex)
+    const showToggle = corrosionType === 'desecration' && showCorrosion && explicitIndex !== undefined
+    const toggleDisabled = !isCorroded && corrodedExplicitIndices.length >= 2
+
     if (affix.affix_kind === 'placeholder') {
       return (
         <div key={affixIdx} className="gear-affix-row gear-affix-placeholder">
@@ -393,8 +496,16 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
     }
     if (!hasRangeValues(affix)) {
       return (
-        <div key={affixIdx} className="gear-affix-row">
+        <div key={affixIdx} className={`gear-affix-row${isCorroded ? ' gear-affix-row--corroded' : ''}`}>
           <div className="gear-affix-label">{affix.raw_text}</div>
+          {showToggle && (
+            <button
+              className={`gear-corrosion-toggle${isCorroded ? ' active' : ''}`}
+              disabled={toggleDisabled}
+              onClick={() => handleToggleCorroded(explicitIndex!)}
+              title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
+            >C</button>
+          )}
         </div>
       )
     }
@@ -405,11 +516,19 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
       ...chosenMap,
     })
     return (
-      <div key={affixIdx} className="gear-affix-row gear-affix-range-row"
+      <div key={affixIdx} className={`gear-affix-row gear-affix-range-row${isCorroded ? ' gear-affix-row--corroded' : ''}`}
         onMouseMove={e => setHoveredAffix({ idx: affixIdx, x: e.clientX, y: e.clientY })}
         onMouseLeave={() => setHoveredAffix(null)}
       >
         <div className="gear-affix-label">{displayText}</div>
+        {showToggle && (
+          <button
+            className={`gear-corrosion-toggle${isCorroded ? ' active' : ''}`}
+            disabled={toggleDisabled}
+            onClick={() => handleToggleCorroded(explicitIndex!)}
+            title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
+          >C</button>
+        )}
         {rangeIndices.map(valIdx => {
           const nv = affix.numeric_values[valIdx]
           const nvSign = nv.sign ?? ''
@@ -496,14 +615,54 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
       })()}
       <div className="gear-customize-divider" />
 
+      {showCorrosion && (
+        <div className="gear-corrosion-section">
+          <div className="gear-corrosion-row">
+            <span className="gear-corrosion-label">Corruption</span>
+            <select
+              className="gear-corrosion-select"
+              value={corrosionType}
+              onChange={e => handleCorrosionTypeChange(e.target.value as 'none' | 'desecration' | 'mutation')}
+            >
+              <option value="none">None</option>
+              <option value="desecration">Desecration</option>
+              <option value="mutation">Mutation</option>
+            </select>
+          </div>
+          {corrosionType === 'mutation' && (
+            corrosionBaseAffixes.length > 0 ? (
+              <select
+                className="gear-mutation-select"
+                value={mutationAffixText ?? ''}
+                onChange={e => onCorrosionChange('mutation', [], e.target.value || null, null)}
+              >
+                <option value="">— select mutation —</option>
+                {corrosionBaseAffixes.map((a, i) => (
+                  <option key={i} value={a.modifier_text}>{a.modifier_text}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="gear-mutation-unavailable">
+                Mutation data not available — re-import craft data from DevTools.
+              </div>
+            )
+          )}
+        </div>
+      )}
+
       <div className="gear-customize-affixes">
         {isLegendary ? (
           <>
+            {showCorrosion && corrosionType === 'mutation' && mutationAffixText && (
+              <div className="gear-affix-row gear-affix-row--corroded">
+                <div className="gear-affix-label">{mutationAffixText}</div>
+              </div>
+            )}
             {implicits.map((affix, i) => renderAffixRow(affix, i))}
             {implicits.length > 0 && explicits.length > 0 && (
               <div className="gear-affix-section-divider" />
             )}
-            {explicits.map((affix, i) => renderAffixRow(affix, implicits.length + i))}
+            {explicits.map((affix, i) => renderAffixRow(affix, implicits.length + i, i))}
           </>
         ) : (() => {
           const craftItem = item as EquippedGearItem
@@ -512,11 +671,16 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
           const craftExplicits = craftItem.affixes.slice(implCount)
           return (
             <>
+              {showCorrosion && corrosionType === 'mutation' && mutationAffixText && (
+                <div className="gear-affix-row gear-affix-row--corroded">
+                  <div className="gear-affix-label">{mutationAffixText}</div>
+                </div>
+              )}
               {craftImplicits.map((affix, i) => renderAffixRow(affix, i))}
               {craftImplicits.length > 0 && craftExplicits.length > 0 && (
                 <div className="gear-affix-section-divider" />
               )}
-              {craftExplicits.map((affix, i) => renderAffixRow(affix, implCount + i))}
+              {craftExplicits.map((affix, i) => renderAffixRow(affix, implCount + i, catalogItem ? i : undefined))}
             </>
           )
         })()}
@@ -674,7 +838,7 @@ function defaultTier<T extends AffixWithTier>(tiers: T[]): T | null {
   return sorted.find(a => parseTierNum(a.tier) >= 1) ?? sorted[0] ?? null
 }
 
-type PreviewLine = { text: string; label?: string } | null
+type PreviewLine = { text: string; label?: string; corroded?: boolean } | null
 
 function affixTypeLabel(affixType: string | undefined): string | undefined {
   if (!affixType) return undefined
@@ -1870,7 +2034,7 @@ function ItemPreviewCard({ name, lines }: { name: string | null; lines: PreviewL
   const allLines = hasImplicitExplicitSplit ? null : lines.filter((l): l is Line => l !== null)
 
   const renderLine = (line: Line, key: string, implicit?: boolean) => (
-    <div key={key} className={`gear-preview-affix${implicit ? ' gear-preview-affix--implicit' : ''}`}>
+    <div key={key} className={`gear-preview-affix${implicit ? ' gear-preview-affix--implicit' : ''}${line.corroded ? ' gear-preview-affix--corroded' : ''}`}>
       {line.text}
       {line.label && <span className="gear-affix-label">({line.label})</span>}
     </div>
@@ -1935,6 +2099,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<LegendaryGearItem | null>(null)
   const [editingBuildIdx, setEditingBuildIdx] = useState<number | null>(null)
   const [customizations, setCustomizations] = useState<CustomizedAffix[]>([])
+  const [corrosionType, setCorrosionType] = useState<'none' | 'desecration' | 'mutation'>('none')
+  const [corrodedExplicitIndices, setCorrodedExplicitIndices] = useState<number[]>([])
+  const [mutationAffixText, setMutationAffixText] = useState<string | null>(null)
   // Craft state
   const [craftOpen, setCraftOpen] = useState(false)
   const [craftBaseType, setCraftBaseType] = useState<CraftBaseType | null>(null)
@@ -1948,6 +2115,12 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   const [dragOverSlot, setDragOverSlot] = useState<GearSlot | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
+  const resetCorrosion = () => {
+    setCorrosionType('none')
+    setCorrodedExplicitIndices([])
+    setMutationAffixText(null)
+  }
+
   const openCraft = () => {
     setCraftOpen(true)
     setCraftBaseType(null)
@@ -1958,6 +2131,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     setSelectedCatalogItem(null)
     setEditingBuildIdx(null)
     setCustomizations([])
+    resetCorrosion()
   }
 
   const closeCraft = () => {
@@ -1969,6 +2143,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     setSelectedGraft(null)
     setVoraxInitialState(null)
     setEditingBuildIdx(null)
+    resetCorrosion()
   }
 
   useEffect(() => {
@@ -1992,6 +2167,46 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
 
   const isEditing = editingBuildIdx !== null
 
+  // The catalog LegendaryGearItem backing the currently-displayed CustomizePanel item
+  const legendaryCatalogItem = useMemo((): LegendaryGearItem | null => {
+    if (!customizeItem) return null
+    if (isLegendaryGearItem(customizeItem)) return customizeItem
+    return catalogMap.get(customizeItem.item_id) ?? null
+  }, [customizeItem, catalogMap])
+
+  // Mutation affix pool for the current legendary's slot (from craft base type corrosion_base)
+  const corrosionBaseAffixes = useMemo((): Array<LegendaryAffix & { modifier_text: string }> => {
+    if (!legendaryCatalogItem) return []
+    const bt = craftBases.find(slot => slot.base_items.some(bi => bi.name === legendaryCatalogItem.base_type))
+    return (bt?.corrosion_base_affixes ?? []) as Array<LegendaryAffix & { modifier_text: string }>
+  }, [legendaryCatalogItem, craftBases])
+
+  const handleCorrosionChange = (
+    type: 'none' | 'desecration' | 'mutation',
+    indices: number[],
+    mutationText: string | null,
+    updatedAffixes: LegendaryAffix[] | null
+  ) => {
+    setCorrosionType(type)
+    setCorrodedExplicitIndices(indices)
+    setMutationAffixText(mutationText)
+    const mutationResolvedAffix = type === 'mutation' && mutationText
+      ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationText) ?? null)
+      : null
+    if (editingBuildIdx !== null) {
+      const next = [...equippedItems]
+      next[editingBuildIdx] = {
+        ...next[editingBuildIdx],
+        ...(updatedAffixes !== null ? { affixes: updatedAffixes } : {}),
+        corrosion_type: type,
+        corroded_explicit_indices: indices,
+        mutation_affix_text: mutationText,
+        mutation_resolved_affix: mutationResolvedAffix,
+      }
+      onGearChange(next)
+    }
+  }
+
   const handleSelectCatalogItem = (indexItem: LegendaryGearIndexItem) => {
     const full = catalogMap.get(indexItem.item_id)
     if (!full) return
@@ -2000,6 +2215,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     setCustomizations([])
     setCraftOpen(false)
     setCraftBaseType(null)
+    resetCorrosion()
   }
 
   const handleSelectBuildItem = (idx: number) => {
@@ -2036,6 +2252,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     setCustomizations(item.customizations)
     setCraftOpen(false)
     setCraftBaseType(null)
+    setCorrosionType(item.corrosion_type ?? 'none')
+    setCorrodedExplicitIndices(item.corroded_explicit_indices ?? [])
+    setMutationAffixText(item.mutation_affix_text ?? null)
   }
 
   const handleRemoveBuildItem = (idx: number) => {
@@ -2052,18 +2271,35 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
 
   const handleAddFromCatalog = () => {
     if (!selectedCatalogItem) return
+    const baseAffixes = getItemAffixes(selectedCatalogItem)
+    const implCount = getItemImplicits(selectedCatalogItem).length
+    const affixes = [...baseAffixes]
+    if (corrodedExplicitIndices.length > 0 && selectedCatalogItem.variants.corroded) {
+      for (const idx of corrodedExplicitIndices) {
+        const corroded = selectedCatalogItem.variants.corroded.explicits[idx]
+        if (corroded) affixes[implCount + idx] = corroded
+      }
+    }
+    const mutationResolvedAffix = corrosionType === 'mutation' && mutationAffixText
+      ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationAffixText) ?? null)
+      : null
     const newItem: EquippedGearItem = {
       item_id: selectedCatalogItem.item_id,
       name: selectedCatalogItem.name,
       required_level: selectedCatalogItem.required_level,
-      affixes: getItemAffixes(selectedCatalogItem),
+      affixes,
       customizations,
       slot: null,
       base_type: selectedCatalogItem.base_type,
+      corrosion_type: corrosionType,
+      corroded_explicit_indices: corrodedExplicitIndices,
+      mutation_affix_text: mutationAffixText,
+      mutation_resolved_affix: mutationResolvedAffix,
     }
     onGearChange([...equippedItems, newItem])
     setSelectedCatalogItem(null)
     setCustomizations([])
+    resetCorrosion()
   }
 
   const handleSaveBuildItem = () => {
@@ -2073,6 +2309,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     onGearChange(next)
     setEditingBuildIdx(null)
     setCustomizations([])
+    resetCorrosion()
   }
 
   const handleCancel = () => {
@@ -2080,6 +2317,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     setEditingBuildIdx(null)
     setCustomizations([])
     setVoraxInitialState(null)
+    resetCorrosion()
   }
 
   const handleSlotAssign = (slot: GearSlot, buildItemIdx: number | null) => {
@@ -2225,13 +2463,22 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
       return craftLines
     }
     if (customizeItem) {
+      const mutationLine: PreviewLine = corrosionType === 'mutation' && mutationAffixText
+        ? { text: mutationAffixText, corroded: true }
+        : null
       if (isLegendaryGearItem(customizeItem)) {
         const implicits = getItemImplicits(customizeItem)
         const explicits = getItemExplicits(customizeItem)
+        const corrodedVariant = legendaryCatalogItem?.variants?.corroded
         const implicitLines: PreviewLine[] = implicits.map((a, i) => ({ text: tooltipAffixText(a, i, customizations) }))
-        const explicitLines: PreviewLine[] = explicits.map((a, i) => ({ text: tooltipAffixText(a, implicits.length + i, customizations) }))
-        if (implicits.length > 0 && explicits.length > 0) return [...implicitLines, null, ...explicitLines]
-        return [...implicitLines, ...explicitLines]
+        const explicitLines: PreviewLine[] = explicits.map((a, i) => {
+          const isCorroded = corrodedExplicitIndices.includes(i)
+          const displayAffix = isCorroded && corrodedVariant?.explicits[i] ? corrodedVariant.explicits[i] : a
+          return { text: tooltipAffixText(displayAffix, implicits.length + i, isCorroded ? undefined : customizations), corroded: isCorroded }
+        })
+        const allImplicits = mutationLine ? [mutationLine, ...implicitLines] : implicitLines
+        if (allImplicits.length > 0 && explicitLines.length > 0) return [...allImplicits, null, ...explicitLines]
+        return [...allImplicits, ...explicitLines]
       }
       const craftItem = customizeItem as EquippedGearItem
       const implicitCount = craftItem.implicit_count ?? 0
@@ -2243,12 +2490,14 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
       const explicitLines = allAffixes.slice(implicitCount).map((affix, i) => ({
         text: tooltipAffixText(affix, implicitCount + i, customizations),
         label: affixTypeLabel(affix.affix_type),
+        corroded: corrodedExplicitIndices.includes(i),
       }))
-      if (implicitLines.length > 0 && explicitLines.length > 0) return [...implicitLines, null, ...explicitLines]
-      return [...implicitLines, ...explicitLines]
+      const allImplicits = mutationLine ? [mutationLine, ...implicitLines] : implicitLines
+      if (allImplicits.length > 0 && explicitLines.length > 0) return [...allImplicits, null, ...explicitLines]
+      return [...allImplicits, ...explicitLines]
     }
     return null
-  }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, customizeItem, customizations, baseItemImplicits])
+  }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, customizeItem, customizations, baseItemImplicits, corrosionType, mutationAffixText, corrodedExplicitIndices, legendaryCatalogItem])
 
   const handleDragStart = (idx: number) => {
     setDragIdx(idx)
@@ -2399,6 +2648,12 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
               baseItemImplicits={baseItemImplicits}
               previewName={previewName}
               previewLines={previewLines}
+              catalogItem={legendaryCatalogItem}
+              corrosionBaseAffixes={corrosionBaseAffixes}
+              corrosionType={corrosionType}
+              corrodedExplicitIndices={corrodedExplicitIndices}
+              mutationAffixText={mutationAffixText}
+              onCorrosionChange={handleCorrosionChange}
             />
           )}
         </div>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { api, SeasonSummary, SeasonDiff, RebuildFilterResult, UnresolvedStat, FilterOverride, ImportCrawlerTreeResult } from '../api/client'
+import { useReferenceStore } from '../store/referenceStore'
 
 type Tab = 'diff' | 'seasons' | 'tools'
 
@@ -254,6 +255,8 @@ function SeasonsTab({ onSeasonChange }: { onSeasonChange?: () => void }) {
   const [graftFileNames, setGraftFileNames] = useState<string[]>([])
   const [singletonFileName, setSingletonFileName] = useState<Record<string, string>>({})
 
+  const refreshCraftBaseTypes = useReferenceStore(s => s.refreshCraftBaseTypes)
+
   const loadSeasons = useCallback(() => {
     api.listSeasons().then(setSeasons).catch(() => {})
   }, [])
@@ -408,6 +411,7 @@ function SeasonsTab({ onSeasonChange }: { onSeasonChange?: () => void }) {
       const res = await api.importCrawlerCraftBaseTypes(seasonName.trim(), items)
       setCraftBaseTypeImport({ importing: false, result: `${res.count} base type(s) imported`, err: '' })
       loadSeasons()
+      refreshCraftBaseTypes()
     } catch (ex) {
       setCraftBaseTypeImport({ importing: false, result: null, err: String(ex) })
     } finally {
