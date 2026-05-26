@@ -122,7 +122,7 @@ function startPython(): Promise<number> {
     if (app.isPackaged) {
       spawnCmd = join(process.resourcesPath, 'backend.exe')
       spawnArgs = pythonArgs
-      spawnOpts = { env: { ...process.env, TLI_DATA_DIR: dataDir } }
+      spawnOpts = { env: { ...process.env, TLI_DATA_DIR: dataDir, TLI_DEV_MODE: '0' } }
       log(`startPython — packaged mode, spawning: ${spawnCmd}`)
       log(`startPython — TLI_DATA_DIR: ${dataDir}`)
     } else {
@@ -134,7 +134,7 @@ function startPython(): Promise<number> {
       }
       spawnCmd = venvPython
       spawnArgs = [script, ...pythonArgs]
-      spawnOpts = { cwd }
+      spawnOpts = { cwd, env: { ...process.env, TLI_DEV_MODE: '1' } }
       log(`startPython — dev mode, spawning: ${venvPython} ${script} --port ${PYTHON_PORT}`)
       log(`startPython — cwd: ${cwd}`)
     }

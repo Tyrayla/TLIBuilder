@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### New Features
+- **Dev data inspector** — browser-based tool at `/api/dev/inspect/` for exploring season JSON files. Supports field discovery, variant exploration, filtered queries (name/has/missing/where/modifier text), and syntax-highlighted result display.
+
+### Improvements
+- **Dev-mode API gating** — `/api/dev/*` routes now return 404 in packaged builds. Electron passes `TLI_DEV_MODE=1` (dev) or `=0` (packaged) so the backend knows its context without process introspection.
+
+---
+
 ## [0.3.2] - 2026-05-25
 
 ### New Features
