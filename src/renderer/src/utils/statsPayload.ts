@@ -7,15 +7,18 @@ export { buildEnergyContributions, buildMemoryEffects, buildSpiritEffects }
 
 export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
   return gear.filter(item => item.slot !== null).map(item => {
+    const mutationAffix = item.corrosion_type === 'mutation' ? (item.mutation_resolved_affix ?? null) : null
+    const affixesToProcess = mutationAffix ? [mutationAffix, ...item.affixes] : item.affixes
+    const affixOffset = mutationAffix ? 1 : 0
     const contributions: GearAffixContribution[] = []
-    item.affixes.forEach((affix, affixIdx) => {
+    affixesToProcess.forEach((affix, affixIdx) => {
       if (affix.affix_kind === 'placeholder') return
       const hasKey = affix.stat_key
         || (affix.stat_keys && affix.stat_keys.length > 0)
         || (affix.dual_stat_groups && affix.dual_stat_groups.length > 0)
         || (affix.min_stat_keys && affix.min_stat_keys.length > 0)
       if (!hasKey) return
-      const cust = item.customizations.find(c => c.affix_index === affixIdx)
+      const cust = item.customizations.find(c => c.affix_index === affixIdx - affixOffset)
       const slot = Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot
       if (affix.affix_kind === 'numeric') {
         const rangeIdx = affix.numeric_values.findIndex(v => v.kind === 'range')

@@ -1812,6 +1812,101 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   margin: 4px 0;
 }
 
+.gear-affix-row--corroded .gear-affix-label {
+  color: #c678dd;
+}
+
+.gear-affix-row--corroded.gear-affix-range-row .gear-affix-label {
+  color: #c678dd;
+}
+
+.gear-corrosion-section {
+  padding: 6px 10px;
+  border-bottom: 1px solid #2a2a3a;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gear-corrosion-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gear-corrosion-label {
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.gear-corrosion-select {
+  flex: 1;
+  background: #1a1a2e;
+  color: #c8c4a0;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gear-corrosion-select:focus { outline: none; border-color: #5a5a7a; }
+
+.gear-mutation-select {
+  width: 100%;
+  background: #1a1a2e;
+  color: #c8c4a0;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gear-mutation-select:focus { outline: none; border-color: #5a5a7a; }
+
+.gear-mutation-unavailable {
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
+}
+
+.gear-corrosion-toggle {
+  flex-shrink: 0;
+  background: #1a1a2e;
+  border: 1px solid #3a3a5a;
+  border-radius: 3px;
+  color: #888;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.1s, color 0.1s;
+}
+
+.gear-corrosion-toggle:hover:not(:disabled) {
+  background: #2a1a3e;
+  border-color: #c678dd;
+  color: #c678dd;
+}
+
+.gear-corrosion-toggle.active {
+  background: #2a1a3e;
+  border-color: #c678dd;
+  color: #c678dd;
+}
+
+.gear-corrosion-toggle:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+
 .gear-slider-row {
   display: flex;
   align-items: center;
@@ -1930,6 +2025,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .gear-preview-affix--implicit {
   color: #6a8acc;
+}
+
+.gear-preview-affix--corroded {
+  color: #c678dd;
 }
 
 span.gear-affix-label {

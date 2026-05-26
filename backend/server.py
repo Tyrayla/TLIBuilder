@@ -4,8 +4,9 @@ import os
 import re
 import socket
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 import uvicorn
 
@@ -25,6 +26,9 @@ with open(_TREES_META_PATH) as _f:
 # Set in __main__ so the lifespan handler can print it after uvicorn is ready
 _SERVER_PORT = 8765
 _VERBOSE = False
+# TLI_DEV_MODE=1 is set by Electron in dev; defaults to off (fail-closed).
+# To enable dev routes when running server.py standalone: set TLI_DEV_MODE=1.
+IS_DEV = os.environ.get("TLI_DEV_MODE", "0") == "1"
 
 
 def vlog(*args):
@@ -48,6 +52,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def _gate_dev_routes(request: Request, call_next):
+    if not IS_DEV and request.url.path.startswith("/api/dev/"):
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    return await call_next(request)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -1705,6 +1716,14 @@ def _resolve_craft_base_types(base_types: list) -> list:
             for extra_key in ("stat_keys", "is_range_split", "min_stat_keys", "max_stat_keys", "dual_stat_groups"):
                 if extra_key in resolved:
                     affix[extra_key] = resolved[extra_key]
+        for affix in bt.get("corrosion_base_affixes", []):
+            if affix.get("affix_kind") in ("special", "placeholder"):
+                continue
+            resolved = _resolve_affix(affix)
+            affix.update({k: resolved[k] for k in ("stat_key", "unit") if k in resolved})
+            for extra_key in ("stat_keys", "is_range_split", "min_stat_keys", "max_stat_keys", "dual_stat_groups"):
+                if extra_key in resolved:
+                    affix[extra_key] = resolved[extra_key]
     return base_types
 
 
@@ -2010,6 +2029,12 @@ def diff_seasons(req: DiffSeasonsRequest):
         }
 
     return {"summary": summary, "trees": trees_diff}
+
+
+# ── Dev: data inspector ───────────────────────────────────────────────────────
+
+from dev.inspect import router as _inspect_router
+app.include_router(_inspect_router)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
