@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TLI Data Inspector</title>
+  <style>
+    :root {
+      --bg: #1a1a1a;
+      --surface: #252525;
+      --surface2: #2e2e2e;
+      --border: #3a3a3a;
+      --text: #d4d4d4;
+      --muted: #666;
+      --accent: #4fc3f7;
+      --key: #9cdcfe;
+      --str: #ce9178;
+      --num: #b5cea8;
+      --kw: #569cd6;
+      --null: #808080;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    #hdr {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 7px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    #hdr h1 { font-size: 13px; font-weight: 600; color: var(--accent); }
+    #season-badge {
+      font-size: 11px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 2px 7px;
+      color: var(--muted);
+    }
+
+    /* Main layout */
+    #main { display: flex; flex: 1; min-height: 0; }
+
+    /* Sidebar */
+    #sidebar {
+      width: 300px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Controls */
+    #controls {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .row label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--muted);
+      width: 68px;
+      flex-shrink: 0;
+    }
+    .row input, .row select {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 7px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-family: inherit;
+      min-width: 0;
+    }
+    .row input::placeholder { color: var(--muted); }
+    .row input:focus, .row select:focus { outline: none; border-color: var(--accent); }
+    #actions { display: flex; gap: 6px; margin-top: 4px; }
+    #search-btn {
+      flex: 1;
+      background: var(--accent);
+      border: none;
+      color: #000;
+      padding: 5px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    #search-btn:hover { filter: brightness(1.12); }
+    #clear-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    #clear-btn:hover { border-color: var(--text); color: var(--text); }
+    #info-bar { margin-top: 7px; font-size: 11px; color: var(--muted); min-height: 14px; }
+
+    /* Results */
+    #results { flex: 1; overflow-y: auto; }
+    .result-item {
+      padding: 5px 10px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .result-item:hover { background: var(--surface); }
+    .result-item.active { background: #1c3a5a; color: var(--accent); }
+    .hint { font-size: 10px; color: var(--muted); margin-left: 5px; }
+    .msg { padding: 14px 10px; color: var(--muted); font-size: 12px; text-align: center; }
+
+    /* Detail */
+    #detail { flex: 1; overflow: auto; padding: 14px 16px; min-width: 0; }
+    #detail-placeholder { color: var(--muted); font-size: 12px; margin-top: 30px; text-align: center; }
+    #detail-json {
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .jk { color: var(--key); }
+    .js { color: var(--str); }
+    .jn { color: var(--num); }
+    .jb { color: var(--kw); }
+    .jnull { color: var(--null); }
+  </style>
+</head>
+<body>
+  <div id="hdr">
+    <h1>TLI Data Inspector</h1>
+    <span id="season-badge"></span>
+  </div>
+  <div id="main">
+    <div id="sidebar">
+      <div id="controls">
+        <div class="row">
+          <label>File</label>
+          <select id="file-select"></select>
+        </div>
+        <div class="row">
+          <label>Name</label>
+          <input id="i-name" placeholder="substring…" />
+        </div>
+        <div class="row">
+          <label>Has path</label>
+          <input id="i-has" placeholder="e.g. variants.corroded" />
+        </div>
+        <div class="row">
+          <label>Missing</label>
+          <input id="i-missing" placeholder="e.g. variants.corroded" />
+        </div>
+        <div class="row">
+          <label>Mod text</label>
+          <input id="i-mod-text" placeholder="substring in any mod" />
+        </div>
+        <div class="row">
+          <label>Conditions</label>
+          <select id="i-mod-cond">
+            <option value="">Any</option>
+            <option value="true">Has condition</option>
+            <option value="false">No condition</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>Where</label>
+          <input id="i-where" placeholder="path:value" />
+        </div>
+        <div class="row">
+          <label>Limit</label>
+          <input id="i-limit" type="number" value="25" min="1" max="500" style="max-width:70px;flex:none;" />
+        </div>
+        <div id="actions">
+          <button id="search-btn">Search</button>
+          <button id="clear-btn">Clear</button>
+        </div>
+        <div id="info-bar"></div>
+      </div>
+      <div id="results">
+        <div class="msg">Select a file and search</div>
+      </div>
+    </div>
+    <div id="detail">
+      <div id="detail-placeholder">Select an entry to view its full structure</div>
+      <pre id="detail-json" style="display:none"></pre>
+    </div>
+  </div>
+
+  <script>
+    let nameField = 'name';
+    let currentFile = '';
+
+    async function init() {
+      try {
+        const r = await fetch('/api/dev/inspect/files');
+        if (!r.ok) throw new Error(await r.text());
+        const d = await r.json();
+        document.getElementById('season-badge').textContent = d.season;
+        const sel = document.getElementById('file-select');
+        for (const f of d.files) {
+          const o = document.createElement('option');
+          o.value = f; o.textContent = f;
+          sel.appendChild(o);
+        }
+        if (d.files.length) { currentFile = d.files[0]; await loadMeta(); }
+      } catch (e) {
+        document.getElementById('results').innerHTML =
+          `<div class="msg" style="color:#f77">Failed to connect: ${esc(e.message)}</div>`;
+      }
+    }
+
+    async function loadMeta() {
+      if (!currentFile) return;
+      try {
+        const r = await fetch(`/api/dev/inspect/${currentFile}/fields`);
+        if (r.ok) { const d = await r.json(); nameField = d.name_field || 'name'; }
+      } catch {}
+    }
+
+    document.getElementById('file-select').addEventListener('change', async e => {
+      currentFile = e.target.value;
+      await loadMeta();
+      document.getElementById('results').innerHTML = '<div class="msg">File changed — click Search</div>';
+      document.getElementById('info-bar').textContent = '';
+    });
+
+    async function search() {
+      if (!currentFile) return;
+      const p = new URLSearchParams();
+      const v = id => document.getElementById(id).value.trim();
+      if (v('i-name'))     p.set('name', v('i-name'));
+      if (v('i-has'))      p.set('has', v('i-has'));
+      if (v('i-missing'))  p.set('missing', v('i-missing'));
+      if (v('i-mod-text')) p.set('mod_text', v('i-mod-text'));
+      if (v('i-mod-cond')) p.set('mod_has_condition', v('i-mod-cond'));
+      if (v('i-where'))    p.set('where', v('i-where'));
+      p.set('limit', document.getElementById('i-limit').value || '25');
+      document.getElementById('info-bar').textContent = 'Searching…';
+      try {
+        const r = await fetch(`/api/dev/inspect/${currentFile}/entries?${p}`);
+        if (!r.ok) {
+          document.getElementById('info-bar').textContent = 'Error: ' + (await r.text());
+          return;
+        }
+        renderResults(await r.json());
+      } catch (e) {
+        document.getElementById('info-bar').textContent = 'Error: ' + e.message;
+      }
+    }
+
+    function renderResults(d) {
+      document.getElementById('info-bar').textContent = d.limit_reached
+        ? `Showing ${d.count} (limit — refine search)`
+        : `Found ${d.count} result${d.count !== 1 ? 's' : ''}`;
+      const container = document.getElementById('results');
+      if (!d.count) { container.innerHTML = '<div class="msg">No results</div>'; return; }
+      container.innerHTML = '';
+      for (const entry of d.items) {
+        const label = entry[nameField] || entry.item_id || entry.id || '(unknown)';
+        const hint  = entry._slot_id || '';
+        const el = document.createElement('div');
+        el.className = 'result-item';
+        el.innerHTML = esc(label) + (hint ? `<span class="hint">${esc(hint)}</span>` : '');
+        el.addEventListener('click', () => showDetail(el, entry));
+        container.appendChild(el);
+      }
+    }
+
+    function showDetail(el, entry) {
+      document.querySelectorAll('.result-item.active').forEach(e => e.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('detail-placeholder').style.display = 'none';
+      const pre = document.getElementById('detail-json');
+      pre.style.display = 'block';
+      pre.innerHTML = highlight(JSON.stringify(entry, null, 2));
+    }
+
+    function highlight(json) {
+      return json
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(
+          /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+          m => {
+            if (/^"/.test(m)) return /:$/.test(m) ? `<span class="jk">${m}</span>` : `<span class="js">${m}</span>`;
+            if (/true|false/.test(m)) return `<span class="jb">${m}</span>`;
+            if (/null/.test(m))       return `<span class="jnull">${m}</span>`;
+            return `<span class="jn">${m}</span>`;
+          }
+        );
+    }
+
+    function esc(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function clearFilters() {
+      ['i-name','i-has','i-missing','i-mod-text','i-where'].forEach(
+        id => { document.getElementById(id).value = ''; }
+      );
+      document.getElementById('i-mod-cond').value = '';
+      document.getElementById('i-limit').value = '25';
+      document.getElementById('info-bar').textContent = '';
+      document.getElementById('results').innerHTML = '<div class="msg">Filters cleared — click Search</div>';
+    }
+
+    document.querySelectorAll('#controls input').forEach(el => {
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') search(); });
+    });
+    document.getElementById('search-btn').addEventListener('click', search);
+    document.getElementById('clear-btn').addEventListener('click', clearFilters);
+
+    init();
+  </script>
+</body>
+</html>
