@@ -30,6 +30,21 @@ _VERBOSE = False
 # To enable dev routes when running server.py standalone: set TLI_DEV_MODE=1.
 IS_DEV = os.environ.get("TLI_DEV_MODE", "0") == "1"
 
+_PHRASE_OVERRIDES_PATH = os.path.join(_DATA_ROOT, 'condition_phrase_overrides.json')
+_PHRASE_OVERRIDES: dict[str, object] = {}
+
+
+def _load_phrase_overrides() -> None:
+    global _PHRASE_OVERRIDES
+    try:
+        with open(_PHRASE_OVERRIDES_PATH) as f:
+            _PHRASE_OVERRIDES = json.load(f)
+    except FileNotFoundError:
+        _PHRASE_OVERRIDES = {}
+
+
+_load_phrase_overrides()
+
 
 def vlog(*args):
     if _VERBOSE:
@@ -575,6 +590,8 @@ def get_conditions():
             entry["unit"] = c.unit
         if c.key in derived_keys:
             entry["is_derived"] = True
+        if not c.visible:
+            entry["visible"] = False
         result.setdefault(c.category, []).append(entry)
     return result
 
@@ -1489,6 +1506,48 @@ def _norm_expr(text: str) -> str:
     return s
 
 
+_BLESSING_COND_RE = re.compile(
+    r"(focus|tenacity|agility)\s+bless", re.I)
+_THRESHOLD_RE = re.compile(
+    r"at\s+least\s+(\d+)"
+    r"|>=?\s*(\d+)"
+    r"|at\s+most\s+(\d+)"
+    r"|<=?\s*(\d+)"
+    r"|more\s+than\s+(\d+)"
+    r"|fewer\s+than\s+(\d+)|less\s+than\s+(\d+)",
+    re.I,
+)
+_BLESSING_KEY_MAP = {
+    "focus": "focus_stacks",
+    "tenacity": "tenacity_stacks",
+    "agility": "agility_stacks",
+}
+
+
+def _translate_condition_expr(text: str | None) -> dict | str | None:
+    """Map a raw condition text string to an engine expression, or None if unresolvable."""
+    if not text:
+        return None
+    # Exact override wins
+    if text in _PHRASE_OVERRIDES:
+        return _PHRASE_OVERRIDES[text]
+    # Regex fallback: blessing stack thresholds
+    bm = _BLESSING_COND_RE.search(text)
+    if bm:
+        key = _BLESSING_KEY_MAP[bm.group(1).lower()]
+        tm = _THRESHOLD_RE.search(text)
+        if tm:
+            ge, ge2, le, le2, gt, lt, lt2 = tm.groups()
+            if ge:   return {"key": key, "op": ">=", "value": int(ge)}
+            if ge2:  return {"key": key, "op": ">=", "value": int(ge2)}
+            if le:   return {"key": key, "op": "<=", "value": int(le)}
+            if le2:  return {"key": key, "op": "<=", "value": int(le2)}
+            if gt:   return {"key": key, "op": ">",  "value": int(gt)}
+            if lt:   return {"key": key, "op": "<",  "value": int(lt)}
+            if lt2:  return {"key": key, "op": "<",  "value": int(lt2)}
+    return None
+
+
 def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
     """Return (stat_key, unit) for a gear affix, or (None, '') if unresolved."""
     text = _GEAR_COND_RE.sub("", raw_text)
@@ -1533,9 +1592,10 @@ def get_legendary_gear_index():
 
 
 def _resolve_affix(affix: dict) -> dict:
-    """Resolve a gear affix dict to include stat_key/stat_keys/unit fields."""
+    """Resolve a gear affix dict to include stat_key/stat_keys/unit/condition_expr fields."""
+    condition_expr = _translate_condition_expr(affix.get("condition"))
     if affix.get("affix_kind") == "placeholder":
-        return {**affix, "stat_key": None, "unit": ""}
+        return {**affix, "stat_key": None, "unit": "", "condition_expr": condition_expr}
     raw_text = affix.get("raw_text", "")
     text = _GEAR_COND_RE.sub("", raw_text)
     text = _GEAR_SUFFIX_RE.sub("", text)
@@ -1544,26 +1604,28 @@ def _resolve_affix(affix: dict) -> dict:
     # 1. Range-multi: min and max each fan out to multiple stats
     if ne in _RANGE_MULTI_STAT_OVERRIDES:
         rm = _RANGE_MULTI_STAT_OVERRIDES[ne]
-        return {**affix, "stat_key": None, "unit": unit,
+        return {**affix, "stat_key": None, "unit": unit, "condition_expr": condition_expr,
                 "min_stat_keys": rm["min_keys"], "max_stat_keys": rm["max_keys"]}
     # 2a. Mixed-unit multi-group affixes (per-group unit override)
     if ne in _MIXED_STAT_OVERRIDES:
-        return {**affix, "stat_key": None, "unit": unit, "dual_stat_groups": _MIXED_STAT_OVERRIDES[ne]}
+        return {**affix, "stat_key": None, "unit": unit, "condition_expr": condition_expr,
+                "dual_stat_groups": _MIXED_STAT_OVERRIDES[ne]}
     # 2b. Dual-value: two separate (#) values → two groups of stats
     if ne in _DUAL_MULTI_STAT_OVERRIDES:
         g0, g1 = _DUAL_MULTI_STAT_OVERRIDES[ne]
         dual_groups = [{"value_index": 0, "stat_keys": g0},
                        {"value_index": 1, "stat_keys": g1}]
-        return {**affix, "stat_key": None, "unit": unit, "dual_stat_groups": dual_groups}
+        return {**affix, "stat_key": None, "unit": unit, "condition_expr": condition_expr,
+                "dual_stat_groups": dual_groups}
     # 3. Multi-stat: single value → multiple stats
     if ne in _MULTI_STAT_OVERRIDES:
         stat_keys = _MULTI_STAT_OVERRIDES[ne]
         is_range_split = any(k.endswith(("_flat_min", "_flat_max")) for k in stat_keys)
         return {**affix, "stat_key": None, "stat_keys": stat_keys,
-                "is_range_split": is_range_split, "unit": unit}
+                "is_range_split": is_range_split, "unit": unit, "condition_expr": condition_expr}
     # 4. Expression or fuzzy fallback
     stat_key, unit = _resolve_gear_stat(raw_text)
-    return {**affix, "stat_key": stat_key, "unit": unit}
+    return {**affix, "stat_key": stat_key, "unit": unit, "condition_expr": condition_expr}
 
 
 @app.get("/api/legendary-gear")
@@ -2035,6 +2097,11 @@ def diff_seasons(req: DiffSeasonsRequest):
 
 from dev.inspect import router as _inspect_router
 app.include_router(_inspect_router)
+
+# ── Dev: condition manager ────────────────────────────────────────────────────
+
+from dev.conditions import router as _conditions_router
+app.include_router(_conditions_router)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
