@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { initApi, api, Build, TreeSlot, SavedSlate, EquippedGearItem, EquippedSkill, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
-import { migrateOldConditions } from './utils/conditions'
+import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
 import { useBuildStore } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useReferenceStore } from './store/referenceStore'
@@ -100,10 +100,23 @@ function App() {
   const [saveModalName, setSaveModalName] = useState('')
   const [saveModalSaving, setSaveModalSaving] = useState(false)
   const sessionRef = useRef(session)
+  const refConditions = useReferenceStore(s => s.conditions)
 
   useEffect(() => { sessionRef.current = session }, [session])
 
   useEffect(() => { window.api?.notifyDirty?.(isDirty) }, [isDirty])
+
+  // When condition definitions load, fill any empty conditionState with defaults.
+  // This covers new builds and imported builds that predate the conditions system.
+  useEffect(() => {
+    if (!refConditions) return
+    setSession(s => {
+      if (Object.keys(s.conditionState).length > 0) return s
+      const defs = Object.values(refConditions).flat()
+      const defaults = buildDefaultConditionState(defs)
+      return Object.keys(defaults).length > 0 ? { ...s, conditionState: defaults } : s
+    })
+  }, [refConditions])
 
   useEffect(() => {
     initApi()

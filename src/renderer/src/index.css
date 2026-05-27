@@ -611,7 +611,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 
 .cond-stack-input {
-  width: 48px;
+  width: 56px;
   background: #1a1a36;
   border: 1px solid #3a3a5a;
   border-radius: 3px;
@@ -620,6 +620,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 2px 6px;
   text-align: center;
 }
+.cond-stack-input:focus { outline: none; border-color: #7c4dff; }
+.cond-stack-input::-webkit-inner-spin-button,
+.cond-stack-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.cond-stack-input[type=number] { -moz-appearance: textfield; }
 
 .cond-stack-hint {
   font-size: 10px;

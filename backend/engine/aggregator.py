@@ -205,18 +205,17 @@ def aggregate(
                      derived here for backward-compat single-call usage
     numeric_vals:    numeric condition values (clamped) for scaling/threshold evaluation
     """
-    from models.conditions import CONDITIONS_BY_KEY
     source = BuildSource()
 
     if active_booleans is None:
         active_booleans = frozenset(
             k for k, v in build.condition_state.items()
-            if CONDITIONS_BY_KEY.get(k) and CONDITIONS_BY_KEY[k].value_type == "boolean" and v
+            if isinstance(v, bool) and v
         )
     if numeric_vals is None:
         numeric_vals = {
             k: float(v) for k, v in build.condition_state.items()
-            if CONDITIONS_BY_KEY.get(k) and CONDITIONS_BY_KEY[k].value_type == "numeric"
+            if not isinstance(v, bool) and isinstance(v, (int, float))
         }
 
     recipes_by_tree = filter_data.get("recipes", {})
@@ -355,6 +354,9 @@ def aggregate(
     for contrib in (c for item in build.gear for c in item.get("contributions", [])):
         stat = contrib.get("stat")
         if not stat:
+            continue
+        cond = contrib.get("condition")
+        if cond is not None and not _eval_condition(cond, active_booleans, numeric_vals):
             continue
         val = contrib.get("display_value", 0)
         unit = contrib.get("unit", "")

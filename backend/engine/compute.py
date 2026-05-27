@@ -27,23 +27,36 @@ def derive_condition_maximums(source: BuildSource) -> dict[str, float]:
             maxes[c.key] = c.max_base + source.total(c.max_from_stat)
         elif c.numeric_max is not None:
             maxes[c.key] = float(c.numeric_max)
+        elif c.max_base:
+            maxes[c.key] = float(c.max_base)
     return maxes
+
+
+def derive_condition_minimums(source: BuildSource) -> dict[str, float]:
+    """Return {condition_key: min_value} for all numeric conditions that have a defined min floor."""
+    from models.conditions import ALL_CONDITIONS
+    mins: dict[str, float] = {}
+    for c in ALL_CONDITIONS:
+        if c.value_type != "numeric":
+            continue
+        if c.min_from_stat:
+            mins[c.key] = c.min_base + source.total(c.min_from_stat)
+        elif c.min_base:
+            mins[c.key] = float(c.min_base)
+    return mins
 
 
 def _derive_views(
     condition_state: dict[str, float | bool],
 ) -> tuple[frozenset[str], dict[str, float]]:
     """Split unified condition_state into the two evaluation views the evaluator needs."""
-    from models.conditions import CONDITIONS_BY_KEY
     active_booleans: set[str] = set()
     numeric_vals: dict[str, float] = {}
     for k, v in condition_state.items():
-        cdef = CONDITIONS_BY_KEY.get(k)
-        if cdef is None:
-            continue
-        if cdef.value_type == "boolean" and v:
-            active_booleans.add(k)
-        elif cdef.value_type == "numeric":
+        if isinstance(v, bool):
+            if v:
+                active_booleans.add(k)
+        elif isinstance(v, (int, float)):
             numeric_vals[k] = float(v)
     return frozenset(active_booleans), numeric_vals
 
@@ -51,15 +64,20 @@ def _derive_views(
 def _clamp_and_rederive(
     condition_state: dict[str, float | bool],
     maxes: dict[str, float],
+    mins: dict[str, float],
 ) -> dict[str, float | bool]:
-    """Clamp numeric values to their derived maxes; re-derive *_active booleans from stack counts."""
+    """Clamp numeric values to their derived maxes/mins; re-derive *_active booleans from stack counts."""
     from models.conditions import DERIVED_ACTIVE_KEYS
     new_state: dict[str, float | bool] = dict(condition_state)
 
-    # Clamp numeric entries
-    for k, max_val in maxes.items():
-        if k in new_state:
-            new_state[k] = min(float(new_state[k]), max_val)
+    for k in new_state:
+        if not isinstance(new_state[k], bool) and isinstance(new_state[k], (int, float)):
+            val = float(new_state[k])
+            if k in maxes:
+                val = min(val, maxes[k])
+            if k in mins:
+                val = max(val, mins[k])
+            new_state[k] = val
 
     # Re-derive boolean *_active flags from their clamped stack-count siblings
     for bool_key, stack_key in DERIVED_ACTIVE_KEYS.items():
@@ -102,7 +120,8 @@ def compute(
         )
 
         maxes = derive_condition_maximums(source)
-        new_state = _clamp_and_rederive(condition_state, maxes)
+        mins = derive_condition_minimums(source)
+        new_state = _clamp_and_rederive(condition_state, maxes, mins)
         snapshot = _state_snapshot(new_state)
 
         if snapshot == prev_snapshot:

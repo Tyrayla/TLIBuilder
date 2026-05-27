@@ -20,6 +20,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
       if (!hasKey) return
       const cust = item.customizations.find(c => c.affix_index === affixIdx - affixOffset)
       const slot = Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot
+      const condition = affix.condition_expr ?? null
       if (affix.affix_kind === 'numeric') {
         const rangeIdx = affix.numeric_values.findIndex(v => v.kind === 'range')
         const fixedNv = affix.numeric_values.find(v => v.kind === 'fixed')
@@ -30,10 +31,10 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
           const minVal = cust?.chosen_values[0] ?? Math.round(nv.min ?? 0)
           const maxVal = cust?.chosen_values[1] ?? Math.round(nv.max ?? 0)
           for (const stat of affix.min_stat_keys) {
-            contributions.push({ stat, display_value: minVal, unit, item_name: item.name, slot })
+            contributions.push({ stat, display_value: minVal, unit, item_name: item.name, slot, condition })
           }
           for (const stat of affix.max_stat_keys) {
-            contributions.push({ stat, display_value: maxVal, unit, item_name: item.name, slot })
+            contributions.push({ stat, display_value: maxVal, unit, item_name: item.name, slot, condition })
           }
         } else if (affix.dual_stat_groups && affix.dual_stat_groups.length > 0) {
           for (const group of affix.dual_stat_groups) {
@@ -47,7 +48,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
               val = (nv.value ?? 0) * (nv.sign === '-' ? -1 : 1)
             }
             for (const stat of group.stat_keys) {
-              contributions.push({ stat, display_value: val, unit: groupUnit, item_name: item.name, slot })
+              contributions.push({ stat, display_value: val, unit: groupUnit, item_name: item.name, slot, condition })
             }
           }
         } else if (affix.stat_keys && affix.stat_keys.length > 0) {
@@ -56,8 +57,8 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
             const [minStat, maxStat] = affix.stat_keys
             const minVal = cust?.chosen_values[0] ?? Math.round(nv.min ?? 0)
             const maxVal = cust?.chosen_values[1] ?? Math.round(nv.max ?? 0)
-            contributions.push({ stat: minStat, display_value: minVal, unit, item_name: item.name, slot })
-            contributions.push({ stat: maxStat, display_value: maxVal, unit, item_name: item.name, slot })
+            contributions.push({ stat: minStat, display_value: minVal, unit, item_name: item.name, slot, condition })
+            contributions.push({ stat: maxStat, display_value: maxVal, unit, item_name: item.name, slot, condition })
           } else {
             let display_value: number | null = null
             if (rangeIdx >= 0) {
@@ -68,7 +69,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
             }
             if (display_value !== null) {
               for (const stat of affix.stat_keys) {
-                contributions.push({ stat, display_value, unit, item_name: item.name, slot })
+                contributions.push({ stat, display_value, unit, item_name: item.name, slot, condition })
               }
             }
           }
@@ -81,7 +82,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
             display_value = fixedNv.value ?? 0
           }
           if (display_value !== null) {
-            contributions.push({ stat: affix.stat_key, display_value, unit, item_name: item.name, slot })
+            contributions.push({ stat: affix.stat_key, display_value, unit, item_name: item.name, slot, condition })
           }
         }
       }
