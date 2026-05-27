@@ -314,6 +314,7 @@ function App() {
       corroded_explicit_indices: g.corroded_explicit_indices ?? [],
       mutation_affix_text: g.mutation_affix_text ?? null,
       mutation_resolved_affix: g.mutation_resolved_affix ?? null,
+      selected_random_affixes: g.selected_random_affixes ?? {},
     }))
 
     // Re-resolve stat fields for crafted items — saved values can become stale

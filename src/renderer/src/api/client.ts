@@ -938,6 +938,7 @@ export interface EquippedGearItem {
   corroded_explicit_indices?: number[]
   mutation_affix_text?: string | null
   mutation_resolved_affix?: LegendaryAffix | null
+  selected_random_affixes?: Record<number, string>
 }
 
 export interface GearAffixContribution {
