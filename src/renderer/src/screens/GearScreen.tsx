@@ -500,6 +500,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
     if (!affix || affix.affix_kind !== 'placeholder') return null
     const baseExplicitsLen = catalogItem.variants.base?.explicits?.length ?? 0
     if (explicitIdx < baseExplicitsLen) {
+      // Real explicit in variant — use variant-based group lookup so corroded explicits get corroded options
       const isCorroded = corrodedExplicitIndices.includes(explicitIdx)
       const variantKey = isCorroded && catalogItem.random_affixes['corroded'] ? 'corroded' : 'base'
       const variantGroups = catalogItem.random_affixes[variantKey] ?? []
@@ -510,6 +511,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
       const occurrence = variantExplicits.slice(0, explicitIdx).filter(e => e.affix_kind === 'placeholder').length
       return variantGroups[occurrence] ?? null
     }
+    // Synthetic placeholder appended after real explicits — text-based lookup
     const ph = affix.raw_text
     const allGroups = Object.values(catalogItem.random_affixes).flat()
     const matchingGroups = allGroups.filter(g => g.placeholder === ph)
@@ -796,7 +798,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
           </>
         ) : (() => {
           const craftItem = item as EquippedGearItem
-          const implCount = craftItem.implicit_count ?? 0
+          const implCount = craftItem.implicit_count ?? catalogItem?.variants?.base?.implicits?.length ?? 0
           const craftImplicits = craftItem.affixes.slice(0, implCount)
           const craftExplicits = craftItem.affixes.slice(implCount)
           return (
@@ -902,10 +904,32 @@ function reconstructCraftSlots(item: EquippedGearItem, baseType: CraftBaseType):
   )
   const slots: CraftSlotState[] = Array.from({ length: 8 }, emptyCraftSlot)
   const positions = item.craft_slot_positions
+  const mutationPool: CraftAffix[] = (baseType.corrosion_base_affixes ?? []).map((a): CraftAffix => ({
+    raw_text: a.modifier_text,
+    expression: a.expression,
+    condition: a.condition,
+    affix_kind: (a.affix_kind === 'numeric' || a.affix_kind === 'special') ? a.affix_kind : 'special',
+    numeric_values: a.numeric_values,
+    source: 'Mutation',
+    affix_type: 'Mutation',
+    tier: '0+',
+    stat_key: a.stat_key,
+    stat_keys: a.stat_keys,
+    is_range_split: a.is_range_split,
+    min_stat_keys: a.min_stat_keys,
+    max_stat_keys: a.max_stat_keys,
+    dual_stat_groups: a.dual_stat_groups,
+    unit: a.unit,
+  }))
   explicits.forEach((aff, i) => {
     const slotIdx = positions ? (positions[i] ?? i) : i
     if (slotIdx >= 8) return
-    const poolAffix = baseType.affixes.find(pa => pa.raw_text === aff.raw_text) ?? null
+    let poolAffix: CraftAffix | null = null
+    if (slotIdx < 2 && aff.affix_type === 'Mutation') {
+      poolAffix = mutationPool.find(pa => pa.raw_text === aff.raw_text) ?? null
+    } else {
+      poolAffix = baseType.affixes.find(pa => pa.raw_text === aff.raw_text) ?? null
+    }
     const cust = item.customizations.find(c => c.affix_index === implicitCount + i)
     slots[slotIdx] = { expression: poolAffix ? normalizeExpression(poolAffix.expression) : null, affix: poolAffix, chosenValues: cust?.chosen_values ?? {} }
   })
@@ -1170,9 +1194,11 @@ interface CraftSlotRowProps {
   slot: CraftSlotState
   onChange: (next: CraftSlotState) => void
   disabledExpressions?: ReadonlySet<string>
+  corrupted?: boolean
+  corrosionToggle?: { checked: boolean; disabled: boolean; onToggle: () => void }
 }
 
-function CraftSlotRow({ pool, slot, onChange, disabledExpressions }: CraftSlotRowProps) {
+function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, corrosionToggle }: CraftSlotRowProps) {
   const [sliderHoverPos, setSliderHoverPos] = useState<{ x: number; y: number } | null>(null)
   const craftSlotId = useId()
   const rawTiers = useMemo(() => slot.expression ? tiersForModifier(pool, slot.expression) : [], [pool, slot.expression])
@@ -1199,8 +1225,16 @@ function CraftSlotRow({ pool, slot, onChange, disabledExpressions }: CraftSlotRo
   }
 
   return (
-    <div className="gear-craft-slot">
+    <div className={`gear-craft-slot${corrupted ? ' gear-craft-slot--corroded' : ''}`}>
       <div className="gear-craft-slot-row">
+        {corrosionToggle && (
+          <button
+            className={`gear-corrosion-toggle${corrosionToggle.checked ? ' active' : ''}`}
+            onClick={corrosionToggle.onToggle}
+            disabled={corrosionToggle.disabled}
+            title={corrosionToggle.checked ? 'Remove T0+ corruption' : 'Upgrade to T0+ (Desecration)'}
+          />
+        )}
         <ModifierSearchSelect pool={pool} value={slot.expression ?? ''} onChange={handleModifierChange} disabledExpressions={disabledExpressions} />
         {slot.expression && tiers.length > 1 && (
           <select
@@ -1946,9 +1980,11 @@ interface CraftEditorProps {
   previewName: string | null
   previewLines: PreviewLine[] | null
   onSaveBuildItem?: (item: EquippedGearItem) => void
+  corrosionType: 'none' | 'desecration' | 'mutation'
+  onCorrosionTypeChange: (type: 'none' | 'desecration' | 'mutation') => void
 }
 
-function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craftBaseItems, grafts, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, onSaveBuildItem }: CraftEditorProps) {
+function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craftBaseItems, grafts, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, onSaveBuildItem, corrosionType, onCorrosionTypeChange }: CraftEditorProps) {
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -2013,6 +2049,7 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
       is_crafted: true,
       implicit_count: implicitCount,
       craft_slot_positions: craftSlotPositions,
+      corrosion_type: corrosionType !== 'none' ? corrosionType : undefined,
     }
     if (onSaveBuildItem) {
       onSaveBuildItem(builtItem)
@@ -2035,10 +2072,101 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
     [slots]
   )
 
-  const basePool = useMemo(() => baseType?.affixes.filter(a => a.affix_type === 'Base Affix') ?? [], [baseType])
-  const prefixPool = useMemo(() => baseType?.affixes.filter(a => a.affix_type.includes('Pre-fix')) ?? [], [baseType])
-  const suffixPool = useMemo(() => baseType?.affixes.filter(a => a.affix_type.includes('Suffix')) ?? [], [baseType])
-  const pools = useMemo(() => [basePool, basePool, prefixPool, prefixPool, prefixPool, suffixPool, suffixPool, suffixPool], [basePool, prefixPool, suffixPool])
+  const mutationPool = useMemo((): CraftAffix[] =>
+    (baseType?.corrosion_base_affixes ?? []).map((a): CraftAffix => ({
+      raw_text: a.modifier_text,
+      expression: a.expression,
+      condition: a.condition,
+      affix_kind: (a.affix_kind === 'numeric' || a.affix_kind === 'special') ? a.affix_kind : 'special',
+      numeric_values: a.numeric_values,
+      source: 'Mutation',
+      affix_type: 'Mutation',
+      tier: '0+',
+      stat_key: a.stat_key,
+      stat_keys: a.stat_keys,
+      is_range_split: a.is_range_split,
+      min_stat_keys: a.min_stat_keys,
+      max_stat_keys: a.max_stat_keys,
+      dual_stat_groups: a.dual_stat_groups,
+      unit: a.unit,
+    })),
+    [baseType]
+  )
+  const basePool = useMemo(() => {
+    if (corrosionType === 'mutation') return mutationPool
+    return baseType?.affixes.filter(a => a.affix_type === 'Base Affix') ?? []
+  }, [baseType, corrosionType, mutationPool])
+  const pools = useMemo(() => {
+    const allPre = baseType?.affixes.filter(a => a.affix_type.includes('Pre-fix')) ?? []
+    const allSuf = baseType?.affixes.filter(a => a.affix_type.includes('Suffix')) ?? []
+    return slots.map((slot, i) => {
+      if (i < 2) return basePool
+      const all = i < 5 ? allPre : allSuf
+      if (corrosionType !== 'desecration') return all.filter(a => a.tier !== '0+')
+      // In desecration: T0+ only visible in pool when this slot is already at T0+ (toggle controls upgrade)
+      const isChecked = !!slot.affix && (slot.affix as CraftAffix).tier === '0+'
+      return isChecked ? all : all.filter(a => a.tier !== '0+')
+    })
+  }, [slots, basePool, baseType, corrosionType])
+
+  const slotHasT0Plus = useMemo(() =>
+    slots.map((slot, i) => {
+      if (!slot.expression || i < 2) return false
+      const all = baseType?.affixes.filter(a => i < 5 ? a.affix_type.includes('Pre-fix') : a.affix_type.includes('Suffix')) ?? []
+      return all.some(a => a.tier === '0+' && normalizeExpression(a.expression) === normalizeExpression(slot.expression!))
+    }),
+    [slots, baseType]
+  )
+
+  const corrodedSlotCount = slots.filter((s, i) => i >= 2 && !!s.affix && (s.affix as CraftAffix).tier === '0+').length
+
+  const handleDesecrationToggle = (slotIdx: number) => {
+    const s = slots[slotIdx]
+    if (!s.affix) return
+    const norm = normalizeExpression(s.expression ?? '')
+    const all = baseType?.affixes.filter(a => slotIdx < 5 ? a.affix_type.includes('Pre-fix') : a.affix_type.includes('Suffix')) ?? []
+    const isCurrCorroded = (s.affix as CraftAffix).tier === '0+'
+    if (isCurrCorroded) {
+      const candidates = all.filter(a => a.tier !== '0+' && normalizeExpression(a.expression) === norm)
+      candidates.sort((a, b) => parseTierNum(a.tier) - parseTierNum(b.tier))
+      const best = candidates[0]
+      if (!best) return
+      updateSlot(slotIdx, { expression: normalizeExpression(best.expression), affix: best, chosenValues: {} })
+    } else {
+      const corroded = all.find(a => a.tier === '0+' && normalizeExpression(a.expression) === norm)
+      if (!corroded) return
+      updateSlot(slotIdx, { expression: normalizeExpression(corroded.expression), affix: corroded, chosenValues: {} })
+    }
+  }
+
+  const handleCorrosionTypeChange = (newType: 'none' | 'desecration' | 'mutation') => {
+    if (newType === corrosionType) return
+    const allPrefixes = baseType?.affixes.filter(a => a.affix_type.includes('Pre-fix')) ?? []
+    const allSuffixes = baseType?.affixes.filter(a => a.affix_type.includes('Suffix')) ?? []
+    const nextSlots = slots.map((s, i) => {
+      if (i < 2) {
+        // Only clear base slots when mutation enters or exits (pool changes)
+        if (newType === 'mutation' || corrosionType === 'mutation') return emptyCraftSlot()
+        return s
+      }
+      if (!s.affix) return s
+      const norm = normalizeExpression(s.expression ?? '')
+      const pool = i < 5 ? allPrefixes : allSuffixes
+      if (newType === 'desecration') {
+        return s
+      } else {
+        // Leaving desecration: downgrade T0+ to best non-corroded tier
+        if ((s.affix as CraftAffix).tier !== '0+') return s
+        const candidates = pool.filter(a => a.tier !== '0+' && normalizeExpression(a.expression) === norm)
+        candidates.sort((a, b) => parseTierNum(a.tier) - parseTierNum(b.tier))
+        const best = candidates[0]
+        if (!best) return emptyCraftSlot()
+        return { expression: normalizeExpression(best.expression), affix: best, chosenValues: {} }
+      }
+    })
+    setSlots(nextSlots)
+    onCorrosionTypeChange(newType)
+  }
   const sortedBaseItems = useMemo(
     () => baseType ? [...baseType.base_items].sort((a, b) => b.required_level - a.required_level) : [],
     [baseType]
@@ -2101,13 +2229,19 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
   const currentItemName = baseItem?.name ?? baseType.name
   const implicitTexts = baseItemImplicits[currentItemName] ?? []
 
+  const isCraftSlotCorrupted = (i: number, slot: CraftSlotState): boolean => {
+    if (!slot.affix) return false
+    if (i < 2 && corrosionType === 'mutation') return true
+    return corrosionType === 'desecration' && (slot.affix as CraftAffix).tier === '0+'
+  }
+
   return (
     <div className="gear-customize-panel">
       <div className="gear-craft-editing-header">
         <div className="gear-craft-editing-header-top">
           {classification && <span className="gear-craft-classification">{classification}</span>}
           <span className="gear-craft-base-name">{baseType.name} (Crafted)</span>
-          <button className="gear-craft-reset-btn" onClick={() => { setBaseType(null); setBaseItem(null); setSlots(Array.from({ length: 8 }, emptyCraftSlot)) }} title="Back to search">←</button>
+          <button className="gear-craft-reset-btn" onClick={() => { setBaseType(null); setBaseItem(null); setSlots(Array.from({ length: 8 }, emptyCraftSlot)); onCorrosionTypeChange('none') }} title="Back to search">←</button>
         </div>
         {sortedBaseItems.length > 0 && (
           <BaseItemSelect
@@ -2137,13 +2271,41 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
           </div>
         )}
       </div>
+      <div className="gear-corrosion-section">
+        <div className="gear-corrosion-row">
+          <span className="gear-corrosion-label">Corruption</span>
+          <select
+            className="gear-corrosion-select"
+            value={corrosionType}
+            onChange={e => handleCorrosionTypeChange(e.target.value as 'none' | 'desecration' | 'mutation')}
+          >
+            <option value="none">None</option>
+            <option value="desecration">Desecration</option>
+            {mutationPool.length > 0 ? (
+              <option value="mutation">Mutation</option>
+            ) : (
+              <option value="mutation" disabled>Mutation (import craft data)</option>
+            )}
+          </select>
+        </div>
+      </div>
       <div className="gear-craft-slots-scroll">
-        {slots.map((slot, i) => (
-          <React.Fragment key={i}>
-            {sectionLabels[i] && <div className="gear-craft-section-label">{sectionLabels[i]}</div>}
-            <CraftSlotRow pool={pools[i]} slot={slot} onChange={next => updateSlot(i, next)} disabledExpressions={craftSlotDisabled[i]} />
-          </React.Fragment>
-        ))}
+        {slots.map((slot, i) => {
+          if (i === 1 && corrosionType === 'mutation') return null
+          const showToggle = corrosionType === 'desecration' && i >= 2 && !!slot.affix
+          const isChecked = showToggle && (slot.affix as CraftAffix).tier === '0+'
+          const corrosionToggle = showToggle ? {
+            checked: isChecked,
+            disabled: !isChecked && (corrodedSlotCount >= 2 || !slotHasT0Plus[i]),
+            onToggle: () => handleDesecrationToggle(i),
+          } : undefined
+          return (
+            <React.Fragment key={i}>
+              {sectionLabels[i] && <div className="gear-craft-section-label">{sectionLabels[i]}</div>}
+              <CraftSlotRow pool={pools[i]} slot={slot} onChange={next => updateSlot(i, next)} disabledExpressions={craftSlotDisabled[i]} corrupted={isCraftSlotCorrupted(i, slot)} corrosionToggle={corrosionToggle} />
+            </React.Fragment>
+          )
+        })}
       </div>
       <ItemPreviewCard name={previewName} lines={previewLines} />
       <div className="gear-craft-actions">
@@ -2244,6 +2406,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   const [craftBaseItem, setCraftBaseItem] = useState<CraftBaseItem | null>(null)
   const [craftSlots, setCraftSlots] = useState<CraftSlotState[]>(Array.from({ length: 8 }, emptyCraftSlot))
   const [craftSearch, setCraftSearch] = useState('')
+  const [craftCorrosionType, setCraftCorrosionType] = useState<'none' | 'desecration' | 'mutation'>('none')
   const [voraxInitialState, setVoraxInitialState] = useState<VoraxInitialState | null>(null)
   const [slotDropdown, setSlotDropdown] = useState<{ slotId: GearSlot; rect: DOMRect } | null>(null)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
@@ -2264,6 +2427,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     setCraftBaseItem(null)
     setCraftSlots(Array.from({ length: 8 }, emptyCraftSlot))
     setCraftSearch('')
+    setCraftCorrosionType('none')
     setSelectedGraft(null)
     setSelectedCatalogItem(null)
     setEditingBuildIdx(null)
@@ -2277,6 +2441,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     setCraftBaseItem(null)
     setCraftSlots(Array.from({ length: 8 }, emptyCraftSlot))
     setCraftSearch('')
+    setCraftCorrosionType('none')
     setSelectedGraft(null)
     setVoraxInitialState(null)
     setEditingBuildIdx(null)
@@ -2385,6 +2550,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
         setCraftBaseType(bt)
         setCraftBaseItem(bi)
         setCraftSlots(reconstructCraftSlots(item, bt))
+        setCraftCorrosionType(item.corrosion_type ?? 'none')
         setCraftOpen(true)
         setEditingBuildIdx(idx)
         setSelectedCatalogItem(null)
@@ -2439,6 +2605,13 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
         if (corroded) affixes[implCount + idx] = corroded
       }
     }
+    // Apply random affix selections
+    const allRandomOptions = Object.values(selectedCatalogItem.random_affixes).flat().flatMap(g => g.options)
+    for (const [explicitIdxStr, modifierId] of Object.entries(selectedRandomAffixes)) {
+      const explicitIdx = Number(explicitIdxStr)
+      const opt = allRandomOptions.find(o => o.modifier_id === modifierId)
+      if (opt) affixes[implCount + explicitIdx] = opt
+    }
     const mutationResolvedAffix = corrosionType === 'mutation' && mutationAffixText
       ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationAffixText) ?? null)
       : null
@@ -2450,6 +2623,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
       customizations,
       slot: null,
       base_type: selectedCatalogItem.base_type,
+      implicit_count: implCount,
       corrosion_type: corrosionType,
       corroded_explicit_indices: corrodedExplicitIndices,
       mutation_affix_text: mutationAffixText,
@@ -2615,9 +2789,11 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
       const itemName = craftBaseItem?.name ?? craftBaseType.name
       const implicitTexts = baseItemImplicits[itemName] ?? []
       const implicitLines: PreviewLine[] = implicitTexts.map(t => ({ text: t }))
-      const craftLines: PreviewLine[] = craftSlots
-        .filter(s => s.affix !== null)
-        .map(s => ({ text: reconstructAffixText(craftAffixToLegendary(s.affix!), s.chosenValues), label: affixTypeLabel(s.affix!.affix_type) }))
+      const craftLines: PreviewLine[] = craftSlots.flatMap((s, i) => {
+        if (!s.affix) return []
+        const corroded = craftCorrosionType === 'mutation' ? i < 2 : craftCorrosionType === 'desecration' && s.affix.tier === '0+'
+        return [{ text: reconstructAffixText(craftAffixToLegendary(s.affix), s.chosenValues), label: affixTypeLabel(s.affix.affix_type), corroded: corroded || undefined }]
+      })
       if (implicitLines.length > 0 && craftLines.length > 0) return [...implicitLines, null, ...craftLines]
       if (implicitLines.length > 0) return implicitLines
       return craftLines
@@ -2668,7 +2844,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
       return [...allImplicits, ...explicitLines]
     }
     return null
-  }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, customizeItem, customizations, baseItemImplicits, corrosionType, mutationAffixText, corrodedExplicitIndices, legendaryCatalogItem, selectedRandomAffixes])
+  }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, customizeItem, customizations, baseItemImplicits, corrosionType, mutationAffixText, corrodedExplicitIndices, legendaryCatalogItem, selectedRandomAffixes])
 
   const handleDragStart = (idx: number) => {
     setDragIdx(idx)
@@ -2804,6 +2980,8 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
               baseItemImplicits={baseItemImplicits}
               previewName={previewName}
               previewLines={previewLines}
+              corrosionType={craftCorrosionType}
+              onCorrosionTypeChange={setCraftCorrosionType}
               onSaveBuildItem={editingBuildIdx !== null
                 ? (item) => { const orig = equippedItems[editingBuildIdx]; onGearChange(equippedItems.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
                 : undefined}

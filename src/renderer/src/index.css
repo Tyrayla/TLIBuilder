@@ -1826,6 +1826,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   color: #c678dd;
 }
 
+.gear-craft-slot--corroded .gear-craft-mod-value {
+  color: #c678dd;
+}
+
 .gear-corrosion-section {
   padding: 6px 10px;
   border-bottom: 1px solid #2a2a3a;
