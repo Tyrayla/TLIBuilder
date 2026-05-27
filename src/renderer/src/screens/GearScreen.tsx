@@ -540,6 +540,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
   const renderAffixRow = (affix: LegendaryAffix, affixIdx: number, explicitIndex?: number) => {
     const isCorroded = explicitIndex !== undefined && corrodedExplicitIndices.includes(explicitIndex)
     const showToggle = corrosionType === 'desecration' && showCorrosion && explicitIndex !== undefined
+      && catalogItem?.variants?.corroded?.explicits[explicitIndex] !== undefined
     const toggleDisabled = !isCorroded && corrodedExplicitIndices.length >= 2
 
     if (affix.affix_kind === 'placeholder') {
@@ -553,25 +554,35 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
           onMouseMove={optRangeIndices.length > 0 ? e => setHoveredAffix({ idx: affixIdx, x: e.clientX, y: e.clientY }) : undefined}
           onMouseLeave={optRangeIndices.length > 0 ? () => setHoveredAffix(null) : undefined}
         >
-          {randomGroup ? (
-            <select
-              className="gear-placeholder-select"
-              value={chosenModId}
-              onChange={e => explicitIndex !== undefined && handleSelectRandomAffix(explicitIndex, e.target.value)}
-            >
-              <option value="">— Select affix —</option>
-              {randomGroup.options.map(opt => (
-                <option key={opt.modifier_id} value={opt.modifier_id ?? ''}>{opt.raw_text}</option>
-              ))}
-            </select>
-          ) : (
-            <>
-              <div className="gear-affix-label gear-affix-label--dim">{affix.raw_text}</div>
-              <select className="gear-placeholder-select" disabled>
-                <option>— Select affix —</option>
+          <div className="gear-affix-label-line">
+            {showToggle && (
+              <button
+                className={`gear-corrosion-toggle${isCorroded ? ' active' : ''}`}
+                disabled={toggleDisabled}
+                onClick={() => handleToggleCorroded(explicitIndex!)}
+                title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
+              />
+            )}
+            {randomGroup ? (
+              <select
+                className="gear-placeholder-select"
+                value={chosenModId}
+                onChange={e => explicitIndex !== undefined && handleSelectRandomAffix(explicitIndex, e.target.value)}
+              >
+                <option value="">— Select affix —</option>
+                {randomGroup.options.map(opt => (
+                  <option key={opt.modifier_id} value={opt.modifier_id ?? ''}>{opt.raw_text}</option>
+                ))}
               </select>
-            </>
-          )}
+            ) : (
+              <>
+                <div className="gear-affix-label gear-affix-label--dim">{affix.raw_text}</div>
+                <select className="gear-placeholder-select" disabled>
+                  <option>— Select affix —</option>
+                </select>
+              </>
+            )}
+          </div>
           {chosenOption && optRangeIndices.map(valIdx => {
             const nv = chosenOption.numeric_values[valIdx]
             const nvSign = nv.sign ?? ''
@@ -612,15 +623,17 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
     if (!hasRangeValues(affix)) {
       return (
         <div key={affixIdx} className={`gear-affix-row${isCorroded ? ' gear-affix-row--corroded' : ''}`}>
-          <div className="gear-affix-label">{affix.raw_text}</div>
-          {showToggle && (
-            <button
-              className={`gear-corrosion-toggle${isCorroded ? ' active' : ''}`}
-              disabled={toggleDisabled}
-              onClick={() => handleToggleCorroded(explicitIndex!)}
-              title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
-            >C</button>
-          )}
+          <div className="gear-affix-label-line">
+            {showToggle && (
+              <button
+                className={`gear-corrosion-toggle${isCorroded ? ' active' : ''}`}
+                disabled={toggleDisabled}
+                onClick={() => handleToggleCorroded(explicitIndex!)}
+                title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
+              />
+            )}
+            <div className="gear-affix-label">{affix.raw_text}</div>
+          </div>
         </div>
       )
     }
@@ -635,15 +648,17 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
         onMouseMove={e => setHoveredAffix({ idx: affixIdx, x: e.clientX, y: e.clientY })}
         onMouseLeave={() => setHoveredAffix(null)}
       >
-        <div className="gear-affix-label">{displayText}</div>
-        {showToggle && (
-          <button
-            className={`gear-corrosion-toggle${isCorroded ? ' active' : ''}`}
-            disabled={toggleDisabled}
-            onClick={() => handleToggleCorroded(explicitIndex!)}
-            title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
-          >C</button>
-        )}
+        <div className="gear-affix-label-line">
+          {showToggle && (
+            <button
+              className={`gear-corrosion-toggle${isCorroded ? ' active' : ''}`}
+              disabled={toggleDisabled}
+              onClick={() => handleToggleCorroded(explicitIndex!)}
+              title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
+            />
+          )}
+          <div className="gear-affix-label">{displayText}</div>
+        </div>
         {rangeIndices.map(valIdx => {
           const nv = affix.numeric_values[valIdx]
           const nvSign = nv.sign ?? ''
