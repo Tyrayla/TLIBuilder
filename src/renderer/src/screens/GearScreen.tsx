@@ -777,7 +777,7 @@ function reconstructCraftSlots(item: EquippedGearItem, baseType: CraftBaseType):
     if (slotIdx >= 8) return
     const poolAffix = baseType.affixes.find(pa => pa.raw_text === aff.raw_text) ?? null
     const cust = item.customizations.find(c => c.affix_index === implicitCount + i)
-    slots[slotIdx] = { expression: poolAffix?.expression ?? null, affix: poolAffix, chosenValues: cust?.chosen_values ?? {} }
+    slots[slotIdx] = { expression: poolAffix ? normalizeExpression(poolAffix.expression) : null, affix: poolAffix, chosenValues: cust?.chosen_values ?? {} }
   })
   return slots
 }
@@ -790,10 +790,10 @@ function reconstructVoraxSlots(
   const toSlot = (aff: LegendaryAffix, custIdx: number): VoraxAffixSlot => {
     const chosen = item.customizations.find(c => c.affix_index === custIdx)?.chosen_values ?? {}
     if (aff.affix_type === 'Legendary') {
-      return { expression: aff.expression, affix: aff as unknown as LegendaryAffix, chosenValues: chosen, isLegendary: true }
+      return { expression: normalizeExpression(aff.expression), affix: aff as unknown as LegendaryAffix, chosenValues: chosen, isLegendary: true }
     }
     const poolAffix = graft.affixes.find(pa => pa.raw_text === aff.raw_text) ?? null
-    return { expression: poolAffix?.expression ?? null, affix: poolAffix, chosenValues: chosen, isLegendary: false }
+    return { expression: poolAffix ? normalizeExpression(poolAffix.expression) : null, affix: poolAffix, chosenValues: chosen, isLegendary: false }
   }
   const baseSlots: [VoraxAffixSlot, VoraxAffixSlot] = [emptyVoraxSlot(), emptyVoraxSlot()]
   const prefixSlots: [VoraxAffixSlot, VoraxAffixSlot, VoraxAffixSlot] = [emptyVoraxSlot(), emptyVoraxSlot(), emptyVoraxSlot()]
@@ -818,8 +818,13 @@ function reconstructVoraxSlots(
 
 type AffixWithTier = { expression: string; affix_type: string; tier: string }
 
+function normalizeExpression(expr: string): string {
+  return expr.replace(/\(#\)|\d+(\.\d+)?/g, '#')
+}
+
 function tiersForModifier<T extends AffixWithTier>(pool: T[], expression: string): T[] {
-  return pool.filter(a => a.expression === expression)
+  const norm = normalizeExpression(expression)
+  return pool.filter(a => normalizeExpression(a.expression) === norm)
 }
 
 function parseTierNum(tier: string): number {
@@ -906,9 +911,9 @@ function groupedModifiers(pool: AffixWithTier[]): ModifierGroup[] {
   for (const a of pool) {
     const quality = a.affix_type.replace(/\s*(Pre-fix|Suffix|Affix).*$/i, '').trim() || 'Other'
     if (!groups[quality]) groups[quality] = new Set()
-    groups[quality].add(a.expression)
+    groups[quality].add(normalizeExpression(a.expression))
   }
-  return ['Base', 'Basic', 'Advanced', 'Ultimate', 'Other']
+  return ['Base', 'Basic', 'Advanced', 'Ultimate', 'Mutation', 'Other']
     .filter(q => groups[q])
     .map(q => ({ quality: q, expressions: [...groups[q]].sort() }))
 }
