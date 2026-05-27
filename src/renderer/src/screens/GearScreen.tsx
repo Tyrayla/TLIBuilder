@@ -2,6 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   LegendaryGearItem, LegendaryGearIndexItem, LegendaryAffix, LegendaryNumericValue,
+  LegendaryRandomAffixGroup,
   EquippedGearItem, CustomizedAffix, GearSlot, CraftBaseType, CraftAffix, CraftBaseItem, CraftBaseItemGroup,
   Graft, GraftAffix,
 } from '../api/client'
@@ -99,15 +100,17 @@ function getItemExplicits(item: LegendaryGearItem): LegendaryAffix[] {
   const variant = item.variants[variantKey]
   if (!variant) return []
   const affixes: LegendaryAffix[] = [...variant.explicits]
+  const existingCounts: Record<string, number> = {}
+  for (const a of variant.explicits) {
+    if (a.affix_kind === 'placeholder') existingCounts[a.raw_text] = (existingCounts[a.raw_text] ?? 0) + 1
+  }
+  const consumed: Record<string, number> = {}
   for (const group of (item.random_affixes[variantKey] ?? [])) {
-    affixes.push({
-      raw_text: group.placeholder,
-      modifier_id: null,
-      expression: group.placeholder,
-      condition: null,
-      affix_kind: 'placeholder',
-      numeric_values: [],
-    })
+    const ph = group.placeholder
+    const used = consumed[ph] ?? 0
+    if (used < (existingCounts[ph] ?? 0)) { consumed[ph] = used + 1 } else {
+      affixes.push({ raw_text: ph, modifier_id: null, expression: ph, condition: null, affix_kind: 'placeholder', numeric_values: [] })
+    }
   }
   return affixes
 }
@@ -118,15 +121,17 @@ function getItemAffixes(item: LegendaryGearItem | EquippedGearItem): LegendaryAf
   const variant = item.variants[variantKey]
   if (!variant) return []
   const affixes: LegendaryAffix[] = [...variant.implicits, ...variant.explicits]
+  const existingCounts: Record<string, number> = {}
+  for (const a of variant.explicits) {
+    if (a.affix_kind === 'placeholder') existingCounts[a.raw_text] = (existingCounts[a.raw_text] ?? 0) + 1
+  }
+  const consumed: Record<string, number> = {}
   for (const group of (item.random_affixes[variantKey] ?? [])) {
-    affixes.push({
-      raw_text: group.placeholder,
-      modifier_id: null,
-      expression: group.placeholder,
-      condition: null,
-      affix_kind: 'placeholder',
-      numeric_values: [],
-    })
+    const ph = group.placeholder
+    const used = consumed[ph] ?? 0
+    if (used < (existingCounts[ph] ?? 0)) { consumed[ph] = used + 1 } else {
+      affixes.push({ raw_text: ph, modifier_id: null, expression: ph, condition: null, affix_kind: 'placeholder', numeric_values: [] })
+    }
   }
   return affixes
 }
@@ -352,15 +357,18 @@ interface CustomizePanelProps {
   corrosionType: 'none' | 'desecration' | 'mutation'
   corrodedExplicitIndices: number[]
   mutationAffixText: string | null
+  selectedRandomAffixes: Record<number, string>
   onCorrosionChange: (
     type: 'none' | 'desecration' | 'mutation',
     indices: number[],
     mutationText: string | null,
-    updatedAffixes: LegendaryAffix[] | null
+    updatedAffixes: LegendaryAffix[] | null,
+    clearRandomAffixIndices?: number[]
   ) => void
+  onRandomAffixChange: (explicitIndex: number, modifierId: string, updatedAffixes: LegendaryAffix[]) => void
 }
 
-function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines, catalogItem, corrosionBaseAffixes, corrosionType, corrodedExplicitIndices, mutationAffixText, onCorrosionChange }: CustomizePanelProps) {
+function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines, catalogItem, corrosionBaseAffixes, corrosionType, corrodedExplicitIndices, mutationAffixText, selectedRandomAffixes, onCorrosionChange, onRandomAffixChange }: CustomizePanelProps) {
   const [hoveredAffix, setHoveredAffix] = useState<{ idx: number; x: number; y: number } | null>(null)
   const [baseHoverPos, setBaseHoverPos] = useState<{ x: number; y: number } | null>(null)
   const custPanelId = useId()
@@ -409,7 +417,9 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
 
   const getImplicitCount = (): number => {
     if (isLegendaryGearItem(item)) return implicits.length
-    return (item as EquippedGearItem).implicit_count ?? 0
+    const count = (item as EquippedGearItem).implicit_count
+    if (count !== undefined) return count
+    return catalogItem?.variants?.base?.implicits?.length ?? 0
   }
 
   const handleToggleCorroded = (explicitIndex: number) => {
@@ -450,7 +460,8 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
     const newCustomizations = customizations.filter(c => c.affix_index !== affixArrayIndex)
     onCustomizationChange(newCustomizations)
 
-    onCorrosionChange('desecration', newIndices, null, updatedAffixes)
+    const isPlaceholderExplicit = catalogItem?.variants?.base?.explicits[explicitIndex]?.affix_kind === 'placeholder'
+    onCorrosionChange('desecration', newIndices, null, updatedAffixes, isPlaceholderExplicit ? [explicitIndex] : undefined)
   }
 
   const handleCorrosionTypeChange = (newType: 'none' | 'desecration' | 'mutation') => {
@@ -476,7 +487,54 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
       onCustomizationChange(customizations.filter(c => !staleIndices.has(c.affix_index)))
     }
 
-    onCorrosionChange(newType, [], newType === 'mutation' ? mutationAffixText : null, updatedAffixes)
+    const clearIndices = corrodedExplicitIndices.filter(idx =>
+      catalogItem?.variants?.base?.explicits[idx]?.affix_kind === 'placeholder'
+    )
+    onCorrosionChange(newType, [], newType === 'mutation' ? mutationAffixText : null, updatedAffixes, clearIndices.length > 0 ? clearIndices : undefined)
+  }
+
+  const getRandomGroupForExplicit = (explicitIdx: number): LegendaryRandomAffixGroup | null => {
+    if (!catalogItem) return null
+    const currentExplicits = explicits
+    const affix = currentExplicits[explicitIdx]
+    if (!affix || affix.affix_kind !== 'placeholder') return null
+    const baseExplicitsLen = catalogItem.variants.base?.explicits?.length ?? 0
+    if (explicitIdx < baseExplicitsLen) {
+      const isCorroded = corrodedExplicitIndices.includes(explicitIdx)
+      const variantKey = isCorroded && catalogItem.random_affixes['corroded'] ? 'corroded' : 'base'
+      const variantGroups = catalogItem.random_affixes[variantKey] ?? []
+      if (variantGroups.length === 0) return null
+      const variantExplicits = isCorroded
+        ? (catalogItem.variants.corroded?.explicits ?? catalogItem.variants.base?.explicits ?? [])
+        : (catalogItem.variants.base?.explicits ?? [])
+      const occurrence = variantExplicits.slice(0, explicitIdx).filter(e => e.affix_kind === 'placeholder').length
+      return variantGroups[occurrence] ?? null
+    }
+    const ph = affix.raw_text
+    const allGroups = Object.values(catalogItem.random_affixes).flat()
+    const matchingGroups = allGroups.filter(g => g.placeholder === ph)
+    const occurrence = currentExplicits.slice(0, explicitIdx).filter(e => e.raw_text === ph).length
+    return matchingGroups[occurrence] ?? null
+  }
+
+  const handleSelectRandomAffix = (explicitIndex: number, modifierId: string) => {
+    if (!catalogItem) return
+    const group = getRandomGroupForExplicit(explicitIndex)
+    if (!group) return
+    const chosenOption = group.options.find(o => o.modifier_id === modifierId)
+    if (!chosenOption) return
+    const implCount = getImplicitCount()
+    const affixArrayIndex = implCount + explicitIndex
+    let currentAffixes: LegendaryAffix[]
+    if (isLegendaryGearItem(item)) {
+      currentAffixes = getItemAffixes(item)
+    } else {
+      currentAffixes = [...(item as EquippedGearItem).affixes]
+    }
+    const updatedAffixes = [...currentAffixes]
+    updatedAffixes[affixArrayIndex] = chosenOption
+    onCustomizationChange(customizations.filter(c => c.affix_index !== affixArrayIndex))
+    onRandomAffixChange(explicitIndex, modifierId, updatedAffixes)
   }
 
   const renderAffixRow = (affix: LegendaryAffix, affixIdx: number, explicitIndex?: number) => {
@@ -485,12 +543,69 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
     const toggleDisabled = !isCorroded && corrodedExplicitIndices.length >= 2
 
     if (affix.affix_kind === 'placeholder') {
+      const randomGroup = explicitIndex !== undefined ? getRandomGroupForExplicit(explicitIndex) : null
+      const chosenModId = explicitIndex !== undefined ? (selectedRandomAffixes[explicitIndex] ?? '') : ''
+      const chosenOption = randomGroup?.options.find(o => o.modifier_id === chosenModId) ?? null
+      const optRangeIndices = chosenOption ? getRangeIndices(chosenOption) : []
+      const chosenMap = getChosenMap(affixIdx)
       return (
-        <div key={affixIdx} className="gear-affix-row gear-affix-placeholder">
-          <div className="gear-affix-label gear-affix-label--dim">{affix.raw_text}</div>
-          <select className="gear-placeholder-select" disabled>
-            <option>— Select affix —</option>
-          </select>
+        <div key={affixIdx} className={`gear-affix-row gear-affix-placeholder${isCorroded ? ' gear-affix-row--corroded' : ''}${optRangeIndices.length > 0 ? ' gear-affix-range-row' : ''}`}
+          onMouseMove={optRangeIndices.length > 0 ? e => setHoveredAffix({ idx: affixIdx, x: e.clientX, y: e.clientY }) : undefined}
+          onMouseLeave={optRangeIndices.length > 0 ? () => setHoveredAffix(null) : undefined}
+        >
+          {randomGroup ? (
+            <select
+              className="gear-placeholder-select"
+              value={chosenModId}
+              onChange={e => explicitIndex !== undefined && handleSelectRandomAffix(explicitIndex, e.target.value)}
+            >
+              <option value="">— Select affix —</option>
+              {randomGroup.options.map(opt => (
+                <option key={opt.modifier_id} value={opt.modifier_id ?? ''}>{opt.raw_text}</option>
+              ))}
+            </select>
+          ) : (
+            <>
+              <div className="gear-affix-label gear-affix-label--dim">{affix.raw_text}</div>
+              <select className="gear-placeholder-select" disabled>
+                <option>— Select affix —</option>
+              </select>
+            </>
+          )}
+          {chosenOption && optRangeIndices.map(valIdx => {
+            const nv = chosenOption.numeric_values[valIdx]
+            const nvSign = nv.sign ?? ''
+            const rawMin = nv.min ?? 0
+            const rawMax = nv.max ?? 0
+            const dp = rangeDecimals(nv)
+            const step = dp > 0 ? parseFloat((1 / Math.pow(10, dp)).toFixed(dp)) : 1
+            const sMin = nvSign === '-' ? -rawMin : rawMin
+            const sMax = nvSign === '-' ? -rawMax : rawMax
+            const actualMin = Math.min(sMin, sMax)
+            const actualMax = Math.max(sMin, sMax)
+            const ticks = buildTicks(actualMin, actualMax, step)
+            const listId = `${custPanelId}-${affixIdx}-${valIdx}`
+            const unsignedChosen = chosenMap[valIdx] ?? midpoint(nv)
+            const signedChosen = nvSign === '-' ? -unsignedChosen : unsignedChosen
+            const displayChosen = dp > 0 ? signedChosen.toFixed(dp) : signedChosen
+            return (
+              <div key={valIdx} className="gear-slider-row">
+                <input
+                  type="range" className="gear-affix-slider"
+                  list={ticks.length > 0 ? listId : undefined}
+                  min={actualMin} max={actualMax} step={step} value={signedChosen}
+                  onChange={e => {
+                    const signed = Number(e.target.value)
+                    setChosenValue(affixIdx, valIdx, nvSign === '-' ? -signed : signed)
+                  }}
+                />
+                {ticks.length > 0 && (
+                  <datalist id={listId}>{ticks.map((t, ti) => <option key={ti} value={t} />)}</datalist>
+                )}
+                <span className="gear-affix-value">{displayChosen}</span>
+              </div>
+            )
+          })}
         </div>
       )
     }
@@ -2107,6 +2222,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   const [corrosionType, setCorrosionType] = useState<'none' | 'desecration' | 'mutation'>('none')
   const [corrodedExplicitIndices, setCorrodedExplicitIndices] = useState<number[]>([])
   const [mutationAffixText, setMutationAffixText] = useState<string | null>(null)
+  const [selectedRandomAffixes, setSelectedRandomAffixes] = useState<Record<number, string>>({})
   // Craft state
   const [craftOpen, setCraftOpen] = useState(false)
   const [craftBaseType, setCraftBaseType] = useState<CraftBaseType | null>(null)
@@ -2124,6 +2240,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     setCorrosionType('none')
     setCorrodedExplicitIndices([])
     setMutationAffixText(null)
+    setSelectedRandomAffixes({})
   }
 
   const openCraft = () => {
@@ -2190,11 +2307,19 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     type: 'none' | 'desecration' | 'mutation',
     indices: number[],
     mutationText: string | null,
-    updatedAffixes: LegendaryAffix[] | null
+    updatedAffixes: LegendaryAffix[] | null,
+    clearRandomAffixIndices?: number[]
   ) => {
     setCorrosionType(type)
     setCorrodedExplicitIndices(indices)
     setMutationAffixText(mutationText)
+    if (clearRandomAffixIndices?.length) {
+      setSelectedRandomAffixes(prev => {
+        const next = { ...prev }
+        for (const i of clearRandomAffixIndices) delete next[i]
+        return next
+      })
+    }
     const mutationResolvedAffix = type === 'mutation' && mutationText
       ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationText) ?? null)
       : null
@@ -2207,8 +2332,21 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
         corroded_explicit_indices: indices,
         mutation_affix_text: mutationText,
         mutation_resolved_affix: mutationResolvedAffix,
+        selected_random_affixes: clearRandomAffixIndices?.length
+          ? Object.fromEntries(Object.entries(selectedRandomAffixes).filter(([k]) => !clearRandomAffixIndices.includes(Number(k))))
+          : selectedRandomAffixes,
       }
       onGearChange(next)
+    }
+  }
+
+  const handleRandomAffixChange = (explicitIndex: number, modifierId: string, updatedAffixes: LegendaryAffix[]) => {
+    const next = { ...selectedRandomAffixes, [explicitIndex]: modifierId }
+    setSelectedRandomAffixes(next)
+    if (editingBuildIdx !== null) {
+      const items = [...equippedItems]
+      items[editingBuildIdx] = { ...items[editingBuildIdx], affixes: updatedAffixes, selected_random_affixes: next }
+      onGearChange(items)
     }
   }
 
@@ -2260,6 +2398,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     setCorrosionType(item.corrosion_type ?? 'none')
     setCorrodedExplicitIndices(item.corroded_explicit_indices ?? [])
     setMutationAffixText(item.mutation_affix_text ?? null)
+    setSelectedRandomAffixes(item.selected_random_affixes ?? {})
   }
 
   const handleRemoveBuildItem = (idx: number) => {
@@ -2300,6 +2439,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
       corroded_explicit_indices: corrodedExplicitIndices,
       mutation_affix_text: mutationAffixText,
       mutation_resolved_affix: mutationResolvedAffix,
+      selected_random_affixes: Object.keys(selectedRandomAffixes).length ? selectedRandomAffixes : undefined,
     }
     onGearChange([...equippedItems, newItem])
     setSelectedCatalogItem(null)
@@ -2476,9 +2616,20 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
         const explicits = getItemExplicits(customizeItem)
         const corrodedVariant = legendaryCatalogItem?.variants?.corroded
         const implicitLines: PreviewLine[] = implicits.map((a, i) => ({ text: tooltipAffixText(a, i, customizations) }))
+        const allRandomOptions = legendaryCatalogItem
+          ? Object.values(legendaryCatalogItem.random_affixes).flat().flatMap(g => g.options)
+          : []
         const explicitLines: PreviewLine[] = explicits.map((a, i) => {
           const isCorroded = corrodedExplicitIndices.includes(i)
           const displayAffix = isCorroded && corrodedVariant?.explicits[i] ? corrodedVariant.explicits[i] : a
+          if (displayAffix.affix_kind === 'placeholder') {
+            const modId = selectedRandomAffixes[i]
+            if (modId) {
+              const opt = allRandomOptions.find(o => o.modifier_id === modId)
+              if (opt) return { text: tooltipAffixText(opt, implicits.length + i, customizations), corroded: isCorroded }
+            }
+            return { text: displayAffix.raw_text }
+          }
           return { text: tooltipAffixText(displayAffix, implicits.length + i, isCorroded ? undefined : customizations), corroded: isCorroded }
         })
         const allImplicits = mutationLine ? [mutationLine, ...implicitLines] : implicitLines
@@ -2502,7 +2653,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
       return [...allImplicits, ...explicitLines]
     }
     return null
-  }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, customizeItem, customizations, baseItemImplicits, corrosionType, mutationAffixText, corrodedExplicitIndices, legendaryCatalogItem])
+  }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, customizeItem, customizations, baseItemImplicits, corrosionType, mutationAffixText, corrodedExplicitIndices, legendaryCatalogItem, selectedRandomAffixes])
 
   const handleDragStart = (idx: number) => {
     setDragIdx(idx)
@@ -2658,7 +2809,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
               corrosionType={corrosionType}
               corrodedExplicitIndices={corrodedExplicitIndices}
               mutationAffixText={mutationAffixText}
+              selectedRandomAffixes={selectedRandomAffixes}
               onCorrosionChange={handleCorrosionChange}
+              onRandomAffixChange={handleRandomAffixChange}
             />
           )}
         </div>

@@ -1937,6 +1937,19 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 3px 6px;
   border-radius: 3px;
   font-style: italic;
+  width: 100%;
+}
+
+.gear-placeholder-select:not(:disabled) {
+  border-color: #3a3a5a;
+  color: #c8c4a0;
+  font-style: normal;
+  cursor: pointer;
+}
+
+.gear-placeholder-select:not(:disabled):focus {
+  outline: none;
+  border-color: #5a5a7a;
 }
 
 .gear-customize-actions {
