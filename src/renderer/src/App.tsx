@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { initApi, api, Build, TreeSlot, SavedSlate, EquippedGearItem, EquippedSkill, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
-import { migrateOldConditions } from './utils/conditions'
+import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
 import { useBuildStore } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useReferenceStore } from './store/referenceStore'
@@ -20,8 +20,9 @@ import SlateScreen from './screens/SlateScreen'
 import StatsScreen from './screens/StatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
+import CalcsScreen from './screens/CalcsScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'calcs' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
 
 interface Session {
   buildId: string | null
@@ -100,10 +101,23 @@ function App() {
   const [saveModalName, setSaveModalName] = useState('')
   const [saveModalSaving, setSaveModalSaving] = useState(false)
   const sessionRef = useRef(session)
+  const refConditions = useReferenceStore(s => s.conditions)
 
   useEffect(() => { sessionRef.current = session }, [session])
 
   useEffect(() => { window.api?.notifyDirty?.(isDirty) }, [isDirty])
+
+  // When condition definitions load, fill any empty conditionState with defaults.
+  // This covers new builds and imported builds that predate the conditions system.
+  useEffect(() => {
+    if (!refConditions) return
+    setSession(s => {
+      if (Object.keys(s.conditionState).length > 0) return s
+      const defs = Object.values(refConditions).flat()
+      const defaults = buildDefaultConditionState(defs)
+      return Object.keys(defaults).length > 0 ? { ...s, conditionState: defaults } : s
+    })
+  }, [refConditions])
 
   useEffect(() => {
     initApi()
@@ -199,6 +213,14 @@ function App() {
     session.gear, session.characterLevel, session.hasPrism,
     session.heroMemories, session.pactSpirits,
   ])
+
+  // Sync slot-1 active skill → mainSkill for offense calculation
+  useEffect(() => {
+    const slot1 = session.skills.find(s => s.slot === 1) ?? null
+    useBuildStore.getState().setMainSkill(
+      slot1 ? { skill_id: slot1.item_id, level: slot1.level } : null
+    )
+  }, [session.skills])
 
 
   if (!appReady) {
@@ -310,6 +332,11 @@ function App() {
       ...g,
       affixes: Array.isArray(g.affixes) ? g.affixes : [],
       customizations: Array.isArray(g.customizations) ? g.customizations : [],
+      corrosion_type: g.corrosion_type ?? 'none',
+      corroded_explicit_indices: g.corroded_explicit_indices ?? [],
+      mutation_affix_text: g.mutation_affix_text ?? null,
+      mutation_resolved_affix: g.mutation_resolved_affix ?? null,
+      selected_random_affixes: g.selected_random_affixes ?? {},
     }))
 
     // Re-resolve stat fields for crafted items — saved values can become stale
@@ -807,6 +834,10 @@ function App() {
   } else if (screen === 'stats') {
     screenContent = (
       <StatsScreen />
+    )
+  } else if (screen === 'calcs') {
+    screenContent = (
+      <CalcsScreen />
     )
   } else if (screen === 'gear') {
     screenContent = (

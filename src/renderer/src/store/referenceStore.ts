@@ -32,6 +32,7 @@ interface ReferenceStore {
 
   loadReferenceData: () => Promise<void>
   clearReferenceData: () => void
+  refreshCraftBaseTypes: () => Promise<void>
 }
 
 // Factory returns a fresh object (with a fresh Set) on every call.
@@ -137,5 +138,14 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
     // Increment token so any in-flight load discards its result
     loadToken++
     set({ ...freshClearedState() })
+  },
+
+  refreshCraftBaseTypes: async () => {
+    try {
+      const result = await api.getCraftBaseTypes()
+      set({ craftBaseTypes: result.base_types })
+    } catch {
+      // silently fail; stale data remains until next full load
+    }
   },
 }))
