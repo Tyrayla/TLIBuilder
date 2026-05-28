@@ -419,16 +419,64 @@ export interface StatEntry {
   sources: StatSource[]
 }
 
+export interface SkillEngineInput {
+  skill_id: string
+  level: number
+}
+
+export interface HitFormResult {
+  name: string
+  effectiveness_pct: number
+  form_type: 'additive' | 'exclusive'
+  proc_chance: number
+  damage_by_type: Record<string, number>
+  avg_hit_pre_crit: number
+  avg_hit_with_crit: number
+  dps_contribution: number
+  dps_vs_target: number
+}
+
+export interface OffenseResult {
+  skill_name: string
+  supported: boolean   // false = NYI; when false no other fields are meaningful
+  effective_level: number
+  hit_forms: HitFormResult[]
+  crit_chance: number
+  crit_multiplier: number
+  steep_strike_chance: number
+  attacks_per_second: number
+  total_dps: number
+  total_dps_vs_target: number
+  nyi: string[]
+}
+
+export interface DefenseResult {
+  max_life: number
+  max_mana: number
+  max_energy_shield: number
+  armor: number
+  evasion: number
+  fire_resist: number
+  cold_resist: number
+  lightning_resist: number
+  erosion_resist: number
+  nyi: string[]
+}
+
 export interface StatSheetResponse {
   stats: Record<string, StatEntry>
   condition_maximums: Record<string, number>
   clamp_report: Record<string, { requested: number; applied: number }>
+  offense?: OffenseResult | null
+  defense?: DefenseResult | null
 }
 
 export const EMPTY_STAT_SHEET: StatSheetResponse = {
   stats: {},
   condition_maximums: {},
   clamp_report: {},
+  offense: null,
+  defense: null,
 }
 
 export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
@@ -1244,6 +1292,7 @@ export const api = {
     character?: CharacterStatContribution[]
     memory_effects?: string[]
     spirit_effects?: string[]
+    main_skill?: SkillEngineInput | null
   }) => post<StatSheetResponse>('/engine/stats', payload),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),

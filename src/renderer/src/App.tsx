@@ -20,8 +20,9 @@ import SlateScreen from './screens/SlateScreen'
 import StatsScreen from './screens/StatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
+import CalcsScreen from './screens/CalcsScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'calcs' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
 
 interface Session {
   buildId: string | null
@@ -212,6 +213,14 @@ function App() {
     session.gear, session.characterLevel, session.hasPrism,
     session.heroMemories, session.pactSpirits,
   ])
+
+  // Sync slot-1 active skill → mainSkill for offense calculation
+  useEffect(() => {
+    const slot1 = session.skills.find(s => s.slot === 1) ?? null
+    useBuildStore.getState().setMainSkill(
+      slot1 ? { skill_id: slot1.item_id, level: slot1.level } : null
+    )
+  }, [session.skills])
 
 
   if (!appReady) {
@@ -825,6 +834,10 @@ function App() {
   } else if (screen === 'stats') {
     screenContent = (
       <StatsScreen />
+    )
+  } else if (screen === 'calcs') {
+    screenContent = (
+      <CalcsScreen />
     )
   } else if (screen === 'gear') {
     screenContent = (
