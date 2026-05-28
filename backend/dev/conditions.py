@@ -89,6 +89,46 @@ def _collect_condition_strings(active: str) -> dict[str, dict]:
     return found
 
 
+def _collect_items_for_condition(active: str, condition_text: str) -> list[dict]:
+    """Return list of {source, item_name, affix_text} for all affixes matching condition_text."""
+    results: list[dict] = []
+
+    def _walk(obj: Any, source_label: str, item_name: str | None = None, affix_text: str | None = None) -> None:
+        if isinstance(obj, dict):
+            current_name: str | None = obj.get("name") or item_name
+            # Carry the most recently seen text field down the tree so that when
+            # condition is found on a deep stat dict, we still have the affix text
+            # from its nearest ancestor that had one.
+            current_text: str | None = obj.get("raw_text") or obj.get("text") or obj.get("display_text") or affix_text
+            cond = obj.get("condition")
+            if cond == condition_text:
+                results.append({
+                    "source": source_label,
+                    "item_name": current_name or "Unknown",
+                    "affix_text": current_text or "",
+                })
+            for v in obj.values():
+                _walk(v, source_label, current_name, current_text)
+        elif isinstance(obj, list):
+            for item in obj:
+                _walk(item, source_label, item_name, affix_text)
+
+    loaders = {
+        "legendary": season_manager.load_legendary_gear,
+        "grafts":    season_manager.load_grafts,
+        "craft":     season_manager.load_craft_base_types,
+    }
+    for label, loader in loaders.items():
+        try:
+            data = loader(active)
+            if data:
+                _walk(data, label)
+        except Exception:
+            pass
+
+    return results
+
+
 # ── Stat key lookup ───────────────────────────────────────────────────────────
 
 @router.get("/stat-keys")
@@ -120,6 +160,7 @@ class ConditionIn(BaseModel):
     default_value: float = 0
     default_bool: bool = False
     visible: bool = True
+    source: str = "user"
 
 
 @router.post("/definitions")
@@ -219,6 +260,14 @@ def get_sources():
             "mapped": text in overrides,
         })
     return {"season": active, "entries": entries}
+
+
+@router.get("/source-items")
+def get_source_items(text: str):
+    active = season_manager.get_active_season()
+    if not active:
+        return {"items": []}
+    return {"items": _collect_items_for_condition(active, text)}
 
 
 @router.get("/overrides")

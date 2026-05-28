@@ -66,7 +66,17 @@ export default function BuildOverviewScreen({ conditionState, onConditionStateCh
                 <div className="cond-card-header">{cat}</div>
                 <div className="cond-card-body">
                   {visibleItems.map(cond => {
+                    const isComputed = cond.source === 'computed_stat'
                     if (cond.value_type === 'numeric') {
+                      if (isComputed) {
+                        const val = (conditionState[cond.key] as number) ?? 0
+                        return (
+                          <div key={cond.key} className="cond-item cond-item--derived">
+                            <span className="cond-label cond-label--derived">{cond.label}</span>
+                            <span className="cond-derived-hint">{val}{cond.unit ? ` ${cond.unit}` : ''}</span>
+                          </div>
+                        )
+                      }
                       return <NumericConditionRow
                         key={cond.key}
                         cond={cond}

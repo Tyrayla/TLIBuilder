@@ -25,6 +25,7 @@ class ConditionDef:
     default_value: float = 0
     default_bool: bool = False
     visible: bool = True
+    source: str = "user"
 
 
 def _load() -> tuple[list[ConditionDef], dict[str, str]]:

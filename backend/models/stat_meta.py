@@ -31,6 +31,40 @@ _ALL_DMGF = ("hit", "dot", "secondary", "reflect")
 
 STAT_META: dict[Stat, StatMeta] = {
 
+    # ── Derived (final computed values — flat × (1 + inc%) × add pools) ───────
+    Stat.STRENGTH: StatMeta(
+        "Strength", "Attributes", "derived",
+        subgroup="attribute", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.DEXTERITY: StatMeta(
+        "Dexterity", "Attributes", "derived",
+        subgroup="attribute", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.INTELLIGENCE: StatMeta(
+        "Intelligence", "Attributes", "derived",
+        subgroup="attribute", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.MAX_LIFE: StatMeta(
+        "Maximum Life", "Life", "derived",
+        subgroup="life", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.MAX_MANA: StatMeta(
+        "Maximum Mana", "Mana", "derived",
+        subgroup="mana", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.MAX_ENERGY_SHIELD: StatMeta(
+        "Maximum Energy Shield", "Defence", "derived",
+        subgroup="energy_shield", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.ARMOR: StatMeta(
+        "Armor", "Defence", "derived",
+        subgroup="defense", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.EVASION: StatMeta(
+        "Evasion", "Defence", "derived",
+        subgroup="defense", ui_priority=4, stacking_rule="additive",
+    ),
+
     # ── Attributes ────────────────────────────────────────────────────────────
     Stat.STRENGTH_FLAT: StatMeta(
         "Strength", "Attributes", "base_stat",

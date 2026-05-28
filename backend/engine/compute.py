@@ -119,6 +119,17 @@ def compute(
             numeric_vals=numeric_vals,
         )
 
+        # Compute derived stats (strength, armor, max_life, etc.) and inject
+        # back into source so the pipeline and condition system can read them
+        from engine.derive import derive_stats
+        derive_stats(source)
+
+        # Inject auto-computed condition values from aggregated stats
+        from models.conditions import ALL_CONDITIONS
+        for _c in ALL_CONDITIONS:
+            if _c.source == "computed_stat":
+                condition_state[_c.key] = source.total(_c.key)
+
         maxes = derive_condition_maximums(source)
         mins = derive_condition_minimums(source)
         new_state = _clamp_and_rederive(condition_state, maxes, mins)
@@ -155,6 +166,21 @@ def compute(
             "amount": entry.amount,
             "points": entry.points,
         })
+
+    # Add derived effective stats as the "Character" section of the stat sheet
+    from engine.derive import ALL_DERIVED_STATS as _DERIVED
+    for _d in _DERIVED:
+        val = source.total(_d.key)
+        if val == 0.0:
+            continue
+        _meta = next((m for s, m in STAT_META.items() if s.value == _d.key), None)
+        stat_map[_d.key] = {
+            "display_name": _meta.display_name if _meta else _d.key.replace("_", " ").title(),
+            "category": "Character",
+            "unit": "",
+            "total": round(val, 2),
+            "sources": [],
+        }
 
     # Clamp report: numeric conditions where the user's requested value exceeded the derived max
     clamped_numeric = {

@@ -3,21 +3,23 @@ import { StatEntry, StatSource } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 
 const CATEGORY_ORDER = [
+  'Character',
   'Attributes', 'Generic', 'Attack', 'Spell', 'Melee', 'Area', 'Projectile',
   'Minion', 'Sentry', 'Spirit Magi', 'Physical', 'Lightning', 'Cold', 'Fire',
   'Erosion', 'Elemental', 'Ailments', 'Steep Strike', 'Cast Speed', 'Attack Speed',
-  'Critical Strike', 'Life', 'Mana', 'Energy Shield', 'Defense', 'Damage Taken',
-  'Buffs', 'Utility', 'Gear',
+  'Critical Strike', 'Life', 'Mana', 'Energy Shield', 'Defence', 'Defense',
+  'Damage Taken', 'Buffs', 'Utility', 'Gear',
 ]
 
 const TOOLTIP_WIDTH = 230
 
-function formatStatValue(total: number, unit: string): string {
+function formatStatValue(total: number, unit: string, raw = false): string {
   if (unit === '%') {
     const pct = Math.round(total * 100)
     return pct >= 0 ? `+${pct}%` : `${pct}%`
   }
   const rounded = Math.round(total * 1000) / 1000
+  if (raw) return String(Math.round(total))
   return rounded >= 0 ? `+${rounded}` : `${rounded}`
 }
 
@@ -117,16 +119,24 @@ export default function StatsScreen() {
           <div key={category} className="stat-category-group">
             <div className="stat-category-header">{category}</div>
             <div className="stat-category-entries">
-              {entries.map(([key, entry]) => (
-                <button
-                  key={key}
-                  className={`stat-sheet-row${selectedStat === key ? ' selected' : ''}`}
-                  onClick={e => handleStatClick(e, key)}
-                >
-                  <span className="stat-sheet-row-name">{entry.display_name}</span>
-                  <span className="stat-sheet-row-value">{formatStatValue(entry.total, entry.unit)}</span>
-                </button>
-              ))}
+              {entries.map(([key, entry]) => {
+                const isCharacter = category === 'Character'
+                return isCharacter ? (
+                  <div key={key} className="stat-sheet-row stat-sheet-row--derived">
+                    <span className="stat-sheet-row-name">{entry.display_name}</span>
+                    <span className="stat-sheet-row-value">{formatStatValue(entry.total, entry.unit, true)}</span>
+                  </div>
+                ) : (
+                  <button
+                    key={key}
+                    className={`stat-sheet-row${selectedStat === key ? ' selected' : ''}`}
+                    onClick={e => handleStatClick(e, key)}
+                  >
+                    <span className="stat-sheet-row-name">{entry.display_name}</span>
+                    <span className="stat-sheet-row-value">{formatStatValue(entry.total, entry.unit)}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         ))}

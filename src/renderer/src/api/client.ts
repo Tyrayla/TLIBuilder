@@ -387,6 +387,7 @@ export interface ConditionDef {
   default_bool?: boolean
   visible?: boolean
   is_derived?: boolean
+  source?: string
 }
 
 export interface ConditionSourceEntry {
@@ -1264,6 +1265,8 @@ export const api = {
     del<{ ok: boolean }>(`/dev/conditions/derived-keys/${boolKey}`),
   devGetConditionSources: () =>
     get<{ season: string | null; entries: ConditionSourceEntry[] }>('/dev/conditions/sources'),
+  devGetConditionSourceItems: (text: string) =>
+    get<{ items: { source: string; item_name: string; affix_text: string }[] }>(`/dev/conditions/source-items?text=${encodeURIComponent(text)}`),
   devGetConditionOverrides: () =>
     get<Record<string, unknown>>('/dev/conditions/overrides'),
   devSaveConditionOverride: (conditionText: string, expression: unknown) =>

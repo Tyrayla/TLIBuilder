@@ -1285,6 +1285,9 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .stat-sheet-row:hover { background: #13132a; }
 .stat-sheet-row.selected { background: #16163a; }
+.stat-sheet-row--derived { cursor: default; }
+.stat-sheet-row--derived .stat-sheet-row-name { color: #c8c8e0; }
+.stat-sheet-row--derived .stat-sheet-row-value { color: #b8a0ff; font-size: 13px; }
 
 .stat-sheet-row-name {
   flex: 1;

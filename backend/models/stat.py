@@ -3,6 +3,16 @@ from enum import Enum
 
 class Stat(Enum):
 
+    # ── Derived (computed from flat + inc + additional pools) ────────────────
+    STRENGTH         = "strength"
+    DEXTERITY        = "dexterity"
+    INTELLIGENCE     = "intelligence"
+    MAX_LIFE         = "max_life"
+    MAX_MANA         = "max_mana"
+    MAX_ENERGY_SHIELD = "max_energy_shield"
+    ARMOR            = "armor"
+    EVASION          = "evasion"
+
     # ── Attributes ───────────────────────────────────────────────────────────
     STRENGTH_FLAT = "strength_flat"
     STRENGTH_INC = "strength_inc"

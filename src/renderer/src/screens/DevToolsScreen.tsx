@@ -1102,7 +1102,7 @@ const EMPTY_DEF: ConditionDef = {
   numeric_min: 0, numeric_max: null,
   min_base: 0, min_from_stat: null,
   max_base: 0, max_from_stat: null,
-  unit: '', default_value: 0, default_bool: false, visible: true,
+  unit: '', default_value: 0, default_bool: false, visible: true, source: 'user',
 }
 
 function ConditionsTab() {
@@ -1126,10 +1126,16 @@ function ConditionsTab() {
   const [srcFilter, setSrcFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [mapCondKey, setMapCondKey] = useState('')
+  const [mapCondSearch, setMapCondSearch] = useState('')
+  const [mapCondOpen, setMapCondOpen] = useState(false)
   const [mapOp, setMapOp] = useState('>='  )
   const [mapValue, setMapValue] = useState('')
+  const [mapDivisor, setMapDivisor] = useState('')
+  const [mapCap, setMapCap] = useState('')
   const [mapSaving, setMapSaving] = useState(false)
   const [mapErr, setMapErr] = useState('')
+  const [sourceItems, setSourceItems] = useState<{ source: string; item_name: string; affix_text: string }[]>([])
+  const [sourceItemsLoading, setSourceItemsLoading] = useState(false)
 
   const loadDefs = () => {
     api.devGetConditionDefs().then(setDefsData).catch(() => {})
@@ -1195,19 +1201,49 @@ function ConditionsTab() {
   // ── Mappings helpers ───────────────────────────────────────────────────
   const selectedEntry = sources.find(s => s.text === selectedText) ?? null
 
+  const condSearchLabel = (key: string) => {
+    const c = defsData.conditions.find(d => d.key === key)
+    return c ? `${c.label} (${c.key})` : key
+  }
+
+  const resetMapFields = () => {
+    setMapCondKey(''); setMapCondSearch(''); setMapCondOpen(false)
+    setMapOp('>='); setMapValue(''); setMapDivisor(''); setMapCap('')
+    setSourceItems([])
+  }
+
+  const selectCondKey = (key: string) => {
+    setMapCondKey(key); setMapCondSearch(condSearchLabel(key)); setMapCondOpen(false)
+  }
+
   const selectSource = (text: string) => {
     const entry = sources.find(s => s.text === text)
     setSelectedText(text); setMapErr('')
     if (entry?.expression) {
       if (typeof entry.expression === 'string') {
-        setMapCondKey(entry.expression); setMapOp('>='); setMapValue('')
+        setMapCondKey(entry.expression); setMapCondSearch(condSearchLabel(entry.expression))
+        setMapOp('>='); setMapValue(''); setMapDivisor(''); setMapCap('')
       } else {
         const e = entry.expression as Record<string, unknown>
-        setMapCondKey(String(e.key ?? '')); setMapOp(String(e.op ?? '>=')); setMapValue(String(e.value ?? ''))
+        const op = String(e.op ?? '>=')
+        const key = String(e.key ?? '')
+        setMapCondKey(key); setMapCondSearch(condSearchLabel(key))
+        setMapOp(op)
+        if (op === 'per') {
+          setMapValue(''); setMapDivisor(String(e.divisor ?? '')); setMapCap(String(e.cap ?? ''))
+        } else {
+          setMapValue(String(e.value ?? '')); setMapDivisor(''); setMapCap('')
+        }
       }
     } else {
-      setMapCondKey(''); setMapOp('>='); setMapValue('')
+      resetMapFields()
     }
+    // Fetch which items have this condition text
+    setSourceItems([]); setSourceItemsLoading(true)
+    api.devGetConditionSourceItems(text)
+      .then(r => setSourceItems(r.items))
+      .catch(() => {})
+      .finally(() => setSourceItemsLoading(false))
   }
 
   const saveMapping = async () => {
@@ -1215,9 +1251,20 @@ function ConditionsTab() {
     setMapSaving(true); setMapErr('')
     try {
       const cdef = defsData.conditions.find(c => c.key === mapCondKey)
-      const expr: unknown = (cdef?.value_type === 'numeric' && mapValue !== '')
-        ? { key: mapCondKey, op: mapOp, value: Number(mapValue) }
-        : mapCondKey
+      let expr: unknown
+      if (cdef?.value_type === 'numeric') {
+        if (mapOp === 'per' && mapDivisor !== '') {
+          const perExpr: Record<string, unknown> = { key: mapCondKey, op: 'per', divisor: Number(mapDivisor) }
+          if (mapCap !== '') perExpr.cap = Number(mapCap)
+          expr = perExpr
+        } else if (mapValue !== '') {
+          expr = { key: mapCondKey, op: mapOp, value: Number(mapValue) }
+        } else {
+          expr = mapCondKey
+        }
+      } else {
+        expr = mapCondKey
+      }
       await api.devSaveConditionOverride(selectedText, expr)
       loadSources()
     } catch (e) { setMapErr(String(e)) }
@@ -1229,7 +1276,7 @@ function ConditionsTab() {
     setMapSaving(true); setMapErr('')
     try {
       await api.devDeleteConditionOverride(selectedText); loadSources()
-      setMapCondKey(''); setMapOp('>='); setMapValue('')
+      resetMapFields()
     } catch (e) { setMapErr(String(e)) }
     finally { setMapSaving(false) }
   }
@@ -1284,6 +1331,7 @@ function ConditionsTab() {
 
       {/* ── Definitions sub-tab ─────────────────────────────────────────── */}
       {subTab === 'definitions' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
           {/* Left: list */}
           <div style={{ ...S.panel, width: 280, flexShrink: 0 }}>
@@ -1309,7 +1357,7 @@ function ConditionsTab() {
             </div>
           </div>
 
-          {/* Right: editor + derived keys */}
+          {/* Right: condition editor */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
             {(isNew || selectedKey) ? (
               <div style={{ ...S.panel, padding: 18 }}>
@@ -1360,6 +1408,13 @@ function ConditionsTab() {
                         Show in Conditionals
                       </label>
                     </div>
+                  </div>
+                  <div style={S.row}>
+                    <label style={S.fieldLabel}>Source</label>
+                    <select style={S.select} value={form.source ?? 'user'} onChange={e => setForm(f => ({ ...f, source: e.target.value }))}>
+                      <option value="user">User (manually set)</option>
+                      <option value="computed_stat">Computed from build stat</option>
+                    </select>
                   </div>
                 </div>
 
@@ -1453,37 +1508,44 @@ function ConditionsTab() {
               <div style={{ color: '#555', fontSize: 13, padding: '12px 4px' }}>Select a condition from the list or create a new one.</div>
             )}
 
-            {/* Derived keys section */}
-            <div style={{ ...S.panel, padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#aaa', marginBottom: 12 }}>Derived Keys</div>
-              <div style={{ fontSize: 12, color: '#555', marginBottom: 10 }}>
-                Auto-activates a boolean key when its numeric stack is &gt; 0.
-              </div>
-              {Object.entries(defsData.derived_keys).map(([bk, sk]) => (
-                <div key={bk} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13 }}>
-                  <span style={{ color: '#c678dd', minWidth: 140 }}>{bk}</span>
-                  <span style={{ color: '#555' }}>← stacks &gt; 0 from</span>
-                  <span style={{ color: '#61afef', flex: 1 }}>{sk}</span>
-                  <button className="btn btn-sm" style={{ color: '#ef5350', borderColor: '#5a2020' }}
-                    onClick={() => deleteDerived(bk)}>Remove</button>
-                </div>
-              ))}
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-end' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={S.fieldLabel}>Boolean key</label>
-                  <input style={S.input} placeholder="e.g. focus_active"
-                    value={derivedForm.boolKey} onChange={e => setDerivedForm(f => ({ ...f, boolKey: e.target.value }))} />
-                </div>
-                <span style={{ color: '#555', paddingBottom: 8, fontSize: 18 }}>←</span>
-                <div style={{ flex: 1 }}>
-                  <label style={S.fieldLabel}>Stack key</label>
-                  <input style={S.input} placeholder="e.g. focus_stacks"
-                    value={derivedForm.stackKey} onChange={e => setDerivedForm(f => ({ ...f, stackKey: e.target.value }))} />
-                </div>
-                <button className="btn" style={{ flexShrink: 0 }} onClick={saveDerived}>Add</button>
-              </div>
-            </div>
           </div>
+        </div>
+
+        {/* Derived keys — global, below both columns */}
+        <div style={{ ...S.panel, padding: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#aaa', marginBottom: 4 }}>Derived Keys</div>
+          <div style={{ fontSize: 12, color: '#555', marginBottom: 12 }}>
+            Auto-activates a boolean key when its numeric stack count is &gt; 0.
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {Object.entries(defsData.derived_keys).map(([bk, sk]) => (
+              <div key={bk} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#0a0a20', border: '1px solid #2a2a4a', borderRadius: 3, padding: '4px 10px', fontSize: 13 }}>
+                <span style={{ color: '#c678dd' }}>{bk}</span>
+                <span style={{ color: '#555' }}>← stacks &gt; 0 from</span>
+                <span style={{ color: '#61afef' }}>{sk}</span>
+                <button className="btn btn-sm" style={{ color: '#ef5350', borderColor: '#5a2020', marginLeft: 6 }}
+                  onClick={() => deleteDerived(bk)}>✕</button>
+              </div>
+            ))}
+            {Object.keys(defsData.derived_keys).length === 0 && (
+              <span style={{ color: '#555', fontSize: 13 }}>No derived keys defined.</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', maxWidth: 480 }}>
+            <div style={{ flex: 1 }}>
+              <label style={S.fieldLabel}>Boolean key</label>
+              <input style={S.input} placeholder="e.g. focus_active"
+                value={derivedForm.boolKey} onChange={e => setDerivedForm(f => ({ ...f, boolKey: e.target.value }))} />
+            </div>
+            <span style={{ color: '#555', paddingBottom: 8, fontSize: 18 }}>←</span>
+            <div style={{ flex: 1 }}>
+              <label style={S.fieldLabel}>Stack key</label>
+              <input style={S.input} placeholder="e.g. focus_stacks"
+                value={derivedForm.stackKey} onChange={e => setDerivedForm(f => ({ ...f, stackKey: e.target.value }))} />
+            </div>
+            <button className="btn" style={{ flexShrink: 0 }} onClick={saveDerived}>Add</button>
+          </div>
+        </div>
         </div>
       )}
 
@@ -1529,43 +1591,102 @@ function ConditionsTab() {
             {selectedEntry ? (
               <div style={{ ...S.panel, padding: 18 }}>
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Condition text</div>
-                <div style={{ fontFamily: 'monospace', fontSize: 13, color: '#e0e0e0', background: '#0a0a20', padding: '8px 12px', borderRadius: 3, marginBottom: 18, wordBreak: 'break-word', lineHeight: 1.5 }}>
+                <div style={{ fontFamily: 'monospace', fontSize: 13, color: '#e0e0e0', background: '#0a0a20', padding: '8px 12px', borderRadius: 3, marginBottom: 10, wordBreak: 'break-word', lineHeight: 1.5 }}>
                   {selectedEntry.text}
                 </div>
+                {/* Items with this condition */}
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 11, color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
+                    Appears on {sourceItemsLoading ? '…' : `${sourceItems.length} affix${sourceItems.length !== 1 ? 'es' : ''}`}
+                  </div>
+                  {!sourceItemsLoading && sourceItems.length > 0 && (
+                    <div style={{ maxHeight: 140, overflowY: 'auto', background: '#07071a', border: '1px solid #1a1a3a', borderRadius: 3 }}>
+                      {sourceItems.map((item, i) => (
+                        <div key={i} style={{ padding: '5px 10px', borderBottom: '1px solid #111128', fontSize: 12 }}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', marginBottom: 2 }}>
+                            <span style={{ color: '#e0e0e0', fontWeight: 600 }}>{item.item_name}</span>
+                            <span style={S.badge(item.source)}>{item.source}</span>
+                          </div>
+                          {item.affix_text && (
+                            <div style={{ color: '#666', fontStyle: 'italic', lineHeight: 1.4 }}>{item.affix_text}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {mapErr && <div style={{ color: '#ef5350', fontSize: 13, marginBottom: 10 }}>{mapErr}</div>}
-                <div style={S.row}>
+                <div style={{ ...S.row, position: 'relative' }}>
                   <label style={S.fieldLabel}>Map to condition key</label>
-                  <select style={S.select} value={mapCondKey} onChange={e => setMapCondKey(e.target.value)}>
-                    <option value="">— select a condition —</option>
-                    {defsData.conditions.map(c => (
-                      <option key={c.key} value={c.key}>{c.label} ({c.key}) [{c.value_type}]</option>
-                    ))}
-                  </select>
+                  <input
+                    style={S.input}
+                    placeholder="Search condition…"
+                    value={mapCondSearch}
+                    onChange={e => { setMapCondSearch(e.target.value); setMapCondKey(''); setMapCondOpen(true) }}
+                    onFocus={() => setMapCondOpen(true)}
+                    onBlur={() => setTimeout(() => setMapCondOpen(false), 150)}
+                  />
+                  {mapCondOpen && (() => {
+                    const q = mapCondSearch.toLowerCase()
+                    const opts = defsData.conditions.filter(c =>
+                      !q || c.key.includes(q) || c.label.toLowerCase().includes(q)
+                    )
+                    return opts.length > 0 ? (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#0a0a20', border: '1px solid #3a3a6a', borderRadius: 3, zIndex: 200, maxHeight: 200, overflowY: 'auto' }}>
+                        {opts.map(c => (
+                          <div key={c.key} onMouseDown={() => selectCondKey(c.key)}
+                            style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #1a1a3a', display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                            <span style={{ color: '#e0e0e0' }}>{c.label}</span>
+                            <span style={{ color: '#555', fontSize: 11 }}>{c.key}</span>
+                            <span style={{ color: '#7c4dff', fontSize: 10, marginLeft: 'auto' }}>[{c.value_type}]</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null
+                  })()}
                 </div>
                 {isNumericCond && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px', marginBottom: 4 }}>
+                  <div style={{ marginBottom: 4 }}>
                     <div style={S.row}>
                       <label style={S.fieldLabel}>Operator</label>
-                      <select style={S.select} value={mapOp} onChange={e => setMapOp(e.target.value)}>
+                      <select style={S.select} value={mapOp} onChange={e => { setMapOp(e.target.value); setMapValue(''); setMapDivisor(''); setMapCap('') }}>
                         <option value=">=">≥ at least</option>
                         <option value=">">{'>'} more than</option>
                         <option value="<=">≤ at most</option>
                         <option value="<">{'<'} fewer than</option>
                         <option value="==">= exactly</option>
+                        <option value="per">÷ per N (scaling)</option>
                       </select>
                     </div>
-                    <div style={S.row}>
-                      <label style={S.fieldLabel}>Threshold value</label>
-                      <input style={S.input} type="number" value={mapValue}
-                        onChange={e => setMapValue(e.target.value)} />
-                    </div>
+                    {mapOp === 'per' ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
+                        <div style={S.row}>
+                          <label style={S.fieldLabel}>Divisor (N)</label>
+                          <input style={S.input} type="number" placeholder="e.g. 5" value={mapDivisor}
+                            onChange={e => setMapDivisor(e.target.value)} />
+                        </div>
+                        <div style={S.row}>
+                          <label style={S.fieldLabel}>Cap on total (optional)</label>
+                          <input style={S.input} type="number" placeholder="leave blank = no cap" value={mapCap}
+                            onChange={e => setMapCap(e.target.value)} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={S.row}>
+                        <label style={S.fieldLabel}>Threshold value</label>
+                        <input style={S.input} type="number" value={mapValue}
+                          onChange={e => setMapValue(e.target.value)} />
+                      </div>
+                    )}
                   </div>
                 )}
                 {mapCondKey && (
                   <div style={{ fontSize: 12, color: '#61afef', marginBottom: 16, fontFamily: 'monospace', background: '#0a0a20', padding: '6px 10px', borderRadius: 3 }}>
-                    {isNumericCond && mapValue !== ''
-                      ? JSON.stringify({ key: mapCondKey, op: mapOp, value: Number(mapValue) })
-                      : `"${mapCondKey}"`}
+                    {isNumericCond && mapOp === 'per' && mapDivisor !== ''
+                      ? JSON.stringify({ key: mapCondKey, op: 'per', divisor: Number(mapDivisor), ...(mapCap !== '' ? { cap: Number(mapCap) } : {}) })
+                      : isNumericCond && mapValue !== ''
+                        ? JSON.stringify({ key: mapCondKey, op: mapOp, value: Number(mapValue) })
+                        : `"${mapCondKey}"`}
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 10 }}>

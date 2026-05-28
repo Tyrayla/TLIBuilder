@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import re
 from engine.models import BuildInput, BuildSource, SourceEntry
 from models.stat_meta import STAT_META
@@ -87,7 +88,12 @@ def _eval_condition(
     expr,
     active_booleans: frozenset[str],
     numeric_vals: dict[str, float],
-) -> bool:
+) -> bool | float:
+    """Evaluate a condition expression.
+
+    Returns True/False for boolean/comparison ops.
+    Returns a float multiplier for 'per' scaling ops (0.0 means skip contribution).
+    """
     if expr is None:
         return True
     if isinstance(expr, str):
@@ -99,8 +105,13 @@ def _eval_condition(
     if "not" in expr:
         return not _eval_condition(expr["not"], active_booleans, numeric_vals)
     if "op" in expr:
+        op = expr["op"]
+        if op == "per":
+            divisor = float(expr.get("divisor", 1))
+            val = numeric_vals.get(expr["key"], 0.0)
+            return float(math.floor(val / divisor)) if divisor > 0 else 0.0
         lhs = numeric_vals.get(expr["key"], 0.0)
-        rhs, op = expr["value"], expr["op"]
+        rhs = expr["value"]
         return (lhs >= rhs if op == ">=" else lhs > rhs if op == ">" else
                 lhs <= rhs if op == "<=" else lhs < rhs if op == "<" else
                 lhs == rhs if op == "==" else False)
@@ -356,8 +367,17 @@ def aggregate(
         if not stat:
             continue
         cond = contrib.get("condition")
-        if cond is not None and not _eval_condition(cond, active_booleans, numeric_vals):
-            continue
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                scaled = contrib.get("display_value", 0) * cond_result
+                if isinstance(cond, dict) and "cap" in cond:
+                    scaled = min(scaled, float(cond["cap"]))
+                contrib = {**contrib, "display_value": scaled}
+            elif not cond_result:
+                continue
         val = contrib.get("display_value", 0)
         unit = contrib.get("unit", "")
         amount = val / 100.0 if unit == "%" else float(val)
