@@ -4,8 +4,9 @@ import os
 import re
 import socket
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 import uvicorn
 
@@ -25,6 +26,24 @@ with open(_TREES_META_PATH) as _f:
 # Set in __main__ so the lifespan handler can print it after uvicorn is ready
 _SERVER_PORT = 8765
 _VERBOSE = False
+# TLI_DEV_MODE=1 is set by Electron in dev; defaults to off (fail-closed).
+# To enable dev routes when running server.py standalone: set TLI_DEV_MODE=1.
+IS_DEV = os.environ.get("TLI_DEV_MODE", "0") == "1"
+
+_PHRASE_OVERRIDES_PATH = os.path.join(_DATA_ROOT, 'condition_phrase_overrides.json')
+_PHRASE_OVERRIDES: dict[str, object] = {}
+
+
+def _load_phrase_overrides() -> None:
+    global _PHRASE_OVERRIDES
+    try:
+        with open(_PHRASE_OVERRIDES_PATH) as f:
+            _PHRASE_OVERRIDES = json.load(f)
+    except FileNotFoundError:
+        _PHRASE_OVERRIDES = {}
+
+
+_load_phrase_overrides()
 
 
 def vlog(*args):
@@ -48,6 +67,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def _gate_dev_routes(request: Request, call_next):
+    if not IS_DEV and request.url.path.startswith("/api/dev/"):
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    return await call_next(request)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -487,6 +513,11 @@ def engine_compute(req: EngineComputeRequest):
     return asdict(result)
 
 
+class SkillEngineInput(BaseModel):
+    skill_id: str
+    level:    int = 1
+
+
 class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
@@ -495,6 +526,7 @@ class EngineStatsRequest(BaseModel):
     character:       list[dict] = []
     memory_effects:  list[str] = []
     spirit_effects:  list[str] = []
+    main_skill:      SkillEngineInput | None = None
 
 
 @app.post("/api/engine/stats")
@@ -531,17 +563,29 @@ def engine_stats(req: EngineStatsRequest):
         if tree_data:
             season_trees[slug] = tree_data
 
+    from engine.models import SkillRef
+
+    main_skill = None
+    skill_data = None
+    if req.main_skill:
+        main_skill = SkillRef(skill_id=req.main_skill.skill_id, level=req.main_skill.level)
+        skills_by_id = _get_skills_data(active_season)
+        skill_data = skills_by_id.get(req.main_skill.skill_id)
+
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=req.condition_state,
         gear=req.gear, character=req.character,
         memory_effects=req.memory_effects, spirit_effects=req.spirit_effects,
+        main_skill=main_skill,
     )
-    result = compute(build, season_trees, filter_data)
+    result = compute(build, season_trees, filter_data, skill_data=skill_data)
     return {
         "stats": result.stat_map,
         "condition_maximums": result.condition_maximums,
         "clamp_report": result.clamp_report,
+        "offense": result.offense,
+        "defense": result.defense,
     }
 
 
@@ -564,6 +608,8 @@ def get_conditions():
             entry["unit"] = c.unit
         if c.key in derived_keys:
             entry["is_derived"] = True
+        if not c.visible:
+            entry["visible"] = False
         result.setdefault(c.category, []).append(entry)
     return result
 
@@ -1271,14 +1317,14 @@ _MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
 # Multi-group affixes with mixed units (% and flat in same affix)
 _MIXED_STAT_OVERRIDES: dict[str, list[dict]] = {
     "+(#) % gear physical damage adds (#)-(#) physical damage to the gear": [
-        {"value_index": 0, "stat_keys": ["gear_physical_dmg_inc"], "unit": "%"},
+        {"value_index": 0, "stat_keys": ["physical_dmg_gear_inc"], "unit": "%"},
         {"value_index": 1, "stat_keys": ["physical_dmg_gear_flat_min"], "unit": ""},
         {"value_index": 2, "stat_keys": ["physical_dmg_gear_flat_max"], "unit": ""},
     ],
     "adds (#)-(#) elemental damage to the gear -(#) % gear physical damage": [
         {"value_index": 0, "stat_keys": ["elemental_dmg_gear_flat_min"], "unit": ""},
         {"value_index": 1, "stat_keys": ["elemental_dmg_gear_flat_max"], "unit": ""},
-        {"value_index": 2, "stat_keys": ["gear_physical_dmg_inc"], "unit": "%"},
+        {"value_index": 2, "stat_keys": ["physical_dmg_gear_inc"], "unit": "%"},
     ],
 }
 
@@ -1478,6 +1524,52 @@ def _norm_expr(text: str) -> str:
     return s
 
 
+_BLESSING_COND_RE = re.compile(
+    r"(focus|tenacity|agility)\s+bless", re.I)
+_THRESHOLD_RE = re.compile(
+    r"at\s+least\s+(\d+)"
+    r"|>=?\s*(\d+)"
+    r"|at\s+most\s+(\d+)"
+    r"|<=?\s*(\d+)"
+    r"|more\s+than\s+(\d+)"
+    r"|fewer\s+than\s+(\d+)|less\s+than\s+(\d+)",
+    re.I,
+)
+_WEAPON_PHYS_DMG_RE = re.compile(r"^([\d.]+)\s*-\s*([\d.]+)\s+Physical Damage$")
+_WEAPON_ATK_SPD_RE  = re.compile(r"^([\d.]+)\s+Attack Speed$")
+_WEAPON_CSR_RE      = re.compile(r"^([\d.]+)\s+Critical Strike Rating$")
+
+_BLESSING_KEY_MAP = {
+    "focus": "focus_stacks",
+    "tenacity": "tenacity_stacks",
+    "agility": "agility_stacks",
+}
+
+
+def _translate_condition_expr(text: str | None) -> dict | str | None:
+    """Map a raw condition text string to an engine expression, or None if unresolvable."""
+    if not text:
+        return None
+    # Exact override wins
+    if text in _PHRASE_OVERRIDES:
+        return _PHRASE_OVERRIDES[text]
+    # Regex fallback: blessing stack thresholds
+    bm = _BLESSING_COND_RE.search(text)
+    if bm:
+        key = _BLESSING_KEY_MAP[bm.group(1).lower()]
+        tm = _THRESHOLD_RE.search(text)
+        if tm:
+            ge, ge2, le, le2, gt, lt, lt2 = tm.groups()
+            if ge:   return {"key": key, "op": ">=", "value": int(ge)}
+            if ge2:  return {"key": key, "op": ">=", "value": int(ge2)}
+            if le:   return {"key": key, "op": "<=", "value": int(le)}
+            if le2:  return {"key": key, "op": "<=", "value": int(le2)}
+            if gt:   return {"key": key, "op": ">",  "value": int(gt)}
+            if lt:   return {"key": key, "op": "<",  "value": int(lt)}
+            if lt2:  return {"key": key, "op": "<",  "value": int(lt2)}
+    return None
+
+
 def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
     """Return (stat_key, unit) for a gear affix, or (None, '') if unresolved."""
     text = _GEAR_COND_RE.sub("", raw_text)
@@ -1522,9 +1614,21 @@ def get_legendary_gear_index():
 
 
 def _resolve_affix(affix: dict) -> dict:
-    """Resolve a gear affix dict to include stat_key/stat_keys/unit fields."""
+    """Resolve a gear affix dict to include stat_key/stat_keys/unit/condition_expr fields."""
+    condition_expr = _translate_condition_expr(affix.get("condition"))
     if affix.get("affix_kind") == "placeholder":
-        return {**affix, "stat_key": None, "unit": ""}
+        return {**affix, "stat_key": None, "unit": "", "condition_expr": condition_expr}
+    if affix.get("affix_kind") == "special":
+        raw = affix.get("raw_text", "")
+        if _WEAPON_PHYS_DMG_RE.match(raw):
+            return {**affix, "stat_key": None, "unit": "", "condition_expr": None,
+                    "min_stat_keys": ["physical_dmg_gear_flat_min"],
+                    "max_stat_keys": ["physical_dmg_gear_flat_max"]}
+        if _WEAPON_ATK_SPD_RE.match(raw):
+            return {**affix, "stat_key": "weapon_attack_speed", "unit": "", "condition_expr": None}
+        if _WEAPON_CSR_RE.match(raw):
+            return {**affix, "stat_key": "attack_crit_rating_gear", "unit": "", "condition_expr": None}
+        return {**affix, "stat_key": None, "unit": "", "condition_expr": None}
     raw_text = affix.get("raw_text", "")
     text = _GEAR_COND_RE.sub("", raw_text)
     text = _GEAR_SUFFIX_RE.sub("", text)
@@ -1533,26 +1637,28 @@ def _resolve_affix(affix: dict) -> dict:
     # 1. Range-multi: min and max each fan out to multiple stats
     if ne in _RANGE_MULTI_STAT_OVERRIDES:
         rm = _RANGE_MULTI_STAT_OVERRIDES[ne]
-        return {**affix, "stat_key": None, "unit": unit,
+        return {**affix, "stat_key": None, "unit": unit, "condition_expr": condition_expr,
                 "min_stat_keys": rm["min_keys"], "max_stat_keys": rm["max_keys"]}
     # 2a. Mixed-unit multi-group affixes (per-group unit override)
     if ne in _MIXED_STAT_OVERRIDES:
-        return {**affix, "stat_key": None, "unit": unit, "dual_stat_groups": _MIXED_STAT_OVERRIDES[ne]}
+        return {**affix, "stat_key": None, "unit": unit, "condition_expr": condition_expr,
+                "dual_stat_groups": _MIXED_STAT_OVERRIDES[ne]}
     # 2b. Dual-value: two separate (#) values → two groups of stats
     if ne in _DUAL_MULTI_STAT_OVERRIDES:
         g0, g1 = _DUAL_MULTI_STAT_OVERRIDES[ne]
         dual_groups = [{"value_index": 0, "stat_keys": g0},
                        {"value_index": 1, "stat_keys": g1}]
-        return {**affix, "stat_key": None, "unit": unit, "dual_stat_groups": dual_groups}
+        return {**affix, "stat_key": None, "unit": unit, "condition_expr": condition_expr,
+                "dual_stat_groups": dual_groups}
     # 3. Multi-stat: single value → multiple stats
     if ne in _MULTI_STAT_OVERRIDES:
         stat_keys = _MULTI_STAT_OVERRIDES[ne]
         is_range_split = any(k.endswith(("_flat_min", "_flat_max")) for k in stat_keys)
         return {**affix, "stat_key": None, "stat_keys": stat_keys,
-                "is_range_split": is_range_split, "unit": unit}
+                "is_range_split": is_range_split, "unit": unit, "condition_expr": condition_expr}
     # 4. Expression or fuzzy fallback
     stat_key, unit = _resolve_gear_stat(raw_text)
-    return {**affix, "stat_key": stat_key, "unit": unit}
+    return {**affix, "stat_key": stat_key, "unit": unit, "condition_expr": condition_expr}
 
 
 @app.get("/api/legendary-gear")
@@ -1694,10 +1800,35 @@ def import_crawler_craft_base_types_endpoint(req: ImportCrawlerCraftBaseTypesReq
 _craft_bases_cache: list | None = None
 _craft_bases_cache_season: str | None = None
 
+_skills_cache: dict[str, dict] | None = None  # item_id → skill dict
+_skills_cache_season: str | None = None
+
+
+def _get_skills_data(season: str) -> dict[str, dict]:
+    global _skills_cache, _skills_cache_season
+    if _skills_cache is not None and _skills_cache_season == season:
+        return _skills_cache
+    raw = season_manager.load_skills(season)
+    if not raw:
+        _skills_cache = {}
+        _skills_cache_season = season
+        return _skills_cache
+    _skills_cache = {item["item_id"]: item for item in raw.get("skills", []) if "item_id" in item}
+    _skills_cache_season = season
+    return _skills_cache
+
 
 def _resolve_craft_base_types(base_types: list) -> list:
     for bt in base_types:
         for affix in bt.get("affixes", []):
+            if affix.get("affix_kind") in ("special", "placeholder"):
+                continue
+            resolved = _resolve_affix(affix)
+            affix.update({k: resolved[k] for k in ("stat_key", "unit") if k in resolved})
+            for extra_key in ("stat_keys", "is_range_split", "min_stat_keys", "max_stat_keys", "dual_stat_groups"):
+                if extra_key in resolved:
+                    affix[extra_key] = resolved[extra_key]
+        for affix in bt.get("corrosion_base_affixes", []):
             if affix.get("affix_kind") in ("special", "placeholder"):
                 continue
             resolved = _resolve_affix(affix)
@@ -2010,6 +2141,17 @@ def diff_seasons(req: DiffSeasonsRequest):
         }
 
     return {"summary": summary, "trees": trees_diff}
+
+
+# ── Dev: data inspector ───────────────────────────────────────────────────────
+
+from dev.inspect import router as _inspect_router
+app.include_router(_inspect_router)
+
+# ── Dev: condition manager ────────────────────────────────────────────────────
+
+from dev.conditions import router as _conditions_router
+app.include_router(_conditions_router)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

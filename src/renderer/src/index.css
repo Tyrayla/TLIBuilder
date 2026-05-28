@@ -44,6 +44,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .btn-danger    { background: #3a1a1a; color: var(--err); }
 .btn-sm        { padding: 5px 12px; font-size: 12px; }
 
+.nyi-tag {
+  font-size: 10px; font-weight: 700; color: #ff6b6b;
+  background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.3);
+  border-radius: 3px; padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+}
+
 .btn-back {
   background: transparent;
   color: var(--fg);
@@ -611,7 +617,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 
 .cond-stack-input {
-  width: 48px;
+  width: 56px;
   background: #1a1a36;
   border: 1px solid #3a3a5a;
   border-radius: 3px;
@@ -620,6 +626,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 2px 6px;
   text-align: center;
 }
+.cond-stack-input:focus { outline: none; border-color: #7c4dff; }
+.cond-stack-input::-webkit-inner-spin-button,
+.cond-stack-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.cond-stack-input[type=number] { -moz-appearance: textfield; }
 
 .cond-stack-hint {
   font-size: 10px;
@@ -1281,6 +1291,9 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .stat-sheet-row:hover { background: #13132a; }
 .stat-sheet-row.selected { background: #16163a; }
+.stat-sheet-row--derived { cursor: default; }
+.stat-sheet-row--derived .stat-sheet-row-name { color: #c8c8e0; }
+.stat-sheet-row--derived .stat-sheet-row-value { color: #b8a0ff; font-size: 13px; }
 
 .stat-sheet-row-name {
   flex: 1;
@@ -1812,6 +1825,107 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   margin: 4px 0;
 }
 
+.gear-affix-label-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.gear-affix-row--corroded .gear-affix-label {
+  color: #c678dd;
+}
+
+.gear-affix-row--corroded.gear-affix-range-row .gear-affix-label {
+  color: #c678dd;
+}
+
+.gear-craft-slot--corroded .gear-craft-mod-value {
+  color: #c678dd;
+}
+
+.gear-corrosion-section {
+  padding: 6px 10px;
+  border-bottom: 1px solid #2a2a3a;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gear-corrosion-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gear-corrosion-label {
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.gear-corrosion-select {
+  flex: 1;
+  background: #1a1a2e;
+  color: #c8c4a0;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gear-corrosion-select:focus { outline: none; border-color: #5a5a7a; }
+
+.gear-mutation-select {
+  width: 100%;
+  background: #1a1a2e;
+  color: #c8c4a0;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gear-mutation-select:focus { outline: none; border-color: #5a5a7a; }
+
+.gear-mutation-unavailable {
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
+}
+
+.gear-corrosion-toggle {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  border: 1.5px solid #4a4a6a;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.gear-corrosion-toggle:hover:not(:disabled) {
+  border-color: #c678dd;
+  background: rgba(198, 120, 221, 0.2);
+}
+
+.gear-corrosion-toggle.active {
+  background: #c678dd;
+  border-color: #c678dd;
+}
+
+.gear-corrosion-toggle:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+
 .gear-slider-row {
   display: flex;
   align-items: center;
@@ -1842,6 +1956,19 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 3px 6px;
   border-radius: 3px;
   font-style: italic;
+  width: 100%;
+}
+
+.gear-placeholder-select:not(:disabled) {
+  border-color: #3a3a5a;
+  color: #c8c4a0;
+  font-style: normal;
+  cursor: pointer;
+}
+
+.gear-placeholder-select:not(:disabled):focus {
+  outline: none;
+  border-color: #5a5a7a;
 }
 
 .gear-customize-actions {
@@ -1930,6 +2057,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .gear-preview-affix--implicit {
   color: #6a8acc;
+}
+
+.gear-preview-affix--corroded {
+  color: #c678dd;
 }
 
 span.gear-affix-label {

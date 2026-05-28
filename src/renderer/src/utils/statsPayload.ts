@@ -7,16 +7,41 @@ export { buildEnergyContributions, buildMemoryEffects, buildSpiritEffects }
 
 export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
   return gear.filter(item => item.slot !== null).map(item => {
+    const mutationAffix = item.corrosion_type === 'mutation' ? (item.mutation_resolved_affix ?? null) : null
+    const affixesToProcess = mutationAffix ? [mutationAffix, ...item.affixes] : item.affixes
+    const affixOffset = mutationAffix ? 1 : 0
     const contributions: GearAffixContribution[] = []
-    item.affixes.forEach((affix, affixIdx) => {
+    affixesToProcess.forEach((affix, affixIdx) => {
       if (affix.affix_kind === 'placeholder') return
+
+      // Craft base type implicits arrive as plain text with no resolved stat keys.
+      // Parse the three weapon stat patterns directly so they contribute to the engine.
+      if (affix.affix_kind === 'implicit') {
+        const slot = Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot
+        const physM = affix.raw_text.match(/^([\d.]+)\s*-\s*([\d.]+)\s+Physical Damage$/i)
+        if (physM) {
+          contributions.push({ stat: 'physical_dmg_gear_flat_min', display_value: parseFloat(physM[1]), unit: '', item_name: item.name, slot, condition: null })
+          contributions.push({ stat: 'physical_dmg_gear_flat_max', display_value: parseFloat(physM[2]), unit: '', item_name: item.name, slot, condition: null })
+        }
+        const atkM = affix.raw_text.match(/^([\d.]+)\s+Attack Speed$/i)
+        if (atkM) {
+          contributions.push({ stat: 'weapon_attack_speed', display_value: parseFloat(atkM[1]), unit: '', item_name: item.name, slot, condition: null })
+        }
+        const csrM = affix.raw_text.match(/^([\d.]+)\s+Critical Strike Rating$/i)
+        if (csrM) {
+          contributions.push({ stat: 'attack_crit_rating_gear', display_value: parseFloat(csrM[1]), unit: '', item_name: item.name, slot, condition: null })
+        }
+        return
+      }
+
       const hasKey = affix.stat_key
         || (affix.stat_keys && affix.stat_keys.length > 0)
         || (affix.dual_stat_groups && affix.dual_stat_groups.length > 0)
         || (affix.min_stat_keys && affix.min_stat_keys.length > 0)
       if (!hasKey) return
-      const cust = item.customizations.find(c => c.affix_index === affixIdx)
+      const cust = item.customizations.find(c => c.affix_index === affixIdx - affixOffset)
       const slot = Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot
+      const condition = affix.condition_expr ?? null
       if (affix.affix_kind === 'numeric') {
         const rangeIdx = affix.numeric_values.findIndex(v => v.kind === 'range')
         const fixedNv = affix.numeric_values.find(v => v.kind === 'fixed')
@@ -27,10 +52,10 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
           const minVal = cust?.chosen_values[0] ?? Math.round(nv.min ?? 0)
           const maxVal = cust?.chosen_values[1] ?? Math.round(nv.max ?? 0)
           for (const stat of affix.min_stat_keys) {
-            contributions.push({ stat, display_value: minVal, unit, item_name: item.name, slot })
+            contributions.push({ stat, display_value: minVal, unit, item_name: item.name, slot, condition })
           }
           for (const stat of affix.max_stat_keys) {
-            contributions.push({ stat, display_value: maxVal, unit, item_name: item.name, slot })
+            contributions.push({ stat, display_value: maxVal, unit, item_name: item.name, slot, condition })
           }
         } else if (affix.dual_stat_groups && affix.dual_stat_groups.length > 0) {
           for (const group of affix.dual_stat_groups) {
@@ -44,7 +69,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
               val = (nv.value ?? 0) * (nv.sign === '-' ? -1 : 1)
             }
             for (const stat of group.stat_keys) {
-              contributions.push({ stat, display_value: val, unit: groupUnit, item_name: item.name, slot })
+              contributions.push({ stat, display_value: val, unit: groupUnit, item_name: item.name, slot, condition })
             }
           }
         } else if (affix.stat_keys && affix.stat_keys.length > 0) {
@@ -53,8 +78,8 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
             const [minStat, maxStat] = affix.stat_keys
             const minVal = cust?.chosen_values[0] ?? Math.round(nv.min ?? 0)
             const maxVal = cust?.chosen_values[1] ?? Math.round(nv.max ?? 0)
-            contributions.push({ stat: minStat, display_value: minVal, unit, item_name: item.name, slot })
-            contributions.push({ stat: maxStat, display_value: maxVal, unit, item_name: item.name, slot })
+            contributions.push({ stat: minStat, display_value: minVal, unit, item_name: item.name, slot, condition })
+            contributions.push({ stat: maxStat, display_value: maxVal, unit, item_name: item.name, slot, condition })
           } else {
             let display_value: number | null = null
             if (rangeIdx >= 0) {
@@ -65,7 +90,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
             }
             if (display_value !== null) {
               for (const stat of affix.stat_keys) {
-                contributions.push({ stat, display_value, unit, item_name: item.name, slot })
+                contributions.push({ stat, display_value, unit, item_name: item.name, slot, condition })
               }
             }
           }
@@ -78,7 +103,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
             display_value = fixedNv.value ?? 0
           }
           if (display_value !== null) {
-            contributions.push({ stat: affix.stat_key, display_value, unit, item_name: item.name, slot })
+            contributions.push({ stat: affix.stat_key, display_value, unit, item_name: item.name, slot, condition })
           }
         }
       }

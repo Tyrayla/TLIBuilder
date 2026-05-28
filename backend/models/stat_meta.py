@@ -31,6 +31,40 @@ _ALL_DMGF = ("hit", "dot", "secondary", "reflect")
 
 STAT_META: dict[Stat, StatMeta] = {
 
+    # ── Derived (final computed values — flat × (1 + inc%) × add pools) ───────
+    Stat.STRENGTH: StatMeta(
+        "Strength", "Attributes", "derived",
+        subgroup="attribute", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.DEXTERITY: StatMeta(
+        "Dexterity", "Attributes", "derived",
+        subgroup="attribute", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.INTELLIGENCE: StatMeta(
+        "Intelligence", "Attributes", "derived",
+        subgroup="attribute", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.MAX_LIFE: StatMeta(
+        "Maximum Life", "Life", "derived",
+        subgroup="life", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.MAX_MANA: StatMeta(
+        "Maximum Mana", "Mana", "derived",
+        subgroup="mana", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.MAX_ENERGY_SHIELD: StatMeta(
+        "Maximum Energy Shield", "Defence", "derived",
+        subgroup="energy_shield", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.ARMOR: StatMeta(
+        "Armor", "Defence", "derived",
+        subgroup="defense", ui_priority=4, stacking_rule="additive",
+    ),
+    Stat.EVASION: StatMeta(
+        "Evasion", "Defence", "derived",
+        subgroup="defense", ui_priority=4, stacking_rule="additive",
+    ),
+
     # ── Attributes ────────────────────────────────────────────────────────────
     Stat.STRENGTH_FLAT: StatMeta(
         "Strength", "Attributes", "base_stat",
@@ -1999,20 +2033,25 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Gear-Specific Stats ───────────────────────────────────────────────────
-    Stat.GEAR_PHYSICAL_DMG_INC: StatMeta(
+    Stat.PHYSICAL_DMG_GEAR_INC: StatMeta(
         "Gear Physical Damage", "Gear", "increased", "%",
         subgroup="gear_base",          stacking_rule="additive",
         ui_priority=10,                source_types=_G,
     ),
-    Stat.GEAR_ENERGY_SHIELD_FLAT: StatMeta(
+    Stat.ENERGY_SHIELD_GEAR_FLAT: StatMeta(
         "Gear Energy Shield", "Gear", "added_flat",
         subgroup="gear_base",          stacking_rule="additive",
         ui_priority=31,                source_types=_G,
     ),
-    Stat.GEAR_ENERGY_SHIELD_INC: StatMeta(
+    Stat.ENERGY_SHIELD_GEAR_INC: StatMeta(
         "Gear Energy Shield", "Gear", "increased", "%",
         subgroup="gear_base",          stacking_rule="additive",
         ui_priority=32,                source_types=_G,
+    ),
+    Stat.WEAPON_ATTACK_SPEED: StatMeta(
+        "Weapon Attack Speed", "Gear", "base_stat",
+        subgroup="gear_base",          stacking_rule="additive",
+        ui_priority=9,                 source_types=_G,
     ),
     Stat.ARMOR_GEAR_FLAT: StatMeta(
         "Gear Armor", "Gear", "added_flat",

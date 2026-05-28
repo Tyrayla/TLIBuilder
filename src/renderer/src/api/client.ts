@@ -88,6 +88,26 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json()
 }
 
+async function put<T>(path: string, body: unknown): Promise<T> {
+  if (ipcMode) {
+    rlog(`PUT (IPC) ${path}`)
+    const result = await window.api!.apiRequest('PUT', path, body) as { ok: boolean; status: number; data: T }
+    if (!result.ok) throw new Error(`PUT ${path} → ${result.status}`)
+    return result.data
+  }
+  const url = `${BASE}${path}`
+  rlog(`PUT ${url}`)
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
+  })
+  rlog(`PUT ${url} — status ${res.status}`)
+  if (!res.ok) throw new Error(`PUT ${path} → ${res.status}`)
+  return res.json()
+}
+
 async function del<T>(path: string, body?: unknown): Promise<T> {
   if (ipcMode) {
     rlog(`DELETE (IPC) ${path}`)
@@ -354,11 +374,33 @@ export interface SlatePool {
 export interface ConditionDef {
   key: string
   label: string
+  category?: string
   value_type: 'boolean' | 'numeric'
   numeric_min?: number
   numeric_max?: number | null
+  min_base?: number
+  min_from_stat?: string | null
+  max_base?: number
+  max_from_stat?: string | null
   unit?: string
+  default_value?: number
+  default_bool?: boolean
+  visible?: boolean
   is_derived?: boolean
+  source?: string
+}
+
+export interface ConditionSourceEntry {
+  text: string
+  sources: string[]
+  affix_count: number
+  expression: Record<string, unknown> | string | null
+  mapped: boolean
+}
+
+export interface ConditionDefsResponse {
+  conditions: ConditionDef[]
+  derived_keys: Record<string, string>
 }
 
 export interface StatSource {
@@ -377,16 +419,64 @@ export interface StatEntry {
   sources: StatSource[]
 }
 
+export interface SkillEngineInput {
+  skill_id: string
+  level: number
+}
+
+export interface HitFormResult {
+  name: string
+  effectiveness_pct: number
+  form_type: 'additive' | 'exclusive'
+  proc_chance: number
+  damage_by_type: Record<string, number>
+  avg_hit_pre_crit: number
+  avg_hit_with_crit: number
+  dps_contribution: number
+  dps_vs_target: number
+}
+
+export interface OffenseResult {
+  skill_name: string
+  supported: boolean   // false = NYI; when false no other fields are meaningful
+  effective_level: number
+  hit_forms: HitFormResult[]
+  crit_chance: number
+  crit_multiplier: number
+  steep_strike_chance: number
+  attacks_per_second: number
+  total_dps: number
+  total_dps_vs_target: number
+  nyi: string[]
+}
+
+export interface DefenseResult {
+  max_life: number
+  max_mana: number
+  max_energy_shield: number
+  armor: number
+  evasion: number
+  fire_resist: number
+  cold_resist: number
+  lightning_resist: number
+  erosion_resist: number
+  nyi: string[]
+}
+
 export interface StatSheetResponse {
   stats: Record<string, StatEntry>
   condition_maximums: Record<string, number>
   clamp_report: Record<string, { requested: number; applied: number }>
+  offense?: OffenseResult | null
+  defense?: DefenseResult | null
 }
 
 export const EMPTY_STAT_SHEET: StatSheetResponse = {
   stats: {},
   condition_maximums: {},
   clamp_report: {},
+  offense: null,
+  defense: null,
 }
 
 export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
@@ -560,6 +650,7 @@ export interface CraftBaseType {
   name: string
   affixes: CraftAffix[]
   base_items: CraftBaseItem[]
+  corrosion_base_affixes?: Array<LegendaryAffix & { modifier_text: string }>
 }
 
 // Lightweight version — no affix pools, just base item metadata
@@ -876,6 +967,8 @@ export interface LegendaryAffix {
   unit?: string
   // set for crafted/vorax items: 'Base' | 'Basic Affix' | 'Advanced Affix' | 'Ultimate Affix' | 'Legendary'
   affix_type?: string
+  // resolved by backend: structured engine expression if condition text was mapped
+  condition_expr?: Record<string, unknown> | string | null
 }
 
 export interface LegendaryGearVariant {
@@ -933,6 +1026,11 @@ export interface EquippedGearItem {
   base_stats?: Record<string, number>
   implicit_count?: number
   craft_slot_positions?: number[]
+  corrosion_type?: 'none' | 'desecration' | 'mutation'
+  corroded_explicit_indices?: number[]
+  mutation_affix_text?: string | null
+  mutation_resolved_affix?: LegendaryAffix | null
+  selected_random_affixes?: Record<number, string>
 }
 
 export interface GearAffixContribution {
@@ -941,6 +1039,7 @@ export interface GearAffixContribution {
   unit: string
   item_name: string
   slot: string | null
+  condition?: Record<string, unknown> | string | null
 }
 
 export interface GearEngineItem {
@@ -1193,9 +1292,36 @@ export const api = {
     character?: CharacterStatContribution[]
     memory_effects?: string[]
     spirit_effects?: string[]
+    main_skill?: SkillEngineInput | null
   }) => post<StatSheetResponse>('/engine/stats', payload),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),
+
+  // ── Dev: condition manager ─────────────────────────────────────────────────
+  devGetStatKeys: () =>
+    get<{ keys: string[] }>('/dev/conditions/stat-keys'),
+  devGetConditionDefs: () =>
+    get<ConditionDefsResponse>('/dev/conditions/definitions'),
+  devSaveConditionDef: (def: ConditionDef) =>
+    post<{ ok: boolean }>('/dev/conditions/definitions', def),
+  devUpdateConditionDef: (key: string, def: ConditionDef) =>
+    put<{ ok: boolean }>(`/dev/conditions/definitions/${key}`, def),
+  devDeleteConditionDef: (key: string) =>
+    del<{ ok: boolean }>(`/dev/conditions/definitions/${key}`),
+  devUpsertDerivedKey: (boolKey: string, stackKey: string) =>
+    post<{ ok: boolean }>('/dev/conditions/derived-keys', { bool_key: boolKey, stack_key: stackKey }),
+  devDeleteDerivedKey: (boolKey: string) =>
+    del<{ ok: boolean }>(`/dev/conditions/derived-keys/${boolKey}`),
+  devGetConditionSources: () =>
+    get<{ season: string | null; entries: ConditionSourceEntry[] }>('/dev/conditions/sources'),
+  devGetConditionSourceItems: (text: string) =>
+    get<{ items: { source: string; item_name: string; affix_text: string }[] }>(`/dev/conditions/source-items?text=${encodeURIComponent(text)}`),
+  devGetConditionOverrides: () =>
+    get<Record<string, unknown>>('/dev/conditions/overrides'),
+  devSaveConditionOverride: (conditionText: string, expression: unknown) =>
+    post<{ ok: boolean }>('/dev/conditions/overrides', { condition_text: conditionText, expression }),
+  devDeleteConditionOverride: (conditionText: string) =>
+    del<{ ok: boolean }>('/dev/conditions/overrides', { condition_text: conditionText, expression: null }),
 
   validateAllocate: (
     tree_name: string,

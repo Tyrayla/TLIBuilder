@@ -1134,6 +1134,212 @@
       ]
     },
     {
+      "item_id": "dagger",
+      "name": "Dagger",
+      "base_items": [
+        {
+          "name": "Thief Short Dagger",
+          "required_level": 1,
+          "armor": null,
+          "implicits": [
+            "6 - 6 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Rusted Dagger",
+          "required_level": 2,
+          "armor": null,
+          "implicits": [
+            "7 - 7 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Slaughter Short Dagger",
+          "required_level": 4,
+          "armor": null,
+          "implicits": [
+            "8 - 8 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Poisoned Dagger",
+          "required_level": 9,
+          "armor": null,
+          "implicits": [
+            "10 - 10 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Assassin Short Dagger",
+          "required_level": 14,
+          "armor": null,
+          "implicits": [
+            "13 - 13 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Voodoo Dagger",
+          "required_level": 19,
+          "armor": null,
+          "implicits": [
+            "16 - 16 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Resentment Dirk",
+          "required_level": 24,
+          "armor": null,
+          "implicits": [
+            "20 - 20 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Violence Short Dagger",
+          "required_level": 29,
+          "armor": null,
+          "implicits": [
+            "25 - 25 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Nightshade Dagger",
+          "required_level": 34,
+          "armor": null,
+          "implicits": [
+            "30 - 30 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Kingslayer Short Dagger",
+          "required_level": 39,
+          "armor": null,
+          "implicits": [
+            "35 - 35 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Cursed Dagger",
+          "required_level": 44,
+          "armor": null,
+          "implicits": [
+            "41 - 41 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Godslaughter Short Dagger",
+          "required_level": 49,
+          "armor": null,
+          "implicits": [
+            "49 - 49 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Sorcerer's Dagger",
+          "required_level": 54,
+          "armor": null,
+          "implicits": [
+            "57 - 57 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Hatred Dirk",
+          "required_level": 59,
+          "armor": null,
+          "implicits": [
+            "73 - 73 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Esoteric Dagger",
+          "required_level": 64,
+          "armor": null,
+          "implicits": [
+            "89 - 89 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Illusory Dirk",
+          "required_level": 68,
+          "armor": null,
+          "implicits": [
+            "109 - 109 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Disillusion Dagger",
+          "required_level": 72,
+          "armor": null,
+          "implicits": [
+            "130 - 130 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Fools' Dagger",
+          "required_level": 82,
+          "armor": null,
+          "implicits": [
+            "142 - 142 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Blind Faith Dagger",
+          "required_level": 84,
+          "armor": null,
+          "implicits": [
+            "154 - 154 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        },
+        {
+          "name": "Truth Speaker's Dagger",
+          "required_level": 86,
+          "armor": null,
+          "implicits": [
+            "178 - 178 Physical Damage",
+            "500 Critical Strike Rating",
+            "1.5 Attack Speed"
+          ]
+        }
+      ]
+    },
+    {
       "item_id": "dex_boots",
       "name": "DEX Boots",
       "base_items": [
@@ -1639,212 +1845,6 @@
           "armor": null,
           "implicits": [
             "+1920 gear Evasion"
-          ]
-        }
-      ]
-    },
-    {
-      "item_id": "dagger",
-      "name": "Dagger",
-      "base_items": [
-        {
-          "name": "Thief Short Dagger",
-          "required_level": 1,
-          "armor": null,
-          "implicits": [
-            "6 - 6 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Rusted Dagger",
-          "required_level": 2,
-          "armor": null,
-          "implicits": [
-            "7 - 7 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Slaughter Short Dagger",
-          "required_level": 4,
-          "armor": null,
-          "implicits": [
-            "8 - 8 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Poisoned Dagger",
-          "required_level": 9,
-          "armor": null,
-          "implicits": [
-            "10 - 10 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Assassin Short Dagger",
-          "required_level": 14,
-          "armor": null,
-          "implicits": [
-            "13 - 13 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Voodoo Dagger",
-          "required_level": 19,
-          "armor": null,
-          "implicits": [
-            "16 - 16 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Resentment Dirk",
-          "required_level": 24,
-          "armor": null,
-          "implicits": [
-            "20 - 20 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Violence Short Dagger",
-          "required_level": 29,
-          "armor": null,
-          "implicits": [
-            "25 - 25 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Nightshade Dagger",
-          "required_level": 34,
-          "armor": null,
-          "implicits": [
-            "30 - 30 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Kingslayer Short Dagger",
-          "required_level": 39,
-          "armor": null,
-          "implicits": [
-            "35 - 35 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Cursed Dagger",
-          "required_level": 44,
-          "armor": null,
-          "implicits": [
-            "41 - 41 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Godslaughter Short Dagger",
-          "required_level": 49,
-          "armor": null,
-          "implicits": [
-            "49 - 49 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Sorcerer's Dagger",
-          "required_level": 54,
-          "armor": null,
-          "implicits": [
-            "57 - 57 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Hatred Dirk",
-          "required_level": 59,
-          "armor": null,
-          "implicits": [
-            "73 - 73 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Esoteric Dagger",
-          "required_level": 64,
-          "armor": null,
-          "implicits": [
-            "89 - 89 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Illusory Dirk",
-          "required_level": 68,
-          "armor": null,
-          "implicits": [
-            "109 - 109 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Disillusion Dagger",
-          "required_level": 72,
-          "armor": null,
-          "implicits": [
-            "130 - 130 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Fools' Dagger",
-          "required_level": 82,
-          "armor": null,
-          "implicits": [
-            "142 - 142 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Blind Faith Dagger",
-          "required_level": 84,
-          "armor": null,
-          "implicits": [
-            "154 - 154 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
-          ]
-        },
-        {
-          "name": "Truth Speaker's Dagger",
-          "required_level": 86,
-          "armor": null,
-          "implicits": [
-            "178 - 178 Physical Damage",
-            "500 Critical Strike Rating",
-            "1.5 Attack Speed"
           ]
         }
       ]
@@ -4190,6 +4190,266 @@
       ]
     },
     {
+      "item_id": "scepter",
+      "name": "Scepter",
+      "base_items": [
+        {
+          "name": "Withering Scepter",
+          "required_level": 1,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+2 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Marsh Scepter",
+          "required_level": 2,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+3 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Barren Scepter",
+          "required_level": 4,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+5 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Lamentation Scepter",
+          "required_level": 9,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+7 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Disorientation Scepter",
+          "required_level": 14,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+9 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "High Tower Scepter",
+          "required_level": 19,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+11 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Hanging Scepter",
+          "required_level": 24,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+13 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Eternal Night Scepter",
+          "required_level": 29,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+15 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Red Rain Scepter",
+          "required_level": 34,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+17 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Stigmata Scepter",
+          "required_level": 39,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+19 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Deception Scepter",
+          "required_level": 44,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+21 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Sorrow Scepter",
+          "required_level": 49,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+23 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Agony Scepter",
+          "required_level": 54,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+25 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Rotten Scepter",
+          "required_level": 59,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+27 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Spiral Scepter",
+          "required_level": 64,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+29 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Judgment Scepter",
+          "required_level": 68,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+31 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Reflux Scepter",
+          "required_level": 72,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+33 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Trickster Scepter",
+          "required_level": 82,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+35 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Thorn Sea Scepter",
+          "required_level": 84,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+37 % Damage Over Time"
+          ]
+        },
+        {
+          "name": "Dark Gaze Scepter",
+          "required_level": 86,
+          "armor": null,
+          "implicits": [
+            "500 Critical Strike Rating",
+            "1.2 Attack Speed",
+            "+39 % Damage Over Time"
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": "spirit_ring",
+      "name": "Spirit Ring",
+      "base_items": [
+        {
+          "name": "Budding Spirit Ring",
+          "required_level": 1,
+          "armor": null,
+          "implicits": [
+            "+3 % Minion Damage"
+          ]
+        },
+        {
+          "name": "Thriving Spirit Ring",
+          "required_level": 24,
+          "armor": null,
+          "implicits": [
+            "+5 % Minion Damage"
+          ]
+        },
+        {
+          "name": "Command Spirit Ring",
+          "required_level": 52,
+          "armor": null,
+          "implicits": [
+            "+8 % Minion Damage"
+          ]
+        },
+        {
+          "name": "Harvest Spirit Ring",
+          "required_level": 66,
+          "armor": null,
+          "implicits": [
+            "+12 % Minion Damage"
+          ]
+        },
+        {
+          "name": "Championed Spirit Ring",
+          "required_level": 76,
+          "armor": null,
+          "implicits": [
+            "+18 % Minion Damage"
+          ]
+        },
+        {
+          "name": "Essence Spirit Ring",
+          "required_level": 82,
+          "armor": null,
+          "implicits": [
+            "+24 % Minion Damage"
+          ]
+        }
+      ]
+    },
+    {
       "item_id": "str_boots",
       "name": "STR Boots",
       "base_items": [
@@ -4701,266 +4961,6 @@
           "armor": null,
           "implicits": [
             "+1920 Gear Armor"
-          ]
-        }
-      ]
-    },
-    {
-      "item_id": "scepter",
-      "name": "Scepter",
-      "base_items": [
-        {
-          "name": "Withering Scepter",
-          "required_level": 1,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+2 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Marsh Scepter",
-          "required_level": 2,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+3 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Barren Scepter",
-          "required_level": 4,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+5 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Lamentation Scepter",
-          "required_level": 9,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+7 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Disorientation Scepter",
-          "required_level": 14,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+9 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "High Tower Scepter",
-          "required_level": 19,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+11 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Hanging Scepter",
-          "required_level": 24,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+13 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Eternal Night Scepter",
-          "required_level": 29,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+15 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Red Rain Scepter",
-          "required_level": 34,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+17 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Stigmata Scepter",
-          "required_level": 39,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+19 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Deception Scepter",
-          "required_level": 44,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+21 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Sorrow Scepter",
-          "required_level": 49,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+23 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Agony Scepter",
-          "required_level": 54,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+25 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Rotten Scepter",
-          "required_level": 59,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+27 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Spiral Scepter",
-          "required_level": 64,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+29 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Judgment Scepter",
-          "required_level": 68,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+31 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Reflux Scepter",
-          "required_level": 72,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+33 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Trickster Scepter",
-          "required_level": 82,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+35 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Thorn Sea Scepter",
-          "required_level": 84,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+37 % Damage Over Time"
-          ]
-        },
-        {
-          "name": "Dark Gaze Scepter",
-          "required_level": 86,
-          "armor": null,
-          "implicits": [
-            "500 Critical Strike Rating",
-            "1.2 Attack Speed",
-            "+39 % Damage Over Time"
-          ]
-        }
-      ]
-    },
-    {
-      "item_id": "spirit_ring",
-      "name": "Spirit Ring",
-      "base_items": [
-        {
-          "name": "Budding Spirit Ring",
-          "required_level": 1,
-          "armor": null,
-          "implicits": [
-            "+3 % Minion Damage"
-          ]
-        },
-        {
-          "name": "Thriving Spirit Ring",
-          "required_level": 24,
-          "armor": null,
-          "implicits": [
-            "+5 % Minion Damage"
-          ]
-        },
-        {
-          "name": "Command Spirit Ring",
-          "required_level": 52,
-          "armor": null,
-          "implicits": [
-            "+8 % Minion Damage"
-          ]
-        },
-        {
-          "name": "Harvest Spirit Ring",
-          "required_level": 66,
-          "armor": null,
-          "implicits": [
-            "+12 % Minion Damage"
-          ]
-        },
-        {
-          "name": "Championed Spirit Ring",
-          "required_level": 76,
-          "armor": null,
-          "implicits": [
-            "+18 % Minion Damage"
-          ]
-        },
-        {
-          "name": "Essence Spirit Ring",
-          "required_level": 82,
-          "armor": null,
-          "implicits": [
-            "+24 % Minion Damage"
           ]
         }
       ]

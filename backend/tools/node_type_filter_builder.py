@@ -604,8 +604,8 @@ def _collect_condition_keys(expr) -> set[str]:
 
 
 def _validate_filter_keys(filter_data: dict) -> None:
-    from models.conditions import ALL_CONDITIONS
-    valid = {c.key for c in ALL_CONDITIONS}
+    from models.conditions import ALL_CONDITIONS, DERIVED_ACTIVE_KEYS
+    valid = {c.key for c in ALL_CONDITIONS} | set(DERIVED_ACTIVE_KEYS.keys())
     numeric_keys = {c.key for c in ALL_CONDITIONS if c.value_type == "numeric"}
     for tree, types in filter_data.get("recipes", {}).items():
         for node_type, recipes in types.items():

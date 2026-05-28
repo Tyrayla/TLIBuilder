@@ -1,5 +1,31 @@
 # Changelog
 
+## [Unreleased]
+
+### New Features
+- **Dev data inspector** — browser-based tool at `/api/dev/inspect/` for exploring season JSON files. Supports field discovery, variant exploration, filtered queries (name/has/missing/where/modifier text), and syntax-highlighted result display.
+- **Legendary gear corruption** — Corruption dropdown (None / Desecration / Mutation) on legendary items that have a corroded variant (hidden for Divinity Slate items).
+  - **Desecration** — toggle up to 2 explicit modifiers to their corroded tier; affected rows are highlighted in purple and stats update immediately via eager affix swap.
+  - **Mutation** — select one slot-specific mutation implicit from the craft base pool; the modifier appears in purple above regular implicits and contributes to stats where a stat key can be resolved.
+- **Legendary random affix pools** — placeholder "Random X" explicits on legendaries now show an enabled dropdown listing all valid options for that pool. Selecting an option eagerly swaps the affix in place; range-value sliders appear for affixes with numeric ranges. Selection persists across save/load.
+- **Craft item corruption** — Corruption dropdown (None / Desecration / Mutation) on crafted items.
+  - **Desecration** — per-slot toggle button (max 2 slots) upgrades a slot's current modifier to its T0+ (corroded) tier. The toggle is the only path to T0+; the modifier dropdown never shows T0+ options directly. Corroded slots are highlighted purple in the editor and in the item preview.
+  - **Mutation** — replaces both base affix slots with modifiers from the slot's corrosion pool. The mutation pool is drawn from the same `corrosion_base_affixes` used for legendary Mutation. Range-value sliders appear for mutation affixes with numeric ranges.
+
+### Improvements
+- **Dev-mode API gating** — `/api/dev/*` routes now return 404 in packaged builds. Electron passes `TLI_DEV_MODE=1` (dev) or `=0` (packaged) so the backend knows its context without process introspection.
+- **Legendary corrosion toggle redesigned** — the per-explicit "C" button has been replaced with a 7×7 px inline square to the left of the modifier text, consistent with the craft slot toggle. Active = solid purple; inactive = dim border with purple hover.
+
+### Bug Fixes
+- Fixed mutation affix pool not populating after reimporting craft base types in DevTools — the reference store now refreshes `craftBaseTypes` immediately after a successful import without requiring an app restart.
+- Fixed mutation affixes having no stat contribution — `corrosion_base` entries are now parsed with `parse_affix_text` at import time and stat keys are resolved in `_resolve_craft_base_types`, matching the pipeline used for all other gear affixes.
+- Fixed craft modifier dropdown grouping fixed-value tier entries (e.g. T7 `"Adds 1 - 5 Lightning"`) separately from their range-value counterparts (e.g. T6 `"Adds # - # Lightning"`) — tier groups are now keyed on a normalized expression where all numeric literals are replaced with `#`.
+- Fixed leaving Desecration mode on a craft item clearing the selected modifier — the slot now downgrades to the best available non-corroded tier for the same modifier rather than being cleared.
+- Fixed craft Desecration allowing T0+ to be selected via the modifier dropdown — T0+ options are now excluded from the per-slot pool unless that slot is already at T0+ (the toggle is the sole upgrade path).
+- Fixed mutation pool affixes not resolving range values or stat keys — mutation affixes now carry full `LegendaryAffix` fields (expression, affix_kind, numeric_values, stat_key) sourced from the craft base type data.
+
+---
+
 ## [0.3.2] - 2026-05-25
 
 ### New Features

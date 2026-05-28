@@ -1,0 +1,26 @@
+{
+  "For every 5 m moved, gains 1 stack(s) of Deflection": {
+    "key": "meters_moved_recently",
+    "op": "per",
+    "divisor": 5
+  },
+  "against Numbed enemies": "enemy_numbed",
+  "against Numbed enemies +(25–35) % additional Max Lightning Damage to an enemy when they have at least 10 stack(s) of Numbed": {
+    "key": "numbed_stacks",
+    "op": ">=",
+    "value": 10
+  },
+  "against Traumatized enemies": "enemy_traumatized",
+  "against Ignited enemies": "enemy_ignited",
+  "If you have Agility Blessing stacks when casting the Main Skill, consumes 1 stack(s) of Agility Blessing to make that cast deal +35 % additional Lightning Damage": {
+    "key": "agility_blessings",
+    "op": ">=",
+    "value": 1
+  },
+  "When an enemy is Ignited , 65 % of the additional bonus to Damage Over Time taken from Affliction is also applied to your Fire Hit Damage": "enemy_ignited",
+  "When an enemy is Ignited , 65 % of the additional bonus to Damage Over Time taken from Affliction is also applied to your Fire Hit Damage +100 % Skill Area": "enemy_ignited",
+  "against Distant enemies": "enemy_distant",
+  "against Cursed enemies": "enemy_cursed",
+  "against Frostbitten enemies": "enemy_frostbitten",
+  "against Frozen enemies": "enemy_frozen"
+}

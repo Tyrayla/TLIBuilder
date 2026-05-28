@@ -67,6 +67,13 @@ class ComputedResult:
 
 
 @dataclass
+class SkillRef:
+    """Minimal skill reference passed from the frontend to the engine."""
+    skill_id: str
+    level:    int = 1
+
+
+@dataclass
 class BuildInput:
     """Everything the engine needs to run a calculation."""
     slots:      list[dict | None]       # TreeSlot dicts: {treeName, nodeStates}
@@ -80,6 +87,7 @@ class BuildInput:
     character:       list[dict] = field(default_factory=list)  # CharacterStatContribution dicts
     memory_effects:  list[str]  = field(default_factory=list)  # resolved hero memory modifier strings
     spirit_effects:  list[str]  = field(default_factory=list)  # pact spirit slot + rank modifier strings
+    main_skill:      SkillRef | None = None  # main skill for offense calculation
 
 
 @dataclass
@@ -88,3 +96,5 @@ class StatResult:
     stat_map:            dict                    # {stat_key: {display_name, total, sources, ...}}
     condition_maximums:  dict[str, float]        # {condition_key: derived_max}
     clamp_report:        dict[str, dict]         # {key: {"requested": v, "applied": v}}
+    offense:             dict | None = None      # OffenseResult as dict, or None if no skill
+    defense:             dict | None = None      # DefenseResult as dict
