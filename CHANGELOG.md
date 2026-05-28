@@ -2,27 +2,47 @@
 
 ## [Unreleased]
 
+---
+
+## [0.4.0] - 2026-05-28
+
 ### New Features
-- **Dev data inspector** — browser-based tool at `/api/dev/inspect/` for exploring season JSON files. Supports field discovery, variant exploration, filtered queries (name/has/missing/where/modifier text), and syntax-highlighted result display.
-- **Legendary gear corruption** — Corruption dropdown (None / Desecration / Mutation) on legendary items that have a corroded variant (hidden for Divinity Slate items).
-  - **Desecration** — toggle up to 2 explicit modifiers to their corroded tier; affected rows are highlighted in purple and stats update immediately via eager affix swap.
-  - **Mutation** — select one slot-specific mutation implicit from the craft base pool; the modifier appears in purple above regular implicits and contributes to stats where a stat key can be resolved.
-- **Legendary random affix pools** — placeholder "Random X" explicits on legendaries now show an enabled dropdown listing all valid options for that pool. Selecting an option eagerly swaps the affix in place; range-value sliders appear for affixes with numeric ranges. Selection persists across save/load.
+- **Calcs screen** — new Calcs tab in the sidebar with a full damage breakdown for the active skill in slot 1.
+  - Per-hit-form display: effectiveness %, proc chance, average hit pre- and post-crit, DPS contribution per form.
+  - Blended **Total DPS** and **vs Target Dummy** DPS (applies target dummy's baseline mitigation: 50% physical armor; 30% armor + 30% elemental/erosion resistance for non-physical damage).
+  - Crit Chance, Crit Multiplier, Steep Strike Chance, and Attacks per Second displayed below the form breakdown.
+  - NYI badge list shows which modifiers are not yet wired so numbers are always clearly partial rather than silently wrong.
+  - Unsupported skills show a clear "not yet supported" state with no zeroed numbers.
+- **Offense engine** — explicit per-skill damage pipeline. Only skills registered in the engine produce calculations; all others show NYI rather than a partial or guessed result.
+  - **Berserking Blade** fully supported: Sweep Slash and Steep Strike as mutually exclusive hit forms; skill's intrinsic +20% Steep Strike chance passive parsed from skill data.
+  - Above-max-level effectiveness scaling: ×1.10 per level for levels max+1 to max+10, ×1.08 per level beyond that (compound).
+  - Tag-filtered increased damage pool: all `*_dmg_inc` stats from the talent tree whose tags intersect the skill's tag set are summed into a single additive multiplier. Generic (untagged) stats always apply.
+  - Crit formula: final CSR ÷ 10000 = crit chance (100 CSR = 1%).
+- **Legendary gear corruption** — Corruption dropdown (None / Desecration / Mutation) on legendary items that have a corroded variant.
+  - **Desecration** — toggle up to 2 explicit modifiers to their corroded tier; affected rows highlight in purple and stats update immediately.
+  - **Mutation** — select one slot-specific mutation implicit from the craft base pool; appears in purple above regular implicits and contributes to stats.
+- **Legendary random affix pools** — placeholder "Random X" explicits now show an enabled dropdown listing all valid options. Selecting eagerly swaps the affix; range sliders appear for numeric affixes. Selection persists across save/load.
 - **Craft item corruption** — Corruption dropdown (None / Desecration / Mutation) on crafted items.
-  - **Desecration** — per-slot toggle button (max 2 slots) upgrades a slot's current modifier to its T0+ (corroded) tier. The toggle is the only path to T0+; the modifier dropdown never shows T0+ options directly. Corroded slots are highlighted purple in the editor and in the item preview.
-  - **Mutation** — replaces both base affix slots with modifiers from the slot's corrosion pool. The mutation pool is drawn from the same `corrosion_base_affixes` used for legendary Mutation. Range-value sliders appear for mutation affixes with numeric ranges.
+  - **Desecration** — per-slot toggle (max 2) upgrades to T0+; T0+ is excluded from the dropdown unless the slot is already corroded.
+  - **Mutation** — replaces both base slots from the corrosion pool with range sliders for numeric modifiers.
+- **Dev data inspector** — browser tool at `/api/dev/inspect/` for exploring season JSON files: field discovery, variant exploration, filtered queries, syntax-highlighted output.
 
 ### Improvements
-- **Dev-mode API gating** — `/api/dev/*` routes now return 404 in packaged builds. Electron passes `TLI_DEV_MODE=1` (dev) or `=0` (packaged) so the backend knows its context without process introspection.
-- **Legendary corrosion toggle redesigned** — the per-explicit "C" button has been replaced with a 7×7 px inline square to the left of the modifier text, consistent with the craft slot toggle. Active = solid purple; inactive = dim border with purple hover.
+- **Weapon implicit stat parsing** — crafted weapon base types (Physical Damage, Attack Speed, Critical Strike Rating) now resolve to engine stat keys and feed the damage calculation correctly.
+- **Dev-mode API gating** — `/api/dev/*` routes return 404 in packaged builds.
+- **Legendary corrosion toggle redesigned** — inline 7×7 px square to the left of modifier text; active = solid purple, inactive = dim border.
 
 ### Bug Fixes
-- Fixed mutation affix pool not populating after reimporting craft base types in DevTools — the reference store now refreshes `craftBaseTypes` immediately after a successful import without requiring an app restart.
-- Fixed mutation affixes having no stat contribution — `corrosion_base` entries are now parsed with `parse_affix_text` at import time and stat keys are resolved in `_resolve_craft_base_types`, matching the pipeline used for all other gear affixes.
-- Fixed craft modifier dropdown grouping fixed-value tier entries (e.g. T7 `"Adds 1 - 5 Lightning"`) separately from their range-value counterparts (e.g. T6 `"Adds # - # Lightning"`) — tier groups are now keyed on a normalized expression where all numeric literals are replaced with `#`.
-- Fixed leaving Desecration mode on a craft item clearing the selected modifier — the slot now downgrades to the best available non-corroded tier for the same modifier rather than being cleared.
-- Fixed craft Desecration allowing T0+ to be selected via the modifier dropdown — T0+ options are now excluded from the per-slot pool unless that slot is already at T0+ (the toggle is the sole upgrade path).
-- Fixed mutation pool affixes not resolving range values or stat keys — mutation affixes now carry full `LegendaryAffix` fields (expression, affix_kind, numeric_values, stat_key) sourced from the craft base type data.
+- Fixed tag-filtered increased damage from talent nodes not applying to skill damage — `inc_total` was a hardcoded 0.0 placeholder; now reads all matching `*_dmg_inc` stats from the talent tree filtered by skill tags.
+- Fixed Berserking Blade showing 0% Steep Strike chance — the skill's intrinsic `+20% Steep Strike` passive was not being parsed from skill data.
+- Fixed crafted weapon implicits (Physical Damage, Attack Speed, CSR) not contributing to engine stats — `affix_kind: 'implicit'` affixes have no resolved stat keys and were silently skipped by the payload builder.
+- Fixed skills cache always empty — `_get_skills_data()` was reading the wrong root key (`"items"` instead of `"skills"`) from `_skills.json`, causing offense calculation to never run.
+- Fixed crit chance always 100% for any weapon with CSR — the formula used `raw_csr / 100` instead of `/ 10000` (500 CSR should be 5%, not 500%).
+- Fixed mutation affix pool not populating after reimporting craft base types — the reference store now refreshes immediately after a successful DevTools import.
+- Fixed mutation affixes having no stat contribution — `corrosion_base` entries are now parsed with `parse_affix_text` at import time.
+- Fixed craft modifier dropdown grouping fixed-value tiers separately from range-value tiers — tier groups are now keyed on a normalized expression with all numeric literals replaced by `#`.
+- Fixed leaving Desecration mode clearing the selected modifier — slot now downgrades to the best non-corroded tier rather than clearing.
+- Fixed blessing stack conditions having min_base and max_base swapped.
 
 ---
 
