@@ -513,6 +513,11 @@ def engine_compute(req: EngineComputeRequest):
     return asdict(result)
 
 
+class SkillEngineInput(BaseModel):
+    skill_id: str
+    level:    int = 1
+
+
 class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
@@ -521,6 +526,7 @@ class EngineStatsRequest(BaseModel):
     character:       list[dict] = []
     memory_effects:  list[str] = []
     spirit_effects:  list[str] = []
+    main_skill:      SkillEngineInput | None = None
 
 
 @app.post("/api/engine/stats")
@@ -557,17 +563,29 @@ def engine_stats(req: EngineStatsRequest):
         if tree_data:
             season_trees[slug] = tree_data
 
+    from engine.models import SkillRef
+
+    main_skill = None
+    skill_data = None
+    if req.main_skill:
+        main_skill = SkillRef(skill_id=req.main_skill.skill_id, level=req.main_skill.level)
+        skills_by_id = _get_skills_data(active_season)
+        skill_data = skills_by_id.get(req.main_skill.skill_id)
+
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=req.condition_state,
         gear=req.gear, character=req.character,
         memory_effects=req.memory_effects, spirit_effects=req.spirit_effects,
+        main_skill=main_skill,
     )
-    result = compute(build, season_trees, filter_data)
+    result = compute(build, season_trees, filter_data, skill_data=skill_data)
     return {
         "stats": result.stat_map,
         "condition_maximums": result.condition_maximums,
         "clamp_report": result.clamp_report,
+        "offense": result.offense,
+        "defense": result.defense,
     }
 
 
@@ -1299,14 +1317,14 @@ _MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
 # Multi-group affixes with mixed units (% and flat in same affix)
 _MIXED_STAT_OVERRIDES: dict[str, list[dict]] = {
     "+(#) % gear physical damage adds (#)-(#) physical damage to the gear": [
-        {"value_index": 0, "stat_keys": ["gear_physical_dmg_inc"], "unit": "%"},
+        {"value_index": 0, "stat_keys": ["physical_dmg_gear_inc"], "unit": "%"},
         {"value_index": 1, "stat_keys": ["physical_dmg_gear_flat_min"], "unit": ""},
         {"value_index": 2, "stat_keys": ["physical_dmg_gear_flat_max"], "unit": ""},
     ],
     "adds (#)-(#) elemental damage to the gear -(#) % gear physical damage": [
         {"value_index": 0, "stat_keys": ["elemental_dmg_gear_flat_min"], "unit": ""},
         {"value_index": 1, "stat_keys": ["elemental_dmg_gear_flat_max"], "unit": ""},
-        {"value_index": 2, "stat_keys": ["gear_physical_dmg_inc"], "unit": "%"},
+        {"value_index": 2, "stat_keys": ["physical_dmg_gear_inc"], "unit": "%"},
     ],
 }
 
@@ -1517,6 +1535,10 @@ _THRESHOLD_RE = re.compile(
     r"|fewer\s+than\s+(\d+)|less\s+than\s+(\d+)",
     re.I,
 )
+_WEAPON_PHYS_DMG_RE = re.compile(r"^([\d.]+)\s*-\s*([\d.]+)\s+Physical Damage$")
+_WEAPON_ATK_SPD_RE  = re.compile(r"^([\d.]+)\s+Attack Speed$")
+_WEAPON_CSR_RE      = re.compile(r"^([\d.]+)\s+Critical Strike Rating$")
+
 _BLESSING_KEY_MAP = {
     "focus": "focus_stacks",
     "tenacity": "tenacity_stacks",
@@ -1596,6 +1618,17 @@ def _resolve_affix(affix: dict) -> dict:
     condition_expr = _translate_condition_expr(affix.get("condition"))
     if affix.get("affix_kind") == "placeholder":
         return {**affix, "stat_key": None, "unit": "", "condition_expr": condition_expr}
+    if affix.get("affix_kind") == "special":
+        raw = affix.get("raw_text", "")
+        if _WEAPON_PHYS_DMG_RE.match(raw):
+            return {**affix, "stat_key": None, "unit": "", "condition_expr": None,
+                    "min_stat_keys": ["physical_dmg_gear_flat_min"],
+                    "max_stat_keys": ["physical_dmg_gear_flat_max"]}
+        if _WEAPON_ATK_SPD_RE.match(raw):
+            return {**affix, "stat_key": "weapon_attack_speed", "unit": "", "condition_expr": None}
+        if _WEAPON_CSR_RE.match(raw):
+            return {**affix, "stat_key": "attack_crit_rating_gear", "unit": "", "condition_expr": None}
+        return {**affix, "stat_key": None, "unit": "", "condition_expr": None}
     raw_text = affix.get("raw_text", "")
     text = _GEAR_COND_RE.sub("", raw_text)
     text = _GEAR_SUFFIX_RE.sub("", text)
@@ -1766,6 +1799,23 @@ def import_crawler_craft_base_types_endpoint(req: ImportCrawlerCraftBaseTypesReq
 
 _craft_bases_cache: list | None = None
 _craft_bases_cache_season: str | None = None
+
+_skills_cache: dict[str, dict] | None = None  # item_id → skill dict
+_skills_cache_season: str | None = None
+
+
+def _get_skills_data(season: str) -> dict[str, dict]:
+    global _skills_cache, _skills_cache_season
+    if _skills_cache is not None and _skills_cache_season == season:
+        return _skills_cache
+    raw = season_manager.load_skills(season)
+    if not raw:
+        _skills_cache = {}
+        _skills_cache_season = season
+        return _skills_cache
+    _skills_cache = {item["item_id"]: item for item in raw.get("skills", []) if "item_id" in item}
+    _skills_cache_season = season
+    return _skills_cache
 
 
 def _resolve_craft_base_types(base_types: list) -> list:

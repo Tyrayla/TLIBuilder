@@ -2033,20 +2033,25 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Gear-Specific Stats ───────────────────────────────────────────────────
-    Stat.GEAR_PHYSICAL_DMG_INC: StatMeta(
+    Stat.PHYSICAL_DMG_GEAR_INC: StatMeta(
         "Gear Physical Damage", "Gear", "increased", "%",
         subgroup="gear_base",          stacking_rule="additive",
         ui_priority=10,                source_types=_G,
     ),
-    Stat.GEAR_ENERGY_SHIELD_FLAT: StatMeta(
+    Stat.ENERGY_SHIELD_GEAR_FLAT: StatMeta(
         "Gear Energy Shield", "Gear", "added_flat",
         subgroup="gear_base",          stacking_rule="additive",
         ui_priority=31,                source_types=_G,
     ),
-    Stat.GEAR_ENERGY_SHIELD_INC: StatMeta(
+    Stat.ENERGY_SHIELD_GEAR_INC: StatMeta(
         "Gear Energy Shield", "Gear", "increased", "%",
         subgroup="gear_base",          stacking_rule="additive",
         ui_priority=32,                source_types=_G,
+    ),
+    Stat.WEAPON_ATTACK_SPEED: StatMeta(
+        "Weapon Attack Speed", "Gear", "base_stat",
+        subgroup="gear_base",          stacking_rule="additive",
+        ui_priority=9,                 source_types=_G,
     ),
     Stat.ARMOR_GEAR_FLAT: StatMeta(
         "Gear Armor", "Gear", "added_flat",

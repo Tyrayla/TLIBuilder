@@ -474,9 +474,10 @@ class Stat(Enum):
     FOCUS_SKILL_LEVEL = "focus_skill_level"
 
     # ── Gear-Specific Stats ───────────────────────────────────────────────────
-    GEAR_PHYSICAL_DMG_INC = "gear_physical_dmg_inc"
-    GEAR_ENERGY_SHIELD_FLAT = "gear_energy_shield_flat"
-    GEAR_ENERGY_SHIELD_INC = "gear_energy_shield_inc"
+    PHYSICAL_DMG_GEAR_INC = "physical_dmg_gear_inc"
+    ENERGY_SHIELD_GEAR_FLAT = "energy_shield_gear_flat"
+    ENERGY_SHIELD_GEAR_INC = "energy_shield_gear_inc"
+    WEAPON_ATTACK_SPEED = "weapon_attack_speed"
     ARMOR_GEAR_FLAT = "armor_gear_flat"
     ARMOR_GEAR_INC = "armor_gear_inc"
     EVASION_GEAR_FLAT = "evasion_gear_flat"

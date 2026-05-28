@@ -95,6 +95,7 @@ def compute(
     build_input: BuildInput,
     season_trees: dict[str, dict],
     filter_data: dict,
+    skill_data: dict | None = None,
 ) -> StatResult:
     """
     Run the fixed-point aggregation loop and return a StatResult.
@@ -193,8 +194,24 @@ def compute(
         if requested > applied:
             clamp_report[k] = {"requested": requested, "applied": applied}
 
+    # Post-loop offense and defense (not part of the fixed-point convergence)
+    from dataclasses import asdict
+    from engine.defense import calculate_defense
+    from engine.offense import calculate_offense
+    from engine.skill_resolver import resolve_skill
+
+    result_defense = asdict(calculate_defense(source))
+
+    result_offense = None
+    if skill_data and build_input.main_skill:
+        resolved = resolve_skill(skill_data)
+        offense = calculate_offense(source, resolved, build_input.main_skill.level)
+        result_offense = asdict(offense)
+
     return StatResult(
         stat_map=stat_map,
         condition_maximums=maxes,
         clamp_report=clamp_report,
+        offense=result_offense,
+        defense=result_defense,
     )

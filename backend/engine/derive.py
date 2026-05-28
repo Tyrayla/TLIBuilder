@@ -55,8 +55,8 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
     ),
     DerivedStat(
         key="max_energy_shield",
-        flat_keys=["max_energy_shield_flat", "gear_energy_shield_flat"],
-        inc_keys=["max_energy_shield_inc", "gear_energy_shield_inc"],
+        flat_keys=["max_energy_shield_flat", "energy_shield_gear_flat"],
+        inc_keys=["max_energy_shield_inc", "energy_shield_gear_inc"],
     ),
 
     # ── Armor / Evasion ────────────────────────────────────────────────────────
