@@ -44,6 +44,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .btn-danger    { background: #3a1a1a; color: var(--err); }
 .btn-sm        { padding: 5px 12px; font-size: 12px; }
 
+.nyi-tag {
+  font-size: 10px; font-weight: 700; color: #ff6b6b;
+  background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.3);
+  border-radius: 3px; padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+}
+
 .btn-back {
   background: transparent;
   color: var(--fg);

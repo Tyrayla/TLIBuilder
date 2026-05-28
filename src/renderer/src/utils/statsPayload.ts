@@ -13,6 +13,27 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     const contributions: GearAffixContribution[] = []
     affixesToProcess.forEach((affix, affixIdx) => {
       if (affix.affix_kind === 'placeholder') return
+
+      // Craft base type implicits arrive as plain text with no resolved stat keys.
+      // Parse the three weapon stat patterns directly so they contribute to the engine.
+      if (affix.affix_kind === 'implicit') {
+        const slot = Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot
+        const physM = affix.raw_text.match(/^([\d.]+)\s*-\s*([\d.]+)\s+Physical Damage$/i)
+        if (physM) {
+          contributions.push({ stat: 'physical_dmg_gear_flat_min', display_value: parseFloat(physM[1]), unit: '', item_name: item.name, slot, condition: null })
+          contributions.push({ stat: 'physical_dmg_gear_flat_max', display_value: parseFloat(physM[2]), unit: '', item_name: item.name, slot, condition: null })
+        }
+        const atkM = affix.raw_text.match(/^([\d.]+)\s+Attack Speed$/i)
+        if (atkM) {
+          contributions.push({ stat: 'weapon_attack_speed', display_value: parseFloat(atkM[1]), unit: '', item_name: item.name, slot, condition: null })
+        }
+        const csrM = affix.raw_text.match(/^([\d.]+)\s+Critical Strike Rating$/i)
+        if (csrM) {
+          contributions.push({ stat: 'attack_crit_rating_gear', display_value: parseFloat(csrM[1]), unit: '', item_name: item.name, slot, condition: null })
+        }
+        return
+      }
+
       const hasKey = affix.stat_key
         || (affix.stat_keys && affix.stat_keys.length > 0)
         || (affix.dual_stat_groups && affix.dual_stat_groups.length > 0)

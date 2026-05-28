@@ -42,6 +42,7 @@ export function useBuildCalculation() {
           memory_effects: buildMemoryEffects(s.heroMemories),
           // buildSpiritEffects returns [] on empty allSpirits — safe on failure path
           spirit_effects: buildSpiritEffects(s.pactSpirits, s.allSpirits),
+          main_skill: s.mainSkill ?? null,
         })
         // Version guard: reject stale/out-of-order responses
         if (version >= useBuildStore.getState().computedVersion) {

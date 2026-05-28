@@ -37,6 +37,7 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
 
       <NavBtn label="Conditionals" active={screen === 'build-overview'} onClick={() => onNav('build-overview')} />
       <NavBtn label="Stats" active={screen === 'stats'} onClick={() => onNav('stats')} />
+      <NavBtn label="Calcs" active={screen === 'calcs'} onClick={() => onNav('calcs')} />
 
       <div className="sidebar-divider" />
 

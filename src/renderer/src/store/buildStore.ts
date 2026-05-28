@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { isEqual } from 'lodash-es'
 import type {
   TreeSlot, SavedSlate, EquippedGearItem,
-  CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit,
+  CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput,
 } from '../api/client'
 import { EMPTY_STAT_SHEET } from '../api/client'
 
@@ -29,6 +29,9 @@ interface BuildStore extends StatsInputs {
   spiritsResolved: boolean
   spiritsFetchFailed: boolean
 
+  // Main skill for offense calculation
+  mainSkill: SkillEngineInput | null
+
   // Computed output — writing these MUST NOT bump buildVersion (infinite loop)
   computedStats: StatSheetResponse
   statsLoading: boolean
@@ -45,6 +48,9 @@ interface BuildStore extends StatsInputs {
   // Reference data — bumps buildVersion so first load triggers recalc
   setAllSpirits: (spirits: PactSpirit[]) => void
   setSpiritsFailure: () => void
+
+  // Main skill setter — bumps buildVersion
+  setMainSkill: (skill: SkillEngineInput | null) => void
 
   // Result write-back
   setComputedStats: (stats: StatSheetResponse, version: number) => void
@@ -68,6 +74,7 @@ export const useBuildStore = create<BuildStore>((set) => ({
   allSpirits: [],
   spiritsResolved: false,
   spiritsFetchFailed: false,
+  mainSkill: null,
   computedStats: EMPTY_STAT_SHEET,
   statsLoading: false,
   statsError: '',
@@ -92,6 +99,12 @@ export const useBuildStore = create<BuildStore>((set) => ({
     set((s) => {
       if (s.spiritsResolved) return s
       return { spiritsResolved: true, spiritsFetchFailed: true, buildVersion: s.buildVersion + 1 }
+    }),
+
+  setMainSkill: (mainSkill) =>
+    set((s) => {
+      if (isEqual(s.mainSkill, mainSkill)) return s
+      return { mainSkill, buildVersion: s.buildVersion + 1 }
     }),
 
   // CRITICAL: must NOT bump buildVersion — would cause infinite recalc loop
