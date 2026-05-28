@@ -52,6 +52,13 @@ interface BuildStore extends StatsInputs {
   // Main skill setter — bumps buildVersion
   setMainSkill: (skill: SkillEngineInput | null) => void
 
+  // Custom mods — bumps buildVersion on change
+  customMods: string[]
+  setCustomMods: (mods: string[]) => void
+  addCustomMod: (text: string) => void
+  removeCustomMod: (index: number) => void
+  updateCustomMod: (index: number, text: string) => void
+
   // Result write-back
   setComputedStats: (stats: StatSheetResponse, version: number) => void
   setStatsLoading: (v: boolean) => void
@@ -75,6 +82,7 @@ export const useBuildStore = create<BuildStore>((set) => ({
   spiritsResolved: false,
   spiritsFetchFailed: false,
   mainSkill: null,
+  customMods: [],
   computedStats: EMPTY_STAT_SHEET,
   statsLoading: false,
   statsError: '',
@@ -105,6 +113,27 @@ export const useBuildStore = create<BuildStore>((set) => ({
     set((s) => {
       if (isEqual(s.mainSkill, mainSkill)) return s
       return { mainSkill, buildVersion: s.buildVersion + 1 }
+    }),
+
+  setCustomMods: (customMods) =>
+    set((s) => {
+      if (isEqual(s.customMods, customMods)) return s
+      return { customMods, buildVersion: s.buildVersion + 1 }
+    }),
+
+  addCustomMod: (text) =>
+    set((s) => ({ customMods: [...s.customMods, text], buildVersion: s.buildVersion + 1 })),
+
+  removeCustomMod: (index) =>
+    set((s) => {
+      const customMods = s.customMods.filter((_, i) => i !== index)
+      return { customMods, buildVersion: s.buildVersion + 1 }
+    }),
+
+  updateCustomMod: (index, text) =>
+    set((s) => {
+      const customMods = s.customMods.map((m, i) => (i === index ? text : m))
+      return { customMods, buildVersion: s.buildVersion + 1 }
     }),
 
   // CRITICAL: must NOT bump buildVersion — would cause infinite recalc loop

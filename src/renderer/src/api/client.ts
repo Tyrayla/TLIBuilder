@@ -216,6 +216,7 @@ export interface Build {
   heroMemories?: (unknown | null)[]
   pactSpirits?: (unknown | null)[]
   notes?: string
+  customMods?: string[]
 }
 
 export interface TreeNode {
@@ -463,12 +464,31 @@ export interface DefenseResult {
   nyi: string[]
 }
 
+export interface CustomModStatus {
+  text: string
+  resolved: boolean
+  stat_display: string | null
+}
+
+export interface ResolveModResult {
+  stat_key: string
+  amount: number
+  text: string
+  display_name: string
+}
+
+export interface ResolveModResponse {
+  text: string
+  resolved: ResolveModResult[]
+}
+
 export interface StatSheetResponse {
   stats: Record<string, StatEntry>
   condition_maximums: Record<string, number>
   clamp_report: Record<string, { requested: number; applied: number }>
   offense?: OffenseResult | null
   defense?: DefenseResult | null
+  custom_mod_statuses?: CustomModStatus[]
 }
 
 export const EMPTY_STAT_SHEET: StatSheetResponse = {
@@ -1293,7 +1313,11 @@ export const api = {
     memory_effects?: string[]
     spirit_effects?: string[]
     main_skill?: SkillEngineInput | null
+    custom_mods?: string[]
   }) => post<StatSheetResponse>('/engine/stats', payload),
+
+  resolveMod: (text: string) =>
+    post<ResolveModResponse>('/resolve-mod', { text }),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),
 

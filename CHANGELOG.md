@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### New Features
+- **Custom Mods panel** — freeform modifier text input in the Calcs screen feeds the full stat engine as if the modifier were on gear.
+  - Supports any stat in the system: flat values, percentage increases, range expressions (`50-80 physical damage`), and multi-stat lines.
+  - "increased / reduced / more / less" verbs are stripped before matching so natural game text resolves correctly.
+  - Live preview via `/api/resolve-mod` shows ✓ / ✗ resolve status as you type.
+  - Per-mod status rows show the resolved stat display name or flag unrecognized mods.
+  - Custom mods persist in the build save and are labeled "Custom Config" in the stats breakdown.
+
+### Improvements
+- **CSR stat taxonomy** — Critical Strike Rating stats now correctly separate weapon-sourced flat CSR from general flat CSR, mirroring how gear physical damage and ring flat adds are separated.
+  - New stat `weapon_crit_rating_flat`: flat CSR from weapon implicits/explicits, scaled exclusively by `attack_crit_rating_gear` and `attack_crit_rating_mh`.
+  - `attack_crit_rating_flat` remains for talent/ring/non-weapon flat CSR.
+  - `attack_crit_rating_gear` and `attack_crit_rating_mh` are now strictly % multipliers on the weapon's own CSR pool, not summed with flat sources.
+- **CSR display names corrected** — all Critical Strike Rating stats now use full in-game text:
+  - `attack_crit_rating_gear` → "Attack Critical Strike Rating for this Gear"
+  - `attack_crit_rating_mh` → "Critical Strike Rating for the Main-Hand Weapon"
+  - Spirit Magi entries → "Spirit Magi Critical Strike Rating (Flat)"
+- **DPS display** — Calcs screen now shows only **DPS vs Target Dummy**; raw total DPS is still computed but not displayed since enemy values outside the target dummy are unknown.
+
+### Bug Fixes
+- Fixed CSR display names using abbreviated "Crit Rating" instead of the in-game wording "Critical Strike Rating".
+- Fixed weapon base CSR implicit (`500 Critical Strike Rating`) incorrectly mapping to `attack_crit_rating_gear` (a % increase) instead of a flat CSR stat — it now maps to `weapon_crit_rating_flat`.
+- Fixed `attack_crit_rating_gear` being summed into the flat CSR pool; it is a % multiplier on weapon CSR only and must not participate in the flat additive sum.
+- Fixed expression override `+(#) % attack critical strike rating` capturing the general attack CSR increase and mapping it to the gear-specific stat — the override now requires the "for this gear" suffix so the general form falls through to fuzzy matching and resolves to `attack_crit_rating_inc`.
+
 ---
 
 ## [0.4.0] - 2026-05-28

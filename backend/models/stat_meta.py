@@ -669,7 +669,7 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_T,
     ),
     Stat.SPIRIT_MAGI_CRIT_RATING_FLAT: StatMeta(
-        "Spirit Magi Crit Rating", "Critical Strike", "crit_rating",
+        "Spirit Magi Critical Strike Rating (Flat)", "Critical Strike", "crit_rating",
         subgroup="crit_rating",        pipeline_stage="crit_rating",
         tags=("spirit_magi",),         affects=_HIT,
         stacking_rule="additive",      ui_priority=12,
@@ -1415,14 +1415,14 @@ STAT_META: dict[Stat, StatMeta] = {
 
     # ── Critical Strike — Rating ──────────────────────────────────────────────
     Stat.ATTACK_CRIT_RATING_GEAR: StatMeta(
-        "Attack Crit Rating (Gear)", "Critical Strike", "crit_rating", "%",
+        "Attack Critical Strike Rating for this Gear", "Critical Strike", "crit_rating", "%",
         subgroup="crit_rating",        pipeline_stage="crit_rating",
         tags=("attack",),              affects=_HIT,
         stacking_rule="additive",      ui_priority=11,
         source_types=_G,
     ),
     Stat.ATTACK_CRIT_RATING_MH: StatMeta(
-        "Attack Crit Rating (Main Hand)", "Critical Strike", "crit_rating", "%",
+        "Critical Strike Rating for the Main-Hand Weapon", "Critical Strike", "crit_rating", "%",
         subgroup="crit_rating",        pipeline_stage="crit_rating",
         tags=("attack",),              affects=_HIT,
         stacking_rule="additive",      ui_priority=11,
@@ -1462,6 +1462,13 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=11,
         source_types=_TB,
     ),
+    Stat.WEAPON_CRIT_RATING_FLAT: StatMeta(
+        "Critical Strike Rating (Weapon)", "Critical Strike", "crit_rating",
+        subgroup="crit_rating",        pipeline_stage="crit_rating",
+        tags=("attack",),              affects=_HIT,
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_G,
+    ),
     Stat.SPELL_CRIT_RATING_FLAT: StatMeta(
         "Spell Critical Strike Rating", "Critical Strike", "crit_rating",
         subgroup="crit_rating",        pipeline_stage="crit_rating",
@@ -1477,7 +1484,7 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_TB,
     ),
     Stat.SPIRIT_MAGI_CRIT_RATING_FLAT: StatMeta(
-        "Spirit Magi Crit Rating", "Critical Strike", "crit_rating",
+        "Spirit Magi Critical Strike Rating (Flat)", "Critical Strike", "crit_rating",
         subgroup="crit_rating",        pipeline_stage="crit_rating",
         tags=("spirit_magi",),         affects=_HIT,
         stacking_rule="additive",      ui_priority=12,
@@ -2446,8 +2453,9 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.COMBO_STARTER_ATTACK_SPEED_ADDITIONAL: StatMeta(
         "Combo Starter Attack Speed", "Attack Speed", "additional", "%",
-        subgroup="speed",              stacking_rule="additive",
-        ui_priority=40,                source_types=_T,
+        subgroup="speed",              tags=("combo",),
+        stacking_rule="additive",      ui_priority=40,
+        source_types=_T,
     ),
     Stat.COMBO_STARTER_CAST_SPEED_ADDITIONAL: StatMeta(
         "Combo Starter Cast Speed", "Cast Speed", "additional", "%",

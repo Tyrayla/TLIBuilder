@@ -64,10 +64,10 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   }, [importOpen])
 
   const KNOWN_BUILD_KEYS = new Set([
-    'name', 'id', 'slots', 'slates', 'conditions', 'conditionValues',
+    'name', 'id', 'slots', 'slates', 'conditions', 'conditionValues', 'conditionState',
     'gear', 'skills', 'characterLevel', 'hasPrism', 'traitId',
     'traitLevel', 'traitSlotLevels', 'advancedTraitSelections',
-    'heroMemories', 'pactSpirits',
+    'heroMemories', 'pactSpirits', 'notes', 'customMods',
   ])
 
   function checkBuildCompatibility(build: Record<string, unknown>): string[] {

@@ -88,6 +88,7 @@ class BuildInput:
     memory_effects:  list[str]  = field(default_factory=list)  # resolved hero memory modifier strings
     spirit_effects:  list[str]  = field(default_factory=list)  # pact spirit slot + rank modifier strings
     main_skill:      SkillRef | None = None  # main skill for offense calculation
+    custom_contributions: list[dict] = field(default_factory=list)  # pre-resolved custom mod entries {stat_key, amount, text}
 
 
 @dataclass

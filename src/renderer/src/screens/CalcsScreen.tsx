@@ -1,6 +1,7 @@
-import React from 'react'
+import React, { useState, useCallback } from 'react'
 import { useBuildStore } from '../store/buildStore'
-import type { OffenseResult, DefenseResult } from '../api/client'
+import { api } from '../api/client'
+import type { OffenseResult, DefenseResult, CustomModStatus } from '../api/client'
 
 function NyiTag() {
   return <span className="nyi-tag">NYI</span>
@@ -30,6 +31,119 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div style={{ marginBottom: 28 }}>
       <SectionHeader title={title} />
       {children}
+    </div>
+  )
+}
+
+function CustomModsPanel({ statuses }: { statuses: CustomModStatus[] }) {
+  const customMods = useBuildStore(s => s.customMods)
+  const addCustomMod = useBuildStore(s => s.addCustomMod)
+  const removeCustomMod = useBuildStore(s => s.removeCustomMod)
+  const [inputText, setInputText] = useState('')
+  const [preview, setPreview] = useState<{ resolved: boolean; label: string } | null>(null)
+
+  const statusMap = Object.fromEntries(statuses.map(s => [s.text, s]))
+
+  const handlePreview = useCallback(async (text: string) => {
+    const t = text.trim()
+    if (!t) { setPreview(null); return }
+    try {
+      const res = await api.resolveMod(t)
+      if (res.resolved.length > 0) {
+        setPreview({ resolved: true, label: res.resolved.map(r => r.display_name).join(', ') })
+      } else {
+        setPreview({ resolved: false, label: 'unrecognized' })
+      }
+    } catch {
+      setPreview(null)
+    }
+  }, [])
+
+  const handleAdd = () => {
+    const t = inputText.trim()
+    if (!t) return
+    addCustomMod(t)
+    setInputText('')
+    setPreview(null)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleAdd()
+  }
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <input
+          value={inputText}
+          onChange={e => { setInputText(e.target.value); handlePreview(e.target.value) }}
+          onKeyDown={handleKeyDown}
+          placeholder="e.g. 10% additional attack damage"
+          style={{
+            flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 4, padding: '5px 8px', fontSize: 12, color: '#e0e0e0', outline: 'none',
+          }}
+        />
+        <button
+          onClick={handleAdd}
+          style={{
+            background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: 4, padding: '5px 10px', fontSize: 12, color: '#e0e0e0', cursor: 'pointer',
+          }}
+        >
+          Add
+        </button>
+      </div>
+
+      {preview && inputText.trim() && (
+        <div style={{ fontSize: 11, marginBottom: 6, paddingLeft: 2 }}>
+          {preview.resolved
+            ? <span style={{ color: '#6ddb6d' }}>✓ {preview.label}</span>
+            : <span style={{ color: '#ff6b6b' }}>✗ unrecognized</span>}
+        </div>
+      )}
+
+      {customMods.length === 0 && (
+        <div style={{ fontSize: 12, color: '#444', fontStyle: 'italic' }}>No custom mods added.</div>
+      )}
+
+      {customMods.map((mod, i) => {
+        const st = statusMap[mod]
+        return (
+          <div
+            key={i}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '4px 6px', marginBottom: 3,
+              background: 'rgba(255,255,255,0.03)', borderRadius: 4,
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {mod}
+              </div>
+              {st && (
+                <div style={{ fontSize: 10, marginTop: 1 }}>
+                  {st.resolved
+                    ? <span style={{ color: '#6ddb6d' }}>✓ {st.stat_display}</span>
+                    : <span style={{ color: '#ff6b6b' }}>✗ unrecognized</span>}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => removeCustomMod(i)}
+              style={{
+                marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer',
+                color: '#555', fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0,
+              }}
+              title="Remove"
+            >
+              ×
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -67,8 +181,7 @@ function OffensePanel({ offense }: { offense: OffenseResult }) {
           ))}
           <Row label="Avg Hit (pre-crit)" value={form.avg_hit_pre_crit.toFixed(1)} />
           <Row label="Avg Hit (with crit)" value={form.avg_hit_with_crit.toFixed(1)} />
-          <Row label="DPS Contribution" value={form.dps_contribution.toFixed(0)} />
-          <Row label="vs Target Dummy" value={form.dps_vs_target.toFixed(0)} />
+          <Row label="DPS vs Target Dummy" value={form.dps_vs_target.toFixed(0)} />
         </div>
       ))}
 
@@ -79,15 +192,9 @@ function OffensePanel({ offense }: { offense: OffenseResult }) {
         <Row label="Crit Chance" value={(offense.crit_chance * 100).toFixed(1)} unit="%" />
         <Row label="Crit Multiplier" value={(offense.crit_multiplier * 100).toFixed(0)} unit="%" />
         <Row label="Attacks per Second" value={offense.attacks_per_second.toFixed(2)} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 2px', marginTop: 4 }}>
-          <span style={{ fontWeight: 700, color: '#e0e0e0' }}>Total DPS</span>
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#7ec8e3', fontVariantNumeric: 'tabular-nums' }}>
-            {offense.total_dps.toFixed(0)}
-          </span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 4px' }}>
-          <span style={{ fontWeight: 700, color: '#b0b0b0', fontSize: 12 }}>vs Target Dummy</span>
-          <span style={{ fontWeight: 700, fontSize: 14, color: '#f0c070', fontVariantNumeric: 'tabular-nums' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 4px', marginTop: 4 }}>
+          <span style={{ fontWeight: 700, color: '#e0e0e0' }}>DPS vs Target Dummy</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#f0c070', fontVariantNumeric: 'tabular-nums' }}>
             {offense.total_dps_vs_target.toFixed(0)}
           </span>
         </div>
@@ -107,10 +214,15 @@ export default function CalcsScreen() {
   const computedStats = useBuildStore(s => s.computedStats)
   const offense = (computedStats.offense ?? null) as OffenseResult | null
   const defense = (computedStats.defense ?? null) as DefenseResult | null
+  const customModStatuses = (computedStats.custom_mod_statuses ?? []) as CustomModStatus[]
 
   return (
     <div style={{ padding: '20px 24px', maxWidth: 680, color: '#e0e0e0', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
       <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, color: '#e0e0e0' }}>Calcs</div>
+
+      <Section title="Custom Mods">
+        <CustomModsPanel statuses={customModStatuses} />
+      </Section>
 
       <Section title="Offense">
         {!offense ? (

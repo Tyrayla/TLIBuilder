@@ -409,6 +409,9 @@ function App() {
       ],
       notes: typeof build.notes === 'string' ? build.notes : '',
     })
+    useBuildStore.getState().setCustomMods(
+      Array.isArray(build.customMods) ? (build.customMods as string[]).filter(m => typeof m === 'string') : []
+    )
     setIsDirty(false)
     setScreen('build-overview')
   }
@@ -653,6 +656,7 @@ function App() {
     heroMemories: session.heroMemories,
     pactSpirits: session.pactSpirits,
     notes: session.notes,
+    customMods: useBuildStore.getState().customMods,
   })
 
   const handleSidebarNav = (target: string) => {

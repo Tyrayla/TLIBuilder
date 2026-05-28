@@ -474,4 +474,20 @@ def aggregate(
                     )
                     source.add_with_source(sk, amount, entry)
 
+    # ── Custom mod contributions ──────────────────────────────────────────────
+    for contrib in build.custom_contributions:
+        stat = contrib.get("stat_key")
+        if not stat:
+            continue
+        amount = float(contrib.get("amount", 0))
+        entry = SourceEntry(
+            stat=stat,
+            amount=amount,
+            source_type="custom",
+            label="Custom Config",
+            text=contrib.get("text", ""),
+            points=1,
+        )
+        source.add_with_source(stat, amount, entry)
+
     return source

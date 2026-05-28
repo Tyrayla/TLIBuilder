@@ -1,18 +1,50 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from math import prod
 from typing import Literal
 
 from engine.models import BuildSource
 from engine.skill_resolver import ResolvedSkill
 from models.stat_meta import STAT_META
 
-# Pre-built lookup: (stat_key_str, frozenset_of_lowercase_tags) for all hit-damage
-# increased/reduced stats. Empty frozenset = universal (applies to every skill).
+# ── Module-level stat lookups built from STAT_META ────────────────────────────
+
+# Hit damage increased/reduced stats: (key, frozenset_of_lowercase_tags)
+# Empty frozenset = universal (applies to every skill and every damage type)
 _HIT_INC_STATS: list[tuple[str, frozenset]] = [
     (stat.value, frozenset(meta.tags))
     for stat, meta in STAT_META.items()
     if meta.pipeline_stage == "increased_reduced"
     and "hit" in meta.affects
+]
+
+# Additional stats that require special handling and are excluded from the generic pool.
+# Each entry notes why it can't be treated as a simple always-on multiplier.
+_DEFERRED_ADDITIONAL: dict[str, str] = {
+    "barrage_dmg_per_wave_inc":      "Barrage mechanic — scales per wave fired, not a flat multiplier",
+    "combo_finisher_additional":     "Combo finisher only — applies to finisher hits, not all hits; combo damage model NYI",
+    "enemy_nearby_dmg_taken_additional": "Requires 'nearby enemy' condition boolean (not yet wired)",
+    "multistrike_increasing_dmg_inc":"Multistrike mechanic — stacks per successive hit in a multistrike chain, not a flat multiplier",
+    "post_mobility_dmg_additional":  "Requires 'mobility skill cast recently' condition boolean (not yet created)",
+    "spell_burst_hit_dmg_additional":"Spell burst mechanic — unique per-burst hit scaling, deferred",
+    "two_handed_base_dmg_additional":"May apply to base damage before inc/additional; stacking position unconfirmed — deferred",
+}
+
+# Hit damage additional multiplier stats — each is an independent multiplicative pool.
+# Deferred stats (see _DEFERRED_ADDITIONAL) are excluded and listed in the NYI output.
+_HIT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
+    (stat.value, frozenset(meta.tags))
+    for stat, meta in STAT_META.items()
+    if meta.pipeline_stage == "additional"
+    and "hit" in meta.affects
+    and stat.value not in _DEFERRED_ADDITIONAL
+]
+
+# Attack speed additional pools (tags read directly from stat_meta)
+_APS_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
+    (stat.value, frozenset(meta.tags))
+    for stat, meta in STAT_META.items()
+    if stat.value in ("attack_speed_additional", "combo_starter_attack_speed_additional")
 ]
 
 
@@ -82,15 +114,6 @@ def _scale_effectiveness(base_pct: float, effective_level: int, max_level: int) 
     return result
 
 
-def _modifier_applies(modifier_tags: set[str], skill_tags: set[str]) -> bool:
-    """A modifier applies if ANY of its tags intersects the skill's tag set.
-
-    A modifier tagged [Physical, Spell] applies to a [Physical, Attack] skill
-    because Physical is in the intersection.
-    """
-    return bool(modifier_tags & skill_tags)
-
-
 def calculate_offense(
     source: BuildSource,
     skill: ResolvedSkill,
@@ -100,9 +123,13 @@ def calculate_offense(
         return OffenseResult(skill_name=skill.name, supported=False)
 
     # 0. Crit — computed here in the offense layer, NOT in the fixed-point loop
-    raw_csr = (
-        source.total("attack_crit_rating_gear") + source.total("attack_crit_rating_flat")
-    ) * (1.0 + source.total("attack_crit_rating_inc"))
+    # Weapon CSR (from weapon gear piece) scaled by gear-specific and MH-specific % mods only.
+    # Other flat CSR (talents, rings) is NOT scaled by those gear mods.
+    weapon_csr = source.total("weapon_crit_rating_flat") * (
+        1.0 + source.total("attack_crit_rating_gear") + source.total("attack_crit_rating_mh")
+    )
+    other_csr = source.total("attack_crit_rating_flat")
+    raw_csr = (weapon_csr + other_csr) * (1.0 + source.total("attack_crit_rating_inc"))
     # 100 CSR = 1% crit chance; divide by 10000 to convert to 0–1 float
     crit_chance = min(raw_csr / 10000.0, 1.0)
     crit_mult = 1.5 + source.total("crit_damage")
@@ -112,35 +139,61 @@ def calculate_offense(
     effective_level = max(1, base_level)
     lookup_level = min(effective_level, skill.max_level)
 
-    # 2. Weapon base damage per type (weapon implicit + gear inc; flat pool before inc/additional)
-    weapon_dmg: dict[str, tuple[float, float]] = {}
+    # 2. Flat damage pool per type: weapon base (× gear inc) + ring/gear/talent flat adds
+    #    All sources pool here before any inc or additional multiplier is applied.
+    skill_tags_lower = {t.lower() for t in skill.tags}
+    is_attack = "attack" in skill_tags_lower
+    is_spell = "spell" in skill_tags_lower
+
+    flat_dmg: dict[str, tuple[float, float]] = {}
     for dtype in DAMAGE_TYPES:
+        # Weapon implicit base, scaled by the weapon's own gear inc
         dmg_min = source.total(f"{dtype}_dmg_gear_flat_min")
         dmg_max = source.total(f"{dtype}_dmg_gear_flat_max")
         gear_inc = source.total(f"{dtype}_dmg_gear_inc")
         total_min = dmg_min * (1.0 + gear_inc)
         total_max = dmg_max * (1.0 + gear_inc)
+        # Ring/gear/talent flat adds — no damage-type tag filtering; attack/spell split only
+        if is_attack:
+            total_min += source.total(f"{dtype}_attack_dmg_flat_min")
+            total_max += source.total(f"{dtype}_attack_dmg_flat_max")
+        if is_spell:
+            total_min += source.total(f"{dtype}_spell_dmg_flat_min")
+            total_max += source.total(f"{dtype}_spell_dmg_flat_max")
         if total_min > 0 or total_max > 0:
-            weapon_dmg[dtype] = (total_min, total_max)
+            flat_dmg[dtype] = (total_min, total_max)
 
-    # 3. Inc damage — one additive pool, tag-filtered from stat_meta
-    skill_tags_lower = {t.lower() for t in skill.tags}
-    inc_total = sum(
-        source.total(key)
-        for key, tags in _HIT_INC_STATS
-        if not tags or tags & skill_tags_lower
-    )
+    # 3. Per-type inc and additional — precomputed outside the hit form loop.
+    #    Inc: skill-tag-filtered incs PLUS the type-specific inc for that dtype.
+    #    Additional: each applicable stat is an independent multiplicative pool.
+    #    A dtype-specific stat (e.g. fire_dmg_inc) applies to that dtype even if the
+    #    skill is not fire-tagged (e.g. a fire ring add on a physical skill still scales).
+    type_inc: dict[str, float] = {}
+    type_add: dict[str, float] = {}
+    for dtype in flat_dmg:
+        dtype_tag = frozenset({dtype})
+        type_inc[dtype] = sum(
+            source.total(key)
+            for key, tags in _HIT_INC_STATS
+            if not tags or tags & skill_tags_lower or tags & dtype_tag
+        )
+        type_add[dtype] = prod(
+            1.0 + source.total(key)
+            for key, tags in _HIT_ADDITIONAL_STATS
+            if not tags or tags & skill_tags_lower or tags & dtype_tag
+        )
 
-    # 4. Additional multiplier pools — tag-filtered (NYI; placeholder)
-    add_multiplier = 1.0  # TODO: wire additional pools
-
-    # 5. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
+    # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
     steep_chance = min(skill.base_steep_strike_chance + source.total("steep_strike_chance"), 1.0)
 
-    # 6. APS — CONFIRM: verify no separate multiplicative "more attack speed" pool exists
+    # 5. APS: base × (1 + inc) × each additional pool independently
+    #    CONFIRM: verify no further multiplicative APS pools exist beyond these two
     aps = source.total("weapon_attack_speed") * (1.0 + source.total("attack_speed_inc"))
+    for key, tags in _APS_ADDITIONAL_STATS:
+        if not tags or tags & skill_tags_lower:
+            aps *= (1.0 + source.total(key))
 
-    # 7. Per hit form
+    # 6. Per hit form
     hit_forms: list[HitFormResult] = []
     for form in skill.hit_forms_by_level.get(lookup_level, []):
         eff = _scale_effectiveness(form.effectiveness_pct, effective_level, skill.max_level)
@@ -155,9 +208,11 @@ def calculate_offense(
         damage_by_type: dict[str, float] = {}
         avg_pre = 0.0
         avg_pre_vs_target = 0.0
-        for dtype, (mn, mx) in weapon_dmg.items():
-            type_min = mn * (eff / 100.0) * (1.0 + inc_total) * add_multiplier
-            type_max = mx * (eff / 100.0) * (1.0 + inc_total) * add_multiplier
+        for dtype, (mn, mx) in flat_dmg.items():
+            inc = type_inc[dtype]
+            add = type_add[dtype]
+            type_min = mn * (eff / 100.0) * (1.0 + inc) * add
+            type_max = mx * (eff / 100.0) * (1.0 + inc) * add
             avg = (type_min + type_max) / 2.0
             damage_by_type[dtype] = avg
             avg_pre += avg
@@ -189,12 +244,11 @@ def calculate_offense(
         total_dps=sum(f.dps_contribution for f in hit_forms),
         total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms),
         nyi=[
-            "Additional damage multiplier pools (NYI — not yet wired)",
-            "Flat damage from supports",
-            "Flat damage from talent/ring adds",
+            "Support skill flat damage adds",
             "Elemental conversion",
             "+Skill Level modifiers",
             "Lucky crit",
             "Ailment DPS",
+            *[f"{k} — {reason}" for k, reason in _DEFERRED_ADDITIONAL.items()],
         ],
     )

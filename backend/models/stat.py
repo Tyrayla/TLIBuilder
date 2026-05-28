@@ -331,6 +331,7 @@ class Stat(Enum):
     SPELL_CRIT_RATING_INC = "spell_crit_rating_inc"
     MINION_CRIT_RATING_INC = "minion_crit_rating_inc"
     ATTACK_CRIT_RATING_FLAT = "attack_crit_rating_flat"
+    WEAPON_CRIT_RATING_FLAT = "weapon_crit_rating_flat"
     SPELL_CRIT_RATING_FLAT = "spell_crit_rating_flat"
     MINION_CRIT_RATING_FLAT = "minion_crit_rating_flat"
 

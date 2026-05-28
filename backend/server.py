@@ -527,6 +527,7 @@ class EngineStatsRequest(BaseModel):
     memory_effects:  list[str] = []
     spirit_effects:  list[str] = []
     main_skill:      SkillEngineInput | None = None
+    custom_mods:     list[str] = []
 
 
 @app.post("/api/engine/stats")
@@ -572,12 +573,37 @@ def engine_stats(req: EngineStatsRequest):
         skills_by_id = _get_skills_data(active_season)
         skill_data = skills_by_id.get(req.main_skill.skill_id)
 
+    # Pre-resolve custom mods and build status list for the frontend
+    custom_contributions: list[dict] = []
+    custom_mod_statuses: list[dict] = []
+    for mod_text in req.custom_mods:
+        parsed = _parse_custom_mod_text(mod_text)
+        if parsed:
+            # Each parsed entry becomes a contribution; all share the same original text
+            for entry in parsed:
+                custom_contributions.append(entry)
+            display_names = [
+                _get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed
+            ]
+            custom_mod_statuses.append({
+                "text": mod_text,
+                "resolved": True,
+                "stat_display": ", ".join(display_names),
+            })
+        else:
+            custom_mod_statuses.append({
+                "text": mod_text,
+                "resolved": False,
+                "stat_display": None,
+            })
+
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=req.condition_state,
         gear=req.gear, character=req.character,
         memory_effects=req.memory_effects, spirit_effects=req.spirit_effects,
         main_skill=main_skill,
+        custom_contributions=custom_contributions,
     )
     result = compute(build, season_trees, filter_data, skill_data=skill_data)
     return {
@@ -586,6 +612,7 @@ def engine_stats(req: EngineStatsRequest):
         "clamp_report": result.clamp_report,
         "offense": result.offense,
         "defense": result.defense,
+        "custom_mod_statuses": custom_mod_statuses,
     }
 
 
@@ -1278,6 +1305,9 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     "+(#) % additional shadow damage":                   "shadow_dmg_additional",
     # Spell burst hit damage (single value)
     "+(#) % additional hit damage for skills cast by spell burst": "spell_burst_hit_dmg_additional",
+    # Critical Strike Rating — gear-specific % (scales gear flat only) and main-hand weapon
+    "+(#) % attack critical strike rating for this gear":          "attack_crit_rating_gear",
+    "+(#) % critical strike rating for the main-hand weapon":      "attack_crit_rating_mh",
 }
 
 _MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
@@ -1539,6 +1569,81 @@ _WEAPON_PHYS_DMG_RE = re.compile(r"^([\d.]+)\s*-\s*([\d.]+)\s+Physical Damage$")
 _WEAPON_ATK_SPD_RE  = re.compile(r"^([\d.]+)\s+Attack Speed$")
 _WEAPON_CSR_RE      = re.compile(r"^([\d.]+)\s+Critical Strike Rating$")
 
+# Custom mod text parsing — freeform modifier text → stat contributions
+_CUSTOM_RANGE_RE  = re.compile(r'^\+?(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s+(.*)', re.IGNORECASE)
+_CUSTOM_SINGLE_RE = re.compile(r'^\+?(\d+(?:\.\d+)?)\s*(%?)\s+(.*)', re.IGNORECASE)
+# Modifier verbs that appear in game text but not in stat display names — strip before fuzzy match
+_CUSTOM_VERB_RE   = re.compile(r'\b(increased|reduced|more|less)\b', re.IGNORECASE)
+
+
+def _normalize_for_custom_resolve(text: str) -> str:
+    """Strip gaming modifier verbs so the fuzzy matcher aligns with stat display names."""
+    return re.sub(r'\s+', ' ', _CUSTOM_VERB_RE.sub('', text)).strip()
+
+
+def _parse_custom_mod_text(text: str) -> list[dict]:
+    """Resolve freeform modifier text to a list of {stat_key, amount, text} dicts.
+
+    Routes through the existing gear stat resolver so all supported modifier text
+    forms work, including percentage-based mods, flat adds, and ranges.
+    Returns an empty list if the text cannot be resolved.
+
+    Scale is determined by whether the user explicitly typed '%' — not by the stat's
+    metadata unit — so that raw flat stats (CSR, flat damage) are not accidentally
+    divided by 100.
+    """
+    t = text.strip()
+
+    # Range: "50-80 fire attack damage"
+    m = _CUSTOM_RANGE_RE.match(t)
+    if m:
+        val_min = float(m.group(1))
+        val_max = float(m.group(2))
+        desc = _normalize_for_custom_resolve(m.group(3).strip())
+        stat_key, _unit = _resolve_gear_stat(desc)
+        if stat_key:
+            if stat_key.endswith("_min"):
+                base = stat_key[:-4]
+                return [
+                    {"stat_key": base + "_min", "amount": val_min, "text": t},
+                    {"stat_key": base + "_max", "amount": val_max, "text": t},
+                ]
+            if stat_key.endswith("_max"):
+                base = stat_key[:-4]
+                return [
+                    {"stat_key": base + "_min", "amount": val_min, "text": t},
+                    {"stat_key": base + "_max", "amount": val_max, "text": t},
+                ]
+            avg = (val_min + val_max) / 2.0
+            return [{"stat_key": stat_key, "amount": avg, "text": t}]
+        return []
+
+    # Single value: "10% additional attack damage" or "500 attack crit rating flat"
+    m = _CUSTOM_SINGLE_RE.match(t)
+    if m:
+        val = float(m.group(1))
+        is_pct = bool(m.group(2))
+        normalized = _normalize_for_custom_resolve(t)
+        stat_key, _unit = _resolve_gear_stat(normalized)
+        if stat_key:
+            amount = val / 100.0 if is_pct else val
+            return [{"stat_key": stat_key, "amount": amount, "text": t}]
+
+    return []
+
+
+def _get_stat_display_name(stat_key: str) -> str | None:
+    """Return the human-readable display name for a stat key, or None if unknown."""
+    from models.stat import Stat
+    from models.stat_meta import STAT_META
+    try:
+        stat = Stat(stat_key)
+        meta = STAT_META.get(stat)
+        return meta.display_name if meta else None
+    except ValueError:
+        return None
+
+
 _BLESSING_KEY_MAP = {
     "focus": "focus_stacks",
     "tenacity": "tenacity_stacks",
@@ -1627,7 +1732,7 @@ def _resolve_affix(affix: dict) -> dict:
         if _WEAPON_ATK_SPD_RE.match(raw):
             return {**affix, "stat_key": "weapon_attack_speed", "unit": "", "condition_expr": None}
         if _WEAPON_CSR_RE.match(raw):
-            return {**affix, "stat_key": "attack_crit_rating_gear", "unit": "", "condition_expr": None}
+            return {**affix, "stat_key": "weapon_crit_rating_flat", "unit": "", "condition_expr": None}
         return {**affix, "stat_key": None, "unit": "", "condition_expr": None}
     raw_text = affix.get("raw_text", "")
     text = _GEAR_COND_RE.sub("", raw_text)
@@ -1659,6 +1764,28 @@ def _resolve_affix(affix: dict) -> dict:
     # 4. Expression or fuzzy fallback
     stat_key, unit = _resolve_gear_stat(raw_text)
     return {**affix, "stat_key": stat_key, "unit": unit, "condition_expr": condition_expr}
+
+
+class ResolveModRequest(BaseModel):
+    text: str
+
+
+@app.post("/api/resolve-mod")
+def resolve_mod(req: ResolveModRequest):
+    """Resolve a single freeform modifier text string to stat contributions.
+
+    Used by the frontend for real-time validation feedback as the user types.
+    Returns a list of resolved stat contributions (may be empty if unresolved).
+    """
+    results = _parse_custom_mod_text(req.text)
+    resolved = [
+        {
+            **r,
+            "display_name": _get_stat_display_name(r["stat_key"]) or r["stat_key"],
+        }
+        for r in results
+    ]
+    return {"text": req.text, "resolved": resolved}
 
 
 @app.get("/api/legendary-gear")
