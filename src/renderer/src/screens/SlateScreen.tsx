@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { api, SlatePool, SlateModifierOption, CoreTalentOption, SavedSlate } from '../api/client'
+import { useBuildStore } from '../store/buildStore'
 
 // ── Board ─────────────────────────────────────────────────────────────────────
 
@@ -661,13 +662,13 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
 
 interface Props {
   treeColors: Record<string, string>
-  initialSlates: SavedSlate[]
-  onChange: (slates: SavedSlate[]) => void
   onBack: () => void
 }
 
-export default function SlateScreen({ treeColors, initialSlates, onChange, onBack }: Props) {
-  const [placed, setPlaced] = useState<PlacedSlate[]>(() => initialSlates as unknown as PlacedSlate[])
+export default function SlateScreen({ treeColors, onBack }: Props) {
+  const slates = useBuildStore(s => s.slates)
+  const setSlates = useBuildStore(s => s.setSlates)
+  const [placed, setPlaced] = useState<PlacedSlate[]>(() => slates as unknown as PlacedSlate[])
   const [mode, setMode] = useState<PanelMode>({ type: 'idle' })
   const [hover, setHover] = useState<[number, number] | null>(null)
   const [hoverSlateId, setHoverSlateId] = useState<string | null>(null)
@@ -677,7 +678,7 @@ export default function SlateScreen({ treeColors, initialSlates, onChange, onBac
 
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return }
-    onChange(placed.map(({ pool: _p, ...s }) => s as SavedSlate))
+    setSlates(placed.map(({ pool: _p, ...s }) => s as SavedSlate))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed])
 

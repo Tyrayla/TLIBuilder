@@ -7,6 +7,7 @@ import {
   Graft, GraftAffix,
 } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
+import { useBuildStore } from '../store/buildStore'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -2359,8 +2360,6 @@ function ItemPreviewCard({ name, lines }: { name: string | null; lines: PreviewL
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 interface Props {
-  equippedItems: EquippedGearItem[]
-  onGearChange: (items: EquippedGearItem[]) => void
   onBack: () => void
 }
 
@@ -2373,7 +2372,9 @@ function getItemQualityClass(item: EquippedGearItem): string {
   return 'quality-unique'
 }
 
-export default function GearScreen({ equippedItems, onGearChange }: Props) {
+export default function GearScreen(_props: Props) {
+  const gear = useBuildStore(s => s.gear)
+  const setGear = useBuildStore(s => s.setGear)
   const legendaryIndex = useReferenceStore(s => s.legendaryIndex)
   const catalogRaw = useReferenceStore(s => s.legendaryCatalog)
   const craftBaseItemsRaw = useReferenceStore(s => s.craftBaseItems)
@@ -2465,7 +2466,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }, [q, catalogIndex, catalogMap])
 
   const customizeItem: LegendaryGearItem | EquippedGearItem | null =
-    editingBuildIdx !== null ? (equippedItems[editingBuildIdx] ?? null) : selectedCatalogItem
+    editingBuildIdx !== null ? (gear[editingBuildIdx] ?? null) : selectedCatalogItem
 
   const isEditing = editingBuildIdx !== null
 
@@ -2504,7 +2505,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
       ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationText) ?? null)
       : null
     if (editingBuildIdx !== null) {
-      const next = [...equippedItems]
+      const next = [...gear]
       next[editingBuildIdx] = {
         ...next[editingBuildIdx],
         ...(updatedAffixes !== null ? { affixes: updatedAffixes } : {}),
@@ -2516,7 +2517,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
           ? Object.fromEntries(Object.entries(selectedRandomAffixes).filter(([k]) => !clearRandomAffixIndices.includes(Number(k))))
           : selectedRandomAffixes,
       }
-      onGearChange(next)
+      setGear(next)
     }
   }
 
@@ -2524,9 +2525,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     const next = { ...selectedRandomAffixes, [explicitIndex]: modifierId }
     setSelectedRandomAffixes(next)
     if (editingBuildIdx !== null) {
-      const items = [...equippedItems]
+      const items = [...gear]
       items[editingBuildIdx] = { ...items[editingBuildIdx], affixes: updatedAffixes, selected_random_affixes: next }
-      onGearChange(items)
+      setGear(items)
     }
   }
 
@@ -2542,7 +2543,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }
 
   const handleSelectBuildItem = (idx: number) => {
-    const item = equippedItems[idx]
+    const item = gear[idx]
     if (item.is_crafted && !item.is_vorax) {
       const bt = craftBases.find(b => b.base_items.some(bi => bi.name === item.base_type))
       if (bt) {
@@ -2583,9 +2584,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }
 
   const handleRemoveBuildItem = (idx: number) => {
-    const next = [...equippedItems]
+    const next = [...gear]
     next.splice(idx, 1)
-    onGearChange(next)
+    setGear(next)
     if (editingBuildIdx === idx) {
       setEditingBuildIdx(null)
       setCustomizations([])
@@ -2630,7 +2631,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
       mutation_resolved_affix: mutationResolvedAffix,
       selected_random_affixes: Object.keys(selectedRandomAffixes).length ? selectedRandomAffixes : undefined,
     }
-    onGearChange([...equippedItems, newItem])
+    setGear([...gear, newItem])
     setSelectedCatalogItem(null)
     setCustomizations([])
     resetCorrosion()
@@ -2638,9 +2639,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
 
   const handleSaveBuildItem = () => {
     if (editingBuildIdx === null) return
-    const next = [...equippedItems]
+    const next = [...gear]
     next[editingBuildIdx] = { ...next[editingBuildIdx], customizations }
-    onGearChange(next)
+    setGear(next)
     setEditingBuildIdx(null)
     setCustomizations([])
     resetCorrosion()
@@ -2655,7 +2656,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }
 
   const handleSlotAssign = (slot: GearSlot, buildItemIdx: number | null) => {
-    let next = equippedItems.map((item, i) => {
+    let next = gear.map((item, i) => {
       if (buildItemIdx !== null && i === buildItemIdx) {
         const current = getItemSlots(item)
         if (current.includes(slot)) return item
@@ -2680,7 +2681,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
         })
       }
     }
-    onGearChange(next as EquippedGearItem[])
+    setGear(next as EquippedGearItem[])
     setSlotDropdown(null)
   }
 
@@ -2690,10 +2691,10 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }
 
   const getEquippedForSlot = (slotId: GearSlot): EquippedGearItem | null =>
-    equippedItems.find(item => itemHasSlot(item, slotId)) ?? null
+    gear.find(item => itemHasSlot(item, slotId)) ?? null
 
   const getEquippedIdxForSlot = (slotId: GearSlot): number =>
-    equippedItems.findIndex(item => itemHasSlot(item, slotId))
+    gear.findIndex(item => itemHasSlot(item, slotId))
 
   const showTooltip = (item: LegendaryGearItem | EquippedGearItem, e: React.MouseEvent) =>
     setTooltip({ item, x: e.clientX, y: e.clientY })
@@ -2727,9 +2728,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }, [craftBaseItems])
 
   const weapon1Is2H = useMemo((): boolean => {
-    const w1 = equippedItems.find(item => itemHasSlot(item, 'weapon1'))
+    const w1 = gear.find(item => itemHasSlot(item, 'weapon1'))
     return isTwoHandedBaseType(w1?.base_type ?? '', baseTypeToItemId)
-  }, [equippedItems, baseTypeToItemId])
+  }, [gear, baseTypeToItemId])
 
   // Maps base item name → implicit raw texts (array). Sources in priority order:
   // 1. Crawler base_items.implicits (from _craft_base_items.json)
@@ -2759,7 +2760,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
 
   const dragValidSlots = useMemo((): GearSlot[] => {
     if (dragIdx === null) return []
-    const item = equippedItems[dragIdx]
+    const item = gear[dragIdx]
     if (item?.is_vorax) return VORAX_GRAFT_SLOTS[item.item_id] ?? []
     const bt = item?.base_type
     if (!bt) return SLOT_ORDER.map(s => s.id)
@@ -2767,13 +2768,13 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     let slots = valid.length > 0 ? valid : SLOT_ORDER.map(s => s.id)
     // Block weapon2 when weapon1 has a 2H weapon (unless dragging that 2H weapon itself)
     if (weapon1Is2H) {
-      const w1 = equippedItems.find(item => itemHasSlot(item, 'weapon1'))
-      if (equippedItems[dragIdx] !== w1) {
+      const w1 = gear.find(item => itemHasSlot(item, 'weapon1'))
+      if (gear[dragIdx] !== w1) {
         slots = slots.filter(s => s !== 'weapon2')
       }
     }
     return slots
-  }, [dragIdx, equippedItems, craftBaseSlotMap, weapon1Is2H])
+  }, [dragIdx, gear, craftBaseSlotMap, weapon1Is2H])
 
   const previewName = useMemo((): string | null => {
     if (craftOpen && craftBaseType) {
@@ -2910,10 +2911,10 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
         {/* Panel 2: Items in Build */}
         <div className="gear-build-panel">
           <div className="gear-slots-title">Items in Build</div>
-          {equippedItems.length === 0 && (
+          {gear.length === 0 && (
             <div className="gear-build-empty">No items added yet.</div>
           )}
-          {equippedItems.map((item, i) => (
+          {gear.map((item, i) => (
             <div
               key={i}
               className={`gear-build-item${editingBuildIdx === i ? ' gear-build-item--selected' : ''}${dragIdx === i ? ' gear-build-item--dragging' : ''}`}
@@ -2951,12 +2952,12 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
               graft={selectedGraft}
               catalog={catalog}
               catalogIndex={catalogIndex}
-              onAddToBuild={item => onGearChange([...equippedItems, item])}
+              onAddToBuild={item => setGear([...gear, item])}
               onClose={closeCraft}
               onBack={() => { setSelectedGraft(null); setVoraxInitialState(null) }}
               initialState={voraxInitialState}
               onSaveBuildItem={editingBuildIdx !== null
-                ? (item) => { const orig = equippedItems[editingBuildIdx]; onGearChange(equippedItems.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
+                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
                 : undefined}
             />
           ) : craftOpen ? (
@@ -2973,7 +2974,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
               setBaseItem={setCraftBaseItem}
               slots={craftSlots}
               setSlots={setCraftSlots}
-              onAddToBuild={item => onGearChange([...equippedItems, item])}
+              onAddToBuild={item => setGear([...gear, item])}
               onClose={closeCraft}
               craftSearch={craftSearch}
               setCraftSearch={setCraftSearch}
@@ -2983,7 +2984,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
               corrosionType={craftCorrosionType}
               onCorrosionTypeChange={setCraftCorrosionType}
               onSaveBuildItem={editingBuildIdx !== null
-                ? (item) => { const orig = equippedItems[editingBuildIdx]; onGearChange(equippedItems.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
+                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
                 : undefined}
             />
           ) : (
@@ -3060,7 +3061,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
         <SlotDropdownPortal
           slotId={slotDropdown.slotId}
           rect={slotDropdown.rect}
-          equippedItems={equippedItems}
+          equippedItems={gear}
           currentIdx={getEquippedIdxForSlot(slotDropdown.slotId)}
           slotMap={craftBaseSlotMap}
           weapon1Is2H={weapon1Is2H}

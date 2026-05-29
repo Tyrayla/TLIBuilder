@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, SavedSlate, EquippedGearItem, EquippedSkill, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
+import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
 import { useBuildStore } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
@@ -24,50 +24,12 @@ import CalcsScreen from './screens/CalcsScreen'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'calcs' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
 
-interface Session {
-  buildId: string | null
-  buildName: string
-  slots: (TreeSlot | null)[]
-  activeSlot: number
-  slates: SavedSlate[]
-  conditionState: Record<string, number | boolean>
-  gear: EquippedGearItem[]
-  skills: EquippedSkill[]
-  characterLevel: number
-  hasPrism: boolean
-  traitId: string | null
-  traitSlotLevels: number[]
-  advancedTraitSelections: string[]
-  heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
-  pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
-  notes: string
-}
-
 interface CascadeModal {
   removingSlot: number
   shiftingTree: string
   shiftingFromSlot: number
   primaryName: string
 }
-
-const emptySession = (): Session => ({
-  buildId: null,
-  buildName: '',
-  slots: [null, null, null, null],
-  activeSlot: 0,
-  slates: [],
-  conditionState: {},
-  gear: [],
-  skills: [],
-  characterLevel: 100,
-  hasPrism: false,
-  traitId: null,
-  traitSlotLevels: [1, 1, 1, 1],
-  advancedTraitSelections: [],
-  heroMemories: [null, null, null] as [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null],
-  pactSpirits: [null, null, null] as [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null],
-  notes: '',
-})
 
 function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
   for (let i = from; i < slots.length; i++) {
@@ -80,7 +42,6 @@ function App() {
   const [appReady, setAppReady] = useState(false)
   const [appError, setAppError] = useState('')
   const [screen, setScreen] = useState<Screen>('build-select')
-  const [session, setSession] = useState<Session>(emptySession())
   const [treeColors, setTreeColors] = useState<Record<string, string>>({})
   const [cascadeModal, setCascadeModal] = useState<CascadeModal | null>(null)
   const [previewTree, setPreviewTree] = useState<string | null>(null)
@@ -100,10 +61,15 @@ function App() {
   const [saveModalMode, setSaveModalMode] = useState<'save' | 'save-as'>('save')
   const [saveModalName, setSaveModalName] = useState('')
   const [saveModalSaving, setSaveModalSaving] = useState(false)
-  const sessionRef = useRef(session)
+  const loadedVersionRef = useRef(0)
   const refConditions = useReferenceStore(s => s.conditions)
 
-  useEffect(() => { sessionRef.current = session }, [session])
+  // Store reads — replaces session useState
+  const buildId = useBuildStore(s => s.buildId)
+  const buildName = useBuildStore(s => s.buildName)
+  const slots = useBuildStore(s => s.slots)
+  const activeSlot = useBuildStore(s => s.activeSlot)
+  const buildVersion = useBuildStore(s => s.buildVersion)
 
   useEffect(() => { window.api?.notifyDirty?.(isDirty) }, [isDirty])
 
@@ -111,12 +77,11 @@ function App() {
   // This covers new builds and imported builds that predate the conditions system.
   useEffect(() => {
     if (!refConditions) return
-    setSession(s => {
-      if (Object.keys(s.conditionState).length > 0) return s
-      const defs = Object.values(refConditions).flat()
-      const defaults = buildDefaultConditionState(defs)
-      return Object.keys(defaults).length > 0 ? { ...s, conditionState: defaults } : s
-    })
+    const cur = useBuildStore.getState().conditionState
+    if (Object.keys(cur).length > 0) return
+    const defs = Object.values(refConditions).flat()
+    const defaults = buildDefaultConditionState(defs)
+    if (Object.keys(defaults).length > 0) useBuildStore.getState().setConditionState(defaults)
   }, [refConditions])
 
   useEffect(() => {
@@ -144,12 +109,12 @@ function App() {
 
   useEffect(() => {
     window.api?.onRequestSave?.(() => {
-      const sess = sessionRef.current
-      if (sess.buildId) {
-        const build = { id: sess.buildId, name: sess.buildName, slots: sess.slots, slates: sess.slates, conditionState: sess.conditionState, gear: sess.gear, skills: sess.skills, characterLevel: sess.characterLevel, hasPrism: sess.hasPrism, traitId: sess.traitId, traitSlotLevels: sess.traitSlotLevels, advancedTraitSelections: sess.advancedTraitSelections, heroMemories: sess.heroMemories, pactSpirits: sess.pactSpirits, notes: sess.notes }
+      const s = useBuildStore.getState()
+      if (s.buildId) {
+        const build = { id: s.buildId, name: s.buildName, slots: s.slots, slates: s.slates, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, hasPrism: s.hasPrism, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, notes: s.notes, customMods: s.customMods }
         api.postBuild(build)
           .then(saved => {
-            setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: sess.buildName }))
+            useBuildStore.getState().setBuildId(saved.id ?? null)
             setIsDirty(false)
           })
           .catch(() => {})
@@ -195,32 +160,10 @@ function App() {
 
   useBuildCalculation()
 
-  // Sync stats-relevant session fields into the store on every change.
-  // The store's isEqual guard prevents buildVersion bumps on identical updates.
+  // isDirty: true whenever buildVersion advances past the version we loaded at
   useEffect(() => {
-    useBuildStore.getState().syncStatsInputs({
-      slots: session.slots,
-      slates: session.slates,
-      conditionState: session.conditionState,
-      gear: session.gear,
-      characterLevel: session.characterLevel,
-      hasPrism: session.hasPrism,
-      heroMemories: session.heroMemories,
-      pactSpirits: session.pactSpirits,
-    })
-  }, [
-    session.slots, session.slates, session.conditionState,
-    session.gear, session.characterLevel, session.hasPrism,
-    session.heroMemories, session.pactSpirits,
-  ])
-
-  // Sync slot-1 active skill → mainSkill for offense calculation
-  useEffect(() => {
-    const slot1 = session.skills.find(s => s.slot === 1) ?? null
-    useBuildStore.getState().setMainSkill(
-      slot1 ? { skill_id: slot1.item_id, level: slot1.level } : null
-    )
-  }, [session.skills])
+    if (buildVersion > loadedVersionRef.current) setIsDirty(true)
+  }, [buildVersion])
 
 
   if (!appReady) {
@@ -240,7 +183,7 @@ function App() {
 
   const goToBuildSelect = () => {
     if (isDirty) {
-      setUnsavedSaveName(session.buildName)
+      setUnsavedSaveName(useBuildStore.getState().buildName)
       setUnsavedPromptOpen(true)
     } else {
       setScreen('build-select')
@@ -248,7 +191,8 @@ function App() {
   }
 
   const handleUnsavedSave = async () => {
-    const name = session.buildId ? session.buildName : (unsavedSaveName.trim() || 'Untitled')
+    const s = useBuildStore.getState()
+    const name = s.buildId ? s.buildName : (unsavedSaveName.trim() || 'Untitled')
     setUnsavedSaving(true)
     try {
       await saveBuild(name)
@@ -265,7 +209,15 @@ function App() {
   }
 
   const startNewBuild = () => {
-    setSession(emptySession())
+    useBuildStore.getState().loadBuild({
+      buildId: null, buildName: '', activeSlot: 0,
+      slots: [null, null, null, null], slates: [], conditionState: {},
+      gear: [], skills: [], characterLevel: 100, hasPrism: false,
+      traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [],
+      heroMemories: [null, null, null], pactSpirits: [null, null, null],
+      notes: '', customMods: [],
+    })
+    loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
     setScreen('build-overview')
   }
@@ -376,7 +328,7 @@ function App() {
       }
     }
 
-    setSession({
+    useBuildStore.getState().loadBuild({
       buildId: build.id ?? null,
       buildName: build.name,
       slots,
@@ -408,16 +360,15 @@ function App() {
         sanitizePactSpirit((build.pactSpirits ?? [])[2]),
       ],
       notes: typeof build.notes === 'string' ? build.notes : '',
+      customMods: Array.isArray(build.customMods) ? (build.customMods as string[]).filter(m => typeof m === 'string') : [],
     })
-    useBuildStore.getState().setCustomMods(
-      Array.isArray(build.customMods) ? (build.customMods as string[]).filter(m => typeof m === 'string') : []
-    )
+    loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
     setScreen('build-overview')
   }
 
   const goToTreeSelector = () => {
-    setSession(s => ({ ...s, activeSlot: firstEmptySlot(s.slots) }))
+    useBuildStore.getState().setActiveSlot(firstEmptySlot(useBuildStore.getState().slots))
     setScreen('tree-selector')
   }
 
@@ -433,49 +384,38 @@ function App() {
 
   // ── Tree selection ────────────────────────────────────────────────────────
 
-  const markDirty = () => setIsDirty(true)
-
   const handleSlotReorder = (fromSlot: number, toSlot: number) => {
-    setSession(s => {
-      const slots = [...s.slots] as (TreeSlot | null)[]
-      const moving = slots[fromSlot]
-      if (!moving) return s
-
-      const target = slots[toSlot]
-      const result = [...slots] as (TreeSlot | null)[]
-      result[fromSlot] = target ?? null
-      result[toSlot] = moving
-
-      if (!isValidBuildState(result)) return s
-
-      let { activeSlot } = s
-      if (activeSlot === fromSlot) activeSlot = toSlot
-      else if (activeSlot === toSlot && target) activeSlot = fromSlot
-
-      return { ...s, slots: result, activeSlot }
-    })
-    markDirty()
+    const store = useBuildStore.getState()
+    const currentSlots = store.slots
+    const moving = currentSlots[fromSlot]
+    if (!moving) return
+    const result = [...currentSlots] as (TreeSlot | null)[]
+    result[fromSlot] = currentSlots[toSlot] ?? null
+    result[toSlot] = moving
+    if (!isValidBuildState(result)) return
+    store.reorderSlots(fromSlot, toSlot)
+    let next = store.activeSlot
+    if (next === fromSlot) next = toSlot
+    else if (next === toSlot && currentSlots[toSlot]) next = fromSlot
+    store.setActiveSlot(next)
   }
 
   const handleSelectTree = (treeName: string) => {
-    setSession(s => {
-      const slots = [...s.slots] as (TreeSlot | null)[]
-      const targetSlot = autoAssignSlot(treeName, slots)
-      if (targetSlot === -1) return s
-      slots[targetSlot] = { treeName, nodeStates: {} }
-      return { ...s, slots, activeSlot: targetSlot }
-    })
-    markDirty()
+    const store = useBuildStore.getState()
+    const targetSlot = autoAssignSlot(treeName, store.slots)
+    if (targetSlot === -1) return
+    store.setSlot(targetSlot, { treeName, nodeStates: {} })
+    store.setActiveSlot(targetSlot)
     setScreen('tree-viewer')
   }
 
   const handleRemoveTree = (slotIndex: number) => {
     if (slotIndex === 1) {
-      const primary = session.slots[0]?.treeName
+      const primary = slots[0]?.treeName
       if (primary) {
         const subtrees = getSubtrees(primary)
         for (const i of [2, 3]) {
-          const candidate = session.slots[i]?.treeName
+          const candidate = slots[i]?.treeName
           if (candidate && subtrees.includes(candidate)) {
             setCascadeModal({ removingSlot: 1, shiftingTree: candidate, shiftingFromSlot: i, primaryName: primary })
             return
@@ -487,23 +427,22 @@ function App() {
   }
 
   const doRemoveTree = (slotIndex: number) => {
-    setSession(s => {
-      const slots = [...s.slots] as (TreeSlot | null)[]
-      slots[slotIndex] = null
-      if (slotIndex === 0) slots[1] = null
-      return { ...s, slots, activeSlot: firstEmptySlot(slots) }
-    })
-    markDirty()
+    const store = useBuildStore.getState()
+    const next = [...store.slots] as (TreeSlot | null)[]
+    next[slotIndex] = null
+    if (slotIndex === 0) next[1] = null
+    store.setSlots(next)
+    store.setActiveSlot(firstEmptySlot(next))
   }
 
   const handleCascadeYes = () => {
     if (!cascadeModal) return
-    setSession(s => {
-      const slots = [...s.slots] as (TreeSlot | null)[]
-      slots[cascadeModal.removingSlot] = slots[cascadeModal.shiftingFromSlot]
-      slots[cascadeModal.shiftingFromSlot] = null
-      return { ...s, slots, activeSlot: firstEmptySlot(slots) }
-    })
+    const store = useBuildStore.getState()
+    const next = [...store.slots] as (TreeSlot | null)[]
+    next[cascadeModal.removingSlot] = next[cascadeModal.shiftingFromSlot]
+    next[cascadeModal.shiftingFromSlot] = null
+    store.setSlots(next)
+    store.setActiveSlot(firstEmptySlot(next))
     setCascadeModal(null)
   }
 
@@ -514,115 +453,60 @@ function App() {
   }
 
   const handleShiftUp = (fromSlot: number) => {
-    setSession(s => {
-      const slots = [...s.slots] as (TreeSlot | null)[]
-      slots[1] = slots[fromSlot]
-      slots[fromSlot] = null
-      return { ...s, slots }
-    })
-    markDirty()
+    useBuildStore.getState().shiftSlotUp(fromSlot)
   }
 
   const handleSlotClick = (slotIndex: number) => {
-    setSession(s => ({ ...s, activeSlot: slotIndex }))
-    if (session.slots[slotIndex]) {
+    useBuildStore.getState().setActiveSlot(slotIndex)
+    if (slots[slotIndex]) {
       setScreen('tree-viewer')
     } else {
       setScreen('tree-selector')
     }
   }
 
-  const updateNodeStates = (nodeStates: Record<string, number>) => {
-    setSession(s => {
-      const slots = [...s.slots] as (TreeSlot | null)[]
-      const current = slots[s.activeSlot]
-      if (current) slots[s.activeSlot] = { ...current, nodeStates }
-      return { ...s, slots }
-    })
-    markDirty()
-  }
-
-  const updateCoreTalentSelections = (coreTalentSelections: Record<number, string>) => {
-    setSession(s => {
-      const slots = [...s.slots] as (TreeSlot | null)[]
-      const current = slots[s.activeSlot]
-      if (current) slots[s.activeSlot] = { ...current, coreTalentSelections }
-      return { ...s, slots }
-    })
-    markDirty()
-  }
-
   const handleReselect = () => {
-    setSession(s => {
-      const slots = [...s.slots] as (TreeSlot | null)[]
-      slots[s.activeSlot] = null
-      if (s.activeSlot === 0) slots[1] = null
-      return { ...s, slots }
-    })
+    const store = useBuildStore.getState()
+    const next = [...store.slots] as (TreeSlot | null)[]
+    next[store.activeSlot] = null
+    if (store.activeSlot === 0) next[1] = null
+    store.setSlots(next)
     setScreen('tree-selector')
   }
 
-  const handleConditionStateChange = (conditionState: Record<string, number | boolean>) => {
-    setSession(s => ({ ...s, conditionState }))
-    markDirty()
-  }
-
   const saveBuild = async (name: string) => {
-    const build = { id: session.buildId ?? undefined, name, slots: session.slots, slates: session.slates, conditionState: session.conditionState, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections, heroMemories: session.heroMemories, pactSpirits: session.pactSpirits, notes: session.notes }
+    const s = useBuildStore.getState()
+    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, hasPrism: s.hasPrism, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, notes: s.notes, customMods: s.customMods }
     const saved = await api.postBuild(build)
-    setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
+    useBuildStore.getState().setBuildId(saved.id ?? null)
+    useBuildStore.getState().setBuildName(name)
+    loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
   }
 
   const saveAsBuild = async (name: string) => {
-    const build = { id: undefined, name, slots: session.slots, slates: session.slates, conditionState: session.conditionState, gear: session.gear, skills: session.skills, characterLevel: session.characterLevel, hasPrism: session.hasPrism, traitId: session.traitId, traitSlotLevels: session.traitSlotLevels, advancedTraitSelections: session.advancedTraitSelections, heroMemories: session.heroMemories, pactSpirits: session.pactSpirits, notes: session.notes }
+    const s = useBuildStore.getState()
+    const build = { id: undefined, name, slots: s.slots, slates: s.slates, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, hasPrism: s.hasPrism, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, notes: s.notes, customMods: s.customMods }
     const saved = await api.postBuild(build)
-    setSession(s => ({ ...s, buildId: saved.id ?? null, buildName: name }))
+    useBuildStore.getState().setBuildId(saved.id ?? null)
+    useBuildStore.getState().setBuildName(name)
+    loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
   }
 
-  const handleGearChange = (gear: EquippedGearItem[]) => {
-    setSession(s => ({ ...s, gear }))
-    markDirty()
-  }
-
-  const handleSkillsChange = (skills: EquippedSkill[]) => {
-    setSession(s => ({ ...s, skills }))
-    markDirty()
-  }
-
-  const handleTraitChange = (traitId: string, slotLevels: number[], advanced: string[]) => {
-    setSession(s => ({ ...s, traitId, traitSlotLevels: slotLevels, advancedTraitSelections: advanced }))
-    markDirty()
-  }
-
-  const handleHeroMemoriesChange = (heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]) => {
-    setSession(s => ({ ...s, heroMemories }))
-    markDirty()
-  }
-
-  const handlePactSpiritsChange = (pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => {
-    setSession(s => ({ ...s, pactSpirits }))
-    markDirty()
-  }
-
-  const handleNotesChange = (notes: string) => {
-    setSession(s => ({ ...s, notes }))
-    markDirty()
-  }
-
   const handleSidebarSave = () => {
-    if (session.buildId) {
-      saveBuild(session.buildName).catch(() => {})
+    const s = useBuildStore.getState()
+    if (s.buildId) {
+      saveBuild(s.buildName).catch(() => {})
     } else {
-      setSaveModalName(session.buildName)
+      setSaveModalName(s.buildName)
       setSaveModalMode('save')
       setSaveModalOpen(true)
     }
   }
 
   const handleSidebarSaveAs = () => {
-    setSaveModalName(session.buildName)
+    setSaveModalName(useBuildStore.getState().buildName)
     setSaveModalMode('save-as')
     setSaveModalOpen(true)
   }
@@ -641,23 +525,26 @@ function App() {
     finally { setSaveModalSaving(false) }
   }
 
-  const getBuildPayload = () => ({
-    name: session.buildName,
-    characterLevel: session.characterLevel,
-    hasPrism: session.hasPrism,
-    slots: session.slots,
-    slates: session.slates,
-    conditionState: session.conditionState,
-    gear: session.gear,
-    skills: session.skills,
-    traitId: session.traitId,
-    traitSlotLevels: session.traitSlotLevels,
-    advancedTraitSelections: session.advancedTraitSelections,
-    heroMemories: session.heroMemories,
-    pactSpirits: session.pactSpirits,
-    notes: session.notes,
-    customMods: useBuildStore.getState().customMods,
-  })
+  const getBuildPayload = () => {
+    const s = useBuildStore.getState()
+    return {
+      name: s.buildName,
+      characterLevel: s.characterLevel,
+      hasPrism: s.hasPrism,
+      slots: s.slots,
+      slates: s.slates,
+      conditionState: s.conditionState,
+      gear: s.gear,
+      skills: s.skills,
+      traitId: s.traitId,
+      traitSlotLevels: s.traitSlotLevels,
+      advancedTraitSelections: s.advancedTraitSelections,
+      heroMemories: s.heroMemories,
+      pactSpirits: s.pactSpirits,
+      notes: s.notes,
+      customMods: s.customMods,
+    }
+  }
 
   const handleSidebarNav = (target: string) => {
     if (target === 'tree-selector') {
@@ -691,7 +578,6 @@ function App() {
 
   if (screen === 'dev-tools') {
     return <DevToolsScreen onBack={() => setScreen('build-select')} deprecatedTools={deprecatedTools} onToggleDeprecatedTools={() => setDeprecatedTools(d => !d)} onSeasonChange={() => {
-          setSession(s => ({ ...s }))
           useReferenceStore.getState().clearReferenceData()
           useReferenceStore.getState().loadReferenceData()
         }} />
@@ -715,8 +601,6 @@ function App() {
   if (screen === 'preview-selector') {
     return (
       <TreeSelectorScreen
-        slots={[null, null, null, null]}
-        activeSlot={0}
         treeColors={treeColors}
         onSelectTree={handlePreviewTree}
         onRemoveTree={() => {}}
@@ -737,12 +621,8 @@ function App() {
         treeName={previewTree}
         treeColor={treeColors[previewTree] ?? '#e94560'}
         treeColors={treeColors}
-        initialNodeStates={{}}
-        slots={[null, null, null, null]}
-        activeSlot={0}
         onBack={() => setScreen('preview-selector')}
         onSlotClick={() => {}}
-        onNodeStatesChange={() => {}}
         onReselect={() => setScreen('preview-selector')}
         previewMode
       />
@@ -755,18 +635,11 @@ function App() {
   let screenContent: React.ReactNode = <div style={{ color: '#888', padding: 20 }}>Unknown screen state</div>
 
   if (screen === 'build-overview') {
-    screenContent = (
-      <BuildOverviewScreen
-        conditionState={session.conditionState}
-        onConditionStateChange={handleConditionStateChange}
-      />
-    )
+    screenContent = <BuildOverviewScreen />
   } else if (screen === 'tree-selector') {
     screenContent = (
       <>
         <TreeSelectorScreen
-          slots={session.slots}
-          activeSlot={session.activeSlot}
           treeColors={treeColors}
           onSelectTree={handleSelectTree}
           onRemoveTree={handleRemoveTree}
@@ -782,7 +655,7 @@ function App() {
       </>
     )
   } else if (screen === 'tree-viewer') {
-    const slot = session.slots[session.activeSlot]
+    const slot = slots[activeSlot]
     if (!slot) {
       setScreen('tree-selector')
     } else {
@@ -792,14 +665,8 @@ function App() {
             treeName={slot.treeName}
             treeColor={treeColors[slot.treeName] ?? '#e94560'}
             treeColors={treeColors}
-            initialNodeStates={slot.nodeStates}
-            initialCoreTalentSelections={slot.coreTalentSelections}
-            slots={session.slots}
-            activeSlot={session.activeSlot}
             onBack={() => setScreen('tree-selector')}
             onSlotClick={handleSlotClick}
-            onNodeStatesChange={updateNodeStates}
-            onCoreTalentSelectionsChange={updateCoreTalentSelections}
             onReselect={handleReselect}
             onSlotReorder={handleSlotReorder}
             onPreview={goToPreview}
@@ -814,8 +681,8 @@ function App() {
     screenContent = (
       <ImportExportOverlay
         isDirty={isDirty}
-        buildId={session.buildId}
-        buildName={session.buildName}
+        buildId={buildId}
+        buildName={buildName}
         getBuildPayload={getBuildPayload}
         onImport={openBuild}
         onSaveFirst={saveBuild}
@@ -827,71 +694,23 @@ function App() {
     screenContent = (
       <SlateScreen
         treeColors={treeColors}
-        initialSlates={session.slates}
-        onChange={(slates) => {
-          setSession(s => ({ ...s, slates }))
-          markDirty()
-        }}
         onBack={() => setScreen('build-overview')}
       />
     )
   } else if (screen === 'stats') {
-    screenContent = (
-      <StatsScreen />
-    )
+    screenContent = <StatsScreen />
   } else if (screen === 'calcs') {
-    screenContent = (
-      <CalcsScreen />
-    )
+    screenContent = <CalcsScreen />
   } else if (screen === 'gear') {
-    screenContent = (
-      <GearScreen
-        equippedItems={session.gear}
-        onGearChange={handleGearChange}
-        onBack={() => setScreen('build-overview')}
-      />
-    )
+    screenContent = <GearScreen onBack={() => setScreen('build-overview')} />
   } else if (screen === 'skills') {
-    screenContent = (
-      <SkillsScreen
-        equippedSkills={session.skills}
-        onSkillsChange={handleSkillsChange}
-        gear={session.gear}
-        characterLevel={session.characterLevel}
-        hasPrism={session.hasPrism}
-        onCharacterLevelChange={v => setSession(s => ({ ...s, characterLevel: v }))}
-        onHasPrismChange={v => setSession(s => ({ ...s, hasPrism: v }))}
-        onBack={() => setScreen('build-overview')}
-      />
-    )
+    screenContent = <SkillsScreen onBack={() => setScreen('build-overview')} />
   } else if (screen === 'hero-traits') {
-    screenContent = (
-      <HeroTraitScreen
-        traitId={session.traitId}
-        traitSlotLevels={session.traitSlotLevels}
-        advancedTraitSelections={session.advancedTraitSelections}
-        characterLevel={session.characterLevel}
-        heroMemories={session.heroMemories}
-        onTraitChange={handleTraitChange}
-        onHeroMemoriesChange={handleHeroMemoriesChange}
-        onBack={() => setScreen('build-overview')}
-      />
-    )
+    screenContent = <HeroTraitScreen onBack={() => setScreen('build-overview')} />
   } else if (screen === 'pact-spirits') {
-    screenContent = (
-      <PactSpiritScreen
-        pactSpirits={session.pactSpirits}
-        onPactSpiritsChange={handlePactSpiritsChange}
-        onBack={() => setScreen('build-overview')}
-      />
-    )
+    screenContent = <PactSpiritScreen onBack={() => setScreen('build-overview')} />
   } else if (screen === 'notes') {
-    screenContent = (
-      <NotesScreen
-        notes={session.notes}
-        onNotesChange={handleNotesChange}
-      />
-    )
+    screenContent = <NotesScreen />
   }
 
   return (
@@ -900,7 +719,7 @@ function App() {
       <div className="app-layout">
         <BuildSidebar
           screen={screen}
-          buildName={session.buildName}
+          buildName={buildName}
           isDirty={isDirty}
           onNav={handleSidebarNav}
           onSave={handleSidebarSave}
@@ -918,11 +737,11 @@ function App() {
             <div className="modal-accent" />
             <h3 className="modal-title">Unsaved Changes</h3>
             <p style={{ padding: '0 20px 12px', color: '#aaa', fontSize: 13, lineHeight: 1.6 }}>
-              {session.buildId
-                ? `Save "${session.buildName || 'this build'}" before leaving?`
+              {buildId
+                ? `Save "${buildName || 'this build'}" before leaving?`
                 : 'This build has unsaved changes. Save it before leaving?'}
             </p>
-            {!session.buildId && (
+            {!buildId && (
               <input
                 className="modal-input"
                 type="text"

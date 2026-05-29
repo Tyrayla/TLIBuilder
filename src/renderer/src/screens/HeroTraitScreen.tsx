@@ -1,15 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
+import { useBuildStore } from '../store/buildStore'
 
 interface Props {
-  traitId: string | null
-  traitSlotLevels: number[]   // [base, lv45, lv60, lv75], each 1–5
-  advancedTraitSelections: string[]
-  characterLevel: number
-  heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
-  onTraitChange: (traitId: string, slotLevels: number[], advanced: string[]) => void
-  onHeroMemoriesChange: (heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]) => void
   onBack: () => void
 }
 
@@ -212,15 +206,14 @@ function clampTooltip(x: number, y: number, w = TIP_W, h = TIP_H_EST): { left: n
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function HeroTraitScreen({
-  traitId,
-  traitSlotLevels,
-  advancedTraitSelections,
-  characterLevel,
-  heroMemories,
-  onTraitChange,
-  onHeroMemoriesChange,
-}: Props) {
+export default function HeroTraitScreen({ onBack: _onBack }: Props) {
+  const traitId = useBuildStore(s => s.traitId)
+  const traitSlotLevels = useBuildStore(s => s.traitSlotLevels)
+  const advancedTraitSelections = useBuildStore(s => s.advancedTraitSelections)
+  const characterLevel = useBuildStore(s => s.characterLevel)
+  const heroMemories = useBuildStore(s => s.heroMemories)
+  const setTraitData = useBuildStore(s => s.setTraitData)
+  const setHeroMemories = useBuildStore(s => s.setHeroMemories)
   const allTraits = useReferenceStore(s => s.heroTraits) ?? []
   const memoryData = useReferenceStore(s => s.heroMemories)
   const referenceResolved = useReferenceStore(s => s.referenceResolved)
@@ -242,7 +235,7 @@ export default function HeroTraitScreen({
   // Auto-select first trait when none selected
   useEffect(() => {
     if (!loading && traitId === null && allTraits.length > 0) {
-      onTraitChange(allTraits[0].trait_id, [1, 1, 1, 1], [])
+      setTraitData(allTraits[0].trait_id, [1, 1, 1, 1], [])
     }
   }, [loading, traitId, allTraits])
 
@@ -263,7 +256,7 @@ export default function HeroTraitScreen({
     if (!traitId) return
     const next = [...safeSlotLevels]
     next[slotIdx] = level
-    onTraitChange(traitId, next, advancedTraitSelections)
+    setTraitData(traitId, next, advancedTraitSelections)
   }
 
   function selectPrimary(name: string, threshold: number) {
@@ -273,7 +266,7 @@ export default function HeroTraitScreen({
       .map(t => t.name)
     const next = advancedTraitSelections.filter(n => !falseNames.includes(n))
     next.push(name)
-    onTraitChange(traitId, safeSlotLevels, next)
+    setTraitData(traitId, safeSlotLevels, next)
   }
 
   function selectSub(name: string, threshold: number) {
@@ -283,11 +276,11 @@ export default function HeroTraitScreen({
       .map(t => t.name)
     const next = advancedTraitSelections.filter(n => !trueNames.includes(n))
     next.push(name)
-    onTraitChange(traitId, safeSlotLevels, next)
+    setTraitData(traitId, safeSlotLevels, next)
   }
 
   function switchTrait(newTraitId: string) {
-    onTraitChange(newTraitId, [1, 1, 1, 1], [])
+    setTraitData(newTraitId, [1, 1, 1, 1], [])
     setTooltip(null)
   }
 
@@ -345,7 +338,7 @@ export default function HeroTraitScreen({
     if (creatorSlot === null || !draft) return
     const next = [...heroMemories] as typeof heroMemories
     next[creatorSlot] = draft
-    onHeroMemoriesChange(next)
+    setHeroMemories(next)
     setCreatorSlot(null)
     setDraft(null)
   }
@@ -354,7 +347,7 @@ export default function HeroTraitScreen({
     if (creatorSlot === null) return
     const next = [...heroMemories] as typeof heroMemories
     next[creatorSlot] = null
-    onHeroMemoriesChange(next)
+    setHeroMemories(next)
     setCreatorSlot(null)
     setDraft(null)
   }

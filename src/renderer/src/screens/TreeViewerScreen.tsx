@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { api, getApiBase, TreeData, TreeNode, TreeSlot } from '../api/client'
+import { api, getApiBase, TreeData, TreeNode } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
+import { useBuildStore } from '../store/buildStore'
 
 const COLS = 7
 const ROWS = 5
@@ -58,14 +59,8 @@ interface Props {
   treeName: string
   treeColor: string
   treeColors: Record<string, string>
-  initialNodeStates: Record<string, number>
-  initialCoreTalentSelections?: Record<number, string>
-  slots: (TreeSlot | null)[]
-  activeSlot: number
   onBack: () => void
   onSlotClick: (slotIndex: number) => void
-  onNodeStatesChange: (s: Record<string, number>) => void
-  onCoreTalentSelectionsChange?: (s: Record<number, string>) => void
   onReselect: () => void
   onSlotReorder?: (fromSlot: number, toSlot: number) => void
   onPreview?: () => void
@@ -75,16 +70,20 @@ interface Props {
 }
 
 export default function TreeViewerScreen({
-  treeName, treeColor, treeColors, initialNodeStates, initialCoreTalentSelections,
-  slots, activeSlot,
-  onBack, onSlotClick, onNodeStatesChange, onCoreTalentSelectionsChange, onReselect,
+  treeName, treeColor, treeColors,
+  onBack, onSlotClick, onReselect,
   onSlotReorder, onPreview,
   previewMode = false, devMode = false, deprecatedTools = false,
 }: Props) {
+  const slots = useBuildStore(s => s.slots)
+  const activeSlot = useBuildStore(s => s.activeSlot)
+  const updateSlotNodeStates = useBuildStore(s => s.updateSlotNodeStates)
+  const updateSlotCoreTalentSelections = useBuildStore(s => s.updateSlotCoreTalentSelections)
+
   const [treeData, setTreeData] = useState<TreeData | null>(null)
   const [loadError, setLoadError] = useState('')
-  const [nodeStates, setNodeStates] = useState<Record<string, number>>(initialNodeStates)
-  const [coreTalentSelections, setCoreTalentSelections] = useState<Record<number, string>>(initialCoreTalentSelections ?? {})
+  const [nodeStates, setNodeStates] = useState<Record<string, number>>(() => previewMode ? {} : (slots[activeSlot]?.nodeStates ?? {}))
+  const [coreTalentSelections, setCoreTalentSelections] = useState<Record<number, string>>(() => previewMode ? {} : (slots[activeSlot]?.coreTalentSelections ?? {}))
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null)
   const [tip, setTip] = useState<Tip | null>(null)
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null)
@@ -107,8 +106,8 @@ export default function TreeViewerScreen({
   }, [treeName])
 
   useEffect(() => {
-    setNodeStates(initialNodeStates)
-    setCoreTalentSelections(initialCoreTalentSelections ?? {})
+    setNodeStates(previewMode ? {} : (slots[activeSlot]?.nodeStates ?? {}))
+    setCoreTalentSelections(previewMode ? {} : (slots[activeSlot]?.coreTalentSelections ?? {}))
     setSearch('')
     loadTree()
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
@@ -146,7 +145,7 @@ export default function TreeViewerScreen({
       const res = await api.validateAllocate(treeName, nodeStates, nodeId, action)
       if (res.allowed) {
         setNodeStates(res.node_states)
-        onNodeStatesChange(res.node_states)
+        if (!previewMode) updateSlotNodeStates(activeSlot, res.node_states)
         if (treeData && Object.keys(coreTalentSelections).length > 0) {
           const newTotal = sumPoints(res.node_states)
           const next = { ...coreTalentSelections }
@@ -161,7 +160,7 @@ export default function TreeViewerScreen({
           }
           if (changed) {
             setCoreTalentSelections(next)
-            onCoreTalentSelectionsChange?.(next)
+            if (!previewMode) updateSlotCoreTalentSelections(activeSlot, next)
           }
         }
       } else {
@@ -251,7 +250,7 @@ export default function TreeViewerScreen({
   const handleReset = () => {
     const cleared = Object.fromEntries(Object.keys(nodeStates).map(k => [k, 0]))
     setNodeStates(cleared)
-    onNodeStatesChange(cleared)
+    if (!previewMode) updateSlotNodeStates(activeSlot, cleared)
     flash('All points reset.', true)
   }
 
@@ -264,7 +263,7 @@ export default function TreeViewerScreen({
       setExpandedSlot(null)
     }
     setCoreTalentSelections(next)
-    onCoreTalentSelectionsChange?.(next)
+    if (!previewMode) updateSlotCoreTalentSelections(activeSlot, next)
   }
 
   // ── Header ─────────────────────────────────────────────────────────────────

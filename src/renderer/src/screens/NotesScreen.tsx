@@ -1,11 +1,14 @@
 import React from 'react'
+import { useBuildStore } from '../store/buildStore'
 
 interface Props {
-  notes: string
-  onNotesChange: (v: string) => void
+  onBack?: () => void
 }
 
-export default function NotesScreen({ notes, onNotesChange }: Props) {
+export default function NotesScreen(_props: Props) {
+  const notes = useBuildStore(s => s.notes)
+  const setNotes = useBuildStore(s => s.setNotes)
+
   return (
     <div className="notes-screen">
       <div className="notes-header">
@@ -14,7 +17,7 @@ export default function NotesScreen({ notes, onNotesChange }: Props) {
       <textarea
         className="notes-textarea"
         value={notes}
-        onChange={e => onNotesChange(e.target.value)}
+        onChange={e => setNotes(e.target.value)}
         placeholder="Add notes about this build..."
         spellCheck={false}
       />
