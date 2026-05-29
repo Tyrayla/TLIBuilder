@@ -1,10 +1,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { PactSpirit, PactSpiritSlot, SelectedPactSpirit } from '../api/client'
+import { PactSpirit, PactSpiritSlot } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 
 interface Props {
-  pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
-  onPactSpiritsChange: (v: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => void
   onBack: () => void
 }
 
@@ -41,8 +39,10 @@ function reorderSlots(slots: PactSpiritSlot[]): PactSpiritSlot[] {
   return result
 }
 
-export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: Props) {
+export default function PactSpiritScreen(_props: Props) {
   const spiritData = useBuildStore(s => s.allSpirits)
+  const pactSpirits = useBuildStore(s => s.pactSpirits)
+  const setPactSpirits = useBuildStore(s => s.setPactSpirits)
   const [activeSlot, setActiveSlot] = useState<0 | 1 | 2 | null>(null)
   const [search, setSearch] = useState('')
   const [affinityFilter, setAffinityFilter] = useState<string | null>(null)
@@ -66,7 +66,7 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
     if (activeSlot === null) return
     const next = [...pactSpirits] as typeof pactSpirits
     next[activeSlot] = { itemId: spirit.item_id, rank: 1 }
-    onPactSpiritsChange(next)
+    setPactSpirits(next)
     setActiveSlot(null)
   }
 
@@ -74,7 +74,7 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
     e.stopPropagation()
     const next = [...pactSpirits] as typeof pactSpirits
     next[slotIdx] = null
-    onPactSpiritsChange(next)
+    setPactSpirits(next)
     if (activeSlot === slotIdx) setActiveSlot(null)
   }
 
@@ -84,7 +84,7 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
     const cur = next[slotIdx]
     if (!cur) return
     next[slotIdx] = { ...cur, rank }
-    onPactSpiritsChange(next)
+    setPactSpirits(next)
   }
 
   const handleSlotClick = (slotIdx: 0 | 1 | 2) => {

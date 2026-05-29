@@ -3,23 +3,20 @@ import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
 import type { ConditionDef } from '../api/client'
 
-interface Props {
-  conditionState: Record<string, number | boolean>
-  onConditionStateChange: (state: Record<string, number | boolean>) => void
-}
-
-export default function BuildOverviewScreen({ conditionState, onConditionStateChange }: Props) {
+export default function BuildOverviewScreen() {
   const conditionsData = useReferenceStore(s => s.conditions)
   const referenceResolved = useReferenceStore(s => s.referenceResolved)
   const conditionsFailed = useReferenceStore(s => s.failedCatalogs.has('conditions'))
   const conditionMaximums = useBuildStore(s => s.computedStats.condition_maximums)
   const clampReport = useBuildStore(s => s.computedStats.clamp_report)
+  const conditionState = useBuildStore(s => s.conditionState)
+  const setConditionState = useBuildStore(s => s.setConditionState)
 
   const setBoolean = (key: string, value: boolean) =>
-    onConditionStateChange({ ...conditionState, [key]: value })
+    setConditionState({ ...conditionState, [key]: value })
 
   const setNumeric = (key: string, value: number) =>
-    onConditionStateChange({ ...conditionState, [key]: value })
+    setConditionState({ ...conditionState, [key]: value })
 
   const getNumericMax = (cond: ConditionDef): number | null => {
     if (conditionMaximums[cond.key] !== undefined) return conditionMaximums[cond.key]

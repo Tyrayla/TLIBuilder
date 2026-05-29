@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   api,
-  EquippedGearItem,
   EquippedSkill,
   EquippedSupportSkill,
   SkillItem,
@@ -12,6 +11,7 @@ import {
   getSupportEnergyCost,
   getMaxEnergy,
 } from '../api/client'
+import { useBuildStore } from '../store/buildStore'
 
 const ACTIVE_SLOTS  = [1, 2, 3, 4, 5]
 const PASSIVE_SLOTS = [6, 7, 8, 9]
@@ -72,20 +72,17 @@ function supportLevelRange(skill_type: string | undefined): { min: number; max: 
 }
 
 interface Props {
-  equippedSkills: EquippedSkill[]
-  onSkillsChange: (skills: EquippedSkill[]) => void
-  gear: EquippedGearItem[]
-  characterLevel: number
-  hasPrism: boolean
-  onCharacterLevelChange: (v: number) => void
-  onHasPrismChange: (v: boolean) => void
   onBack: () => void
 }
 
-export default function SkillsScreen({
-  equippedSkills, onSkillsChange,
-  gear, characterLevel, hasPrism, onCharacterLevelChange, onHasPrismChange,
-}: Props) {
+export default function SkillsScreen(_props: Props) {
+  const equippedSkills = useBuildStore(s => s.skills)
+  const onSkillsChange = useBuildStore(s => s.setSkills)
+  const gear = useBuildStore(s => s.gear)
+  const characterLevel = useBuildStore(s => s.characterLevel)
+  const hasPrism = useBuildStore(s => s.hasPrism)
+  const onCharacterLevelChange = useBuildStore(s => s.setCharacterLevel)
+  const onHasPrismChange = useBuildStore(s => s.setHasPrism)
   const [allItems, setAllItems] = useState<SkillItem[]>([])
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
   const [centerView, setCenterView] = useState<'catalog' | 'detail'>('catalog')
