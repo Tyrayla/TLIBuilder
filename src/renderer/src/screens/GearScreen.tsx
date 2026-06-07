@@ -6,6 +6,7 @@ import {
   EquippedGearItem, CustomizedAffix, GearSlot, CraftBaseType, CraftAffix, CraftBaseItem, CraftBaseItemGroup,
   Graft, GraftAffix,
 } from '../api/client'
+import { ItemTooltip, type ItemTooltipState } from '../components/ItemTooltip'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
 
@@ -196,80 +197,12 @@ function reconstructAffixText(affix: LegendaryAffix, chosenValues: Record<number
   return text
 }
 
-// ── Tooltip ────────────────────────────────────────────────────────────────────
-
-interface TooltipState {
-  item: LegendaryGearItem | EquippedGearItem
-  x: number
-  y: number
-}
+// ── Tooltip — see src/renderer/src/components/ItemTooltip.tsx ────────────────
 
 function tooltipAffixText(affix: LegendaryAffix, affixIdx: number, customizations: CustomizedAffix[] | undefined): string {
   if (!hasRangeValues(affix)) return affix.raw_text
   const cust = customizations?.find(c => c.affix_index === affixIdx)
   return reconstructAffixText(affix, cust?.chosen_values ?? {})
-}
-
-function GearTooltip({ state }: { state: TooltipState }) {
-  const customizations = 'customizations' in state.item ? state.item.customizations : undefined
-  const baseType = ('base_type' in state.item ? state.item.base_type : undefined) ?? ''
-  const typeLabel = getGearTypeLabel(baseType)
-  const lgItem = isLegendaryGearItem(state.item) ? state.item : null
-  const implicits = lgItem ? getItemImplicits(lgItem) : []
-  const explicits = lgItem ? getItemExplicits(lgItem) : []
-
-  return createPortal(
-    <div className="gear-tooltip-portal" style={{ left: state.x + 16, top: state.y - 10 }}>
-      {typeLabel && <div className="gear-tooltip-type">{typeLabel}</div>}
-      <div className="gear-tooltip-name">{state.item.name}</div>
-      {baseType && <div className="gear-tooltip-base">Base: {baseType}</div>}
-      <div className="gear-tooltip-level">Required Level: {state.item.required_level}</div>
-      <div className="gear-tooltip-divider" />
-      {lgItem ? (
-        <>
-          {implicits.map((affix, i) => (
-            <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">{affix.raw_text}</div>
-          ))}
-          {implicits.length > 0 && explicits.length > 0 && (
-            <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
-          )}
-          {explicits.map((affix, i) => (
-            <div key={i} className="gear-tooltip-affix">
-              {tooltipAffixText(affix, implicits.length + i, customizations)}
-            </div>
-          ))}
-        </>
-      ) : (() => {
-        const craftItem = state.item as EquippedGearItem
-        const implCount = craftItem.implicit_count ?? 0
-        const craftImplicits = craftItem.affixes.slice(0, implCount)
-        const craftExplicits = craftItem.affixes.slice(implCount)
-        const mutText = craftItem.corrosion_type === 'mutation' ? craftItem.mutation_affix_text : null
-        return (
-          <>
-            {mutText && (
-              <div className="gear-tooltip-affix gear-tooltip-affix--corroded">{mutText}</div>
-            )}
-            {craftImplicits.map((affix, i) => (
-              <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">
-                {affix.raw_text}
-              </div>
-            ))}
-            {craftImplicits.length > 0 && craftExplicits.length > 0 && (
-              <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
-            )}
-            {craftExplicits.map((affix, i) => (
-              <div key={i} className="gear-tooltip-affix">
-                {tooltipAffixText(affix, implCount + i, customizations)}
-                {affixTypeLabel(affix.affix_type) && <span className="gear-affix-label">({affixTypeLabel(affix.affix_type)})</span>}
-              </div>
-            ))}
-          </>
-        )
-      })()}
-    </div>,
-    document.body
-  )
 }
 
 // ── Slot Dropdown Portal ───────────────────────────────────────────────────────
@@ -2410,7 +2343,7 @@ export default function GearScreen(_props: Props) {
   const [craftCorrosionType, setCraftCorrosionType] = useState<'none' | 'desecration' | 'mutation'>('none')
   const [voraxInitialState, setVoraxInitialState] = useState<VoraxInitialState | null>(null)
   const [slotDropdown, setSlotDropdown] = useState<{ slotId: GearSlot; rect: DOMRect } | null>(null)
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null)
+  const [tooltip, setTooltip] = useState<ItemTooltipState | null>(null)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOverSlot, setDragOverSlot] = useState<GearSlot | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -3069,7 +3002,7 @@ export default function GearScreen(_props: Props) {
           onClose={() => setSlotDropdown(null)}
         />
       )}
-      {tooltip && <GearTooltip state={tooltip} />}
+      {tooltip && <ItemTooltip state={tooltip} />}
     </div>
   )
 }

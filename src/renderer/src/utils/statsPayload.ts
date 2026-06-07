@@ -1,100 +1,84 @@
 import {
-  EquippedGearItem, GearEngineItem, GearAffixContribution,
+  EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution,
   buildEnergyContributions, buildMemoryEffects, buildSpiritEffects,
 } from '../api/client'
 
 export { buildEnergyContributions, buildMemoryEffects, buildSpiritEffects }
 
-export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
-  return gear.filter(item => item.slot !== null).map(item => {
-    const mutationAffix = item.corrosion_type === 'mutation' ? (item.mutation_resolved_affix ?? null) : null
-    const affixesToProcess = mutationAffix ? [mutationAffix, ...item.affixes] : item.affixes
-    const affixOffset = mutationAffix ? 1 : 0
-    const contributions: GearAffixContribution[] = []
-    affixesToProcess.forEach((affix, affixIdx) => {
-      if (affix.affix_kind === 'placeholder') return
+function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null): GearAffixContribution[] {
+  const mutationAffix = item.corrosion_type === 'mutation' ? (item.mutation_resolved_affix ?? null) : null
+  const affixesToProcess = mutationAffix ? [mutationAffix, ...item.affixes] : item.affixes
+  const affixOffset = mutationAffix ? 1 : 0
+  const contributions: GearAffixContribution[] = []
 
-      // Craft base type implicits arrive as plain text with no resolved stat keys.
-      // Parse the three weapon stat patterns directly so they contribute to the engine.
-      if (affix.affix_kind === 'implicit') {
-        const slot = Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot
-        const physM = affix.raw_text.match(/^([\d.]+)\s*-\s*([\d.]+)\s+Physical Damage$/i)
-        if (physM) {
-          contributions.push({ stat: 'physical_dmg_gear_flat_min', display_value: parseFloat(physM[1]), unit: '', item_name: item.name, slot, condition: null })
-          contributions.push({ stat: 'physical_dmg_gear_flat_max', display_value: parseFloat(physM[2]), unit: '', item_name: item.name, slot, condition: null })
-        }
-        const atkM = affix.raw_text.match(/^([\d.]+)\s+Attack Speed$/i)
-        if (atkM) {
-          contributions.push({ stat: 'weapon_attack_speed', display_value: parseFloat(atkM[1]), unit: '', item_name: item.name, slot, condition: null })
-        }
-        const csrM = affix.raw_text.match(/^([\d.]+)\s+Critical Strike Rating$/i)
-        if (csrM) {
-          contributions.push({ stat: 'attack_crit_rating_gear', display_value: parseFloat(csrM[1]), unit: '', item_name: item.name, slot, condition: null })
-        }
-        return
+  affixesToProcess.forEach((affix, affixIdx) => {
+    if (affix.affix_kind === 'placeholder') return
+
+    // Craft base type implicits arrive as plain text with no resolved stat keys.
+    // Parse the three weapon stat patterns directly so they contribute to the engine.
+    if (affix.affix_kind === 'implicit') {
+      const physM = affix.raw_text.match(/^([\d.]+)\s*-\s*([\d.]+)\s+Physical Damage$/i)
+      if (physM) {
+        contributions.push({ stat: 'physical_dmg_gear_flat_min', display_value: parseFloat(physM[1]), unit: '', item_name: item.name, slot, condition: null })
+        contributions.push({ stat: 'physical_dmg_gear_flat_max', display_value: parseFloat(physM[2]), unit: '', item_name: item.name, slot, condition: null })
       }
+      const atkM = affix.raw_text.match(/^([\d.]+)\s+Attack Speed$/i)
+      if (atkM) {
+        contributions.push({ stat: 'weapon_attack_speed', display_value: parseFloat(atkM[1]), unit: '', item_name: item.name, slot, condition: null })
+      }
+      const csrM = affix.raw_text.match(/^([\d.]+)\s+Critical Strike Rating$/i)
+      if (csrM) {
+        contributions.push({ stat: 'weapon_crit_rating_flat', display_value: parseFloat(csrM[1]), unit: '', item_name: item.name, slot, condition: null })
+      }
+      return
+    }
 
-      const hasKey = affix.stat_key
-        || (affix.stat_keys && affix.stat_keys.length > 0)
-        || (affix.dual_stat_groups && affix.dual_stat_groups.length > 0)
-        || (affix.min_stat_keys && affix.min_stat_keys.length > 0)
-      if (!hasKey) return
-      const cust = item.customizations.find(c => c.affix_index === affixIdx - affixOffset)
-      const slot = Array.isArray(item.slot) ? item.slot[0] ?? null : item.slot
-      const condition = affix.condition_expr ?? null
-      if (affix.affix_kind === 'numeric') {
-        const rangeIdx = affix.numeric_values.findIndex(v => v.kind === 'range')
-        const fixedNv = affix.numeric_values.find(v => v.kind === 'fixed')
-        const unit = affix.unit ?? ''
+    const hasKey = affix.stat_key
+      || (affix.stat_keys && affix.stat_keys.length > 0)
+      || (affix.dual_stat_groups && affix.dual_stat_groups.length > 0)
+      || (affix.min_stat_keys && affix.min_stat_keys.length > 0)
+    if (!hasKey) return
+    const cust = item.customizations.find(c => c.affix_index === affixIdx - affixOffset)
+    const condition = affix.condition_expr ?? null
+    if (affix.affix_kind === 'numeric') {
+      const rangeIdx = affix.numeric_values.findIndex(v => v.kind === 'range')
+      const fixedNv = affix.numeric_values.find(v => v.kind === 'fixed')
+      const unit = affix.unit ?? ''
 
-        if (affix.min_stat_keys && affix.max_stat_keys && rangeIdx >= 0) {
+      if (affix.min_stat_keys && affix.max_stat_keys && rangeIdx >= 0) {
+        const nv = affix.numeric_values[rangeIdx]
+        const minVal = cust?.chosen_values[0] ?? Math.round(nv.min ?? 0)
+        const maxVal = cust?.chosen_values[1] ?? Math.round(nv.max ?? 0)
+        for (const stat of affix.min_stat_keys) {
+          contributions.push({ stat, display_value: minVal, unit, item_name: item.name, slot, condition })
+        }
+        for (const stat of affix.max_stat_keys) {
+          contributions.push({ stat, display_value: maxVal, unit, item_name: item.name, slot, condition })
+        }
+      } else if (affix.dual_stat_groups && affix.dual_stat_groups.length > 0) {
+        for (const group of affix.dual_stat_groups) {
+          const nv = affix.numeric_values[group.value_index]
+          if (!nv) continue
+          const groupUnit = group.unit !== undefined ? group.unit : unit
+          let val: number
+          if (nv.kind === 'range') {
+            val = cust?.chosen_values[group.value_index] ?? Math.round(((nv.min ?? 0) + (nv.max ?? 0)) / 2)
+          } else {
+            val = (nv.value ?? 0) * (nv.sign === '-' ? -1 : 1)
+          }
+          for (const stat of group.stat_keys) {
+            contributions.push({ stat, display_value: val, unit: groupUnit, item_name: item.name, slot, condition })
+          }
+        }
+      } else if (affix.stat_keys && affix.stat_keys.length > 0) {
+        if (affix.is_range_split && rangeIdx >= 0) {
           const nv = affix.numeric_values[rangeIdx]
+          const [minStat, maxStat] = affix.stat_keys
           const minVal = cust?.chosen_values[0] ?? Math.round(nv.min ?? 0)
           const maxVal = cust?.chosen_values[1] ?? Math.round(nv.max ?? 0)
-          for (const stat of affix.min_stat_keys) {
-            contributions.push({ stat, display_value: minVal, unit, item_name: item.name, slot, condition })
-          }
-          for (const stat of affix.max_stat_keys) {
-            contributions.push({ stat, display_value: maxVal, unit, item_name: item.name, slot, condition })
-          }
-        } else if (affix.dual_stat_groups && affix.dual_stat_groups.length > 0) {
-          for (const group of affix.dual_stat_groups) {
-            const nv = affix.numeric_values[group.value_index]
-            if (!nv) continue
-            const groupUnit = group.unit !== undefined ? group.unit : unit
-            let val: number
-            if (nv.kind === 'range') {
-              val = cust?.chosen_values[group.value_index] ?? Math.round(((nv.min ?? 0) + (nv.max ?? 0)) / 2)
-            } else {
-              val = (nv.value ?? 0) * (nv.sign === '-' ? -1 : 1)
-            }
-            for (const stat of group.stat_keys) {
-              contributions.push({ stat, display_value: val, unit: groupUnit, item_name: item.name, slot, condition })
-            }
-          }
-        } else if (affix.stat_keys && affix.stat_keys.length > 0) {
-          if (affix.is_range_split && rangeIdx >= 0) {
-            const nv = affix.numeric_values[rangeIdx]
-            const [minStat, maxStat] = affix.stat_keys
-            const minVal = cust?.chosen_values[0] ?? Math.round(nv.min ?? 0)
-            const maxVal = cust?.chosen_values[1] ?? Math.round(nv.max ?? 0)
-            contributions.push({ stat: minStat, display_value: minVal, unit, item_name: item.name, slot, condition })
-            contributions.push({ stat: maxStat, display_value: maxVal, unit, item_name: item.name, slot, condition })
-          } else {
-            let display_value: number | null = null
-            if (rangeIdx >= 0) {
-              const nv = affix.numeric_values[rangeIdx]
-              display_value = cust?.chosen_values[rangeIdx] ?? Math.round(((nv.min ?? 0) + (nv.max ?? 0)) / 2)
-            } else if (fixedNv) {
-              display_value = fixedNv.value ?? 0
-            }
-            if (display_value !== null) {
-              for (const stat of affix.stat_keys) {
-                contributions.push({ stat, display_value, unit, item_name: item.name, slot, condition })
-              }
-            }
-          }
-        } else if (affix.stat_key) {
+          contributions.push({ stat: minStat, display_value: minVal, unit, item_name: item.name, slot, condition })
+          contributions.push({ stat: maxStat, display_value: maxVal, unit, item_name: item.name, slot, condition })
+        } else {
           let display_value: number | null = null
           if (rangeIdx >= 0) {
             const nv = affix.numeric_values[rangeIdx]
@@ -103,11 +87,230 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
             display_value = fixedNv.value ?? 0
           }
           if (display_value !== null) {
-            contributions.push({ stat: affix.stat_key, display_value, unit, item_name: item.name, slot, condition })
+            for (const stat of affix.stat_keys) {
+              contributions.push({ stat, display_value, unit, item_name: item.name, slot, condition })
+            }
           }
         }
+      } else if (affix.stat_key) {
+        let display_value: number | null = null
+        if (rangeIdx >= 0) {
+          const nv = affix.numeric_values[rangeIdx]
+          display_value = cust?.chosen_values[rangeIdx] ?? Math.round(((nv.min ?? 0) + (nv.max ?? 0)) / 2)
+        } else if (fixedNv) {
+          display_value = fixedNv.value ?? 0
+        }
+        if (display_value !== null) {
+          contributions.push({ stat: affix.stat_key, display_value, unit, item_name: item.name, slot, condition })
+        }
       }
-    })
-    return { contributions }
+    }
   })
+
+  return contributions
+}
+
+function _isWeaponSpecificStat(stat: string): boolean {
+  // Weapon implicit base stats (attack speed, base damage, flat CSR) and per-weapon gear
+  // multipliers must NOT be doubled for same-item dual wield. When the same weapon is in
+  // both slots, attacks alternate between identical copies — averaging two identical values
+  // equals one, so counting these once is correct.
+  // Global affixes (resistance, %dmg_inc, etc.) should stack from both slots.
+  // attack_crit_rating_gear is per-weapon (confirmed): it scales that weapon's CSR only.
+  // attack_crit_rating_mh is mainhand-only (confirmed): applies to weapon1 slot only.
+  return stat.startsWith('weapon_')
+    || stat.includes('_gear_')
+    || stat === 'attack_crit_rating_mh'
+    || stat === 'attack_crit_rating_gear'
+    || stat === 'attack_speed_gear'
+    || stat === 'attack_speed_mh'
+}
+
+// Damage types that can appear as per-weapon flat stats on a weapon item.
+// "elemental" is included because elemental_dmg_gear_flat_min/max can appear on weapons
+// (currently unprocessed by the offense engine but averaged here for future correctness).
+const _WEAPON_DAMAGE_TYPES = ['physical', 'fire', 'cold', 'lightning', 'erosion', 'elemental'] as const
+
+// Build per-weapon-effective contributions for two different weapons in weapon1 + weapon2.
+// Per the alternating-attack mechanic, attacks alternate between weapons. This means:
+//   - Base stats (APS, flat damage, flat CSR) must be AVERAGED across both weapons,
+//     and per-weapon gear multipliers (e.g. physical_dmg_gear_inc) must be applied
+//     PER WEAPON before averaging to avoid cross-multiplication errors.
+//   - Global affixes (resistance, %dmg_inc, etc.) stack from both weapons.
+//
+// Per-weapon effective CSR formula per weapon slot:
+//   W_eff_csr = W_csr_flat × (1 + W_crit_gear/100 + W_crit_mh/100)
+// Where attack_crit_rating_mh ONLY applies when the weapon is in weapon1 (mainhand).
+// attack_crit_rating_gear is per-weapon (confirmed): scales that weapon's CSR only.
+// Both multipliers are pre-applied here and NOT emitted as global stats, preventing
+// the engine from applying them a second time.
+function _buildDualWieldContributions(w1: EquippedGearItem, w2: EquippedGearItem): GearEngineItem[] {
+  const weapons = [w1, w2] as const
+  const globalContribs: GearAffixContribution[] = []
+
+  type WeaponAccum = {
+    aps:           number
+    aps_gear:      number   // attack_speed_gear display_value (e.g. 27 for 27%)
+    aps_mh:        number   // attack_speed_mh display_value — only weapon1
+    csr_flat:      number
+    csr_crit_gear: number   // attack_crit_rating_gear display_value (e.g. 20 for 20%)
+    csr_crit_mh:   number   // attack_crit_rating_mh display_value — only weapon1
+    dmg_flat_min:  Record<string, number>
+    dmg_flat_max:  Record<string, number>
+    dmg_gear_inc:  Record<string, number>  // display_value (e.g. 29 for 29%)
+  }
+  const accums: WeaponAccum[] = weapons.map(() => ({
+    aps: 0, aps_gear: 0, aps_mh: 0,
+    csr_flat: 0, csr_crit_gear: 0, csr_crit_mh: 0,
+    dmg_flat_min: {}, dmg_flat_max: {}, dmg_gear_inc: {},
+  }))
+
+  for (let wi = 0; wi < weapons.length; wi++) {
+    const weapon    = weapons[wi]
+    const slot      = weapon.slot as GearSlot
+    const isMainhand = slot === 'weapon1'
+    const acc       = accums[wi]
+
+    for (const c of _buildItemContributions(weapon, slot)) {
+      if (c.stat === 'weapon_attack_speed') {
+        acc.aps += c.display_value
+      } else if (c.stat === 'attack_speed_gear') {
+        // Per-weapon confirmed (same pattern as attack_crit_rating_gear): pre-multiply per weapon
+        acc.aps_gear += c.display_value
+      } else if (c.stat === 'attack_speed_mh') {
+        // Mainhand-only confirmed: only applies when weapon is in weapon1 slot
+        if (isMainhand) acc.aps_mh += c.display_value
+      } else if (c.stat === 'weapon_crit_rating_flat') {
+        acc.csr_flat += c.display_value
+      } else if (c.stat === 'attack_crit_rating_gear') {
+        // Per-weapon confirmed: each weapon's gear multiplier scales only that weapon's CSR
+        acc.csr_crit_gear += c.display_value
+      } else if (c.stat === 'attack_crit_rating_mh') {
+        // Mainhand-only confirmed: only applies when weapon is in weapon1 slot
+        if (isMainhand) acc.csr_crit_mh += c.display_value
+        // Offhand weapon's attack_crit_rating_mh is silently discarded — it has no effect
+      } else {
+        let handled = false
+        for (const dtype of _WEAPON_DAMAGE_TYPES) {
+          if (c.stat === `${dtype}_dmg_gear_flat_min`) {
+            acc.dmg_flat_min[dtype] = (acc.dmg_flat_min[dtype] ?? 0) + c.display_value
+            handled = true; break
+          } else if (c.stat === `${dtype}_dmg_gear_flat_max`) {
+            acc.dmg_flat_max[dtype] = (acc.dmg_flat_max[dtype] ?? 0) + c.display_value
+            handled = true; break
+          } else if (c.stat === `${dtype}_dmg_gear_inc`) {
+            acc.dmg_gear_inc[dtype] = (acc.dmg_gear_inc[dtype] ?? 0) + c.display_value
+            handled = true; break
+          }
+        }
+        if (!handled) {
+          // Not a recognised per-weapon base/multiplier stat — emit as global (stacks from both).
+          // Includes: elemental_resistance, physical_dmg_inc, and other non-weapon-specific affixes.
+          globalContribs.push(c)
+        }
+      }
+    }
+  }
+
+  const numWeapons = weapons.length
+  const avgContribs: GearAffixContribution[] = []
+
+  // APS — per-weapon pre-multiply then average.
+  // Formula: eff_aps = aps × (1 + aps_gear/100 + aps_mh/100)
+  // attack_speed_gear and _mh are NOT emitted as global stats; engine sees (1+0) for that factor.
+  const totalEffAps = accums.reduce((s, a) =>
+    s + a.aps * (1 + (a.aps_gear + a.aps_mh) / 100), 0)
+  const avgAps = totalEffAps / numWeapons
+  if (avgAps > 0) {
+    avgContribs.push({ stat: 'weapon_attack_speed', display_value: avgAps, unit: '', item_name: `${w1.name} / ${w2.name}`, slot: null, condition: null })
+  }
+
+  // CSR — per-weapon pre-multiply then average, emitted as separate per-weapon contributions
+  // so the source popup shows each weapon independently rather than a merged "W1 / W2" entry.
+  // Each weapon's proportional share (effCsr / numWeapons) sums to the correct averaged total.
+  for (let wi = 0; wi < numWeapons; wi++) {
+    const acc = accums[wi]
+    const wName = wi === 0 ? w1.name : w2.name
+    const wSlot = wi === 0 ? w1.slot as GearSlot : w2.slot as GearSlot
+    const effCsr = acc.csr_flat * (1 + (acc.csr_crit_gear + acc.csr_crit_mh) / 100)
+    const proportionalCsr = effCsr / numWeapons
+    if (proportionalCsr > 0) {
+      avgContribs.push({ stat: 'weapon_crit_rating_flat', display_value: proportionalCsr, unit: '', item_name: wName, slot: wSlot, condition: null })
+    }
+  }
+
+  // Damage — per-weapon: apply gear_inc multiplier first, then average across weapons.
+  // Formula: effective_min = flat_min × (1 + gear_inc / 100)
+  // The pre-multiplied value is emitted as a flat (unit:'') contribution so the engine
+  // applies × (1 + 0) — no gear_inc is emitted, preventing double-counting.
+  for (const dtype of _WEAPON_DAMAGE_TYPES) {
+    let totalMin = 0, totalMax = 0
+    for (const acc of accums) {
+      const incDisplay = acc.dmg_gear_inc[dtype] ?? 0
+      const multiplier = 1 + incDisplay / 100
+      totalMin += (acc.dmg_flat_min[dtype] ?? 0) * multiplier
+      totalMax += (acc.dmg_flat_max[dtype] ?? 0) * multiplier
+    }
+    const avgMin = totalMin / numWeapons
+    const avgMax = totalMax / numWeapons
+    if (avgMin > 0) {
+      avgContribs.push({ stat: `${dtype}_dmg_gear_flat_min`, display_value: avgMin, unit: '', item_name: `${w1.name} / ${w2.name}`, slot: null, condition: null })
+    }
+    if (avgMax > 0) {
+      avgContribs.push({ stat: `${dtype}_dmg_gear_flat_max`, display_value: avgMax, unit: '', item_name: `${w1.name} / ${w2.name}`, slot: null, condition: null })
+    }
+  }
+
+  const result: GearEngineItem[] = []
+  if (avgContribs.length > 0) result.push({ contributions: avgContribs })
+  if (globalContribs.length > 0) result.push({ contributions: globalContribs })
+  return result
+}
+
+export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
+  const result: GearEngineItem[] = []
+
+  // Separate single-string weapon-slot items from all others.
+  // Array-slot items (same-item dual wield, e.g. slot: ['weapon1','weapon2']) are NOT
+  // single-string weapon slots and go through the standard path below.
+  const singleWeaponItems: EquippedGearItem[] = []
+
+  for (const item of gear) {
+    if (item.slot === null) continue
+
+    if (!Array.isArray(item.slot) && (item.slot === 'weapon1' || item.slot === 'weapon2')) {
+      singleWeaponItems.push(item)
+      continue
+    }
+
+    // Non-weapon slots and same-item dual-wield (array slot).
+    const slots: (GearSlot | null)[] = Array.isArray(item.slot) ? item.slot : [item.slot]
+
+    // First slot: emit all contributions.
+    result.push({ contributions: _buildItemContributions(item, slots[0]) })
+
+    // Additional slots (same-item dual wield): emit ONLY global affixes.
+    // Per the dual-wield mechanic, attacks alternate — weapon base stats (APS, base damage,
+    // flat CSR, per-weapon gear multipliers) are effectively averaged across both weapons.
+    // For identical weapons averaging = same as once, so we skip them on slots 1+.
+    for (let i = 1; i < slots.length; i++) {
+      const globalContribs = _buildItemContributions(item, slots[i])
+        .filter(c => !_isWeaponSpecificStat(c.stat))
+      if (globalContribs.length > 0) {
+        result.push({ contributions: globalContribs })
+      }
+    }
+  }
+
+  if (singleWeaponItems.length >= 2) {
+    // Two different weapons in weapon1 + weapon2 — per-weapon effective computation.
+    result.push(..._buildDualWieldContributions(singleWeaponItems[0], singleWeaponItems[1]))
+  } else {
+    // 0 or 1 weapon equipped — normal single-weapon path.
+    for (const item of singleWeaponItems) {
+      result.push({ contributions: _buildItemContributions(item, item.slot as GearSlot) })
+    }
+  }
+
+  return result
 }

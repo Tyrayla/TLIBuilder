@@ -973,6 +973,34 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .sidebar-save-btn:hover { background: #1a1a33; border-color: var(--accent); color: #aaaaee; }
 
+.sidebar-dps-box {
+  background: #0d0d20;
+  border: 1px solid #2a2a50;
+  border-radius: 6px;
+  padding: 7px 8px 6px;
+  margin: 3px 0 1px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sidebar-dps-box:hover { background: #111130; border-color: #5a4a90; }
+.sidebar-dps-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #6060a0;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.sidebar-dps-value {
+  font-size: 19px;
+  font-weight: 700;
+  color: #f0c070;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+}
+
 .sidebar-nav-btn {
   display: block;
   width: 100%;
@@ -1501,8 +1529,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 /* ── Equipment Slots (panel 1) ────────────────────────────────────────────── */
 
 .gear-slots-panel {
-  width: 230px;
-  flex-shrink: 0;
+  flex: 22;
+  min-width: 160px;
   background: #0e0e1e;
   border-right: 1px solid #1e1e3a;
   display: flex;
@@ -1632,8 +1660,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 /* ── Items in Build (panel 2) ─────────────────────────────────────────────── */
 
 .gear-build-panel {
-  width: 230px;
-  flex-shrink: 0;
+  flex: 22;
+  min-width: 160px;
   background: #0e0e1e;
   border-right: 1px solid #1e1e3a;
   display: flex;
@@ -1994,12 +2022,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .gear-editor-column {
   position: relative;
-  flex: 1;
+  flex: 34;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #1e1e3a;
   overflow: hidden;
-  min-width: 340px;
+  min-width: 280px;
 }
 
 .gear-editor-column .gear-customize-panel {
@@ -2492,8 +2520,8 @@ span.gear-affix-label {
 /* ── Legendary Catalog (panel 4, rightmost) ───────────────────────────────── */
 
 .gear-catalog {
-  width: 230px;
-  flex-shrink: 0;
+  flex: 22;
+  min-width: 160px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2682,8 +2710,8 @@ span.gear-affix-label {
 /* ── Skill Slots (left panel) ──────────────────────────────────────────────── */
 
 .skill-slots-panel {
-  width: 200px;
-  flex-shrink: 0;
+  flex: 20;
+  min-width: 150px;
   background: #0e0e1e;
   border-right: 1px solid #1e1e3a;
   display: flex;
@@ -2840,7 +2868,8 @@ span.gear-affix-label {
 /* ── Center panel (skill catalog or skill detail) ──────────────────────────── */
 
 .skill-center-panel {
-  flex: 1;
+  flex: 53;
+  min-width: 220px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #1e1e3a;
@@ -3420,8 +3449,8 @@ span.gear-affix-label {
 /* ── Support panel (right panel) ─────────────────────────────────────────── */
 
 .skill-support-panel {
-  width: 280px;
-  flex-shrink: 0;
+  flex: 27;
+  min-width: 180px;
   background: #0c0c1c;
   display: flex;
   flex-direction: column;

@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### New Features
+- **Player Stats screen** — dedicated Stats tab replacing the old Calcs debug view.
+  - Two-pane layout: offense (left) and defense (right), both scaling proportionally with window size.
+  - **Offense** — per-skill hit damage breakdown table with per-damage-type columns (Physical, Fire, Cold, Lightning, Erosion): Added Min/Max flat damage, Total Increased (generic only in All Types; dtype-specific in each column), Total Additional, per-form Hit Range and DPS.
+  - Type Contribution summary row shows each damage type's share of total DPS.
+  - Hit forms show their proc chance when < 100% (e.g. Sweep Slash 80% / Steep Strike 20%).
+  - **Critical Strikes** — expandable breakdown: click Crit Chance to reveal Weapon Base Crit Rating, Gear Increased Crit Rating, Other Flat CSR, and Increased — each hidden until expanded, each clickable for source attribution.
+  - **Defense** — Life, Mana, Energy Shield, Resistances, Armour, Evasion panels with flat/increased/additional sub-rows.
+  - **Interactive source attribution** — click any value cell to see a source popup listing every item, talent node, and pact spirit contributing to that stat. Hovering a gear item in the popup shows the full item tooltip.
+  - Tooltips (source popup and item tooltip) clamp to window bounds — flip to opposite side of cursor when near an edge.
+
+### Improvements
+- **Proportional window scaling** — all multi-column screens (Stats, Gear, Skills) now use flex-ratio layout so every column scales uniformly when the window is resized; previously only the rightmost column would grow.
 - **Custom Mods panel** — freeform modifier text input in the Calcs screen feeds the full stat engine as if the modifier were on gear.
   - Supports any stat in the system: flat values, percentage increases, range expressions (`50-80 physical damage`), and multi-stat lines.
   - "increased / reduced / more / less" verbs are stripped before matching so natural game text resolves correctly.
@@ -22,6 +34,8 @@
 - **DPS display** — Calcs screen now shows only **DPS vs Target Dummy**; raw total DPS is still computed but not displayed since enemy values outside the target dummy are unknown.
 
 ### Bug Fixes
+- Fixed weapon CSR implicit (`N Critical Strike Rating`) always producing 0% crit chance — the frontend was sending it to `attack_crit_rating_gear` (a % multiplier) instead of `weapon_crit_rating_flat`; since `weapon_crit_rating_flat` was 0, the product was always 0.
+- Fixed flat `+(#) maximum life / mana / energy shield` affixes on gear not contributing to the defense panel — fuzzy matcher resolved them to derived stat keys (`max_life`, `max_mana`, `max_energy_shield`) instead of the raw input keys (`max_life_flat`, `max_mana_flat`, `energy_shield_gear_flat`); added explicit overrides.
 - Fixed CSR display names using abbreviated "Crit Rating" instead of the in-game wording "Critical Strike Rating".
 - Fixed weapon base CSR implicit (`500 Critical Strike Rating`) incorrectly mapping to `attack_crit_rating_gear` (a % increase) instead of a flat CSR stat — it now maps to `weapon_crit_rating_flat`.
 - Fixed `attack_crit_rating_gear` being summed into the flat CSR pool; it is a % multiplier on weapon CSR only and must not participate in the flat additive sum.
