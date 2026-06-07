@@ -96,6 +96,8 @@ def compute(
     season_trees: dict[str, dict],
     filter_data: dict,
     skill_data: dict | None = None,
+    skills_input: list[dict] | None = None,
+    skills_by_id: dict[str, dict] | None = None,
 ) -> StatResult:
     """
     Run the fixed-point aggregation loop and return a StatResult.
@@ -197,7 +199,7 @@ def compute(
     # Post-loop offense and defense (not part of the fixed-point convergence)
     from dataclasses import asdict
     from engine.defense import calculate_defense
-    from engine.offense import calculate_offense
+    from engine.offense import calculate_offense, skill_effective_level
     from engine.skill_resolver import resolve_skill
 
     result_defense = asdict(calculate_defense(source))
@@ -205,8 +207,29 @@ def compute(
     result_offense = None
     if skill_data and build_input.main_skill:
         resolved = resolve_skill(skill_data)
-        offense = calculate_offense(source, resolved, build_input.main_skill.level)
+        offense = calculate_offense(source, resolved, build_input.main_skill.level, is_main_skill=True)
         result_offense = asdict(offense)
+
+    # Skill slot summaries — effective level for every equipped skill
+    result_skill_slots: list[dict] | None = None
+    if skills_input and skills_by_id is not None:
+        result_skill_slots = []
+        for sk in skills_input:
+            sd = skills_by_id.get(sk["skill_id"])
+            if sd:
+                resolved_sk = resolve_skill(sd)
+                eff = skill_effective_level(
+                    source, resolved_sk.tags, sk["level"],
+                    is_main_skill=(sk["slot"] == 1),
+                )
+                result_skill_slots.append({
+                    "slot":           sk["slot"],
+                    "skill_id":       sk["skill_id"],
+                    "skill_name":     resolved_sk.name or sd.get("name", sk["skill_id"]),
+                    "level":          sk["level"],
+                    "effective_level": eff,
+                    "supported":      resolved_sk.supported,
+                })
 
     return StatResult(
         stat_map=stat_map,
@@ -214,4 +237,5 @@ def compute(
         clamp_report=clamp_report,
         offense=result_offense,
         defense=result_defense,
+        skill_slots=result_skill_slots,
     )

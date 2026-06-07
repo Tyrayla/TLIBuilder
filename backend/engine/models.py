@@ -99,3 +99,4 @@ class StatResult:
     clamp_report:        dict[str, dict]         # {key: {"requested": v, "applied": v}}
     offense:             dict | None = None      # OffenseResult as dict, or None if no skill
     defense:             dict | None = None      # DefenseResult as dict
+    skill_slots:         list[dict] | None = None  # per-slot summary: slot, skill_id, skill_name, level, effective_level, supported

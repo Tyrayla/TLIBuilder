@@ -191,7 +191,25 @@ function OffensePanel({ offense }: { offense: OffenseResult }) {
         )}
         <Row label="Crit Chance" value={(offense.crit_chance * 100).toFixed(1)} unit="%" />
         <Row label="Crit Multiplier" value={(offense.crit_multiplier * 100).toFixed(0)} unit="%" />
+        {offense.weapon_crit_rating_flat > 0 && (
+          <Row label="  Weapon CSR (base)" value={offense.weapon_crit_rating_flat.toFixed(0)} />
+        )}
+        {offense.weapon_csr_gear > 0 && (
+          <Row label="  CSR Gear Bonus" value={(offense.weapon_csr_gear * 100).toFixed(1)} unit="%" />
+        )}
+        {offense.weapon_csr_mh > 0 && (
+          <Row label="  CSR MH Bonus" value={(offense.weapon_csr_mh * 100).toFixed(1)} unit="%" />
+        )}
         <Row label="Attacks per Second" value={offense.attacks_per_second.toFixed(2)} />
+        {offense.weapon_attack_speed > 0 && (
+          <Row label="  Weapon Base APS" value={offense.weapon_attack_speed.toFixed(3)} />
+        )}
+        {offense.weapon_aps_gear > 0 && (
+          <Row label="  APS Gear Bonus (MH)" value={(offense.weapon_aps_gear * 100).toFixed(1)} unit="%" />
+        )}
+        {offense.weapon_aps_mh > 0 && (
+          <Row label="  APS MH-Only Bonus" value={(offense.weapon_aps_mh * 100).toFixed(1)} unit="%" />
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 4px', marginTop: 4 }}>
           <span style={{ fontWeight: 700, color: '#e0e0e0' }}>DPS vs Target Dummy</span>
           <span style={{ fontWeight: 700, fontSize: 16, color: '#f0c070', fontVariantNumeric: 'tabular-nums' }}>
@@ -208,6 +226,11 @@ function OffensePanel({ offense }: { offense: OffenseResult }) {
       )}
     </div>
   )
+}
+
+function fmtResist(capped: number, raw: number): string {
+  const cappedStr = `${capped.toFixed(0)}%`
+  return raw > capped ? `${cappedStr} (${raw.toFixed(0)}%)` : cappedStr
 }
 
 export default function CalcsScreen() {
@@ -242,10 +265,10 @@ export default function CalcsScreen() {
             <Row label="Max Energy Shield" value={defense.max_energy_shield.toFixed(0)} />
             <Row label="Armor" value={defense.armor.toFixed(0)} />
             <Row label="Evasion" value={defense.evasion.toFixed(0)} />
-            <Row label="Fire Resistance" value={defense.fire_resist.toFixed(0)} unit="%" nyi />
-            <Row label="Cold Resistance" value={defense.cold_resist.toFixed(0)} unit="%" nyi />
-            <Row label="Lightning Resistance" value={defense.lightning_resist.toFixed(0)} unit="%" nyi />
-            <Row label="Erosion Resistance" value={defense.erosion_resist.toFixed(0)} unit="%" nyi />
+            <Row label="Fire Resistance" value={fmtResist(defense.fire_resist, defense.fire_resist_raw)} />
+            <Row label="Cold Resistance" value={fmtResist(defense.cold_resist, defense.cold_resist_raw)} />
+            <Row label="Lightning Resistance" value={fmtResist(defense.lightning_resist, defense.lightning_resist_raw)} />
+            <Row label="Erosion Resistance" value={fmtResist(defense.erosion_resist, defense.erosion_resist_raw)} />
             {defense.nyi.length > 0 && (
               <div style={{ marginTop: 8, fontSize: 11, color: '#555' }}>
                 <div style={{ marginBottom: 4, color: '#777' }}>Not yet included:</div>

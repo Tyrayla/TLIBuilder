@@ -53,15 +53,15 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="mana", ui_priority=4, stacking_rule="additive",
     ),
     Stat.MAX_ENERGY_SHIELD: StatMeta(
-        "Maximum Energy Shield", "Defence", "derived",
+        "Maximum Energy Shield", "Defense", "derived",
         subgroup="energy_shield", ui_priority=4, stacking_rule="additive",
     ),
     Stat.ARMOR: StatMeta(
-        "Armor", "Defence", "derived",
+        "Armor", "Defense", "derived",
         subgroup="defense", ui_priority=4, stacking_rule="additive",
     ),
     Stat.EVASION: StatMeta(
-        "Evasion", "Defence", "derived",
+        "Evasion", "Defense", "derived",
         subgroup="defense", ui_priority=4, stacking_rule="additive",
     ),
 

@@ -518,6 +518,12 @@ class SkillEngineInput(BaseModel):
     level:    int = 1
 
 
+class SkillSlotInput(BaseModel):
+    slot:     int   # 1–5 active, 6–9 passive
+    skill_id: str
+    level:    int = 1
+
+
 class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
@@ -526,7 +532,8 @@ class EngineStatsRequest(BaseModel):
     character:       list[dict] = []
     memory_effects:  list[str] = []
     spirit_effects:  list[str] = []
-    main_skill:      SkillEngineInput | None = None
+    main_skill:      SkillEngineInput | None = None   # kept for backward compat
+    skills:          list[SkillSlotInput] = []         # all equipped skills with slot info
     custom_mods:     list[str] = []
 
 
@@ -568,10 +575,18 @@ def engine_stats(req: EngineStatsRequest):
 
     main_skill = None
     skill_data = None
+    skills_by_id: dict = {}
+
+    # Load skills cache if any skill info is needed
+    needs_skills = bool(req.main_skill or req.skills)
+    if needs_skills:
+        skills_by_id = _get_skills_data(active_season)
+
     if req.main_skill:
         main_skill = SkillRef(skill_id=req.main_skill.skill_id, level=req.main_skill.level)
-        skills_by_id = _get_skills_data(active_season)
         skill_data = skills_by_id.get(req.main_skill.skill_id)
+
+    skills_input = [{"slot": s.slot, "skill_id": s.skill_id, "level": s.level} for s in req.skills]
 
     # Pre-resolve custom mods and build status list for the frontend
     custom_contributions: list[dict] = []
@@ -605,7 +620,12 @@ def engine_stats(req: EngineStatsRequest):
         main_skill=main_skill,
         custom_contributions=custom_contributions,
     )
-    result = compute(build, season_trees, filter_data, skill_data=skill_data)
+    result = compute(
+        build, season_trees, filter_data,
+        skill_data=skill_data,
+        skills_input=skills_input or None,
+        skills_by_id=skills_by_id if skills_input else None,
+    )
     return {
         "stats": result.stat_map,
         "condition_maximums": result.condition_maximums,
@@ -613,6 +633,7 @@ def engine_stats(req: EngineStatsRequest):
         "offense": result.offense,
         "defense": result.defense,
         "custom_mod_statuses": custom_mod_statuses,
+        "skill_slots": result.skill_slots,
     }
 
 
@@ -1308,6 +1329,13 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     # Critical Strike Rating — gear-specific % (scales gear flat only) and main-hand weapon
     "+(#) % attack critical strike rating for this gear":          "attack_crit_rating_gear",
     "+(#) % critical strike rating for the main-hand weapon":      "attack_crit_rating_mh",
+    # Flat defense — "maximum X" fuzzy-matches the derived stat key; override to the raw flat input stat
+    "+(#) maximum life":             "max_life_flat",
+    "+(#) to maximum life":          "max_life_flat",
+    "+(#) maximum mana":             "max_mana_flat",
+    "+(#) to maximum mana":          "max_mana_flat",
+    "+(#) maximum energy shield":    "energy_shield_gear_flat",
+    "+(#) to maximum energy shield": "energy_shield_gear_flat",
 }
 
 _MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
@@ -1570,8 +1598,8 @@ _WEAPON_ATK_SPD_RE  = re.compile(r"^([\d.]+)\s+Attack Speed$")
 _WEAPON_CSR_RE      = re.compile(r"^([\d.]+)\s+Critical Strike Rating$")
 
 # Custom mod text parsing — freeform modifier text → stat contributions
-_CUSTOM_RANGE_RE  = re.compile(r'^\+?(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s+(.*)', re.IGNORECASE)
-_CUSTOM_SINGLE_RE = re.compile(r'^\+?(\d+(?:\.\d+)?)\s*(%?)\s+(.*)', re.IGNORECASE)
+_CUSTOM_RANGE_RE  = re.compile(r'^\s*([+-]?\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s+(.*)', re.IGNORECASE)
+_CUSTOM_SINGLE_RE = re.compile(r'^\s*([+-]?\d+(?:\.\d+)?)\s*(%?)\s+(.*)', re.IGNORECASE)
 # Modifier verbs that appear in game text but not in stat display names — strip before fuzzy match
 _CUSTOM_VERB_RE   = re.compile(r'\b(increased|reduced|more|less)\b', re.IGNORECASE)
 

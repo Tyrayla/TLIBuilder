@@ -425,6 +425,21 @@ export interface SkillEngineInput {
   level: number
 }
 
+export interface SkillSlotInput {
+  slot: number      // 1–5 active, 6–9 passive
+  skill_id: string
+  level: number
+}
+
+export interface SkillSlotSummary {
+  slot: number
+  skill_id: string
+  skill_name: string
+  level: number
+  effective_level: number
+  supported: boolean
+}
+
 export interface HitFormResult {
   name: string
   effectiveness_pct: number
@@ -435,6 +450,8 @@ export interface HitFormResult {
   avg_hit_with_crit: number
   dps_contribution: number
   dps_vs_target: number
+  hit_min_by_type: Record<string, number>
+  hit_max_by_type: Record<string, number>
 }
 
 export interface OffenseResult {
@@ -449,6 +466,21 @@ export interface OffenseResult {
   total_dps: number
   total_dps_vs_target: number
   nyi: string[]
+  weapon_attack_speed: number
+  weapon_aps_gear: number
+  weapon_aps_mh: number
+  weapon_crit_rating_flat: number
+  weapon_csr_gear: number
+  weapon_csr_mh: number
+  flat_dmg_min: Record<string, number>
+  flat_dmg_max: Record<string, number>
+  type_inc: Record<string, number>
+  type_add: Record<string, number>
+  above_max_mult: number
+  generic_inc: number
+  generic_add: number
+  skill_tags: string[]
+  skill_area_inc: number
 }
 
 export interface DefenseResult {
@@ -461,6 +493,23 @@ export interface DefenseResult {
   cold_resist: number
   lightning_resist: number
   erosion_resist: number
+  fire_resist_raw: number
+  cold_resist_raw: number
+  lightning_resist_raw: number
+  erosion_resist_raw: number
+  life_flat: number
+  life_inc: number
+  life_additional: number
+  mana_flat: number
+  mana_inc: number
+  es_flat: number
+  es_inc: number
+  armor_flat: number
+  armor_inc: number
+  armor_additional: number
+  evasion_flat: number
+  evasion_inc: number
+  evasion_additional: number
   nyi: string[]
 }
 
@@ -489,6 +538,7 @@ export interface StatSheetResponse {
   offense?: OffenseResult | null
   defense?: DefenseResult | null
   custom_mod_statuses?: CustomModStatus[]
+  skill_slots?: SkillSlotSummary[]
 }
 
 export const EMPTY_STAT_SHEET: StatSheetResponse = {
@@ -1313,6 +1363,7 @@ export const api = {
     memory_effects?: string[]
     spirit_effects?: string[]
     main_skill?: SkillEngineInput | null
+    skills?: SkillSlotInput[]
     custom_mods?: string[]
   }) => post<StatSheetResponse>('/engine/stats', payload),
 

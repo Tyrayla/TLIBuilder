@@ -93,6 +93,55 @@ def _resolve_berserking_blade(skill_data: dict) -> ResolvedSkill:
     )
 
 
+# ── Focused Slash ─────────────────────────────────────────────────────────────
+# Tags: Attack, Melee, Area, Physical, Slash-Strike
+# Same Sweep Slash / Steep Strike structure as Berserking Blade.
+# Fervor bonus (+0.4% dmg per Fervor Rating) is a passive conditional, not a hit form — NYI.
+
+# @_register("focused_slash")  # deferred: not fully verified yet
+def _resolve_focused_slash(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {
+        entry["level"]: entry["values"]
+        for entry in skill_data.get("progression", [])
+    }
+    forms_by_level: dict[int, list[SkillHitForm]] = {}
+    for lvl, values in progression.items():
+        matches = _BB_FORM_RE.findall(values.get("Descript", ""))
+        if len(matches) != 2:
+            raise ValueError(
+                f"focused_slash: expected 2 hit forms at level {lvl}, "
+                f"got {len(matches)}: {values.get('Descript', '')!r}"
+            )
+        forms_by_level[lvl] = [
+            SkillHitForm(
+                name=matches[0][0].strip(),
+                effectiveness_pct=float(matches[0][1]),
+                form_type="exclusive",
+                proc_stat_key="_complement_steep_strike_chance",
+            ),
+            SkillHitForm(
+                name=matches[1][0].strip(),
+                effectiveness_pct=float(matches[1][1]),
+                form_type="exclusive",
+                proc_stat_key="steep_strike_chance",
+            ),
+        ]
+    raw_text = skill_data.get("raw_text", "")
+    m = _SKILL_STEEP_CHANCE_RE.search(raw_text)
+    base_steep = float(m.group(1)) / 100.0 if m else 0.0
+
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms_by_level,
+        supported=True,
+        base_steep_strike_chance=base_steep,
+    )
+
+
 def resolve_skill(skill_data: dict) -> ResolvedSkill:
     """Return a ResolvedSkill; supported=False for any skill not in the registry.
 

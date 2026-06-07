@@ -43,6 +43,7 @@ export function useBuildCalculation() {
           // buildSpiritEffects returns [] on empty allSpirits — safe on failure path
           spirit_effects: buildSpiritEffects(s.pactSpirits, s.allSpirits),
           main_skill: s.mainSkill ?? null,
+          skills: s.skills.map(sk => ({ slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1 })),
           custom_mods: s.customMods,
         })
         // Version guard: reject stale/out-of-order responses
