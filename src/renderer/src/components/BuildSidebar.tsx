@@ -1,5 +1,6 @@
 import React from 'react'
 import { useBuildStore } from '../store/buildStore'
+import { useUiPrefs } from '../store/uiPrefsStore'
 import type { OffenseResult } from '../api/client'
 
 interface Props {
@@ -48,6 +49,8 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
 
 export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave, onSaveAs, onGoBack }: Props) {
   const isTreeActive = screen === 'tree-selector' || screen === 'tree-viewer'
+  const showModifierBadges = useUiPrefs(s => s.showModifierBadges)
+  const toggleModifierBadges = useUiPrefs(s => s.toggleModifierBadges)
 
   return (
     <div className="build-sidebar">
@@ -87,6 +90,11 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
       <NavBtn label="Notes" active={screen === 'notes'} onClick={() => onNav('notes')} />
 
       <div className="sidebar-spacer" />
+
+      <label className="sidebar-toggle" title="Show badges marking modifiers the engine doesn't recognize or use for this build">
+        <input type="checkbox" checked={showModifierBadges} onChange={toggleModifierBadges} />
+        <span>NYI flags</span>
+      </label>
 
       <button className="sidebar-nav-btn sidebar-back" onClick={onGoBack}>← Back to Builds</button>
     </div>

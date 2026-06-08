@@ -1,0 +1,111 @@
+// Inert-modifier badge + the status hooks that drive it.
+//
+// A modifier is "working" if its mapped engine stat is in the build's consumed_stats (the stats the
+// offense/defense/derive passes actually read). The badge flags the two non-working cases:
+//   - "Inactive"     (unused): recognized stat, but the current build's skill/calc doesn't read it
+//   - "Unrecognized" : the text maps to no engine stat at all (data/parse gap)
+// Gear/vorax affixes carry stat keys locally; spirit/memory/talent/slate text resolves via the
+// mapping store. See plan v3 (Flag Inert Modifiers).
+//
+// Hooks come in singular and plural forms — use the PLURAL form when rendering a list of modifier
+// lines (a hook may not be called inside a .map()).
+import React, { useEffect, useMemo } from 'react'
+import { useBuildStore } from '../store/buildStore'
+import { useMappingStore, modifierKey } from '../store/mappingStore'
+import { useUiPrefs } from '../store/uiPrefsStore'
+import { affixStatKeys } from '../utils/affixText'
+import type { ModifierSource } from '../api/client'
+
+export type ModifierStatus = 'working' | 'unused' | 'unrecognized'
+
+type StatBearingAffix = Parameters<typeof affixStatKeys>[0] & { affix_kind?: string }
+export interface TextModifier { text: string | null | undefined; source: ModifierSource; nodeId?: string }
+
+// The stat keys the current build's compute consumed. Call once at a component's top level, then
+// classify many affixes synchronously with gearModifierStatus (avoids a hook inside a .map()).
+export function useConsumedStatSet(): Set<string> {
+  const consumed = useBuildStore((s) => s.computedStats.consumed_stats)
+  return useMemo(() => new Set(consumed ?? []), [consumed])
+}
+const useConsumedSet = useConsumedStatSet
+
+// ── Pure classifiers ────────────────────────────────────────────────────────────
+export function gearModifierStatus(affix: StatBearingAffix | null | undefined, consumed: Set<string>): ModifierStatus | null {
+  return gearStatus(affix, consumed)
+}
+function gearStatus(affix: StatBearingAffix | null | undefined, consumed: Set<string>): ModifierStatus | null {
+  if (!affix) return null
+  const kind = affix.affix_kind
+  if (kind === 'placeholder') return null // unfilled random-affix slot — never flagged
+  const keys = affixStatKeys(affix)
+  if (keys.length === 0) {
+    // Only an unresolved EXPLICIT (numeric) affix is genuinely unrecognized; weapon/armor base
+    // stats (implicit/special/tagged) are consumed via dedicated engine parsing, not stat_key.
+    return kind === 'numeric' ? 'unrecognized' : null
+  }
+  return keys.some((k) => consumed.has(k)) ? 'working' : 'unused'
+}
+
+function textStatus(keys: string[] | undefined, consumed: Set<string>): ModifierStatus | null {
+  if (keys === undefined) return null // not resolved yet → fail open (no badge)
+  if (keys.length === 0) return 'unrecognized'
+  return keys.some((k) => consumed.has(k)) ? 'working' : 'unused'
+}
+
+// ── Gear/vorax affixes (synchronous, local stat keys) ────────────────────────────
+export function useGearModifierStatus(affix: StatBearingAffix | null | undefined): ModifierStatus | null {
+  const consumed = useConsumedSet()
+  return gearStatus(affix, consumed)
+}
+export function useGearModifierStatuses(affixes: (StatBearingAffix | null | undefined)[]): (ModifierStatus | null)[] {
+  const consumed = useConsumedSet()
+  return affixes.map((a) => gearStatus(a, consumed))
+}
+
+// ── Raw-text sources (lazy mapping store) ────────────────────────────────────────
+export function useTextModifierStatuses(items: TextModifier[]): (ModifierStatus | null)[] {
+  const consumed = useConsumedSet()
+  const enabled = useUiPrefs((s) => s.showModifierBadges)
+  const cache = useMappingStore((s) => s.cache)
+  const request = useMappingStore((s) => s.request)
+
+  const keysJoined = items.map((it) => (it.text ? modifierKey(it.source, it.text, it.nodeId) : '')).join('§')
+
+  useEffect(() => {
+    if (!enabled) return
+    const missing = items.filter(
+      (it) => it.text && cache[modifierKey(it.source, it.text, it.nodeId)] === undefined,
+    )
+    if (missing.length) request(missing.map((it) => ({ text: it.text!, source: it.source, nodeId: it.nodeId })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, keysJoined, cache])
+
+  return items.map((it) => {
+    if (!it.text) return null
+    return textStatus(cache[modifierKey(it.source, it.text, it.nodeId)], consumed)
+  })
+}
+export function useTextModifierStatus(text: string | null | undefined, source: ModifierSource, nodeId?: string): ModifierStatus | null {
+  return useTextModifierStatuses([{ text, source, nodeId }])[0]
+}
+
+// ── Badge ────────────────────────────────────────────────────────────────────────
+const LABEL: Record<Exclude<ModifierStatus, 'working'>, string> = {
+  unused: 'Inactive',
+  unrecognized: 'Unrecognized',
+}
+const TITLE: Record<Exclude<ModifierStatus, 'working'>, string> = {
+  unused: "Recognized stat, but the current build's skill/calculation doesn't use it.",
+  unrecognized: "This modifier doesn't map to any stat the engine models yet.",
+}
+
+// Renders nothing for working/null status or when the toggle is off.
+export function ModifierBadge({ status }: { status: ModifierStatus | null }) {
+  const show = useUiPrefs((s) => s.showModifierBadges)
+  if (!show || !status || status === 'working') return null
+  return (
+    <span className={`nyi-tag nyi-tag--${status}`} title={TITLE[status]}>
+      {LABEL[status]}
+    </span>
+  )
+}

@@ -4,6 +4,7 @@ import { migrateOldConditions, buildDefaultConditionState } from './utils/condit
 import { useBuildStore } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useReferenceStore } from './store/referenceStore'
+import { useMappingStore } from './store/mappingStore'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
@@ -581,6 +582,7 @@ function App() {
     return <DevToolsScreen onBack={() => setScreen('build-select')} deprecatedTools={deprecatedTools} onToggleDeprecatedTools={() => setDeprecatedTools(d => !d)} onSeasonChange={() => {
           useReferenceStore.getState().clearReferenceData()
           useReferenceStore.getState().loadReferenceData()
+          useMappingStore.getState().clear() // modifier->stat mapping is per data version
         }} />
   }
 

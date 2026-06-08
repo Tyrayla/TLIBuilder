@@ -539,7 +539,15 @@ export interface StatSheetResponse {
   defense?: DefenseResult | null
   custom_mod_statuses?: CustomModStatus[]
   skill_slots?: SkillSlotSummary[]
+  // Stat keys the engine actually READ for this build (offense/defense/derive passes). Drives the
+  // "inert modifier" badges: a modifier whose mapped stat isn't here is recognized-but-unused.
+  consumed_stats?: string[]
 }
+
+// ── Modifier resolution (inert-modifier badges) ─────────────────────────────────
+export type ModifierSource = 'gear' | 'spirit' | 'memory' | 'talent' | 'slate'
+export interface ModifierMapItem { key: string; text: string; source: ModifierSource; node_id?: string }
+export interface ModifierMapResponse { results: Record<string, { stat_keys: string[] }> }
 
 export const EMPTY_STAT_SHEET: StatSheetResponse = {
   stats: {},
@@ -547,6 +555,7 @@ export const EMPTY_STAT_SHEET: StatSheetResponse = {
   clamp_report: {},
   offense: null,
   defense: null,
+  consumed_stats: [],
 }
 
 export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
@@ -740,6 +749,14 @@ export interface GraftAffix {
   level: number
   weight: number
   affix_type: string
+  // resolved by backend (/api/grafts) so vorax affixes carry stat keys like other gear
+  stat_key?: string | null
+  stat_keys?: string[]
+  is_range_split?: boolean
+  min_stat_keys?: string[]
+  max_stat_keys?: string[]
+  dual_stat_groups?: DualStatGroup[]
+  unit?: string
 }
 
 export interface Graft {
@@ -1388,6 +1405,11 @@ export const api = {
 
   resolveMod: (text: string) =>
     post<ResolveModResponse>('/resolve-mod', { text }),
+
+  // Map raw modifier texts (spirit/memory/talent/slate) to engine stat key(s). Deterministic per
+  // data version; the renderer caches results in mappingStore. Gear carries stat_key already.
+  mapModifiers: (items: ModifierMapItem[]) =>
+    post<ModifierMapResponse>('/map-modifiers', { items }),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),
 

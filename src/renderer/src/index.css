@@ -48,7 +48,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   font-size: 10px; font-weight: 700; color: #ff6b6b;
   background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.3);
   border-radius: 3px; padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+  white-space: nowrap; cursor: default; letter-spacing: 0.3px;
 }
+/* Inert-modifier badges: "Inactive" (recognized but unused) = filled red; "Unrecognized" (no
+   engine stat) = hollow/outlined so the two coverage gaps read distinctly at a glance. */
+.nyi-tag--unused { color: #ff8a5c; background: rgba(255,138,92,0.14); border-color: rgba(255,138,92,0.35); }
+.nyi-tag--unrecognized { color: #ff6b6b; background: transparent; border-style: dashed; }
 
 .btn-back {
   background: transparent;
@@ -1071,6 +1076,14 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   margin-top: 2px;
 }
 .sidebar-back:hover { color: #8888aa; background: #111120; }
+
+.sidebar-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #777799; cursor: pointer;
+  padding: 4px 8px; user-select: none;
+}
+.sidebar-toggle:hover { color: #aaaacc; }
+.sidebar-toggle input { cursor: pointer; margin: 0; }
 
 /* ── Notes Screen ──────────────────────────────────────────── */
 

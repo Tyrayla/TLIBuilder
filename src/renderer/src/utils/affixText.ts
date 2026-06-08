@@ -3,6 +3,28 @@
 // no React. See docs/TOOLTIP_REVAMP_HANDOFF.md §7.
 import type { LegendaryAffix, LegendaryNumericValue, CustomizedAffix } from '../api/client'
 
+// Every engine stat key a resolved affix maps to (single / multi / range-split / dual). Used by the
+// inert-modifier badge to tell "unrecognized" (no keys) from "unused" (keys none of which the build
+// consumed). Works for LegendaryAffix, CraftAffix, and GraftAffix (all carry these optional fields).
+type StatBearingAffix = {
+  stat_key?: string | null
+  stat_keys?: string[]
+  min_stat_keys?: string[]
+  max_stat_keys?: string[]
+  dual_stat_groups?: { stat_keys: string[] }[]
+}
+export function affixStatKeys(a: StatBearingAffix): string[] {
+  const out: string[] = []
+  if (a.stat_key) out.push(a.stat_key)
+  for (const arr of [a.stat_keys, a.min_stat_keys, a.max_stat_keys]) {
+    if (arr) out.push(...arr)
+  }
+  for (const g of a.dual_stat_groups ?? []) {
+    if (g.stat_keys) out.push(...g.stat_keys)
+  }
+  return out
+}
+
 export function decimalPlaces(n: number): number {
   const s = String(n)
   const dot = s.indexOf('.')
