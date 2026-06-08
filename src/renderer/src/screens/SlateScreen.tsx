@@ -3,6 +3,29 @@ import { api, SlatePool, SlateModifierOption, CoreTalentOption, SavedSlate } fro
 import { useBuildStore } from '../store/buildStore'
 import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
+import { ModifierBadge, useTextModifierStatuses } from '../components/ModifierBadge'
+
+// One selectable slate modifier option (its effects badged for engine support). Extracted so the
+// status hook isn't called inside the options .map().
+function SlateModRow({ mod, selected, accentColor, onSelect }: {
+  mod: SlateModifierOption; selected: boolean; accentColor: string; onSelect: (m: SlateModifierOption) => void
+}) {
+  const statuses = useTextModifierStatuses(mod.effects.map(text => ({ text, source: 'talent' as const, nodeId: mod.nodeId })))
+  return (
+    <div onClick={() => onSelect(mod)} style={{
+      padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid #1a1a30',
+      background: selected ? `${accentColor}18` : 'transparent',
+      borderLeft: selected ? `2px solid ${accentColor}` : '2px solid transparent',
+    }}
+    onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = '#1e1e38' }}
+    onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+      {mod.effects.map((ef, i) => (
+        <div key={i} style={{ fontSize: 14, color: selected ? '#fff' : '#ccc' }}>{ef}<ModifierBadge status={statuses[i]} /></div>
+      ))}
+      <div style={{ fontSize: 11, color: '#444', marginTop: 3 }}>{mod.treeName} · {mod.nodeType}</div>
+    </div>
+  )
+}
 
 // ── Board ─────────────────────────────────────────────────────────────────────
 
@@ -460,21 +483,15 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
               ? <div style={{ padding: '11px 14px', fontSize: 14, color: '#444' }}>
                   {pool ? 'No modifiers available' : 'No season active — no modifier pool'}
                 </div>
-              : modOptions.map(mod => {
-                const selected = mod.nodeId === slot.selectedNodeId
-                return (
-                  <div key={mod.nodeId} onClick={() => onSelect(mod)} style={{
-                    padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid #1a1a30',
-                    background: selected ? `${accentColor}18` : 'transparent',
-                    borderLeft: selected ? `2px solid ${accentColor}` : '2px solid transparent',
-                  }}
-                  onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = '#1e1e38' }}
-                  onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
-                    {mod.effects.map((ef, i) => <div key={i} style={{ fontSize: 14, color: selected ? '#fff' : '#ccc' }}>{ef}</div>)}
-                    <div style={{ fontSize: 11, color: '#444', marginTop: 3 }}>{mod.treeName} · {mod.nodeType}</div>
-                  </div>
-                )
-              })
+              : modOptions.map(mod => (
+                <SlateModRow
+                  key={mod.nodeId}
+                  mod={mod}
+                  selected={mod.nodeId === slot.selectedNodeId}
+                  accentColor={accentColor}
+                  onSelect={onSelect}
+                />
+              ))
           )}
         </div>
       )}

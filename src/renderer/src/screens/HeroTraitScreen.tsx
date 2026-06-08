@@ -6,6 +6,7 @@ import { useBuildStore } from '../store/buildStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
+import { ModifierBadge, useTextModifierStatuses, useTextModifierStatus } from '../components/ModifierBadge'
 
 interface Props {
   onBack: () => void
@@ -257,6 +258,7 @@ function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
 }) {
   const tip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const lines = memory ? getMemoryAffixLines(memory) : []
+  const lineStatuses = useTextModifierStatuses(lines.map(text => ({ text, source: 'memory' as const })))
   // Contribution of this socketed memory: remove it and diff vs the current build.
   const delta = useDamageDelta(
     tip.open && memory
@@ -287,7 +289,7 @@ function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
             </div>
             {lines.length > 0 ? (
               <ul className="memory-info-lines">
-                {lines.map((line, i) => <li key={i}>{line}</li>)}
+                {lines.map((line, i) => <li key={i}>{line}<ModifierBadge status={lineStatuses[i]} /></li>)}
               </ul>
             ) : (
               <div className="memory-info-empty">No affixes configured</div>
@@ -322,6 +324,7 @@ function AffixRow({ label, pool, source, current, onChange }: {
   const currentTierInfo = tierRanges.length > 0 ? posToTierValue(tierRanges, currentPos) : null
 
   const resolvedText = current ? resolveMemoryEffect(current) : null
+  const modStatus = useTextModifierStatus(resolvedText, 'memory')
 
   const handleNameChange = (name: string) => {
     if (!name) { onChange(null); return }
@@ -343,7 +346,7 @@ function AffixRow({ label, pool, source, current, onChange }: {
   return (
     <>
       <div className="memory-affix-row" {...(resolvedText ? tip.triggerProps : {})}>
-        <span className="memory-affix-label">{label}</span>
+        <span className="memory-affix-label">{label}<ModifierBadge status={modStatus} /></span>
         <div className="memory-affix-controls">
           <select
             className="memory-affix-select"

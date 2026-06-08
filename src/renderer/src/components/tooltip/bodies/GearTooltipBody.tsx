@@ -10,6 +10,7 @@ import type {
 import { tooltipAffixText, affixTypeLabel } from '../../../utils/affixText'
 import { TooltipContributions } from '../TooltipContributions'
 import type { DamageDelta, LabeledDelta } from '../useDamageDelta'
+import { ModifierBadge, useGearModifierStatus, useGearModifierStatuses } from '../../ModifierBadge'
 
 export type GearTooltipItem = LegendaryGearItem | EquippedGearItem
 
@@ -63,8 +64,17 @@ export function GearTooltipBody({ item, delta, deltas }: { item: GearTooltipItem
   const baseType = ('base_type' in item ? item.base_type : undefined) ?? ''
   const typeLabel = getGearTypeLabel(baseType)
   const lgItem = isLegendaryGearItem(item) ? item : null
-  const implicits = lgItem ? getItemImplicits(lgItem) : []
-  const explicits = lgItem ? getItemExplicits(lgItem) : []
+  const craftItem = lgItem ? null : (item as EquippedGearItem)
+  const implCount = craftItem ? (craftItem.implicit_count ?? 0) : 0
+  // Implicit/explicit affix objects are structurally the same for legendary and crafted items —
+  // both carry the resolved stat keys the inert-modifier badge needs.
+  const implicits = lgItem ? getItemImplicits(lgItem) : (craftItem ? craftItem.affixes.slice(0, implCount) : [])
+  const explicits = lgItem ? getItemExplicits(lgItem) : (craftItem ? craftItem.affixes.slice(implCount) : [])
+  const mutText = craftItem && craftItem.corrosion_type === 'mutation' ? craftItem.mutation_affix_text : null
+
+  const implicitStatuses = useGearModifierStatuses(implicits)
+  const explicitStatuses = useGearModifierStatuses(explicits)
+  const mutStatus = useGearModifierStatus(craftItem?.mutation_resolved_affix ?? null)
 
   return (
     <>
@@ -73,48 +83,26 @@ export function GearTooltipBody({ item, delta, deltas }: { item: GearTooltipItem
       {baseType && <div className="gear-tooltip-base">Base: {baseType}</div>}
       <div className="gear-tooltip-level">Required Level: {item.required_level}</div>
       <div className="gear-tooltip-divider" />
-      {lgItem ? (
-        <>
-          {implicits.map((affix, i) => (
-            <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">{affix.raw_text}</div>
-          ))}
-          {implicits.length > 0 && explicits.length > 0 && (
-            <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
-          )}
-          {explicits.map((affix, i) => (
-            <div key={i} className="gear-tooltip-affix">
-              {tooltipAffixText(affix, implicits.length + i, customizations)}
-            </div>
-          ))}
-        </>
-      ) : (() => {
-        const craftItem = item as EquippedGearItem
-        const implCount = craftItem.implicit_count ?? 0
-        const craftImplicits = craftItem.affixes.slice(0, implCount)
-        const craftExplicits = craftItem.affixes.slice(implCount)
-        const mutText = craftItem.corrosion_type === 'mutation' ? craftItem.mutation_affix_text : null
-        return (
-          <>
-            {mutText && (
-              <div className="gear-tooltip-affix gear-tooltip-affix--corroded">{mutText}</div>
-            )}
-            {craftImplicits.map((affix, i) => (
-              <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">
-                {affix.raw_text}
-              </div>
-            ))}
-            {craftImplicits.length > 0 && craftExplicits.length > 0 && (
-              <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
-            )}
-            {craftExplicits.map((affix, i) => (
-              <div key={i} className="gear-tooltip-affix">
-                {tooltipAffixText(affix, implCount + i, customizations)}
-                {affixTypeLabel(affix.affix_type) && <span className="gear-affix-label">({affixTypeLabel(affix.affix_type)})</span>}
-              </div>
-            ))}
-          </>
-        )
-      })()}
+      {mutText && (
+        <div className="gear-tooltip-affix gear-tooltip-affix--corroded">
+          {mutText}<ModifierBadge status={mutStatus} />
+        </div>
+      )}
+      {implicits.map((affix, i) => (
+        <div key={`imp-${i}`} className="gear-tooltip-affix gear-tooltip-affix--implicit">
+          {affix.raw_text}<ModifierBadge status={implicitStatuses[i]} />
+        </div>
+      ))}
+      {implicits.length > 0 && explicits.length > 0 && (
+        <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
+      )}
+      {explicits.map((affix, i) => (
+        <div key={`exp-${i}`} className="gear-tooltip-affix">
+          {tooltipAffixText(affix, implicits.length + i, customizations)}
+          {affixTypeLabel(affix.affix_type) && <span className="gear-affix-label">({affixTypeLabel(affix.affix_type)})</span>}
+          <ModifierBadge status={explicitStatuses[i]} />
+        </div>
+      ))}
       {/* Contributions live at the bottom and grow downward. `deltas` (one band per slot) takes
           precedence over the single `delta` when present. */}
       <TooltipContributions delta={delta} deltas={deltas} />
