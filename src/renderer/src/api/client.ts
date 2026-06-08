@@ -1011,17 +1011,35 @@ export interface CharacterStatContribution {
   text: string
 }
 
-export function buildEnergyContributions(
+// Baseline character stats every character has before gear/talents — Max Life, Max Mana, and
+// Max Energy. The engine has no intrinsic base values (derive.py base = 0), so these are injected
+// here as 'Base'/'Levels' character contributions.
+//   Max Life:   50 base + 13 per level
+//   Max Mana:   40 base +  5 per level
+//   Max Energy:  4 base +  1 per level (+ gear slots, + Prism)
+// NOTE (revisit): base regen is NOT modeled — Life regen over time; Mana 7/s + 1.75%/s. Needs
+// regen stats in the engine. Likewise Temporary Life/Mana and Base-Max variants are unmodeled.
+export function buildCharacterContributions(
   gear: EquippedGearItem[],
   characterLevel: number,
   hasPrism: boolean,
 ): CharacterStatContribution[] {
   const contribs: CharacterStatContribution[] = []
+  const lvl = Math.min(Math.max(characterLevel, 0), 100)
+  // Per-level scaling is per level GAINED — a player starts at level 1 with the base value, so
+  // multiply by (level - 1), not level.
+  const levelsGained = Math.max(lvl - 1, 0)
+
+  const baseLife = 50 + 13 * levelsGained
+  contribs.push({ stat: 'max_life_flat', amount: baseLife, label: 'Base', text: `+${baseLife} Max Life (50 + 13/level)` })
+
+  const baseMana = 40 + 5 * levelsGained
+  contribs.push({ stat: 'max_mana_flat', amount: baseMana, label: 'Base', text: `+${baseMana} Max Mana (40 + 5/level)` })
+
   contribs.push({ stat: 'max_energy_flat', amount: 4, label: 'Base', text: '+4 Max Energy' })
   const gearE = gear.reduce((s, g) => s + gearSlotEnergy(g.slot), 0)
   if (gearE > 0) contribs.push({ stat: 'max_energy_flat', amount: gearE, label: 'Gear', text: `+${gearE} Max Energy` })
-  const lvlE = Math.min(Math.max(characterLevel, 0), 100)
-  if (lvlE > 0) contribs.push({ stat: 'max_energy_flat', amount: lvlE, label: 'Levels', text: `+${lvlE} Max Energy` })
+  if (lvl > 0) contribs.push({ stat: 'max_energy_flat', amount: lvl, label: 'Levels', text: `+${lvl} Max Energy` })
   if (hasPrism) contribs.push({ stat: 'max_energy_flat', amount: 1000, label: 'Prism', text: '+1000 Max Energy (Effortless Command)' })
   return contribs
 }

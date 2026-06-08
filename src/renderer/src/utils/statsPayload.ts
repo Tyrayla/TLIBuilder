@@ -1,10 +1,10 @@
 import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution,
-  buildEnergyContributions, buildMemoryEffects, buildSpiritEffects,
+  buildCharacterContributions, buildMemoryEffects, buildSpiritEffects,
 } from '../api/client'
 import type { useBuildStore } from '../store/buildStore'
 
-export { buildEnergyContributions, buildMemoryEffects, buildSpiritEffects }
+export { buildCharacterContributions, buildMemoryEffects, buildSpiritEffects }
 
 export type BuildState = ReturnType<typeof useBuildStore.getState>
 
@@ -19,7 +19,7 @@ export function buildEngineStatsPayload(s: BuildState) {
     slates: s.slates,
     condition_state: s.conditionState,
     gear: buildGearPayload(s.gear),
-    character: buildEnergyContributions(s.gear, s.characterLevel, s.hasPrism),
+    character: buildCharacterContributions(s.gear, s.characterLevel, s.hasPrism),
     memory_effects: buildMemoryEffects(s.heroMemories),
     spirit_effects: buildSpiritEffects(s.pactSpirits, s.allSpirits),
     main_skill: s.mainSkill ?? null,
