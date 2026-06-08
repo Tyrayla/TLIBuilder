@@ -1,12 +1,50 @@
 import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
+import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import type { OffenseResult, DefenseResult, EquippedSkill, StatSource, StatEntry, EquippedGearItem } from '../api/client'
-import { ItemTooltip, type ItemTooltipState } from '../components/ItemTooltip'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
+import { useDamageDelta, type DeltaRequest } from '../components/tooltip/useDamageDelta'
+import { getItemSlots, itemHasSlot } from '../utils/gearItem'
+import { GearTooltipBody } from '../components/tooltip/bodies/GearTooltipBody'
 
 // ── Source popup ──────────────────────────────────────────────────────────────
 
 interface GroupedSource { text: string; label: string; amount: number; count: number; source_type: string }
+
+// One source row. Gear-backed rows open a nested gear tooltip (element-anchored) via a
+// second floating-tooltip instance — independent of the popup itself.
+function SourceRow({ g, matchedItem }: { g: GroupedSource; matchedItem: EquippedGearItem | undefined }) {
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'left' })
+  // Gear contribution: remove this equipped item from its slot and diff vs the current build.
+  const slot = matchedItem ? getItemSlots(matchedItem)[0] : undefined
+  // What you'd LOSE by unequipping (step = build without it, base = current) — matches talent nodes.
+  const req: DeltaRequest | null = slot ? { key: `gear:rm:${slot}`, step: s => ({ ...s, gear: s.gear.filter(i => !itemHasSlot(i, slot)) }) } : null
+  const delta = useDamageDelta(tip.open ? req : null, tip.open)
+  return (
+    <>
+      <div
+        {...(matchedItem ? tip.triggerProps : {})}
+        style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: matchedItem ? 'default' : undefined }}
+      >
+        <span style={{ color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {g.text || g.label}
+          {g.count > 1 && <span style={{ color: '#666' }}> ×{g.count}</span>}
+        </span>
+        <span style={{ color: '#e0e0e0', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+          {g.amount % 1 === 0 ? g.amount.toFixed(0) : g.amount.toFixed(2)}
+        </span>
+      </div>
+      {matchedItem && tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--gear" {...tip.floatingProps}>
+            <GearTooltipBody item={matchedItem} delta={delta} />
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
 
 function groupSources(sources: StatSource[]): GroupedSource[] {
   const out: GroupedSource[] = []
@@ -32,7 +70,6 @@ interface SourcePopupProps {
 }
 
 function SourcePopup({ title, sources, x, y, gear, onClose }: SourcePopupProps) {
-  const [hoverItem, setHoverItem] = useState<ItemTooltipState | null>(null)
   const grouped = groupSources(sources)
   const popupWidth = 300
   const estimatedHeight = 56 + Math.min(grouped.length, 12) * 22
@@ -56,25 +93,9 @@ function SourcePopup({ title, sources, x, y, gear, onClose }: SourcePopupProps) 
         ) : grouped.map((g, i) => {
           const isGear = g.source_type === 'legendary_gear' || g.source_type === 'normal_gear' || g.source_type === 'gear'
           const matchedItem = isGear ? gear.find(item => item.name === g.text) : undefined
-          return (
-            <div key={i}
-              style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: matchedItem ? 'default' : undefined }}
-              onMouseEnter={matchedItem ? e => setHoverItem({ item: matchedItem, x: e.clientX, y: e.clientY }) : undefined}
-              onMouseMove={matchedItem ? e => setHoverItem(h => h ? { ...h, x: e.clientX, y: e.clientY } : null) : undefined}
-              onMouseLeave={matchedItem ? () => setHoverItem(null) : undefined}
-            >
-              <span style={{ color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {g.text || g.label}
-                {g.count > 1 && <span style={{ color: '#666' }}> ×{g.count}</span>}
-              </span>
-              <span style={{ color: '#e0e0e0', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                {g.amount % 1 === 0 ? g.amount.toFixed(0) : g.amount.toFixed(2)}
-              </span>
-            </div>
-          )
+          return <SourceRow key={i} g={g} matchedItem={matchedItem} />
         })}
       </div>
-      {hoverItem && <ItemTooltip state={hoverItem} />}
     </>,
     document.body
   )

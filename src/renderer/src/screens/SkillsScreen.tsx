@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { FloatingPortal } from '@floating-ui/react'
 import {
   api,
   EquippedSkill,
@@ -12,6 +12,33 @@ import {
   getMaxEnergy,
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
+import { TooltipShell } from '../components/tooltip/TooltipShell'
+import { SkillTooltipBody } from '../components/tooltip/bodies/SkillTooltipBody'
+
+// Cursor-anchored skill / support hover tooltip via the shared primitive (informational —
+// no contributions band). Render-prop hands triggerProps to the hovered element.
+function SkillHoverTooltip({ name, descLines, children }: {
+  name: string
+  descLines: string[]
+  children: (triggerProps: Record<string, unknown>) => React.ReactNode
+}) {
+  const tip = useFloatingTooltip({ anchor: 'cursor', side: 'top' })
+  return (
+    <>
+      {children(tip.triggerProps)}
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--skill" {...tip.floatingProps}>
+            <TooltipShell title={name}>
+              <SkillTooltipBody lines={getAdvancedLines(descLines)} />
+            </TooltipShell>
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
 
 const ACTIVE_SLOTS  = [1, 2, 3, 4, 5]
 const PASSIVE_SLOTS = [6, 7, 8, 9]
@@ -92,11 +119,6 @@ export default function SkillsScreen(_props: Props) {
   const [pendingLevel, setPendingLevel] = useState(20)
   const [search, setSearch] = useState('')
   const [supportSearch, setSupportSearch] = useState('')
-  const [tooltip, setTooltip] = useState<{ name: string; lines: string[]; x: number; y: number } | null>(null)
-
-  const showTooltip = (item: { name: string; description_lines: string[] }, e: React.MouseEvent) =>
-    setTooltip({ name: item.name, lines: getAdvancedLines(item.description_lines), x: e.clientX + 14, y: e.clientY - 8 })
-  const hideTooltip = () => setTooltip(null)
 
   useEffect(() => {
     api.getSkills().then(r => setAllItems(r.skills))
@@ -320,22 +342,24 @@ export default function SkillsScreen(_props: Props) {
               <div className="skill-catalog-empty">No skills match your search</div>
             )}
             {skillCatalogItems.map(item => (
-              <div
-                key={item.item_id}
-                className={`skill-catalog-item${selectedSkillId === item.item_id ? ' selected' : ''}`}
-                onClick={() => {
-                  setSelectedSkillId(item.item_id)
-                  if (focusedEquipped?.item_id !== item.item_id) setPendingLevel(20)
-                  else setPendingLevel(focusedEquipped.level)
-                }}
-                onMouseMove={e => showTooltip(item, e)}
-                onMouseLeave={hideTooltip}
-              >
-                <span className="skill-catalog-name">{item.name}</span>
-                <div className="skill-catalog-tags">
-                  {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
-                </div>
-              </div>
+              <SkillHoverTooltip key={item.item_id} name={item.name} descLines={item.description_lines}>
+                {tp => (
+                  <div
+                    {...tp}
+                    className={`skill-catalog-item${selectedSkillId === item.item_id ? ' selected' : ''}`}
+                    onClick={() => {
+                      setSelectedSkillId(item.item_id)
+                      if (focusedEquipped?.item_id !== item.item_id) setPendingLevel(20)
+                      else setPendingLevel(focusedEquipped.level)
+                    }}
+                  >
+                    <span className="skill-catalog-name">{item.name}</span>
+                    <div className="skill-catalog-tags">
+                      {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
+                    </div>
+                  </div>
+                )}
+              </SkillHoverTooltip>
             ))}
           </div>
           {selectedSkillItem && (
@@ -370,16 +394,16 @@ export default function SkillsScreen(_props: Props) {
     return (
       <>
         <div className="skill-detail-header">
-          <div
-            onMouseMove={e => showTooltip(focusedEquipped, e)}
-            onMouseLeave={hideTooltip}
-            style={{ cursor: 'default' }}
-          >
-            <div className="skill-detail-name">{focusedEquipped.name}</div>
-            <div className="skill-detail-tags">
-              {focusedEquipped.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
-            </div>
-          </div>
+          <SkillHoverTooltip name={focusedEquipped.name} descLines={focusedEquipped.description_lines}>
+            {tp => (
+              <div {...tp} style={{ cursor: 'default' }}>
+                <div className="skill-detail-name">{focusedEquipped.name}</div>
+                <div className="skill-detail-tags">
+                  {focusedEquipped.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
+                </div>
+              </div>
+            )}
+          </SkillHoverTooltip>
           <div className="skill-level-row" style={{ marginTop: 0, alignItems: 'center' }}>
             <div className="skill-level-controls">
               <button className="skill-level-btn" onClick={() => setPendingLevel(l => Math.max(1, l - 1))}>−</button>
@@ -403,13 +427,12 @@ export default function SkillsScreen(_props: Props) {
             const cost = getSupportEnergyCost(isPassive, idx)
             const isActiveSup = focusedSupportIdx === idx
             const supItem = sup ? allItems.find(i => i.item_id === sup.item_id) : null
-            return (
+            const renderRow = (tp: Record<string, unknown> | null) => (
               <div
                 key={idx}
+                {...(tp ?? {})}
                 className={`skill-support-slot-row${isActiveSup ? ' active' : ''}${sup ? ' occupied' : ''}`}
                 onClick={() => selectSupportSlot(idx)}
-                onMouseMove={supItem ? e => showTooltip(supItem, e) : undefined}
-                onMouseLeave={supItem ? hideTooltip : undefined}
               >
                 <span className={`skill-support-cost-badge${sup ? '' : ' dim'}`}>{cost}</span>
                 <span className="skill-support-slot-num">{idx}</span>
@@ -423,6 +446,9 @@ export default function SkillsScreen(_props: Props) {
                 )}
               </div>
             )
+            return supItem
+              ? <SkillHoverTooltip key={idx} name={supItem.name} descLines={supItem.description_lines}>{tp => renderRow(tp)}</SkillHoverTooltip>
+              : renderRow(null)
           })}
         </div>
 
@@ -511,18 +537,20 @@ export default function SkillsScreen(_props: Props) {
             <div className="skill-catalog-empty">No compatible supports for this slot</div>
           )}
           {supportCatalogItems.map(item => (
-            <div
-              key={item.item_id}
-              className={`skill-catalog-item${selectedSupportId === item.item_id ? ' selected' : ''}`}
-              onClick={() => setSelectedSupportId(item.item_id)}
-              onMouseMove={e => showTooltip(item, e)}
-              onMouseLeave={hideTooltip}
-            >
-              <span className="skill-catalog-name">{item.name}</span>
-              <div className="skill-catalog-tags">
-                {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
-              </div>
-            </div>
+            <SkillHoverTooltip key={item.item_id} name={item.name} descLines={item.description_lines}>
+              {tp => (
+                <div
+                  {...tp}
+                  className={`skill-catalog-item${selectedSupportId === item.item_id ? ' selected' : ''}`}
+                  onClick={() => setSelectedSupportId(item.item_id)}
+                >
+                  <span className="skill-catalog-name">{item.name}</span>
+                  <div className="skill-catalog-tags">
+                    {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
+                  </div>
+                </div>
+              )}
+            </SkillHoverTooltip>
           ))}
         </div>
         {selectedSupportItem && (
@@ -600,15 +628,6 @@ export default function SkillsScreen(_props: Props) {
         </div>
       </div>
     </div>
-    {tooltip && createPortal(
-      <div className="skill-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
-        <div className="skill-tooltip-name">{tooltip.name}</div>
-        <div className="skill-tooltip-desc">
-          {tooltip.lines.map((l, i) => <p key={i}>{l}</p>)}
-        </div>
-      </div>,
-      document.body
-    )}
     </>
   )
 }

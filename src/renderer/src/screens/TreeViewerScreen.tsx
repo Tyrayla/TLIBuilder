@@ -1,7 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { FloatingPortal } from '@floating-ui/react'
 import { api, getApiBase, TreeData, TreeNode } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 import { useBuildStore } from '../store/buildStore'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
+import { TooltipShell } from '../components/tooltip/TooltipShell'
+import { NodeTooltipBody } from '../components/tooltip/bodies/NodeTooltipBody'
+import { useDamageDelta, withNodePoints } from '../components/tooltip/useDamageDelta'
 
 const COLS = 7
 const ROWS = 5
@@ -15,7 +20,6 @@ const NODE_R = 28
 
 function nodeX(col: number) { return col * CELL_W + CELL_W / 2 }
 function nodeY(row: number) { return HEADER + row * CELL_H + CELL_H / 2 }
-function colUnlocked(col: number, total: number) { return col === 0 || total >= col * 3 }
 function sumPoints(states: Record<string, number>) {
   return Object.values(states).reduce((a, b) => a + b, 0)
 }
@@ -32,9 +36,8 @@ function nextType(t: NodeTypeStr): NodeTypeStr {
 }
 function maxPointsFor(t: NodeTypeStr) { return t === 'Legendary Medium Talent' ? 1 : 3 }
 
-function nodeColors(node: TreeNode, states: Record<string, number>, total: number) {
+function nodeColors(node: TreeNode, states: Record<string, number>, locked: boolean) {
   const pts = states[node.id] ?? 0
-  const locked = !colUnlocked(node.column, total)
   const full = pts >= node.max_points
   return {
     fill:   locked ? '#222233' : full ? '#533483' : '#0f3460',
@@ -43,17 +46,92 @@ function nodeColors(node: TreeNode, states: Record<string, number>, total: numbe
   }
 }
 
-function scaleEffect(text: string, pts: number): string {
-  const rank = Math.max(pts, 1)
-  if (rank === 1) return text
-  return text.replace(/(\d+(?:\.\d+)?)/, (_, num) => {
-    const scaled = parseFloat(num) * rank
-    return scaled % 1 === 0 ? String(scaled) : scaled.toFixed(2)
-  })
+type DebugTool = 'create' | 'type' | 'link'
+
+interface TreeNodeGProps {
+  node: TreeNode
+  cx: number
+  cy: number
+  pts: number
+  colors: { fill: string; stroke: string; text: string }
+  locked: boolean
+  isLinkSrc: boolean
+  isHit: boolean
+  isSearching: boolean
+  processing: boolean
+  debugMode: boolean
+  onInteract: (node: TreeNode, isRight: boolean) => void
 }
 
-interface Tip { nodeId: string; x: number; y: number }
-type DebugTool = 'create' | 'type' | 'link'
+// A single passive-tree node (SVG group) plus its hover tooltip, routed through the shared
+// floating-tooltip primitive. Element-anchored; damage-delta band wired (NYI until backend).
+function TreeNodeG({
+  node, cx, cy, pts, colors, locked, isLinkSrc, isHit, isSearching, processing, debugMode, onInteract,
+}: TreeNodeGProps) {
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  const activeSlot = useBuildStore(s => s.activeSlot)
+  // Marginal per-point delta: step the hovered node by +1 (or -1 when maxed) vs the current build.
+  const target = pts < node.max_points ? pts + 1 : Math.max(0, pts - 1)
+  const delta = useDamageDelta(
+    tip.open ? { key: `node:${activeSlot}:${node.id}`, step: s => withNodePoints(s, activeSlot, node.id, target) } : null,
+    tip.open,
+  )
+  return (
+    <>
+      <g
+        {...tip.triggerProps}
+        style={{
+          cursor: (locked && !debugMode) || processing ? 'default' : 'pointer',
+          opacity: isSearching && !isHit ? 0.15 : 1,
+        }}
+        onClick={e => { e.preventDefault(); onInteract(node, false) }}
+        onContextMenu={e => { e.preventDefault(); onInteract(node, true) }}
+      >
+        {isSearching && isHit && (
+          <circle cx={cx} cy={cy} r={NODE_R + 6}
+            fill="rgba(233,192,70,0.12)"
+            stroke="#e9c046"
+            strokeWidth={2}
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+        <circle cx={cx} cy={cy} r={NODE_R}
+          fill={isLinkSrc ? '#2a4a2a' : colors.fill}
+          stroke={isLinkSrc ? '#6be946' : colors.stroke}
+          strokeWidth={isLinkSrc ? 3 : 2}
+        />
+        {(node.node_type === 'Medium Talent' || node.node_type === 'Legendary Medium Talent') && (
+          <circle cx={cx} cy={cy} r={NODE_R - 4}
+            fill="none"
+            stroke={node.node_type === 'Legendary Medium Talent' ? '#e9c046' : '#60a5fa'}
+            strokeWidth={1.5}
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+        <text
+          x={cx} y={cy + 4}
+          textAnchor="middle"
+          fill={colors.text}
+          fontSize={11}
+          fontWeight="bold"
+          fontFamily="Segoe UI"
+          style={{ pointerEvents: 'none' }}
+        >
+          {pts}/{node.max_points}
+        </text>
+      </g>
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--node" {...tip.floatingProps}>
+            <TooltipShell title={`${node.node_type} ${pts}/${node.max_points}`} delta={delta}>
+              <NodeTooltipBody node={node} pts={pts} />
+            </TooltipShell>
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
 
 interface Props {
   treeName: string
@@ -85,7 +163,6 @@ export default function TreeViewerScreen({
   const [nodeStates, setNodeStates] = useState<Record<string, number>>(() => previewMode ? {} : (slots[activeSlot]?.nodeStates ?? {}))
   const [coreTalentSelections, setCoreTalentSelections] = useState<Record<number, string>>(() => previewMode ? {} : (slots[activeSlot]?.coreTalentSelections ?? {}))
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null)
-  const [tip, setTip] = useState<Tip | null>(null)
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null)
   const [processing, setProcessing] = useState(false)
   const [search, setSearch] = useState('')
@@ -119,6 +196,17 @@ export default function TreeViewerScreen({
 
 
   const total = sumPoints(nodeStates)
+
+  // Column unlock = points spent in columns strictly to the LEFT of a column (its own and
+  // further-right points don't count). Column 0 is always open.
+  const colPoints = Array(COLS).fill(0) as number[]
+  if (treeData) for (const n of treeData.nodes) colPoints[n.column] += nodeStates[n.id] ?? 0
+  const isColUnlocked = (col: number): boolean => {
+    if (col === 0) return true
+    let before = 0
+    for (let c = 0; c < col; c++) before += colPoints[c]
+    return before >= col * 3
+  }
 
   const searchWords = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const isSearching = searchWords.length > 0
@@ -482,7 +570,7 @@ export default function TreeViewerScreen({
             >
               {COL_LABELS.map((label, col) => {
                 const cx = nodeX(col)
-                const locked = !colUnlocked(col, total)
+                const locked = !isColUnlocked(col)
                 return (
                   <g key={col}>
                     <text x={cx} y={15} textAnchor="middle" fill="#e0e0e0"
@@ -546,56 +634,26 @@ export default function TreeViewerScreen({
                 const cx = nodeX(node.column)
                 const cy = nodeY(node.row)
                 const pts = nodeStates[node.id] ?? 0
-                const colors = nodeColors(node, nodeStates, total)
-                const locked = !colUnlocked(node.column, total)
+                const locked = !isColUnlocked(node.column)
+                const colors = nodeColors(node, nodeStates, locked)
                 const isLinkSrc = debugMode && debugTool === 'link' && linkFrom === node.id
                 const isHit = !isSearching || searchHits.has(node.id)
                 return (
-                  <g
+                  <TreeNodeG
                     key={node.id}
-                    style={{
-                      cursor: (locked && !debugMode) || processing ? 'default' : 'pointer',
-                      opacity: isSearching && !isHit ? 0.15 : 1,
-                    }}
-                    onClick={e => { e.preventDefault(); handleNodeInteract(node, false) }}
-                    onContextMenu={e => { e.preventDefault(); handleNodeInteract(node, true) }}
-                    onMouseEnter={e => setTip({ nodeId: node.id, x: e.clientX, y: e.clientY })}
-                    onMouseLeave={() => setTip(null)}
-                    onMouseMove={e => setTip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
-                  >
-                    {isSearching && isHit && (
-                      <circle cx={cx} cy={cy} r={NODE_R + 6}
-                        fill="rgba(233,192,70,0.12)"
-                        stroke="#e9c046"
-                        strokeWidth={2}
-                        style={{ pointerEvents: 'none' }}
-                      />
-                    )}
-                    <circle cx={cx} cy={cy} r={NODE_R}
-                      fill={isLinkSrc ? '#2a4a2a' : colors.fill}
-                      stroke={isLinkSrc ? '#6be946' : colors.stroke}
-                      strokeWidth={isLinkSrc ? 3 : 2}
-                    />
-                    {(node.node_type === 'Medium Talent' || node.node_type === 'Legendary Medium Talent') && (
-                      <circle cx={cx} cy={cy} r={NODE_R - 4}
-                        fill="none"
-                        stroke={node.node_type === 'Legendary Medium Talent' ? '#e9c046' : '#60a5fa'}
-                        strokeWidth={1.5}
-                        style={{ pointerEvents: 'none' }}
-                      />
-                    )}
-                    <text
-                      x={cx} y={cy + 4}
-                      textAnchor="middle"
-                      fill={colors.text}
-                      fontSize={11}
-                      fontWeight="bold"
-                      fontFamily="Segoe UI"
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      {pts}/{node.max_points}
-                    </text>
-                  </g>
+                    node={node}
+                    cx={cx}
+                    cy={cy}
+                    pts={pts}
+                    colors={colors}
+                    locked={locked}
+                    isLinkSrc={isLinkSrc}
+                    isHit={isHit}
+                    isSearching={isSearching}
+                    processing={processing}
+                    debugMode={debugMode}
+                    onInteract={handleNodeInteract}
+                  />
                 )
               })}
             </svg>
@@ -607,43 +665,6 @@ export default function TreeViewerScreen({
 
         </div>
       </div>
-
-      {tip && nodeMap[tip.nodeId] && (() => {
-        const node = nodeMap[tip.nodeId]
-        const pts = nodeStates[node.id] ?? 0
-        const effects = node.effects ?? []
-        const atMax = pts >= node.max_points
-        const flipX = tip.x > window.innerWidth - 230
-        const flipY = tip.y > window.innerHeight - 160
-        const tipStyle: React.CSSProperties = {
-          left:   flipX ? undefined : tip.x + 14,
-          right:  flipX ? window.innerWidth - tip.x + 14 : undefined,
-          top:    flipY ? undefined : tip.y + 8,
-          bottom: flipY ? window.innerHeight - tip.y + 8 : undefined,
-        }
-        return (
-          <div className="tooltip" style={tipStyle}>
-            <div className="tooltip-type">{node.node_type} {pts}/{node.max_points}</div>
-            {pts > 0 && effects.length > 0 && (
-              <div className="tooltip-stats">
-                {effects.map((e, i) => (
-                  <div key={i} className="tooltip-stat-row">{scaleEffect(e, pts)}</div>
-                ))}
-              </div>
-            )}
-            {!atMax && effects.length > 0 && (
-              <>
-                <div className="tooltip-next-level">Next Level</div>
-                <div className="tooltip-stats">
-                  {effects.map((e, i) => (
-                    <div key={i} className="tooltip-stat-row">{scaleEffect(e, pts + 1)}</div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )
-      })()}
 
       {/* Confirm delete dialog */}
       {confirmDelete && (

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { api, SlatePool, SlateModifierOption, CoreTalentOption, SavedSlate } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
+import { useDamageDelta } from '../components/tooltip/useDamageDelta'
+import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 
 // ── Board ─────────────────────────────────────────────────────────────────────
 
@@ -595,6 +597,13 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
   const mothMod = isMoth ? getMothModifier(slate, allPlaced) : null
   const prairieMods = isPrairie ? getPrairieModifiers(slate, allPlaced) : []
 
+  // What you'd LOSE by removing this placed slate (step = build without it, base = current) — a
+  // negative/red band, matching the talent-node convention.
+  const delta = useDamageDelta(
+    { key: `slate:rm:${slate.id}`, step: s => ({ ...s, slates: s.slates.filter(sl => sl.id !== slate.id) }) },
+    true,
+  )
+
   return (
     <div style={{
       width: 220, flexShrink: 0, background: '#12121e', borderLeft: '1px solid #2a2a4a',
@@ -654,6 +663,8 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
           })}
         </div>
       )}
+
+      <TooltipContributions delta={delta} />
     </div>
   )
 }
