@@ -58,6 +58,20 @@ class TestCrit:
         )
         assert r.crit_chance == pytest.approx(0.20)
 
+    def test_generic_crit_rating_inc_applies(self):
+        # crit_rating_inc = generic "+% Critical Strike Rating" (both attacks + spells); scales the
+        # whole CSR pool like attack_crit_rating_inc. 500*(1+1.0)=1000 -> 10%.
+        r = calculate_offense(_source(weapon_crit_rating_flat=500.0, crit_rating_inc=1.0), _skill(), 1)
+        assert r.crit_chance == pytest.approx(0.10)
+
+    def test_generic_and_attack_crit_inc_stack(self):
+        # 500*(1 + 1.0 generic + 1.0 attack) = 1500 -> 15%.
+        r = calculate_offense(
+            _source(weapon_crit_rating_flat=500.0, crit_rating_inc=1.0, attack_crit_rating_inc=1.0),
+            _skill(), 1,
+        )
+        assert r.crit_chance == pytest.approx(0.15)
+
     def test_crit_chance_capped_at_1(self):
         r = calculate_offense(_source(weapon_crit_rating_flat=50000.0), _skill(), 1)
         assert r.crit_chance == pytest.approx(1.0)

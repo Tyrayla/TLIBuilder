@@ -182,7 +182,11 @@ def calculate_offense(
     skill: ResolvedSkill,
     base_level: int,
     is_main_skill: bool = True,
+    extra_additional: float = 0.0,
 ) -> OffenseResult:
+    # extra_additional: a skill-intrinsic generic "additional damage" pool (fraction), evaluated
+    # by the caller from the skill's intrinsic_additional + condition state (e.g. Focused Slash's
+    # Fervor bonus). Applied as one extra multiplicative pool on every hit.
     if not skill.supported:
         return OffenseResult(skill_name=skill.name, supported=False)
 
@@ -193,7 +197,11 @@ def calculate_offense(
         1.0 + source.total("attack_crit_rating_gear") + source.total("attack_crit_rating_mh")
     )
     other_csr = source.total("attack_crit_rating_flat")
-    raw_csr = (weapon_csr + other_csr) * (1.0 + source.total("attack_crit_rating_inc"))
+    # Increased Critical Strike Rating scales the whole CSR pool. crit_rating_inc is the GENERIC
+    # "+X% Critical Strike Rating" (applies to both attacks and spells, e.g. Fervor Rating's
+    # +2%/point); attack_crit_rating_inc is the attack-only increase. Both stack additively here.
+    crit_rating_inc = source.total("crit_rating_inc") + source.total("attack_crit_rating_inc")
+    raw_csr = (weapon_csr + other_csr) * (1.0 + crit_rating_inc)
     # 100 CSR = 1% crit chance; divide by 10000 to convert to 0–1 float
     crit_chance = min(raw_csr / 10000.0, 1.0)
     crit_mult = 1.5 + source.total("crit_damage")
@@ -269,7 +277,9 @@ def calculate_offense(
         1.0 + source.total(key)
         for key, tags in _HIT_ADDITIONAL_STATS
         if not (tags & _DTYPE_TAG_SET) and (not tags or tags & skill_tags_lower)
-    )
+    ) * (1.0 + extra_additional)
+    # Skill-intrinsic additional pool (e.g. Fervor bonus) applies generically to every damage type.
+    intrinsic_add = 1.0 + extra_additional
 
     # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
     steep_chance = min(skill.base_steep_strike_chance + source.total("steep_strike_chance"), 1.0)
@@ -308,8 +318,8 @@ def calculate_offense(
         for dtype, (mn, mx) in flat_dmg.items():
             inc = type_inc[dtype]
             add = type_add[dtype]
-            type_min = mn * (eff / 100.0) * (1.0 + inc) * add * above_mult
-            type_max = mx * (eff / 100.0) * (1.0 + inc) * add * above_mult
+            type_min = mn * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult
+            type_max = mx * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult
             avg = (type_min + type_max) / 2.0
             damage_by_type[dtype] = avg
             hit_min_by_type[dtype] = type_min

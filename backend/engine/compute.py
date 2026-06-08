@@ -91,6 +91,20 @@ def _state_snapshot(condition_state: dict[str, float | bool]) -> frozenset:
     return frozenset((k, v) for k, v in condition_state.items())
 
 
+def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict[str, float | bool]) -> float:
+    """Sum a skill's intrinsic 'additional damage' bonuses from the converged condition state.
+    Each bonus = per * rating_value * (1 + effect_value). E.g. Focused Slash's Fervor bonus:
+    0.004 * fervor_rating * (1 + fervor_effect_inc). Returns 0.0 for skills with none."""
+    total = 0.0
+    for ia in getattr(skill, "intrinsic_additional", []):
+        rating = float(condition_state.get(ia.rating_key, 0.0) or 0.0)
+        if rating == 0.0:
+            continue
+        effect = source.total(ia.effect_key) if ia.effect_key else 0.0
+        total += ia.per * rating * (1.0 + effect)
+    return total
+
+
 def compute(
     build_input: BuildInput,
     season_trees: dict[str, dict],
@@ -215,7 +229,12 @@ def compute(
     result_offense = None
     if skill_data and build_input.main_skill:
         resolved = resolve_skill(skill_data)
-        offense = calculate_offense(source, resolved, build_input.main_skill.level, is_main_skill=True)
+        # new_state is the converged, clamped condition state from the loop above.
+        extra_add = _eval_intrinsic_additional(resolved, source, new_state)
+        offense = calculate_offense(
+            source, resolved, build_input.main_skill.level,
+            is_main_skill=True, extra_additional=extra_add,
+        )
         result_offense = asdict(offense)
     source._recording = False
 

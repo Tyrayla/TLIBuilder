@@ -67,6 +67,13 @@ def resolve_effect_stat_keys(effect: str, *, is_memory: bool) -> list[str]:
 
 _ELEMENTAL_TYPES = {"fire", "cold", "lightning", "erosion"}
 
+# Base effects granted per point of Fervor Rating, each multiplied by Fervor Effect
+# (fervor_effect_inc). Today just generic Critical Strike Rating; extend as items add more.
+#   (stat_key, amount_per_point, source_text)
+_FERVOR_BASE_EFFECTS: list[tuple[str, float, str]] = [
+    ("crit_rating_inc", 0.02, "+2% Critical Strike Rating per Fervor Rating"),
+]
+
 _NODE_TYPE_LABELS = {
     "micro": "Micro",
     "medium": "Medium",
@@ -519,5 +526,22 @@ def aggregate(
             points=1,
         )
         source.add_with_source(stat, amount, entry)
+
+    # ── Fervor mechanics ──────────────────────────────────────────────────────
+    # Fervor's BASE effects scale per point of Fervor Rating AND are multiplied by Fervor Effect
+    # (fervor_effect_inc). Today the only base effect is +2% (generic) Critical Strike Rating per
+    # point; future items may add further base effects that scale the same way — they'd just be
+    # added to _FERVOR_BASE_EFFECTS below. Driven off the user-set fervor_rating condition for now
+    # (later this may be gated behind the hero trait that grants it). crit_rating_inc is generic
+    # (read by both attack and spell crit). fervor_effect_inc is a fraction (0.5 = +50%).
+    fervor_rating = float((numeric_vals or {}).get("fervor_rating", 0.0) or 0.0)
+    if fervor_rating > 0:
+        fervor_effect_mult = 1.0 + source.total("fervor_effect_inc")
+        for stat_key, per_point, label_text in _FERVOR_BASE_EFFECTS:
+            amount = per_point * fervor_rating * fervor_effect_mult
+            source.add_with_source(stat_key, amount, SourceEntry(
+                stat=stat_key, amount=amount, source_type="condition",
+                label="Fervor Rating", text=label_text, points=1,
+            ))
 
     return source
