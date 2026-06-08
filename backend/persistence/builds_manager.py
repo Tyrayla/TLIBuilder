@@ -87,6 +87,12 @@ def _read_file(build_id: str) -> dict:
     notes_raw = data.get('notes', '')
     notes = json.loads(notes_raw) if notes_raw else ''
 
+    condition_state_raw = data.get('conditionState', '')
+    condition_state = json.loads(condition_state_raw) if condition_state_raw else {}
+
+    custom_mods_raw = data.get('customMods', '')
+    custom_mods = json.loads(custom_mods_raw) if custom_mods_raw else []
+
     return {
         'id': data.get('id', build_id),
         'name': data.get('name', ''),
@@ -94,6 +100,7 @@ def _read_file(build_id: str) -> dict:
         'slates': slates,
         'conditions': conditions,
         'conditionValues': condition_values,
+        'conditionState': condition_state,
         'gear': gear,
         'skills': skills,
         'characterLevel': character_level,
@@ -105,6 +112,7 @@ def _read_file(build_id: str) -> dict:
         'heroMemories': hero_memories,
         'pactSpirits': pact_spirits,
         'notes': notes,
+        'customMods': custom_mods,
     }
 
 
@@ -150,6 +158,10 @@ def _write_file(build: dict) -> None:
         f.write(f"pact_spirits={json.dumps(pact_spirits, separators=(',', ':'))}\n")
         notes = build.get('notes') or ''
         f.write(f"notes={json.dumps(notes, separators=(',', ':'))}\n")
+        condition_state = build.get('conditionState') or {}
+        f.write(f"conditionState={json.dumps(condition_state, separators=(',', ':'))}\n")
+        custom_mods = build.get('customMods') or []
+        f.write(f"customMods={json.dumps(custom_mods, separators=(',', ':'))}\n")
 
 
 def load() -> list[dict]:
