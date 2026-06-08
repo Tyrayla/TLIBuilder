@@ -123,9 +123,13 @@ def compute(
         )
 
         # Compute derived stats (strength, armor, max_life, etc.) and inject
-        # back into source so the pipeline and condition system can read them
+        # back into source so the pipeline and condition system can read them.
+        # Record consumption here (a derived stat reads its component mod stats, e.g.
+        # max_life_inc); the condition-system reads that follow stay untraced.
         from engine.derive import derive_stats
+        source._recording = True
         derive_stats(source)
+        source._recording = False
 
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS
@@ -202,6 +206,10 @@ def compute(
     from engine.offense import calculate_offense, skill_effective_level
     from engine.skill_resolver import resolve_skill
 
+    # Record stat consumption across the offense + defense passes (defensive stats always read;
+    # offense reads only what the active/modeled skill's pipeline touches — an unmodeled skill
+    # reads nothing, so its damage mods fall out of consumed_stats and read as inert).
+    source._recording = True
     result_defense = asdict(calculate_defense(source))
 
     result_offense = None
@@ -209,6 +217,7 @@ def compute(
         resolved = resolve_skill(skill_data)
         offense = calculate_offense(source, resolved, build_input.main_skill.level, is_main_skill=True)
         result_offense = asdict(offense)
+    source._recording = False
 
     # Skill slot summaries — effective level for every equipped skill
     result_skill_slots: list[dict] | None = None
@@ -238,4 +247,5 @@ def compute(
         offense=result_offense,
         defense=result_defense,
         skill_slots=result_skill_slots,
+        consumed_stats=sorted(source.consumed_stats),
     )

@@ -40,6 +40,11 @@ class BuildSource:
     """Flat list of (stat_value_string, numeric_amount) from all build sources."""
     _entries: list[tuple[str, float]] = field(default_factory=list)
     source_log: list[SourceEntry] = field(default_factory=list)
+    # Consumption tracing (drives the "inert modifier" badges). When _recording is on, every stat
+    # key read via total() is recorded in consumed_stats. compute.py turns it on only around the
+    # consumption passes (derive_stats / offense / defense) so condition-system reads don't count.
+    consumed_stats: set[str] = field(default_factory=set)
+    _recording: bool = False
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
@@ -49,6 +54,8 @@ class BuildSource:
         self.source_log.append(entry)
 
     def total(self, stat: str) -> float:
+        if self._recording:
+            self.consumed_stats.add(stat)
         return sum(v for s, v in self._entries if s == stat)
 
     def all_stats(self) -> set[str]:
@@ -100,3 +107,4 @@ class StatResult:
     offense:             dict | None = None      # OffenseResult as dict, or None if no skill
     defense:             dict | None = None      # DefenseResult as dict
     skill_slots:         list[dict] | None = None  # per-slot summary: slot, skill_id, skill_name, level, effective_level, supported
+    consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build

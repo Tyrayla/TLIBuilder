@@ -35,6 +35,36 @@ _MEMORY_MULTI_LOOKUP: dict[tuple[str, bool], list[str]] = {
 }
 
 
+def resolve_effect_stat_keys(effect: str, *, is_memory: bool) -> list[str]:
+    """Map a pact-spirit / hero-memory effect string to the stat key(s) the engine would consume
+    for it — using the EXACT same matching as aggregate() above (kept here, co-located, so the
+    /api/map-modifiers endpoint can't drift from the engine). Empty list = unrecognized.
+
+    Spirits use the single display-name lookup; memories additionally split dual-stat phrases and
+    consult the alias + multi-stat lookups.
+    """
+    effect = re.sub(r'\s+', ' ', (effect or '').strip())
+    keys: list[str] = []
+    parts = re.split(r' (?=\+\d)', effect, maxsplit=1) if is_memory else [effect]
+    for part in parts:
+        m = _MEMORY_EFFECT_RE.match(part)
+        if not m:
+            continue
+        is_pct = bool(m.group(2))
+        name = m.group(3).strip().lower()
+        sk = _MEMORY_STAT_LOOKUP.get((name, is_pct))
+        if not sk and is_memory:
+            sk = _MEMORY_ALIAS_LOOKUP.get((name, is_pct))
+        if sk:
+            keys.append(sk)
+            continue
+        if is_memory:
+            multi = _MEMORY_MULTI_LOOKUP.get((name, is_pct))
+            if multi:
+                keys.extend(multi)
+    return keys
+
+
 _ELEMENTAL_TYPES = {"fire", "cold", "lightning", "erosion"}
 
 _NODE_TYPE_LABELS = {

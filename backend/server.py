@@ -634,6 +634,7 @@ def engine_stats(req: EngineStatsRequest):
         "defense": result.defense,
         "custom_mod_statuses": custom_mod_statuses,
         "skill_slots": result.skill_slots,
+        "consumed_stats": result.consumed_stats,
     }
 
 
@@ -2041,6 +2042,81 @@ def resolve_gear_affixes(req: ResolveGearAffixesRequest):
     return {"results": results}
 
 
+class MapModifierItem(BaseModel):
+    key: str
+    text: str
+    source: str                  # "gear" | "spirit" | "memory" | "talent" | "slate"
+    node_id: str | None = None
+
+
+class MapModifiersRequest(BaseModel):
+    items: list[MapModifierItem]
+
+
+def _affix_stat_keys(resolved: dict) -> list[str]:
+    """Collect every stat key a resolved gear affix maps to (single/multi/range/dual), de-duped."""
+    keys: list[str] = []
+    if resolved.get("stat_key"):
+        keys.append(resolved["stat_key"])
+    for k in ("stat_keys", "min_stat_keys", "max_stat_keys"):
+        keys.extend(resolved.get(k) or [])
+    for g in (resolved.get("dual_stat_groups") or []):
+        keys.extend(g.get("stat_keys") or [])
+    seen: set[str] = set()
+    out: list[str] = []
+    for s in keys:
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
+@app.post("/api/map-modifiers")
+def map_modifiers(req: MapModifiersRequest):
+    """Map raw modifier texts (spirit / memory / talent / slate) to the engine stat key(s) they
+    resolve to, so the renderer can flag modifiers whose stat the engine doesn't recognize and
+    cross-check the rest against the build's consumed_stats. Deterministic per data version (the
+    frontend caches the result). Reuses the exact engine resolvers — no parallel logic.
+
+    Gear/vorax already carry stat_key on the affix object, so they need not be sent; `source:
+    'gear'` is still handled (via _resolve_affix) for completeness.
+    """
+    import re as _re
+    from engine.aggregator import resolve_effect_stat_keys
+    from tools.node_type_filter_builder import load_filter
+
+    filter_data = load_filter() or {}
+    node_recipes = filter_data.get("node_recipes", {})
+
+    def _norm(s: str) -> str:
+        return _re.sub(r'\s+', ' ', (s or '').strip()).lower()
+
+    def _node_keys(node_id: str | None, text: str) -> list[str]:
+        if not node_id:
+            return []
+        nt = _norm(text)
+        out: list[str] = []
+        for r in (node_recipes.get(node_id) or []):
+            if r.get("stat") and _norm(r.get("text", "")) == nt:
+                out.append(r["stat"])
+        return out
+
+    results: dict[str, dict] = {}
+    for it in req.items:
+        if it.key in results:
+            continue
+        if it.source in ("spirit", "memory"):
+            keys = resolve_effect_stat_keys(it.text, is_memory=(it.source == "memory"))
+        elif it.source in ("talent", "slate"):
+            keys = _node_keys(it.node_id, it.text)
+        elif it.source == "gear":
+            keys = _affix_stat_keys(_resolve_affix({"raw_text": it.text, "affix_kind": "numeric"}))
+        else:
+            keys = []
+        results[it.key] = {"stat_keys": keys}
+    return {"results": results}
+
+
 @app.delete("/api/dev/craft-base-types")
 def clear_craft_base_types():
     global _craft_bases_cache
@@ -2072,6 +2148,22 @@ def import_crawler_grafts_endpoint(req: ImportCrawlerGraftsRequest):
     return {"ok": True, "count": len(grafts)}
 
 
+def _resolve_grafts(grafts: list) -> list:
+    """Attach stat resolution fields to graft affixes (same as legendary/craft) so vorax items
+    carry stat_key like other gear and flow through the same modifier-status check."""
+    for g in grafts:
+        for key in ("base_affixes", "affixes"):
+            for affix in g.get(key, []):
+                if affix.get("affix_kind") in ("special", "placeholder"):
+                    continue
+                resolved = _resolve_affix(affix)
+                affix.update({k: resolved[k] for k in ("stat_key", "unit") if k in resolved})
+                for extra_key in ("stat_keys", "is_range_split", "min_stat_keys", "max_stat_keys", "dual_stat_groups"):
+                    if extra_key in resolved:
+                        affix[extra_key] = resolved[extra_key]
+    return grafts
+
+
 @app.get("/api/grafts")
 def get_grafts():
     active = season_manager.get_active_season()
@@ -2080,7 +2172,7 @@ def get_grafts():
     data = season_manager.load_grafts(active)
     if not data:
         return {"season": active, "grafts": []}
-    return {"season": active, "grafts": data.get("grafts", [])}
+    return {"season": active, "grafts": _resolve_grafts(data.get("grafts", []))}
 
 
 @app.delete("/api/dev/grafts")
