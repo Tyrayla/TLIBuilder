@@ -2,11 +2,23 @@ import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution,
   buildCharacterContributions, buildMemoryEffects, buildSpiritEffects,
 } from '../api/client'
+import { itemHasSlot } from './gearItem'
 import type { useBuildStore } from '../store/buildStore'
 
 export { buildCharacterContributions, buildMemoryEffects, buildSpiritEffects }
 
 export type BuildState = ReturnType<typeof useBuildStore.getState>
+
+// Dual wielding = both weapon slots hold a WEAPON (not a shield, and not a 2H which only fills
+// weapon1). Drives the auto-set `dual_wielding` condition (the engine grants its base effects).
+function isShieldItem(item: EquippedGearItem): boolean {
+  return /shield/i.test(item.base_type ?? '')
+}
+export function isDualWielding(gear: EquippedGearItem[]): boolean {
+  const w1 = gear.find(i => itemHasSlot(i, 'weapon1'))
+  const w2 = gear.find(i => itemHasSlot(i, 'weapon2'))
+  return !!w1 && !!w2 && !isShieldItem(w1) && !isShieldItem(w2)
+}
 
 /**
  * Assemble the `/engine/stats` request payload from current store state.
@@ -17,7 +29,9 @@ export function buildEngineStatsPayload(s: BuildState) {
   return {
     slots: s.slots,
     slates: s.slates,
-    condition_state: s.conditionState,
+    // dual_wielding is auto-derived from gear (overrides any stored value) — the engine grants its
+    // base effects when set.
+    condition_state: { ...s.conditionState, dual_wielding: isDualWielding(s.gear) },
     gear: buildGearPayload(s.gear),
     character: buildCharacterContributions(s.gear, s.characterLevel, s.hasPrism),
     memory_effects: buildMemoryEffects(s.heroMemories),

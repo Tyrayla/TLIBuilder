@@ -74,6 +74,15 @@ _FERVOR_BASE_EFFECTS: list[tuple[str, float, str]] = [
     ("crit_rating_inc", 0.02, "+2% Critical Strike Rating per Fervor Rating"),
 ]
 
+# Flat base effects granted while dual wielding (gated by the auto-set 'dual_wielding' condition).
+# Fixed amounts — not scaled (an item can convert the block-chance portion to block ratio, but that
+# conversion isn't modeled yet). Block chance isn't consumed by the engine yet (block defense NYI).
+#   (stat_key, amount, source_text)   — % stats stored as fractions
+_DUAL_WIELD_BASE_EFFECTS: list[tuple[str, float, str]] = [
+    ("attack_block_chance_inc", 0.30, "+30% Attack Block Chance (Dual Wield)"),
+    ("attack_speed_additional", 0.10, "+10% additional Attack Speed (Dual Wield)"),
+]
+
 _NODE_TYPE_LABELS = {
     "micro": "Micro",
     "medium": "Medium",
@@ -542,6 +551,16 @@ def aggregate(
             source.add_with_source(stat_key, amount, SourceEntry(
                 stat=stat_key, amount=amount, source_type="condition",
                 label="Fervor Rating", text=label_text, points=1,
+            ))
+
+    # ── Dual wielding base effects ────────────────────────────────────────────
+    # Granted while wielding two one-handed weapons (the 'dual_wielding' condition is auto-set by the
+    # planner from gear). Fixed amounts, not scaled.
+    if "dual_wielding" in (active_booleans or frozenset()):
+        for stat_key, amount, label_text in _DUAL_WIELD_BASE_EFFECTS:
+            source.add_with_source(stat_key, amount, SourceEntry(
+                stat=stat_key, amount=amount, source_type="condition",
+                label="Dual Wielding", text=label_text, points=1,
             ))
 
     return source
