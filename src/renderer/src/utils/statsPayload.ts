@@ -2,8 +2,31 @@ import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution,
   buildEnergyContributions, buildMemoryEffects, buildSpiritEffects,
 } from '../api/client'
+import type { useBuildStore } from '../store/buildStore'
 
 export { buildEnergyContributions, buildMemoryEffects, buildSpiritEffects }
+
+export type BuildState = ReturnType<typeof useBuildStore.getState>
+
+/**
+ * Assemble the `/engine/stats` request payload from current store state.
+ * Shared by the background recalc (useBuildCalculation) and the damage-delta hook so both
+ * produce an identical payload — the delta hook then applies a hypothetical change on top.
+ */
+export function buildEngineStatsPayload(s: BuildState) {
+  return {
+    slots: s.slots,
+    slates: s.slates,
+    condition_state: s.conditionState,
+    gear: buildGearPayload(s.gear),
+    character: buildEnergyContributions(s.gear, s.characterLevel, s.hasPrism),
+    memory_effects: buildMemoryEffects(s.heroMemories),
+    spirit_effects: buildSpiritEffects(s.pactSpirits, s.allSpirits),
+    main_skill: s.mainSkill ?? null,
+    skills: s.skills.map(sk => ({ slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1 })),
+    custom_mods: s.customMods,
+  }
+}
 
 function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null): GearAffixContribution[] {
   const mutationAffix = item.corrosion_type === 'mutation' ? (item.mutation_resolved_affix ?? null) : null

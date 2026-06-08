@@ -1112,6 +1112,25 @@ export interface GearAffixContribution {
   condition?: Record<string, unknown> | string | null
 }
 
+// ── Damage-delta contract (tooltip damage-preview band) ──────────────────────────
+// Describes a hypothetical build change to price against the current build. The backend
+// endpoint that consumes this is NOT BUILT YET — see docs/TOOLTIP_REVAMP_HANDOFF.md §6.
+export type HypotheticalChange =
+  // allocate_node prices the marginal next point (or, when maxed, removing the last point).
+  // The hook reads the node's current points from the build and steps by ±1; max_points tells
+  // it whether the next step is an add or a removal.
+  | { kind: 'allocate_node'; node_id: string; max_points: number }
+  | { kind: 'equip_gear'; slot: GearSlot; item_id: string }
+  | { kind: 'place_slate'; slate_id: string }
+  | { kind: 'socket_memory'; slot: number; memory_id: string }
+  | { kind: 'pact_spirit_node'; node_id: string }
+
+export interface DamageDeltaResult {
+  supported: boolean   // false → render the NYI band (engine's all-or-nothing per-skill support)
+  absolute: number     // change in the headline damage metric
+  percent: number      // change as a percentage of current
+}
+
 export interface GearEngineItem {
   contributions: GearAffixContribution[]
 }
