@@ -17,15 +17,19 @@ class SkillHitForm:
 
 @dataclass
 class IntrinsicAdditional:
-    """A skill-intrinsic 'additional damage' pool that scales with a numeric condition (and
-    optionally an effect % stat). E.g. Focused Slash: +0.4% additional damage per Fervor Rating,
-    'affected by Fervor Effect'. Evaluated in compute.py (which has both the source and the
-    condition state) and applied as one extra additional pool in calculate_offense.
-        bonus_fraction = per * rating_value * (1 + effect_value)
+    """A skill-intrinsic 'additional damage' pool that scales with a rating value. The rating comes
+    from a numeric condition (rating_source='condition', e.g. Focused Slash's Fervor Rating) or from
+    an aggregated stat (rating_source='stat', e.g. Moon Strike's Max Mana). Evaluated in compute.py
+    (which has both the source and the condition state) and applied as one extra additional pool in
+    calculate_offense:
+        bonus_fraction = min(per * (rating / per_n) * (1 + effect_value), cap)
     """
-    per: float               # fraction of additional damage per 1 unit of rating (0.004 = 0.4%)
-    rating_key: str          # numeric condition key whose value multiplies `per` (e.g. 'fervor_rating')
-    effect_key: str | None = None  # optional % stat that scales the whole bonus (e.g. 'fervor_effect_inc')
+    per: float                        # additional fraction per unit of (rating / per_n) — 0.004 = 0.4%
+    rating_key: str                   # condition or stat key supplying the scaling value
+    rating_source: str = "condition"  # "condition" (condition_state) or "stat" (source.total)
+    per_n: float = 1.0                # divide the rating by this first (e.g. 100 → per 100 Max Mana)
+    cap: float | None = None          # max bonus fraction, e.g. 0.70 = +70%
+    effect_key: str | None = None     # optional % stat scaling the whole bonus (e.g. 'fervor_effect_inc')
 
 
 @dataclass
@@ -38,6 +42,10 @@ class ResolvedSkill:
     supported: bool = True  # False when skill_id is not in registry
     base_steep_strike_chance: float = 0.0  # intrinsic passive from skill text (e.g. "This skill +20% Steep Strike chance")
     intrinsic_additional: list[IntrinsicAdditional] = field(default_factory=list)
+    # Extra tags merged into the skill's tag set ONLY for damage increased/additional filtering, so a
+    # skill can benefit from off-type damage mods. E.g. Moon Strike: ['spell'] → Spell Damage
+    # inc/additional apply to its Attack Damage (without making it count as a spell for flat adds).
+    extra_damage_mod_tags: list[str] = field(default_factory=list)
 
 
 _REGISTRY: dict[str, Callable[[dict], ResolvedSkill]] = {}
@@ -64,7 +72,9 @@ _SKILL_STEEP_CHANCE_RE = re.compile(
 
 
 def _resolve_slash_skill(
-    skill_data: dict, intrinsic_additional: list[IntrinsicAdditional] | None = None,
+    skill_data: dict,
+    intrinsic_additional: list[IntrinsicAdditional] | None = None,
+    extra_damage_mod_tags: list[str] | None = None,
 ) -> ResolvedSkill:
     """Shared resolver for the Sweep Slash / Steep Strike skill family."""
     max_level = skill_data.get("max_level", 20)
@@ -98,6 +108,7 @@ def _resolve_slash_skill(
         supported=True,
         base_steep_strike_chance=base_steep,
         intrinsic_additional=intrinsic_additional or [],
+        extra_damage_mod_tags=extra_damage_mod_tags or [],
     )
 
 
@@ -116,6 +127,21 @@ def _resolve_focused_slash(skill_data: dict) -> ResolvedSkill:
     return _resolve_slash_skill(
         skill_data,
         [IntrinsicAdditional(per=0.004, rating_key="fervor_rating", effect_key="fervor_effect_inc")],
+    )
+
+
+# Moon Strike — Tags: Attack, Area, Physical, Melee, Slash-Strike. Two baseline quirks:
+#  - "Spell Damage bonus and additional bonus also apply to the skill's Attack Damage" → borrow ALL
+#    Spell Damage inc/additional mods via extra tag 'spell' (each still gated by its own condition).
+#  - "+1% additional damage per 100 Max Mana, up to +70%" → mana-scaled intrinsic additional pool.
+@_register("moon_strike")
+def _resolve_moon_strike(skill_data: dict) -> ResolvedSkill:
+    return _resolve_slash_skill(
+        skill_data,
+        intrinsic_additional=[IntrinsicAdditional(
+            per=0.01, rating_key="max_mana", rating_source="stat", per_n=100.0, cap=0.70,
+        )],
+        extra_damage_mod_tags=["spell"],
     )
 
 

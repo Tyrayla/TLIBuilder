@@ -92,16 +92,24 @@ def _state_snapshot(condition_state: dict[str, float | bool]) -> frozenset:
 
 
 def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict[str, float | bool]) -> float:
-    """Sum a skill's intrinsic 'additional damage' bonuses from the converged condition state.
-    Each bonus = per * rating_value * (1 + effect_value). E.g. Focused Slash's Fervor bonus:
-    0.004 * fervor_rating * (1 + fervor_effect_inc). Returns 0.0 for skills with none."""
+    """Sum a skill's intrinsic 'additional damage' bonuses. Each bonus is
+        min(per * (rating / per_n) * (1 + effect_value), cap)
+    where rating comes from a condition (Focused Slash's Fervor Rating) or an aggregated stat
+    (Moon Strike's Max Mana). Returns 0.0 for skills with none."""
     total = 0.0
     for ia in getattr(skill, "intrinsic_additional", []):
-        rating = float(condition_state.get(ia.rating_key, 0.0) or 0.0)
-        if rating == 0.0:
+        if getattr(ia, "rating_source", "condition") == "stat":
+            rating = source.total(ia.rating_key)
+        else:
+            rating = float(condition_state.get(ia.rating_key, 0.0) or 0.0)
+        if rating <= 0.0:
             continue
         effect = source.total(ia.effect_key) if ia.effect_key else 0.0
-        total += ia.per * rating * (1.0 + effect)
+        amount = ia.per * (rating / getattr(ia, "per_n", 1.0)) * (1.0 + effect)
+        cap = getattr(ia, "cap", None)
+        if cap is not None:
+            amount = min(amount, cap)
+        total += amount
     return total
 
 

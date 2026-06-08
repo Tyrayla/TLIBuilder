@@ -61,7 +61,7 @@ class TestResolution:
 class TestIntrinsicEval:
     def _fs_skill(self):
         return ResolvedSkill("focused_slash", "FS", [], 20, {},
-                             intrinsic_additional=[IntrinsicAdditional(0.004, "fervor_rating", "fervor_effect_inc")])
+                             intrinsic_additional=[IntrinsicAdditional(0.004, "fervor_rating", effect_key="fervor_effect_inc")])
 
     def test_fervor_bonus_scales_with_rating_and_effect(self):
         s = BuildSource(); s.add("fervor_effect_inc", 0.5)  # +50% Fervor Effect

@@ -209,6 +209,10 @@ def calculate_offense(
 
     # 1. Effective level — sum all applicable skill level bonuses from gear/talents/memories
     skill_tags_lower = {t.lower() for t in skill.tags}
+    # Tags used for damage increased/additional filtering only — the skill's own tags plus any it
+    # borrows (e.g. Moon Strike borrows 'spell' so Spell Damage mods apply to its Attack Damage).
+    # NOT used for flat adds / is_spell, so a borrowing skill doesn't pull in off-type flat damage.
+    mod_tags = skill_tags_lower | {t.lower() for t in skill.extra_damage_mod_tags}
     effective_level = skill_effective_level(source, skill.tags, base_level, is_main_skill)
     lookup_level = min(effective_level, skill.max_level)
 
@@ -258,12 +262,12 @@ def calculate_offense(
         type_inc[dtype] = sum(
             source.total(key)
             for key, tags in _HIT_INC_STATS
-            if not tags or tags & skill_tags_lower or tags & dtype_tag
+            if not tags or tags & mod_tags or tags & dtype_tag
         )
         type_add[dtype] = prod(
             1.0 + source.total(key)
             for key, tags in _HIT_ADDITIONAL_STATS
-            if not tags or tags & skill_tags_lower or tags & dtype_tag
+            if not tags or tags & mod_tags or tags & dtype_tag
         )
 
     # Generic (non-dtype-specific) multipliers — applies uniformly to every damage type.
@@ -271,12 +275,12 @@ def calculate_offense(
     generic_inc = sum(
         source.total(key)
         for key, tags in _HIT_INC_STATS
-        if not (tags & _DTYPE_TAG_SET) and (not tags or tags & skill_tags_lower)
+        if not (tags & _DTYPE_TAG_SET) and (not tags or tags & mod_tags)
     )
     generic_add = prod(
         1.0 + source.total(key)
         for key, tags in _HIT_ADDITIONAL_STATS
-        if not (tags & _DTYPE_TAG_SET) and (not tags or tags & skill_tags_lower)
+        if not (tags & _DTYPE_TAG_SET) and (not tags or tags & mod_tags)
     ) * (1.0 + extra_additional)
     # Skill-intrinsic additional pool (e.g. Fervor bonus) applies generically to every damage type.
     intrinsic_add = 1.0 + extra_additional
