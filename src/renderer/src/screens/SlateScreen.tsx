@@ -702,11 +702,15 @@ export default function SlateScreen({ treeColors, onBack }: Props) {
   const [hoverSlateId, setHoverSlateId] = useState<string | null>(null)
   const [dragSlate, setDragSlate] = useState<{ slate: PlacedSlate; startCell: [number, number] } | null>(null)
   const suppressNextClick = useRef(false)
-  const isFirstRender = useRef(true)
 
+  // Sync the local board back to the build store — but ONLY when the slates actually changed.
+  // Comparing against the store (instead of a first-render ref) avoids spuriously bumping
+  // buildVersion (marking the build dirty) on entry, including StrictMode's double-invoked mount.
   useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return }
-    setSlates(placed.map(({ pool: _p, ...s }) => s as SavedSlate))
+    const next = placed.map(({ pool: _p, ...s }) => s as SavedSlate)
+    if (JSON.stringify(next) !== JSON.stringify(useBuildStore.getState().slates)) {
+      setSlates(next)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed])
 
