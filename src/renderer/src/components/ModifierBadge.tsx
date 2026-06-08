@@ -92,7 +92,7 @@ export function useTextModifierStatus(text: string | null | undefined, source: M
 // ── Badge ────────────────────────────────────────────────────────────────────────
 const LABEL: Record<Exclude<ModifierStatus, 'working'>, string> = {
   unused: 'Inactive',
-  unrecognized: 'Unrecognized',
+  unrecognized: 'Unrecognized (NYI)',
 }
 const TITLE: Record<Exclude<ModifierStatus, 'working'>, string> = {
   unused: "Recognized stat, but the current build's skill/calculation doesn't use it.",

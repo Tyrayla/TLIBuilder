@@ -50,10 +50,18 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   border-radius: 3px; padding: 1px 5px; margin-left: 6px; vertical-align: middle;
   white-space: nowrap; cursor: default; letter-spacing: 0.3px;
 }
-/* Inert-modifier badges: "Inactive" (recognized but unused) = filled red; "Unrecognized" (no
-   engine stat) = hollow/outlined so the two coverage gaps read distinctly at a glance. */
-.nyi-tag--unused { color: #ff8a5c; background: rgba(255,138,92,0.14); border-color: rgba(255,138,92,0.35); }
-.nyi-tag--unrecognized { color: #ff6b6b; background: transparent; border-style: dashed; }
+/* Inert-modifier badges. Colors use !important because context rules (notably
+   .tooltip-stat-row span:last-child -> var(--ok) green) target the trailing badge span and would
+   otherwise tint it green. "Inactive" = amber (recognized stat, unused by this build);
+   "Unrecognized (NYI)" = red dashed (maps to no engine stat). */
+.nyi-tag--unused {
+  color: #e0a83a !important;
+  background: rgba(224,168,58,0.12); border-color: rgba(224,168,58,0.34);
+}
+.nyi-tag--unrecognized {
+  color: #ff6b6b !important;
+  background: rgba(255,107,107,0.10); border-style: dashed; border-color: rgba(255,107,107,0.5);
+}
 
 .btn-back {
   background: transparent;
