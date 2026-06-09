@@ -1,8 +1,9 @@
 import {
-  EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution,
+  EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution, CraftBaseItemGroup,
   buildCharacterContributions, buildMemoryEffects, buildSpiritEffects,
 } from '../api/client'
 import { itemHasSlot } from './gearItem'
+import { useReferenceStore } from '../store/referenceStore'
 import type { useBuildStore } from '../store/buildStore'
 
 export { buildCharacterContributions, buildMemoryEffects, buildSpiritEffects }
@@ -20,6 +21,38 @@ export function isDualWielding(gear: EquippedGearItem[]): boolean {
   return !!w1 && !!w2 && !isShieldItem(w1) && !isShieldItem(w2)
 }
 
+// base-item-name → weapon-class map, built from the prefetched craft base-items catalog
+// (e.g. "Battlefield Longsword" → "one_handed_sword", "Blue Sea Greataxe" → "two_handed_axe").
+// Memoized by the catalog array reference so it rebuilds only when the reference data changes.
+let _weaponClassCache: { groups: CraftBaseItemGroup[]; map: Map<string, string> } | null = null
+function weaponClassMap(): Map<string, string> {
+  const groups = useReferenceStore.getState().craftBaseItems ?? []
+  if (_weaponClassCache && _weaponClassCache.groups === groups) return _weaponClassCache.map
+  const map = new Map<string, string>()
+  for (const g of groups) {
+    for (const bi of g.base_items) map.set(bi.name, g.item_id)
+  }
+  _weaponClassCache = { groups, map }
+  return map
+}
+
+// Count of distinct weapon classes across equipped weapon slots — drives the auto-set
+// `unique_weapon_types` condition (e.g. Bladerunner's "+X% per unique type of weapon equipped").
+// Resolves each weapon's base_type name to its class via the catalog; an unknown base counts as
+// its own distinct type so it is never silently dropped.
+export function countUniqueWeaponTypes(gear: EquippedGearItem[]): number {
+  const weapons = gear.filter(i =>
+    (itemHasSlot(i, 'weapon1') || itemHasSlot(i, 'weapon2')) && !isShieldItem(i))
+  if (weapons.length === 0) return 0
+  const classMap = weaponClassMap()
+  const classes = new Set<string>()
+  for (const w of weapons) {
+    const cls = w.base_type ? classMap.get(w.base_type) : undefined
+    classes.add(cls ?? `unknown:${w.base_type ?? w.item_id}`)
+  }
+  return classes.size
+}
+
 /**
  * Assemble the `/engine/stats` request payload from current store state.
  * Shared by the background recalc (useBuildCalculation) and the damage-delta hook so both
@@ -29,9 +62,12 @@ export function buildEngineStatsPayload(s: BuildState) {
   return {
     slots: s.slots,
     slates: s.slates,
-    // dual_wielding is auto-derived from gear (overrides any stored value) — the engine grants its
-    // base effects when set.
-    condition_state: { ...s.conditionState, dual_wielding: isDualWielding(s.gear) },
+    // dual_wielding and unique_weapon_types are auto-derived from gear (override any stored value).
+    condition_state: {
+      ...s.conditionState,
+      dual_wielding: isDualWielding(s.gear),
+      unique_weapon_types: countUniqueWeaponTypes(s.gear),
+    },
     gear: buildGearPayload(s.gear),
     character: buildCharacterContributions(s.gear, s.characterLevel, s.hasPrism),
     memory_effects: buildMemoryEffects(s.heroMemories),
