@@ -80,6 +80,13 @@ pooling: 1.16/1.03/−0.20 vs 1.1664/1.026/0.16). Auditor: `tools/audit_affix_id
 STILL pooled by stat-key (FUTURE, marked in offense.py): attack-speed additional; damage-taken
 additional; `extra_additional` application; "(multiplies)" per-stack compounding.
 
+**Note on `(multiplies)`:** the keyword IS on 24+ real legendary affixes (e.g. Marksman Bracers
+`+X% additional damage dealt by Horizontal Projectiles after each Jump (multiplies)`), but **none
+resolve to a stat yet — all NYI** (no `stat_key`, so the renderer skips them and they contribute
+nothing). So the engine never reaches the compounding path today, and there is no current bug. When
+such an affix is modelled it needs: a stat for the scoped additional damage, a per-stack count
+condition (e.g. jumps), and the compounding mode `(1+per)^stacks − 1`.
+
 ## 6. Immunity tripwire (SHIPPED)
 
 `engine/guards.py::check_damage_taken_immunity`, called at the end of `compute.py`'s fixed-point

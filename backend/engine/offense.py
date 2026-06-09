@@ -74,7 +74,10 @@ _DTYPE_TAG_SET = frozenset(DAMAGE_TYPES)
 # Scope of this pass: OUTGOING HIT damage only. FUTURE (per-affix rework), still pooled by stat-key
 # elsewhere: attack-speed additional (below); damage-taken-additional family (enemy debuffs —
 # defense side / engine.guards immunity tripwire). Also FUTURE: "(multiplies)" per-stack compounding
-# (no supported affix uses it today; default per×stacks stands).
+# — the keyword IS on 24+ real legendary affixes (e.g. Marksman Bracers "additional damage dealt by
+# Horizontal Projectiles after each Jump (multiplies)"), but none resolve to a stat yet (all NYI), so
+# the engine never reaches that path today. When such an affix is modelled, its per-stack scaling must
+# compound as (1+per)^stacks-1 instead of the default per×stacks.
 _HIT_ADDITIONAL_TAGS: dict[str, frozenset] = {key: tags for key, tags in _HIT_ADDITIONAL_STATS}
 _HIT_ADDITIONAL_KEYS: frozenset[str] = frozenset(_HIT_ADDITIONAL_TAGS)
 
