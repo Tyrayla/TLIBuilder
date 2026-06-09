@@ -1,7 +1,9 @@
 # Additional-Damage Pooling — model & rework plan
 
-Status: **design confirmed, implementation pending in-game verification.** Captures the decisions
-from the 2026-06-08 discussion. The immunity tripwire (§6) is the only part shipped so far.
+Status: **design confirmed (verbally), Option A implementation greenlit.** Captures the decisions
+from the 2026-06-08 discussion. The core rule — distinct additional affixes **multiply** — is
+owner-confirmed verbally; an in-game DPS spot-check (§7.1) is still queued for when servers return,
+but implementation proceeds now. The immunity tripwire (§6) is the only part shipped so far.
 
 ## 1. Source of truth (TLI Help Database, authoritative)
 
@@ -62,6 +64,22 @@ computation by the source entries' normalized `text` (carried in `SourceEntry.te
 `source.total(stat_key)`, keeping tag-scoping, with positives summed per identity and each negative
 contribution/affix as its own factor.
 
+## 5b. Option A — SHIPPED for hit damage (2026-06-09)
+
+Per-affix pooling is live in `engine/offense.py` (the `/engine/stats` path): `_build_additional_factors`
+groups `source.source_log` by `(stat_key, affix_identity(text))` — positives per identity sum into one
+factor, each negative is its own factor — and `_additional_product` applies the existing tag-scope
+predicates. Identity = `engine/affix_identity.py::affix_identity` (strips signs/ranges/`%`/`#`
+placeholder/punctuation; keeps the hyphen). `add()`-only contributions (no source_log) reconcile by
+stat-key, preserving legacy behavior. Gear now threads affix `raw_text` (renderer
+`statsPayload._buildItemContributions` → `GearAffixContribution.text` → `aggregator` SourceEntry).
+Legacy `pipeline.py` / `/engine/compute` marked DEPRECATED. Tests: `TestAdditionalPooling` in
+`tests/test_engine_offense.py` (real affix strings; ★ cases empirically fail under old stat-key
+pooling: 1.16/1.03/−0.20 vs 1.1664/1.026/0.16). Auditor: `tools/audit_affix_identities.py`.
+
+STILL pooled by stat-key (FUTURE, marked in offense.py): attack-speed additional; damage-taken
+additional; `extra_additional` application; "(multiplies)" per-stack compounding.
+
 ## 6. Immunity tripwire (SHIPPED)
 
 `engine/guards.py::check_damage_taken_immunity`, called at the end of `compute.py`'s fixed-point
@@ -70,18 +88,28 @@ loop. Raises `ImmunityThresholdError` if any single damage-taken stat reaches �
 forward-looking guard so the unmodelled multiplicative case is surfaced loudly instead of silently
 zeroing damage. No current build trips it. (`taken_as` conversions are excluded.)
 
-## 7. Open items — verify in-game before building §2/§5
+## 7. Verification status (in-game checks queued; implementation not blocked)
 
-1. **Positives multiply across distinct affixes.** Easiest test: dummy DPS `D0`; add one big
-   distinct additional (`+50%`) → expect `×1.50`; add a second differently-worded additional of the
-   same type → `×2.00` (add) vs `×2.25` (multiply). 25% gap is unmistakable.
-2. **Identical-wording positives add** (Gravel + Sun-shooter Long Bow) — confirmed verbally; spot-check.
-3. **Negative: shared-cap bounded adds, distinct/unbounded multiply.** Stack identical bounded
-   debuffs (shared cap → add) vs two distinct debuffs (multiply); confirm no immunity.
-4. **"(multiplies)" compounding** vs default per-stack at high stack counts.
+1. **Positives multiply across distinct affixes.** ✅ **Verbally confirmed (owner, 2026-06-08).**
+   In-game DPS spot-check still queued for when servers return: dummy DPS `D0`; add one big distinct
+   additional (`+50%`) → expect `×1.50`; add a second differently-worded additional of the same type
+   → `×2.00` (add) vs `×2.25` (multiply). 25% gap is unmistakable.
+2. **Identical-wording positives add** (Gravel + Sun-shooter Long Bow) — ✅ confirmed verbally; spot-check.
+3. **Negative: shared-cap bounded adds, distinct/unbounded multiply.** ✅ confirmed verbally; spot-check.
+   Stack identical bounded debuffs (shared cap → add) vs two distinct debuffs (multiply); confirm no immunity.
+4. **"(multiplies)" compounding** vs default per-stack at high stack counts — still to verify in-game.
 
 ## 8. Out of scope (for now)
 
 Compass / map modifiers (owner wants these modelled eventually, not now). The per-affix math above
 still applies to on-character negatives (legendary drawbacks, talent `−X%`), which are almost always
 single-instance.
+
+**Core talents are NOT a pooling concern — dedup at source.** The affix-identity audit flags
+item-granted core talents (legendary affixes prefixed with a `[Keyword]`, e.g. `[Thunderclap]` on
+*Illusory Ocean Silk - Thunder*, `[Penetrating]`/`[Translucent]` on *Grasp of Truth*) against the
+plain selected/skill version. A core talent is **unique**: granted + selected (or granted by multiple
+items) it must apply **exactly once** — never add or multiply. This is a SOURCE-LEVEL dedup upstream
+of the additional pooling, NOT a normalizer change (stripping the bracket would wrongly make them add).
+Currently moot — the engine doesn't apply `coreTalentSelections` and these affixes are NYI. Build the
+dedup when core talents + item-granting are modelled. See auto-memory `project_core_talent_uniqueness`.

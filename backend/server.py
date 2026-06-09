@@ -499,6 +499,8 @@ class EngineComputeRequest(BaseModel):
 
 @app.post("/api/engine/compute")
 def engine_compute(req: EngineComputeRequest):
+    # DEPRECATED: legacy path (engine.pipeline). No renderer caller; /api/engine/stats (offense.py)
+    # is the source of truth. Known-divergent additional pooling — see docs/ADDITIONAL_DAMAGE_POOLING.md.
     from engine.resolver import compute
     from engine.models import BuildInput, SkillConfig, EnemyConfig
     result = compute(BuildInput(

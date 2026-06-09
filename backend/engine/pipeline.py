@@ -1,3 +1,11 @@
+"""DEPRECATED — legacy per-hit damage formula behind /api/engine/compute (via engine.resolver).
+
+The live damage path is `engine.offense.calculate_offense` behind /api/engine/stats; the renderer
+drives all DPS from there. This module's Stage-3 `additional` pooling is by stat-key (additive
+within a key), which is KNOWN-DIVERGENT from the per-affix model now implemented in offense.py
+(see docs/ADDITIONAL_DAMAGE_POOLING.md). Do not build on this; it is slated for removal once the
+/engine/compute endpoint is retired.
+"""
 from __future__ import annotations
 from engine.models import BuildSource, SkillConfig, EnemyConfig, ComputedResult
 
