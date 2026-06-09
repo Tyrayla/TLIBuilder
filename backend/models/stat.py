@@ -281,6 +281,10 @@ class Stat(Enum):
     # ── Status Effects ───────────────────────────────────────────────────────
     NUMBED_EFFECT_INC = "numbed_effect_inc"
     NUMBED_THRESHOLD_INC = "numbed_threshold_inc"
+    # Enemy-vulnerability: additional Lightning Damage the target takes from Numbed stacks.
+    # Engine-injected by the aggregator (not a gear/talent affix); consumed by offense's
+    # enemy-vulnerability stage. See docs/CHAIN_LIGHTNING_IMPLEMENTATION_PLAN.md §4.
+    NUMBED_LIGHTNING_TAKEN = "numbed_lightning_taken"
     SLOW_CHANCE = "slow_chance"
     SLOW_EFFECT_RECEIVED_INC = "slow_effect_received_inc"
     BLIND_CHANCE = "blind_chance"

@@ -74,6 +74,12 @@ _FERVOR_BASE_EFFECTS: list[tuple[str, float, str]] = [
     ("crit_rating_inc", 0.02, "+2% Critical Strike Rating per Fervor Rating"),
 ]
 
+# Numbed: base additional Lightning Damage the TARGET takes per stack, scaled by Numbed Effect
+# (numbed_effect_inc). Modelled engine-side like Fervor — the per-stack value lives here, not on the
+# condition. A core talent can override this base (e.g. +11%) — not wired yet (core talents
+# unmodelled). Source: glossary id 762 / TLI Help DB …/Statuses/Ailment/Numbed.md.
+_NUMBED_BASE_PER_STACK = 0.05
+
 # Flat base effects granted while dual wielding (gated by the auto-set 'dual_wielding' condition).
 # Fixed amounts — not scaled (an item can convert the block-chance portion to block ratio, but that
 # conversion isn't modeled yet). Block chance isn't consumed by the engine yet (block defense NYI).
@@ -553,6 +559,20 @@ def aggregate(
                 stat=stat_key, amount=amount, source_type="condition",
                 label="Fervor Rating", text=label_text, points=1,
             ))
+
+    # ── Numbed (enemy vulnerability) ──────────────────────────────────────────
+    # Numbed raises the TARGET's Lightning Damage taken by a base +5% per stack, scaled by Numbed
+    # Effect. Stacks ADD (10 × 5% → +50%). Baked into a lightning-tagged stat consumed by offense's
+    # enemy-vulnerability stage (NOT the attacker's additional pool). Driven off the user-set
+    # numbed_stacks condition (the sustained-stack ramp from Max ES+Life is a later refinement).
+    numbed_stacks = float((numeric_vals or {}).get("numbed_stacks", 0.0) or 0.0)
+    if numbed_stacks > 0:
+        per_stack = _NUMBED_BASE_PER_STACK * (1.0 + source.total("numbed_effect_inc"))
+        amount = per_stack * numbed_stacks
+        source.add_with_source("numbed_lightning_taken", amount, SourceEntry(
+            stat="numbed_lightning_taken", amount=amount, source_type="condition",
+            label="Numbed Stacks", text="+5% Lightning Damage taken per Numbed stack", points=1,
+        ))
 
     # ── Dual wielding base effects ────────────────────────────────────────────
     # Granted while wielding two one-handed weapons (the 'dual_wielding' condition is auto-set by the

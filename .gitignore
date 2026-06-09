@@ -26,6 +26,7 @@ CLAUDE.md
 
 # docs: keep durable references tracked; handoffs / plans / audit snapshots stay local only
 docs/*HANDOFF*.md
+docs/*IMPLEMENTATION_PLAN*.md
 docs/TOOLTIP_*.md
 docs/engine-plan.md
 docs/stat-audit*.md

@@ -5,7 +5,7 @@ The per-hit damage math itself is covered by test_engine_pipeline.py.
 """
 import pytest
 from engine.models import BuildSource, SourceEntry
-from engine.offense import calculate_offense
+from engine.offense import calculate_offense, _enemy_vuln_mult
 from engine.skill_resolver import ResolvedSkill, SkillHitForm
 
 
@@ -232,3 +232,69 @@ class TestAdditionalPooling:
         s = _add_src((_ATK, 0.08, _ATK_1H), (_ATK, 0.08, _ATK_WARCRY))
         r = calculate_offense(s, _skill(tags=("attack",)), 1, extra_additional=0.25)
         assert r.generic_add == pytest.approx(1.08 * 1.08 * 1.25)
+
+
+def _spell(base=(25.0, 482.0), eff=1.36, cast=0.65, max_level=20, level=16, dtype="lightning"):
+    """A resolved spell skill (Chain Lightning shape): per-level intrinsic base damage, cast-driven
+    hit rate, added-damage effectiveness that scales ADDED flat only."""
+    return ResolvedSkill(
+        skill_id="cl", name="Chain Lightning", tags=["spell", dtype], max_level=max_level,
+        hit_forms_by_level={level: [SkillHitForm("Chain Lightning", 100.0, "additive")]},
+        supported=True, is_spell=True,
+        base_dmg_by_level={level: {dtype: base}},
+        base_cast_time=cast, added_dmg_effectiveness=eff, damage_types=[dtype],
+    )
+
+
+class TestSpellPathway:
+    def test_base_unscaled_by_effectiveness(self):
+        # Verified in-game: the listed base (25–482) is NOT scaled by the 136% effectiveness.
+        r = calculate_offense(_source(), _spell(), 16)
+        assert r.hit_forms[0].hit_min_by_type["lightning"] == pytest.approx(25.0)
+        assert r.hit_forms[0].hit_max_by_type["lightning"] == pytest.approx(482.0)
+
+    def test_added_flat_scaled_by_effectiveness(self):
+        # A 2–58 added-lightning ring (spell-tagged) is scaled by 136%: max delta 58 × 1.36 = 78.88.
+        s = _source(lightning_spell_dmg_flat_min=2.0, lightning_spell_dmg_flat_max=58.0)
+        r = calculate_offense(s, _spell(), 16)
+        assert r.hit_forms[0].hit_min_by_type["lightning"] == pytest.approx(25.0 + 2.0 * 1.36)
+        assert r.hit_forms[0].hit_max_by_type["lightning"] == pytest.approx(482.0 + 58.0 * 1.36)  # 560.88
+
+    def test_excludes_weapon_base(self):
+        # Weapon implicit flat must NOT contribute to a spell's pool.
+        s = _source(lightning_dmg_gear_flat_min=1000.0, lightning_dmg_gear_flat_max=1000.0)
+        r = calculate_offense(s, _spell(), 16)
+        assert r.hit_forms[0].hit_max_by_type["lightning"] == pytest.approx(482.0)
+
+    def test_cast_hit_rate_inc(self):
+        # casts/sec = (1 / 0.65) × (1 + 0.20) = 1.84615
+        r = calculate_offense(_source(cast_speed_inc=0.20), _spell(), 16)
+        assert r.attacks_per_second == pytest.approx((1.0 / 0.65) * 1.20)
+
+    def test_cast_hit_rate_additional(self):
+        # spell-tagged cast_speed_additional applies: (1 / 0.65) × 1.10
+        r = calculate_offense(_source(cast_speed_additional=0.10), _spell(), 16)
+        assert r.attacks_per_second == pytest.approx((1.0 / 0.65) * 1.10)
+
+    def test_end_to_end_dps(self):
+        # avg (25+482)/2 = 253.5, no crit, cast 0.65 → 1/0.65 casts/s.
+        r = calculate_offense(_source(), _spell(), 16)
+        assert r.total_dps == pytest.approx(253.5 * (1.0 / 0.65))
+
+
+class TestEnemyVulnerability:
+    def test_numbed_amplifies_lightning(self):
+        # numbed_lightning_taken = +50% → lightning hit ×1.50 (base 482 → 723).
+        r = calculate_offense(_source(numbed_lightning_taken=0.5), _spell(), 16)
+        assert r.hit_forms[0].hit_max_by_type["lightning"] == pytest.approx(482.0 * 1.5)
+        assert r.hit_forms[0].hit_min_by_type["lightning"] == pytest.approx(25.0 * 1.5)
+
+    def test_vuln_helper_lightning_only(self):
+        s = _source(numbed_lightning_taken=0.5)
+        assert _enemy_vuln_mult(s, "lightning") == pytest.approx(1.5)
+        assert _enemy_vuln_mult(s, "physical") == pytest.approx(1.0)
+        assert _enemy_vuln_mult(s, "fire") == pytest.approx(1.0)
+
+    def test_no_numbed_no_amplification(self):
+        r = calculate_offense(_source(), _spell(), 16)
+        assert r.hit_forms[0].hit_max_by_type["lightning"] == pytest.approx(482.0)

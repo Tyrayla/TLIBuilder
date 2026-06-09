@@ -864,6 +864,10 @@ export interface EquippedSupportSkill {
   name: string
   skill_type: string
   level: number
+  // Rank (1-5) — Noble/Magnificent supports only. Scales the support's universal
+  // "+% additional damage for the supported skill" line (R1 0% → R5 20%). Not yet consumed by the
+  // engine (support damage = a later phase); stored on the build so it persists.
+  rank?: number
   skill_tags: string[]
   description_lines: string[]
 }

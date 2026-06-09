@@ -1254,6 +1254,16 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="status_effects",     stacking_rule="additive",
         ui_priority=71,                source_types=_T,
     ),
+    # Enemy-vulnerability multiplier from Numbed. pipeline_stage 'enemy_vulnerability' keeps it OUT of
+    # the attacker's increased/additional pools — it is applied only by offense's enemy-vulnerability
+    # stage. Engine-injected (aggregator), so no source_types. Lightning-scoped.
+    Stat.NUMBED_LIGHTNING_TAKEN: StatMeta(
+        "Numbed: Lightning Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        tags=("lightning",),           affects=_HIT,
+        stacking_rule="additive",      ui_priority=72,
+        source_types=(),
+    ),
     Stat.SLOW_CHANCE: StatMeta(
         "Slow Chance", "Ailments", "chance", "%",
         subgroup="status_effects",     stacking_rule="additive_chance",

@@ -46,6 +46,15 @@ class ResolvedSkill:
     # skill can benefit from off-type damage mods. E.g. Moon Strike: ['spell'] → Spell Damage
     # inc/additional apply to its Attack Damage (without making it count as a spell for flat adds).
     extra_damage_mod_tags: list[str] = field(default_factory=list)
+    # ── Spell pathway (set by spell resolvers; defaults keep the attack path unchanged) ──
+    # Spells have intrinsic base damage and a cast-speed hit rate, unlike weapon attacks. See
+    # docs/CHAIN_LIGHTNING_IMPLEMENTATION_PLAN.md §1.
+    is_spell: bool = False
+    base_dmg_by_level: dict[int, dict[str, tuple[float, float]]] = field(default_factory=dict)  # level → {dtype: (min,max)}
+    base_cast_time: float = 0.0                 # seconds per cast (e.g. 0.65)
+    added_dmg_effectiveness: float = 1.0        # 136% → 1.36; applied to ADDED flat only, NOT base
+    damage_types: list[str] = field(default_factory=list)  # e.g. ["lightning"]
+    jumps_base: int = 0                         # base Jumps (Phase 4; unused for hit damage today)
 
 
 _REGISTRY: dict[str, Callable[[dict], ResolvedSkill]] = {}
@@ -143,6 +152,78 @@ def _resolve_moon_strike(skill_data: dict) -> ResolvedSkill:
         )],
         extra_damage_mod_tags=["spell"],
     )
+
+
+# ── Spell skills ───────────────────────────────────────────────────────────────
+# Chain Lightning — Tags: Spell, Lightning, Chain. A spell: it has intrinsic per-level base damage
+# and a cast-speed-driven hit rate (no weapon). "Effectiveness of added damage" (136%) scales ADDED
+# flat only; the listed base is unscaled (verified in-game — see the implementation plan §1). Per-level
+# values live as strings in progression[*].values, so regex them out.
+# Phases 2–4 (Numbed, Lucky, supports/shotgun) are layered on separately.
+_SPELL_BASE_DMG_RE = re.compile(
+    r"Deals\s+([\d.,]+)\s*-\s*([\d.,]+)\s+Spell\s+([A-Za-z]+)\s+Damage", re.IGNORECASE
+)
+_JUMPS_RE = re.compile(r"\+(\d+)\s+Jump", re.IGNORECASE)
+
+
+@_register("chain_lightning")
+def _resolve_chain_lightning(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {
+        entry["level"]: entry["values"]
+        for entry in skill_data.get("progression", [])
+    }
+    base_by_level: dict[int, dict[str, tuple[float, float]]] = {}
+    effectiveness = 1.0
+    damage_types: list[str] = []
+    jumps_base = 2
+    for lvl, values in progression.items():
+        text = " ".join(str(v) for v in values.values())
+        m = _SPELL_BASE_DMG_RE.search(text)
+        if m:
+            dmin = float(m.group(1).replace(",", ""))
+            dmax = float(m.group(2).replace(",", ""))
+            dtype = m.group(3).lower()
+            base_by_level[lvl] = {dtype: (dmin, dmax)}
+            if dtype not in damage_types:
+                damage_types.append(dtype)
+        eff_val = values.get("Effectiveness of added damage")
+        if eff_val:
+            em = re.search(r"(\d+(?:\.\d+)?)", str(eff_val))
+            if em:
+                effectiveness = float(em.group(1)) / 100.0
+        jm = _JUMPS_RE.search(str(values.get("Descript", "")))
+        if jm:
+            jumps_base = int(jm.group(1))
+
+    # One additive hit form per cast. effectiveness_pct=100 is intentional: the spell flat branch in
+    # calculate_offense already bakes added-damage effectiveness into the ADDED flat (base stays
+    # unscaled), so the shared per-form `eff/100` multiply must be neutral (×1.0).
+    forms_by_level = {
+        lvl: [SkillHitForm("Chain Lightning", 100.0, "additive")]
+        for lvl in base_by_level
+    }
+
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms_by_level,
+        supported=True,
+        is_spell=True,
+        base_dmg_by_level=base_by_level,
+        base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
+        added_dmg_effectiveness=effectiveness,
+        damage_types=damage_types,
+        jumps_base=jumps_base,
+    )
+
+
+def _parse_cast_time(cast_speed: str) -> float:
+    """Parse '0.65 s' → 0.65. Returns 0.0 if unparseable (offense guards against div-by-zero)."""
+    m = re.search(r"([\d.]+)", str(cast_speed))
+    return float(m.group(1)) if m else 0.0
 
 
 def resolve_skill(skill_data: dict) -> ResolvedSkill:

@@ -98,6 +98,20 @@ function supportLevelRange(skill_type: string | undefined): { min: number; max: 
     : { min: 1, max: 40, default: 20 }
 }
 
+// Tiered supports (Noble / Magnificent / Activation Medium) are levelled by "Tier" in-game; basic
+// support skills use "Level".
+function supportLevelLabel(skill_type: string | undefined): string {
+  return TIERED_SUPPORT_TYPES.has(skill_type ?? '') ? 'Tier' : 'Level'
+}
+
+// Only Noble/Magnificent supports carry the rank (1-5) that scales their universal
+// "+% additional damage for the supported skill" line. Other support types have no rank.
+const RANKED_SUPPORT_TYPES = new Set(['magnificent_support_skill', 'noble_support_skill'])
+const DEFAULT_SUPPORT_RANK = 5  // the value shown in the source data is the rank-5 roll
+function isRankedSupport(skill_type: string | undefined): boolean {
+  return RANKED_SUPPORT_TYPES.has(skill_type ?? '')
+}
+
 interface Props {
   onBack: () => void
 }
@@ -210,10 +224,12 @@ export default function SkillsScreen(_props: Props) {
     setSelectedSkillId(selectedSkillItem.item_id)
   }
 
-  const updateLevel = () => {
+  // Commit an equipped skill's level immediately (no Set button — any change auto-updates).
+  const setEquippedLevel = (newLevel: number) => {
     if (!focusedEquipped || focusedSlot === null) return
+    const clamped = Math.max(1, Math.min(40, newLevel))
     onSkillsChange(equippedSkills.map(s =>
-      s.slot === focusedSlot ? { ...s, level: pendingLevel } : s
+      s.slot === focusedSlot ? { ...s, level: clamped } : s
     ))
   }
 
@@ -240,6 +256,7 @@ export default function SkillsScreen(_props: Props) {
       level: range.default,
       skill_tags: selectedSupportItem.skill_tags,
       description_lines: selectedSupportItem.description_lines,
+      ...(isRankedSupport(selectedSupportItem.skill_type) ? { rank: DEFAULT_SUPPORT_RANK } : {}),
     }
     const updated: EquippedSkill = {
       ...parent,
@@ -405,17 +422,15 @@ export default function SkillsScreen(_props: Props) {
             )}
           </SkillHoverTooltip>
           <div className="skill-level-row" style={{ marginTop: 0, alignItems: 'center' }}>
+            <span className="skill-level-label">Level</span>
             <div className="skill-level-controls">
-              <button className="skill-level-btn" onClick={() => setPendingLevel(l => Math.max(1, l - 1))}>−</button>
+              <button className="skill-level-btn" onClick={() => setEquippedLevel(focusedEquipped.level - 1)}>−</button>
               <input
-                type="number" className="skill-level-input" min={1} max={40} value={pendingLevel}
-                onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) setPendingLevel(Math.max(1, Math.min(40, v))) }}
+                type="number" className="skill-level-input" min={1} max={40} value={focusedEquipped.level}
+                onChange={e => setEquippedLevel(Number(e.target.value) || 1)}
               />
-              <button className="skill-level-btn" onClick={() => setPendingLevel(l => Math.min(40, l + 1))}>+</button>
+              <button className="skill-level-btn" onClick={() => setEquippedLevel(focusedEquipped.level + 1)}>+</button>
             </div>
-            <button className="btn btn-secondary btn-sm" style={{ marginLeft: 6 }} onClick={updateLevel}>
-              Set
-            </button>
           </div>
         </div>
         <div className="skill-panel-divider" />
@@ -507,7 +522,7 @@ export default function SkillsScreen(_props: Props) {
             }
             return (
               <div className="skill-level-controls" style={{ marginTop: 6 }}>
-                <span className="skill-level-label">Level</span>
+                <span className="skill-level-label">{supportLevelLabel(existingSupport.skill_type)}</span>
                 <button className="skill-level-btn" onClick={() => updateLevel(existingSupport.level - 1)}>−</button>
                 <input
                   className="skill-level-input"
@@ -518,6 +533,39 @@ export default function SkillsScreen(_props: Props) {
                   onChange={e => updateLevel(Number(e.target.value) || lvlRange.min)}
                 />
                 <button className="skill-level-btn" onClick={() => updateLevel(existingSupport.level + 1)}>+</button>
+              </div>
+            )
+          })()}
+          {existingSupport && isRankedSupport(existingSupport.skill_type) && (() => {
+            const rank = existingSupport.rank ?? DEFAULT_SUPPORT_RANK
+            const updateRank = (newRank: number) => {
+              const clamped = Math.max(1, Math.min(5, newRank))
+              onSkillsChange(equippedSkills.map(sk =>
+                sk.slot === focusedSlot
+                  ? { ...sk, supports: sk.supports.map(s =>
+                        s.support_index === focusedSupportIdx ? { ...s, rank: clamped } : s
+                      )}
+                  : sk
+              ))
+            }
+            return (
+              <div className="skill-level-controls" style={{ marginTop: 6 }}>
+                <span className="skill-level-label">Rank</span>
+                <button className="skill-level-btn" onClick={() => updateRank(rank - 1)}>−</button>
+                <input
+                  className="skill-level-input"
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={rank}
+                  onChange={e => updateRank(Number(e.target.value) || 1)}
+                />
+                <button className="skill-level-btn" onClick={() => updateRank(rank + 1)}>+</button>
+                <span
+                  className="skill-support-rank-hint"
+                  style={{ marginLeft: 8, fontSize: 11, opacity: 0.6, cursor: 'help' }}
+                  title="Rank scales this support's '+% additional damage for the supported skill' line (R1 0% / R2 4% / R3 8% / R4 14% / R5 20%). Not yet applied to DPS — coming with support-damage modelling."
+                >ⓘ not yet in DPS</span>
               </div>
             )
           })()}

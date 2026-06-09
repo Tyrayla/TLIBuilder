@@ -48,6 +48,13 @@ _APS_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
     if stat.value in ("attack_speed_additional", "combo_starter_attack_speed_additional")
 ]
 
+# Cast speed additional pools — the spell hit-rate analog of _APS_ADDITIONAL_STATS.
+_CAST_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
+    (stat.value, frozenset(meta.tags))
+    for stat, meta in STAT_META.items()
+    if stat.value in ("cast_speed_additional", "combo_starter_cast_speed_additional")
+]
+
 # Skill level bonus stats — each adds integer levels to the effective skill level.
 # Empty frozenset = no tag requirement (applies to all active skills).
 # Non-empty = applies only when skill has ANY of the listed tags.
@@ -153,6 +160,22 @@ _DUMMY_MITIGATION: dict[str, float] = {
     "lightning": _DUMMY_NONPHYS_MULT,
     "erosion": _DUMMY_NONPHYS_MULT,
 }
+
+
+def _enemy_vuln_mult(source: BuildSource, dtype: str) -> float:
+    """Enemy-vulnerability stage: 'the enemy takes more <type> damage' effects, applied as a final
+    per-type multiplier on OUTGOING damage — deliberately NOT in the attacker's additional pool, so
+    distinct vulnerability sources combine on their own rule and type-scoping stays honest.
+
+    Distinct sources combine MULTIPLICATIVELY (ship default; flip here if in-game testing disproves).
+    Future sources (Proximity damage-taken, curses, exposure) plug in here. Today: Numbed only —
+    +5% Lightning Damage taken per stack × (1 + numbed_effect_inc), baked into `numbed_lightning_taken`
+    by the aggregator (fervor-style). Lightning-scoped. NOT the defensive dmg_taken family (that is
+    incoming damage / the immunity tripwire); this is outgoing amplification.
+    """
+    if dtype == "lightning":
+        return 1.0 + source.total("numbed_lightning_taken")
+    return 1.0
 
 
 @dataclass
@@ -290,33 +313,50 @@ def calculate_offense(
     is_spell = "spell" in skill_tags_lower
 
     flat_dmg: dict[str, tuple[float, float]] = {}
-    for dtype in DAMAGE_TYPES:
-        # Weapon implicit base, scaled by the weapon's own gear inc
-        dmg_min = source.total(f"{dtype}_dmg_gear_flat_min")
-        dmg_max = source.total(f"{dtype}_dmg_gear_flat_max")
-        gear_inc = source.total(f"{dtype}_dmg_gear_inc")
-        total_min = dmg_min * (1.0 + gear_inc)
-        total_max = dmg_max * (1.0 + gear_inc)
-        # Ring/gear/talent flat adds — no damage-type tag filtering; attack/spell split only
-        if is_attack:
-            total_min += source.total(f"{dtype}_attack_dmg_flat_min")
-            total_max += source.total(f"{dtype}_attack_dmg_flat_max")
-        if is_spell:
-            total_min += source.total(f"{dtype}_spell_dmg_flat_min")
-            total_max += source.total(f"{dtype}_spell_dmg_flat_max")
-        if total_min > 0 or total_max > 0:
-            flat_dmg[dtype] = (total_min, total_max)
+    if skill.is_spell:
+        # Spell flat pool: the skill's intrinsic per-level base damage (UNSCALED by effectiveness) +
+        # spell-tagged added flat (gear/supports), the latter scaled by the skill's added-damage
+        # effectiveness. Weapon base does NOT apply to spells. Verified in-game — see
+        # docs/CHAIN_LIGHTNING_IMPLEMENTATION_PLAN.md §1.
+        # DEFERRED: min/max-damage reshaping (Phase 3, with Lucky); elemental-gear-flat→spell (flagged).
+        eff_mult = skill.added_dmg_effectiveness
+        base_for_level = skill.base_dmg_by_level.get(lookup_level, {})
+        for dtype in DAMAGE_TYPES:
+            b_min, b_max = base_for_level.get(dtype, (0.0, 0.0))
+            add_min = source.total(f"{dtype}_spell_dmg_flat_min")
+            add_max = source.total(f"{dtype}_spell_dmg_flat_max")
+            total_min = b_min + add_min * eff_mult
+            total_max = b_max + add_max * eff_mult
+            if total_min > 0 or total_max > 0:
+                flat_dmg[dtype] = (total_min, total_max)
+    else:
+        for dtype in DAMAGE_TYPES:
+            # Weapon implicit base, scaled by the weapon's own gear inc
+            dmg_min = source.total(f"{dtype}_dmg_gear_flat_min")
+            dmg_max = source.total(f"{dtype}_dmg_gear_flat_max")
+            gear_inc = source.total(f"{dtype}_dmg_gear_inc")
+            total_min = dmg_min * (1.0 + gear_inc)
+            total_max = dmg_max * (1.0 + gear_inc)
+            # Ring/gear/talent flat adds — no damage-type tag filtering; attack/spell split only
+            if is_attack:
+                total_min += source.total(f"{dtype}_attack_dmg_flat_min")
+                total_max += source.total(f"{dtype}_attack_dmg_flat_max")
+            if is_spell:
+                total_min += source.total(f"{dtype}_spell_dmg_flat_min")
+                total_max += source.total(f"{dtype}_spell_dmg_flat_max")
+            if total_min > 0 or total_max > 0:
+                flat_dmg[dtype] = (total_min, total_max)
 
-    # Elemental flat damage from weapons distributes the full amount to fire, cold, and lightning independently
-    elem_min = source.total("elemental_dmg_gear_flat_min")
-    elem_max = source.total("elemental_dmg_gear_flat_max")
-    elem_gear_inc = source.total("elemental_dmg_gear_inc")
-    scaled_elem_min = elem_min * (1.0 + elem_gear_inc)
-    scaled_elem_max = elem_max * (1.0 + elem_gear_inc)
-    if scaled_elem_min > 0 or scaled_elem_max > 0:
-        for dtype in ("fire", "cold", "lightning"):
-            existing = flat_dmg.get(dtype, (0.0, 0.0))
-            flat_dmg[dtype] = (existing[0] + scaled_elem_min, existing[1] + scaled_elem_max)
+        # Elemental flat damage from weapons distributes the full amount to fire, cold, and lightning independently
+        elem_min = source.total("elemental_dmg_gear_flat_min")
+        elem_max = source.total("elemental_dmg_gear_flat_max")
+        elem_gear_inc = source.total("elemental_dmg_gear_inc")
+        scaled_elem_min = elem_min * (1.0 + elem_gear_inc)
+        scaled_elem_max = elem_max * (1.0 + elem_gear_inc)
+        if scaled_elem_min > 0 or scaled_elem_max > 0:
+            for dtype in ("fire", "cold", "lightning"):
+                existing = flat_dmg.get(dtype, (0.0, 0.0))
+                flat_dmg[dtype] = (existing[0] + scaled_elem_min, existing[1] + scaled_elem_max)
 
     # 3. Per-type inc and additional — precomputed outside the hit form loop.
     #    Inc: skill-tag-filtered incs PLUS the type-specific inc for that dtype.
@@ -361,18 +401,28 @@ def calculate_offense(
     # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
     steep_chance = min(skill.base_steep_strike_chance + source.total("steep_strike_chance"), 1.0)
 
-    # 5. APS: base × (1 + per-weapon gear multipliers) × (1 + inc) × additional pools
-    #    attack_speed_gear: per-weapon gear roll (pre-averaged by buildGearPayload for dual-wield;
-    #        for single weapon this is applied directly here)
-    #    attack_speed_mh: mainhand-only bonus (discarded for offhand by buildGearPayload;
-    #        for single weapon this is applied directly here)
-    weapon_aps_mult = 1.0 + source.total("attack_speed_gear") + source.total("attack_speed_mh")
-    aps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
-    # FUTURE (per-affix rework): this attack-speed additional pool still pools by stat-key. Convert
-    # to per-affix factors (like _build_additional_factors) when reworking APS additional.
-    for key, tags in _APS_ADDITIONAL_STATS:
-        if not tags or tags & skill_tags_lower:
-            aps *= (1.0 + source.total(key))
+    # 5. Hit rate (casts/attacks per second).
+    if skill.is_spell:
+        # Spell: casts/sec = (1 / cast time) × (1 + cast speed inc) × Π(1 + cast speed additional).
+        # No weapon APS for spells. Mirrors the attack block below but cast-driven.
+        cast_time = skill.base_cast_time or 1.0
+        aps = (1.0 / cast_time) * (1.0 + source.total("cast_speed_inc"))
+        for key, tags in _CAST_ADDITIONAL_STATS:
+            if not tags or tags & skill_tags_lower:
+                aps *= (1.0 + source.total(key))
+    else:
+        # APS: base × (1 + per-weapon gear multipliers) × (1 + inc) × additional pools
+        #    attack_speed_gear: per-weapon gear roll (pre-averaged by buildGearPayload for dual-wield;
+        #        for single weapon this is applied directly here)
+        #    attack_speed_mh: mainhand-only bonus (discarded for offhand by buildGearPayload;
+        #        for single weapon this is applied directly here)
+        weapon_aps_mult = 1.0 + source.total("attack_speed_gear") + source.total("attack_speed_mh")
+        aps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
+        # FUTURE (per-affix rework): this attack-speed additional pool still pools by stat-key. Convert
+        # to per-affix factors (like _build_additional_factors) when reworking APS additional.
+        for key, tags in _APS_ADDITIONAL_STATS:
+            if not tags or tags & skill_tags_lower:
+                aps *= (1.0 + source.total(key))
 
     # 6. Per hit form
     # Effectiveness % stays at the max-level value when above max level.
@@ -397,8 +447,11 @@ def calculate_offense(
         for dtype, (mn, mx) in flat_dmg.items():
             inc = type_inc[dtype]
             add = type_add[dtype]
-            type_min = mn * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult
-            type_max = mx * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult
+            # Enemy-vulnerability stage (Numbed etc.) — final per-type multiplier on outgoing damage.
+            # Crit is uniform and commutes, so applying it here (pre-crit) is order-equivalent.
+            vuln = _enemy_vuln_mult(source, dtype)
+            type_min = mn * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult * vuln
+            type_max = mx * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult * vuln
             avg = (type_min + type_max) / 2.0
             damage_by_type[dtype] = avg
             hit_min_by_type[dtype] = type_min
