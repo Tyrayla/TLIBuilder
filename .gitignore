@@ -23,3 +23,11 @@ data/builds/*
 .wolf/
 .claude/
 CLAUDE.md
+
+# docs: keep durable references tracked; handoffs / plans / audit snapshots stay local only
+docs/*HANDOFF*.md
+docs/TOOLTIP_*.md
+docs/engine-plan.md
+docs/stat-audit*.md
+docs/stat-*-review.md
+docs/stat-meta-review.csv
