@@ -71,9 +71,20 @@ function TreeNodeG({
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
   const activeSlot = useBuildStore(s => s.activeSlot)
   // Marginal per-point delta: step the hovered node by +1 (or -1 when maxed) vs the current build.
-  const target = pts < node.max_points ? pts + 1 : Math.max(0, pts - 1)
+  // Derive the current points from the SAME store snapshot used for the baseline — NOT the render-time
+  // `pts` — so the step is always exactly one rank off the base. Using `pts` (local tree state) here
+  // can desync from the store the engine prices against, yielding a 2-rank delta or a zeroed one
+  // (bug-129 class).
+  const maxPts = node.max_points
   const delta = useDamageDelta(
-    tip.open ? { key: `node:${activeSlot}:${node.id}`, step: s => withNodePoints(s, activeSlot, node.id, target) } : null,
+    tip.open ? {
+      key: `node:${activeSlot}:${node.id}`,
+      step: s => {
+        const cur = s.slots[activeSlot]?.nodeStates?.[node.id] ?? 0
+        const tgt = cur < maxPts ? cur + 1 : Math.max(0, cur - 1)
+        return withNodePoints(s, activeSlot, node.id, tgt)
+      },
+    } : null,
     tip.open,
   )
   return (
