@@ -3,7 +3,9 @@ Tests: tools/node_type_filter_builder.py
 Scope: _is_conditional, _detect_condition, and _meta counter correctness.
 """
 import pytest
-from tools.node_type_filter_builder import _is_conditional, _detect_condition, build_filter
+from tools.node_type_filter_builder import (
+    _is_conditional, _detect_condition, _detect_scaling, build_filter, build_node_recipes,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -77,11 +79,84 @@ class TestDetectCondition:
     def test_enemy_frozen(self):
         assert _detect_condition("against Frozen enemies") == "enemy_frozen"
 
+    def test_proximity_is_distinct_from_nearby(self):
+        # "in proximity" and "nearby" are different in-game ranges — must not collapse.
+        assert _detect_condition("+60% Projectile Damage against enemies in proximity") == "enemy_in_proximity"
+        assert _detect_condition("+25% damage dealt to Nearby enemies") == "enemy_nearby"
+
     def test_unknown_pattern_returns_none(self):
         assert _detect_condition("while something completely unrecognised") is None
 
     def test_clean_text_returns_none(self):
         assert _detect_condition("+15% Attack Damage") is None
+
+
+# ---------------------------------------------------------------------------
+# _detect_scaling
+# ---------------------------------------------------------------------------
+
+class TestDetectScaling:
+    def test_per_stack_of_blessing(self):
+        assert _detect_scaling("+5% Spell Crit Damage per stack of Focus Blessing owned") == ("focus_blessings", 1.0, False)
+        assert _detect_scaling("+6% Armor per stack of Tenacity Blessing owned") == ("tenacity_blessings", 1.0, False)
+        assert _detect_scaling("+6% Evasion per stack of Agility Blessing owned") == ("agility_blessings", 1.0, False)
+
+    def test_per_fervor_rating(self):
+        assert _detect_scaling("0.5% Critical Strike Damage per Fervor Rating") == ("fervor_rating", 1.0, False)
+
+    def test_per_n_fervor_rating_reads_divisor(self):
+        assert _detect_scaling("+1% Movement Speed per 10 Fervor Rating") == ("fervor_rating", 10.0, False)
+
+    def test_for_each_regain_uses_regain_stacks(self):
+        assert _detect_scaling("+2% additional Attack Speed for each time you have Regained in the last 8s") == ("regain_stacks", 1.0, False)
+
+    def test_for_each_unique_weapon_keeps_gate(self):
+        # keep_gate=True — the dual_wielding gate is a separate mechanic from the scaling number.
+        assert _detect_scaling("+5% additional Attack Damage for each unique type of weapon equipped while Dual Wielding") == ("unique_weapon_types", 1.0, True)
+
+    def test_non_scaling_text_returns_none(self):
+        assert _detect_scaling("+15% Attack Damage while Dual Wielding") is None
+
+
+# ---------------------------------------------------------------------------
+# build_node_recipes — conditional matching + scaling emission
+# ---------------------------------------------------------------------------
+
+def _node_snapshot(node_id: str, effects: list[str], node_type: str = "legendary_medium") -> dict:
+    return {"test": {"tree_name": "Test", "nodes": [
+        {"id": node_id, "node_type": node_type, "effects": effects},
+    ]}}
+
+
+class TestBuildNodeRecipesConditional:
+    def test_conditional_effect_resolves_stat_and_condition(self):
+        # Previously dropped (un-stripped Jaccard failed); now strips clause then matches.
+        nr = build_node_recipes(_node_snapshot("n_c0_r0", ["+9% Attack Damage while Dual Wielding"]))
+        r = nr["n_c0_r0"][0]
+        assert r["stat"] == "attack_dmg_inc"
+        assert r["condition"] == "dual_wielding"
+        assert "scaling" not in r
+
+    def test_per_stack_emits_scaling_and_drops_redundant_gate(self):
+        nr = build_node_recipes(_node_snapshot("n_c0_r0", ["+6% Armor per stack of Tenacity Blessing owned"]))
+        r = nr["n_c0_r0"][0]
+        assert r["stat"] == "armor_inc"
+        assert r["scaling"] == {"key": "tenacity_blessings", "per": 0.06}
+        assert r["values"] == []
+        assert "condition" not in r  # same-mechanic gate dropped
+
+    def test_per_n_emits_per_n_divisor(self):
+        nr = build_node_recipes(_node_snapshot("n_c0_r0", ["+1% Movement Speed per 10 Fervor Rating"]))
+        r = nr["n_c0_r0"][0]
+        assert r["scaling"]["key"] == "fervor_rating"
+        assert r["scaling"]["per_n"] == 10.0
+
+    def test_unique_weapon_keeps_separate_gate(self):
+        nr = build_node_recipes(_node_snapshot(
+            "n_c0_r0", ["+5% additional Attack Damage for each unique type of weapon equipped while Dual Wielding"]))
+        r = nr["n_c0_r0"][0]
+        assert r["scaling"]["key"] == "unique_weapon_types"
+        assert r["condition"] == "dual_wielding"  # separate-mechanic gate kept
 
 
 # ---------------------------------------------------------------------------
