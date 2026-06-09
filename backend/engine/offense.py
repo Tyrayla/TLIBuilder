@@ -1,9 +1,10 @@
 from __future__ import annotations
+from collections import defaultdict
 from dataclasses import dataclass, field
-from math import prod
-from typing import Literal
+from typing import Callable, Literal
 
 from engine.models import BuildSource
+from engine.affix_identity import affix_identity
 from engine.skill_resolver import ResolvedSkill
 from models.stat_meta import STAT_META
 
@@ -68,6 +69,70 @@ _SKILL_LEVEL_STATS: list[tuple[str, frozenset]] = [
 
 DAMAGE_TYPES = ["physical", "fire", "cold", "lightning", "erosion"]
 _DTYPE_TAG_SET = frozenset(DAMAGE_TYPES)
+
+# Per-affix "additional" pooling lookups (Option A — see docs/ADDITIONAL_DAMAGE_POOLING.md).
+# Scope of this pass: OUTGOING HIT damage only. FUTURE (per-affix rework), still pooled by stat-key
+# elsewhere: attack-speed additional (below); damage-taken-additional family (enemy debuffs —
+# defense side / engine.guards immunity tripwire). Also FUTURE: "(multiplies)" per-stack compounding
+# (no supported affix uses it today; default per×stacks stands).
+_HIT_ADDITIONAL_TAGS: dict[str, frozenset] = {key: tags for key, tags in _HIT_ADDITIONAL_STATS}
+_HIT_ADDITIONAL_KEYS: frozenset[str] = frozenset(_HIT_ADDITIONAL_TAGS)
+
+
+def _build_additional_factors(source: BuildSource) -> list[tuple[float, frozenset, str]]:
+    """Per-affix additional factors as (amount, tags, stat_key).
+
+    Each DISTINCT affix (by normalized text) becomes its own multiplicative factor; POSITIVE
+    contributions sharing one identity SUM into a single factor, each NEGATIVE contribution is its
+    own factor (so distinct/stacked debuffs multiply, never summing past -100% to immunity).
+    Untracked contributions (added via BuildSource.add() with no source_log entry — used by tests)
+    are reconciled by stat-key, preserving the old per-key pooling for that case. consumed_stats is
+    NOT recorded here (it's recorded in _additional_product only for keys that actually apply).
+    """
+    factors: list[tuple[float, frozenset, str]] = []
+    pos: dict[tuple[str, str], float] = defaultdict(float)
+    neg: dict[tuple[str, str], list[float]] = defaultdict(list)
+    tracked: dict[str, float] = defaultdict(float)
+
+    for e in source.source_log:
+        if e.stat not in _HIT_ADDITIONAL_KEYS:
+            continue
+        ident = (e.stat, affix_identity(e.text or ""))
+        if e.amount < 0:
+            neg[ident].append(e.amount)
+        else:
+            pos[ident] += e.amount
+        tracked[e.stat] += e.amount
+
+    for (stat_key, _ident), amt in pos.items():
+        factors.append((amt, _HIT_ADDITIONAL_TAGS[stat_key], stat_key))
+    for (stat_key, _ident), amts in neg.items():
+        for a in amts:
+            factors.append((a, _HIT_ADDITIONAL_TAGS[stat_key], stat_key))
+
+    # Reconcile add()-only contributions per stat-key (raw read, no consumed_stats side effect).
+    for stat_key, tags in _HIT_ADDITIONAL_STATS:
+        raw = sum(v for s, v in source._entries if s == stat_key)
+        remainder = raw - tracked.get(stat_key, 0.0)
+        if abs(remainder) > 1e-12:
+            factors.append((remainder, tags, stat_key))
+    return factors
+
+
+def _additional_product(
+    source: BuildSource,
+    factors: list[tuple[float, frozenset, str]],
+    predicate: Callable[[frozenset], bool],
+) -> float:
+    """Product of (1 + amount) over factors whose tags satisfy predicate. Records consumed_stats
+    for the keys that actually apply (parity with the old per-key source.total reads)."""
+    p = 1.0
+    for amount, tags, stat_key in factors:
+        if predicate(tags):
+            if source._recording:
+                source.consumed_stats.add(stat_key)
+            p *= (1.0 + amount)
+    return p
 
 # Target dummy baseline mitigation (default calculation target)
 # Physical: 50% armor reduction
@@ -255,6 +320,11 @@ def calculate_offense(
     #    Additional: each applicable stat is an independent multiplicative pool.
     #    A dtype-specific stat (e.g. fire_dmg_inc) applies to that dtype even if the
     #    skill is not fire-tagged (e.g. a fire ring add on a physical skill still scales).
+    # Additional pools are per-AFFIX (Option A): build the factor list once, then apply the same
+    # tag-scope predicates the increased pools use. Each distinct affix multiplies; same-affix
+    # positives sum; each negative is its own factor. See docs/ADDITIONAL_DAMAGE_POOLING.md.
+    add_factors = _build_additional_factors(source)
+
     type_inc: dict[str, float] = {}
     type_add: dict[str, float] = {}
     for dtype in flat_dmg:
@@ -264,10 +334,9 @@ def calculate_offense(
             for key, tags in _HIT_INC_STATS
             if not tags or tags & mod_tags or tags & dtype_tag
         )
-        type_add[dtype] = prod(
-            1.0 + source.total(key)
-            for key, tags in _HIT_ADDITIONAL_STATS
-            if not tags or tags & mod_tags or tags & dtype_tag
+        type_add[dtype] = _additional_product(
+            source, add_factors,
+            lambda tags, dt=dtype_tag: (not tags) or bool(tags & mod_tags) or bool(tags & dt),
         )
 
     # Generic (non-dtype-specific) multipliers — applies uniformly to every damage type.
@@ -277,12 +346,13 @@ def calculate_offense(
         for key, tags in _HIT_INC_STATS
         if not (tags & _DTYPE_TAG_SET) and (not tags or tags & mod_tags)
     )
-    generic_add = prod(
-        1.0 + source.total(key)
-        for key, tags in _HIT_ADDITIONAL_STATS
-        if not (tags & _DTYPE_TAG_SET) and (not tags or tags & mod_tags)
+    generic_add = _additional_product(
+        source, add_factors,
+        lambda tags: not (tags & _DTYPE_TAG_SET) and ((not tags) or bool(tags & mod_tags)),
     ) * (1.0 + extra_additional)
     # Skill-intrinsic additional pool (e.g. Fervor bonus) applies generically to every damage type.
+    # FUTURE (per-affix rework): extra_additional stays its own multiplicative factor (always will);
+    # how exactly it maps onto dtypes/skill mechanics is expected to be reworked later.
     intrinsic_add = 1.0 + extra_additional
 
     # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
@@ -295,6 +365,8 @@ def calculate_offense(
     #        for single weapon this is applied directly here)
     weapon_aps_mult = 1.0 + source.total("attack_speed_gear") + source.total("attack_speed_mh")
     aps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
+    # FUTURE (per-affix rework): this attack-speed additional pool still pools by stat-key. Convert
+    # to per-affix factors (like _build_additional_factors) when reworking APS additional.
     for key, tags in _APS_ADDITIONAL_STATS:
         if not tags or tags & skill_tags_lower:
             aps *= (1.0 + source.total(key))
