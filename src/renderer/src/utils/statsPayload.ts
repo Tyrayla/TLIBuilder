@@ -92,16 +92,16 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
     if (affix.affix_kind === 'implicit') {
       const physM = affix.raw_text.match(/^([\d.]+)\s*-\s*([\d.]+)\s+Physical Damage$/i)
       if (physM) {
-        contributions.push({ stat: 'physical_dmg_gear_flat_min', display_value: parseFloat(physM[1]), unit: '', item_name: item.name, slot, condition: null })
-        contributions.push({ stat: 'physical_dmg_gear_flat_max', display_value: parseFloat(physM[2]), unit: '', item_name: item.name, slot, condition: null })
+        contributions.push({ stat: 'physical_dmg_gear_flat_min', display_value: parseFloat(physM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
+        contributions.push({ stat: 'physical_dmg_gear_flat_max', display_value: parseFloat(physM[2]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
       }
       const atkM = affix.raw_text.match(/^([\d.]+)\s+Attack Speed$/i)
       if (atkM) {
-        contributions.push({ stat: 'weapon_attack_speed', display_value: parseFloat(atkM[1]), unit: '', item_name: item.name, slot, condition: null })
+        contributions.push({ stat: 'weapon_attack_speed', display_value: parseFloat(atkM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
       }
       const csrM = affix.raw_text.match(/^([\d.]+)\s+Critical Strike Rating$/i)
       if (csrM) {
-        contributions.push({ stat: 'weapon_crit_rating_flat', display_value: parseFloat(csrM[1]), unit: '', item_name: item.name, slot, condition: null })
+        contributions.push({ stat: 'weapon_crit_rating_flat', display_value: parseFloat(csrM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
       }
       return
     }
@@ -123,10 +123,10 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
         const minVal = cust?.chosen_values[0] ?? Math.round(nv.min ?? 0)
         const maxVal = cust?.chosen_values[1] ?? Math.round(nv.max ?? 0)
         for (const stat of affix.min_stat_keys) {
-          contributions.push({ stat, display_value: minVal, unit, item_name: item.name, slot, condition })
+          contributions.push({ stat, display_value: minVal, unit, item_name: item.name, text: affix.raw_text, slot, condition })
         }
         for (const stat of affix.max_stat_keys) {
-          contributions.push({ stat, display_value: maxVal, unit, item_name: item.name, slot, condition })
+          contributions.push({ stat, display_value: maxVal, unit, item_name: item.name, text: affix.raw_text, slot, condition })
         }
       } else if (affix.dual_stat_groups && affix.dual_stat_groups.length > 0) {
         for (const group of affix.dual_stat_groups) {
@@ -140,7 +140,7 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
             val = (nv.value ?? 0) * (nv.sign === '-' ? -1 : 1)
           }
           for (const stat of group.stat_keys) {
-            contributions.push({ stat, display_value: val, unit: groupUnit, item_name: item.name, slot, condition })
+            contributions.push({ stat, display_value: val, unit: groupUnit, item_name: item.name, text: affix.raw_text, slot, condition })
           }
         }
       } else if (affix.stat_keys && affix.stat_keys.length > 0) {
@@ -149,8 +149,8 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
           const [minStat, maxStat] = affix.stat_keys
           const minVal = cust?.chosen_values[0] ?? Math.round(nv.min ?? 0)
           const maxVal = cust?.chosen_values[1] ?? Math.round(nv.max ?? 0)
-          contributions.push({ stat: minStat, display_value: minVal, unit, item_name: item.name, slot, condition })
-          contributions.push({ stat: maxStat, display_value: maxVal, unit, item_name: item.name, slot, condition })
+          contributions.push({ stat: minStat, display_value: minVal, unit, item_name: item.name, text: affix.raw_text, slot, condition })
+          contributions.push({ stat: maxStat, display_value: maxVal, unit, item_name: item.name, text: affix.raw_text, slot, condition })
         } else {
           let display_value: number | null = null
           if (rangeIdx >= 0) {
@@ -161,7 +161,7 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
           }
           if (display_value !== null) {
             for (const stat of affix.stat_keys) {
-              contributions.push({ stat, display_value, unit, item_name: item.name, slot, condition })
+              contributions.push({ stat, display_value, unit, item_name: item.name, text: affix.raw_text, slot, condition })
             }
           }
         }
@@ -174,7 +174,7 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
           display_value = fixedNv.value ?? 0
         }
         if (display_value !== null) {
-          contributions.push({ stat: affix.stat_key, display_value, unit, item_name: item.name, slot, condition })
+          contributions.push({ stat: affix.stat_key, display_value, unit, item_name: item.name, text: affix.raw_text, slot, condition })
         }
       }
     }

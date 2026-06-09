@@ -433,7 +433,8 @@ def aggregate(
             amount=amount,
             source_type="gear",
             label=f"Gear · {slot_label}",
-            text=contrib.get("item_name", ""),
+            # Affix raw_text is the per-affix pooling identity (Option A); fall back to item name.
+            text=contrib.get("text") or contrib.get("item_name", ""),
             points=1,
         )
         source.add_with_source(stat, amount, entry)

@@ -1143,6 +1143,7 @@ export interface GearAffixContribution {
   display_value: number
   unit: string
   item_name: string
+  text?: string  // affix raw_text — per-affix "additional" pooling identity (Option A)
   slot: string | null
   condition?: Record<string, unknown> | string | null
 }
