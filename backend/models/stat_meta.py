@@ -268,13 +268,6 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="speed",             stacking_rule="additive",
         ui_priority=62,               source_types=_TB,
     ),
-    Stat.LOW_MANA_SPELL_DMG_INC: StatMeta(
-        "Spell Damage at Low Mana", "Spell", "increased", "%",
-        subgroup="spell_damage",      pipeline_stage="increased_reduced",
-        tags=("spell",),              affects=_HIT_DOT,
-        stacking_rule="additive",     ui_priority=14,
-        source_types=_T,
-    ),
 
     # ── Melee ─────────────────────────────────────────────────────────────────
     Stat.MELEE_DMG_INC: StatMeta(
@@ -1874,6 +1867,12 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.TRAUMA_DMG_TAKEN_INC: StatMeta(
         "Trauma Damage Taken", "Damage Taken", "increased", "%",
+        subgroup="damage_taken",       stacking_rule="additive",
+        ui_priority=52,                source_types=_TB,
+    ),
+    Stat.CRIT_DMG_TAKEN_REDUCTION: StatMeta(
+        # TODO: increased/reduced damage-taken handling needs rework; using "increased" for now.
+        "Critical Strike Damage Mitigation", "Damage Taken", "increased", "%",
         subgroup="damage_taken",       stacking_rule="additive",
         ui_priority=52,                source_types=_TB,
     ),

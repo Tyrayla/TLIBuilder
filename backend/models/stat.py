@@ -55,7 +55,6 @@ class Stat(Enum):
     SPELL_BURST_CHARGE_SPEED_INC = "spell_burst_charge_speed_inc"
     SPELL_BURST_CHANCE_GAIN_STACKS_FLAT = "spell_burst_chance_gain_stacks_flat"
     SPELL_BURST_HIT_DMG_ADDITIONAL = "spell_burst_hit_dmg_additional"
-    LOW_MANA_SPELL_DMG_INC = "low_mana_spell_dmg_inc"
 
     # ── Melee ────────────────────────────────────────────────────────────────
     MELEE_DMG_INC = "melee_dmg_inc"
@@ -424,6 +423,7 @@ class Stat(Enum):
     ELEMENTAL_DMG_TAKEN_ADDITIONAL = "elemental_dmg_taken_additional"
     TRAUMA_DMG_TAKEN_INC = "trauma_dmg_taken_inc"
     DOT_DMG_TAKEN_ADDITIONAL = "dot_dmg_taken_additional"
+    CRIT_DMG_TAKEN_REDUCTION = "crit_dmg_taken_reduction"  # defensive: reduces incoming crit damage (not yet consumed by engine)
 
     # ── Damage Taken Conversion ───────────────────────────────────────────────
     COLD_TAKEN_AS_FIRE_INC = "cold_taken_as_fire_inc"
