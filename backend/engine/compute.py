@@ -175,6 +175,12 @@ def compute(
             _MAX_ITERS,
         )
 
+    # Tripwire: a single damage-taken stat reaching >=100% reduction implies immunity, which
+    # the current additive pooling can't represent (distinct sources should multiply). Raise
+    # so it's revisited rather than silently zeroing damage.
+    from engine.guards import check_damage_taken_immunity
+    check_damage_taken_immunity(source)
+
     # Build stat_map from final source
     stat_map: dict = {}
     for entry in source.source_log:
