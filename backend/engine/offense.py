@@ -435,6 +435,18 @@ def calculate_offense(
             if not tags or tags & skill_tags_lower:
                 aps *= (1.0 + source.total(key))
 
+    # Augmentation: per-Jump (multiplies) compounding factor on hit damage. Scales with jumps REMAINING;
+    # on a lone dummy the single hit is the first hit (full jumps remaining = total jumps), and
+    # Augmentation excludes Web so there is no multi-hit chain here. Shows in per-hit damage.
+    aug_factor = 1.0
+    if support_behavior and support_behavior.get("augmentation_per_jump"):
+        total_jumps = max(0, skill.jumps_base + int(source.total("extra_jumps_flat")))
+        aug_factor = (1.0 + float(support_behavior["augmentation_per_jump"])) ** total_jumps
+    # Lucky: the skill rolls damage twice and keeps the higher. Modelled as a per-type expected-value
+    # scalar computed from the flat [min,max] spread (scale-invariant), applied to the average only —
+    # it lifts DPS but not the displayed min/max range, and is distinct from crit.
+    lucky_damage = bool(support_behavior and support_behavior.get("lucky_damage"))
+
     # 6. Per hit form
     # Effectiveness % stays at the max-level value when above max level.
     # Instead, a compounding additional multiplier is applied to all hit damage.
@@ -461,9 +473,14 @@ def calculate_offense(
             # Enemy-vulnerability stage (Numbed etc.) — final per-type multiplier on outgoing damage.
             # Crit is uniform and commutes, so applying it here (pre-crit) is order-equivalent.
             vuln = _enemy_vuln_mult(source, dtype)
-            type_min = mn * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult * vuln
-            type_max = mx * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult * vuln
+            # aug_factor (Augmentation per-Jump multiplies) is a real damage increase → in the per-hit.
+            type_min = mn * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult * vuln * aug_factor
+            type_max = mx * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult * vuln * aug_factor
             avg = (type_min + type_max) / 2.0
+            # Lucky: EV uplift from the flat spread (scale-invariant), applied to the average only.
+            if lucky_damage and mx > mn:
+                R = mx - mn
+                avg *= (mn + (2.0 / 3.0) * R) / (mn + 0.5 * R)
             damage_by_type[dtype] = avg
             hit_min_by_type[dtype] = type_min
             hit_max_by_type[dtype] = type_max

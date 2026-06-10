@@ -2,6 +2,7 @@
 Tests: engine/support_resolver.resolve_support_behavior — parsing Merge's same-target shotgun /
 falloff and Web's chains-per-jump from support description text (text-driven, not id-hardcoded).
 """
+import pytest
 from engine.support_resolver import resolve_support_behavior
 
 
@@ -17,11 +18,25 @@ _WEB_DESC = ("Supports X. +20 % additional damage for the supported skill For ev
              "supported skill releases 1 additional Chain Lightning (does not target the same enemy). "
              "Each Chain Lightning can only Jump 1 time(s) +(16-18) % additional damage")
 _PLAIN_DESC = "Supports X. +20 % additional damage for the supported skill"
+_LUCKY_DESC = ("Supports X. +20 % additional damage for the supported skill +1 Jump(s) for the skill "
+               "when the supported skill defeats an enemy The supported skill deals Lucky Damage "
+               "(-7 to -5) % additional damage for the supported skill")
+
+
+def _aug():
+    s = _sup("aug", "Supports X. +20 % additional damage for the supported skill "
+                    "+(5.5-5.9) % additional damage for every 1 Jump remaining (multiplies)")
+    s["progression"] = [{"level": 1, "values": {
+        "name": "+(5.5-5.9) % additional damage for every 1 Jump(s) remaining of the supported skill (multiplies)"}}]
+    return s
+
 
 _BY_ID = {
     "merge": _sup("merge", _MERGE_DESC),
     "web":   _sup("web", _WEB_DESC),
     "plain": _sup("plain", _PLAIN_DESC),
+    "lucky": _sup("lucky", _LUCKY_DESC),
+    "aug":   _aug(),
 }
 
 
@@ -49,6 +64,21 @@ class TestBehavior:
 
     def test_plain_support_no_behavior(self):
         assert _b("plain") == {}
+
+    def test_lucky_damage(self):
+        b = _b("lucky")
+        assert b["lucky_damage"] is True
+        assert "augmentation_per_jump" not in b
+
+    def test_augmentation_per_jump(self):
+        b = _b("aug")
+        assert b["augmentation_per_jump"] == pytest.approx(0.057)  # mid of 5.5–5.9%
+        assert "lucky_damage" not in b
+
+    def test_aug_plus_lucky(self):
+        b = _b("aug", "lucky")
+        assert b["augmentation_per_jump"] == pytest.approx(0.057)
+        assert b["lucky_damage"] is True
 
     def test_empty(self):
         assert resolve_support_behavior(None, _BY_ID) == {}

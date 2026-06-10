@@ -30,6 +30,7 @@ _NUM_RE = re.compile(r"\d+(?:\.\d+)?")
 # Behavioral (non-stat) support effects, parsed from description text (not hardcoded to skill ids).
 _FALLOFF_RE = re.compile(r"falloff coefficient of the supported skill is\s*(\d+(?:\.\d+)?)\s*%", re.I)
 _RELEASE_CHAINS_RE = re.compile(r"releases?\s+(\d+)\s+additional\s+chain lightning", re.I)
+_LUCKY_RE = re.compile(r"deals lucky damage", re.I)
 
 
 def _range_mid_fraction(value_text: str) -> float | None:
@@ -122,8 +123,10 @@ def resolve_support_behavior(
     Returns keys (present only when found):
       - same_target_shotgun, falloff_coefficient  ← Merge ("…falloff coefficient … is 80%")
       - chains_per_jump                            ← Web ("…releases 1 additional Chain Lightning")
-    Together these drive `cast_multiplier = 1 + (total_jumps × chains_per_jump) × (1 − falloff)` in
-    calculate_offense — only when same-target shotgun (Merge) AND chains (Web) are both present.
+      - lucky_damage                               ← Lucky ("…deals Lucky Damage")
+      - augmentation_per_jump                      ← Augmentation ("…per 1 Jump remaining … (multiplies)")
+    Shotgun / Augmentation / Lucky are applied in calculate_offense (shotgun: total-DPS multiplier;
+    Augmentation: (1+per)^total_jumps per-hit factor; Lucky: per-type EV scalar on the average).
     """
     behavior: dict = {}
     if not attached_supports or not skills_by_id:
@@ -140,6 +143,16 @@ def resolve_support_behavior(
         m = _RELEASE_CHAINS_RE.search(desc)
         if m:
             behavior["chains_per_jump"] = int(m.group(1))
+        if _LUCKY_RE.search(desc):
+            behavior["lucky_damage"] = True
+        # Augmentation's per-Jump (multiplies) value is tier-specific — read it from progression[tier].
+        entry = _progression_for_tier(data.get("progression"), _tier_value(sup.get("level")))
+        if entry:
+            line = str((entry.get("values") or {}).get("name", "")).lower()
+            if "(multiplies)" in line and "jump" in line:
+                frac = _range_mid_fraction(line)
+                if frac:
+                    behavior["augmentation_per_jump"] = abs(frac)
     return behavior
 
 

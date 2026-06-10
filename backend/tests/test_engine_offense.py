@@ -348,3 +348,37 @@ class TestShotgun:
         # Regression: a normal attack with no support_behavior is untouched.
         r = calculate_offense(_source(weapon_attack_speed=2.0), _skill(tags=("attack",)), 1)
         assert r.cast_multiplier == 1.0
+
+
+class TestAugmentation:
+    def test_per_jump_compounds(self):
+        # (1 + per)^total_jumps on the per-hit damage (shows in the tooltip range).
+        beh = {"augmentation_per_jump": 0.057}
+        r = calculate_offense(_source(), _spell(jumps=2), 16, support_behavior=beh)
+        assert r.hit_forms[0].hit_max_by_type["lightning"] == pytest.approx(482.0 * 1.057 ** 2)
+
+    def test_scales_with_extra_jumps(self):
+        beh = {"augmentation_per_jump": 0.057}
+        r = calculate_offense(_source(extra_jumps_flat=4), _spell(jumps=2), 16, support_behavior=beh)
+        assert r.hit_forms[0].hit_max_by_type["lightning"] == pytest.approx(482.0 * 1.057 ** 6)
+
+    def test_absent_no_effect(self):
+        r = calculate_offense(_source(), _spell(jumps=2), 16, support_behavior={})
+        assert r.hit_forms[0].hit_max_by_type["lightning"] == pytest.approx(482.0)
+
+
+class TestLucky:
+    def test_lifts_avg_not_range(self):
+        # [100,120]: lucky_mult = (100 + ⅔·20)/(100 + ½·20) = 113.33/110 = 1.0303. DPS up, range same.
+        beh = {"lucky_damage": True}
+        base = calculate_offense(_source(), _spell(base=(100.0, 120.0)), 16)
+        r = calculate_offense(_source(), _spell(base=(100.0, 120.0)), 16, support_behavior=beh)
+        lucky_mult = (100 + (2 / 3) * 20) / (100 + 0.5 * 20)
+        assert r.total_dps == pytest.approx(base.total_dps * lucky_mult)
+        assert r.hit_forms[0].hit_max_by_type["lightning"] == base.hit_forms[0].hit_max_by_type["lightning"]
+
+    def test_no_spread_no_effect(self):
+        beh = {"lucky_damage": True}
+        base = calculate_offense(_source(), _spell(base=(100.0, 100.0)), 16)
+        r = calculate_offense(_source(), _spell(base=(100.0, 100.0)), 16, support_behavior=beh)
+        assert r.total_dps == pytest.approx(base.total_dps)
