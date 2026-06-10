@@ -7,7 +7,7 @@ class SourceEntry:
     """A single stat contribution with its origin metadata."""
     stat:         str
     amount:       float
-    source_type:  str   # "talent" | "slate" — extendable to "gear", "hero_memory", etc.
+    source_type:  str   # "talent" | "slate" | "gear" | "custom" | "support" | "condition" | "core_talent"
     label:        str   # human-readable origin: "Goddess of Knowledge Micro", "Ranger Slate Medium"
     text:         str   # original game text: "+15% Critical Strike Rating"
     points:       int = 1  # points allocated (>1 for multi-rank talent nodes)
@@ -105,6 +105,10 @@ class BuildInput:
     # activation_medium path, resolved IN the fixed-point loop (conditional lines + auto-derive) by
     # engine.support_resolver.resolve_standard_supports. Noble/Magnificent stay pre-resolved above.
     attached_supports: list[dict] = field(default_factory=list)
+    # Pre-resolved + deduped core-talent contributions (roadmap #4), from server.resolve_core_talents.
+    # Same shape as custom_contributions plus an optional `condition_expr` gate. Override flags
+    # (core_sacrifice / divine_grace / core_conductive) ride in condition_state, not here.
+    core_talent_contributions: list[dict] = field(default_factory=list)
 
 
 @dataclass

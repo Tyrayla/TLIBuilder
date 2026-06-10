@@ -624,9 +624,20 @@ def engine_stats(req: EngineStatsRequest):
         support_contributions = resolve_support_contributions(req.attached_supports, skills_by_id)
         support_behavior = resolve_support_behavior(req.attached_supports, skills_by_id)
 
+    # Resolve granted core talents (tree / slate / legendary / belt blend), deduped to count each
+    # exactly once, into stat contributions + base-effect override flags. Flags ride in condition_state
+    # so the aggregator's blessing/Numbed override loops pick them up. (roadmap #4)
+    from engine.core_talent_resolver import resolve_core_talents
+    belt_blends_data = season_manager.load_belt_blends(active_season) or {}
+    core_contributions, core_flags, core_talent_statuses = resolve_core_talents(
+        slots, slates, req.gear, season_trees, belt_blends_data,
+        _parse_custom_mod_text, _translate_condition_expr,
+    )
+    core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}}
+
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
-        condition_state=req.condition_state,
+        condition_state=core_condition_state,
         gear=req.gear, character=req.character,
         memory_effects=req.memory_effects, spirit_effects=req.spirit_effects,
         main_skill=main_skill,
@@ -634,6 +645,7 @@ def engine_stats(req: EngineStatsRequest):
         attached_support_contributions=support_contributions,
         support_behavior=support_behavior,
         attached_supports=req.attached_supports,
+        core_talent_contributions=core_contributions,
     )
     result = compute(
         build, season_trees, filter_data,
@@ -648,6 +660,7 @@ def engine_stats(req: EngineStatsRequest):
         "offense": result.offense,
         "defense": result.defense,
         "custom_mod_statuses": custom_mod_statuses,
+        "core_talent_statuses": core_talent_statuses,
         "skill_slots": result.skill_slots,
         "consumed_stats": result.consumed_stats,
     }

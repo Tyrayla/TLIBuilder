@@ -105,18 +105,39 @@ _BLESSING_LABELS: dict[str, str] = {
     "tenacity_blessings": "Tenacity Blessing",
 }
 
-# Override hook (ARCHITECTED, NOT WIRED): a talent/gear can "Change the base effect of X Blessing to:"
-# a different per-stack effect, which REPLACES the default above. Wiring is deferred because every known
-# override is gated by a core talent or a specific legendary affix, neither of which the engine models
-# yet. When that detection lands, map each override flag (a boolean condition) → (blessing_key, new
-# effect list); the application loop below already swaps in an override whose flag is active. Known SS12
-# overrides for reference:
-#   Sacrifice    (onslaughter core talent / [Sacrifice] legendary) → tenacity: [("dmg_additional", 0.08, ...)]
-#   Mind Focus   (arcanist core talent) → focus: flat Physical = 1% Max Mana to Attacks/Spells (needs a
-#                rating-scaled flat-add shape, not a flat per-stack multiplier — a larger change)
-#   Divine Grace (belt blend — pending owner confirmation of exact text)
-#   override_flag → (blessing_key, [(stat_key, per_stack_amount, source_text), ...])
-_BLESSING_OVERRIDES: dict[str, tuple[str, list[tuple[str, float, str]]]] = {}
+# Override hook: a core talent / belt blend can "Change the base effect of X Blessing to:" a different
+# per-stack effect, which REPLACES the default above. Each override flag (a boolean condition set
+# server-side when the granting talent/blend is present, after dedup) maps to one-or-more
+# (blessing_key, new effect list) pairs — a single flag can re-base several blessings at once (Divine
+# Grace re-bases all three). The application loop below swaps in the override whenever its flag is active.
+# Wired SS12 overrides:
+#   Sacrifice    (core_sacrifice)  → Tenacity becomes offensive: +8% additional damage per stack
+#   Divine Grace (divine_grace, an aromatic belt blend) → Focus/Agility/Tenacity each grant +4%
+#                additional damage AND -4% Damage Taken per stack
+# Mind Focus (Focus → flat Physical = 1% Max Mana to Attacks/Spells) needs a post-derive max-mana step;
+# deferred to v2.
+#   override_flag → [(blessing_key, [(stat_key, per_stack_amount, source_text), ...]), ...]
+_BLESSING_OVERRIDES: dict[str, list[tuple[str, list[tuple[str, float, str]]]]] = {
+    "core_sacrifice": [
+        ("tenacity_blessings", [
+            ("dmg_additional", 0.08, "+8% additional damage per Tenacity Blessing (Sacrifice)"),
+        ]),
+    ],
+    "divine_grace": [
+        ("focus_blessings", [
+            ("dmg_additional", 0.04, "+4% additional damage per Focus Blessing (Divine Grace)"),
+            ("dmg_taken_additional", -0.04, "-4% Damage Taken per Focus Blessing (Divine Grace)"),
+        ]),
+        ("agility_blessings", [
+            ("dmg_additional", 0.04, "+4% additional damage per Agility Blessing (Divine Grace)"),
+            ("dmg_taken_additional", -0.04, "-4% Damage Taken per Agility Blessing (Divine Grace)"),
+        ]),
+        ("tenacity_blessings", [
+            ("dmg_additional", 0.04, "+4% additional damage per Tenacity Blessing (Divine Grace)"),
+            ("dmg_taken_additional", -0.04, "-4% Damage Taken per Tenacity Blessing (Divine Grace)"),
+        ]),
+    ],
+}
 
 # Flat base effects granted while dual wielding (gated by the auto-set 'dual_wielding' condition).
 # Fixed amounts — not scaled (an item can convert the block-chance portion to block ratio, but that
@@ -600,6 +621,35 @@ def aggregate(
         )
         source.add_with_source(stat, amount, entry)
 
+    # ── Core-talent contributions (roadmap #4) ────────────────────────────────
+    # Pre-resolved + deduped server-side (server.resolve_core_talents): every granted core talent,
+    # slate core, legendary-granted talent, and equipped belt blend, counted exactly ONCE. Each carries
+    # a UNIQUE text (|core|<name>), so distinct talents' additional-damage lines multiply in offense's
+    # per-affix pool. A `condition_expr` (translated from the talent's conditional clause) gates/scales
+    # the contribution in-loop against the converged conditions — boolean → on/off, 'per' → ×floor(val).
+    for contrib in getattr(build, "core_talent_contributions", []) or []:
+        stat = contrib.get("stat_key")
+        if not stat:
+            continue
+        amount = float(contrib.get("amount", 0))
+        cond = contrib.get("condition_expr")
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                amount *= cond_result
+            elif not cond_result:
+                continue
+        source.add_with_source(stat, amount, SourceEntry(
+            stat=stat,
+            amount=amount,
+            source_type="core_talent",
+            label=contrib.get("label", "Core Talent"),
+            text=contrib.get("text", ""),
+            points=1,
+        ))
+
     # ── Fervor mechanics ──────────────────────────────────────────────────────
     # Fervor's BASE effects scale per point of Fervor Rating AND are multiplied by Fervor Effect
     # (fervor_effect_inc). Today the only base effect is +2% (generic) Critical Strike Rating per
@@ -624,11 +674,17 @@ def aggregate(
     # numbed_stacks condition (the sustained-stack ramp from Max ES+Life is a later refinement).
     numbed_stacks = float((numeric_vals or {}).get("numbed_stacks", 0.0) or 0.0)
     if numbed_stacks > 0:
-        per_stack = _NUMBED_BASE_PER_STACK * (1.0 + source.total("numbed_effect_inc"))
+        # Conductive (core talent / belt blend) re-bases Numbed from +5% to +11% Lightning Damage taken
+        # per stack; Numbed-Effect scaling still multiplies on top. Flag set server-side when present.
+        conductive = "core_conductive" in (active_booleans or frozenset())
+        base_per_stack = 0.11 if conductive else _NUMBED_BASE_PER_STACK
+        per_stack = base_per_stack * (1.0 + source.total("numbed_effect_inc"))
         amount = per_stack * numbed_stacks
+        text = (f"+{base_per_stack * 100:.0f}% Lightning Damage taken per Numbed stack"
+                + (" (Conductive)" if conductive else ""))
         source.add_with_source("numbed_lightning_taken", amount, SourceEntry(
             stat="numbed_lightning_taken", amount=amount, source_type="condition",
-            label="Numbed Stacks", text="+5% Lightning Damage taken per Numbed stack", points=1,
+            label="Numbed Stacks", text=text, points=1,
         ))
 
     # ── Six Gods' Blessings ───────────────────────────────────────────────────
@@ -641,8 +697,11 @@ def aggregate(
         if stacks <= 0:
             continue
         effects = default_effects
-        for flag, (target_blessing, override_effects) in _BLESSING_OVERRIDES.items():
-            if target_blessing == bkey and flag in (active_booleans or frozenset()):
+        for flag, pairs in _BLESSING_OVERRIDES.items():
+            if flag not in (active_booleans or frozenset()):
+                continue
+            override_effects = next((eff for tb, eff in pairs if tb == bkey), None)
+            if override_effects is not None:
                 effects = override_effects
                 break
         label = _BLESSING_LABELS.get(bkey, bkey)

@@ -53,6 +53,8 @@ def _strip_gear_item(item: dict) -> dict:
         "is_crafted": is_crafted,
         "is_vorax": is_vorax or None,
         "customizations": item.get("customizations") or [],
+        # Belt-blend equip (roadmap #4) — source-of-truth on the belt item; keep so shares round-trip.
+        "beltBlend": item.get("beltBlend") or None,
     }
     if keep_affixes:
         stripped["affixes"] = item.get("affixes") or []
