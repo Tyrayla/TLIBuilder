@@ -182,6 +182,24 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   - Recount Avg DPS (span) + Duration, 0 / max stacks: ____
   - Blessing tested + stack count: ____   Skill level: ____   Screenshot: ____   Notes: ____
 
+### STDSUP-01 — Standard support skills (Chain Lightning L16, no gear/talents)
+- Status: ✅ Verified (owner, 2026-06-10) — all within ±5% of the in-game average (most within ±2%)
+- Setup: Chain Lightning L16 only; dummy 50% armor / 30% elemental resist. Each support at Lv16.
+- Method: compare the engine `total_dps_vs_target` to the Recount span-average (the in-game *Total Spell
+  Damage* range is post-mitigation = engine pre-mit × dummy mitigation, lightning/cold ×0.49, physical ×0.50).
+- RESULT (in-game best sample → engine, % diff):
+  - Base CL: 204 → 195.9 (−4.0%) · Control Spell (+additional, −100% crit): 261 → 258.9 (−0.8%)
+  - High Voltage (lightning additional + auto-Numbed): 226 → 236.1 (+4.5%) · Added Cold: 253 (2 min) → 248.4 (−1.8%)
+  - Added Physical: 248 → 250.0 (+0.8%) · Quick Decision (cast speed): 246 → 239.9 (−2.5%)
+  - Crit Rating: 207 (4 min) → 205.9 (−0.5%)
+  - Note: 60s parses for the two crit/added-cold cases read ~+10% high (variance); 2–4 min parses converged.
+
+### SPEED-01 — Additional attack/cast speed stacks multiplicatively
+- Status: ✅ Verified (owner, 2026-06-10) → engine fixed
+- Test: 1.5/s base weapon + 10% additional Attack Speed (Dual Wield) + 22.5% additional (Quick Decision)
+  → **2.02/s** in-game = ×1.10×1.225 (multiplicative), not ×1.325 (additive).
+- Fix: additional attack/cast speed now pools PER-AFFIX (distinct sources multiply); `_speed_additional_product`.
+
 ---
 
 ## How results are ingested

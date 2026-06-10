@@ -428,3 +428,24 @@ class TestMainStatDamageBonus:
         # per-type ratio (type_add / generic_add) cancels to 1.0 — no phantom per-type reduction.
         r = calculate_offense(self._src(dexterity=100.0), self._dmg_skill(["dexterity"]), 1)
         assert r.type_add["physical"] == pytest.approx(r.generic_add)
+
+
+class TestSpeedAdditionalPooling:
+    """Additional attack/cast speed pools PER-AFFIX (distinct sources multiply) — verified in-game."""
+    def _src(self, *entries):
+        s = BuildSource()
+        s.add("weapon_attack_speed", 1.0)
+        for amt, text in entries:
+            s.add_with_source("attack_speed_additional", amt, SourceEntry(
+                stat="attack_speed_additional", amount=amt, source_type="x", label="x", text=text, points=1))
+        return s
+
+    def test_distinct_sources_multiply(self):
+        # 10% (Dual Wield) + 22.5% (Quick Decision) on a 1.0/s base → ×1.10×1.225, NOT ×1.325
+        r = calculate_offense(self._src((0.10, "Dual Wield"), (0.225, "Quick Decision")), _skill(tags=("attack",)), 1)
+        assert r.attacks_per_second == pytest.approx(1.0 * 1.10 * 1.225)
+
+    def test_same_identity_sums(self):
+        # identical mod text from two sources sums into one factor (×1.20), like the damage pool
+        r = calculate_offense(self._src((0.10, "Same Mod"), (0.10, "Same Mod")), _skill(tags=("attack",)), 1)
+        assert r.attacks_per_second == pytest.approx(1.20)

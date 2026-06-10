@@ -152,6 +152,36 @@ def _additional_product(
             p *= (1.0 + amount)
     return p
 
+
+def _speed_additional_product(source: BuildSource, keys, skill_tags_lower: set[str]) -> float:
+    """Per-affix multiplicative product for additional attack/cast speed: each DISTINCT source (by affix
+    identity) is its own ×(1+x) factor; same-identity positives sum. Verified in-game — 10% (Dual Wield)
+    + 22.5% (Quick Decision) on a 1.5/s base = ×1.10×1.225 = 2.02/s, NOT ×1.325. add()-only contributions
+    (no source_log text — used by tests) reconcile per key into a single factor."""
+    tags_for = dict(keys)
+    keyset = set(tags_for)
+    pos: dict[tuple[str, str], float] = defaultdict(float)
+    tracked: dict[str, float] = defaultdict(float)
+    for e in source.source_log:
+        if e.stat not in keyset:
+            continue
+        tags = tags_for[e.stat]
+        if tags and not (tags & skill_tags_lower):
+            continue
+        pos[(e.stat, affix_identity(e.text or ""))] += e.amount
+        tracked[e.stat] += e.amount
+    p = 1.0
+    for amt in pos.values():
+        p *= (1.0 + amt)
+    for key, tags in keys:
+        if tags and not (tags & skill_tags_lower):
+            continue
+        raw = sum(v for s, v in source._entries if s == key)
+        remainder = raw - tracked.get(key, 0.0)
+        if abs(remainder) > 1e-12:
+            p *= (1.0 + remainder)
+    return p
+
 # Target dummy baseline mitigation (default calculation target)
 # Physical: 50% armor reduction
 # Non-physical: 60% of armor (50% × 0.60 = 30% reduction) PLUS 30% elemental/erosion resist (multiplicative)
@@ -436,9 +466,7 @@ def calculate_offense(
         # No weapon APS for spells. Mirrors the attack block below but cast-driven.
         cast_time = skill.base_cast_time or 1.0
         aps = (1.0 / cast_time) * (1.0 + source.total("cast_speed_inc"))
-        for key, tags in _CAST_ADDITIONAL_STATS:
-            if not tags or tags & skill_tags_lower:
-                aps *= (1.0 + source.total(key))
+        aps *= _speed_additional_product(source, _CAST_ADDITIONAL_STATS, skill_tags_lower)
     else:
         # APS: base × (1 + per-weapon gear multipliers) × (1 + inc) × additional pools
         #    attack_speed_gear: per-weapon gear roll (pre-averaged by buildGearPayload for dual-wield;
@@ -447,11 +475,8 @@ def calculate_offense(
         #        for single weapon this is applied directly here)
         weapon_aps_mult = 1.0 + source.total("attack_speed_gear") + source.total("attack_speed_mh")
         aps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
-        # FUTURE (per-affix rework): this attack-speed additional pool still pools by stat-key. Convert
-        # to per-affix factors (like _build_additional_factors) when reworking APS additional.
-        for key, tags in _APS_ADDITIONAL_STATS:
-            if not tags or tags & skill_tags_lower:
-                aps *= (1.0 + source.total(key))
+        # Additional attack speed pools PER-AFFIX (distinct sources multiply) — verified in-game.
+        aps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
 
     # Augmentation: per-Jump (multiplies) compounding factor on hit damage. Scales with jumps REMAINING;
     # on a lone dummy the single hit is the first hit (full jumps remaining = total jumps), and
