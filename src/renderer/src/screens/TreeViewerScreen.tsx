@@ -196,6 +196,7 @@ export default function TreeViewerScreen({
   useEffect(() => {
     setNodeStates(previewMode ? {} : (slots[activeSlot]?.nodeStates ?? {}))
     setCoreTalentSelections(previewMode ? {} : (slots[activeSlot]?.coreTalentSelections ?? {}))
+    setExpandedSlot(null)   // collapse — a stale index can be out of range for the new tree
     setSearch('')
     loadTree()
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
@@ -417,7 +418,10 @@ export default function TreeViewerScreen({
               })}
             </div>
             {expandedSlot !== null && (() => {
+              // Guard: expandedSlot can be stale after switching to a tree with fewer core-talent
+              // slots (e.g. a 2-slot God tree → a 1-slot subtree), making this index out of range.
               const slot = treeData.core_talent_slots[expandedSlot]
+              if (!slot) return null
               const selectedId = coreTalentSelections[expandedSlot]
               return (
                 <div className="core-talent-cards">
