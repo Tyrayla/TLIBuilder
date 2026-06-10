@@ -101,6 +101,11 @@ class TestDetectScaling:
         assert _detect_scaling("+6% Armor per stack of Tenacity Blessing owned") == ("tenacity_blessings", 1.0, False)
         assert _detect_scaling("+6% Evasion per stack of Agility Blessing owned") == ("agility_blessings", 1.0, False)
 
+    def test_per_stack_of_any_blessing(self):
+        # "any/a Blessing" scales by the summed any_blessings condition, not a single blessing.
+        assert _detect_scaling("+3% additional damage per stack of any Blessing") == ("any_blessings", 1.0, False)
+        assert _detect_scaling("+3% additional damage per stack of a Blessing owned") == ("any_blessings", 1.0, False)
+
     def test_per_fervor_rating(self):
         assert _detect_scaling("0.5% Critical Strike Damage per Fervor Rating") == ("fervor_rating", 1.0, False)
 

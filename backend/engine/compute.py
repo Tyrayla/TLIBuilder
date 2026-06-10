@@ -66,8 +66,9 @@ def _clamp_and_rederive(
     maxes: dict[str, float],
     mins: dict[str, float],
 ) -> dict[str, float | bool]:
-    """Clamp numeric values to their derived maxes/mins; re-derive *_active booleans from stack counts."""
-    from models.conditions import DERIVED_ACTIVE_KEYS
+    """Clamp numeric values to their derived maxes/mins; re-derive *_active booleans from stack counts
+    and derived numerics (e.g. any_blessings) from their source sums."""
+    from models.conditions import DERIVED_ACTIVE_KEYS, DERIVED_NUMERIC_KEYS
     new_state: dict[str, float | bool] = dict(condition_state)
 
     for k in new_state:
@@ -83,6 +84,14 @@ def _clamp_and_rederive(
     for bool_key, stack_key in DERIVED_ACTIVE_KEYS.items():
         if stack_key in new_state:
             new_state[bool_key] = float(new_state[stack_key]) > 0
+
+    # Re-derive numeric aggregates (sum of source conditions), e.g. any_blessings = focus+agility+tenacity.
+    for derived_key, source_keys in DERIVED_NUMERIC_KEYS.items():
+        new_state[derived_key] = sum(
+            float(new_state.get(sk, 0.0) or 0.0)
+            for sk in source_keys
+            if not isinstance(new_state.get(sk), bool)
+        )
 
     return new_state
 

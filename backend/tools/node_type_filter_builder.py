@@ -252,6 +252,8 @@ def _detect_condition(text: str) -> str | None:
 #   whose gate is the same mechanic as the scaling number (the scaling already yields 0 at 0);
 #   True when the gate is a *separate* mechanic (e.g. "while Dual Wielding" + per-weapon scaling).
 _SCALING_RULES: list[tuple[re.Pattern, tuple[str, object, bool]]] = [
+    # "any blessing" must precede the specific blessing rules so it isn't shadowed by a partial match.
+    (re.compile(r"per\s+stack\s+of\s+(?:any|a)\s+blessing", re.I), ("any_blessings",     1.0, False)),
     (re.compile(r"per\s+stack\s+of\s+tenacity\s+blessing", re.I), ("tenacity_blessings", 1.0, False)),
     (re.compile(r"per\s+stack\s+of\s+focus\s+blessing",    re.I), ("focus_blessings",    1.0, False)),
     (re.compile(r"per\s+stack\s+of\s+agility\s+blessing",  re.I), ("agility_blessings",  1.0, False)),

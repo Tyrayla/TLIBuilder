@@ -382,3 +382,49 @@ class TestLucky:
         base = calculate_offense(_source(), _spell(base=(100.0, 100.0)), 16)
         r = calculate_offense(_source(), _spell(base=(100.0, 100.0)), 16, support_behavior=beh)
         assert r.total_dps == pytest.approx(base.total_dps)
+
+
+class TestMainStatDamageBonus:
+    """Each point of a skill's main-stat attribute → +0.5% damage; multi-main-stat skills SUM the
+    attributes. Generic additional pool — folded into generic_add and scales total DPS."""
+    def _dmg_skill(self, main_stat):
+        return ResolvedSkill(
+            skill_id="t", name="T", tags=["attack"], max_level=1,
+            hit_forms_by_level={1: [_hit(eff=100.0)]},
+            supported=True, main_stat=list(main_stat),
+        )
+
+    def _src(self, **extra):
+        return _source(physical_attack_dmg_flat_min=100.0, physical_attack_dmg_flat_max=100.0,
+                       weapon_attack_speed=1.0, **extra)
+
+    def test_no_main_stat_no_bonus(self):
+        r = calculate_offense(self._src(), self._dmg_skill([]), 1)
+        assert r.main_stat_damage_bonus == 0.0
+        assert r.main_stats == []
+
+    def test_single_main_stat(self):
+        # dexterity 200 × 0.005 = +100% → factor 2.0
+        r = calculate_offense(self._src(dexterity=200.0), self._dmg_skill(["dexterity"]), 1)
+        assert r.main_stat_damage_bonus == pytest.approx(1.0)
+        assert r.main_stats == ["dexterity"]
+
+    def test_dual_main_stats_sum(self):
+        # (dex 100 + int 100) × 0.005 = +100%
+        r = calculate_offense(self._src(dexterity=100.0, intelligence=100.0),
+                              self._dmg_skill(["dexterity", "intelligence"]), 1)
+        assert r.main_stat_damage_bonus == pytest.approx(1.0)
+        assert set(r.main_stats) == {"dexterity", "intelligence"}
+
+    def test_bonus_scales_dps_and_generic_add(self):
+        base = calculate_offense(self._src(), self._dmg_skill([]), 1)
+        # dex 100 × 0.005 = +50% → ×1.5 on both total DPS and the displayed generic additional
+        boosted = calculate_offense(self._src(dexterity=100.0), self._dmg_skill(["dexterity"]), 1)
+        assert boosted.total_dps == pytest.approx(base.total_dps * 1.5)
+        assert boosted.generic_add == pytest.approx(base.generic_add * 1.5)
+
+    def test_folds_into_type_add_so_ratio_is_clean(self):
+        # The generic main-stat multiplier folds into BOTH type_add and generic_add, so the stats-screen
+        # per-type ratio (type_add / generic_add) cancels to 1.0 — no phantom per-type reduction.
+        r = calculate_offense(self._src(dexterity=100.0), self._dmg_skill(["dexterity"]), 1)
+        assert r.type_add["physical"] == pytest.approx(r.generic_add)

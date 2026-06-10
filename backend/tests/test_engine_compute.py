@@ -61,6 +61,20 @@ class TestClampAndRederive:
         assert out["foo"] == 0.0
         assert out["foo_active"] is False
 
+    def test_derived_numeric_sums_sources(self, monkeypatch):
+        monkeypatch.setattr("models.conditions.DERIVED_NUMERIC_KEYS", {"any_blessings": ["a", "b", "c"]})
+        out = _clamp_and_rederive({"a": 2.0, "b": 3.0, "c": 1.0}, {}, {})
+        assert out["any_blessings"] == pytest.approx(6.0)
+
+    def test_derived_numeric_uses_clamped_values(self, monkeypatch):
+        monkeypatch.setattr("models.conditions.DERIVED_NUMERIC_KEYS", {"any_blessings": ["a", "b"]})
+        out = _clamp_and_rederive({"a": 9.0, "b": 4.0}, {"a": 4.0}, {})  # a clamped 9→4
+        assert out["any_blessings"] == pytest.approx(8.0)
+
+    def test_derived_numeric_missing_sources_zero(self, monkeypatch):
+        monkeypatch.setattr("models.conditions.DERIVED_NUMERIC_KEYS", {"any_blessings": ["a", "b"]})
+        assert _clamp_and_rederive({"a": 2.0}, {}, {})["any_blessings"] == pytest.approx(2.0)
+
 
 class TestConditionMaximums:
     def test_max_from_stat_adds_base_and_stat(self, monkeypatch):

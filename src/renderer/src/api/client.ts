@@ -488,7 +488,9 @@ export interface OffenseResult {
   type_add: Record<string, number>
   above_max_mult: number
   generic_inc: number
-  generic_add: number
+  generic_add: number          // INCLUDES the main-stat Damage Bonus below
+  main_stat_damage_bonus: number  // fraction (0.255 = +25.5%) from the skill's main-stat attributes
+  main_stats: string[]            // attributes summed (e.g. ['dexterity','intelligence'])
   skill_tags: string[]
   skill_area_inc: number
 }

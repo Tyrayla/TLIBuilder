@@ -80,6 +80,44 @@ _FERVOR_BASE_EFFECTS: list[tuple[str, float, str]] = [
 # unmodelled). Source: glossary id 762 / TLI Help DB …/Statuses/Ailment/Numbed.md.
 _NUMBED_BASE_PER_STACK = 0.05
 
+# ── Six Gods' Blessings ───────────────────────────────────────────────────────
+# Each blessing grants a per-stack BASE effect, scaled by its user-set stack count. Stacks of ONE
+# blessing ADD (Focus 4 → +20% additional damage as a single factor, like Numbed). Source: TLI Help DB
+# /Battle Mechanics/Statuses/Six Gods' Blessings. Note the wording split: damage is "additional"
+# (multiplicative pool), but Agility's "Attack Speed and Cast Speed" is unqualified = the increased pool.
+#   blessing_condition_key → [(stat_key, per_stack_amount, source_text), ...]   (% stored as fractions)
+_BLESSING_DEFAULT_EFFECTS: dict[str, list[tuple[str, float, str]]] = {
+    "focus_blessings": [
+        ("dmg_additional", 0.05, "+5% additional damage per Focus Blessing"),
+    ],
+    "agility_blessings": [
+        ("attack_speed_inc", 0.04, "+4% Attack Speed per Agility Blessing"),
+        ("cast_speed_inc",   0.04, "+4% Cast Speed per Agility Blessing"),
+        ("dmg_additional",   0.02, "+2% additional damage per Agility Blessing"),
+    ],
+    "tenacity_blessings": [
+        ("dmg_taken_additional", -0.04, "-4% Damage Taken per Tenacity Blessing"),
+    ],
+}
+_BLESSING_LABELS: dict[str, str] = {
+    "focus_blessings": "Focus Blessing",
+    "agility_blessings": "Agility Blessing",
+    "tenacity_blessings": "Tenacity Blessing",
+}
+
+# Override hook (ARCHITECTED, NOT WIRED): a talent/gear can "Change the base effect of X Blessing to:"
+# a different per-stack effect, which REPLACES the default above. Wiring is deferred because every known
+# override is gated by a core talent or a specific legendary affix, neither of which the engine models
+# yet. When that detection lands, map each override flag (a boolean condition) → (blessing_key, new
+# effect list); the application loop below already swaps in an override whose flag is active. Known SS12
+# overrides for reference:
+#   Sacrifice    (onslaughter core talent / [Sacrifice] legendary) → tenacity: [("dmg_additional", 0.08, ...)]
+#   Mind Focus   (arcanist core talent) → focus: flat Physical = 1% Max Mana to Attacks/Spells (needs a
+#                rating-scaled flat-add shape, not a flat per-stack multiplier — a larger change)
+#   Divine Grace (belt blend — pending owner confirmation of exact text)
+#   override_flag → (blessing_key, [(stat_key, per_stack_amount, source_text), ...])
+_BLESSING_OVERRIDES: dict[str, tuple[str, list[tuple[str, float, str]]]] = {}
+
 # Flat base effects granted while dual wielding (gated by the auto-set 'dual_wielding' condition).
 # Fixed amounts — not scaled (an item can convert the block-chance portion to block ratio, but that
 # conversion isn't modeled yet). Block chance isn't consumed by the engine yet (block defense NYI).
@@ -592,6 +630,28 @@ def aggregate(
             stat="numbed_lightning_taken", amount=amount, source_type="condition",
             label="Numbed Stacks", text="+5% Lightning Damage taken per Numbed stack", points=1,
         ))
+
+    # ── Six Gods' Blessings ───────────────────────────────────────────────────
+    # Apply each blessing's per-stack base effect × its user-set stack count. Stacks ADD (one summed
+    # entry per stat → one factor). The default effect can be REPLACED by an active override (none wired
+    # yet — see _BLESSING_OVERRIDES). Distinct blessings' "additional damage" lines carry distinct text,
+    # so the per-affix pool multiplies them. Driven off the user-set *_blessings conditions for now.
+    for bkey, default_effects in _BLESSING_DEFAULT_EFFECTS.items():
+        stacks = float((numeric_vals or {}).get(bkey, 0.0) or 0.0)
+        if stacks <= 0:
+            continue
+        effects = default_effects
+        for flag, (target_blessing, override_effects) in _BLESSING_OVERRIDES.items():
+            if target_blessing == bkey and flag in (active_booleans or frozenset()):
+                effects = override_effects
+                break
+        label = _BLESSING_LABELS.get(bkey, bkey)
+        for stat_key, per_stack, text in effects:
+            amount = per_stack * stacks
+            source.add_with_source(stat_key, amount, SourceEntry(
+                stat=stat_key, amount=amount, source_type="condition",
+                label=label, text=text, points=1,
+            ))
 
     # ── Dual wielding base effects ────────────────────────────────────────────
     # Granted while wielding two one-handed weapons (the 'dual_wielding' condition is auto-set by the

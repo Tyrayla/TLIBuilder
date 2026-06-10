@@ -80,6 +80,11 @@ _DTYPE_TAG_SET = frozenset(DAMAGE_TYPES)
 # Innate base Critical Strike Rating for spells (500 CSR = 5% base crit at 0 gear). Owner-confirmed.
 _BASE_SPELL_CRIT_RATING = 500.0
 
+# Main-stat Damage Bonus: each point of a skill's main-stat attribute grants +0.5% damage. Multi-main-
+# stat skills SUM the attribute totals before applying. Generic (all damage types), its OWN additional
+# (multiplicative) pool — folded into the additional stage. Source: TLI Help DB.
+_MAIN_STAT_DAMAGE_PER_POINT = 0.005
+
 # Per-affix "additional" pooling lookups (Option A — see docs/ADDITIONAL_DAMAGE_POOLING.md).
 # Scope of this pass: OUTGOING HIT damage only. FUTURE (per-affix rework), still pooled by stat-key
 # elsewhere: attack-speed additional (below); damage-taken-additional family (enemy debuffs —
@@ -227,7 +232,11 @@ class OffenseResult:
     type_add: dict[str, float] = field(default_factory=dict)      # total more product (e.g. 1.65 = x1.65)
     above_max_mult: float = 1.0  # additional multiplier from being above max skill level (1.0 = at or below max)
     generic_inc: float = 0.0    # total increased from non-dtype-specific sources (applies uniformly to all types)
-    generic_add: float = 1.0    # total more product from non-dtype-specific sources
+    generic_add: float = 1.0    # total more product from non-dtype-specific sources (INCLUDES main-stat Damage Bonus)
+    # Main-stat Damage Bonus — the portion of generic_add from the skill's main-stat attributes.
+    # main_stat_damage_bonus is the fraction (0.255 = +25.5%); main_stats lists the attributes summed.
+    main_stat_damage_bonus: float = 0.0
+    main_stats: list[str] = field(default_factory=list)
     # Skill tags and tag-specific mechanics
     skill_tags: list[str] = field(default_factory=list)
     skill_area_inc: float = 0.0  # total increased area of effect (only when "area" in skill_tags)
@@ -379,6 +388,16 @@ def calculate_offense(
     # positives sum; each negative is its own factor. See docs/ADDITIONAL_DAMAGE_POOLING.md.
     add_factors = _build_additional_factors(source)
 
+    # Generic intrinsic additional multiplier — applies uniformly to EVERY damage type (not per-affix):
+    #   • extra_additional: skill-intrinsic pool (e.g. Fervor / Moon Strike's mana bonus), evaluated by caller.
+    #   • main_stat_factor: 1 + (Σ the skill's main-stat attribute totals) × 0.5% — the "Damage Bonus" the
+    #     attribute panel shows, driven by the skill's main_stat field (NOT tags). Source: TLI Help DB.
+    # Folded into BOTH type_add and generic_add below so the per-type breakdown ratio cancels it cleanly
+    # (it's a uniform multiplier, not a type-specific one) and "Total Additional" still reflects it.
+    main_stat_bonus = sum(source.total(a) for a in skill.main_stat) * _MAIN_STAT_DAMAGE_PER_POINT
+    main_stat_factor = 1.0 + main_stat_bonus
+    intrinsic_add = (1.0 + extra_additional) * main_stat_factor
+
     type_inc: dict[str, float] = {}
     type_add: dict[str, float] = {}
     for dtype in flat_dmg:
@@ -391,7 +410,7 @@ def calculate_offense(
         type_add[dtype] = _additional_product(
             source, add_factors,
             lambda tags, dt=dtype_tag: (not tags) or bool(tags & mod_tags) or bool(tags & dt),
-        )
+        ) * intrinsic_add
 
     # Generic (non-dtype-specific) multipliers — applies uniformly to every damage type.
     # These are the "All" column values in the stats screen breakdown table.
@@ -403,11 +422,7 @@ def calculate_offense(
     generic_add = _additional_product(
         source, add_factors,
         lambda tags: not (tags & _DTYPE_TAG_SET) and ((not tags) or bool(tags & mod_tags)),
-    ) * (1.0 + extra_additional)
-    # Skill-intrinsic additional pool (e.g. Fervor bonus) applies generically to every damage type.
-    # FUTURE (per-affix rework): extra_additional stays its own multiplicative factor (always will);
-    # how exactly it maps onto dtypes/skill mechanics is expected to be reworked later.
-    intrinsic_add = 1.0 + extra_additional
+    ) * intrinsic_add
 
     # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
     steep_chance = min(skill.base_steep_strike_chance + source.total("steep_strike_chance"), 1.0)
@@ -469,13 +484,14 @@ def calculate_offense(
         avg_pre_vs_target = 0.0
         for dtype, (mn, mx) in flat_dmg.items():
             inc = type_inc[dtype]
+            # type_add already includes the generic intrinsic multiplier (extra_additional × main-stat).
             add = type_add[dtype]
             # Enemy-vulnerability stage (Numbed etc.) — final per-type multiplier on outgoing damage.
             # Crit is uniform and commutes, so applying it here (pre-crit) is order-equivalent.
             vuln = _enemy_vuln_mult(source, dtype)
             # aug_factor (Augmentation per-Jump multiplies) is a real damage increase → in the per-hit.
-            type_min = mn * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult * vuln * aug_factor
-            type_max = mx * (eff / 100.0) * (1.0 + inc) * add * intrinsic_add * above_mult * vuln * aug_factor
+            type_min = mn * (eff / 100.0) * (1.0 + inc) * add * above_mult * vuln * aug_factor
+            type_max = mx * (eff / 100.0) * (1.0 + inc) * add * above_mult * vuln * aug_factor
             avg = (type_min + type_max) / 2.0
             # Lucky: EV uplift from the flat spread (scale-invariant), applied to the average only.
             if lucky_damage and mx > mn:
@@ -537,6 +553,8 @@ def calculate_offense(
         above_max_mult=above_mult,
         generic_inc=generic_inc,
         generic_add=generic_add,
+        main_stat_damage_bonus=main_stat_bonus,
+        main_stats=list(skill.main_stat),
         skill_tags=skill.tags,
         skill_area_inc=source.total("skill_area_inc") if "area" in skill_tags_lower else 0.0,
         cast_multiplier=cast_multiplier,

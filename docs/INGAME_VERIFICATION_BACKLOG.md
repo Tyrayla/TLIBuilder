@@ -14,8 +14,9 @@ resistance.** Confirm it's this one — a different dummy mitigates differently 
 
 **Standard isolation build (unless a test says otherwise).** Strip everything that isn't being tested:
 - **0 gear, no Pact Spirits, no Hero Memories/Traits, no talent nodes, no slates.**
-- Spirits/attributes add a hidden "Damage Bonus %" (main-stat damage) the engine does **not** model —
-  leaving them on makes in-game read higher than the app. Keep them off.
+- The engine **now models** the main-stat "Damage Bonus %" (0.5% damage per point of the skill's main
+  attribute) — see **MAINSTAT-01**. Stripping gear/spirits removes their attribute contributions so the
+  app and game both fall to the character's base attributes; configure the same attributes in the app.
 - Only the **skill + the support(s) named in the test** should be active.
 
 **THE metric — Damage Recount → "Average DPS in a span of time", over a span of ≥60s.**
@@ -31,8 +32,8 @@ That's total damage ÷ total time across a continuous parse. Longer is steadier;
 Treat the tooltip as, at most, a rough sanity check — never the recorded result.
 
 **Use ratios.** Where a test says "bare vs with-X", run **two** ≥60s parses (one each) and report both —
-the ratio is what's checked, and it cancels the dummy mitigation and the un-modelled main-stat bonus,
-so it's robust even if your rolls differ from the engine's tier-average.
+the ratio is what's checked, and it cancels the dummy mitigation and any constant main-stat bonus,
+so it's robust even if your rolls or attributes differ from the engine's.
 
 **How to report.** Fill the test's RESULT block: the Recount **Average DPS (span)** value(s) and the
 **Duration** of each parse, your support's exact **rolls + rank + tier** (from the support detail panel,
@@ -157,12 +158,36 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   - Recount Avg DPS (span) + Duration: ____
   - Lucky rank / tier: ____   Skill level: ____   Screenshot: ____   Notes: ____
 
+### MAINSTAT-01 — Main-stat Damage Bonus
+- Status: ⬜ Pending  ·  *engine now modelled, NOT yet game-verified*
+- Setup: Chain Lightning only (main stats Dexterity + Intelligence). Note your **Dexterity** and
+  **Intelligence** totals from the character sheet, and the skill level. No supports.
+- Run: one ≥60s parse. Also note the in-game **"Damage Bonus %"** shown on the attribute panel, if visible.
+- Expected: each point of a main-stat attribute grants **+0.5% damage**, multi-main-stat skills **sum**
+  the attributes → bonus = `(Dex + Int) × 0.5%`. The app's *Player Stats → Damage Bonus* row should equal
+  this, and the in-game Damage Bonus % (if shown) should match. ±3%.
+- RESULT:
+  - Recount Avg DPS (span) + Duration: ____
+  - Dexterity / Intelligence totals: ____   In-game Damage Bonus %: ____   Skill level: ____   Screenshot: ____
+
+### BLESSING-01 — Blessing base effects + additive stacking
+- Status: ⬜ Pending  ·  *engine modelled (user-set stacks), NOT yet game-verified*
+- Setup: Any modelled skill. Acquire **Focus Blessing** stacks (and separately **Agility Blessing**).
+  In the app, set **Focus Blessings** to the same stack count under Conditions.
+- Run: ≥60s parse at **0 stacks**, then ≥60s at **max (4) stacks** of Focus. (Repeat for Agility if testing it.)
+- Expected: Focus = **+5% additional damage per stack**, stacks **ADD** → ×1.20 at 4 stacks (NOT 1.05⁴).
+  Agility = **+4% Attack & Cast Speed and +2% additional damage per stack** (×1.08 additional + speed at 4).
+  Focus and Agility additional-damage pools **multiply** with each other. ±3%.
+- RESULT:
+  - Recount Avg DPS (span) + Duration, 0 / max stacks: ____
+  - Blessing tested + stack count: ____   Skill level: ____   Screenshot: ____   Notes: ____
+
 ---
 
 ## How results are ingested
 Owner: for each returned RESULT, configure the same build in the app (matching the tester's exact
 rolls/level/rank/tier) and compare the engine DPS to the reported Recount **span average**. Mark
-✅/❌/🔶; on ❌ note the engine fix. Until the explicit-roll feature lands (see
-`project_skill_tooltips_and_rolls`), the app uses each tier's **midpoint**, so expect ~1% absolute drift
-from a tester's specific roll — verify the **ratio/scaling behaviour**, not the absolute number. All
+✅/❌/🔶; on ❌ note the engine fix. The explicit-roll feature has landed (per-support roll sliders), so
+the app can now match a tester's exact rolls — enter them to compare absolute numbers; otherwise the app
+defaults to each tier's **midpoint** (~1% drift), so verify the **ratio/scaling behaviour**. All
 comparisons use the Recount **Average DPS in a span of time** (≥60s); the tooltip is not a source of truth.

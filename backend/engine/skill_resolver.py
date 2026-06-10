@@ -55,6 +55,11 @@ class ResolvedSkill:
     added_dmg_effectiveness: float = 1.0        # 136% → 1.36; applied to ADDED flat only, NOT base
     damage_types: list[str] = field(default_factory=list)  # e.g. ["lightning"]
     jumps_base: int = 0                         # base Jumps (Phase 4; unused for hit damage today)
+    # Main attribute(s) for this skill, lowercased (e.g. ["dexterity", "intelligence"]). Each point of
+    # a main-stat attribute grants +0.5% damage to this skill; multi-main-stat skills SUM the attribute
+    # totals before applying. Source: TLI Help DB (Strength/Dexterity/Intelligence). Parsed in
+    # resolve_skill from the skill's `main_stat` field; consumed by calculate_offense.
+    main_stat: list[str] = field(default_factory=list)
 
 
 _REGISTRY: dict[str, Callable[[dict], ResolvedSkill]] = {}
@@ -226,6 +231,23 @@ def _parse_cast_time(cast_speed: str) -> float:
     return float(m.group(1)) if m else 0.0
 
 
+_MAIN_STAT_NAMES = frozenset({"strength", "dexterity", "intelligence"})
+
+
+def _parse_main_stats(raw: object) -> list[str]:
+    """Parse a skill's `main_stat` field ("Dexterity, Intelligence", "Intelligence", None) into a
+    deduped, lowercased list of attribute names (strength/dexterity/intelligence). Unknown tokens and
+    None are dropped. Order preserved for display."""
+    if not raw:
+        return []
+    out: list[str] = []
+    for tok in re.split(r"[,/&]| and ", str(raw)):
+        name = tok.strip().lower()
+        if name in _MAIN_STAT_NAMES and name not in out:
+            out.append(name)
+    return out
+
+
 def resolve_skill(skill_data: dict) -> ResolvedSkill:
     """Return a ResolvedSkill; supported=False for any skill not in the registry.
 
@@ -241,4 +263,6 @@ def resolve_skill(skill_data: dict) -> ResolvedSkill:
             hit_forms_by_level={},
             supported=False,
         )
-    return handler(skill_data)
+    resolved = handler(skill_data)
+    resolved.main_stat = _parse_main_stats(skill_data.get("main_stat"))
+    return resolved

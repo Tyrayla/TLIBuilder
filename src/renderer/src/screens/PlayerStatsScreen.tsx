@@ -373,6 +373,16 @@ function DamageBreakdownTable({ offense, onCellClick }: { offense: OffenseResult
               </td>
             })}
           </tr>
+          {/* Damage Bonus from the skill's main-stat attributes (0.5% per point, summed). Its own
+              additional pool — already INCLUDED in Total Additional above; broken out here for clarity. */}
+          {offense.main_stat_damage_bonus > 0 && (
+            <tr>
+              <td style={tdSub}>↳ Damage Bonus</td>
+              <td style={tdCk} title={`+${(offense.main_stat_damage_bonus * 100).toFixed(1)}% from ${offense.main_stats.join(' + ')}`}
+                onClick={e => onCellClick('Damage Bonus — Main Stat', offense.main_stats, e)}>×{(1 + offense.main_stat_damage_bonus).toFixed(2)}</td>
+              {ALL_DTYPES.map(d => <td key={d} style={tdDim}>—</td>)}
+            </tr>
+          )}
 
           {/* ── Per hit form ── */}
           {offense.hit_forms.map(form => {
