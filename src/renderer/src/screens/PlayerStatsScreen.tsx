@@ -339,16 +339,21 @@ function DamageBreakdownTable({ offense, onCellClick }: { offense: OffenseResult
               </td>
             })}
           </tr>
-          {/* ── Multipliers: All Types=generic; per-type=dtype-specific only ── */}
+          {/* ── Multipliers: "All Types" = the catch-all bucket (generic + skill-tag-scoped mods the
+               skill qualifies for, e.g. additional attack/area/spell damage); per-type columns show
+               ONLY that damage type's specific additional. Empty = the identity (0% / ×1.00), not a
+               dash — a type with no specific modifier reads ×1.00. ── */}
           <tr>
             <td style={tdLbl}>Total Increased</td>
             <td style={tdCk} onClick={e => onCellClick('Total Increased — All Types', genericIncKeys(offense), e)}>{(offense.generic_inc * 100).toFixed(0)}%</td>
             {ALL_DTYPES.map(d => {
-              const specific = Math.max(0, (offense.type_inc[d] ?? 0) - offense.generic_inc)
+              // Specific = this type's increase beyond the generic (catch-all) bucket. Types the skill
+              // doesn't deal have no entry → treated as generic-only → 0% specific.
+              const specific = Math.max(0, (offense.type_inc[d] ?? offense.generic_inc) - offense.generic_inc)
               const show = specific >= 0.005
               return <td key={d} style={show ? tdCk : tdDim}
                 onClick={show ? e => onCellClick(`Total Increased — ${DTYPE_LABEL[d]}`, typeIncKeys(d), e) : undefined}>
-                {show ? `${(specific * 100).toFixed(0)}%` : '—'}
+                {`${(specific * 100).toFixed(0)}%`}
               </td>
             })}
           </tr>
@@ -356,11 +361,15 @@ function DamageBreakdownTable({ offense, onCellClick }: { offense: OffenseResult
             <td style={tdLbl}>Total Additional</td>
             <td style={tdCk} onClick={e => onCellClick('Total Additional — All Types', genericAddKeys(offense), e)}>×{offense.generic_add.toFixed(2)}</td>
             {ALL_DTYPES.map(d => {
-              const specificAdd = (offense.type_add[d] ?? 1) / (offense.generic_add || 1)
-              const show = specificAdd >= 1.005
+              // Specific = type_add factored over the generic bucket. Types the skill doesn't deal have
+              // no entry → ×1.00 (not 1/generic, which would show a phantom multiplier on empty types).
+              const specificAdd = offense.type_add[d] !== undefined
+                ? offense.type_add[d] / (offense.generic_add || 1)
+                : 1
+              const show = Math.abs(specificAdd - 1) >= 0.005
               return <td key={d} style={show ? tdCk : tdDim}
                 onClick={show ? e => onCellClick(`Total Additional — ${DTYPE_LABEL[d]}`, typeAddKeys(d), e) : undefined}>
-                {show ? `×${specificAdd.toFixed(2)}` : '—'}
+                {`×${specificAdd.toFixed(2)}`}
               </td>
             })}
           </tr>
