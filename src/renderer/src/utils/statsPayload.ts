@@ -74,6 +74,14 @@ export function buildEngineStatsPayload(s: BuildState) {
     spirit_effects: buildSpiritEffects(s.pactSpirits, s.allSpirits),
     main_skill: s.mainSkill ?? null,
     skills: s.skills.map(sk => ({ slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1 })),
+    // The main skill (slot 1) carries the supports that scale its damage. The engine resolves their
+    // "additional damage for the supported skill" lines (rank + tier) into stat contributions.
+    attached_supports: (s.skills.find(sk => sk.slot === 1)?.supports ?? []).map(sup => ({
+      item_id: sup.item_id,
+      skill_type: sup.skill_type,
+      rank: sup.rank,
+      level: sup.level,
+    })),
     custom_mods: s.customMods,
   }
 }

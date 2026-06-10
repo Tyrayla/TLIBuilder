@@ -248,6 +248,7 @@ def compute(
         offense = calculate_offense(
             source, resolved, build_input.main_skill.level,
             is_main_skill=True, extra_additional=extra_add,
+            support_behavior=build_input.support_behavior,
         )
         result_offense = asdict(offense)
     source._recording = False

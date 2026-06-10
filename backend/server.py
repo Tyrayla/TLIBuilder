@@ -537,6 +537,7 @@ class EngineStatsRequest(BaseModel):
     main_skill:      SkillEngineInput | None = None   # kept for backward compat
     skills:          list[SkillSlotInput] = []         # all equipped skills with slot info
     custom_mods:     list[str] = []
+    attached_supports: list[dict] = []                 # main skill's supports: {item_id, skill_type, rank, level}
 
 
 @app.post("/api/engine/stats")
@@ -580,7 +581,7 @@ def engine_stats(req: EngineStatsRequest):
     skills_by_id: dict = {}
 
     # Load skills cache if any skill info is needed
-    needs_skills = bool(req.main_skill or req.skills)
+    needs_skills = bool(req.main_skill or req.skills or req.attached_supports)
     if needs_skills:
         skills_by_id = _get_skills_data(active_season)
 
@@ -614,6 +615,15 @@ def engine_stats(req: EngineStatsRequest):
                 "stat_display": None,
             })
 
+    # Resolve the main skill's attached supports into stat contributions (additional-damage lines)
+    # plus behavioral effects (shotgun falloff / chains-per-jump).
+    support_contributions: list[dict] = []
+    support_behavior: dict = {}
+    if req.attached_supports:
+        from engine.support_resolver import resolve_support_contributions, resolve_support_behavior
+        support_contributions = resolve_support_contributions(req.attached_supports, skills_by_id)
+        support_behavior = resolve_support_behavior(req.attached_supports, skills_by_id)
+
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=req.condition_state,
@@ -621,6 +631,8 @@ def engine_stats(req: EngineStatsRequest):
         memory_effects=req.memory_effects, spirit_effects=req.spirit_effects,
         main_skill=main_skill,
         custom_contributions=custom_contributions,
+        attached_support_contributions=support_contributions,
+        support_behavior=support_behavior,
     )
     result = compute(
         build, season_trees, filter_data,

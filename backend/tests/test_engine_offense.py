@@ -234,7 +234,7 @@ class TestAdditionalPooling:
         assert r.generic_add == pytest.approx(1.08 * 1.08 * 1.25)
 
 
-def _spell(base=(25.0, 482.0), eff=1.36, cast=0.65, max_level=20, level=16, dtype="lightning"):
+def _spell(base=(25.0, 482.0), eff=1.36, cast=0.65, max_level=20, level=16, dtype="lightning", jumps=0):
     """A resolved spell skill (Chain Lightning shape): per-level intrinsic base damage, cast-driven
     hit rate, added-damage effectiveness that scales ADDED flat only."""
     return ResolvedSkill(
@@ -242,7 +242,7 @@ def _spell(base=(25.0, 482.0), eff=1.36, cast=0.65, max_level=20, level=16, dtyp
         hit_forms_by_level={level: [SkillHitForm("Chain Lightning", 100.0, "additive")]},
         supported=True, is_spell=True,
         base_dmg_by_level={level: {dtype: base}},
-        base_cast_time=cast, added_dmg_effectiveness=eff, damage_types=[dtype],
+        base_cast_time=cast, added_dmg_effectiveness=eff, damage_types=[dtype], jumps_base=jumps,
     )
 
 
@@ -277,9 +277,19 @@ class TestSpellPathway:
         assert r.attacks_per_second == pytest.approx((1.0 / 0.65) * 1.10)
 
     def test_end_to_end_dps(self):
-        # avg (25+482)/2 = 253.5, no crit, cast 0.65 → 1/0.65 casts/s.
+        # avg (25+482)/2 = 253.5, cast 0.65 → 1/0.65 casts/s, base 5% spell crit → ×1.025.
         r = calculate_offense(_source(), _spell(), 16)
-        assert r.total_dps == pytest.approx(253.5 * (1.0 / 0.65))
+        assert r.total_dps == pytest.approx(253.5 * (1.0 / 0.65) * 1.025)
+
+    def test_base_spell_crit(self):
+        # Spells have an innate 500 CSR = 5% base crit at 0 gear; attacks do not.
+        assert calculate_offense(_source(), _spell(), 16).crit_chance == pytest.approx(0.05)
+        assert calculate_offense(_source(), _skill(tags=("attack",)), 1).crit_chance == 0.0
+
+    def test_base_spell_crit_scaled_by_inc(self):
+        # +100% Critical Strike Rating scales the 500 base → 1000 CSR → 10%.
+        r = calculate_offense(_source(crit_rating_inc=1.0), _spell(), 16)
+        assert r.crit_chance == pytest.approx(0.10)
 
 
 class TestEnemyVulnerability:
@@ -298,3 +308,43 @@ class TestEnemyVulnerability:
     def test_no_numbed_no_amplification(self):
         r = calculate_offense(_source(), _spell(), 16)
         assert r.hit_forms[0].hit_max_by_type["lightning"] == pytest.approx(482.0)
+
+
+_WEBMERGE = {"same_target_shotgun": True, "falloff_coefficient": 0.80, "chains_per_jump": 1}
+
+
+class TestShotgun:
+    def test_web_merge_2_jumps(self):
+        # n = 1 + 2 jumps; subsequent ×0.20 → cast_multiplier 1.40; per-hit damage unchanged.
+        base = calculate_offense(_source(), _spell(jumps=2), 16).total_dps
+        r = calculate_offense(_source(), _spell(jumps=2), 16, support_behavior=_WEBMERGE)
+        assert r.cast_multiplier == pytest.approx(1.40)
+        assert r.shotgun_hits == 3
+        assert r.total_dps == pytest.approx(base * 1.40)
+        # per-hit tooltip damage is NOT scaled by the shotgun
+        assert r.hit_forms[0].hit_max_by_type["lightning"] == pytest.approx(482.0)
+
+    def test_extra_jumps_scale(self):
+        # +4 extra jumps → 6 total → 1 + 6×0.20 = 2.20, 7 hits.
+        r = calculate_offense(_source(extra_jumps_flat=4), _spell(jumps=2), 16, support_behavior=_WEBMERGE)
+        assert r.cast_multiplier == pytest.approx(2.20)
+        assert r.shotgun_hits == 7
+
+    def test_merge_only_no_shotgun(self):
+        beh = {"same_target_shotgun": True, "falloff_coefficient": 0.80}  # no chains (no Web)
+        r = calculate_offense(_source(), _spell(jumps=2), 16, support_behavior=beh)
+        assert r.cast_multiplier == pytest.approx(1.0) and r.shotgun_hits == 1
+
+    def test_web_only_no_shotgun(self):
+        beh = {"chains_per_jump": 1}  # no same-target (no Merge)
+        r = calculate_offense(_source(), _spell(jumps=2), 16, support_behavior=beh)
+        assert r.cast_multiplier == pytest.approx(1.0)
+
+    def test_no_behavior_unaffected(self):
+        r = calculate_offense(_source(), _spell(jumps=2), 16)
+        assert r.cast_multiplier == pytest.approx(1.0) and r.shotgun_hits == 1
+
+    def test_attack_skill_unaffected(self):
+        # Regression: a normal attack with no support_behavior is untouched.
+        r = calculate_offense(_source(weapon_attack_speed=2.0), _skill(tags=("attack",)), 1)
+        assert r.cast_multiplier == 1.0

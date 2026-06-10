@@ -77,6 +77,9 @@ _SKILL_LEVEL_STATS: list[tuple[str, frozenset]] = [
 DAMAGE_TYPES = ["physical", "fire", "cold", "lightning", "erosion"]
 _DTYPE_TAG_SET = frozenset(DAMAGE_TYPES)
 
+# Innate base Critical Strike Rating for spells (500 CSR = 5% base crit at 0 gear). Owner-confirmed.
+_BASE_SPELL_CRIT_RATING = 500.0
+
 # Per-affix "additional" pooling lookups (Option A — see docs/ADDITIONAL_DAMAGE_POOLING.md).
 # Scope of this pass: OUTGOING HIT damage only. FUTURE (per-affix rework), still pooled by stat-key
 # elsewhere: attack-speed additional (below); damage-taken-additional family (enemy debuffs —
@@ -228,6 +231,10 @@ class OffenseResult:
     # Skill tags and tag-specific mechanics
     skill_tags: list[str] = field(default_factory=list)
     skill_area_inc: float = 0.0  # total increased area of effect (only when "area" in skill_tags)
+    # Per-cast hit multiplier from same-target shotgun (Merge + Web). 1.0 = no shotgun. Applied to the
+    # DPS totals (NOT the per-hit-form damage — mirrors the in-game tooltip vs Recount split).
+    cast_multiplier: float = 1.0
+    shotgun_hits: int = 1        # same-target hits per cast (1 = no shotgun)
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -274,6 +281,7 @@ def calculate_offense(
     base_level: int,
     is_main_skill: bool = True,
     extra_additional: float = 0.0,
+    support_behavior: dict | None = None,
 ) -> OffenseResult:
     # extra_additional: a skill-intrinsic generic "additional damage" pool (fraction), evaluated
     # by the caller from the skill's intrinsic_additional + condition state (e.g. Focused Slash's
@@ -288,11 +296,14 @@ def calculate_offense(
         1.0 + source.total("attack_crit_rating_gear") + source.total("attack_crit_rating_mh")
     )
     other_csr = source.total("attack_crit_rating_flat")
+    # Innate base Critical Strike Rating for spells: every spell starts at 500 CSR (= 5% base crit)
+    # with no weapon to provide it. Attacks derive their crit from weapon CSR and are left unchanged.
+    base_csr = _BASE_SPELL_CRIT_RATING if skill.is_spell else 0.0
     # Increased Critical Strike Rating scales the whole CSR pool. crit_rating_inc is the GENERIC
     # "+X% Critical Strike Rating" (applies to both attacks and spells, e.g. Fervor Rating's
     # +2%/point); attack_crit_rating_inc is the attack-only increase. Both stack additively here.
     crit_rating_inc = source.total("crit_rating_inc") + source.total("attack_crit_rating_inc")
-    raw_csr = (weapon_csr + other_csr) * (1.0 + crit_rating_inc)
+    raw_csr = (base_csr + weapon_csr + other_csr) * (1.0 + crit_rating_inc)
     # 100 CSR = 1% crit chance; divide by 10000 to convert to 0–1 float
     crit_chance = min(raw_csr / 10000.0, 1.0)
     crit_mult = 1.5 + source.total("crit_damage")
@@ -475,6 +486,16 @@ def calculate_offense(
             hit_max_by_type=hit_max_by_type,
         ))
 
+    # Same-target shotgun (Merge lands Web's per-Jump chains on the same target). First hit 100%, each
+    # subsequent (one per Jump) deals (1 − falloff). Scales total DPS only; per-hit damage unchanged.
+    cast_multiplier = 1.0
+    shotgun_hits = 1
+    if support_behavior and support_behavior.get("same_target_shotgun") and support_behavior.get("chains_per_jump"):
+        total_jumps = skill.jumps_base + int(source.total("extra_jumps_flat"))
+        subsequent = max(0, total_jumps) * int(support_behavior["chains_per_jump"])
+        cast_multiplier = 1.0 + subsequent * (1.0 - float(support_behavior["falloff_coefficient"]))
+        shotgun_hits = 1 + subsequent
+
     return OffenseResult(
         skill_name=skill.name,
         supported=True,
@@ -484,8 +505,8 @@ def calculate_offense(
         crit_multiplier=crit_mult,
         steep_strike_chance=steep_chance,
         attacks_per_second=aps,
-        total_dps=sum(f.dps_contribution for f in hit_forms),
-        total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms),
+        total_dps=sum(f.dps_contribution for f in hit_forms) * cast_multiplier,
+        total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms) * cast_multiplier,
         weapon_attack_speed=source.total("weapon_attack_speed"),
         weapon_aps_gear=source.total("attack_speed_gear"),
         weapon_aps_mh=source.total("attack_speed_mh"),
@@ -501,6 +522,8 @@ def calculate_offense(
         generic_add=generic_add,
         skill_tags=skill.tags,
         skill_area_inc=source.total("skill_area_inc") if "area" in skill_tags_lower else 0.0,
+        cast_multiplier=cast_multiplier,
+        shotgun_hits=shotgun_hits,
         nyi=[
             "Support skill flat damage adds",
             "Elemental conversion",

@@ -431,6 +431,15 @@ export interface SkillSlotInput {
   level: number
 }
 
+// A support attached to the main skill, sent to the engine so it can resolve the support's
+// damage lines (rank scales the universal line; level/tier scales the specific lines).
+export interface AttachedSupportInput {
+  item_id: string
+  skill_type: string
+  rank?: number
+  level: number
+}
+
 export interface SkillSlotSummary {
   slot: number
   skill_id: string
@@ -1424,6 +1433,7 @@ export const api = {
     main_skill?: SkillEngineInput | null
     skills?: SkillSlotInput[]
     custom_mods?: string[]
+    attached_supports?: AttachedSupportInput[]
   }) => post<StatSheetResponse>('/engine/stats', payload),
 
   resolveMod: (text: string) =>

@@ -96,6 +96,11 @@ class BuildInput:
     spirit_effects:  list[str]  = field(default_factory=list)  # pact spirit slot + rank modifier strings
     main_skill:      SkillRef | None = None  # main skill for offense calculation
     custom_contributions: list[dict] = field(default_factory=list)  # pre-resolved custom mod entries {stat_key, amount, text}
+    # Pre-resolved support-skill contributions (same shape as custom_contributions), from the main
+    # skill's attached supports. See engine/support_resolver.py.
+    attached_support_contributions: list[dict] = field(default_factory=list)
+    # Behavioral support effects (shotgun falloff, chains-per-jump, …) consumed by calculate_offense.
+    support_behavior: dict = field(default_factory=dict)
 
 
 @dataclass

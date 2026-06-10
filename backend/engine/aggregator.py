@@ -543,6 +543,25 @@ def aggregate(
         )
         source.add_with_source(stat, amount, entry)
 
+    # ── Support skill contributions ───────────────────────────────────────────
+    # Pre-resolved from the main skill's attached supports (engine/support_resolver.py). Each carries a
+    # UNIQUE text (support id + role), so offense's per-affix pooling treats every support line as its
+    # own multiplicative factor — confirmed in-game (they all multiply; nothing sums).
+    for contrib in getattr(build, "attached_support_contributions", []) or []:
+        stat = contrib.get("stat_key")
+        if not stat:
+            continue
+        amount = float(contrib.get("amount", 0))
+        entry = SourceEntry(
+            stat=stat,
+            amount=amount,
+            source_type="support",
+            label=contrib.get("label", "Support"),
+            text=contrib.get("text", ""),
+            points=1,
+        )
+        source.add_with_source(stat, amount, entry)
+
     # ── Fervor mechanics ──────────────────────────────────────────────────────
     # Fervor's BASE effects scale per point of Fervor Rating AND are multiplied by Fervor Effect
     # (fervor_effect_inc). Today the only base effect is +2% (generic) Critical Strike Rating per
