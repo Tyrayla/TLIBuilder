@@ -2627,6 +2627,82 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="skill_level",        stacking_rule="additive",
         ui_priority=80,                source_types=_T,
     ),
+
+    # ── Support modeling (roadmap #2) ─────────────────────────────────────────
+    Stat.PROJECTILE_SPEED_ADDITIONAL: StatMeta(
+        "Additional Projectile Speed", "Projectile", "additional", "%",
+        subgroup="speed",              tags=("projectile",),
+        stacking_rule="additive",      ui_priority=60, source_types=_T,
+    ),
+    Stat.AILMENT_DMG_ADDITIONAL: StatMeta(
+        # inert until ailment DPS is modeled (no skill carries the 'ailment' tag yet)
+        "Additional Ailment Damage", "Ailments", "additional", "%",
+        subgroup="ailment_damage",     pipeline_stage="additional",
+        tags=("ailment",),             affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=12, source_types=_T,
+    ),
+    Stat.DOT_DMG_ADDITIONAL: StatMeta(
+        # inert until DoT is modeled (affects 'dot' only, never the hit pool)
+        "Additional Damage Over Time", "Ailments", "additional", "%",
+        subgroup="dot",                pipeline_stage="additional",
+        affects=("dot",),              stacking_rule="additive",
+        ui_priority=12,                source_types=_T,
+    ),
+    Stat.PARALYZE_CHANCE: StatMeta(
+        "Paralyze Chance", "Ailments", "chance", "%",
+        subgroup="status_effects",     stacking_rule="additive_chance",
+        ui_priority=22,                source_types=_T,
+    ),
+    Stat.WAVE_INTERVAL_INC: StatMeta(
+        "Wave Interval", "Generic", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=72,                source_types=_T,
+    ),
+    Stat.EXTRA_BEAMS_FLAT: StatMeta(
+        "Additional Beams", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.CANNOT_INFLICT_IGNITE: StatMeta(
+        "Cannot Inflict Ignite", "Ailments", "flag",
+        subgroup="ailment_disable",    stacking_rule="additive",
+        ui_priority=80,                source_types=_T,
+    ),
+    Stat.CANNOT_INFLICT_FROSTBITE: StatMeta(
+        "Cannot Inflict Frostbite", "Ailments", "flag",
+        subgroup="ailment_disable",    stacking_rule="additive",
+        ui_priority=80,                source_types=_T,
+    ),
+    Stat.CANNOT_INFLICT_NUMBED: StatMeta(
+        "Cannot Inflict Numbed", "Ailments", "flag",
+        subgroup="ailment_disable",    stacking_rule="additive",
+        ui_priority=80,                source_types=_T,
+    ),
+    Stat.CANNOT_INFLICT_WILT: StatMeta(
+        "Cannot Inflict Wilt", "Ailments", "flag",
+        subgroup="ailment_disable",    stacking_rule="additive",
+        ui_priority=80,                source_types=_T,
+    ),
+    Stat.ES_UNINTERRUPTIBLE: StatMeta(
+        "Energy Shield Uninterruptible by Damage", "Defense", "flag",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=80,                source_types=_T,
+    ),
+    Stat.IGNITE_STACKS_INFLICTED_FLAT: StatMeta(
+        "Additional Ignite Stacks Inflicted", "Ailments", "added_flat",
+        subgroup="ailment",            stacking_rule="additive",
+        ui_priority=78,                source_types=_T,
+    ),
+    Stat.WILT_STACKS_INFLICTED_FLAT: StatMeta(
+        "Additional Wilt Stacks Inflicted", "Ailments", "added_flat",
+        subgroup="ailment",            stacking_rule="additive",
+        ui_priority=78,                source_types=_T,
+    ),
+    Stat.EXTRA_MAX_MINIONS_FLAT: StatMeta(
+        "Additional Max Minions", "Minion", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=78,                source_types=_T,
+    ),
 }
 
 

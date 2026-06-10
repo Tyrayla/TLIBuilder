@@ -526,3 +526,19 @@ class Stat(Enum):
     MAX_TENACITY_BLESSING_STACKS_FLAT = "max_tenacity_blessing_stacks_flat"
     MAX_AGILITY_BLESSING_STACKS_FLAT = "max_agility_blessing_stacks_flat"
     MAX_FOCUS_BLESSING_STACKS_FLAT = "max_focus_blessing_stacks_flat"
+
+    # ── Support modeling (roadmap #2) ─────────────────────────────────────────
+    PROJECTILE_SPEED_ADDITIONAL = "projectile_speed_additional"
+    AILMENT_DMG_ADDITIONAL = "ailment_dmg_additional"   # inert until ailment DPS modeled
+    DOT_DMG_ADDITIONAL = "dot_dmg_additional"           # inert until DoT modeled
+    PARALYZE_CHANCE = "paralyze_chance"
+    WAVE_INTERVAL_INC = "wave_interval_inc"
+    EXTRA_BEAMS_FLAT = "extra_beams_flat"               # +N beams / refractions
+    CANNOT_INFLICT_IGNITE = "cannot_inflict_ignite"
+    CANNOT_INFLICT_FROSTBITE = "cannot_inflict_frostbite"
+    CANNOT_INFLICT_NUMBED = "cannot_inflict_numbed"
+    CANNOT_INFLICT_WILT = "cannot_inflict_wilt"
+    ES_UNINTERRUPTIBLE = "es_uninterruptible"
+    IGNITE_STACKS_INFLICTED_FLAT = "ignite_stacks_inflicted_flat"   # +N stacks inflicted (≠ max)
+    WILT_STACKS_INFLICTED_FLAT = "wilt_stacks_inflicted_flat"
+    EXTRA_MAX_MINIONS_FLAT = "extra_max_minions_flat"

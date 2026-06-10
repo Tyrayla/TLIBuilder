@@ -79,7 +79,8 @@ def _progression_keys(skill_data: dict) -> dict[str, dict[int, str]]:
 
 
 _FLAT_SPLIT = re.compile(
-    r"(?<=\.)\s+|\s+(?=[+\-]\d)"
+    # split before a LEADING signed number (one followed by a word — a new modifier, not a trailing value)
+    r"(?<=\.)\s+|\s+(?=[+\-]\d[\d.,]*\s*%?\s+[A-Za-z])"
     r"|\s+(?=Inflicts\b)|\s+(?=Buffs?\b)|\s+(?=When\b)|\s+(?=While\b)|\s+(?=Stacks?\b)"
     r"|\s+(?=The\s+supported\s+skill\b)|\s+(?=Supported\s+skills?\b)|\s+(?=Always\b)"
     r"|\s+(?=Triggers\b)|\s+(?=Automatically\b)|\s+(?=Prepares\b)|\s+(?=Gains\b)"
@@ -87,11 +88,21 @@ _FLAT_SPLIT = re.compile(
 )
 
 
+def _collapse_double(text: str) -> str:
+    """If the flat remainder is exactly its own first half repeated (the common clean doubling), keep
+    only the first half — this preserves trailing values like 'Quantity +2' that a split would orphan."""
+    w = text.split()
+    n = len(w)
+    if n >= 2 and n % 2 == 0 and w[: n // 2] == w[n // 2:]:
+        return " ".join(w[: n // 2])
+    return text
+
+
 def _dedup_flat(text: str) -> list[SupportLine]:
-    """Collapse the doubled flat remainder into deduped flat SupportLines: split on sentence (.␠),
-    signed-number starts, and clause-start keywords, dropping duplicate/empty fragments (first-wins)."""
+    """Collapse the doubled flat remainder into deduped flat SupportLines: collapse clean doubling, then
+    split on sentence (.␠), leading-signed-number starts, and clause keywords, dropping dup/empty (first-wins)."""
     seen, out = set(), []
-    for f in _FLAT_SPLIT.split(text):
+    for f in _FLAT_SPLIT.split(_collapse_double(text)):
         f = _norm(f)
         key = _template(f)
         if f and key and key not in seen:

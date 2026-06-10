@@ -178,7 +178,7 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 
 | Line | Kind | Lv1 | Status | Engine model | Notes |
 |---|---|---|---|---|---|
-| Replace Mana Cost from the supported skill with Life cost Replace Mana Cost f… | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
+| Replace Mana Cost from the supported skill with Life cost | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 
 ### Critical Strike Damage Increase  ·  _any skill_  ·  gate-text: Supports skills that hit enemies.  ·  tags: —
 > 📝 **Owner:** Explained above (crit-weighted)
@@ -374,7 +374,6 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 |---|---|---|---|---|---|
 | 15.5 % additional damage for the supported skill | scale | 31/2 | ✅ model | `dmg_additional` | generic (all types) |
 | Every 5 time(s) the supported skill is used, gains a Barrier if there's no Ba… | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
-| Interval: 6 s Every 5 time(s) the supported skill is used, gains a Barrier if… | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 | Interval: 6 s | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 
 ### Harvest Time  ·  _any skill_  ·  gate-text: Supports skills that summon Spirit Magus.  ·  tags: Summon, Spirit Magus
@@ -385,7 +384,6 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 | Minions summoned by the supported skill prepare the Empower Skill every 5 s | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
 | When Minions summoned by the supported skill are at Stage 2 or higher, | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
 | +15 % chance to use an Enhanced Skill | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
-| +15 % additional Empower Duration for them Minions summoned by the supported … | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
 | +15 % additional Empower Duration for them | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
 
 ### Haunt  ·  _any skill_  ·  gate-text: Supports Shadow Strike Skills.  ·  tags: Attack, Melee, Shadow Strike
@@ -465,7 +463,7 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 | Line | Kind | Lv1 | Status | Engine model | Notes |
 |---|---|---|---|---|---|
 | 5.5 % additional Lightning Damage for the supported skill | scale | 11/2 | ✅ model | `lightning_dmg_additional` |  |
-| Converts 50 % of the supported skill's Lightning Damage to Cold Damage Conver… | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
+| Converts 50 % of the supported skill's Lightning Damage to Cold Damage | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 
 ### Lion's Roars  ·  _any skill_  ·  gate-text: —  ·  tags: Warcry
 > 📝 **Owner:** Skip
@@ -497,7 +495,6 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 |---|---|---|---|---|---|
 | -11 % additional damage for Minions summoned by the supported skill | scale | -11 | ⬜ skip | `—` | behavioral / non-hit-damage |
 | Whenever a Minion summoned by the supported skill deals damage, gains 15 Comm… | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
-| Interval: 1 s Whenever a Minion summoned by the supported skill deals damage,… | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
 | Interval: 1 s | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 
 ### Manifold Entanglement  ·  _spell-only_  ·  gate-text: Supports Active Spell Skills.  ·  tags: Spell
@@ -557,9 +554,7 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 | Line | Kind | Lv1 | Status | Engine model | Notes |
 |---|---|---|---|---|---|
 | 7.4 % additional damage for the supported skill | scale | 37/5 | ✅ model | `dmg_additional` | generic (all types) |
-| Projectile Quantity of the supported skill | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
-| +2 Projectile Quantity of the supported skill | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
-| +2 | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
+| Projectile Quantity of the supported skill +2 | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 
 ### Multistrike  ·  _attack-only_  ·  gate-text: Supports Attack Skills.  ·  tags: Attack
 > 📝 **Owner:** We are silently dropping the increasing damage line as well. Both needs to be parsed
@@ -615,7 +610,7 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 | Line | Kind | Lv1 | Status | Engine model | Notes |
 |---|---|---|---|---|---|
 | Adds 15.5 % of Physical Damage as Fire Damage to the supported skill | scale | 31/2 | ⏭️ defer | `—` | damage conversion → roadmap #5 |
-| Converts 100 % of the supported skill's Physical Damage to Fire Damage Conver… | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
+| Converts 100 % of the supported skill's Physical Damage to Fire Damage | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 
 ### Precise Restrain  ·  _any skill_  ·  gate-text: Supports Passive Skill.  ·  tags: —
 
@@ -690,7 +685,7 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 | Line | Kind | Lv1 | Status | Engine model | Notes |
 |---|---|---|---|---|---|
 | -60 % additional Sealed Mana Compensation for the supported skill | scale | -60 | ⬜ skip | `—` | behavioral / non-hit-damage |
-| Replaces Sealed Mana of the supported skill with Sealed Life Replaces Sealed … | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
+| Replaces Sealed Mana of the supported skill with Sealed Life | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
 
 ### Precise: Selfishness  ·  _any skill_  ·  gate-text: Supports Aura Skills.  ·  tags: Aura
 
@@ -882,7 +877,7 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 | Line | Kind | Lv1 | Status | Engine model | Notes |
 |---|---|---|---|---|---|
 | -70 % additional Sealed Mana Compensation for the supported skill | scale | -70 | ⬜ skip | `—` | behavioral / non-hit-damage |
-| Replaces Sealed Mana of the supported skill with Sealed Life Replaces Sealed … | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
+| Replaces Sealed Mana of the supported skill with Sealed Life | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
 
 ### Sentry Modification  ·  _any skill_  ·  gate-text: Supports Sentry Skills.  ·  tags: Spell, Sentry
 
@@ -962,7 +957,6 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 | The supported Curse Skill becomes an instant-cast skill. | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 | Upon being cast, it inflicts its Curse Effect persistently on enemies within … | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 | The Duration of the area is equal to the Duration of the Curse Effect of the … | flat |  | ⬜ skip | `—` | behavioral / non-hit-damage |
-| CD of the supported skill is changed to 8s The supported Curse Skill becomes … | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 | CD of the supported skill is changed to 8s | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 
 ### Well-Fought Battle  ·  _any skill_  ·  gate-text: Supports Empower Skills.  ·  tags: Empower
@@ -989,7 +983,7 @@ So the gate's net effect is: **Attack-tagged supports drop off spell builds, and
 | 15.5 % additional damage for the supported skill | scale | 31/2 | ✅ model | `dmg_additional` | generic (all types) |
 | +20 % Projectile Speed for the supported skill | flat |  | ❓ UNMAPPED | `?` | no rule matched — decision needed |
 
-**support_skill line counts:** ⬜ skip 121 · ❓ UNMAPPED 88 · ✅ model 56 · 🔶 conditional 7 · ⏭️ defer 6 · ⚠️ needs decision 6
+**support_skill line counts:** ⬜ skip 119 · ❓ UNMAPPED 84 · ✅ model 56 · 🔶 conditional 7 · ⏭️ defer 6 · ⚠️ needs decision 6
 
 ## activation_medium — 28 supports
 
