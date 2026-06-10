@@ -201,6 +201,16 @@ def _progression_for_tier(progression, tier: int) -> dict | None:
 # ── Standard supports (support_skill / activation_medium) via the description_lines mapper ──────
 _STANDARD_TYPES = {"support_skill", "activation_medium_skill"}
 
+# Willpower's per-stack additional-damage % is LEVEL-specific and lives in the per-level Descript (not
+# the rolled values): Lv1 4.1% / Lv16 5.6% / Lv20 6% — verified in-game (L16 = 1.056^6). Read it here.
+_WILLPOWER_RE = re.compile(r"([\d.]+)\s*%\s*additional damage for the supported skill for every stack of buffs", re.I)
+
+
+def _willpower_per_stack(data: dict, level: int) -> float | None:
+    entry = _progression_for_tier(data.get("progression"), level)
+    m = _WILLPOWER_RE.search((entry or {}).get("values", {}).get("Descript", "")) if entry else None
+    return float(m.group(1)) / 100.0 if m else None
+
 
 def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds):
     """Resolve standard supports via the parser + mapper (engine.support_lines / support_mapper).
@@ -244,4 +254,17 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
                     "label": name,
                 })
             effects.extend(map_autoderive_line(line))
+
+        # Willpower: compounding per-stack buff whose % is per-level (Descript), applied while standing
+        # still. Resolved here (not in the aggregator) so it uses the support's actual level value.
+        wp = _willpower_per_stack(data, level)
+        if wp is not None and (conds or {}).get("standing_still"):
+            stacks = float((conds or {}).get("willpower_stacks", 0) or 0)
+            if stacks > 0:
+                contribs.append({
+                    "stat_key": "dmg_additional",
+                    "amount": (1.0 + wp) ** stacks - 1.0,
+                    "text": f"+{wp * 100:.1f}% additional damage per Willpower stack (multiplies) |{item_id}|wp",
+                    "label": name,
+                })
     return contribs, effects

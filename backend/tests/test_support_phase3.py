@@ -43,6 +43,18 @@ class TestResolveStandard:
         sup = dict(self._sup("Control Spell"), skill_type="magnificent_support_skill")
         assert resolve_standard_supports([sup], self.by_id, "spell", ["lightning"], {}) == ([], [])
 
+    def test_willpower_per_level_compounds(self):
+        # Willpower L16: per-stack 5.6% (from the level Descript), compounding → (1.056)^6 − 1
+        c, _ = resolve_standard_supports([dict(self._sup("Willpower"), level=16)], self.by_id, "spell",
+                                         ["lightning"], {"standing_still": True, "willpower_stacks": 6})
+        wp = next(x for x in c if "Willpower" in x["text"])
+        assert wp["stat_key"] == "dmg_additional" and wp["amount"] == pytest.approx(1.056 ** 6 - 1)
+
+    def test_willpower_needs_standing_still(self):
+        c, _ = resolve_standard_supports([dict(self._sup("Willpower"), level=16)], self.by_id, "spell",
+                                         ["lightning"], {"willpower_stacks": 6})
+        assert not any("Willpower" in x["text"] for x in c)
+
 
 class TestApplyCondEffects:
     def test_set_true_dtype_gated(self):
@@ -87,9 +99,3 @@ class TestBuffDebuffTables:
 
     def test_electric_overload_lightning(self):
         assert self._agg({"electric_overload": True}).total("lightning_dmg_additional") == pytest.approx(0.15)
-
-    def test_willpower_multiplies(self):
-        assert self._agg({"willpower_stacks": 6.0, "standing_still": True}).total("dmg_additional") == pytest.approx(1.06 ** 6 - 1)
-
-    def test_willpower_requires_standing_still(self):
-        assert self._agg({"willpower_stacks": 6.0}).total("dmg_additional") == 0.0

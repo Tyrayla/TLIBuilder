@@ -682,13 +682,7 @@ def aggregate(
             label="Electric Overload", text="+15% additional Lightning Damage (Electric Overload buff)", points=1,
         ))
 
-    # Willpower: +6% additional damage per stack (MULTIPLIES → (1.06)^stacks), while standing still.
-    willpower = float((numeric_vals or {}).get("willpower_stacks", 0.0) or 0.0)
-    if willpower > 0 and "standing_still" in _booleans:
-        amount = (1.06 ** willpower) - 1.0
-        source.add_with_source("dmg_additional", amount, SourceEntry(
-            stat="dmg_additional", amount=amount, source_type="condition",
-            label="Willpower", text="+6% additional damage per Willpower stack (multiplies)", points=1,
-        ))
+    # (Willpower's compounding per-stack buff is resolved in support_resolver.resolve_standard_supports,
+    # where the support's level is known — its per-stack % is level-specific, e.g. 5.6% at Lv16.)
 
     return source
