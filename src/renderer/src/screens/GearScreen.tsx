@@ -4,7 +4,7 @@ import {
   LegendaryGearItem, LegendaryGearIndexItem, LegendaryAffix, LegendaryNumericValue,
   LegendaryRandomAffixGroup,
   EquippedGearItem, CustomizedAffix, GearSlot, CraftBaseType, CraftAffix, CraftBaseItem, CraftBaseItemGroup,
-  Graft, GraftAffix,
+  Graft, GraftAffix, BeltBlend, api,
 } from '../api/client'
 import { FloatingPortal } from '@floating-ui/react'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -12,7 +12,7 @@ import { useDamageDeltaList, type DeltaRequest, type StateTransform, type Damage
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { legendaryToEquipped } from '../utils/gearItem'
 import { GearTooltipBody, type GearTooltipItem } from '../components/tooltip/bodies/GearTooltipBody'
-import { ModifierBadge, useConsumedStatSet, gearModifierStatus } from '../components/ModifierBadge'
+import { ModifierBadge, useConsumedStatSet, gearModifierStatus, type ModifierStatus } from '../components/ModifierBadge'
 import {
   rangeDecimals, midpoint, hasRangeValues, reconstructAffixText,
   affixTypeLabel, tooltipAffixText,
@@ -383,6 +383,44 @@ interface CustomizePanelProps {
     clearRandomAffixIndices?: number[]
   ) => void
   onRandomAffixChange: (explicitIndex: number, modifierId: string, updatedAffixes: LegendaryAffix[]) => void
+}
+
+// Belt-blend equip (roadmap #4) — rendered in the editor column for any belt, independent of which
+// editor (Customize / Craft / Vorax) is open. One blend total; shows the resolved effect text.
+function BeltBlendSelector({ beltBlends, beltBlend, onBeltBlendChange }: {
+  beltBlends: BeltBlend[]
+  beltBlend: string | null
+  onBeltBlendChange: (talentId: string | null) => void
+}) {
+  const statuses = useBuildStore(s => s.computedStats.core_talent_statuses)
+  const selected = beltBlends.find(b => b.talent_id === beltBlend) ?? null
+  const effText = selected ? (selected.effect_text || selected.effect_raw) : ''
+  // Match the equipped blend to its engine resolution status (by effect text or blend name) → NYI badge.
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+  const st = selected
+    ? (statuses ?? []).find(x => norm(x.text) === norm(effText) || (selected.talent_name && norm(x.name) === norm(selected.talent_name)))
+    : null
+  const badge: ModifierStatus | null = st && !st.resolved ? 'unrecognized' : null
+  return (
+    <div className="gear-belt-blend-section">
+      <div className="gear-belt-blend-header">Belt Blend</div>
+      <select
+        className="gear-belt-blend-select"
+        value={beltBlend ?? ''}
+        onChange={e => onBeltBlendChange(e.target.value || null)}
+      >
+        <option value="">— none —</option>
+        {beltBlends.map(b => (
+          <option key={b.talent_id} value={b.talent_id}>
+            {(b.talent_name ?? 'Medium Blend')}{b.talent_type ? ` (${b.talent_type})` : ''}
+          </option>
+        ))}
+      </select>
+      {selected && (
+        <div className="gear-belt-blend-effect">{effText}<ModifierBadge status={badge} /></div>
+      )}
+    </div>
+  )
 }
 
 function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines, previewDeltas, catalogItem, corrosionBaseAffixes, corrosionType, corrodedExplicitIndices, mutationAffixText, selectedRandomAffixes, onCorrosionChange, onRandomAffixChange }: CustomizePanelProps) {
@@ -2474,6 +2512,9 @@ export default function GearScreen(_props: Props) {
   const [corrodedExplicitIndices, setCorrodedExplicitIndices] = useState<number[]>([])
   const [mutationAffixText, setMutationAffixText] = useState<string | null>(null)
   const [selectedRandomAffixes, setSelectedRandomAffixes] = useState<Record<number, string>>({})
+  // Belt-blend state — the blend equipped on the belt being edited (one total), plus the catalog.
+  const [beltBlend, setBeltBlend] = useState<string | null>(null)
+  const [beltBlends, setBeltBlends] = useState<BeltBlend[]>([])
   // Craft state
   const [craftOpen, setCraftOpen] = useState(false)
   const [craftBaseType, setCraftBaseType] = useState<CraftBaseType | null>(null)
@@ -2493,6 +2534,7 @@ export default function GearScreen(_props: Props) {
     setCorrodedExplicitIndices([])
     setMutationAffixText(null)
     setSelectedRandomAffixes({})
+    setBeltBlend(null)
   }
 
   const openCraft = () => {
@@ -2526,6 +2568,15 @@ export default function GearScreen(_props: Props) {
     searchRef.current?.focus()
   }, [])
 
+  // Belt blends are season-global; load once for the belt-blend selector in the customize panel.
+  useEffect(() => {
+    let cancelled = false
+    api.getBeltBlends()
+      .then(res => { if (!cancelled) setBeltBlends(res.blends ?? []) })
+      .catch(() => { /* selector simply shows no blends if the catalog is unavailable */ })
+    return () => { cancelled = true }
+  }, [])
+
   const catalogMap = useMemo(() => new Map(catalog.map(item => [item.item_id, item])), [catalog])
 
   const q = search.trim().toLowerCase()
@@ -2542,6 +2593,27 @@ export default function GearScreen(_props: Props) {
     editingBuildIdx !== null ? (gear[editingBuildIdx] ?? null) : selectedCatalogItem
 
   const isEditing = editingBuildIdx !== null
+
+  // Whether the item currently being created/edited is a belt — drives the belt-blend selector. Covers
+  // all three editors (Customize / Craft / Vorax) and both create + edit, so the selector shows for
+  // crafted and vorax belts too (not just legendary). Belt-ness comes from the equipped slot when
+  // editing, else the base type being crafted, else the catalog item's base type.
+  const editorTargetIsBelt = useMemo(() => {
+    if (editingBuildIdx !== null) {
+      const it = gear[editingBuildIdx]
+      return !!it && (getItemSlots(it).includes('belt') || getValidSlots(it.base_type ?? '').includes('belt'))
+    }
+    if (craftOpen) {
+      const bt = craftBaseItem?.name ?? craftBaseType?.name ?? ''
+      return getValidSlots(bt).includes('belt')
+    }
+    return !!customizeItem && getValidSlots(customizeItem.base_type ?? '').includes('belt')
+  }, [editingBuildIdx, gear, craftOpen, craftBaseItem, craftBaseType, customizeItem])
+
+  // Stamp the equipped belt blend onto a belt item at save time (craft / vorax flows). Non-belts and
+  // the no-blend case pass through unchanged.
+  const withBeltBlend = (item: EquippedGearItem): EquippedGearItem =>
+    editorTargetIsBelt ? { ...item, beltBlend } : item
 
   // The catalog LegendaryGearItem backing the currently-displayed CustomizePanel item
   const legendaryCatalogItem = useMemo((): LegendaryGearItem | null => {
@@ -2617,6 +2689,8 @@ export default function GearScreen(_props: Props) {
 
   const handleSelectBuildItem = (idx: number) => {
     const item = gear[idx]
+    // Belt blend rides every editor flow (crafted / vorax / legendary), so seed it up front.
+    setBeltBlend(item.beltBlend ?? null)
     if (item.is_crafted && !item.is_vorax) {
       const bt = craftBases.find(b => b.base_items.some(bi => bi.name === item.base_type))
       if (bt) {
@@ -2674,6 +2748,7 @@ export default function GearScreen(_props: Props) {
       selectedCatalogItem, customizations, corrosionType, corrodedExplicitIndices,
       selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText,
     )
+    if (beltBlend) newItem.beltBlend = beltBlend
     setGear([...gear, newItem])
     setSelectedCatalogItem(null)
     setCustomizations([])
@@ -2683,7 +2758,7 @@ export default function GearScreen(_props: Props) {
   const handleSaveBuildItem = () => {
     if (editingBuildIdx === null) return
     const next = [...gear]
-    next[editingBuildIdx] = { ...next[editingBuildIdx], customizations }
+    next[editingBuildIdx] = { ...next[editingBuildIdx], customizations, beltBlend }
     setGear(next)
     setEditingBuildIdx(null)
     setCustomizations([])
@@ -3051,17 +3126,20 @@ export default function GearScreen(_props: Props) {
 
         {/* Panel 3: Customize or Craft */}
         <div className="gear-editor-column">
+          {editorTargetIsBelt && (
+            <BeltBlendSelector beltBlends={beltBlends} beltBlend={beltBlend} onBeltBlendChange={setBeltBlend} />
+          )}
           {craftOpen && selectedGraft ? (
             <VoraxEditorPanel
               graft={selectedGraft}
               catalog={catalog}
               catalogIndex={catalogIndex}
-              onAddToBuild={item => setGear([...gear, item])}
+              onAddToBuild={item => setGear([...gear, withBeltBlend(item)])}
               onClose={closeCraft}
               onBack={() => { setSelectedGraft(null); setVoraxInitialState(null) }}
               initialState={voraxInitialState}
               onSaveBuildItem={editingBuildIdx !== null
-                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
+                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withBeltBlend({ ...item, slot: orig.slot }) : g)); setEditingBuildIdx(null) }
                 : undefined}
             />
           ) : craftOpen ? (
@@ -3078,7 +3156,7 @@ export default function GearScreen(_props: Props) {
               setBaseItem={setCraftBaseItem}
               slots={craftSlots}
               setSlots={setCraftSlots}
-              onAddToBuild={item => setGear([...gear, item])}
+              onAddToBuild={item => setGear([...gear, withBeltBlend(item)])}
               onClose={closeCraft}
               craftSearch={craftSearch}
               setCraftSearch={setCraftSearch}
@@ -3089,7 +3167,7 @@ export default function GearScreen(_props: Props) {
               corrosionType={craftCorrosionType}
               onCorrosionTypeChange={setCraftCorrosionType}
               onSaveBuildItem={editingBuildIdx !== null
-                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
+                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withBeltBlend({ ...item, slot: orig.slot }) : g)); setEditingBuildIdx(null) }
                 : undefined}
             />
           ) : (

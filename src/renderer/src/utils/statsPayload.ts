@@ -349,6 +349,28 @@ function _buildDualWieldContributions(w1: EquippedGearItem, w2: EquippedGearItem
   return result
 }
 
+// Bracket-named core-talent grants on a legendary affix: "[Sacrifice] Changes the base effect …".
+// Mirrors the backend belt_blend_importer _BRACKET_RE — the bracket name is the granted core talent.
+const _BRACKET_RE = /^\s*\[([^\]]+)\]/
+function grantedTalentsOf(item: EquippedGearItem): string[] {
+  const names: string[] = []
+  for (const affix of item.affixes ?? []) {
+    const m = _BRACKET_RE.exec(affix.raw_text ?? '')
+    if (m) names.push(m[1].trim())
+  }
+  return names
+}
+
+// Tag a gear engine item with its core-talent grants (belt blend + bracket affixes) so the server's
+// resolve_core_talents can read them. No-op (returns the item unchanged) when there's nothing to add.
+function withCoreTalentGrants(gi: GearEngineItem, item: EquippedGearItem): GearEngineItem {
+  const granted = grantedTalentsOf(item)
+  const isBelt = Array.isArray(item.slot) ? item.slot.includes('belt') : item.slot === 'belt'
+  const beltBlend = isBelt ? (item.beltBlend ?? null) : null
+  if (granted.length === 0 && !beltBlend) return gi
+  return { ...gi, ...(granted.length ? { granted_talents: granted } : {}), ...(beltBlend ? { belt_blend: beltBlend } : {}) }
+}
+
 export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
   const result: GearEngineItem[] = []
 
@@ -368,8 +390,8 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     // Non-weapon slots and same-item dual-wield (array slot).
     const slots: (GearSlot | null)[] = Array.isArray(item.slot) ? item.slot : [item.slot]
 
-    // First slot: emit all contributions.
-    result.push({ contributions: _buildItemContributions(item, slots[0]) })
+    // First slot: emit all contributions (+ any core-talent grants this item carries).
+    result.push(withCoreTalentGrants({ contributions: _buildItemContributions(item, slots[0]) }, item))
 
     // Additional slots (same-item dual wield): emit ONLY global affixes.
     // Per the dual-wield mechanic, attacks alternate — weapon base stats (APS, base damage,
@@ -390,7 +412,7 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
   } else {
     // 0 or 1 weapon equipped — normal single-weapon path.
     for (const item of singleWeaponItems) {
-      result.push({ contributions: _buildItemContributions(item, item.slot as GearSlot) })
+      result.push(withCoreTalentGrants({ contributions: _buildItemContributions(item, item.slot as GearSlot) }, item))
     }
   }
 

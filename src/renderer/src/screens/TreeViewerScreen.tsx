@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
-import { api, getApiBase, TreeData, TreeNode } from '../api/client'
+import { api, getApiBase, TreeData, TreeNode, CoreTalentStatus } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 import { useBuildStore } from '../store/buildStore'
+import { ModifierBadge, type ModifierStatus } from '../components/ModifierBadge'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { NodeTooltipBody } from '../components/tooltip/bodies/NodeTooltipBody'
@@ -168,6 +169,23 @@ export default function TreeViewerScreen({
   const activeSlot = useBuildStore(s => s.activeSlot)
   const updateSlotNodeStates = useBuildStore(s => s.updateSlotNodeStates)
   const updateSlotCoreTalentSelections = useBuildStore(s => s.updateSlotCoreTalentSelections)
+
+  // Per-effect resolution status for granted core talents (roadmap #4), keyed by name§effect-text.
+  // The engine resolves only SELECTED/granted talents, so a status exists for the chosen option's
+  // lines; an unresolved/deferred line gets an "Unrecognized (NYI)" badge (toggle in the sidebar).
+  const coreTalentStatuses = useBuildStore(s => s.computedStats.core_talent_statuses)
+  const coreStatusByKey = useMemo(() => {
+    const m = new Map<string, CoreTalentStatus>()
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+    for (const st of coreTalentStatuses ?? []) m.set(norm(st.name) + '§' + st.text, st)
+    return m
+  }, [coreTalentStatuses])
+  const coreEffectBadge = useCallback((talentName: string, effect: string): ModifierStatus | null => {
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+    const st = coreStatusByKey.get(norm(talentName) + '§' + effect)
+    if (!st) return null               // unselected option (not resolved) → no badge
+    return st.resolved ? null : 'unrecognized'
+  }, [coreStatusByKey])
 
   const [treeData, setTreeData] = useState<TreeData | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -431,7 +449,9 @@ export default function TreeViewerScreen({
                       <div key={opt.id} className={`core-talent-card${selected ? ' selected' : ''}`}>
                         <div className="core-talent-card-name">{opt.name}</div>
                         <div className="core-talent-card-desc">
-                          {opt.effects.map((e, i) => <p key={i}>{e}</p>)}
+                          {opt.effects.map((e, i) => (
+                            <p key={i}>{e}<ModifierBadge status={coreEffectBadge(opt.name, e)} /></p>
+                          ))}
                         </div>
                         <button
                           className={`core-talent-card-select${selected ? ' selected' : ''}`}

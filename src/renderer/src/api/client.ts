@@ -550,10 +550,20 @@ export interface StatSheetResponse {
   offense?: OffenseResult | null
   defense?: DefenseResult | null
   custom_mod_statuses?: CustomModStatus[]
+  // Per-effect resolution for granted core talents (roadmap #4) — drives the core-talent NYI badges.
+  // kind: 'stat' | 'override' (applied) | 'deferred' | 'unresolved' (captured, not applied).
+  core_talent_statuses?: CoreTalentStatus[]
   skill_slots?: SkillSlotSummary[]
   // Stat keys the engine actually READ for this build (offense/defense/derive passes). Drives the
   // "inert modifier" badges: a modifier whose mapped stat isn't here is recognized-but-unused.
   consumed_stats?: string[]
+}
+
+export interface CoreTalentStatus {
+  name: string
+  text: string
+  resolved: boolean
+  kind: 'stat' | 'override' | 'deferred' | 'unresolved'
 }
 
 // ── Modifier resolution (inert-modifier badges) ─────────────────────────────────
@@ -1155,6 +1165,19 @@ export interface EquippedGearItem {
   mutation_affix_text?: string | null
   mutation_resolved_affix?: LegendaryAffix | null
   selected_random_affixes?: Record<number, string>
+  // Equipped belt blend (Blending Ritual) — the blend's talent_id. Belt slot only; one blend total.
+  // Grants the blend's exclusive Core/Aromatic/Medium effect (resolved by the engine, roadmap #4).
+  beltBlend?: string | null
+}
+
+// One entry from the Belt Blends (Blending Rituals) catalog — see backend belt_blend_importer.
+export interface BeltBlend {
+  talent_id: string
+  talent_type: 'core' | 'aromatic' | 'medium' | string
+  talent_level: number
+  talent_name: string | null
+  effect_text: string
+  effect_raw: string
 }
 
 export interface GearAffixContribution {
@@ -1188,6 +1211,11 @@ export interface DamageDeltaResult {
 
 export interface GearEngineItem {
   contributions: GearAffixContribution[]
+  // Core-talent grants riding with this gear item (roadmap #4), read server-side by resolve_core_talents:
+  //  - belt_blend: the belt's equipped blend talent_id (belt item only).
+  //  - granted_talents: bracket-named core talents this item grants ("[Name] …" legendary affixes).
+  belt_blend?: string | null
+  granted_talents?: string[]
 }
 
 export interface SeasonDiffNode {
@@ -1381,7 +1409,7 @@ export const api = {
     post<{ ok: boolean; count: number }>(
       '/dev/import-crawler-belt-blends', { season_name: seasonName, data }
     ),
-  getBeltBlends: () => get<{ season: string | null; blends: object[]; glossary: Record<string, { name: string; description: string }> }>('/belt-blends'),
+  getBeltBlends: () => get<{ season: string | null; blends: BeltBlend[]; glossary: Record<string, { name: string; description: string }> }>('/belt-blends'),
   clearBeltBlends: () => del<{ ok: boolean }>('/dev/belt-blends'),
 
   importDestiny: (seasonName: string, data: object) =>

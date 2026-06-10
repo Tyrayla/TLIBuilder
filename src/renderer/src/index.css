@@ -1980,6 +1980,46 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .gear-mutation-select:focus { outline: none; border-color: #5a5a7a; }
 
+/* Belt-blend equip (roadmap #4) — shown in the customize panel for belt items only. */
+.gear-belt-blend-section {
+  padding: 8px 10px;
+  border-top: 1px solid #2a2a3a;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gear-belt-blend-header {
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gear-belt-blend-select {
+  width: 100%;
+  background: #1a1a2e;
+  color: #c8c4a0;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gear-belt-blend-select:focus { outline: none; border-color: #5a5a7a; }
+
+.gear-belt-blend-effect {
+  font-size: 12px;
+  color: #b7a4d8;
+  line-height: 1.4;
+  padding: 4px 6px;
+  background: #181826;
+  border-left: 2px solid #6a5a9a;
+  border-radius: 3px;
+}
+
 .gear-mutation-unavailable {
   font-size: 11px;
   color: #888;
