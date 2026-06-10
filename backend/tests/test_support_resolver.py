@@ -6,7 +6,8 @@ factor; nothing sums). Phase 4a covers the additional-damage lines only.
 import os
 import json
 import pytest
-from engine.support_resolver import resolve_support_contributions, _range_mid_fraction
+from engine.support_resolver import resolve_support_contributions, resolve_support_behavior, _range_mid_fraction
+from engine.affix_identity import affix_identity
 from engine.models import BuildSource, SourceEntry
 from engine.offense import _build_additional_factors, _additional_product
 
@@ -161,3 +162,34 @@ def test_real_web_merge_pools_to_1466():
          "skill_type": "noble_support_skill", "rank": 5, "level": 1},
     ], by_id)
     assert _pool_product(c) == pytest.approx(1.4658, abs=2e-3)
+
+
+class TestExplicitRolls:
+    def test_specific_roll_overrides_mid(self):
+        line = "+(16-18) % additional damage for the supported skill"  # Web tier 1, mid 0.17
+        ident = affix_identity(line)
+        c = resolve_support_contributions(
+            [{"item_id": "web", "skill_type": "magnificent_support_skill", "rank": 1, "level": 1,
+              "specific_rolls": {ident: 0.18}}], _BY_ID)
+        spec = [x for x in c if x["text"].endswith("specific")][0]
+        assert spec["amount"] == pytest.approx(0.18)  # explicit roll, not mid 0.17
+
+    def test_no_roll_falls_back_to_mid(self):
+        c = resolve_support_contributions(
+            [{"item_id": "web", "skill_type": "magnificent_support_skill", "rank": 1, "level": 1}], _BY_ID)
+        spec = [x for x in c if x["text"].endswith("specific")][0]
+        assert spec["amount"] == pytest.approx(0.17)  # mid of 16-18
+
+    def test_augmentation_explicit_roll(self):
+        line = "+(5.5-5.9) % additional damage for every 1 Jump remaining of the supported skill (multiplies)"
+        ident = affix_identity(line)
+        b = resolve_support_behavior(
+            [{"item_id": "aug", "skill_type": "magnificent_support_skill", "rank": 1, "level": 1,
+              "specific_rolls": {ident: 0.059}}], _BY_ID)
+        assert b["augmentation_per_jump"] == pytest.approx(0.059)  # explicit, not mid 0.057
+
+    def test_missing_rank_defaults_to_1(self):
+        # rank omitted → rank 1 → universal line = 0% → no universal contribution.
+        c = resolve_support_contributions(
+            [{"item_id": "web", "skill_type": "magnificent_support_skill", "level": 1}], _BY_ID)
+        assert all(not x["text"].endswith("universal") for x in c)

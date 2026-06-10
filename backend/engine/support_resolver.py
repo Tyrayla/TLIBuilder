@@ -19,6 +19,20 @@ so offense's affix_identity keys them distinctly and multiplies them — no chan
 from __future__ import annotations
 import re
 
+from engine.affix_identity import affix_identity
+
+
+def _explicit_roll(sup: dict, line: str) -> float | None:
+    """The user-set roll (signed fraction) for a specific line, keyed by the line's value-stripped
+    identity, or None to fall back to the tier midpoint. Mirrors the frontend's identity keying."""
+    rolls = sup.get("specific_rolls")
+    if isinstance(rolls, dict):
+        v = rolls.get(affix_identity(line))
+        if v is not None:
+            return float(v)
+    return None
+
+
 # Universal "+% additional damage for the supported skill" by support RANK (1–5). Frame behaviour on
 # Noble/Magnificent supports; rank is a per-support build input (not in the game data). Owner-verified.
 _RANK_TABLE: dict[int, float] = {1: 0.0, 2: 0.04, 3: 0.08, 4: 0.14, 5: 0.20}
@@ -100,9 +114,10 @@ def resolve_support_contributions(
             line = str((entry.get("values") or {}).get("name", ""))
             low = line.lower()
             if "(multiplies)" in low:
-                pass  # Augmentation's per-Jump compounding line → Phase 4b
+                pass  # Augmentation's per-Jump compounding line → resolve_support_behavior
             elif _UNIVERSAL_PHRASE in low:
-                frac = _range_mid_fraction(line)
+                roll = _explicit_roll(sup, line)
+                frac = roll if roll is not None else _range_mid_fraction(line)
                 if frac is not None and frac != 0.0:
                     out.append({
                         "stat_key": "dmg_additional",
@@ -150,17 +165,20 @@ def resolve_support_behavior(
         if entry:
             line = str((entry.get("values") or {}).get("name", "")).lower()
             if "(multiplies)" in line and "jump" in line:
-                frac = _range_mid_fraction(line)
+                roll = _explicit_roll(sup, line)
+                frac = roll if roll is not None else _range_mid_fraction(line)
                 if frac:
                     behavior["augmentation_per_jump"] = abs(frac)
     return behavior
 
 
 def _clamp_rank(rank) -> int:
+    # Default to rank 1 (= 0% universal) when unset — the conservative/accurate default; the user
+    # raises it to match their actual support.
     try:
         r = int(rank)
     except (TypeError, ValueError):
-        r = 5
+        r = 1
     return max(1, min(5, r))
 
 
