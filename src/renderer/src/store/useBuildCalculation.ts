@@ -20,7 +20,10 @@ export function useBuildCalculation() {
       const hasSource =
         s.slots.some(Boolean) ||
         s.slates.some(sl => sl.slots?.some(slot => slot.selectedNodeId !== null)) ||
-        s.gear.some(item => item.slot !== null)
+        s.gear.some(item => item.slot !== null) ||
+        // A main skill alone is enough to compute damage — don't gate offense on having a tree/gear.
+        s.mainSkill !== null ||
+        s.skills.length > 0
 
       if (!hasSource) {
         useBuildStore.getState().setComputedStats(EMPTY_STAT_SHEET, version)
