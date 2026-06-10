@@ -2197,6 +2197,42 @@ def clear_grafts():
     return {"ok": True}
 
 
+# ── Belt Blends (Blending Rituals) ───────────────────────────────────────────────
+
+class ImportCrawlerBeltBlendsRequest(BaseModel):
+    season_name: str
+    data: dict   # the full blending_rituals.json: {entries: [...], glossary: [...]}
+
+
+@app.post("/api/dev/import-crawler-belt-blends")
+def import_crawler_belt_blends_endpoint(req: ImportCrawlerBeltBlendsRequest):
+    from tools.belt_blend_importer import import_crawler_belt_blends
+    if not req.season_name.strip():
+        raise HTTPException(400, "season_name must not be empty")
+    result = import_crawler_belt_blends(req.data)
+    season_manager.save_belt_blends(req.season_name, {"season": req.season_name, **result})
+    return {"ok": True, "count": result["blend_count"]}
+
+
+@app.get("/api/belt-blends")
+def get_belt_blends():
+    active = season_manager.get_active_season()
+    if not active:
+        return {"season": None, "blends": [], "glossary": {}}
+    data = season_manager.load_belt_blends(active)
+    if not data:
+        return {"season": active, "blends": [], "glossary": {}}
+    return {"season": active, "blends": data.get("blends", []), "glossary": data.get("glossary", {})}
+
+
+@app.delete("/api/dev/belt-blends")
+def clear_belt_blends():
+    active = season_manager.get_active_season()
+    if active:
+        season_manager.delete_belt_blends(active)
+    return {"ok": True}
+
+
 # ── Singletons ─────────────────────────────────────────────────────────────────
 
 class ImportSingletonRequest(BaseModel):

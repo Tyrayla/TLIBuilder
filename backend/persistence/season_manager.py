@@ -250,6 +250,27 @@ def delete_grafts(season: str) -> None:
         os.remove(path)
 
 
+def save_belt_blends(season: str, data: dict) -> None:
+    d = _season_dir(season)
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "_belt_blends.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_belt_blends(season: str) -> dict | None:
+    path = os.path.join(_season_dir(season), "_belt_blends.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def delete_belt_blends(season: str) -> None:
+    path = os.path.join(_season_dir(season), "_belt_blends.json")
+    if os.path.exists(path):
+        os.remove(path)
+
+
 def _save_singleton(season: str, filename: str, data: dict) -> None:
     d = _season_dir(season)
     os.makedirs(d, exist_ok=True)
@@ -375,6 +396,7 @@ def get_season_summary(name: str) -> dict:
     hero_memories_count: int | None = None
     memory_revival_count: int | None = None
     tower_sequence_count: int | None = None
+    belt_blend_count: int | None = None
     if os.path.isdir(d):
         for fname in sorted(os.listdir(d)):
             if not fname.endswith(".json"):
@@ -412,6 +434,8 @@ def get_season_summary(name: str) -> dict:
                         memory_revival_count = fdata.get("affix_count", len(fdata.get("affixes", [])))
                     elif fname == "_tower_sequence.json":
                         tower_sequence_count = fdata.get("entry_count", len(fdata.get("entries", [])))
+                    elif fname == "_belt_blends.json":
+                        belt_blend_count = fdata.get("blend_count", len(fdata.get("blends", [])))
                 except Exception:
                     pass
                 continue
@@ -433,5 +457,5 @@ def get_season_summary(name: str) -> dict:
         "graft_count": graft_count,
         "destiny_count": destiny_count, "ethereal_prism_count": ethereal_prism_count,
         "hero_memories_count": hero_memories_count, "memory_revival_count": memory_revival_count,
-        "tower_sequence_count": tower_sequence_count,
+        "tower_sequence_count": tower_sequence_count, "belt_blend_count": belt_blend_count,
     }

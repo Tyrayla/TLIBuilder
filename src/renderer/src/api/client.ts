@@ -620,6 +620,7 @@ export interface SeasonSummary {
   hero_memories_count: number | null
   memory_revival_count: number | null
   tower_sequence_count: number | null
+  belt_blend_count: number | null
   is_active: boolean
 }
 
@@ -1374,6 +1375,14 @@ export const api = {
     ),
   getGrafts: () => get<{ season: string | null; grafts: Graft[] }>('/grafts'),
   clearGrafts: () => del<{ ok: boolean }>('/dev/grafts'),
+
+  // Belt Blends (Blending Rituals) — a single scraper file: { entries, glossary }.
+  importCrawlerBeltBlends: (seasonName: string, data: object) =>
+    post<{ ok: boolean; count: number }>(
+      '/dev/import-crawler-belt-blends', { season_name: seasonName, data }
+    ),
+  getBeltBlends: () => get<{ season: string | null; blends: object[]; glossary: Record<string, { name: string; description: string }> }>('/belt-blends'),
+  clearBeltBlends: () => del<{ ok: boolean }>('/dev/belt-blends'),
 
   importDestiny: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-destiny', { season_name: seasonName, data }),
