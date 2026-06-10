@@ -15,7 +15,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
-import type { StatEntry, StatSheetResponse } from '../../api/client'
+import type { StatEntry, StatSheetResponse, EquippedSupportSkill } from '../../api/client'
 import { useBuildStore } from '../../store/buildStore'
 import { buildEngineStatsPayload, type BuildState } from '../../utils/statsPayload'
 
@@ -62,6 +62,22 @@ export function withNodePoints(s: BuildState, slotIdx: number, nodeId: string, p
     return { ...slot, nodeStates }
   })
   return { ...s, slots }
+}
+
+// Set/replace (or remove, when `support` is null) a support at `supportIndex` on the main skill
+// (slot 1). Exported so the skills screen can build support `step`/`base` transforms:
+//   pick  → step = withSupport(idx, hypothetical), base = current  → swap-in result
+//   tune  → step = current, base = withSupport(idx, null)          → +contribution
+export function withSupport(s: BuildState, supportIndex: number, support: EquippedSupportSkill | null): BuildState {
+  return {
+    ...s,
+    skills: s.skills.map(sk => {
+      if (sk.slot !== 1) return sk
+      const supports = (sk.supports ?? []).filter(x => x.support_index !== supportIndex)
+      if (support) supports.push({ ...support, support_index: supportIndex })
+      return { ...sk, supports }
+    }),
+  }
 }
 
 function toStats(r: StatSheetResponse): Stats {

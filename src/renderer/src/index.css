@@ -2932,7 +2932,7 @@ span.gear-affix-label {
 /* ── Center panel (skill catalog or skill detail) ──────────────────────────── */
 
 .skill-center-panel {
-  flex: 53;
+  flex: 44;
   min-width: 220px;
   display: flex;
   flex-direction: column;
@@ -3513,7 +3513,7 @@ span.gear-affix-label {
 /* ── Support panel (right panel) ─────────────────────────────────────────── */
 
 .skill-support-panel {
-  flex: 27;
+  flex: 36;
   min-width: 180px;
   background: #0c0c1c;
   display: flex;

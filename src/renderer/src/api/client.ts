@@ -438,6 +438,7 @@ export interface AttachedSupportInput {
   skill_type: string
   rank?: number
   level: number
+  specific_rolls?: Record<string, number>
 }
 
 export interface SkillSlotSummary {
@@ -874,9 +875,11 @@ export interface EquippedSupportSkill {
   skill_type: string
   level: number
   // Rank (1-5) — Noble/Magnificent supports only. Scales the support's universal
-  // "+% additional damage for the supported skill" line (R1 0% → R5 20%). Not yet consumed by the
-  // engine (support damage = a later phase); stored on the build so it persists.
+  // "+% additional damage for the supported skill" line (R1 0% → R5 20%).
   rank?: number
+  // Explicit per-line rolls (signed fraction) keyed by the line's affix identity. Overrides the
+  // engine's tier-midpoint default for that line. See utils/supportRolls.ts + utils/affixIdentity.ts.
+  specific_rolls?: Record<string, number>
   skill_tags: string[]
   description_lines: string[]
 }

@@ -81,6 +81,7 @@ export function buildEngineStatsPayload(s: BuildState) {
       skill_type: sup.skill_type,
       rank: sup.rank,
       level: sup.level,
+      specific_rolls: sup.specific_rolls,
     })),
     custom_mods: s.customMods,
   }

@@ -15,23 +15,28 @@ import { useBuildStore } from '../store/buildStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { SkillTooltipBody } from '../components/tooltip/bodies/SkillTooltipBody'
+import { DamageDeltaBand } from '../components/tooltip/DamageDeltaBand'
+import { useDamageDelta, useDamageDeltaList, withSupport, type DeltaRequest, type DamageDelta } from '../components/tooltip/useDamageDelta'
+import { modeledRolledLines } from '../utils/supportRolls'
 
 // Cursor-anchored skill / support hover tooltip via the shared primitive (informational —
 // no contributions band). Render-prop hands triggerProps to the hovered element.
-function SkillHoverTooltip({ name, descLines, children }: {
+function SkillHoverTooltip({ name, descLines, children, deltaReq = null }: {
   name: string
   descLines: string[]
   children: (triggerProps: Record<string, unknown>) => React.ReactNode
+  deltaReq?: DeltaRequest | null   // when set, a DPS-delta band is computed on hover (e.g. equip preview)
 }) {
   const tip = useFloatingTooltip({ anchor: 'cursor', side: 'top' })
+  const delta = useDamageDelta(deltaReq, tip.open && !!deltaReq)
   return (
     <>
       {children(tip.triggerProps)}
       {tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--skill" {...tip.floatingProps}>
-            <TooltipShell title={name}>
-              <SkillTooltipBody lines={getAdvancedLines(descLines)} />
+            <TooltipShell title={name} delta={deltaReq ? delta : undefined}>
+              <SkillTooltipBody lines={getAdvancedLines(cleanDescLines(descLines))} />
             </TooltipShell>
           </div>
         </FloatingPortal>
@@ -88,6 +93,24 @@ function getAdvancedLines(lines: string[]): string[] {
   return idx >= 0 ? lines.slice(idx) : lines
 }
 
+// Tidy a support description for tooltips: strip the per-level scaling annotations "(Lv1:2)(Lv2:…)"
+// that clutter standard supports, collapse a phrase that the source repeats back-to-back, and drop
+// duplicate lines.
+function cleanDescLines(lines: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of lines) {
+    let s = (raw ?? '').replace(/\(Lv\.?\s*\d+\s*:[^)]*\)/gi, '').replace(/\s{2,}/g, ' ').trim()
+    // Collapse an immediately-repeated half ("A A" → "A"), which the game data does for some supports.
+    const half = Math.floor(s.length / 2)
+    if (half > 12 && s.slice(0, half).trim() === s.slice(half).trim()) s = s.slice(0, half).trim()
+    if (!s || seen.has(s)) continue
+    seen.add(s)
+    out.push(s)
+  }
+  return out
+}
+
 function isPassiveSlot(slot: number) { return slot > 5 }
 
 const TIERED_SUPPORT_TYPES = new Set(['activation_medium_skill', 'magnificent_support_skill', 'noble_support_skill'])
@@ -107,9 +130,47 @@ function supportLevelLabel(skill_type: string | undefined): string {
 // Only Noble/Magnificent supports carry the rank (1-5) that scales their universal
 // "+% additional damage for the supported skill" line. Other support types have no rank.
 const RANKED_SUPPORT_TYPES = new Set(['magnificent_support_skill', 'noble_support_skill'])
-const DEFAULT_SUPPORT_RANK = 5  // the value shown in the source data is the rank-5 roll
+const DEFAULT_SUPPORT_RANK = 1  // 0% universal — the conservative default; the user raises it to match
 function isRankedSupport(skill_type: string | undefined): boolean {
   return RANKED_SUPPORT_TYPES.has(skill_type ?? '')
+}
+// Universal "+% additional damage for the supported skill" by rank (mirror support_resolver._RANK_TABLE).
+const RANK_TABLE = [0, 0.04, 0.08, 0.14, 0.20]
+function rankAdditional(rank: number | undefined): number {
+  return RANK_TABLE[Math.max(1, Math.min(5, rank ?? 1)) - 1]
+}
+
+// Compact inline DPS-delta shown beside a support's name (gain/loss %). Returns null when there's
+// nothing useful to show (no value yet / not modeled).
+function deltaInline(d: DamageDelta | undefined): React.ReactNode {
+  if (!d) return null
+  if (d.state === 'loading') return <span style={{ fontSize: 11, opacity: 0.4 }}>…</span>
+  if (d.state === 'value' && d.direction !== 'neutral') {
+    return (
+      <span style={{ fontSize: 11, fontWeight: 600, color: d.direction === 'gain' ? '#5fc16a' : '#e06c6c' }}>
+        {d.percent > 0 ? '+' : ''}{d.percent.toFixed(1)}%
+      </span>
+    )
+  }
+  return null
+}
+
+// Build a fresh EquippedSupportSkill from a catalog item (default rank/tier + tier-mid rolls). Shared
+// by assignSupport and the catalog DPS-delta preview transform.
+function makeSupport(item: SkillItem, supportIndex: number): EquippedSupportSkill {
+  const range = supportLevelRange(item.skill_type)
+  const rolls = modeledRolledLines(item, range.default)
+  return {
+    support_index: supportIndex,
+    item_id: item.item_id,
+    name: item.name,
+    skill_type: item.skill_type ?? 'support_skill',
+    level: range.default,
+    skill_tags: item.skill_tags,
+    description_lines: item.description_lines,
+    ...(isRankedSupport(item.skill_type) ? { rank: DEFAULT_SUPPORT_RANK } : {}),
+    ...(rolls.length ? { specific_rolls: Object.fromEntries(rolls.map(r => [r.identity, r.mid])) } : {}),
+  }
 }
 
 interface Props {
@@ -144,6 +205,18 @@ export default function SkillsScreen(_props: Props) {
 
   const focusedEquipped = focusedSlot !== null ? getEquipped(focusedSlot) : null
 
+  // DPS contribution of the focused equipped support (slot-1 only — supports on other skills don't
+  // affect the computed main-skill DPS). Recomputes live as its rank/tier/roll change.
+  const focusedEquippedSupport = (focusedSlot === 1 && focusedSupportIdx !== null && focusedEquipped)
+    ? getSupport(focusedEquipped, focusedSupportIdx) : null
+  const equippedSupportDelta = useDamageDelta(
+    focusedEquippedSupport && focusedSupportIdx !== null
+      ? { key: `support-have:${focusedSupportIdx}:${focusedEquippedSupport.item_id}`,
+          base: s => withSupport(s, focusedSupportIdx, null) }
+      : null,
+    !!focusedEquippedSupport,
+  )
+
   // ── catalog lists ──────────────────────────────────────────────────────────
   const skillCatalogItems = useMemo(() => {
     if (focusedSlot === null) return []
@@ -171,6 +244,32 @@ export default function SkillsScreen(_props: Props) {
       s.description_lines.some(l => l.toLowerCase().includes(q))
     )
   }, [allItems, focusedSlot, focusedSupportIdx, focusedEquipped, equippedSkills, supportSearch])
+
+  // Per-catalog-support equip DPS-delta (slot-1 only) — used to label each name and sort the list.
+  const supportPickReqs = useMemo<DeltaRequest[]>(() =>
+    (focusedSlot === 1 && focusedSupportIdx !== null)
+      ? supportCatalogItems.map(item => ({
+          key: `support-pick:${item.item_id}:${focusedSupportIdx}`,
+          step: (s) => withSupport(s, focusedSupportIdx, makeSupport(item, focusedSupportIdx)),
+        }))
+      : [],
+    [supportCatalogItems, focusedSlot, focusedSupportIdx])
+  const supportPickDeltas = useDamageDeltaList(supportPickReqs.length ? supportPickReqs : null, supportPickReqs.length > 0)
+  const supportDeltaById = useMemo(() => {
+    const m: Record<string, DamageDelta> = {}
+    supportCatalogItems.forEach((it, i) => { if (supportPickDeltas[i]) m[it.item_id] = supportPickDeltas[i] })
+    return m
+  }, [supportCatalogItems, supportPickDeltas])
+  // Sort by contribution (gain desc); unresolved/nyi sink, preserving original order among equals.
+  const sortedSupportCatalog = useMemo(() => {
+    const score = (i: number) => {
+      const d = supportPickDeltas[i]
+      return d && d.state === 'value' ? d.absolute : Number.NEGATIVE_INFINITY
+    }
+    return supportCatalogItems.map((it, i) => ({ it, i }))
+      .sort((a, b) => score(b.i) - score(a.i))
+      .map(x => x.it)
+  }, [supportCatalogItems, supportPickDeltas])
 
   const selectedSkillItem  = allItems.find(i => i.item_id === selectedSkillId)  ?? null
   const selectedSupportItem = allItems.find(i => i.item_id === selectedSupportId) ?? null
@@ -247,17 +346,7 @@ export default function SkillsScreen(_props: Props) {
     if (!selectedSupportItem || focusedSlot === null || focusedSupportIdx === null) return
     const parent = focusedEquipped
     if (!parent) return
-    const range = supportLevelRange(selectedSupportItem.skill_type)
-    const newSupport: EquippedSupportSkill = {
-      support_index: focusedSupportIdx,
-      item_id: selectedSupportItem.item_id,
-      name: selectedSupportItem.name,
-      skill_type: selectedSupportItem.skill_type ?? 'support_skill',
-      level: range.default,
-      skill_tags: selectedSupportItem.skill_tags,
-      description_lines: selectedSupportItem.description_lines,
-      ...(isRankedSupport(selectedSupportItem.skill_type) ? { rank: DEFAULT_SUPPORT_RANK } : {}),
-    }
+    const newSupport = makeSupport(selectedSupportItem, focusedSupportIdx)
     const updated: EquippedSkill = {
       ...parent,
       supports: [
@@ -411,16 +500,20 @@ export default function SkillsScreen(_props: Props) {
     return (
       <>
         <div className="skill-detail-header">
-          <SkillHoverTooltip name={focusedEquipped.name} descLines={focusedEquipped.description_lines}>
-            {tp => (
-              <div {...tp} style={{ cursor: 'default' }}>
-                <div className="skill-detail-name">{focusedEquipped.name}</div>
-                <div className="skill-detail-tags">
-                  {focusedEquipped.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+            <SkillHoverTooltip name={focusedEquipped.name} descLines={focusedEquipped.description_lines}>
+              {tp => (
+                <div {...tp} style={{ cursor: 'default', flex: 1, minWidth: 0 }}>
+                  <div className="skill-detail-name">{focusedEquipped.name}</div>
+                  <div className="skill-detail-tags">
+                    {focusedEquipped.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
+                  </div>
                 </div>
-              </div>
-            )}
-          </SkillHoverTooltip>
+              )}
+            </SkillHoverTooltip>
+            <button className="btn btn-secondary btn-sm" onClick={() => { setCenterView('catalog'); setSearch('') }}>Change</button>
+            <button className="btn btn-danger btn-sm" onClick={() => removeSkill(focusedSlot)}>Remove</button>
+          </div>
           <div className="skill-level-row" style={{ marginTop: 0, alignItems: 'center' }}>
             <span className="skill-level-label">Level</span>
             <div className="skill-level-controls">
@@ -467,15 +560,6 @@ export default function SkillsScreen(_props: Props) {
           })}
         </div>
 
-        <div className="skill-panel-divider" />
-        <div className="skill-detail-actions">
-          <button className="btn btn-secondary" onClick={() => { setCenterView('catalog'); setSearch('') }}>
-            Change Skill
-          </button>
-          <button className="btn btn-danger" onClick={() => removeSkill(focusedSlot)}>
-            Remove Skill
-          </button>
-        </div>
       </>
     )
   }
@@ -512,10 +596,14 @@ export default function SkillsScreen(_props: Props) {
             const lvlRange = supportLevelRange(existingSupport.skill_type)
             const updateLevel = (newLevel: number) => {
               const clamped = Math.max(lvlRange.min, Math.min(lvlRange.max, newLevel))
+              // Re-seed each modeled roll to the new tier's midpoint — otherwise the explicit roll
+              // overrides the tier and changing the tier alone wouldn't move DPS.
+              const rolls = modeledRolledLines(allItems.find(i => i.item_id === existingSupport.item_id), clamped)
+              const newRolls = rolls.length ? Object.fromEntries(rolls.map(r => [r.identity, r.mid])) : undefined
               onSkillsChange(equippedSkills.map(sk =>
                 sk.slot === focusedSlot
                   ? { ...sk, supports: sk.supports.map(s =>
-                        s.support_index === focusedSupportIdx ? { ...s, level: clamped } : s
+                        s.support_index === focusedSupportIdx ? { ...s, level: clamped, specific_rolls: newRolls } : s
                       )}
                   : sk
               ))
@@ -563,12 +651,60 @@ export default function SkillsScreen(_props: Props) {
                 <button className="skill-level-btn" onClick={() => updateRank(rank + 1)}>+</button>
                 <span
                   className="skill-support-rank-hint"
-                  style={{ marginLeft: 8, fontSize: 11, opacity: 0.6, cursor: 'help' }}
-                  title="Rank scales this support's '+% additional damage for the supported skill' line (R1 0% / R2 4% / R3 8% / R4 14% / R5 20%). Not yet applied to DPS — coming with support-damage modelling."
-                >ⓘ not yet in DPS</span>
+                  style={{ marginLeft: 8, fontSize: 11, opacity: 0.75, cursor: 'help' }}
+                  title="Rank scales the universal '+% additional damage for the supported skill' line: R1 0% / R2 4% / R3 8% / R4 14% / R5 20%."
+                >= +{(rankAdditional(rank) * 100).toFixed(0)}% additional</span>
               </div>
             )
           })()}
+          {/* Roll sliders — one per engine-modeled rolled line (today: Noble/Magnificent specific line). */}
+          {existingSupport && (() => {
+            const supItem = allItems.find(i => i.item_id === existingSupport.item_id)
+            const rolls = modeledRolledLines(supItem, existingSupport.level)
+            if (!rolls.length) return null
+            const updateRoll = (identity: string, value: number) => {
+              onSkillsChange(equippedSkills.map(sk =>
+                sk.slot === focusedSlot
+                  ? { ...sk, supports: sk.supports.map(s =>
+                        s.support_index === focusedSupportIdx
+                          ? { ...s, specific_rolls: { ...(s.specific_rolls ?? {}), [identity]: value } }
+                          : s
+                      )}
+                  : sk
+              ))
+            }
+            return rolls.map(r => {
+              const cur = existingSupport.specific_rolls?.[r.identity] ?? r.mid
+              return (
+                <div key={r.identity} className="skill-level-controls" style={{ marginTop: 6, gap: 8 }}>
+                  <span className="skill-level-label">Roll</span>
+                  <input
+                    type="range" className="gear-affix-slider" style={{ flex: 1 }}
+                    min={r.min} max={r.max} step={(r.max - r.min) / 100 || 0.001}
+                    value={cur}
+                    onChange={e => updateRoll(r.identity, Number(e.target.value))}
+                  />
+                  <span style={{ minWidth: 92, textAlign: 'right', fontSize: 12, opacity: 0.85 }}>
+                    {(cur * 100).toFixed(1)}% <span style={{ opacity: 0.5 }}>({(r.min * 100).toFixed(0)}–{(r.max * 100).toFixed(0)}%)</span>
+                  </span>
+                </div>
+              )
+            })
+          })()}
+          {/* Resolved contribution summary. */}
+          {existingSupport && (
+            <div style={{ marginTop: 8, fontSize: 11, opacity: 0.7, lineHeight: 1.5 }}>
+              Skill Lv {focusedEquipped.level}
+              {isRankedSupport(existingSupport.skill_type) &&
+                ` · Universal +${(rankAdditional(existingSupport.rank) * 100).toFixed(0)}% (Rank ${existingSupport.rank ?? DEFAULT_SUPPORT_RANK})`}
+            </div>
+          )}
+          {/* Live DPS contribution of this support (slot-1 main skill only). */}
+          {existingSupport && focusedSlot === 1 && (
+            <div style={{ marginTop: 6 }}>
+              <DamageDeltaBand delta={equippedSupportDelta} label="Support contribution" />
+            </div>
+          )}
         </div>
         <div className="skill-panel-divider" />
         <div className="skill-search-bar">
@@ -584,7 +720,7 @@ export default function SkillsScreen(_props: Props) {
           {supportCatalogItems.length === 0 && (
             <div className="skill-catalog-empty">No compatible supports for this slot</div>
           )}
-          {supportCatalogItems.map(item => (
+          {sortedSupportCatalog.map(item => (
             <SkillHoverTooltip key={item.item_id} name={item.name} descLines={item.description_lines}>
               {tp => (
                 <div
@@ -593,6 +729,7 @@ export default function SkillsScreen(_props: Props) {
                   onClick={() => setSelectedSupportId(item.item_id)}
                 >
                   <span className="skill-catalog-name">{item.name}</span>
+                  {deltaInline(supportDeltaById[item.item_id])}
                   <div className="skill-catalog-tags">
                     {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
                   </div>
