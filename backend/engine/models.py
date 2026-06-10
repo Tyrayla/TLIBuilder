@@ -101,6 +101,10 @@ class BuildInput:
     attached_support_contributions: list[dict] = field(default_factory=list)
     # Behavioral support effects (shotgun falloff, chains-per-jump, …) consumed by calculate_offense.
     support_behavior: dict = field(default_factory=dict)
+    # Raw attached support refs ({item_id, skill_type, level, …}) for the standard support_skill /
+    # activation_medium path, resolved IN the fixed-point loop (conditional lines + auto-derive) by
+    # engine.support_resolver.resolve_standard_supports. Noble/Magnificent stay pre-resolved above.
+    attached_supports: list[dict] = field(default_factory=list)
 
 
 @dataclass

@@ -633,12 +633,13 @@ def engine_stats(req: EngineStatsRequest):
         custom_contributions=custom_contributions,
         attached_support_contributions=support_contributions,
         support_behavior=support_behavior,
+        attached_supports=req.attached_supports,
     )
     result = compute(
         build, season_trees, filter_data,
         skill_data=skill_data,
         skills_input=skills_input or None,
-        skills_by_id=skills_by_id if skills_input else None,
+        skills_by_id=skills_by_id or None,
     )
     return {
         "stats": result.stat_map,

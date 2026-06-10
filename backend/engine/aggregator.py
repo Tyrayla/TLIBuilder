@@ -663,4 +663,32 @@ def aggregate(
                 label="Dual Wielding", text=label_text, points=1,
             ))
 
+    # ── Support-granted buff / debuff base effects (roadmap #2) ────────────────
+    _booleans = active_booleans or frozenset()
+
+    # Paralysis: +15% increased damage taken (GLOBAL, all types). The auto-derive (Grudge etc.) sets
+    # enemy_paralyzed. Baked into paralysis_dmg_taken, which offense's enemy-vulnerability stage applies
+    # to every damage type — so the whole build's DPS on that enemy benefits, not just the granting skill.
+    if "enemy_paralyzed" in _booleans:
+        source.add_with_source("paralysis_dmg_taken", 0.15, SourceEntry(
+            stat="paralysis_dmg_taken", amount=0.15, source_type="condition",
+            label="Paralysis", text="+15% increased Damage Taken (Paralysis)", points=1,
+        ))
+
+    # Electric Overload buff (granted on Critical Strike): +15% additional Lightning Damage.
+    if "electric_overload" in _booleans:
+        source.add_with_source("lightning_dmg_additional", 0.15, SourceEntry(
+            stat="lightning_dmg_additional", amount=0.15, source_type="condition",
+            label="Electric Overload", text="+15% additional Lightning Damage (Electric Overload buff)", points=1,
+        ))
+
+    # Willpower: +6% additional damage per stack (MULTIPLIES → (1.06)^stacks), while standing still.
+    willpower = float((numeric_vals or {}).get("willpower_stacks", 0.0) or 0.0)
+    if willpower > 0 and "standing_still" in _booleans:
+        amount = (1.06 ** willpower) - 1.0
+        source.add_with_source("dmg_additional", amount, SourceEntry(
+            stat="dmg_additional", amount=amount, source_type="condition",
+            label="Willpower", text="+6% additional damage per Willpower stack (multiplies)", points=1,
+        ))
+
     return source

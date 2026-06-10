@@ -196,3 +196,52 @@ def _progression_for_tier(progression, tier: int) -> dict | None:
         return None
     by_level = {p.get("level"): p for p in progression if isinstance(p, dict)}
     return by_level.get(tier) or by_level.get(1) or progression[0]
+
+
+# ── Standard supports (support_skill / activation_medium) via the description_lines mapper ──────
+_STANDARD_TYPES = {"support_skill", "activation_medium_skill"}
+
+
+def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds):
+    """Resolve standard supports via the parser + mapper (engine.support_lines / support_mapper).
+    Returns (stat_contributions, condition_effects). Run INSIDE the fixed-point loop so conditional
+    lines see converging conditions and auto-derived conditions feed back. Noble/Magnificent stay in
+    resolve_support_contributions.
+
+      main_cat    'spell' | 'attack' | None — the supported skill's category (tag-gate + added-flat)
+      main_dtypes the supported skill's damage types (for 'inflicts X when deals Y' gates)
+      conds       the current condition_state ({key: value|bool})
+    """
+    from engine.support_lines import parse_support
+    from engine.support_mapper import map_line, map_autoderive_line
+
+    contribs: list[dict] = []
+    effects: list = []
+    if not attached_supports or not skills_by_id:
+        return contribs, effects
+
+    for sup in attached_supports:
+        item_id = sup.get("item_id")
+        data = skills_by_id.get(item_id) if item_id else None
+        if not data:
+            continue
+        stype = sup.get("skill_type") or data.get("skill_type") or ""
+        if stype not in _STANDARD_TYPES:
+            continue  # Noble/Magnificent handled elsewhere
+        parsed = parse_support(data)
+        if (parsed.gate == "spell-only" and main_cat != "spell") or \
+           (parsed.gate == "attack-only" and main_cat != "attack"):
+            continue  # Attack/Spell tag-gate
+        level = _tier_value(sup.get("level"))
+        name = data.get("name") or item_id
+        for line in parsed.lines:
+            for c in map_line(line, level, main_cat, conds):
+                contribs.append({
+                    "stat_key": c.stat_key,
+                    "amount": c.amount,
+                    # unique pooling identity per support line (multiplies, like Noble/Mag)
+                    "text": f"{c.text} |{item_id}|{line.template[:24]}",
+                    "label": name,
+                })
+            effects.extend(map_autoderive_line(line))
+    return contribs, effects

@@ -181,9 +181,12 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str) -> float:
     by the aggregator (fervor-style). Lightning-scoped. NOT the defensive dmg_taken family (that is
     incoming damage / the immunity tripwire); this is outgoing amplification.
     """
+    # Paralysis: +15% increased damage taken, GLOBAL (all types). Set via enemy_paralyzed (auto-derived
+    # by inflicting supports, e.g. Grudge). Distinct vulnerability sources combine multiplicatively.
+    mult = 1.0 + source.total("paralysis_dmg_taken")
     if dtype == "lightning":
-        return 1.0 + source.total("numbed_lightning_taken")
-    return 1.0
+        mult *= 1.0 + source.total("numbed_lightning_taken")
+    return mult
 
 
 @dataclass

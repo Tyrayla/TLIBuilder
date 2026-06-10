@@ -122,6 +122,26 @@ def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict
     return total
 
 
+def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys) -> None:
+    """Apply auto-derived support condition effects (from map_autoderive_line) to condition_state,
+    respecting manually-set values (never lower / never override). Gated by the supported skill's
+    damage types (requires_dtype) and any precondition (requires_cond, e.g. enemy_cursed for Paralyze)."""
+    dtypes = {d.lower() for d in (main_dtypes or [])}
+    for e in effects or []:
+        if e.condition_key in manual_keys:
+            continue
+        if e.requires_dtype and e.requires_dtype not in dtypes:
+            continue
+        if e.requires_cond and not condition_state.get(e.requires_cond):
+            continue
+        if e.mode == "set_true":
+            condition_state[e.condition_key] = True
+        elif e.mode == "max":
+            cur = condition_state.get(e.condition_key, 0.0)
+            cur = (1.0 if cur else 0.0) if isinstance(cur, bool) else float(cur or 0.0)
+            condition_state[e.condition_key] = max(cur, e.value)
+
+
 def compute(
     build_input: BuildInput,
     season_trees: dict[str, dict],
@@ -137,10 +157,24 @@ def compute(
     filter_data:  loaded node_type_filter.json dict
     """
     from engine.aggregator import aggregate
+    from engine.models import SourceEntry
+    from engine.support_resolver import resolve_standard_supports
     from models.stat_meta import STAT_META
 
     condition_state: dict[str, float | bool] = dict(build_input.condition_state)
+    manual_cond_keys = set(build_input.condition_state.keys())
     prev_snapshot = None
+
+    # Resolve the main skill once for standard-support gating: category (spell|attack) + damage types.
+    main_cat: str | None = None
+    main_dtypes: list[str] = []
+    if skill_data and build_input.attached_supports:
+        from engine.skill_resolver import resolve_skill
+        _rm = resolve_skill(skill_data)
+        if _rm.supported:
+            _tags = {t.lower() for t in _rm.tags}
+            main_cat = "spell" if _rm.is_spell else ("attack" if "attack" in _tags else None)
+            main_dtypes = [d.lower() for d in _rm.damage_types]
 
     for iteration in range(_MAX_ITERS):
         active_booleans, numeric_vals = _derive_views(condition_state)
@@ -152,6 +186,15 @@ def compute(
             active_booleans=active_booleans,
             numeric_vals=numeric_vals,
         )
+
+        # Standard support_skill / activation_medium contributions, resolved against the CURRENT
+        # condition_state so conditional lines see converged values and inflicted debuffs feed back.
+        std_contribs, cond_effects = resolve_standard_supports(
+            build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state)
+        for c in std_contribs:
+            source.add_with_source(c["stat_key"], c["amount"], SourceEntry(
+                stat=c["stat_key"], amount=c["amount"], source_type="support",
+                label=c.get("label", "Support"), text=c.get("text", ""), points=1))
 
         # Compute derived stats (strength, armor, max_life, etc.) and inject
         # back into source so the pipeline and condition system can read them.
@@ -167,6 +210,10 @@ def compute(
         for _c in ALL_CONDITIONS:
             if _c.source == "computed_stat":
                 condition_state[_c.key] = source.total(_c.key)
+
+        # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
+        # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values.
+        _apply_cond_effects(condition_state, cond_effects, main_dtypes, manual_cond_keys)
 
         maxes = derive_condition_maximums(source)
         mins = derive_condition_minimums(source)
