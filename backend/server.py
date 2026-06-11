@@ -1673,6 +1673,11 @@ _WEAPON_CSR_RE      = re.compile(r"^([\d.]+)\s+Critical Strike Rating$")
 # Custom mod text parsing — freeform modifier text → stat contributions
 _CUSTOM_RANGE_RE  = re.compile(r'^\s*([+-]?\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s+(.*)', re.IGNORECASE)
 _CUSTOM_SINGLE_RE = re.compile(r'^\s*([+-]?\d+(?:\.\d+)?)\s*(%?)\s+(.*)', re.IGNORECASE)
+# "Adds N-N <Type> Damage to <Attacks|Spells|Attacks and Spells>" → flat <type>_<dest>_dmg_flat_min/max.
+# (The leading word "Adds" means the generic number-first patterns above don't match.)
+_CUSTOM_ADDS_RE = re.compile(
+    r'^\s*adds\s+([\d.]+)\s*[-–]\s*([\d.]+)\s+(physical|fire|cold|lightning|erosion)\s+damage\s+to\s+'
+    r'(attacks and spells|attacks|spells)\b', re.IGNORECASE)
 # Modifier verbs that appear in game text but not in stat display names — strip before fuzzy match
 _CUSTOM_VERB_RE   = re.compile(r'\b(increased|reduced|more|less)\b', re.IGNORECASE)
 
@@ -1694,6 +1699,17 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     divided by 100.
     """
     t = text.strip()
+
+    # "Adds N-N <Type> Damage to Attacks/Spells/Attacks and Spells" → flat added damage min+max.
+    m = _CUSTOM_ADDS_RE.match(t)
+    if m:
+        lo, hi, dtype, dest = float(m.group(1)), float(m.group(2)), m.group(3).lower(), m.group(4).lower()
+        dests = ["attack", "spell"] if dest == "attacks and spells" else (["attack"] if dest == "attacks" else ["spell"])
+        out: list[dict] = []
+        for d in dests:
+            out.append({"stat_key": f"{dtype}_{d}_dmg_flat_min", "amount": lo, "text": t})
+            out.append({"stat_key": f"{dtype}_{d}_dmg_flat_max", "amount": hi, "text": t})
+        return out
 
     # Range: "50-80 fire attack damage"
     m = _CUSTOM_RANGE_RE.match(t)
