@@ -561,6 +561,9 @@ export interface StatSheetResponse {
   offense?: OffenseResult | null
   defense?: DefenseResult | null
   custom_mod_statuses?: CustomModStatus[]
+  // Gear affix/implicit texts the frontend couldn't resolve, resolved (or reported) backend-side so
+  // nothing is silently dropped. resolved:false → still unmodeled (surface it, don't hide it).
+  gear_mod_statuses?: CustomModStatus[]
   // Per-effect resolution for granted core talents (roadmap #4) — drives the core-talent NYI badges.
   // kind: 'stat' | 'override' (applied) | 'deferred' | 'unresolved' (captured, not applied).
   core_talent_statuses?: CoreTalentStatus[]
@@ -1227,6 +1230,9 @@ export interface GearEngineItem {
   //  - granted_talents: bracket-named core talents this item grants ("[Name] …" legendary affixes).
   belt_blend?: string | null
   granted_talents?: string[]
+  // Raw affix/implicit texts the frontend couldn't resolve (e.g. crafted base resistances/life).
+  // The backend resolves and applies these, and reports any it still can't — so nothing is dropped.
+  unresolved_texts?: string[]
 }
 
 export interface SeasonDiffNode {

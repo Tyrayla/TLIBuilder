@@ -87,11 +87,16 @@ export function buildEngineStatsPayload(s: BuildState) {
   }
 }
 
-function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null): GearAffixContribution[] {
+function _buildItemContributions(
+  item: EquippedGearItem, slot: GearSlot | null, unresolved?: string[],
+): GearAffixContribution[] {
   const mutationAffix = item.corrosion_type === 'mutation' ? (item.mutation_resolved_affix ?? null) : null
   const affixesToProcess = mutationAffix ? [mutationAffix, ...item.affixes] : item.affixes
   const affixOffset = mutationAffix ? 1 : 0
   const contributions: GearAffixContribution[] = []
+  // Cardinal rule: never silently drop. Any affix the frontend can't turn into a contribution gets
+  // its raw text collected here so the backend can resolve it (and report what it still can't).
+  const drop = (text: string | null | undefined) => { if (unresolved && text && text.trim()) unresolved.push(text.trim()) }
 
   affixesToProcess.forEach((affix, affixIdx) => {
     if (affix.affix_kind === 'placeholder') return
@@ -99,18 +104,22 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
     // Craft base type implicits arrive as plain text with no resolved stat keys.
     // Parse the three weapon stat patterns directly so they contribute to the engine.
     if (affix.affix_kind === 'implicit') {
+      let handled = false
       const physM = affix.raw_text.match(/^([\d.]+)\s*-\s*([\d.]+)\s+Physical Damage$/i)
       if (physM) {
         contributions.push({ stat: 'physical_dmg_gear_flat_min', display_value: parseFloat(physM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
         contributions.push({ stat: 'physical_dmg_gear_flat_max', display_value: parseFloat(physM[2]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
+        handled = true
       }
       const atkM = affix.raw_text.match(/^([\d.]+)\s+Attack Speed$/i)
       if (atkM) {
         contributions.push({ stat: 'weapon_attack_speed', display_value: parseFloat(atkM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
+        handled = true
       }
       const csrM = affix.raw_text.match(/^([\d.]+)\s+Critical Strike Rating$/i)
       if (csrM) {
         contributions.push({ stat: 'weapon_crit_rating_flat', display_value: parseFloat(csrM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
+        handled = true
       }
       // Armour base defense implicit ("+N gear Energy Shield|Armour|Evasion") — the base item's flat
       // defense, which feeds that item's local gear pool (scaled by its "% gear X" affixes below).
@@ -118,8 +127,9 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
       if (defM) {
         const key = ({ 'energy shield': 'energy_shield_gear_flat', 'armor': 'armor_gear_flat',
           'armour': 'armor_gear_flat', 'evasion': 'evasion_gear_flat' } as Record<string, string>)[defM[2].toLowerCase()]
-        if (key) contributions.push({ stat: key, display_value: parseFloat(defM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
+        if (key) { contributions.push({ stat: key, display_value: parseFloat(defM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null }); handled = true }
       }
+      if (!handled) drop(affix.raw_text)   // e.g. base resistances / life / attributes → resolve backend-side
       return
     }
 
@@ -127,7 +137,7 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
       || (affix.stat_keys && affix.stat_keys.length > 0)
       || (affix.dual_stat_groups && affix.dual_stat_groups.length > 0)
       || (affix.min_stat_keys && affix.min_stat_keys.length > 0)
-    if (!hasKey) return
+    if (!hasKey) { if (affix.affix_kind !== 'tagged') drop(affix.raw_text); return }
     const cust = item.customizations.find(c => c.affix_index === affixIdx - affixOffset)
     const condition = affix.condition_expr ?? null
     if (affix.affix_kind === 'numeric') {
@@ -429,7 +439,9 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     const slots: (GearSlot | null)[] = Array.isArray(item.slot) ? item.slot : [item.slot]
 
     // First slot: emit all contributions (+ any core-talent grants this item carries).
-    result.push(withCoreTalentGrants({ contributions: _buildItemContributions(item, slots[0]) }, item))
+    const unresolved: string[] = []
+    const gi = withCoreTalentGrants({ contributions: _buildItemContributions(item, slots[0], unresolved) }, item)
+    result.push(unresolved.length ? { ...gi, unresolved_texts: unresolved } : gi)
 
     // Additional slots (same-item dual wield): emit ONLY global affixes.
     // Per the dual-wield mechanic, attacks alternate — weapon base stats (APS, base damage,
@@ -450,7 +462,9 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
   } else {
     // 0 or 1 weapon equipped — normal single-weapon path.
     for (const item of singleWeaponItems) {
-      result.push(withCoreTalentGrants({ contributions: _buildItemContributions(item, item.slot as GearSlot) }, item))
+      const unresolved: string[] = []
+      const gi = withCoreTalentGrants({ contributions: _buildItemContributions(item, item.slot as GearSlot, unresolved) }, item)
+      result.push(unresolved.length ? { ...gi, unresolved_texts: unresolved } : gi)
     }
   }
 

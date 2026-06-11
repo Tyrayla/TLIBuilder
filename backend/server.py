@@ -649,10 +649,36 @@ def engine_stats(req: EngineStatsRequest):
     )
     core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}}
 
+    # Cardinal rule — never silently drop. Resolve any gear affix/implicit the frontend couldn't
+    # (crafted base resistances/life/attributes, etc.), inject it as a contribution on that item, and
+    # report every line (resolved or not) so the UI can surface anything still unmodeled.
+    gear_resolved: list[dict] = []
+    gear_mod_statuses: list[dict] = []
+    for gi in req.gear:
+        texts = gi.get("unresolved_texts") or []
+        if not texts:
+            gear_resolved.append(gi)
+            continue
+        gi = dict(gi)
+        contribs = list(gi.get("contributions") or [])
+        for t in texts:
+            parsed = _parse_custom_mod_text(t)
+            if parsed:
+                for e in parsed:
+                    contribs.append({"stat": e["stat_key"], "display_value": e["amount"], "unit": "",
+                                     "item_name": gi.get("item_name") or "Gear", "text": t,
+                                     "slot": None, "condition": None})
+                names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
+                gear_mod_statuses.append({"text": t, "resolved": True, "stat_display": names})
+            else:
+                gear_mod_statuses.append({"text": t, "resolved": False, "stat_display": None})
+        gi["contributions"] = contribs
+        gear_resolved.append(gi)
+
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=core_condition_state,
-        gear=req.gear, character=req.character,
+        gear=gear_resolved, character=req.character,
         memory_effects=req.memory_effects, spirit_effects=req.spirit_effects,
         main_skill=main_skill,
         custom_contributions=custom_contributions,
@@ -675,6 +701,7 @@ def engine_stats(req: EngineStatsRequest):
         "defense": result.defense,
         "custom_mod_statuses": custom_mod_statuses,
         "core_talent_statuses": core_talent_statuses,
+        "gear_mod_statuses": gear_mod_statuses,
         "skill_slots": result.skill_slots,
         "consumed_stats": result.consumed_stats,
     }

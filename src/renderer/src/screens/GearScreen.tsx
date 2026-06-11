@@ -12,7 +12,7 @@ import { useDamageDeltaList, type DeltaRequest, type StateTransform, type Damage
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { legendaryToEquipped } from '../utils/gearItem'
 import { GearTooltipBody, type GearTooltipItem } from '../components/tooltip/bodies/GearTooltipBody'
-import { ModifierBadge, useConsumedStatSet, gearModifierStatus, type ModifierStatus } from '../components/ModifierBadge'
+import { ModifierBadge, useConsumedStatSet, useGearUnresolvedTexts, gearModifierStatus, type ModifierStatus } from '../components/ModifierBadge'
 import {
   rangeDecimals, midpoint, hasRangeValues, reconstructAffixText,
   affixTypeLabel, tooltipAffixText,
@@ -427,6 +427,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
   const baseTip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const custPanelId = useId()
   const consumedStats = useConsumedStatSet() // for inert-modifier badges on affix rows
+  const gearUnresolved = useGearUnresolvedTexts() // raw texts the backend still couldn't resolve
 
   if (!item) {
     return (
@@ -692,7 +693,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
                 title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
               />
             )}
-            <div className="gear-affix-label">{affix.raw_text}<ModifierBadge status={gearModifierStatus(affix, consumedStats)} /></div>
+            <div className="gear-affix-label">{affix.raw_text}<ModifierBadge status={gearModifierStatus(affix, consumedStats, gearUnresolved)} /></div>
           </div>
         </div>
         </AffixSliderTooltip>
@@ -716,7 +717,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
               title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
             />
           )}
-          <div className="gear-affix-label">{displayText}<ModifierBadge status={gearModifierStatus(affix, consumedStats)} /></div>
+          <div className="gear-affix-label">{displayText}<ModifierBadge status={gearModifierStatus(affix, consumedStats, gearUnresolved)} /></div>
         </div>
         {rangeIndices.map(valIdx => {
           const nv = affix.numeric_values[valIdx]

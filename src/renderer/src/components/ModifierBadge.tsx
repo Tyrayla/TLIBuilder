@@ -29,19 +29,35 @@ export function useConsumedStatSet(): Set<string> {
 }
 const useConsumedSet = useConsumedStatSet
 
-// ── Pure classifiers ────────────────────────────────────────────────────────────
-export function gearModifierStatus(affix: StatBearingAffix | null | undefined, consumed: Set<string>): ModifierStatus | null {
-  return gearStatus(affix, consumed)
+// The set of gear affix/implicit raw texts the backend could NOT resolve (gear_mod_statuses,
+// resolved:false). An affix without a local stat key is sent to the backend for resolution, so it's
+// only genuinely "unrecognized" if it's in this set — otherwise it resolved server-side and works.
+export function useGearUnresolvedTexts(): Set<string> {
+  const statuses = useBuildStore((s) => s.computedStats.gear_mod_statuses)
+  return useMemo(
+    () => new Set((statuses ?? []).filter((st) => !st.resolved).map((st) => (st.text ?? '').trim())),
+    [statuses],
+  )
 }
-function gearStatus(affix: StatBearingAffix | null | undefined, consumed: Set<string>): ModifierStatus | null {
+
+// ── Pure classifiers ────────────────────────────────────────────────────────────
+export function gearModifierStatus(
+  affix: StatBearingAffix | null | undefined, consumed: Set<string>, unresolved?: Set<string>,
+): ModifierStatus | null {
+  return gearStatus(affix, consumed, unresolved)
+}
+function gearStatus(
+  affix: StatBearingAffix | null | undefined, consumed: Set<string>, unresolved?: Set<string>,
+): ModifierStatus | null {
   if (!affix) return null
   const kind = affix.affix_kind
   if (kind === 'placeholder') return null // unfilled random-affix slot — never flagged
   const keys = affixStatKeys(affix)
   if (keys.length === 0) {
-    // Only an unresolved EXPLICIT (numeric) affix is genuinely unrecognized; weapon/armor base
-    // stats (implicit/special/tagged) are consumed via dedicated engine parsing, not stat_key.
-    return kind === 'numeric' ? 'unrecognized' : null
+    // No local stat key — the backend attempts to resolve the raw text. Flag as unrecognized only if
+    // the backend also couldn't (in the unresolved set); otherwise it resolved server-side → no badge.
+    const raw = (affix as { raw_text?: string }).raw_text?.trim()
+    return raw && unresolved?.has(raw) ? 'unrecognized' : null
   }
   return keys.some((k) => consumed.has(k)) ? 'working' : 'unused'
 }
@@ -55,11 +71,13 @@ function textStatus(keys: string[] | undefined, consumed: Set<string>): Modifier
 // ── Gear/vorax affixes (synchronous, local stat keys) ────────────────────────────
 export function useGearModifierStatus(affix: StatBearingAffix | null | undefined): ModifierStatus | null {
   const consumed = useConsumedSet()
-  return gearStatus(affix, consumed)
+  const unresolved = useGearUnresolvedTexts()
+  return gearStatus(affix, consumed, unresolved)
 }
 export function useGearModifierStatuses(affixes: (StatBearingAffix | null | undefined)[]): (ModifierStatus | null)[] {
   const consumed = useConsumedSet()
-  return affixes.map((a) => gearStatus(a, consumed))
+  const unresolved = useGearUnresolvedTexts()
+  return affixes.map((a) => gearStatus(a, consumed, unresolved))
 }
 
 // ── Raw-text sources (lazy mapping store) ────────────────────────────────────────
