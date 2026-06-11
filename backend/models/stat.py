@@ -53,6 +53,7 @@ class Stat(Enum):
     SPELL_DOUBLE_DMG_CHANCE = "spell_double_dmg_chance"
     SPELL_SKILL_LEVEL = "spell_skill_level"
     SPELL_BURST_CHARGE_SPEED_INC = "spell_burst_charge_speed_inc"
+    SPELL_BURST_CHARGE_SPEED_ADDITIONAL = "spell_burst_charge_speed_additional"
     SPELL_BURST_CHANCE_GAIN_STACKS_FLAT = "spell_burst_chance_gain_stacks_flat"
     SPELL_BURST_HIT_DMG_ADDITIONAL = "spell_burst_hit_dmg_additional"
 
@@ -88,6 +89,7 @@ class Stat(Enum):
     MINION_FIRE_DMG_INC = "minion_fire_dmg_inc"
     MINION_FIRE_PEN_INC = "minion_fire_pen_inc"
     MINION_COLD_DMG_INC = "minion_cold_dmg_inc"
+    MINION_COLD_DMG_ADDITIONAL = "minion_cold_dmg_additional"
     MINION_LIGHTNING_DMG_INC = "minion_lightning_dmg_inc"
     MINION_EROSION_DMG_INC = "minion_erosion_dmg_inc"
     MINION_PHYSICAL_DMG_INC = "minion_physical_dmg_inc"
@@ -143,7 +145,9 @@ class Stat(Enum):
     SPIRIT_MAGI_DMG_INC = "spirit_magi_dmg_inc"
     SPIRIT_MAGI_DMG_ADDITIONAL = "spirit_magi_dmg_additional"
     SPIRIT_MAGI_ULTIMATE_DMG_INC = "spirit_magi_ultimate_dmg_inc"
+    SPIRIT_MAGI_ULTIMATE_DMG_ADDITIONAL = "spirit_magi_ultimate_dmg_additional"
     SPIRIT_MAGI_ORIGIN_EFFECT_INC = "spirit_magi_origin_effect_inc"
+    SPIRIT_MAGI_ORIGIN_EFFECT_ADDITIONAL = "spirit_magi_origin_effect_additional"
     SPIRIT_MAGI_SKILL_LEVEL = "spirit_magi_skill_level"
     SPIRIT_MAGI_CRIT_RATING_FLAT = "spirit_magi_crit_rating_flat"
     SPIRIT_MAGI_ENHANCED_SKILL_CHANCE = "spirit_magi_enhanced_skill_chance"
@@ -370,6 +374,7 @@ class Stat(Enum):
     # ── Mana ─────────────────────────────────────────────────────────────────
     MAX_MANA_FLAT = "max_mana_flat"
     MAX_MANA_INC = "max_mana_inc"
+    MAX_MANA_ADDITIONAL = "max_mana_additional"
     MANA_REGEN_FLAT = "mana_regen_flat"
     MANA_REGEN_INC = "mana_regen_inc"
     MANA_REGEN_PCT = "mana_regen_pct"                # % of max mana per second
@@ -384,6 +389,7 @@ class Stat(Enum):
     # ── Energy Shield ─────────────────────────────────────────────────────────
     MAX_ENERGY_SHIELD_FLAT = "max_energy_shield_flat"
     MAX_ENERGY_SHIELD_INC = "max_energy_shield_inc"
+    MAX_ENERGY_SHIELD_ADDITIONAL = "max_energy_shield_additional"
     ENERGY_SHIELD_REGAIN_INC = "energy_shield_regain_inc"
     ENERGY_SHIELD_CHARGE_SPEED_INC = "energy_shield_charge_speed_inc"
     ENERGY_SHIELD_REGAIN_INTERVAL_ADDITIONAL = "energy_shield_regain_interval_additional"
@@ -401,6 +407,7 @@ class Stat(Enum):
     EVASION_INC = "evasion_inc"
     EVASION_ADDITIONAL = "evasion_additional"
     EVASION_ON_SPELL_DMG_INC = "evasion_on_spell_dmg_inc"
+    EVASION_ON_SPELL_DMG_ADDITIONAL = "evasion_on_spell_dmg_additional"
     DEFENSE_INC = "defense_inc"
     SHIELD_DEFENSE_INC = "shield_defense_inc"
     SHIELD_DEFENSE_ADDITIONAL = "shield_defense_additional"

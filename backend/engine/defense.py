@@ -51,8 +51,10 @@ class DefenseResult:
     life_additional: float = 0.0
     mana_flat: float = 0.0
     mana_inc: float = 0.0
+    mana_additional: float = 0.0
     es_flat: float = 0.0
     es_inc: float = 0.0
+    es_additional: float = 0.0
     armor_flat: float = 0.0
     armor_inc: float = 0.0
     armor_additional: float = 0.0
@@ -87,8 +89,10 @@ def calculate_defense(source: BuildSource) -> DefenseResult:
         life_additional=source.total("max_life_additional"),
         mana_flat=source.total("max_mana_flat"),
         mana_inc=source.total("max_mana_inc"),
+        mana_additional=source.total("max_mana_additional"),
         es_flat=source.total("max_energy_shield_flat") + source.total("energy_shield_gear_flat"),
         es_inc=source.total("max_energy_shield_inc") + source.total("energy_shield_gear_inc"),
+        es_additional=source.total("max_energy_shield_additional"),
         armor_flat=source.total("armor_flat") + source.total("armor_gear_flat"),
         armor_inc=source.total("armor_inc") + source.total("armor_gear_inc") + source.total("defense_inc"),
         armor_additional=source.total("armor_additional"),

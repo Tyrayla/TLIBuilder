@@ -52,11 +52,13 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
         key="max_mana",
         flat_keys=["max_mana_flat"],
         inc_keys=["max_mana_inc"],
+        add_pools=[["max_mana_additional"]],
     ),
     DerivedStat(
         key="max_energy_shield",
         flat_keys=["max_energy_shield_flat", "energy_shield_gear_flat"],
         inc_keys=["max_energy_shield_inc", "energy_shield_gear_inc"],
+        add_pools=[["max_energy_shield_additional"]],
     ),
 
     # ── Armor / Evasion ────────────────────────────────────────────────────────

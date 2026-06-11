@@ -268,6 +268,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="speed",             stacking_rule="additive",
         ui_priority=62,               source_types=_TB,
     ),
+    Stat.SPELL_BURST_CHARGE_SPEED_ADDITIONAL: StatMeta(
+        "Additional Spell Burst Charge Speed", "Spell", "additional", "%",
+        subgroup="speed",             stacking_rule="additive",
+        ui_priority=62,               source_types=_TB,
+    ),
 
     # ── Melee ─────────────────────────────────────────────────────────────────
     Stat.MELEE_DMG_INC: StatMeta(
@@ -414,6 +419,13 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="minion_penetration",  pipeline_stage="penetration",
         tags=("minion", "fire"),        affects=_HIT_DOT,
         stacking_rule="additive",       ui_priority=9,
+        source_types=_T,
+    ),
+    Stat.MINION_COLD_DMG_ADDITIONAL: StatMeta(
+        "Additional Minion Cold Damage", "Minion", "additional", "%",
+        subgroup="minion_damage",      pipeline_stage="additional",
+        tags=("minion", "cold"),       affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=10,
         source_types=_T,
     ),
     Stat.MINION_COLD_DMG_INC: StatMeta(
@@ -642,6 +654,13 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=11,
         source_types=_T,
     ),
+    Stat.SPIRIT_MAGI_ULTIMATE_DMG_ADDITIONAL: StatMeta(
+        "Additional Spirit Magus Ultimate Damage and Ailment Damage", "Spirit Magi", "additional", "%",
+        subgroup="spirit_magi_damage", pipeline_stage="additional",
+        tags=("spirit_magi",),         affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=10,
+        source_types=_T,
+    ),
     Stat.SPIRIT_MAGI_ULTIMATE_DMG_INC: StatMeta(
         "Spirit Magus Ultimate Damage and Ailment Damage", "Spirit Magi", "increased", "%",
         subgroup="spirit_magi_damage", pipeline_stage="increased_reduced",
@@ -651,6 +670,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.SPIRIT_MAGI_ORIGIN_EFFECT_INC: StatMeta(
         "Origin of Spirit Magus effect", "Spirit Magi", "increased", "%",
+        subgroup="spirit_magi_damage", stacking_rule="additive",
+        ui_priority=11,                source_types=_T,
+    ),
+    Stat.SPIRIT_MAGI_ORIGIN_EFFECT_ADDITIONAL: StatMeta(
+        "Additional Origin of Spirit Magus effect", "Spirit Magi", "additional", "%",
         subgroup="spirit_magi_damage", stacking_rule="additive",
         ui_priority=11,                source_types=_T,
     ),
@@ -1595,6 +1619,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="life",               stacking_rule="additive",
         ui_priority=32,                source_types=_T,
     ),
+    Stat.MAX_LIFE_ADDITIONAL: StatMeta(
+        "Additional Max Life", "Life", "additional", "%",
+        subgroup="life",               stacking_rule="additive",
+        ui_priority=32,                source_types=_T,
+    ),
     Stat.LIFE_REGEN_FLAT: StatMeta(
         "Life Regeneration", "Life", "added_flat",
         subgroup="life",               stacking_rule="additive",
@@ -1649,6 +1678,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.MAX_MANA_INC: StatMeta(
         "Max Mana", "Mana", "increased", "%",
+        subgroup="mana",               stacking_rule="additive",
+        ui_priority=32,                source_types=_T,
+    ),
+    Stat.MAX_MANA_ADDITIONAL: StatMeta(
+        "Additional Max Mana", "Mana", "additional", "%",
         subgroup="mana",               stacking_rule="additive",
         ui_priority=32,                source_types=_T,
     ),
@@ -1714,6 +1748,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="energy_shield",      stacking_rule="additive",
         ui_priority=32,                source_types=_TB,
     ),
+    Stat.MAX_ENERGY_SHIELD_ADDITIONAL: StatMeta(
+        "Additional Max Energy Shield", "Energy Shield", "additional", "%",
+        subgroup="energy_shield",      stacking_rule="additive",
+        ui_priority=32,                source_types=_TB,
+    ),
     Stat.ENERGY_SHIELD_REGAIN_INC: StatMeta(
         "Energy Shield Regain", "Energy Shield", "increased", "%",
         subgroup="energy_shield",      stacking_rule="additive",
@@ -1770,6 +1809,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.EVASION_ON_SPELL_DMG_INC: StatMeta(
         "Additional Evasion on Spell Damage", "Defense", "increased", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=34,                source_types=_T,
+    ),
+    Stat.EVASION_ON_SPELL_DMG_ADDITIONAL: StatMeta(
+        "Additional Evasion on Spell Damage", "Defense", "additional", "%",
         subgroup="defense",            stacking_rule="additive",
         ui_priority=34,                source_types=_T,
     ),

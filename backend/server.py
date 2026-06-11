@@ -1397,7 +1397,7 @@ _MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
     "+(#) armor and evasion":                    ["armor_flat", "evasion_flat"],
     # Life / Mana combos
     "+(#) % max life and max mana":              ["max_life_inc", "max_mana_inc"],
-    "+(#) % additional max life max mana and max energy shield": ["max_life_inc", "max_mana_inc", "max_energy_shield_inc"],
+    "+(#) % additional max life max mana and max energy shield": ["max_life_additional", "max_mana_additional", "max_energy_shield_additional"],
 }
 
 # Two-value affixes: first (#) → group[0] stats, second (#) → group[1] stats
@@ -1578,9 +1578,12 @@ def _get_gear_candidates() -> list:
         from models.stat_meta import STAT_META
         _gear_candidates = []
         for stat, meta in STAT_META.items():
-            words = _gear_normalize(meta.display_name)
+            # Drop pool-qualifier words from the candidate's display words too, so a name like
+            # "Additional Minion Damage" matches on {minion, damage} and the pool is decided solely by
+            # modifier_type (kept separately) — never by the word "additional" appearing in the name.
+            words = _gear_normalize(meta.display_name) - _POOL_QUALIFIER_WORDS
             if words:
-                _gear_candidates.append((stat.value, meta.display_name, words, meta.unit))
+                _gear_candidates.append((stat.value, meta.display_name, words, meta.unit, meta.modifier_type))
     return _gear_candidates
 
 
@@ -1732,8 +1735,21 @@ def _translate_condition_expr(text: str | None) -> dict | str | None:
     return None
 
 
+# TLI's "additional" (independent multiplicative) and "increased"/"reduced" (one additive pool) are
+# DIFFERENT pools and must never be cross-matched — display names don't encode the qualifier, so the
+# fuzzy matcher would otherwise map "additional X" onto an "increased X" stat. Map the qualifier word
+# in the text to the stat modifier_type it is allowed to match.
+_POOL_QUALIFIERS = {"additional": "additional", "increased": "increased", "reduced": "increased"}
+_POOL_QUALIFIER_WORDS = frozenset(_POOL_QUALIFIERS)
+
+
 def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
-    """Return (stat_key, unit) for a gear affix, or (None, '') if unresolved."""
+    """Return (stat_key, unit) for a gear affix, or (None, '') if unresolved.
+
+    Pool-strict: an "additional" modifier only matches an `additional` stat, and
+    "increased"/"reduced" only an `increased` stat. If the text carries a pool qualifier but no
+    same-pool stat matches, the affix is left UNRESOLVED rather than silently placed in the wrong pool.
+    """
     text = _GEAR_COND_RE.sub("", raw_text)
     norm_expr = _norm_expr(text)
     if norm_expr in _EXPRESSION_STAT_OVERRIDES:
@@ -1743,9 +1759,17 @@ def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
     query = _gear_normalize(text)
     if not query:
         return None, ""
+    # Detect the pool qualifier, then drop it from the query so it neither pollutes the word overlap
+    # nor is required to appear in the (qualifier-free) display name.
+    want_pool = next((_POOL_QUALIFIERS[w] for w in query if w in _POOL_QUALIFIERS), None)
+    query = {w for w in query if w not in _POOL_QUALIFIERS}
+    if not query:
+        return None, ""
     is_pct = "%" in raw_text
     scores = []
-    for stat_val, dn, dn_words, unit in _get_gear_candidates():
+    for stat_val, dn, dn_words, unit, mtype in _get_gear_candidates():
+        if want_pool is not None and mtype != want_pool:
+            continue   # pool-strict: never cross "additional" with "increased"
         overlap = len(query & dn_words)
         if not overlap:
             continue
@@ -1760,7 +1784,9 @@ def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
     tied = [s for s in scores if s[0] == best_score]
     if len(tied) == 1:
         return best_stat, best_unit
-    pref = [s for s in tied if s[1].endswith("_inc" if is_pct else "_flat")]
+    # Break ties within the matched pool (additional → _additional; else _inc for %, _flat otherwise).
+    suffix = "_additional" if want_pool == "additional" else ("_inc" if is_pct else "_flat")
+    pref = [s for s in tied if s[1].endswith(suffix)]
     return (pref[0][1], pref[0][3]) if len(pref) == 1 else (None, "")
 
 
