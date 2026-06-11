@@ -179,12 +179,27 @@ def _node_prefix(tree: PassiveTree) -> str:
 def _core_effect_status(effect: str) -> dict:
     """Static resolution status for one core-talent effect line (no build context), for UI badges.
     kind: 'stat' (maps to stat keys) | 'override' (re-bases a base effect) | 'deferred' | 'unresolved'.
-    `resolved` is True for stat/override; `stat_keys` lists the resolved keys (for the inactive check)."""
-    from engine.core_talent_resolver import _classify_effect
-    cls = _classify_effect(effect, _parse_custom_mod_text, _translate_condition_expr)
-    kind = cls["kind"]
-    stat_keys = [c["stat_key"] for c in cls.get("contribs", [])] if kind == "stat" else []
-    return {"resolved": kind in ("stat", "override"), "kind": kind, "stat_keys": stat_keys}
+    `resolved` is True only when EVERY part resolves; `stat_keys` aggregates the resolved keys. Compound
+    lines ("+A and +B") are split into segments so the badge reflects all parts, not just the first."""
+    from engine.core_talent_resolver import (
+        _classify_effect, _split_condition, _split_compound, _strip_max_div, _BASE_EFFECT_RE)
+    text = _strip_max_div(effect)
+    if _BASE_EFFECT_RE.search(text):
+        cls = _classify_effect(effect, _parse_custom_mod_text, _translate_condition_expr)
+        return {"resolved": cls["kind"] in ("stat", "override"), "kind": cls["kind"], "stat_keys": []}
+    stat_clause, cond_clause = _split_condition(text)
+    segments = _split_compound(stat_clause)
+    subs = ([s + (" " + cond_clause if cond_clause else "") for s in segments]
+            if len(segments) > 1 else [effect])
+    stat_keys: list[str] = []
+    all_ok = True
+    for sub in subs:
+        cls = _classify_effect(sub, _parse_custom_mod_text, _translate_condition_expr)
+        if cls["kind"] == "stat":
+            stat_keys += [c["stat_key"] for c in cls.get("contribs", [])]
+        elif cls["kind"] != "override":
+            all_ok = False
+    return {"resolved": all_ok, "kind": "stat" if all_ok else "unresolved", "stat_keys": stat_keys}
 
 
 @app.get("/api/trees")

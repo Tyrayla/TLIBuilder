@@ -48,6 +48,16 @@ _TRAIL_COND_RE = re.compile(
     r"\b(?:when|while|if|against|upon|after)\b|\bfrom\s+\w+\s+enem|\bat\s+(?:low|full|max)\b|\bfor\s+[\d.]+\s*s\b", re.I)
 
 
+# Compound lines join several "+N% Stat" mods with "and"/"," — split BEFORE a conjunction that precedes
+# a SIGNED NUMBER (a new mod), but never "and" inside a stat name ("Ultimate Damage and Ailment Damage"
+# has no number after "and", so it stays one stat).
+_COMPOUND_SPLIT_RE = re.compile(r"\s*,?\s*\band\b\s+(?=[+\-]\d)|\s*,\s*(?=[+\-]\d)", re.I)
+
+
+def _split_compound(stat_clause: str) -> list[str]:
+    return [p.strip() for p in _COMPOUND_SPLIT_RE.split(stat_clause) if p and p.strip()]
+
+
 def _normalize(name: str | None) -> str:
     return re.sub(r"\s+", " ", (name or "").strip().lower())
 
@@ -109,23 +119,39 @@ def _resolve_talent(name: str, effects, parse_mod, translate_cond):
     for eff in effects or []:
         if not (eff or "").strip():
             continue
-        cls = _classify_effect(eff, parse_mod, translate_cond)
-        kind = cls["kind"]
-        if kind == "override":
-            flags.add(cls["flag"])
-            statuses.append({"name": name, "text": eff, "resolved": True, "kind": "override"})
-        elif kind == "stat":
-            for c in cls["contribs"]:
-                contribs.append({
-                    "stat_key": c["stat_key"],
-                    "amount": c["amount"],
-                    "text": f"{c.get('text', eff)} |core|{norm}",
-                    "label": label,
-                    "condition_expr": cls["condition_expr"],
-                })
-            statuses.append({"name": name, "text": eff, "resolved": True, "kind": "stat"})
-        else:  # deferred | unresolved
-            statuses.append({"name": name, "text": eff, "resolved": False, "kind": kind})
+        text = _strip_max_div(eff)
+
+        # Base-effect overrides are whole-line — don't compound-split them.
+        if _BASE_EFFECT_RE.search(text):
+            cls = _classify_effect(eff, parse_mod, translate_cond)
+            if cls["kind"] == "override":
+                flags.add(cls["flag"])
+                statuses.append({"name": name, "text": eff, "resolved": True, "kind": "override"})
+            else:
+                statuses.append({"name": name, "text": eff, "resolved": False, "kind": cls["kind"]})
+            continue
+
+        # Compound: split into stat segments that share the trailing condition; classify each so every
+        # part is tracked (a resolved segment contributes; an unresolved one is captured, not dropped).
+        stat_clause, cond_clause = _split_condition(text)
+        segments = _split_compound(stat_clause)
+        subs = ([s + (" " + cond_clause if cond_clause else "") for s in segments]
+                if len(segments) > 1 else [eff])
+
+        for sub in subs:
+            cls = _classify_effect(sub, parse_mod, translate_cond)
+            if cls["kind"] == "stat":
+                for c in cls["contribs"]:
+                    contribs.append({
+                        "stat_key": c["stat_key"],
+                        "amount": c["amount"],
+                        "text": f"{c.get('text', sub)} |core|{norm}",
+                        "label": label,
+                        "condition_expr": cls["condition_expr"],
+                    })
+                statuses.append({"name": name, "text": sub, "resolved": True, "kind": "stat"})
+            else:  # deferred | unresolved
+                statuses.append({"name": name, "text": sub, "resolved": False, "kind": cls["kind"]})
     return contribs, flags, statuses
 
 
