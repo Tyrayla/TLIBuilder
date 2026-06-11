@@ -58,6 +58,32 @@ def _split_compound(stat_clause: str) -> list[str]:
     return [p.strip() for p in _COMPOUND_SPLIT_RE.split(stat_clause) if p and p.strip()]
 
 
+# Shared-magnitude joins: a single "+N%" applied to TWO stats whose names share an elided head-noun or a
+# trailing qualifier, joined by "and" with no second number (so _split_compound can't see them, e.g.
+# "+20% Life Regain and Energy Shield Regain for Minions"). Each entry maps the joined stat-name phrase to
+# the expanded stat-name phrases; we re-emit the whole line once per expansion (string-replace the joined
+# phrase), so the leading magnitude and any trailing condition ride onto each. CURATED, never inferred —
+# so a single stat like "Ultimate Damage and Ailment Damage" is never wrongly split.
+_SHARED_STAT_JOINS = [
+    (re.compile(r"\bLife Regain and Energy Shield Regain\b", re.I),
+     ["Life Regain", "Energy Shield Regain"]),
+    (re.compile(r"\bMinion Attack and Cast Speed\b", re.I),
+     ["Minion Attack Speed", "Minion Cast Speed"]),
+    (re.compile(r"\bAttack and Cast Speed\b", re.I),
+     ["Attack Speed", "Cast Speed"]),
+]
+
+
+def _expand_shared_stats(effect: str) -> list[str]:
+    """Expand a single shared-magnitude join into one full effect string per stat. Returns [effect] if no
+    join matches (the common case), so callers can flat-map unconditionally."""
+    for pat, parts in _SHARED_STAT_JOINS:
+        m = pat.search(effect)
+        if m:
+            return [effect[:m.start()] + p + effect[m.end():] for p in parts]
+    return [effect]
+
+
 def _normalize(name: str | None) -> str:
     return re.sub(r"\s+", " ", (name or "").strip().lower())
 
@@ -137,6 +163,8 @@ def _resolve_talent(name: str, effects, parse_mod, translate_cond):
         segments = _split_compound(stat_clause)
         subs = ([s + (" " + cond_clause if cond_clause else "") for s in segments]
                 if len(segments) > 1 else [eff])
+        # A shared-magnitude join inside any segment fans out to one sub-effect per stat (usually a no-op).
+        subs = [x for sub in subs for x in _expand_shared_stats(sub)]
 
         for sub in subs:
             cls = _classify_effect(sub, parse_mod, translate_cond)

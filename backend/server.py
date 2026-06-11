@@ -182,7 +182,8 @@ def _core_effect_status(effect: str) -> dict:
     `resolved` is True only when EVERY part resolves; `stat_keys` aggregates the resolved keys. Compound
     lines ("+A and +B") are split into segments so the badge reflects all parts, not just the first."""
     from engine.core_talent_resolver import (
-        _classify_effect, _split_condition, _split_compound, _strip_max_div, _BASE_EFFECT_RE)
+        _classify_effect, _split_condition, _split_compound, _expand_shared_stats,
+        _strip_max_div, _BASE_EFFECT_RE)
     text = _strip_max_div(effect)
     if _BASE_EFFECT_RE.search(text):
         cls = _classify_effect(effect, _parse_custom_mod_text, _translate_condition_expr)
@@ -191,6 +192,7 @@ def _core_effect_status(effect: str) -> dict:
     segments = _split_compound(stat_clause)
     subs = ([s + (" " + cond_clause if cond_clause else "") for s in segments]
             if len(segments) > 1 else [effect])
+    subs = [x for sub in subs for x in _expand_shared_stats(sub)]
     stat_keys: list[str] = []
     all_ok = True
     for sub in subs:
@@ -1329,6 +1331,10 @@ _GEAR_COND_RE = re.compile(
 )
 
 _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
+    # Flat-count core-talent lines whose in-game wording differs from the stat's gear display name
+    # (reached value-stripped via the trailing-count handler in _parse_custom_mod_text).
+    "max sentry quantity":  "max_sentry_quantity_flat",
+    "min channeled stacks": "min_channeled_stacks_flat",
     "+(#) gear armor":   "armor_gear_flat",
     "+(#) % gear armor": "armor_gear_inc",
     "+(#) gear evasion":   "evasion_gear_flat",
@@ -1715,11 +1721,29 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     """
     t = text.strip()
 
+    # Some core-talent lines prefix the stat with its subsystem before the value ("Spirit Magi +30% …").
+    # Drop that leading subsystem label so the value is start-anchored for the matchers below; the stat's
+    # display name still carries the subsystem, so resolution is unaffected.
+    t = re.sub(r'^\s*Spirit Mag(?:i|us)\s+(?=[+\-]?\d)', '', t, flags=re.I)
+
     # "You can cast N additional Curses" → Max Curses (a flat count; "additional" here means +N, not the
     # damage pool, so the generic matchers would mishandle it).
     m = re.match(r'(?:you can cast\s+)?([\d.]+)\s+additional\s+curses?\b', t, re.I)
     if m:
         return [{"stat_key": "max_curses_flat", "amount": float(m.group(1)), "text": t}]
+
+    # "You can apply N additional Tangle(s) to enemies" → flat +N Tangles applied (mirrors the curses form).
+    m = re.match(r'(?:you can\s+)?apply\s+([\d.]+)\s+additional\s+tangles?\b', t, re.I)
+    if m:
+        return [{"stat_key": "extra_tangle_applied_flat", "amount": float(m.group(1)), "text": t}]
+
+    # Trailing flat count: "<Stat Name> +N" (Max Sentry Quantity +1, Min Channeled Stacks +1). Resolve the
+    # value-stripped name; accept ONLY a *_flat stat so a stray "+N" can never land in a % pool.
+    m = re.match(r'^(.+?)\s+([+\-]\d+(?:\.\d+)?)\s*$', t)
+    if m and '%' not in t:
+        stat_key, _u = _resolve_gear_stat(m.group(1).strip())
+        if stat_key and stat_key.endswith('_flat'):
+            return [{"stat_key": stat_key, "amount": float(m.group(2)), "text": t}]
 
     # "Adds N-N <Type> Damage to Attacks/Spells/Attacks and Spells" → flat added damage min+max.
     m = _CUSTOM_ADDS_RE.match(t)
@@ -1821,6 +1845,8 @@ _COND_PATTERNS: list[tuple] = [
     (re.compile(r"(?:against|from)\s+(paralyzed|numbed|cursed|ignited|frozen|frostbitten|wilted|traumatized|blinded)\s+enem", re.I),
      lambda m: f"enemy_{m.group(1).lower()}"),
     (re.compile(r"enem(?:y|ies)\s+in\s+proximity|in\s+proximity", re.I), "enemy_in_proximity"),
+    # "against enemies with Max Affliction" → existing enemy_has_max_affliction condition.
+    (re.compile(r"with\s+max\s+affliction|enem(?:y|ies)\s+(?:with|has|have)\s+max\s+affliction", re.I), "enemy_has_max_affliction"),
     (re.compile(r"wielding\s+a\s+wand\s+or\s+tin\s+staff", re.I), "wielding_wand_or_tin_staff"),
     # Attribute comparisons (Tradeoff) — auto-derived from STR vs DEX in the compute loop.
     (re.compile(r"dexterity\s+is\s+no\s+less\s+than\s+strength", re.I), "dexterity_ge_strength"),

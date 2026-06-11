@@ -119,6 +119,14 @@ class Stat(Enum):
     MINION_LIGHTNING_DMG_FLAT_MAX = "minion_lightning_dmg_flat_max"
     MINION_EROSION_DMG_FLAT_MIN = "minion_erosion_dmg_flat_min"
     MINION_EROSION_DMG_FLAT_MAX = "minion_erosion_dmg_flat_max"
+    # Core-talent additional-pool minion mods (subsystem not yet simulated — tracked, Inactive)
+    MINION_PHYSICAL_DMG_ADDITIONAL = "minion_physical_dmg_additional"
+    MINION_SPELL_DMG_ADDITIONAL = "minion_spell_dmg_additional"
+    MINION_DMG_TAKEN_ADDITIONAL = "minion_dmg_taken_additional"
+    MINION_ATTACK_SPEED_ADDITIONAL = "minion_attack_speed_additional"
+    MINION_CAST_SPEED_ADDITIONAL = "minion_cast_speed_additional"
+    MINION_ES_REGAIN_INC = "minion_es_regain_inc"
+    SUMMON_SKILL_CAST_SPEED_ADDITIONAL = "summon_skill_cast_speed_additional"
 
     # Synthetic Troops
     SYNTH_DOUBLE_DMG_CHANCE = "synth_double_dmg_chance"
@@ -140,6 +148,8 @@ class Stat(Enum):
     SENTRY_SKILL_AREA_INC = "sentry_skill_area_inc"
     SENTRY_START_TIME_ADDITIONAL = "sentry_start_time_additional"
     SENTRY_PROJECTILE_SPEED_INC = "sentry_projectile_speed_inc"
+    SENTRY_CAST_SPEED_ADDITIONAL = "sentry_cast_speed_additional"
+    NON_SENTRY_SKILL_DMG_INC = "non_sentry_skill_dmg_inc"
 
     # ── Spirit Magi ──────────────────────────────────────────────────────────
     SPIRIT_MAGI_INITIAL_GROWTH_FLAT = "spirit_magi_initial_growth_flat"
@@ -151,6 +161,8 @@ class Stat(Enum):
     SPIRIT_MAGI_ORIGIN_EFFECT_ADDITIONAL = "spirit_magi_origin_effect_additional"
     SPIRIT_MAGI_SKILL_LEVEL = "spirit_magi_skill_level"
     SPIRIT_MAGI_CRIT_RATING_FLAT = "spirit_magi_crit_rating_flat"
+    SPIRIT_MAGI_SEALED_MANA_COMP_INC = "spirit_magi_sealed_mana_comp_inc"
+    SPIRIT_MAGI_EMPOWER_EFFECT_ADDITIONAL = "spirit_magi_empower_effect_additional"
     SPIRIT_MAGI_ENHANCED_SKILL_CHANCE = "spirit_magi_enhanced_skill_chance"
     SPIRIT_MAGI_CDR_SPEED_INC = "spirit_magi_cdr_speed_inc"
     SPIRIT_MAGI_DMG_TAKEN_ADDITIONAL = "spirit_magi_dmg_taken_additional"
@@ -254,7 +266,9 @@ class Stat(Enum):
     # ── Tangle ───────────────────────────────────────────────────────────────
     TANGLE_DMG_INC = "tangle_dmg_inc"
     TANGLE_DURATION_INC = "tangle_duration_inc"
+    TANGLE_DURATION_ADDITIONAL = "tangle_duration_additional"
     MAX_TANGLE_QUANTITY_FLAT = "max_tangle_quantity_flat"
+    EXTRA_TANGLE_APPLIED_FLAT = "extra_tangle_applied_flat"  # +N Tangles applied per application
 
     # ── Trauma ───────────────────────────────────────────────────────────────
     TRAUMA_DMG_INC = "trauma_dmg_inc"
@@ -264,6 +278,7 @@ class Stat(Enum):
     TRAUMA_REAPING_DURATION_INC = "trauma_reaping_duration_inc"
     TRAUMA_BASE_DMG_FLAT_MIN = "trauma_base_dmg_flat_min"
     TRAUMA_BASE_DMG_FLAT_MAX = "trauma_base_dmg_flat_max"
+    TRAUMA_LIMIT_FLAT = "trauma_limit_flat"
     WILT_BASE_DMG_FLAT_MIN = "wilt_base_dmg_flat_min"
     WILT_BASE_DMG_FLAT_MAX = "wilt_base_dmg_flat_max"
     IGNITE_BASE_DMG_FLAT_MIN = "ignite_base_dmg_flat_min"
@@ -275,6 +290,7 @@ class Stat(Enum):
 
     # ── Affliction ───────────────────────────────────────────────────────────
     AFFLICTION_EFFECT_INC = "affliction_effect_inc"
+    AFFLICTION_EFFECT_ADDITIONAL = "affliction_effect_additional"
     AFFLICTION_PER_SECOND_FLAT = "affliction_per_second_flat"
 
     # ── Deterioration ────────────────────────────────────────────────────────
@@ -297,6 +313,7 @@ class Stat(Enum):
 
     # ── Channeled / Triggered / Combo Mechanics ──────────────────────────────
     CHANNELED_DMG_INC = "channeled_dmg_inc"
+    CHANNELED_DMG_ADDITIONAL = "channeled_dmg_additional"
     CHANNELED_ATTACK_SPEED_INC = "channeled_attack_speed_inc"
     CHANNELED_CAST_SPEED_INC = "channeled_cast_speed_inc"
     TRIGGERED_DMG_INC = "triggered_dmg_inc"
@@ -308,6 +325,7 @@ class Stat(Enum):
     MULTISTRIKE_INCREASING_DMG_INC = "multistrike_increasing_dmg_inc"
     BARRAGE_DMG_PER_WAVE_INC = "barrage_dmg_per_wave_inc"
     MULTISTRIKE_CHANCE = "multistrike_chance"
+    INITIAL_MULTISTRIKE_COUNT_FLAT = "initial_multistrike_count_flat"
     MAX_CHANNELED_STACKS_FLAT = "max_channeled_stacks_flat"
     MIN_CHANNELED_STACKS_FLAT = "min_channeled_stacks_flat"
     JUMP_DMG_FOR_EVERY_ADDITIONAL = "jump_dmg_for_every_additional"  # revisit stacking behavior
@@ -401,6 +419,8 @@ class Stat(Enum):
     # ── Barrier ───────────────────────────────────────────────────────────────
     BARRIER_ABSORPTION_RATE_INC = "barrier_absorption_rate_inc"
     BARRIER_SHIELD_INC = "barrier_shield_inc"
+    BARRIER_SHIELD_ADDITIONAL = "barrier_shield_additional"
+    MAX_DEFLECTION_STACKS_FLAT = "max_deflection_stacks_flat"
 
     # ── Defense ───────────────────────────────────────────────────────────────
     ARMOR_FLAT = "armor_flat"
@@ -461,6 +481,7 @@ class Stat(Enum):
 
     # ── Reaping ───────────────────────────────────────────────────────────────
     REAPING_DURATION_INC = "reaping_duration_inc"
+    REAPING_DURATION_ADDITIONAL = "reaping_duration_additional"
     REAPING_RECOVERY_SPEED_INC = "reaping_recovery_speed_inc"
 
     # ── Buff / Aura Effects ───────────────────────────────────────────────────
@@ -471,6 +492,7 @@ class Stat(Enum):
     FERVOR_EFFECT_INC = "fervor_effect_inc"
     BLUR_EFFECT_INC = "blur_effect_inc"
     WARCRY_EFFECT_INC = "warcry_effect_inc"
+    WARCRY_SKILL_AREA_INC = "warcry_skill_area_inc"
     ELIXIR_EFFECT_INC = "elixir_effect_inc"
     AURA_EFFECT_INC = "aura_effect_inc"
     CURSE_EFFECT_INC = "curse_effect_inc"
