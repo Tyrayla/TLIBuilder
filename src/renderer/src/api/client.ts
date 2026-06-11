@@ -229,10 +229,19 @@ export interface TreeNode {
   effects: string[]
 }
 
+// Static per-line resolution for a core-talent effect (from /api/tree) — drives the NYI/Inactive badges
+// on any tree regardless of selection. kind 'stat'|'override' resolve; 'deferred'|'unresolved' do not.
+export interface CoreTalentEffectStatus {
+  resolved: boolean
+  kind: 'stat' | 'override' | 'deferred' | 'unresolved'
+  stat_keys: string[]
+}
+
 export interface CoreTalentSlotOption {
   id: string
   name: string
   effects: string[]
+  effect_status?: CoreTalentEffectStatus[]   // aligned 1:1 with effects
 }
 
 export interface CoreTalentSlot {

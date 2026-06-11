@@ -176,6 +176,17 @@ def _node_prefix(tree: PassiveTree) -> str:
 
 # ── Trees ──────────────────────────────────────────────────────────────────────
 
+def _core_effect_status(effect: str) -> dict:
+    """Static resolution status for one core-talent effect line (no build context), for UI badges.
+    kind: 'stat' (maps to stat keys) | 'override' (re-bases a base effect) | 'deferred' | 'unresolved'.
+    `resolved` is True for stat/override; `stat_keys` lists the resolved keys (for the inactive check)."""
+    from engine.core_talent_resolver import _classify_effect
+    cls = _classify_effect(effect, _parse_custom_mod_text, _translate_condition_expr)
+    kind = cls["kind"]
+    stat_keys = [c["stat_key"] for c in cls.get("contribs", [])] if kind == "stat" else []
+    return {"resolved": kind in ("stat", "override"), "kind": kind, "stat_keys": stat_keys}
+
+
 @app.get("/api/trees")
 def get_trees():
     return [{"name": name, "color": entry["color"]} for name, entry in TREES.items()]
@@ -213,7 +224,10 @@ def get_tree(name: str):
         {
             "threshold": slot.threshold,
             "options": [
-                {"id": opt.id, "name": opt.name, "effects": opt.effects}
+                {"id": opt.id, "name": opt.name, "effects": opt.effects,
+                 # Per-line resolution status (static — independent of selection), so badges show on any
+                 # tree: "stat"/"override" resolve, "deferred"/"unresolved" badge as Unrecognized (NYI).
+                 "effect_status": [_core_effect_status(e) for e in opt.effects]}
                 for opt in slot.options
             ],
             "selected_id": slot.selected_id,

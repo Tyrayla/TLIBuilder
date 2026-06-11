@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui/react'
-import { api, getApiBase, TreeData, TreeNode, CoreTalentStatus } from '../api/client'
+import { api, getApiBase, TreeData, TreeNode, CoreTalentSlotOption } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 import { useBuildStore } from '../store/buildStore'
-import { ModifierBadge, type ModifierStatus } from '../components/ModifierBadge'
+import { ModifierBadge, useConsumedStatSet, type ModifierStatus } from '../components/ModifierBadge'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { NodeTooltipBody } from '../components/tooltip/bodies/NodeTooltipBody'
@@ -170,22 +170,27 @@ export default function TreeViewerScreen({
   const updateSlotNodeStates = useBuildStore(s => s.updateSlotNodeStates)
   const updateSlotCoreTalentSelections = useBuildStore(s => s.updateSlotCoreTalentSelections)
 
-  // Per-effect resolution status for granted core talents (roadmap #4), keyed by name§effect-text.
-  // The engine resolves only SELECTED/granted talents, so a status exists for the chosen option's
-  // lines; an unresolved/deferred line gets an "Unrecognized (NYI)" badge (toggle in the sidebar).
+  // Core-talent effect badges (roadmap #4), three states driven by the tree's STATIC per-line
+  // resolution (so any tree badges, selected or not) plus the build's consumed_stats:
+  //   • unresolved/deferred line                              → "Unrecognized (NYI)"
+  //   • resolves to a stat, talent is granted, but none of    → "Inactive" (recognized, unused /
+  //     its stats were consumed by the calculation               mechanic not modeled — e.g. Spell Burst)
+  //   • resolves + applied (override, or a consumed stat)     → no badge
   const coreTalentStatuses = useBuildStore(s => s.computedStats.core_talent_statuses)
-  const coreStatusByKey = useMemo(() => {
-    const m = new Map<string, CoreTalentStatus>()
+  const consumedStats = useConsumedStatSet()
+  const grantedCoreNames = useMemo(() => {
     const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
-    for (const st of coreTalentStatuses ?? []) m.set(norm(st.name) + '§' + st.text, st)
-    return m
+    return new Set((coreTalentStatuses ?? []).map(st => norm(st.name)))
   }, [coreTalentStatuses])
-  const coreEffectBadge = useCallback((talentName: string, effect: string): ModifierStatus | null => {
+  const coreEffectBadge = useCallback((opt: CoreTalentSlotOption, i: number): ModifierStatus | null => {
+    const es = opt.effect_status?.[i]
+    if (!es || es.kind === 'override') return null
+    if (!es.resolved) return 'unrecognized'
     const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
-    const st = coreStatusByKey.get(norm(talentName) + '§' + effect)
-    if (!st) return null               // unselected option (not resolved) → no badge
-    return st.resolved ? null : 'unrecognized'
-  }, [coreStatusByKey])
+    if (grantedCoreNames.has(norm(opt.name)) && es.stat_keys.length > 0
+        && !es.stat_keys.some(k => consumedStats.has(k))) return 'unused'   // "Inactive"
+    return null
+  }, [grantedCoreNames, consumedStats])
 
   const [treeData, setTreeData] = useState<TreeData | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -409,28 +414,8 @@ export default function TreeViewerScreen({
     if (!previewMode) updateSlotCoreTalentSelections(activeSlot, next)
   }
 
-  // ── Header ─────────────────────────────────────────────────────────────────
-
-  const header = previewMode ? (
-    <div className="viewer-header preview-viewer-header">
-      <div className="viewer-header-left">
-        <button className="btn-back" onClick={onBack}>← Back to Preview</button>
-      </div>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-        <div className="preview-header-badge" style={{ fontSize: 10, padding: '2px 10px' }}>◈ PREVIEW MODE</div>
-        <span className="viewer-tree-name" style={{ color: treeColor, fontSize: 20 }}>{treeName}</span>
-      </div>
-      <div className="viewer-header-right">
-        <span style={{ fontSize: 11, color: '#555577', fontStyle: 'italic' }}>explore freely — nothing saved</span>
-        <span className="viewer-points">Points: {total}</span>
-      </div>
-    </div>
-  ) : (
-    <div className="viewer-header">
-      <div className="viewer-header-left">
-        <button className="btn-back" onClick={onBack}>← Back</button>
-        <span className="viewer-tree-name" style={{ color: treeColor }}>{treeName}</span>
-        {treeData && treeData.core_talent_slots.length > 0 && (
+  // Core-talent widget (circles + Floating dropdown) — shared by the normal and preview headers.
+  const coreTalentWidget = treeData && treeData.core_talent_slots.length > 0 ? (
           <div className="core-talent-header-widget">
             <div className="core-talent-circles">
               {treeData.core_talent_slots.map((slot, slotIdx) => {
@@ -487,7 +472,7 @@ export default function TreeViewerScreen({
                             <div className="core-talent-card-name">{opt.name}</div>
                             <div className="core-talent-card-desc">
                               {opt.effects.map((e, i) => (
-                                <p key={i}>{e}<ModifierBadge status={coreEffectBadge(opt.name, e)} /></p>
+                                <p key={i}>{e}<ModifierBadge status={coreEffectBadge(opt, i)} /></p>
                               ))}
                             </div>
                             <button
@@ -507,7 +492,31 @@ export default function TreeViewerScreen({
               )
             })()}
           </div>
-        )}
+  ) : null
+
+  // ── Header ─────────────────────────────────────────────────────────────────
+
+  const header = previewMode ? (
+    <div className="viewer-header preview-viewer-header">
+      <div className="viewer-header-left">
+        <button className="btn-back" onClick={onBack}>← Back to Preview</button>
+        {coreTalentWidget}
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+        <div className="preview-header-badge" style={{ fontSize: 10, padding: '2px 10px' }}>◈ PREVIEW MODE</div>
+        <span className="viewer-tree-name" style={{ color: treeColor, fontSize: 20 }}>{treeName}</span>
+      </div>
+      <div className="viewer-header-right">
+        <span style={{ fontSize: 11, color: '#555577', fontStyle: 'italic' }}>explore freely — nothing saved</span>
+        <span className="viewer-points">Points: {total}</span>
+      </div>
+    </div>
+  ) : (
+    <div className="viewer-header">
+      <div className="viewer-header-left">
+        <button className="btn-back" onClick={onBack}>← Back</button>
+        <span className="viewer-tree-name" style={{ color: treeColor }}>{treeName}</span>
+        {coreTalentWidget}
       </div>
       {treeData && (
         <>
