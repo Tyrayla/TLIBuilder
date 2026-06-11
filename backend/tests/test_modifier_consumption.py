@@ -75,7 +75,9 @@ class TestSkillSensitivity:
         return set(s.consumed_stats)
 
     def test_modeled_skill_consumes_offense_stat(self):
-        assert "crit_damage" in self._consumed_via_offense(_skill(supported=True))
+        # Critical Strike Damage is now read from the crit-damage stat pool (crit_dmg_inc, …) rather
+        # than the old unpopulated "crit_damage" key.
+        assert "crit_dmg_inc" in self._consumed_via_offense(_skill(supported=True))
 
     def test_unmodeled_skill_consumes_nothing(self):
         # calculate_offense returns early for unsupported skills, before any total() read.

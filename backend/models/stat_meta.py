@@ -130,6 +130,12 @@ STAT_META: dict[Stat, StatMeta] = {
         affects=_HIT_DOT,             stacking_rule="additive",
         ui_priority=1,                source_types=_T,
     ),
+    Stat.HIT_DMG_ADDITIONAL: StatMeta(
+        "Additional Hit Damage", "Generic", "additional", "%",
+        subgroup="damage",             pipeline_stage="additional",
+        affects=_HIT,                  stacking_rule="additive",
+        ui_priority=20,                source_types=_T,
+    ),
     Stat.DMG_ADDITIONAL: StatMeta(
         "Additional Damage", "Generic", "additional", "%",
         subgroup="generic_damage",    pipeline_stage="additional",
@@ -1455,6 +1461,12 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=11,
         source_types=_G,
     ),
+    Stat.CRIT_RATING_ADDITIONAL: StatMeta(
+        "Additional Critical Strike Rating", "Critical Strike", "additional", "%",
+        subgroup="crit_rating",        pipeline_stage="crit_rating",
+        affects=_HIT,                  stacking_rule="additive",
+        ui_priority=10,                source_types=_T,
+    ),
     Stat.CRIT_RATING_INC: StatMeta(
         "Critical Strike Rating", "Critical Strike", "crit_rating", "%",
         subgroup="crit_rating",        pipeline_stage="crit_rating",
@@ -1533,6 +1545,12 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Critical Strike — Damage ──────────────────────────────────────────────
+    Stat.CRIT_DMG_ADDITIONAL: StatMeta(
+        "Additional Critical Strike Damage", "Critical Strike", "additional", "%",
+        subgroup="crit_damage",        pipeline_stage="crit_damage",
+        affects=_HIT,                  stacking_rule="additive",
+        ui_priority=12,                source_types=_T,
+    ),
     Stat.CRIT_DMG_INC: StatMeta(
         "Critical Strike Damage", "Critical Strike", "crit_damage", "%",
         subgroup="crit_damage",        pipeline_stage="crit_damage",

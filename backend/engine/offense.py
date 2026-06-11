@@ -19,6 +19,16 @@ _HIT_INC_STATS: list[tuple[str, frozenset]] = [
     and "hit" in meta.affects
 ]
 
+# Critical Strike Damage is one additive pool on top of the 1.5x base crit multiplier (TLI models crit
+# damage additively, not as a separate multiplicative "additional" pool). All crit-damage stats feed it,
+# tag-filtered to the skill — generic crit_dmg, attack/spell crit_dmg, and element crit_dmg matching the
+# skill's damage. (Previously unwired: crit_mult read an unpopulated "crit_damage" key.)
+_CRIT_DMG_STATS: list[tuple[str, frozenset]] = [
+    (stat.value, frozenset(meta.tags))
+    for stat, meta in STAT_META.items()
+    if meta.pipeline_stage == "crit_damage" and "hit" in meta.affects
+]
+
 # Additional stats that require special handling and are excluded from the generic pool.
 # Each entry notes why it can't be treated as a simple always-on multiplier.
 _DEFERRED_ADDITIONAL: dict[str, str] = {
@@ -344,12 +354,11 @@ def calculate_offense(
     # Increased Critical Strike Rating scales the whole CSR pool. crit_rating_inc is the GENERIC
     # "+X% Critical Strike Rating" (applies to both attacks and spells, e.g. Fervor Rating's
     # +2%/point); attack_crit_rating_inc is the attack-only increase. Both stack additively here.
-    crit_rating_inc = source.total("crit_rating_inc") + source.total("attack_crit_rating_inc")
+    crit_rating_inc = (source.total("crit_rating_inc") + source.total("attack_crit_rating_inc")
+                       + source.total("crit_rating_additional"))
     raw_csr = (base_csr + weapon_csr + other_csr) * (1.0 + crit_rating_inc)
     # 100 CSR = 1% crit chance; divide by 10000 to convert to 0–1 float
     crit_chance = min(raw_csr / 10000.0, 1.0)
-    crit_mult = 1.5 + source.total("crit_damage")
-    crit_factor = 1.0 + crit_chance * (crit_mult - 1.0)
 
     # 1. Effective level — sum all applicable skill level bonuses from gear/talents/memories
     skill_tags_lower = {t.lower() for t in skill.tags}
@@ -357,6 +366,12 @@ def calculate_offense(
     # borrows (e.g. Moon Strike borrows 'spell' so Spell Damage mods apply to its Attack Damage).
     # NOT used for flat adds / is_spell, so a borrowing skill doesn't pull in off-type flat damage.
     mod_tags = skill_tags_lower | {t.lower() for t in skill.extra_damage_mod_tags}
+
+    # Crit multiplier = 1.5 base + the additive Critical Strike Damage pool (tag-filtered to the skill).
+    crit_damage = sum(source.total(key) for key, tags in _CRIT_DMG_STATS if not tags or tags & mod_tags)
+    crit_mult = 1.5 + crit_damage
+    crit_factor = 1.0 + crit_chance * (crit_mult - 1.0)
+
     effective_level = skill_effective_level(source, skill.tags, base_level, is_main_skill)
     lookup_level = min(effective_level, skill.max_level)
 

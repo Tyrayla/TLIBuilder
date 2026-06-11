@@ -78,7 +78,9 @@ class TestCrit:
 
     def test_crit_multiplier_default_and_bonus(self):
         assert calculate_offense(_source(), _skill(), 1).crit_multiplier == pytest.approx(1.5)
-        assert calculate_offense(_source(crit_damage=0.4), _skill(), 1).crit_multiplier == pytest.approx(1.9)
+        # Critical Strike Damage feeds the crit multiplier additively (1.5 base + the crit-damage pool).
+        assert calculate_offense(_source(crit_dmg_inc=0.4), _skill(), 1).crit_multiplier == pytest.approx(1.9)
+        assert calculate_offense(_source(crit_dmg_additional=0.4), _skill(), 1).crit_multiplier == pytest.approx(1.9)
 
 
 class TestAttackSpeed:

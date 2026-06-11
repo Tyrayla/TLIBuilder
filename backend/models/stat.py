@@ -28,6 +28,7 @@ class Stat(Enum):
     DOUBLE_DMG_CHANCE = "double_dmg_chance"
     DMG_INC = "dmg_inc"
     DMG_ADDITIONAL = "dmg_additional"
+    HIT_DMG_ADDITIONAL = "hit_dmg_additional"
     DMG_MAX_ADDITIONAL = "dmg_max_additional"
     POST_MOBILITY_DMG_ADDITIONAL = "post_mobility_dmg_additional"
     DMG_AVOID_CHANCE = "dmg_avoid_chance"
@@ -334,6 +335,7 @@ class Stat(Enum):
     ATTACK_CRIT_RATING_GEAR = "attack_crit_rating_gear"
     ATTACK_CRIT_RATING_MH = "attack_crit_rating_mh"
     CRIT_RATING_INC = "crit_rating_inc"
+    CRIT_RATING_ADDITIONAL = "crit_rating_additional"
     ATTACK_CRIT_RATING_INC = "attack_crit_rating_inc"
     SPELL_CRIT_RATING_INC = "spell_crit_rating_inc"
     MINION_CRIT_RATING_INC = "minion_crit_rating_inc"
@@ -344,6 +346,7 @@ class Stat(Enum):
 
     # ── Critical Strike — Damage ─────────────────────────────────────────────
     CRIT_DMG_INC = "crit_dmg_inc"
+    CRIT_DMG_ADDITIONAL = "crit_dmg_additional"
     ATTACK_CRIT_DMG_INC = "attack_crit_dmg_inc"
     SPELL_CRIT_DMG_INC = "spell_crit_dmg_inc"
     MINION_CRIT_DMG_INC = "minion_crit_dmg_inc"
