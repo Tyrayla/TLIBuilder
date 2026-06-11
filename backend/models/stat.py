@@ -179,6 +179,31 @@ class Stat(Enum):
     PHYSICAL_AS_FIRE = "physical_as_fire"
     PHYSICAL_AS_EROSION = "physical_as_erosion"
     PHYSICAL_AS_ELEMENTAL = "physical_as_elemental"    # adds 40% as all 3 elements
+    # ── Damage Type Conversion ────────────────────────────────────────────────
+    # Priority chain (low→high): physical → lightning → cold → fire → erosion; conversion flows UP only.
+    # `_convert_to_` reduces the source portion; `_as_` (adds-as) is extra. Both feed the offense
+    # conversion stage. The physical_as_* + *_as_erosion adds-as keys already exist above / in their blocks.
+    LIGHTNING_AS_COLD = "lightning_as_cold"
+    LIGHTNING_AS_FIRE = "lightning_as_fire"
+    COLD_AS_FIRE = "cold_as_fire"
+    PHYSICAL_CONVERT_TO_LIGHTNING = "physical_convert_to_lightning"
+    PHYSICAL_CONVERT_TO_COLD = "physical_convert_to_cold"
+    PHYSICAL_CONVERT_TO_FIRE = "physical_convert_to_fire"
+    PHYSICAL_CONVERT_TO_EROSION = "physical_convert_to_erosion"
+    LIGHTNING_CONVERT_TO_COLD = "lightning_convert_to_cold"
+    LIGHTNING_CONVERT_TO_FIRE = "lightning_convert_to_fire"
+    LIGHTNING_CONVERT_TO_EROSION = "lightning_convert_to_erosion"
+    COLD_CONVERT_TO_FIRE = "cold_convert_to_fire"
+    COLD_CONVERT_TO_EROSION = "cold_convert_to_erosion"
+    FIRE_CONVERT_TO_EROSION = "fire_convert_to_erosion"
+    # Per-type Lucky indicators (>0 ⇒ that damage type rolls twice, keeps higher). Lucky keys off the
+    # FINAL damage type after conversion (tested). Populated by sources like Everburn Thunderfire
+    # ("Lightning Damage has Luck against Ignited") — gate via a conditional contribution.
+    LUCKY_PHYSICAL = "lucky_physical"
+    LUCKY_LIGHTNING = "lucky_lightning"
+    LUCKY_COLD = "lucky_cold"
+    LUCKY_FIRE = "lucky_fire"
+    LUCKY_EROSION = "lucky_erosion"
     PHYSICAL_SKILL_LEVEL = "physical_skill_level"
     PHYSICAL_ATTACK_DMG_FLAT_MIN = "physical_attack_dmg_flat_min"
     PHYSICAL_ATTACK_DMG_FLAT_MAX = "physical_attack_dmg_flat_max"

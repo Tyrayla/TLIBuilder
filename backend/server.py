@@ -1353,12 +1353,28 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     # Damage conversion — physical
     "adds (#) % of physical damage as lightning damage": "physical_as_lightning",
     "adds (#) % of physical damage to cold damage":      "physical_as_cold",
+    "adds (#) % of physical damage as cold damage":      "physical_as_cold",
     "adds (#) % of physical damage as fire damage":      "physical_as_fire",
     "adds (#) % of physical damage as erosion damage":   "physical_as_erosion",
     # Damage conversion — elemental to erosion
     "adds (#) % of lightning damage as erosion damage":  "lightning_as_erosion",
     "adds (#) % of cold damage as erosion damage":       "cold_as_erosion",
     "adds (#) % of fire damage as erosion damage":       "fire_as_erosion",
+    # Damage conversion — adds-as gaps (up-chain: lightning→cold/fire, cold→fire)
+    "adds (#) % of lightning damage as cold damage":     "lightning_as_cold",
+    "adds (#) % of lightning damage as fire damage":     "lightning_as_fire",
+    "adds (#) % of cold damage as fire damage":          "cold_as_fire",
+    # Damage conversion — convert (reduces source). "converts (#)% of A damage to B damage".
+    "converts (#) % of physical damage to lightning damage": "physical_convert_to_lightning",
+    "converts (#) % of physical damage to cold damage":      "physical_convert_to_cold",
+    "converts (#) % of physical damage to fire damage":      "physical_convert_to_fire",
+    "converts (#) % of physical damage to erosion damage":   "physical_convert_to_erosion",
+    "converts (#) % of lightning damage to cold damage":     "lightning_convert_to_cold",
+    "converts (#) % of lightning damage to fire damage":     "lightning_convert_to_fire",
+    "converts (#) % of lightning damage to erosion damage":  "lightning_convert_to_erosion",
+    "converts (#) % of cold damage to fire damage":          "cold_convert_to_fire",
+    "converts (#) % of cold damage to erosion damage":       "cold_convert_to_erosion",
+    "converts (#) % of fire damage to erosion damage":       "fire_convert_to_erosion",
     # Damage taken conversion
     "converts (#) % of physical damage taken to lightning damage": "physical_taken_as_lightning_inc",
     "converts (#) % of physical damage taken to cold damage":      "physical_taken_as_cold_inc",

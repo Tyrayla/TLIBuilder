@@ -229,6 +229,67 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str) -> float:
     return mult
 
 
+# ── Damage-type conversion (outgoing hit damage) ──────────────────────────────
+# Priority chain low→high; conversion flows UP only (Help DB). A converted/added slice carries its PATH:
+# type-specific INCREASES sum over the path, type-specific ADDITIONALS multiply over the path; generic
+# inc/add apply once. Tested in-game (see docs / plan): increases add, additionals multiply, lucky keys off
+# the FINAL type. "convert" reduces the source's staying portion; "adds-as" is extra.
+_CONV_PRIORITY = ["physical", "lightning", "cold", "fire", "erosion"]
+
+
+def _conversion_fracs(source: BuildSource) -> tuple[dict, dict]:
+    """Read convert + adds-as fractions per up-chain (source→dest) pair from `source`. Returns
+    (convert, adds), each {src: {dst: frac}}. Convert is capped to ≤100% per source (redistributed by
+    weight). physical_as_elemental adds its % as each of fire/cold/lightning."""
+    convert: dict[str, dict[str, float]] = {}
+    adds: dict[str, dict[str, float]] = {}
+    for i, s in enumerate(_CONV_PRIORITY):
+        higher = _CONV_PRIORITY[i + 1:]
+        c = {d: max(0.0, source.total(f"{s}_convert_to_{d}")) for d in higher}
+        tot = sum(c.values())
+        if tot > 1.0:                                  # cap 100% per source, redistribute by weight
+            c = {d: v / tot for d, v in c.items()}
+        a = {d: max(0.0, source.total(f"{s}_as_{d}")) for d in higher}
+        if s == "physical":
+            pe = max(0.0, source.total("physical_as_elemental"))
+            for d in ("fire", "cold", "lightning"):
+                a[d] = a.get(d, 0.0) + pe
+        convert[s] = {d: v for d, v in c.items() if v > 1e-12}
+        adds[s] = {d: v for d, v in a.items() if v > 1e-12}
+    return convert, adds
+
+
+def _apply_conversion(eff_flat: dict, spec_inc: dict, spec_add: dict,
+                      generic_inc: float, generic_add: float,
+                      convert: dict, adds: dict) -> dict:
+    """Cascade post-effectiveness flat (per type) through the conversion chain in priority order.
+    Each packet accumulates its path's type-specific increase (SUM) and additional (PRODUCT); generic
+    inc/add apply once. Returns {final_type: (scaled_min, scaled_max)} summed over packets landing there.
+    With no conversion this reproduces (1 + type_inc) × type_add per native type (regression-safe)."""
+    packets = {t: [] for t in _CONV_PRIORITY}          # [min, max, spec_inc_sum, spec_add_prod]
+    for t in _CONV_PRIORITY:
+        mn, mx = eff_flat.get(t, (0.0, 0.0))
+        if mn or mx:
+            packets[t].append([mn, mx, 0.0, 1.0])
+    final: dict[str, tuple[float, float]] = {}
+    for t in _CONV_PRIORITY:
+        for p in packets[t]:                           # this damage is now type t → pick up t's bonuses
+            p[2] += spec_inc.get(t, 0.0)
+            p[3] *= spec_add.get(t, 1.0)
+        ct, at = convert.get(t, {}), adds.get(t, {})
+        stay = 1.0 - sum(ct.values())
+        for p in packets[t]:
+            for d, frac in ct.items():                 # convert: route slice down-chain, reduce stay
+                packets[d].append([p[0] * frac, p[1] * frac, p[2], p[3]])
+            for d, frac in at.items():                 # adds-as: extra slice, stay unchanged
+                packets[d].append([p[0] * frac, p[1] * frac, p[2], p[3]])
+            if stay > 1e-12:
+                f = (1.0 + generic_inc + p[2]) * generic_add * p[3]
+                cur = final.get(t, (0.0, 0.0))
+                final[t] = (cur[0] + p[0] * stay * f, cur[1] + p[1] * stay * f)
+    return final
+
+
 @dataclass
 class HitFormResult:
     name: str
@@ -446,9 +507,16 @@ def calculate_offense(
     main_stat_factor = 1.0 + main_stat_bonus
     intrinsic_add = (1.0 + extra_additional) * main_stat_factor
 
+    # Damage-type conversion: read fractions once. When any conversion is present, compute the per-type
+    # inc/add for ALL types (a converted slice can land in a type that had no native flat); otherwise only
+    # the flat types (regression-identical to the pre-conversion engine).
+    convert_fracs, adds_fracs = _conversion_fracs(source)
+    has_conversion = any(convert_fracs.values()) or any(adds_fracs.values())
+    calc_types = list(DAMAGE_TYPES) if has_conversion else list(flat_dmg.keys())
+
     type_inc: dict[str, float] = {}
     type_add: dict[str, float] = {}
-    for dtype in flat_dmg:
+    for dtype in calc_types:
         dtype_tag = frozenset({dtype})
         type_inc[dtype] = sum(
             source.total(key)
@@ -471,6 +539,12 @@ def calculate_offense(
         source, add_factors,
         lambda tags: not (tags & _DTYPE_TAG_SET) and ((not tags) or bool(tags & mod_tags)),
     ) * intrinsic_add
+
+    # Type-specific deltas the conversion cascade accumulates per path: increases SUM (type_inc − generic),
+    # additionals MULTIPLY (type_add / generic). generic_inc/add (which carry the intrinsic + main-stat
+    # factor) are applied ONCE per final stream inside _apply_conversion.
+    spec_inc = {t: type_inc.get(t, generic_inc) - generic_inc for t in DAMAGE_TYPES}
+    spec_add = {t: (type_add.get(t, generic_add) / generic_add if generic_add else 1.0) for t in DAMAGE_TYPES}
 
     # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
     steep_chance = min(skill.base_steep_strike_chance + source.total("steep_strike_chance"), 1.0)
@@ -525,21 +599,23 @@ def calculate_offense(
         hit_max_by_type: dict[str, float] = {}
         avg_pre = 0.0
         avg_pre_vs_target = 0.0
-        for dtype, (mn, mx) in flat_dmg.items():
-            inc = type_inc[dtype]
-            # type_add already includes the generic intrinsic multiplier (extra_additional × main-stat).
-            add = type_add[dtype]
-            # Enemy-vulnerability stage (Numbed etc.) — final per-type multiplier on outgoing damage.
-            # Crit is uniform and commutes, so applying it here (pre-crit) is order-equivalent.
+        # Conversion stage: apply this form's effectiveness to the flat, then cascade through the
+        # conversion chain. _apply_conversion returns each FINAL type's (min,max) already scaled by
+        # (1 + path increases) × (path additionals) × generic; per-final-type factors (enemy vuln,
+        # above-max, augmentation) and Lucky apply below. No conversion → final == native per-type result.
+        eff_flat = {t: (mn * (eff / 100.0), mx * (eff / 100.0)) for t, (mn, mx) in flat_dmg.items()}
+        converted = _apply_conversion(eff_flat, spec_inc, spec_add, generic_inc, generic_add,
+                                      convert_fracs, adds_fracs)
+        for dtype, (smin, smax) in converted.items():
+            # Enemy-vulnerability (Numbed etc.) and Augmentation are per-FINAL-type / global multipliers.
             vuln = _enemy_vuln_mult(source, dtype)
-            # aug_factor (Augmentation per-Jump multiplies) is a real damage increase → in the per-hit.
-            type_min = mn * (eff / 100.0) * (1.0 + inc) * add * above_mult * vuln * aug_factor
-            type_max = mx * (eff / 100.0) * (1.0 + inc) * add * above_mult * vuln * aug_factor
+            type_min = smin * above_mult * vuln * aug_factor
+            type_max = smax * above_mult * vuln * aug_factor
             avg = (type_min + type_max) / 2.0
-            # Lucky: EV uplift from the flat spread (scale-invariant), applied to the average only.
-            if lucky_damage and mx > mn:
-                R = mx - mn
-                avg *= (mn + (2.0 / 3.0) * R) / (mn + 0.5 * R)
+            # Lucky keys off the FINAL type (tested): EV uplift from the spread, applied to the average.
+            if (lucky_damage or source.total(f"lucky_{dtype}") > 0.0) and type_max > type_min:
+                R = type_max - type_min
+                avg *= (type_min + (2.0 / 3.0) * R) / (type_min + 0.5 * R)
             damage_by_type[dtype] = avg
             hit_min_by_type[dtype] = type_min
             hit_max_by_type[dtype] = type_max

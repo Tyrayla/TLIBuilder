@@ -842,6 +842,93 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="conversion",         tags=("physical", "elemental"),
         ui_priority=80,                source_types=_TB,
     ),
+    # ── Damage Type Conversion — adds-as gaps + convert keys (priority chain phys→light→cold→fire→erosion) ──
+    Stat.LIGHTNING_AS_COLD: StatMeta(
+        "Lightning as Cold", "Lightning", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("lightning", "cold"),    ui_priority=80, source_types=_TB,
+    ),
+    Stat.LIGHTNING_AS_FIRE: StatMeta(
+        "Lightning as Fire", "Lightning", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("lightning", "fire"),    ui_priority=80, source_types=_TB,
+    ),
+    Stat.COLD_AS_FIRE: StatMeta(
+        "Cold as Fire", "Cold", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("cold", "fire"),         ui_priority=80, source_types=_TB,
+    ),
+    Stat.PHYSICAL_CONVERT_TO_LIGHTNING: StatMeta(
+        "Physical Damage converted to Lightning Damage", "Physical", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("physical", "lightning"), ui_priority=80, source_types=_TB,
+    ),
+    Stat.PHYSICAL_CONVERT_TO_COLD: StatMeta(
+        "Physical Damage converted to Cold Damage", "Physical", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("physical", "cold"),     ui_priority=80, source_types=_TB,
+    ),
+    Stat.PHYSICAL_CONVERT_TO_FIRE: StatMeta(
+        "Physical Damage converted to Fire Damage", "Physical", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("physical", "fire"),     ui_priority=80, source_types=_TB,
+    ),
+    Stat.PHYSICAL_CONVERT_TO_EROSION: StatMeta(
+        "Physical Damage converted to Erosion Damage", "Physical", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("physical", "erosion"),  ui_priority=80, source_types=_TB,
+    ),
+    Stat.LIGHTNING_CONVERT_TO_COLD: StatMeta(
+        "Lightning Damage converted to Cold Damage", "Lightning", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("lightning", "cold"),    ui_priority=80, source_types=_TB,
+    ),
+    Stat.LIGHTNING_CONVERT_TO_FIRE: StatMeta(
+        "Lightning Damage converted to Fire Damage", "Lightning", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("lightning", "fire"),    ui_priority=80, source_types=_TB,
+    ),
+    Stat.LIGHTNING_CONVERT_TO_EROSION: StatMeta(
+        "Lightning Damage converted to Erosion Damage", "Lightning", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("lightning", "erosion"), ui_priority=80, source_types=_TB,
+    ),
+    Stat.COLD_CONVERT_TO_FIRE: StatMeta(
+        "Cold Damage converted to Fire Damage", "Cold", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("cold", "fire"),         ui_priority=80, source_types=_TB,
+    ),
+    Stat.COLD_CONVERT_TO_EROSION: StatMeta(
+        "Cold Damage converted to Erosion Damage", "Cold", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("cold", "erosion"),      ui_priority=80, source_types=_TB,
+    ),
+    Stat.FIRE_CONVERT_TO_EROSION: StatMeta(
+        "Fire Damage converted to Erosion Damage", "Fire", "conversion", "%",
+        subgroup="conversion",         pipeline_stage="conversion",
+        tags=("fire", "erosion"),      ui_priority=80, source_types=_TB,
+    ),
+    # Per-type Lucky indicators (boolean: >0 ⇒ lucky). Lucky keys off the FINAL post-conversion type.
+    Stat.LUCKY_PHYSICAL: StatMeta(
+        "Physical Damage Lucky", "Physical", "added_flat",
+        subgroup="mechanics", tags=("physical",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.LUCKY_LIGHTNING: StatMeta(
+        "Lightning Damage Lucky", "Lightning", "added_flat",
+        subgroup="mechanics", tags=("lightning",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.LUCKY_COLD: StatMeta(
+        "Cold Damage Lucky", "Cold", "added_flat",
+        subgroup="mechanics", tags=("cold",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.LUCKY_FIRE: StatMeta(
+        "Fire Damage Lucky", "Fire", "added_flat",
+        subgroup="mechanics", tags=("fire",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.LUCKY_EROSION: StatMeta(
+        "Erosion Damage Lucky", "Erosion", "added_flat",
+        subgroup="mechanics", tags=("erosion",), ui_priority=85, source_types=_TB,
+    ),
     Stat.PHYSICAL_SKILL_LEVEL: StatMeta(
         "Physical Skill Level", "Physical", "skill_level",
         subgroup="skill_level",        pipeline_stage="skill_level",
