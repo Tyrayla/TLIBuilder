@@ -85,24 +85,31 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
 DERIVED_BY_KEY: dict[str, DerivedStat] = {d.key: d for d in ALL_DERIVED_STATS}
 
 
-def derive_stats(source: BuildSource) -> dict[str, float]:
+def derive_stats(source: BuildSource, overrides: dict[str, float] | None = None) -> dict[str, float]:
     """Compute final effective stat values and inject them back into source.
 
     Called once per aggregation pass inside the compute fixed-point loop.
     Results are available via source.total(key) for the pipeline and
     the computed_stat condition injection step.
 
+    `overrides` forces a derived stat to a FIXED final value (core-talent "set to / fixed at N"
+    set-value mechanic) — the normal flat×inc×additional computation is skipped for that key.
+
     Returns {key: value} for all derived stats.
     """
+    overrides = overrides or {}
     results: dict[str, float] = {}
     for d in ALL_DERIVED_STATS:
-        flat_total = d.base + sum(source.total(k) for k in d.flat_keys)
-        inc_total  = sum(source.total(k) for k in d.inc_keys)
-        value      = flat_total * (1.0 + inc_total)
-        for pool in d.add_pools:
-            pool_total = sum(source.total(k) for k in pool)
-            value *= (1.0 + pool_total)
-        value = max(0.0, value)
+        if d.key in overrides:
+            value = max(0.0, float(overrides[d.key]))
+        else:
+            flat_total = d.base + sum(source.total(k) for k in d.flat_keys)
+            inc_total  = sum(source.total(k) for k in d.inc_keys)
+            value      = flat_total * (1.0 + inc_total)
+            for pool in d.add_pools:
+                pool_total = sum(source.total(k) for k in pool)
+                value *= (1.0 + pool_total)
+            value = max(0.0, value)
         results[d.key] = value
         source.add(d.key, value)
     return results

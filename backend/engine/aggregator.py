@@ -209,6 +209,8 @@ def _eval_condition(
         return True
     if isinstance(expr, str):
         return expr in active_booleans
+    if "const" in expr:               # benign always-on clause (e.g. "when casting a skill")
+        return expr["const"]
     if "and" in expr:
         return all(_eval_condition(e, active_booleans, numeric_vals) for e in expr["and"])
     if "or" in expr:
@@ -628,6 +630,8 @@ def aggregate(
     # per-affix pool. A `condition_expr` (translated from the talent's conditional clause) gates/scales
     # the contribution in-loop against the converged conditions — boolean → on/off, 'per' → ×floor(val).
     for contrib in getattr(build, "core_talent_contributions", []) or []:
+        if contrib.get("set_value"):
+            continue   # final-override set-values are applied in compute's derive step, not added here
         stat = contrib.get("stat_key")
         if not stat:
             continue

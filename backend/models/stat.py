@@ -30,6 +30,7 @@ class Stat(Enum):
     DMG_ADDITIONAL = "dmg_additional"
     HIT_DMG_ADDITIONAL = "hit_dmg_additional"
     DMG_MAX_ADDITIONAL = "dmg_max_additional"
+    DMG_MIN_ADDITIONAL = "dmg_min_additional"
     POST_MOBILITY_DMG_ADDITIONAL = "post_mobility_dmg_additional"
     DMG_AVOID_CHANCE = "dmg_avoid_chance"
     BEAM_LENGTH_ADDITIONAL = "beam_length_additional"
@@ -171,6 +172,8 @@ class Stat(Enum):
     # ── Physical ─────────────────────────────────────────────────────────────
     PHYSICAL_DMG_INC = "physical_dmg_inc"
     PHYSICAL_DMG_ADDITIONAL = "physical_dmg_additional"
+    PHYSICAL_DMG_MIN_ADDITIONAL = "physical_dmg_min_additional"
+    PHYSICAL_DMG_MAX_ADDITIONAL = "physical_dmg_max_additional"
     PHYSICAL_AS_LIGHTNING = "physical_as_lightning"
     PHYSICAL_AS_COLD = "physical_as_cold"
     PHYSICAL_AS_FIRE = "physical_as_fire"
@@ -391,6 +394,7 @@ class Stat(Enum):
     LIFE_ON_SKILL_USE_FLAT = "life_on_skill_use_flat"
     LIFE_ON_DEFEAT_PCT = "life_on_defeat_pct"
     INJURY_BUFFER_INC = "injury_buffer_inc"
+    ENEMY_INJURY_BUFFER_INC = "enemy_injury_buffer_inc"   # debuff: enemies' injury buffer (downside)
 
     # ── Mana ─────────────────────────────────────────────────────────────────
     MAX_MANA_FLAT = "max_mana_flat"
@@ -404,6 +408,7 @@ class Stat(Enum):
     ATTACK_SKILL_COST_FLAT = "attack_skill_cost_flat"
     SPELL_SKILL_COST_FLAT = "spell_skill_cost_flat"
     SKILL_COST_INC = "skill_cost_inc"
+    SKILL_COST_ADDITIONAL = "skill_cost_additional"
     SKILL_COST_REDUCTION = "skill_cost_reduction"    # legacy / talent-tree source
     SEALED_MANA_COMPENSATION_INC = "sealed_mana_compensation_inc"
 
@@ -477,6 +482,7 @@ class Stat(Enum):
     SKILL_AREA_INC = "skill_area_inc"
     ATTACK_SKILL_AREA_INC = "attack_skill_area_inc"
     SKILL_EFFECT_DURATION_INC = "skill_effect_duration_inc"
+    SKILL_EFFECT_DURATION_ADDITIONAL = "skill_effect_duration_additional"
     RESTORATION_EFFECT_INC = "restoration_effect_inc"
 
     # ── Reaping ───────────────────────────────────────────────────────────────
@@ -494,11 +500,14 @@ class Stat(Enum):
     WARCRY_EFFECT_INC = "warcry_effect_inc"
     WARCRY_SKILL_AREA_INC = "warcry_skill_area_inc"
     ELIXIR_EFFECT_INC = "elixir_effect_inc"
+    ELIXIR_EFFECT_ADDITIONAL = "elixir_effect_additional"
+    ELIXIR_DURATION_ADDITIONAL = "elixir_duration_additional"
     AURA_EFFECT_INC = "aura_effect_inc"
     CURSE_EFFECT_INC = "curse_effect_inc"
     CURSE_SKILL_AREA_INC = "curse_skill_area_inc"
     MAX_CURSES_FLAT = "max_curses_flat"
     FOCUS_SKILL_DMG_ADDITIONAL = "focus_skill_dmg_additional"
+    FOCUS_SKILL_SEALED_MANA_COMP_INC = "focus_skill_sealed_mana_comp_inc"
     MARK_EFFECT_INC = "mark_effect_inc"
     MARK_ON_CRIT_CHANCE = "mark_on_crit_chance"
     CC_EFFECT_INC = "cc_effect_inc"
@@ -518,6 +527,7 @@ class Stat(Enum):
     ENERGY_SHIELD_GEAR_FLAT = "energy_shield_gear_flat"
     ENERGY_SHIELD_GEAR_INC = "energy_shield_gear_inc"
     WEAPON_ATTACK_SPEED = "weapon_attack_speed"
+    WEAPON_DMG_ADDITIONAL = "weapon_dmg_additional"   # NOTE: confirm weapon-LOCAL scaling before wiring
     ARMOR_GEAR_FLAT = "armor_gear_flat"
     ARMOR_GEAR_INC = "armor_gear_inc"
     EVASION_GEAR_FLAT = "evasion_gear_flat"
@@ -565,6 +575,7 @@ class Stat(Enum):
     # ── Support modeling (roadmap #2) ─────────────────────────────────────────
     PROJECTILE_SPEED_ADDITIONAL = "projectile_speed_additional"
     AILMENT_DMG_ADDITIONAL = "ailment_dmg_additional"   # inert until ailment DPS modeled
+    ATTACK_AILMENT_DMG_ADDITIONAL = "attack_ailment_dmg_additional"  # ailment dmg dealt by attacks
     DOT_DMG_ADDITIONAL = "dot_dmg_additional"           # inert until DoT modeled
     PARALYZE_CHANCE = "paralyze_chance"
     WAVE_INTERVAL_INC = "wave_interval_inc"

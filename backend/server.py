@@ -185,9 +185,15 @@ def _core_effect_status(effect: str) -> dict:
         _classify_effect, _split_condition, _split_compound, _expand_shared_stats,
         _strip_max_div, _BASE_EFFECT_RE)
     text = _strip_max_div(effect)
+    cls0 = _classify_effect(effect, _parse_custom_mod_text, _translate_condition_expr)
+    if cls0["kind"] == "automax":
+        return {"resolved": True, "kind": "automax", "stat_keys": []}
+    if cls0["kind"] == "set_value":
+        # A forced final override always applies when resolved — empty stat_keys so the UI's
+        # "resolved-but-unconsumed → Inactive" check skips it (it's not a pooled stat).
+        return {"resolved": bool(cls0.get("stat_key")), "kind": "set_value", "stat_keys": []}
     if _BASE_EFFECT_RE.search(text):
-        cls = _classify_effect(effect, _parse_custom_mod_text, _translate_condition_expr)
-        return {"resolved": cls["kind"] in ("stat", "override"), "kind": cls["kind"], "stat_keys": []}
+        return {"resolved": cls0["kind"] in ("stat", "override"), "kind": cls0["kind"], "stat_keys": []}
     stat_clause, cond_clause = _split_condition(text)
     segments = _split_compound(stat_clause)
     subs = ([s + (" " + cond_clause if cond_clause else "") for s in segments]
@@ -665,6 +671,9 @@ def engine_stats(req: EngineStatsRequest):
         _parse_custom_mod_text, _translate_condition_expr,
     )
     core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}}
+    # Seed player level (for per-level scaling like Brutality) unless the user set it explicitly.
+    if req.characterLevel is not None and "level" not in req.condition_state:
+        core_condition_state["level"] = float(req.characterLevel)
 
     # Cardinal rule — never silently drop. Resolve any gear affix/implicit the frontend couldn't
     # (crafted base resistances/life/attributes, etc.), inject it as a contribution on that item, and
@@ -1323,6 +1332,7 @@ _GEAR_NORMALIZE_MAP = {
     "regenerate":  "regeneration",
     "reduces":     "reduction",
     "reduce":      "reduction",
+    "splits":      "split",
 }
 _GEAR_COND_RE = re.compile(
     r"\s+(?:while\b|when\b|if\b|against\b|recently\b|on\s+hit\b|upon\b|"
@@ -1726,11 +1736,24 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     # display name still carries the subsystem, so resolution is unaffected.
     t = re.sub(r'^\s*Spirit Mag(?:i|us)\s+(?=[+\-]?\d)', '', t, flags=re.I)
 
+    # Leading qualifier/scope word before the value ("Additional -30% X", "Enemies +20% X"): move it after
+    # the value so the start-anchored matchers see the number first; the word stays for pool/scope matching.
+    t = re.sub(r'^(Additional|Enemies)\s+([+\-]?[\d.]+\s*%?)', r'\2 \1', t, flags=re.I)
+
     # "You can cast N additional Curses" → Max Curses (a flat count; "additional" here means +N, not the
     # damage pool, so the generic matchers would mishandle it).
     m = re.match(r'(?:you can cast\s+)?([\d.]+)\s+additional\s+curses?\b', t, re.I)
     if m:
         return [{"stat_key": "max_curses_flat", "amount": float(m.group(1)), "text": t}]
+
+    # Probabilistic damage ("…N% chance for that cast to deal +M% additional damage") → expected value.
+    # Emit one dmg_additional = (N/100)×(M/100) with a SHARED text so a talent's mutually-exclusive tiers
+    # pool ADDITIVELY into one factor (offense sums same-identity positives), never multiply.
+    m = re.search(r'(\d+(?:\.\d+)?)\s*%\s*chance\b.*?\bdeal\s*\+?(\d+(?:\.\d+)?)\s*%\s*additional\s+damage', t, re.I)
+    if m:
+        ev = (float(m.group(1)) / 100.0) * (float(m.group(2)) / 100.0)
+        return [{"stat_key": "dmg_additional", "amount": ev,
+                 "text": "probabilistic additional damage (expected value)"}]
 
     # "You can apply N additional Tangle(s) to enemies" → flat +N Tangles applied (mirrors the curses form).
     m = re.match(r'(?:you can\s+)?apply\s+([\d.]+)\s+additional\s+tangles?\b', t, re.I)
@@ -1845,6 +1868,17 @@ _COND_PATTERNS: list[tuple] = [
     (re.compile(r"(?:against|from)\s+(paralyzed|numbed|cursed|ignited|frozen|frostbitten|wilted|traumatized|blinded)\s+enem", re.I),
      lambda m: f"enemy_{m.group(1).lower()}"),
     (re.compile(r"enem(?:y|ies)\s+in\s+proximity|in\s+proximity", re.I), "enemy_in_proximity"),
+    # Benign cast-timing clauses that describe WHEN, not a gate — always-on (the chance/EV is the mechanic).
+    (re.compile(r"when\s+casting\s+a\s+skill|when\s+you\s+cast|on\s+cast\b", re.I), {"const": True}),
+    # Per-"stack owned" scaling → multiply the contribution by the stack count (floor(val/1)).
+    (re.compile(r"(?:per|for\s+every|for\s+each)\s+stack(?:\(s\))?\s+of\s+(focus|agility|tenacity)\s+blessing", re.I),
+     lambda m: {"key": f"{m.group(1).lower()}_blessings", "op": "per", "divisor": 1}),
+    (re.compile(r"per\s+(?:\d+\s+)?stack(?:\(s\))?\s+of\s+fortitude", re.I),
+     {"key": "fortitude_stacks", "op": "per", "divisor": 1}),
+    # Per-character-level scaling, e.g. Brutality "-1% Elemental Damage for every 3 level(s)" (PLAYER only
+    # for now — minion interaction unverified). Divisor = the "every N levels" step.
+    (re.compile(r"(?:per|for\s+every|for\s+each)\s+(\d+)\s+level", re.I),
+     lambda m: {"key": "level", "op": "per", "divisor": int(m.group(1))}),
     # "against enemies with Max Affliction" → existing enemy_has_max_affliction condition.
     (re.compile(r"with\s+max\s+affliction|enem(?:y|ies)\s+(?:with|has|have)\s+max\s+affliction", re.I), "enemy_has_max_affliction"),
     (re.compile(r"wielding\s+a\s+wand\s+or\s+tin\s+staff", re.I), "wielding_wand_or_tin_staff"),

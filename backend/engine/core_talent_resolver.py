@@ -45,7 +45,8 @@ _LEAD_COND_RE = re.compile(r"^\s*(when|while|if)\b(.*?),\s*(.+)$", re.I)
 # Trailing gate starts: keyword (when/while/if/…/after), an "at Low/Full/Max <resource>" state, or a
 # "for N s …" duration window (the gate trigger follows it). First match marks where the gate begins.
 _TRAIL_COND_RE = re.compile(
-    r"\b(?:when|while|if|against|upon|after)\b|\bfrom\s+\w+\s+enem|\bat\s+(?:low|full|max)\b|\bfor\s+[\d.]+\s*s\b", re.I)
+    r"\b(?:when|while|if|against|upon|after)\b|\bfrom\s+\w+\s+enem|\bat\s+(?:low|full|max)\b|\bfor\s+[\d.]+\s*s\b"
+    r"|\bper\s+(?:\d+\s+)?stack|\bfor\s+every\b|\bfor\s+each\b", re.I)
 
 
 # Compound lines join several "+N% Stat" mods with "and"/"," — split BEFORE a conjunction that precedes
@@ -84,6 +85,32 @@ def _expand_shared_stats(effect: str) -> list[str]:
     return [effect]
 
 
+# "Gain on hit" generation lines: "+100% chance to gain N stack(s) of <Blessing>/Fervor on hit". We model
+# these as full uptime (the blessing/Fervor sits at MAX) — an approximation pending uptime calc modes. Emits
+# an `automax_*` flag the compute loop reads to pin that condition to its derived max.
+_GAIN_BLESSING_RE = re.compile(r"gain\s+\d+\s+stack(?:s|\(s\))?\s+of\s+(focus|agility|tenacity)\s+blessing", re.I)
+_GAIN_FERVOR_RE   = re.compile(r"gain\s+\d+\s+fervor\s+rating", re.I)
+
+
+def _gain_on_hit_flag(text: str) -> str | None:
+    m = _GAIN_BLESSING_RE.search(text)
+    if m:
+        return f"automax_{m.group(1).lower()}_blessings"
+    if _GAIN_FERVOR_RE.search(text):
+        return "automax_fervor"
+    return None
+
+
+# Set-value lines: "<stat> is set to / fixed at N" — a FINAL override (not additive). Only the derived
+# stats the engine actually computes can be forced; other targets (Block Ratio, enemy resistances, support
+# mana multiplier, Max Spirit Magi count) resolve to a tracked status but aren't applied until modeled.
+_SET_VALUE_RE = re.compile(r"^(?:your\s+|the\s+)?(.+?)\s+is\s+(?:set\s+to|fixed\s+at)\s+([+\-]?[\d.]+)", re.I)
+_SET_VALUE_TARGETS = {
+    "max life": "max_life",
+    "max energy shield": "max_energy_shield",
+}
+
+
 def _normalize(name: str | None) -> str:
     return re.sub(r"\s+", " ", (name or "").strip().lower())
 
@@ -111,6 +138,15 @@ def _classify_effect(effect: str, parse_mod, translate_cond) -> dict:
       'unresolved' → {}                captured, not applied (special / untranslatable conditional)
     """
     text = _strip_max_div(effect)
+
+    flag = _gain_on_hit_flag(text)
+    if flag:
+        return {"kind": "automax", "flag": flag}
+
+    sv = _SET_VALUE_RE.search(text)
+    if sv:
+        return {"kind": "set_value", "stat_key": _SET_VALUE_TARGETS.get(_normalize(sv.group(1))),
+                "value": float(sv.group(2))}
 
     m = _BASE_EFFECT_RE.search(text)
     if m:
@@ -146,6 +182,26 @@ def _resolve_talent(name: str, effects, parse_mod, translate_cond):
         if not (eff or "").strip():
             continue
         text = _strip_max_div(eff)
+
+        # "Gain on hit" blessing/Fervor lines — whole-line; emit an automax flag (full-uptime approximation).
+        gflag = _gain_on_hit_flag(text)
+        if gflag:
+            flags.add(gflag)
+            statuses.append({"name": name, "text": eff, "resolved": True, "kind": "automax"})
+            continue
+
+        # Set-value override (whole-line). Applied only for derived targets we can force (stat_key set);
+        # other targets are tracked-but-unmodeled (resolved:False) — never silently dropped.
+        sv = _SET_VALUE_RE.search(text)
+        if sv:
+            cls = _classify_effect(eff, parse_mod, translate_cond)
+            if cls.get("stat_key"):
+                contribs.append({"set_value": True, "stat_key": cls["stat_key"], "amount": cls["value"],
+                                 "text": f"{eff} |core|{norm}", "label": label, "condition_expr": None})
+                statuses.append({"name": name, "text": eff, "resolved": True, "kind": "set_value"})
+            else:
+                statuses.append({"name": name, "text": eff, "resolved": False, "kind": "set_value"})
+            continue
 
         # Base-effect overrides are whole-line — don't compound-split them.
         if _BASE_EFFECT_RE.search(text):

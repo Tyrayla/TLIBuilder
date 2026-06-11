@@ -16,6 +16,15 @@ log = logging.getLogger(__name__)
 _MAX_ITERS = 10
 
 
+# "Gain on hit" automax flag → the numeric condition pinned to its derived max (full-uptime approximation).
+_AUTOMAX_TARGETS = [
+    ("automax_focus_blessings",    "focus_blessings"),
+    ("automax_agility_blessings",  "agility_blessings"),
+    ("automax_tenacity_blessings", "tenacity_blessings"),
+    ("automax_fervor",             "fervor_rating"),
+]
+
+
 def derive_condition_maximums(source: BuildSource) -> dict[str, float]:
     """Return {condition_key: max_value} for all numeric conditions that have a defined max."""
     from models.conditions import ALL_CONDITIONS
@@ -165,6 +174,15 @@ def compute(
     manual_cond_keys = set(build_input.condition_state.keys())
     prev_snapshot = None
 
+    # Core-talent set-value overrides ("Max Life is set to 100"): force a derived stat to a fixed final
+    # value in derive_stats (these ride in core_talent_contributions tagged set_value, skipped by the
+    # aggregator's additive loop).
+    _set_value_overrides: dict[str, float] = {
+        c["stat_key"]: float(c["amount"])
+        for c in (build_input.core_talent_contributions or [])
+        if c.get("set_value") and c.get("stat_key")
+    }
+
     # Resolve the main skill once for standard-support gating: category (spell|attack) + damage types.
     main_cat: str | None = None
     main_dtypes: list[str] = []
@@ -202,7 +220,7 @@ def compute(
         # max_life_inc); the condition-system reads that follow stay untraced.
         from engine.derive import derive_stats
         source._recording = True
-        derive_stats(source)
+        derive_stats(source, _set_value_overrides)
         source._recording = False
 
         # Inject auto-computed condition values from aggregated stats
@@ -223,6 +241,20 @@ def compute(
 
         maxes = derive_condition_maximums(source)
         mins = derive_condition_minimums(source)
+
+        # "Gain on hit" core talents (Chilly/Perception/Tenacity, Ambition) → model the blessing/Fervor at
+        # MAX (full-uptime approximation; future: selectable uptime calc modes). Flags arrive in
+        # condition_state via the server's core override-flag seeding. Fervor only counts if the build has a
+        # Have-Fervor source (`fervor`); the broader "which talents grant Have Fervor + gate the existing
+        # unconditional Fervor application" rework is a separate follow-up.
+        for _flag, _key in _AUTOMAX_TARGETS:
+            if not condition_state.get(_flag):
+                continue
+            if _key == "fervor_rating" and not condition_state.get("fervor"):
+                continue
+            if _key in maxes:
+                condition_state[_key] = maxes[_key]
+
         new_state = _clamp_and_rederive(condition_state, maxes, mins)
         snapshot = _state_snapshot(new_state)
 

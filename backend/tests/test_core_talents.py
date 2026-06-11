@@ -184,3 +184,49 @@ class TestContributionInjection:
         s = self._agg([{"stat_key": "spell_dmg_additional", "amount": 0.25, "text": "x |core|t", "label": "L", "condition_expr": expr}],
                       conds={"focus_blessings": 4})
         assert s.total("spell_dmg_additional") == pytest.approx(0.0)
+
+
+class TestMechanicsPhase:
+    """Mechanics phase: set-value overrides, blessing/Fervor auto-max, classification of each."""
+
+    def test_set_value_classify_applied_target(self):
+        cls = _classify_effect("Your Max Life is set to 100 (Max Divinity Effect: 1)", parse_mod, translate_cond)
+        assert cls == {"kind": "set_value", "stat_key": "max_life", "value": 100.0}
+
+    def test_set_value_classify_unmodeled_target(self):
+        # A set-value on a target the engine can't force yet → stat_key None (tracked, not applied).
+        cls = _classify_effect("Block Ratio is set to 0 %", parse_mod, translate_cond)
+        assert cls["kind"] == "set_value" and cls["stat_key"] is None
+
+    def test_set_value_resolve_emits_marked_contrib(self):
+        c, f, s = resolve_core_talents(
+            [], [{"slots": [{"isCore": True, "coreName": "Shell",
+                             "effects": ["Your Max Life is set to 100 (Max Divinity Effect: 1)"]}]}],
+            [], _trees(), _blends(), parse_mod, translate_cond)
+        sv = [x for x in c if x.get("set_value")]
+        assert sv and sv[0]["stat_key"] == "max_life" and sv[0]["amount"] == pytest.approx(100.0)
+        assert any(st["kind"] == "set_value" and st["resolved"] for st in s)
+
+    def test_set_value_overrides_derive(self):
+        from engine.derive import derive_stats
+        from engine.models import BuildSource
+        src = BuildSource()
+        src.add("max_life_flat", 9999)
+        out = derive_stats(src, {"max_life": 100.0})
+        assert out["max_life"] == pytest.approx(100.0)
+
+    def test_automax_classify_blessing_and_fervor(self):
+        assert _classify_effect("+100 % chance to gain 1 stack of Focus Blessing on hit", parse_mod, translate_cond) \
+            == {"kind": "automax", "flag": "automax_focus_blessings"}
+        assert _classify_effect("+100 % chance to gain 1 stacks of Agility Blessing on hit", parse_mod, translate_cond) \
+            == {"kind": "automax", "flag": "automax_agility_blessings"}
+        assert _classify_effect("+100 % chance to gain 10 Fervor rating on hit", parse_mod, translate_cond) \
+            == {"kind": "automax", "flag": "automax_fervor"}
+
+    def test_automax_resolve_emits_flag(self):
+        c, f, s = resolve_core_talents(
+            [], [{"slots": [{"isCore": True, "coreName": "Chilly",
+                             "effects": ["+100 % chance to gain 1 stack of Focus Blessing on hit"]}]}],
+            [], _trees(), _blends(), parse_mod, translate_cond)
+        assert "automax_focus_blessings" in f
+        assert any(st["kind"] == "automax" and st["resolved"] for st in s)

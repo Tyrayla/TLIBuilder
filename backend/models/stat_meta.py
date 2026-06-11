@@ -154,6 +154,12 @@ STAT_META: dict[Stat, StatMeta] = {
         affects=_HIT_DOT,             stacking_rule="additive",
         ui_priority=3,                source_types=_T,
     ),
+    Stat.DMG_MIN_ADDITIONAL: StatMeta(
+        "Additional Min Damage", "Generic", "additional", "%",
+        subgroup="generic_damage",    pipeline_stage="additional",
+        affects=_HIT_DOT,             stacking_rule="additive",
+        ui_priority=3,                source_types=_T,
+    ),
     Stat.DMG_AVOID_CHANCE: StatMeta(
         "Chance to Avoid Damage", "Generic", "chance", "%",
         subgroup="generic_damage",    stacking_rule="additive_chance",
@@ -795,6 +801,20 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="physical_damage",    pipeline_stage="additional",
         tags=("physical",),            affects=_HIT_DOT,
         stacking_rule="additive",      ui_priority=10,
+        source_types=_T,
+    ),
+    Stat.PHYSICAL_DMG_MIN_ADDITIONAL: StatMeta(
+        "Additional Min Physical Damage", "Physical", "additional", "%",
+        subgroup="physical_damage",    pipeline_stage="additional",
+        tags=("physical",),            affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_T,
+    ),
+    Stat.PHYSICAL_DMG_MAX_ADDITIONAL: StatMeta(
+        "Additional Max Physical Damage", "Physical", "additional", "%",
+        subgroup="physical_damage",    pipeline_stage="additional",
+        tags=("physical",),            affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=11,
         source_types=_T,
     ),
     Stat.PHYSICAL_AS_LIGHTNING: StatMeta(
@@ -1777,6 +1797,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="life",               stacking_rule="additive",
         ui_priority=40,                source_types=_TB,
     ),
+    Stat.ENEMY_INJURY_BUFFER_INC: StatMeta(
+        "Enemies Injury Buffer", "Damage Taken", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=75,                source_types=_T,
+    ),
 
     # ── Mana ──────────────────────────────────────────────────────────────────
     Stat.MAX_MANA_FLAT: StatMeta(
@@ -1833,6 +1858,11 @@ STAT_META: dict[Stat, StatMeta] = {
         "Skill Cost", "Mana", "increased", "%",
         subgroup="mana",               stacking_rule="additive",
         ui_priority=38,                source_types=_TB,
+    ),
+    Stat.SKILL_COST_ADDITIONAL: StatMeta(
+        "Additional Skill Cost", "Mana", "additional", "%",
+        subgroup="mana",               stacking_rule="additive",
+        ui_priority=38,                source_types=_T,
     ),
     Stat.SKILL_COST_REDUCTION: StatMeta(
         "Skill Cost Reduction", "Mana", "increased", "%",
@@ -2094,6 +2124,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="skill_mechanics",    stacking_rule="additive",
         ui_priority=65,                source_types=_TB,
     ),
+    Stat.SKILL_EFFECT_DURATION_ADDITIONAL: StatMeta(
+        "Additional Skill Effect Duration", "Utility", "additional", "%",
+        subgroup="skill_mechanics",    stacking_rule="additive",
+        ui_priority=65,                source_types=_T,
+    ),
     Stat.RESTORATION_EFFECT_INC: StatMeta(
         "Restoration Effect", "Utility", "increased", "%",
         subgroup="skill_mechanics",    stacking_rule="additive",
@@ -2143,6 +2178,16 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=70,                source_types=_TB,
     ),
+    Stat.ELIXIR_EFFECT_ADDITIONAL: StatMeta(
+        "Additional Elixir Skill Effect", "Buffs", "additional", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.ELIXIR_DURATION_ADDITIONAL: StatMeta(
+        "Additional Elixir Skill Effect Duration", "Buffs", "additional", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=71,                source_types=_T,
+    ),
     Stat.AURA_EFFECT_INC: StatMeta(
         "Aura Effect", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
@@ -2164,6 +2209,11 @@ STAT_META: dict[Stat, StatMeta] = {
         "Max Curses", "Utility", "added_flat", "",
         subgroup="skill_mechanics",    stacking_rule="additive",
         ui_priority=72,                source_types=_T,
+    ),
+    Stat.FOCUS_SKILL_SEALED_MANA_COMP_INC: StatMeta(
+        "Sealed Mana Compensation for Focus Skills", "Mana", "increased", "%",
+        subgroup="mana",               stacking_rule="additive",
+        ui_priority=40,                source_types=_T,
     ),
     Stat.FOCUS_SKILL_DMG_ADDITIONAL: StatMeta(
         "Additional Focus Skill Damage", "Spell", "additional", "%",
@@ -2253,6 +2303,13 @@ STAT_META: dict[Stat, StatMeta] = {
         "Gear Energy Shield", "Gear", "increased", "%",
         subgroup="gear_base",          stacking_rule="additive",
         ui_priority=32,                source_types=_G,
+    ),
+    Stat.WEAPON_DMG_ADDITIONAL: StatMeta(
+        # Confirmed weapon-LOCAL (owner): scales the weapon's own damage, which then contributes up (like
+        # foldLocalGearDefense). Inert for now (no pipeline_stage) — wire when weapon-damage modeling exists.
+        "Additional Damage for Weapons", "Gear", "additional", "%",
+        subgroup="gear_base",          stacking_rule="additive",
+        ui_priority=12,                source_types=_T,
     ),
     Stat.WEAPON_ATTACK_SPEED: StatMeta(
         "Weapon Attack Speed", "Gear", "base_stat",
@@ -2828,6 +2885,14 @@ STAT_META: dict[Stat, StatMeta] = {
         "Additional Projectile Speed", "Projectile", "additional", "%",
         subgroup="speed",              tags=("projectile",),
         stacking_rule="additive",      ui_priority=60, source_types=_T,
+    ),
+    Stat.ATTACK_AILMENT_DMG_ADDITIONAL: StatMeta(
+        # ailment damage dealt specifically by attacks; inert until ailment DPS is modeled
+        "Additional Ailment Damage dealt by Attacks", "Ailments", "additional", "%",
+        subgroup="ailment_damage",     pipeline_stage="additional",
+        tags=("attack",),              affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=21,
+        source_types=_T,
     ),
     Stat.AILMENT_DMG_ADDITIONAL: StatMeta(
         # inert until ailment DPS is modeled (no skill carries the 'ailment' tag yet)
