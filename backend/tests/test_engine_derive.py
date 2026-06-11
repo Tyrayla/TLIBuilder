@@ -40,11 +40,13 @@ class TestLifeManaEs:
     def test_max_mana_simple(self):
         assert derive_stats(_src(max_mana_flat=500, max_mana_inc=0.1))["max_mana"] == pytest.approx(550)
 
-    def test_energy_shield_pools_gear_flat_and_inc(self):
-        # (100 + 200) * (1 + 0.1 + 0.2) = 390
+    def test_energy_shield_gear_inc_is_local_not_global(self):
+        # "% gear Energy Shield" is LOCAL (pre-applied per item in the gear payload), so derive does
+        # NOT treat it as a global inc — only the global max_energy_shield_inc scales the flat.
+        # (100 + 200) * (1 + 0.1) = 330  (the 0.2 energy_shield_gear_inc is intentionally ignored)
         r = derive_stats(_src(max_energy_shield_flat=100, energy_shield_gear_flat=200,
                               max_energy_shield_inc=0.1, energy_shield_gear_inc=0.2))
-        assert r["max_energy_shield"] == pytest.approx(390)
+        assert r["max_energy_shield"] == pytest.approx(330)
 
 
 class TestArmorEvasion:

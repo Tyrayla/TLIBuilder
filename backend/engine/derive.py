@@ -56,24 +56,27 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
     ),
     DerivedStat(
         key="max_energy_shield",
+        # *_gear_flat already has the item's "% gear X" applied locally (statsPayload.foldLocalGearDefense),
+        # so the gear % is NOT a global inc here — only the truly-global "% increased Max ES" pools.
         flat_keys=["max_energy_shield_flat", "energy_shield_gear_flat"],
-        inc_keys=["max_energy_shield_inc", "energy_shield_gear_inc"],
+        inc_keys=["max_energy_shield_inc"],
         add_pools=[["max_energy_shield_additional"]],
     ),
 
     # ── Armor / Evasion ────────────────────────────────────────────────────────
     # defense_inc is a shared multiplier that applies to both armor and evasion.
     # armor_additional and evasion_additional are each one independent pool.
+    # *_gear_flat is pre-scaled by the item's local "% gear X" (statsPayload) — not a global inc.
     DerivedStat(
         key="armor",
         flat_keys=["armor_flat", "armor_gear_flat"],
-        inc_keys=["armor_inc", "armor_gear_inc", "defense_inc"],
+        inc_keys=["armor_inc", "defense_inc"],
         add_pools=[["armor_additional"]],
     ),
     DerivedStat(
         key="evasion",
         flat_keys=["evasion_flat", "evasion_gear_flat"],
-        inc_keys=["evasion_inc", "evasion_gear_inc", "defense_inc"],
+        inc_keys=["evasion_inc", "defense_inc"],
         add_pools=[["evasion_additional"]],
     ),
 ]

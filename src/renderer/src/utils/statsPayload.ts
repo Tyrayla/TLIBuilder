@@ -112,6 +112,14 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
       if (csrM) {
         contributions.push({ stat: 'weapon_crit_rating_flat', display_value: parseFloat(csrM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
       }
+      // Armour base defense implicit ("+N gear Energy Shield|Armour|Evasion") — the base item's flat
+      // defense, which feeds that item's local gear pool (scaled by its "% gear X" affixes below).
+      const defM = affix.raw_text.match(/^\+?([\d.]+)\s+gear\s+(energy shield|armou?r|evasion)$/i)
+      if (defM) {
+        const key = ({ 'energy shield': 'energy_shield_gear_flat', 'armor': 'armor_gear_flat',
+          'armour': 'armor_gear_flat', 'evasion': 'evasion_gear_flat' } as Record<string, string>)[defM[2].toLowerCase()]
+        if (key) contributions.push({ stat: key, display_value: parseFloat(defM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null })
+      }
       return
     }
 
@@ -189,7 +197,37 @@ function _buildItemContributions(item: EquippedGearItem, slot: GearSlot | null):
     }
   })
 
+  foldLocalGearDefense(contributions, item.name)
   return contributions
+}
+
+// Gear defense is LOCAL: each item's flat ES/Armour/Evasion (base implicit + explicit affixes) is
+// scaled by that item's "% gear X" affixes, and only the scaled flat feeds the global pool. So we
+// pre-apply the local "% gear X" here and emit one folded flat per defense type — the "% gear X" must
+// never reach the global increased pool (derive no longer reads *_gear_inc). Global "% increased /
+// additional Max X" (max_*_inc / max_*_additional) are separate and still pool globally.
+const _GEAR_DEFENSE: { flat: string; inc: string }[] = [
+  { flat: 'energy_shield_gear_flat', inc: 'energy_shield_gear_inc' },
+  { flat: 'armor_gear_flat',         inc: 'armor_gear_inc' },
+  { flat: 'evasion_gear_flat',       inc: 'evasion_gear_inc' },
+]
+function foldLocalGearDefense(contribs: GearAffixContribution[], itemName: string): void {
+  for (const { flat, inc } of _GEAR_DEFENSE) {
+    let flatSum = 0, incSum = 0   // incSum is in percent points (e.g. 57 for "+57% gear ES")
+    for (const c of contribs) {
+      if (c.stat === flat) flatSum += c.display_value
+      else if (c.stat === inc) incSum += c.display_value
+    }
+    // Drop the raw flat + inc rows for this defense type…
+    for (let i = contribs.length - 1; i >= 0; i--) {
+      if (contribs[i].stat === flat || contribs[i].stat === inc) contribs.splice(i, 1)
+    }
+    // …and re-emit the locally-scaled flat (base + explicit) × (1 + Σ % gear X).
+    if (flatSum > 0) {
+      contribs.push({ stat: flat, display_value: flatSum * (1 + incSum / 100), unit: '',
+        item_name: itemName, text: `Local gear defense (×${(1 + incSum / 100).toFixed(2)})`, slot: null, condition: null })
+    }
+  }
 }
 
 function _isWeaponSpecificStat(stat: string): boolean {
