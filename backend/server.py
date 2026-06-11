@@ -575,6 +575,7 @@ class EngineStatsRequest(BaseModel):
     skills:          list[SkillSlotInput] = []         # all equipped skills with slot info
     custom_mods:     list[str] = []
     attached_supports: list[dict] = []                 # main skill's supports: {item_id, skill_type, rank, level}
+    characterLevel:  int | None = None                 # player level — seeds the `level` condition (per-level scaling, e.g. Brutality)
 
 
 @app.post("/api/engine/stats")
