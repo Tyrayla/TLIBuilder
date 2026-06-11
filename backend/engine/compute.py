@@ -211,6 +211,12 @@ def compute(
             if _c.source == "computed_stat":
                 condition_state[_c.key] = source.total(_c.key)
 
+        # Attribute-comparison conditions (Tradeoff core talent) — derived from STR vs DEX each pass
+        # so the gated contributions converge with the rest of the fixed-point loop.
+        _str_t, _dex_t = source.total("strength"), source.total("dexterity")
+        condition_state["strength_ge_dexterity"] = _str_t >= _dex_t
+        condition_state["dexterity_ge_strength"] = _dex_t >= _str_t
+
         # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
         # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values.
         _apply_cond_effects(condition_state, cond_effects, main_dtypes, manual_cond_keys)

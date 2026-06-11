@@ -1966,6 +1966,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="skill_mechanics",    stacking_rule="additive",
         ui_priority=64,                source_types=_TB,
     ),
+    Stat.ATTACK_SKILL_AREA_INC: StatMeta(
+        "Attack Skill Area", "Utility", "increased", "%",
+        subgroup="skill_mechanics",    stacking_rule="additive",
+        ui_priority=64,                source_types=_TB,
+    ),
     Stat.SKILL_EFFECT_DURATION_INC: StatMeta(
         "Skill Effect Duration", "Utility", "increased", "%",
         subgroup="skill_mechanics",    stacking_rule="additive",

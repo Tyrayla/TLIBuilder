@@ -1768,6 +1768,42 @@ _BLESSING_KEY_MAP = {
 }
 
 
+# Condition-clause patterns → engine condition expressions (for talent/affix gates). Negated forms are
+# listed before their positive counterparts so "not low" wins over "low". A value can be a static expr
+# or a callable(match)->expr for thresholds. These map onto conditions in data/conditions.json.
+_COND_PATTERNS: list[tuple] = [
+    # Low-resource gates (self) — negated first
+    (re.compile(r"energy\s+shield\s+is\s+not\s+low|not\s+at\s+low\s+energy\s+shield", re.I), {"not": "low_energy_shield"}),
+    (re.compile(r"life\s+is\s+not\s+low|not\s+at\s+low\s+life", re.I), {"not": "low_life"}),
+    (re.compile(r"\bat\s+low\s+energy\s+shield\b", re.I), "low_energy_shield"),
+    (re.compile(r"\bat\s+low\s+life\b", re.I), "low_life"),
+    # Elemental "dealt X recently"
+    (re.compile(r"dealt\s+fire\s+damage\s+recently", re.I), "dealt_fire_recently"),
+    (re.compile(r"dealt\s+cold\s+damage\s+recently", re.I), "dealt_cold_recently"),
+    (re.compile(r"dealt\s+lightning\s+damage\s+recently", re.I), "dealt_lightning_recently"),
+    # Buffs / recent / state
+    # Blur is active. NOTE: "for N s after Blur ends" is a distinct post-Blur window we don't model yet
+    # (deferred to full Blur modeling); for now it grants its bonus while Blur is active.
+    (re.compile(r"blur\s+is\s+active|after\s+blur\s+ends", re.I), "blur_active"),
+    (re.compile(r"taken\s+damage\s+in\s+the\s+last|recently\s+taken\s+damage", re.I), "recently_taken_damage"),
+    (re.compile(r"used\s+a\s+mobility\s+skill", re.I), "recently_used_mobility"),
+    # "Critical Strike or Reaped" → either condition satisfies it.
+    (re.compile(r"landed\s+a\s+critical\s+strike\s+or\s+reaped", re.I), {"or": ["recently_crit", "recently_reaped"]}),
+    (re.compile(r"landed\s+a\s+critical\s+strike|critical\s+strike\b.*\brecently\b", re.I), "recently_crit"),
+    (re.compile(r"performing\s+multistrikes?", re.I), "performing_multistrike"),
+    # USE and CAST are distinct in TLI (Help DB) — this gate is on CAST, its own condition.
+    (re.compile(r"sentry\s+skill\s+has\s+been\s+cast\s+recently", re.I), "sentry_skill_cast_recently"),
+    (re.compile(r"defeat(?:ing|ed)\s+wilted\s+enem", re.I), "defeated_wilted_recently"),
+    (re.compile(r"holding\s+a\s+two-?handed\s+weapon", re.I), "holding_two_handed"),
+    (re.compile(r"holding\s+a\s+one-?handed\s+weapon", re.I), "holding_one_handed"),
+    # Attribute comparisons (Tradeoff) — auto-derived from STR vs DEX in the compute loop.
+    (re.compile(r"dexterity\s+is\s+no\s+less\s+than\s+strength", re.I), "dexterity_ge_strength"),
+    (re.compile(r"strength\s+is\s+no\s+less\s+than\s+dexterity", re.I), "strength_ge_dexterity"),
+    # Numeric movement threshold
+    (re.compile(r"moved\s+more\s+than\s+(\d+)\s*m\b", re.I), lambda m: {"key": "meters_moved_recently", "op": ">", "value": int(m.group(1))}),
+]
+
+
 def _translate_condition_expr(text: str | None) -> dict | str | None:
     """Map a raw condition text string to an engine expression, or None if unresolvable."""
     if not text:
@@ -1789,6 +1825,11 @@ def _translate_condition_expr(text: str | None) -> dict | str | None:
             if gt:   return {"key": key, "op": ">",  "value": int(gt)}
             if lt:   return {"key": key, "op": "<",  "value": int(lt)}
             if lt2:  return {"key": key, "op": "<",  "value": int(lt2)}
+    # Pattern table: low-resource / dealt-recently / buff / weapon / movement gates
+    for pat, expr in _COND_PATTERNS:
+        m = pat.search(text)
+        if m:
+            return expr(m) if callable(expr) else expr
     return None
 
 

@@ -42,7 +42,10 @@ _DEFERRED_TARGETS = {"focus blessing"}
 # Condition-clause keywords. A leading "When …, <stat>" or a trailing "<stat> when/while/if/against …"
 # splits the stat clause from the gate so we resolve the bare stat and gate it separately.
 _LEAD_COND_RE = re.compile(r"^\s*(when|while|if)\b(.*?),\s*(.+)$", re.I)
-_TRAIL_COND_RE = re.compile(r"\b(when|while|if|against|upon)\b", re.I)
+# Trailing gate starts: keyword (when/while/if/…/after), an "at Low/Full/Max <resource>" state, or a
+# "for N s …" duration window (the gate trigger follows it). First match marks where the gate begins.
+_TRAIL_COND_RE = re.compile(
+    r"\b(?:when|while|if|against|upon|after)\b|\bat\s+(?:low|full|max)\b|\bfor\s+[\d.]+\s*s\b", re.I)
 
 
 def _normalize(name: str | None) -> str:

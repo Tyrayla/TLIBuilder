@@ -452,6 +452,7 @@ class Stat(Enum):
 
     # ── Skill Mechanics ───────────────────────────────────────────────────────
     SKILL_AREA_INC = "skill_area_inc"
+    ATTACK_SKILL_AREA_INC = "attack_skill_area_inc"
     SKILL_EFFECT_DURATION_INC = "skill_effect_duration_inc"
     RESTORATION_EFFECT_INC = "restoration_effect_inc"
 
