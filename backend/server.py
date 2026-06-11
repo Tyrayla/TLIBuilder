@@ -1700,6 +1700,12 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     """
     t = text.strip()
 
+    # "You can cast N additional Curses" → Max Curses (a flat count; "additional" here means +N, not the
+    # damage pool, so the generic matchers would mishandle it).
+    m = re.match(r'(?:you can cast\s+)?([\d.]+)\s+additional\s+curses?\b', t, re.I)
+    if m:
+        return [{"stat_key": "max_curses_flat", "amount": float(m.group(1)), "text": t}]
+
     # "Adds N-N <Type> Damage to Attacks/Spells/Attacks and Spells" → flat added damage min+max.
     m = _CUSTOM_ADDS_RE.match(t)
     if m:
@@ -1796,10 +1802,11 @@ _COND_PATTERNS: list[tuple] = [
     (re.compile(r"defeat(?:ing|ed)\s+wilted\s+enem", re.I), "defeated_wilted_recently"),
     (re.compile(r"holding\s+a\s+two-?handed\s+weapon", re.I), "holding_two_handed"),
     (re.compile(r"holding\s+a\s+one-?handed\s+weapon", re.I), "holding_one_handed"),
-    # "against <Status> enemies" → the matching enemy-status condition.
-    (re.compile(r"against\s+(paralyzed|numbed|cursed|ignited|frozen|frostbitten|wilted|traumatized|blinded)\s+enem", re.I),
+    # "against/from <Status> enemies" → the matching enemy-status condition.
+    (re.compile(r"(?:against|from)\s+(paralyzed|numbed|cursed|ignited|frozen|frostbitten|wilted|traumatized|blinded)\s+enem", re.I),
      lambda m: f"enemy_{m.group(1).lower()}"),
     (re.compile(r"enem(?:y|ies)\s+in\s+proximity|in\s+proximity", re.I), "enemy_in_proximity"),
+    (re.compile(r"wielding\s+a\s+wand\s+or\s+tin\s+staff", re.I), "wielding_wand_or_tin_staff"),
     # Attribute comparisons (Tradeoff) — auto-derived from STR vs DEX in the compute loop.
     (re.compile(r"dexterity\s+is\s+no\s+less\s+than\s+strength", re.I), "dexterity_ge_strength"),
     (re.compile(r"strength\s+is\s+no\s+less\s+than\s+dexterity", re.I), "strength_ge_dexterity"),

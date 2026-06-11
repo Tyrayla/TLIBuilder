@@ -2048,6 +2048,19 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=71,                source_types=_T,
     ),
+    # Inert until their mechanic is modeled (Max Curses count; Focus-skill damage subsystem) — resolve so
+    # they're tracked + badge Inactive rather than Unrecognized.
+    Stat.MAX_CURSES_FLAT: StatMeta(
+        "Max Curses", "Utility", "added_flat", "",
+        subgroup="skill_mechanics",    stacking_rule="additive",
+        ui_priority=72,                source_types=_T,
+    ),
+    Stat.FOCUS_SKILL_DMG_ADDITIONAL: StatMeta(
+        "Additional Focus Skill Damage", "Spell", "additional", "%",
+        subgroup="damage",             affects=_HIT,
+        stacking_rule="additive",      ui_priority=22,
+        source_types=_T,
+    ),
     Stat.MARK_EFFECT_INC: StatMeta(
         "Mark Effect", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",

@@ -475,6 +475,8 @@ class Stat(Enum):
     AURA_EFFECT_INC = "aura_effect_inc"
     CURSE_EFFECT_INC = "curse_effect_inc"
     CURSE_SKILL_AREA_INC = "curse_skill_area_inc"
+    MAX_CURSES_FLAT = "max_curses_flat"
+    FOCUS_SKILL_DMG_ADDITIONAL = "focus_skill_dmg_additional"
     MARK_EFFECT_INC = "mark_effect_inc"
     MARK_ON_CRIT_CHANCE = "mark_on_crit_chance"
     CC_EFFECT_INC = "cc_effect_inc"
