@@ -582,15 +582,18 @@ function DefensePanels({ defense, onCellClick }: { defense: DefenseResult | null
         {defense.life_additional !== 0 && <SubRow label="Additional" onClick={e => ck('Life — Additional', ['max_life_additional'], e)}>{fmtMult(defense.life_additional)}</SubRow>}
       </StatPanel>
 
-      <StatPanel title="Mana / Energy Shield" accent="#3060c0">
-        <Row label="Max Mana" onClick={e => ck('Max Mana', ['max_mana_flat', 'max_mana_inc'], e)}>{fmtNum(defense.max_mana)}</Row>
+      <StatPanel title="Mana" accent="#3060c0">
+        <Row label="Max Mana" onClick={e => ck('Max Mana', ['max_mana_flat', 'max_mana_inc', 'max_mana_additional'], e)}>{fmtNum(defense.max_mana)}</Row>
         {defense.mana_flat > 0 && <SubRow label="Flat Added" onClick={e => ck('Mana — Flat Added', ['max_mana_flat'], e)}>{fmtNum(defense.mana_flat)}</SubRow>}
         {defense.mana_inc !== 0 && <SubRow label="Increased" onClick={e => ck('Mana — Increased', ['max_mana_inc'], e)}>{fmtPct(defense.mana_inc)}</SubRow>}
-        {defense.max_energy_shield > 0 && <>
-          <Row label="Max Energy Shield" onClick={e => ck('Max Energy Shield', ['max_energy_shield_flat', 'energy_shield_gear_flat', 'max_energy_shield_inc', 'energy_shield_gear_inc'], e)}>{fmtNum(defense.max_energy_shield)}</Row>
-          {defense.es_flat > 0 && <SubRow label="Flat Added" onClick={e => ck('Energy Shield — Flat Added', ['max_energy_shield_flat', 'energy_shield_gear_flat'], e)}>{fmtNum(defense.es_flat)}</SubRow>}
-          {defense.es_inc !== 0 && <SubRow label="Increased" onClick={e => ck('Energy Shield — Increased', ['max_energy_shield_inc', 'energy_shield_gear_inc'], e)}>{fmtPct(defense.es_inc)}</SubRow>}
-        </>}
+        {defense.mana_additional !== 0 && <SubRow label="Additional" onClick={e => ck('Mana — Additional', ['max_mana_additional'], e)}>{fmtMult(defense.mana_additional)}</SubRow>}
+      </StatPanel>
+
+      <StatPanel title="Energy Shield" accent="#5aa0d0">
+        <Row label="Max Energy Shield" onClick={e => ck('Max Energy Shield', ['max_energy_shield_flat', 'energy_shield_gear_flat', 'max_energy_shield_inc', 'energy_shield_gear_inc', 'max_energy_shield_additional'], e)}>{fmtNum(defense.max_energy_shield)}</Row>
+        {defense.es_flat > 0 && <SubRow label="Flat Added" onClick={e => ck('Energy Shield — Flat Added', ['max_energy_shield_flat', 'energy_shield_gear_flat'], e)}>{fmtNum(defense.es_flat)}</SubRow>}
+        {defense.es_inc !== 0 && <SubRow label="Increased" onClick={e => ck('Energy Shield — Increased', ['max_energy_shield_inc', 'energy_shield_gear_inc'], e)}>{fmtPct(defense.es_inc)}</SubRow>}
+        {defense.es_additional !== 0 && <SubRow label="Additional" onClick={e => ck('Energy Shield — Additional', ['max_energy_shield_additional'], e)}>{fmtMult(defense.es_additional)}</SubRow>}
       </StatPanel>
 
       <StatPanel title="Resistances" accent="#7030b0">

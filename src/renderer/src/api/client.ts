@@ -523,8 +523,10 @@ export interface DefenseResult {
   life_additional: number
   mana_flat: number
   mana_inc: number
+  mana_additional: number
   es_flat: number
   es_inc: number
+  es_additional: number
   armor_flat: number
   armor_inc: number
   armor_additional: number
