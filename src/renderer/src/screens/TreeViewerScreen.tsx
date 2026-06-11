@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { FloatingPortal } from '@floating-ui/react'
+import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui/react'
 import { api, getApiBase, TreeData, TreeNode, CoreTalentStatus } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 import { useBuildStore } from '../store/buildStore'
@@ -192,6 +192,25 @@ export default function TreeViewerScreen({
   const [nodeStates, setNodeStates] = useState<Record<string, number>>(() => previewMode ? {} : (slots[activeSlot]?.nodeStates ?? {}))
   const [coreTalentSelections, setCoreTalentSelections] = useState<Record<number, string>>(() => previewMode ? {} : (slots[activeSlot]?.coreTalentSelections ?? {}))
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null)
+
+  // Float the core-talent dropdown beneath the expanded slot's circle, auto-shifting to stay fully
+  // on-screen (anchored to the trigger, never clipped by the window edge).
+  const coreFloat = useFloating({
+    open: expandedSlot !== null,
+    placement: 'bottom',
+    whileElementsMounted: autoUpdate,
+    middleware: [
+      offset(6),
+      flip({ padding: 8 }),
+      shift({ padding: 8 }),
+      size({
+        padding: 8,
+        apply({ availableWidth, elements }) {
+          elements.floating.style.maxWidth = `${Math.max(240, availableWidth)}px`
+        },
+      }),
+    ],
+  })
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null)
   const [processing, setProcessing] = useState(false)
   const [search, setSearch] = useState('')
@@ -373,6 +392,12 @@ export default function TreeViewerScreen({
   }
 
   const handleCoreTalentSelect = (slotIndex: number, talentId: string) => {
+    // Options are always viewable, but selection is gated on meeting the slot's point threshold.
+    const slot = treeData?.core_talent_slots[slotIndex]
+    if (slot && total < slot.threshold) {
+      flash(`Allocate ${slot.threshold} points to select this Core Talent.`)
+      return
+    }
     const next = { ...coreTalentSelections }
     if (next[slotIndex] === talentId) {
       delete next[slotIndex]
@@ -419,10 +444,10 @@ export default function TreeViewerScreen({
                 return (
                   <div key={slotIdx} className="core-talent-slot-item">
                     <button
+                      ref={isOpen ? coreFloat.refs.setReference : undefined}
                       className={`core-talent-circle${unlocked ? ' unlocked' : ''}${isOpen ? ' open' : ''}${selectedId ? ' has-selection' : ''}`}
-                      onClick={() => unlocked && setExpandedSlot(isOpen ? null : slotIdx)}
-                      disabled={!unlocked}
-                      title={unlocked ? `Core Talent Slot ${slotIdx + 1} — click to expand` : `Need ${slot.threshold} pts`}
+                      onClick={() => setExpandedSlot(isOpen ? null : slotIdx)}
+                      title={unlocked ? `Core Talent Slot ${slotIdx + 1} — click to expand` : `Locked — need ${slot.threshold} pts (click to preview)`}
                     >
                       <span className="core-talent-circle-progress">
                         {unlocked ? (selectedId ? '✓' : '?') : `${ptsToward}/${slot.threshold}`}
@@ -441,28 +466,44 @@ export default function TreeViewerScreen({
               const slot = treeData.core_talent_slots[expandedSlot]
               if (!slot) return null
               const selectedId = coreTalentSelections[expandedSlot]
+              const slotUnlocked = total >= slot.threshold   // viewable always; selectable at threshold
               return (
-                <div className="core-talent-cards">
-                  {slot.options.map(opt => {
-                    const selected = selectedId === opt.id
-                    return (
-                      <div key={opt.id} className={`core-talent-card${selected ? ' selected' : ''}`}>
-                        <div className="core-talent-card-name">{opt.name}</div>
-                        <div className="core-talent-card-desc">
-                          {opt.effects.map((e, i) => (
-                            <p key={i}>{e}<ModifierBadge status={coreEffectBadge(opt.name, e)} /></p>
-                          ))}
-                        </div>
-                        <button
-                          className={`core-talent-card-select${selected ? ' selected' : ''}`}
-                          onClick={() => handleCoreTalentSelect(expandedSlot, opt.id)}
-                        >
-                          {selected ? 'Selected' : 'Select'}
-                        </button>
+                <FloatingPortal>
+                  <div
+                    ref={coreFloat.refs.setFloating}
+                    style={coreFloat.floatingStyles}
+                    className="core-talent-cards"
+                  >
+                    {!slotUnlocked && (
+                      <div className="core-talent-locked-note">
+                        Locked — allocate {slot.threshold} points in this tree to select.
                       </div>
-                    )
-                  })}
-                </div>
+                    )}
+                    <div className="core-talent-card-row">
+                      {slot.options.map(opt => {
+                        const selected = selectedId === opt.id
+                        return (
+                          <div key={opt.id} className={`core-talent-card${selected ? ' selected' : ''}${slotUnlocked ? '' : ' locked'}`}>
+                            <div className="core-talent-card-name">{opt.name}</div>
+                            <div className="core-talent-card-desc">
+                              {opt.effects.map((e, i) => (
+                                <p key={i}>{e}<ModifierBadge status={coreEffectBadge(opt.name, e)} /></p>
+                              ))}
+                            </div>
+                            <button
+                              className={`core-talent-card-select${selected ? ' selected' : ''}`}
+                              onClick={() => handleCoreTalentSelect(expandedSlot, opt.id)}
+                              disabled={!slotUnlocked}
+                              title={slotUnlocked ? '' : `Need ${slot.threshold} points to select`}
+                            >
+                              {selected ? 'Selected' : slotUnlocked ? 'Select' : 'Locked'}
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </FloatingPortal>
               )
             })()}
           </div>

@@ -762,16 +762,28 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .core-talent-circle-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #666688; white-space: nowrap; text-align: center; }
 
 .core-talent-cards {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 200;
-  display: flex; gap: 10px;
+  /* Positioned by Floating UI (anchored to the expanded circle, auto-shifted to stay on-screen);
+     max-width is applied inline by the size middleware. Just the box + layout here. */
+  z-index: 900;
+  display: flex; flex-direction: column; gap: 8px;
   background: #0a0a18; border: 1px solid #2a2a4a; border-radius: 8px;
   padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.7);
 }
+.core-talent-card-row { display: flex; gap: 10px; min-width: 0; }
+/* Locked slot — options stay viewable, selection is disabled until the threshold is met. */
+.core-talent-locked-note {
+  font-size: 11px; font-weight: 600; color: #e0a050;
+  padding: 4px 6px; border-radius: 4px;
+  background: rgba(224,160,80,0.08); border: 1px solid rgba(224,160,80,0.25);
+}
+.core-talent-card.locked { opacity: 0.85; border-style: dashed; }
+.core-talent-card-select:disabled { opacity: 0.5; cursor: not-allowed; }
 .core-talent-card {
   display: flex; flex-direction: column; gap: 8px;
   padding: 14px 12px 10px;
   background: #0e0e1e; border: 1px solid #2a2a4a; border-radius: 6px;
-  width: 160px; min-height: 150px;
+  /* Preferred 160px, but allowed to shrink so a full row always fits the capped panel. */
+  flex: 1 1 160px; min-width: 0; max-width: 160px; min-height: 150px;
   transition: border-color 0.15s, background 0.15s;
 }
 .core-talent-card.selected { border-color: #6bcb77; background: #0c1a0e; }
