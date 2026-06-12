@@ -627,6 +627,28 @@ def aggregate(
             label="Paralysis", text="+15% increased Damage Taken (Paralysis)", points=1,
         ))
 
+    # Frail: "Additionally increases Spell Damage taken by 15%" — Spell-form scoped. enemy_affected_by_frail
+    # is user-set (auto-derive from "Inflicts Frail …" affixes is a follow-up). Scaled by Frail Effect; the
+    # offense enemy-vulnerability stage applies frail_spell_taken only when the skill deals Spell damage.
+    if "enemy_affected_by_frail" in _booleans:
+        _amt = 0.15 * (1.0 + source.total("frail_effect_inc"))
+        source.add_with_source("frail_spell_taken", _amt, SourceEntry(
+            stat="frail_spell_taken", amount=_amt, source_type="condition",
+            label="Frail", text="+15% additional Spell Damage Taken (Frail)", points=1,
+        ))
+
+    # Infiltration: "Additionally increases <Fire/Cold/Lightning> Damage taken by 13%" — per element type,
+    # scaled by that element's Infiltration Effect. (No Erosion Infiltration exists.)
+    for _elem in ("fire", "cold", "lightning"):
+        if f"enemy_affected_by_{_elem}_infiltration" in _booleans:
+            _amt = 0.13 * (1.0 + source.total(f"{_elem}_infiltration_effect_inc"))
+            _name = _elem.capitalize()
+            source.add_with_source(f"{_elem}_infiltration_taken", _amt, SourceEntry(
+                stat=f"{_elem}_infiltration_taken", amount=_amt, source_type="condition",
+                label=f"{_name} Infiltration",
+                text=f"+13% additional {_name} Damage Taken ({_name} Infiltration)", points=1,
+            ))
+
     # Electric Overload buff (granted on Critical Strike): +15% additional Lightning Damage.
     if "electric_overload" in _booleans:
         source.add_with_source("lightning_dmg_additional", 0.15, SourceEntry(

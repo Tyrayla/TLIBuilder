@@ -35,6 +35,8 @@ _SANITY_FLOOR = frozenset({
 # reads in engine/aggregator.py — test_consumable_universe.py scans the aggregator and fails if one is missing.
 _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
     "fervor_effect_inc", "numbed_effect_inc",
+    "frail_effect_inc", "fire_infiltration_effect_inc", "cold_infiltration_effect_inc",
+    "lightning_infiltration_effect_inc",
     "cast_speed_to_spell_burst_charge", "proj_speed_to_proj_dmg", "projectile_speed_inc",
     "movement_speed_inc", "movement_bonus_to_attack_speed", "movement_bonus_to_cast_speed",
     "movement_bonus_to_cdr",

@@ -1552,6 +1552,56 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=72,
         source_types=(),
     ),
+    # Frail / Infiltration effect — scale the per-application damage-taken value (like Numbed Effect).
+    Stat.FRAIL_EFFECT_INC: StatMeta(
+        "Frail Effect", "Ailments", "increased", "%",
+        subgroup="status_effects",     stacking_rule="additive",
+        ui_priority=73,                source_types=_T,
+    ),
+    Stat.FIRE_INFILTRATION_EFFECT_INC: StatMeta(
+        "Fire Infiltration Effect", "Ailments", "increased", "%",
+        subgroup="status_effects",     stacking_rule="additive",
+        ui_priority=73,                source_types=_T,
+    ),
+    Stat.COLD_INFILTRATION_EFFECT_INC: StatMeta(
+        "Cold Infiltration Effect", "Ailments", "increased", "%",
+        subgroup="status_effects",     stacking_rule="additive",
+        ui_priority=73,                source_types=_T,
+    ),
+    Stat.LIGHTNING_INFILTRATION_EFFECT_INC: StatMeta(
+        "Lightning Infiltration Effect", "Ailments", "increased", "%",
+        subgroup="status_effects",     stacking_rule="additive",
+        ui_priority=73,                source_types=_T,
+    ),
+    # Enemy-vulnerability multipliers (engine-injected by the aggregator, no gear source). Frail is
+    # Spell-form scoped (applied only for Spell skills); each Infiltration is its element type.
+    Stat.FRAIL_SPELL_TAKEN: StatMeta(
+        "Frail: Spell Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        affects=_HIT,                  stacking_rule="additive",
+        ui_priority=74,                source_types=(),
+    ),
+    Stat.FIRE_INFILTRATION_TAKEN: StatMeta(
+        "Fire Infiltration: Fire Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        tags=("fire",),                affects=_HIT,
+        stacking_rule="additive",      ui_priority=74,
+        source_types=(),
+    ),
+    Stat.COLD_INFILTRATION_TAKEN: StatMeta(
+        "Cold Infiltration: Cold Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        tags=("cold",),                affects=_HIT,
+        stacking_rule="additive",      ui_priority=74,
+        source_types=(),
+    ),
+    Stat.LIGHTNING_INFILTRATION_TAKEN: StatMeta(
+        "Lightning Infiltration: Lightning Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        tags=("lightning",),           affects=_HIT,
+        stacking_rule="additive",      ui_priority=74,
+        source_types=(),
+    ),
     Stat.SLOW_CHANCE: StatMeta(
         "Slow Chance", "Ailments", "chance", "%",
         subgroup="status_effects",     stacking_rule="additive_chance",

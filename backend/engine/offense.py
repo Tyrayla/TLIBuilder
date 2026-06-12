@@ -288,22 +288,26 @@ def _target_mitigation(source: BuildSource, dtype: str) -> float:
     return (1.0 - eff_armor) * (1.0 - eff_resist)
 
 
-def _enemy_vuln_mult(source: BuildSource, dtype: str) -> float:
+def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) -> float:
     """Enemy-vulnerability stage: 'the enemy takes more <type> damage' effects, applied as a final
     per-type multiplier on OUTGOING damage — deliberately NOT in the attacker's additional pool, so
     distinct vulnerability sources combine on their own rule and type-scoping stays honest.
 
-    Distinct sources combine MULTIPLICATIVELY (ship default; flip here if in-game testing disproves).
-    Future sources (Proximity damage-taken, curses, exposure) plug in here. Today: Numbed only —
-    +5% Lightning Damage taken per stack × (1 + numbed_effect_inc), baked into `numbed_lightning_taken`
-    by the aggregator (fervor-style). Lightning-scoped. NOT the defensive dmg_taken family (that is
-    incoming damage / the immunity tripwire); this is outgoing amplification.
+    Distinct sources combine MULTIPLICATIVELY (ship default). NOTE: the in-game wording splits these into
+    an INCREASED pool (Paralysis: "Increases damage taken") and an ADDITIONAL pool (Frail / Infiltration /
+    Numbed: "Additionally increases … taken"); modelling that split (increases sum, additionals multiply)
+    needs direct in-game testing and is FLAGGED for later. Sources today, all baked by the aggregator from
+    their enemy condition: Paralysis (global), Numbed (lightning), Frail (Spell-form), Infiltration (per
+    element type). NOT the defensive dmg_taken family (incoming damage / immunity tripwire) — this is
+    outgoing amplification.
     """
-    # Paralysis: +15% increased damage taken, GLOBAL (all types). Set via enemy_paralyzed (auto-derived
-    # by inflicting supports, e.g. Grudge). Distinct vulnerability sources combine multiplicatively.
-    mult = 1.0 + source.total("paralysis_dmg_taken")
+    mult = 1.0 + source.total("paralysis_dmg_taken")        # global
     if dtype == "lightning":
         mult *= 1.0 + source.total("numbed_lightning_taken")
+    if dtype in ("fire", "cold", "lightning"):              # Infiltration — element-typed
+        mult *= 1.0 + source.total(f"{dtype}_infiltration_taken")
+    if is_spell:                                            # Frail — Spell-form (all damage of a Spell skill)
+        mult *= 1.0 + source.total("frail_spell_taken")
     return mult
 
 
@@ -713,7 +717,7 @@ def calculate_offense(
                                       convert_fracs, adds_fracs)
         for dtype, (smin, smax) in converted.items():
             # Enemy-vulnerability (Numbed etc.) and Augmentation are per-FINAL-type / global multipliers.
-            vuln = _enemy_vuln_mult(source, dtype)
+            vuln = _enemy_vuln_mult(source, dtype, is_spell)
             type_min = smin * above_mult * vuln * aug_factor
             type_max = smax * above_mult * vuln * aug_factor
             avg = (type_min + type_max) / 2.0

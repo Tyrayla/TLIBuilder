@@ -369,6 +369,18 @@ class Stat(Enum):
     # Engine-injected by the aggregator (not a gear/talent affix); consumed by offense's
     # enemy-vulnerability stage. See docs/CHAIN_LIGHTNING_IMPLEMENTATION_PLAN.md §4.
     NUMBED_LIGHTNING_TAKEN = "numbed_lightning_taken"
+    # Frail (Spell-form) and Infiltration (per element-type) enemy debuffs — "Additionally increases
+    # <X> Damage taken". Effect-inc stats scale the per-application value (like Numbed Effect); the
+    # *_taken stats are engine-injected by the aggregator and consumed by offense's enemy-vulnerability
+    # stage (Frail gated on the skill being a Spell; Infiltration on the damage type).
+    FRAIL_EFFECT_INC = "frail_effect_inc"
+    FIRE_INFILTRATION_EFFECT_INC = "fire_infiltration_effect_inc"
+    COLD_INFILTRATION_EFFECT_INC = "cold_infiltration_effect_inc"
+    LIGHTNING_INFILTRATION_EFFECT_INC = "lightning_infiltration_effect_inc"
+    FRAIL_SPELL_TAKEN = "frail_spell_taken"
+    FIRE_INFILTRATION_TAKEN = "fire_infiltration_taken"
+    COLD_INFILTRATION_TAKEN = "cold_infiltration_taken"
+    LIGHTNING_INFILTRATION_TAKEN = "lightning_infiltration_taken"
     SLOW_CHANCE = "slow_chance"
     SLOW_EFFECT_RECEIVED_INC = "slow_effect_received_inc"
     BLIND_CHANCE = "blind_chance"
