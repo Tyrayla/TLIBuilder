@@ -252,22 +252,40 @@ def _speed_additional_product(source: BuildSource, keys, skill_tags_lower: set[s
             p *= (1.0 + remainder)
     return p
 
-# Target dummy baseline mitigation (default calculation target)
-# Physical: 50% armor reduction
-# Non-physical: 60% of armor (50% × 0.60 = 30% reduction) PLUS 30% elemental/erosion resist (multiplicative)
-_DUMMY_ARMOR_PCT = 0.50
-_DUMMY_NONPHYS_ARMOR = _DUMMY_ARMOR_PCT * 0.60          # 0.30
-_DUMMY_ELEMENTAL_RESIST = 0.30
-_DUMMY_PHYS_MULT = 1.0 - _DUMMY_ARMOR_PCT               # 0.50
-_DUMMY_NONPHYS_MULT = (1.0 - _DUMMY_NONPHYS_ARMOR) * (1.0 - _DUMMY_ELEMENTAL_RESIST)  # 0.70 × 0.70 = 0.49
+# ── Calculation-target defense (the "dummy") ──────────────────────────────────
+# Baseline mitigation the DPS-vs-target number is computed against. Named (not magic numbers) and
+# centralized so they can be exposed as tweakable target settings later. Per the training dummy:
+#   • Armor gives 50% damage reduction vs PHYSICAL; only 60% of armor applies to non-physical types,
+#     so the same armor yields 50% × 0.60 = 30% reduction vs fire/cold/lightning/erosion.
+#   • Resistance is 30% elemental (fire/cold/lightning) and 30% erosion.
+# TODO(target-config): surface these per-target via the request so the user can tweak the calc target.
+TARGET_ARMOR_MITIGATION = 0.50          # physical damage reduction provided by armor
+TARGET_NONPHYS_ARMOR_FACTOR = 0.60      # fraction of armor that applies to non-physical damage
+TARGET_ELEMENTAL_RESIST = 0.30          # fire / cold / lightning
+TARGET_EROSION_RESIST = 0.30            # erosion
 
-_DUMMY_MITIGATION: dict[str, float] = {
-    "physical": _DUMMY_PHYS_MULT,
-    "fire": _DUMMY_NONPHYS_MULT,
-    "cold": _DUMMY_NONPHYS_MULT,
-    "lightning": _DUMMY_NONPHYS_MULT,
-    "erosion": _DUMMY_NONPHYS_MULT,
-}
+
+def _target_mitigation(source: BuildSource, dtype: str) -> float:
+    """Per-type outgoing-damage multiplier vs the calculation target, AFTER the attacker's penetration.
+
+    Penetration deducts from the target's effective armor/resistance and may drive either negative — at
+    which point the reduction becomes an amplification (Help DB: both Armor DMG Mitigation Penetration and
+    Resistance Penetration reduce the defender's effective value, can go negative, and then add to damage
+    taken). Penetration values are stored positive and subtracted; `all_resistance_reduction` is a signed
+    delta (stored negative when it lowers resistance) and applies to all elemental + erosion resists.
+    With zero penetration this reproduces the prior constants exactly (physical 0.50, others 0.49)."""
+    armor_pen = source.total("armor_pen")
+    if dtype == "physical":
+        return 1.0 - (TARGET_ARMOR_MITIGATION - armor_pen)
+    # Non-physical: armor portion (60% of armor) and the per-type resistance portion, each penetrable.
+    eff_armor = TARGET_ARMOR_MITIGATION * TARGET_NONPHYS_ARMOR_FACTOR - armor_pen
+    all_res_red = source.total("all_resistance_reduction")          # signed (negative when reducing res)
+    if dtype == "erosion":
+        eff_resist = TARGET_EROSION_RESIST - source.total("erosion_pen") + all_res_red
+    else:  # fire / cold / lightning — elemental_pen stacks on top of the per-type pen
+        eff_resist = (TARGET_ELEMENTAL_RESIST - source.total(f"{dtype}_pen")
+                      - source.total("elemental_pen") + all_res_red)
+    return (1.0 - eff_armor) * (1.0 - eff_resist)
 
 
 def _enemy_vuln_mult(source: BuildSource, dtype: str) -> float:
@@ -707,7 +725,7 @@ def calculate_offense(
             hit_min_by_type[dtype] = type_min
             hit_max_by_type[dtype] = type_max
             avg_pre += avg
-            avg_pre_vs_target += avg * _DUMMY_MITIGATION.get(dtype, 1.0)
+            avg_pre_vs_target += avg * _target_mitigation(source, dtype)
 
         # Crit (expected-value) and double-damage (expected-value) both uplift the average, not per-hit.
         avg_post = avg_pre * crit_factor * double_dmg_factor

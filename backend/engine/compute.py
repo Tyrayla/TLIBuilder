@@ -269,6 +269,16 @@ def compute(
             _MAX_ITERS,
         )
 
+    # The numeric-condition cap/floor reads (max_*_blessing_stacks_flat, max_fervor_rating, …) happen in
+    # the fixed-point loop above with recording OFF, so a node that ONLY raises a cap would false-badge
+    # "Inactive" (in the universe but not this build's consumed_stats). Re-run the cap/floor derivation once
+    # WITH recording so those always-read stats register as Consumed — the values are already converged, so
+    # this pass only traces consumption and changes no state.
+    source._recording = True
+    derive_condition_maximums(source)
+    derive_condition_minimums(source)
+    source._recording = False
+
     # Tripwire: a single damage-taken stat reaching >=100% reduction implies immunity, which
     # the current additive pooling can't represent (distinct sources should multiply). Raise
     # so it's revisited rather than silently zeroing damage.
