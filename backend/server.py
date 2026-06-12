@@ -674,7 +674,8 @@ def engine_stats(req: EngineStatsRequest):
     # Resolve allocated talent-tree NODES + SLATE slots through the SAME unified resolver (replaces the
     # filter-builder recipes). Amounts pre-scaled by points; conditionals gated in the aggregator.
     from engine.node_resolver import resolve_nodes
-    node_contributions, node_mod_statuses = resolve_nodes(
+    from engine.consumable_universe import consumable_universe
+    node_contributions, _node_statuses = resolve_nodes(
         slots, slates, season_trees, _parse_custom_mod_text, _translate_condition_expr,
     )
     core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}}
@@ -735,10 +736,12 @@ def engine_stats(req: EngineStatsRequest):
         "defense": result.defense,
         "custom_mod_statuses": custom_mod_statuses,
         "core_talent_statuses": core_talent_statuses,
-        "node_mod_statuses": node_mod_statuses,
         "gear_mod_statuses": gear_mod_statuses,
         "skill_slots": result.skill_slots,
         "consumed_stats": result.consumed_stats,
+        # Maximal set of stats the engine can EVER read (all skills/tags) — lets the UI tell "Inactive"
+        # (modeled, not for your skill) apart from "Unconsumed" (engine never reads it). Cached per process.
+        "consumable_universe": sorted(consumable_universe()),
     }
 
 
@@ -2517,25 +2520,8 @@ def map_modifiers(req: MapModifiersRequest):
     Gear/vorax already carry stat_key on the affix object, so they need not be sent; `source:
     'gear'` is still handled (via _resolve_affix) for completeness.
     """
-    import re as _re
     from engine.aggregator import resolve_effect_stat_keys
-    from tools.node_type_filter_builder import load_filter
-
-    filter_data = load_filter() or {}
-    node_recipes = filter_data.get("node_recipes", {})
-
-    def _norm(s: str) -> str:
-        return _re.sub(r'\s+', ' ', (s or '').strip()).lower()
-
-    def _node_keys(node_id: str | None, text: str) -> list[str]:
-        if not node_id:
-            return []
-        nt = _norm(text)
-        out: list[str] = []
-        for r in (node_recipes.get(node_id) or []):
-            if r.get("stat") and _norm(r.get("text", "")) == nt:
-                out.append(r["stat"])
-        return out
+    from engine.node_resolver import resolve_effect_text_keys
 
     results: dict[str, dict] = {}
     for it in req.items:
@@ -2544,7 +2530,9 @@ def map_modifiers(req: MapModifiersRequest):
         if it.source in ("spirit", "memory"):
             keys = resolve_effect_stat_keys(it.text, is_memory=(it.source == "memory"))
         elif it.source in ("talent", "slate"):
-            keys = _node_keys(it.node_id, it.text)
+            # SAME unified resolver the engine uses (engine.node_resolver) — no more filter-builder recipes,
+            # so node badges can't drift from the actual DPS contribution. node_id is irrelevant now.
+            keys = resolve_effect_text_keys(it.text, _parse_custom_mod_text, _translate_condition_expr)
         elif it.source == "gear":
             keys = _affix_stat_keys(_resolve_affix({"raw_text": it.text, "affix_kind": "numeric"}))
         else:

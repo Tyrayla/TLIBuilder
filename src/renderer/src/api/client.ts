@@ -567,13 +567,14 @@ export interface StatSheetResponse {
   // Per-effect resolution for granted core talents (roadmap #4) — drives the core-talent NYI badges.
   // kind: 'stat' | 'override' (applied) | 'deferred' | 'unresolved' (captured, not applied).
   core_talent_statuses?: CoreTalentStatus[]
-  // Per-effect resolution for allocated talent NODES + slate slots (unified resolver) — drives node NYI
-  // badges. resolved:false → captured, not applied (still unmodeled, surfaced not dropped).
-  node_mod_statuses?: NodeModStatus[]
   skill_slots?: SkillSlotSummary[]
-  // Stat keys the engine actually READ for this build (offense/defense/derive passes). Drives the
-  // "inert modifier" badges: a modifier whose mapped stat isn't here is recognized-but-unused.
+  // Stat keys the engine actually READ for this build (offense/defense/derive/aggregator). A resolved
+  // modifier whose mapped stat is here → "Consumed" (green badge).
   consumed_stats?: string[]
+  // Maximal set of stats the engine can EVER read (all skills/tags). Lets the badge tell "Inactive"
+  // (modeled, just not for your selected skill — in here, not in consumed_stats) apart from "Unconsumed"
+  // (engine never reads it — resolved but not in here). Global + cached server-side.
+  consumable_universe?: string[]
 }
 
 export interface CoreTalentStatus {
@@ -581,13 +582,6 @@ export interface CoreTalentStatus {
   text: string
   resolved: boolean
   kind: 'stat' | 'override' | 'deferred' | 'unresolved'
-}
-
-export interface NodeModStatus {
-  node_id: string
-  text: string
-  resolved: boolean
-  kind: 'stat' | 'override' | 'deferred' | 'unresolved' | 'deduped'
 }
 
 // ── Modifier resolution (inert-modifier badges) ─────────────────────────────────
@@ -602,6 +596,7 @@ export const EMPTY_STAT_SHEET: StatSheetResponse = {
   offense: null,
   defense: null,
   consumed_stats: [],
+  consumable_universe: [],
 }
 
 export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'

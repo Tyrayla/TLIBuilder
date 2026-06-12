@@ -50,10 +50,18 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   border-radius: 3px; padding: 1px 5px; margin-left: 6px; vertical-align: middle;
   white-space: nowrap; cursor: default; letter-spacing: 0.3px;
 }
-/* Inert-modifier badges. Colors use !important because context rules (notably
-   .tooltip-stat-row span:last-child -> var(--ok) green) target the trailing badge span and would
-   otherwise tint it green. "Inactive" = amber (recognized stat, unused by this build);
-   "Unrecognized (NYI)" = red dashed (maps to no engine stat). */
+/* Modifier badges — one 4-state scheme everywhere. Colors use !important because context rules
+   (notably .tooltip-stat-row span:last-child -> var(--ok) green) target the trailing badge span.
+   "Consumed" = green (actively contributing); "Inactive" = grey (engine models it, not for your skill);
+   "Unconsumed" = amber (resolves but engine never reads it); "Unrecognized (NYI)" = red dashed. */
+.nyi-tag--working {
+  color: #5bd47e !important;
+  background: rgba(91,212,126,0.12); border-color: rgba(91,212,126,0.32);
+}
+.nyi-tag--inactive {
+  color: #9aa3ad !important;
+  background: rgba(154,163,173,0.12); border-color: rgba(154,163,173,0.30);
+}
 .nyi-tag--unused {
   color: #e0a83a !important;
   background: rgba(224,168,58,0.12); border-color: rgba(224,168,58,0.34);

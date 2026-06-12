@@ -3,7 +3,7 @@ import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } fr
 import { api, getApiBase, TreeData, TreeNode, CoreTalentSlotOption } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 import { useBuildStore } from '../store/buildStore'
-import { ModifierBadge, useConsumedStatSet, useUnresolvedNodeIds, type ModifierStatus } from '../components/ModifierBadge'
+import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, type ModifierStatus } from '../components/ModifierBadge'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { NodeTooltipBody } from '../components/tooltip/bodies/NodeTooltipBody'
@@ -61,14 +61,13 @@ interface TreeNodeGProps {
   isSearching: boolean
   processing: boolean
   debugMode: boolean
-  nyi: boolean   // allocated node with ≥1 effect the engine couldn't resolve (node_mod_statuses)
   onInteract: (node: TreeNode, isRight: boolean) => void
 }
 
 // A single passive-tree node (SVG group) plus its hover tooltip, routed through the shared
 // floating-tooltip primitive. Element-anchored; damage-delta band wired (NYI until backend).
 function TreeNodeG({
-  node, cx, cy, pts, colors, locked, isLinkSrc, isHit, isSearching, processing, debugMode, nyi, onInteract,
+  node, cx, cy, pts, colors, locked, isLinkSrc, isHit, isSearching, processing, debugMode, onInteract,
 }: TreeNodeGProps) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
   const activeSlot = useBuildStore(s => s.activeSlot)
@@ -132,13 +131,6 @@ function TreeNodeG({
         >
           {pts}/{node.max_points}
         </text>
-        {nyi && (
-          <g style={{ pointerEvents: 'none' }}>
-            <circle cx={cx + NODE_R * 0.72} cy={cy - NODE_R * 0.72} r={6} fill="#e0913a" stroke="#1a1a1a" strokeWidth={1.5} />
-            <text x={cx + NODE_R * 0.72} y={cy - NODE_R * 0.72 + 3.5} textAnchor="middle" fill="#1a1a1a"
-              fontSize={9} fontWeight="bold" fontFamily="Segoe UI">!</text>
-          </g>
-        )}
       </g>
       {tip.open && (
         <FloatingPortal>
@@ -177,16 +169,16 @@ export default function TreeViewerScreen({
   const activeSlot = useBuildStore(s => s.activeSlot)
   const updateSlotNodeStates = useBuildStore(s => s.updateSlotNodeStates)
   const updateSlotCoreTalentSelections = useBuildStore(s => s.updateSlotCoreTalentSelections)
-  const unresolvedNodeIds = useUnresolvedNodeIds()  // allocated nodes with a still-unmodeled effect → NYI badge
-
-  // Core-talent effect badges (roadmap #4), three states driven by the tree's STATIC per-line
-  // resolution (so any tree badges, selected or not) plus the build's consumed_stats:
-  //   • unresolved/deferred line                              → "Unrecognized (NYI)"
-  //   • resolves to a stat, talent is granted, but none of    → "Inactive" (recognized, unused /
-  //     its stats were consumed by the calculation               mechanic not modeled — e.g. Spell Burst)
-  //   • resolves + applied (override, or a consumed stat)     → no badge
+  // Core-talent effect badges (roadmap #4), the same 4-state scheme as every other modifier, driven by
+  // the tree's STATIC per-line resolution plus the build's consumed_stats + consumable_universe:
+  //   • unresolved/deferred line                       → "Unrecognized (NYI)" (red)
+  //   • resolves, talent granted, a stat consumed      → "Consumed" (green)
+  //   • resolves, granted, stat in universe not consumed → "Inactive" (grey) — not for your skill
+  //   • resolves, granted, stat the engine never reads → "Unconsumed" (yellow)
+  //   • override line (applied via a flag, no stat)    → no badge
   const coreTalentStatuses = useBuildStore(s => s.computedStats.core_talent_statuses)
   const consumedStats = useConsumedStatSet()
+  const universe = useConsumableUniverse()
   const grantedCoreNames = useMemo(() => {
     const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
     return new Set((coreTalentStatuses ?? []).map(st => norm(st.name)))
@@ -195,11 +187,14 @@ export default function TreeViewerScreen({
     const es = opt.effect_status?.[i]
     if (!es || es.kind === 'override') return null
     if (!es.resolved) return 'unrecognized'
+    if (es.stat_keys.length === 0) return 'unrecognized'
+    // Only meaningful once the talent is actually granted; ungranted options stay unbadged.
     const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
-    if (grantedCoreNames.has(norm(opt.name)) && es.stat_keys.length > 0
-        && !es.stat_keys.some(k => consumedStats.has(k))) return 'unused'   // "Inactive"
-    return null
-  }, [grantedCoreNames, consumedStats])
+    if (!grantedCoreNames.has(norm(opt.name))) return null
+    if (es.stat_keys.some(k => consumedStats.has(k))) return 'working'
+    if (universe.size === 0 || es.stat_keys.some(k => universe.has(k))) return 'inactive'
+    return 'unused'
+  }, [grantedCoreNames, consumedStats, universe])
 
   const [treeData, setTreeData] = useState<TreeData | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -746,7 +741,6 @@ export default function TreeViewerScreen({
                     isSearching={isSearching}
                     processing={processing}
                     debugMode={debugMode}
-                    nyi={unresolvedNodeIds.has(node.id)}
                     onInteract={handleNodeInteract}
                   />
                 )

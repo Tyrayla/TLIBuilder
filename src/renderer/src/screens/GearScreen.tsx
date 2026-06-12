@@ -12,7 +12,7 @@ import { useDamageDeltaList, type DeltaRequest, type StateTransform, type Damage
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { legendaryToEquipped } from '../utils/gearItem'
 import { GearTooltipBody, type GearTooltipItem } from '../components/tooltip/bodies/GearTooltipBody'
-import { ModifierBadge, useConsumedStatSet, useGearUnresolvedTexts, gearModifierStatus, type ModifierStatus } from '../components/ModifierBadge'
+import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, useGearUnresolvedTexts, useTextModifierStatus, gearModifierStatus } from '../components/ModifierBadge'
 import {
   rangeDecimals, midpoint, hasRangeValues, reconstructAffixText,
   affixTypeLabel, tooltipAffixText,
@@ -392,15 +392,11 @@ function BeltBlendSelector({ beltBlends, beltBlend, onBeltBlendChange }: {
   beltBlend: string | null
   onBeltBlendChange: (talentId: string | null) => void
 }) {
-  const statuses = useBuildStore(s => s.computedStats.core_talent_statuses)
   const selected = beltBlends.find(b => b.talent_id === beltBlend) ?? null
   const effText = selected ? (selected.effect_text || selected.effect_raw) : ''
-  // Match the equipped blend to its engine resolution status (by effect text or blend name) → NYI badge.
-  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
-  const st = selected
-    ? (statuses ?? []).find(x => norm(x.text) === norm(effText) || (selected.talent_name && norm(x.name) === norm(selected.talent_name)))
-    : null
-  const badge: ModifierStatus | null = st && !st.resolved ? 'unrecognized' : null
+  // A belt blend is a talent effect — resolve its badge through the SAME unified text resolver every
+  // other modifier uses, so it carries the full 4-state (Consumed / Inactive / Unconsumed / NYI).
+  const badge = useTextModifierStatus(selected ? effText : null, 'talent')
   return (
     <div className="gear-belt-blend-section">
       <div className="gear-belt-blend-header">Belt Blend</div>
@@ -427,6 +423,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
   const baseTip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const custPanelId = useId()
   const consumedStats = useConsumedStatSet() // for inert-modifier badges on affix rows
+  const universe = useConsumableUniverse() // splits Inactive (modeled, not this skill) from Unconsumed
   const gearUnresolved = useGearUnresolvedTexts() // raw texts the backend still couldn't resolve
 
   if (!item) {
@@ -693,7 +690,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
                 title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
               />
             )}
-            <div className="gear-affix-label">{affix.raw_text}<ModifierBadge status={gearModifierStatus(affix, consumedStats, gearUnresolved)} /></div>
+            <div className="gear-affix-label">{affix.raw_text}<ModifierBadge status={gearModifierStatus(affix, consumedStats, universe, gearUnresolved)} /></div>
           </div>
         </div>
         </AffixSliderTooltip>
@@ -717,7 +714,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
               title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
             />
           )}
-          <div className="gear-affix-label">{displayText}<ModifierBadge status={gearModifierStatus(affix, consumedStats, gearUnresolved)} /></div>
+          <div className="gear-affix-label">{displayText}<ModifierBadge status={gearModifierStatus(affix, consumedStats, universe, gearUnresolved)} /></div>
         </div>
         {rangeIndices.map(valIdx => {
           const nv = affix.numeric_values[valIdx]

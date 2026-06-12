@@ -14,7 +14,10 @@ identical leaves the rest contributing; the damage + delta recompute from the fu
 
 Returns (contributions, statuses):
   contributions  list[dict]  {stat_key, amount, text, label, condition_expr|None}  (amount pre-scaled by points)
-  statuses       list[dict]  {node_id, text, resolved, kind}  — one per effect segment, for UI badges
+  statuses       list[dict]  {node_id, text, resolved, kind}  — one per effect segment (internal/tests only)
+
+Badges no longer use these statuses: the UI resolves node/slate text on demand via /api/map-modifiers →
+`resolve_effect_text_keys` (the SAME pipeline), then classifies against consumed_stats + consumable_universe.
 """
 from __future__ import annotations
 import re
@@ -78,6 +81,20 @@ def _resolve_node(node_id: str, effects, points: int, label: str, source_text_ta
             else:
                 statuses.append({"node_id": node_id, "text": sub, "resolved": False, "kind": cls["kind"]})
     return contribs, statuses
+
+
+def resolve_effect_text_keys(text, parse_mod, translate_cond) -> list[str]:
+    """Stat key(s) one node/slate effect LINE resolves to, via the unified pipeline — the exact path
+    resolve_nodes uses, so badges never drift from the engine. Build-agnostic (no points/condition gating
+    applied); empty list = unrecognized/deferred. Used by /api/map-modifiers for talent/slate badges."""
+    contribs, _ = _resolve_node("__map__", [text], 1, "", "node", parse_mod, translate_cond)
+    seen, out = set(), []
+    for c in contribs:
+        k = c["stat_key"]
+        if k not in seen:
+            seen.add(k)
+            out.append(k)
+    return out
 
 
 def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond):
