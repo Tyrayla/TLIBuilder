@@ -54,6 +54,13 @@ _FLAT_SUFFIXES = (
 )
 _DMG_TYPES = ("physical", "fire", "cold", "lightning", "erosion")
 
+# Maximal support behavior so support-gated source reads fire (e.g. extra_jumps_flat under Augmentation /
+# shotgun). Values are arbitrary-but-truthy; we only care which stats get read, not the numbers.
+_MAX_SUPPORT_BEHAVIOR = {
+    "augmentation_per_jump": 0.1, "lucky_damage": True, "same_target_shotgun": True,
+    "chains_per_jump": 1, "falloff_coefficient": 0.5,
+}
+
 
 def _make_source(conv_keys, all_keys):
     from engine.models import BuildSource
@@ -93,10 +100,13 @@ def consumable_universe() -> frozenset[str]:
     all_keys = [s.value for s in STAT_META]
 
     consumed: set[str] = set()
+    # UNION over is_spell × support-behavior on/off — some support paths (lucky, shotgun) replace reads
+    # the plain path makes, so neither alone is a superset.
     for is_spell in (False, True):
-        s = _make_source(conv_keys, all_keys)
-        calculate_offense(s, _make_skill(is_spell), 1, is_main_skill=True)
-        consumed |= s.consumed_stats
+        for support in (None, _MAX_SUPPORT_BEHAVIOR):
+            s = _make_source(conv_keys, all_keys)
+            calculate_offense(s, _make_skill(is_spell), 1, is_main_skill=True, support_behavior=support)
+            consumed |= s.consumed_stats
     # defense + derived display stats + condition max/min derivation (the latter reads each numeric
     # condition's max_from_stat/min_from_stat — e.g. max_*_blessing_stacks_flat, max_fervor_rating —
     # which automax/cap logic then consumes; without it those cap stats false-yellow).

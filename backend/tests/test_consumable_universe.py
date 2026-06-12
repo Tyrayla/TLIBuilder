@@ -39,16 +39,32 @@ def test_speed_additional_pools_present():
     assert "attack_speed_additional" in u and "cast_speed_additional" in u
 
 
-def test_aggregator_total_reads_are_in_universe():
-    """Scan engine/aggregator.py for `source.total("literal")` and assert each is in the universe — so an
-    aggregator propagation read added later can't silently badge a modeled stat as 'engine never reads it'."""
-    agg = os.path.join(os.path.dirname(__file__), "..", "engine", "aggregator.py")
-    text = open(agg, encoding="utf-8").read()
-    reads = set(re.findall(r'source\.total\(\s*"([a-z0-9_]+)"\s*\)', text))
-    assert reads, "expected to find source.total(\"...\") reads in aggregator.py"
+# pipeline.py is the DEPRECATED legacy engine (/api/engine/compute, no renderer caller). Its reads don't
+# reflect the live badge path, so exclude it — the stats it reads but the live engine doesn't are genuine
+# yellow gaps (e.g. elemental_dmg_inc, double_dmg_chance), not universe misses.
+_DEPRECATED_ENGINE_FILES = {"pipeline.py"}
+
+
+def test_all_live_engine_stat_reads_are_in_universe():
+    """Scan EVERY live engine file for `source.total/get/sum("literal")` and assert each real stat is in the
+    universe. This is the whack-a-mole guard: a modeled read added anywhere (offense/defense/derive/compute/
+    aggregator, support-gated, condition-cap) can't silently badge a stat 'engine never reads it'. If this
+    fails, make the universe synthetic run exercise that path (or add the stat) in consumable_universe.py."""
+    import glob
+    engine_dir = os.path.join(os.path.dirname(__file__), "..", "engine")
+    reads: dict[str, set] = {}
+    for f in glob.glob(os.path.join(engine_dir, "*.py")):
+        if os.path.basename(f) in _DEPRECATED_ENGINE_FILES:
+            continue
+        text = open(f, encoding="utf-8").read()
+        for m in re.findall(r'source\.(?:total|get|sum)\(\s*"([a-z0-9_]+)"\s*\)', text):
+            reads.setdefault(m, set()).add(os.path.basename(f))
+    assert reads, "expected to find source reads across the live engine"
+    valid = {s.value for s in STAT_META}
     u = consumable_universe()
-    missing = {k for k in reads if k in {s.value for s in STAT_META}} - u
+    missing = {k: sorted(v) for k, v in reads.items() if k in valid and k not in u}
     assert not missing, (
-        f"aggregator reads these stats but they're missing from the consumable universe: {sorted(missing)}. "
-        "Add them to _AGGREGATOR_PROPAGATION_INPUTS in engine/consumable_universe.py."
+        f"live engine reads these stats but they're missing from the consumable universe: {missing}. "
+        "Make the synthetic run in engine/consumable_universe.py exercise that read path so badges don't "
+        "false-yellow a modeled stat."
     )
