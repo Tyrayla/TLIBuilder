@@ -127,6 +127,48 @@ class TestEndToEnd:
         assert d.get("lightning", 0.0) == pytest.approx(0.0)
 
 
+class TestBonusPropagation:
+    """Core-talent bonus-propagation lines wired into the aggregator (Play Safe, Gale)."""
+
+    def _aggregate(self, ct):
+        from engine.aggregator import aggregate
+        from engine.models import BuildInput
+        bi = BuildInput(slots=[], slates=[], season=None, condition_state={}, gear=[], character=[],
+                        memory_effects=[], spirit_effects=[], main_skill=None, custom_contributions=[],
+                        attached_support_contributions=[], support_behavior={}, attached_supports=[],
+                        core_talent_contributions=ct)
+        return aggregate(bi, frozenset(), {})
+
+    def test_play_safe_propagates_cast_speed_to_spell_burst_charge(self):
+        src = self._aggregate([
+            {"stat_key": "cast_speed_inc", "amount": 0.5, "text": "x"},
+            {"stat_key": "cast_speed_additional", "amount": 0.2, "text": "affix A"},
+            {"stat_key": "cast_speed_additional", "amount": 0.3, "text": "affix B"},
+            {"stat_key": "cast_speed_to_spell_burst_charge", "amount": 1.0, "text": "Play Safe"},
+        ])
+        assert src.total("spell_burst_charge_speed_inc") == pytest.approx(0.5)
+        # Each cast-speed additional becomes its OWN spell-burst-charge additional (per-affix preserved).
+        sb_add = [e for e in src.source_log if e.stat == "spell_burst_charge_speed_additional"]
+        assert len(sb_add) == 2
+        assert src.total("spell_burst_charge_speed_additional") == pytest.approx(0.5)
+
+    def test_play_safe_absent_does_nothing(self):
+        src = self._aggregate([{"stat_key": "cast_speed_inc", "amount": 0.5, "text": "x"}])
+        assert src.total("spell_burst_charge_speed_inc") == pytest.approx(0.0)
+
+    def test_gale_proj_speed_to_additional_proj_damage(self):
+        # additional Projectile Damage = 0.60 × increased Projectile Speed, its own factor.
+        src = self._aggregate([
+            {"stat_key": "projectile_speed_inc", "amount": 1.0, "text": "proj"},
+            {"stat_key": "proj_speed_to_proj_dmg", "amount": 0.6, "text": "Gale"},
+        ])
+        assert src.total("projectile_dmg_additional") == pytest.approx(0.6)
+
+    def test_gale_absent_does_nothing(self):
+        src = self._aggregate([{"stat_key": "projectile_speed_inc", "amount": 1.0, "text": "proj"}])
+        assert src.total("projectile_dmg_additional") == pytest.approx(0.0)
+
+
 class TestConversionFracs:
     def test_over_100_percent_caps_and_redistributes(self):
         # Physical 60%→Lightning + 60%→Cold = 120% → capped to 100%, redistributed by weight (0.5/0.5).

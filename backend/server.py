@@ -1763,6 +1763,84 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     if m:
         return [{"stat_key": "max_curses_flat", "amount": float(m.group(1)), "text": t}]
 
+    # Outgoing damage-type conversion: "Adds/Converts N% [of] <A> Damage as/to <B> Damage" (the value sits
+    # after the verb, so the start-anchored matchers below would miss it). "Adds"/"as" → adds-as key;
+    # "Converts"/"to" → convert key. Only valid up the priority chain (phys→light→cold→fire→erosion).
+    m = re.match(r'(adds|converts)\s+([\d.]+)\s*%\s*(?:of\s+)?'
+                 r'(physical|lightning|cold|fire|erosion)\s+damage\s+(?:as|to)\s+'
+                 r'(physical|lightning|cold|fire|erosion)\s+damage', t, re.I)
+    if m:
+        verb, val, src, dst = m.group(1).lower(), float(m.group(2)), m.group(3).lower(), m.group(4).lower()
+        order = ["physical", "lightning", "cold", "fire", "erosion"]
+        if order.index(dst) > order.index(src):           # up-chain only
+            key = f"{src}_convert_to_{dst}" if verb == "converts" else f"{src}_as_{dst}"
+            return [{"stat_key": key, "amount": val / 100.0, "text": t}]
+        return []
+
+    # Arcane: "Converts N% of Mana Cost to Life Cost" — active-skill cost paid as life (cost mechanic,
+    # tracked; needs skill-cost modeling to do anything).
+    m = re.match(r'converts\s+([\d.]+)\s*%\s*of\s+mana\s+cost\s+to\s+life\s+cost', t, re.I)
+    if m:
+        return [{"stat_key": "mana_cost_to_life_cost", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Ward: "Adds N% of Sealed Mana/Life as Energy Shield" — flat Max ES = coeff × raw sealed pool (needs
+    # sealed mana/life modeling).
+    m = re.match(r'adds\s+([\d.]+)\s*%\s*of\s+sealed\s+(mana|life)\s+as\s+energy\s+shield', t, re.I)
+    if m:
+        return [{"stat_key": f"energy_shield_per_sealed_{m.group(2).lower()}", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Joined Force: "Adds N% of the damage of the Off-Hand Weapon to the final damage of the Main-Hand Weapon"
+    # — off-hand becomes a stat-stick; N% of its fully-scaled damage adds to main-hand FINAL (needs separate
+    # main/off-hand weapon damage modeling).
+    m = re.match(r'adds\s+([\d.]+)\s*%\s*of\s+the\s+damage\s+of\s+the\s+off-?hand\s+weapon', t, re.I)
+    if m:
+        return [{"stat_key": "joined_force_offhand_dmg", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Defensive damage-taken conversion: "Converts N% of <A> Damage taken to <B> Damage" (the "taken" is what
+    # distinguishes it from outgoing). Needs the incoming-damage/EHP model to do anything (tracked for now).
+    m = re.match(r'converts\s+([\d.]+)\s*%\s*of\s+(physical|lightning|cold|fire|erosion)\s+damage\s+taken\s+to\s+'
+                 r'(physical|lightning|cold|fire|erosion)\s+damage', t, re.I)
+    if m:
+        return [{"stat_key": f"{m.group(2).lower()}_taken_as_{m.group(3).lower()}_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Rebirth: "Converts N% of <Life|Energy Shield> Regain to Restoration Over Time" — needs Regain. The
+    # shared-stat splitter separates "Life Regain and Energy Shield Regain", so match each pool segment.
+    m = re.match(r'converts\s+([\d.]+)\s*%\s*of\s+(life|energy\s+shield)\s+regain\s+to\s+restoration', t, re.I)
+    if m:
+        pool = "es" if m.group(2).lower().startswith("energy") else "life"
+        return [{"stat_key": f"{pool}_regain_to_restoration", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Co-resonance: share Attack/Cast Speed (inc + additional) onto Sentry Cast Frequency — needs Sentry impl.
+    m = re.match(r'(attack|cast)\s+speed\s+bonus\s+and\s+.*additional\s+bonus\s+are\s+also\s+applied\s+to', t, re.I)
+    if m:
+        which = m.group(1).lower()
+        key = "attack_speed_to_attack_sentry_cast_freq" if which == "attack" else "cast_speed_to_spell_sentry_cast_freq"
+        return [{"stat_key": key, "amount": 1.0, "text": t}]
+
+    # Play Safe: "N% of the bonuses and additional bonuses to Cast Speed is also applied to Spell Burst Charge
+    # Speed" — flag (1.0 = full share); the aggregator propagates cast-speed inc + each additional.
+    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+bonuses\s+and\s+additional\s+bonuses\s+to\s+cast\s+speed\s+is\s+also\s+applied\s+to\s+spell\s+burst', t, re.I)
+    if m:
+        return [{"stat_key": "cast_speed_to_spell_burst_charge", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Gale: "N% of the Projectile Speed bonus is also applied to the additional bonus for Projectile Damage"
+    # — coefficient on increased projectile speed → additional projectile damage (own factor; aggregator).
+    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+projectile\s+speed\s+bonus\s+is\s+also\s+applied\s+to\s+the\s+additional\s+bonus\s+for\s+projectile\s+damage', t, re.I)
+    if m:
+        return [{"stat_key": "proj_speed_to_proj_dmg", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # True Flame: "N% of the additional bonus to Damage Over Time taken from Affliction is also applied to your
+    # Fire Hit Damage" (lead "When an enemy is Ignited" splits off as the gate). Inert until Affliction modeled.
+    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+additional\s+bonus\s+to\s+damage\s+over\s+time\s+taken\s+from\s+affliction\s+is\s+also\s+applied\s+to\s+your\s+fire\s+hit\s+damage', t, re.I)
+    if m:
+        return [{"stat_key": "affliction_dot_to_fire_hit", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # United Stand (2nd line): "N% of the Life and Energy Shield Regain Effect of Synthetic Troop Minions is
+    # also applied to you" — fraction of minion regain shared to the player. Needs Regain + testing.
+    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+life\s+and\s+energy\s+shield\s+regain\s+effect\s+of\s+synthetic\s+troop\s+minions\s+is\s+also\s+applied\s+to\s+you', t, re.I)
+    if m:
+        return [{"stat_key": "minion_regain_shared_to_player", "amount": float(m.group(1)) / 100.0, "text": t}]
+
     # Probabilistic damage ("…N% chance for that cast to deal +M% additional damage") → expected value.
     # Emit one dmg_additional = (N/100)×(M/100) with a SHARED text so a talent's mutually-exclusive tiers
     # pool ADDITIVELY into one factor (offense sums same-identity positives), never multiply.
@@ -1898,6 +1976,7 @@ _COND_PATTERNS: list[tuple] = [
      lambda m: {"key": "level", "op": "per", "divisor": int(m.group(1))}),
     # "against enemies with Max Affliction" → existing enemy_has_max_affliction condition.
     (re.compile(r"with\s+max\s+affliction|enem(?:y|ies)\s+(?:with|has|have)\s+max\s+affliction", re.I), "enemy_has_max_affliction"),
+    (re.compile(r"not\s+wielding\s+a\s+wand\s+or\s+tin\s+staff", re.I), {"not": "wielding_wand_or_tin_staff"}),
     (re.compile(r"wielding\s+a\s+wand\s+or\s+tin\s+staff", re.I), "wielding_wand_or_tin_staff"),
     # Attribute comparisons (Tradeoff) — auto-derived from STR vs DEX in the compute loop.
     (re.compile(r"dexterity\s+is\s+no\s+less\s+than\s+strength", re.I), "dexterity_ge_strength"),

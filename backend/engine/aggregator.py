@@ -691,6 +691,35 @@ def aggregate(
             label="Numbed Stacks", text=text, points=1,
         ))
 
+    # ── Bonus propagation: Play Safe (Cast Speed → Spell Burst Charge Speed) ──────
+    # When granted (flag stat present), the player's cast-speed INCREASED total and EACH cast-speed
+    # ADDITIONAL affix are ALSO applied to Spell Burst Charge Speed (owner: charge restoration time =
+    # 2 / (1 + chargeSpeed_inc) / Π(1 + chargeSpeed_additional_i)). Spell Burst charge speed isn't consumed
+    # by the engine yet, so this populates the stats ready for when it is, without affecting DPS today.
+    if source.total("cast_speed_to_spell_burst_charge") > 0:
+        cs_inc = source.total("cast_speed_inc")
+        if cs_inc:
+            source.add_with_source("spell_burst_charge_speed_inc", cs_inc, SourceEntry(
+                stat="spell_burst_charge_speed_inc", amount=cs_inc, source_type="core_talent",
+                label="Core · Play Safe", text="Cast Speed increased → Spell Burst Charge Speed", points=1))
+        # Snapshot first — add_with_source appends to source_log (don't mutate during iteration).
+        cs_add = [e for e in source.source_log if e.stat == "cast_speed_additional" and e.amount]
+        for e in cs_add:
+            source.add_with_source("spell_burst_charge_speed_additional", e.amount, SourceEntry(
+                stat="spell_burst_charge_speed_additional", amount=e.amount, source_type="core_talent",
+                label="Core · Play Safe", text=f"{e.text} → Spell Burst Charge", points=1))
+
+    # ── Bonus propagation: Gale (increased Projectile Speed → additional Projectile Damage) ──
+    # additional Projectile Damage = coeff × increased Projectile Speed, as its OWN multiplicative factor
+    # (unique text → distinct affix in offense's per-affix pool). FLAGGED for in-game pooling verification.
+    gale_coeff = source.total("proj_speed_to_proj_dmg")
+    if gale_coeff > 0:
+        amount = gale_coeff * source.total("projectile_speed_inc")
+        if amount:
+            source.add_with_source("projectile_dmg_additional", amount, SourceEntry(
+                stat="projectile_dmg_additional", amount=amount, source_type="core_talent",
+                label="Core · Gale", text="Gale: Projectile Speed → additional Projectile Damage", points=1))
+
     # ── Six Gods' Blessings ───────────────────────────────────────────────────
     # Apply each blessing's per-stack base effect × its user-set stack count. Stacks ADD (one summed
     # entry per stat → one factor). The default effect can be REPLACED by an active override (none wired

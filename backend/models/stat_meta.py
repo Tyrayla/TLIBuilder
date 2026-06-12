@@ -929,6 +929,55 @@ STAT_META: dict[Stat, StatMeta] = {
         "Erosion Damage Lucky", "Erosion", "added_flat",
         subgroup="mechanics", tags=("erosion",), ui_priority=85, source_types=_TB,
     ),
+    # Core-talent "conversion" lines blocked on other subsystems (tracked → Inactive until those exist).
+    Stat.MANA_COST_TO_LIFE_COST: StatMeta(
+        "Mana Cost Converted to Life Cost", "Mana", "conversion", "%",
+        subgroup="cost", ui_priority=86, source_types=_T,
+    ),
+    Stat.ENERGY_SHIELD_PER_SEALED_MANA: StatMeta(
+        "Energy Shield per Sealed Mana", "Energy Shield", "conversion", "%",
+        subgroup="energy_shield", ui_priority=86, source_types=_T,
+    ),
+    Stat.ENERGY_SHIELD_PER_SEALED_LIFE: StatMeta(
+        "Energy Shield per Sealed Life", "Energy Shield", "conversion", "%",
+        subgroup="energy_shield", ui_priority=86, source_types=_T,
+    ),
+    Stat.JOINED_FORCE_OFFHAND_DMG: StatMeta(
+        "Off-Hand Damage Added to Main-Hand", "Gear", "conversion", "%",
+        subgroup="weapon", ui_priority=86, source_types=_T,
+    ),
+    Stat.LIFE_REGAIN_TO_RESTORATION: StatMeta(
+        "Life Regain Converted to Restoration", "Utility", "conversion", "%",
+        subgroup="recovery", ui_priority=86, source_types=_T,
+    ),
+    Stat.ES_REGAIN_TO_RESTORATION: StatMeta(
+        "Energy Shield Regain Converted to Restoration", "Utility", "conversion", "%",
+        subgroup="recovery", ui_priority=86, source_types=_T,
+    ),
+    Stat.ATTACK_SPEED_TO_ATTACK_SENTRY_CAST_FREQ: StatMeta(
+        "Attack Speed Applied to Attack Sentry Cast Frequency", "Sentry", "conversion", "%",
+        subgroup="sentry_mechanics", ui_priority=86, source_types=_T,
+    ),
+    Stat.CAST_SPEED_TO_SPELL_SENTRY_CAST_FREQ: StatMeta(
+        "Cast Speed Applied to Spell Sentry Cast Frequency", "Sentry", "conversion", "%",
+        subgroup="sentry_mechanics", ui_priority=86, source_types=_T,
+    ),
+    Stat.CAST_SPEED_TO_SPELL_BURST_CHARGE: StatMeta(
+        "Cast Speed Applied to Spell Burst Charge Speed", "Generic", "conversion", "%",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
+    Stat.PROJ_SPEED_TO_PROJ_DMG: StatMeta(
+        "Projectile Speed Applied to Additional Projectile Damage", "Generic", "conversion", "%",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
+    Stat.AFFLICTION_DOT_TO_FIRE_HIT: StatMeta(
+        "Affliction DoT Bonus Applied to Fire Hit Damage", "Fire", "conversion", "%",
+        subgroup="conversion", ui_priority=86, source_types=_T,
+    ),
+    Stat.MINION_REGAIN_SHARED_TO_PLAYER: StatMeta(
+        "Minion Regain Shared to You", "Minion", "conversion", "%",
+        subgroup="minion_life", ui_priority=86, source_types=_T,
+    ),
     Stat.PHYSICAL_SKILL_LEVEL: StatMeta(
         "Physical Skill Level", "Physical", "skill_level",
         subgroup="skill_level",        pipeline_stage="skill_level",

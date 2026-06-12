@@ -204,6 +204,35 @@ class Stat(Enum):
     LUCKY_COLD = "lucky_cold"
     LUCKY_FIRE = "lucky_fire"
     LUCKY_EROSION = "lucky_erosion"
+    # ── Core-talent "conversion" lines that need other subsystems (tracked, inert until built) ──────────
+    # Arcane: active-skill mana cost paid as life instead (cost mechanic; zero DPS impact; needs skill-cost
+    #   modeling). NOT consumption, NOT the mana-before-life pool.
+    MANA_COST_TO_LIFE_COST = "mana_cost_to_life_cost"
+    # Ward: flat Max Energy Shield = coefficient × RAW Sealed (reserved) Mana / Life. Needs sealed mana/life.
+    ENERGY_SHIELD_PER_SEALED_MANA = "energy_shield_per_sealed_mana"
+    ENERGY_SHIELD_PER_SEALED_LIFE = "energy_shield_per_sealed_life"
+    # Joined Force: fraction of the OFF-HAND weapon's (fully-scaled, attack-rate-ignored) damage added to the
+    # main-hand's FINAL damage. Needs separate main/off-hand weapon damage modeling (engine averages today).
+    JOINED_FORCE_OFFHAND_DMG = "joined_force_offhand_dmg"
+    # Rebirth: fraction of Life / ES Regain (missing-pool recovery) turned into Restoration (heal-over-time).
+    #   Needs the Regain/recovery subsystem. (Split per pool — the shared-stat splitter separates the line.)
+    LIFE_REGAIN_TO_RESTORATION = "life_regain_to_restoration"
+    ES_REGAIN_TO_RESTORATION = "es_regain_to_restoration"
+    # Co-resonance: share attack/cast speed (inc + additional) onto Sentry Cast Frequency. Needs Sentry impl.
+    ATTACK_SPEED_TO_ATTACK_SENTRY_CAST_FREQ = "attack_speed_to_attack_sentry_cast_freq"
+    CAST_SPEED_TO_SPELL_SENTRY_CAST_FREQ = "cast_speed_to_spell_sentry_cast_freq"
+    # Play Safe: flag (1.0) — propagate cast-speed inc + each cast-speed additional onto Spell Burst Charge
+    #   Speed (aggregator). Spell burst charge speed isn't consumed yet, so this is ready, not yet DPS-active.
+    CAST_SPEED_TO_SPELL_BURST_CHARGE = "cast_speed_to_spell_burst_charge"
+    # Gale: coefficient (0.60) — additional Projectile Damage = coeff × increased Projectile Speed, as its OWN
+    #   multiplicative factor (offense per-affix). FLAGGED for in-game pooling verification.
+    PROJ_SPEED_TO_PROJ_DMG = "proj_speed_to_proj_dmg"
+    # True Flame: coefficient (0.65) gated on enemy_ignited — the Affliction DoT-taken bonus also feeds Fire
+    #   HIT damage. Inert until Affliction is modeled (no DoT-bonus value to read yet); gating is wired.
+    AFFLICTION_DOT_TO_FIRE_HIT = "affliction_dot_to_fire_hit"
+    # United Stand (2nd line): fraction of the minions' Regain effect also granted to you. Needs Regain +
+    #   in-game testing of exactly how it applies. Low priority.
+    MINION_REGAIN_SHARED_TO_PLAYER = "minion_regain_shared_to_player"
     PHYSICAL_SKILL_LEVEL = "physical_skill_level"
     PHYSICAL_ATTACK_DMG_FLAT_MIN = "physical_attack_dmg_flat_min"
     PHYSICAL_ATTACK_DMG_FLAT_MAX = "physical_attack_dmg_flat_max"
