@@ -41,7 +41,7 @@ _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
 })
 
 _ALL_TAGS = [
-    "attack", "spell", "minion", "projectile", "channeled", "area", "melee", "trauma", "wilt",
+    "attack", "spell", "minion", "projectile", "ranged", "channeled", "area", "melee", "trauma", "wilt",
     "ignite", "tangle", "sentry", "warcry", "reaping", "affliction", "multistrike",
     # Damage-type tags — element-tagged stats (e.g. fire_crit_dmg_inc) are read only when the skill's
     # mod_tags include that element (offense._CRIT_DMG_STATS tag-filter). The universe is the union over

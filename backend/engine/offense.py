@@ -29,6 +29,32 @@ _CRIT_DMG_STATS: list[tuple[str, frozenset]] = [
     if meta.pipeline_stage == "crit_damage" and "hit" in meta.affects
 ]
 
+# Critical Strike RATING pools (the chance side), tag-filtered to the skill like _CRIT_DMG_STATS.
+# Split into the % pool (inc + additional, scales the whole CSR) and the flat pool (adds raw CSR).
+# Excludes: weapon_crit_rating_flat (scaled by gear sub-mods, handled separately), the attack_crit_rating
+# gear/mh sub-mods (decimals, not flat/inc), and minion/sentry/spirit_magi (other subsystems).
+_CRIT_RATING_INC_STATS: list[tuple[str, frozenset]] = [
+    (stat.value, frozenset(meta.tags))
+    for stat, meta in STAT_META.items()
+    if meta.pipeline_stage == "crit_rating" and "hit" in meta.affects
+    and (stat.value.endswith("_inc") or stat.value.endswith("_additional"))
+    and not stat.value.startswith(("minion_", "sentry_", "spirit_magi_"))
+]
+_CRIT_RATING_FLAT_STATS: list[tuple[str, frozenset]] = [
+    (stat.value, frozenset(meta.tags))
+    for stat, meta in STAT_META.items()
+    if meta.pipeline_stage == "crit_rating" and "hit" in meta.affects
+    and stat.value.endswith("_flat") and stat.value != "weapon_crit_rating_flat"
+    and not stat.value.startswith(("minion_", "sentry_", "spirit_magi_"))
+]
+
+# Double-damage chance: probability to deal 2× on a hit → expected-value multiplier (1 + Σchance, capped).
+_DOUBLE_DMG_STATS: list[tuple[str, frozenset]] = [
+    (stat.value, frozenset(meta.tags))
+    for stat, meta in STAT_META.items()
+    if meta.pipeline_stage == "double_damage" and "hit" in meta.affects
+]
+
 # Additional stats that require special handling and are excluded from the generic pool.
 # Each entry notes why it can't be treated as a simple always-on multiplier.
 _DEFERRED_ADDITIONAL: dict[str, str] = {
@@ -402,36 +428,44 @@ def calculate_offense(
     if not skill.supported:
         return OffenseResult(skill_name=skill.name, supported=False)
 
+    # Tags used for damage increased/additional + crit filtering — the skill's own tags plus any it
+    # borrows (e.g. Moon Strike borrows 'spell' so Spell Damage mods apply to its Attack Damage).
+    # NOT used for flat adds / is_spell, so a borrowing skill doesn't pull in off-type flat damage.
+    skill_tags_lower = {t.lower() for t in skill.tags}
+    mod_tags = skill_tags_lower | {t.lower() for t in skill.extra_damage_mod_tags}
+
     # 0. Crit — computed here in the offense layer, NOT in the fixed-point loop
     # Weapon CSR (from weapon gear piece) scaled by gear-specific and MH-specific % mods only.
     # Other flat CSR (talents, rings) is NOT scaled by those gear mods.
     weapon_csr = source.total("weapon_crit_rating_flat") * (
         1.0 + source.total("attack_crit_rating_gear") + source.total("attack_crit_rating_mh")
     )
-    other_csr = source.total("attack_crit_rating_flat")
+    # Non-weapon flat CSR — attack_crit_rating_flat + spell_crit_rating_flat, tag-filtered to the skill.
+    other_csr = sum(source.total(k) for k, tags in _CRIT_RATING_FLAT_STATS if not tags or tags & mod_tags)
     # Innate base Critical Strike Rating for spells: every spell starts at 500 CSR (= 5% base crit)
     # with no weapon to provide it. Attacks derive their crit from weapon CSR and are left unchanged.
     base_csr = _BASE_SPELL_CRIT_RATING if skill.is_spell else 0.0
-    # Increased Critical Strike Rating scales the whole CSR pool. crit_rating_inc is the GENERIC
-    # "+X% Critical Strike Rating" (applies to both attacks and spells, e.g. Fervor Rating's
-    # +2%/point); attack_crit_rating_inc is the attack-only increase. Both stack additively here.
-    crit_rating_inc = (source.total("crit_rating_inc") + source.total("attack_crit_rating_inc")
-                       + source.total("crit_rating_additional"))
+    # Increased Critical Strike Rating scales the whole CSR pool. The % pool sums the generic
+    # crit_rating_inc/additional plus the tag-specific increases (attack/spell/projectile) that match this
+    # skill — so e.g. "Spell Critical Strike Rating" applies only to spell skills, "Projectile…" only to
+    # projectile skills, exactly like the type/skill crit-damage pool above.
+    crit_rating_inc = sum(source.total(k) for k, tags in _CRIT_RATING_INC_STATS if not tags or tags & mod_tags)
     raw_csr = (base_csr + weapon_csr + other_csr) * (1.0 + crit_rating_inc)
     # 100 CSR = 1% crit chance; divide by 10000 to convert to 0–1 float
     crit_chance = min(raw_csr / 10000.0, 1.0)
 
     # 1. Effective level — sum all applicable skill level bonuses from gear/talents/memories
-    skill_tags_lower = {t.lower() for t in skill.tags}
-    # Tags used for damage increased/additional filtering only — the skill's own tags plus any it
-    # borrows (e.g. Moon Strike borrows 'spell' so Spell Damage mods apply to its Attack Damage).
-    # NOT used for flat adds / is_spell, so a borrowing skill doesn't pull in off-type flat damage.
-    mod_tags = skill_tags_lower | {t.lower() for t in skill.extra_damage_mod_tags}
 
     # Crit multiplier = 1.5 base + the additive Critical Strike Damage pool (tag-filtered to the skill).
     crit_damage = sum(source.total(key) for key, tags in _CRIT_DMG_STATS if not tags or tags & mod_tags)
     crit_mult = 1.5 + crit_damage
     crit_factor = 1.0 + crit_chance * (crit_mult - 1.0)
+
+    # Double-damage chance — each hit has Σchance probability to deal 2×. Expected-value multiplier on the
+    # average (lifts DPS, not the displayed per-hit), tag-filtered like crit. Chance capped at 100% (→ ≤2×).
+    double_dmg_chance = min(
+        sum(source.total(k) for k, tags in _DOUBLE_DMG_STATS if not tags or tags & mod_tags), 1.0)
+    double_dmg_factor = 1.0 + double_dmg_chance
 
     effective_level = skill_effective_level(source, skill.tags, base_level, is_main_skill)
     lookup_level = min(effective_level, skill.max_level)
@@ -622,8 +656,9 @@ def calculate_offense(
             avg_pre += avg
             avg_pre_vs_target += avg * _DUMMY_MITIGATION.get(dtype, 1.0)
 
-        avg_post = avg_pre * crit_factor
-        avg_post_vs_target = avg_pre_vs_target * crit_factor
+        # Crit (expected-value) and double-damage (expected-value) both uplift the average, not per-hit.
+        avg_post = avg_pre * crit_factor * double_dmg_factor
+        avg_post_vs_target = avg_pre_vs_target * crit_factor * double_dmg_factor
         hit_forms.append(HitFormResult(
             name=form.name,
             effectiveness_pct=eff,
