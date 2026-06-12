@@ -23,6 +23,8 @@ _SANITY_FLOOR = frozenset({
     "dmg_inc", "attack_dmg_inc", "spell_dmg_inc", "crit_rating_inc", "crit_dmg_inc",
     "attack_speed_inc", "cast_speed_inc", "max_life_inc", "max_energy_shield_inc",
     "fire_dmg_inc", "cold_dmg_inc", "lightning_dmg_inc", "attack_speed_additional",
+    # Element-tagged crit damage — guards that the damage-type tags stay in _ALL_TAGS.
+    "fire_crit_dmg_inc", "lightning_crit_dmg_inc", "physical_crit_dmg_inc",
 })
 
 # Stats the AGGREGATOR reads directly (propagation / effect-scaling), outside the offense/defense/derive
@@ -39,6 +41,10 @@ _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
 _ALL_TAGS = [
     "attack", "spell", "minion", "projectile", "channeled", "area", "melee", "trauma", "wilt",
     "ignite", "tangle", "sentry", "warcry", "reaping", "affliction", "multistrike",
+    # Damage-type tags — element-tagged stats (e.g. fire_crit_dmg_inc) are read only when the skill's
+    # mod_tags include that element (offense._CRIT_DMG_STATS tag-filter). The universe is the union over
+    # ALL skills, so it carries every element tag; omitting these falsely badges type crit damage "yellow".
+    "fire", "cold", "lightning", "erosion", "physical",
 ]
 _FLAT_SUFFIXES = (
     "_attack_dmg_flat_min", "_attack_dmg_flat_max", "_spell_dmg_flat_min", "_spell_dmg_flat_max",
