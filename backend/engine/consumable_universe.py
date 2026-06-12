@@ -25,6 +25,8 @@ _SANITY_FLOOR = frozenset({
     "fire_dmg_inc", "cold_dmg_inc", "lightning_dmg_inc", "attack_speed_additional",
     # Element-tagged crit damage — guards that the damage-type tags stay in _ALL_TAGS.
     "fire_crit_dmg_inc", "lightning_crit_dmg_inc", "physical_crit_dmg_inc",
+    # Condition-cap stat — guards that derive_condition_maximums runs in the universe.
+    "max_focus_blessing_stacks_flat",
 })
 
 # Stats the AGGREGATOR reads directly (propagation / effect-scaling), outside the offense/defense/derive
@@ -85,6 +87,7 @@ def consumable_universe() -> frozenset[str]:
     from engine.offense import calculate_offense, _APS_ADDITIONAL_STATS, _CAST_ADDITIONAL_STATS
     from engine.defense import calculate_defense
     from engine.derive import derive_stats
+    from engine.compute import derive_condition_maximums, derive_condition_minimums
 
     conv_keys = {k.value for k, m in STAT_META.items() if m.modifier_type == "conversion"}
     all_keys = [s.value for s in STAT_META]
@@ -94,7 +97,10 @@ def consumable_universe() -> frozenset[str]:
         s = _make_source(conv_keys, all_keys)
         calculate_offense(s, _make_skill(is_spell), 1, is_main_skill=True)
         consumed |= s.consumed_stats
-    for fn in (calculate_defense, derive_stats):
+    # defense + derived display stats + condition max/min derivation (the latter reads each numeric
+    # condition's max_from_stat/min_from_stat — e.g. max_*_blessing_stacks_flat, max_fervor_rating —
+    # which automax/cap logic then consumes; without it those cap stats false-yellow).
+    for fn in (calculate_defense, derive_stats, derive_condition_maximums, derive_condition_minimums):
         s = _make_source(conv_keys, all_keys)
         fn(s)
         consumed |= s.consumed_stats
