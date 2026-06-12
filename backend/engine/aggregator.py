@@ -2,7 +2,18 @@ from __future__ import annotations
 import math
 import re
 from engine.models import BuildInput, BuildSource, SourceEntry
+from engine.skill_scope import detect_skill_scope
 from models.stat_meta import STAT_META
+
+
+def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entry: SourceEntry) -> None:
+    """Route a contribution: scoped → add_scoped (folds per-skill via materialize_for_skill); unscoped →
+    add_with_source (the existing path). The entry carries the scope so source-attribution stays correct."""
+    if scope:
+        entry.scope = scope
+        source.add_scoped(stat, amount, scope, entry)
+    else:
+        source.add_with_source(stat, amount, entry)
 
 # Build a lookup: (display_name_lower, is_percent) → stat key string
 # Used to match hero memory modifier strings against known stats.
@@ -44,6 +55,9 @@ def resolve_effect_stat_keys(effect: str, *, is_memory: bool) -> list[str]:
     consult the alias + multi-stat lookups.
     """
     effect = re.sub(r'\s+', ' ', (effect or '').strip())
+    # Strip a skill-type scope ("…for Channeled Skills") so the residual resolves to the BASE stat for the
+    # badge (scope doesn't change WHICH stat it maps to). Mirrors the aggregator spirit/memory loops.
+    effect, _scope = detect_skill_scope(effect)
     keys: list[str] = []
     parts = re.split(r' (?=\+\d)', effect, maxsplit=1) if is_memory else [effect]
     for part in parts:
@@ -307,7 +321,7 @@ def aggregate(
             text=contrib.get("text") or contrib.get("item_name", ""),
             points=1,
         )
-        source.add_with_source(stat, amount, entry)
+        _emit(source, stat, amount, contrib.get("scope"), entry)
 
     # ── Character contributions (energy base/gear/level/prism) ─────────────────
     for contrib in build.character:
@@ -328,7 +342,12 @@ def aggregate(
     # ── Pact Spirit effects ───────────────────────────────────────────────────
     for effect in build.spirit_effects:
         effect = re.sub(r'\s+', ' ', effect.strip())
-        m = _MEMORY_EFFECT_RE.match(effect)
+        # Peel a skill-type scope off ("…for Channeled Skills") and resolve the residual via the memory
+        # lookup; unscoped effects → residual == effect → identical path. (Residual forms the lookup can't
+        # handle, e.g. "additional Elemental Damage", stay unresolved — a pre-existing memory-resolver
+        # limit, fixed by the noted follow-up that routes spirit/memory through _parse_custom_mod_text.)
+        residual, scope = detect_skill_scope(effect)
+        m = _MEMORY_EFFECT_RE.match(residual)
         if not m:
             continue
         raw_val = float(m.group(1))
@@ -343,16 +362,19 @@ def aggregate(
             amount=amount,
             source_type="pact_spirit",
             label="Pact Spirit",
-            text=effect,
+            text=effect,   # original (incl. scope words) so the additional pool's affix-identity stays distinct
             points=1,
         )
-        source.add_with_source(stat_key, amount, entry)
+        _emit(source, stat_key, amount, scope, entry)
 
     # ── Hero Memory effects ────────────────────────────────────────────────────
     for effect in build.memory_effects:
         effect = re.sub(r'\s+', ' ', effect.strip())
+        # Peel a skill-type scope off the whole effect, then split the residual into dual stats; unscoped
+        # effects → residual == effect → identical path (snapshot-safe).
+        residual, scope = detect_skill_scope(effect)
         # Split dual-stat modifiers like "+18 % Attack Speed +12 % Minion Speed"
-        parts = re.split(r' (?=\+\d)', effect, maxsplit=1)
+        parts = re.split(r' (?=\+\d)', residual, maxsplit=1)
         for part in parts:
             m = _MEMORY_EFFECT_RE.match(part)
             if not m:
@@ -375,7 +397,7 @@ def aggregate(
                     text=effect,
                     points=1,
                 )
-                source.add_with_source(stat_key, amount, entry)
+                _emit(source, stat_key, amount, scope, entry)
                 continue
             # Try multi-stat lookup
             stat_keys = _MEMORY_MULTI_LOOKUP.get((stat_name_lower, is_pct))
@@ -389,7 +411,7 @@ def aggregate(
                         text=effect,
                         points=1,
                     )
-                    source.add_with_source(sk, amount, entry)
+                    _emit(source, sk, amount, scope, entry)
 
     # ── Custom mod contributions ──────────────────────────────────────────────
     for contrib in build.custom_contributions:
@@ -405,7 +427,7 @@ def aggregate(
             text=contrib.get("text", ""),
             points=1,
         )
-        source.add_with_source(stat, amount, entry)
+        _emit(source, stat, amount, contrib.get("scope"), entry)
 
     # ── Support skill contributions ───────────────────────────────────────────
     # Pre-resolved from the main skill's attached supports (engine/support_resolver.py). Each carries a
@@ -424,7 +446,7 @@ def aggregate(
             text=contrib.get("text", ""),
             points=1,
         )
-        source.add_with_source(stat, amount, entry)
+        _emit(source, stat, amount, contrib.get("scope"), entry)
 
     # ── Core-talent contributions (roadmap #4) ────────────────────────────────
     # Pre-resolved + deduped server-side (server.resolve_core_talents): every granted core talent,
@@ -448,7 +470,7 @@ def aggregate(
                 amount *= cond_result
             elif not cond_result:
                 continue
-        source.add_with_source(stat, amount, SourceEntry(
+        _emit(source, stat, amount, contrib.get("scope"), SourceEntry(
             stat=stat,
             amount=amount,
             source_type="core_talent",
@@ -475,7 +497,7 @@ def aggregate(
             elif not cond_result:
                 continue
         src_type = "slate" if "|slate|" in contrib.get("text", "") else "talent"
-        source.add_with_source(stat, amount, SourceEntry(
+        _emit(source, stat, amount, contrib.get("scope"), SourceEntry(
             stat=stat, amount=amount, source_type=src_type,
             label=contrib.get("label", "Talent"), text=contrib.get("text", ""), points=1,
         ))

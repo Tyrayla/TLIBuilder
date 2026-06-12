@@ -124,6 +124,18 @@ STAT_META: dict[Stat, StatMeta] = {
         affects=_HIT,                 stacking_rule="additive_chance",
         ui_priority=20,               source_types=_T,
     ),
+    Stat.TRIPLE_DMG_CHANCE: StatMeta(
+        "Triple Damage Chance", "Generic", "chance", "%",
+        subgroup="double_damage",     pipeline_stage="triple_damage",
+        affects=_HIT,                 stacking_rule="additive_chance",
+        ui_priority=20,               source_types=_T,
+    ),
+    Stat.QUADRUPLE_DMG_CHANCE: StatMeta(
+        "Quadruple Damage Chance", "Generic", "chance", "%",
+        subgroup="double_damage",     pipeline_stage="quadruple_damage",
+        affects=_HIT,                 stacking_rule="additive_chance",
+        ui_priority=20,               source_types=_T,
+    ),
     Stat.DMG_INC: StatMeta(
         "Damage", "Generic", "increased", "%",
         subgroup="generic_damage",    pipeline_stage="increased_reduced",

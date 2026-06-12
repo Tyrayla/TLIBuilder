@@ -339,8 +339,13 @@ def compute(
         resolved = resolve_skill(skill_data)
         # new_state is the converged, clamped condition state from the loop above.
         extra_add = _eval_intrinsic_additional(resolved, source, new_state)
+        # Fold skill-scoped contributions ("…for Attack Skills") into an effective source for THIS skill,
+        # matching its tags. Mirrors offense.py mod_tags (skill tags + borrowed damage-mod tags). Identity
+        # no-op (returns the same object) for every build with no scoped mods → offense output unchanged.
+        _mod_tags = ({t.lower() for t in resolved.tags}
+                     | {t.lower() for t in getattr(resolved, "extra_damage_mod_tags", [])})
         offense = calculate_offense(
-            source, resolved, build_input.main_skill.level,
+            source.materialize_for_skill(_mod_tags), resolved, build_input.main_skill.level,
             is_main_skill=True, extra_additional=extra_add,
             support_behavior=build_input.support_behavior,
         )

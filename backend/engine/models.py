@@ -9,8 +9,14 @@ class SourceEntry:
     amount:       float
     source_type:  str   # "talent" | "slate" | "gear" | "custom" | "support" | "condition" | "core_talent"
     label:        str   # human-readable origin: "Goddess of Knowledge Micro", "Ranger Slate Medium"
-    text:         str   # original game text: "+15% Critical Strike Rating"
+    text:         str   # original game text: "+15% Critical Strike Rating" (KEEP scope words — see note)
     points:       int = 1  # points allocated (>1 for multi-rank talent nodes)
+    # Skill-type tag this contribution is restricted to (e.g. "attack" for "…for Attack Skills"); None =
+    # unscoped/applies always. Scoped entries never enter `_entries`/`source_log`; they fold into the
+    # SAME base stat key per-skill via BuildSource.materialize_for_skill. CRITICAL: `text` must remain the
+    # ORIGINAL full line incl. the scope words so the additional pool's affix-identity stays distinct
+    # (scoped vs unscoped additionals must multiply, never additively merge).
+    scope:        str | None = None
 
 
 @dataclass
@@ -45,6 +51,12 @@ class BuildSource:
     # consumption passes (derive_stats / offense / defense) so condition-system reads don't count.
     consumed_stats: set[str] = field(default_factory=set)
     _recording: bool = False
+    # Skill-scoped contributions, held SEPARATELY so `total()` / the offense pools never see them by
+    # default. Per skill, materialize_for_skill folds the ones whose scope matches that skill's tags into
+    # an effective source. Empty for every build that has no "for/dealt by <X> Skills" mods → the offense
+    # runs on the identical base source → output byte-identical (the no-change guarantee).
+    scoped_entries: list[tuple[str, float, str]] = field(default_factory=list)  # (stat, amount, scope_tag)
+    scoped_log: list[SourceEntry] = field(default_factory=list)
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
@@ -52,6 +64,29 @@ class BuildSource:
     def add_with_source(self, stat: str, amount: float, entry: SourceEntry) -> None:
         self._entries.append((stat, amount))
         self.source_log.append(entry)
+
+    def add_scoped(self, stat: str, amount: float, scope: str, entry: SourceEntry) -> None:
+        """A contribution restricted to skills tagged `scope`. Folds into the base `stat` key only for
+        matching skills (via materialize_for_skill); never enters the base `_entries`/`source_log`."""
+        self.scoped_entries.append((stat, amount, scope))
+        self.scoped_log.append(entry)
+
+    def materialize_for_skill(self, mod_tags: set[str]) -> "BuildSource":
+        """Return a source whose `_entries`/`source_log` are the base PLUS the scoped contributions whose
+        scope is in `mod_tags`. Identity fast-path (returns self) when there are no scoped entries or none
+        match → the offense runs on the same object → identical output. `consumed_stats` is SHARED so badge
+        recording sees the folded base keys; offense only READS the effective source, never mutates it."""
+        if not self.scoped_entries:
+            return self
+        matched = [(s, a) for (s, a, sc) in self.scoped_entries if sc in mod_tags]
+        if not matched:
+            return self
+        return BuildSource(
+            _entries=self._entries + matched,
+            source_log=self.source_log + [e for e in self.scoped_log if e.scope in mod_tags],
+            consumed_stats=self.consumed_stats,
+            _recording=self._recording,
+        )
 
     def total(self, stat: str) -> float:
         if self._recording:

@@ -1,5 +1,6 @@
 import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution, CraftBaseItemGroup,
+  LegendaryAffix, CustomizedAffix,
   buildCharacterContributions, buildMemoryEffects, buildSpiritEffects,
 } from '../api/client'
 import { itemHasSlot } from './gearItem'
@@ -87,6 +88,24 @@ export function buildEngineStatsPayload(s: BuildState) {
   }
 }
 
+// An affix the frontend can't turn into a typed contribution is sent to the backend as raw text (drop()).
+// Any value RANGE in that text would otherwise collapse to midpoint server-side — silently discarding a
+// roll the user picked in the gear customizer. Substitute each range token with its displayed value
+// (chosen_values ?? rounded midpoint — the exact default every other affix already uses), so the engine
+// receives precisely what the UI shows: the user's roll when set, midpoint only when untweaked. Fixed
+// tokens are already concrete and left untouched. This is what makes the (present) range slider on a
+// scoped/unresolved affix actually drive the result instead of being silently ignored.
+function _materializeAffixText(affix: LegendaryAffix, cust: CustomizedAffix | undefined): string {
+  let text = affix.raw_text
+  affix.numeric_values?.forEach((nv, i) => {
+    if (nv.kind !== 'range' || !nv.raw) return
+    const val = cust?.chosen_values[i] ?? Math.round(((nv.min ?? 0) + (nv.max ?? 0)) / 2)
+    const sign = nv.sign === '-' ? '-' : nv.sign === '+' ? '+' : ''
+    text = text.replace(nv.raw, `${sign}${val}`)
+  })
+  return text
+}
+
 function _buildItemContributions(
   item: EquippedGearItem, slot: GearSlot | null, unresolved?: string[],
 ): GearAffixContribution[] {
@@ -100,6 +119,7 @@ function _buildItemContributions(
 
   affixesToProcess.forEach((affix, affixIdx) => {
     if (affix.affix_kind === 'placeholder') return
+    const cust = item.customizations.find(c => c.affix_index === affixIdx - affixOffset)
 
     // Craft base type implicits arrive as plain text with no resolved stat keys.
     // Parse the three weapon stat patterns directly so they contribute to the engine.
@@ -129,7 +149,7 @@ function _buildItemContributions(
           'armour': 'armor_gear_flat', 'evasion': 'evasion_gear_flat' } as Record<string, string>)[defM[2].toLowerCase()]
         if (key) { contributions.push({ stat: key, display_value: parseFloat(defM[1]), unit: '', item_name: item.name, text: affix.raw_text, slot, condition: null }); handled = true }
       }
-      if (!handled) drop(affix.raw_text)   // e.g. base resistances / life / attributes → resolve backend-side
+      if (!handled) drop(_materializeAffixText(affix, cust))   // e.g. base resistances / life / attributes → resolve backend-side
       return
     }
 
@@ -137,8 +157,7 @@ function _buildItemContributions(
       || (affix.stat_keys && affix.stat_keys.length > 0)
       || (affix.dual_stat_groups && affix.dual_stat_groups.length > 0)
       || (affix.min_stat_keys && affix.min_stat_keys.length > 0)
-    if (!hasKey) { if (affix.affix_kind !== 'tagged') drop(affix.raw_text); return }
-    const cust = item.customizations.find(c => c.affix_index === affixIdx - affixOffset)
+    if (!hasKey) { if (affix.affix_kind !== 'tagged') drop(_materializeAffixText(affix, cust)); return }
     const condition = affix.condition_expr ?? null
     if (affix.affix_kind === 'numeric') {
       const rangeIdx = affix.numeric_values.findIndex(v => v.kind === 'range')

@@ -26,6 +26,8 @@ class Stat(Enum):
     # ── Generic (cross-type damage) ──────────────────────────────────────────
     ARMOR_PEN = "armor_pen"
     DOUBLE_DMG_CHANCE = "double_dmg_chance"
+    TRIPLE_DMG_CHANCE = "triple_dmg_chance"
+    QUADRUPLE_DMG_CHANCE = "quadruple_dmg_chance"
     DMG_INC = "dmg_inc"
     DMG_ADDITIONAL = "dmg_additional"
     HIT_DMG_ADDITIONAL = "hit_dmg_additional"

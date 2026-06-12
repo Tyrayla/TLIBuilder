@@ -16,6 +16,7 @@ from persistence import save_manager, builds_manager
 from persistence import tree_config_manager
 from persistence import season_manager
 import build_code as _build_code
+from engine.skill_scope import detect_skill_scope
 
 _DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', 'data'))
@@ -686,6 +687,7 @@ def engine_stats(req: EngineStatsRequest):
     # Cardinal rule — never silently drop. Resolve any gear affix/implicit the frontend couldn't
     # (crafted base resistances/life/attributes, etc.), inject it as a contribution on that item, and
     # report every line (resolved or not) so the UI can surface anything still unmodeled.
+    from engine.core_talent_resolver import _split_condition
     gear_resolved: list[dict] = []
     gear_mod_statuses: list[dict] = []
     for gi in req.gear:
@@ -696,12 +698,22 @@ def engine_stats(req: EngineStatsRequest):
         gi = dict(gi)
         contribs = list(gi.get("contributions") or [])
         for t in texts:
-            parsed = _parse_custom_mod_text(t)
+            # Split off a leading ("If recently moved, +X%") or trailing ("+X% if Ignited") gate so the
+            # stat clause resolves; the gate is translated and rides on the contribution's `condition`
+            # (gated in the aggregator). A gate we can't translate makes the line UNRESOLVED (honest NYI),
+            # never applied always-on — silently dropping the condition would be worse than a red badge.
+            stat_part, cond_part = _split_condition(t)
+            parsed = _parse_custom_mod_text(stat_part)
+            cond_expr = None
+            if parsed and cond_part is not None:
+                cond_expr = _translate_condition_expr(t) or _translate_condition_expr(cond_part)
+                if cond_expr is None:
+                    parsed = []
             if parsed:
                 for e in parsed:
                     contribs.append({"stat": e["stat_key"], "display_value": e["amount"], "unit": "",
                                      "item_name": gi.get("item_name") or "Gear", "text": t,
-                                     "slot": None, "condition": None})
+                                     "slot": None, "condition": cond_expr, "scope": e.get("scope")})
                 names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
                 gear_mod_statuses.append({"text": t, "resolved": True, "stat_display": names})
             else:
@@ -1750,6 +1762,22 @@ def _normalize_for_custom_resolve(text: str) -> str:
 
 
 def _parse_custom_mod_text(text: str) -> list[dict]:
+    """Resolve freeform modifier text to {stat_key, amount, text, scope?} dicts. Thin wrapper that peels a
+    skill-type scope qualifier ('… for Attack Skills') off first (shared engine.skill_scope helper),
+    resolves the RESIDUAL via the unchanged base resolver, then tags the results with the scope and restores
+    the ORIGINAL full text (incl. scope words) so the additional pool's affix-identity keeps scoped mods as
+    distinct multiplicative factors."""
+    residual, scope = detect_skill_scope(text.strip())
+    results = _parse_custom_mod_text_base(residual)
+    if scope and results:
+        original = text.strip()
+        for d in results:
+            d["scope"] = scope
+            d["text"] = original
+    return results
+
+
+def _parse_custom_mod_text_base(text: str) -> list[dict]:
     """Resolve freeform modifier text to a list of {stat_key, amount, text} dicts.
 
     Routes through the existing gear stat resolver so all supported modifier text
@@ -1761,6 +1789,12 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     divided by 100.
     """
     t = text.strip()
+
+    # Collapse a LEADING paren value-range to its midpoint so range-template text resolves like a single
+    # value: "+(20-25) % X" → "+22.5 % X", "+(44–54) % Elemental Damage" → "+49 % …". Start-anchored, so it
+    # never touches "Adds (A-B) - (C-D)" gear-flat lines (those start with "Adds", handled elsewhere).
+    t = re.sub(r'^(\s*[+\-]?)\(\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*\)',
+               lambda m: f"{m.group(1)}{(float(m.group(2)) + float(m.group(3))) / 2:g}", t)
 
     # Some core-talent lines prefix the stat with its subsystem before the value ("Spirit Magi +30% …").
     # Drop that leading subsystem label so the value is start-anchored for the matchers below; the stat's

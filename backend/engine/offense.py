@@ -54,6 +54,18 @@ _DOUBLE_DMG_STATS: list[tuple[str, frozenset]] = [
     for stat, meta in STAT_META.items()
     if meta.pipeline_stage == "double_damage" and "hit" in meta.affects
 ]
+# Triple / Quadruple damage chance — tag-filtered like double. Per-hit you can only get the HIGHEST tier
+# that procs (check quad → triple → double); expected-value multiplier folds all three (owner model).
+_TRIPLE_DMG_STATS: list[tuple[str, frozenset]] = [
+    (stat.value, frozenset(meta.tags))
+    for stat, meta in STAT_META.items()
+    if meta.pipeline_stage == "triple_damage" and "hit" in meta.affects
+]
+_QUAD_DMG_STATS: list[tuple[str, frozenset]] = [
+    (stat.value, frozenset(meta.tags))
+    for stat, meta in STAT_META.items()
+    if meta.pipeline_stage == "quadruple_damage" and "hit" in meta.affects
+]
 
 # Additional stats that require special handling and are excluded from the generic pool.
 # Each entry notes why it can't be treated as a simple always-on multiplier.
@@ -488,9 +500,15 @@ def calculate_offense(
 
     # Double-damage chance — each hit has Σchance probability to deal 2×. Expected-value multiplier on the
     # average (lifts DPS, not the displayed per-hit), tag-filtered like crit. Chance capped at 100% (→ ≤2×).
-    double_dmg_chance = min(
-        sum(source.total(k) for k, tags in _DOUBLE_DMG_STATS if not tags or tags & mod_tags), 1.0)
-    double_dmg_factor = 1.0 + double_dmg_chance
+    # Double/Triple/Quadruple damage — highest-tier-procs expected value. Each tier's chance is the summed,
+    # tag-filtered pool, capped at 100%. EV multiplier = Σ tier_value × P(that tier is the highest to proc):
+    #   4q₄ + 3(1−q₄)q₃ + 2(1−q₄)(1−q₃)q₂ + (1−q₄)(1−q₃)(1−q₂).  With only double (q₃=q₄=0) this reduces to
+    #   1 + q₂ — IDENTICAL to the prior double-only behavior (snapshot-safe). Applied to the average like crit.
+    q2 = min(sum(source.total(k) for k, tags in _DOUBLE_DMG_STATS if not tags or tags & mod_tags), 1.0)
+    q3 = min(sum(source.total(k) for k, tags in _TRIPLE_DMG_STATS if not tags or tags & mod_tags), 1.0)
+    q4 = min(sum(source.total(k) for k, tags in _QUAD_DMG_STATS if not tags or tags & mod_tags), 1.0)
+    double_dmg_factor = (4 * q4 + 3 * (1 - q4) * q3 + 2 * (1 - q4) * (1 - q3) * q2
+                         + (1 - q4) * (1 - q3) * (1 - q2))
 
     effective_level = skill_effective_level(source, skill.tags, base_level, is_main_skill)
     lookup_level = min(effective_level, skill.max_level)
