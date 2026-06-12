@@ -118,6 +118,23 @@ _ELEMENTAL_DMG_TYPES = frozenset({"fire", "cold", "lightning"})
 # pseudo-tag "elemental" so elemental_dmg_inc/additional are treated per-type, not as a uniform multiplier.
 _DTYPE_TAG_SET = frozenset(DAMAGE_TYPES) | {"elemental"}
 
+
+def _skill_gate(tags: frozenset, mod_tags: set) -> bool:
+    """A stat's SKILL-TYPE/subsystem tags (attack/spell/minion/sentry/projectile/…) must match the skill if
+    it has any. This keeps a minion-scoped stat like minion_lightning_dmg_inc OUT of a non-minion skill's
+    pools even though it shares the 'lightning' damage-type tag (the bug: OR-matching applied it anyway)."""
+    skill = tags - _DTYPE_TAG_SET
+    return (not skill) or bool(skill & mod_tags)
+
+
+def _applies_to_dtype(tags: frozenset, dtype_tag: frozenset, mod_tags: set) -> bool:
+    """A damage modifier applies to a damage type iff BOTH roles hold: its damage-type tags match that type
+    (or it has none → applies to all types) AND its skill-type tags match the skill (or it has none). So
+    "Elemental Damage" (dmg-only) hits the elements on any skill; "Minion Lightning Damage" (dmg+skill) hits
+    Lightning only on minion skills; generic/attack mods (skill-only) hit every type on a matching skill."""
+    dmg = tags & _DTYPE_TAG_SET
+    return ((not dmg) or bool(dmg & dtype_tag)) and _skill_gate(tags, mod_tags)
+
 # Innate base Critical Strike Rating for spells (500 CSR = 5% base crit at 0 gear). Owner-confirmed.
 _BASE_SPELL_CRIT_RATING = 500.0
 
@@ -565,11 +582,11 @@ def calculate_offense(
         type_inc[dtype] = sum(
             source.total(key)
             for key, tags in _HIT_INC_STATS
-            if not tags or tags & mod_tags or tags & dtype_tag
+            if _applies_to_dtype(tags, dtype_tag, mod_tags)
         )
         type_add[dtype] = _additional_product(
             source, add_factors,
-            lambda tags, dt=dtype_tag: (not tags) or bool(tags & mod_tags) or bool(tags & dt),
+            lambda tags, dt=dtype_tag: _applies_to_dtype(tags, dt, mod_tags),
         ) * intrinsic_add
 
     # Generic (non-dtype-specific) multipliers — applies uniformly to every damage type.
@@ -577,11 +594,11 @@ def calculate_offense(
     generic_inc = sum(
         source.total(key)
         for key, tags in _HIT_INC_STATS
-        if not (tags & _DTYPE_TAG_SET) and (not tags or tags & mod_tags)
+        if not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, mod_tags)
     )
     generic_add = _additional_product(
         source, add_factors,
-        lambda tags: not (tags & _DTYPE_TAG_SET) and ((not tags) or bool(tags & mod_tags)),
+        lambda tags: not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, mod_tags),
     ) * intrinsic_add
 
     # Type-specific bonuses for the conversion cascade, computed over the UNION of a packet's path types
@@ -591,12 +608,12 @@ def calculate_offense(
     # Cold is in the path. generic_inc/add are applied once separately inside _apply_conversion.
     def _path_spec_inc(path_tags):
         return sum(source.total(k) for k, tags in _HIT_INC_STATS
-                   if (tags & _DTYPE_TAG_SET) and (tags & path_tags))
+                   if (tags & _DTYPE_TAG_SET & path_tags) and _skill_gate(tags, mod_tags))
 
     def _path_spec_add(path_tags):
         return _additional_product(
             source, add_factors,
-            lambda tags: bool(tags & _DTYPE_TAG_SET) and bool(tags & path_tags))
+            lambda tags: bool(tags & _DTYPE_TAG_SET & path_tags) and _skill_gate(tags, mod_tags))
 
     # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
     steep_chance = min(skill.base_steep_strike_chance + source.total("steep_strike_chance"), 1.0)

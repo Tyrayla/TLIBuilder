@@ -67,6 +67,22 @@ class TestCritRatingPerTag:
         assert melee.crit_chance == pytest.approx(0.05)  # projectile inc ignored on non-projectile
 
 
+class TestSubsystemTagGating:
+    """A stat tagged with BOTH a damage type and a subsystem (e.g. minion_lightning_dmg_inc = lightning +
+    minion) must NOT leak into a non-minion skill's per-type pool just because the damage type matches.
+    Regression: OR-matching applied minion_lightning_dmg_inc to a player attack's Lightning damage."""
+
+    def test_minion_lightning_does_not_leak_into_attack(self):
+        r = calculate_offense(_flat_attack_source(lightning_dmg_inc=0.54, minion_lightning_dmg_inc=0.27),
+                              _skill(tags=("attack",)), 1)
+        assert r.type_inc["lightning"] == pytest.approx(0.54)  # minion stat gated OUT
+
+    def test_minion_lightning_applies_to_minion_skill(self):
+        r = calculate_offense(_flat_attack_source(lightning_dmg_inc=0.54, minion_lightning_dmg_inc=0.27),
+                              _skill(tags=("attack", "minion")), 1)
+        assert r.type_inc["lightning"] == pytest.approx(0.81)  # both apply for a minion skill
+
+
 class TestDoubleDamage:
     def test_generic_double_chance_lifts_dps(self):
         base = calculate_offense(_flat_attack_source(), _skill(), 1)
