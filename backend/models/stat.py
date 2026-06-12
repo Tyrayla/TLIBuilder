@@ -221,6 +221,10 @@ class Stat(Enum):
     # Co-resonance: share attack/cast speed (inc + additional) onto Sentry Cast Frequency. Needs Sentry impl.
     ATTACK_SPEED_TO_ATTACK_SENTRY_CAST_FREQ = "attack_speed_to_attack_sentry_cast_freq"
     CAST_SPEED_TO_SPELL_SENTRY_CAST_FREQ = "cast_speed_to_spell_sentry_cast_freq"
+    # Movement-speed bonus shared (coeff) onto Attack/Cast Speed / Cooldown Recovery (aggregator propagation).
+    MOVEMENT_BONUS_TO_ATTACK_SPEED = "movement_bonus_to_attack_speed"
+    MOVEMENT_BONUS_TO_CAST_SPEED = "movement_bonus_to_cast_speed"
+    MOVEMENT_BONUS_TO_CDR = "movement_bonus_to_cdr"
     # Play Safe: flag (1.0) — propagate cast-speed inc + each cast-speed additional onto Spell Burst Charge
     #   Speed (aggregator). Spell burst charge speed isn't consumed yet, so this is ready, not yet DPS-active.
     CAST_SPEED_TO_SPELL_BURST_CHARGE = "cast_speed_to_spell_burst_charge"

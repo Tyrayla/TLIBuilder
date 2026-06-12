@@ -671,6 +671,12 @@ def engine_stats(req: EngineStatsRequest):
         slots, slates, req.gear, season_trees, belt_blends_data,
         _parse_custom_mod_text, _translate_condition_expr,
     )
+    # Resolve allocated talent-tree NODES + SLATE slots through the SAME unified resolver (replaces the
+    # filter-builder recipes). Amounts pre-scaled by points; conditionals gated in the aggregator.
+    from engine.node_resolver import resolve_nodes
+    node_contributions, node_mod_statuses = resolve_nodes(
+        slots, slates, season_trees, _parse_custom_mod_text, _translate_condition_expr,
+    )
     core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}}
     # Seed player level (for per-level scaling like Brutality) unless the user set it explicitly.
     if req.characterLevel is not None and "level" not in req.condition_state:
@@ -713,6 +719,7 @@ def engine_stats(req: EngineStatsRequest):
         support_behavior=support_behavior,
         attached_supports=req.attached_supports,
         core_talent_contributions=core_contributions,
+        node_contributions=node_contributions,
     )
     result = compute(
         build, season_trees, filter_data,
@@ -728,6 +735,7 @@ def engine_stats(req: EngineStatsRequest):
         "defense": result.defense,
         "custom_mod_statuses": custom_mod_statuses,
         "core_talent_statuses": core_talent_statuses,
+        "node_mod_statuses": node_mod_statuses,
         "gear_mod_statuses": gear_mod_statuses,
         "skill_slots": result.skill_slots,
         "consumed_stats": result.consumed_stats,
@@ -1327,7 +1335,7 @@ def get_hero_traits():
 
 # ── Gear affix stat resolver ───────────────────────────────────────────────────
 
-_GEAR_STOP_WORDS = {"of", "the", "a", "an", "to", "by", "from", "with", "and", "or", "in", "on", "per", "second"}
+_GEAR_STOP_WORDS = {"of", "the", "a", "an", "to", "by", "from", "with", "and", "or", "in", "on", "per", "second", "dealt"}
 _GEAR_NORMALIZE_MAP = {
     "regenerates": "regeneration",
     "regenerate":  "regeneration",
@@ -1354,6 +1362,9 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     "adds (#) % of physical damage as lightning damage": "physical_as_lightning",
     "adds (#) % of physical damage to cold damage":      "physical_as_cold",
     "adds (#) % of physical damage as cold damage":      "physical_as_cold",
+    # Channeled-scoped speed (after the "Attack and Cast Speed" shared-stat split)
+    "+(#) % attack speed for channeled skills": "channeled_attack_speed_inc",
+    "+(#) % cast speed for channeled skills":   "channeled_cast_speed_inc",
     "adds (#) % of physical damage as fire damage":      "physical_as_fire",
     "adds (#) % of physical damage as erosion damage":   "physical_as_erosion",
     # Damage conversion — elemental to erosion
@@ -1841,6 +1852,41 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     if m:
         return [{"stat_key": "minion_regain_shared_to_player", "amount": float(m.group(1)) / 100.0, "text": t}]
 
+    # "Adds N-N Base <Ignite|Wilt|Trauma|Ailment> Damage [to Minions]" → that ailment's flat base damage pool.
+    m = re.match(r'adds\s+([\d.]+)\s*-\s*([\d.]+)\s+base\s+(ignite|wilt|trauma|ailment)\s+damage', t, re.I)
+    if m:
+        lo, hi, kind = float(m.group(1)), float(m.group(2)), m.group(3).lower()
+        return [{"stat_key": f"{kind}_dmg_flat_min", "amount": lo, "text": t},
+                {"stat_key": f"{kind}_dmg_flat_max", "amount": hi, "text": t}]
+
+    # "Multistrikes deal N% increasing damage" → ramping multistrike damage (tracked; ramp NYI in offense).
+    m = re.match(r'(?:minions\'?\s+)?multistrikes?\s+deal\s+([\d.]+)\s*%\s*increasing\s+damage', t, re.I)
+    if m:
+        return [{"stat_key": "multistrike_increasing_dmg_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "+N% additional Base Damage for Two-Handed Weapons" → tracked (deferred additional pool).
+    m = re.match(r'([\d.]+)\s*%\s*additional\s+base\s+damage\s+for\s+two-?handed\s+weapons', t, re.I)
+    if m:
+        return [{"stat_key": "two_handed_base_dmg_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "+N Command per second" → flat Command/sec (tracked; Command subsystem NYI).
+    m = re.match(r'\+?\s*([\d.]+)\s+command\s+per\s+second', t, re.I)
+    if m:
+        return [{"stat_key": "command_per_second_flat", "amount": float(m.group(1)), "text": t}]
+
+    # "+N Affliction inflicted per second by Minions" → flat (tracked; minion subsystem NYI).
+    m = re.match(r'\+?\s*([\d.]+)\s+affliction\s+inflicted\s+per\s+second\s+by\s+minions', t, re.I)
+    if m:
+        return [{"stat_key": "minion_affliction_per_second_flat", "amount": float(m.group(1)), "text": t}]
+
+    # "N% of the bonuses for Movement Speed is also applied to <Attack/Cast Speed | Cooldown Recovery Speed>"
+    # — coefficient; aggregator propagates movement_speed_inc × coeff onto the target.
+    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+bonuses?\s+for\s+movement\s+speed\s+is\s+also\s+applied\s+to\s+(?:the\s+)?(attack\s+speed|cast\s+speed|cooldown\s+recovery\s+speed)', t, re.I)
+    if m:
+        tgt = {"attack speed": "attack_speed", "cast speed": "cast_speed",
+               "cooldown recovery speed": "cdr"}[re.sub(r'\s+', ' ', m.group(2).lower())]
+        return [{"stat_key": f"movement_bonus_to_{tgt}", "amount": float(m.group(1)) / 100.0, "text": t}]
+
     # Probabilistic damage ("…N% chance for that cast to deal +M% additional damage") → expected value.
     # Emit one dmg_additional = (N/100)×(M/100) with a SHARED text so a talent's mutually-exclusive tiers
     # pool ADDITIVELY into one factor (offense sums same-identity positives), never multiply.
@@ -1974,6 +2020,11 @@ _COND_PATTERNS: list[tuple] = [
     # for now — minion interaction unverified). Divisor = the "every N levels" step.
     (re.compile(r"(?:per|for\s+every|for\s+each)\s+(\d+)\s+level", re.I),
      lambda m: {"key": "level", "op": "per", "divisor": int(m.group(1))}),
+    # "for each <countable>" per-scaling — MUST precede the boolean recent/state patterns below, which would
+    # otherwise shadow them (e.g. "for each time you have Regained" must scale, not just gate on regained).
+    (re.compile(r"for\s+each\s+unique\s+type\s+of\s+weapon", re.I), {"key": "unique_weapon_types", "op": "per", "divisor": 1}),
+    (re.compile(r"for\s+each\s+time\s+you\s+have\s+regained", re.I), {"key": "regain_stacks", "op": "per", "divisor": 1}),
+    (re.compile(r"for\s+each\s+type\s+of\s+(?:elemental\s+)?ailment", re.I), {"key": "ailment_type_count", "op": "per", "divisor": 1}),
     # "against enemies with Max Affliction" → existing enemy_has_max_affliction condition.
     (re.compile(r"with\s+max\s+affliction|enem(?:y|ies)\s+(?:with|has|have)\s+max\s+affliction", re.I), "enemy_has_max_affliction"),
     (re.compile(r"not\s+wielding\s+a\s+wand\s+or\s+tin\s+staff", re.I), {"not": "wielding_wand_or_tin_staff"}),
@@ -1983,6 +2034,45 @@ _COND_PATTERNS: list[tuple] = [
     (re.compile(r"strength\s+is\s+no\s+less\s+than\s+dexterity", re.I), "strength_ge_dexterity"),
     # Numeric movement threshold
     (re.compile(r"moved\s+more\s+than\s+(\d+)\s*m\b", re.I), lambda m: {"key": "meters_moved_recently", "op": ">", "value": int(m.group(1))}),
+    # ── Talent-node gates → existing conditions (added for the node-unification coverage pass) ──────────
+    (re.compile(r"at\s+full\s+mana", re.I), "at_full_mana"),
+    (re.compile(r"at\s+low\s+mana", re.I), "at_low_mana"),
+    (re.compile(r"\bwhile\s+dual\s+wielding|\bwhen\s+dual\s+wielding|\bdual\s+wielding", re.I), "dual_wielding"),
+    (re.compile(r"\bwhile\s+moving\b|\bwhen\s+moving\b", re.I), "moving"),
+    (re.compile(r"while\s+standing\s+still|when\s+standing\s+still", re.I), "standing_still"),
+    (re.compile(r"channeled\s+stacks\s+have\s+not\s+reached\s+cap|not\s+reached\s+(?:the\s+)?cap", re.I), "channeled_not_capped"),
+    (re.compile(r"holding\s+a\s+shield|when\s+holding\s+a\s+shield|while\s+holding\s+a\s+shield", re.I), "holding_shield"),
+    (re.compile(r"to\s+distant\s+enemies|distant\s+enem", re.I), "enemy_distant"),
+    (re.compile(r"to\s+nearby\s+enemies|nearby\s+enem", re.I), "enemy_nearby"),
+    # Regain / regen "recently" windows
+    (re.compile(r"triggered\s+life\s+regain\s+in\s+the\s+last", re.I), "recently_life_regain"),
+    (re.compile(r"triggered\s+shield\s+regain\s+in\s+the\s+last", re.I), "recently_shield_regain"),
+    (re.compile(r"(?:have\s+)?regained\s+in\s+the\s+last|regained\s+recently", re.I), "recently_regained"),
+    # "Sentry Skill is not used in the last N s" / "Main Skill ... not used in the last"
+    (re.compile(r"sentry\s+skill\s+is\s+not\s+used\s+in\s+the\s+last", re.I), "sentry_not_used_recently"),
+    (re.compile(r"main\s+skill\s+(?:is\s+|has\s+)?not\s+(?:been\s+)?used\s+in\s+the\s+last", re.I), "main_skill_not_used_recently"),
+    # "while/when <X> Blessing is active" → has at least one stack of that blessing
+    (re.compile(r"(focus|agility|tenacity)\s+blessing\s+is\s+active|(?:while|when)\s+(?:having|has)\s+(focus|agility|tenacity)\s+blessing", re.I),
+     lambda m: {"key": f"{(m.group(1) or m.group(2)).lower()}_blessings", "op": ">=", "value": 1}),
+    # Enemy-scope gates — Proximity (≤4m), Nearby (≤6m), Distant (>6m) are THREE DISTINCT conditions; never
+    # cross-map them. ("in proximity" is handled by the dedicated enemy_in_proximity pattern above.)
+    (re.compile(r"(?:to|against)\s+nearby\s+enem|dealt\s+to\s+nearby\s+enem", re.I), "enemy_nearby"),
+    (re.compile(r"(?:to|against)\s+distant\s+enem|dealt\s+to\s+distant\s+enem", re.I), "enemy_distant"),
+    (re.compile(r"against\s+low\s+life\s+enem|low\s+life\s+enemies", re.I), "enemy_low_life"),
+    (re.compile(r"against\s+enemies\s+(?:affected\s+by|with)\s+(?:\w+\s+)?ailments?|enemies\s+(?:that\s+have|with)\s+ailments?", re.I), "enemy_has_ailment"),
+    (re.compile(r"used\s+a\s+warcry\s+skill\s+(?:in\s+the\s+last|recently)|warcry\s+.*recently", re.I), "recently_warcry"),
+    # Recent self-state windows
+    (re.compile(r"blocked\s+recently|have\s+blocked\s+in\s+the\s+last|if\s+you\s+have\s+blocked", re.I), "recently_blocked"),
+    (re.compile(r"elixir\s+skill\s+is\s+active|while\s+an?\s+elixir", re.I), "elixir_active"),
+    (re.compile(r"defeated\s+an?\s+enemy\s+recently|have\s+defeated\s+an?\s+enemy", re.I), "enemy_defeated_recently"),
+    (re.compile(r"(?:while\s+)?having\s+fervor\b|while\s+you\s+have\s+fervor", re.I), "fervor_active"),
+    (re.compile(r"both\s+sealed\s+mana\s+and\s+(?:sealed\s+)?life|having\s+both\s+sealed", re.I), "sealed_mana_and_life"),
+    (re.compile(r"synthetic\s+troop\s+skill\s+has\s+been\s+(?:cast|used)\s+recently|synthetic\s+troop\s+skill\s+.*recently", re.I), "recently_synth_cast"),
+    (re.compile(r"taken\s+damage\s+recently", re.I), "recently_taken_damage"),
+    (re.compile(r"lost\s+life\s+recently|have\s+lost\s+life", re.I), "recently_lost_life"),
+    # Per-Fervor-Rating scaling: "+X per N Fervor Rating" → ×floor(fervor/N).
+    (re.compile(r"per\s+(\d+)\s+fervor\s+rating", re.I), lambda m: {"key": "fervor_rating", "op": "per", "divisor": int(m.group(1))}),
+    (re.compile(r"per\s+fervor\s+rating", re.I), {"key": "fervor_rating", "op": "per", "divisor": 1}),
 ]
 
 

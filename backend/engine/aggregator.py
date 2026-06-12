@@ -231,88 +231,6 @@ def _eval_condition(
     return False
 
 
-def _apply_node_recipes(
-    source: BuildSource,
-    tree_name: str,
-    node_id: str,
-    current_points: int,
-    max_points: int,
-    node_type: str,
-    recipes_by_tree: dict,
-    source_type: str = "talent",
-    label_prefix: str = "",
-    node_recipes_by_id: dict | None = None,
-    points: int = 1,
-    active_booleans: frozenset[str] = frozenset(),
-    numeric_vals: dict[str, float] | None = None,
-) -> None:
-    """Look up recipes for this specific node and add stat values at the correct rank.
-
-    Lookup order:
-      1. Per-node-id recipes (node_recipes_by_id[node_id]) — precise, specific to this node
-      2. Tree+node_type fallback (recipes_by_tree[tree_name][node_type]) — coarse, for compat
-    """
-    if numeric_vals is None:
-        numeric_vals = {}
-
-    per_node = (node_recipes_by_id or {}).get(node_id)
-    if per_node is not None:
-        type_recipes = per_node
-    elif node_recipes_by_id:
-        # Per-node filter exists but this node wasn't matched — no contribution
-        return
-    else:
-        # Old filter without per-node data — fall back to tree-level aggregate
-        tree_recipes = recipes_by_tree.get(tree_name, {})
-        type_recipes = tree_recipes.get(node_type, [])
-
-    if not type_recipes:
-        return
-
-    rank_index = max(0, min(current_points - 1, len(type_recipes[0].get("values", [1])) - 1))
-    label = f"{label_prefix}{_node_type_display(node_type)}"
-
-    for recipe in type_recipes:
-        if not _eval_condition(recipe.get("condition"), active_booleans, numeric_vals):
-            continue
-
-        # Rank-based static values
-        values = recipe.get("values", [])
-        if values:
-            idx = min(rank_index, len(values) - 1)
-            entry = SourceEntry(
-                stat=recipe["stat"],
-                amount=values[idx],
-                source_type=source_type,
-                label=label,
-                text=recipe.get("text", ""),
-                points=points,
-            )
-            source.add_with_source(recipe["stat"], values[idx], entry)
-
-        # Scaling contribution (additive on top of values, separate SourceEntry row)
-        if "scaling" in recipe:
-            s = recipe["scaling"]
-            raw = numeric_vals.get(s["key"], 0.0)
-            floor_val = s.get("floor", 0.0)
-            eff = max(raw, floor_val) if floor_val is not None else raw
-            if "per_n" in s:
-                amount = (eff // s["per_n"]) * s["per"]
-            else:
-                amount = eff * s["per"]
-            if s.get("cap") is not None:
-                amount = min(amount, s["cap"])
-            scale_entry = SourceEntry(
-                stat=recipe["stat"],
-                amount=amount,
-                source_type=source_type,
-                label=label,
-                text=recipe.get("text", ""),
-                points=points,
-            )
-            source.add_with_source(recipe["stat"], amount, scale_entry)
-
-
 def aggregate(
     build: BuildInput,
     season_trees: dict[str, dict],
@@ -342,137 +260,9 @@ def aggregate(
             if not isinstance(v, bool) and isinstance(v, (int, float))
         }
 
-    recipes_by_tree = filter_data.get("recipes", {})
-    node_recipes_by_id = filter_data.get("node_recipes", {})
-
-    # ── Talent tree nodes ──────────────────────────────────────────────────────
-    for slot in build.slots:
-        if not slot:
-            continue
-
-        tree_name: str = slot.get("treeName", "")
-        node_states: dict[str, int] = slot.get("nodeStates", {})
-        if not tree_name or not node_states:
-            continue
-
-        tree_slug = re.sub(r"[^a-z0-9]+", "_", tree_name.lower()).strip("_")
-        season_tree = season_trees.get(tree_slug, {})
-        nodes_by_id = {n["id"]: n for n in season_tree.get("nodes", [])}
-
-        for node_id, current_points in node_states.items():
-            if current_points <= 0:
-                continue
-
-            node = nodes_by_id.get(node_id)
-            if not node:
-                continue
-
-            node_type = _normalize_node_type(node.get("node_type", ""))
-            max_points = node.get("max_points", 1)
-            _apply_node_recipes(
-                source, tree_name, node_id, current_points, max_points, node_type, recipes_by_tree,
-                source_type="talent", label_prefix=f"{tree_name} ",
-                node_recipes_by_id=node_recipes_by_id,
-                points=current_points,
-                active_booleans=active_booleans,
-                numeric_vals=numeric_vals,
-            )
-
-    # ── Slate slots ────────────────────────────────────────────────────────────
-    # Each CreatorSlot can reference a talent node via selectedNodeId.
-    # We treat it as a rank-1 (single point) application of that node's recipes.
-
-    # Build a position→slate map for Moth/Prairie adjacency lookups.
-    position_to_slate: dict[tuple[int, int], dict] = {}
-    for _s in build.slates:
-        for _pos in _slate_positions(_s):
-            position_to_slate[_pos] = _s
-
-    for slate in build.slates:
-        for slot in slate.get("slots", []):
-            node_id = slot.get("selectedNodeId")
-            if not node_id:
-                continue
-
-            slug = _tree_slug_from_node_id(node_id)
-            if not slug:
-                continue
-
-            # Resolve tree name from slug via season_trees keys
-            season_tree = season_trees.get(slug, {})
-            if not season_tree:
-                continue
-
-            tree_name = season_tree.get("tree_name", slug)
-            nodes_by_id = {n["id"]: n for n in season_tree.get("nodes", [])}
-            node = nodes_by_id.get(node_id)
-            if not node:
-                continue
-
-            node_type = _normalize_node_type(node.get("node_type", ""))
-            slate_kind = slate.get("kind", "base")
-            if slate_kind == "base":
-                tree_short = tree_name.split()[-1] if tree_name else tree_name
-                slate_label_prefix = f"Slate · {tree_short} "
-            else:
-                kind_label = _SLATE_KIND_LABELS.get(slate_kind, slate_kind.replace("_", " ").title())
-                slate_label_prefix = f"Slate · {kind_label} "
-            _apply_node_recipes(
-                source, tree_name, node_id, 1, 1, node_type, recipes_by_tree,
-                source_type="slate", label_prefix=slate_label_prefix,
-                node_recipes_by_id=node_recipes_by_id,
-                active_booleans=active_booleans,
-                numeric_vals=numeric_vals,
-            )
-
-        # ── Moth/Prairie copy ───────────────────────────────────────────────
-        slate_kind = slate.get("kind", "base")
-        if slate_kind not in _COPY_SLATE_KINDS:
-            continue
-
-        ar, ac = slate.get("anchor", [0, 0])
-        if slate_kind == "spark_of_moth_fire":
-            moth_dir = slate.get("mothDirection")
-            if not moth_dir:
-                continue
-            dr, dc = _MOTH_DELTAS.get(moth_dir, (0, 0))
-            positions_to_check = [(ar + dr, ac + dc)]
-        else:  # when_sparks_set_prairie_ablaze — all 4 neighbours
-            positions_to_check = [(ar + dr, ac + dc) for dr, dc in _MOTH_DELTAS.values()]
-
-        kind_label = _SLATE_KIND_LABELS.get(slate_kind, slate_kind.replace("_", " ").title())
-
-        for pos in positions_to_check:
-            adj = position_to_slate.get(pos)
-            if not adj or adj.get("kind", "base") in _COPY_SLATE_KINDS:
-                continue  # missing or another copy-slate — skip
-            adj_slots = adj.get("slots", [])
-            if not adj_slots:
-                continue
-            # Only the bottom slot is copied (matches frontend getBottomEffects)
-            adj_slot = adj_slots[-1]
-            node_id = adj_slot.get("selectedNodeId")
-            if not node_id:
-                continue
-            slug = _tree_slug_from_node_id(node_id)
-            if not slug:
-                continue
-            season_tree = season_trees.get(slug, {})
-            if not season_tree:
-                continue
-            tree_name = season_tree.get("tree_name", slug)
-            nodes_by_id = {n["id"]: n for n in season_tree.get("nodes", [])}
-            node = nodes_by_id.get(node_id)
-            if not node:
-                continue
-            node_type = _normalize_node_type(node.get("node_type", ""))
-            _apply_node_recipes(
-                source, tree_name, node_id, 1, 1, node_type, recipes_by_tree,
-                source_type="slate", label_prefix=f"Slate · {kind_label} ",
-                node_recipes_by_id=node_recipes_by_id,
-                active_booleans=active_booleans,
-                numeric_vals=numeric_vals,
-            )
+    # Talent-tree nodes + slate slots (incl. Moth/Prairie copy) are now resolved server-side through the
+    # unified resolver (engine.node_resolver.resolve_nodes) and injected as build.node_contributions,
+    # consumed in the node-contributions loop below — no more precomputed recipes.
 
     # ── Equipped gear affixes ──────────────────────────────────────────────────
     for contrib in (c for item in build.gear for c in item.get("contributions", [])):
@@ -654,6 +444,29 @@ def aggregate(
             points=1,
         ))
 
+    # ── Talent-tree node + slate contributions (unified resolver, server.resolve_nodes) ───────────────
+    # Pre-resolved + points-scaled; conditional lines gated/scaled in-loop against the converged conditions
+    # exactly like core talents. Replaces the old recipe-based node/slate loops.
+    for contrib in getattr(build, "node_contributions", []) or []:
+        stat = contrib.get("stat_key")
+        if not stat:
+            continue
+        amount = float(contrib.get("amount", 0))
+        cond = contrib.get("condition_expr")
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                amount *= cond_result
+            elif not cond_result:
+                continue
+        src_type = "slate" if "|slate|" in contrib.get("text", "") else "talent"
+        source.add_with_source(stat, amount, SourceEntry(
+            stat=stat, amount=amount, source_type=src_type,
+            label=contrib.get("label", "Talent"), text=contrib.get("text", ""), points=1,
+        ))
+
     # ── Fervor mechanics ──────────────────────────────────────────────────────
     # Fervor's BASE effects scale per point of Fervor Rating AND are multiplied by Fervor Effect
     # (fervor_effect_inc). Today the only base effect is +2% (generic) Critical Strike Rating per
@@ -719,6 +532,18 @@ def aggregate(
             source.add_with_source("projectile_dmg_additional", amount, SourceEntry(
                 stat="projectile_dmg_additional", amount=amount, source_type="core_talent",
                 label="Core · Gale", text="Gale: Projectile Speed → additional Projectile Damage", points=1))
+
+    # ── Bonus propagation: Movement Speed bonus → Attack/Cast Speed / Cooldown Recovery ──
+    ms_inc = source.total("movement_speed_inc")
+    if ms_inc:
+        for tgt, dest in (("attack_speed", "attack_speed_inc"), ("cast_speed", "cast_speed_inc"),
+                          ("cdr", "cdr_speed_inc")):
+            coeff = source.total(f"movement_bonus_to_{tgt}")
+            if coeff > 0:
+                amt = coeff * ms_inc
+                source.add_with_source(dest, amt, SourceEntry(
+                    stat=dest, amount=amt, source_type="talent",
+                    label="Movement Speed Share", text=f"Movement Speed bonus → {dest}", points=1))
 
     # ── Six Gods' Blessings ───────────────────────────────────────────────────
     # Apply each blessing's per-stack base effect × its user-set stack count. Stacks ADD (one summed

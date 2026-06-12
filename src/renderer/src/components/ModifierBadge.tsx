@@ -40,6 +40,16 @@ export function useGearUnresolvedTexts(): Set<string> {
   )
 }
 
+// node_ids of allocated talent nodes / slate slots with at least one effect line the backend could not
+// resolve (node_mod_statuses, resolved:false) — drives the NYI badge on tree nodes. 'deduped' is resolved.
+export function useUnresolvedNodeIds(): Set<string> {
+  const statuses = useBuildStore((s) => s.computedStats.node_mod_statuses)
+  return useMemo(
+    () => new Set((statuses ?? []).filter((st) => !st.resolved).map((st) => st.node_id)),
+    [statuses],
+  )
+}
+
 // ── Pure classifiers ────────────────────────────────────────────────────────────
 export function gearModifierStatus(
   affix: StatBearingAffix | null | undefined, consumed: Set<string>, unresolved?: Set<string>,

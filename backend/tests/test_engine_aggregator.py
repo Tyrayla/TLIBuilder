@@ -5,7 +5,7 @@ instead of real file I/O.
 """
 import pytest
 from engine.models import BuildInput, BuildSource, SkillConfig, EnemyConfig, SourceEntry
-from engine.aggregator import aggregate, _apply_node_recipes, _tree_slug_from_node_id
+from engine.aggregator import aggregate, _tree_slug_from_node_id
 
 
 # ---------------------------------------------------------------------------
@@ -57,70 +57,18 @@ class TestSlugExtraction:
 
 
 # ---------------------------------------------------------------------------
-# _apply_node_recipes
-# ---------------------------------------------------------------------------
-
-class TestApplyNodeRecipes:
-    def test_rank_1_applies_first_value(self):
-        source = BuildSource()
-        recipes = {"Warrior": {"micro": [{"stat": "dmg_inc", "rank1": 0.09, "values": [0.09, 0.18, 0.27]}]}}
-        _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 3, "micro", recipes)
-        assert source.total("dmg_inc") == pytest.approx(0.09)
-
-    def test_rank_2_applies_second_value(self):
-        source = BuildSource()
-        recipes = {"Warrior": {"micro": [{"stat": "dmg_inc", "rank1": 0.09, "values": [0.09, 0.18, 0.27]}]}}
-        _apply_node_recipes(source, "Warrior", "w_c0_r0", 2, 3, "micro", recipes)
-        assert source.total("dmg_inc") == pytest.approx(0.18)
-
-    def test_rank_clamped_to_values_length(self):
-        source = BuildSource()
-        recipes = {"Warrior": {"micro": [{"stat": "dmg_inc", "rank1": 0.09, "values": [0.09, 0.18, 0.27]}]}}
-        _apply_node_recipes(source, "Warrior", "w_c0_r0", 99, 3, "micro", recipes)
-        assert source.total("dmg_inc") == pytest.approx(0.27)
-
-    def test_missing_tree_is_skipped(self):
-        source = BuildSource()
-        recipes = {}
-        _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 1, "micro", recipes)
-        assert source.total("dmg_inc") == 0.0
-
-    def test_missing_node_type_is_skipped(self):
-        source = BuildSource()
-        recipes = {"Warrior": {}}
-        _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 1, "legendary_medium", recipes)
-        assert source.total("dmg_inc") == 0.0
-
-    def test_multiple_stats_from_same_node(self):
-        source = BuildSource()
-        recipes = {
-            "Warrior": {
-                "micro": [
-                    {"stat": "dmg_inc", "rank1": 0.09, "values": [0.09, 0.18, 0.27]},
-                    {"stat": "strength", "rank1": 5.0, "values": [5.0, 10.0, 15.0]},
-                ]
-            }
-        }
-        _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 3, "micro", recipes)
-        assert source.total("dmg_inc") == pytest.approx(0.09)
-        assert source.total("strength") == pytest.approx(5.0)
-
-
-# ---------------------------------------------------------------------------
 # aggregate — talent slots
 # ---------------------------------------------------------------------------
 
 class TestAggregateSlots:
     def test_allocated_node_contributes_stat(self):
-        season_trees = {
-            "warrior": _season_tree("Warrior", [_node("warrior_c0_r0", "micro", 3)])
-        }
-        filter_data = _filter("Warrior", "micro", "dmg_inc", [0.09, 0.18, 0.27])
-        build = _build(
-            slots=[{"treeName": "Warrior", "nodeStates": {"warrior_c0_r0": 2}}]
-        )
-        source = aggregate(build, season_trees, filter_data)
-        assert source.total("dmg_inc") == pytest.approx(0.18)
+        # Node resolution moved server-side (resolve_nodes); the aggregator consumes node_contributions
+        # (already points-scaled). 2 points × rank1 0.09 = 0.18.
+        build = _build()
+        build.node_contributions = [{"stat_key": "dmg_inc", "amount": 0.18,
+                                     "text": "+9% damage |node|warrior_c0_r0", "label": "Warrior",
+                                     "condition_expr": None}]
+        assert aggregate(build, {}, {}).total("dmg_inc") == pytest.approx(0.18)
 
     def test_zero_point_node_is_skipped(self):
         season_trees = {
@@ -150,22 +98,12 @@ class TestAggregateSlots:
         assert source.total("dmg_inc") == 0.0
 
     def test_multiple_slots_accumulate(self):
-        season_trees = {
-            "warrior": _season_tree("Warrior", [_node("warrior_c0_r0", "micro", 3)]),
-            "ranger": _season_tree("Ranger", [_node("ranger_c0_r0", "micro", 3)]),
-        }
-        filter_data = {
-            "recipes": {
-                "Warrior": {"micro": [{"stat": "dmg_inc", "rank1": 0.09, "values": [0.09, 0.18, 0.27]}]},
-                "Ranger": {"micro": [{"stat": "dmg_inc", "rank1": 0.09, "values": [0.09, 0.18, 0.27]}]},
-            }
-        }
-        build = _build(slots=[
-            {"treeName": "Warrior", "nodeStates": {"warrior_c0_r0": 1}},
-            {"treeName": "Ranger", "nodeStates": {"ranger_c0_r0": 1}},
-        ])
-        source = aggregate(build, season_trees, filter_data)
-        assert source.total("dmg_inc") == pytest.approx(0.18)
+        build = _build()
+        build.node_contributions = [
+            {"stat_key": "dmg_inc", "amount": 0.09, "text": "a |node|warrior_c0_r0", "label": "", "condition_expr": None},
+            {"stat_key": "dmg_inc", "amount": 0.09, "text": "b |node|ranger_c0_r0", "label": "", "condition_expr": None},
+        ]
+        assert aggregate(build, {}, {}).total("dmg_inc") == pytest.approx(0.18)
 
 
 # ---------------------------------------------------------------------------
@@ -174,16 +112,11 @@ class TestAggregateSlots:
 
 class TestAggregateSlates:
     def test_slate_node_contributes_at_rank_1(self):
-        season_trees = {
-            "warrior": _season_tree("Warrior", [_node("warrior_c2_r5", "medium", 3)])
-        }
-        filter_data = _filter("Warrior", "medium", "attack_dmg_inc", [0.18, 0.36, 0.54])
-        slate = {
-            "slots": [{"selectedNodeId": "warrior_c2_r5", "isCore": False}]
-        }
-        build = _build(slates=[slate])
-        source = aggregate(build, season_trees, filter_data)
-        assert source.total("attack_dmg_inc") == pytest.approx(0.18)
+        # Slate contributions (text tagged |slate|) are consumed with source_type="slate".
+        build = _build()
+        build.node_contributions = [{"stat_key": "attack_dmg_inc", "amount": 0.18,
+                                     "text": "x |slate|warrior_c2_r5", "label": "Slate", "condition_expr": None}]
+        assert aggregate(build, {}, {}).total("attack_dmg_inc") == pytest.approx(0.18)
 
     def test_slate_slot_without_node_id_is_skipped(self):
         season_trees = {}
@@ -255,73 +188,16 @@ class TestBuildSource:
 
 
 # ---------------------------------------------------------------------------
-# _apply_node_recipes — conditional gating
+# Conditional node contributions are gated in the aggregator
 # ---------------------------------------------------------------------------
 
-def _cond_filter(tree_name: str, node_type: str, stat: str, values: list, condition: str) -> dict:
-    return {
-        "recipes": {
-            tree_name: {
-                node_type: [{"stat": stat, "rank1": values[0], "values": values, "condition": condition}]
-            }
-        }
-    }
-
-
 class TestConditionalRecipes:
-    def test_conditional_recipe_applied_when_active(self):
-        source = BuildSource()
-        recipes = {"Warrior": {"micro": [{"stat": "dmg_inc", "rank1": 0.15, "values": [0.15], "condition": "holding_shield"}]}}
-        _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 1, "micro", recipes,
-                            active_booleans=frozenset({"holding_shield"}))
-        assert source.total("dmg_inc") == pytest.approx(0.15)
-
-    def test_conditional_recipe_skipped_when_inactive(self):
-        source = BuildSource()
-        recipes = {"Warrior": {"micro": [{"stat": "dmg_inc", "rank1": 0.15, "values": [0.15], "condition": "holding_shield"}]}}
-        _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 1, "micro", recipes,
-                            active_booleans=frozenset())
-        assert source.total("dmg_inc") == 0.0
-
-    def test_non_conditional_recipe_always_applied(self):
-        source = BuildSource()
-        recipes = {"Warrior": {"micro": [{"stat": "dmg_inc", "rank1": 0.15, "values": [0.15]}]}}
-        _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 1, "micro", recipes,
-                            active_booleans=frozenset())
-        assert source.total("dmg_inc") == pytest.approx(0.15)
-
-    def test_mixed_recipes_only_conditional_gated(self):
-        """A node with one plain and one conditional recipe: plain always applies, conditional gates."""
-        source = BuildSource()
-        recipes = {
-            "Warrior": {
-                "micro": [
-                    {"stat": "dmg_inc",        "rank1": 0.10, "values": [0.10]},
-                    {"stat": "attack_dmg_inc",  "rank1": 0.20, "values": [0.20], "condition": "holding_shield"},
-                ]
-            }
-        }
-        _apply_node_recipes(source, "Warrior", "w_c0_r0", 1, 1, "micro", recipes,
-                            active_booleans=frozenset())
-        assert source.total("dmg_inc") == pytest.approx(0.10)
-        assert source.total("attack_dmg_inc") == 0.0
-
     def test_aggregate_passes_build_conditions_to_recipes(self):
-        season_trees = {
-            "warrior": _season_tree("Warrior", [_node("warrior_c0_r0", "micro", 1)])
-        }
-        filter_data = {
-            "recipes": {
-                "Warrior": {
-                    "micro": [{"stat": "dmg_inc", "rank1": 0.15, "values": [0.15], "condition": "holding_shield"}]
-                }
-            }
-        }
-        build_active = _build(slots=[{"treeName": "Warrior", "nodeStates": {"warrior_c0_r0": 1}}])
-        build_active.condition_state = {"holding_shield": True}
-        source_active = aggregate(build_active, season_trees, filter_data)
-        assert source_active.total("dmg_inc") == pytest.approx(0.15)
-
-        build_inactive = _build(slots=[{"treeName": "Warrior", "nodeStates": {"warrior_c0_r0": 1}}])
-        source_inactive = aggregate(build_inactive, season_trees, filter_data)
-        assert source_inactive.total("dmg_inc") == 0.0
+        # Conditional node_contributions are GATED in the aggregator (the behavior change: was always-on).
+        contrib = {"stat_key": "dmg_inc", "amount": 0.15, "text": "x |node|n", "label": "",
+                   "condition_expr": "holding_shield"}
+        off = _build(); off.node_contributions = [dict(contrib)]
+        assert aggregate(off, {}, {}).total("dmg_inc") == 0.0          # condition off → not applied
+        on = _build(); on.node_contributions = [dict(contrib)]
+        on.condition_state = {"holding_shield": True}
+        assert aggregate(on, {}, {}).total("dmg_inc") == pytest.approx(0.15)   # condition on → applied

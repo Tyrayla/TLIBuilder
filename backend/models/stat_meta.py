@@ -962,6 +962,18 @@ STAT_META: dict[Stat, StatMeta] = {
         "Cast Speed Applied to Spell Sentry Cast Frequency", "Sentry", "conversion", "%",
         subgroup="sentry_mechanics", ui_priority=86, source_types=_T,
     ),
+    Stat.MOVEMENT_BONUS_TO_ATTACK_SPEED: StatMeta(
+        "Movement Speed Bonus Applied to Attack Speed", "Attack Speed", "conversion", "%",
+        subgroup="speed", ui_priority=86, source_types=_T,
+    ),
+    Stat.MOVEMENT_BONUS_TO_CAST_SPEED: StatMeta(
+        "Movement Speed Bonus Applied to Cast Speed", "Cast Speed", "conversion", "%",
+        subgroup="speed", ui_priority=86, source_types=_T,
+    ),
+    Stat.MOVEMENT_BONUS_TO_CDR: StatMeta(
+        "Movement Speed Bonus Applied to Cooldown Recovery Speed", "Utility", "conversion", "%",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
     Stat.CAST_SPEED_TO_SPELL_BURST_CHARGE: StatMeta(
         "Cast Speed Applied to Spell Burst Charge Speed", "Generic", "conversion", "%",
         subgroup="mechanics", ui_priority=86, source_types=_T,

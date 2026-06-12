@@ -3,7 +3,7 @@ import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } fr
 import { api, getApiBase, TreeData, TreeNode, CoreTalentSlotOption } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 import { useBuildStore } from '../store/buildStore'
-import { ModifierBadge, useConsumedStatSet, type ModifierStatus } from '../components/ModifierBadge'
+import { ModifierBadge, useConsumedStatSet, useUnresolvedNodeIds, type ModifierStatus } from '../components/ModifierBadge'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { NodeTooltipBody } from '../components/tooltip/bodies/NodeTooltipBody'
@@ -61,13 +61,14 @@ interface TreeNodeGProps {
   isSearching: boolean
   processing: boolean
   debugMode: boolean
+  nyi: boolean   // allocated node with ≥1 effect the engine couldn't resolve (node_mod_statuses)
   onInteract: (node: TreeNode, isRight: boolean) => void
 }
 
 // A single passive-tree node (SVG group) plus its hover tooltip, routed through the shared
 // floating-tooltip primitive. Element-anchored; damage-delta band wired (NYI until backend).
 function TreeNodeG({
-  node, cx, cy, pts, colors, locked, isLinkSrc, isHit, isSearching, processing, debugMode, onInteract,
+  node, cx, cy, pts, colors, locked, isLinkSrc, isHit, isSearching, processing, debugMode, nyi, onInteract,
 }: TreeNodeGProps) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
   const activeSlot = useBuildStore(s => s.activeSlot)
@@ -131,6 +132,13 @@ function TreeNodeG({
         >
           {pts}/{node.max_points}
         </text>
+        {nyi && (
+          <g style={{ pointerEvents: 'none' }}>
+            <circle cx={cx + NODE_R * 0.72} cy={cy - NODE_R * 0.72} r={6} fill="#e0913a" stroke="#1a1a1a" strokeWidth={1.5} />
+            <text x={cx + NODE_R * 0.72} y={cy - NODE_R * 0.72 + 3.5} textAnchor="middle" fill="#1a1a1a"
+              fontSize={9} fontWeight="bold" fontFamily="Segoe UI">!</text>
+          </g>
+        )}
       </g>
       {tip.open && (
         <FloatingPortal>
@@ -169,6 +177,7 @@ export default function TreeViewerScreen({
   const activeSlot = useBuildStore(s => s.activeSlot)
   const updateSlotNodeStates = useBuildStore(s => s.updateSlotNodeStates)
   const updateSlotCoreTalentSelections = useBuildStore(s => s.updateSlotCoreTalentSelections)
+  const unresolvedNodeIds = useUnresolvedNodeIds()  // allocated nodes with a still-unmodeled effect → NYI badge
 
   // Core-talent effect badges (roadmap #4), three states driven by the tree's STATIC per-line
   // resolution (so any tree badges, selected or not) plus the build's consumed_stats:
@@ -737,6 +746,7 @@ export default function TreeViewerScreen({
                     isSearching={isSearching}
                     processing={processing}
                     debugMode={debugMode}
+                    nyi={unresolvedNodeIds.has(node.id)}
                     onInteract={handleNodeInteract}
                   />
                 )

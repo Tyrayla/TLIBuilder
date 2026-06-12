@@ -567,6 +567,9 @@ export interface StatSheetResponse {
   // Per-effect resolution for granted core talents (roadmap #4) — drives the core-talent NYI badges.
   // kind: 'stat' | 'override' (applied) | 'deferred' | 'unresolved' (captured, not applied).
   core_talent_statuses?: CoreTalentStatus[]
+  // Per-effect resolution for allocated talent NODES + slate slots (unified resolver) — drives node NYI
+  // badges. resolved:false → captured, not applied (still unmodeled, surfaced not dropped).
+  node_mod_statuses?: NodeModStatus[]
   skill_slots?: SkillSlotSummary[]
   // Stat keys the engine actually READ for this build (offense/defense/derive passes). Drives the
   // "inert modifier" badges: a modifier whose mapped stat isn't here is recognized-but-unused.
@@ -578,6 +581,13 @@ export interface CoreTalentStatus {
   text: string
   resolved: boolean
   kind: 'stat' | 'override' | 'deferred' | 'unresolved'
+}
+
+export interface NodeModStatus {
+  node_id: string
+  text: string
+  resolved: boolean
+  kind: 'stat' | 'override' | 'deferred' | 'unresolved' | 'deduped'
 }
 
 // ── Modifier resolution (inert-modifier badges) ─────────────────────────────────

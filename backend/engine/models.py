@@ -109,6 +109,9 @@ class BuildInput:
     # Same shape as custom_contributions plus an optional `condition_expr` gate. Override flags
     # (core_sacrifice / divine_grace / core_conductive) ride in condition_state, not here.
     core_talent_contributions: list[dict] = field(default_factory=list)
+    # Pre-resolved talent-tree NODE + SLATE contributions (unified resolver, server.resolve_nodes). Same
+    # shape as core_talent_contributions; amounts pre-scaled by points; conditionals gated via condition_expr.
+    node_contributions: list[dict] = field(default_factory=list)
 
 
 @dataclass
