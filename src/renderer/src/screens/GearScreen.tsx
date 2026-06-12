@@ -2316,7 +2316,8 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
       </div>
       <ItemPreviewCard name={previewName} lines={previewLines} deltas={previewDeltas} />
       <div className="gear-craft-actions">
-        <button className="btn btn-sm btn-primary" onClick={handleAddToBuild} disabled={slots.every(s => !s.affix)}>
+        {/* Allow white items: only a base is required, not any affix (0-stat bases are valid for testing). */}
+        <button className="btn btn-sm btn-primary" onClick={handleAddToBuild} disabled={!baseType}>
           {onSaveBuildItem ? 'Save Changes' : 'Add to Build'}
         </button>
         <button className="btn btn-sm" onClick={onClose}>Cancel</button>
