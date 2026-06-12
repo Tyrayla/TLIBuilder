@@ -383,6 +383,21 @@ def compute(
                     "supported":      resolved_sk.supported,
                 })
 
+    # Calculation-target (dummy) profile for the enemy-stats panel: base + effective armor/resist after
+    # this build's penetration, plus the active enemy debuffs (user-set / auto-derived conditions).
+    from engine.offense import target_profile
+    _DEBUFF_LABELS = {
+        "enemy_paralyzed": "Paralysis",
+        "enemy_affected_by_frail": "Frail",
+        "enemy_affected_by_fire_infiltration": "Fire Infiltration",
+        "enemy_affected_by_cold_infiltration": "Cold Infiltration",
+        "enemy_affected_by_lightning_infiltration": "Lightning Infiltration",
+    }
+    _debuffs = [lbl for key, lbl in _DEBUFF_LABELS.items() if condition_state.get(key)]
+    if float(condition_state.get("numbed_stacks", 0) or 0) > 0:
+        _debuffs.append("Numbed")
+    target_stats = {**target_profile(source), "debuffs": _debuffs}
+
     return StatResult(
         stat_map=stat_map,
         condition_maximums=maxes,
@@ -391,4 +406,5 @@ def compute(
         defense=result_defense,
         skill_slots=result_skill_slots,
         consumed_stats=sorted(source.consumed_stats),
+        target_stats=target_stats,
     )

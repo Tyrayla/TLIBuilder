@@ -1059,7 +1059,7 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_T,
     ),
     Stat.LIGHTNING_PEN: StatMeta(
-        "Lightning Penetration", "Lightning", "penetration", "%",
+        "Lightning Resistance Penetration", "Lightning", "penetration", "%",
         subgroup="lightning_damage",   pipeline_stage="penetration",
         tags=("lightning",),           affects=_ALL_DMGF,
         stacking_rule="additive",      ui_priority=30,
@@ -1122,7 +1122,7 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_T,
     ),
     Stat.COLD_PEN: StatMeta(
-        "Cold Penetration", "Cold", "penetration", "%",
+        "Cold Resistance Penetration", "Cold", "penetration", "%",
         subgroup="cold_damage",        pipeline_stage="penetration",
         tags=("cold",),                affects=_ALL_DMGF,
         stacking_rule="additive",      ui_priority=30,
@@ -1185,7 +1185,7 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_T,
     ),
     Stat.FIRE_PEN: StatMeta(
-        "Fire Penetration", "Fire", "penetration", "%",
+        "Fire Resistance Penetration", "Fire", "penetration", "%",
         subgroup="fire_damage",        pipeline_stage="penetration",
         tags=("fire",),                affects=_ALL_DMGF,
         stacking_rule="additive",      ui_priority=30,
@@ -1255,7 +1255,7 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_T,
     ),
     Stat.EROSION_PEN: StatMeta(
-        "Erosion Penetration", "Erosion", "penetration", "%",
+        "Erosion Resistance Penetration", "Erosion", "penetration", "%",
         subgroup="erosion_damage",     pipeline_stage="penetration",
         tags=("erosion",),             affects=_ALL_DMGF,
         stacking_rule="additive",      ui_priority=30,
@@ -1318,7 +1318,7 @@ STAT_META: dict[Stat, StatMeta] = {
         source_types=_T,
     ),
     Stat.ELEMENTAL_PEN: StatMeta(
-        "Elemental Penetration", "Elemental", "penetration", "%",
+        "Elemental Resistance Penetration", "Elemental", "penetration", "%",
         subgroup="elemental_damage",   pipeline_stage="penetration",
         tags=("elemental",),           affects=_ALL_DMGF,
         stacking_rule="additive",      ui_priority=30,

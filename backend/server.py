@@ -754,6 +754,8 @@ def engine_stats(req: EngineStatsRequest):
         # Maximal set of stats the engine can EVER read (all skills/tags) — lets the UI tell "Inactive"
         # (modeled, not for your skill) apart from "Unconsumed" (engine never reads it). Cached per process.
         "consumable_universe": sorted(consumable_universe()),
+        # Calc-target armor/resist (base + effective after penetration) + active enemy debuffs.
+        "target_stats": result.target_stats,
     }
 
 

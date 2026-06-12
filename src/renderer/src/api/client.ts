@@ -575,6 +575,15 @@ export interface StatSheetResponse {
   // (modeled, just not for your selected skill — in here, not in consumed_stats) apart from "Unconsumed"
   // (engine never reads it — resolved but not in here). Global + cached server-side.
   consumable_universe?: string[]
+  // Calculation-target (dummy) armor/resist, base + effective after this build's penetration (values are
+  // damage-REDUCTION fractions; negative effective = the target is amplified), plus active enemy debuffs.
+  target_stats?: TargetStats | null
+}
+
+export interface TargetStats {
+  armor: { base_phys: number; base_nonphys: number; effective_phys: number; effective_nonphys: number }
+  resists: Record<string, { base: number; effective: number }>
+  debuffs: string[]
 }
 
 export interface CoreTalentStatus {

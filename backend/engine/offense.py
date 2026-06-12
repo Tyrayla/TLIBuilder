@@ -265,19 +265,18 @@ TARGET_ELEMENTAL_RESIST = 0.30          # fire / cold / lightning
 TARGET_EROSION_RESIST = 0.30            # erosion
 
 
-def _target_mitigation(source: BuildSource, dtype: str) -> float:
-    """Per-type outgoing-damage multiplier vs the calculation target, AFTER the attacker's penetration.
+def _target_effective(source: BuildSource, dtype: str) -> tuple[float, float]:
+    """(effective_armor_reduction, effective_resistance) for `dtype` after the attacker's penetration.
 
     Penetration deducts from the target's effective armor/resistance and may drive either negative — at
     which point the reduction becomes an amplification (Help DB: both Armor DMG Mitigation Penetration and
-    Resistance Penetration reduce the defender's effective value, can go negative, and then add to damage
-    taken). Penetration values are stored positive and subtracted; `all_resistance_reduction` is a signed
-    delta (stored negative when it lowers resistance) and applies to all elemental + erosion resists.
-    With zero penetration this reproduces the prior constants exactly (physical 0.50, others 0.49)."""
+    Resistance Penetration reduce the defender's effective value, can go negative, then add to damage
+    taken). Penetration is stored positive and subtracted; `all_resistance_reduction` is a signed delta
+    (negative when it lowers resistance) and applies to all elemental + erosion resists. Physical has no
+    resistance term."""
     armor_pen = source.total("armor_pen")
     if dtype == "physical":
-        return 1.0 - (TARGET_ARMOR_MITIGATION - armor_pen)
-    # Non-physical: armor portion (60% of armor) and the per-type resistance portion, each penetrable.
+        return TARGET_ARMOR_MITIGATION - armor_pen, 0.0
     eff_armor = TARGET_ARMOR_MITIGATION * TARGET_NONPHYS_ARMOR_FACTOR - armor_pen
     all_res_red = source.total("all_resistance_reduction")          # signed (negative when reducing res)
     if dtype == "erosion":
@@ -285,7 +284,34 @@ def _target_mitigation(source: BuildSource, dtype: str) -> float:
     else:  # fire / cold / lightning — elemental_pen stacks on top of the per-type pen
         eff_resist = (TARGET_ELEMENTAL_RESIST - source.total(f"{dtype}_pen")
                       - source.total("elemental_pen") + all_res_red)
+    return eff_armor, eff_resist
+
+
+def _target_mitigation(source: BuildSource, dtype: str) -> float:
+    """Per-type outgoing-damage multiplier vs the calculation target. Zero penetration reproduces the prior
+    constants exactly (physical 0.50, others 0.49)."""
+    eff_armor, eff_resist = _target_effective(source, dtype)
     return (1.0 - eff_armor) * (1.0 - eff_resist)
+
+
+def target_profile(source: BuildSource) -> dict:
+    """Base + effective target armor/resistance for the enemy-stats panel. `effective_*` reflect this
+    build's penetration; values are damage-REDUCTION fractions (negative = the target is amplified)."""
+    e_phys, _ = _target_effective(source, "physical")
+    e_nonphys, _ = _target_effective(source, "fire")
+    resists = {}
+    for t in ("fire", "cold", "lightning", "erosion"):
+        base = TARGET_EROSION_RESIST if t == "erosion" else TARGET_ELEMENTAL_RESIST
+        resists[t] = {"base": base, "effective": _target_effective(source, t)[1]}
+    return {
+        "armor": {
+            "base_phys": TARGET_ARMOR_MITIGATION,
+            "base_nonphys": TARGET_ARMOR_MITIGATION * TARGET_NONPHYS_ARMOR_FACTOR,
+            "effective_phys": e_phys,
+            "effective_nonphys": e_nonphys,
+        },
+        "resists": resists,
+    }
 
 
 def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) -> float:

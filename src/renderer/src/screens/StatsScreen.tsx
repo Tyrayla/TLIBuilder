@@ -1,6 +1,6 @@
 import React from 'react'
 import { FloatingPortal } from '@floating-ui/react'
-import { StatEntry, StatSource } from '../api/client'
+import { StatEntry, StatSource, TargetStats } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 
@@ -79,6 +79,57 @@ function StatRow({ entry }: { entry: StatEntry }) {
   )
 }
 
+// Calculation-target (dummy) defenses: each row shows the base damage-reduction and the effective value
+// after this build's penetration. A negative effective value means over-penetration → amplified damage.
+function pctReduction(x: number): string {
+  return `${Math.round(x * 100)}%`
+}
+
+function TargetCard({ target }: { target: TargetStats }) {
+  const { armor, resists, debuffs } = target
+  const rows = [
+    { label: 'Armor (Physical)', base: armor.base_phys, eff: armor.effective_phys },
+    { label: 'Armor (Non-Physical)', base: armor.base_nonphys, eff: armor.effective_nonphys },
+    { label: 'Fire Resistance', base: resists.fire?.base ?? 0, eff: resists.fire?.effective ?? 0 },
+    { label: 'Cold Resistance', base: resists.cold?.base ?? 0, eff: resists.cold?.effective ?? 0 },
+    { label: 'Lightning Resistance', base: resists.lightning?.base ?? 0, eff: resists.lightning?.effective ?? 0 },
+    { label: 'Erosion Resistance', base: resists.erosion?.base ?? 0, eff: resists.erosion?.effective ?? 0 },
+  ]
+  return (
+    <div className="stat-category-group">
+      <div className="stat-category-header">Target (Dummy)</div>
+      <div className="stat-category-entries">
+        {rows.map((r) => {
+          const changed = Math.abs(r.base - r.eff) > 1e-9
+          const amplified = r.eff < 0
+          return (
+            <div key={r.label} className="stat-sheet-row stat-sheet-row--derived">
+              <span className="stat-sheet-row-name">{r.label}</span>
+              <span className="stat-sheet-row-value">
+                {pctReduction(r.base)}
+                {changed && (
+                  <>
+                    {' → '}
+                    <span style={{ color: amplified ? '#ff8c6b' : '#8fd98f' }}>
+                      {pctReduction(r.eff)}{amplified ? ' (amplified)' : ''}
+                    </span>
+                  </>
+                )}
+              </span>
+            </div>
+          )
+        })}
+        {debuffs.length > 0 && (
+          <div className="stat-sheet-row stat-sheet-row--derived">
+            <span className="stat-sheet-row-name">Active Debuffs</span>
+            <span className="stat-sheet-row-value">{debuffs.join(', ')}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function StatsScreen() {
   const computedStats = useBuildStore((s) => s.computedStats)
   const loading = useBuildStore((s) => s.statsLoading)
@@ -117,6 +168,9 @@ export default function StatsScreen() {
           <div className="stat-sheet-empty">
             No stats found. Ensure a season is active and run "Rebuild Node Type Filter" in Dev Tools.
           </div>
+        )}
+        {!loading && !error && computedStats?.target_stats && (
+          <TargetCard target={computedStats.target_stats} />
         )}
         {groupedStats.map(({ category, entries }) => (
           <div key={category} className="stat-category-group">
