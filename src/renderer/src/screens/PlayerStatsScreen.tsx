@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatSource, StatEntry, EquippedGearItem } from '../api/client'
+import type { OffenseResult, DefenseResult, EquippedSkill, StatSource, StatEntry, EquippedGearItem, TargetStats } from '../api/client'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDelta, type DeltaRequest } from '../components/tooltip/useDamageDelta'
 import { getItemSlots, itemHasSlot } from '../utils/gearItem'
@@ -622,6 +622,43 @@ function DefensePanels({ defense, onCellClick }: { defense: DefenseResult | null
   )
 }
 
+// The calculation target ("dummy"): its armour and per-type resistance, shown as the base reduction and
+// the effective reduction after this build's penetration. A negative effective value = over-penetration,
+// i.e. the target takes amplified damage of that type.
+function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
+  if (!target) return null
+  const pct = (x: number) => `${Math.round(x * 100)}%`
+  const rows = [
+    { label: 'Armour (Physical)', base: target.armor.base_phys, eff: target.armor.effective_phys },
+    { label: 'Armour (Non-Physical)', base: target.armor.base_nonphys, eff: target.armor.effective_nonphys },
+    { label: 'Fire Resistance', base: target.resists.fire?.base ?? 0, eff: target.resists.fire?.effective ?? 0 },
+    { label: 'Cold Resistance', base: target.resists.cold?.base ?? 0, eff: target.resists.cold?.effective ?? 0 },
+    { label: 'Lightning Resistance', base: target.resists.lightning?.base ?? 0, eff: target.resists.lightning?.effective ?? 0 },
+    { label: 'Erosion Resistance', base: target.resists.erosion?.base ?? 0, eff: target.resists.erosion?.effective ?? 0 },
+  ]
+  return (
+    <StatPanel title="Target (Dummy)" accent="#b03030">
+      {rows.map(r => {
+        const changed = Math.abs(r.base - r.eff) > 1e-9
+        const amplified = r.eff < 0
+        return (
+          <Row key={r.label} label={r.label}>
+            {pct(r.base)}
+            {changed && (
+              <span style={{ color: amplified ? '#ff8c6b' : '#8fd98f' }}>
+                {' → '}{pct(r.eff)}{amplified ? ' (amplified)' : ''}
+              </span>
+            )}
+          </Row>
+        )
+      })}
+      {target.debuffs.length > 0 && (
+        <Row label="Active Debuffs"><span style={{ color: '#d0a0e0' }}>{target.debuffs.join(', ')}</span></Row>
+      )}
+    </StatPanel>
+  )
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export default function PlayerStatsScreen() {
@@ -655,9 +692,10 @@ export default function PlayerStatsScreen() {
         <OffensePanels offense={shownOffense} onCellClick={handleCellClick} statMap={statMap} />
       </div>
 
-      {/* Right lane — defense + utility */}
+      {/* Right lane — defense + utility + calculation target */}
       <div style={{ flex: '59', minWidth: '200px', display: 'flex', flexDirection: 'column' }}>
         <DefensePanels defense={defense} onCellClick={handleCellClick} />
+        <TargetPanel target={computedStats.target_stats} />
       </div>
       {sourcePopup && (
         <SourcePopup
