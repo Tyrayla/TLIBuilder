@@ -70,8 +70,12 @@ def _split_compound(stat_clause: str) -> list[str]:
 _SHARED_STAT_JOINS = [
     (re.compile(r"\bLife Regain and Energy Shield Regain\b", re.I),
      ["Life Regain", "Energy Shield Regain"]),
+    (re.compile(r"\bMinion Attack Speed and Cast Speed\b", re.I),
+     ["Minion Attack Speed", "Minion Cast Speed"]),
     (re.compile(r"\bMinion Attack and Cast Speed\b", re.I),
      ["Minion Attack Speed", "Minion Cast Speed"]),
+    (re.compile(r"\bAttack Speed and Cast Speed\b", re.I),
+     ["Attack Speed", "Cast Speed"]),
     (re.compile(r"\bAttack and Cast Speed\b", re.I),
      ["Attack Speed", "Cast Speed"]),
 ]

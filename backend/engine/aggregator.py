@@ -212,7 +212,20 @@ def _eval_condition(
     if "const" in expr:               # benign always-on clause (e.g. "when casting a skill")
         return expr["const"]
     if "and" in expr:
-        return all(_eval_condition(e, active_booleans, numeric_vals) for e in expr["and"])
+        # Mixed per-scaling + boolean gate ("for each X while Y"): every boolean must hold (else skip),
+        # and the per-scaling floats MULTIPLY. Return the product (gated), or True if there are no floats.
+        prod, saw_float = 1.0, False
+        for e in expr["and"]:
+            r = _eval_condition(e, active_booleans, numeric_vals)
+            if isinstance(r, bool):
+                if not r:
+                    return False
+            else:
+                if r == 0.0:
+                    return 0.0
+                saw_float = True
+                prod *= r
+        return prod if saw_float else True
     if "or" in expr:
         return any(_eval_condition(e, active_booleans, numeric_vals) for e in expr["or"])
     if "not" in expr:

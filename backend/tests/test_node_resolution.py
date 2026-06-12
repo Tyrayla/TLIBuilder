@@ -57,6 +57,23 @@ class TestConditionalGating:
         c, s = _resolve_node("n", ["+12 % damage when holding a Shield"], 1, "L", "node", pm, tc)
         assert any(x["stat_key"] == "dmg_inc" and x["condition_expr"] == "holding_shield" for x in c)
 
+    def test_per_scaling_keeps_boolean_gate(self):
+        # "for each X while Y" must keep BOTH the per-scaling AND the boolean gate (regression: dropped gate).
+        c, _ = _resolve_node("n", ["+5 % additional Attack Damage for each unique type of weapon equipped while Dual Wielding"],
+                             1, "L", "node", pm, tc)
+        x = next(x for x in c if x["stat_key"] == "attack_dmg_additional")
+        ce = x["condition_expr"]
+        assert isinstance(ce, dict) and "and" in ce
+        assert {"key": "unique_weapon_types", "op": "per", "divisor": 1} in ce["and"]
+        assert "dual_wielding" in ce["and"]
+
+    def test_compound_per_gate_eval(self):
+        # Aggregator: per-scaling × boolean gate — gated off → 0; on → amount × floor(numeric).
+        from engine.aggregator import _eval_condition
+        expr = {"and": [{"key": "unique_weapon_types", "op": "per", "divisor": 1}, "dual_wielding"]}
+        assert _eval_condition(expr, frozenset(), {"unique_weapon_types": 3.0}) is False     # not dual wielding
+        assert _eval_condition(expr, frozenset({"dual_wielding"}), {"unique_weapon_types": 3.0}) == 3.0  # ×3
+
 
 class TestSlateMaxDivinityDedup:
     EFF = "+12 % Max Mana (Max Divinity Effect: 1)"

@@ -2101,7 +2101,19 @@ def _translate_condition_expr(text: str | None) -> dict | str | None:
     for pat, expr in _COND_PATTERNS:
         m = pat.search(text)
         if m:
-            return expr(m) if callable(expr) else expr
+            e = expr(m) if callable(expr) else expr
+            # "for each X while Y": a per-scaling can ALSO carry a boolean gate. Scan the text OUTSIDE the
+            # per-match for a non-per gate and combine, so both survive (e.g. per weapon-type AND dual-wield).
+            if isinstance(e, dict) and e.get("op") == "per":
+                rest = (text[:m.start()] + " " + text[m.end():])
+                for p2, x2 in _COND_PATTERNS:
+                    m2 = p2.search(rest)
+                    if not m2:
+                        continue
+                    g = x2(m2) if callable(x2) else x2
+                    if g != e and not (isinstance(g, dict) and g.get("op") == "per"):
+                        return {"and": [e, g]}
+            return e
     return None
 
 
