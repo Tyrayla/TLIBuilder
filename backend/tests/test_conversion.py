@@ -6,15 +6,24 @@ Model locked from in-game tests (see plan / Damage Type Conversion help doc):
 - generic inc/add apply once; convert reduces the source's staying portion, adds-as is extra;
 - >100% convert from one source caps at 100% and redistributes by weight.
 """
+from math import prod
+
 import pytest
 
 from engine.offense import _apply_conversion, _conversion_fracs, _CONV_PRIORITY
 
 
 def _run(flat, spec_inc=None, spec_add=None, gi=0.0, ga=1.0, convert=None, adds=None):
-    si = {t: (spec_inc or {}).get(t, 0.0) for t in _CONV_PRIORITY}
-    sa = {t: (spec_add or {}).get(t, 1.0) for t in _CONV_PRIORITY}
-    return _apply_conversion(flat, si, sa, gi, ga, convert or {}, adds or {})
+    # _apply_conversion now takes path-based closures: a packet records the set of types it has been
+    # (path_tags), and its bonuses are summed/multiplied over that set, each mod ONCE. For these per-type
+    # dict inputs (type-specific mods, distinct per type) the union-sum equals the old per-stage-sum, since
+    # a packet visits each type at most once on the up-only priority chain — so expectations are unchanged.
+    si, sa = spec_inc or {}, spec_add or {}
+    return _apply_conversion(
+        flat,
+        lambda tags: sum(v for t, v in si.items() if t in tags),
+        lambda tags: prod([v for t, v in sa.items() if t in tags]),
+        gi, ga, convert or {}, adds or {})
 
 
 class _StubSource:

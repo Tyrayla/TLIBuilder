@@ -111,7 +111,12 @@ _SKILL_LEVEL_STATS: list[tuple[str, frozenset]] = [
 
 
 DAMAGE_TYPES = ["physical", "fire", "cold", "lightning", "erosion"]
-_DTYPE_TAG_SET = frozenset(DAMAGE_TYPES)
+# "Elemental" = Fire/Cold/Lightning only (Erosion and Physical are NOT elemental). An "elemental"-tagged
+# damage stat (e.g. elemental_dmg_inc) applies to exactly these three via the per-type tag match below.
+_ELEMENTAL_DMG_TYPES = frozenset({"fire", "cold", "lightning"})
+# Tags that mark a damage stat as TYPE-SPECIFIC (excluded from the generic/"All" pool). Includes the
+# pseudo-tag "elemental" so elemental_dmg_inc/additional are treated per-type, not as a uniform multiplier.
+_DTYPE_TAG_SET = frozenset(DAMAGE_TYPES) | {"elemental"}
 
 # Innate base Critical Strike Rating for spells (500 CSR = 5% base crit at 0 gear). Owner-confirmed.
 _BASE_SPELL_CRIT_RATING = 500.0
@@ -285,32 +290,35 @@ def _conversion_fracs(source: BuildSource) -> tuple[dict, dict]:
     return convert, adds
 
 
-def _apply_conversion(eff_flat: dict, spec_inc: dict, spec_add: dict,
+def _apply_conversion(eff_flat: dict, path_inc, path_add,
                       generic_inc: float, generic_add: float,
                       convert: dict, adds: dict) -> dict:
-    """Cascade post-effectiveness flat (per type) through the conversion chain in priority order.
-    Each packet accumulates its path's type-specific increase (SUM) and additional (PRODUCT); generic
-    inc/add apply once. Returns {final_type: (scaled_min, scaled_max)} summed over packets landing there.
-    With no conversion this reproduces (1 + type_inc) × type_add per native type (regression-safe)."""
-    packets = {t: [] for t in _CONV_PRIORITY}          # [min, max, spec_inc_sum, spec_add_prod]
+    """Cascade post-effectiveness flat (per type) through the conversion chain in priority order. Each
+    packet records the UNION of dtype-tags of every type it has been; at finalization its type-specific
+    bonuses are path_inc(path_tags) (sum) and path_add(path_tags) (product), each modifier counted ONCE.
+    generic inc/add apply once. Returns {final_type: (scaled_min, scaled_max)} summed over packets landing
+    there. Counting once over the path union (not per stage) is what stops "increased/additional Elemental
+    Damage" from double-applying across an elemental→elemental hop (verified in-game). No conversion →
+    reproduces (1 + type_inc) × type_add per native type (regression-safe)."""
+    packets = {t: [] for t in _CONV_PRIORITY}          # each packet: [min, max, path_tags frozenset]
     for t in _CONV_PRIORITY:
         mn, mx = eff_flat.get(t, (0.0, 0.0))
         if mn or mx:
-            packets[t].append([mn, mx, 0.0, 1.0])
+            packets[t].append([mn, mx, frozenset()])
     final: dict[str, tuple[float, float]] = {}
     for t in _CONV_PRIORITY:
-        for p in packets[t]:                           # this damage is now type t → pick up t's bonuses
-            p[2] += spec_inc.get(t, 0.0)
-            p[3] *= spec_add.get(t, 1.0)
+        dt = frozenset({t}) | ({"elemental"} if t in _ELEMENTAL_DMG_TYPES else frozenset())
+        for p in packets[t]:                           # this damage is now type t → record t in its path
+            p[2] = p[2] | dt
         ct, at = convert.get(t, {}), adds.get(t, {})
         stay = 1.0 - sum(ct.values())
         for p in packets[t]:
             for d, frac in ct.items():                 # convert: route slice down-chain, reduce stay
-                packets[d].append([p[0] * frac, p[1] * frac, p[2], p[3]])
+                packets[d].append([p[0] * frac, p[1] * frac, p[2]])
             for d, frac in at.items():                 # adds-as: extra slice, stay unchanged
-                packets[d].append([p[0] * frac, p[1] * frac, p[2], p[3]])
+                packets[d].append([p[0] * frac, p[1] * frac, p[2]])
             if stay > 1e-12:
-                f = (1.0 + generic_inc + p[2]) * generic_add * p[3]
+                f = (1.0 + generic_inc + path_inc(p[2])) * generic_add * path_add(p[2])
                 cur = final.get(t, (0.0, 0.0))
                 final[t] = (cur[0] + p[0] * stay * f, cur[1] + p[1] * stay * f)
     return final
@@ -551,7 +559,9 @@ def calculate_offense(
     type_inc: dict[str, float] = {}
     type_add: dict[str, float] = {}
     for dtype in calc_types:
-        dtype_tag = frozenset({dtype})
+        # Elemental types also carry the "elemental" pseudo-tag so "increased/additional Elemental Damage"
+        # (tagged 'elemental') applies to Fire/Cold/Lightning but not Erosion/Physical.
+        dtype_tag = frozenset({dtype}) | ({"elemental"} if dtype in _ELEMENTAL_DMG_TYPES else frozenset())
         type_inc[dtype] = sum(
             source.total(key)
             for key, tags in _HIT_INC_STATS
@@ -574,11 +584,19 @@ def calculate_offense(
         lambda tags: not (tags & _DTYPE_TAG_SET) and ((not tags) or bool(tags & mod_tags)),
     ) * intrinsic_add
 
-    # Type-specific deltas the conversion cascade accumulates per path: increases SUM (type_inc − generic),
-    # additionals MULTIPLY (type_add / generic). generic_inc/add (which carry the intrinsic + main-stat
-    # factor) are applied ONCE per final stream inside _apply_conversion.
-    spec_inc = {t: type_inc.get(t, generic_inc) - generic_inc for t in DAMAGE_TYPES}
-    spec_add = {t: (type_add.get(t, generic_add) / generic_add if generic_add else 1.0) for t in DAMAGE_TYPES}
+    # Type-specific bonuses for the conversion cascade, computed over the UNION of a packet's path types
+    # (the set of dtype-tags of every type it has been). Each type-specific modifier is counted ONCE: an
+    # "increased Elemental Damage" mod applies once across an elemental→elemental hop (Lightning→Cold), not
+    # once per element — verified in-game. Single-type mods (e.g. "increased Cold Damage") apply only when
+    # Cold is in the path. generic_inc/add are applied once separately inside _apply_conversion.
+    def _path_spec_inc(path_tags):
+        return sum(source.total(k) for k, tags in _HIT_INC_STATS
+                   if (tags & _DTYPE_TAG_SET) and (tags & path_tags))
+
+    def _path_spec_add(path_tags):
+        return _additional_product(
+            source, add_factors,
+            lambda tags: bool(tags & _DTYPE_TAG_SET) and bool(tags & path_tags))
 
     # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
     steep_chance = min(skill.base_steep_strike_chance + source.total("steep_strike_chance"), 1.0)
@@ -638,7 +656,7 @@ def calculate_offense(
         # (1 + path increases) × (path additionals) × generic; per-final-type factors (enemy vuln,
         # above-max, augmentation) and Lucky apply below. No conversion → final == native per-type result.
         eff_flat = {t: (mn * (eff / 100.0), mx * (eff / 100.0)) for t, (mn, mx) in flat_dmg.items()}
-        converted = _apply_conversion(eff_flat, spec_inc, spec_add, generic_inc, generic_add,
+        converted = _apply_conversion(eff_flat, _path_spec_inc, _path_spec_add, generic_inc, generic_add,
                                       convert_fracs, adds_fracs)
         for dtype, (smin, smax) in converted.items():
             # Enemy-vulnerability (Numbed etc.) and Augmentation are per-FINAL-type / global multipliers.
