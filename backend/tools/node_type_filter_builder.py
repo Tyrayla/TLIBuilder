@@ -43,7 +43,7 @@ _RANGE_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\b")
 _COND_STRIP_RE = re.compile(
     r"\s+(?:while\b|when\b|if\b|against\b|recently\b|on\s+hit\b|on\s+defeat\b|"
     r"upon\b|for\s+every\b|for\s+each\b|nearby\b|distant\b|in\s+proximity\b|"
-    r"in\s+the\s+last\b|per\s+(?!second))",
+    r"in\s+the\s+last\b|at\s+(?:low|full)\s+mana\b|per\s+(?!second))",
     re.I,
 )
 # Strips trailing prepositions/verbs left over after conditional clause removal.
@@ -157,6 +157,7 @@ _COND_PHRASES = (
     "on hit", "on defeat", "upon ",
     "for every", "for each",
     "nearby", "distant", "in proximity", "in the last",
+    "low mana", "full mana",
 )
 
 
@@ -204,7 +205,8 @@ _CONDITION_MAP: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\belixir\b",                                  re.I), "elixir_active"),
     (re.compile(r"standing still",                              re.I), "standing_still"),
     (re.compile(r"when moving",                                 re.I), "moving"),
-    (re.compile(r"in proximity|nearby",                         re.I), "enemy_nearby"),
+    (re.compile(r"in proximity|proximity",                      re.I), "enemy_in_proximity"),
+    (re.compile(r"nearby",                                      re.I), "enemy_nearby"),
     (re.compile(r"\bdistant\b",                                 re.I), "enemy_distant"),
     (re.compile(r"full mana",                                   re.I), "at_full_mana"),
     (re.compile(r"low mana",                                    re.I), "at_low_mana"),
@@ -238,6 +240,37 @@ def _detect_condition(text: str) -> str | None:
     for pattern, key in _CONDITION_MAP:
         if pattern.search(text):
             return key
+    return None
+
+
+# ── Scaling detection (per / for-each effects) ────────────────────────────────
+# "+X% Stat per stack of Y" / "+X% Stat per N Rating" effects scale their amount by a
+# numeric condition rather than being flat. Each rule maps a phrase to:
+#   (numeric_condition_key, per_n, keep_gate)
+# per_n: the divisor (1.0, or "N" to read the integer in the phrase, e.g. "per 10 Fervor Rating").
+# keep_gate: whether to also keep the detected boolean condition as a gate. False for effects
+#   whose gate is the same mechanic as the scaling number (the scaling already yields 0 at 0);
+#   True when the gate is a *separate* mechanic (e.g. "while Dual Wielding" + per-weapon scaling).
+_SCALING_RULES: list[tuple[re.Pattern, tuple[str, object, bool]]] = [
+    # "any blessing" must precede the specific blessing rules so it isn't shadowed by a partial match.
+    (re.compile(r"per\s+stack\s+of\s+(?:any|a)\s+blessing", re.I), ("any_blessings",     1.0, False)),
+    (re.compile(r"per\s+stack\s+of\s+tenacity\s+blessing", re.I), ("tenacity_blessings", 1.0, False)),
+    (re.compile(r"per\s+stack\s+of\s+focus\s+blessing",    re.I), ("focus_blessings",    1.0, False)),
+    (re.compile(r"per\s+stack\s+of\s+agility\s+blessing",  re.I), ("agility_blessings",  1.0, False)),
+    (re.compile(r"per\s+(\d+)\s+fervor\s+rating",          re.I), ("fervor_rating",      "N", False)),
+    (re.compile(r"per\s+fervor\s+rating",                  re.I), ("fervor_rating",      1.0, False)),
+    (re.compile(r"for\s+each\s+time\s+you\s+have\s+regained", re.I), ("regain_stacks",   1.0, False)),
+    (re.compile(r"for\s+each\s+unique\s+type\s+of\s+weapon",  re.I), ("unique_weapon_types", 1.0, True)),
+]
+
+
+def _detect_scaling(text: str) -> tuple[str, float, bool] | None:
+    """Return (scaling_key, per_n, keep_gate) for a per/for-each effect, or None."""
+    for pattern, (key, per_n, keep_gate) in _SCALING_RULES:
+        m = pattern.search(text)
+        if m:
+            n = float(m.group(1)) if per_n == "N" else float(per_n)
+            return key, n, keep_gate
     return None
 
 
@@ -667,20 +700,43 @@ def build_node_recipes(season_trees: dict[str, dict]) -> dict[str, list[dict]]:
                 if _is_conditional(effect_text):
                     cond_key = _detect_condition(effect_text)
                     if cond_key:
-                        result = _jaccard_match(effect_text, candidates, overrides)
-                        if result:
-                            stat_val, rank1 = result
-                            pair = (stat_val, cond_key)
-                            if pair not in seen_cond_pairs:
-                                seen_cond_pairs.add(pair)
-                                values = _build_values(rank1, node_type)
-                                recipes_for_node.append({
-                                    "stat": stat_val,
-                                    "rank1": round(rank1, 6),
-                                    "values": values,
-                                    "text": effect_text,
-                                    "condition": cond_key,
-                                })
+                        # Match on the stat portion only (strip the conditional clause),
+                        # mirroring _process_stat_text — split combos first, then Jaccard.
+                        stripped = _strip_conditional(effect_text)
+                        pairs = _try_split(stripped) or []
+                        if not pairs:
+                            result = _jaccard_match(stripped, candidates, overrides)
+                            if result:
+                                pairs = [result]
+                        scaling = _detect_scaling(effect_text)
+                        for stat_val, rank1 in pairs:
+                            # "per/for-each" effects scale by a numeric condition; the gate is
+                            # dropped unless it's a separate mechanic (keep_gate).
+                            gate = cond_key
+                            if scaling and not scaling[2]:
+                                gate = None
+                            dedup_tag = gate if gate else (scaling[0] if scaling else cond_key)
+                            pair = (stat_val, dedup_tag)
+                            if pair in seen_cond_pairs:
+                                continue
+                            seen_cond_pairs.add(pair)
+                            recipe: dict = {
+                                "stat": stat_val,
+                                "rank1": round(rank1, 6),
+                                "text": effect_text,
+                            }
+                            if scaling:
+                                skey, per_n, _ = scaling
+                                recipe["values"] = []
+                                sc: dict = {"key": skey, "per": round(rank1, 6)}
+                                if per_n != 1.0:
+                                    sc["per_n"] = per_n
+                                recipe["scaling"] = sc
+                            else:
+                                recipe["values"] = _build_values(rank1, node_type)
+                            if gate:
+                                recipe["condition"] = gate
+                            recipes_for_node.append(recipe)
                     continue
                 matches = _match_effect(effect_text, candidates, overrides)
                 for stat_val, rank1 in matches:

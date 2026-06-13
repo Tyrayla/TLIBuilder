@@ -1,6 +1,13 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { api, getApiBase, TreeData, TreeNode, TreeSlot } from '../api/client'
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui/react'
+import { api, getApiBase, TreeData, TreeNode, CoreTalentSlotOption } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
+import { useBuildStore } from '../store/buildStore'
+import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, type ModifierStatus } from '../components/ModifierBadge'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
+import { TooltipShell } from '../components/tooltip/TooltipShell'
+import { NodeTooltipBody } from '../components/tooltip/bodies/NodeTooltipBody'
+import { useDamageDelta, withNodePoints } from '../components/tooltip/useDamageDelta'
 
 const COLS = 7
 const ROWS = 5
@@ -14,7 +21,6 @@ const NODE_R = 28
 
 function nodeX(col: number) { return col * CELL_W + CELL_W / 2 }
 function nodeY(row: number) { return HEADER + row * CELL_H + CELL_H / 2 }
-function colUnlocked(col: number, total: number) { return col === 0 || total >= col * 3 }
 function sumPoints(states: Record<string, number>) {
   return Object.values(states).reduce((a, b) => a + b, 0)
 }
@@ -31,9 +37,8 @@ function nextType(t: NodeTypeStr): NodeTypeStr {
 }
 function maxPointsFor(t: NodeTypeStr) { return t === 'Legendary Medium Talent' ? 1 : 3 }
 
-function nodeColors(node: TreeNode, states: Record<string, number>, total: number) {
+function nodeColors(node: TreeNode, states: Record<string, number>, locked: boolean) {
   const pts = states[node.id] ?? 0
-  const locked = !colUnlocked(node.column, total)
   const full = pts >= node.max_points
   return {
     fill:   locked ? '#222233' : full ? '#533483' : '#0f3460',
@@ -42,30 +47,110 @@ function nodeColors(node: TreeNode, states: Record<string, number>, total: numbe
   }
 }
 
-function scaleEffect(text: string, pts: number): string {
-  const rank = Math.max(pts, 1)
-  if (rank === 1) return text
-  return text.replace(/(\d+(?:\.\d+)?)/, (_, num) => {
-    const scaled = parseFloat(num) * rank
-    return scaled % 1 === 0 ? String(scaled) : scaled.toFixed(2)
-  })
+type DebugTool = 'create' | 'type' | 'link'
+
+interface TreeNodeGProps {
+  node: TreeNode
+  cx: number
+  cy: number
+  pts: number
+  colors: { fill: string; stroke: string; text: string }
+  locked: boolean
+  isLinkSrc: boolean
+  isHit: boolean
+  isSearching: boolean
+  processing: boolean
+  debugMode: boolean
+  onInteract: (node: TreeNode, isRight: boolean) => void
 }
 
-interface Tip { nodeId: string; x: number; y: number }
-type DebugTool = 'create' | 'type' | 'link'
+// A single passive-tree node (SVG group) plus its hover tooltip, routed through the shared
+// floating-tooltip primitive. Element-anchored; damage-delta band wired (NYI until backend).
+function TreeNodeG({
+  node, cx, cy, pts, colors, locked, isLinkSrc, isHit, isSearching, processing, debugMode, onInteract,
+}: TreeNodeGProps) {
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  const activeSlot = useBuildStore(s => s.activeSlot)
+  // Marginal per-point delta: step the hovered node by +1 (or -1 when maxed) vs the current build.
+  // Derive the current points from the SAME store snapshot used for the baseline — NOT the render-time
+  // `pts` — so the step is always exactly one rank off the base. Using `pts` (local tree state) here
+  // can desync from the store the engine prices against, yielding a 2-rank delta or a zeroed one
+  // (bug-129 class).
+  const maxPts = node.max_points
+  const delta = useDamageDelta(
+    tip.open ? {
+      key: `node:${activeSlot}:${node.id}`,
+      step: s => {
+        const cur = s.slots[activeSlot]?.nodeStates?.[node.id] ?? 0
+        const tgt = cur < maxPts ? cur + 1 : Math.max(0, cur - 1)
+        return withNodePoints(s, activeSlot, node.id, tgt)
+      },
+    } : null,
+    tip.open,
+  )
+  return (
+    <>
+      <g
+        {...tip.triggerProps}
+        style={{
+          cursor: (locked && !debugMode) || processing ? 'default' : 'pointer',
+          opacity: isSearching && !isHit ? 0.15 : 1,
+        }}
+        onClick={e => { e.preventDefault(); onInteract(node, false) }}
+        onContextMenu={e => { e.preventDefault(); onInteract(node, true) }}
+      >
+        {isSearching && isHit && (
+          <circle cx={cx} cy={cy} r={NODE_R + 6}
+            fill="rgba(233,192,70,0.12)"
+            stroke="#e9c046"
+            strokeWidth={2}
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+        <circle cx={cx} cy={cy} r={NODE_R}
+          fill={isLinkSrc ? '#2a4a2a' : colors.fill}
+          stroke={isLinkSrc ? '#6be946' : colors.stroke}
+          strokeWidth={isLinkSrc ? 3 : 2}
+        />
+        {(node.node_type === 'Medium Talent' || node.node_type === 'Legendary Medium Talent') && (
+          <circle cx={cx} cy={cy} r={NODE_R - 4}
+            fill="none"
+            stroke={node.node_type === 'Legendary Medium Talent' ? '#e9c046' : '#60a5fa'}
+            strokeWidth={1.5}
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+        <text
+          x={cx} y={cy + 4}
+          textAnchor="middle"
+          fill={colors.text}
+          fontSize={11}
+          fontWeight="bold"
+          fontFamily="Segoe UI"
+          style={{ pointerEvents: 'none' }}
+        >
+          {pts}/{node.max_points}
+        </text>
+      </g>
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--node" {...tip.floatingProps}>
+            <TooltipShell title={`${node.node_type} ${pts}/${node.max_points}`} delta={delta}>
+              <NodeTooltipBody node={node} pts={pts} />
+            </TooltipShell>
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
 
 interface Props {
   treeName: string
   treeColor: string
   treeColors: Record<string, string>
-  initialNodeStates: Record<string, number>
-  initialCoreTalentSelections?: Record<number, string>
-  slots: (TreeSlot | null)[]
-  activeSlot: number
   onBack: () => void
   onSlotClick: (slotIndex: number) => void
-  onNodeStatesChange: (s: Record<string, number>) => void
-  onCoreTalentSelectionsChange?: (s: Record<number, string>) => void
   onReselect: () => void
   onSlotReorder?: (fromSlot: number, toSlot: number) => void
   onPreview?: () => void
@@ -75,18 +160,66 @@ interface Props {
 }
 
 export default function TreeViewerScreen({
-  treeName, treeColor, treeColors, initialNodeStates, initialCoreTalentSelections,
-  slots, activeSlot,
-  onBack, onSlotClick, onNodeStatesChange, onCoreTalentSelectionsChange, onReselect,
+  treeName, treeColor, treeColors,
+  onBack, onSlotClick, onReselect,
   onSlotReorder, onPreview,
   previewMode = false, devMode = false, deprecatedTools = false,
 }: Props) {
+  const slots = useBuildStore(s => s.slots)
+  const activeSlot = useBuildStore(s => s.activeSlot)
+  const updateSlotNodeStates = useBuildStore(s => s.updateSlotNodeStates)
+  const updateSlotCoreTalentSelections = useBuildStore(s => s.updateSlotCoreTalentSelections)
+  // Core-talent effect badges (roadmap #4), the same 4-state scheme as every other modifier, driven by
+  // the tree's STATIC per-line resolution plus the build's consumed_stats + consumable_universe:
+  //   • unresolved/deferred line                       → "Unrecognized (NYI)" (red)
+  //   • resolves, talent granted, a stat consumed      → "Consumed" (green)
+  //   • resolves, granted, stat in universe not consumed → "Inactive" (grey) — not for your skill
+  //   • resolves, granted, stat the engine never reads → "Unconsumed" (yellow)
+  //   • override line (applied via a flag, no stat)    → no badge
+  const coreTalentStatuses = useBuildStore(s => s.computedStats.core_talent_statuses)
+  const consumedStats = useConsumedStatSet()
+  const universe = useConsumableUniverse()
+  const grantedCoreNames = useMemo(() => {
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+    return new Set((coreTalentStatuses ?? []).map(st => norm(st.name)))
+  }, [coreTalentStatuses])
+  const coreEffectBadge = useCallback((opt: CoreTalentSlotOption, i: number): ModifierStatus | null => {
+    const es = opt.effect_status?.[i]
+    if (!es || es.kind === 'override') return null
+    if (!es.resolved) return 'unrecognized'
+    if (es.stat_keys.length === 0) return 'unrecognized'
+    // Only meaningful once the talent is actually granted; ungranted options stay unbadged.
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+    if (!grantedCoreNames.has(norm(opt.name))) return null
+    if (es.stat_keys.some(k => consumedStats.has(k))) return 'working'
+    if (universe.size === 0 || es.stat_keys.some(k => universe.has(k))) return 'inactive'
+    return 'unused'
+  }, [grantedCoreNames, consumedStats, universe])
+
   const [treeData, setTreeData] = useState<TreeData | null>(null)
   const [loadError, setLoadError] = useState('')
-  const [nodeStates, setNodeStates] = useState<Record<string, number>>(initialNodeStates)
-  const [coreTalentSelections, setCoreTalentSelections] = useState<Record<number, string>>(initialCoreTalentSelections ?? {})
+  const [nodeStates, setNodeStates] = useState<Record<string, number>>(() => previewMode ? {} : (slots[activeSlot]?.nodeStates ?? {}))
+  const [coreTalentSelections, setCoreTalentSelections] = useState<Record<number, string>>(() => previewMode ? {} : (slots[activeSlot]?.coreTalentSelections ?? {}))
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null)
-  const [tip, setTip] = useState<Tip | null>(null)
+
+  // Float the core-talent dropdown beneath the expanded slot's circle, auto-shifting to stay fully
+  // on-screen (anchored to the trigger, never clipped by the window edge).
+  const coreFloat = useFloating({
+    open: expandedSlot !== null,
+    placement: 'bottom',
+    whileElementsMounted: autoUpdate,
+    middleware: [
+      offset(6),
+      flip({ padding: 8 }),
+      shift({ padding: 8 }),
+      size({
+        padding: 8,
+        apply({ availableWidth, elements }) {
+          elements.floating.style.maxWidth = `${Math.max(240, availableWidth)}px`
+        },
+      }),
+    ],
+  })
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null)
   const [processing, setProcessing] = useState(false)
   const [search, setSearch] = useState('')
@@ -107,8 +240,9 @@ export default function TreeViewerScreen({
   }, [treeName])
 
   useEffect(() => {
-    setNodeStates(initialNodeStates)
-    setCoreTalentSelections(initialCoreTalentSelections ?? {})
+    setNodeStates(previewMode ? {} : (slots[activeSlot]?.nodeStates ?? {}))
+    setCoreTalentSelections(previewMode ? {} : (slots[activeSlot]?.coreTalentSelections ?? {}))
+    setExpandedSlot(null)   // collapse — a stale index can be out of range for the new tree
     setSearch('')
     loadTree()
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
@@ -120,6 +254,17 @@ export default function TreeViewerScreen({
 
 
   const total = sumPoints(nodeStates)
+
+  // Column unlock = points spent in columns strictly to the LEFT of a column (its own and
+  // further-right points don't count). Column 0 is always open.
+  const colPoints = Array(COLS).fill(0) as number[]
+  if (treeData) for (const n of treeData.nodes) colPoints[n.column] += nodeStates[n.id] ?? 0
+  const isColUnlocked = (col: number): boolean => {
+    if (col === 0) return true
+    let before = 0
+    for (let c = 0; c < col; c++) before += colPoints[c]
+    return before >= col * 3
+  }
 
   const searchWords = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const isSearching = searchWords.length > 0
@@ -146,7 +291,7 @@ export default function TreeViewerScreen({
       const res = await api.validateAllocate(treeName, nodeStates, nodeId, action)
       if (res.allowed) {
         setNodeStates(res.node_states)
-        onNodeStatesChange(res.node_states)
+        if (!previewMode) updateSlotNodeStates(activeSlot, res.node_states)
         if (treeData && Object.keys(coreTalentSelections).length > 0) {
           const newTotal = sumPoints(res.node_states)
           const next = { ...coreTalentSelections }
@@ -161,7 +306,7 @@ export default function TreeViewerScreen({
           }
           if (changed) {
             setCoreTalentSelections(next)
-            onCoreTalentSelectionsChange?.(next)
+            if (!previewMode) updateSlotCoreTalentSelections(activeSlot, next)
           }
         }
       } else {
@@ -251,11 +396,17 @@ export default function TreeViewerScreen({
   const handleReset = () => {
     const cleared = Object.fromEntries(Object.keys(nodeStates).map(k => [k, 0]))
     setNodeStates(cleared)
-    onNodeStatesChange(cleared)
+    if (!previewMode) updateSlotNodeStates(activeSlot, cleared)
     flash('All points reset.', true)
   }
 
   const handleCoreTalentSelect = (slotIndex: number, talentId: string) => {
+    // Options are always viewable, but selection is gated on meeting the slot's point threshold.
+    const slot = treeData?.core_talent_slots[slotIndex]
+    if (slot && total < slot.threshold) {
+      flash(`Allocate ${slot.threshold} points to select this Core Talent.`)
+      return
+    }
     const next = { ...coreTalentSelections }
     if (next[slotIndex] === talentId) {
       delete next[slotIndex]
@@ -264,8 +415,88 @@ export default function TreeViewerScreen({
       setExpandedSlot(null)
     }
     setCoreTalentSelections(next)
-    onCoreTalentSelectionsChange?.(next)
+    if (!previewMode) updateSlotCoreTalentSelections(activeSlot, next)
   }
+
+  // Core-talent widget (circles + Floating dropdown) — shared by the normal and preview headers.
+  const coreTalentWidget = treeData && treeData.core_talent_slots.length > 0 ? (
+          <div className="core-talent-header-widget">
+            <div className="core-talent-circles">
+              {treeData.core_talent_slots.map((slot, slotIdx) => {
+                const unlocked = total >= slot.threshold
+                const selectedId = coreTalentSelections[slotIdx]
+                const isOpen = expandedSlot === slotIdx
+                const ptsToward = Math.min(total, slot.threshold)
+                const selectedTalentName = selectedId
+                  ? (slot.options.find(o => o.id === selectedId)?.name ?? null)
+                  : null
+                return (
+                  <div key={slotIdx} className="core-talent-slot-item">
+                    <button
+                      ref={isOpen ? coreFloat.refs.setReference : undefined}
+                      className={`core-talent-circle${unlocked ? ' unlocked' : ''}${isOpen ? ' open' : ''}${selectedId ? ' has-selection' : ''}`}
+                      onClick={() => setExpandedSlot(isOpen ? null : slotIdx)}
+                      title={unlocked ? `Core Talent Slot ${slotIdx + 1} — click to expand` : `Locked — need ${slot.threshold} pts (click to preview)`}
+                    >
+                      <span className="core-talent-circle-progress">
+                        {unlocked ? (selectedId ? '✓' : '?') : `${ptsToward}/${slot.threshold}`}
+                      </span>
+                    </button>
+                    <span className="core-talent-circle-label">
+                      {selectedTalentName ?? `Core Talent ${slotIdx + 1}`}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            {expandedSlot !== null && (() => {
+              // Guard: expandedSlot can be stale after switching to a tree with fewer core-talent
+              // slots (e.g. a 2-slot God tree → a 1-slot subtree), making this index out of range.
+              const slot = treeData.core_talent_slots[expandedSlot]
+              if (!slot) return null
+              const selectedId = coreTalentSelections[expandedSlot]
+              const slotUnlocked = total >= slot.threshold   // viewable always; selectable at threshold
+              return (
+                <FloatingPortal>
+                  <div
+                    ref={coreFloat.refs.setFloating}
+                    style={coreFloat.floatingStyles}
+                    className="core-talent-cards"
+                  >
+                    {!slotUnlocked && (
+                      <div className="core-talent-locked-note">
+                        Locked — allocate {slot.threshold} points in this tree to select.
+                      </div>
+                    )}
+                    <div className="core-talent-card-row">
+                      {slot.options.map(opt => {
+                        const selected = selectedId === opt.id
+                        return (
+                          <div key={opt.id} className={`core-talent-card${selected ? ' selected' : ''}${slotUnlocked ? '' : ' locked'}`}>
+                            <div className="core-talent-card-name">{opt.name}</div>
+                            <div className="core-talent-card-desc">
+                              {opt.effects.map((e, i) => (
+                                <p key={i}>{e}<ModifierBadge status={coreEffectBadge(opt, i)} /></p>
+                              ))}
+                            </div>
+                            <button
+                              className={`core-talent-card-select${selected ? ' selected' : ''}`}
+                              onClick={() => handleCoreTalentSelect(expandedSlot, opt.id)}
+                              disabled={!slotUnlocked}
+                              title={slotUnlocked ? '' : `Need ${slot.threshold} points to select`}
+                            >
+                              {selected ? 'Selected' : slotUnlocked ? 'Select' : 'Locked'}
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </FloatingPortal>
+              )
+            })()}
+          </div>
+  ) : null
 
   // ── Header ─────────────────────────────────────────────────────────────────
 
@@ -273,6 +504,7 @@ export default function TreeViewerScreen({
     <div className="viewer-header preview-viewer-header">
       <div className="viewer-header-left">
         <button className="btn-back" onClick={onBack}>← Back to Preview</button>
+        {coreTalentWidget}
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
         <div className="preview-header-badge" style={{ fontSize: 10, padding: '2px 10px' }}>◈ PREVIEW MODE</div>
@@ -288,63 +520,7 @@ export default function TreeViewerScreen({
       <div className="viewer-header-left">
         <button className="btn-back" onClick={onBack}>← Back</button>
         <span className="viewer-tree-name" style={{ color: treeColor }}>{treeName}</span>
-        {treeData && treeData.core_talent_slots.length > 0 && (
-          <div className="core-talent-header-widget">
-            <div className="core-talent-circles">
-              {treeData.core_talent_slots.map((slot, slotIdx) => {
-                const unlocked = total >= slot.threshold
-                const selectedId = coreTalentSelections[slotIdx]
-                const isOpen = expandedSlot === slotIdx
-                const ptsToward = Math.min(total, slot.threshold)
-                const selectedTalentName = selectedId
-                  ? (slot.options.find(o => o.id === selectedId)?.name ?? null)
-                  : null
-                return (
-                  <div key={slotIdx} className="core-talent-slot-item">
-                    <button
-                      className={`core-talent-circle${unlocked ? ' unlocked' : ''}${isOpen ? ' open' : ''}${selectedId ? ' has-selection' : ''}`}
-                      onClick={() => unlocked && setExpandedSlot(isOpen ? null : slotIdx)}
-                      disabled={!unlocked}
-                      title={unlocked ? `Core Talent Slot ${slotIdx + 1} — click to expand` : `Need ${slot.threshold} pts`}
-                    >
-                      <span className="core-talent-circle-progress">
-                        {unlocked ? (selectedId ? '✓' : '?') : `${ptsToward}/${slot.threshold}`}
-                      </span>
-                    </button>
-                    <span className="core-talent-circle-label">
-                      {selectedTalentName ?? `Core Talent ${slotIdx + 1}`}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-            {expandedSlot !== null && (() => {
-              const slot = treeData.core_talent_slots[expandedSlot]
-              const selectedId = coreTalentSelections[expandedSlot]
-              return (
-                <div className="core-talent-cards">
-                  {slot.options.map(opt => {
-                    const selected = selectedId === opt.id
-                    return (
-                      <div key={opt.id} className={`core-talent-card${selected ? ' selected' : ''}`}>
-                        <div className="core-talent-card-name">{opt.name}</div>
-                        <div className="core-talent-card-desc">
-                          {opt.effects.map((e, i) => <p key={i}>{e}</p>)}
-                        </div>
-                        <button
-                          className={`core-talent-card-select${selected ? ' selected' : ''}`}
-                          onClick={() => handleCoreTalentSelect(expandedSlot, opt.id)}
-                        >
-                          {selected ? 'Selected' : 'Select'}
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
-          </div>
-        )}
+        {coreTalentWidget}
       </div>
       {treeData && (
         <>
@@ -483,7 +659,7 @@ export default function TreeViewerScreen({
             >
               {COL_LABELS.map((label, col) => {
                 const cx = nodeX(col)
-                const locked = !colUnlocked(col, total)
+                const locked = !isColUnlocked(col)
                 return (
                   <g key={col}>
                     <text x={cx} y={15} textAnchor="middle" fill="#e0e0e0"
@@ -547,56 +723,26 @@ export default function TreeViewerScreen({
                 const cx = nodeX(node.column)
                 const cy = nodeY(node.row)
                 const pts = nodeStates[node.id] ?? 0
-                const colors = nodeColors(node, nodeStates, total)
-                const locked = !colUnlocked(node.column, total)
+                const locked = !isColUnlocked(node.column)
+                const colors = nodeColors(node, nodeStates, locked)
                 const isLinkSrc = debugMode && debugTool === 'link' && linkFrom === node.id
                 const isHit = !isSearching || searchHits.has(node.id)
                 return (
-                  <g
+                  <TreeNodeG
                     key={node.id}
-                    style={{
-                      cursor: (locked && !debugMode) || processing ? 'default' : 'pointer',
-                      opacity: isSearching && !isHit ? 0.15 : 1,
-                    }}
-                    onClick={e => { e.preventDefault(); handleNodeInteract(node, false) }}
-                    onContextMenu={e => { e.preventDefault(); handleNodeInteract(node, true) }}
-                    onMouseEnter={e => setTip({ nodeId: node.id, x: e.clientX, y: e.clientY })}
-                    onMouseLeave={() => setTip(null)}
-                    onMouseMove={e => setTip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
-                  >
-                    {isSearching && isHit && (
-                      <circle cx={cx} cy={cy} r={NODE_R + 6}
-                        fill="rgba(233,192,70,0.12)"
-                        stroke="#e9c046"
-                        strokeWidth={2}
-                        style={{ pointerEvents: 'none' }}
-                      />
-                    )}
-                    <circle cx={cx} cy={cy} r={NODE_R}
-                      fill={isLinkSrc ? '#2a4a2a' : colors.fill}
-                      stroke={isLinkSrc ? '#6be946' : colors.stroke}
-                      strokeWidth={isLinkSrc ? 3 : 2}
-                    />
-                    {(node.node_type === 'Medium Talent' || node.node_type === 'Legendary Medium Talent') && (
-                      <circle cx={cx} cy={cy} r={NODE_R - 4}
-                        fill="none"
-                        stroke={node.node_type === 'Legendary Medium Talent' ? '#e9c046' : '#60a5fa'}
-                        strokeWidth={1.5}
-                        style={{ pointerEvents: 'none' }}
-                      />
-                    )}
-                    <text
-                      x={cx} y={cy + 4}
-                      textAnchor="middle"
-                      fill={colors.text}
-                      fontSize={11}
-                      fontWeight="bold"
-                      fontFamily="Segoe UI"
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      {pts}/{node.max_points}
-                    </text>
-                  </g>
+                    node={node}
+                    cx={cx}
+                    cy={cy}
+                    pts={pts}
+                    colors={colors}
+                    locked={locked}
+                    isLinkSrc={isLinkSrc}
+                    isHit={isHit}
+                    isSearching={isSearching}
+                    processing={processing}
+                    debugMode={debugMode}
+                    onInteract={handleNodeInteract}
+                  />
                 )
               })}
             </svg>
@@ -608,43 +754,6 @@ export default function TreeViewerScreen({
 
         </div>
       </div>
-
-      {tip && nodeMap[tip.nodeId] && (() => {
-        const node = nodeMap[tip.nodeId]
-        const pts = nodeStates[node.id] ?? 0
-        const effects = node.effects ?? []
-        const atMax = pts >= node.max_points
-        const flipX = tip.x > window.innerWidth - 230
-        const flipY = tip.y > window.innerHeight - 160
-        const tipStyle: React.CSSProperties = {
-          left:   flipX ? undefined : tip.x + 14,
-          right:  flipX ? window.innerWidth - tip.x + 14 : undefined,
-          top:    flipY ? undefined : tip.y + 8,
-          bottom: flipY ? window.innerHeight - tip.y + 8 : undefined,
-        }
-        return (
-          <div className="tooltip" style={tipStyle}>
-            <div className="tooltip-type">{node.node_type} {pts}/{node.max_points}</div>
-            {pts > 0 && effects.length > 0 && (
-              <div className="tooltip-stats">
-                {effects.map((e, i) => (
-                  <div key={i} className="tooltip-stat-row">{scaleEffect(e, pts)}</div>
-                ))}
-              </div>
-            )}
-            {!atMax && effects.length > 0 && (
-              <>
-                <div className="tooltip-next-level">Next Level</div>
-                <div className="tooltip-stats">
-                  {effects.map((e, i) => (
-                    <div key={i} className="tooltip-stat-row">{scaleEffect(e, pts + 1)}</div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )
-      })()}
 
       {/* Confirm delete dialog */}
       {confirmDelete && (

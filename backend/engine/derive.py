@@ -29,16 +29,19 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
         key="strength",
         flat_keys=["strength_flat", "all_stats_flat"],
         inc_keys=["strength_inc", "all_stats_inc"],
+        add_pools=[["strength_additional"]],
     ),
     DerivedStat(
         key="dexterity",
         flat_keys=["dexterity_flat", "all_stats_flat"],
         inc_keys=["dexterity_inc", "all_stats_inc"],
+        add_pools=[["dexterity_additional"]],
     ),
     DerivedStat(
         key="intelligence",
         flat_keys=["intelligence_flat", "all_stats_flat"],
         inc_keys=["intelligence_inc", "all_stats_inc"],
+        add_pools=[["intelligence_additional"]],
     ),
 
     # ── Life / Mana / Energy Shield ────────────────────────────────────────────
@@ -52,26 +55,31 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
         key="max_mana",
         flat_keys=["max_mana_flat"],
         inc_keys=["max_mana_inc"],
+        add_pools=[["max_mana_additional"]],
     ),
     DerivedStat(
         key="max_energy_shield",
+        # *_gear_flat already has the item's "% gear X" applied locally (statsPayload.foldLocalGearDefense),
+        # so the gear % is NOT a global inc here — only the truly-global "% increased Max ES" pools.
         flat_keys=["max_energy_shield_flat", "energy_shield_gear_flat"],
-        inc_keys=["max_energy_shield_inc", "energy_shield_gear_inc"],
+        inc_keys=["max_energy_shield_inc"],
+        add_pools=[["max_energy_shield_additional"]],
     ),
 
     # ── Armor / Evasion ────────────────────────────────────────────────────────
     # defense_inc is a shared multiplier that applies to both armor and evasion.
     # armor_additional and evasion_additional are each one independent pool.
+    # *_gear_flat is pre-scaled by the item's local "% gear X" (statsPayload) — not a global inc.
     DerivedStat(
         key="armor",
         flat_keys=["armor_flat", "armor_gear_flat"],
-        inc_keys=["armor_inc", "armor_gear_inc", "defense_inc"],
+        inc_keys=["armor_inc", "defense_inc"],
         add_pools=[["armor_additional"]],
     ),
     DerivedStat(
         key="evasion",
         flat_keys=["evasion_flat", "evasion_gear_flat"],
-        inc_keys=["evasion_inc", "evasion_gear_inc", "defense_inc"],
+        inc_keys=["evasion_inc", "defense_inc"],
         add_pools=[["evasion_additional"]],
     ),
 ]
@@ -80,24 +88,31 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
 DERIVED_BY_KEY: dict[str, DerivedStat] = {d.key: d for d in ALL_DERIVED_STATS}
 
 
-def derive_stats(source: BuildSource) -> dict[str, float]:
+def derive_stats(source: BuildSource, overrides: dict[str, float] | None = None) -> dict[str, float]:
     """Compute final effective stat values and inject them back into source.
 
     Called once per aggregation pass inside the compute fixed-point loop.
     Results are available via source.total(key) for the pipeline and
     the computed_stat condition injection step.
 
+    `overrides` forces a derived stat to a FIXED final value (core-talent "set to / fixed at N"
+    set-value mechanic) — the normal flat×inc×additional computation is skipped for that key.
+
     Returns {key: value} for all derived stats.
     """
+    overrides = overrides or {}
     results: dict[str, float] = {}
     for d in ALL_DERIVED_STATS:
-        flat_total = d.base + sum(source.total(k) for k in d.flat_keys)
-        inc_total  = sum(source.total(k) for k in d.inc_keys)
-        value      = flat_total * (1.0 + inc_total)
-        for pool in d.add_pools:
-            pool_total = sum(source.total(k) for k in pool)
-            value *= (1.0 + pool_total)
-        value = max(0.0, value)
+        if d.key in overrides:
+            value = max(0.0, float(overrides[d.key]))
+        else:
+            flat_total = d.base + sum(source.total(k) for k in d.flat_keys)
+            inc_total  = sum(source.total(k) for k in d.inc_keys)
+            value      = flat_total * (1.0 + inc_total)
+            for pool in d.add_pools:
+                pool_total = sum(source.total(k) for k in pool)
+                value *= (1.0 + pool_total)
+            value = max(0.0, value)
         results[d.key] = value
         source.add(d.key, value)
     return results

@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { FloatingPortal } from '@floating-ui/react'
 import {
   api,
-  EquippedGearItem,
   EquippedSkill,
   EquippedSupportSkill,
   SkillItem,
@@ -12,6 +11,39 @@ import {
   getSupportEnergyCost,
   getMaxEnergy,
 } from '../api/client'
+import { useBuildStore } from '../store/buildStore'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
+import { TooltipShell } from '../components/tooltip/TooltipShell'
+import { SkillTooltipBody } from '../components/tooltip/bodies/SkillTooltipBody'
+import { DamageDeltaBand } from '../components/tooltip/DamageDeltaBand'
+import { useDamageDelta, useDamageDeltaList, withSupport, type DeltaRequest, type DamageDelta } from '../components/tooltip/useDamageDelta'
+import { modeledRolledLines } from '../utils/supportRolls'
+
+// Cursor-anchored skill / support hover tooltip via the shared primitive (informational —
+// no contributions band). Render-prop hands triggerProps to the hovered element.
+function SkillHoverTooltip({ name, descLines, children, deltaReq = null }: {
+  name: string
+  descLines: string[]
+  children: (triggerProps: Record<string, unknown>) => React.ReactNode
+  deltaReq?: DeltaRequest | null   // when set, a DPS-delta band is computed on hover (e.g. equip preview)
+}) {
+  const tip = useFloatingTooltip({ anchor: 'cursor', side: 'top' })
+  const delta = useDamageDelta(deltaReq, tip.open && !!deltaReq)
+  return (
+    <>
+      {children(tip.triggerProps)}
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--skill" {...tip.floatingProps}>
+            <TooltipShell title={name} delta={deltaReq ? delta : undefined}>
+              <SkillTooltipBody lines={getAdvancedLines(cleanDescLines(descLines))} />
+            </TooltipShell>
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
 
 const ACTIVE_SLOTS  = [1, 2, 3, 4, 5]
 const PASSIVE_SLOTS = [6, 7, 8, 9]
@@ -61,6 +93,24 @@ function getAdvancedLines(lines: string[]): string[] {
   return idx >= 0 ? lines.slice(idx) : lines
 }
 
+// Tidy a support description for tooltips: strip the per-level scaling annotations "(Lv1:2)(Lv2:…)"
+// that clutter standard supports, collapse a phrase that the source repeats back-to-back, and drop
+// duplicate lines.
+function cleanDescLines(lines: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of lines) {
+    let s = (raw ?? '').replace(/\(Lv\.?\s*\d+\s*:[^)]*\)/gi, '').replace(/\s{2,}/g, ' ').trim()
+    // Collapse an immediately-repeated half ("A A" → "A"), which the game data does for some supports.
+    const half = Math.floor(s.length / 2)
+    if (half > 12 && s.slice(0, half).trim() === s.slice(half).trim()) s = s.slice(0, half).trim()
+    if (!s || seen.has(s)) continue
+    seen.add(s)
+    out.push(s)
+  }
+  return out
+}
+
 function isPassiveSlot(slot: number) { return slot > 5 }
 
 const TIERED_SUPPORT_TYPES = new Set(['activation_medium_skill', 'magnificent_support_skill', 'noble_support_skill'])
@@ -71,21 +121,70 @@ function supportLevelRange(skill_type: string | undefined): { min: number; max: 
     : { min: 1, max: 40, default: 20 }
 }
 
+// Tiered supports (Noble / Magnificent / Activation Medium) are levelled by "Tier" in-game; basic
+// support skills use "Level".
+function supportLevelLabel(skill_type: string | undefined): string {
+  return TIERED_SUPPORT_TYPES.has(skill_type ?? '') ? 'Tier' : 'Level'
+}
+
+// Only Noble/Magnificent supports carry the rank (1-5) that scales their universal
+// "+% additional damage for the supported skill" line. Other support types have no rank.
+const RANKED_SUPPORT_TYPES = new Set(['magnificent_support_skill', 'noble_support_skill'])
+const DEFAULT_SUPPORT_RANK = 1  // 0% universal — the conservative default; the user raises it to match
+function isRankedSupport(skill_type: string | undefined): boolean {
+  return RANKED_SUPPORT_TYPES.has(skill_type ?? '')
+}
+// Universal "+% additional damage for the supported skill" by rank (mirror support_resolver._RANK_TABLE).
+const RANK_TABLE = [0, 0.04, 0.08, 0.14, 0.20]
+function rankAdditional(rank: number | undefined): number {
+  return RANK_TABLE[Math.max(1, Math.min(5, rank ?? 1)) - 1]
+}
+
+// Compact inline DPS-delta shown beside a support's name (gain/loss %). Returns null when there's
+// nothing useful to show (no value yet / not modeled).
+function deltaInline(d: DamageDelta | undefined): React.ReactNode {
+  if (!d) return null
+  if (d.state === 'loading') return <span style={{ fontSize: 11, opacity: 0.4 }}>…</span>
+  if (d.state === 'value' && d.direction !== 'neutral') {
+    return (
+      <span style={{ fontSize: 11, fontWeight: 600, color: d.direction === 'gain' ? '#5fc16a' : '#e06c6c' }}>
+        {d.percent > 0 ? '+' : ''}{d.percent.toFixed(1)}%
+      </span>
+    )
+  }
+  return null
+}
+
+// Build a fresh EquippedSupportSkill from a catalog item (default rank/tier + tier-mid rolls). Shared
+// by assignSupport and the catalog DPS-delta preview transform.
+function makeSupport(item: SkillItem, supportIndex: number): EquippedSupportSkill {
+  const range = supportLevelRange(item.skill_type)
+  const rolls = modeledRolledLines(item, range.default)
+  return {
+    support_index: supportIndex,
+    item_id: item.item_id,
+    name: item.name,
+    skill_type: item.skill_type ?? 'support_skill',
+    level: range.default,
+    skill_tags: item.skill_tags,
+    description_lines: item.description_lines,
+    ...(isRankedSupport(item.skill_type) ? { rank: DEFAULT_SUPPORT_RANK } : {}),
+    ...(rolls.length ? { specific_rolls: Object.fromEntries(rolls.map(r => [r.identity, r.mid])) } : {}),
+  }
+}
+
 interface Props {
-  equippedSkills: EquippedSkill[]
-  onSkillsChange: (skills: EquippedSkill[]) => void
-  gear: EquippedGearItem[]
-  characterLevel: number
-  hasPrism: boolean
-  onCharacterLevelChange: (v: number) => void
-  onHasPrismChange: (v: boolean) => void
   onBack: () => void
 }
 
-export default function SkillsScreen({
-  equippedSkills, onSkillsChange,
-  gear, characterLevel, hasPrism, onCharacterLevelChange, onHasPrismChange,
-}: Props) {
+export default function SkillsScreen(_props: Props) {
+  const equippedSkills = useBuildStore(s => s.skills)
+  const onSkillsChange = useBuildStore(s => s.setSkills)
+  const gear = useBuildStore(s => s.gear)
+  const characterLevel = useBuildStore(s => s.characterLevel)
+  const hasPrism = useBuildStore(s => s.hasPrism)
+  const onCharacterLevelChange = useBuildStore(s => s.setCharacterLevel)
+  const onHasPrismChange = useBuildStore(s => s.setHasPrism)
   const [allItems, setAllItems] = useState<SkillItem[]>([])
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
   const [centerView, setCenterView] = useState<'catalog' | 'detail'>('catalog')
@@ -95,11 +194,6 @@ export default function SkillsScreen({
   const [pendingLevel, setPendingLevel] = useState(20)
   const [search, setSearch] = useState('')
   const [supportSearch, setSupportSearch] = useState('')
-  const [tooltip, setTooltip] = useState<{ name: string; lines: string[]; x: number; y: number } | null>(null)
-
-  const showTooltip = (item: { name: string; description_lines: string[] }, e: React.MouseEvent) =>
-    setTooltip({ name: item.name, lines: getAdvancedLines(item.description_lines), x: e.clientX + 14, y: e.clientY - 8 })
-  const hideTooltip = () => setTooltip(null)
 
   useEffect(() => {
     api.getSkills().then(r => setAllItems(r.skills))
@@ -110,6 +204,18 @@ export default function SkillsScreen({
     (skill.supports ?? []).find(s => s.support_index === idx) ?? null
 
   const focusedEquipped = focusedSlot !== null ? getEquipped(focusedSlot) : null
+
+  // DPS contribution of the focused equipped support (slot-1 only — supports on other skills don't
+  // affect the computed main-skill DPS). Recomputes live as its rank/tier/roll change.
+  const focusedEquippedSupport = (focusedSlot === 1 && focusedSupportIdx !== null && focusedEquipped)
+    ? getSupport(focusedEquipped, focusedSupportIdx) : null
+  const equippedSupportDelta = useDamageDelta(
+    focusedEquippedSupport && focusedSupportIdx !== null
+      ? { key: `support-have:${focusedSupportIdx}:${focusedEquippedSupport.item_id}`,
+          base: s => withSupport(s, focusedSupportIdx, null) }
+      : null,
+    !!focusedEquippedSupport,
+  )
 
   // ── catalog lists ──────────────────────────────────────────────────────────
   const skillCatalogItems = useMemo(() => {
@@ -138,6 +244,32 @@ export default function SkillsScreen({
       s.description_lines.some(l => l.toLowerCase().includes(q))
     )
   }, [allItems, focusedSlot, focusedSupportIdx, focusedEquipped, equippedSkills, supportSearch])
+
+  // Per-catalog-support equip DPS-delta (slot-1 only) — used to label each name and sort the list.
+  const supportPickReqs = useMemo<DeltaRequest[]>(() =>
+    (focusedSlot === 1 && focusedSupportIdx !== null)
+      ? supportCatalogItems.map(item => ({
+          key: `support-pick:${item.item_id}:${focusedSupportIdx}`,
+          step: (s) => withSupport(s, focusedSupportIdx, makeSupport(item, focusedSupportIdx)),
+        }))
+      : [],
+    [supportCatalogItems, focusedSlot, focusedSupportIdx])
+  const supportPickDeltas = useDamageDeltaList(supportPickReqs.length ? supportPickReqs : null, supportPickReqs.length > 0)
+  const supportDeltaById = useMemo(() => {
+    const m: Record<string, DamageDelta> = {}
+    supportCatalogItems.forEach((it, i) => { if (supportPickDeltas[i]) m[it.item_id] = supportPickDeltas[i] })
+    return m
+  }, [supportCatalogItems, supportPickDeltas])
+  // Sort by contribution (gain desc); unresolved/nyi sink, preserving original order among equals.
+  const sortedSupportCatalog = useMemo(() => {
+    const score = (i: number) => {
+      const d = supportPickDeltas[i]
+      return d && d.state === 'value' ? d.absolute : Number.NEGATIVE_INFINITY
+    }
+    return supportCatalogItems.map((it, i) => ({ it, i }))
+      .sort((a, b) => score(b.i) - score(a.i))
+      .map(x => x.it)
+  }, [supportCatalogItems, supportPickDeltas])
 
   const selectedSkillItem  = allItems.find(i => i.item_id === selectedSkillId)  ?? null
   const selectedSupportItem = allItems.find(i => i.item_id === selectedSupportId) ?? null
@@ -191,10 +323,12 @@ export default function SkillsScreen({
     setSelectedSkillId(selectedSkillItem.item_id)
   }
 
-  const updateLevel = () => {
+  // Commit an equipped skill's level immediately (no Set button — any change auto-updates).
+  const setEquippedLevel = (newLevel: number) => {
     if (!focusedEquipped || focusedSlot === null) return
+    const clamped = Math.max(1, Math.min(40, newLevel))
     onSkillsChange(equippedSkills.map(s =>
-      s.slot === focusedSlot ? { ...s, level: pendingLevel } : s
+      s.slot === focusedSlot ? { ...s, level: clamped } : s
     ))
   }
 
@@ -208,20 +342,31 @@ export default function SkillsScreen({
     }
   }
 
+  // Enable/disable a skill — disabled skills (and their supports + sourced buffs/debuffs) drop out of the
+  // calc without losing the setup. Persisted in the build (rides inside the skills array).
+  const toggleSkillEnabled = (slot: number) => {
+    onSkillsChange(equippedSkills.map(s =>
+      s.slot === slot ? { ...s, enabled: s.enabled === false } : s
+    ))
+  }
+
+  // Enable/disable a single support on the focused skill.
+  const toggleSupportEnabled = (supportIdx: number) => {
+    if (focusedSlot === null) return
+    onSkillsChange(equippedSkills.map(s =>
+      s.slot === focusedSlot
+        ? { ...s, supports: s.supports.map(sup =>
+              sup.support_index === supportIdx ? { ...sup, enabled: sup.enabled === false } : sup
+            )}
+        : s
+    ))
+  }
+
   const assignSupport = () => {
     if (!selectedSupportItem || focusedSlot === null || focusedSupportIdx === null) return
     const parent = focusedEquipped
     if (!parent) return
-    const range = supportLevelRange(selectedSupportItem.skill_type)
-    const newSupport: EquippedSupportSkill = {
-      support_index: focusedSupportIdx,
-      item_id: selectedSupportItem.item_id,
-      name: selectedSupportItem.name,
-      skill_type: selectedSupportItem.skill_type ?? 'support_skill',
-      level: range.default,
-      skill_tags: selectedSupportItem.skill_tags,
-      description_lines: selectedSupportItem.description_lines,
-    }
+    const newSupport = makeSupport(selectedSupportItem, focusedSupportIdx)
     const updated: EquippedSkill = {
       ...parent,
       supports: [
@@ -323,22 +468,24 @@ export default function SkillsScreen({
               <div className="skill-catalog-empty">No skills match your search</div>
             )}
             {skillCatalogItems.map(item => (
-              <div
-                key={item.item_id}
-                className={`skill-catalog-item${selectedSkillId === item.item_id ? ' selected' : ''}`}
-                onClick={() => {
-                  setSelectedSkillId(item.item_id)
-                  if (focusedEquipped?.item_id !== item.item_id) setPendingLevel(20)
-                  else setPendingLevel(focusedEquipped.level)
-                }}
-                onMouseMove={e => showTooltip(item, e)}
-                onMouseLeave={hideTooltip}
-              >
-                <span className="skill-catalog-name">{item.name}</span>
-                <div className="skill-catalog-tags">
-                  {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
-                </div>
-              </div>
+              <SkillHoverTooltip key={item.item_id} name={item.name} descLines={item.description_lines}>
+                {tp => (
+                  <div
+                    {...tp}
+                    className={`skill-catalog-item${selectedSkillId === item.item_id ? ' selected' : ''}`}
+                    onClick={() => {
+                      setSelectedSkillId(item.item_id)
+                      if (focusedEquipped?.item_id !== item.item_id) setPendingLevel(20)
+                      else setPendingLevel(focusedEquipped.level)
+                    }}
+                  >
+                    <span className="skill-catalog-name">{item.name}</span>
+                    <div className="skill-catalog-tags">
+                      {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
+                    </div>
+                  </div>
+                )}
+              </SkillHoverTooltip>
             ))}
           </div>
           {selectedSkillItem && (
@@ -373,28 +520,35 @@ export default function SkillsScreen({
     return (
       <>
         <div className="skill-detail-header">
-          <div
-            onMouseMove={e => showTooltip(focusedEquipped, e)}
-            onMouseLeave={hideTooltip}
-            style={{ cursor: 'default' }}
-          >
-            <div className="skill-detail-name">{focusedEquipped.name}</div>
-            <div className="skill-detail-tags">
-              {focusedEquipped.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
-            </div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+            <SkillHoverTooltip name={focusedEquipped.name} descLines={focusedEquipped.description_lines}>
+              {tp => (
+                <div {...tp} style={{ cursor: 'default', flex: 1, minWidth: 0 }}>
+                  <div className="skill-detail-name">{focusedEquipped.name}</div>
+                  <div className="skill-detail-tags">
+                    {focusedEquipped.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
+                  </div>
+                </div>
+              )}
+            </SkillHoverTooltip>
+            <button
+              className={`btn btn-sm ${focusedEquipped.enabled === false ? 'btn-danger' : 'btn-success'}`}
+              title="Enable/disable this skill (and its supports) in the calculation"
+              onClick={() => toggleSkillEnabled(focusedSlot)}
+            >{focusedEquipped.enabled === false ? 'Disabled' : 'Enabled'}</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => { setCenterView('catalog'); setSearch('') }}>Change</button>
+            <button className="btn btn-danger btn-sm" onClick={() => removeSkill(focusedSlot)}>Remove</button>
           </div>
           <div className="skill-level-row" style={{ marginTop: 0, alignItems: 'center' }}>
+            <span className="skill-level-label">Level</span>
             <div className="skill-level-controls">
-              <button className="skill-level-btn" onClick={() => setPendingLevel(l => Math.max(1, l - 1))}>−</button>
+              <button className="skill-level-btn" onClick={() => setEquippedLevel(focusedEquipped.level - 1)}>−</button>
               <input
-                type="number" className="skill-level-input" min={1} max={40} value={pendingLevel}
-                onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) setPendingLevel(Math.max(1, Math.min(40, v))) }}
+                type="number" className="skill-level-input" min={1} max={40} value={focusedEquipped.level}
+                onChange={e => setEquippedLevel(Number(e.target.value) || 1)}
               />
-              <button className="skill-level-btn" onClick={() => setPendingLevel(l => Math.min(40, l + 1))}>+</button>
+              <button className="skill-level-btn" onClick={() => setEquippedLevel(focusedEquipped.level + 1)}>+</button>
             </div>
-            <button className="btn btn-secondary btn-sm" style={{ marginLeft: 6 }} onClick={updateLevel}>
-              Set
-            </button>
           </div>
         </div>
         <div className="skill-panel-divider" />
@@ -406,19 +560,31 @@ export default function SkillsScreen({
             const cost = getSupportEnergyCost(isPassive, idx)
             const isActiveSup = focusedSupportIdx === idx
             const supItem = sup ? allItems.find(i => i.item_id === sup.item_id) : null
-            return (
+            const renderRow = (tp: Record<string, unknown> | null) => (
               <div
                 key={idx}
+                {...(tp ?? {})}
                 className={`skill-support-slot-row${isActiveSup ? ' active' : ''}${sup ? ' occupied' : ''}`}
                 onClick={() => selectSupportSlot(idx)}
-                onMouseMove={supItem ? e => showTooltip(supItem, e) : undefined}
-                onMouseLeave={supItem ? hideTooltip : undefined}
               >
+                {sup ? (
+                  <input
+                    type="checkbox"
+                    className="skill-support-toggle"
+                    checked={sup.enabled !== false}
+                    title={sup.enabled === false ? 'Disabled — click to enable' : 'Enabled — click to disable'}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => { e.stopPropagation(); toggleSupportEnabled(idx) }}
+                  />
+                ) : <span className="skill-support-toggle-spacer" />}
                 <span className={`skill-support-cost-badge${sup ? '' : ' dim'}`}>{cost}</span>
                 <span className="skill-support-slot-num">{idx}</span>
                 {sup ? (
                   <>
-                    <span className="skill-support-slot-name">{sup.name}</span>
+                    <span className="skill-support-slot-name"
+                          style={sup.enabled === false ? { opacity: 0.45, textDecoration: 'line-through' } : undefined}>
+                      {sup.name}{sup.enabled === false ? ' (off)' : ''}
+                    </span>
                     <button className="skill-slot-remove" onClick={e => removeSupport(idx, e)}>×</button>
                   </>
                 ) : (
@@ -426,18 +592,12 @@ export default function SkillsScreen({
                 )}
               </div>
             )
+            return supItem
+              ? <SkillHoverTooltip key={idx} name={supItem.name} descLines={supItem.description_lines}>{tp => renderRow(tp)}</SkillHoverTooltip>
+              : renderRow(null)
           })}
         </div>
 
-        <div className="skill-panel-divider" />
-        <div className="skill-detail-actions">
-          <button className="btn btn-secondary" onClick={() => { setCenterView('catalog'); setSearch('') }}>
-            Change Skill
-          </button>
-          <button className="btn btn-danger" onClick={() => removeSkill(focusedSlot)}>
-            Remove Skill
-          </button>
-        </div>
       </>
     )
   }
@@ -467,6 +627,12 @@ export default function SkillsScreen({
             <div className="skill-support-current">
               <span className="skill-support-current-label">Equipped:</span>
               <span className="skill-support-current-name">{existingSupport.name}</span>
+              <button
+                className={`btn btn-sm ${existingSupport.enabled === false ? 'btn-danger' : 'btn-success'}`}
+                style={{ marginLeft: 6 }}
+                title="Enable/disable this support in the calculation"
+                onClick={() => toggleSupportEnabled(focusedSupportIdx)}
+              >{existingSupport.enabled === false ? 'Disabled' : 'Enabled'}</button>
               <button className="skill-slot-remove" onClick={e => removeSupport(focusedSupportIdx, e)}>×</button>
             </div>
           )}
@@ -474,17 +640,21 @@ export default function SkillsScreen({
             const lvlRange = supportLevelRange(existingSupport.skill_type)
             const updateLevel = (newLevel: number) => {
               const clamped = Math.max(lvlRange.min, Math.min(lvlRange.max, newLevel))
+              // Re-seed each modeled roll to the new tier's midpoint — otherwise the explicit roll
+              // overrides the tier and changing the tier alone wouldn't move DPS.
+              const rolls = modeledRolledLines(allItems.find(i => i.item_id === existingSupport.item_id), clamped)
+              const newRolls = rolls.length ? Object.fromEntries(rolls.map(r => [r.identity, r.mid])) : undefined
               onSkillsChange(equippedSkills.map(sk =>
                 sk.slot === focusedSlot
                   ? { ...sk, supports: sk.supports.map(s =>
-                        s.support_index === focusedSupportIdx ? { ...s, level: clamped } : s
+                        s.support_index === focusedSupportIdx ? { ...s, level: clamped, specific_rolls: newRolls } : s
                       )}
                   : sk
               ))
             }
             return (
               <div className="skill-level-controls" style={{ marginTop: 6 }}>
-                <span className="skill-level-label">Level</span>
+                <span className="skill-level-label">{supportLevelLabel(existingSupport.skill_type)}</span>
                 <button className="skill-level-btn" onClick={() => updateLevel(existingSupport.level - 1)}>−</button>
                 <input
                   className="skill-level-input"
@@ -498,6 +668,87 @@ export default function SkillsScreen({
               </div>
             )
           })()}
+          {existingSupport && isRankedSupport(existingSupport.skill_type) && (() => {
+            const rank = existingSupport.rank ?? DEFAULT_SUPPORT_RANK
+            const updateRank = (newRank: number) => {
+              const clamped = Math.max(1, Math.min(5, newRank))
+              onSkillsChange(equippedSkills.map(sk =>
+                sk.slot === focusedSlot
+                  ? { ...sk, supports: sk.supports.map(s =>
+                        s.support_index === focusedSupportIdx ? { ...s, rank: clamped } : s
+                      )}
+                  : sk
+              ))
+            }
+            return (
+              <div className="skill-level-controls" style={{ marginTop: 6 }}>
+                <span className="skill-level-label">Rank</span>
+                <button className="skill-level-btn" onClick={() => updateRank(rank - 1)}>−</button>
+                <input
+                  className="skill-level-input"
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={rank}
+                  onChange={e => updateRank(Number(e.target.value) || 1)}
+                />
+                <button className="skill-level-btn" onClick={() => updateRank(rank + 1)}>+</button>
+                <span
+                  className="skill-support-rank-hint"
+                  style={{ marginLeft: 8, fontSize: 11, opacity: 0.75, cursor: 'help' }}
+                  title="Rank scales the universal '+% additional damage for the supported skill' line: R1 0% / R2 4% / R3 8% / R4 14% / R5 20%."
+                >= +{(rankAdditional(rank) * 100).toFixed(0)}% additional</span>
+              </div>
+            )
+          })()}
+          {/* Roll sliders — one per engine-modeled rolled line (today: Noble/Magnificent specific line). */}
+          {existingSupport && (() => {
+            const supItem = allItems.find(i => i.item_id === existingSupport.item_id)
+            const rolls = modeledRolledLines(supItem, existingSupport.level)
+            if (!rolls.length) return null
+            const updateRoll = (identity: string, value: number) => {
+              onSkillsChange(equippedSkills.map(sk =>
+                sk.slot === focusedSlot
+                  ? { ...sk, supports: sk.supports.map(s =>
+                        s.support_index === focusedSupportIdx
+                          ? { ...s, specific_rolls: { ...(s.specific_rolls ?? {}), [identity]: value } }
+                          : s
+                      )}
+                  : sk
+              ))
+            }
+            return rolls.map(r => {
+              const cur = existingSupport.specific_rolls?.[r.identity] ?? r.mid
+              return (
+                <div key={r.identity} className="skill-level-controls" style={{ marginTop: 6, gap: 8 }}>
+                  <span className="skill-level-label">Roll</span>
+                  <input
+                    type="range" className="gear-affix-slider" style={{ flex: 1 }}
+                    min={r.min} max={r.max} step={(r.max - r.min) / 100 || 0.001}
+                    value={cur}
+                    onChange={e => updateRoll(r.identity, Number(e.target.value))}
+                  />
+                  <span style={{ minWidth: 92, textAlign: 'right', fontSize: 12, opacity: 0.85 }}>
+                    {(cur * 100).toFixed(1)}% <span style={{ opacity: 0.5 }}>({(r.min * 100).toFixed(0)}–{(r.max * 100).toFixed(0)}%)</span>
+                  </span>
+                </div>
+              )
+            })
+          })()}
+          {/* Resolved contribution summary. */}
+          {existingSupport && (
+            <div style={{ marginTop: 8, fontSize: 11, opacity: 0.7, lineHeight: 1.5 }}>
+              Skill Lv {focusedEquipped.level}
+              {isRankedSupport(existingSupport.skill_type) &&
+                ` · Universal +${(rankAdditional(existingSupport.rank) * 100).toFixed(0)}% (Rank ${existingSupport.rank ?? DEFAULT_SUPPORT_RANK})`}
+            </div>
+          )}
+          {/* Live DPS contribution of this support (slot-1 main skill only). */}
+          {existingSupport && focusedSlot === 1 && (
+            <div style={{ marginTop: 6 }}>
+              <DamageDeltaBand delta={equippedSupportDelta} label="Support contribution" />
+            </div>
+          )}
         </div>
         <div className="skill-panel-divider" />
         <div className="skill-search-bar">
@@ -513,19 +764,22 @@ export default function SkillsScreen({
           {supportCatalogItems.length === 0 && (
             <div className="skill-catalog-empty">No compatible supports for this slot</div>
           )}
-          {supportCatalogItems.map(item => (
-            <div
-              key={item.item_id}
-              className={`skill-catalog-item${selectedSupportId === item.item_id ? ' selected' : ''}`}
-              onClick={() => setSelectedSupportId(item.item_id)}
-              onMouseMove={e => showTooltip(item, e)}
-              onMouseLeave={hideTooltip}
-            >
-              <span className="skill-catalog-name">{item.name}</span>
-              <div className="skill-catalog-tags">
-                {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
-              </div>
-            </div>
+          {sortedSupportCatalog.map(item => (
+            <SkillHoverTooltip key={item.item_id} name={item.name} descLines={item.description_lines}>
+              {tp => (
+                <div
+                  {...tp}
+                  className={`skill-catalog-item${selectedSupportId === item.item_id ? ' selected' : ''}`}
+                  onClick={() => setSelectedSupportId(item.item_id)}
+                >
+                  <span className="skill-catalog-name">{item.name}</span>
+                  {deltaInline(supportDeltaById[item.item_id])}
+                  <div className="skill-catalog-tags">
+                    {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
+                  </div>
+                </div>
+              )}
+            </SkillHoverTooltip>
           ))}
         </div>
         {selectedSupportItem && (
@@ -603,15 +857,6 @@ export default function SkillsScreen({
         </div>
       </div>
     </div>
-    {tooltip && createPortal(
-      <div className="skill-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
-        <div className="skill-tooltip-name">{tooltip.name}</div>
-        <div className="skill-tooltip-desc">
-          {tooltip.lines.map((l, i) => <p key={i}>{l}</p>)}
-        </div>
-      </div>,
-      document.body
-    )}
     </>
   )
 }

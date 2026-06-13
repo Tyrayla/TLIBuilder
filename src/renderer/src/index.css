@@ -42,12 +42,34 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .btn-primary   { background: var(--bg-btn); color: var(--fg); }
 .btn-secondary { background: #1a1a30; border: 1px solid #2a2a4a; color: #888; }
 .btn-danger    { background: #3a1a1a; color: var(--err); }
+.btn-success   { background: #16301a; border: 1px solid #2a4a2a; color: #6bd06b; }
 .btn-sm        { padding: 5px 12px; font-size: 12px; }
 
 .nyi-tag {
   font-size: 10px; font-weight: 700; color: #ff6b6b;
   background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.3);
   border-radius: 3px; padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+  white-space: nowrap; cursor: default; letter-spacing: 0.3px;
+}
+/* Modifier badges — one 4-state scheme everywhere. Colors use !important because context rules
+   (notably .tooltip-stat-row span:last-child -> var(--ok) green) target the trailing badge span.
+   "Consumed" = green (actively contributing); "Inactive" = grey (engine models it, not for your skill);
+   "Unconsumed" = amber (resolves but engine never reads it); "Unrecognized (NYI)" = red dashed. */
+.nyi-tag--working {
+  color: #5bd47e !important;
+  background: rgba(91,212,126,0.12); border-color: rgba(91,212,126,0.32);
+}
+.nyi-tag--inactive {
+  color: #9aa3ad !important;
+  background: rgba(154,163,173,0.12); border-color: rgba(154,163,173,0.30);
+}
+.nyi-tag--unused {
+  color: #e0a83a !important;
+  background: rgba(224,168,58,0.12); border-color: rgba(224,168,58,0.34);
+}
+.nyi-tag--unrecognized {
+  color: #ff6b6b !important;
+  background: rgba(255,107,107,0.10); border-style: dashed; border-color: rgba(255,107,107,0.5);
 }
 
 .btn-back {
@@ -749,16 +771,28 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .core-talent-circle-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #666688; white-space: nowrap; text-align: center; }
 
 .core-talent-cards {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 200;
-  display: flex; gap: 10px;
+  /* Positioned by Floating UI (anchored to the expanded circle, auto-shifted to stay on-screen);
+     max-width is applied inline by the size middleware. Just the box + layout here. */
+  z-index: 900;
+  display: flex; flex-direction: column; gap: 8px;
   background: #0a0a18; border: 1px solid #2a2a4a; border-radius: 8px;
   padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.7);
 }
+.core-talent-card-row { display: flex; gap: 10px; min-width: 0; }
+/* Locked slot — options stay viewable, selection is disabled until the threshold is met. */
+.core-talent-locked-note {
+  font-size: 11px; font-weight: 600; color: #e0a050;
+  padding: 4px 6px; border-radius: 4px;
+  background: rgba(224,160,80,0.08); border: 1px solid rgba(224,160,80,0.25);
+}
+.core-talent-card.locked { opacity: 0.85; border-style: dashed; }
+.core-talent-card-select:disabled { opacity: 0.5; cursor: not-allowed; }
 .core-talent-card {
   display: flex; flex-direction: column; gap: 8px;
   padding: 14px 12px 10px;
   background: #0e0e1e; border: 1px solid #2a2a4a; border-radius: 6px;
-  width: 160px; min-height: 150px;
+  /* Preferred 160px, but allowed to shrink so a full row always fits the capped panel. */
+  flex: 1 1 160px; min-width: 0; max-width: 160px; min-height: 150px;
   transition: border-color 0.15s, background 0.15s;
 }
 .core-talent-card.selected { border-color: #6bcb77; background: #0c1a0e; }
@@ -774,20 +808,57 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .core-talent-card-select:hover:not(.selected) { background: #22224a; border-color: #5a5a8a; }
 .core-talent-card-select.selected { background: #0a2010; border-color: #4a8a5a; color: #6bcb77; cursor: default; }
 
-/* ── Tooltip ──────────────────────────────────────────────────────────────── */
+/* ── Tooltip (shared base — see components/tooltip/) ─────────────────────────── */
 
+/* Layer 2 base container. Positioning comes from useFloatingTooltip (inline style);
+   pointer-events is set inline per-tooltip (none, or auto for interactive). */
 .tooltip {
   position: fixed;
-  background: #0d1b2a;
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  padding: 6px 10px;
-  font-size: 11px;
+  z-index: 9999;
+  background: #0e0e1e;
+  border: 1px solid #3a3a6a;
+  border-radius: 6px;
+  padding: 10px 12px;
   color: var(--fg);
-  pointer-events: none;
-  z-index: 999;
-  min-width: 110px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.65);
 }
+
+/* Per-type modifiers */
+.tooltip--node   { background: #0d1b2a; border-color: var(--accent); }
+.tooltip--node .tooltip-title { color: var(--accent); }
+.tooltip--gear   { min-width: 220px; max-width: 300px; }
+.tooltip--skill  { max-width: 280px; }
+.tooltip--spirit { /* centered-above is handled by Floating UI placement now */ }
+.tooltip--stat   { width: 230px; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.tooltip--stat .stat-tooltip-list { flex: 1; min-height: 0; }
+.tooltip--slider    { color: #c8c4a0; white-space: nowrap; max-width: 380px; }
+.tooltip--base-stat { min-width: 180px; max-width: 260px; }
+.tooltip--base-item { min-width: 180px; max-width: 280px; }
+
+/* Shell chrome */
+.tooltip-title    { font-size: 13px; font-weight: 700; color: #c8a050; margin-bottom: 2px; }
+.tooltip-subtitle { font-size: 11px; color: #7070aa; margin-bottom: 2px; }
+.tooltip-divider  { border-top: 1px solid #2a2a3a; margin: 6px 0; }
+.tooltip-body     { display: flex; flex-direction: column; gap: 2px; }
+
+/* Contributions footer — a separate area at the BOTTOM of the tooltip that grows downward
+   as more contribution rows are added (today: just the damage-delta band). */
+.tooltip-contributions {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #2a2a3a;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Damage-delta band */
+.tooltip-delta        { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 700; }
+.tooltip-delta--gain  { color: var(--ok); }
+.tooltip-delta--loss  { color: #e06060; }
+.tooltip-delta--nyi   { color: #55556a; font-weight: 500; }
+
+/* Legacy node-tooltip helpers still used by NodeTooltipBody */
 .tooltip-type { color: var(--accent); font-weight: 600; margin-bottom: 4px; font-size: 14px; }
 .tooltip-next-level { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #666; margin-top: 6px; margin-bottom: 2px; }
 
@@ -973,6 +1044,34 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .sidebar-save-btn:hover { background: #1a1a33; border-color: var(--accent); color: #aaaaee; }
 
+.sidebar-dps-box {
+  background: #0d0d20;
+  border: 1px solid #2a2a50;
+  border-radius: 6px;
+  padding: 7px 8px 6px;
+  margin: 3px 0 1px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sidebar-dps-box:hover { background: #111130; border-color: #5a4a90; }
+.sidebar-dps-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #6060a0;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.sidebar-dps-value {
+  font-size: 19px;
+  font-weight: 700;
+  color: #f0c070;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+}
+
 .sidebar-nav-btn {
   display: block;
   width: 100%;
@@ -1006,6 +1105,14 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   margin-top: 2px;
 }
 .sidebar-back:hover { color: #8888aa; background: #111120; }
+
+.sidebar-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #777799; cursor: pointer;
+  padding: 4px 8px; user-select: none;
+}
+.sidebar-toggle:hover { color: #aaaacc; }
+.sidebar-toggle input { cursor: pointer; margin: 0; }
 
 /* ── Notes Screen ──────────────────────────────────────────── */
 
@@ -1056,14 +1163,21 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex-shrink: 0;
 }
 
+/* Outer = vertical scroll area; inner .cond-masonry is the multi-column (masonry) flow that grows with
+   its content so the cards pack densely and fill the width without grid-row gaps. */
 .cond-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 10px;
-  align-content: start;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+}
+.cond-grid::-webkit-scrollbar { width: 5px; }
+.cond-grid::-webkit-scrollbar-track { background: transparent; }
+.cond-grid::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+.cond-grid::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
+
+.cond-masonry {
+  columns: 230px;
+  column-gap: 10px;
 }
 
 .cond-card {
@@ -1071,7 +1185,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   border: 1px solid #1e1e3a;
   border-radius: 6px;
   overflow: hidden;
-  align-self: start;
+  break-inside: avoid;       /* keep a category card whole within a column */
+  margin-bottom: 10px;       /* multicol uses margins, not grid gap */
 }
 
 .cond-card-header {
@@ -1501,8 +1616,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 /* ── Equipment Slots (panel 1) ────────────────────────────────────────────── */
 
 .gear-slots-panel {
-  width: 230px;
-  flex-shrink: 0;
+  flex: 22;
+  min-width: 160px;
   background: #0e0e1e;
   border-right: 1px solid #1e1e3a;
   display: flex;
@@ -1632,8 +1747,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 /* ── Items in Build (panel 2) ─────────────────────────────────────────────── */
 
 .gear-build-panel {
-  width: 230px;
-  flex-shrink: 0;
+  flex: 22;
+  min-width: 160px;
   background: #0e0e1e;
   border-right: 1px solid #1e1e3a;
   display: flex;
@@ -1664,6 +1779,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .gear-build-item:hover { background: #13132a; }
 .gear-build-item--selected { background: #1a1a3e; }
 .gear-build-item--dragging { opacity: 0.4; }
+/* Drop-before indicator while reordering the build list (inset line avoids layout shift). */
+.gear-build-item--reorder-over { box-shadow: inset 0 2px 0 0 #e0b860; }
 
 .gear-build-item-name {
   flex: 1;
@@ -1892,6 +2009,46 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .gear-mutation-select:focus { outline: none; border-color: #5a5a7a; }
 
+/* Belt-blend equip (roadmap #4) — shown in the customize panel for belt items only. */
+.gear-belt-blend-section {
+  padding: 8px 10px;
+  border-top: 1px solid #2a2a3a;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gear-belt-blend-header {
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gear-belt-blend-select {
+  width: 100%;
+  background: #1a1a2e;
+  color: #c8c4a0;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gear-belt-blend-select:focus { outline: none; border-color: #5a5a7a; }
+
+.gear-belt-blend-effect {
+  font-size: 12px;
+  color: #b7a4d8;
+  line-height: 1.4;
+  padding: 4px 6px;
+  background: #181826;
+  border-left: 2px solid #6a5a9a;
+  border-radius: 3px;
+}
+
 .gear-mutation-unavailable {
   font-size: 11px;
   color: #888;
@@ -1994,12 +2151,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .gear-editor-column {
   position: relative;
-  flex: 1;
+  flex: 34;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #1e1e3a;
   overflow: hidden;
-  min-width: 340px;
+  min-width: 280px;
 }
 
 .gear-editor-column .gear-customize-panel {
@@ -2492,8 +2649,8 @@ span.gear-affix-label {
 /* ── Legendary Catalog (panel 4, rightmost) ───────────────────────────────── */
 
 .gear-catalog {
-  width: 230px;
-  flex-shrink: 0;
+  flex: 22;
+  min-width: 160px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2645,6 +2802,10 @@ span.gear-affix-label {
   color: #8888cc;
 }
 
+.gear-tooltip-affix--corroded {
+  color: #c678dd;
+}
+
 /* ── Skills Screen ──────────────────────────────────────────────────────────── */
 
 .skills-screen {
@@ -2682,8 +2843,8 @@ span.gear-affix-label {
 /* ── Skill Slots (left panel) ──────────────────────────────────────────────── */
 
 .skill-slots-panel {
-  width: 200px;
-  flex-shrink: 0;
+  flex: 20;
+  min-width: 150px;
   background: #0e0e1e;
   border-right: 1px solid #1e1e3a;
   display: flex;
@@ -2840,7 +3001,8 @@ span.gear-affix-label {
 /* ── Center panel (skill catalog or skill detail) ──────────────────────────── */
 
 .skill-center-panel {
-  flex: 1;
+  flex: 44;
+  min-width: 220px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #1e1e3a;
@@ -3374,6 +3536,15 @@ span.gear-affix-label {
 .skill-support-slot-row.active { background: #1a1a44; border-color: var(--gold); }
 .skill-support-slot-row.occupied { border-color: #2a2a55; }
 
+.skill-support-toggle {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  accent-color: #4caf50;   /* green when enabled */
+  cursor: pointer;
+}
+.skill-support-toggle-spacer { width: 13px; flex-shrink: 0; }
+
 .skill-support-cost-badge {
   font-size: 9px;
   font-weight: 700;
@@ -3420,8 +3591,8 @@ span.gear-affix-label {
 /* ── Support panel (right panel) ─────────────────────────────────────────── */
 
 .skill-support-panel {
-  width: 280px;
-  flex-shrink: 0;
+  flex: 36;
+  min-width: 180px;
   background: #0c0c1c;
   display: flex;
   flex-direction: column;
@@ -3475,26 +3646,7 @@ span.gear-affix-label {
 .skill-support-current-label { font-size: 10px; color: #444; flex-shrink: 0; }
 .skill-support-current-name { font-size: 11px; color: var(--gold); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ── Skill hover tooltip ─────────────────────────────────────────────────── */
-
-.skill-tooltip {
-  position: fixed;
-  z-index: 9999;
-  pointer-events: none;
-  background: #0c0c20;
-  border: 1px solid #3a3a6a;
-  border-radius: 6px;
-  padding: 10px 12px;
-  max-width: 280px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.65);
-}
-
-.skill-tooltip-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--gold);
-  margin-bottom: 6px;
-}
+/* ── Skill hover tooltip (container = shared .tooltip/.tooltip--skill) ───────── */
 
 .skill-tooltip-desc p {
   font-size: 11px;
@@ -4086,26 +4238,9 @@ span.gear-affix-label {
   font-size: 12px;
 }
 
-/* Node hover tooltip */
-.pact-spirit-node-tooltip {
-  position: fixed;
-  z-index: 9999;
-  transform: translate(-50%, -100%);
-  background: #1e1e32;
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 6px;
-  padding: 7px 11px;
-  font-size: 12px;
-  color: #d0d0f0;
-  pointer-events: none;
-  max-width: 300px;
-  line-height: 1.45;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
-  margin-top: -4px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+/* Node hover tooltip — container now provided by the shared .tooltip/.tooltip--spirit base;
+   the spirit modifier carries the indigo background. */
+.tooltip--spirit { background: #1e1e32; border-color: rgba(255,255,255,0.18); max-width: 300px; line-height: 1.45; }
 
 .pact-tooltip-main {
   color: #e8e8ff;

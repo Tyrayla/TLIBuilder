@@ -2,40 +2,108 @@ from __future__ import annotations
 import math
 import re
 from engine.models import BuildInput, BuildSource, SourceEntry
-from models.stat_meta import STAT_META
 
-# Build a lookup: (display_name_lower, is_percent) → stat key string
-# Used to match hero memory modifier strings against known stats.
-def _build_memory_lookup() -> dict[tuple[str, bool], str]:
-    lookup: dict[tuple[str, bool], str] = {}
-    for stat_enum, meta in STAT_META.items():
-        is_pct = meta.unit == "%"
-        key = (meta.display_name.lower(), is_pct)
-        # Don't overwrite — first match wins (flat preferred for non-pct)
-        if key not in lookup:
-            lookup[key] = stat_enum.value
-    return lookup
 
-_MEMORY_STAT_LOOKUP: dict[tuple[str, bool], str] = _build_memory_lookup()
-_MEMORY_EFFECT_RE = re.compile(r'^\+(\d+(?:\.\d+)?)\s*(%?)\s+(.+)$')
+def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entry: SourceEntry,
+          slot: int | None = None) -> None:
+    """Route a contribution 3 ways: slot-local → add_slotted (folds only into that slot's offense pass);
+    else scoped → add_scoped (folds per-skill via materialize_for_skill); else → add_with_source (the
+    existing global path). The entry carries slot/scope so source-attribution stays correct. Identical to
+    the old 2-way behavior when slot is None (the only case outside per-slot supports)."""
+    if slot is not None:
+        source.add_slotted(stat, amount, slot, scope, entry)
+    elif scope:
+        entry.scope = scope
+        source.add_scoped(stat, amount, scope, entry)
+    else:
+        source.add_with_source(stat, amount, entry)
 
-# Alias lookup: game display text differs from stat_meta display_name
-_MEMORY_ALIAS_LOOKUP: dict[tuple[str, bool], str] = {
-    ("critical strike damage for combo finishers", True): "combo_finisher_crit_dmg_inc",
-}
-
-# Multi-stat lookup: one modifier phrase → multiple stat keys (same value applied to each)
-_MEMORY_MULTI_LOOKUP: dict[tuple[str, bool], list[str]] = {
-    ("attack and cast speed", True):
-        ["attack_speed_inc", "cast_speed_inc"],
-    ("minion attack and cast speed", True):
-        ["minion_attack_speed_inc", "minion_cast_speed_inc"],
-    ("additional attack and cast speed for combo starters", True):
-        ["combo_starter_attack_speed_additional", "combo_starter_cast_speed_additional"],
-}
-
+# NOTE: pact-spirit / hero-memory resolution moved to server._resolve_effect_modifiers (the unified
+# pool-strict path). The aggregator now only APPLIES the pre-resolved contributions (see
+# _apply_effect_contribs); the old _MEMORY_STAT_LOOKUP / alias / multi tables were retired.
 
 _ELEMENTAL_TYPES = {"fire", "cold", "lightning", "erosion"}
+
+# Base effects granted per point of Fervor Rating, each multiplied by Fervor Effect
+# (fervor_effect_inc). Today just generic Critical Strike Rating; extend as items add more.
+#   (stat_key, amount_per_point, source_text)
+_FERVOR_BASE_EFFECTS: list[tuple[str, float, str]] = [
+    ("crit_rating_inc", 0.02, "+2% Critical Strike Rating per Fervor Rating"),
+]
+
+# Numbed: base additional Lightning Damage the TARGET takes per stack, scaled by Numbed Effect
+# (numbed_effect_inc). Modelled engine-side like Fervor — the per-stack value lives here, not on the
+# condition. A core talent can override this base (e.g. +11%) — not wired yet (core talents
+# unmodelled). Source: glossary id 762 / TLI Help DB …/Statuses/Ailment/Numbed.md.
+_NUMBED_BASE_PER_STACK = 0.05
+
+# ── Six Gods' Blessings ───────────────────────────────────────────────────────
+# Each blessing grants a per-stack BASE effect, scaled by its user-set stack count. Stacks of ONE
+# blessing ADD (Focus 4 → +20% additional damage as a single factor, like Numbed). Source: TLI Help DB
+# /Battle Mechanics/Statuses/Six Gods' Blessings. Note the wording split: damage is "additional"
+# (multiplicative pool), but Agility's "Attack Speed and Cast Speed" is unqualified = the increased pool.
+#   blessing_condition_key → [(stat_key, per_stack_amount, source_text), ...]   (% stored as fractions)
+_BLESSING_DEFAULT_EFFECTS: dict[str, list[tuple[str, float, str]]] = {
+    "focus_blessings": [
+        ("dmg_additional", 0.05, "+5% additional damage per Focus Blessing"),
+    ],
+    "agility_blessings": [
+        ("attack_speed_inc", 0.04, "+4% Attack Speed per Agility Blessing"),
+        ("cast_speed_inc",   0.04, "+4% Cast Speed per Agility Blessing"),
+        ("dmg_additional",   0.02, "+2% additional damage per Agility Blessing"),
+    ],
+    "tenacity_blessings": [
+        ("dmg_taken_additional", -0.04, "-4% Damage Taken per Tenacity Blessing"),
+    ],
+}
+_BLESSING_LABELS: dict[str, str] = {
+    "focus_blessings": "Focus Blessing",
+    "agility_blessings": "Agility Blessing",
+    "tenacity_blessings": "Tenacity Blessing",
+}
+
+# Override hook: a core talent / belt blend can "Change the base effect of X Blessing to:" a different
+# per-stack effect, which REPLACES the default above. Each override flag (a boolean condition set
+# server-side when the granting talent/blend is present, after dedup) maps to one-or-more
+# (blessing_key, new effect list) pairs — a single flag can re-base several blessings at once (Divine
+# Grace re-bases all three). The application loop below swaps in the override whenever its flag is active.
+# Wired SS12 overrides:
+#   Sacrifice    (core_sacrifice)  → Tenacity becomes offensive: +8% additional damage per stack
+#   Divine Grace (divine_grace, an aromatic belt blend) → Focus/Agility/Tenacity each grant +4%
+#                additional damage AND -4% Damage Taken per stack
+# Mind Focus (Focus → flat Physical = 1% Max Mana to Attacks/Spells) needs a post-derive max-mana step;
+# deferred to v2.
+#   override_flag → [(blessing_key, [(stat_key, per_stack_amount, source_text), ...]), ...]
+_BLESSING_OVERRIDES: dict[str, list[tuple[str, list[tuple[str, float, str]]]]] = {
+    "core_sacrifice": [
+        ("tenacity_blessings", [
+            ("dmg_additional", 0.08, "+8% additional damage per Tenacity Blessing (Sacrifice)"),
+        ]),
+    ],
+    "divine_grace": [
+        ("focus_blessings", [
+            ("dmg_additional", 0.04, "+4% additional damage per Focus Blessing (Divine Grace)"),
+            ("dmg_taken_additional", -0.04, "-4% Damage Taken per Focus Blessing (Divine Grace)"),
+        ]),
+        ("agility_blessings", [
+            ("dmg_additional", 0.04, "+4% additional damage per Agility Blessing (Divine Grace)"),
+            ("dmg_taken_additional", -0.04, "-4% Damage Taken per Agility Blessing (Divine Grace)"),
+        ]),
+        ("tenacity_blessings", [
+            ("dmg_additional", 0.04, "+4% additional damage per Tenacity Blessing (Divine Grace)"),
+            ("dmg_taken_additional", -0.04, "-4% Damage Taken per Tenacity Blessing (Divine Grace)"),
+        ]),
+    ],
+}
+
+# Flat base effects granted while dual wielding (gated by the auto-set 'dual_wielding' condition).
+# Fixed amounts — not scaled (an item can convert the block-chance portion to block ratio, but that
+# conversion isn't modeled yet). Block chance isn't consumed by the engine yet (block defense NYI).
+#   (stat_key, amount, source_text)   — % stats stored as fractions
+_DUAL_WIELD_BASE_EFFECTS: list[tuple[str, float, str]] = [
+    ("attack_block_chance_inc", 0.30, "+30% Attack Block Chance (Dual Wield)"),
+    ("attack_speed_additional", 0.10, "+10% additional Attack Speed (Dual Wield)"),
+]
 
 _NODE_TYPE_LABELS = {
     "micro": "Micro",
@@ -98,8 +166,23 @@ def _eval_condition(
         return True
     if isinstance(expr, str):
         return expr in active_booleans
+    if "const" in expr:               # benign always-on clause (e.g. "when casting a skill")
+        return expr["const"]
     if "and" in expr:
-        return all(_eval_condition(e, active_booleans, numeric_vals) for e in expr["and"])
+        # Mixed per-scaling + boolean gate ("for each X while Y"): every boolean must hold (else skip),
+        # and the per-scaling floats MULTIPLY. Return the product (gated), or True if there are no floats.
+        prod, saw_float = 1.0, False
+        for e in expr["and"]:
+            r = _eval_condition(e, active_booleans, numeric_vals)
+            if isinstance(r, bool):
+                if not r:
+                    return False
+            else:
+                if r == 0.0:
+                    return 0.0
+                saw_float = True
+                prod *= r
+        return prod if saw_float else True
     if "or" in expr:
         return any(_eval_condition(e, active_booleans, numeric_vals) for e in expr["or"])
     if "not" in expr:
@@ -118,86 +201,30 @@ def _eval_condition(
     return False
 
 
-def _apply_node_recipes(
-    source: BuildSource,
-    tree_name: str,
-    node_id: str,
-    current_points: int,
-    max_points: int,
-    node_type: str,
-    recipes_by_tree: dict,
-    source_type: str = "talent",
-    label_prefix: str = "",
-    node_recipes_by_id: dict | None = None,
-    points: int = 1,
-    active_booleans: frozenset[str] = frozenset(),
-    numeric_vals: dict[str, float] | None = None,
-) -> None:
-    """Look up recipes for this specific node and add stat values at the correct rank.
-
-    Lookup order:
-      1. Per-node-id recipes (node_recipes_by_id[node_id]) — precise, specific to this node
-      2. Tree+node_type fallback (recipes_by_tree[tree_name][node_type]) — coarse, for compat
-    """
-    if numeric_vals is None:
-        numeric_vals = {}
-
-    per_node = (node_recipes_by_id or {}).get(node_id)
-    if per_node is not None:
-        type_recipes = per_node
-    elif node_recipes_by_id:
-        # Per-node filter exists but this node wasn't matched — no contribution
-        return
-    else:
-        # Old filter without per-node data — fall back to tree-level aggregate
-        tree_recipes = recipes_by_tree.get(tree_name, {})
-        type_recipes = tree_recipes.get(node_type, [])
-
-    if not type_recipes:
-        return
-
-    rank_index = max(0, min(current_points - 1, len(type_recipes[0].get("values", [1])) - 1))
-    label = f"{label_prefix}{_node_type_display(node_type)}"
-
-    for recipe in type_recipes:
-        if not _eval_condition(recipe.get("condition"), active_booleans, numeric_vals):
+def _apply_effect_contribs(source, contribs, source_type, label, active_booleans, numeric_vals):
+    """Apply pre-resolved pact-spirit / hero-memory contributions (server._resolve_effect_modifiers).
+    Gates on the optional translated `condition` exactly like the gear-contribution loop: boolean → on/off,
+    'per'/float → scale the amount (capped if the expr carries a cap). Scoped contributions route to
+    add_scoped via _emit."""
+    for contrib in contribs:
+        stat = contrib.get("stat_key")
+        if not stat:
             continue
-
-        # Rank-based static values
-        values = recipe.get("values", [])
-        if values:
-            idx = min(rank_index, len(values) - 1)
-            entry = SourceEntry(
-                stat=recipe["stat"],
-                amount=values[idx],
-                source_type=source_type,
-                label=label,
-                text=recipe.get("text", ""),
-                points=points,
-            )
-            source.add_with_source(recipe["stat"], values[idx], entry)
-
-        # Scaling contribution (additive on top of values, separate SourceEntry row)
-        if "scaling" in recipe:
-            s = recipe["scaling"]
-            raw = numeric_vals.get(s["key"], 0.0)
-            floor_val = s.get("floor", 0.0)
-            eff = max(raw, floor_val) if floor_val is not None else raw
-            if "per_n" in s:
-                amount = (eff // s["per_n"]) * s["per"]
-            else:
-                amount = eff * s["per"]
-            if s.get("cap") is not None:
-                amount = min(amount, s["cap"])
-            scale_entry = SourceEntry(
-                stat=recipe["stat"],
-                amount=amount,
-                source_type=source_type,
-                label=label,
-                text=recipe.get("text", ""),
-                points=points,
-            )
-            source.add_with_source(recipe["stat"], amount, scale_entry)
+        amount = float(contrib.get("amount", 0))
+        cond = contrib.get("condition")
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                amount *= cond_result
+                if isinstance(cond, dict) and "cap" in cond:
+                    amount = min(amount, float(cond["cap"]))
+            elif not cond_result:
+                continue
+        entry = SourceEntry(stat=stat, amount=amount, source_type=source_type, label=label,
+                            text=contrib.get("text", ""), points=1)
+        _emit(source, stat, amount, contrib.get("scope"), entry)
 
 
 def aggregate(
@@ -229,137 +256,9 @@ def aggregate(
             if not isinstance(v, bool) and isinstance(v, (int, float))
         }
 
-    recipes_by_tree = filter_data.get("recipes", {})
-    node_recipes_by_id = filter_data.get("node_recipes", {})
-
-    # ── Talent tree nodes ──────────────────────────────────────────────────────
-    for slot in build.slots:
-        if not slot:
-            continue
-
-        tree_name: str = slot.get("treeName", "")
-        node_states: dict[str, int] = slot.get("nodeStates", {})
-        if not tree_name or not node_states:
-            continue
-
-        tree_slug = re.sub(r"[^a-z0-9]+", "_", tree_name.lower()).strip("_")
-        season_tree = season_trees.get(tree_slug, {})
-        nodes_by_id = {n["id"]: n for n in season_tree.get("nodes", [])}
-
-        for node_id, current_points in node_states.items():
-            if current_points <= 0:
-                continue
-
-            node = nodes_by_id.get(node_id)
-            if not node:
-                continue
-
-            node_type = _normalize_node_type(node.get("node_type", ""))
-            max_points = node.get("max_points", 1)
-            _apply_node_recipes(
-                source, tree_name, node_id, current_points, max_points, node_type, recipes_by_tree,
-                source_type="talent", label_prefix=f"{tree_name} ",
-                node_recipes_by_id=node_recipes_by_id,
-                points=current_points,
-                active_booleans=active_booleans,
-                numeric_vals=numeric_vals,
-            )
-
-    # ── Slate slots ────────────────────────────────────────────────────────────
-    # Each CreatorSlot can reference a talent node via selectedNodeId.
-    # We treat it as a rank-1 (single point) application of that node's recipes.
-
-    # Build a position→slate map for Moth/Prairie adjacency lookups.
-    position_to_slate: dict[tuple[int, int], dict] = {}
-    for _s in build.slates:
-        for _pos in _slate_positions(_s):
-            position_to_slate[_pos] = _s
-
-    for slate in build.slates:
-        for slot in slate.get("slots", []):
-            node_id = slot.get("selectedNodeId")
-            if not node_id:
-                continue
-
-            slug = _tree_slug_from_node_id(node_id)
-            if not slug:
-                continue
-
-            # Resolve tree name from slug via season_trees keys
-            season_tree = season_trees.get(slug, {})
-            if not season_tree:
-                continue
-
-            tree_name = season_tree.get("tree_name", slug)
-            nodes_by_id = {n["id"]: n for n in season_tree.get("nodes", [])}
-            node = nodes_by_id.get(node_id)
-            if not node:
-                continue
-
-            node_type = _normalize_node_type(node.get("node_type", ""))
-            slate_kind = slate.get("kind", "base")
-            if slate_kind == "base":
-                tree_short = tree_name.split()[-1] if tree_name else tree_name
-                slate_label_prefix = f"Slate · {tree_short} "
-            else:
-                kind_label = _SLATE_KIND_LABELS.get(slate_kind, slate_kind.replace("_", " ").title())
-                slate_label_prefix = f"Slate · {kind_label} "
-            _apply_node_recipes(
-                source, tree_name, node_id, 1, 1, node_type, recipes_by_tree,
-                source_type="slate", label_prefix=slate_label_prefix,
-                node_recipes_by_id=node_recipes_by_id,
-                active_booleans=active_booleans,
-                numeric_vals=numeric_vals,
-            )
-
-        # ── Moth/Prairie copy ───────────────────────────────────────────────
-        slate_kind = slate.get("kind", "base")
-        if slate_kind not in _COPY_SLATE_KINDS:
-            continue
-
-        ar, ac = slate.get("anchor", [0, 0])
-        if slate_kind == "spark_of_moth_fire":
-            moth_dir = slate.get("mothDirection")
-            if not moth_dir:
-                continue
-            dr, dc = _MOTH_DELTAS.get(moth_dir, (0, 0))
-            positions_to_check = [(ar + dr, ac + dc)]
-        else:  # when_sparks_set_prairie_ablaze — all 4 neighbours
-            positions_to_check = [(ar + dr, ac + dc) for dr, dc in _MOTH_DELTAS.values()]
-
-        kind_label = _SLATE_KIND_LABELS.get(slate_kind, slate_kind.replace("_", " ").title())
-
-        for pos in positions_to_check:
-            adj = position_to_slate.get(pos)
-            if not adj or adj.get("kind", "base") in _COPY_SLATE_KINDS:
-                continue  # missing or another copy-slate — skip
-            adj_slots = adj.get("slots", [])
-            if not adj_slots:
-                continue
-            # Only the bottom slot is copied (matches frontend getBottomEffects)
-            adj_slot = adj_slots[-1]
-            node_id = adj_slot.get("selectedNodeId")
-            if not node_id:
-                continue
-            slug = _tree_slug_from_node_id(node_id)
-            if not slug:
-                continue
-            season_tree = season_trees.get(slug, {})
-            if not season_tree:
-                continue
-            tree_name = season_tree.get("tree_name", slug)
-            nodes_by_id = {n["id"]: n for n in season_tree.get("nodes", [])}
-            node = nodes_by_id.get(node_id)
-            if not node:
-                continue
-            node_type = _normalize_node_type(node.get("node_type", ""))
-            _apply_node_recipes(
-                source, tree_name, node_id, 1, 1, node_type, recipes_by_tree,
-                source_type="slate", label_prefix=f"Slate · {kind_label} ",
-                node_recipes_by_id=node_recipes_by_id,
-                active_booleans=active_booleans,
-                numeric_vals=numeric_vals,
-            )
+    # Talent-tree nodes + slate slots (incl. Moth/Prairie copy) are now resolved server-side through the
+    # unified resolver (engine.node_resolver.resolve_nodes) and injected as build.node_contributions,
+    # consumed in the node-contributions loop below — no more precomputed recipes.
 
     # ── Equipped gear affixes ──────────────────────────────────────────────────
     for contrib in (c for item in build.gear for c in item.get("contributions", [])):
@@ -387,10 +286,11 @@ def aggregate(
             amount=amount,
             source_type="gear",
             label=f"Gear · {slot_label}",
-            text=contrib.get("item_name", ""),
+            # Affix raw_text is the per-affix pooling identity (Option A); fall back to item name.
+            text=contrib.get("text") or contrib.get("item_name", ""),
             points=1,
         )
-        source.add_with_source(stat, amount, entry)
+        _emit(source, stat, amount, contrib.get("scope"), entry)
 
     # ── Character contributions (energy base/gear/level/prism) ─────────────────
     for contrib in build.character:
@@ -408,70 +308,285 @@ def aggregate(
         )
         source.add_with_source(stat, amount, entry)
 
-    # ── Pact Spirit effects ───────────────────────────────────────────────────
-    for effect in build.spirit_effects:
-        effect = re.sub(r'\s+', ' ', effect.strip())
-        m = _MEMORY_EFFECT_RE.match(effect)
-        if not m:
+    # ── Pact Spirit + Hero Memory contributions (pre-resolved server-side) ─────
+    # Resolved by server._resolve_effect_modifiers (the unified pool-strict path; replaces the old
+    # _MEMORY_STAT_LOOKUP). Spirit→memory order preserved (multiplicative-pool order); conditional effects
+    # gated in _apply_effect_contribs.
+    _apply_effect_contribs(source, build.spirit_contributions, "pact_spirit", "Pact Spirit", active_booleans, numeric_vals)
+    _apply_effect_contribs(source, build.memory_contributions, "hero_memory", "Hero Memory", active_booleans, numeric_vals)
+
+    # ── Custom mod contributions ──────────────────────────────────────────────
+    for contrib in build.custom_contributions:
+        stat = contrib.get("stat_key")
+        if not stat:
             continue
-        raw_val = float(m.group(1))
-        is_pct = bool(m.group(2))
-        stat_name = m.group(3).strip()
-        stat_key = _MEMORY_STAT_LOOKUP.get((stat_name.lower(), is_pct))
-        if not stat_key:
-            continue
-        amount = raw_val / 100.0 if is_pct else raw_val
+        amount = float(contrib.get("amount", 0))
+        cond = contrib.get("condition")            # gate split off server-side (e.g. "vs Low Life enemies")
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                amount *= cond_result
+            elif not cond_result:
+                continue
+            if isinstance(cond, dict) and "cap" in cond:
+                amount = min(amount, float(cond["cap"]))
         entry = SourceEntry(
-            stat=stat_key,
+            stat=stat,
             amount=amount,
-            source_type="pact_spirit",
-            label="Pact Spirit",
-            text=effect,
+            source_type="custom",
+            label="Custom Config",
+            text=contrib.get("text", ""),
             points=1,
         )
-        source.add_with_source(stat_key, amount, entry)
+        _emit(source, stat, amount, contrib.get("scope"), entry)
 
-    # ── Hero Memory effects ────────────────────────────────────────────────────
-    for effect in build.memory_effects:
-        effect = re.sub(r'\s+', ' ', effect.strip())
-        # Split dual-stat modifiers like "+18 % Attack Speed +12 % Minion Speed"
-        parts = re.split(r' (?=\+\d)', effect, maxsplit=1)
-        for part in parts:
-            m = _MEMORY_EFFECT_RE.match(part)
-            if not m:
+    # ── Support skill contributions ───────────────────────────────────────────
+    # Pre-resolved from the main skill's attached supports (engine/support_resolver.py). Each carries a
+    # UNIQUE text (support id + role), so offense's per-affix pooling treats every support line as its
+    # own multiplicative factor — confirmed in-game (they all multiply; nothing sums).
+    for contrib in getattr(build, "attached_support_contributions", []) or []:
+        stat = contrib.get("stat_key")
+        if not stat:
+            continue
+        amount = float(contrib.get("amount", 0))
+        cond = contrib.get("condition")            # gated specific-tier line ("…when only 1 enemy nearby")
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                amount *= cond_result
+            elif not cond_result:
                 continue
-            raw_val = float(m.group(1))
-            is_pct = bool(m.group(2))
-            stat_name = m.group(3).strip()
-            stat_name_lower = stat_name.lower()
-            amount = raw_val / 100.0 if is_pct else raw_val
-            # Try single-stat lookup (display_name)
-            stat_key = _MEMORY_STAT_LOOKUP.get((stat_name_lower, is_pct))
-            if not stat_key:
-                stat_key = _MEMORY_ALIAS_LOOKUP.get((stat_name_lower, is_pct))
-            if stat_key:
-                entry = SourceEntry(
-                    stat=stat_key,
-                    amount=amount,
-                    source_type="hero_memory",
-                    label="Hero Memory",
-                    text=effect,
-                    points=1,
-                )
-                source.add_with_source(stat_key, amount, entry)
+            # Capped per-condition contributions (e.g. Desperation "…up to 38%"): clamp after the per/×
+            # scaling, mirroring the gear loop and _apply_effect_contribs.
+            if isinstance(cond, dict) and "cap" in cond:
+                amount = min(amount, float(cond["cap"]))
+        entry = SourceEntry(
+            stat=stat,
+            amount=amount,
+            source_type="support",
+            label=contrib.get("label", "Support"),
+            text=contrib.get("text", ""),
+            points=1,
+        )
+        # A support belongs to its host skill's SLOT (default 1) — fold only into that slot's offense so
+        # two same-skill setups never share supports. slot=1 keeps single-slot DPS byte-identical.
+        _emit(source, stat, amount, contrib.get("scope"), entry, slot=contrib.get("slot"))
+
+    # ── Core-talent contributions (roadmap #4) ────────────────────────────────
+    # Pre-resolved + deduped server-side (server.resolve_core_talents): every granted core talent,
+    # slate core, legendary-granted talent, and equipped belt blend, counted exactly ONCE. Each carries
+    # a UNIQUE text (|core|<name>), so distinct talents' additional-damage lines multiply in offense's
+    # per-affix pool. A `condition_expr` (translated from the talent's conditional clause) gates/scales
+    # the contribution in-loop against the converged conditions — boolean → on/off, 'per' → ×floor(val).
+    for contrib in getattr(build, "core_talent_contributions", []) or []:
+        if contrib.get("set_value"):
+            continue   # final-override set-values are applied in compute's derive step, not added here
+        stat = contrib.get("stat_key")
+        if not stat:
+            continue
+        amount = float(contrib.get("amount", 0))
+        cond = contrib.get("condition_expr")
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                amount *= cond_result
+            elif not cond_result:
                 continue
-            # Try multi-stat lookup
-            stat_keys = _MEMORY_MULTI_LOOKUP.get((stat_name_lower, is_pct))
-            if stat_keys:
-                for sk in stat_keys:
-                    entry = SourceEntry(
-                        stat=sk,
-                        amount=amount,
-                        source_type="hero_memory",
-                        label="Hero Memory",
-                        text=effect,
-                        points=1,
-                    )
-                    source.add_with_source(sk, amount, entry)
+        _emit(source, stat, amount, contrib.get("scope"), SourceEntry(
+            stat=stat,
+            amount=amount,
+            source_type="core_talent",
+            label=contrib.get("label", "Core Talent"),
+            text=contrib.get("text", ""),
+            points=1,
+        ))
+
+    # ── Talent-tree node + slate contributions (unified resolver, server.resolve_nodes) ───────────────
+    # Pre-resolved + points-scaled; conditional lines gated/scaled in-loop against the converged conditions
+    # exactly like core talents. Replaces the old recipe-based node/slate loops.
+    for contrib in getattr(build, "node_contributions", []) or []:
+        stat = contrib.get("stat_key")
+        if not stat:
+            continue
+        amount = float(contrib.get("amount", 0))
+        cond = contrib.get("condition_expr")
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                amount *= cond_result
+            elif not cond_result:
+                continue
+        src_type = "slate" if "|slate|" in contrib.get("text", "") else "talent"
+        _emit(source, stat, amount, contrib.get("scope"), SourceEntry(
+            stat=stat, amount=amount, source_type=src_type,
+            label=contrib.get("label", "Talent"), text=contrib.get("text", ""), points=1,
+        ))
+
+    # ── Fervor mechanics ──────────────────────────────────────────────────────
+    # Fervor's BASE effects scale per point of Fervor Rating AND are multiplied by Fervor Effect
+    # (fervor_effect_inc). Today the only base effect is +2% (generic) Critical Strike Rating per
+    # point; future items may add further base effects that scale the same way — they'd just be
+    # added to _FERVOR_BASE_EFFECTS below. Driven off the user-set fervor_rating condition for now
+    # (later this may be gated behind the hero trait that grants it). crit_rating_inc is generic
+    # (read by both attack and spell crit). fervor_effect_inc is a fraction (0.5 = +50%).
+    fervor_rating = float((numeric_vals or {}).get("fervor_rating", 0.0) or 0.0)
+    if fervor_rating > 0:
+        fervor_effect_mult = 1.0 + source.total("fervor_effect_inc")
+        for stat_key, per_point, label_text in _FERVOR_BASE_EFFECTS:
+            amount = per_point * fervor_rating * fervor_effect_mult
+            source.add_with_source(stat_key, amount, SourceEntry(
+                stat=stat_key, amount=amount, source_type="condition",
+                label="Fervor Rating", text=label_text, points=1,
+            ))
+
+    # ── Numbed (enemy vulnerability) ──────────────────────────────────────────
+    # Numbed raises the TARGET's Lightning Damage taken by a base +5% per stack, scaled by Numbed
+    # Effect. Stacks ADD (10 × 5% → +50%). Baked into a lightning-tagged stat consumed by offense's
+    # enemy-vulnerability stage (NOT the attacker's additional pool). Driven off the user-set
+    # numbed_stacks condition (the sustained-stack ramp from Max ES+Life is a later refinement).
+    numbed_stacks = float((numeric_vals or {}).get("numbed_stacks", 0.0) or 0.0)
+    if numbed_stacks > 0:
+        # Conductive (core talent / belt blend) re-bases Numbed from +5% to +11% Lightning Damage taken
+        # per stack; Numbed-Effect scaling still multiplies on top. Flag set server-side when present.
+        conductive = "core_conductive" in (active_booleans or frozenset())
+        base_per_stack = 0.11 if conductive else _NUMBED_BASE_PER_STACK
+        per_stack = base_per_stack * (1.0 + source.total("numbed_effect_inc"))
+        amount = per_stack * numbed_stacks
+        text = (f"+{base_per_stack * 100:.0f}% Lightning Damage taken per Numbed stack"
+                + (" (Conductive)" if conductive else ""))
+        source.add_with_source("numbed_lightning_taken", amount, SourceEntry(
+            stat="numbed_lightning_taken", amount=amount, source_type="condition",
+            label="Numbed Stacks", text=text, points=1,
+        ))
+
+    # ── Bonus propagation: Play Safe (Cast Speed → Spell Burst Charge Speed) ──────
+    # When granted (flag stat present), the player's cast-speed INCREASED total and EACH cast-speed
+    # ADDITIONAL affix are ALSO applied to Spell Burst Charge Speed (owner: charge restoration time =
+    # 2 / (1 + chargeSpeed_inc) / Π(1 + chargeSpeed_additional_i)). Spell Burst charge speed isn't consumed
+    # by the engine yet, so this populates the stats ready for when it is, without affecting DPS today.
+    if source.total("cast_speed_to_spell_burst_charge") > 0:
+        cs_inc = source.total("cast_speed_inc")
+        if cs_inc:
+            source.add_with_source("spell_burst_charge_speed_inc", cs_inc, SourceEntry(
+                stat="spell_burst_charge_speed_inc", amount=cs_inc, source_type="core_talent",
+                label="Core · Play Safe", text="Cast Speed increased → Spell Burst Charge Speed", points=1))
+        # Snapshot first — add_with_source appends to source_log (don't mutate during iteration).
+        cs_add = [e for e in source.source_log if e.stat == "cast_speed_additional" and e.amount]
+        for e in cs_add:
+            source.add_with_source("spell_burst_charge_speed_additional", e.amount, SourceEntry(
+                stat="spell_burst_charge_speed_additional", amount=e.amount, source_type="core_talent",
+                label="Core · Play Safe", text=f"{e.text} → Spell Burst Charge", points=1))
+
+    # ── Bonus propagation: Gale (increased Projectile Speed → additional Projectile Damage) ──
+    # additional Projectile Damage = coeff × increased Projectile Speed, as its OWN multiplicative factor
+    # (unique text → distinct affix in offense's per-affix pool). FLAGGED for in-game pooling verification.
+    gale_coeff = source.total("proj_speed_to_proj_dmg")
+    if gale_coeff > 0:
+        amount = gale_coeff * source.total("projectile_speed_inc")
+        if amount:
+            source.add_with_source("projectile_dmg_additional", amount, SourceEntry(
+                stat="projectile_dmg_additional", amount=amount, source_type="core_talent",
+                label="Core · Gale", text="Gale: Projectile Speed → additional Projectile Damage", points=1))
+
+    # ── Bonus propagation: Movement Speed bonus → Attack/Cast Speed / Cooldown Recovery ──
+    # The shared "bonus" is the total movement-speed boost = increased pool × additional pool − 1
+    # (reduces to just the increased fraction when there's no additional, so no behavior change).
+    ms_inc = (1.0 + source.total("movement_speed_inc")) * (1.0 + source.total("movement_speed_additional")) - 1.0
+    if ms_inc:
+        for tgt, dest in (("attack_speed", "attack_speed_inc"), ("cast_speed", "cast_speed_inc"),
+                          ("cdr", "cdr_speed_inc")):
+            coeff = source.total(f"movement_bonus_to_{tgt}")
+            if coeff > 0:
+                amt = coeff * ms_inc
+                source.add_with_source(dest, amt, SourceEntry(
+                    stat=dest, amount=amt, source_type="talent",
+                    label="Movement Speed Share", text=f"Movement Speed bonus → {dest}", points=1))
+
+    # ── Six Gods' Blessings ───────────────────────────────────────────────────
+    # Apply each blessing's per-stack base effect × its user-set stack count. Stacks ADD (one summed
+    # entry per stat → one factor). The default effect can be REPLACED by an active override (none wired
+    # yet — see _BLESSING_OVERRIDES). Distinct blessings' "additional damage" lines carry distinct text,
+    # so the per-affix pool multiplies them. Driven off the user-set *_blessings conditions for now.
+    for bkey, default_effects in _BLESSING_DEFAULT_EFFECTS.items():
+        stacks = float((numeric_vals or {}).get(bkey, 0.0) or 0.0)
+        if stacks <= 0:
+            continue
+        effects = default_effects
+        for flag, pairs in _BLESSING_OVERRIDES.items():
+            if flag not in (active_booleans or frozenset()):
+                continue
+            override_effects = next((eff for tb, eff in pairs if tb == bkey), None)
+            if override_effects is not None:
+                effects = override_effects
+                break
+        label = _BLESSING_LABELS.get(bkey, bkey)
+        for stat_key, per_stack, text in effects:
+            amount = per_stack * stacks
+            source.add_with_source(stat_key, amount, SourceEntry(
+                stat=stat_key, amount=amount, source_type="condition",
+                label=label, text=text, points=1,
+            ))
+
+    # ── Dual wielding base effects ────────────────────────────────────────────
+    # Granted while wielding two one-handed weapons (the 'dual_wielding' condition is auto-set by the
+    # planner from gear). Fixed amounts, not scaled.
+    if "dual_wielding" in (active_booleans or frozenset()):
+        for stat_key, amount, label_text in _DUAL_WIELD_BASE_EFFECTS:
+            source.add_with_source(stat_key, amount, SourceEntry(
+                stat=stat_key, amount=amount, source_type="condition",
+                label="Dual Wielding", text=label_text, points=1,
+            ))
+
+    # ── Support-granted buff / debuff base effects (roadmap #2) ────────────────
+    _booleans = active_booleans or frozenset()
+
+    # Paralysis: +15% increased damage taken (GLOBAL, all types). The auto-derive (Grudge etc.) sets
+    # enemy_paralyzed. Baked into paralysis_dmg_taken, which offense's enemy-vulnerability stage applies
+    # to every damage type — so the whole build's DPS on that enemy benefits, not just the granting skill.
+    if "enemy_paralyzed" in _booleans:
+        source.add_with_source("paralysis_dmg_taken", 0.15, SourceEntry(
+            stat="paralysis_dmg_taken", amount=0.15, source_type="condition",
+            label="Paralysis", text="+15% increased Damage Taken (Paralysis)", points=1,
+        ))
+
+    # Frail: "Additionally increases Spell Damage taken by 15%" — Spell-form scoped. enemy_affected_by_frail
+    # is user-set (auto-derive from "Inflicts Frail …" affixes is a follow-up). Scaled by Frail Effect; the
+    # offense enemy-vulnerability stage applies frail_spell_taken only when the skill deals Spell damage.
+    if "enemy_affected_by_frail" in _booleans:
+        _amt = 0.15 * (1.0 + source.total("frail_effect_inc"))
+        source.add_with_source("frail_spell_taken", _amt, SourceEntry(
+            stat="frail_spell_taken", amount=_amt, source_type="condition",
+            label="Frail", text="+15% additional Spell Damage Taken (Frail)", points=1,
+        ))
+
+    # Infiltration: "Additionally increases <Fire/Cold/Lightning> Damage taken by 13%" — per element type,
+    # scaled by that element's Infiltration Effect. (No Erosion Infiltration exists.)
+    for _elem in ("fire", "cold", "lightning"):
+        if f"enemy_affected_by_{_elem}_infiltration" in _booleans:
+            _amt = 0.13 * (1.0 + source.total(f"{_elem}_infiltration_effect_inc"))
+            _name = _elem.capitalize()
+            source.add_with_source(f"{_elem}_infiltration_taken", _amt, SourceEntry(
+                stat=f"{_elem}_infiltration_taken", amount=_amt, source_type="condition",
+                label=f"{_name} Infiltration",
+                text=f"+13% additional {_name} Damage Taken ({_name} Infiltration)", points=1,
+            ))
+
+    # Electric Overload buff (granted on Critical Strike): +15% additional Lightning Damage.
+    if "electric_overload" in _booleans:
+        source.add_with_source("lightning_dmg_additional", 0.15, SourceEntry(
+            stat="lightning_dmg_additional", amount=0.15, source_type="condition",
+            label="Electric Overload", text="+15% additional Lightning Damage (Electric Overload buff)", points=1,
+        ))
+
+    # (Willpower's compounding per-stack buff is resolved in support_resolver.resolve_standard_supports,
+    # where the support's level is known — its per-stack % is level-specific, e.g. 5.6% at Lv16.)
 
     return source

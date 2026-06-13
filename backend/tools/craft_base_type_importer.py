@@ -3,14 +3,21 @@ from tools.legendary_gear_importer import parse_affix_text
 
 _PAREN_HASH_RE = re.compile(r'\(#\)')
 
-# Maps craft_affixes Library names to the affix_type stored in the DB
+# Maps craft_affixes / craft_suffix_affixes Library names (the affix quality) to the affix_type stored in
+# the DB. Same Library names appear in both tables; the prefix/suffix distinction comes from which table.
 _LIBRARY_TO_TYPE = {
     "Basic Affix": "Basic Pre-fix",
     "Advanced Affix": "Advanced Pre-fix",
     "Ultimate Affix": "Ultimate Pre-fix",
 }
+_LIBRARY_TO_SUFFIX_TYPE = {
+    "Basic Affix": "Basic Suffix",
+    "Advanced Affix": "Advanced Suffix",
+    "Ultimate Affix": "Ultimate Suffix",
+}
 
-# Suffix types that only appear in all_affixes (no tier data in craft_affixes)
+# Suffix types in all_affixes — used only as a single-tier FALLBACK when the crawler has no
+# craft_suffix_affixes tier data for this base type.
 _SUFFIX_TYPES = {"Basic Suffix", "Advanced Suffix", "Ultimate Suffix"}
 _BASE_TYPES = {"Base Affix"}
 
@@ -64,17 +71,32 @@ def import_crawler_craft_base_type(data: dict) -> dict:
         parsed["tier"] = tier
         affixes.append(parsed)
 
-    # --- Suffix affixes from all_affixes (no tier data in craft_affixes) ---
-    for a in (data.get("all_affixes") or []):
-        atype = a.get("Type", "")
-        if atype not in _SUFFIX_TYPES:
+    # --- Craftable SUFFIX affixes from craft_suffix_affixes (full tier data, mirrors the prefix block) ---
+    craft_suffixes = data.get("craft_suffix_affixes") or []
+    for a in craft_suffixes:
+        affix_type = _LIBRARY_TO_SUFFIX_TYPE.get(a.get("Library", ""))
+        if not affix_type:
             continue
-        text = a.get("Affix Effect", "")
-        parsed = parse_affix_text(text, None)
-        parsed["source"] = a.get("Source", "")
-        parsed["affix_type"] = atype
-        parsed["tier"] = "0"
+        parsed = parse_affix_text(a.get("Modifier", ""), None)
+        parsed["expression"] = _PAREN_HASH_RE.sub('#', parsed["expression"])
+        parsed["source"] = name
+        parsed["affix_type"] = affix_type
+        parsed["tier"] = str(a.get("Tier", "0"))
         affixes.append(parsed)
+
+    # --- Suffix affixes from all_affixes — FALLBACK only when the crawler emitted no suffix tier data
+    # (older outputs without craft_suffix_affixes). Single tier "0" per suffix, as before. ---
+    if not craft_suffixes:
+        for a in (data.get("all_affixes") or []):
+            atype = a.get("Type", "")
+            if atype not in _SUFFIX_TYPES:
+                continue
+            text = a.get("Affix Effect", "")
+            parsed = parse_affix_text(text, None)
+            parsed["source"] = a.get("Source", "")
+            parsed["affix_type"] = atype
+            parsed["tier"] = "0"
+            affixes.append(parsed)
 
     raw_base_items = data.get("base_items", [])
     base_items = []

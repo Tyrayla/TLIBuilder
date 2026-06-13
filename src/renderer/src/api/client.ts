@@ -216,6 +216,7 @@ export interface Build {
   heroMemories?: (unknown | null)[]
   pactSpirits?: (unknown | null)[]
   notes?: string
+  customMods?: string[]
 }
 
 export interface TreeNode {
@@ -228,10 +229,19 @@ export interface TreeNode {
   effects: string[]
 }
 
+// Static per-line resolution for a core-talent effect (from /api/tree) — drives the NYI/Inactive badges
+// on any tree regardless of selection. kind 'stat'|'override' resolve; 'deferred'|'unresolved' do not.
+export interface CoreTalentEffectStatus {
+  resolved: boolean
+  kind: 'stat' | 'override' | 'deferred' | 'unresolved'
+  stat_keys: string[]
+}
+
 export interface CoreTalentSlotOption {
   id: string
   name: string
   effects: string[]
+  effect_status?: CoreTalentEffectStatus[]   // aligned 1:1 with effects
 }
 
 export interface CoreTalentSlot {
@@ -424,6 +434,34 @@ export interface SkillEngineInput {
   level: number
 }
 
+export interface SkillSlotInput {
+  slot: number      // 1–5 active, 6–9 passive
+  skill_id: string
+  level: number
+  enabled?: boolean // default true; disabled skills (and their supports + sourced buffs/debuffs) drop out
+}
+
+// A support attached to a skill, sent to the engine so it can resolve the support's
+// damage lines (rank scales the universal line; level/tier scales the specific lines).
+export interface AttachedSupportInput {
+  item_id: string
+  skill_type: string
+  rank?: number
+  level: number
+  specific_rolls?: Record<string, number>
+  slot?: number     // the host skill's slot (default 1); contributions are local to this slot
+  enabled?: boolean // default true; disabled supports drop out of the calc
+}
+
+export interface SkillSlotSummary {
+  slot: number
+  skill_id: string
+  skill_name: string
+  level: number
+  effective_level: number
+  supported: boolean
+}
+
 export interface HitFormResult {
   name: string
   effectiveness_pct: number
@@ -434,6 +472,8 @@ export interface HitFormResult {
   avg_hit_with_crit: number
   dps_contribution: number
   dps_vs_target: number
+  hit_min_by_type: Record<string, number>
+  hit_max_by_type: Record<string, number>
 }
 
 export interface OffenseResult {
@@ -448,6 +488,23 @@ export interface OffenseResult {
   total_dps: number
   total_dps_vs_target: number
   nyi: string[]
+  weapon_attack_speed: number
+  weapon_aps_gear: number
+  weapon_aps_mh: number
+  weapon_crit_rating_flat: number
+  weapon_csr_gear: number
+  weapon_csr_mh: number
+  flat_dmg_min: Record<string, number>
+  flat_dmg_max: Record<string, number>
+  type_inc: Record<string, number>
+  type_add: Record<string, number>
+  above_max_mult: number
+  generic_inc: number
+  generic_add: number          // INCLUDES the main-stat Damage Bonus below
+  main_stat_damage_bonus: number  // fraction (0.255 = +25.5%) from the skill's main-stat attributes
+  main_stats: string[]            // attributes summed (e.g. ['dexterity','intelligence'])
+  skill_tags: string[]
+  skill_area_inc: number
 }
 
 export interface DefenseResult {
@@ -460,7 +517,44 @@ export interface DefenseResult {
   cold_resist: number
   lightning_resist: number
   erosion_resist: number
+  fire_resist_raw: number
+  cold_resist_raw: number
+  lightning_resist_raw: number
+  erosion_resist_raw: number
+  life_flat: number
+  life_inc: number
+  life_additional: number
+  mana_flat: number
+  mana_inc: number
+  mana_additional: number
+  es_flat: number
+  es_inc: number
+  es_additional: number
+  armor_flat: number
+  armor_inc: number
+  armor_additional: number
+  evasion_flat: number
+  evasion_inc: number
+  evasion_additional: number
   nyi: string[]
+}
+
+export interface CustomModStatus {
+  text: string
+  resolved: boolean
+  stat_display: string | null
+}
+
+export interface ResolveModResult {
+  stat_key: string
+  amount: number
+  text: string
+  display_name: string
+}
+
+export interface ResolveModResponse {
+  text: string
+  resolved: ResolveModResult[]
 }
 
 export interface StatSheetResponse {
@@ -469,7 +563,49 @@ export interface StatSheetResponse {
   clamp_report: Record<string, { requested: number; applied: number }>
   offense?: OffenseResult | null
   defense?: DefenseResult | null
+  custom_mod_statuses?: CustomModStatus[]
+  // Gear affix/implicit texts the frontend couldn't resolve, resolved (or reported) backend-side so
+  // nothing is silently dropped. resolved:false → still unmodeled (surface it, don't hide it).
+  gear_mod_statuses?: CustomModStatus[]
+  // Pact-spirit / hero-memory effect resolution (unified resolver, server-side). resolved:false → NYI.
+  spirit_mod_statuses?: CustomModStatus[]
+  memory_mod_statuses?: CustomModStatus[]
+  // Per-effect resolution for granted core talents (roadmap #4) — drives the core-talent NYI badges.
+  // kind: 'stat' | 'override' (applied) | 'deferred' | 'unresolved' (captured, not applied).
+  core_talent_statuses?: CoreTalentStatus[]
+  skill_slots?: SkillSlotSummary[]
+  // Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Lets the UI
+  // eventually show each setup's DPS independently. Additive — not consumed yet.
+  slot_offense?: Record<string, OffenseResult> | null
+  // Stat keys the engine actually READ for this build (offense/defense/derive/aggregator). A resolved
+  // modifier whose mapped stat is here → "Consumed" (green badge).
+  consumed_stats?: string[]
+  // Maximal set of stats the engine can EVER read (all skills/tags). Lets the badge tell "Inactive"
+  // (modeled, just not for your selected skill — in here, not in consumed_stats) apart from "Unconsumed"
+  // (engine never reads it — resolved but not in here). Global + cached server-side.
+  consumable_universe?: string[]
+  // Calculation-target (dummy) armor/resist, base + effective after this build's penetration (values are
+  // damage-REDUCTION fractions; negative effective = the target is amplified), plus active enemy debuffs.
+  target_stats?: TargetStats | null
 }
+
+export interface TargetStats {
+  armor: { base_phys: number; base_nonphys: number; effective_phys: number; effective_nonphys: number }
+  resists: Record<string, { base: number; effective: number }>
+  debuffs: string[]
+}
+
+export interface CoreTalentStatus {
+  name: string
+  text: string
+  resolved: boolean
+  kind: 'stat' | 'override' | 'deferred' | 'unresolved'
+}
+
+// ── Modifier resolution (inert-modifier badges) ─────────────────────────────────
+export type ModifierSource = 'gear' | 'spirit' | 'memory' | 'talent' | 'slate'
+export interface ModifierMapItem { key: string; text: string; source: ModifierSource; node_id?: string }
+export interface ModifierMapResponse { results: Record<string, { stat_keys: string[] }> }
 
 export const EMPTY_STAT_SHEET: StatSheetResponse = {
   stats: {},
@@ -477,6 +613,8 @@ export const EMPTY_STAT_SHEET: StatSheetResponse = {
   clamp_report: {},
   offense: null,
   defense: null,
+  consumed_stats: [],
+  consumable_universe: [],
 }
 
 export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
@@ -529,6 +667,7 @@ export interface SeasonSummary {
   hero_memories_count: number | null
   memory_revival_count: number | null
   tower_sequence_count: number | null
+  belt_blend_count: number | null
   is_active: boolean
 }
 
@@ -559,7 +698,7 @@ export interface HeroTrait {
 
 export interface PactSpiritSlot {
   name: string
-  effect: string
+  effect: string[]   // atomic stat lines (one stat per entry) — see pact_spirit_importer normalization
   ring: 'inner' | 'mid' | 'outer'
 }
 
@@ -594,9 +733,10 @@ export function buildSpiritEffects(
     if (!sel) continue
     const spirit = allSpirits.find(s => s.item_id === sel.itemId)
     if (!spirit) continue
-    // Inner/mid effects are static; outer effects scale with rank and live in rankData.modifiers
+    // Inner/mid effects are static; outer effects scale with rank and live in rankData.modifiers.
+    // slot.effect is a list of atomic stat lines — push each.
     for (const slot of spirit.slots) {
-      if (slot.ring !== 'outer') effects.push(slot.effect)
+      if (slot.ring !== 'outer') effects.push(...slot.effect)
     }
     const rankData = spirit.upgrade_ranks.find(r => r.rank === sel.rank)
     if (rankData) effects.push(...rankData.modifiers)
@@ -670,6 +810,14 @@ export interface GraftAffix {
   level: number
   weight: number
   affix_type: string
+  // resolved by backend (/api/grafts) so vorax affixes carry stat keys like other gear
+  stat_key?: string | null
+  stat_keys?: string[]
+  is_range_split?: boolean
+  min_stat_keys?: string[]
+  max_stat_keys?: string[]
+  dual_stat_groups?: DualStatGroup[]
+  unit?: string
 }
 
 export interface Graft {
@@ -777,8 +925,17 @@ export interface EquippedSupportSkill {
   name: string
   skill_type: string
   level: number
+  // Rank (1-5) — Noble/Magnificent supports only. Scales the support's universal
+  // "+% additional damage for the supported skill" line (R1 0% → R5 20%).
+  rank?: number
+  // Explicit per-line rolls (signed fraction) keyed by the line's affix identity. Overrides the
+  // engine's tier-midpoint default for that line. See utils/supportRolls.ts + utils/affixIdentity.ts.
+  specific_rolls?: Record<string, number>
   skill_tags: string[]
   description_lines: string[]
+  // Whether this support contributes. Default true; false drops its contributions from the calc.
+  // Persisted in the build (rides inside the skills array).
+  enabled?: boolean
 }
 
 export interface EquippedSkill {
@@ -789,6 +946,8 @@ export interface EquippedSkill {
   skill_tags: string[]
   description_lines: string[]
   supports: EquippedSupportSkill[]
+  // Whether this skill (and its supports + sourced buffs/debuffs) contributes. Default true.
+  enabled?: boolean
 }
 
 const PASSIVE_TAGS = new Set(['Aura', 'Spirit Magus', 'Focus'])
@@ -924,17 +1083,35 @@ export interface CharacterStatContribution {
   text: string
 }
 
-export function buildEnergyContributions(
+// Baseline character stats every character has before gear/talents — Max Life, Max Mana, and
+// Max Energy. The engine has no intrinsic base values (derive.py base = 0), so these are injected
+// here as 'Base'/'Levels' character contributions.
+//   Max Life:   50 base + 13 per level
+//   Max Mana:   40 base +  5 per level
+//   Max Energy:  4 base +  1 per level (+ gear slots, + Prism)
+// NOTE (revisit): base regen is NOT modeled — Life regen over time; Mana 7/s + 1.75%/s. Needs
+// regen stats in the engine. Likewise Temporary Life/Mana and Base-Max variants are unmodeled.
+export function buildCharacterContributions(
   gear: EquippedGearItem[],
   characterLevel: number,
   hasPrism: boolean,
 ): CharacterStatContribution[] {
   const contribs: CharacterStatContribution[] = []
+  const lvl = Math.min(Math.max(characterLevel, 0), 100)
+  // Per-level scaling is per level GAINED — a player starts at level 1 with the base value, so
+  // multiply by (level - 1), not level.
+  const levelsGained = Math.max(lvl - 1, 0)
+
+  const baseLife = 50 + 13 * levelsGained
+  contribs.push({ stat: 'max_life_flat', amount: baseLife, label: 'Base', text: `+${baseLife} Max Life (50 + 13/level)` })
+
+  const baseMana = 40 + 5 * levelsGained
+  contribs.push({ stat: 'max_mana_flat', amount: baseMana, label: 'Base', text: `+${baseMana} Max Mana (40 + 5/level)` })
+
   contribs.push({ stat: 'max_energy_flat', amount: 4, label: 'Base', text: '+4 Max Energy' })
   const gearE = gear.reduce((s, g) => s + gearSlotEnergy(g.slot), 0)
   if (gearE > 0) contribs.push({ stat: 'max_energy_flat', amount: gearE, label: 'Gear', text: `+${gearE} Max Energy` })
-  const lvlE = Math.min(Math.max(characterLevel, 0), 100)
-  if (lvlE > 0) contribs.push({ stat: 'max_energy_flat', amount: lvlE, label: 'Levels', text: `+${lvlE} Max Energy` })
+  if (lvl > 0) contribs.push({ stat: 'max_energy_flat', amount: lvl, label: 'Levels', text: `+${lvl} Max Energy` })
   if (hasPrism) contribs.push({ stat: 'max_energy_flat', amount: 1000, label: 'Prism', text: '+1000 Max Energy (Effortless Command)' })
   return contribs
 }
@@ -1031,6 +1208,19 @@ export interface EquippedGearItem {
   mutation_affix_text?: string | null
   mutation_resolved_affix?: LegendaryAffix | null
   selected_random_affixes?: Record<number, string>
+  // Equipped belt blend (Blending Ritual) — the blend's talent_id. Belt slot only; one blend total.
+  // Grants the blend's exclusive Core/Aromatic/Medium effect (resolved by the engine, roadmap #4).
+  beltBlend?: string | null
+}
+
+// One entry from the Belt Blends (Blending Rituals) catalog — see backend belt_blend_importer.
+export interface BeltBlend {
+  talent_id: string
+  talent_type: 'core' | 'aromatic' | 'medium' | string
+  talent_level: number
+  talent_name: string | null
+  effect_text: string
+  effect_raw: string
 }
 
 export interface GearAffixContribution {
@@ -1038,12 +1228,40 @@ export interface GearAffixContribution {
   display_value: number
   unit: string
   item_name: string
+  text?: string  // affix raw_text — per-affix "additional" pooling identity (Option A)
   slot: string | null
   condition?: Record<string, unknown> | string | null
 }
 
+// ── Damage-delta contract (tooltip damage-preview band) ──────────────────────────
+// Describes a hypothetical build change to price against the current build. The backend
+// endpoint that consumes this is NOT BUILT YET — see docs/TOOLTIP_REVAMP_HANDOFF.md §6.
+export type HypotheticalChange =
+  // allocate_node prices the marginal next point (or, when maxed, removing the last point).
+  // The hook reads the node's current points from the build and steps by ±1; max_points tells
+  // it whether the next step is an add or a removal.
+  | { kind: 'allocate_node'; node_id: string; max_points: number }
+  | { kind: 'equip_gear'; slot: GearSlot; item_id: string }
+  | { kind: 'place_slate'; slate_id: string }
+  | { kind: 'socket_memory'; slot: number; memory_id: string }
+  | { kind: 'pact_spirit_node'; node_id: string }
+
+export interface DamageDeltaResult {
+  supported: boolean   // false → render the NYI band (engine's all-or-nothing per-skill support)
+  absolute: number     // change in the headline damage metric
+  percent: number      // change as a percentage of current
+}
+
 export interface GearEngineItem {
   contributions: GearAffixContribution[]
+  // Core-talent grants riding with this gear item (roadmap #4), read server-side by resolve_core_talents:
+  //  - belt_blend: the belt's equipped blend talent_id (belt item only).
+  //  - granted_talents: bracket-named core talents this item grants ("[Name] …" legendary affixes).
+  belt_blend?: string | null
+  granted_talents?: string[]
+  // Raw affix/implicit texts the frontend couldn't resolve (e.g. crafted base resistances/life).
+  // The backend resolves and applies these, and reports any it still can't — so nothing is dropped.
+  unresolved_texts?: string[]
 }
 
 export interface SeasonDiffNode {
@@ -1232,6 +1450,14 @@ export const api = {
   getGrafts: () => get<{ season: string | null; grafts: Graft[] }>('/grafts'),
   clearGrafts: () => del<{ ok: boolean }>('/dev/grafts'),
 
+  // Belt Blends (Blending Rituals) — a single scraper file: { entries, glossary }.
+  importCrawlerBeltBlends: (seasonName: string, data: object) =>
+    post<{ ok: boolean; count: number }>(
+      '/dev/import-crawler-belt-blends', { season_name: seasonName, data }
+    ),
+  getBeltBlends: () => get<{ season: string | null; blends: BeltBlend[]; glossary: Record<string, { name: string; description: string }> }>('/belt-blends'),
+  clearBeltBlends: () => del<{ ok: boolean }>('/dev/belt-blends'),
+
   importDestiny: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-destiny', { season_name: seasonName, data }),
   getDestiny: () => get<{ season: string | null; items: DestinyItem[] }>('/destiny'),
@@ -1293,7 +1519,18 @@ export const api = {
     memory_effects?: string[]
     spirit_effects?: string[]
     main_skill?: SkillEngineInput | null
+    skills?: SkillSlotInput[]
+    custom_mods?: string[]
+    attached_supports?: AttachedSupportInput[]
   }) => post<StatSheetResponse>('/engine/stats', payload),
+
+  resolveMod: (text: string) =>
+    post<ResolveModResponse>('/resolve-mod', { text }),
+
+  // Map raw modifier texts (spirit/memory/talent/slate) to engine stat key(s). Deterministic per
+  // data version; the renderer caches results in mappingStore. Gear carries stat_key already.
+  mapModifiers: (items: ModifierMapItem[]) =>
+    post<ModifierMapResponse>('/map-modifiers', { items }),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),
 

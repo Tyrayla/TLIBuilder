@@ -1,0 +1,448 @@
+{
+  "condition_maximums": {
+    "agility_blessings": 4.0,
+    "ailment_type_count": 5.0,
+    "berserking_blade_stacks": 40.0,
+    "current_life_pct": 100.0,
+    "elemental_hit_pen_stacks": 4.0,
+    "enemy_life_pct": 100.0,
+    "fervor_rating": 130.0,
+    "focus_blessings": 4.0,
+    "fortitude_stacks": 3.0,
+    "ignite_stacks": 1.0,
+    "level": 100.0,
+    "numbed_stacks": 10.0,
+    "regain_stacks": 4.0,
+    "tenacity_blessings": 4.0,
+    "unique_weapon_types": 2.0,
+    "willpower_stacks": 6.0
+  },
+  "consumed_stats": [
+    "active_skill_level",
+    "all_resistance_reduction",
+    "all_skill_level",
+    "all_stats_flat",
+    "all_stats_inc",
+    "armor",
+    "armor_additional",
+    "armor_flat",
+    "armor_gear_flat",
+    "armor_gear_inc",
+    "armor_inc",
+    "armor_pen",
+    "attack_crit_rating_gear",
+    "attack_crit_rating_mh",
+    "attack_speed_gear",
+    "attack_speed_mh",
+    "cast_speed_inc",
+    "cold_as_erosion",
+    "cold_as_fire",
+    "cold_convert_to_erosion",
+    "cold_convert_to_fire",
+    "cold_resistance",
+    "cold_resistance_max_inc",
+    "cold_spell_dmg_flat_max",
+    "cold_spell_dmg_flat_min",
+    "crit_dmg_additional",
+    "crit_dmg_inc",
+    "crit_rating_additional",
+    "crit_rating_inc",
+    "defense_inc",
+    "dexterity",
+    "dexterity_additional",
+    "dexterity_flat",
+    "dexterity_inc",
+    "dmg_additional",
+    "dmg_inc",
+    "double_dmg_chance",
+    "elemental_dmg_additional",
+    "elemental_dmg_inc",
+    "elemental_pen",
+    "elemental_resistance",
+    "energy_shield_gear_flat",
+    "energy_shield_gear_inc",
+    "erosion_resistance",
+    "erosion_resistance_max_inc",
+    "erosion_spell_dmg_flat_max",
+    "erosion_spell_dmg_flat_min",
+    "evasion",
+    "evasion_additional",
+    "evasion_flat",
+    "evasion_gear_flat",
+    "evasion_gear_inc",
+    "evasion_inc",
+    "ferv",
+    "fire_as_erosion",
+    "fire_convert_to_erosion",
+    "fire_resistance",
+    "fire_resistance_max_inc",
+    "fire_spell_dmg_flat_max",
+    "fire_spell_dmg_flat_min",
+    "frail_spell_taken",
+    "intelligence",
+    "intelligence_additional",
+    "intelligence_flat",
+    "intelligence_inc",
+    "lightning_as_cold",
+    "lightning_as_erosion",
+    "lightning_as_fire",
+    "lightning_convert_to_cold",
+    "lightning_convert_to_erosion",
+    "lightning_convert_to_fire",
+    "lightning_crit_dmg_inc",
+    "lightning_dmg_inc",
+    "lightning_infiltration_taken",
+    "lightning_pen",
+    "lightning_resistance",
+    "lightning_resistance_max_inc",
+    "lightning_skill_level",
+    "lightning_spell_dmg_flat_max",
+    "lightning_spell_dmg_flat_min",
+    "lucky_lightning",
+    "main_skill_level",
+    "max_agility_blessing_stacks_flat",
+    "max_energy_shield",
+    "max_energy_shield_additional",
+    "max_energy_shield_flat",
+    "max_energy_shield_inc",
+    "max_focus_blessing_stacks_flat",
+    "max_ignite_flat",
+    "max_life",
+    "max_life_additional",
+    "max_life_flat",
+    "max_life_inc",
+    "max_mana",
+    "max_mana_additional",
+    "max_mana_flat",
+    "max_mana_inc",
+    "max_tenacity_blessing_stacks_flat",
+    "numbed_lightning_taken",
+    "paralysis_dmg_taken",
+    "physical_as_cold",
+    "physical_as_elemental",
+    "physical_as_erosion",
+    "physical_as_fire",
+    "physical_as_lightning",
+    "physical_convert_to_cold",
+    "physical_convert_to_erosion",
+    "physical_convert_to_fire",
+    "physical_convert_to_lightning",
+    "physical_spell_dmg_flat_max",
+    "physical_spell_dmg_flat_min",
+    "quadruple_dmg_chance",
+    "spell_crit_dmg_inc",
+    "spell_crit_rating_flat",
+    "spell_crit_rating_inc",
+    "spell_dmg_inc",
+    "spell_double_dmg_chance",
+    "spell_skill_level",
+    "steep_strike_chance",
+    "strength_additional",
+    "strength_flat",
+    "strength_inc",
+    "triple_dmg_chance",
+    "weapon_attack_speed",
+    "weapon_crit_rating_flat"
+  ],
+  "defense": {
+    "armor": 0.0,
+    "armor_additional": 0,
+    "armor_flat": 0,
+    "armor_inc": 0,
+    "cold_resist": 0.0,
+    "cold_resist_raw": 0.0,
+    "erosion_resist": 0.0,
+    "erosion_resist_raw": 0.0,
+    "es_additional": 0,
+    "es_flat": 0,
+    "es_inc": 0,
+    "evasion": 0.0,
+    "evasion_additional": 0,
+    "evasion_flat": 0,
+    "evasion_inc": 0,
+    "fire_resist": 0.0,
+    "fire_resist_raw": 0.0,
+    "life_additional": 0,
+    "life_flat": 0,
+    "life_inc": 0.12,
+    "lightning_resist": 0.0,
+    "lightning_resist_raw": 0.0,
+    "mana_additional": 0,
+    "mana_flat": 0,
+    "mana_inc": 0,
+    "max_energy_shield": 0.0,
+    "max_life": 0.0,
+    "max_mana": 0.0,
+    "nyi": [
+      "Effective HP"
+    ]
+  },
+  "offense": {
+    "above_max_mult": 1.0,
+    "attacks_per_second": 1.7612307692307692,
+    "cast_multiplier": 1.0,
+    "crit_chance": 0.05,
+    "crit_multiplier": 1.5,
+    "effective_level": 14,
+    "flat_dmg_max": {
+      "lightning": 289.0
+    },
+    "flat_dmg_min": {
+      "lightning": 15.0
+    },
+    "generic_add": 1.7399999999999998,
+    "generic_inc": 0.2,
+    "hit_forms": [
+      {
+        "avg_hit_pre_crit": 361.80863999999997,
+        "avg_hit_with_crit": 370.85385599999995,
+        "damage_by_type": {
+          "lightning": 361.80863999999997
+        },
+        "dps_contribution": 653.1592220750769,
+        "dps_vs_target": 342.9085915894152,
+        "effectiveness_pct": 100.0,
+        "form_type": "additive",
+        "hit_max_by_type": {
+          "lightning": 687.91248
+        },
+        "hit_min_by_type": {
+          "lightning": 35.7048
+        },
+        "name": "Chain Lightning",
+        "proc_chance": 1.0
+      }
+    ],
+    "main_stat_damage_bonus": 0.5,
+    "main_stats": [
+      "dexterity",
+      "intelligence"
+    ],
+    "nyi": [
+      "Support skill flat damage adds",
+      "Elemental conversion",
+      "Lucky crit",
+      "Ailment DPS",
+      "barrage_dmg_per_wave_inc \u2014 Barrage mechanic \u2014 scales per wave fired, not a flat multiplier",
+      "combo_finisher_additional \u2014 Combo finisher only \u2014 applies to finisher hits, not all hits; combo damage model NYI",
+      "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
+      "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
+      "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
+      "spell_burst_hit_dmg_additional \u2014 Spell burst mechanic \u2014 unique per-burst hit scaling, deferred",
+      "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
+    ],
+    "shotgun_hits": 1,
+    "skill_area_inc": 0.0,
+    "skill_name": "Chain Lightning",
+    "skill_tags": [
+      "Spell",
+      "Lightning",
+      "Chain"
+    ],
+    "steep_strike_chance": 0.0,
+    "supported": true,
+    "total_dps": 653.1592220750769,
+    "total_dps_vs_target": 342.9085915894152,
+    "type_add": {
+      "lightning": 1.9836
+    },
+    "type_inc": {
+      "lightning": 0.2
+    },
+    "weapon_aps_gear": 0,
+    "weapon_aps_mh": 0,
+    "weapon_attack_speed": 0,
+    "weapon_crit_rating_flat": 0,
+    "weapon_csr_gear": 0,
+    "weapon_csr_mh": 0
+  },
+  "stats": {
+    "affliction_effect_inc": {
+      "category": "Ailments",
+      "display_name": "Affliction Effect",
+      "sources": [
+        {
+          "amount": 0.1,
+          "label": "Pact Spirit",
+          "points": 1,
+          "source_type": "pact_spirit",
+          "text": "+10 % Affliction Effect"
+        }
+      ],
+      "total": 0.1,
+      "unit": "%"
+    },
+    "attack_speed_inc": {
+      "category": "Attack Speed",
+      "display_name": "Attack Speed",
+      "sources": [
+        {
+          "amount": 0.08,
+          "label": "Pact Spirit",
+          "points": 1,
+          "source_type": "pact_spirit",
+          "text": "+8 % Attack and Cast Speed"
+        }
+      ],
+      "total": 0.08,
+      "unit": "%"
+    },
+    "cast_speed_inc": {
+      "category": "Cast Speed",
+      "display_name": "Cast Speed",
+      "sources": [
+        {
+          "amount": 0.08,
+          "label": "Pact Spirit",
+          "points": 1,
+          "source_type": "pact_spirit",
+          "text": "+8 % Attack and Cast Speed"
+        }
+      ],
+      "total": 0.08,
+      "unit": "%"
+    },
+    "combo_finisher_crit_dmg_inc": {
+      "category": "Critical Strike",
+      "display_name": "Combo Finisher Critical Strike Damage",
+      "sources": [
+        {
+          "amount": 0.12,
+          "label": "Hero Memory",
+          "points": 1,
+          "source_type": "hero_memory",
+          "text": "+12 % Critical Strike Damage for Combo Finishers"
+        }
+      ],
+      "total": 0.12,
+      "unit": "%"
+    },
+    "combo_starter_attack_speed_additional": {
+      "category": "Attack Speed",
+      "display_name": "Combo Starter Attack Speed",
+      "sources": [
+        {
+          "amount": 0.06,
+          "label": "Hero Memory",
+          "points": 1,
+          "source_type": "hero_memory",
+          "text": "+6 % additional Attack and Cast Speed for Combo Starters"
+        }
+      ],
+      "total": 0.06,
+      "unit": "%"
+    },
+    "combo_starter_cast_speed_additional": {
+      "category": "Cast Speed",
+      "display_name": "Combo Starter Cast Speed",
+      "sources": [
+        {
+          "amount": 0.06,
+          "label": "Hero Memory",
+          "points": 1,
+          "source_type": "hero_memory",
+          "text": "+6 % additional Attack and Cast Speed for Combo Starters"
+        }
+      ],
+      "total": 0.06,
+      "unit": "%"
+    },
+    "dmg_additional": {
+      "category": "Generic",
+      "display_name": "Additional Damage",
+      "sources": [
+        {
+          "amount": 0.16,
+          "label": "Pact Spirit",
+          "points": 1,
+          "source_type": "pact_spirit",
+          "text": "+16 % additional damage against Cursed enemies"
+        }
+      ],
+      "total": 0.16,
+      "unit": "%"
+    },
+    "dmg_inc": {
+      "category": "Generic",
+      "display_name": "Damage",
+      "sources": [
+        {
+          "amount": 0.2,
+          "label": "Pact Spirit",
+          "points": 1,
+          "source_type": "pact_spirit",
+          "text": "+20 % damage +20 % Minion Damage"
+        }
+      ],
+      "total": 0.2,
+      "unit": "%"
+    },
+    "intelligence": {
+      "category": "Character",
+      "display_name": "Intelligence",
+      "sources": [],
+      "total": 100.0,
+      "unit": ""
+    },
+    "intelligence_flat": {
+      "category": "Attributes",
+      "display_name": "Intelligence",
+      "sources": [
+        {
+          "amount": 100.0,
+          "label": "Hero Memory",
+          "points": 1,
+          "source_type": "hero_memory",
+          "text": "+100 Intelligence"
+        }
+      ],
+      "total": 100.0,
+      "unit": ""
+    },
+    "lightning_pen": {
+      "category": "Lightning",
+      "display_name": "Lightning Resistance Penetration",
+      "sources": [
+        {
+          "amount": 0.05,
+          "label": "Pact Spirit",
+          "points": 1,
+          "source_type": "pact_spirit",
+          "text": "+5 % Lightning Penetration"
+        }
+      ],
+      "total": 0.05,
+      "unit": "%"
+    },
+    "max_life_inc": {
+      "category": "Life",
+      "display_name": "Max Life",
+      "sources": [
+        {
+          "amount": 0.12,
+          "label": "Hero Memory",
+          "points": 1,
+          "source_type": "hero_memory",
+          "text": "+12 % Max Life"
+        }
+      ],
+      "total": 0.12,
+      "unit": "%"
+    },
+    "minion_dmg_inc": {
+      "category": "Minion",
+      "display_name": "Minion Damage",
+      "sources": [
+        {
+          "amount": 0.2,
+          "label": "Pact Spirit",
+          "points": 1,
+          "source_type": "pact_spirit",
+          "text": "+20 % damage +20 % Minion Damage"
+        }
+      ],
+      "total": 0.2,
+      "unit": "%"
+    }
+  }
+}

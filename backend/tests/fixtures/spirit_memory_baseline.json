@@ -1,0 +1,7486 @@
+{
+ "memory": {
+  "(-60–-40) % Curse effect against you": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % Affliction Effect": {
+   "scope": null,
+   "stat_keys": [
+    "affliction_effect_inc"
+   ]
+  },
+  "+10 % Attack Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "attack_block_chance_inc"
+   ]
+  },
+  "+10 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+10 % Attack and Cast Speed +10 % Minion Attack and Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc",
+    "cast_speed_inc",
+    "minion_attack_speed_inc",
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+10 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+10 % Cooldown Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cdr_speed_inc"
+   ]
+  },
+  "+10 % Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_inc"
+   ]
+  },
+  "+10 % Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_inc"
+   ]
+  },
+  "+10 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+10 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+10 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+10 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+10 % Reaping Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "reaping_recovery_speed_inc"
+   ]
+  },
+  "+10 % Spell Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "spell_block_chance_inc"
+   ]
+  },
+  "+10 % additional Attack and Cast Speed for Combo Starters +31 % Critical Strike Damage for Combo Finishers": {
+   "scope": null,
+   "stat_keys": [
+    "combo_starter_attack_speed_additional",
+    "combo_starter_cast_speed_additional",
+    "combo_finisher_crit_dmg_inc"
+   ]
+  },
+  "+10 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+10 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+10 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+10 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+10.4 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+10.4 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+10.4 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+10.4 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+10.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+100 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+102 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+103 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+104 % Attack Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_rating_inc"
+   ]
+  },
+  "+104 % Minion Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_rating_inc"
+   ]
+  },
+  "+104 % Spell Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "spell_crit_rating_inc"
+   ]
+  },
+  "+104 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+1056 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+1056 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+108 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+11.2 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+11.2 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+11.2 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+11.2 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+11.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+110 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+112 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+1152 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+1152 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+116 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+117 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+117 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+12 % Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor_inc"
+   ]
+  },
+  "+12 % Attack Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "attack_block_chance_inc"
+   ]
+  },
+  "+12 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+12 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+12 % Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "crit_dmg_inc"
+   ]
+  },
+  "+12 % Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion_inc"
+   ]
+  },
+  "+12 % Focus Speed": {
+   "scope": null,
+   "stat_keys": [
+    "focus_speed_inc"
+   ]
+  },
+  "+12 % Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_inc"
+   ]
+  },
+  "+12 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+12 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+12 % Minion Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_dmg_inc"
+   ]
+  },
+  "+12 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+12 % Spell Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "spell_block_chance_inc"
+   ]
+  },
+  "+12.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+12.8 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+12.8 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+12.8 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+12.8 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+120 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+124 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+1248 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+1248 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+125 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+128 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+128 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+13 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+13 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+13 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+13 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+13 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+13.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+13.6 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+13.6 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+13.6 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+13.6 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+132 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+132 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+1344 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+1344 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+136 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+139 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+14 % Affliction Effect": {
+   "scope": null,
+   "stat_keys": [
+    "affliction_effect_inc"
+   ]
+  },
+  "+14 % Attack and Cast Speed +14 % Minion Attack and Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc",
+    "cast_speed_inc",
+    "minion_attack_speed_inc",
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+14 % Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_inc"
+   ]
+  },
+  "+14 % Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_inc"
+   ]
+  },
+  "+14 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+14 % Origin of Spirit Magus effect": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_origin_effect_inc"
+   ]
+  },
+  "+14 % Reaping Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "reaping_recovery_speed_inc"
+   ]
+  },
+  "+14.4 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+14.4 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+14.4 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+14.4 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+14.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+140 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+140 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+144 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+1440 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+1440 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+147 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+148 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+15 % Attack Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "attack_block_chance_inc"
+   ]
+  },
+  "+15 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+15 % Skill Area": {
+   "scope": null,
+   "stat_keys": [
+    "skill_area_inc"
+   ]
+  },
+  "+15 % Spell Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "spell_block_chance_inc"
+   ]
+  },
+  "+15 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+15 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+15 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+15 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+15.2 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+15.2 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+15.2 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+15.2 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+15.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+152 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+152 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+1536 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+1536 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+154 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+156 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+16 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+16 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+16 % Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_inc"
+   ]
+  },
+  "+16 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+16 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+16 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+16 % Projectile Speed": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_speed_inc"
+   ]
+  },
+  "+16 % Spell Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_crit_dmg_inc"
+   ]
+  },
+  "+16 % attack Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_dmg_inc"
+   ]
+  },
+  "+16.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+16.8 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+16.8 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+16.8 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+16.8 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+160 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+161 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+163 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+1632 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+1632 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+164 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+168 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+169 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+17 % Attack Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "attack_block_chance_inc"
+   ]
+  },
+  "+17 % Spell Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "spell_block_chance_inc"
+   ]
+  },
+  "+17.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+17.6 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+17.6 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+17.6 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+17.6 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+172 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+1728 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+1728 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+175 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+176 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+176 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+18 % Attack and Cast Speed +18 % Minion Attack and Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc",
+    "cast_speed_inc",
+    "minion_attack_speed_inc",
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+18 % Focus Speed": {
+   "scope": null,
+   "stat_keys": [
+    "focus_speed_inc"
+   ]
+  },
+  "+18 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+18 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+18 % Origin of Spirit Magus effect": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_origin_effect_inc"
+   ]
+  },
+  "+18 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+18 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+18 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+18 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+18.4 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+18.4 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+18.4 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+18.4 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+18.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+180 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+1824 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+1824 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+183 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+187 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+19 % Cold Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_crit_dmg_inc"
+   ]
+  },
+  "+19 % Erosion Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_crit_dmg_inc"
+   ]
+  },
+  "+19 % Fire Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_crit_dmg_inc"
+   ]
+  },
+  "+19 % Lightning Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_crit_dmg_inc"
+   ]
+  },
+  "+19 % Minion Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_dmg_inc"
+   ]
+  },
+  "+19 % Physical Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "physical_crit_dmg_inc"
+   ]
+  },
+  "+19.2 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+19.2 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+19.2 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+19.2 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+19.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+191 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+1920 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+1920 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+198 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+198 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+2 % Max Cold Resistance": {
+   "scope": null,
+   "stat_keys": [
+    "cold_resistance_max_inc"
+   ]
+  },
+  "+2 % Max Erosion Resistance": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_resistance_max_inc"
+   ]
+  },
+  "+2 % Max Fire Resistance": {
+   "scope": null,
+   "stat_keys": [
+    "fire_resistance_max_inc"
+   ]
+  },
+  "+2 % Max Lightning Resistance": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_resistance_max_inc"
+   ]
+  },
+  "+2 to Hero Trait Level": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+20 % Affliction Effect": {
+   "scope": null,
+   "stat_keys": [
+    "affliction_effect_inc"
+   ]
+  },
+  "+20 % Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor_inc"
+   ]
+  },
+  "+20 % Attack Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_dmg_inc"
+   ]
+  },
+  "+20 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+20 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+20 % Cold Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_dmg_inc"
+   ]
+  },
+  "+20 % Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "crit_dmg_inc"
+   ]
+  },
+  "+20 % Damage Over Time": {
+   "scope": null,
+   "stat_keys": [
+    "dot_dmg_inc"
+   ]
+  },
+  "+20 % Erosion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_dmg_inc"
+   ]
+  },
+  "+20 % Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion_inc"
+   ]
+  },
+  "+20 % Fire Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_dmg_inc"
+   ]
+  },
+  "+20 % Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_inc"
+   ]
+  },
+  "+20 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+20 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+20 % Minion Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_dmg_inc"
+   ]
+  },
+  "+20 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+20 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+20 % Physical Damage": {
+   "scope": null,
+   "stat_keys": [
+    "physical_dmg_inc"
+   ]
+  },
+  "+20 % Projectile Speed": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_speed_inc"
+   ]
+  },
+  "+20 % Reaping Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "reaping_recovery_speed_inc"
+   ]
+  },
+  "+20 % Spell Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_dmg_inc"
+   ]
+  },
+  "+20 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+20 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+20 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+20 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+20 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+20.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+20.8 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+20.8 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+20.8 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+20.8 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+2016 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2016 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+205 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+21.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+21.6 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+21.6 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+21.6 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+21.6 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+210 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+2112 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2112 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+213 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+22 % Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_inc"
+   ]
+  },
+  "+22 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+22 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+22 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+22 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+22 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+22 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+22.4 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+22.4 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+22.4 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+22.4 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+22.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+220 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+2208 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2208 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+222 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+227 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+23 % Skill Area": {
+   "scope": null,
+   "stat_keys": [
+    "skill_area_inc"
+   ]
+  },
+  "+23.2 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+23.2 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+23.2 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+23.2 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+23.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+2304 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2304 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+233 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+235 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+24 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+24 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+24 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+24 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+24 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+24 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+24 % Projectile Speed": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_speed_inc"
+   ]
+  },
+  "+24 % Reaping Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "reaping_recovery_speed_inc"
+   ]
+  },
+  "+24 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+24 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+24 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+24 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+24.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+24.8 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+24.8 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+24.8 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+24.8 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+2400 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2400 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+242 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+245 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+249 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+2496 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2496 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+25 % Attack Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "attack_block_chance_inc"
+   ]
+  },
+  "+25 % Focus Speed": {
+   "scope": null,
+   "stat_keys": [
+    "focus_speed_inc"
+   ]
+  },
+  "+25 % Spell Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "spell_block_chance_inc"
+   ]
+  },
+  "+25 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+25.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+25.6 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+25.6 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+25.6 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+25.6 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+257 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+257 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+2592 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2592 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+26 % Affliction Effect": {
+   "scope": null,
+   "stat_keys": [
+    "affliction_effect_inc"
+   ]
+  },
+  "+26 % Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor_inc"
+   ]
+  },
+  "+26 % Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion_inc"
+   ]
+  },
+  "+26 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+26 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+26 % Reaping Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "reaping_recovery_speed_inc"
+   ]
+  },
+  "+26 % Spell Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_crit_dmg_inc"
+   ]
+  },
+  "+26 % attack Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_dmg_inc"
+   ]
+  },
+  "+26 % chance to avoid Elemental Ailments": {
+   "scope": null,
+   "stat_keys": [
+    "elemental_ailment_avoid_chance"
+   ]
+  },
+  "+26 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+26 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+26 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+26 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+26.4 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+26.4 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+26.4 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+26.4 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+26.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+264 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+268 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+2688 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2688 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+27.2 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+27.2 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+27.2 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+27.2 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+27.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+271 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+2784 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2784 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+279 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+28 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+28 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+28 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+28 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+28 % Minion Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_dmg_inc"
+   ]
+  },
+  "+28 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+28 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+28 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+28 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+28 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+28 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+28.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+28.8 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+28.8 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+28.8 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+28.8 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+280 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+286 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+2880 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2880 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+29.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+29.6 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+29.6 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+29.6 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+29.6 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+292 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+293 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+2976 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+2976 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+3.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+30 % Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor_inc"
+   ]
+  },
+  "+30 % Attack Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_dmg_inc"
+   ]
+  },
+  "+30 % Cold Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_dmg_inc"
+   ]
+  },
+  "+30 % Damage Over Time": {
+   "scope": null,
+   "stat_keys": [
+    "dot_dmg_inc"
+   ]
+  },
+  "+30 % Erosion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_dmg_inc"
+   ]
+  },
+  "+30 % Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion_inc"
+   ]
+  },
+  "+30 % Fire Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_dmg_inc"
+   ]
+  },
+  "+30 % Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_inc"
+   ]
+  },
+  "+30 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+30 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+30 % Physical Damage": {
+   "scope": null,
+   "stat_keys": [
+    "physical_dmg_inc"
+   ]
+  },
+  "+30 % Projectile Speed": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_speed_inc"
+   ]
+  },
+  "+30 % Spell Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_dmg_inc"
+   ]
+  },
+  "+30 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+30 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+30 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+30 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+30 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+30.4 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+30.4 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+30.4 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+30.4 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+301 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+303 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+3072 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+3072 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+308 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+31 % Cold Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_crit_dmg_inc"
+   ]
+  },
+  "+31 % Erosion Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_crit_dmg_inc"
+   ]
+  },
+  "+31 % Fire Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_crit_dmg_inc"
+   ]
+  },
+  "+31 % Lightning Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_crit_dmg_inc"
+   ]
+  },
+  "+31 % Minion Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_dmg_inc"
+   ]
+  },
+  "+31 % Physical Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "physical_crit_dmg_inc"
+   ]
+  },
+  "+31.2 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+31.2 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+31.2 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+31.2 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+315 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+315 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+3168 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+3168 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+32 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+32 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+32 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+32 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+32 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+32 % Skill Area": {
+   "scope": null,
+   "stat_keys": [
+    "skill_area_inc"
+   ]
+  },
+  "+32 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+32 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+32 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+32 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+32.8 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+32.8 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+32.8 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+32.8 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+323 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+3264 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+3264 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+327 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+33.6 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+33.6 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+33.6 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+33.6 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+330 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+3360 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+3360 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+338 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+34 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+34 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+34 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+34 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+34 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+34.4 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+34.4 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+34.4 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+34.4 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+3456 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+3456 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+35 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+35.2 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+35.2 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+35.2 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+35.2 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+350 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+3552 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+3552 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+36 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+36 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+36 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+36 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+36 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+36 % Spell Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_crit_dmg_inc"
+   ]
+  },
+  "+36 % attack Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_dmg_inc"
+   ]
+  },
+  "+36 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+36 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+36 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+36 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+362 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+3648 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+3648 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+37 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+373 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+3744 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+3744 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+38 % Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "crit_dmg_inc"
+   ]
+  },
+  "+38 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+38 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+38 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+38 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+38 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+3840 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+3840 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+385 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+39 % Skill Area": {
+   "scope": null,
+   "stat_keys": [
+    "skill_area_inc"
+   ]
+  },
+  "+3936 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+3936 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+397 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+4 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+4 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+4 % Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_inc"
+   ]
+  },
+  "+4 % Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_inc"
+   ]
+  },
+  "+4 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+4 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+4 % additional Attack and Cast Speed for Combo Starters +15 % Critical Strike Damage for Combo Finishers": {
+   "scope": null,
+   "stat_keys": [
+    "combo_starter_attack_speed_additional",
+    "combo_starter_cast_speed_additional",
+    "combo_finisher_crit_dmg_inc"
+   ]
+  },
+  "+4.2 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+40 % Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor_inc"
+   ]
+  },
+  "+40 % Attack Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_rating_inc"
+   ]
+  },
+  "+40 % Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "crit_rating_inc"
+   ]
+  },
+  "+40 % Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion_inc"
+   ]
+  },
+  "+40 % Minion Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_rating_inc"
+   ]
+  },
+  "+40 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+40 % Projectile Speed": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_speed_inc"
+   ]
+  },
+  "+40 % Spell Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "spell_crit_rating_inc"
+   ]
+  },
+  "+40 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+40 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+40 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+40 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+40 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+4032 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+4032 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+408 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+4128 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+4128 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+42 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+42 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+42 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+42 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+42 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+420 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+4224 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+4224 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+43 % Cold Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_crit_dmg_inc"
+   ]
+  },
+  "+43 % Erosion Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_crit_dmg_inc"
+   ]
+  },
+  "+43 % Fire Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_crit_dmg_inc"
+   ]
+  },
+  "+43 % Lightning Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_crit_dmg_inc"
+   ]
+  },
+  "+43 % Minion Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_dmg_inc"
+   ]
+  },
+  "+43 % Physical Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "physical_crit_dmg_inc"
+   ]
+  },
+  "+432 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+4320 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+4320 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+44 % Attack Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_dmg_inc"
+   ]
+  },
+  "+44 % Cold Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_dmg_inc"
+   ]
+  },
+  "+44 % Damage Over Time": {
+   "scope": null,
+   "stat_keys": [
+    "dot_dmg_inc"
+   ]
+  },
+  "+44 % Erosion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_dmg_inc"
+   ]
+  },
+  "+44 % Fire Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_dmg_inc"
+   ]
+  },
+  "+44 % Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_inc"
+   ]
+  },
+  "+44 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+44 % Physical Damage": {
+   "scope": null,
+   "stat_keys": [
+    "physical_dmg_inc"
+   ]
+  },
+  "+44 % Spell Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_dmg_inc"
+   ]
+  },
+  "+44 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+44 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+44 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+44 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+44 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+443 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+455 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+46 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+46 % Spell Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_crit_dmg_inc"
+   ]
+  },
+  "+46 % attack Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_dmg_inc"
+   ]
+  },
+  "+46 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+46 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+46 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+46 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+46 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+467 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+478 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+48 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+48 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+48 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+48 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+48 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+48 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+480 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+480 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+490 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+5 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+5 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+5 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+5 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+5 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+5 % additional Attack and Cast Speed for Combo Starters +20 % Critical Strike Damage for Combo Finishers": {
+   "scope": null,
+   "stat_keys": [
+    "combo_starter_attack_speed_additional",
+    "combo_starter_cast_speed_additional",
+    "combo_finisher_crit_dmg_inc"
+   ]
+  },
+  "+5.8 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+50 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+50 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+50 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+50 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+50 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+502 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+513 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+52 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+52 % Projectile Speed": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_speed_inc"
+   ]
+  },
+  "+52 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+52 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+52 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+52 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+52 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+525 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+54 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+54 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+54 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+54 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+54 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+55 % Cold Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_crit_dmg_inc"
+   ]
+  },
+  "+55 % Erosion Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_crit_dmg_inc"
+   ]
+  },
+  "+55 % Fire Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_crit_dmg_inc"
+   ]
+  },
+  "+55 % Lightning Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_crit_dmg_inc"
+   ]
+  },
+  "+55 % Minion Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_dmg_inc"
+   ]
+  },
+  "+55 % Physical Skill Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "physical_crit_dmg_inc"
+   ]
+  },
+  "+55 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+56 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+56 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+56 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+56 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+56 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+56 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+58 % Attack Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_dmg_inc"
+   ]
+  },
+  "+58 % Cold Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_dmg_inc"
+   ]
+  },
+  "+58 % Damage Over Time": {
+   "scope": null,
+   "stat_keys": [
+    "dot_dmg_inc"
+   ]
+  },
+  "+58 % Erosion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_dmg_inc"
+   ]
+  },
+  "+58 % Fire Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_dmg_inc"
+   ]
+  },
+  "+58 % Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_inc"
+   ]
+  },
+  "+58 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+58 % Physical Damage": {
+   "scope": null,
+   "stat_keys": [
+    "physical_dmg_inc"
+   ]
+  },
+  "+58 % Spell Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_dmg_inc"
+   ]
+  },
+  "+58 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+58 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+58 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+58 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+58 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+6 % Attack Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "attack_block_chance_inc"
+   ]
+  },
+  "+6 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+6 % Attack and Cast Speed +6 % Minion Attack and Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc",
+    "cast_speed_inc",
+    "minion_attack_speed_inc",
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+6 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+6 % Focus Speed": {
+   "scope": null,
+   "stat_keys": [
+    "focus_speed_inc"
+   ]
+  },
+  "+6 % Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_inc"
+   ]
+  },
+  "+6 % Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_inc"
+   ]
+  },
+  "+6 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+6 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+6 % Origin of Spirit Magus effect": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_origin_effect_inc"
+   ]
+  },
+  "+6 % Spell Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "spell_block_chance_inc"
+   ]
+  },
+  "+6.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+60 % Attack Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_rating_inc"
+   ]
+  },
+  "+60 % Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "crit_rating_inc"
+   ]
+  },
+  "+60 % Minion Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_rating_inc"
+   ]
+  },
+  "+60 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+60 % Spell Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "spell_crit_rating_inc"
+   ]
+  },
+  "+60 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+60 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+60 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+60 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+60 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+600 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+600 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+62 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+62 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+62 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+62 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+62 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+64 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+64 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+64 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+64 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+64 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+64 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+64 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+66 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+66 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+66 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+66 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+66 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+68 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+68 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+68 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+68 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+68 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+68 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+7 % Attack Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "attack_block_chance_inc"
+   ]
+  },
+  "+7 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+7 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+7 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+7 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+7 % Spell Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "spell_block_chance_inc"
+   ]
+  },
+  "+7 % additional Attack and Cast Speed for Combo Starters +25 % Critical Strike Damage for Combo Finishers": {
+   "scope": null,
+   "stat_keys": [
+    "combo_starter_attack_speed_additional",
+    "combo_starter_cast_speed_additional",
+    "combo_finisher_crit_dmg_inc"
+   ]
+  },
+  "+7.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+70 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+70 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+70 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+70 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+70 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+72 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+72 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+72 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+72 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+72 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+72 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+720 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+720 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+73 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+73 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+74 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+74 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+74 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+74 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+74 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+76 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+76 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+76 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+76 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+76 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+76 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+78 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+78 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+78 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+78 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+78 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+8 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+8 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+8 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+8 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+8 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+8.7 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+8.8 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+8.8 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+8.8 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+8.8 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+80 % Attack Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_rating_inc"
+   ]
+  },
+  "+80 % Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "crit_rating_inc"
+   ]
+  },
+  "+80 % Minion Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "minion_crit_rating_inc"
+   ]
+  },
+  "+80 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+80 % Spell Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "spell_crit_rating_inc"
+   ]
+  },
+  "+80 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+80 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+80 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+80 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+80 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+81 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+82 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+82 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+82 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+82 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+82 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+84 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+84 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+84 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+84 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+84 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+84 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+840 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+840 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "+86 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+86 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+86 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+86 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+86 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+88 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+88 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+88 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+88 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+88 Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_flat"
+   ]
+  },
+  "+88 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+88 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+88 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+9 % Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_inc"
+   ]
+  },
+  "+9 % Origin of Spirit Magus effect": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_origin_effect_inc"
+   ]
+  },
+  "+9.3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+9.6 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+9.6 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+9.6 % Minion Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_attack_speed_inc"
+   ]
+  },
+  "+9.6 % Minion Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "minion_cast_speed_inc"
+   ]
+  },
+  "+90 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+90 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+90 Dexterity": {
+   "scope": null,
+   "stat_keys": [
+    "dexterity"
+   ]
+  },
+  "+90 Intelligence": {
+   "scope": null,
+   "stat_keys": [
+    "intelligence"
+   ]
+  },
+  "+90 Strength": {
+   "scope": null,
+   "stat_keys": [
+    "strength"
+   ]
+  },
+  "+92 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+95 Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_flat"
+   ]
+  },
+  "+96 Max Mana": {
+   "scope": null,
+   "stat_keys": [
+    "max_mana_flat"
+   ]
+  },
+  "+960 Armor": {
+   "scope": null,
+   "stat_keys": [
+    "armor"
+   ]
+  },
+  "+960 Evasion": {
+   "scope": null,
+   "stat_keys": [
+    "evasion"
+   ]
+  },
+  "Immune to Blinding": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Immune to Ignite Damage -100 % Ignite Effect received": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Immune to Paralysis": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Immune to Slow": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Immune to Trauma Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Immune to Weaken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Immune to Wilt Damage": {
+   "scope": null,
+   "stat_keys": []
+  }
+ },
+ "spirit": {
+  "+ 1.5 % additional Raid Reward Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+ 1.5 % additional Trade and Order Reward Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+ 2 % Drop Quantity in the Overrealm": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+ 3 % additional Raid Reward Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+ 3 % additional Trade and Order Reward Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+ 4 % Drop Quantity in the Overrealm": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+% Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+0% chance for all reward units from Carjack or TOWER Co. Central Vault in a Netherrealm stage to be recoded by Prof. SOURCE when they appear, replicating their rewards 1 time (takes effect immediately after starting Carjack and lasts for the duration of the operation; must be carried at all times in TOWER Co. Central Vault)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+0% chance for all reward units from Carjack or TOWER Co. Central Vault that have been recoded in a Netherrealm stage to be replicated 1 time again (takes effect immediately after starting Carjack and lasts for the duration of the operation; must be carried at all times in TOWER Co. Central Vault)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+0.4 % Elemental Resistance Penetration every time you hit an enemy with Elemental Damage recently. Stacks up to 4 times": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+0.5% chance for all reward units from Carjack or TOWER Co. Central Vault in a Netherrealm stage to be recoded by Prof. SOURCE when they appear, replicating their rewards 1 time (takes effect immediately after starting Carjack and lasts for the duration of the operation; must be carried at all times in TOWER Co. Central Vault)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+0.8 % Block Ratio when there is a Boss Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+0.8 % Elemental Resistance Penetration every time you hit an enemy with Elemental Damage recently. Stacks up to 4 times": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1 % Erosion Resistance per stack of Repentance": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1 % additional Attack and Cast Speed when no enemies are in proximity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1 % additional Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1 % additional Spirit Magus Skill Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_dmg_additional"
+   ]
+  },
+  "+1 % additional damage and Minion Damage while an Elixir Skill is active": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1 % chance for defeated monsters to drop 1 additional set(s) of random Flame Fuel": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1 Max Pure Heart Stacks": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1 Max Repentance Stacks": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1 Max Valkyrie's Hymn Stacks": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1 Max Warcry Skill Charges": {
+   "scope": null,
+   "stat_keys": [
+    "max_warcry_skill_charges_flat"
+   ]
+  },
+  "+1 Spirit Magus Skill Level": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_skill_level"
+   ]
+  },
+  "+1 to Max Feline Stimulant stacks": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1 to Max Spell Burst when having Squidnova": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1% chance for all reward units from Carjack or TOWER Co. Central Vault in a Netherrealm stage to be recoded by Prof. SOURCE when they appear, replicating their rewards 1 time (takes effect immediately after starting Carjack and lasts for the duration of the operation; must be carried at all times in TOWER Co. Central Vault)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.3 % chance for defeated monsters to drop 1 additional set(s) of random Flame Fuel": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % Block Ratio when there is a Boss Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % Curse Effect": {
+   "scope": null,
+   "stat_keys": [
+    "curse_effect_inc"
+   ]
+  },
+  "+1.5 % Drop Quantity for TOWER Securities": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % Elemental Resistance Penetration every time you hit an enemy with Elemental Damage recently. Stacks up to 4 times": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % Elixir Skill Effect for every Elixir Skill cast recently. Stacks up to 12 time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % Increased Chest of Destiny Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % Lunari Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % Movement Speed per second when an Elite is nearby , up to +3 stack(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % Movement Speed when a Spirit Magus is nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % additional Attack Damage dealt to Nearby enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % additional Cold Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_dmg_additional"
+   ]
+  },
+  "+1.5 % additional Fire Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_dmg_additional"
+   ]
+  },
+  "+1.5 % additional Gear Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % additional Hero Memory Enhancement Item Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.5 % additional Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_additional"
+   ]
+  },
+  "+1.5 % chance to avoid damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_avoid_chance"
+   ]
+  },
+  "+1.6 % Block Ratio when there is a Boss Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.6 % Elemental Resistance Penetration every time you hit an enemy with Elemental Damage recently. Stacks up to 4 times": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+1.8 % Reaping Duration for each Reap dealt, stacking up to 4 times.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % Affliction Effect": {
+   "scope": null,
+   "stat_keys": [
+    "affliction_effect_inc"
+   ]
+  },
+  "+10 % Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "crit_dmg_inc"
+   ]
+  },
+  "+10 % Crowd Control Effects": {
+   "scope": null,
+   "stat_keys": [
+    "cc_effect_inc"
+   ]
+  },
+  "+10 % Curse Effect": {
+   "scope": null,
+   "stat_keys": [
+    "curse_effect_inc"
+   ]
+  },
+  "+10 % Desire Crystal Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % Divinity Stone Drop Quantity.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % Elemental Resistance": {
+   "scope": null,
+   "stat_keys": [
+    "elemental_resistance"
+   ]
+  },
+  "+10 % Minion Attack and Cast Speed for 4 s when your Synthetic Troops deal Double Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+10 % Movement Speed if you have caused Reaping recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % Movement Speed per second when an Elite is nearby , up to +3 stack(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % Movement Speed while an Elixir Skill is active": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % Projectile Damage": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_dmg_inc"
+   ]
+  },
+  "+10 % Quantity of Items dropped by Nightmare monsters": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % Reaping Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "reaping_recovery_speed_inc"
+   ]
+  },
+  "+10 % Sealed Mana Compensation for Spirit Magus Skills": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_sealed_mana_comp_inc"
+   ]
+  },
+  "+10 % Skill Effect Duration": {
+   "scope": null,
+   "stat_keys": [
+    "skill_effect_duration_inc"
+   ]
+  },
+  "+10 % additional Dream Talking Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % additional Flame Fuel Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % additional Life Regenerates 0.6 % Life per second": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % additional Max Energy Shield +6 % Energy Shield Charge Speed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+10 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+10 % damage +10 % Minion Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+100 % Pure Heart Duration": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+100% chance for all reward units from Carjack or TOWER Co. Central Vault that have been recoded in a Netherrealm stage to be replicated 1 time again (takes effect immediately after starting Carjack and lasts for the duration of the operation; must be carried at all times in TOWER Co. Central Vault)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+105 % Affliction effect at Full Life . +14 Affliction inflicted per second on Full Life .": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+11 % Warcry Cooldown Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "warcry_cdr_speed_inc"
+   ]
+  },
+  "+12 % Ailment Damage": {
+   "scope": null,
+   "stat_keys": [
+    "ailment_dmg_inc"
+   ]
+  },
+  "+12 % Ailment Duration": {
+   "scope": null,
+   "stat_keys": [
+    "ailment_duration_inc"
+   ]
+  },
+  "+12 % Attack Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "attack_block_chance_inc"
+   ]
+  },
+  "+12 % Attack Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_dmg_inc"
+   ]
+  },
+  "+12 % Damage Over Time": {
+   "scope": null,
+   "stat_keys": [
+    "dot_dmg_inc"
+   ]
+  },
+  "+12 % Drop Quantity for Doll Securities": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+12 % Elemental Damage": {
+   "scope": null,
+   "stat_keys": [
+    "elemental_dmg_inc"
+   ]
+  },
+  "+12 % Erosion Resistance": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_resistance"
+   ]
+  },
+  "+12 % Knockback distance": {
+   "scope": null,
+   "stat_keys": [
+    "knockback_distance_inc"
+   ]
+  },
+  "+12 % Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_inc"
+   ]
+  },
+  "+12 % Movement Speed when a Spirit Magus is nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+12 % Projectile Speed": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_speed_inc"
+   ]
+  },
+  "+12 % Spell Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "spell_block_chance_inc"
+   ]
+  },
+  "+12 % Spell Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_dmg_inc"
+   ]
+  },
+  "+12 % additional Attack Damage dealt to Nearby enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+12 % additional Cold Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_dmg_additional"
+   ]
+  },
+  "+12 % additional Fire Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_dmg_additional"
+   ]
+  },
+  "+12 % additional Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_additional"
+   ]
+  },
+  "+12 % damage +12 % Minion Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+13 % additional Ailment Damage against Cursed enemies 11.5 % Curse effect": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+14 % Attack Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_dmg_inc"
+   ]
+  },
+  "+14 % Cold Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_dmg_inc"
+   ]
+  },
+  "+14 % Elemental Damage": {
+   "scope": null,
+   "stat_keys": [
+    "elemental_dmg_inc"
+   ]
+  },
+  "+14 % Elemental Resistance": {
+   "scope": null,
+   "stat_keys": [
+    "elemental_resistance"
+   ]
+  },
+  "+14 % Erosion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_dmg_inc"
+   ]
+  },
+  "+14 % Fire Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_dmg_inc"
+   ]
+  },
+  "+14 % Fire Skill Area": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+14 % Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_inc"
+   ]
+  },
+  "+14 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+14 % Origin of Spirit Magus effect": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_origin_effect_inc"
+   ]
+  },
+  "+14 % Projectile Damage": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_dmg_inc"
+   ]
+  },
+  "+14 % Projectile Speed": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_speed_inc"
+   ]
+  },
+  "+14 % Reaping Duration for each Reap dealt, stacking up to 4 times.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+14 % Spell Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_dmg_inc"
+   ]
+  },
+  "+14 % Spirit Magus Skill Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_dmg_inc"
+   ]
+  },
+  "+14 % additional Elemental Damage dealt by Spell Skills +1 % Elemental Resistance Penetration when hitting an enemy with Elemental Damage, stacking up to 4 times": {
+   "scope": "spell",
+   "stat_keys": []
+  },
+  "+14 % additional Life Regenerates 0.9 % Life per second": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+14 % additional Max Energy Shield +8 % Energy Shield Charge Speed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+14 % chance for Synthetic Troop Minions to deal Double Damage +6 % Minion Attack and Cast Speed for 4 s when your Synthetic Troop Minions deal Double Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+14 % damage for Channeled Skills": {
+   "scope": "channeled",
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+140 Attack Projectile Skill Critical Strike Rating against Distant enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+15 % Mana Regeneration Speed": {
+   "scope": null,
+   "stat_keys": [
+    "mana_regen_inc"
+   ]
+  },
+  "+15 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+15 % Movement Speed if you have inflicted Numbed recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+15 % Movement Speed when at least 2 enemies are Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+15 % Warcry Skill Effect Duration": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+15 % chance to unlock 1 additional reward type(s) when the Dark Surge is initiated for the first time on a map": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+15 Affliction inflicted per second at Full Life .": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+16 % Energy Shield Charge Speed": {
+   "scope": null,
+   "stat_keys": [
+    "energy_shield_charge_speed_inc"
+   ]
+  },
+  "+16 % additional Ember Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+16 % additional Projectile Skill Critical Strike Damage against Distant enemies +40 Attack Projectile Skill Critical Strike Rating against Distant enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+16 % additional damage against Cursed enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+16 % chance to Multistrike": {
+   "scope": null,
+   "stat_keys": [
+    "multistrike_chance"
+   ]
+  },
+  "+16 % chance to unlock 1 additional reward type(s) when the Dark Surge is initiated for the first time on a map": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+16 Affliction inflicted per second at Full Life .": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+160 Critical Strike Rating for recently summoned Minions": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+17.5 Attack Projectile Skill Critical Strike Rating against Distant enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+18 % Critical Strike Damage per Ailment on enemies, up to +36 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+18 % Divinity Stone Drop Quantity.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+18 % additional Ailment Damage against Cursed enemies +15 % Curse effect": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+18 % additional Compass Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+18% chance for all reward units from Carjack or TOWER Co. Central Vault in a Netherrealm stage to be recoded by Prof. SOURCE when they appear, replicating their rewards 1 time (takes effect immediately after starting Carjack and lasts for the duration of the operation; must be carried at all times in TOWER Co. Central Vault)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+19 % additional Elemental Damage dealt by Spell Skills 1.2 % Elemental Resistance Penetration when hitting an enemy with Elemental Damage, stacking up to 4 times": {
+   "scope": "spell",
+   "stat_keys": []
+  },
+  "+19 % chance for Attacks to inflict Paralysis on hit +10 % additional Attack Damage dealt to Nearby enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+19 % chance for Synthetic Troop Minions to deal Double Damage +8 % Minion Attack and Cast Speed for 4 s when your Synthetic Troop Minions deal Double Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 % Critical Strike Damage per Ailment on enemies, up to +4 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 % Energy Shield Charge Speed": {
+   "scope": null,
+   "stat_keys": [
+    "energy_shield_charge_speed_inc"
+   ]
+  },
+  "+2 % Increased Chest of Folklores Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+2 % additional Attack and Cast Speed when no enemies are in proximity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 % additional Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 % additional Ember Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 % additional Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_additional"
+   ]
+  },
+  "+2 % additional Spirit Magus Skill Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_dmg_additional"
+   ]
+  },
+  "+2 % additional damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_additional"
+   ]
+  },
+  "+2 % additional damage against Cursed enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 % additional damage and Minion Damage while an Elixir Skill is active": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 % chance for Spells to deal Double Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 Max Repentance Stacks": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 Max Valkyrie's Hymn Stacks": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 Max Warcry Skill Charges": {
+   "scope": null,
+   "stat_keys": [
+    "max_warcry_skill_charges_flat"
+   ]
+  },
+  "+2 Spirit Magus Skill Level": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_skill_level"
+   ]
+  },
+  "+2 to Max Channeled Stacks": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2 to Max Feline Stimulant stacks": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2% chance for all reward units from Carjack or TOWER Co. Central Vault in a Netherrealm stage to be recoded by Prof. SOURCE when they appear, replicating their rewards 1 time (takes effect immediately after starting Carjack and lasts for the duration of the operation; must be carried at all times in TOWER Co. Central Vault)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2.5 % Cold Penetration": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2.5 % Curse Effect": {
+   "scope": null,
+   "stat_keys": [
+    "curse_effect_inc"
+   ]
+  },
+  "+2.5 % Elemental Resistance": {
+   "scope": null,
+   "stat_keys": [
+    "elemental_resistance"
+   ]
+  },
+  "+2.5 % Erosion Resistance Penetration": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_pen"
+   ]
+  },
+  "+2.5 % Fire Penetration": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2.5 % Lightning Penetration": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2.5 % Minion Attack and Cast Speed for 4 s when your Synthetic Troops deal Double Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2.5 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+2.5 % Movement Speed if you have caused Reaping recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2.5 % Movement Speed per second when an Elite is nearby , up to +3 stack(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2.5 % additional Compass Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2.5 % additional Flame Fuel Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2.5 % additional Hero Memory Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+2.75 % Warcry Cooldown Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "warcry_cdr_speed_inc"
+   ]
+  },
+  "+20 % Affliction Effect": {
+   "scope": null,
+   "stat_keys": [
+    "affliction_effect_inc"
+   ]
+  },
+  "+20 % Critical Strike Damage": {
+   "scope": null,
+   "stat_keys": [
+    "crit_dmg_inc"
+   ]
+  },
+  "+20 % Curse Effect": {
+   "scope": null,
+   "stat_keys": [
+    "curse_effect_inc"
+   ]
+  },
+  "+20 % Minion Attack and Cast Speed for 4 s when your Synthetic Troops deal Double Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+20 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+20 % Movement Speed if you have caused Reaping recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+20 % Projectile Damage": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_dmg_inc"
+   ]
+  },
+  "+20 % Quantity of Items dropped by Nightmare monsters": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+20 % Sealed Mana Compensation for Spirit Magus Skills": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_sealed_mana_comp_inc"
+   ]
+  },
+  "+20 % additional Attack Speed when only 1 enemies are Nearby +9 % Movement Speed when at least 2 enemies are Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+20 % additional Dream Talking Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+20 % additional Flame Fuel Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+20 % chance to double the effect of the Seal Whisper revealed when defeating Void Pirates": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+20 % damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+20 % damage +20 % Minion Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+20 Critical Strike Rating for recently summoned Minions": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+21 % additional Projectile Skill Critical Strike Damage against Distant enemies +55 Attack Projectile Skill Critical Strike Rating against Distant enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+22 % Attack Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_rating_inc"
+   ]
+  },
+  "+22 % Spell Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "spell_crit_rating_inc"
+   ]
+  },
+  "+22 % Warcry Cooldown Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "warcry_cdr_speed_inc"
+   ]
+  },
+  "+22 % additional damage for recently summoned Minions +50 Critical Strike Rating for recently summoned Minions": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+24 % Ailment Damage": {
+   "scope": null,
+   "stat_keys": [
+    "ailment_dmg_inc"
+   ]
+  },
+  "+24 % Attack Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_dmg_inc"
+   ]
+  },
+  "+24 % Damage Over Time": {
+   "scope": null,
+   "stat_keys": [
+    "dot_dmg_inc"
+   ]
+  },
+  "+24 % Elemental Damage": {
+   "scope": null,
+   "stat_keys": [
+    "elemental_dmg_inc"
+   ]
+  },
+  "+24 % Knockback distance": {
+   "scope": null,
+   "stat_keys": [
+    "knockback_distance_inc"
+   ]
+  },
+  "+24 % Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_inc"
+   ]
+  },
+  "+24 % Spell Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_dmg_inc"
+   ]
+  },
+  "+24 % damage +24 % Minion Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+25 % Squidnova Effect": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+25 % additional Reaping Recovery Speed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+26 % chance for Attacks to inflict Paralysis on hit +14 % additional Attack Damage dealt to Nearby enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+27 % additional Attack Speed when only 1 enemies are Nearby +12 % Movement Speed when at least 2 enemies are Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+27 % chance to double the effect of the Seal Whisper revealed when defeating Void Pirates": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+28 % Attack Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_dmg_inc"
+   ]
+  },
+  "+28 % Cold Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_dmg_inc"
+   ]
+  },
+  "+28 % Elemental Damage": {
+   "scope": null,
+   "stat_keys": [
+    "elemental_dmg_inc"
+   ]
+  },
+  "+28 % Erosion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_dmg_inc"
+   ]
+  },
+  "+28 % Fire Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_dmg_inc"
+   ]
+  },
+  "+28 % Fire Skill Area": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+28 % Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_inc"
+   ]
+  },
+  "+28 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+28 % Spell Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_dmg_inc"
+   ]
+  },
+  "+28 % Spirit Magus Skill Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_dmg_inc"
+   ]
+  },
+  "+28 % damage for Channeled Skills": {
+   "scope": "channeled",
+   "stat_keys": [
+    "dmg_inc"
+   ]
+  },
+  "+28% chance for all reward units from Carjack or TOWER Co. Central Vault in a Netherrealm stage to be recoded by Prof. SOURCE when they appear, replicating their rewards 1 time (takes effect immediately after starting Carjack and lasts for the duration of the operation; must be carried at all times in TOWER Co. Central Vault)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Block Ratio when there is a Boss Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Curse Effect": {
+   "scope": null,
+   "stat_keys": [
+    "curse_effect_inc"
+   ]
+  },
+  "+3 % Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Drop Quantity for TOWER Securities": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Elemental Resistance Penetration every time you hit an enemy with Elemental Damage recently. Stacks up to 4 times": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Erosion Resistance per stack of Repentance": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Increased Chest of Destiny Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Increased Splendor Egg Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Lunari Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+3 % Movement Speed per second when an Elite is nearby , up to +3 stack(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Movement Speed when a Spirit Magus is nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % Warcry Effect": {
+   "scope": null,
+   "stat_keys": [
+    "warcry_effect_inc"
+   ]
+  },
+  "+3 % XP earned": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % additional Attack Damage dealt to Nearby enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % additional Cold Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_dmg_additional"
+   ]
+  },
+  "+3 % additional Compass Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % additional Ember Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % additional Fire Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_dmg_additional"
+   ]
+  },
+  "+3 % additional Fluorescent Memory Shards Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % additional Gear Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % additional Hero Memory Enhancement Item Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 % additional Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_additional"
+   ]
+  },
+  "+3 % chance to avoid damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_avoid_chance"
+   ]
+  },
+  "+3 Max Repentance Stacks": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3 to Max Frostbite Rating": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3.5 % Reaping Duration for each Reap dealt, stacking up to 4 times.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3.5 % chance to inflict Damaging Ailments": {
+   "scope": null,
+   "stat_keys": [
+    "damaging_ailment_chance"
+   ]
+  },
+  "+3.6 % Reaping Duration for each Reap dealt, stacking up to 4 times.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+3.75 % Movement Speed if you have inflicted Numbed recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+30 % Mana Regeneration Speed": {
+   "scope": null,
+   "stat_keys": [
+    "mana_regen_inc"
+   ]
+  },
+  "+30 % Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_inc"
+   ]
+  },
+  "+30 % Movement Speed if you have inflicted Numbed recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+30 % Movement Speed if you haven't been hit recently +6 % Movement Speed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+30 % Movement Speed when at least 2 enemies are Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+30 % Projectile Damage": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_dmg_inc"
+   ]
+  },
+  "+30 % additional damage for recently summoned Minions +60 Critical Strike Rating for recently summoned Minions": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+30 % chance to unlock 1 additional reward type(s) when the Dark Surge is initiated for the first time on a map": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+30 Affliction inflicted per second at Full Life .": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+35 % Elixir Skill Effect": {
+   "scope": null,
+   "stat_keys": [
+    "elixir_effect_inc"
+   ]
+  },
+  "+35 % Numbed Effect": {
+   "scope": null,
+   "stat_keys": [
+    "numbed_effect_inc"
+   ]
+  },
+  "+35 % additional Reaping Recovery Speed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+35 % chance for Damage Over Time to spread to targets in Proximity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+35 Attack Projectile Skill Critical Strike Rating against Distant enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+4 % Attack and Cast Speed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+4 % Critical Strike Damage per Ailment on enemies, up to +8 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % Elemental Damage for every stack of Valkyrie's Hymn": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % Energy Shield Charge Speed": {
+   "scope": null,
+   "stat_keys": [
+    "energy_shield_charge_speed_inc"
+   ]
+  },
+  "+4 % Increased Chest of Folklores Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_inc"
+   ]
+  },
+  "+4 % Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_inc"
+   ]
+  },
+  "+4 % Minion Attack and Cast Speed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % Minion Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "minion_max_life_inc"
+   ]
+  },
+  "+4 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+4 % Movement Speed if you have cast a Curse Skill recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % Movement Speed when at least 2 enemies are Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % Movement Speed while channeling": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % additional Attack Damage when having Feline Stimulant": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % additional Attack and Cast Speed when no enemies are in proximity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % additional Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % additional Ember Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % additional Flame Fuel Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % additional Minion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "minion_dmg_additional"
+   ]
+  },
+  "+4 % additional Spell Damage when having Squidnova": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % additional Spirit Magus Skill Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_dmg_additional"
+   ]
+  },
+  "+4 % additional damage": {
+   "scope": null,
+   "stat_keys": [
+    "dmg_additional"
+   ]
+  },
+  "+4 % additional damage against Cursed enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % additional damage and Minion Damage while an Elixir Skill is active": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % chance for Spells to deal Double Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 % drop Rarity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4 Affliction inflicted per second at Full Life .": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4.5 % Critical Strike Damage per Ailment on enemies, up to +9 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+4.5 % additional Compass Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+40 % Movement Speed if you haven't been hit recently +8 % Movement Speed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+40 % Origin of Spirit Magus effect +5 % additional Spirit Magus Skill Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+40 % additional Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate when any two of Strength, Dexterity, and Intelligence are equal": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+40 Critical Strike Rating for recently summoned Minions": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+44 % Attack Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_rating_inc"
+   ]
+  },
+  "+45 % Attack Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "attack_crit_rating_inc"
+   ]
+  },
+  "+45 % Numbed Effect": {
+   "scope": null,
+   "stat_keys": [
+    "numbed_effect_inc"
+   ]
+  },
+  "+45 % Spell Critical Strike Rating": {
+   "scope": null,
+   "stat_keys": [
+    "spell_crit_rating_inc"
+   ]
+  },
+  "+45 % chance to unlock 2 additional reward type(s) when the Dark Surge is initiated for the first time on a map": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+48 % Knockback distance": {
+   "scope": null,
+   "stat_keys": [
+    "knockback_distance_inc"
+   ]
+  },
+  "+5 % Cold Penetration": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % Crowd Control Effects": {
+   "scope": null,
+   "stat_keys": [
+    "cc_effect_inc"
+   ]
+  },
+  "+5 % Curse Effect": {
+   "scope": null,
+   "stat_keys": [
+    "curse_effect_inc"
+   ]
+  },
+  "+5 % Desire Crystal Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % Divinity Stone Drop Quantity.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % Elemental Resistance": {
+   "scope": null,
+   "stat_keys": [
+    "elemental_resistance"
+   ]
+  },
+  "+5 % Erosion Resistance Penetration": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_pen"
+   ]
+  },
+  "+5 % Fire Penetration": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % Lightning Penetration": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % Minion Attack and Cast Speed for 4 s when your Synthetic Troops deal Double Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+5 % Movement Speed if you have caused Reaping recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % Movement Speed per second when an Elite is nearby , up to +3 stack(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % Movement Speed while an Elixir Skill is active": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % Reaping Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "reaping_recovery_speed_inc"
+   ]
+  },
+  "+5 % Skill Effect Duration": {
+   "scope": null,
+   "stat_keys": [
+    "skill_effect_duration_inc"
+   ]
+  },
+  "+5 % additional Compass Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % additional Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % additional Flame Fuel Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % additional Hero Memory Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5 % additional damage; +5 % additional Minion Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5% additional Drop Quantity\\n$+sp1$% chance for 1 additional Gladiator(s) to appear in the stage (Only effective in the Invincible Champion Season-exclusive gameplay)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5% additional Drop Quantity\\n$+sp1$% chance for 2 additional Gladiator(s) to appear in the stage (Only effective in the Invincible Champion Season-exclusive gameplay)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+5.5 % Warcry Cooldown Recovery Speed": {
+   "scope": null,
+   "stat_keys": [
+    "warcry_cdr_speed_inc"
+   ]
+  },
+  "+50 % Squidnova Effect": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+50 % chance for Damage Over Time to spread to targets in Proximity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+50 Spell Critical Strike Rating per Ailment on enemies, up to +100 +6 % Critical Strike Damage per Ailment on enemies, up to +12 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+50% chance for all reward units from Carjack or TOWER Co. Central Vault that have been recoded in a Netherrealm stage to be replicated 1 time again (takes effect immediately after starting Carjack and lasts for the duration of the operation; must be carried at all times in TOWER Co. Central Vault)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+53 % additional Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate when any two of Strength, Dexterity, and Intelligence are equal": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+55 % Origin of Spirit Magus effect +7 % additional Spirit Magus Skill Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+56 % Spirit Magus Skill Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_dmg_inc"
+   ]
+  },
+  "+6 % Ailment Duration": {
+   "scope": null,
+   "stat_keys": [
+    "ailment_duration_inc"
+   ]
+  },
+  "+6 % Attack Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "attack_block_chance_inc"
+   ]
+  },
+  "+6 % Block Ratio when there is a Boss Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % Drop Quantity for Doll Securities": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % Erosion Resistance": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_resistance"
+   ]
+  },
+  "+6 % Increased Splendor Egg Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % Movement Speed": {
+   "scope": null,
+   "stat_keys": [
+    "movement_speed_inc"
+   ]
+  },
+  "+6 % Movement Speed when a Spirit Magus is nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % Projectile Speed": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_speed_inc"
+   ]
+  },
+  "+6 % Spell Block Chance": {
+   "scope": null,
+   "stat_keys": [
+    "spell_block_chance_inc"
+   ]
+  },
+  "+6 % Warcry Effect": {
+   "scope": null,
+   "stat_keys": [
+    "warcry_effect_inc"
+   ]
+  },
+  "+6 % XP earned": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % additional Attack Damage dealt to Nearby enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % additional Cast Speed per second when an Elite is Nearby , up to +18 % +3 % Movement Speed when an Elite is Nearby , up to +9 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % additional Cold Damage": {
+   "scope": null,
+   "stat_keys": [
+    "cold_dmg_additional"
+   ]
+  },
+  "+6 % additional Compass Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % additional Ember Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % additional Fire Damage": {
+   "scope": null,
+   "stat_keys": [
+    "fire_dmg_additional"
+   ]
+  },
+  "+6 % additional Fluorescent Memory Shards Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % additional Gear Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6 % additional Lightning Damage": {
+   "scope": null,
+   "stat_keys": [
+    "lightning_dmg_additional"
+   ]
+  },
+  "+6 to Max Frostbite Rating": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6% Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+6.5 % Movement Speed if you have cast a Curse Skill recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+60 % chance to unlock 1 additional reward type(s) when the Dark Surge is initiated for the first time on a map": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+60 % chance to unlock 2 additional reward type(s) when the Dark Surge is initiated for the first time on a map": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+60 initial Growth for Spirit Magi": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+7 % Attack Damage": {
+   "scope": null,
+   "stat_keys": [
+    "attack_dmg_inc"
+   ]
+  },
+  "+7 % Elemental Damage": {
+   "scope": null,
+   "stat_keys": [
+    "elemental_dmg_inc"
+   ]
+  },
+  "+7 % Erosion Damage": {
+   "scope": null,
+   "stat_keys": [
+    "erosion_dmg_inc"
+   ]
+  },
+  "+7 % Origin of Spirit Magus effect": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_origin_effect_inc"
+   ]
+  },
+  "+7 % Projectile Speed": {
+   "scope": null,
+   "stat_keys": [
+    "projectile_speed_inc"
+   ]
+  },
+  "+7 % Reaping Duration for each Reap dealt, stacking up to 4 times.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+7 % Spell Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spell_dmg_inc"
+   ]
+  },
+  "+7 % additional damage; +7 % additional Minion Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+7 % chance to inflict Damaging Ailments": {
+   "scope": null,
+   "stat_keys": [
+    "damaging_ailment_chance"
+   ]
+  },
+  "+7.5 % Movement Speed if you have inflicted Numbed recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+7.5 % Movement Speed when at least 2 enemies are Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+7.5 % Warcry Skill Effect Duration": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+70 Attack Projectile Skill Critical Strike Rating against Distant enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+70 Spell Critical Strike Rating per Ailment on enemies, up to +140 +7 % Critical Strike Damage per Ailment on enemies, up to +14 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+75 initial Growth for Spirit Magi": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % Attack Speed": {
+   "scope": null,
+   "stat_keys": [
+    "attack_speed_inc"
+   ]
+  },
+  "+8 % Attack and Cast Speed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % Cast Speed": {
+   "scope": null,
+   "stat_keys": [
+    "cast_speed_inc"
+   ]
+  },
+  "+8 % Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % Elemental Damage for every stack of Valkyrie's Hymn": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % Energy Shield Charge Speed": {
+   "scope": null,
+   "stat_keys": [
+    "energy_shield_charge_speed_inc"
+   ]
+  },
+  "+8 % Max Energy Shield": {
+   "scope": null,
+   "stat_keys": [
+    "max_energy_shield_inc"
+   ]
+  },
+  "+8 % Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "max_life_inc"
+   ]
+  },
+  "+8 % Minion Attack and Cast Speed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % Minion Max Life": {
+   "scope": null,
+   "stat_keys": [
+    "minion_max_life_inc"
+   ]
+  },
+  "+8 % Movement Speed when at least 2 enemies are Nearby": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % Movement Speed while channeling": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % additional Attack Damage when having Feline Stimulant": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % additional Attack and Cast Speed when no enemies are in proximity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % additional Cast Speed per second when an Elite is Nearby , up to +24 % +4 % Movement Speed when an Elite is Nearby , up to +12 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % additional Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % additional Ember Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % additional Flame Fuel Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % additional Spell Damage when having Squidnova": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % additional Spirit Magus Skill Damage": {
+   "scope": null,
+   "stat_keys": [
+    "spirit_magi_dmg_additional"
+   ]
+  },
+  "+8 % additional damage against Cursed enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % additional damage and Minion Damage while an Elixir Skill is active": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % chance to Multistrike": {
+   "scope": null,
+   "stat_keys": [
+    "multistrike_chance"
+   ]
+  },
+  "+8 % chance to unlock 1 additional reward type(s) when the Dark Surge is initiated for the first time on a map": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 % drop Rarity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8 Affliction inflicted per second at Full Life .": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+8% Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+80 % Affliction effect at Full Life . 10.5 Affliction inflicted per second on Full Life .": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+80 Critical Strike Rating for recently summoned Minions": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+9 % Critical Strike Damage per Ailment on enemies, up to +18 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+9 % Divinity Stone Drop Quantity.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "+9 % additional Compass Drop Quantity": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-1 % additional damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-1.5 % additional damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-10 % XP falloff caused by the level difference between the player and the map": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-10 % XP lost upon death": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-2 % additional damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-2 % additional damage taken from Cursed enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-20 % XP falloff caused by the level difference between the player and the map": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-20 % XP lost upon death": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-3 % additional damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-4 % additional Physical Damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-4 % additional damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-4 % additional damage taken from Cursed enemies": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-4 % additional damage taken when Pure Heart is active": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-40 % additional Physical Damage taken when there are only 1 enemies Nearby -3 % additional damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-5 % additional damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-55 % additional Physical Damage taken when there are only 1 enemies Nearby -4 % additional damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-6 % additional damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-8 % additional damage taken": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "-8 % additional damage taken when Pure Heart is active": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Activating Spell Burst with at least 6 stack(s) of Max Spell Burst grants 1 stack of Squidnova": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "After revealing a Bounty Order , gains 0 chance(s) to refresh Bounty Orders": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "After revealing a Bounty Order , gains 1 chance(s) to refresh Bounty Orders": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "After revealing a Bounty Order , gains 2 chance(s) to refresh Bounty Orders": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All Member Services gain an additional effect: Each time after completing Operation Cogwheel, there is a 0% chance to get 1 additional Cogwheel Voucher (takes effect immediately after selecting Member Services and lasts for the duration of this game)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All Member Services gain an additional effect: Each time after completing Operation Cogwheel, there is a 16% chance to get 1 additional Cogwheel Voucher (takes effect immediately after selecting Member Services and lasts for the duration of this game)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All Member Services gain an additional effect: Each time after completing Operation Cogwheel, there is a 2% chance to get 1 additional Cogwheel Voucher (takes effect immediately after selecting Member Services and lasts for the duration of this game)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All Member Services gain an additional effect: Each time after completing Operation Cogwheel, there is a 4% chance to get 1 additional Cogwheel Voucher (takes effect immediately after selecting Member Services and lasts for the duration of this game)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All Member Services gain an additional effect: Each time after completing Operation Cogwheel, there is a 8% chance to get 1 additional Cogwheel Voucher (takes effect immediately after selecting Member Services and lasts for the duration of this game)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All Member Services gain an additional effect: When settling Clockwork Ballet Games, there is a 25% chance to settle the rewards 1 additional time. This can only be triggered once (takes effect immediately after selecting Member Services and lasts for the duration of this game)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All Member Services gain an additional effect: When settling Clockwork Ballet Games, there is a 33% chance to settle the rewards 1 additional time. This can only be triggered once (takes effect immediately after selecting Member Services and lasts for the duration of this game)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All items dropped in the Overrealm have a 0.5 % chance to be replicated 1 additional time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All items dropped in the Overrealm have a 1 % chance to be replicated 1 additional time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All items dropped in the Overrealm have a 17 % chance to be replicated 1 additional time": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All items dropped in the Overrealm have a 17 % chance to be replicated 1 additional time. Upon triggering a replication, they have a 100 % chance to be replicated 1 additional time again": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All items dropped in the Overrealm have a 17 chance to be replicated 1 additional time. Upon triggering a replication, they have a 50 % chance to be replicated 1 additional time again": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All items dropped in the Overrealm have a 2 % chance to be replicated 1 additional time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "All items dropped in the Overrealm have a 27 % chance to be replicated 1 additional time. Upon triggering a replication, they have a 100 % chance to be replicated 1 additional time again": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "At max channeled stacks, +1 % additional damage for Channeled Skills for 4 s": {
+   "scope": "channeled",
+   "stat_keys": []
+  },
+  "At max channeled stacks, +12 % additional damage for Channeled Skills for 4 s": {
+   "scope": "channeled",
+   "stat_keys": []
+  },
+  "At max channeled stacks, +2 % additional damage for Channeled Skills for 4 s": {
+   "scope": "channeled",
+   "stat_keys": []
+  },
+  "At max channeled stacks, +4 % additional damage for Channeled Skills for 4 s": {
+   "scope": "channeled",
+   "stat_keys": []
+  },
+  "At max channeled stacks, +8 % additional damage for Channeled Skills for 4 s": {
+   "scope": "channeled",
+   "stat_keys": []
+  },
+  "Attack Skills: a +2 % chance to deal Double Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Attack Skills: a +4 % chance to deal Double Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Attacks eliminate enemies under 15 % Life on hit if you have Blocked recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Attacks eliminate enemies under 20 % Life on hit if you have Blocked recently": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Bestows the surging power of lightning to the pact holder, granting + 14 % additional Lightning Damage and + 15 % additional Max Damage for 5s. Cooldown: 10s.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Bestows the surging power of lightning to the pact holder, granting + 19 % additional Lightning Damage and + 20 % additional Max Damage for 5s. Cooldown: 10s.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Bosses defeated: 60 % chance to drop 1-3 additional random Embers": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Bosses defeated: 80 % chance to drop 1-3 additional random Embers": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Colored Snow dropped has a 3 % chance to be replicated once": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Colored Snow dropped has a 6 % chance to be replicated once": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Converts 1 % of Physical Damage taken to random Elemental Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Converts 2 % of Physical Damage taken to random Elemental Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Converts 3 % of Physical Damage taken to random Elemental Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Converts 4 % of Physical Damage taken to random Elemental Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Converts 8 % of Physical Damage taken to random Elemental Damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Covers targets within a 5m radius with flames and debuffs enemies within the area. Debuff: + 26 % additional Fire Damage taken by the enemy for 3s. Cooldown: 5 s.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Covers targets within a 5m radius with flames and debuffs enemies within the area. Debuff: + 35 % additional Fire Damage taken by the enemy for 3s. Cooldown: 5 s.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Damage Penetrates 2 % Elemental Resistance": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Damage Penetrates 4 % Elemental Resistance": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Destiny dropped has a 1 % chance to be replicated once": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Destiny dropped has a 2 % chance to be replicated once": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Dropped Pages of Aeterna have a 4 % chance to be replicated once": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Dropped Pages of Aeterna have a 8 % chance to be replicated once": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "During each round of Twinightmare , gain 0 chance(s) to re-roll the current Dream Omens": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "During each round of Twinightmare , gain 1 chance(s) to re-roll the current Dream Omens": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "During each round of Twinightmare , gain 2 chance(s) to re-roll the current Dream Omens": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "During the Surgical Preparation phase, Surgical Instrument refresh attempts +0 (takes effect immediately after entering the Surgical Preparation screen)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "During the Surgical Preparation phase, Surgical Instrument refresh attempts +1 (takes effect immediately after entering the Surgical Preparation screen)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "During the Surgical Preparation phase, Surgical Instrument refresh attempts +2 (takes effect immediately after entering the Surgical Preparation screen)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Every time the player completes the Candelabrum gameplay in the Ruins of Aeterna, there is a 16% chance for 1 additional reward spots to appear in the Aeterna Map, up to 15 extra spot(s). After the City of Aeterna is rebuilt, all additional reward spots will be randomly assigned in traversable areas of the Aeterna Map.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Every time the player completes the Candelabrum gameplay in the Ruins of Aeterna, there is a 21% chance for 1 additional reward spots to appear in the Aeterna Map, up to 15 extra spot(s). After the City of Aeterna is rebuilt, all additional reward spots will be randomly assigned in traversable areas of the Aeterna Map.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Fluorescent Memories dropped have a 10 % chance to be replicated 1 time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Fluorescent Memories dropped have a 10 % chance to be replicated 2 time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Fluorescent Memories dropped have a 13 % chance to be replicated 2 time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Fluorescent Memories dropped have a 2.5 % chance to be replicated 1 time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Fluorescent Memories dropped have a 20 % chance to be replicated 1 time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Fluorescent Memories dropped have a 5 % chance to be replicated 1 time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Focus energy to create an ice prison Near yourself and the Pact Holder, which debuffs Frostbitten enemies inside every second and makes them take +10 % additional Cold Damage, up to 4 stacks, for 6s. Cooldown: 10s": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Focus energy to create an ice prison Near yourself and the Pact Holder, which debuffs Frostbitten enemies inside every second and makes them take +13 % additional Cold Damage, up to 4 stacks, for 6s. Cooldown: 10s": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "For every 20 Growth a Spirit Magus has, it deals +1 % additional damage, up to +10 % additional damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "For every 20 Growth a Spirit Magus has, it deals +1 % additional damage, up to +5 % additional damage": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "For every 4 channeled stacks, inflicts Weaken on enemies within 10 m": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "For every 4 channeled stacks, inflicts Weaken on enemies within 20 m": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "For every type of crowd control effect the enemy has, you and your Minions deal +3 % additional damage to them": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "For every type of crowd control effect the enemy has, you and your Minions deal 0.4 % additional damage to them": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "For every type of crowd control effect the enemy has, you and your Minions deal 0.8 % additional damage to them": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "For every type of crowd control effect the enemy has, you and your Minions deal 1.5 % additional damage to them": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "For every type of crowd control effect the enemy has, you and your Minions deal 1.6 % additional damage to them": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Gains 1 stack of Feline Stimulant when triggering a Main Skill": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Gains 1 stack of Pure Heart when using an Attack Mobility Skill": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Gains 1 stack of Repentance when gaining any Blessing": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Gains 1 stack of Valkyrie's Hymn for every 2 % Max Mana consumed": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Has Attack Aggression when reaching Max Feline Stimulant stacks": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Immediately casts Warcry. +20 % additional Warcry Skill Effect": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Immediately casts Warcry. +25 % additional Warcry Skill Effect": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In Netherrealm Stage, when a Compass drops, there is a 3 % chance for a Doro-Doro Supply containing 5-10 Compasses to drop.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In Netherrealm stages, when a Compass drops, there is a 3 % chance for a Doro-Doro Supply containing 5-10 Compasses to drop. There is a 17 % chance for 1 additional Doro-Doro Supply to drop.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In Netherrealm stages, when a Compass drops, there is a 3 % chance for a Doro-Doro Supply containing 5-10 Compasses to drop. There is a 34 % chance for 1 additional Doro-Doro Supply to drop.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In Netherrealm stages, when a Compass drops, there is a 5 % chance for a Doro-Doro Supply containing 5-10 Compasses to drop. There is a 34 % chance for 1 additional Doro-Doro Supply to drop.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In each round of the Whispering Mist gameplay, additionally gain 0 chance(s) to refresh the items for free at the Mistville Trader (only takes effect if you are carrying this Pactspirit when you enter Mistville)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In each round of the Whispering Mist gameplay, additionally gain 1 chance(s) to refresh the items for free at the Mistville Trader (only takes effect if you are carrying this Pactspirit when you enter Mistville)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In each round of the Whispering Mist gameplay, additionally gain 3 chance(s) to refresh the items for free at the Mistville Trader (only takes effect if you are carrying this Pactspirit when you enter Mistville)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In the Paint phase of each round, you gain  Brushstroke Effect refresh attempt(s). (Only takes effect if you are carrying this Pactspirit before starting a painting)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In the Paint phase of each round, you gain 0 Brushstroke Effect refresh attempt(s). (Only takes effect if you are carrying this Pactspirit before starting a painting)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In the Paint phase of each round, you gain 1 Brushstroke Effect refresh attempt(s). (Only takes effect if you are carrying this Pactspirit before starting a painting)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "In the Paint phase of each round, you gain 2 Brushstroke Effect refresh attempt(s). (Only takes effect if you are carrying this Pactspirit before starting a painting)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Increases Antidote Vial Drop Quantity by 1.5 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Increases Antidote Vial Drop Quantity by 3 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Inflicts Paralysis or Weaken on enemies within 10m in turn. Cooldown: 4 s": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Inflicts Paralysis or Weaken on enemies within 10m in turn. Cooldown: 5 s": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Member Services refresh attempts +0": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Member Services refresh attempts +1": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Member Services refresh attempts +2": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Mistville Intel dropped has a 2 % chance to be replicated once": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Mistville Intel dropped has a 4 % chance to be replicated once": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Projectile Quantity +2": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Reaps 0.8 s of Damage Over Time when inflicting an Ailment. The effect has a 6 s Recovery Time against the same target +4 % Reaping Duration for each recent Reaping. Stacks up to 4 time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Reaps 1 s of Damage Over Time when inflicting an Ailment. The effect has a 6 s Recovery Time against the same target +6 % Reaping Duration for each recent Reaping. Stacks up to 4 time(s)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Regenerates 0.3 % Life per second": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Regenerates 0.6 % Life per second": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Regenerates 1 % Life per second": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Regenerates 1.2 % Life per second": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Regenerates 2 % Life per second": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Spirit Magi's Skill Cooldown Recovery Speed +10 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Spirit Magi's Skill Cooldown Recovery Speed +5 %": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "The Star of Calamity boss has a 0.45 % chance to drop an additional Lone King of Aeterna's Exclusive Drop (Only effective in stages at Timemark 5 and above)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "The Star of Calamity boss has a 0.45 % chance to drop an additional Lord of the Void Sea's Exclusive Drop (Only effective in stages at Timemark 5 and above)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "The Star of Calamity boss has a 0.45 % chance to drop an additional Tidemaster's Exclusive Drop (Only effective in stages at Timemark 5 and above)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "The Star of Calamity boss has a 0.45 % chance to drop an additional the Law Bearer's Exclusive Drop (Only effective in stages at Timemark 5 and above)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "The Star of Calamity boss has a 1.2 % chance to drop an additional 1 Proof(s) of Star Hunter": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "The Star of Calamity boss on the map has a 100 % chance to replicate 1 times": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "The Star of Calamity boss on the map has a 50 % chance to replicate 1 times": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 0% chance for rewards to be doubled when the player enters the reward gameplay in the City of Aeterna": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 0% chance that 0 additional Splendor Egg(s) of random color will appear when entering the Frozen Canvas map.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 0% chance to +0% additional Drop Quantity during raids": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 100% chance that 1 additional Splendor Egg(s) of random color will appear when entering the Frozen Canvas map.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 100% chance that 2 additional Splendor Egg(s) of random color will appear when entering the Frozen Canvas map.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 16% chance for rewards to be doubled when the player enters the reward gameplay in the City of Aeterna": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 16% chance to +100% additional Drop Quantity during raids": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 2% chance for rewards to be doubled when the player enters the reward gameplay in the City of Aeterna": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 25% chance that 1 additional Splendor Egg(s) of random color will appear when entering the Frozen Canvas map.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 25% chance that 2 additional Splendor Egg(s) of random color will appear when entering the Frozen Canvas map.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 4% chance for rewards to be doubled when the player enters the reward gameplay in the City of Aeterna": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 50% chance that 1 additional Splendor Egg(s) of random color will appear when entering the Frozen Canvas map.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 50% chance that 2 additional Splendor Egg(s) of random color will appear when entering the Frozen Canvas map.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "There is a 8% chance for rewards to be doubled when the player enters the reward gameplay in the City of Aeterna": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Upon entering a Nightmare, there is a 0% chance to trigger 1 additional Sweet Dream Omen selection (this selection will not be accompanied by a Nightmare Omen )": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Upon entering a Nightmare, there is a 100% chance to trigger 1 additional Sweet Dream Omen selection (this selection will not be accompanied by a Nightmare Omen )": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Upon entering a Nightmare, there is a 50% chance to trigger 1 additional Sweet Dream Omen selection (this selection will not be accompanied by a Nightmare Omen )": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Upon entering the gameplay area, Avatar of Moon has a 0% chance to bless several random statues, increasing its Drop Quantity by an additional 100%": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Upon entering the gameplay area, Avatar of Moon has a 1.2% chance to bless several random statues, increasing its Drop Quantity by an additional 100%": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Upon entering the gameplay area, Avatar of Moon has a 10% chance to bless several random statues, increasing its Drop Quantity by an additional 100%": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Upon entering the gameplay area, Avatar of Moon has a 2.5% chance to bless several random statues, increasing its Drop Quantity by an additional 100%": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Upon entering the gameplay area, Avatar of Moon has a 5% chance to bless several random statues, increasing its Drop Quantity by an additional 100%": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "Upon reaching Max Valkyrie's Hymn Stacks, +10 % Elemental Resistance Penetration": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When Strumming, there is a 15% chance to buff all activated units, replicating their drops 1 time": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When Strumming, there is a 25% chance to buff all activated units, replicating their drops 1 time": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When completing a raid or a trade, or settling an order, there is a 15% chance for all rewards to be replicated 1 time": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When completing a raid or a trade, or settling an order, there is a 24% chance for all rewards to be replicated 1 time": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When entering the Tarot Path , there is a 0% chance to gain 1 additional Note of Arcana": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When entering the Tarot Path , there is a 100% chance to gain 1 additional Note of Arcana": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When entering the Tarot Path , there is a 50% chance to gain 1 additional Note of Arcana": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When entering the first level of the Overrealm, there is a 0% chance for an additional Bottled Shadow to appear on the Containment Progress bar": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When entering the first level of the Overrealm, there is a 12% chance for an additional Bottled Shadow to appear on the Containment Progress bar": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When entering the first level of the Overrealm, there is a 24% chance for an additional Bottled Shadow to appear on the Containment Progress bar": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When gaining Pure Heart , there is a 100 % chance to gain 1 additional stack of Pure Heart": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When gaining Pure Heart , there is a 50 % chance to gain 1 additional stack of Pure Heart": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When going to the Clock Tower , there is a 10% chance to skip the battle and enter the Misty Lake, gaining 3 Chests of Folklores at the same time": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When going to the Clock Tower , there is a 13% chance to skip the battle and enter the Misty Lake, gaining 3 Chests of Folklores at the same time": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When inflicting Numbed , restores 1.5 % Missing Life and Energy Shield. Interval: 0.2 s": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When inflicting Numbed , restores 1.5 % Missing Life and Energy Shield. Interval: 0.4 s": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When inflicting Numbed , restores 1.5 % Missing Life and Energy Shield. Interval: 0.8 s": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When inflicting Numbed , restores 3 % Missing Life and Energy Shield. Interval: 0.2 s": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Destiny in Fateful Contest , doubled Chest of Destiny rewards have a 0% chance to be tripled instead (takes effect immediately after entering Fateful Contest)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Destiny in Fateful Contest , doubled Chest of Destiny rewards have a 100% chance to be tripled instead (takes effect immediately after entering Fateful Contest)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Destiny in Fateful Contest , doubled Chest of Destiny rewards have a 50% chance to be tripled instead (takes effect immediately after entering Fateful Contest)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Destiny in Fateful Contest , there is a 0% chance to double the Chest of Destiny rewards (takes effect immediately after entering Fateful Contest)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Destiny in Fateful Contest , there is a 0.5% chance to double the Chest of Destiny rewards (takes effect immediately after entering Fateful Contest)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Destiny in Fateful Contest , there is a 1% chance to double the Chest of Destiny rewards (takes effect immediately after entering Fateful Contest)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Destiny in Fateful Contest , there is a 2% chance to double the Chest of Destiny rewards (takes effect immediately after entering Fateful Contest)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Destiny in Fateful Contest , there is a 24% chance to double the Chest of Destiny rewards (takes effect immediately after entering Fateful Contest)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Destiny in Fateful Contest , there is a 38% chance to double the Chest of Destiny rewards (takes effect immediately after entering Fateful Contest)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Folklores, there is a 0% chance that 1 additional Chest of Folklores will appear (this can only be triggered once)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Folklores, there is a 1.25% chance that 1 additional Chest of Folklores will appear (this can only be triggered once)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Folklores, there is a 10% chance that 1 additional Chest of Folklores will appear (this can only be triggered once)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Folklores, there is a 2.5% chance that 1 additional Chest of Folklores will appear (this can only be triggered once)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening a Chest of Folklores, there is a 5% chance that 1 additional Chest of Folklores will appear (this can only be triggered once)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening an Antidote Vial , all items dropped from it have a 18% chance to be replicated 1 additional time (must be carried at all times in Shelley's Operating Theater)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening an Antidote Vial , all items dropped from it have a 28% chance to be replicated 1 additional time (must be carried at all times in Shelley's Operating Theater)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening an Antidote Vial , it has a 0% chance to be reopened once (this can only be triggered once; must be carried at all times in Shelley's Operating Theater)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening an Antidote Vial , it has a 0.5% chance to be reopened once (this can only be triggered once; must be carried at all times in Shelley's Operating Theater)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening an Antidote Vial , it has a 1% chance to be reopened once (this can only be triggered once; must be carried at all times in Shelley's Operating Theater)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening an Antidote Vial , it has a 10% chance to be reopened once (this can only be triggered once; must be carried at all times in Shelley's Operating Theater)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening an Antidote Vial , it has a 2% chance to be reopened once (this can only be triggered once; must be carried at all times in Shelley's Operating Theater)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When opening an Antidote Vial , it has a 20% chance to be reopened once (this can only be triggered once; must be carried at all times in Shelley's Operating Theater)": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When replicated, all items dropped have a 0% chance to be replicated 1 additional time": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When replicated, all items dropped have a 100% chance to be replicated 1 additional time": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When replicated, all items dropped have a 50% chance to be replicated 1 additional time": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When returning from a raid, there is a 0% chance to bring back 1 laborer": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When returning from a raid, there is a 10% chance to bring back 1 laborer": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When returning from a raid, there is a 2.5% chance to bring back 1 laborer": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When returning from a raid, there is a 5% chance to bring back 1 laborer": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When returning from a trade, there is a 0% chance to bring back 1 laborer": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When returning from a trade, there is a 10% chance to bring back 1 laborer": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When returning from a trade, there is a 2.5% chance to bring back 1 laborer": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When returning from a trade, there is a 5% chance to bring back 1 laborer": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When starting a trade, there is a 0% chance to regain the invested resources and immediately settle the rewards": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When starting a trade, there is a 16% chance to regain the invested resources and immediately settle the rewards": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When the painting is completed, randomly transforms 1-4 Cells to Pactspirit Exclusive Cells that do not require combat and grant double rewards.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "When the painting is completed, randomly transforms 2-5 Cells to Pactspirit Exclusive Cells that do not require combat and grant double rewards.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "While escaping from the Nightmare, whenever you remove Nightmare Roots, there is a 0% chance that all Dream Bubbles you have obtained will drop 1 additional time.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "While escaping from the Nightmare, whenever you remove Nightmare Roots, there is a 1% chance that all Dream Bubbles you have obtained will drop 1 additional time.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "While escaping from the Nightmare, whenever you remove Nightmare Roots, there is a 1.5% chance that all Dream Bubbles you have obtained will drop 1 additional time.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "While escaping from the Nightmare, whenever you remove Nightmare Roots, there is a 10% chance that all Dream Bubbles you have obtained will drop 1 additional time.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "While escaping from the Nightmare, whenever you remove Nightmare Roots, there is a 13% chance that all Dream Bubbles you have obtained will drop 1 additional time.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "While escaping from the Nightmare, whenever you remove Nightmare Roots, there is a 2% chance that all Dream Bubbles you have obtained will drop 1 additional time.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "While escaping from the Nightmare, whenever you remove Nightmare Roots, there is a 3% chance that all Dream Bubbles you have obtained will drop 1 additional time.": {
+   "scope": null,
+   "stat_keys": []
+  },
+  "You can cast 1 additional Curses": {
+   "scope": null,
+   "stat_keys": []
+  }
+ }
+}

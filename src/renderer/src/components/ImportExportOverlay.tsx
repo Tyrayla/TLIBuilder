@@ -19,7 +19,7 @@ const KNOWN_BUILD_KEYS = new Set([
   'conditions', 'conditionValues',
   'gear', 'skills', 'characterLevel', 'hasPrism', 'traitId',
   'traitLevel', 'traitSlotLevels', 'advancedTraitSelections',
-  'heroMemories', 'pactSpirits', 'notes',
+  'heroMemories', 'pactSpirits', 'notes', 'customMods',
 ])
 
 function checkBuildCompatibility(build: Record<string, unknown>): string[] {

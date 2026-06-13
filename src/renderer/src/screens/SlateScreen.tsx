@@ -1,5 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { api, SlatePool, SlateModifierOption, CoreTalentOption, SavedSlate } from '../api/client'
+import { useBuildStore } from '../store/buildStore'
+import { useDamageDelta } from '../components/tooltip/useDamageDelta'
+import { TooltipContributions } from '../components/tooltip/TooltipContributions'
+import { ModifierBadge, useTextModifierStatuses } from '../components/ModifierBadge'
+
+// One selectable slate modifier option (its effects badged for engine support). Extracted so the
+// status hook isn't called inside the options .map().
+function SlateModRow({ mod, selected, accentColor, onSelect }: {
+  mod: SlateModifierOption; selected: boolean; accentColor: string; onSelect: (m: SlateModifierOption) => void
+}) {
+  const statuses = useTextModifierStatuses(mod.effects.map(text => ({ text, source: 'talent' as const, nodeId: mod.nodeId })))
+  return (
+    <div onClick={() => onSelect(mod)} style={{
+      padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid #1a1a30',
+      background: selected ? `${accentColor}18` : 'transparent',
+      borderLeft: selected ? `2px solid ${accentColor}` : '2px solid transparent',
+    }}
+    onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = '#1e1e38' }}
+    onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+      {mod.effects.map((ef, i) => (
+        <div key={i} style={{ fontSize: 14, color: selected ? '#fff' : '#ccc' }}>{ef}<ModifierBadge status={statuses[i]} /></div>
+      ))}
+      <div style={{ fontSize: 11, color: '#444', marginTop: 3 }}>{mod.treeName} · {mod.nodeType}</div>
+    </div>
+  )
+}
 
 // ── Board ─────────────────────────────────────────────────────────────────────
 
@@ -457,21 +483,15 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
               ? <div style={{ padding: '11px 14px', fontSize: 14, color: '#444' }}>
                   {pool ? 'No modifiers available' : 'No season active — no modifier pool'}
                 </div>
-              : modOptions.map(mod => {
-                const selected = mod.nodeId === slot.selectedNodeId
-                return (
-                  <div key={mod.nodeId} onClick={() => onSelect(mod)} style={{
-                    padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid #1a1a30',
-                    background: selected ? `${accentColor}18` : 'transparent',
-                    borderLeft: selected ? `2px solid ${accentColor}` : '2px solid transparent',
-                  }}
-                  onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = '#1e1e38' }}
-                  onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
-                    {mod.effects.map((ef, i) => <div key={i} style={{ fontSize: 14, color: selected ? '#fff' : '#ccc' }}>{ef}</div>)}
-                    <div style={{ fontSize: 11, color: '#444', marginTop: 3 }}>{mod.treeName} · {mod.nodeType}</div>
-                  </div>
-                )
-              })
+              : modOptions.map(mod => (
+                <SlateModRow
+                  key={mod.nodeId}
+                  mod={mod}
+                  selected={mod.nodeId === slot.selectedNodeId}
+                  accentColor={accentColor}
+                  onSelect={onSelect}
+                />
+              ))
           )}
         </div>
       )}
@@ -594,6 +614,13 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
   const mothMod = isMoth ? getMothModifier(slate, allPlaced) : null
   const prairieMods = isPrairie ? getPrairieModifiers(slate, allPlaced) : []
 
+  // What you'd LOSE by removing this placed slate (step = build without it, base = current) — a
+  // negative/red band, matching the talent-node convention.
+  const delta = useDamageDelta(
+    { key: `slate:rm:${slate.id}`, step: s => ({ ...s, slates: s.slates.filter(sl => sl.id !== slate.id) }) },
+    true,
+  )
+
   return (
     <div style={{
       width: 220, flexShrink: 0, background: '#12121e', borderLeft: '1px solid #2a2a4a',
@@ -653,6 +680,8 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
           })}
         </div>
       )}
+
+      <TooltipContributions delta={delta} />
     </div>
   )
 }
@@ -661,23 +690,27 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
 
 interface Props {
   treeColors: Record<string, string>
-  initialSlates: SavedSlate[]
-  onChange: (slates: SavedSlate[]) => void
   onBack: () => void
 }
 
-export default function SlateScreen({ treeColors, initialSlates, onChange, onBack }: Props) {
-  const [placed, setPlaced] = useState<PlacedSlate[]>(() => initialSlates as unknown as PlacedSlate[])
+export default function SlateScreen({ treeColors, onBack }: Props) {
+  const slates = useBuildStore(s => s.slates)
+  const setSlates = useBuildStore(s => s.setSlates)
+  const [placed, setPlaced] = useState<PlacedSlate[]>(() => slates as unknown as PlacedSlate[])
   const [mode, setMode] = useState<PanelMode>({ type: 'idle' })
   const [hover, setHover] = useState<[number, number] | null>(null)
   const [hoverSlateId, setHoverSlateId] = useState<string | null>(null)
   const [dragSlate, setDragSlate] = useState<{ slate: PlacedSlate; startCell: [number, number] } | null>(null)
   const suppressNextClick = useRef(false)
-  const isFirstRender = useRef(true)
 
+  // Sync the local board back to the build store — but ONLY when the slates actually changed.
+  // Comparing against the store (instead of a first-render ref) avoids spuriously bumping
+  // buildVersion (marking the build dirty) on entry, including StrictMode's double-invoked mount.
   useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return }
-    onChange(placed.map(({ pool: _p, ...s }) => s as SavedSlate))
+    const next = placed.map(({ pool: _p, ...s }) => s as SavedSlate)
+    if (JSON.stringify(next) !== JSON.stringify(useBuildStore.getState().slates)) {
+      setSlates(next)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed])
 

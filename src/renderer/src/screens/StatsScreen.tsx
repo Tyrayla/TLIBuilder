@@ -1,6 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react'
+// DEPRECATED — debug-only raw stat dump ("Debug Stats" nav). The real player-facing stats view is
+// PlayerStatsScreen.tsx; add new player-facing panels there, not here. Kept only for low-level debugging.
+import React from 'react'
+import { FloatingPortal } from '@floating-ui/react'
 import { StatEntry, StatSource } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 
 const CATEGORY_ORDER = [
   'Character',
@@ -10,8 +14,6 @@ const CATEGORY_ORDER = [
   'Critical Strike', 'Life', 'Mana', 'Energy Shield', 'Defence', 'Defense',
   'Damage Taken', 'Buffs', 'Utility', 'Gear',
 ]
-
-const TOOLTIP_WIDTH = 230
 
 function formatStatValue(total: number, unit: string, raw = false): string {
   if (unit === '%') {
@@ -44,27 +46,46 @@ function shortenLabel(label: string): string {
   return parts.length > 2 ? parts.slice(-2).join(' ') : label
 }
 
+// A clickable stat row. Clicking opens an interactive, dismissible source-breakdown popover
+// (element-anchored) via the shared primitive — outside-click / Escape closes it.
+function StatRow({ entry }: { entry: StatEntry }) {
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right', trigger: 'click', interactive: true })
+  return (
+    <>
+      <button {...tip.triggerProps} className={`stat-sheet-row${tip.open ? ' selected' : ''}`}>
+        <span className="stat-sheet-row-name">{entry.display_name}</span>
+        <span className="stat-sheet-row-value">{formatStatValue(entry.total, entry.unit)}</span>
+      </button>
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--stat" {...tip.floatingProps}>
+            <div className="stat-tooltip-header">
+              <span className="stat-tooltip-name">{entry.display_name}</span>
+              <span className="stat-tooltip-total">{formatStatValue(entry.total, entry.unit)}</span>
+            </div>
+            <div className="stat-tooltip-list">
+              {groupSources(entry.sources).map((g, i) => (
+                <div key={i} className="stat-tooltip-entry">
+                  <span className="stat-tooltip-entry-value">
+                    {g.text || formatStatValue(g.amount, entry.unit)}
+                    {g.count > 1 && <span className="stat-tooltip-entry-count"> ×{g.count}</span>}
+                  </span>
+                  <span className="stat-tooltip-entry-source">{shortenLabel(g.label)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
+
 export default function StatsScreen() {
   const computedStats = useBuildStore((s) => s.computedStats)
   const loading = useBuildStore((s) => s.statsLoading)
   const error = useBuildStore((s) => s.statsError)
   const slots = useBuildStore((s) => s.slots)
-
-  const [selectedStat, setSelectedStat] = useState<string | null>(null)
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
-  const tooltipRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!selectedStat) return
-    const handler = (e: MouseEvent) => {
-      if (tooltipRef.current && !tooltipRef.current.contains(e.target as Node)) {
-        setSelectedStat(null)
-        setTooltipPos(null)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [selectedStat])
 
   const groupedStats: { category: string; entries: [string, StatEntry][] }[] = []
   if (computedStats) {
@@ -81,23 +102,7 @@ export default function StatsScreen() {
     }
   }
 
-  const selectedEntry = selectedStat && computedStats ? computedStats.stats[selectedStat] : null
   const filledSlots = slots.filter(Boolean).length
-
-  function handleStatClick(e: React.MouseEvent, key: string) {
-    if (selectedStat === key) {
-      setSelectedStat(null)
-      setTooltipPos(null)
-    } else {
-      setSelectedStat(key)
-      setTooltipPos({ x: e.clientX, y: e.clientY })
-    }
-  }
-
-  const tooltipStyle = tooltipPos ? {
-    left: Math.min(tooltipPos.x + 16, window.innerWidth - TOOLTIP_WIDTH - 8),
-    top: Math.min(tooltipPos.y - 10, window.innerHeight - 320),
-  } : {}
 
   return (
     <div className="screen stats-screen">
@@ -127,40 +132,13 @@ export default function StatsScreen() {
                     <span className="stat-sheet-row-value">{formatStatValue(entry.total, entry.unit, true)}</span>
                   </div>
                 ) : (
-                  <button
-                    key={key}
-                    className={`stat-sheet-row${selectedStat === key ? ' selected' : ''}`}
-                    onClick={e => handleStatClick(e, key)}
-                  >
-                    <span className="stat-sheet-row-name">{entry.display_name}</span>
-                    <span className="stat-sheet-row-value">{formatStatValue(entry.total, entry.unit)}</span>
-                  </button>
+                  <StatRow key={key} entry={entry} />
                 )
               })}
             </div>
           </div>
         ))}
       </div>
-
-      {selectedStat && selectedEntry && tooltipPos && (
-        <div className="stat-tooltip" ref={tooltipRef} style={tooltipStyle}>
-          <div className="stat-tooltip-header">
-            <span className="stat-tooltip-name">{selectedEntry.display_name}</span>
-            <span className="stat-tooltip-total">{formatStatValue(selectedEntry.total, selectedEntry.unit)}</span>
-          </div>
-          <div className="stat-tooltip-list">
-            {groupSources(selectedEntry.sources).map((g, i) => (
-              <div key={i} className="stat-tooltip-entry">
-                <span className="stat-tooltip-entry-value">
-                  {g.text || formatStatValue(g.amount, selectedEntry.unit)}
-                  {g.count > 1 && <span className="stat-tooltip-entry-count"> ×{g.count}</span>}
-                </span>
-                <span className="stat-tooltip-entry-source">{shortenLabel(g.label)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

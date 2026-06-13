@@ -2,10 +2,7 @@ import { useEffect } from 'react'
 import { debounce } from 'lodash-es'
 import { useBuildStore } from './buildStore'
 import { api, EMPTY_STAT_SHEET } from '../api/client'
-import {
-  buildGearPayload, buildEnergyContributions,
-  buildMemoryEffects, buildSpiritEffects,
-} from '../utils/statsPayload'
+import { buildEngineStatsPayload } from '../utils/statsPayload'
 
 export function useBuildCalculation() {
   const buildVersion = useBuildStore((s) => s.buildVersion)
@@ -23,7 +20,10 @@ export function useBuildCalculation() {
       const hasSource =
         s.slots.some(Boolean) ||
         s.slates.some(sl => sl.slots?.some(slot => slot.selectedNodeId !== null)) ||
-        s.gear.some(item => item.slot !== null)
+        s.gear.some(item => item.slot !== null) ||
+        // A main skill alone is enough to compute damage — don't gate offense on having a tree/gear.
+        s.mainSkill !== null ||
+        s.skills.length > 0
 
       if (!hasSource) {
         useBuildStore.getState().setComputedStats(EMPTY_STAT_SHEET, version)
@@ -33,17 +33,7 @@ export function useBuildCalculation() {
       useBuildStore.getState().setStatsLoading(true)
 
       try {
-        const result = await api.engineStats({
-          slots: s.slots,
-          slates: s.slates,
-          condition_state: s.conditionState,
-          gear: buildGearPayload(s.gear),
-          character: buildEnergyContributions(s.gear, s.characterLevel, s.hasPrism),
-          memory_effects: buildMemoryEffects(s.heroMemories),
-          // buildSpiritEffects returns [] on empty allSpirits — safe on failure path
-          spirit_effects: buildSpiritEffects(s.pactSpirits, s.allSpirits),
-          main_skill: s.mainSkill ?? null,
-        })
+        const result = await api.engineStats(buildEngineStatsPayload(s))
         // Version guard: reject stale/out-of-order responses
         if (version >= useBuildStore.getState().computedVersion) {
           useBuildStore.getState().setComputedStats(result, version)

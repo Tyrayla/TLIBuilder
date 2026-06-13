@@ -1,0 +1,2715 @@
+{
+ "activation_medium_sentry": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.175
+   ]
+  ]
+ },
+ "activation_medium_tangle": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.13
+   ]
+  ]
+ },
+ "acuteness_focus_dull_pain_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "acuteness_focus_piercing_agony_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "acuteness_focus_remaining_strength_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "acuteness_focus_sharpening_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "arrow_einherjar_advancement_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.015
+   ]
+  ]
+ },
+ "arrow_einherjar_arrowstorm_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.21
+   ]
+  ]
+ },
+ "arrow_einherjar_fellowship_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.105
+   ]
+  ]
+ },
+ "berserking_blade_decimate_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "berserking_blade_desperation_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.05
+   ]
+  ]
+ },
+ "berserking_blade_rampage_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "berserking_blade_sweep_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "blazing_bullet_dual_resonance_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "blazing_bullet_fiery_blast_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "blazing_bullet_ignition_point_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.44
+   ]
+  ]
+ },
+ "blizzard_avalanche_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.09
+   ]
+  ]
+ },
+ "blizzard_freezing_point_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "blizzard_hail_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.025
+   ]
+  ]
+ },
+ "blizzard_numbing_cold_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.17
+   ]
+  ]
+ },
+ "bombard_cannon_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "bombard_fission_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.185
+   ]
+  ]
+ },
+ "bombard_grenade_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.120667
+   ]
+  ]
+ },
+ "bombard_guided_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.035
+   ]
+  ]
+ },
+ "bombard_smokescreen_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "burning_shot_combustion_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.17
+   ]
+  ]
+ },
+ "burning_shot_fiery_blast_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.24
+   ]
+  ]
+ },
+ "burning_shot_ignition_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "burning_shot_through_fire_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.13
+   ]
+  ]
+ },
+ "chain_lightning_augmentation_magnificent": {
+  "behavior": {
+   "augmentation_per_jump": 0.057
+  },
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "chain_lightning_lucky_noble": {
+  "behavior": {
+   "lucky_damage": true
+  },
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.06
+   ]
+  ]
+ },
+ "chain_lightning_merge_noble": {
+  "behavior": {
+   "falloff_coefficient": 0.8,
+   "same_target_shotgun": true
+  },
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.13
+   ]
+  ]
+ },
+ "chain_lightning_web_of_lightning_magnificent": {
+  "behavior": {
+   "chains_per_jump": 1
+  },
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.17
+   ]
+  ]
+ },
+ "charged_pummel_charge_reduction_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.17
+   ]
+  ]
+ },
+ "charged_pummel_connected_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.07
+   ]
+  ]
+ },
+ "charged_pummel_drastic_shift_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "charged_pummel_electric_charge_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.485
+   ]
+  ]
+ },
+ "chromatic_shot_lightchaser_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.02
+   ]
+  ]
+ },
+ "chromatic_shot_splendor_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "corrosion_focus_clustering_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "corrosion_focus_infection_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "corrosion_focus_splash_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.035
+   ]
+  ]
+ },
+ "corrosive_shot_burst_of_agony_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.25
+   ]
+  ]
+ },
+ "corrosive_shot_degeneration_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.185
+   ]
+  ]
+ },
+ "corrosive_shot_swift_action_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.29
+   ]
+  ]
+ },
+ "corrosive_throw_augmentation_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.04
+   ]
+  ]
+ },
+ "corrosive_throw_blitz_strike_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.015
+   ]
+  ]
+ },
+ "corrosive_throw_swift_strike_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.0575
+   ]
+  ]
+ },
+ "crescent_slash_flash_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.105
+   ]
+  ]
+ },
+ "crescent_slash_raid_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "crescent_slash_rising_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.39
+   ]
+  ]
+ },
+ "crescent_slash_vile_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.29
+   ]
+  ]
+ },
+ "double_thrusts_cutthroat_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "double_thrusts_recourse_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "double_thrusts_restless_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "electrifying_shot_close_range_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.22
+   ]
+  ]
+ },
+ "electrifying_shot_multishot_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.14
+   ]
+  ]
+ },
+ "fire_burst_converge_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.265
+   ]
+  ]
+ },
+ "fire_burst_heart_of_flame_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "fire_burst_prairie_fire_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "fire_burst_violent_blast_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.245
+   ]
+  ]
+ },
+ "flame_core_engage_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.34
+   ]
+  ]
+ },
+ "flame_core_lone_vanguard_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "flame_focus_blast_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.34
+   ]
+  ]
+ },
+ "flame_focus_flint_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.29
+   ]
+  ]
+ },
+ "flame_focus_kindling_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "flame_jet_burst_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "flame_jet_furnace_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.205
+   ]
+  ]
+ },
+ "flame_jet_offshoot_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "flame_jet_scorched_earth_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.395
+   ]
+  ]
+ },
+ "flame_slash_immediate_threat_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "flame_slash_inverted_blaze_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.33
+   ]
+  ]
+ },
+ "focused_shot_aspire_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.385
+   ]
+  ]
+ },
+ "focused_shot_building_momentum_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "focused_shot_long_shot_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "focused_shot_power_bow_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "focused_shot_snipe_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "focused_slash_behead_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.07
+   ]
+  ]
+ },
+ "focused_slash_duel_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.675
+   ]
+  ]
+ },
+ "focused_slash_fervor_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "focused_slash_tranquility_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "frost_core_chase_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.025
+   ]
+  ]
+ },
+ "frost_core_puncture_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "frost_impact_chilling_buildup_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "frost_impact_chilling_surge_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.41
+   ]
+  ]
+ },
+ "frost_impact_frozen_trajectory_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.18
+   ]
+  ]
+ },
+ "frost_impact_ice_cluster_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.36
+   ]
+  ]
+ },
+ "frost_spike_glaciate_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.6025
+   ]
+  ]
+ },
+ "frost_spike_ice_fission_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.34
+   ]
+  ]
+ },
+ "frost_spike_offshoot_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.15
+   ]
+  ]
+ },
+ "frost_terra_cohesion_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "frost_terra_rime_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "frost_terra_snow_shell_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "frost_terra_winter_s_bite_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "gale_slash_brutality_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "gale_slash_dominance_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.1
+   ]
+  ]
+ },
+ "gale_slash_onslaught_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "gale_slash_soaring_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.385
+   ]
+  ]
+ },
+ "ghost_blade_einherjar_eruption_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "ghost_blade_einherjar_heroes_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "ghost_blade_einherjar_prestige_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "ghost_blade_einherjar_unbroken_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.4
+   ]
+  ]
+ },
+ "groundshaker_collapse_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "groundshaker_cripple_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "groundshaker_epicenter_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "groundshaker_frequent_quake_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "groundshaker_wrathful_vault_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.21
+   ]
+  ]
+ },
+ "hammer_of_ash_blast_quake_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.175
+   ]
+  ]
+ },
+ "hammer_of_ash_quickfire_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "hammer_of_ash_rekindle_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "hammer_of_ash_upheaval_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "haunting_abomination_depravity_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.34
+   ]
+  ]
+ },
+ "haunting_abomination_feud_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "haunting_abomination_hail_mary_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "haunting_abomination_misdeeds_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "howling_gale_eye_of_the_gale_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "howling_gale_furious_sweep_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "howling_gale_headwind_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "howling_gale_rapid_sweep_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "ice_focus_frigid_wind_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "ice_focus_permafrost_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "ice_focus_shattered_ice_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "ice_focus_solemn_chill_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "ice_lances_bounce_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.23
+   ]
+  ]
+ },
+ "ice_lances_ice_corrosion_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "ice_lances_permafrost_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.0375
+   ]
+  ]
+ },
+ "ice_lances_rebound_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.15
+   ]
+  ]
+ },
+ "ice_shot_batter_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.02
+   ]
+  ]
+ },
+ "ice_shot_ice_blast_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "icebound_beam_chilling_spike_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "icebound_beam_frostbitten_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "icebound_beam_ring_blade_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.09
+   ]
+  ]
+ },
+ "icy_blade_hidden_edge_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "icy_blade_quick_freeze_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "inexhaustible_barrage_bombard_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.015
+   ]
+  ]
+ },
+ "inexhaustible_barrage_fatal_pursuit_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.28
+   ]
+  ]
+ },
+ "inexhaustible_barrage_landslide_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.045
+   ]
+  ]
+ },
+ "lightning_beam_aftershock_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.29
+   ]
+  ]
+ },
+ "lightning_beam_relentless_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.027333
+   ]
+  ]
+ },
+ "lightning_beam_reverberation_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.14
+   ]
+  ]
+ },
+ "lightning_beam_salvo_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.54
+   ]
+  ]
+ },
+ "lightning_shot_crossed_lightning_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.69
+   ]
+  ]
+ },
+ "lightning_shot_offshoot_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.13
+   ]
+  ]
+ },
+ "lightning_storm_boundless_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "lightning_storm_raging_storm_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.5275
+   ]
+  ]
+ },
+ "lightning_storm_surging_thunder_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "marked_rain_of_arrows_chain_reaction_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.125
+   ]
+  ]
+ },
+ "marked_rain_of_arrows_heartpiercer_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "marked_rain_of_arrows_hyper_blast_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.095
+   ]
+  ]
+ },
+ "marked_rain_of_arrows_rainfall_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    1.145
+   ]
+  ]
+ },
+ "marked_rain_of_arrows_threads_of_arrows_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.035
+   ]
+  ]
+ },
+ "mind_control_befuddle_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "mind_control_concentrate_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "mind_control_enthrall_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "mind_control_entice_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.34
+   ]
+  ]
+ },
+ "modularization_calibrate_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "modularization_cluster_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "modularization_compress_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "modularization_resonance_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "modularization_sever_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "modularization_shared_burden_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "modularization_superconductivity_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "moon_strike_lunar_eclipse_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.1
+   ]
+  ]
+ },
+ "moon_strike_lunar_ring_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "moon_strike_rainbow_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "moon_strike_wax_and_wane_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "path_of_flames_heat_wave_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "path_of_flames_raging_boil_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.0825
+   ]
+  ]
+ },
+ "path_of_flames_spontaneous_combustion_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "rain_of_arrows_payback_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.33
+   ]
+  ]
+ },
+ "rain_of_arrows_swift_flight_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "rain_of_arrows_tracking_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.08
+   ]
+  ]
+ },
+ "ring_of_blades_blade_formation_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.29
+   ]
+  ]
+ },
+ "ring_of_blades_razor_edge_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "ring_of_blades_strength_in_numbers_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.335
+   ]
+  ]
+ },
+ "ring_of_ice_cascade_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.285
+   ]
+  ]
+ },
+ "ring_of_ice_ice_seal_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.11
+   ]
+  ]
+ },
+ "savage_charge_bulldoze_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "savage_charge_infuriate_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.29
+   ]
+  ]
+ },
+ "savage_charge_raid_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.22
+   ]
+  ]
+ },
+ "scorching_beam_disintegrate_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "scorching_beam_immolate_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.06
+   ]
+  ]
+ },
+ "scorching_beam_shockwave_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "scorching_beam_supercharge_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.062
+   ]
+  ]
+ },
+ "serpent_beam_barrage_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "serpent_beam_inferno_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "serpent_beam_torrent_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "serpent_beam_twin_blaze_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.175
+   ]
+  ]
+ },
+ "shackles_of_malice_defile_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "shackles_of_malice_mutual_destruction_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "shackles_of_malice_spite_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "shackles_of_malice_vendetta_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.07
+   ]
+  ]
+ },
+ "shadow_shot_eradicate_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "shadow_swamp_gushing_spring_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "shadow_swamp_overlapping_waves_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "shadow_swamp_splatter_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.12
+   ]
+  ]
+ },
+ "shadow_swamp_still_water_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.065
+   ]
+  ]
+ },
+ "sparkle_magnetic_field_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.29
+   ]
+  ]
+ },
+ "sparkle_static_electricity_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "sparkle_strobe_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.07
+   ]
+  ]
+ },
+ "spectral_slash_detonation_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.23
+   ]
+  ]
+ },
+ "spectral_slash_legion_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.01
+   ]
+  ]
+ },
+ "spectral_slash_synchrony_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.17
+   ]
+  ]
+ },
+ "split_firebolt_focal_point_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "split_firebolt_split_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.43
+   ]
+  ]
+ },
+ "split_shot_collaboration_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.043
+   ]
+  ]
+ },
+ "split_shot_diversion_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.12
+   ]
+  ]
+ },
+ "split_shot_rapid_advance_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.225
+   ]
+  ]
+ },
+ "split_shot_volley_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.385
+   ]
+  ]
+ },
+ "thunder_core_augmentation_noble": {
+  "behavior": {
+   "augmentation_per_jump": 0.0775
+  },
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "thunder_core_electric_field_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "thunder_core_lightning_lasso_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "thunder_core_lone_vanguard_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.7
+   ]
+  ]
+ },
+ "thunder_focus_haste_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "thunder_focus_overflow_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.02
+   ]
+  ]
+ },
+ "thunder_focus_quickstep_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "thunder_focus_tremor_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.11
+   ]
+  ]
+ },
+ "thunder_slash_big_stride_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.07
+   ]
+  ]
+ },
+ "thunder_slash_blade_cluster_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.035
+   ]
+  ]
+ },
+ "thunder_slash_flurry_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.215
+   ]
+  ]
+ },
+ "thunder_slash_keen_edge_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "thunder_spike_numb_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.035
+   ]
+  ]
+ },
+ "thunder_spike_rumbling_thunder_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "thunder_spike_tremble_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "thunderbolt_overload_augmentation_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "thunderbolt_overload_leap_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.14
+   ]
+  ]
+ },
+ "thunderbolt_overload_retribution_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.405
+   ]
+  ]
+ },
+ "thundercloud_alarmed_awakening_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "thundercloud_billowing_cloud_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.07
+   ]
+  ]
+ },
+ "thundercloud_heavy_cloud_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    -0.335
+   ]
+  ]
+ },
+ "thundercloud_thunderous_blow_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.34
+   ]
+  ]
+ },
+ "whirlwind_blade_circling_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.45
+   ]
+  ]
+ },
+ "whirlwind_blade_sharpen_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "whirlwind_blade_swift_slash_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.27
+   ]
+  ]
+ },
+ "whirlwind_blade_unsheath_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "whirlwind_endless_wind_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.29
+   ]
+  ]
+ },
+ "whirlwind_whirling_blade_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.34
+   ]
+  ]
+ },
+ "whirlwind_wind_barrier_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "wilt_spike_evanescence_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "wilt_spike_languish_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "wilt_spike_mirage_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.075
+   ]
+  ]
+ },
+ "wilt_spike_wither_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "wilting_beam_dispirit_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "wilting_beam_rapid_completion_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ]
+  ]
+ },
+ "wilting_beam_reflection_magnificent": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.29
+   ]
+  ]
+ },
+ "wilting_beam_set_course_noble": {
+  "behavior": {},
+  "contribs": [
+   [
+    "dmg_additional",
+    0.2
+   ],
+   [
+    "dmg_additional",
+    0.715
+   ]
+  ]
+ }
+}

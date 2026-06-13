@@ -35,10 +35,16 @@ class PassiveTree:
     def points_in_column(self, col: int) -> int:
         return sum(n.current_points for n in self.nodes.values() if n.column == col)
 
+    def points_before_column(self, col: int) -> int:
+        """Points spent in columns strictly to the LEFT of `col` (the unlock currency)."""
+        return sum(n.current_points for n in self.nodes.values() if n.column < col)
+
     def is_column_unlocked(self, col: int) -> bool:
+        # Column 0 is always open; column N needs N*3 points spent in columns to its left
+        # (its own points and points further right do not count toward unlocking it).
         if col == 0:
             return True
-        return self.total_points() >= col * 3
+        return self.points_before_column(col) >= col * 3
 
     def total_points(self) -> int:
         return sum(n.current_points for n in self.nodes.values())
@@ -49,10 +55,10 @@ class PassiveTree:
             raise ValueError(f"Node '{node_id}' not found.")
         if not self.is_column_unlocked(node.column):
             needed = node.column * 3
-            have = self.total_points()
+            have = self.points_before_column(node.column)
             raise ValueError(
                 f"Column {node.column_label} is locked. "
-                f"Need {needed} total points, have {have}."
+                f"Need {needed} points in earlier columns, have {have}."
             )
         if node.is_full:
             raise ValueError(
@@ -81,16 +87,14 @@ class PassiveTree:
         if node.is_empty:
             raise ValueError(f"'{node.node_type.value}' already has 0 points.")
 
-        # Column unlock check: removing a point must not strand any occupied column.
-        # Skip the node's own column — reducing within it can't strand itself.
-        total_after = self.total_points() - 1
-        for col in range(1, COLUMN_COUNT):
-            if col == node.column:
-                continue
-            if self.points_in_column(col) > 0 and total_after < col * 3:
+        # Column unlock check: a point in this column counts toward unlocking every column to
+        # its RIGHT, so removing it can only strand those. (Columns at or left of node.column
+        # don't count this point, so they're unaffected.)
+        for col in range(node.column + 1, COLUMN_COUNT):
+            if self.points_in_column(col) > 0 and (self.points_before_column(col) - 1) < col * 3:
                 raise ValueError(
-                    f"Cannot remove: column {col * 3} requires "
-                    f"{col * 3} total points (would have {total_after})."
+                    f"Cannot remove: column {col * 3} requires {col * 3} points in earlier "
+                    f"columns (would have {self.points_before_column(col) - 1})."
                 )
 
         # Connection prerequisite check: removing a point from this node must not

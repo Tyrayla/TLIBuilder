@@ -1,11 +1,52 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { PactSpirit, PactSpiritSlot, SelectedPactSpirit } from '../api/client'
+import React, { useEffect, useRef, useState } from 'react'
+import { FloatingPortal } from '@floating-ui/react'
+import { PactSpirit, PactSpiritSlot } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
+import { useDamageDeltaList } from '../components/tooltip/useDamageDelta'
+import { TooltipShell } from '../components/tooltip/TooltipShell'
+import { SpiritTooltipBody } from '../components/tooltip/bodies/SpiritTooltipBody'
 
 interface Props {
-  pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
-  onPactSpiritsChange: (v: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => void
   onBack: () => void
+}
+
+// A single pact-spirit node plus its hover tooltip, routed through the shared floating primitive.
+// Two damage deltas are priced at once: "This node" (remove just this node's effect line(s) from the
+// spirit) and "Spirit total" (remove the whole spirit). Spirits are still selected as a unit, but the
+// per-node number shows what each node is worth within the spirit.
+function PactNode({ ring, lines, spiritSlot }: { ring: string; lines: string[]; spiritSlot: number }) {
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'top' })
+  const deltas = useDamageDeltaList(
+    tip.open
+      ? [
+          { key: `spirit:node:${spiritSlot}:${lines.join('|')}`,
+            step: s => ({ ...s, spiritEffectExclude: lines }) },
+          { key: `spirit:rm:${spiritSlot}`,
+            step: s => ({ ...s, pactSpirits: s.pactSpirits.map((p, i) => i === spiritSlot ? null : p) as typeof s.pactSpirits }) },
+        ]
+      : null,
+    tip.open,
+  )
+  const loading = { state: 'loading' as const }
+  const banded = [
+    { label: 'This node', delta: deltas[0] ?? loading },
+    { label: 'Spirit total', delta: deltas[1] ?? loading },
+  ]
+  return (
+    <>
+      <div className={`pact-node node-${ring}`} {...tip.triggerProps} />
+      {tip.open && lines.length > 0 && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--spirit" {...tip.floatingProps}>
+            <TooltipShell deltas={banded}>
+              <SpiritTooltipBody lines={lines} />
+            </TooltipShell>
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
 }
 
 const STRIP_ROMAN = /\s+(I{1,4}|IV|VI{0,3}|IX|V)$/i
@@ -41,12 +82,13 @@ function reorderSlots(slots: PactSpiritSlot[]): PactSpiritSlot[] {
   return result
 }
 
-export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: Props) {
+export default function PactSpiritScreen(_props: Props) {
   const spiritData = useBuildStore(s => s.allSpirits)
+  const pactSpirits = useBuildStore(s => s.pactSpirits)
+  const setPactSpirits = useBuildStore(s => s.setPactSpirits)
   const [activeSlot, setActiveSlot] = useState<0 | 1 | 2 | null>(null)
   const [search, setSearch] = useState('')
   const [affinityFilter, setAffinityFilter] = useState<string | null>(null)
-  const [nodeTooltip, setNodeTooltip] = useState<{ lines: string[]; x: number; y: number } | null>(null)
 
   const allAffinities = Array.from(new Set(spiritData.flatMap(s => s.affinities))).sort()
 
@@ -66,7 +108,7 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
     if (activeSlot === null) return
     const next = [...pactSpirits] as typeof pactSpirits
     next[activeSlot] = { itemId: spirit.item_id, rank: 1 }
-    onPactSpiritsChange(next)
+    setPactSpirits(next)
     setActiveSlot(null)
   }
 
@@ -74,7 +116,7 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
     e.stopPropagation()
     const next = [...pactSpirits] as typeof pactSpirits
     next[slotIdx] = null
-    onPactSpiritsChange(next)
+    setPactSpirits(next)
     if (activeSlot === slotIdx) setActiveSlot(null)
   }
 
@@ -84,7 +126,7 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
     const cur = next[slotIdx]
     if (!cur) return
     next[slotIdx] = { ...cur, rank }
-    onPactSpiritsChange(next)
+    setPactSpirits(next)
   }
 
   const handleSlotClick = (slotIdx: 0 | 1 | 2) => {
@@ -93,7 +135,6 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
     setAffinityFilter(null)
   }
 
-  const tooltipRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -106,29 +147,6 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [activeSlot])
-
-  useLayoutEffect(() => {
-    if (!nodeTooltip || !tooltipRef.current) return
-    const el = tooltipRef.current
-    const rect = el.getBoundingClientRect()
-    const vw = window.innerWidth
-    const overLeft = 8 - rect.left
-    const overRight = rect.right - (vw - 8)
-    if (overLeft > 0) {
-      el.style.left = (parseFloat(el.style.left || '0') + overLeft) + 'px'
-    } else if (overRight > 0) {
-      el.style.left = (parseFloat(el.style.left || '0') - overRight) + 'px'
-    }
-    if (rect.top < 8) {
-      el.style.top = (nodeTooltip.y + 60) + 'px'
-      el.style.transform = 'translateX(-50%)'
-    }
-  }, [nodeTooltip])
-
-  const handleNodeEnter = (lines: string[], e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setNodeTooltip({ lines, x: rect.left + rect.width / 2, y: rect.top - 8 })
-  }
 
   // Build flat array of grid items: 3 rows × 12 cells each
   const gridItems: React.ReactNode[] = []
@@ -186,7 +204,7 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
     for (let col = 0; col < NODE_COLS; col++) {
       const slot = reordered[col]
       const tooltipLines = slot
-        ? (slot.ring === 'outer' && rankData ? rankData.modifiers : [slot.effect])
+        ? (slot.ring === 'outer' && rankData ? rankData.modifiers : slot.effect)
         : []
 
       gridItems.push(
@@ -194,13 +212,7 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
           key={`node-${slotIdx}-${col}`}
           className={`pact-node-cell${slot ? ` has-node node-ring-${slot.ring}` : ''}`}
         >
-          {slot && (
-            <div
-              className={`pact-node node-${slot.ring}`}
-              onMouseEnter={e => handleNodeEnter(tooltipLines, e)}
-              onMouseLeave={() => setNodeTooltip(null)}
-            />
-          )}
+          {slot && <PactNode ring={slot.ring} lines={tooltipLines} spiritSlot={slotIdx} />}
         </div>
       )
     }
@@ -273,17 +285,6 @@ export default function PactSpiritScreen({ pactSpirits, onPactSpiritsChange }: P
         )}
       </div>
 
-      {nodeTooltip && (
-        <div
-          ref={tooltipRef}
-          className="pact-spirit-node-tooltip"
-          style={{ left: nodeTooltip.x, top: nodeTooltip.y }}
-        >
-          {nodeTooltip.lines.map((line, i) => (
-            <div key={i} className={i === 0 ? 'pact-tooltip-main' : 'pact-tooltip-bonus'}>{line}</div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

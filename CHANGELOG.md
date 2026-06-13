@@ -1,6 +1,36 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.0] - 2026-06-13
+
+### Damage calculation
+- Per-skill damage engine for **Berserking Blade, Focused Slash, Moon Strike, and Chain Lightning**, plus their **Magnificent/Noble (canvas) supports**. In-app badges mark every modifier as Consumed (working), Inactive (modeled, not for your skill), Unconsumed (not wired), or NYI, so anything not yet modeled is obvious at a glance.
+- Verified against in-game dummy testing (2-minute Recount average), generally within ~3%; the remaining gap is mostly buff/debuff uptime, crit variance, and wide roll ranges.
+- Mechanics modeled: Steep Strike / Sweep Slash, crit and crit damage, double/triple/quadruple damage, shotgun (Chain Lightning: Merge / Web), Chain Lightning: Augmentation, Lucky, Willpower, Fervor, main-stat damage bonus, and blessings (Focus/Agility/Tenacity).
+- Damage-type conversion (e.g. Lightning to Cold); Elemental split into Fire/Cold/Lightning.
+- Enemy mitigation: armor plus elemental/erosion resistance and all penetration types (can go negative to amplify), plus enemy debuffs (Numbed, Frail, Infiltration, Paralysis) shown in a target enemy-stats panel.
+- Dual-wielding base effects.
+
+### Skills and supports
+- Enable/disable toggles on every active/passive skill and each individual support, saved with the build.
+- Each support is calculated local to its skill slot, so separate setups don't cross-contaminate.
+- Support Rank (1-5) and Tier controls, roll sliders, and explicit per-line rolls.
+
+### Core talents and belt blends
+- Core talents modeled and applied, shown on every tree with badges and a preview.
+- Belt blend (Blending Ritual) selection via a searchable picker.
+
+### Gear and crafting
+- Gear modifiers are fully resolved and surfaced (nothing silently dropped), with engine badges shown in the affix and belt-blend pickers and the item preview before you add the item.
+- Damage-delta previews on gear, multi-slot swaps, list reordering, and a live customization preview.
+- Craft no-affix white items; suffix affix tiers; per-item Energy Shield / Armor / Evasion scaling.
+
+### Stats, badges, and quality of life
+- New interactive Player Stats screen with clickable source breakdowns.
+- Derived stats (total Life, Energy Shield, Mana, and more) and a dedicated Energy Shield panel.
+- Modifier badges app-wide with a clear four-state taxonomy (Consumed / Inactive / Unconsumed / NYI).
+- DPS Delta previews on mods, nodes, and gear.
+- Conditionals manager (low life, enemy debuffs, life %, proximity, and more), settable and auto-derived, with a tidier layout.
+- Custom Mods panel; pact-spirit per-node and spirit-total DPS on hover; shared tooltips and broad UI revamps.
 
 ---
 

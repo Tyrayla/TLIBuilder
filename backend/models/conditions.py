@@ -28,26 +28,30 @@ class ConditionDef:
     source: str = "user"
 
 
-def _load() -> tuple[list[ConditionDef], dict[str, str]]:
+def _load() -> tuple[list[ConditionDef], dict[str, str], dict[str, list[str]]]:
     try:
         with open(_CONDITIONS_PATH) as f:
             data = json.load(f)
     except FileNotFoundError:
-        return [], {}
+        return [], {}, {}
     conds = [ConditionDef(**c) for c in data.get("conditions", [])]
     derived = data.get("derived_keys", {})
-    return conds, derived
+    # Derived NUMERICS: each key is the SUM of its listed source condition values (e.g. any_blessings =
+    # focus + agility + tenacity). Re-derived each fixed-point iteration in compute._clamp_and_rederive.
+    derived_numeric = data.get("derived_numeric_keys", {})
+    return conds, derived, derived_numeric
 
 
 ALL_CONDITIONS: list[ConditionDef]
 DERIVED_ACTIVE_KEYS: dict[str, str]
-ALL_CONDITIONS, DERIVED_ACTIVE_KEYS = _load()
+DERIVED_NUMERIC_KEYS: dict[str, list[str]]
+ALL_CONDITIONS, DERIVED_ACTIVE_KEYS, DERIVED_NUMERIC_KEYS = _load()
 
 CONDITIONS_BY_KEY: dict[str, ConditionDef] = {c.key: c for c in ALL_CONDITIONS}
 
 
 def reload() -> None:
     """Reload condition definitions from disk. Called by dev endpoints after writes."""
-    global ALL_CONDITIONS, DERIVED_ACTIVE_KEYS, CONDITIONS_BY_KEY
-    ALL_CONDITIONS, DERIVED_ACTIVE_KEYS = _load()
+    global ALL_CONDITIONS, DERIVED_ACTIVE_KEYS, DERIVED_NUMERIC_KEYS, CONDITIONS_BY_KEY
+    ALL_CONDITIONS, DERIVED_ACTIVE_KEYS, DERIVED_NUMERIC_KEYS = _load()
     CONDITIONS_BY_KEY = {c.key: c for c in ALL_CONDITIONS}

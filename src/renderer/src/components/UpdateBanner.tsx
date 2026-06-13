@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
+import { markdownToHtml } from '../utils/markdown'
 
 export interface UpdateInfo {
   version: string
@@ -18,6 +19,8 @@ interface Props {
 export default function UpdateBanner({ info, downloading, progress, downloaded, onDownload, onInstall }: Props) {
   const [dismissed, setDismissed] = useState(false)
   const [changelogOpen, setChangelogOpen] = useState(false)
+  // Release notes are GitHub-flavored markdown; render to HTML for the modal (which injects HTML).
+  const notesHtml = useMemo(() => markdownToHtml(info.releaseNotes), [info.releaseNotes])
 
   if (dismissed) return null
 
@@ -44,7 +47,7 @@ export default function UpdateBanner({ info, downloading, progress, downloaded, 
             <div className="modal-accent" />
             <h3 className="modal-title">What's New in {info.version}</h3>
             {info.releaseNotes
-              ? <div className="changelog-body" dangerouslySetInnerHTML={{ __html: info.releaseNotes }} />
+              ? <div className="changelog-body" dangerouslySetInnerHTML={{ __html: notesHtml }} />
               : <div className="changelog-body changelog-body-empty">No release notes provided.</div>
             }
             <div className="modal-actions">

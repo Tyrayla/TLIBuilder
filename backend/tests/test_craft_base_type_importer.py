@@ -51,6 +51,44 @@ def test_source_and_type_stored():
         assert a["affix_type"] == "Base Affix"
 
 
+_SWORD_WITH_SUFFIX_TIERS = {
+    "name": "One-Handed Sword",
+    "all_affixes": [
+        # Single tier-1 representative — must be IGNORED when craft_suffix_affixes is present.
+        {"Affix Effect": "+(77–108) % Elemental Damage", "Source": "One-Handed Sword", "Type": "Basic Suffix"},
+    ],
+    "craft_suffix_affixes": [
+        {"Tier": "0", "Modifier": "+(109–140) % Elemental Damage", "Lv": "100", "Weight": "0", "Library": "Basic Affix"},
+        {"Tier": "1", "Modifier": "+(77–108) % Elemental Damage", "Lv": "86", "Weight": "100", "Library": "Basic Affix"},
+        {"Tier": "2", "Modifier": "+(55–76) % Elemental Damage", "Lv": "70", "Weight": "100", "Library": "Basic Affix"},
+    ],
+}
+
+
+def test_craft_suffix_affixes_gives_full_tiers():
+    r = import_crawler_craft_base_type(_SWORD_WITH_SUFFIX_TIERS)
+    suffix = [a for a in r["affixes"] if a["affix_type"] == "Basic Suffix"]
+    # Three tiers from craft_suffix_affixes — NOT the single all_affixes fallback.
+    assert sorted(a["tier"] for a in suffix) == ["0", "1", "2"]
+    assert all(a["source"] == "One-Handed Sword" for a in suffix)
+
+
+def test_craft_suffix_library_maps_to_suffix_type():
+    r = import_crawler_craft_base_type(_SWORD_WITH_SUFFIX_TIERS)
+    # "Basic Affix" library in the suffix table → "Basic Suffix" type (not "Basic Pre-fix").
+    assert all(a["affix_type"] == "Basic Suffix" for a in r["affixes"] if a["affix_type"].endswith("Suffix"))
+    assert not any(a["affix_type"].endswith("Pre-fix") for a in r["affixes"])
+
+
+def test_all_affixes_suffix_fallback_when_no_craft_suffix():
+    # Older crawler output without craft_suffix_affixes → fall back to the single tier-0 all_affixes entry.
+    legacy = {"name": "Old Base", "all_affixes": [
+        {"Affix Effect": "+(77–108) % Elemental Damage", "Source": "Old Base", "Type": "Basic Suffix"}]}
+    r = import_crawler_craft_base_type(legacy)
+    suffix = [a for a in r["affixes"] if a["affix_type"] == "Basic Suffix"]
+    assert len(suffix) == 1 and suffix[0]["tier"] == "0"
+
+
 def test_import_crawler_craft_base_types_filters_nameless():
     items = [_BELT, {"all_affixes": []}]
     result = import_crawler_craft_base_types(items)

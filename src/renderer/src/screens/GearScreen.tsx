@@ -4,9 +4,139 @@ import {
   LegendaryGearItem, LegendaryGearIndexItem, LegendaryAffix, LegendaryNumericValue,
   LegendaryRandomAffixGroup,
   EquippedGearItem, CustomizedAffix, GearSlot, CraftBaseType, CraftAffix, CraftBaseItem, CraftBaseItemGroup,
-  Graft, GraftAffix,
+  Graft, GraftAffix, BeltBlend, api,
 } from '../api/client'
+import { FloatingPortal } from '@floating-ui/react'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
+import { useDamageDeltaList, type DeltaRequest, type StateTransform, type DamageDelta, type LabeledDelta } from '../components/tooltip/useDamageDelta'
+import { TooltipContributions } from '../components/tooltip/TooltipContributions'
+import { legendaryToEquipped } from '../utils/gearItem'
+import { GearTooltipBody, type GearTooltipItem } from '../components/tooltip/bodies/GearTooltipBody'
+import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, useGearUnresolvedTexts, useTextModifierStatus, useTextModifierStatuses, gearModifierStatus } from '../components/ModifierBadge'
+import {
+  rangeDecimals, midpoint, hasRangeValues, reconstructAffixText,
+  affixTypeLabel, tooltipAffixText,
+} from '../utils/affixText'
 import { useReferenceStore } from '../store/referenceStore'
+import { useBuildStore } from '../store/buildStore'
+
+// A damage-delta request plus the band label it should display under.
+interface GearSlotDelta { label: string; req: DeltaRequest }
+
+// A cache signature that uniquely identifies the *priced* item within a build version. Crafted
+// items derive item_id from the base name (see craft builder), so every "Hollow Rift Axe
+// (Crafted)" shares one id — keying the delta cache on item_id alone collides between different
+// rolls and shows a stale value. Include the full priced content for crafted items; legendary
+// item_ids are already unique.
+function gearSig(item: GearTooltipItem): string {
+  if (isLegendaryGearItem(item)) return `L:${item.item_id}`
+  return `C:${item.item_id}:${JSON.stringify(item.affixes)}:${JSON.stringify(item.customizations ?? [])}:${item.corrosion_type ?? ''}:${item.implicit_count ?? 0}`
+}
+
+// The state transform for equipping `equippedItem` into `slot`, keeping the weapon slots valid:
+//   - a 2-handed weapon frees BOTH weapon slots (it can't coexist with an offhand)
+//   - a one-hander frees its target slot AND drops any 2H weapon already equipped
+//   - everything else just frees its single target slot
+function equipTransform(
+  equippedItem: EquippedGearItem, slot: GearSlot, incoming2H: boolean,
+  baseTypeToItemId: Record<string, string>,
+): StateTransform {
+  return s => {
+    let gear = s.gear
+    if (incoming2H) {
+      gear = gear.filter(i => !itemHasSlot(i, 'weapon1') && !itemHasSlot(i, 'weapon2'))
+    } else if (slot === 'weapon1' || slot === 'weapon2') {
+      gear = gear.filter(i => !itemHasSlot(i, slot) && !isTwoHandedBaseType(i.base_type ?? '', baseTypeToItemId))
+    } else {
+      gear = gear.filter(i => !itemHasSlot(i, slot))
+    }
+    return { ...s, gear: [...gear, equippedItem] }
+  }
+}
+
+// Build the damage-delta request(s) for a hovered gear item. Returns one labeled band per
+// comparison:
+//   - equipped item → its contribution (remove it from its slot) → single "Damage" band
+//   - catalog / unequipped 2H weapon → equip into Weapon 1, clearing both weapon slots → one band
+//   - catalog / unequipped multi-slot item (rings, 1H weapons) → one swap band per candidate slot
+//   - catalog / unequipped single-slot item → single "Damage" swap band
+function buildGearRequests(
+  item: GearTooltipItem, knownSlot?: GearSlot,
+  slotMap?: Record<string, GearSlot[]>, baseTypeToItemId?: Record<string, string>,
+): GearSlotDelta[] {
+  // Equipped item → what you'd LOSE by unequipping it (step = build without it, base = current),
+  // matching the talent-node convention: a negative/red band = the damage given up.
+  const equippedSlots = !isLegendaryGearItem(item) ? getItemSlots(item) : []
+  if (equippedSlots.length > 0) {
+    const slot = knownSlot && equippedSlots.includes(knownSlot) ? knownSlot : equippedSlots[0]
+    return [{ label: 'Damage', req: { key: `gear:rm:${slot}`, step: s => ({ ...s, gear: s.gear.filter(i => !itemHasSlot(i, slot)) }) } }]
+  }
+
+  const baseType = item.base_type ?? ''
+  const b2i = baseTypeToItemId ?? {}
+  const sig = gearSig(item)
+  const slots = knownSlot ? [knownSlot] : getValidSlots(baseType, slotMap)
+  if (slots.length === 0) return []
+
+  // 2H weapon: one comparison; equipping frees both weapon slots.
+  if (isTwoHandedBaseType(baseType, b2i)) {
+    const equippedItem = isLegendaryGearItem(item) ? legendaryToEquipped(item, 'weapon1') : { ...item, slot: 'weapon1' as GearSlot }
+    return [{ label: 'Weapons (2H)', req: { key: `gear:eq2h:${sig}`, step: equipTransform(equippedItem, 'weapon1', true, b2i) } }]
+  }
+
+  // One swap band per candidate slot. Multi-slot items name each slot; single-slot keep "Damage".
+  return slots.map(slot => {
+    const equippedItem = isLegendaryGearItem(item) ? legendaryToEquipped(item, slot) : { ...item, slot }
+    const label = slots.length > 1 ? (SLOT_ORDER.find(s => s.id === slot)?.label ?? slot) : 'Damage'
+    return { label, req: { key: `gear:eq:${sig}:${slot}`, step: equipTransform(equippedItem, slot, false, b2i) } }
+  })
+}
+
+// Equipped/catalog gear hover tooltip routed through the shared floating-tooltip primitive
+// (cursor-anchored). Render-prop hands triggerProps to the hovered element. The slot maps let
+// catalog previews resolve a base type's slot(s) and 2H-ness for accurate swap comparisons.
+function GearHoverTooltip({ item, slot, slotMap, baseTypeToItemId, children }: {
+  item: GearTooltipItem
+  slot?: GearSlot
+  slotMap?: Record<string, GearSlot[]>
+  baseTypeToItemId?: Record<string, string>
+  children: (triggerProps: Record<string, unknown>) => React.ReactNode
+}) {
+  const tip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
+  const reqs = buildGearRequests(item, slot, slotMap, baseTypeToItemId)
+  const computed = useDamageDeltaList(tip.open ? reqs.map(r => r.req) : null, tip.open)
+  const deltas = reqs.map((r, i) => ({ label: r.label, delta: computed[i] ?? ({ state: 'loading' } as DamageDelta) }))
+  return (
+    <>
+      {children(tip.triggerProps)}
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--gear" {...tip.floatingProps}>
+            <GearTooltipBody item={item} deltas={deltas} />
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
+
+// Wraps a customize-panel affix row, adding a cursor-anchored hover tooltip showing the
+// resolved affix text while the row (with its value slider) is hovered. Hover-only,
+// non-interactive — vanishes the moment the cursor leaves the row.
+function AffixSliderTooltip({ text, children }: { text: string | null; children: React.ReactElement }) {
+  const tip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
+  if (!text) return children
+  return (
+    <>
+      {React.cloneElement(children, tip.triggerProps)}
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--slider" {...tip.floatingProps}>{text}</div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -136,21 +266,10 @@ function getItemAffixes(item: LegendaryGearItem | EquippedGearItem): LegendaryAf
   return affixes
 }
 
-function hasRangeValues(affix: LegendaryAffix): boolean {
-  return affix.affix_kind === 'numeric' &&
-    affix.numeric_values.some(v => v.kind === 'range')
-}
-
 function getRangeIndices(affix: LegendaryAffix): number[] {
   return affix.numeric_values
     .map((v, i) => (v.kind === 'range' ? i : -1))
     .filter(i => i >= 0)
-}
-
-function decimalPlaces(n: number): number {
-  const s = String(n)
-  const dot = s.indexOf('.')
-  return dot === -1 ? 0 : s.length - dot - 1
 }
 
 // Returns midpoints between each consecutive snap position, for datalist tick marks.
@@ -166,109 +285,6 @@ function buildTicks(sliderMin: number, sliderMax: number, step: number): number[
     ticks.push(+(((v + next) / 2).toFixed(10)))
   }
   return ticks
-}
-
-function rangeDecimals(nv: LegendaryNumericValue): number {
-  return Math.max(decimalPlaces(nv.min ?? 0), decimalPlaces(nv.max ?? 0))
-}
-
-function midpoint(v: LegendaryNumericValue): number {
-  if (v.kind === 'range') {
-    const mid = ((v.min ?? 0) + (v.max ?? 0)) / 2
-    const dp = rangeDecimals(v)
-    return dp > 0 ? parseFloat(mid.toFixed(dp)) : Math.round(mid)
-  }
-  return v.value ?? 0
-}
-
-function reconstructAffixText(affix: LegendaryAffix, chosenValues: Record<number, number>): string {
-  let text = affix.raw_text
-  for (let i = affix.numeric_values.length - 1; i >= 0; i--) {
-    const nv = affix.numeric_values[i]
-    if (nv.kind !== 'range') continue
-    const chosen = chosenValues[i] ?? midpoint(nv)
-    const sign = nv.sign ?? ''
-    const dp = rangeDecimals(nv)
-    const formatted = dp > 0 ? chosen.toFixed(dp) : String(chosen)
-    text = text.replace(nv.raw, `${sign}${formatted}`)
-  }
-  return text
-}
-
-// ── Tooltip ────────────────────────────────────────────────────────────────────
-
-interface TooltipState {
-  item: LegendaryGearItem | EquippedGearItem
-  x: number
-  y: number
-}
-
-function tooltipAffixText(affix: LegendaryAffix, affixIdx: number, customizations: CustomizedAffix[] | undefined): string {
-  if (!hasRangeValues(affix)) return affix.raw_text
-  const cust = customizations?.find(c => c.affix_index === affixIdx)
-  return reconstructAffixText(affix, cust?.chosen_values ?? {})
-}
-
-function GearTooltip({ state }: { state: TooltipState }) {
-  const customizations = 'customizations' in state.item ? state.item.customizations : undefined
-  const baseType = ('base_type' in state.item ? state.item.base_type : undefined) ?? ''
-  const typeLabel = getGearTypeLabel(baseType)
-  const lgItem = isLegendaryGearItem(state.item) ? state.item : null
-  const implicits = lgItem ? getItemImplicits(lgItem) : []
-  const explicits = lgItem ? getItemExplicits(lgItem) : []
-
-  return createPortal(
-    <div className="gear-tooltip-portal" style={{ left: state.x + 16, top: state.y - 10 }}>
-      {typeLabel && <div className="gear-tooltip-type">{typeLabel}</div>}
-      <div className="gear-tooltip-name">{state.item.name}</div>
-      {baseType && <div className="gear-tooltip-base">Base: {baseType}</div>}
-      <div className="gear-tooltip-level">Required Level: {state.item.required_level}</div>
-      <div className="gear-tooltip-divider" />
-      {lgItem ? (
-        <>
-          {implicits.map((affix, i) => (
-            <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">{affix.raw_text}</div>
-          ))}
-          {implicits.length > 0 && explicits.length > 0 && (
-            <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
-          )}
-          {explicits.map((affix, i) => (
-            <div key={i} className="gear-tooltip-affix">
-              {tooltipAffixText(affix, implicits.length + i, customizations)}
-            </div>
-          ))}
-        </>
-      ) : (() => {
-        const craftItem = state.item as EquippedGearItem
-        const implCount = craftItem.implicit_count ?? 0
-        const craftImplicits = craftItem.affixes.slice(0, implCount)
-        const craftExplicits = craftItem.affixes.slice(implCount)
-        const mutText = craftItem.corrosion_type === 'mutation' ? craftItem.mutation_affix_text : null
-        return (
-          <>
-            {mutText && (
-              <div className="gear-tooltip-affix gear-tooltip-affix--corroded">{mutText}</div>
-            )}
-            {craftImplicits.map((affix, i) => (
-              <div key={i} className="gear-tooltip-affix gear-tooltip-affix--implicit">
-                {affix.raw_text}
-              </div>
-            ))}
-            {craftImplicits.length > 0 && craftExplicits.length > 0 && (
-              <div className="gear-preview-section-dashes" style={{ margin: '5px 0' }} />
-            )}
-            {craftExplicits.map((affix, i) => (
-              <div key={i} className="gear-tooltip-affix">
-                {tooltipAffixText(affix, implCount + i, customizations)}
-                {affixTypeLabel(affix.affix_type) && <span className="gear-affix-label">({affixTypeLabel(affix.affix_type)})</span>}
-              </div>
-            ))}
-          </>
-        )
-      })()}
-    </div>,
-    document.body
-  )
 }
 
 // ── Slot Dropdown Portal ───────────────────────────────────────────────────────
@@ -352,6 +368,7 @@ interface CustomizePanelProps {
   baseItemImplicits: Record<string, string[]>
   previewName: string | null
   previewLines: PreviewLine[] | null
+  previewDeltas?: LabeledDelta[]
   catalogItem: LegendaryGearItem | null
   corrosionBaseAffixes: Array<LegendaryAffix & { modifier_text: string }>
   corrosionType: 'none' | 'desecration' | 'mutation'
@@ -368,10 +385,119 @@ interface CustomizePanelProps {
   onRandomAffixChange: (explicitIndex: number, modifierId: string, updatedAffixes: LegendaryAffix[]) => void
 }
 
-function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines, catalogItem, corrosionBaseAffixes, corrosionType, corrodedExplicitIndices, mutationAffixText, selectedRandomAffixes, onCorrosionChange, onRandomAffixChange }: CustomizePanelProps) {
-  const [hoveredAffix, setHoveredAffix] = useState<{ idx: number; x: number; y: number } | null>(null)
-  const [baseHoverPos, setBaseHoverPos] = useState<{ x: number; y: number } | null>(null)
+// Belt-blend equip (roadmap #4) — rendered in the editor column for any belt, independent of which
+// editor (Customize / Craft / Vorax) is open. One blend total; shows the resolved effect text.
+const beltBlendLabel = (b: BeltBlend) => b.talent_name || b.effect_text || b.effect_raw || b.talent_id
+
+// Searchable belt-blend picker styled like the affix modifier box (reuses the gear-craft-mod-* UI), with
+// a per-blend engine badge so you can see what's modeled before equipping it.
+function BeltBlendSearchSelect({ beltBlends, beltBlend, onChange }: {
+  beltBlends: BeltBlend[]
+  beltBlend: string | null
+  onChange: (id: string | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const MAX_DROPDOWN_H = 260
+
+  const statuses = useTextModifierStatuses(beltBlends.map(b => ({ text: b.effect_text || b.effect_raw, source: 'talent' as const })))
+  const statusById: Record<string, ReturnType<typeof useTextModifierStatus>> = {}
+  beltBlends.forEach((b, i) => { statusById[b.talent_id] = statuses[i] })
+  const selected = beltBlends.find(b => b.talent_id === beltBlend) ?? null
+
+  useEffect(() => {
+    if (!open) { setQuery(''); setTriggerRect(null); return }
+    if (containerRef.current) setTriggerRect(containerRef.current.getBoundingClientRect())
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+          containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? beltBlends.filter(b => beltBlendLabel(b).toLowerCase().includes(q) || (b.talent_type || '').toLowerCase().includes(q))
+    : beltBlends
+
+  const dropdownStyle = triggerRect ? (() => {
+    const spaceBelow = window.innerHeight - triggerRect.bottom
+    const showAbove = spaceBelow < MAX_DROPDOWN_H + 4 && triggerRect.top > MAX_DROPDOWN_H
+    return {
+      position: 'fixed' as const, left: triggerRect.left, width: triggerRect.width, maxHeight: MAX_DROPDOWN_H,
+      ...(showAbove ? { bottom: window.innerHeight - triggerRect.top + 2 } : { top: triggerRect.bottom + 2 }),
+    }
+  })() : {}
+
+  return (
+    <div ref={containerRef} className="gear-craft-mod-select">
+      <div className={`gear-craft-mod-trigger${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)}>
+        <span className={selected ? 'gear-craft-mod-value' : 'gear-craft-mod-placeholder'}>
+          {selected ? beltBlendLabel(selected) : '— none —'}
+          {selected && <ModifierBadge status={statusById[selected.talent_id] ?? null} />}
+        </span>
+        {selected && (
+          <span className="gear-craft-mod-clear" onMouseDown={e => { e.stopPropagation(); onChange(null); setOpen(false) }}>×</span>
+        )}
+      </div>
+      {open && triggerRect && createPortal(
+        <div ref={dropdownRef} className="gear-craft-mod-dropdown" style={dropdownStyle}>
+          <input ref={inputRef} className="gear-craft-mod-search" placeholder="Search blends…" value={query}
+            onChange={e => setQuery(e.target.value)} onMouseDown={e => e.stopPropagation()} />
+          <div className="gear-craft-mod-list">
+            {filtered.length === 0
+              ? <div className="gear-craft-mod-empty">No matches</div>
+              : filtered.map(b => (
+                  <div key={b.talent_id}
+                    className={`gear-craft-mod-option${b.talent_id === beltBlend ? ' selected' : ''}`}
+                    onMouseDown={() => { onChange(b.talent_id); setOpen(false) }}>
+                    {beltBlendLabel(b)}{b.talent_type ? ` · ${b.talent_type}` : ''}
+                    <ModifierBadge status={statusById[b.talent_id] ?? null} />
+                  </div>
+                ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+function BeltBlendSelector({ beltBlends, beltBlend, onBeltBlendChange }: {
+  beltBlends: BeltBlend[]
+  beltBlend: string | null
+  onBeltBlendChange: (talentId: string | null) => void
+}) {
+  const selected = beltBlends.find(b => b.talent_id === beltBlend) ?? null
+  const effText = selected ? (selected.effect_text || selected.effect_raw) : ''
+  // A belt blend is a talent effect — resolve its badge through the SAME unified text resolver every
+  // other modifier uses, so it carries the full 4-state (Consumed / Inactive / Unconsumed / NYI).
+  const badge = useTextModifierStatus(selected ? effText : null, 'talent')
+  return (
+    <div className="gear-belt-blend-section">
+      <div className="gear-belt-blend-header">Belt Blend</div>
+      <BeltBlendSearchSelect beltBlends={beltBlends} beltBlend={beltBlend} onChange={onBeltBlendChange} />
+      {selected && (
+        <div className="gear-belt-blend-effect">{effText}<ModifierBadge status={badge} /></div>
+      )}
+    </div>
+  )
+}
+
+function CustomizePanel({ item, customizations, isEditing, onCustomizationChange, onConfirm, onCancel, baseItemImplicits, previewName, previewLines, previewDeltas, catalogItem, corrosionBaseAffixes, corrosionType, corrodedExplicitIndices, mutationAffixText, selectedRandomAffixes, onCorrosionChange, onRandomAffixChange }: CustomizePanelProps) {
+  const baseTip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const custPanelId = useId()
+  const consumedStats = useConsumedStatSet() // for inert-modifier badges on affix rows
+  const universe = useConsumableUniverse() // splits Inactive (modeled, not this skill) from Unconsumed
+  const gearUnresolved = useGearUnresolvedTexts() // raw texts the backend still couldn't resolve
 
   if (!item) {
     return (
@@ -544,6 +670,9 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
     const showToggle = corrosionType === 'desecration' && showCorrosion && explicitIndex !== undefined
       && catalogItem?.variants?.corroded?.explicits[explicitIndex] !== undefined
     const toggleDisabled = !isCorroded && corrodedExplicitIndices.length >= 2
+    // Hover tooltip text for range affixes (shown while dragging the value slider).
+    const hAffix = getItemAffixes(item)[affixIdx]
+    const sliderText = hAffix && hasRangeValues(hAffix) ? tooltipAffixText(hAffix, affixIdx, customizations) : null
 
     if (affix.affix_kind === 'placeholder') {
       const randomGroup = explicitIndex !== undefined ? getRandomGroupForExplicit(explicitIndex) : null
@@ -552,10 +681,8 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
       const optRangeIndices = chosenOption ? getRangeIndices(chosenOption) : []
       const chosenMap = getChosenMap(affixIdx)
       return (
-        <div key={affixIdx} className={`gear-affix-row gear-affix-placeholder${isCorroded ? ' gear-affix-row--corroded' : ''}${optRangeIndices.length > 0 ? ' gear-affix-range-row' : ''}`}
-          onMouseMove={optRangeIndices.length > 0 ? e => setHoveredAffix({ idx: affixIdx, x: e.clientX, y: e.clientY }) : undefined}
-          onMouseLeave={optRangeIndices.length > 0 ? () => setHoveredAffix(null) : undefined}
-        >
+        <AffixSliderTooltip key={affixIdx} text={sliderText}>
+        <div className={`gear-affix-row gear-affix-placeholder${isCorroded ? ' gear-affix-row--corroded' : ''}${optRangeIndices.length > 0 ? ' gear-affix-range-row' : ''}`}>
           <div className="gear-affix-label-line">
             {showToggle && (
               <button
@@ -620,11 +747,13 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
             )
           })}
         </div>
+        </AffixSliderTooltip>
       )
     }
     if (!hasRangeValues(affix)) {
       return (
-        <div key={affixIdx} className={`gear-affix-row${isCorroded ? ' gear-affix-row--corroded' : ''}`}>
+        <AffixSliderTooltip key={affixIdx} text={sliderText}>
+        <div className={`gear-affix-row${isCorroded ? ' gear-affix-row--corroded' : ''}`}>
           <div className="gear-affix-label-line">
             {showToggle && (
               <button
@@ -634,9 +763,10 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
                 title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
               />
             )}
-            <div className="gear-affix-label">{affix.raw_text}</div>
+            <div className="gear-affix-label">{affix.raw_text}<ModifierBadge status={gearModifierStatus(affix, consumedStats, universe, gearUnresolved)} /></div>
           </div>
         </div>
+        </AffixSliderTooltip>
       )
     }
     const rangeIndices = getRangeIndices(affix)
@@ -646,10 +776,8 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
       ...chosenMap,
     })
     return (
-      <div key={affixIdx} className={`gear-affix-row gear-affix-range-row${isCorroded ? ' gear-affix-row--corroded' : ''}`}
-        onMouseMove={e => setHoveredAffix({ idx: affixIdx, x: e.clientX, y: e.clientY })}
-        onMouseLeave={() => setHoveredAffix(null)}
-      >
+      <AffixSliderTooltip key={affixIdx} text={sliderText}>
+      <div className={`gear-affix-row gear-affix-range-row${isCorroded ? ' gear-affix-row--corroded' : ''}`}>
         <div className="gear-affix-label-line">
           {showToggle && (
             <button
@@ -659,7 +787,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
               title={isCorroded ? 'Remove desecration' : toggleDisabled ? 'Max 2 desecrated mods' : 'Desecrate this modifier'}
             />
           )}
-          <div className="gear-affix-label">{displayText}</div>
+          <div className="gear-affix-label">{displayText}<ModifierBadge status={gearModifierStatus(affix, consumedStats, universe, gearUnresolved)} /></div>
         </div>
         {rangeIndices.map(valIdx => {
           const nv = affix.numeric_values[valIdx]
@@ -702,6 +830,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
           )
         })}
       </div>
+      </AffixSliderTooltip>
     )
   }
 
@@ -716,9 +845,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
           return (
             <div
               className={`gear-customize-base${hasStats ? ' gear-customize-base--hoverable' : ''}`}
-              onMouseEnter={hasStats ? e => setBaseHoverPos({ x: e.clientX, y: e.clientY }) : undefined}
-              onMouseMove={hasStats ? e => setBaseHoverPos({ x: e.clientX, y: e.clientY }) : undefined}
-              onMouseLeave={hasStats ? () => setBaseHoverPos(null) : undefined}
+              {...(hasStats ? baseTip.triggerProps : {})}
             >
               Base: {baseType}
             </div>
@@ -726,23 +853,18 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
         })()}
         <div className="gear-customize-level">Required Level: {item.required_level}</div>
       </div>
-      {baseHoverPos && (() => {
+      {baseTip.open && (() => {
         const baseStats = baseItemImplicits[baseType] ?? []
         if (!baseStats.length) return null
-        return createPortal(
-          <div
-            className="gear-base-stat-tooltip"
-            style={{
-              left: Math.min(baseHoverPos.x + 16, window.innerWidth - 260),
-              top: Math.min(baseHoverPos.y - 10, window.innerHeight - 150),
-            }}
-          >
-            <div className="gear-base-stat-tooltip-name">{baseType}</div>
-            {baseStats.map((line, i) => (
-              <div key={i} className="gear-base-stat-tooltip-stat">{line}</div>
-            ))}
-          </div>,
-          document.body
+        return (
+          <FloatingPortal>
+            <div className="tooltip tooltip--base-stat" {...baseTip.floatingProps}>
+              <div className="gear-base-stat-tooltip-name">{baseType}</div>
+              {baseStats.map((line, i) => (
+                <div key={i} className="gear-base-stat-tooltip-stat">{line}</div>
+              ))}
+            </div>
+          </FloatingPortal>
         )
       })()}
       <div className="gear-customize-divider" />
@@ -818,24 +940,13 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
         })()}
       </div>
 
-      <ItemPreviewCard name={previewName} lines={previewLines} />
+      <ItemPreviewCard name={previewName} lines={previewLines} deltas={previewDeltas} />
       <div className="gear-customize-actions">
         <button className="btn btn-sm btn-primary gear-confirm-btn" onClick={onConfirm}>
           {isEditing ? 'Save' : 'Add to Build'}
         </button>
         <button className="btn btn-sm" onClick={onCancel}>Cancel</button>
       </div>
-      {hoveredAffix && item && (() => {
-        const hAffix = getItemAffixes(item)[hoveredAffix.idx]
-        if (!hAffix || !hasRangeValues(hAffix)) return null
-        const text = tooltipAffixText(hAffix, hoveredAffix.idx, customizations)
-        return createPortal(
-          <div className="gear-slider-tooltip" style={{ left: hoveredAffix.x + 16, top: Math.min(hoveredAffix.y - 10, window.innerHeight - 80) }}>
-            {text}
-          </div>,
-          document.body
-        )
-      })()}
     </div>
   )
 }
@@ -999,14 +1110,6 @@ function defaultTier<T extends AffixWithTier>(tiers: T[]): T | null {
 
 type PreviewLine = { text: string; label?: string; corroded?: boolean } | null
 
-function affixTypeLabel(affixType: string | undefined): string | undefined {
-  if (!affixType) return undefined
-  if (affixType === 'Base' || affixType === 'Base Affix') return 'Base Affix'
-  if (affixType === 'Legendary') return 'Legendary Affix'
-  const match = affixType.match(/^(Basic|Advanced|Ultimate)/i)
-  return match ? `${match[1]} Affix` : undefined
-}
-
 function craftAffixToLegendary(a: CraftAffix | GraftAffix): LegendaryAffix {
   const c = a as Partial<CraftAffix>
   return {
@@ -1108,6 +1211,19 @@ function ModifierSearchSelect({ pool, value, onChange, disabledExpressions }: Mo
   }, [open])
 
   const groups = useMemo(() => groupedModifiers(pool), [pool])
+  // Per-expression engine badge (Consumed / Inactive / Unconsumed / NYI), classified synchronously from
+  // the pool affix's local stat keys — so you can see what's modeled BEFORE adding the item to the build.
+  const consumed = useConsumedStatSet()
+  const universe = useConsumableUniverse()
+  const unresolved = useGearUnresolvedTexts()
+  const statusByExpr = useMemo(() => {
+    const m: Record<string, ReturnType<typeof gearModifierStatus>> = {}
+    for (const a of pool) {
+      const key = normalizeExpression(a.expression)
+      if (!(key in m)) m[key] = gearModifierStatus(a, consumed, universe, unresolved)
+    }
+    return m
+  }, [pool, consumed, universe, unresolved])
   const isDisabled = (expr: string) => !!(disabledExpressions?.has(expr) && expr !== value)
   const filteredExprs = useMemo(() => {
     if (!query.trim()) return null
@@ -1132,6 +1248,7 @@ function ModifierSearchSelect({ pool, value, onChange, disabledExpressions }: Mo
       <div className={`gear-craft-mod-trigger${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)}>
         <span className={value ? 'gear-craft-mod-value' : 'gear-craft-mod-placeholder'}>
           {value || '— modifier —'}
+          {value && <ModifierBadge status={statusByExpr[value] ?? null} />}
         </span>
         {value && (
           <span
@@ -1159,7 +1276,7 @@ function ModifierSearchSelect({ pool, value, onChange, disabledExpressions }: Mo
                       key={expr}
                       className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`}
                       onMouseDown={() => { onChange(expr); setOpen(false) }}
-                    >{expr}</div>
+                    >{expr}<ModifierBadge status={statusByExpr[expr] ?? null} /></div>
                   ))
             ) : (
               groups.map(g => {
@@ -1173,7 +1290,7 @@ function ModifierSearchSelect({ pool, value, onChange, disabledExpressions }: Mo
                         key={expr}
                         className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`}
                         onMouseDown={() => { onChange(expr); setOpen(false) }}
-                      >{expr}</div>
+                      >{expr}<ModifierBadge status={statusByExpr[expr] ?? null} /></div>
                     ))}
                   </React.Fragment>
                 )
@@ -1199,7 +1316,7 @@ interface CraftSlotRowProps {
 }
 
 function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, corrosionToggle }: CraftSlotRowProps) {
-  const [sliderHoverPos, setSliderHoverPos] = useState<{ x: number; y: number } | null>(null)
+  const sliderTip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const craftSlotId = useId()
   const rawTiers = useMemo(() => slot.expression ? tiersForModifier(pool, slot.expression) : [], [pool, slot.expression])
   const tiers = useMemo(() => sortedTiers(rawTiers), [rawTiers])
@@ -1250,10 +1367,7 @@ function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, co
       </div>
 
       {sliderAffix && sliderAffix.numeric_values.some(v => v.kind === 'range') && (
-        <div className="gear-craft-sliders"
-          onMouseMove={e => setSliderHoverPos({ x: e.clientX, y: e.clientY })}
-          onMouseLeave={() => setSliderHoverPos(null)}
-        >
+        <div className="gear-craft-sliders" {...sliderTip.triggerProps}>
           {sliderAffix.numeric_values.map((nv, valIdx) => {
             if (nv.kind !== 'range') return null
             const nvSign = nv.sign ?? ''
@@ -1290,11 +1404,12 @@ function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, co
           })}
         </div>
       )}
-      {sliderHoverPos && sliderAffix && createPortal(
-        <div className="gear-slider-tooltip" style={{ left: sliderHoverPos.x + 16, top: Math.min(sliderHoverPos.y - 10, window.innerHeight - 80) }}>
-          {reconstructAffixText(craftAffixToLegendary(sliderAffix), slot.chosenValues)}
-        </div>,
-        document.body
+      {sliderTip.open && sliderAffix && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--slider" {...sliderTip.floatingProps}>
+            {reconstructAffixText(craftAffixToLegendary(sliderAffix), slot.chosenValues)}
+          </div>
+        </FloatingPortal>
       )}
     </div>
   )
@@ -1467,7 +1582,7 @@ interface VoraxCraftSlotRowProps {
 }
 
 function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpressions }: VoraxCraftSlotRowProps) {
-  const [sliderHoverPos, setSliderHoverPos] = useState<{ x: number; y: number } | null>(null)
+  const sliderTip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const craftSlotId = useId()
 
   const handleModifierChange = (expr: string, isLeg: boolean) => {
@@ -1521,10 +1636,7 @@ function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpress
         )}
       </div>
       {sliderAffix && numericValues.some(v => v.kind === 'range') && (
-        <div className="gear-craft-sliders"
-          onMouseMove={e => setSliderHoverPos({ x: e.clientX, y: e.clientY })}
-          onMouseLeave={() => setSliderHoverPos(null)}
-        >
+        <div className="gear-craft-sliders" {...sliderTip.triggerProps}>
           {numericValues.map((nv, valIdx) => {
             if (nv.kind !== 'range') return null
             const nvSign = nv.sign ?? ''
@@ -1561,14 +1673,15 @@ function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpress
           })}
         </div>
       )}
-      {sliderHoverPos && sliderAffix && createPortal(
-        <div className="gear-slider-tooltip" style={{ left: sliderHoverPos.x + 16, top: Math.min(sliderHoverPos.y - 10, window.innerHeight - 80) }}>
-          {slot.isLegendary
-            ? reconstructAffixText(sliderAffix as LegendaryAffix, slot.chosenValues)
-            : reconstructAffixText(craftAffixToLegendary(sliderAffix as GraftAffix), slot.chosenValues)
-          }
-        </div>,
-        document.body
+      {sliderTip.open && sliderAffix && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--slider" {...sliderTip.floatingProps}>
+            {slot.isLegendary
+              ? reconstructAffixText(sliderAffix as LegendaryAffix, slot.chosenValues)
+              : reconstructAffixText(craftAffixToLegendary(sliderAffix as GraftAffix), slot.chosenValues)
+            }
+          </div>
+        </FloatingPortal>
       )}
     </div>
   )
@@ -1661,7 +1774,8 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
   if (advancedCount > 2) warnings.push(`${advancedCount}/2 Advanced mods (max 2)`)
   if (legendaryCount > 2) warnings.push(`${legendaryCount}/2 Legendary mods (max 2)`)
 
-  const handleAddToBuild = () => {
+  // Build the EquippedGearItem from current vorax state (shared by confirm + live preview).
+  const buildVoraxItem = (): EquippedGearItem => {
     const customizations: CustomizedAffix[] = []
 
     const baseAffixes: LegendaryAffix[] = baseSlots
@@ -1686,7 +1800,7 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
       affixIdx++
     }
 
-    const item: EquippedGearItem = {
+    return {
       item_id: graft.item_id,
       name: `${getVoraxDisplayName(graft)} (Vorax)`,
       required_level: 0,
@@ -1701,6 +1815,10 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
       legendary_affix_count: legendaryCount,
       craft_slot_positions: craftSlotPositions,
     }
+  }
+
+  const handleAddToBuild = () => {
+    const item = buildVoraxItem()
     if (onSaveBuildItem) {
       onSaveBuildItem(item)
     } else {
@@ -1740,6 +1858,11 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
     if (baseLines.length > 0 && explicitLines.length > 0) return [...baseLines, null, ...explicitLines]
     return [...baseLines, ...explicitLines]
   }, [baseSlots, prefixSlots, suffixSlots])
+
+  // Live damage delta for the vorax item as currently configured. Pinned to the graft's slot.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const voraxPreviewItem = useMemo((): EquippedGearItem => buildVoraxItem(), [baseSlots, prefixSlots, suffixSlots, legSourceName])
+  const voraxPreviewDeltas = useGearPreviewDeltas(voraxPreviewItem, VORAX_GRAFT_SLOTS[graft.item_id]?.[0])
 
   return (
     <div className="gear-customize-panel">
@@ -1839,7 +1962,7 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
         </div>
       )}
 
-      <ItemPreviewCard name={voraxPreviewName} lines={voraxPreviewLines} />
+      <ItemPreviewCard name={voraxPreviewName} lines={voraxPreviewLines} deltas={voraxPreviewDeltas} />
       <div className="gear-craft-actions">
         <button
           className="btn btn-sm btn-primary"
@@ -1863,17 +1986,42 @@ interface BaseItemSelectProps {
   getTooltipLines: (bi: CraftBaseItem) => string[]
 }
 
+// One base-item dropdown option + its hover tooltip via the shared primitive (cursor-anchored).
+function BaseItemOption({ bi, selected, onSelect, lines }: {
+  bi: CraftBaseItem; selected: boolean; onSelect: () => void; lines: string[]
+}) {
+  const tip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
+  return (
+    <>
+      <div
+        {...tip.triggerProps}
+        className={`gear-base-item-option${selected ? ' selected' : ''}`}
+        onMouseDown={onSelect}
+      >
+        <span className="gear-base-item-name">{bi.name}</span>
+        <span className="gear-base-item-level">Lv. {bi.required_level}</span>
+      </div>
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--base-item" {...tip.floatingProps}>
+            <div className="gear-base-item-tooltip-name">{bi.name}</div>
+            <div className="gear-base-item-tooltip-level">Required Level: {bi.required_level}</div>
+            {lines.map((line, i) => (
+              <div key={i} className="gear-base-item-tooltip-stat">{line}</div>
+            ))}
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
+
 function BaseItemSelect({ items, selected, onSelect, getTooltipLines }: BaseItemSelectProps) {
   const [open, setOpen] = useState(false)
   const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null)
-  const [tooltipState, setTooltipState] = useState<{ item: CraftBaseItem; x: number; y: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const MAX_DROPDOWN_H = 200
-
-  useEffect(() => {
-    if (!open) setTooltipState(null)
-  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -1922,33 +2070,13 @@ function BaseItemSelect({ items, selected, onSelect, getTooltipLines }: BaseItem
           style={getDropdownStyle(dropdownRect)}
         >
           {items.map(bi => (
-            <div
+            <BaseItemOption
               key={bi.name}
-              className={`gear-base-item-option${bi.name === selected?.name ? ' selected' : ''}`}
-              onMouseDown={() => { onSelect(bi); setOpen(false) }}
-              onMouseEnter={e => setTooltipState({ item: bi, x: e.clientX, y: e.clientY })}
-              onMouseMove={e => setTooltipState(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
-              onMouseLeave={() => setTooltipState(null)}
-            >
-              <span className="gear-base-item-name">{bi.name}</span>
-              <span className="gear-base-item-level">Lv. {bi.required_level}</span>
-            </div>
-          ))}
-        </div>,
-        document.body
-      )}
-      {tooltipState && createPortal(
-        <div
-          className="gear-base-item-tooltip"
-          style={{
-            left: Math.min(tooltipState.x + 16, window.innerWidth - 300),
-            top: Math.min(tooltipState.y - 10, window.innerHeight - 150),
-          }}
-        >
-          <div className="gear-base-item-tooltip-name">{tooltipState.item.name}</div>
-          <div className="gear-base-item-tooltip-level">Required Level: {tooltipState.item.required_level}</div>
-          {getTooltipLines(tooltipState.item).map((line, i) => (
-            <div key={i} className="gear-base-item-tooltip-stat">{line}</div>
+              bi={bi}
+              selected={bi.name === selected?.name}
+              onSelect={() => { onSelect(bi); setOpen(false) }}
+              lines={getTooltipLines(bi)}
+            />
           ))}
         </div>,
         document.body
@@ -1979,12 +2107,13 @@ interface CraftEditorProps {
   baseItemImplicits: Record<string, string[]>
   previewName: string | null
   previewLines: PreviewLine[] | null
+  previewDeltas?: LabeledDelta[]
   onSaveBuildItem?: (item: EquippedGearItem) => void
   corrosionType: 'none' | 'desecration' | 'mutation'
   onCorrosionTypeChange: (type: 'none' | 'desecration' | 'mutation') => void
 }
 
-function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craftBaseItems, grafts, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, onSaveBuildItem, corrosionType, onCorrosionTypeChange }: CraftEditorProps) {
+function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craftBaseItems, grafts, onSelectVorax, baseType, setBaseType, baseItem, setBaseItem, slots, setSlots, onAddToBuild, onClose, craftSearch, setCraftSearch, baseItemImplicits, previewName, previewLines, previewDeltas, onSaveBuildItem, corrosionType, onCorrosionTypeChange }: CraftEditorProps) {
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -2014,43 +2143,8 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
   }
 
   const handleAddToBuild = () => {
-    if (!baseType) return
-    const filledAffixes = slots.map(s => s.affix).filter((a): a is CraftAffix => a !== null)
-    const craftSlotPositions: number[] = slots.map((s, i) => s.affix ? i : -1).filter(i => i >= 0)
-    const itemName = baseItem?.name ?? baseType.name
-    const implicitTexts = baseItemImplicits[itemName] ?? []
-    const implicitAffixes: LegendaryAffix[] = implicitTexts.map(text => ({
-      raw_text: text,
-      modifier_id: null,
-      expression: text,
-      condition: null,
-      affix_kind: 'implicit' as const,
-      numeric_values: [],
-      affix_type: 'Implicit',
-    }))
-    const implicitCount = implicitAffixes.length
-    const customizations: CustomizedAffix[] = []
-    let affixIdx = implicitCount
-    for (const s of slots) {
-      if (!s.affix) continue
-      if (Object.keys(s.chosenValues).length > 0) {
-        customizations.push({ affix_index: affixIdx, chosen_values: s.chosenValues, chosen_placeholder_key: null })
-      }
-      affixIdx++
-    }
-    const builtItem: EquippedGearItem = {
-      item_id: itemName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
-      name: `${itemName} (Crafted)`,
-      required_level: baseItem?.required_level ?? 0,
-      affixes: [...implicitAffixes, ...filledAffixes.map(craftAffixToLegendary)],
-      customizations,
-      slot: null,
-      base_type: itemName,
-      is_crafted: true,
-      implicit_count: implicitCount,
-      craft_slot_positions: craftSlotPositions,
-      corrosion_type: corrosionType !== 'none' ? corrosionType : undefined,
-    }
+    const builtItem = makeCraftedItem(slots, baseType, baseItem, corrosionType, baseItemImplicits)
+    if (!builtItem) return
     if (onSaveBuildItem) {
       onSaveBuildItem(builtItem)
     } else {
@@ -2307,9 +2401,10 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
           )
         })}
       </div>
-      <ItemPreviewCard name={previewName} lines={previewLines} />
+      <ItemPreviewCard name={previewName} lines={previewLines} deltas={previewDeltas} />
       <div className="gear-craft-actions">
-        <button className="btn btn-sm btn-primary" onClick={handleAddToBuild} disabled={slots.every(s => !s.affix)}>
+        {/* Allow white items: only a base is required, not any affix (0-stat bases are valid for testing). */}
+        <button className="btn btn-sm btn-primary" onClick={handleAddToBuild} disabled={!baseType}>
           {onSaveBuildItem ? 'Save Changes' : 'Add to Build'}
         </button>
         <button className="btn btn-sm" onClick={onClose}>Cancel</button>
@@ -2318,12 +2413,121 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
   )
 }
 
+// ── Item builders (single source of truth, shared by confirm handlers and the live preview) ────
+
+// Build the EquippedGearItem for a craft-panel state. Mirrors the saved item exactly so the live
+// preview prices what will actually be added. Returns null until a base type is chosen.
+function makeCraftedItem(
+  slots: CraftSlotState[], baseType: CraftBaseType | null, baseItem: CraftBaseItem | null,
+  corrosionType: 'none' | 'desecration' | 'mutation', baseItemImplicits: Record<string, string[]>,
+): EquippedGearItem | null {
+  if (!baseType) return null
+  const filledAffixes = slots.map(s => s.affix).filter((a): a is CraftAffix => a !== null)
+  const craftSlotPositions: number[] = slots.map((s, i) => s.affix ? i : -1).filter(i => i >= 0)
+  const itemName = baseItem?.name ?? baseType.name
+  const implicitTexts = baseItemImplicits[itemName] ?? []
+  const implicitAffixes: LegendaryAffix[] = implicitTexts.map(text => ({
+    raw_text: text, modifier_id: null, expression: text, condition: null,
+    affix_kind: 'implicit' as const, numeric_values: [], affix_type: 'Implicit',
+  }))
+  const implicitCount = implicitAffixes.length
+  const customizations: CustomizedAffix[] = []
+  let affixIdx = implicitCount
+  for (const s of slots) {
+    if (!s.affix) continue
+    if (Object.keys(s.chosenValues).length > 0) {
+      customizations.push({ affix_index: affixIdx, chosen_values: s.chosenValues, chosen_placeholder_key: null })
+    }
+    affixIdx++
+  }
+  return {
+    item_id: itemName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
+    name: `${itemName} (Crafted)`,
+    required_level: baseItem?.required_level ?? 0,
+    affixes: [...implicitAffixes, ...filledAffixes.map(craftAffixToLegendary)],
+    customizations,
+    slot: null,
+    base_type: itemName,
+    is_crafted: true,
+    implicit_count: implicitCount,
+    craft_slot_positions: craftSlotPositions,
+    corrosion_type: corrosionType !== 'none' ? corrosionType : undefined,
+  }
+}
+
+// Build the EquippedGearItem for a legendary catalog item customized in the panel (corrosion,
+// random affixes, slider rolls). Mirrors handleAddFromCatalog so the live preview matches.
+function makeCatalogItem(
+  catalogItem: LegendaryGearItem, customizations: CustomizedAffix[],
+  corrosionType: 'none' | 'desecration' | 'mutation', corrodedExplicitIndices: number[],
+  selectedRandomAffixes: Record<number, string>,
+  corrosionBaseAffixes: Array<LegendaryAffix & { modifier_text: string }>, mutationAffixText: string | null,
+): EquippedGearItem {
+  const baseAffixes = getItemAffixes(catalogItem)
+  const implCount = getItemImplicits(catalogItem).length
+  const affixes = [...baseAffixes]
+  if (corrodedExplicitIndices.length > 0 && catalogItem.variants.corroded) {
+    for (const idx of corrodedExplicitIndices) {
+      const corroded = catalogItem.variants.corroded.explicits[idx]
+      if (corroded) affixes[implCount + idx] = corroded
+    }
+  }
+  const allRandomOptions = Object.values(catalogItem.random_affixes).flat().flatMap(g => g.options)
+  for (const [explicitIdxStr, modifierId] of Object.entries(selectedRandomAffixes)) {
+    const explicitIdx = Number(explicitIdxStr)
+    const opt = allRandomOptions.find(o => o.modifier_id === modifierId)
+    if (opt) affixes[implCount + explicitIdx] = opt
+  }
+  const mutationResolvedAffix = corrosionType === 'mutation' && mutationAffixText
+    ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationAffixText) ?? null)
+    : null
+  return {
+    item_id: catalogItem.item_id,
+    name: catalogItem.name,
+    required_level: catalogItem.required_level,
+    affixes,
+    customizations,
+    slot: null,
+    base_type: catalogItem.base_type,
+    implicit_count: implCount,
+    corrosion_type: corrosionType,
+    corroded_explicit_indices: corrodedExplicitIndices,
+    mutation_affix_text: mutationAffixText,
+    mutation_resolved_affix: mutationResolvedAffix,
+    selected_random_affixes: Object.keys(selectedRandomAffixes).length ? selectedRandomAffixes : undefined,
+  }
+}
+
 // ── Item Preview Card ─────────────────────────────────────────────────────────
 
-function ItemPreviewCard({ name, lines }: { name: string | null; lines: PreviewLine[] | null }) {
+// Live damage-delta bands for the item currently being built/customized. Prices the in-progress
+// item (with its current rolls) as an equip-preview into its slot(s), so the number updates as the
+// player tweaks affixes. `previewItem` is the priced item (slot is ignored — always treated as a
+// fresh equip); `knownSlot` pins it to a specific slot (a vorax graft slot or the slot an edited
+// item already occupies), otherwise multi-slot items (rings, 1H weapons) show one band per slot.
+function useGearPreviewDeltas(
+  previewItem: EquippedGearItem | null, knownSlot?: GearSlot,
+  slotMap?: Record<string, GearSlot[]>, baseTypeToItemId?: Record<string, string>,
+): LabeledDelta[] {
+  const reqs = useMemo(
+    () => previewItem ? buildGearRequests({ ...previewItem, slot: null }, knownSlot, slotMap, baseTypeToItemId) : [],
+    [previewItem, knownSlot, slotMap, baseTypeToItemId],
+  )
+  const computed = useDamageDeltaList(reqs.length ? reqs.map(r => r.req) : null, reqs.length > 0)
+  return reqs.map((r, i) => ({ label: r.label, delta: computed[i] ?? ({ state: 'loading' } as DamageDelta) }))
+}
+
+function ItemPreviewCard({ name, lines, deltas }: { name: string | null; lines: PreviewLine[] | null; deltas?: LabeledDelta[] }) {
+  type Line = NonNullable<PreviewLine>
+  // Engine badge per preview line (resolved via the gear text resolver) so the assembled item shows
+  // Consumed/Inactive/Unconsumed/NYI before it's added to the build. Hook runs unconditionally.
+  const nonNull = (lines ?? []).filter((l): l is Line => l !== null)
+  const statuses = useTextModifierStatuses(nonNull.map(l => ({ text: l.text, source: 'gear' as const })))
+  const statusByText: Record<string, ReturnType<typeof useTextModifierStatus>> = {}
+  nonNull.forEach((l, i) => { if (statusByText[l.text] === undefined) statusByText[l.text] = statuses[i] })
+
   if (!name || !lines) return null
 
-  type Line = NonNullable<PreviewLine>
   const dividerIdx = lines.indexOf(null)
   const hasImplicitExplicitSplit = dividerIdx !== -1
   const implicitLines = hasImplicitExplicitSplit ? lines.slice(0, dividerIdx) as Line[] : []
@@ -2334,6 +2538,7 @@ function ItemPreviewCard({ name, lines }: { name: string | null; lines: PreviewL
     <div key={key} className={`gear-preview-affix${implicit ? ' gear-preview-affix--implicit' : ''}${line.corroded ? ' gear-preview-affix--corroded' : ''}`}>
       {line.text}
       {line.label && <span className="gear-affix-label">({line.label})</span>}
+      <ModifierBadge status={statusByText[line.text] ?? null} />
     </div>
   )
 
@@ -2352,6 +2557,7 @@ function ItemPreviewCard({ name, lines }: { name: string | null; lines: PreviewL
       ) : (
         allLines!.map((line, i) => renderLine(line, `${i}`))
       )}
+      {deltas && deltas.length > 0 && <TooltipContributions deltas={deltas} />}
     </div>
   )
 }
@@ -2359,8 +2565,6 @@ function ItemPreviewCard({ name, lines }: { name: string | null; lines: PreviewL
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 interface Props {
-  equippedItems: EquippedGearItem[]
-  onGearChange: (items: EquippedGearItem[]) => void
   onBack: () => void
 }
 
@@ -2373,7 +2577,9 @@ function getItemQualityClass(item: EquippedGearItem): string {
   return 'quality-unique'
 }
 
-export default function GearScreen({ equippedItems, onGearChange }: Props) {
+export default function GearScreen(_props: Props) {
+  const gear = useBuildStore(s => s.gear)
+  const setGear = useBuildStore(s => s.setGear)
   const legendaryIndex = useReferenceStore(s => s.legendaryIndex)
   const catalogRaw = useReferenceStore(s => s.legendaryCatalog)
   const craftBaseItemsRaw = useReferenceStore(s => s.craftBaseItems)
@@ -2400,6 +2606,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   const [corrodedExplicitIndices, setCorrodedExplicitIndices] = useState<number[]>([])
   const [mutationAffixText, setMutationAffixText] = useState<string | null>(null)
   const [selectedRandomAffixes, setSelectedRandomAffixes] = useState<Record<number, string>>({})
+  // Belt-blend state — the blend equipped on the belt being edited (one total), plus the catalog.
+  const [beltBlend, setBeltBlend] = useState<string | null>(null)
+  const [beltBlends, setBeltBlends] = useState<BeltBlend[]>([])
   // Craft state
   const [craftOpen, setCraftOpen] = useState(false)
   const [craftBaseType, setCraftBaseType] = useState<CraftBaseType | null>(null)
@@ -2409,9 +2618,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   const [craftCorrosionType, setCraftCorrosionType] = useState<'none' | 'desecration' | 'mutation'>('none')
   const [voraxInitialState, setVoraxInitialState] = useState<VoraxInitialState | null>(null)
   const [slotDropdown, setSlotDropdown] = useState<{ slotId: GearSlot; rect: DOMRect } | null>(null)
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOverSlot, setDragOverSlot] = useState<GearSlot | null>(null)
+  const [dragOverBuildIdx, setDragOverBuildIdx] = useState<number | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const resetCorrosion = () => {
@@ -2419,6 +2628,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     setCorrodedExplicitIndices([])
     setMutationAffixText(null)
     setSelectedRandomAffixes({})
+    setBeltBlend(null)
   }
 
   const openCraft = () => {
@@ -2452,6 +2662,15 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     searchRef.current?.focus()
   }, [])
 
+  // Belt blends are season-global; load once for the belt-blend selector in the customize panel.
+  useEffect(() => {
+    let cancelled = false
+    api.getBeltBlends()
+      .then(res => { if (!cancelled) setBeltBlends(res.blends ?? []) })
+      .catch(() => { /* selector simply shows no blends if the catalog is unavailable */ })
+    return () => { cancelled = true }
+  }, [])
+
   const catalogMap = useMemo(() => new Map(catalog.map(item => [item.item_id, item])), [catalog])
 
   const q = search.trim().toLowerCase()
@@ -2465,9 +2684,30 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }, [q, catalogIndex, catalogMap])
 
   const customizeItem: LegendaryGearItem | EquippedGearItem | null =
-    editingBuildIdx !== null ? (equippedItems[editingBuildIdx] ?? null) : selectedCatalogItem
+    editingBuildIdx !== null ? (gear[editingBuildIdx] ?? null) : selectedCatalogItem
 
   const isEditing = editingBuildIdx !== null
+
+  // Whether the item currently being created/edited is a belt — drives the belt-blend selector. Covers
+  // all three editors (Customize / Craft / Vorax) and both create + edit, so the selector shows for
+  // crafted and vorax belts too (not just legendary). Belt-ness comes from the equipped slot when
+  // editing, else the base type being crafted, else the catalog item's base type.
+  const editorTargetIsBelt = useMemo(() => {
+    if (editingBuildIdx !== null) {
+      const it = gear[editingBuildIdx]
+      return !!it && (getItemSlots(it).includes('belt') || getValidSlots(it.base_type ?? '').includes('belt'))
+    }
+    if (craftOpen) {
+      const bt = craftBaseItem?.name ?? craftBaseType?.name ?? ''
+      return getValidSlots(bt).includes('belt')
+    }
+    return !!customizeItem && getValidSlots(customizeItem.base_type ?? '').includes('belt')
+  }, [editingBuildIdx, gear, craftOpen, craftBaseItem, craftBaseType, customizeItem])
+
+  // Stamp the equipped belt blend onto a belt item at save time (craft / vorax flows). Non-belts and
+  // the no-blend case pass through unchanged.
+  const withBeltBlend = (item: EquippedGearItem): EquippedGearItem =>
+    editorTargetIsBelt ? { ...item, beltBlend } : item
 
   // The catalog LegendaryGearItem backing the currently-displayed CustomizePanel item
   const legendaryCatalogItem = useMemo((): LegendaryGearItem | null => {
@@ -2504,7 +2744,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
       ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationText) ?? null)
       : null
     if (editingBuildIdx !== null) {
-      const next = [...equippedItems]
+      const next = [...gear]
       next[editingBuildIdx] = {
         ...next[editingBuildIdx],
         ...(updatedAffixes !== null ? { affixes: updatedAffixes } : {}),
@@ -2516,7 +2756,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
           ? Object.fromEntries(Object.entries(selectedRandomAffixes).filter(([k]) => !clearRandomAffixIndices.includes(Number(k))))
           : selectedRandomAffixes,
       }
-      onGearChange(next)
+      setGear(next)
     }
   }
 
@@ -2524,9 +2764,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     const next = { ...selectedRandomAffixes, [explicitIndex]: modifierId }
     setSelectedRandomAffixes(next)
     if (editingBuildIdx !== null) {
-      const items = [...equippedItems]
+      const items = [...gear]
       items[editingBuildIdx] = { ...items[editingBuildIdx], affixes: updatedAffixes, selected_random_affixes: next }
-      onGearChange(items)
+      setGear(items)
     }
   }
 
@@ -2542,7 +2782,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }
 
   const handleSelectBuildItem = (idx: number) => {
-    const item = equippedItems[idx]
+    const item = gear[idx]
+    // Belt blend rides every editor flow (crafted / vorax / legendary), so seed it up front.
+    setBeltBlend(item.beltBlend ?? null)
     if (item.is_crafted && !item.is_vorax) {
       const bt = craftBases.find(b => b.base_items.some(bi => bi.name === item.base_type))
       if (bt) {
@@ -2583,9 +2825,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }
 
   const handleRemoveBuildItem = (idx: number) => {
-    const next = [...equippedItems]
+    const next = [...gear]
     next.splice(idx, 1)
-    onGearChange(next)
+    setGear(next)
     if (editingBuildIdx === idx) {
       setEditingBuildIdx(null)
       setCustomizations([])
@@ -2596,41 +2838,12 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
 
   const handleAddFromCatalog = () => {
     if (!selectedCatalogItem) return
-    const baseAffixes = getItemAffixes(selectedCatalogItem)
-    const implCount = getItemImplicits(selectedCatalogItem).length
-    const affixes = [...baseAffixes]
-    if (corrodedExplicitIndices.length > 0 && selectedCatalogItem.variants.corroded) {
-      for (const idx of corrodedExplicitIndices) {
-        const corroded = selectedCatalogItem.variants.corroded.explicits[idx]
-        if (corroded) affixes[implCount + idx] = corroded
-      }
-    }
-    // Apply random affix selections
-    const allRandomOptions = Object.values(selectedCatalogItem.random_affixes).flat().flatMap(g => g.options)
-    for (const [explicitIdxStr, modifierId] of Object.entries(selectedRandomAffixes)) {
-      const explicitIdx = Number(explicitIdxStr)
-      const opt = allRandomOptions.find(o => o.modifier_id === modifierId)
-      if (opt) affixes[implCount + explicitIdx] = opt
-    }
-    const mutationResolvedAffix = corrosionType === 'mutation' && mutationAffixText
-      ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationAffixText) ?? null)
-      : null
-    const newItem: EquippedGearItem = {
-      item_id: selectedCatalogItem.item_id,
-      name: selectedCatalogItem.name,
-      required_level: selectedCatalogItem.required_level,
-      affixes,
-      customizations,
-      slot: null,
-      base_type: selectedCatalogItem.base_type,
-      implicit_count: implCount,
-      corrosion_type: corrosionType,
-      corroded_explicit_indices: corrodedExplicitIndices,
-      mutation_affix_text: mutationAffixText,
-      mutation_resolved_affix: mutationResolvedAffix,
-      selected_random_affixes: Object.keys(selectedRandomAffixes).length ? selectedRandomAffixes : undefined,
-    }
-    onGearChange([...equippedItems, newItem])
+    const newItem = makeCatalogItem(
+      selectedCatalogItem, customizations, corrosionType, corrodedExplicitIndices,
+      selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText,
+    )
+    if (beltBlend) newItem.beltBlend = beltBlend
+    setGear([...gear, newItem])
     setSelectedCatalogItem(null)
     setCustomizations([])
     resetCorrosion()
@@ -2638,9 +2851,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
 
   const handleSaveBuildItem = () => {
     if (editingBuildIdx === null) return
-    const next = [...equippedItems]
-    next[editingBuildIdx] = { ...next[editingBuildIdx], customizations }
-    onGearChange(next)
+    const next = [...gear]
+    next[editingBuildIdx] = { ...next[editingBuildIdx], customizations, beltBlend }
+    setGear(next)
     setEditingBuildIdx(null)
     setCustomizations([])
     resetCorrosion()
@@ -2655,7 +2868,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }
 
   const handleSlotAssign = (slot: GearSlot, buildItemIdx: number | null) => {
-    let next = equippedItems.map((item, i) => {
+    let next = gear.map((item, i) => {
       if (buildItemIdx !== null && i === buildItemIdx) {
         const current = getItemSlots(item)
         if (current.includes(slot)) return item
@@ -2680,7 +2893,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
         })
       }
     }
-    onGearChange(next as EquippedGearItem[])
+    setGear(next as EquippedGearItem[])
     setSlotDropdown(null)
   }
 
@@ -2690,18 +2903,11 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }
 
   const getEquippedForSlot = (slotId: GearSlot): EquippedGearItem | null =>
-    equippedItems.find(item => itemHasSlot(item, slotId)) ?? null
+    gear.find(item => itemHasSlot(item, slotId)) ?? null
 
   const getEquippedIdxForSlot = (slotId: GearSlot): number =>
-    equippedItems.findIndex(item => itemHasSlot(item, slotId))
+    gear.findIndex(item => itemHasSlot(item, slotId))
 
-  const showTooltip = (item: LegendaryGearItem | EquippedGearItem, e: React.MouseEvent) =>
-    setTooltip({ item, x: e.clientX, y: e.clientY })
-
-  const moveTooltip = (e: React.MouseEvent) =>
-    setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)
-
-  const hideTooltip = () => setTooltip(null)
 
   const craftBaseSlotMap = useMemo((): Record<string, GearSlot[]> => {
     const map: Record<string, GearSlot[]> = {}
@@ -2727,9 +2933,9 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
   }, [craftBaseItems])
 
   const weapon1Is2H = useMemo((): boolean => {
-    const w1 = equippedItems.find(item => itemHasSlot(item, 'weapon1'))
+    const w1 = gear.find(item => itemHasSlot(item, 'weapon1'))
     return isTwoHandedBaseType(w1?.base_type ?? '', baseTypeToItemId)
-  }, [equippedItems, baseTypeToItemId])
+  }, [gear, baseTypeToItemId])
 
   // Maps base item name → implicit raw texts (array). Sources in priority order:
   // 1. Crawler base_items.implicits (from _craft_base_items.json)
@@ -2759,7 +2965,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
 
   const dragValidSlots = useMemo((): GearSlot[] => {
     if (dragIdx === null) return []
-    const item = equippedItems[dragIdx]
+    const item = gear[dragIdx]
     if (item?.is_vorax) return VORAX_GRAFT_SLOTS[item.item_id] ?? []
     const bt = item?.base_type
     if (!bt) return SLOT_ORDER.map(s => s.id)
@@ -2767,13 +2973,13 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     let slots = valid.length > 0 ? valid : SLOT_ORDER.map(s => s.id)
     // Block weapon2 when weapon1 has a 2H weapon (unless dragging that 2H weapon itself)
     if (weapon1Is2H) {
-      const w1 = equippedItems.find(item => itemHasSlot(item, 'weapon1'))
-      if (equippedItems[dragIdx] !== w1) {
+      const w1 = gear.find(item => itemHasSlot(item, 'weapon1'))
+      if (gear[dragIdx] !== w1) {
         slots = slots.filter(s => s !== 'weapon2')
       }
     }
     return slots
-  }, [dragIdx, equippedItems, craftBaseSlotMap, weapon1Is2H])
+  }, [dragIdx, gear, craftBaseSlotMap, weapon1Is2H])
 
   const previewName = useMemo((): string | null => {
     if (craftOpen && craftBaseType) {
@@ -2846,9 +3052,51 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     return null
   }, [craftOpen, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, customizeItem, customizations, baseItemImplicits, corrosionType, mutationAffixText, corrodedExplicitIndices, legendaryCatalogItem, selectedRandomAffixes])
 
+  // The in-progress item being priced for the live preview (craft + customize modes; vorax prices
+  // itself inside its own panel). Mirrors exactly what "Add to build" / "Save" would persist.
+  const previewItem = useMemo((): EquippedGearItem | null => {
+    if (craftOpen && selectedGraft) return null // vorax: handled in VoraxEditorPanel
+    if (craftOpen) return makeCraftedItem(craftSlots, craftBaseType, craftBaseItem, craftCorrosionType, baseItemImplicits)
+    if (customizeItem) {
+      return isLegendaryGearItem(customizeItem)
+        ? makeCatalogItem(customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText)
+        : { ...customizeItem, customizations } // editing a build item → apply pending slider rolls
+    }
+    return null
+  }, [craftOpen, selectedGraft, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, baseItemImplicits, customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText])
+
+  // The damage-delta request(s) for the live preview:
+  //   - Editing an item already PLACED in the build (incl. multi-slot like a dual-equipped ring or
+  //     same-item dual wield) → replace it IN PLACE keeping its exact slot assignment, compared
+  //     against the CURRENT build (which still holds the item's old rolls). The band is therefore
+  //     the gain from your edits. Replacing in place (not the single-slot equip-preview) is what
+  //     keeps the item's other slot from being dropped and reading as a false loss.
+  //   - A new craft/catalog item, or an unplaced build item → equip-preview (swap), multi-slot.
+  const previewReqs = useMemo((): { label: string; req: DeltaRequest }[] => {
+    if (!previewItem) return []
+    if (editingBuildIdx !== null) {
+      const orig = gear[editingBuildIdx]
+      const origSlot = orig?.slot ?? null
+      if (origSlot !== null) {
+        const edited = { ...previewItem, slot: origSlot }
+        return [{
+          label: 'Damage',
+          req: {
+            key: `gear:edit:${editingBuildIdx}:${gearSig(previewItem)}`,
+            step: s => ({ ...s, gear: s.gear.map((g, i) => i === editingBuildIdx ? edited : g) }),
+            // base omitted = current build (item with its existing rolls) → delta is the edit's gain
+          },
+        }]
+      }
+    }
+    return buildGearRequests({ ...previewItem, slot: null }, undefined, craftBaseSlotMap, baseTypeToItemId)
+  }, [previewItem, editingBuildIdx, gear, craftBaseSlotMap, baseTypeToItemId])
+
+  const previewComputed = useDamageDeltaList(previewReqs.length ? previewReqs.map(r => r.req) : null, previewReqs.length > 0)
+  const previewDeltas = previewReqs.map((r, i) => ({ label: r.label, delta: previewComputed[i] ?? ({ state: 'loading' } as DamageDelta) }))
+
   const handleDragStart = (idx: number) => {
     setDragIdx(idx)
-    setTooltip(null)
   }
 
   const handleDrop = (slotId: GearSlot) => {
@@ -2857,6 +3105,25 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
     }
     setDragIdx(null)
     setDragOverSlot(null)
+  }
+
+  // Reorder the "Items in Build" list itself: drop the dragged item before `targetIdx`. The
+  // edited item is tracked by identity so the open customize panel stays on the same item.
+  const handleReorderBuildItem = (targetIdx: number) => {
+    if (dragIdx !== null && dragIdx !== targetIdx) {
+      const editingItem = editingBuildIdx !== null ? gear[editingBuildIdx] : null
+      const next = [...gear]
+      const [moved] = next.splice(dragIdx, 1)
+      next.splice(dragIdx < targetIdx ? targetIdx - 1 : targetIdx, 0, moved)
+      setGear(next)
+      if (editingItem) {
+        const newIdx = next.indexOf(editingItem)
+        setEditingBuildIdx(newIdx === -1 ? null : newIdx)
+      }
+    }
+    setDragIdx(null)
+    setDragOverSlot(null)
+    setDragOverBuildIdx(null)
   }
 
   return (
@@ -2888,15 +3155,17 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
                 {is2HBlocked ? (
                   <span className="gear-slot-2h-label">2H</span>
                 ) : equipped ? (
-                  <button
-                    className={`gear-slot-item-name ${getItemQualityClass(equipped)}`}
-                    onClick={e => openSlotDropdown(slotDef.id, e)}
-                    onMouseEnter={e => showTooltip(equipped, e)}
-                    onMouseMove={moveTooltip}
-                    onMouseLeave={hideTooltip}
-                  >
-                    {equipped.name}
-                  </button>
+                  <GearHoverTooltip item={equipped} slot={slotDef.id} slotMap={craftBaseSlotMap} baseTypeToItemId={baseTypeToItemId}>
+                    {tp => (
+                      <button
+                        {...tp}
+                        className={`gear-slot-item-name ${getItemQualityClass(equipped)}`}
+                        onClick={e => openSlotDropdown(slotDef.id, e)}
+                      >
+                        {equipped.name}
+                      </button>
+                    )}
+                  </GearHoverTooltip>
                 ) : (
                   <button className="gear-slot-empty" onClick={e => openSlotDropdown(slotDef.id, e)}>
                     Empty
@@ -2910,31 +3179,36 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
         {/* Panel 2: Items in Build */}
         <div className="gear-build-panel">
           <div className="gear-slots-title">Items in Build</div>
-          {equippedItems.length === 0 && (
+          {gear.length === 0 && (
             <div className="gear-build-empty">No items added yet.</div>
           )}
-          {equippedItems.map((item, i) => (
+          {gear.map((item, i) => (
             <div
               key={i}
-              className={`gear-build-item${editingBuildIdx === i ? ' gear-build-item--selected' : ''}${dragIdx === i ? ' gear-build-item--dragging' : ''}`}
+              className={`gear-build-item${editingBuildIdx === i ? ' gear-build-item--selected' : ''}${dragIdx === i ? ' gear-build-item--dragging' : ''}${dragOverBuildIdx === i && dragIdx !== null && dragIdx !== i ? ' gear-build-item--reorder-over' : ''}`}
               draggable
               onDragStart={() => handleDragStart(i)}
-              onDragEnd={() => { setDragIdx(null); setDragOverSlot(null) }}
+              onDragEnd={() => { setDragIdx(null); setDragOverSlot(null); setDragOverBuildIdx(null) }}
+              onDragOver={e => { if (dragIdx !== null) { e.preventDefault(); setDragOverBuildIdx(i) } }}
+              onDragLeave={() => setDragOverBuildIdx(prev => prev === i ? null : prev)}
+              onDrop={() => handleReorderBuildItem(i)}
             >
-              <button
-                className="gear-build-item-name"
-                onClick={() => handleSelectBuildItem(i)}
-                onMouseEnter={e => showTooltip(item, e)}
-                onMouseMove={moveTooltip}
-                onMouseLeave={hideTooltip}
-              >
-                <span className={`gear-build-item-label ${getItemQualityClass(item)}`}>{item.name}</span>
-                {getItemSlots(item).map(slotId => (
-                  <span key={slotId} className="gear-build-item-slot">
-                    {SLOT_ORDER.find(s => s.id === slotId)?.label}
-                  </span>
-                ))}
-              </button>
+              <GearHoverTooltip item={item} slotMap={craftBaseSlotMap} baseTypeToItemId={baseTypeToItemId}>
+                {tp => (
+                  <button
+                    {...tp}
+                    className="gear-build-item-name"
+                    onClick={() => handleSelectBuildItem(i)}
+                  >
+                    <span className={`gear-build-item-label ${getItemQualityClass(item)}`}>{item.name}</span>
+                    {getItemSlots(item).map(slotId => (
+                      <span key={slotId} className="gear-build-item-slot">
+                        {SLOT_ORDER.find(s => s.id === slotId)?.label}
+                      </span>
+                    ))}
+                  </button>
+                )}
+              </GearHoverTooltip>
               <button
                 className="gear-slot-remove"
                 onClick={() => handleRemoveBuildItem(i)}
@@ -2946,17 +3220,20 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
 
         {/* Panel 3: Customize or Craft */}
         <div className="gear-editor-column">
+          {editorTargetIsBelt && (
+            <BeltBlendSelector beltBlends={beltBlends} beltBlend={beltBlend} onBeltBlendChange={setBeltBlend} />
+          )}
           {craftOpen && selectedGraft ? (
             <VoraxEditorPanel
               graft={selectedGraft}
               catalog={catalog}
               catalogIndex={catalogIndex}
-              onAddToBuild={item => onGearChange([...equippedItems, item])}
+              onAddToBuild={item => setGear([...gear, withBeltBlend(item)])}
               onClose={closeCraft}
               onBack={() => { setSelectedGraft(null); setVoraxInitialState(null) }}
               initialState={voraxInitialState}
               onSaveBuildItem={editingBuildIdx !== null
-                ? (item) => { const orig = equippedItems[editingBuildIdx]; onGearChange(equippedItems.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
+                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withBeltBlend({ ...item, slot: orig.slot }) : g)); setEditingBuildIdx(null) }
                 : undefined}
             />
           ) : craftOpen ? (
@@ -2973,17 +3250,18 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
               setBaseItem={setCraftBaseItem}
               slots={craftSlots}
               setSlots={setCraftSlots}
-              onAddToBuild={item => onGearChange([...equippedItems, item])}
+              onAddToBuild={item => setGear([...gear, withBeltBlend(item)])}
               onClose={closeCraft}
               craftSearch={craftSearch}
               setCraftSearch={setCraftSearch}
               baseItemImplicits={baseItemImplicits}
               previewName={previewName}
               previewLines={previewLines}
+              previewDeltas={previewDeltas}
               corrosionType={craftCorrosionType}
               onCorrosionTypeChange={setCraftCorrosionType}
               onSaveBuildItem={editingBuildIdx !== null
-                ? (item) => { const orig = equippedItems[editingBuildIdx]; onGearChange(equippedItems.map((g, i) => i === editingBuildIdx ? { ...item, slot: orig.slot } : g)); setEditingBuildIdx(null) }
+                ? (item) => { const orig = gear[editingBuildIdx]; setGear(gear.map((g, i) => i === editingBuildIdx ? withBeltBlend({ ...item, slot: orig.slot }) : g)); setEditingBuildIdx(null) }
                 : undefined}
             />
           ) : (
@@ -2997,6 +3275,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
               baseItemImplicits={baseItemImplicits}
               previewName={previewName}
               previewLines={previewLines}
+              previewDeltas={previewDeltas}
               catalogItem={legendaryCatalogItem}
               corrosionBaseAffixes={corrosionBaseAffixes}
               corrosionType={corrosionType}
@@ -3038,19 +3317,20 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
             {!loading && legendaryIndex !== null && filtered.length === 0 && <div className="gear-empty">No items found.</div>}
             {filtered.map(item => {
               const full = catalogMap.get(item.item_id)
-              return (
+              const renderRow = (tp: Record<string, unknown> | null) => (
                 <div
                   key={item.item_id}
+                  {...(tp ?? {})}
                   className={`gear-catalog-item${selectedCatalogItem?.item_id === item.item_id && editingBuildIdx === null && !craftOpen ? ' gear-catalog-item--selected' : ''}${!catalogLoaded ? ' gear-catalog-item--loading' : ''}`}
                   onClick={() => handleSelectCatalogItem(item)}
-                  onMouseEnter={e => full && showTooltip(full, e)}
-                  onMouseMove={moveTooltip}
-                  onMouseLeave={hideTooltip}
                 >
                   <span className="gear-catalog-item-name">{item.name}</span>
                   <span className="gear-catalog-item-level">Lv. {item.required_level}</span>
                 </div>
               )
+              return full
+                ? <GearHoverTooltip key={item.item_id} item={full} slotMap={craftBaseSlotMap} baseTypeToItemId={baseTypeToItemId}>{tp => renderRow(tp)}</GearHoverTooltip>
+                : renderRow(null)
             })}
           </div>
         </div>
@@ -3060,7 +3340,7 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
         <SlotDropdownPortal
           slotId={slotDropdown.slotId}
           rect={slotDropdown.rect}
-          equippedItems={equippedItems}
+          equippedItems={gear}
           currentIdx={getEquippedIdxForSlot(slotDropdown.slotId)}
           slotMap={craftBaseSlotMap}
           weapon1Is2H={weapon1Is2H}
@@ -3068,7 +3348,6 @@ export default function GearScreen({ equippedItems, onGearChange }: Props) {
           onClose={() => setSlotDropdown(null)}
         />
       )}
-      {tooltip && <GearTooltip state={tooltip} />}
     </div>
   )
 }

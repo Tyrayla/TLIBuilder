@@ -2,10 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { api, TreeSlot } from '../api/client'
 import { GROUPS, canAddTree, findShiftCandidate } from '../treeGroups'
 import SlotSidebar from '../components/SlotSidebar'
+import { useBuildStore } from '../store/buildStore'
 
 interface Props {
-  slots: (TreeSlot | null)[]
-  activeSlot: number
   treeColors: Record<string, string>
   onSelectTree: (treeName: string) => void
   onRemoveTree: (slotIndex: number) => void
@@ -34,9 +33,11 @@ function contextLabel(slots: (TreeSlot | null)[]): string {
 }
 
 export default function TreeSelectorScreen({
-  slots, activeSlot, treeColors, onSelectTree, onRemoveTree, onSlotClick,
+  treeColors, onSelectTree, onRemoveTree, onSlotClick,
   onSlotReorder, onGoToTree, onBack, onGoToSelector, onShiftUp, onPreview, previewMode = false,
 }: Props) {
+  const slots = useBuildStore(s => s.slots)
+  const activeSlot = useBuildStore(s => s.activeSlot)
   const [localColors, setLocalColors] = useState<Record<string, string>>(treeColors)
 
   useEffect(() => {

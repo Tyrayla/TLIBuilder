@@ -230,6 +230,7 @@ function SeasonsTab({ onSeasonChange }: { onSeasonChange?: () => void }) {
   const heroMemoriesFileRef = useRef<HTMLInputElement>(null)
   const memoryRevivalFileRef = useRef<HTMLInputElement>(null)
   const towerSequenceFileRef = useRef<HTMLInputElement>(null)
+  const beltBlendFileRef = useRef<HTMLInputElement>(null)
   const [seasons, setSeasons] = useState<SeasonSummary[]>([])
   const [seasonName, setSeasonName] = useState('')
   const [settingActive, setSettingActive] = useState(false)
@@ -246,6 +247,7 @@ function SeasonsTab({ onSeasonChange }: { onSeasonChange?: () => void }) {
   const [heroMemoriesImport, setHeroMemoriesImport] = useState<ImportState>(emptyImport())
   const [memoryRevivalImport, setMemoryRevivalImport] = useState<ImportState>(emptyImport())
   const [towerSequenceImport, setTowerSequenceImport] = useState<ImportState>(emptyImport())
+  const [beltBlendImport, setBeltBlendImport] = useState<ImportState>(emptyImport())
   const [talentFileNames, setTalentFileNames] = useState<string[]>([])
   const [legendaryFileNames, setLegendaryFileNames] = useState<string[]>([])
   const [skillsFileNames, setSkillsFileNames] = useState<string[]>([])
@@ -532,6 +534,7 @@ function SeasonsTab({ onSeasonChange }: { onSeasonChange?: () => void }) {
                     {s.hero_memories_count != null && <span>{s.hero_memories_count} hero memories</span>}
                     {s.memory_revival_count != null && <span>{s.memory_revival_count} revival affixes</span>}
                     {s.tower_sequence_count != null && <span>{s.tower_sequence_count} tower entries</span>}
+                    {s.belt_blend_count != null && <span>{s.belt_blend_count} belt blends</span>}
                   </div>
                 </div>
                 {!s.is_active && (
@@ -710,6 +713,23 @@ function SeasonsTab({ onSeasonChange }: { onSeasonChange?: () => void }) {
         )}
         {graftImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{graftImport.err}</div>}
         {graftImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{graftImport.result}</div>}
+      </CategoryCard>
+
+      <CategoryCard label="Belt Blends" description="Blending Ritual belt talents + glossary (single file)" enabled>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            {singletonFileName['belt_blends'] || 'Choose File'}
+            <input ref={beltBlendFileRef} type="file" accept=".json" style={{ display: 'none' }}
+              onChange={e => setSingletonFileName(p => ({ ...p, belt_blends: e.target.files?.[0]?.name ?? '' }))} />
+          </label>
+          <button className="btn btn-primary btn-sm"
+            onClick={() => handleImportSingleton('belt_blends', beltBlendFileRef, setBeltBlendImport, api.importCrawlerBeltBlends, 'belt blend(s)')}
+            disabled={beltBlendImport.importing || !seasonName.trim()}>
+            {beltBlendImport.importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        {beltBlendImport.err && <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{beltBlendImport.err}</div>}
+        {beltBlendImport.result && <div style={{ color: '#4caf50', fontSize: 12, marginTop: 6 }}>{beltBlendImport.result}</div>}
       </CategoryCard>
 
       <CategoryCard label="Destiny" description="Fate items installable in talent nodes (single file)" enabled>
