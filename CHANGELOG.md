@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.1] - 2026-06-13
+
+### Fixed
+- Updating the app now refreshes the bundled game data. Previously an update kept the data copied at first install, so after updating the calculator could fail — skills showed no damage and every stat appeared inactive. Your saved builds are preserved.
+
 ## [0.5.0] - 2026-06-13
 
 ### Damage calculation
