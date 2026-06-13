@@ -4,16 +4,17 @@
 // See docs/TOOLTIP_REVAMP_HANDOFF.md §5.
 import React from 'react'
 import { TooltipContributions } from './TooltipContributions'
-import type { DamageDelta } from './useDamageDelta'
+import type { DamageDelta, LabeledDelta } from './useDamageDelta'
 
 export interface TooltipShellProps {
   title?: string
   subtitle?: string         // e.g. "Base: Sacred Robe" / "Required Level: 80"
   delta?: DamageDelta       // OMIT for informational tooltips (stat breakdown, skill desc)
+  deltas?: LabeledDelta[]   // multiple labeled bands (e.g. a pact node + its spirit total)
   children: React.ReactNode // the layer-3 content body
 }
 
-export function TooltipShell({ title, subtitle, delta, children }: TooltipShellProps) {
+export function TooltipShell({ title, subtitle, delta, deltas, children }: TooltipShellProps) {
   const hasHeader = Boolean(title || subtitle)
   return (
     <>
@@ -22,7 +23,7 @@ export function TooltipShell({ title, subtitle, delta, children }: TooltipShellP
       {hasHeader && <div className="tooltip-divider" />}
       <div className="tooltip-body">{children}</div>
       {/* Contributions live at the bottom and grow downward. */}
-      <TooltipContributions delta={delta} />
+      <TooltipContributions delta={delta} deltas={deltas} />
     </>
   )
 }

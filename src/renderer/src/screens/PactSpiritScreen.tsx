@@ -3,7 +3,7 @@ import { FloatingPortal } from '@floating-ui/react'
 import { PactSpirit, PactSpiritSlot } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
-import { useDamageDelta } from '../components/tooltip/useDamageDelta'
+import { useDamageDeltaList } from '../components/tooltip/useDamageDelta'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { SpiritTooltipBody } from '../components/tooltip/bodies/SpiritTooltipBody'
 
@@ -11,25 +11,35 @@ interface Props {
   onBack: () => void
 }
 
-// A single pact-spirit node plus its hover tooltip, routed through the shared floating
-// primitive. Element-anchored above the node (Floating UI handles flip/shift, replacing the
-// old manual translate + useLayoutEffect clamping). The delta is the whole spirit's
-// contribution (spirits are selected as a unit, so per-node pricing isn't meaningful).
+// A single pact-spirit node plus its hover tooltip, routed through the shared floating primitive.
+// Two damage deltas are priced at once: "This node" (remove just this node's effect line(s) from the
+// spirit) and "Spirit total" (remove the whole spirit). Spirits are still selected as a unit, but the
+// per-node number shows what each node is worth within the spirit.
 function PactNode({ ring, lines, spiritSlot }: { ring: string; lines: string[]; spiritSlot: number }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'top' })
-  const delta = useDamageDelta(
+  const deltas = useDamageDeltaList(
     tip.open
-      ? { key: `spirit:rm:${spiritSlot}`, step: s => ({ ...s, pactSpirits: s.pactSpirits.map((p, i) => i === spiritSlot ? null : p) as typeof s.pactSpirits }) }
+      ? [
+          { key: `spirit:node:${spiritSlot}:${lines.join('|')}`,
+            step: s => ({ ...s, spiritEffectExclude: lines }) },
+          { key: `spirit:rm:${spiritSlot}`,
+            step: s => ({ ...s, pactSpirits: s.pactSpirits.map((p, i) => i === spiritSlot ? null : p) as typeof s.pactSpirits }) },
+        ]
       : null,
     tip.open,
   )
+  const loading = { state: 'loading' as const }
+  const banded = [
+    { label: 'This node', delta: deltas[0] ?? loading },
+    { label: 'Spirit total', delta: deltas[1] ?? loading },
+  ]
   return (
     <>
       <div className={`pact-node node-${ring}`} {...tip.triggerProps} />
       {tip.open && lines.length > 0 && (
         <FloatingPortal>
           <div className="tooltip tooltip--spirit" {...tip.floatingProps}>
-            <TooltipShell delta={delta}>
+            <TooltipShell deltas={banded}>
               <SpiritTooltipBody lines={lines} />
             </TooltipShell>
           </div>

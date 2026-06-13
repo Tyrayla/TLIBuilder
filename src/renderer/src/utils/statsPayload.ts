@@ -59,6 +59,18 @@ export function countUniqueWeaponTypes(gear: EquippedGearItem[]): number {
  * Shared by the background recalc (useBuildCalculation) and the damage-delta hook so both
  * produce an identical payload — the delta hook then applies a hypothetical change on top.
  */
+// Remove ONE occurrence of each listed line from `list` (used to price a single pact-spirit node by
+// excluding just its effect line(s); one-occurrence removal so duplicate effect text on other nodes stays).
+function _excludeOnce(list: string[], exclude?: string[]): string[] {
+  if (!exclude || exclude.length === 0) return list
+  const remaining = [...exclude]
+  return list.filter(line => {
+    const i = remaining.indexOf(line)
+    if (i >= 0) { remaining.splice(i, 1); return false }
+    return true
+  })
+}
+
 export function buildEngineStatsPayload(s: BuildState) {
   return {
     slots: s.slots,
@@ -72,7 +84,7 @@ export function buildEngineStatsPayload(s: BuildState) {
     gear: buildGearPayload(s.gear),
     character: buildCharacterContributions(s.gear, s.characterLevel, s.hasPrism),
     memory_effects: buildMemoryEffects(s.heroMemories),
-    spirit_effects: buildSpiritEffects(s.pactSpirits, s.allSpirits),
+    spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits), s.spiritEffectExclude),
     main_skill: s.mainSkill ?? null,
     skills: s.skills.map(sk => ({ slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1 })),
     // The main skill (slot 1) carries the supports that scale its damage. The engine resolves their

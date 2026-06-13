@@ -66,6 +66,9 @@ interface BuildStore {
   hasPrism: boolean
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
+  // Transient: never set on the real store — only by damage-delta `step`/`base` transforms to price a
+  // single pact-spirit node (one occurrence of each listed effect line is removed before payload build).
+  spiritEffectExclude?: string[]
 
   // Individual setters for stats-relevant fields (bump buildVersion)
   setSlots: (slots: (TreeSlot | null)[]) => void
