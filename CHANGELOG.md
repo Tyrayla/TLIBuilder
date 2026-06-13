@@ -1,45 +1,36 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.0] - 2026-06-13
 
-### New Features
-- **Player Stats screen** — dedicated Stats tab replacing the old Calcs debug view.
-  - Two-pane layout: offense (left) and defense (right), both scaling proportionally with window size.
-  - **Offense** — per-skill hit damage breakdown table with per-damage-type columns (Physical, Fire, Cold, Lightning, Erosion): Added Min/Max flat damage, Total Increased (generic only in All Types; dtype-specific in each column), Total Additional, per-form Hit Range and DPS.
-  - Type Contribution summary row shows each damage type's share of total DPS.
-  - Hit forms show their proc chance when < 100% (e.g. Sweep Slash 80% / Steep Strike 20%).
-  - **Critical Strikes** — expandable breakdown: click Crit Chance to reveal Weapon Base Crit Rating, Gear Increased Crit Rating, Other Flat CSR, and Increased — each hidden until expanded, each clickable for source attribution.
-  - **Defense** — Life, Mana, Energy Shield, Resistances, Armour, Evasion panels with flat/increased/additional sub-rows.
-  - **Interactive source attribution** — click any value cell to see a source popup listing every item, talent node, and pact spirit contributing to that stat. Hovering a gear item in the popup shows the full item tooltip.
-  - Tooltips (source popup and item tooltip) clamp to window bounds — flip to opposite side of cursor when near an edge.
+### Damage calculation
+- Per-skill damage engine for **Berserking Blade, Focused Slash, Moon Strike, and Chain Lightning**, plus their **Magnificent/Noble (canvas) supports**. In-app badges mark every modifier as Consumed (working), Inactive (modeled, not for your skill), Unconsumed (not wired), or NYI, so anything not yet modeled is obvious at a glance.
+- Verified against in-game dummy testing (2-minute Recount average), generally within ~3%; the remaining gap is mostly buff/debuff uptime, crit variance, and wide roll ranges.
+- Mechanics modeled: Steep Strike / Sweep Slash, crit and crit damage, double/triple/quadruple damage, shotgun (Chain Lightning: Merge / Web), Chain Lightning: Augmentation, Lucky, Willpower, Fervor, main-stat damage bonus, and blessings (Focus/Agility/Tenacity).
+- Damage-type conversion (e.g. Lightning to Cold); Elemental split into Fire/Cold/Lightning.
+- Enemy mitigation: armor plus elemental/erosion resistance and all penetration types (can go negative to amplify), plus enemy debuffs (Numbed, Frail, Infiltration, Paralysis) shown in a target enemy-stats panel.
+- Dual-wielding base effects.
 
-### Improvements
-- **Proportional window scaling** — all multi-column screens (Stats, Gear, Skills) now use flex-ratio layout so every column scales uniformly when the window is resized; previously only the rightmost column would grow.
-- **Custom Mods panel** — freeform modifier text input in the Calcs screen feeds the full stat engine as if the modifier were on gear.
-  - Supports any stat in the system: flat values, percentage increases, range expressions (`50-80 physical damage`), and multi-stat lines.
-  - "increased / reduced / more / less" verbs are stripped before matching so natural game text resolves correctly.
-  - Live preview via `/api/resolve-mod` shows ✓ / ✗ resolve status as you type.
-  - Per-mod status rows show the resolved stat display name or flag unrecognized mods.
-  - Custom mods persist in the build save and are labeled "Custom Config" in the stats breakdown.
+### Skills and supports
+- Enable/disable toggles on every active/passive skill and each individual support, saved with the build.
+- Each support is calculated local to its skill slot, so separate setups don't cross-contaminate.
+- Support Rank (1-5) and Tier controls, roll sliders, and explicit per-line rolls.
 
-### Improvements
-- **CSR stat taxonomy** — Critical Strike Rating stats now correctly separate weapon-sourced flat CSR from general flat CSR, mirroring how gear physical damage and ring flat adds are separated.
-  - New stat `weapon_crit_rating_flat`: flat CSR from weapon implicits/explicits, scaled exclusively by `attack_crit_rating_gear` and `attack_crit_rating_mh`.
-  - `attack_crit_rating_flat` remains for talent/ring/non-weapon flat CSR.
-  - `attack_crit_rating_gear` and `attack_crit_rating_mh` are now strictly % multipliers on the weapon's own CSR pool, not summed with flat sources.
-- **CSR display names corrected** — all Critical Strike Rating stats now use full in-game text:
-  - `attack_crit_rating_gear` → "Attack Critical Strike Rating for this Gear"
-  - `attack_crit_rating_mh` → "Critical Strike Rating for the Main-Hand Weapon"
-  - Spirit Magi entries → "Spirit Magi Critical Strike Rating (Flat)"
-- **DPS display** — Calcs screen now shows only **DPS vs Target Dummy**; raw total DPS is still computed but not displayed since enemy values outside the target dummy are unknown.
+### Core talents and belt blends
+- Core talents modeled and applied, shown on every tree with badges and a preview.
+- Belt blend (Blending Ritual) selection via a searchable picker.
 
-### Bug Fixes
-- Fixed weapon CSR implicit (`N Critical Strike Rating`) always producing 0% crit chance — the frontend was sending it to `attack_crit_rating_gear` (a % multiplier) instead of `weapon_crit_rating_flat`; since `weapon_crit_rating_flat` was 0, the product was always 0.
-- Fixed flat `+(#) maximum life / mana / energy shield` affixes on gear not contributing to the defense panel — fuzzy matcher resolved them to derived stat keys (`max_life`, `max_mana`, `max_energy_shield`) instead of the raw input keys (`max_life_flat`, `max_mana_flat`, `energy_shield_gear_flat`); added explicit overrides.
-- Fixed CSR display names using abbreviated "Crit Rating" instead of the in-game wording "Critical Strike Rating".
-- Fixed weapon base CSR implicit (`500 Critical Strike Rating`) incorrectly mapping to `attack_crit_rating_gear` (a % increase) instead of a flat CSR stat — it now maps to `weapon_crit_rating_flat`.
-- Fixed `attack_crit_rating_gear` being summed into the flat CSR pool; it is a % multiplier on weapon CSR only and must not participate in the flat additive sum.
-- Fixed expression override `+(#) % attack critical strike rating` capturing the general attack CSR increase and mapping it to the gear-specific stat — the override now requires the "for this gear" suffix so the general form falls through to fuzzy matching and resolves to `attack_crit_rating_inc`.
+### Gear and crafting
+- Gear modifiers are fully resolved and surfaced (nothing silently dropped), with engine badges shown in the affix and belt-blend pickers and the item preview before you add the item.
+- Damage-delta previews on gear, multi-slot swaps, list reordering, and a live customization preview.
+- Craft no-affix white items; suffix affix tiers; per-item Energy Shield / Armor / Evasion scaling.
+
+### Stats, badges, and quality of life
+- New interactive Player Stats screen with clickable source breakdowns.
+- Derived stats (total Life, Energy Shield, Mana, and more) and a dedicated Energy Shield panel.
+- Modifier badges app-wide with a clear four-state taxonomy (Consumed / Inactive / Unconsumed / NYI).
+- DPS Delta previews on mods, nodes, and gear.
+- Conditionals manager (low life, enemy debuffs, life %, proximity, and more), settable and auto-derived, with a tidier layout.
+- Custom Mods panel; pact-spirit per-node and spirit-total DPS on hover; shared tooltips and broad UI revamps.
 
 ---
 
