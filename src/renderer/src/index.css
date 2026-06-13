@@ -42,6 +42,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .btn-primary   { background: var(--bg-btn); color: var(--fg); }
 .btn-secondary { background: #1a1a30; border: 1px solid #2a2a4a; color: #888; }
 .btn-danger    { background: #3a1a1a; color: var(--err); }
+.btn-success   { background: #16301a; border: 1px solid #2a4a2a; color: #6bd06b; }
 .btn-sm        { padding: 5px 12px; font-size: 12px; }
 
 .nyi-tag {
@@ -1169,6 +1170,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex: 1;
   min-height: 0;
 }
+.cond-grid::-webkit-scrollbar { width: 5px; }
+.cond-grid::-webkit-scrollbar-track { background: transparent; }
+.cond-grid::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+.cond-grid::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
 
 .cond-masonry {
   columns: 230px;
@@ -3530,6 +3535,15 @@ span.gear-affix-label {
 .skill-support-slot-row:hover { background: #12122a; }
 .skill-support-slot-row.active { background: #1a1a44; border-color: var(--gold); }
 .skill-support-slot-row.occupied { border-color: #2a2a55; }
+
+.skill-support-toggle {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  accent-color: #4caf50;   /* green when enabled */
+  cursor: pointer;
+}
+.skill-support-toggle-spacer { width: 13px; flex-shrink: 0; }
 
 .skill-support-cost-badge {
   font-size: 9px;

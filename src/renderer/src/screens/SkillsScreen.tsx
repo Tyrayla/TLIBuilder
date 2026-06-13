@@ -532,7 +532,7 @@ export default function SkillsScreen(_props: Props) {
               )}
             </SkillHoverTooltip>
             <button
-              className={`btn btn-sm ${focusedEquipped.enabled === false ? 'btn-danger' : 'btn-secondary'}`}
+              className={`btn btn-sm ${focusedEquipped.enabled === false ? 'btn-danger' : 'btn-success'}`}
               title="Enable/disable this skill (and its supports) in the calculation"
               onClick={() => toggleSkillEnabled(focusedSlot)}
             >{focusedEquipped.enabled === false ? 'Disabled' : 'Enabled'}</button>
@@ -567,6 +567,16 @@ export default function SkillsScreen(_props: Props) {
                 className={`skill-support-slot-row${isActiveSup ? ' active' : ''}${sup ? ' occupied' : ''}`}
                 onClick={() => selectSupportSlot(idx)}
               >
+                {sup ? (
+                  <input
+                    type="checkbox"
+                    className="skill-support-toggle"
+                    checked={sup.enabled !== false}
+                    title={sup.enabled === false ? 'Disabled — click to enable' : 'Enabled — click to disable'}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => { e.stopPropagation(); toggleSupportEnabled(idx) }}
+                  />
+                ) : <span className="skill-support-toggle-spacer" />}
                 <span className={`skill-support-cost-badge${sup ? '' : ' dim'}`}>{cost}</span>
                 <span className="skill-support-slot-num">{idx}</span>
                 {sup ? (
@@ -618,7 +628,7 @@ export default function SkillsScreen(_props: Props) {
               <span className="skill-support-current-label">Equipped:</span>
               <span className="skill-support-current-name">{existingSupport.name}</span>
               <button
-                className={`btn btn-sm ${existingSupport.enabled === false ? 'btn-danger' : 'btn-secondary'}`}
+                className={`btn btn-sm ${existingSupport.enabled === false ? 'btn-danger' : 'btn-success'}`}
                 style={{ marginLeft: 6 }}
                 title="Enable/disable this support in the calculation"
                 onClick={() => toggleSupportEnabled(focusedSupportIdx)}
