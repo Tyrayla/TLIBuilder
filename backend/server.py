@@ -1729,6 +1729,11 @@ def _get_gear_candidates() -> list:
         from models.stat_meta import STAT_META
         _gear_candidates = []
         for stat, meta in STAT_META.items():
+            # Derived stats (Strength/Armor/Max Life totals, …) are computed OUTPUTS, never a resolution
+            # target — excluding them means "+N Strength" can only ever resolve to strength_flat, removing
+            # the display-name collision with the derived stat at the source (not just via a tie-break).
+            if meta.modifier_type == "derived":
+                continue
             # Drop pool-qualifier words from the candidate's display words too, so a name like
             # "Additional Minion Damage" matches on {minion, damage} and the pool is decided solely by
             # modifier_type (kept separately) — never by the word "additional" appearing in the name.
