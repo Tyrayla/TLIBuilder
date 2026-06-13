@@ -204,7 +204,7 @@ export default function PactSpiritScreen(_props: Props) {
     for (let col = 0; col < NODE_COLS; col++) {
       const slot = reordered[col]
       const tooltipLines = slot
-        ? (slot.ring === 'outer' && rankData ? rankData.modifiers : [slot.effect])
+        ? (slot.ring === 'outer' && rankData ? rankData.modifiers : slot.effect)
         : []
 
       gridItems.push(

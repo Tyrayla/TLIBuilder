@@ -7,13 +7,18 @@ def import_crawler_spirit(data: dict) -> dict:
     name = data.get("name", "")
     item_id = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
-    # Normalize ring field: if not a known ring name, default to "outer"
+    # Normalize each slot: ring → a known ring (default "outer"); effect → ALWAYS a list of atomic stat
+    # lines. The reworked crawler emits effect as a list (one stat per entry); coerce a legacy string into
+    # a single-element list so the season format is uniform and consumers can always iterate it.
     slots = []
     for s in (data.get("slots") or []):
         ring = s.get("ring", "")
+        eff = s.get("effect", [])
+        if isinstance(eff, str):
+            eff = [eff] if eff.strip() else []
         slots.append({
             "name": s.get("name", ""),
-            "effect": s.get("effect", ""),
+            "effect": eff,
             "ring": ring if ring in _VALID_RINGS else "outer",
         })
 

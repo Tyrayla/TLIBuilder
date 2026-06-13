@@ -692,7 +692,7 @@ export interface HeroTrait {
 
 export interface PactSpiritSlot {
   name: string
-  effect: string
+  effect: string[]   // atomic stat lines (one stat per entry) — see pact_spirit_importer normalization
   ring: 'inner' | 'mid' | 'outer'
 }
 
@@ -727,9 +727,10 @@ export function buildSpiritEffects(
     if (!sel) continue
     const spirit = allSpirits.find(s => s.item_id === sel.itemId)
     if (!spirit) continue
-    // Inner/mid effects are static; outer effects scale with rank and live in rankData.modifiers
+    // Inner/mid effects are static; outer effects scale with rank and live in rankData.modifiers.
+    // slot.effect is a list of atomic stat lines — push each.
     for (const slot of spirit.slots) {
-      if (slot.ring !== 'outer') effects.push(slot.effect)
+      if (slot.ring !== 'outer') effects.push(...slot.effect)
     }
     const rankData = spirit.upgrade_ranks.find(r => r.rank === sel.rank)
     if (rankData) effects.push(...rankData.modifiers)
