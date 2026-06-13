@@ -29,16 +29,19 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
         key="strength",
         flat_keys=["strength_flat", "all_stats_flat"],
         inc_keys=["strength_inc", "all_stats_inc"],
+        add_pools=[["strength_additional"]],
     ),
     DerivedStat(
         key="dexterity",
         flat_keys=["dexterity_flat", "all_stats_flat"],
         inc_keys=["dexterity_inc", "all_stats_inc"],
+        add_pools=[["dexterity_additional"]],
     ),
     DerivedStat(
         key="intelligence",
         flat_keys=["intelligence_flat", "all_stats_flat"],
         inc_keys=["intelligence_inc", "all_stats_inc"],
+        add_pools=[["intelligence_additional"]],
     ),
 
     # ── Life / Mana / Energy Shield ────────────────────────────────────────────

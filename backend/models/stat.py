@@ -16,10 +16,13 @@ class Stat(Enum):
     # ── Attributes ───────────────────────────────────────────────────────────
     STRENGTH_FLAT = "strength_flat"
     STRENGTH_INC = "strength_inc"
+    STRENGTH_ADDITIONAL = "strength_additional"
     DEXTERITY_FLAT = "dexterity_flat"
     DEXTERITY_INC = "dexterity_inc"
+    DEXTERITY_ADDITIONAL = "dexterity_additional"
     INTELLIGENCE_FLAT = "intelligence_flat"
     INTELLIGENCE_INC = "intelligence_inc"
+    INTELLIGENCE_ADDITIONAL = "intelligence_additional"
     ALL_STATS_FLAT = "all_stats_flat"
     ALL_STATS_INC = "all_stats_inc"
 
@@ -153,6 +156,7 @@ class Stat(Enum):
     SENTRY_PROJECTILE_SPEED_INC = "sentry_projectile_speed_inc"
     SENTRY_CAST_SPEED_ADDITIONAL = "sentry_cast_speed_additional"
     NON_SENTRY_SKILL_DMG_INC = "non_sentry_skill_dmg_inc"
+    NON_SENTRY_SKILL_DMG_ADDITIONAL = "non_sentry_skill_dmg_additional"
 
     # ── Spirit Magi ──────────────────────────────────────────────────────────
     SPIRIT_MAGI_INITIAL_GROWTH_FLAT = "spirit_magi_initial_growth_flat"
@@ -422,6 +426,7 @@ class Stat(Enum):
 
     # ── Other Speeds ─────────────────────────────────────────────────────────
     MOVEMENT_SPEED_INC = "movement_speed_inc"
+    MOVEMENT_SPEED_ADDITIONAL = "movement_speed_additional"
     FOCUS_SPEED_INC = "focus_speed_inc"
 
     # ── Critical Strike — Rating ─────────────────────────────────────────────
@@ -452,6 +457,7 @@ class Stat(Enum):
     # ── Double Damage / Knockback ─────────────────────────────────────────────
     KNOCKBACK_CHANCE = "knockback_chance"
     KNOCKBACK_DISTANCE_INC = "knockback_distance_inc"
+    KNOCKBACK_DISTANCE_ADDITIONAL = "knockback_distance_additional"
 
     # ── Life ─────────────────────────────────────────────────────────────────
     MAX_LIFE_FLAT = "max_life_flat"
@@ -589,6 +595,7 @@ class Stat(Enum):
     FOCUS_BLESSING_DURATION_INC = "focus_blessing_duration_inc"
     TENACITY_BLESSING_DURATION_INC = "tenacity_blessing_duration_inc"
     BLESSING_DURATION_INC = "blessing_duration_inc"
+    BLESSING_DURATION_ADDITIONAL = "blessing_duration_additional"
     FOCUS_DMG_ENHANCEMENT_ADDITIONAL = "focus_dmg_enhancement_additional"
     AILMENT_DMG_ENHANCEMENT_ADDITIONAL = "ailment_dmg_enhancement_additional"
     WARCRY_MIN_TARGETS_FLAT = "warcry_min_targets_flat"

@@ -38,8 +38,8 @@ _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
     "frail_effect_inc", "fire_infiltration_effect_inc", "cold_infiltration_effect_inc",
     "lightning_infiltration_effect_inc",
     "cast_speed_to_spell_burst_charge", "proj_speed_to_proj_dmg", "projectile_speed_inc",
-    "movement_speed_inc", "movement_bonus_to_attack_speed", "movement_bonus_to_cast_speed",
-    "movement_bonus_to_cdr",
+    "movement_speed_inc", "movement_speed_additional",
+    "movement_bonus_to_attack_speed", "movement_bonus_to_cast_speed", "movement_bonus_to_cdr",
 })
 
 _ALL_TAGS = [

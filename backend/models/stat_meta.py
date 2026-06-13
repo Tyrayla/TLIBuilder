@@ -77,6 +77,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="attribute",     stacking_rule="additive",
         ui_priority=5,            source_types=_TB,
     ),
+    Stat.STRENGTH_ADDITIONAL: StatMeta(
+        "Strength", "Attributes", "additional", "%",
+        subgroup="attribute",     stacking_rule="additive",
+        ui_priority=5,            source_types=_TB,
+    ),
     Stat.DEXTERITY_FLAT: StatMeta(
         "Dexterity", "Attributes", "base_stat",
         subgroup="attribute",     pipeline_stage="attribute",
@@ -88,6 +93,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="attribute",     stacking_rule="additive",
         ui_priority=5,            source_types=_TB,
     ),
+    Stat.DEXTERITY_ADDITIONAL: StatMeta(
+        "Dexterity", "Attributes", "additional", "%",
+        subgroup="attribute",     stacking_rule="additive",
+        ui_priority=5,            source_types=_TB,
+    ),
     Stat.INTELLIGENCE_FLAT: StatMeta(
         "Intelligence", "Attributes", "base_stat",
         subgroup="attribute",     pipeline_stage="attribute",
@@ -96,6 +106,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.INTELLIGENCE_INC: StatMeta(
         "Intelligence", "Attributes", "increased", "%",
+        subgroup="attribute",     stacking_rule="additive",
+        ui_priority=5,            source_types=_TB,
+    ),
+    Stat.INTELLIGENCE_ADDITIONAL: StatMeta(
+        "Intelligence", "Attributes", "additional", "%",
         subgroup="attribute",     stacking_rule="additive",
         ui_priority=5,            source_types=_TB,
     ),
@@ -707,6 +722,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.NON_SENTRY_SKILL_DMG_INC: StatMeta(
         "non-Sentry Active Skill Damage", "Sentry", "increased", "%",
+        subgroup="sentry_mechanics",   stacking_rule="additive",
+        ui_priority=74,                source_types=_T,
+    ),
+    Stat.NON_SENTRY_SKILL_DMG_ADDITIONAL: StatMeta(
+        "non-Sentry Active Skill Damage", "Sentry", "additional", "%",
         subgroup="sentry_mechanics",   stacking_rule="additive",
         ui_priority=74,                source_types=_T,
     ),
@@ -1760,6 +1780,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="speed",              stacking_rule="additive",
         ui_priority=61,                source_types=_T,
     ),
+    Stat.MOVEMENT_SPEED_ADDITIONAL: StatMeta(
+        "Movement Speed", "Utility", "additional", "%",
+        subgroup="speed",              stacking_rule="additive",
+        ui_priority=61,                source_types=_T,
+    ),
     Stat.FOCUS_SPEED_INC: StatMeta(
         "Focus Speed", "Utility", "increased", "%",
         subgroup="speed",              stacking_rule="additive",
@@ -1942,6 +1967,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.KNOCKBACK_DISTANCE_INC: StatMeta(
         "Knockback Distance", "Utility", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=65,                source_types=_T,
+    ),
+    Stat.KNOCKBACK_DISTANCE_ADDITIONAL: StatMeta(
+        "Knockback Distance", "Utility", "additional", "%",
         subgroup="mechanics",          stacking_rule="additive",
         ui_priority=65,                source_types=_T,
     ),
@@ -2473,6 +2503,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.BLESSING_DURATION_INC: StatMeta(
         "Blessing Duration", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=75,                source_types=_TB,
+    ),
+    Stat.BLESSING_DURATION_ADDITIONAL: StatMeta(
+        "Blessing Duration", "Buffs", "additional", "%",
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=75,                source_types=_TB,
     ),

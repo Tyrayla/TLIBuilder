@@ -466,7 +466,9 @@ def aggregate(
                 label="Core · Gale", text="Gale: Projectile Speed → additional Projectile Damage", points=1))
 
     # ── Bonus propagation: Movement Speed bonus → Attack/Cast Speed / Cooldown Recovery ──
-    ms_inc = source.total("movement_speed_inc")
+    # The shared "bonus" is the total movement-speed boost = increased pool × additional pool − 1
+    # (reduces to just the increased fraction when there's no additional, so no behavior change).
+    ms_inc = (1.0 + source.total("movement_speed_inc")) * (1.0 + source.total("movement_speed_additional")) - 1.0
     if ms_inc:
         for tgt, dest in (("attack_speed", "attack_speed_inc"), ("cast_speed", "cast_speed_inc"),
                           ("cdr", "cdr_speed_inc")):
