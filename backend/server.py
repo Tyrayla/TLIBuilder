@@ -678,7 +678,7 @@ def engine_stats(req: EngineStatsRequest):
     support_behavior: dict = {}
     if req.attached_supports:
         from engine.support_resolver import resolve_support_contributions, resolve_support_behavior
-        support_contributions = resolve_support_contributions(req.attached_supports, skills_by_id)
+        support_contributions = resolve_support_contributions(req.attached_supports, skills_by_id, _translate_condition_expr)
         support_behavior = resolve_support_behavior(req.attached_supports, skills_by_id)
 
     # Resolve granted core talents (tree / slate / legendary / belt blend), deduped to count each
@@ -2182,6 +2182,12 @@ _COND_PATTERNS: list[tuple] = [
     (re.compile(r"(?:against|from)\s+(paralyzed|numbed|cursed|ignited|frozen|frostbitten|wilted|traumatized|blinded)\s+enem", re.I),
      lambda m: f"enemy_{m.group(1).lower()}"),
     (re.compile(r"enem(?:y|ies)\s+in\s+proximity|in\s+proximity", re.I), "enemy_in_proximity"),
+    # "(only) N enemy/enemies nearby" / "at least N enemies nearby" → NUMERIC enemies-nearby count (not the
+    # boolean enemy_nearby). Must precede the generic "nearby enem" → enemy_nearby pattern further down.
+    (re.compile(r"only\s+(\d+)\s+enem(?:y|ies)\s+(?:are\s+|is\s+)?nearby", re.I),
+     lambda m: {"key": "enemies_nearby", "op": "==", "value": int(m.group(1))}),
+    (re.compile(r"at\s+least\s+(\d+)\s+enem(?:y|ies)\s+(?:are\s+)?nearby", re.I),
+     lambda m: {"key": "enemies_nearby", "op": ">=", "value": int(m.group(1))}),
     # Benign cast-timing clauses that describe WHEN, not a gate — always-on (the chance/EV is the mechanic).
     (re.compile(r"when\s+casting\s+a\s+skill|when\s+you\s+cast|on\s+cast\b", re.I), {"const": True}),
     # Per-"stack owned" scaling → multiply the contribution by the stack count (floor(val/1)).

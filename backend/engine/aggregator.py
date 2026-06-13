@@ -335,6 +335,15 @@ def aggregate(
         if not stat:
             continue
         amount = float(contrib.get("amount", 0))
+        cond = contrib.get("condition")            # gated specific-tier line ("…when only 1 enemy nearby")
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                amount *= cond_result
+            elif not cond_result:
+                continue
         entry = SourceEntry(
             stat=stat,
             amount=amount,

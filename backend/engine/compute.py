@@ -235,6 +235,11 @@ def compute(
         condition_state["strength_ge_dexterity"] = _str_t >= _dex_t
         condition_state["dexterity_ge_strength"] = _dex_t >= _str_t
 
+        # "Enemy is Nearby" (boolean) implies at least one nearby enemy → keep the numeric enemies_nearby
+        # count at >= 1 so "when only/at least N enemies nearby" gates resolve (doesn't drop a higher count).
+        if condition_state.get("enemy_nearby"):
+            condition_state["enemies_nearby"] = max(float(condition_state.get("enemies_nearby", 0) or 0), 1.0)
+
         # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
         # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values.
         _apply_cond_effects(condition_state, cond_effects, main_dtypes, manual_cond_keys)

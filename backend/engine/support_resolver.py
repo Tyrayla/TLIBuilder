@@ -77,9 +77,15 @@ def _dedup_join(lines: list[str]) -> str:
 def resolve_support_contributions(
     attached_supports: list[dict] | None,
     skills_by_id: dict[str, dict] | None,
+    translate_cond=None,
 ) -> list[dict]:
-    """Return a list of {stat_key, amount, text, label} for every attached support's additional-damage
-    lines. Empty list when there are no supports or no resolvable lines."""
+    """Return a list of {stat_key, amount, text, label[, condition]} for every attached support's
+    additional-damage lines. Empty list when there are no supports or no resolvable lines.
+
+    `translate_cond` (server._translate_condition_expr, injected like the node resolver) gates a SPECIFIC
+    tier line that carries a condition ("…when only 1 enemy nearby"): the condition is split off and
+    translated; an untranslatable gate drops the line rather than applying it always-on (the old bug)."""
+    from engine.core_talent_resolver import _split_condition
     if not attached_supports or not skills_by_id:
         return []
 
@@ -112,18 +118,27 @@ def resolve_support_contributions(
         entry = _progression_for_tier(data.get("progression"), tier)
         if entry:
             line = str((entry.get("values") or {}).get("name", ""))
-            low = line.lower()
+            # Split off & translate a condition ("…when only 1 enemy nearby") so the line is GATED, not
+            # applied always-on. Untranslatable gate → drop the line (don't inflate DPS ungated).
+            stat_clause, cond_part = _split_condition(line)
+            cond_expr = None
+            if cond_part is not None and translate_cond is not None:
+                cond_expr = translate_cond(line) or translate_cond(cond_part)
+                if cond_expr is None:
+                    stat_clause = ""
+            low = stat_clause.lower()
             if "(multiplies)" in low:
                 pass  # Augmentation's per-Jump compounding line → resolve_support_behavior
             elif _UNIVERSAL_PHRASE in low:
                 roll = _explicit_roll(sup, line)
-                frac = roll if roll is not None else _range_mid_fraction(line)
+                frac = roll if roll is not None else _range_mid_fraction(stat_clause)
                 if frac is not None and frac != 0.0:
                     out.append({
                         "stat_key": "dmg_additional",
                         "amount": frac,
                         "text": f"{_UNIVERSAL_PHRASE} |{item_id}|specific",
                         "label": f"{name} (Tier {tier})",
+                        "condition": cond_expr,
                     })
     return out
 
