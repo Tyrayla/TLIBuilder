@@ -113,6 +113,7 @@ def resolve_support_contributions(
                         "amount": amount,
                         "text": f"{_UNIVERSAL_PHRASE} |{item_id}|universal",
                         "label": f"{name} (Rank {rank})",
+                        "source_name": name,
                         "slot": sup.get("slot", 1),
                     })
 
@@ -123,6 +124,7 @@ def resolve_support_contributions(
         if item_id in skill_effects.GENERIC_GUARD_IDS:
             c = skill_effects.support_contribution(sup, data)
             if c:
+                c.setdefault("source_name", name)
                 out.append(c)
             continue
 
@@ -151,6 +153,7 @@ def resolve_support_contributions(
                         "amount": frac,
                         "text": f"{_UNIVERSAL_PHRASE} |{item_id}|specific",
                         "label": f"{name} (Tier {tier})",
+                        "source_name": name,
                         "condition": cond_expr,
                         "slot": sup.get("slot", 1),
                     })

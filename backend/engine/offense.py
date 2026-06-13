@@ -317,6 +317,16 @@ def target_profile(source: BuildSource) -> dict:
             "effective_nonphys": e_nonphys,
         },
         "resists": resists,
+        # The penetration that produced base→effective, so the UI can show what moved each value.
+        "pen": {
+            "armor": source.total("armor_pen"),
+            "all_resistance_reduction": source.total("all_resistance_reduction"),
+            "elemental": source.total("elemental_pen"),
+            "fire": source.total("fire_pen"),
+            "cold": source.total("cold_pen"),
+            "lightning": source.total("lightning_pen"),
+            "erosion": source.total("erosion_pen"),
+        },
     }
 
 
@@ -446,6 +456,7 @@ class OffenseResult:
     weapon_crit_rating_flat: float = 0.0
     weapon_csr_gear: float = 0.0       # attack_crit_rating_gear (decimal)
     weapon_csr_mh: float = 0.0         # attack_crit_rating_mh (decimal, mainhand-only)
+    base_csr: float = 0.0              # intrinsic base crit rating (spells get _BASE_SPELL_CRIT_RATING; attacks 0 — weapon provides it)
     # Per-type damage breakdown for the stats screen breakdown table
     flat_dmg_min: dict[str, float] = field(default_factory=dict)  # flat before inc/add
     flat_dmg_max: dict[str, float] = field(default_factory=dict)
@@ -824,6 +835,7 @@ def calculate_offense(
         weapon_crit_rating_flat=source.total("weapon_crit_rating_flat"),
         weapon_csr_gear=source.total("attack_crit_rating_gear"),
         weapon_csr_mh=source.total("attack_crit_rating_mh"),
+        base_csr=base_csr,
         flat_dmg_min={dtype: mn for dtype, (mn, _) in flat_dmg.items()},
         flat_dmg_max={dtype: mx for dtype, (_, mx) in flat_dmg.items()},
         type_inc=type_inc,

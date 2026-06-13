@@ -186,6 +186,7 @@
   "offense": {
     "above_max_mult": 1.0,
     "attacks_per_second": 1.923076923076923,
+    "base_csr": 500.0,
     "cast_multiplier": 1.0,
     "crit_chance": 0.05,
     "crit_multiplier": 1.75,
@@ -282,6 +283,7 @@
           "amount": 0.1,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+10 % Affliction Effect"
         }
@@ -297,6 +299,7 @@
           "amount": 0.3,
           "label": "Custom Config",
           "points": 1,
+          "source_name": null,
           "source_type": "custom",
           "text": "+30 % Attack Damage"
         }
@@ -312,6 +315,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c1_r1",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Attack Speed |node|assassin_c1_r1"
         },
@@ -319,6 +323,7 @@
           "amount": 0.16,
           "label": "Agility Blessing",
           "points": 1,
+          "source_name": null,
           "source_type": "condition",
           "text": "+4% Attack Speed per Agility Blessing"
         }
@@ -334,6 +339,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c1_r1",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Cast Speed |node|assassin_c1_r1"
         },
@@ -341,6 +347,7 @@
           "amount": 0.16,
           "label": "Agility Blessing",
           "points": 1,
+          "source_name": null,
           "source_type": "condition",
           "text": "+4% Cast Speed per Agility Blessing"
         }
@@ -356,6 +363,7 @@
           "amount": 0.25,
           "label": "Custom Config",
           "points": 1,
+          "source_name": null,
           "source_type": "custom",
           "text": "+25 % increased Critical Strike Damage"
         }
@@ -371,6 +379,7 @@
           "amount": 0.015,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+1.5 % Curse Effect"
         }
@@ -386,6 +395,7 @@
           "amount": 0.2,
           "label": "Focus Blessing",
           "points": 1,
+          "source_name": null,
           "source_type": "condition",
           "text": "+5% additional damage per Focus Blessing"
         },
@@ -393,6 +403,7 @@
           "amount": 0.08,
           "label": "Agility Blessing",
           "points": 1,
+          "source_name": null,
           "source_type": "condition",
           "text": "+2% additional damage per Agility Blessing"
         }
@@ -408,6 +419,7 @@
           "amount": 0.5,
           "label": "Custom Config",
           "points": 1,
+          "source_name": null,
           "source_type": "custom",
           "text": "Converts 50 % of Lightning Damage to Cold Damage"
         }
@@ -423,6 +435,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c0_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Max Energy Shield |node|assassin_c0_r2"
         },
@@ -430,6 +443,7 @@
           "amount": 0.18,
           "label": "Assassin \u00b7 assassin_c1_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+6 % Max Energy Shield |node|assassin_c1_r2"
         }
@@ -445,6 +459,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c0_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Max Life |node|assassin_c0_r2"
         },
@@ -452,6 +467,7 @@
           "amount": 0.18,
           "label": "Assassin \u00b7 assassin_c1_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+6 % Max Life |node|assassin_c1_r2"
         }
@@ -467,6 +483,7 @@
           "amount": 0.5,
           "label": "Numbed Stacks",
           "points": 1,
+          "source_name": null,
           "source_type": "condition",
           "text": "+5% Lightning Damage taken per Numbed stack"
         }

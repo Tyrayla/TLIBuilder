@@ -178,6 +178,7 @@
   "offense": {
     "above_max_mult": 1.0,
     "attacks_per_second": 1.5384615384615383,
+    "base_csr": 500.0,
     "cast_multiplier": 1.0,
     "crit_chance": 0.05,
     "crit_multiplier": 1.5,
@@ -255,6 +256,35 @@
     "weapon_csr_mh": 0
   },
   "stats": {
+    "dmg_additional": {
+      "category": "Generic",
+      "display_name": "Additional Damage",
+      "slot_sources": [
+        {
+          "amount": 0.17,
+          "label": "Chain Lightning: Web of Lightning (Magnificent) (Tier 1)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chain Lightning: Web of Lightning (Magnificent)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |chain_lightning_web_of_lightning_magnificent|specific"
+        },
+        {
+          "amount": -0.06,
+          "label": "Chain Lightning: Lucky (Noble) (Tier 1)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chain Lightning: Lucky (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |chain_lightning_lucky_noble|specific"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "max_energy_shield_inc": {
       "category": "Energy Shield",
       "display_name": "Max Energy Shield",
@@ -263,6 +293,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c0_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Max Energy Shield |node|assassin_c0_r2"
         }
@@ -278,6 +309,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c0_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Max Life |node|assassin_c0_r2"
         }

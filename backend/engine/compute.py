@@ -345,8 +345,34 @@ def compute(
             "source_type": entry.source_type,
             "label": entry.label,
             "text": entry.text,
+            "source_name": entry.source_name,
             "amount": entry.amount,
             "points": entry.points,
+        })
+
+    # Slot-local contributions (supports / skill self-buffs) live in slot_log, NOT source_log, so they're
+    # absent from `total`/`sources` above. Surface them in a parallel `slot_sources` list per stat so the
+    # source breakdown can show them under a "Skill-specific (slot N)" group — without breaking the
+    # total == sum(sources) invariant. Only attached when non-empty, so unaffected builds stay byte-identical.
+    for entry in source.slot_log:
+        if entry.stat not in stat_map:
+            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
+            stat_map[entry.stat] = {
+                "display_name": meta.display_name if meta else entry.stat,
+                "category": meta.category if meta else "Other",
+                "unit": meta.unit if meta else "",
+                "total": 0.0,
+                "sources": [],
+            }
+        stat_map[entry.stat].setdefault("slot_sources", []).append({
+            "source_type": entry.source_type,
+            "label": entry.label,
+            "text": entry.text,
+            "source_name": entry.source_name,
+            "amount": entry.amount,
+            "points": entry.points,
+            "slot": entry.slot,
+            "scope": entry.scope,
         })
 
     # Add derived effective stats as the "Character" section of the stat sheet
@@ -469,7 +495,24 @@ def compute(
     _debuffs = [lbl for key, lbl in _DEBUFF_LABELS.items() if condition_state.get(key)]
     if float(condition_state.get("numbed_stacks", 0) or 0) > 0:
         _debuffs.append("Numbed")
-    target_stats = {**target_profile(source), "debuffs": _debuffs}
+    # Per-debuff detail: name + which damage it scopes + the damage-taken increase it applies (from the
+    # engine's _enemy_vuln_mult stats). Recording is off here, so these reads are golden-neutral.
+    debuff_details: list[dict] = []
+    if condition_state.get("enemy_paralyzed"):
+        debuff_details.append({"name": "Paralysis", "scope": "All damage",
+                               "taken_inc": source.total("paralysis_dmg_taken")})
+    if condition_state.get("enemy_affected_by_frail"):
+        debuff_details.append({"name": "Frail", "scope": "Spell damage",
+                               "taken_inc": source.total("frail_spell_taken")})
+    for _t in ("fire", "cold", "lightning"):
+        if condition_state.get(f"enemy_affected_by_{_t}_infiltration"):
+            debuff_details.append({"name": f"{_t.title()} Infiltration", "scope": f"{_t.title()} damage",
+                                   "taken_inc": source.total(f"{_t}_infiltration_taken")})
+    _numbed = float(condition_state.get("numbed_stacks", 0) or 0)
+    if _numbed > 0:
+        debuff_details.append({"name": "Numbed", "scope": "Lightning damage", "stacks": _numbed,
+                               "taken_inc": source.total("numbed_lightning_taken")})
+    target_stats = {**target_profile(source), "debuffs": _debuffs, "debuff_details": debuff_details}
 
     return StatResult(
         stat_map=stat_map,

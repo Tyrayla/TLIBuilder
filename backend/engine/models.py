@@ -23,6 +23,11 @@ class SourceEntry:
     # NOTE: `slot` is deliberately NOT read by compute.py's stat_map (it reads source_type/label/text/
     # amount/points only), so adding it leaves character-stat output byte-identical.
     slot:         int | None = None
+    # Human display NAME of the originating thing (item name, pact-spirit name, hero-memory name, support
+    # name). Distinct from `label` (the type+context, e.g. "Gear · Chest") and `text` (the affix-pooling
+    # identity). Drives the stat-breakdown "Source Name" column + its hover tooltip. None for sources whose
+    # name the UI derives itself (talent → tree name from the label) or that have none (custom/character).
+    source_name:  str | None = None
 
 
 @dataclass

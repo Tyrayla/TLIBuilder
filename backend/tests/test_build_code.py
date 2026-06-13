@@ -162,7 +162,7 @@ def test_empty_string_raises():
 
 def test_wrong_prefix_raises():
     with pytest.raises(BuildCodeError):
-        decode_build("pob_AAAA", [])
+        decode_build("xyz_AAAA", [])
 
 def test_no_underscore_raises():
     with pytest.raises(BuildCodeError):

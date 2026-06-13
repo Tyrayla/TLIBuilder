@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { app, shell, BrowserWindow, ipcMain, dialog } =
   require('electron') as typeof import('electron')
-import { join } from 'path'
+import { join, relative, sep } from 'path'
 import { spawn, execFileSync, ChildProcess } from 'child_process'
 import { Socket } from 'net'
-import { existsSync, cpSync } from 'fs'
+import { existsSync, cpSync, readFileSync, writeFileSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
 
 // Prevent Chromium GPU shader cache conflicts when multiple instances run
@@ -92,14 +92,44 @@ function killPortProcess(port: number): void {
   }
 }
 
+// User-owned files under the data dir that a version refresh must NEVER overwrite (their saved builds
+// + legacy single-tree snapshot). Everything else (seasons/, node_type_filter.json, conditions.json,
+// glossary, etc.) is app-managed data that MUST be refreshed when the app updates — otherwise the new
+// backend reads stale catalogs/filters and crashes (e.g. load_filter() validating an old condition key).
+const _USER_DATA_TOP = new Set(['builds', 'save.json'])
+
 function bootstrapDataDir(): string {
   if (!app.isPackaged) {
     return join(__dirname, '../../data')
   }
+  const bundled = join(process.resourcesPath, 'data')
   const userDataPath = join(app.getPath('userData'), 'data')
+  const stampFile = join(app.getPath('userData'), '.data-version')
+  const version = app.getVersion()
+
   if (!existsSync(userDataPath)) {
     log(`bootstrapDataDir — first launch, copying bundled data to ${userDataPath}`)
-    cpSync(join(process.resourcesPath, 'data'), userDataPath, { recursive: true })
+    cpSync(bundled, userDataPath, { recursive: true })
+    try { writeFileSync(stampFile, version) } catch (e) { err('bootstrapDataDir — stamp write failed:', e) }
+    return userDataPath
+  }
+
+  // On every other launch, refresh the app-managed data when the bundled version changed. cpSync only
+  // writes source→dest (never deletes), and the filter skips user-owned tops, so saved builds survive.
+  let stamped = ''
+  try { stamped = readFileSync(stampFile, 'utf-8').trim() } catch { /* missing stamp → treat as stale */ }
+  if (stamped !== version) {
+    log(`bootstrapDataDir — data version ${stamped || '(none)'} → ${version}; refreshing app data (preserving builds/save.json)`)
+    cpSync(bundled, userDataPath, {
+      recursive: true,
+      force: true,
+      filter: (src) => {
+        const rel = relative(bundled, src)
+        if (!rel) return true                       // the data root itself
+        return !_USER_DATA_TOP.has(rel.split(sep)[0])
+      },
+    })
+    try { writeFileSync(stampFile, version) } catch (e) { err('bootstrapDataDir — stamp write failed:', e) }
   }
   return userDataPath
 }

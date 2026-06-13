@@ -571,8 +571,10 @@ class EngineStatsRequest(BaseModel):
     condition_state: dict[str, float | bool] = {}
     gear:            list[dict] = []
     character:       list[dict] = []
-    memory_effects:  list[str] = []
-    spirit_effects:  list[str] = []
+    # Each item is either a bare effect string (legacy) or {text, source} where `source` is the hero-memory /
+    # pact-spirit display name surfaced in the stat-breakdown "Source Name" column.
+    memory_effects:  list[str | dict] = []
+    spirit_effects:  list[str | dict] = []
     main_skill:      SkillEngineInput | None = None   # kept for backward compat
     skills:          list[SkillSlotInput] = []         # all equipped skills with slot info
     custom_mods:     list[str] = []
@@ -673,12 +675,20 @@ def engine_stats(req: EngineStatsRequest):
 
     # Pre-resolve pact-spirit / hero-memory effects through the unified resolver + build status lists so
     # nothing is silently dropped (cardinal rule), mirroring the custom-mod block above.
-    def _resolve_effect_list(effects: list[str], is_memory: bool) -> tuple[list[dict], list[dict]]:
+    def _resolve_effect_list(effects: list[str | dict], is_memory: bool) -> tuple[list[dict], list[dict]]:
         contribs: list[dict] = []
         statuses: list[dict] = []
-        for eff in effects:
+        for item in effects:
+            # Accept both the legacy bare-string shape and {text, source} (source = spirit/memory name).
+            if isinstance(item, dict):
+                eff = item.get("text", "")
+                source = item.get("source")
+            else:
+                eff, source = item, None
             parsed = _resolve_effect_modifiers(eff, is_memory=is_memory)
             if parsed:
+                if source:
+                    parsed = [{**p, "source": source} for p in parsed]
                 contribs.extend(parsed)
                 names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
                 statuses.append({"text": eff, "resolved": True, "stat_display": names})

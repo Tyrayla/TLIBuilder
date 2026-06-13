@@ -223,7 +223,8 @@ def _apply_effect_contribs(source, contribs, source_type, label, active_booleans
             elif not cond_result:
                 continue
         entry = SourceEntry(stat=stat, amount=amount, source_type=source_type, label=label,
-                            text=contrib.get("text", ""), points=1)
+                            text=contrib.get("text", ""), points=1,
+                            source_name=contrib.get("source"))
         _emit(source, stat, amount, contrib.get("scope"), entry)
 
 
@@ -288,6 +289,8 @@ def aggregate(
             label=f"Gear · {slot_label}",
             # Affix raw_text is the per-affix pooling identity (Option A); fall back to item name.
             text=contrib.get("text") or contrib.get("item_name", ""),
+            # Item NAME for the breakdown "Source Name" column + item-tooltip match (distinct from `text`).
+            source_name=contrib.get("item_name") or None,
             points=1,
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)
@@ -370,6 +373,7 @@ def aggregate(
             source_type="support",
             label=contrib.get("label", "Support"),
             text=contrib.get("text", ""),
+            source_name=contrib.get("source_name"),
             points=1,
         )
         # A support belongs to its host skill's SLOT (default 1) — fold only into that slot's offense so

@@ -178,6 +178,7 @@
   "offense": {
     "above_max_mult": 1.0,
     "attacks_per_second": 1.5384615384615383,
+    "base_csr": 500.0,
     "cast_multiplier": 1.0,
     "crit_chance": 0.054,
     "crit_multiplier": 1.5,
@@ -263,6 +264,7 @@
           "amount": 0.3,
           "label": "Gear \u00b7 Item",
           "points": 1,
+          "source_name": "TestWeapon",
           "source_type": "gear",
           "text": "+30 % gear Attack Speed"
         }
@@ -278,6 +280,7 @@
           "amount": 0.08,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+8 % Critical Strike Rating"
         }
@@ -293,6 +296,7 @@
           "amount": 1.08,
           "label": "Gear \u00b7 Item",
           "points": 1,
+          "source_name": "TestWeapon",
           "source_type": "gear",
           "text": "+108 % Elemental Damage"
         }
@@ -308,6 +312,7 @@
           "amount": 0.12,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+12 % Max Life"
         }

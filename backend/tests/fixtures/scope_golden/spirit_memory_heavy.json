@@ -180,6 +180,7 @@
   "offense": {
     "above_max_mult": 1.0,
     "attacks_per_second": 1.7612307692307692,
+    "base_csr": 500.0,
     "cast_multiplier": 1.0,
     "crit_chance": 0.05,
     "crit_multiplier": 1.5,
@@ -265,6 +266,7 @@
           "amount": 0.1,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+10 % Affliction Effect"
         }
@@ -280,6 +282,7 @@
           "amount": 0.08,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+8 % Attack and Cast Speed"
         }
@@ -295,6 +298,7 @@
           "amount": 0.08,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+8 % Attack and Cast Speed"
         }
@@ -310,6 +314,7 @@
           "amount": 0.12,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+12 % Critical Strike Damage for Combo Finishers"
         }
@@ -325,6 +330,7 @@
           "amount": 0.06,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+6 % additional Attack and Cast Speed for Combo Starters"
         }
@@ -340,6 +346,7 @@
           "amount": 0.06,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+6 % additional Attack and Cast Speed for Combo Starters"
         }
@@ -355,6 +362,7 @@
           "amount": 0.16,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+16 % additional damage against Cursed enemies"
         }
@@ -370,6 +378,7 @@
           "amount": 0.2,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+20 % damage +20 % Minion Damage"
         }
@@ -392,6 +401,7 @@
           "amount": 100.0,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+100 Intelligence"
         }
@@ -407,6 +417,7 @@
           "amount": 0.05,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+5 % Lightning Penetration"
         }
@@ -422,6 +433,7 @@
           "amount": 0.12,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+12 % Max Life"
         }
@@ -437,6 +449,7 @@
           "amount": 0.2,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+20 % damage +20 % Minion Damage"
         }

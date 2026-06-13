@@ -417,8 +417,11 @@ export interface StatSource {
   source_type: string
   label: string
   text: string
+  source_name?: string | null  // display name of the origin (item/spirit/memory/support); drives "Source Name"
   amount: number
   points: number  // allocated points; >1 for multi-rank talent nodes
+  slot?: number | null   // set on slot-local (skill-specific) sources; null/absent = character-wide
+  scope?: string | null  // skill-tag scope ("attack"/"spell"/…) when restricted
 }
 
 export interface StatEntry {
@@ -427,6 +430,9 @@ export interface StatEntry {
   unit: string    // "" | "%"
   total: number
   sources: StatSource[]
+  // Slot-local (skill-specific) contributions — supports + skill self-buffs that fold into a skill slot's
+  // offense, NOT into `total`/`sources`. Surfaced separately so the breakdown can show them.
+  slot_sources?: StatSource[]
 }
 
 export interface SkillEngineInput {
@@ -494,6 +500,7 @@ export interface OffenseResult {
   weapon_crit_rating_flat: number
   weapon_csr_gear: number
   weapon_csr_mh: number
+  base_csr: number
   flat_dmg_min: Record<string, number>
   flat_dmg_max: Record<string, number>
   type_inc: Record<string, number>
@@ -589,10 +596,21 @@ export interface StatSheetResponse {
   target_stats?: TargetStats | null
 }
 
+export interface TargetDebuff {
+  name: string
+  scope: string       // which damage it amplifies, e.g. "All damage" / "Spell damage" / "Lightning damage"
+  taken_inc: number   // damage-taken increase fraction (0.15 = +15% taken)
+  stacks?: number
+}
+
 export interface TargetStats {
   armor: { base_phys: number; base_nonphys: number; effective_phys: number; effective_nonphys: number }
   resists: Record<string, { base: number; effective: number }>
-  debuffs: string[]
+  debuffs: string[]   // legacy flat list (kept for back-compat)
+  debuff_details?: TargetDebuff[]
+  // The penetration that produced base→effective (fractions; reduction deltas).
+  pen?: { armor: number; all_resistance_reduction: number; elemental: number;
+          fire: number; cold: number; lightning: number; erosion: number }
 }
 
 export interface CoreTalentStatus {
@@ -724,22 +742,27 @@ export interface SelectedPactSpirit {
   rank: number  // 1–6
 }
 
+// An effect line plus the display NAME of its origin (pact-spirit / hero-memory name). The backend echoes
+// `source` onto each contribution's `source_name`, driving the stat-breakdown "Source Name" column.
+export interface EffectInput { text: string; source: string }
+
 export function buildSpiritEffects(
   selected: (SelectedPactSpirit | null)[],
   allSpirits: PactSpirit[]
-): string[] {
-  const effects: string[] = []
+): EffectInput[] {
+  const effects: EffectInput[] = []
   for (const sel of selected) {
     if (!sel) continue
     const spirit = allSpirits.find(s => s.item_id === sel.itemId)
     if (!spirit) continue
+    const src = spirit.name
     // Inner/mid effects are static; outer effects scale with rank and live in rankData.modifiers.
     // slot.effect is a list of atomic stat lines — push each.
     for (const slot of spirit.slots) {
-      if (slot.ring !== 'outer') effects.push(...slot.effect)
+      if (slot.ring !== 'outer') for (const t of slot.effect) effects.push({ text: t, source: src })
     }
     const rankData = spirit.upgrade_ranks.find(r => r.rank === sel.rank)
-    if (rankData) effects.push(...rankData.modifiers)
+    if (rankData) for (const t of rankData.modifiers) effects.push({ text: t, source: src })
   }
   return effects
 }
@@ -871,8 +894,14 @@ export interface CreatedHeroMemory {
   randomAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
 }
 
-export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): string[] {
-  const effects: string[] = []
+const MEMORY_NAMES: Record<CreatedHeroMemory['memoryType'], string> = {
+  origin: 'Memory of Origin',
+  discipline: 'Memory of Discipline',
+  progress: 'Memory of Progress',
+}
+
+export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): EffectInput[] {
+  const effects: EffectInput[] = []
   const RANGE_RE = /\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g
   const resolveModifier = (sel: MemorySlotSelection): string => {
     // Ensure leading + for modifiers stored without it (handles legacy/missing-plus data)
@@ -883,9 +912,11 @@ export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): stri
   }
   for (const mem of memories) {
     if (!mem) continue
-    if (mem.baseStat) effects.push(resolveModifier(mem.baseStat))
-    for (const fa of mem.fixedAffixes) { if (fa) effects.push(resolveModifier(fa)) }
-    for (const ra of mem.randomAffixes) { if (ra) effects.push(resolveModifier(ra)) }
+    const src = MEMORY_NAMES[mem.memoryType] ?? 'Hero Memory'
+    const push = (sel: MemorySlotSelection) => effects.push({ text: resolveModifier(sel), source: src })
+    if (mem.baseStat) push(mem.baseStat)
+    for (const fa of mem.fixedAffixes) { if (fa) push(fa) }
+    for (const ra of mem.randomAffixes) { if (ra) push(ra) }
   }
   return effects
 }
@@ -1516,8 +1547,8 @@ export const api = {
     condition_state?: Record<string, number | boolean>
     gear?: GearEngineItem[]
     character?: CharacterStatContribution[]
-    memory_effects?: string[]
-    spirit_effects?: string[]
+    memory_effects?: EffectInput[]
+    spirit_effects?: EffectInput[]
     main_skill?: SkillEngineInput | null
     skills?: SkillSlotInput[]
     custom_mods?: string[]
