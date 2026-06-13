@@ -1162,14 +1162,17 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex-shrink: 0;
 }
 
+/* Outer = vertical scroll area; inner .cond-masonry is the multi-column (masonry) flow that grows with
+   its content so the cards pack densely and fill the width without grid-row gaps. */
 .cond-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 10px;
-  align-content: start;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+}
+
+.cond-masonry {
+  columns: 230px;
+  column-gap: 10px;
 }
 
 .cond-card {
@@ -1177,7 +1180,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   border: 1px solid #1e1e3a;
   border-radius: 6px;
   overflow: hidden;
-  align-self: start;
+  break-inside: avoid;       /* keep a category card whole within a column */
+  margin-bottom: 10px;       /* multicol uses margins, not grid gap */
 }
 
 .cond-card-header {

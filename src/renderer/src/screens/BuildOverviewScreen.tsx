@@ -3,6 +3,12 @@ import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
 import type { ConditionDef } from '../api/client'
 
+// Conditions that only make sense when a specific skill is equipped (checked across ALL skill slots).
+// e.g. Berserking Blade's buff stacks are meaningless unless Berserking Blade is slotted somewhere.
+const SKILL_GATED_CONDITIONS: Record<string, string> = {
+  berserking_blade_stacks: 'berserking_blade',
+}
+
 export default function BuildOverviewScreen() {
   const conditionsData = useReferenceStore(s => s.conditions)
   const referenceResolved = useReferenceStore(s => s.referenceResolved)
@@ -11,6 +17,14 @@ export default function BuildOverviewScreen() {
   const clampReport = useBuildStore(s => s.computedStats.clamp_report)
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
+  const skills = useBuildStore(s => s.skills)
+
+  const slottedSkillIds = new Set(skills.map(sk => sk.item_id))
+  // A condition is hidden when it requires a skill that isn't equipped in any slot.
+  const isSkillGatedOut = (key: string): boolean => {
+    const req = SKILL_GATED_CONDITIONS[key]
+    return req !== undefined && !slottedSkillIds.has(req)
+  }
 
   const setBoolean = (key: string, value: boolean) =>
     setConditionState({ ...conditionState, [key]: value })
@@ -30,7 +44,7 @@ export default function BuildOverviewScreen() {
   if (conditionsData) {
     for (const items of Object.values(conditionsData)) {
       for (const cond of items) {
-        if (cond.is_derived || cond.visible === false) continue
+        if (cond.is_derived || cond.visible === false || isSkillGatedOut(cond.key)) continue
         const val = conditionState[cond.key]
         if (cond.value_type === 'boolean' && val === true) activeCondCount++
         if (cond.value_type === 'numeric' && (val as number) > 0) activeCondCount++
@@ -55,8 +69,9 @@ export default function BuildOverviewScreen() {
 
       {!loading && !conditionsFailed && (
         <div className="cond-grid">
+          <div className="cond-masonry">
           {condCategories.map(([cat, items]) => {
-            const visibleItems = items.filter(c => c.visible !== false)
+            const visibleItems = items.filter(c => c.visible !== false && !isSkillGatedOut(c.key))
             if (visibleItems.length === 0) return null
             return (
               <div key={cat} className="cond-card">
@@ -112,6 +127,7 @@ export default function BuildOverviewScreen() {
               </div>
             )
           })}
+          </div>
         </div>
       )}
     </div>
