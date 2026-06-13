@@ -1822,6 +1822,31 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
 # aggregator _MEMORY_EFFECT_RE so the unified resolver below extracts the value for the multi-stat path).
 _EFFECT_VALUE_RE = re.compile(r'^\+(\d+(?:\.\d+)?)\s*(%?)\s+(.+)$')
 
+# On-hit STACKING resistance penetration (Dreamweaver, cloudgatherer, idling-weasel): "+N% <type> Resistance
+# Penetration when hitting / every time you hit an enemy with Elemental Damage …, stacking up to M times".
+# Modeled as a PER-STACK {type}_pen scaled by the shared `elemental_hit_pen_stacks` condition (defaults to its
+# max so it sits at full uptime during sustained DPS; user-adjustable). The condition's max caps the stacks.
+_STACKING_PEN_RE = re.compile(
+    r'\+?\s*([\d.]+)\s*%\s*(elemental|fire|cold|lightning|erosion)\s+resistance\s+penetration\b'
+    r'.*?\bstack(?:s|ing)?\s+up\s+to\s+\d+\s+times', re.I | re.DOTALL)
+
+
+def _resolve_stacking_pen(text: str) -> list[dict] | None:
+    """Return a per-stack {type}_pen contribution scaled by elemental_hit_pen_stacks, or None if `text`
+    isn't an on-hit stacking resistance-pen line."""
+    m = _STACKING_PEN_RE.search(text)
+    if not m:
+        return None
+    typ = m.group(2).lower()
+    stat = "elemental_pen" if typ == "elemental" else f"{typ}_pen"
+    return [{
+        "stat_key": stat,
+        "amount": float(m.group(1)) / 100.0,   # per-stack; aggregator multiplies by the stack count
+        "text": text.strip(),
+        "scope": None,
+        "condition": {"key": "elemental_hit_pen_stacks", "op": "per", "divisor": 1},
+    }]
+
 
 def _resolve_effect_modifiers(text: str, *, is_memory: bool) -> list[dict]:
     """Resolve a pact-spirit / hero-memory effect string into contributions [{stat_key, amount, text, scope}]
@@ -1843,6 +1868,11 @@ def _resolve_effect_modifiers(text: str, *, is_memory: bool) -> list[dict]:
     symmetry; resolution is now identical for spirits and memories (one shared path, no drift)."""
     from engine.core_talent_resolver import _split_condition
     original = re.sub(r'\s+', ' ', (text or '').strip())
+    # On-hit stacking resistance pen is its own mechanic (per-stack pen × elemental_hit_pen_stacks), not a
+    # gated stat — handle it before the condition splitter would treat its "when hitting…" clause as a gate.
+    stacking = _resolve_stacking_pen(original)
+    if stacking is not None:
+        return [{**d, "text": original} for d in stacking]
     residual, scope = detect_skill_scope(original)
     stat_clause, cond_part = _split_condition(residual)
     cond_expr = None
@@ -1907,6 +1937,15 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     m = re.match(r'(?:you can cast\s+)?([\d.]+)\s+additional\s+curses?\b', t, re.I)
     if m:
         return [{"stat_key": "max_curses_flat", "amount": float(m.group(1)), "text": t}]
+
+    # "Damage Penetrates N% <type> Resistance" (pact-spirit pen nodes) — value sits mid-phrase, so the
+    # start-anchored matchers below miss it. Maps to the player {type}_pen stat (elemental → elemental_pen).
+    m = re.match(r'damage\s+penetrates\s+([\d.]+)\s*%\s*'
+                 r'(elemental|fire|cold|lightning|erosion)\s+resistance', t, re.I)
+    if m:
+        typ = m.group(2).lower()
+        stat = "elemental_pen" if typ == "elemental" else f"{typ}_pen"
+        return [{"stat_key": stat, "amount": float(m.group(1)) / 100.0, "text": t}]
 
     # Outgoing damage-type conversion: "Adds/Converts N% [of] <A> Damage as/to <B> Damage" (the value sits
     # after the verb, so the start-anchored matchers below would miss it). "Adds"/"as" → adds-as key;
