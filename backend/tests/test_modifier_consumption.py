@@ -5,8 +5,8 @@ Covers the two pieces that drive the feature:
   1. BuildSource.total() consumption recorder + its scoping (the offense/defense/derive read
      paths), incl. the headline skill-sensitivity behavior (a damage mod's stat is consumed under
      a modeled skill and not under an unmodeled one).
-  2. aggregator.resolve_effect_stat_keys — the spirit/memory text -> stat key mapping the
-     /api/map-modifiers endpoint reuses (so the mapping can't drift from the engine).
+  2. server.resolve_effect_stat_keys — the spirit/memory text -> stat key mapping the
+     /api/map-modifiers endpoint reuses (now the unified _resolve_effect_modifiers; can't drift from engine).
 
 Full compute()-level + HTTP integration of these is deferred with the other season-fixture server
 tests (see docs/TEST_BACKLOG.md); the functions exercised here are exactly the ones compute() calls
@@ -17,7 +17,7 @@ from engine.models import BuildSource
 from engine.offense import calculate_offense
 from engine.defense import calculate_defense
 from engine.derive import derive_stats
-from engine.aggregator import resolve_effect_stat_keys
+from server import resolve_effect_stat_keys
 from engine.skill_resolver import ResolvedSkill, SkillHitForm
 from models.stat_meta import STAT_META
 
@@ -122,7 +122,8 @@ class TestEffectMapping:
         keys = resolve_effect_stat_keys("+12% Attack and Cast Speed", is_memory=True)
         assert set(keys) == {"attack_speed_inc", "cast_speed_inc"}
 
-    def test_spirit_does_not_split_dual(self):
-        # The dual-split + multi/alias lookups are memory-only; a spirit sees one phrase.
+    def test_spirit_resolves_multi_like_memory(self):
+        # Post-unification: spirits and memories share ONE resolver, so a spirit resolves multi-stat
+        # phrases too (the old spirit/memory asymmetry — spirits couldn't — was the bug this fixes).
         spirit = resolve_effect_stat_keys("+12% Attack and Cast Speed", is_memory=False)
-        assert spirit == []  # "attack and cast speed" isn't a single-stat display name
+        assert set(spirit) == {"attack_speed_inc", "cast_speed_inc"}

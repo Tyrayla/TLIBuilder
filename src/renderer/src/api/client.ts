@@ -564,6 +564,9 @@ export interface StatSheetResponse {
   // Gear affix/implicit texts the frontend couldn't resolve, resolved (or reported) backend-side so
   // nothing is silently dropped. resolved:false → still unmodeled (surface it, don't hide it).
   gear_mod_statuses?: CustomModStatus[]
+  // Pact-spirit / hero-memory effect resolution (unified resolver, server-side). resolved:false → NYI.
+  spirit_mod_statuses?: CustomModStatus[]
+  memory_mod_statuses?: CustomModStatus[]
   // Per-effect resolution for granted core talents (roadmap #4) — drives the core-talent NYI badges.
   // kind: 'stat' | 'override' (applied) | 'deferred' | 'unresolved' (captured, not applied).
   core_talent_statuses?: CoreTalentStatus[]

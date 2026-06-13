@@ -2,9 +2,8 @@
 stat + a scope tag, keeps the original text, and leaves unscoped/unknown text exactly as today."""
 import pytest
 
-from server import _parse_custom_mod_text as pm
+from server import _parse_custom_mod_text as pm, resolve_effect_stat_keys
 from engine.skill_scope import detect_skill_scope
-from engine.aggregator import resolve_effect_stat_keys
 
 
 def _one(text):

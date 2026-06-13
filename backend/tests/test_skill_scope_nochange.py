@@ -56,6 +56,23 @@ _REQUESTS: dict[str, dict] = {
              "skill_type": "noble_support_skill", "rank": 1, "level": 1}],
         characterLevel=100,
     ),
+    # Unified spirit/memory resolver: exercises a multi-stat phrase, a dual-stat phrase, the ported
+    # combo-starter/finisher entries, a skill-scoped effect, a conditional (gated) effect, a flat attribute
+    # (now → _flat), and plain singles. Locks the post-unification behavior forward.
+    "spirit_memory_heavy": dict(
+        slots=[None, None, None, None],
+        condition_state={"enemy_cursed": True},
+        spirit_effects=["+10 % Affliction Effect", "+8 % Attack and Cast Speed",
+                        "+20 % damage +20 % Minion Damage", "+5 % Lightning Penetration",
+                        "+16 % additional damage against Cursed enemies",
+                        "+14 % additional Elemental Damage dealt by Spell Skills"],
+        memory_effects=["+100 Intelligence", "+12 % Max Life",
+                        "+12 % Critical Strike Damage for Combo Finishers",
+                        "+6 % additional Attack and Cast Speed for Combo Starters"],
+        skills=[{"slot": 1, "skill_id": "chain_lightning", "level": 14}],
+        main_skill={"skill_id": "chain_lightning", "level": 14},
+        characterLevel=100,
+    ),
 }
 
 

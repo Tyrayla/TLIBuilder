@@ -127,8 +127,12 @@ class BuildInput:
     condition_state: dict[str, float | bool] = field(default_factory=dict)
     gear:            list[dict] = field(default_factory=list)  # GearEngineItem dicts
     character:       list[dict] = field(default_factory=list)  # CharacterStatContribution dicts
-    memory_effects:  list[str]  = field(default_factory=list)  # resolved hero memory modifier strings
-    spirit_effects:  list[str]  = field(default_factory=list)  # pact spirit slot + rank modifier strings
+    memory_effects:  list[str]  = field(default_factory=list)  # DEPRECATED: now pre-resolved server-side
+    spirit_effects:  list[str]  = field(default_factory=list)  # DEPRECATED: now pre-resolved server-side
+    # Pre-resolved pact-spirit / hero-memory contributions (server._resolve_effect_modifiers). Same shape as
+    # custom_contributions plus an optional `condition` gate (translated expr) — applied/gated in aggregate().
+    spirit_contributions: list[dict] = field(default_factory=list)
+    memory_contributions: list[dict] = field(default_factory=list)
     main_skill:      SkillRef | None = None  # main skill for offense calculation
     custom_contributions: list[dict] = field(default_factory=list)  # pre-resolved custom mod entries {stat_key, amount, text}
     # Pre-resolved support-skill contributions (same shape as custom_contributions), from the main

@@ -654,6 +654,24 @@ def engine_stats(req: EngineStatsRequest):
                 "stat_display": None,
             })
 
+    # Pre-resolve pact-spirit / hero-memory effects through the unified resolver + build status lists so
+    # nothing is silently dropped (cardinal rule), mirroring the custom-mod block above.
+    def _resolve_effect_list(effects: list[str], is_memory: bool) -> tuple[list[dict], list[dict]]:
+        contribs: list[dict] = []
+        statuses: list[dict] = []
+        for eff in effects:
+            parsed = _resolve_effect_modifiers(eff, is_memory=is_memory)
+            if parsed:
+                contribs.extend(parsed)
+                names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
+                statuses.append({"text": eff, "resolved": True, "stat_display": names})
+            else:
+                statuses.append({"text": eff, "resolved": False, "stat_display": None})
+        return contribs, statuses
+
+    spirit_contributions, spirit_mod_statuses = _resolve_effect_list(req.spirit_effects, is_memory=False)
+    memory_contributions, memory_mod_statuses = _resolve_effect_list(req.memory_effects, is_memory=True)
+
     # Resolve the main skill's attached supports into stat contributions (additional-damage lines)
     # plus behavioral effects (shotgun falloff / chains-per-jump).
     support_contributions: list[dict] = []
@@ -725,7 +743,7 @@ def engine_stats(req: EngineStatsRequest):
         slots=slots, slates=slates, season=active_season,
         condition_state=core_condition_state,
         gear=gear_resolved, character=req.character,
-        memory_effects=req.memory_effects, spirit_effects=req.spirit_effects,
+        spirit_contributions=spirit_contributions, memory_contributions=memory_contributions,
         main_skill=main_skill,
         custom_contributions=custom_contributions,
         attached_support_contributions=support_contributions,
@@ -749,6 +767,8 @@ def engine_stats(req: EngineStatsRequest):
         "custom_mod_statuses": custom_mod_statuses,
         "core_talent_statuses": core_talent_statuses,
         "gear_mod_statuses": gear_mod_statuses,
+        "spirit_mod_statuses": spirit_mod_statuses,
+        "memory_mod_statuses": memory_mod_statuses,
         "skill_slots": result.skill_slots,
         "consumed_stats": result.consumed_stats,
         # Maximal set of stats the engine can EVER read (all skills/tags) — lets the UI tell "Inactive"
@@ -1367,6 +1387,17 @@ _GEAR_COND_RE = re.compile(
 )
 
 _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
+    # Hero-memory alias: in-game wording "for Combo Finishers" isn't a skill-type scope, so it stays in the
+    # phrase; map it to the combo-finisher crit-damage stat (ported from the old _MEMORY_ALIAS_LOOKUP).
+    "+(#) % critical strike damage for combo finishers": "combo_finisher_crit_dmg_inc",
+    # Abbreviated penetration wording used by spirit/memory effects ("Fire Penetration" vs gear's "Fire
+    # Resistance Penetration"). Pin to the PLAYER pen stat — without this, fuzzy matching ties "Fire
+    # Penetration" with "Minion Fire Penetration" and mis-resolves to the minion variant.
+    "+(#) % fire penetration":      "fire_pen",
+    "+(#) % cold penetration":      "cold_pen",
+    "+(#) % lightning penetration": "lightning_pen",
+    "+(#) % erosion penetration":   "erosion_pen",
+    "+(#) % elemental penetration": "elemental_pen",
     # Flat-count core-talent lines whose in-game wording differs from the stat's gear display name
     # (reached value-stripped via the trailing-count handler in _parse_custom_mod_text).
     "max sentry quantity":  "max_sentry_quantity_flat",
@@ -1486,6 +1517,9 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
 
 _MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
     "+(#) % attack and cast speed": ["attack_speed_inc", "cast_speed_inc"],
+    "+(#) % minion attack and cast speed": ["minion_attack_speed_inc", "minion_cast_speed_inc"],
+    "+(#) % additional attack and cast speed for combo starters":
+        ["combo_starter_attack_speed_additional", "combo_starter_cast_speed_additional"],
     "+(#) % max life max mana and max energy shield": ["max_life_inc", "max_mana_inc", "max_energy_shield_inc"],
     "+(#) % elemental and erosion resistance penetration": ["elemental_pen", "erosion_pen"],
     # Block chance
@@ -1777,6 +1811,62 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
             d["scope"] = scope
             d["text"] = original
     return results
+
+
+# Leading "+N [%] <stat>" form used by pact-spirit / hero-memory effect strings (ported from the old
+# aggregator _MEMORY_EFFECT_RE so the unified resolver below extracts the value for the multi-stat path).
+_EFFECT_VALUE_RE = re.compile(r'^\+(\d+(?:\.\d+)?)\s*(%?)\s+(.+)$')
+
+
+def _resolve_effect_modifiers(text: str, *, is_memory: bool) -> list[dict]:
+    """Resolve a pact-spirit / hero-memory effect string into contributions [{stat_key, amount, text, scope}]
+    — the SAME shape as custom_contributions. This is the unified, pool-strict replacement for the old
+    _MEMORY_STAT_LOOKUP path: it shares _parse_custom_mod_text (and the gear override tables) so spirit/memory
+    can no longer drift from gear/custom resolution.
+
+    Order mirrors the old resolver where it matters: peel a skill-type scope off the WHOLE effect, split off a
+    leading/trailing condition clause and GATE on it (a conditional effect must apply only when its condition
+    holds, never always-on; an untranslatable gate leaves the whole effect UNRESOLVED rather than applied —
+    mirrors the gear loop), then split a dual-stat phrase "+A% X +B% Y" (the real data has these on BOTH
+    memories and spirits — not splitting a spirit dual silently dropped a part, so the split is unconditional
+    now; single-stat effects have no split point and are untouched). For each part, try the shared
+    _MULTI_STAT_OVERRIDES first (one phrase → several stats; the fuzzy single resolver could wrongly
+    partial-match these), then fall back to the pool-strict _parse_custom_mod_text (which itself consults
+    _EXPRESSION_STAT_OVERRIDES, e.g. the combo-finisher alias and the penetration wording). Every result carries
+    the peeled scope, the translated condition, and the ORIGINAL full text so the additional pool's
+    affix-identity keeps scoped mods as distinct multiplicative factors. `is_memory` is accepted for caller
+    symmetry; resolution is now identical for spirits and memories (one shared path, no drift)."""
+    from engine.core_talent_resolver import _split_condition
+    original = re.sub(r'\s+', ' ', (text or '').strip())
+    residual, scope = detect_skill_scope(original)
+    stat_clause, cond_part = _split_condition(residual)
+    cond_expr = None
+    if cond_part is not None:
+        # A gate we can't translate must NOT be applied always-on — leave the whole effect unresolved (NYI).
+        cond_expr = _translate_condition_expr(residual) or _translate_condition_expr(cond_part)
+        if cond_expr is None:
+            return []
+    out: list[dict] = []
+    for part in re.split(r' (?=\+\d)', stat_clause, maxsplit=1):
+        ne = _norm_expr(part)
+        multi = _MULTI_STAT_OVERRIDES.get(ne)
+        m = _EFFECT_VALUE_RE.match(part)
+        if multi and m:
+            amount = float(m.group(1)) / 100.0 if m.group(2) else float(m.group(1))
+            for sk in multi:
+                out.append({"stat_key": sk, "amount": amount, "text": original, "scope": scope, "condition": cond_expr})
+            continue
+        # Pool-strict single resolver (scope already peeled from `part`; it re-peels harmlessly/idempotently).
+        for d in _parse_custom_mod_text(part):
+            out.append({**d, "text": original, "scope": scope, "condition": cond_expr})
+    return out
+
+
+def resolve_effect_stat_keys(effect: str, *, is_memory: bool) -> list[str]:
+    """The stat key(s) a pact-spirit / hero-memory effect resolves to — for the /api/map-modifiers badge
+    endpoint. Thin view over _resolve_effect_modifiers so badges and the engine share ONE resolver and can't
+    drift. Empty list = unrecognized (red NYI badge). (Replaces the retired engine.aggregator version.)"""
+    return [d["stat_key"] for d in _resolve_effect_modifiers(effect, is_memory=is_memory)]
 
 
 def _parse_custom_mod_text_base(text: str) -> list[dict]:
@@ -2556,7 +2646,6 @@ def map_modifiers(req: MapModifiersRequest):
     Gear/vorax already carry stat_key on the affix object, so they need not be sent; `source:
     'gear'` is still handled (via _resolve_affix) for completeness.
     """
-    from engine.aggregator import resolve_effect_stat_keys
     from engine.node_resolver import resolve_effect_text_keys
 
     results: dict[str, dict] = {}

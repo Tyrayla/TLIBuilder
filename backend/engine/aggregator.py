@@ -2,8 +2,6 @@ from __future__ import annotations
 import math
 import re
 from engine.models import BuildInput, BuildSource, SourceEntry
-from engine.skill_scope import detect_skill_scope
-from models.stat_meta import STAT_META
 
 
 def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entry: SourceEntry) -> None:
@@ -15,69 +13,9 @@ def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entr
     else:
         source.add_with_source(stat, amount, entry)
 
-# Build a lookup: (display_name_lower, is_percent) → stat key string
-# Used to match hero memory modifier strings against known stats.
-def _build_memory_lookup() -> dict[tuple[str, bool], str]:
-    lookup: dict[tuple[str, bool], str] = {}
-    for stat_enum, meta in STAT_META.items():
-        is_pct = meta.unit == "%"
-        key = (meta.display_name.lower(), is_pct)
-        # Don't overwrite — first match wins (flat preferred for non-pct)
-        if key not in lookup:
-            lookup[key] = stat_enum.value
-    return lookup
-
-_MEMORY_STAT_LOOKUP: dict[tuple[str, bool], str] = _build_memory_lookup()
-_MEMORY_EFFECT_RE = re.compile(r'^\+(\d+(?:\.\d+)?)\s*(%?)\s+(.+)$')
-
-# Alias lookup: game display text differs from stat_meta display_name
-_MEMORY_ALIAS_LOOKUP: dict[tuple[str, bool], str] = {
-    ("critical strike damage for combo finishers", True): "combo_finisher_crit_dmg_inc",
-}
-
-# Multi-stat lookup: one modifier phrase → multiple stat keys (same value applied to each)
-_MEMORY_MULTI_LOOKUP: dict[tuple[str, bool], list[str]] = {
-    ("attack and cast speed", True):
-        ["attack_speed_inc", "cast_speed_inc"],
-    ("minion attack and cast speed", True):
-        ["minion_attack_speed_inc", "minion_cast_speed_inc"],
-    ("additional attack and cast speed for combo starters", True):
-        ["combo_starter_attack_speed_additional", "combo_starter_cast_speed_additional"],
-}
-
-
-def resolve_effect_stat_keys(effect: str, *, is_memory: bool) -> list[str]:
-    """Map a pact-spirit / hero-memory effect string to the stat key(s) the engine would consume
-    for it — using the EXACT same matching as aggregate() above (kept here, co-located, so the
-    /api/map-modifiers endpoint can't drift from the engine). Empty list = unrecognized.
-
-    Spirits use the single display-name lookup; memories additionally split dual-stat phrases and
-    consult the alias + multi-stat lookups.
-    """
-    effect = re.sub(r'\s+', ' ', (effect or '').strip())
-    # Strip a skill-type scope ("…for Channeled Skills") so the residual resolves to the BASE stat for the
-    # badge (scope doesn't change WHICH stat it maps to). Mirrors the aggregator spirit/memory loops.
-    effect, _scope = detect_skill_scope(effect)
-    keys: list[str] = []
-    parts = re.split(r' (?=\+\d)', effect, maxsplit=1) if is_memory else [effect]
-    for part in parts:
-        m = _MEMORY_EFFECT_RE.match(part)
-        if not m:
-            continue
-        is_pct = bool(m.group(2))
-        name = m.group(3).strip().lower()
-        sk = _MEMORY_STAT_LOOKUP.get((name, is_pct))
-        if not sk and is_memory:
-            sk = _MEMORY_ALIAS_LOOKUP.get((name, is_pct))
-        if sk:
-            keys.append(sk)
-            continue
-        if is_memory:
-            multi = _MEMORY_MULTI_LOOKUP.get((name, is_pct))
-            if multi:
-                keys.extend(multi)
-    return keys
-
+# NOTE: pact-spirit / hero-memory resolution moved to server._resolve_effect_modifiers (the unified
+# pool-strict path). The aggregator now only APPLIES the pre-resolved contributions (see
+# _apply_effect_contribs); the old _MEMORY_STAT_LOOKUP / alias / multi tables were retired.
 
 _ELEMENTAL_TYPES = {"fire", "cold", "lightning", "erosion"}
 
@@ -258,6 +196,32 @@ def _eval_condition(
     return False
 
 
+def _apply_effect_contribs(source, contribs, source_type, label, active_booleans, numeric_vals):
+    """Apply pre-resolved pact-spirit / hero-memory contributions (server._resolve_effect_modifiers).
+    Gates on the optional translated `condition` exactly like the gear-contribution loop: boolean → on/off,
+    'per'/float → scale the amount (capped if the expr carries a cap). Scoped contributions route to
+    add_scoped via _emit."""
+    for contrib in contribs:
+        stat = contrib.get("stat_key")
+        if not stat:
+            continue
+        amount = float(contrib.get("amount", 0))
+        cond = contrib.get("condition")
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                amount *= cond_result
+                if isinstance(cond, dict) and "cap" in cond:
+                    amount = min(amount, float(cond["cap"]))
+            elif not cond_result:
+                continue
+        entry = SourceEntry(stat=stat, amount=amount, source_type=source_type, label=label,
+                            text=contrib.get("text", ""), points=1)
+        _emit(source, stat, amount, contrib.get("scope"), entry)
+
+
 def aggregate(
     build: BuildInput,
     season_trees: dict[str, dict],
@@ -339,79 +303,12 @@ def aggregate(
         )
         source.add_with_source(stat, amount, entry)
 
-    # ── Pact Spirit effects ───────────────────────────────────────────────────
-    for effect in build.spirit_effects:
-        effect = re.sub(r'\s+', ' ', effect.strip())
-        # Peel a skill-type scope off ("…for Channeled Skills") and resolve the residual via the memory
-        # lookup; unscoped effects → residual == effect → identical path. (Residual forms the lookup can't
-        # handle, e.g. "additional Elemental Damage", stay unresolved — a pre-existing memory-resolver
-        # limit, fixed by the noted follow-up that routes spirit/memory through _parse_custom_mod_text.)
-        residual, scope = detect_skill_scope(effect)
-        m = _MEMORY_EFFECT_RE.match(residual)
-        if not m:
-            continue
-        raw_val = float(m.group(1))
-        is_pct = bool(m.group(2))
-        stat_name = m.group(3).strip()
-        stat_key = _MEMORY_STAT_LOOKUP.get((stat_name.lower(), is_pct))
-        if not stat_key:
-            continue
-        amount = raw_val / 100.0 if is_pct else raw_val
-        entry = SourceEntry(
-            stat=stat_key,
-            amount=amount,
-            source_type="pact_spirit",
-            label="Pact Spirit",
-            text=effect,   # original (incl. scope words) so the additional pool's affix-identity stays distinct
-            points=1,
-        )
-        _emit(source, stat_key, amount, scope, entry)
-
-    # ── Hero Memory effects ────────────────────────────────────────────────────
-    for effect in build.memory_effects:
-        effect = re.sub(r'\s+', ' ', effect.strip())
-        # Peel a skill-type scope off the whole effect, then split the residual into dual stats; unscoped
-        # effects → residual == effect → identical path (snapshot-safe).
-        residual, scope = detect_skill_scope(effect)
-        # Split dual-stat modifiers like "+18 % Attack Speed +12 % Minion Speed"
-        parts = re.split(r' (?=\+\d)', residual, maxsplit=1)
-        for part in parts:
-            m = _MEMORY_EFFECT_RE.match(part)
-            if not m:
-                continue
-            raw_val = float(m.group(1))
-            is_pct = bool(m.group(2))
-            stat_name = m.group(3).strip()
-            stat_name_lower = stat_name.lower()
-            amount = raw_val / 100.0 if is_pct else raw_val
-            # Try single-stat lookup (display_name)
-            stat_key = _MEMORY_STAT_LOOKUP.get((stat_name_lower, is_pct))
-            if not stat_key:
-                stat_key = _MEMORY_ALIAS_LOOKUP.get((stat_name_lower, is_pct))
-            if stat_key:
-                entry = SourceEntry(
-                    stat=stat_key,
-                    amount=amount,
-                    source_type="hero_memory",
-                    label="Hero Memory",
-                    text=effect,
-                    points=1,
-                )
-                _emit(source, stat_key, amount, scope, entry)
-                continue
-            # Try multi-stat lookup
-            stat_keys = _MEMORY_MULTI_LOOKUP.get((stat_name_lower, is_pct))
-            if stat_keys:
-                for sk in stat_keys:
-                    entry = SourceEntry(
-                        stat=sk,
-                        amount=amount,
-                        source_type="hero_memory",
-                        label="Hero Memory",
-                        text=effect,
-                        points=1,
-                    )
-                    _emit(source, sk, amount, scope, entry)
+    # ── Pact Spirit + Hero Memory contributions (pre-resolved server-side) ─────
+    # Resolved by server._resolve_effect_modifiers (the unified pool-strict path; replaces the old
+    # _MEMORY_STAT_LOOKUP). Spirit→memory order preserved (multiplicative-pool order); conditional effects
+    # gated in _apply_effect_contribs.
+    _apply_effect_contribs(source, build.spirit_contributions, "pact_spirit", "Pact Spirit", active_booleans, numeric_vals)
+    _apply_effect_contribs(source, build.memory_contributions, "hero_memory", "Hero Memory", active_booleans, numeric_vals)
 
     # ── Custom mod contributions ──────────────────────────────────────────────
     for contrib in build.custom_contributions:
