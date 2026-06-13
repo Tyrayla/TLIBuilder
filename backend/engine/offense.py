@@ -79,6 +79,11 @@ _DEFERRED_ADDITIONAL: dict[str, str] = {
     "two_handed_base_dmg_additional":"May apply to base damage before inc/additional; stacking position unconfirmed — deferred",
 }
 
+# Additional-damage stats applied by a FORM-SCOPED multiplier (not the generic hit pool), so they must be
+# excluded here to avoid double-counting. Steep Strike Additional Damage applies ONLY to the Steep Strike
+# hit form (see calculate_offense `form_add_mult`) — it is consumed, just not a generic all-hits factor.
+_FORM_SCOPED_ADDITIONAL: frozenset = frozenset({"steep_strike_additional_dmg"})
+
 # Hit damage additional multiplier stats — each is an independent multiplicative pool.
 # Deferred stats (see _DEFERRED_ADDITIONAL) are excluded and listed in the NYI output.
 _HIT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
@@ -87,6 +92,7 @@ _HIT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
     if meta.pipeline_stage == "additional"
     and "hit" in meta.affects
     and stat.value not in _DEFERRED_ADDITIONAL
+    and stat.value not in _FORM_SCOPED_ADDITIONAL
 ]
 
 # Attack speed additional pools (tags read directly from stat_meta)
@@ -506,6 +512,7 @@ def calculate_offense(
     is_main_skill: bool = True,
     extra_additional: float = 0.0,
     support_behavior: dict | None = None,
+    remove_mod_tags: set[str] | None = None,
 ) -> OffenseResult:
     # extra_additional: a skill-intrinsic generic "additional damage" pool (fraction), evaluated
     # by the caller from the skill's intrinsic_additional + condition state (e.g. Focused Slash's
@@ -517,7 +524,13 @@ def calculate_offense(
     # borrows (e.g. Moon Strike borrows 'spell' so Spell Damage mods apply to its Attack Damage).
     # NOT used for flat adds / is_spell, so a borrowing skill doesn't pull in off-type flat damage.
     skill_tags_lower = {t.lower() for t in skill.tags}
+    # A support can strip a tag from the supported skill (e.g. Focused Slash: Behead removes 'area', so
+    # Area-scoped damage mods + the skill_area display no longer apply). Affects mod-gating + skill_area.
+    if remove_mod_tags:
+        skill_tags_lower = skill_tags_lower - {t.lower() for t in remove_mod_tags}
     mod_tags = skill_tags_lower | {t.lower() for t in skill.extra_damage_mod_tags}
+    if remove_mod_tags:
+        mod_tags = mod_tags - {t.lower() for t in remove_mod_tags}
 
     # 0. Crit — computed here in the offense layer, NOT in the fixed-point loop
     # Weapon CSR (from weapon gear piece) scaled by gear-specific and MH-specific % mods only.
@@ -683,6 +696,13 @@ def calculate_offense(
 
     # 4. Steep strike chance: skill's intrinsic passive + stat sources, capped at 1.0
     steep_chance = min(skill.base_steep_strike_chance + source.total("steep_strike_chance"), 1.0)
+    # Additional Steep Strike Damage applies ONLY to the steep-strike hit form (the high-damage proc). It's
+    # a form-scoped additional multiplier on top of the generic additional pool (e.g. node sources, and
+    # Berserking Blade Rampage's skill-area→steep-strike share). Only READ the stat when the skill actually
+    # has a steep-strike form, so it isn't false-flagged "Consumed" for skills that can't steep strike.
+    _has_steep_form = any(f.proc_stat_key == "steep_strike_chance"
+                          for f in skill.hit_forms_by_level.get(lookup_level, []))
+    steep_add_mult = (1.0 + source.total("steep_strike_additional_dmg")) if _has_steep_form else 1.0
 
     # 5. Hit rate (casts/attacks per second).
     if skill.is_spell:
@@ -724,10 +744,13 @@ def calculate_offense(
 
         if form.proc_stat_key == "steep_strike_chance":
             proc = steep_chance
+            form_add_mult = steep_add_mult   # additional Steep Strike Damage hits only this form
         elif form.proc_stat_key == "_complement_steep_strike_chance":
             proc = 1.0 - steep_chance
+            form_add_mult = 1.0
         else:
             proc = 1.0
+            form_add_mult = 1.0
 
         damage_by_type: dict[str, float] = {}
         hit_min_by_type: dict[str, float] = {}
@@ -744,8 +767,8 @@ def calculate_offense(
         for dtype, (smin, smax) in converted.items():
             # Enemy-vulnerability (Numbed etc.) and Augmentation are per-FINAL-type / global multipliers.
             vuln = _enemy_vuln_mult(source, dtype, is_spell)
-            type_min = smin * above_mult * vuln * aug_factor
-            type_max = smax * above_mult * vuln * aug_factor
+            type_min = smin * above_mult * vuln * aug_factor * form_add_mult
+            type_max = smax * above_mult * vuln * aug_factor * form_add_mult
             avg = (type_min + type_max) / 2.0
             # Lucky keys off the FINAL type (tested): EV uplift from the spread, applied to the average.
             if (lucky_damage or source.total(f"lucky_{dtype}") > 0.0) and type_max > type_min:

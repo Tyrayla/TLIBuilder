@@ -86,6 +86,8 @@ def resolve_support_contributions(
     tier line that carries a condition ("…when only 1 enemy nearby"): the condition is split off and
     translated; an untranslatable gate drops the line rather than applying it always-on (the old bug)."""
     from engine.core_talent_resolver import _split_condition
+    # Lazy import (skill_effects modules import helpers from this module → avoid a circular import at load).
+    from engine import skill_effects
     if not attached_supports or not skills_by_id:
         return []
 
@@ -111,7 +113,18 @@ def resolve_support_contributions(
                         "amount": amount,
                         "text": f"{_UNIVERSAL_PHRASE} |{item_id}|universal",
                         "label": f"{name} (Rank {rank})",
+                        "slot": sup.get("slot", 1),
                     })
+
+        # Bespoke/deferred canvas supports (per engine.skill_effects): their SPECIFIC line is handled by
+        # the skill's module — either a type-A support-path contribution (e.g. Desperation, Fervor) or a
+        # slot/compute-side effect / deferral. Skip the generic parser (it would misread these lines). The
+        # universal +20% above still applies.
+        if item_id in skill_effects.GENERIC_GUARD_IDS:
+            c = skill_effects.support_contribution(sup, data)
+            if c:
+                out.append(c)
+            continue
 
         # 2) Specific tier line(s) from progression[tier] — the support's own roll, NOT rank-scaled.
         tier = _tier_value(sup.get("level"))
@@ -139,6 +152,7 @@ def resolve_support_contributions(
                         "text": f"{_UNIVERSAL_PHRASE} |{item_id}|specific",
                         "label": f"{name} (Tier {tier})",
                         "condition": cond_expr,
+                        "slot": sup.get("slot", 1),
                     })
     return out
 
@@ -150,7 +164,9 @@ def resolve_support_behavior(
     """Parse attached supports' description text for behavioral (non-stat) effects that feed offense's
     per-cast hit-list / shotgun. Text-driven, not hardcoded to Chain Lightning's support ids.
 
-    Returns keys (present only when found):
+    Returns a PER-SLOT map `{slot: {behavior keys}}` (a support belongs to its host skill's slot, default
+    1) so each slot's offense pass reads only its own supports' behavior. Per-slot keys (present only when
+    found):
       - same_target_shotgun, falloff_coefficient  ← Merge ("…falloff coefficient … is 80%")
       - chains_per_jump                            ← Web ("…releases 1 additional Chain Lightning")
       - lucky_damage                               ← Lucky ("…deals Lucky Damage")
@@ -158,13 +174,14 @@ def resolve_support_behavior(
     Shotgun / Augmentation / Lucky are applied in calculate_offense (shotgun: total-DPS multiplier;
     Augmentation: (1+per)^total_jumps per-hit factor; Lucky: per-type EV scalar on the average).
     """
-    behavior: dict = {}
+    by_slot: dict[int, dict] = {}
     if not attached_supports or not skills_by_id:
-        return behavior
+        return by_slot
     for sup in attached_supports:
         data = skills_by_id.get(sup.get("item_id"))
         if not data:
             continue
+        behavior = by_slot.setdefault(sup.get("slot", 1), {})
         desc = _dedup_join(data.get("description_lines", []))
         m = _FALLOFF_RE.search(desc)
         if m:
@@ -184,7 +201,7 @@ def resolve_support_behavior(
                 frac = roll if roll is not None else _range_mid_fraction(line)
                 if frac:
                     behavior["augmentation_per_jump"] = abs(frac)
-    return behavior
+    return by_slot
 
 
 def _clamp_rank(rank) -> int:
@@ -267,6 +284,7 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
                     # unique pooling identity per support line (multiplies, like Noble/Mag)
                     "text": f"{c.text} |{item_id}|{line.template[:24]}",
                     "label": name,
+                    "slot": sup.get("slot", 1),
                 })
             effects.extend(map_autoderive_line(line))
 
@@ -281,5 +299,6 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
                     "amount": (1.0 + wp) ** stacks - 1.0,
                     "text": f"+{wp * 100:.1f}% additional damage per Willpower stack (multiplies) |{item_id}|wp",
                     "label": name,
+                    "slot": sup.get("slot", 1),
                 })
     return contribs, effects

@@ -17,6 +17,12 @@ class SourceEntry:
     # ORIGINAL full line incl. the scope words so the additional pool's affix-identity stays distinct
     # (scoped vs unscoped additionals must multiply, never additively merge).
     scope:        str | None = None
+    # Skill SLOT this contribution is local to (a slot's own supports / skill self-buffs). None =
+    # character-wide (the default for every existing emit). Slot entries never enter `_entries`/
+    # `source_log`; they fold into the SAME base stat key for the matching slot via materialize_for_skill.
+    # NOTE: `slot` is deliberately NOT read by compute.py's stat_map (it reads source_type/label/text/
+    # amount/points only), so adding it leaves character-stat output byte-identical.
+    slot:         int | None = None
 
 
 @dataclass
@@ -57,6 +63,12 @@ class BuildSource:
     # runs on the identical base source → output byte-identical (the no-change guarantee).
     scoped_entries: list[tuple[str, float, str]] = field(default_factory=list)  # (stat, amount, scope_tag)
     scoped_log: list[SourceEntry] = field(default_factory=list)
+    # Slot-local contributions (a slot's supports / skill self-buffs), held SEPARATELY like scoped_entries.
+    # Per slot, materialize_for_skill folds the ones whose slot matches (and whose scope, if any, matches
+    # the skill tags). Empty for every single-slot build today → offense runs on the identical base source
+    # → byte-identical output (the same dormancy guarantee scoped_entries gives).
+    slot_entries: list[tuple[str, float, int, str | None]] = field(default_factory=list)  # (stat, amount, slot, scope)
+    slot_log: list[SourceEntry] = field(default_factory=list)
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
@@ -71,21 +83,41 @@ class BuildSource:
         self.scoped_entries.append((stat, amount, scope))
         self.scoped_log.append(entry)
 
-    def materialize_for_skill(self, mod_tags: set[str]) -> "BuildSource":
+    def add_slotted(self, stat: str, amount: float, slot: int, scope: str | None, entry: SourceEntry) -> None:
+        """A contribution local to skill `slot` (and optionally also tag-scoped). Folds into the base `stat`
+        key only for that slot's offense pass (via materialize_for_skill); never enters the base
+        `_entries`/`source_log`, so it cannot leak into other slots or the global character stats."""
+        entry.slot = slot
+        entry.scope = scope
+        self.slot_entries.append((stat, amount, slot, scope))
+        self.slot_log.append(entry)
+
+    def materialize_for_skill(self, mod_tags: set[str], slot: int | None = None) -> "BuildSource":
         """Return a source whose `_entries`/`source_log` are the base PLUS the scoped contributions whose
-        scope is in `mod_tags`. Identity fast-path (returns self) when there are no scoped entries or none
-        match → the offense runs on the same object → identical output. `consumed_stats` is SHARED so badge
+        scope is in `mod_tags` AND the slot-local contributions for `slot` (whose scope, if any, also
+        matches). Identity fast-path (returns self) when there are no scoped/slot entries or none match →
+        the offense runs on the same object → identical output. `consumed_stats` is SHARED so badge
         recording sees the folded base keys; offense only READS the effective source, never mutates it."""
-        if not self.scoped_entries:
+        if not self.scoped_entries and not self.slot_entries:
             return self
         matched = [(s, a) for (s, a, sc) in self.scoped_entries if sc in mod_tags]
-        if not matched:
+        matched_slot = [(s, a) for (s, a, sl, sc) in self.slot_entries
+                        if sl == slot and (sc is None or sc in mod_tags)]
+        if not matched and not matched_slot:
             return self
         return BuildSource(
-            _entries=self._entries + matched,
-            source_log=self.source_log + [e for e in self.scoped_log if e.scope in mod_tags],
+            _entries=self._entries + matched + matched_slot,
+            source_log=self.source_log
+            + [e for e in self.scoped_log if e.scope in mod_tags]
+            + [e for e in self.slot_log if e.slot == slot and (e.scope is None or e.scope in mod_tags)],
             consumed_stats=self.consumed_stats,
             _recording=self._recording,
+            # Carry the overlays forward so a materialized source can still fold (defensive; offense only
+            # reads _entries/source_log/total so this does not affect output).
+            scoped_entries=self.scoped_entries,
+            scoped_log=self.scoped_log,
+            slot_entries=self.slot_entries,
+            slot_log=self.slot_log,
         )
 
     def total(self, stat: str) -> float:
@@ -164,3 +196,4 @@ class StatResult:
     skill_slots:         list[dict] | None = None  # per-slot summary: slot, skill_id, skill_name, level, effective_level, supported
     consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
+    slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot

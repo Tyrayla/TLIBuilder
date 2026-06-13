@@ -122,8 +122,12 @@ def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict
             rating = float(condition_state.get(ia.rating_key, 0.0) or 0.0)
         if rating <= 0.0:
             continue
+        # effect_key (global, e.g. fervor_effect_inc) and skill_effect_key (skill-local, e.g. Tranquility)
+        # are BOTH increased — they add into the same (1 + Σ increased) pool. The skill-local one scales
+        # the skill's bonus only, not the global crit (which reads effect_key elsewhere).
         effect = source.total(ia.effect_key) if ia.effect_key else 0.0
-        amount = ia.per * (rating / getattr(ia, "per_n", 1.0)) * (1.0 + effect)
+        skill_effect = source.total(ia.skill_effect_key) if getattr(ia, "skill_effect_key", None) else 0.0
+        amount = ia.per * (rating / getattr(ia, "per_n", 1.0)) * (1.0 + effect + skill_effect)
         cap = getattr(ia, "cap", None)
         if cap is not None:
             amount = min(amount, cap)
@@ -194,6 +198,21 @@ def compute(
             main_cat = "spell" if _rm.is_spell else ("attack" if "attack" in _tags else None)
             main_dtypes = [d.lower() for d in _rm.damage_types]
 
+    # The main skill's slot (folds its slot-local supports/self-buffs + drives skill-effect dispatch).
+    from engine import skill_effects
+    main_slot = 1
+    if build_input.main_skill and skills_input:
+        for _sk in skills_input:
+            if _sk["skill_id"] == build_input.main_skill.skill_id:
+                main_slot = _sk["slot"]
+                break
+    # Type-C preseed before aggregation (e.g. Berserking Blade Decimate forcing enemy_low_life when the
+    # enemy is below the rolled threshold), dispatched per the main skill's module.
+    if build_input.main_skill:
+        skill_effects.preseed(build_input.main_skill.skill_id, slot=main_slot,
+                              condition_state=condition_state,
+                              attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
+
     for iteration in range(_MAX_ITERS):
         active_booleans, numeric_vals = _derive_views(condition_state)
 
@@ -210,9 +229,16 @@ def compute(
         std_contribs, cond_effects = resolve_standard_supports(
             build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state)
         for c in std_contribs:
-            source.add_with_source(c["stat_key"], c["amount"], SourceEntry(
+            _se = SourceEntry(
                 stat=c["stat_key"], amount=c["amount"], source_type="support",
-                label=c.get("label", "Support"), text=c.get("text", ""), points=1))
+                label=c.get("label", "Support"), text=c.get("text", ""), points=1)
+            # Standard supports are slot-local to their host skill (default slot 1) — fold only into that
+            # slot's offense pass, like the Noble/Magnificent contributions above.
+            _slot = c.get("slot")
+            if _slot is not None:
+                source.add_slotted(c["stat_key"], c["amount"], _slot, None, _se)
+            else:
+                source.add_with_source(c["stat_key"], c["amount"], _se)
 
         # Compute derived stats (strength, armor, max_life, etc.) and inject
         # back into source so the pipeline and condition system can read them.
@@ -239,6 +265,15 @@ def compute(
         # count at >= 1 so "when only/at least N enemies nearby" gates resolve (doesn't drop a higher count).
         if condition_state.get("enemy_nearby"):
             condition_state["enemies_nearby"] = max(float(condition_state.get("enemies_nearby", 0) or 0), 1.0)
+
+        # Player current-life % → low_life / at_full_life / life_lost_pct (Desperation reads life_lost_pct).
+        # Settable derived stat; auto-deriving it from life reservation/consumption is a follow-up. Only
+        # touched when the build sends current_life_pct, so older payloads keep low_life byte-identical.
+        if "current_life_pct" in condition_state:
+            _clp = float(condition_state.get("current_life_pct", 100.0) or 0.0)
+            condition_state["low_life"] = bool(condition_state.get("low_life")) or _clp < 35.0
+            condition_state["at_full_life"] = _clp >= 100.0
+            condition_state["life_lost_pct"] = max(0.0, 100.0 - _clp)
 
         # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
         # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values.
@@ -349,22 +384,52 @@ def compute(
     source._recording = True
     result_defense = asdict(calculate_defense(source))
 
+    # Per-slot support_behavior ({slot: {...}}) — the headline reads its own slot's behavior. Tolerate a
+    # legacy flat dict (no per-slot keys) by treating it as slot 1's behavior.
+    _behavior = build_input.support_behavior or {}
+    _behavior_by_slot = _behavior if all(isinstance(k, int) for k in _behavior) else {1: _behavior}
+
+    def _offense_for_slot(resolved, level, slot, is_main):
+        """Compute one slot's offense, folding only that slot's slot-local contributions. The skill's
+        skill_effects module (if any) emits its slot-local effects first — Berserking Blade's intrinsic
+        buff + Sweep/Rampage, Focused Slash's Behead/Tranquility, Moon Strike's Rainbow/Lunar Ring — and
+        may return offense overrides (e.g. Behead removing the Area tag)."""
+        _mt = ({t.lower() for t in resolved.tags}
+               | {t.lower() for t in getattr(resolved, "extra_damage_mod_tags", [])})
+        overrides = skill_effects.apply_slot_effects(
+            resolved.skill_id, source=source, resolved=resolved, slot=slot,
+            condition_state=condition_state, mod_tags=_mt,
+            attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
+        eff = source.materialize_for_skill(_mt, slot)
+        # Intrinsic additionals read the slot-EFFECTIVE source so a slot-local amplifier (e.g. Tranquility's
+        # fervor_effect_additional) scopes to the skill's bonus without touching the global Fervor→crit.
+        extra = _eval_intrinsic_additional(resolved, eff, new_state)
+        return asdict(calculate_offense(
+            eff, resolved, level, is_main_skill=is_main, extra_additional=extra,
+            support_behavior=_behavior_by_slot.get(slot, {}),
+            remove_mod_tags=overrides.get("remove_mod_tags")))
+
     result_offense = None
+    slot_offense: dict[int, dict] = {}
     if skill_data and build_input.main_skill:
-        resolved = resolve_skill(skill_data)
-        # new_state is the converged, clamped condition state from the loop above.
-        extra_add = _eval_intrinsic_additional(resolved, source, new_state)
-        # Fold skill-scoped contributions ("…for Attack Skills") into an effective source for THIS skill,
-        # matching its tags. Mirrors offense.py mod_tags (skill tags + borrowed damage-mod tags). Identity
-        # no-op (returns the same object) for every build with no scoped mods → offense output unchanged.
-        _mod_tags = ({t.lower() for t in resolved.tags}
-                     | {t.lower() for t in getattr(resolved, "extra_damage_mod_tags", [])})
-        offense = calculate_offense(
-            source.materialize_for_skill(_mod_tags), resolved, build_input.main_skill.level,
-            is_main_skill=True, extra_additional=extra_add,
-            support_behavior=build_input.support_behavior,
-        )
-        result_offense = asdict(offense)
+        result_offense = _offense_for_slot(
+            resolve_skill(skill_data), build_input.main_skill.level, main_slot, True)
+        slot_offense[main_slot] = result_offense
+
+    # Secondary active skill slots — each computed independently, folding only ITS slot's supports (no
+    # cross-contamination between setups). Today's payloads carry only the main skill, so this is empty and
+    # adds nothing to consumed_stats. Passives (slot > 5) and disabled slots are skipped.
+    if skills_input and skills_by_id is not None:
+        for sk in skills_input:
+            if sk["slot"] > 5 or sk["slot"] == main_slot or not sk.get("enabled", True):
+                continue
+            sd = skills_by_id.get(sk["skill_id"])
+            if not sd:
+                continue
+            resolved_sk = resolve_skill(sd)
+            if not resolved_sk.supported:
+                continue
+            slot_offense[sk["slot"]] = _offense_for_slot(resolved_sk, sk["level"], sk["slot"], False)
     source._recording = False
 
     # Skill slot summaries — effective level for every equipped skill
@@ -412,4 +477,5 @@ def compute(
         skill_slots=result_skill_slots,
         consumed_stats=sorted(source.consumed_stats),
         target_stats=target_stats,
+        slot_offense={str(k): v for k, v in slot_offense.items()} or None,
     )

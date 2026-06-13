@@ -4,10 +4,15 @@ import re
 from engine.models import BuildInput, BuildSource, SourceEntry
 
 
-def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entry: SourceEntry) -> None:
-    """Route a contribution: scoped → add_scoped (folds per-skill via materialize_for_skill); unscoped →
-    add_with_source (the existing path). The entry carries the scope so source-attribution stays correct."""
-    if scope:
+def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entry: SourceEntry,
+          slot: int | None = None) -> None:
+    """Route a contribution 3 ways: slot-local → add_slotted (folds only into that slot's offense pass);
+    else scoped → add_scoped (folds per-skill via materialize_for_skill); else → add_with_source (the
+    existing global path). The entry carries slot/scope so source-attribution stays correct. Identical to
+    the old 2-way behavior when slot is None (the only case outside per-slot supports)."""
+    if slot is not None:
+        source.add_slotted(stat, amount, slot, scope, entry)
+    elif scope:
         entry.scope = scope
         source.add_scoped(stat, amount, scope, entry)
     else:
@@ -316,6 +321,17 @@ def aggregate(
         if not stat:
             continue
         amount = float(contrib.get("amount", 0))
+        cond = contrib.get("condition")            # gate split off server-side (e.g. "vs Low Life enemies")
+        if cond is not None:
+            cond_result = _eval_condition(cond, active_booleans, numeric_vals)
+            if isinstance(cond_result, float):
+                if cond_result == 0.0:
+                    continue
+                amount *= cond_result
+            elif not cond_result:
+                continue
+            if isinstance(cond, dict) and "cap" in cond:
+                amount = min(amount, float(cond["cap"]))
         entry = SourceEntry(
             stat=stat,
             amount=amount,
@@ -344,6 +360,10 @@ def aggregate(
                 amount *= cond_result
             elif not cond_result:
                 continue
+            # Capped per-condition contributions (e.g. Desperation "…up to 38%"): clamp after the per/×
+            # scaling, mirroring the gear loop and _apply_effect_contribs.
+            if isinstance(cond, dict) and "cap" in cond:
+                amount = min(amount, float(cond["cap"]))
         entry = SourceEntry(
             stat=stat,
             amount=amount,
@@ -352,7 +372,9 @@ def aggregate(
             text=contrib.get("text", ""),
             points=1,
         )
-        _emit(source, stat, amount, contrib.get("scope"), entry)
+        # A support belongs to its host skill's SLOT (default 1) — fold only into that slot's offense so
+        # two same-skill setups never share supports. slot=1 keeps single-slot DPS byte-identical.
+        _emit(source, stat, amount, contrib.get("scope"), entry, slot=contrib.get("slot"))
 
     # ── Core-talent contributions (roadmap #4) ────────────────────────────────
     # Pre-resolved + deduped server-side (server.resolve_core_talents): every granted core talent,

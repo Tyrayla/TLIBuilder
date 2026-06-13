@@ -81,8 +81,12 @@ def _make_skill(is_spell):
     from engine.skill_resolver import ResolvedSkill, SkillHitForm
     return ResolvedSkill(
         skill_id="__universe__", name="Universe", tags=list(_ALL_TAGS), max_level=1,
-        hit_forms_by_level={1: [SkillHitForm(name="H", effectiveness_pct=100.0,
-                                             form_type="additive", proc_stat_key=None)]},
+        # Include a Steep Strike form so the form-scoped steep_strike_additional_dmg read is exercised
+        # (otherwise that modeled stat would false-yellow in the badges).
+        hit_forms_by_level={1: [
+            SkillHitForm(name="H", effectiveness_pct=100.0, form_type="additive", proc_stat_key=None),
+            SkillHitForm(name="Steep", effectiveness_pct=100.0, form_type="additive",
+                         proc_stat_key="steep_strike_chance")]},
         supported=True, base_steep_strike_chance=0.0, is_spell=is_spell,
         base_dmg_by_level=({1: {t: (10.0, 10.0) for t in _DMG_TYPES}} if is_spell else {}),
         base_cast_time=1.0, added_dmg_effectiveness=1.36,

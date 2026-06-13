@@ -86,15 +86,20 @@ export function buildEngineStatsPayload(s: BuildState) {
     memory_effects: buildMemoryEffects(s.heroMemories),
     spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits), s.spiritEffectExclude),
     main_skill: s.mainSkill ?? null,
-    skills: s.skills.map(sk => ({ slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1 })),
+    skills: s.skills.map(sk => ({
+      slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1, enabled: sk.enabled !== false,
+    })),
     // The main skill (slot 1) carries the supports that scale its damage. The engine resolves their
-    // "additional damage for the supported skill" lines (rank + tier) into stat contributions.
+    // "additional damage for the supported skill" lines (rank + tier) into stat contributions, gated on
+    // the support (and its host skill) being enabled.
     attached_supports: (s.skills.find(sk => sk.slot === 1)?.supports ?? []).map(sup => ({
       item_id: sup.item_id,
       skill_type: sup.skill_type,
       rank: sup.rank,
       level: sup.level,
       specific_rolls: sup.specific_rolls,
+      slot: 1,
+      enabled: sup.enabled !== false,
     })),
     custom_mods: s.customMods,
   }

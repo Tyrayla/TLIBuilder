@@ -562,6 +562,7 @@ class SkillSlotInput(BaseModel):
     slot:     int   # 1–5 active, 6–9 passive
     skill_id: str
     level:    int = 1
+    enabled:  bool = True   # disabled skills (and their supports + sourced buffs/debuffs) drop out of the calc
 
 
 class EngineStatsRequest(BaseModel):
@@ -628,16 +629,32 @@ def engine_stats(req: EngineStatsRequest):
         main_skill = SkillRef(skill_id=req.main_skill.skill_id, level=req.main_skill.level)
         skill_data = skills_by_id.get(req.main_skill.skill_id)
 
-    skills_input = [{"slot": s.slot, "skill_id": s.skill_id, "level": s.level} for s in req.skills]
+    skills_input = [{"slot": s.slot, "skill_id": s.skill_id, "level": s.level, "enabled": s.enabled}
+                    for s in req.skills]
+    # Host-enable gate: a disabled active/passive skill removes that slot's supports too. With no `skills`
+    # payload (today's common case) every support stays enabled → byte-identical.
+    _disabled_slots = {s.slot for s in req.skills if not s.enabled}
 
-    # Pre-resolve custom mods and build status list for the frontend
+    # Pre-resolve custom mods and build status list for the frontend. Mirror the gear path: split off a
+    # leading/trailing condition ("vs Low Life enemies", "if Ignited", "when only 1 enemy nearby") so the
+    # stat clause resolves and the gate rides on each contribution's `condition` (gated in the aggregator).
+    # An untranslatable gate makes the mod UNRESOLVED (honest NYI), never applied always-on.
+    from engine.core_talent_resolver import _split_condition
     custom_contributions: list[dict] = []
     custom_mod_statuses: list[dict] = []
     for mod_text in req.custom_mods:
-        parsed = _parse_custom_mod_text(mod_text)
+        stat_part, cond_part = _split_condition(mod_text)
+        parsed = _parse_custom_mod_text(stat_part)
+        cond_expr = None
+        if parsed and cond_part is not None:
+            cond_expr = _translate_condition_expr(mod_text) or _translate_condition_expr(cond_part)
+            if cond_expr is None:
+                parsed = []
         if parsed:
-            # Each parsed entry becomes a contribution; all share the same original text
+            # Each parsed entry becomes a contribution; all share the same original text + gate.
             for entry in parsed:
+                if cond_expr is not None:
+                    entry["condition"] = cond_expr
                 custom_contributions.append(entry)
             display_names = [
                 _get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed
@@ -676,10 +693,14 @@ def engine_stats(req: EngineStatsRequest):
     # plus behavioral effects (shotgun falloff / chains-per-jump).
     support_contributions: list[dict] = []
     support_behavior: dict = {}
-    if req.attached_supports:
+    # Enabled filter: drop individually-disabled supports and any support whose host skill slot is off.
+    # Default enabled=True and absent slot → kept, so today's payloads resolve the identical set.
+    enabled_supports = [s for s in req.attached_supports
+                        if s.get("enabled", True) and s.get("slot", 1) not in _disabled_slots]
+    if enabled_supports:
         from engine.support_resolver import resolve_support_contributions, resolve_support_behavior
-        support_contributions = resolve_support_contributions(req.attached_supports, skills_by_id, _translate_condition_expr)
-        support_behavior = resolve_support_behavior(req.attached_supports, skills_by_id)
+        support_contributions = resolve_support_contributions(enabled_supports, skills_by_id, _translate_condition_expr)
+        support_behavior = resolve_support_behavior(enabled_supports, skills_by_id)
 
     # Resolve granted core talents (tree / slate / legendary / belt blend), deduped to count each
     # exactly once, into stat contributions + base-effect override flags. Flags ride in condition_state
@@ -748,7 +769,7 @@ def engine_stats(req: EngineStatsRequest):
         custom_contributions=custom_contributions,
         attached_support_contributions=support_contributions,
         support_behavior=support_behavior,
-        attached_supports=req.attached_supports,
+        attached_supports=enabled_supports,
         core_talent_contributions=core_contributions,
         node_contributions=node_contributions,
     )
@@ -770,6 +791,9 @@ def engine_stats(req: EngineStatsRequest):
         "spirit_mod_statuses": spirit_mod_statuses,
         "memory_mod_statuses": memory_mod_statuses,
         "skill_slots": result.skill_slots,
+        # Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Additive —
+        # the renderer doesn't consume it yet.
+        "slot_offense": result.slot_offense,
         "consumed_stats": result.consumed_stats,
         # Maximal set of stats the engine can EVER read (all skills/tags) — lets the UI tell "Inactive"
         # (modeled, not for your skill) apart from "Unconsumed" (engine never reads it). Cached per process.

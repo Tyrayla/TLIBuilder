@@ -185,7 +185,7 @@ class TestExplicitRolls:
         ident = affix_identity(line)
         b = resolve_support_behavior(
             [{"item_id": "aug", "skill_type": "magnificent_support_skill", "rank": 1, "level": 1,
-              "specific_rolls": {ident: 0.059}}], _BY_ID)
+              "specific_rolls": {ident: 0.059}}], _BY_ID).get(1, {})
         assert b["augmentation_per_jump"] == pytest.approx(0.059)  # explicit, not mid 0.057
 
     def test_missing_rank_defaults_to_1(self):

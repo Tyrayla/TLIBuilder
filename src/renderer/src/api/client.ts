@@ -438,9 +438,10 @@ export interface SkillSlotInput {
   slot: number      // 1–5 active, 6–9 passive
   skill_id: string
   level: number
+  enabled?: boolean // default true; disabled skills (and their supports + sourced buffs/debuffs) drop out
 }
 
-// A support attached to the main skill, sent to the engine so it can resolve the support's
+// A support attached to a skill, sent to the engine so it can resolve the support's
 // damage lines (rank scales the universal line; level/tier scales the specific lines).
 export interface AttachedSupportInput {
   item_id: string
@@ -448,6 +449,8 @@ export interface AttachedSupportInput {
   rank?: number
   level: number
   specific_rolls?: Record<string, number>
+  slot?: number     // the host skill's slot (default 1); contributions are local to this slot
+  enabled?: boolean // default true; disabled supports drop out of the calc
 }
 
 export interface SkillSlotSummary {
@@ -571,6 +574,9 @@ export interface StatSheetResponse {
   // kind: 'stat' | 'override' (applied) | 'deferred' | 'unresolved' (captured, not applied).
   core_talent_statuses?: CoreTalentStatus[]
   skill_slots?: SkillSlotSummary[]
+  // Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Lets the UI
+  // eventually show each setup's DPS independently. Additive — not consumed yet.
+  slot_offense?: Record<string, OffenseResult> | null
   // Stat keys the engine actually READ for this build (offense/defense/derive/aggregator). A resolved
   // modifier whose mapped stat is here → "Consumed" (green badge).
   consumed_stats?: string[]
@@ -927,6 +933,9 @@ export interface EquippedSupportSkill {
   specific_rolls?: Record<string, number>
   skill_tags: string[]
   description_lines: string[]
+  // Whether this support contributes. Default true; false drops its contributions from the calc.
+  // Persisted in the build (rides inside the skills array).
+  enabled?: boolean
 }
 
 export interface EquippedSkill {
@@ -937,6 +946,8 @@ export interface EquippedSkill {
   skill_tags: string[]
   description_lines: string[]
   supports: EquippedSupportSkill[]
+  // Whether this skill (and its supports + sourced buffs/debuffs) contributes. Default true.
+  enabled?: boolean
 }
 
 const PASSIVE_TAGS = new Set(['Aura', 'Spirit Magus', 'Focus'])

@@ -41,7 +41,8 @@ _BY_ID = {
 
 
 def _b(*ids):
-    return resolve_support_behavior([{"item_id": i} for i in ids], _BY_ID)
+    # resolve_support_behavior now returns a per-slot map {slot: {...}}; these supports are all slot 1.
+    return resolve_support_behavior([{"item_id": i} for i in ids], _BY_ID).get(1, {})
 
 
 class TestBehavior:

@@ -558,7 +558,11 @@ class Stat(Enum):
 
     # ── Skill Mechanics ───────────────────────────────────────────────────────
     SKILL_AREA_INC = "skill_area_inc"
+    SKILL_AREA_ADDITIONAL = "skill_area_additional"   # additional Skill Area pool (e.g. Berserking Blade Sweep)
     ATTACK_SKILL_AREA_INC = "attack_skill_area_inc"
+    # Coefficient: fraction of the skill-area bonus also applied as additional Steep Strike Damage
+    # (Berserking Blade Rampage). Read by the per-slot finalize, not the offense pipeline directly.
+    SKILL_AREA_TO_STEEP_STRIKE_DMG = "skill_area_to_steep_strike_dmg"
     SKILL_EFFECT_DURATION_INC = "skill_effect_duration_inc"
     SKILL_EFFECT_DURATION_ADDITIONAL = "skill_effect_duration_additional"
     RESTORATION_EFFECT_INC = "restoration_effect_inc"
@@ -574,6 +578,14 @@ class Stat(Enum):
     TAUNT_ON_HIT_CHANCE = "taunt_on_hit_chance"
     ATTACK_TAUNT_ON_HIT_CHANCE = "attack_taunt_on_hit_chance"
     FERVOR_EFFECT_INC = "fervor_effect_inc"
+    # SKILL-LOCAL increased Fervor Effect: adds into the same (increased) pool as fervor_effect_inc for a
+    # skill's intrinsic Fervor damage bonus ONLY — it does NOT scale the global Fervor→crit. Read by
+    # IntrinsicAdditional.skill_effect_key. e.g. Focused Slash: Tranquility (verified increased-not-
+    # additional vs the in-game recount, 2026-06-13).
+    FERVOR_EFFECT_SKILL_INC = "fervor_effect_skill_inc"
+    # DPS-inert tracked chance: Moon Strike: Lunar Ring's circular-attack proc on Steep Strike (surfaced
+    # to the user as a %, no single-target damage effect).
+    MOON_STRIKE_CIRCULAR_CHANCE = "moon_strike_circular_chance"
     BLUR_EFFECT_INC = "blur_effect_inc"
     WARCRY_EFFECT_INC = "warcry_effect_inc"
     WARCRY_SKILL_AREA_INC = "warcry_skill_area_inc"

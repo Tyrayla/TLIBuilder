@@ -342,6 +342,26 @@ export default function SkillsScreen(_props: Props) {
     }
   }
 
+  // Enable/disable a skill — disabled skills (and their supports + sourced buffs/debuffs) drop out of the
+  // calc without losing the setup. Persisted in the build (rides inside the skills array).
+  const toggleSkillEnabled = (slot: number) => {
+    onSkillsChange(equippedSkills.map(s =>
+      s.slot === slot ? { ...s, enabled: s.enabled === false } : s
+    ))
+  }
+
+  // Enable/disable a single support on the focused skill.
+  const toggleSupportEnabled = (supportIdx: number) => {
+    if (focusedSlot === null) return
+    onSkillsChange(equippedSkills.map(s =>
+      s.slot === focusedSlot
+        ? { ...s, supports: s.supports.map(sup =>
+              sup.support_index === supportIdx ? { ...sup, enabled: sup.enabled === false } : sup
+            )}
+        : s
+    ))
+  }
+
   const assignSupport = () => {
     if (!selectedSupportItem || focusedSlot === null || focusedSupportIdx === null) return
     const parent = focusedEquipped
@@ -511,6 +531,11 @@ export default function SkillsScreen(_props: Props) {
                 </div>
               )}
             </SkillHoverTooltip>
+            <button
+              className={`btn btn-sm ${focusedEquipped.enabled === false ? 'btn-danger' : 'btn-secondary'}`}
+              title="Enable/disable this skill (and its supports) in the calculation"
+              onClick={() => toggleSkillEnabled(focusedSlot)}
+            >{focusedEquipped.enabled === false ? 'Disabled' : 'Enabled'}</button>
             <button className="btn btn-secondary btn-sm" onClick={() => { setCenterView('catalog'); setSearch('') }}>Change</button>
             <button className="btn btn-danger btn-sm" onClick={() => removeSkill(focusedSlot)}>Remove</button>
           </div>
@@ -546,7 +571,10 @@ export default function SkillsScreen(_props: Props) {
                 <span className="skill-support-slot-num">{idx}</span>
                 {sup ? (
                   <>
-                    <span className="skill-support-slot-name">{sup.name}</span>
+                    <span className="skill-support-slot-name"
+                          style={sup.enabled === false ? { opacity: 0.45, textDecoration: 'line-through' } : undefined}>
+                      {sup.name}{sup.enabled === false ? ' (off)' : ''}
+                    </span>
                     <button className="skill-slot-remove" onClick={e => removeSupport(idx, e)}>×</button>
                   </>
                 ) : (
@@ -589,6 +617,12 @@ export default function SkillsScreen(_props: Props) {
             <div className="skill-support-current">
               <span className="skill-support-current-label">Equipped:</span>
               <span className="skill-support-current-name">{existingSupport.name}</span>
+              <button
+                className={`btn btn-sm ${existingSupport.enabled === false ? 'btn-danger' : 'btn-secondary'}`}
+                style={{ marginLeft: 6 }}
+                title="Enable/disable this support in the calculation"
+                onClick={() => toggleSupportEnabled(focusedSupportIdx)}
+              >{existingSupport.enabled === false ? 'Disabled' : 'Enabled'}</button>
               <button className="skill-slot-remove" onClick={e => removeSupport(focusedSupportIdx, e)}>×</button>
             </div>
           )}

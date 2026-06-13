@@ -2354,6 +2354,16 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="skill_mechanics",    stacking_rule="additive",
         ui_priority=64,                source_types=_TB,
     ),
+    Stat.SKILL_AREA_ADDITIONAL: StatMeta(
+        "Additional Skill Area", "Utility", "additional", "%",
+        subgroup="skill_mechanics",    stacking_rule="multiplicative",
+        ui_priority=64,                source_types=_TB,
+    ),
+    Stat.SKILL_AREA_TO_STEEP_STRIKE_DMG: StatMeta(
+        "Skill Area Applied to Steep Strike Damage", "Steep Strike", "conversion", "%",
+        subgroup="steep_strike",       stacking_rule="additive",
+        ui_priority=86,                source_types=_T,
+    ),
     Stat.ATTACK_SKILL_AREA_INC: StatMeta(
         "Attack Skill Area", "Utility", "increased", "%",
         subgroup="skill_mechanics",    stacking_rule="additive",
@@ -2397,6 +2407,16 @@ STAT_META: dict[Stat, StatMeta] = {
         "Fervor Effect", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=70,                source_types=_T,
+    ),
+    Stat.FERVOR_EFFECT_SKILL_INC: StatMeta(
+        "Skill Fervor Effect", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.MOON_STRIKE_CIRCULAR_CHANCE: StatMeta(
+        "Circular Attack Chance", "Steep Strike", "chance", "%",
+        subgroup="steep_strike",       stacking_rule="additive_chance",
+        ui_priority=23,                source_types=_T,
     ),
     Stat.BLUR_EFFECT_INC: StatMeta(
         "Blur Effect", "Buffs", "increased", "%",

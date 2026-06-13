@@ -29,7 +29,10 @@ class IntrinsicAdditional:
     rating_source: str = "condition"  # "condition" (condition_state) or "stat" (source.total)
     per_n: float = 1.0                # divide the rating by this first (e.g. 100 → per 100 Max Mana)
     cap: float | None = None          # max bonus fraction, e.g. 0.70 = +70%
-    effect_key: str | None = None     # optional % stat scaling the whole bonus (e.g. 'fervor_effect_inc')
+    effect_key: str | None = None     # optional INCREASED % stat scaling the bonus (e.g. 'fervor_effect_inc')
+    skill_effect_key: str | None = None  # optional SKILL-LOCAL increased % stat, added into the SAME
+                                      # increased pool as effect_key (e.g. 'fervor_effect_skill_inc' for
+                                      # Focused Slash: Tranquility) — scales the skill's bonus, not crit
 
 
 @dataclass
@@ -140,7 +143,8 @@ def _resolve_berserking_blade(skill_data: dict) -> ResolvedSkill:
 def _resolve_focused_slash(skill_data: dict) -> ResolvedSkill:
     return _resolve_slash_skill(
         skill_data,
-        [IntrinsicAdditional(per=0.004, rating_key="fervor_rating", effect_key="fervor_effect_inc")],
+        [IntrinsicAdditional(per=0.004, rating_key="fervor_rating", effect_key="fervor_effect_inc",
+                             skill_effect_key="fervor_effect_skill_inc")],
     )
 
 
