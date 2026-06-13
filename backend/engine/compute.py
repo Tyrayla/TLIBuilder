@@ -199,12 +199,15 @@ def compute(
             main_dtypes = [d.lower() for d in _rm.damage_types]
 
     # The main skill's slot (folds its slot-local supports/self-buffs + drives skill-effect dispatch).
+    # main_enabled: a disabled main skill produces NO offense (DPS 0), not just its supports dropped.
     from engine import skill_effects
     main_slot = 1
+    main_enabled = True
     if build_input.main_skill and skills_input:
         for _sk in skills_input:
             if _sk["skill_id"] == build_input.main_skill.skill_id:
                 main_slot = _sk["slot"]
+                main_enabled = _sk.get("enabled", True)
                 break
     # Type-C preseed before aggregation (e.g. Berserking Blade Decimate forcing enemy_low_life when the
     # enemy is below the rolled threshold), dispatched per the main skill's module.
@@ -411,7 +414,7 @@ def compute(
 
     result_offense = None
     slot_offense: dict[int, dict] = {}
-    if skill_data and build_input.main_skill:
+    if skill_data and build_input.main_skill and main_enabled:
         result_offense = _offense_for_slot(
             resolve_skill(skill_data), build_input.main_skill.level, main_slot, True)
         slot_offense[main_slot] = result_offense
