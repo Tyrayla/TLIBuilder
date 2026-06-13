@@ -12,7 +12,7 @@ import { useDamageDeltaList, type DeltaRequest, type StateTransform, type Damage
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { legendaryToEquipped } from '../utils/gearItem'
 import { GearTooltipBody, type GearTooltipItem } from '../components/tooltip/bodies/GearTooltipBody'
-import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, useGearUnresolvedTexts, useTextModifierStatus, gearModifierStatus } from '../components/ModifierBadge'
+import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, useGearUnresolvedTexts, useTextModifierStatus, useTextModifierStatuses, gearModifierStatus } from '../components/ModifierBadge'
 import {
   rangeDecimals, midpoint, hasRangeValues, reconstructAffixText,
   affixTypeLabel, tooltipAffixText,
@@ -387,6 +387,90 @@ interface CustomizePanelProps {
 
 // Belt-blend equip (roadmap #4) — rendered in the editor column for any belt, independent of which
 // editor (Customize / Craft / Vorax) is open. One blend total; shows the resolved effect text.
+const beltBlendLabel = (b: BeltBlend) => b.talent_name || b.effect_text || b.effect_raw || b.talent_id
+
+// Searchable belt-blend picker styled like the affix modifier box (reuses the gear-craft-mod-* UI), with
+// a per-blend engine badge so you can see what's modeled before equipping it.
+function BeltBlendSearchSelect({ beltBlends, beltBlend, onChange }: {
+  beltBlends: BeltBlend[]
+  beltBlend: string | null
+  onChange: (id: string | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const MAX_DROPDOWN_H = 260
+
+  const statuses = useTextModifierStatuses(beltBlends.map(b => ({ text: b.effect_text || b.effect_raw, source: 'talent' as const })))
+  const statusById: Record<string, ReturnType<typeof useTextModifierStatus>> = {}
+  beltBlends.forEach((b, i) => { statusById[b.talent_id] = statuses[i] })
+  const selected = beltBlends.find(b => b.talent_id === beltBlend) ?? null
+
+  useEffect(() => {
+    if (!open) { setQuery(''); setTriggerRect(null); return }
+    if (containerRef.current) setTriggerRect(containerRef.current.getBoundingClientRect())
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+          containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? beltBlends.filter(b => beltBlendLabel(b).toLowerCase().includes(q) || (b.talent_type || '').toLowerCase().includes(q))
+    : beltBlends
+
+  const dropdownStyle = triggerRect ? (() => {
+    const spaceBelow = window.innerHeight - triggerRect.bottom
+    const showAbove = spaceBelow < MAX_DROPDOWN_H + 4 && triggerRect.top > MAX_DROPDOWN_H
+    return {
+      position: 'fixed' as const, left: triggerRect.left, width: triggerRect.width, maxHeight: MAX_DROPDOWN_H,
+      ...(showAbove ? { bottom: window.innerHeight - triggerRect.top + 2 } : { top: triggerRect.bottom + 2 }),
+    }
+  })() : {}
+
+  return (
+    <div ref={containerRef} className="gear-craft-mod-select">
+      <div className={`gear-craft-mod-trigger${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)}>
+        <span className={selected ? 'gear-craft-mod-value' : 'gear-craft-mod-placeholder'}>
+          {selected ? beltBlendLabel(selected) : '— none —'}
+          {selected && <ModifierBadge status={statusById[selected.talent_id] ?? null} />}
+        </span>
+        {selected && (
+          <span className="gear-craft-mod-clear" onMouseDown={e => { e.stopPropagation(); onChange(null); setOpen(false) }}>×</span>
+        )}
+      </div>
+      {open && triggerRect && createPortal(
+        <div ref={dropdownRef} className="gear-craft-mod-dropdown" style={dropdownStyle}>
+          <input ref={inputRef} className="gear-craft-mod-search" placeholder="Search blends…" value={query}
+            onChange={e => setQuery(e.target.value)} onMouseDown={e => e.stopPropagation()} />
+          <div className="gear-craft-mod-list">
+            {filtered.length === 0
+              ? <div className="gear-craft-mod-empty">No matches</div>
+              : filtered.map(b => (
+                  <div key={b.talent_id}
+                    className={`gear-craft-mod-option${b.talent_id === beltBlend ? ' selected' : ''}`}
+                    onMouseDown={() => { onChange(b.talent_id); setOpen(false) }}>
+                    {beltBlendLabel(b)}{b.talent_type ? ` · ${b.talent_type}` : ''}
+                    <ModifierBadge status={statusById[b.talent_id] ?? null} />
+                  </div>
+                ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
 function BeltBlendSelector({ beltBlends, beltBlend, onBeltBlendChange }: {
   beltBlends: BeltBlend[]
   beltBlend: string | null
@@ -400,18 +484,7 @@ function BeltBlendSelector({ beltBlends, beltBlend, onBeltBlendChange }: {
   return (
     <div className="gear-belt-blend-section">
       <div className="gear-belt-blend-header">Belt Blend</div>
-      <select
-        className="gear-belt-blend-select"
-        value={beltBlend ?? ''}
-        onChange={e => onBeltBlendChange(e.target.value || null)}
-      >
-        <option value="">— none —</option>
-        {beltBlends.map(b => (
-          <option key={b.talent_id} value={b.talent_id}>
-            {(b.talent_name ?? 'Medium Blend')}{b.talent_type ? ` (${b.talent_type})` : ''}
-          </option>
-        ))}
-      </select>
+      <BeltBlendSearchSelect beltBlends={beltBlends} beltBlend={beltBlend} onChange={onBeltBlendChange} />
       {selected && (
         <div className="gear-belt-blend-effect">{effText}<ModifierBadge status={badge} /></div>
       )}
@@ -1138,6 +1211,19 @@ function ModifierSearchSelect({ pool, value, onChange, disabledExpressions }: Mo
   }, [open])
 
   const groups = useMemo(() => groupedModifiers(pool), [pool])
+  // Per-expression engine badge (Consumed / Inactive / Unconsumed / NYI), classified synchronously from
+  // the pool affix's local stat keys — so you can see what's modeled BEFORE adding the item to the build.
+  const consumed = useConsumedStatSet()
+  const universe = useConsumableUniverse()
+  const unresolved = useGearUnresolvedTexts()
+  const statusByExpr = useMemo(() => {
+    const m: Record<string, ReturnType<typeof gearModifierStatus>> = {}
+    for (const a of pool) {
+      const key = normalizeExpression(a.expression)
+      if (!(key in m)) m[key] = gearModifierStatus(a, consumed, universe, unresolved)
+    }
+    return m
+  }, [pool, consumed, universe, unresolved])
   const isDisabled = (expr: string) => !!(disabledExpressions?.has(expr) && expr !== value)
   const filteredExprs = useMemo(() => {
     if (!query.trim()) return null
@@ -1162,6 +1248,7 @@ function ModifierSearchSelect({ pool, value, onChange, disabledExpressions }: Mo
       <div className={`gear-craft-mod-trigger${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)}>
         <span className={value ? 'gear-craft-mod-value' : 'gear-craft-mod-placeholder'}>
           {value || '— modifier —'}
+          {value && <ModifierBadge status={statusByExpr[value] ?? null} />}
         </span>
         {value && (
           <span
@@ -1189,7 +1276,7 @@ function ModifierSearchSelect({ pool, value, onChange, disabledExpressions }: Mo
                       key={expr}
                       className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`}
                       onMouseDown={() => { onChange(expr); setOpen(false) }}
-                    >{expr}</div>
+                    >{expr}<ModifierBadge status={statusByExpr[expr] ?? null} /></div>
                   ))
             ) : (
               groups.map(g => {
@@ -1203,7 +1290,7 @@ function ModifierSearchSelect({ pool, value, onChange, disabledExpressions }: Mo
                         key={expr}
                         className={`gear-craft-mod-option${expr === value ? ' selected' : ''}`}
                         onMouseDown={() => { onChange(expr); setOpen(false) }}
-                      >{expr}</div>
+                      >{expr}<ModifierBadge status={statusByExpr[expr] ?? null} /></div>
                     ))}
                   </React.Fragment>
                 )
@@ -2431,9 +2518,16 @@ function useGearPreviewDeltas(
 }
 
 function ItemPreviewCard({ name, lines, deltas }: { name: string | null; lines: PreviewLine[] | null; deltas?: LabeledDelta[] }) {
+  type Line = NonNullable<PreviewLine>
+  // Engine badge per preview line (resolved via the gear text resolver) so the assembled item shows
+  // Consumed/Inactive/Unconsumed/NYI before it's added to the build. Hook runs unconditionally.
+  const nonNull = (lines ?? []).filter((l): l is Line => l !== null)
+  const statuses = useTextModifierStatuses(nonNull.map(l => ({ text: l.text, source: 'gear' as const })))
+  const statusByText: Record<string, ReturnType<typeof useTextModifierStatus>> = {}
+  nonNull.forEach((l, i) => { if (statusByText[l.text] === undefined) statusByText[l.text] = statuses[i] })
+
   if (!name || !lines) return null
 
-  type Line = NonNullable<PreviewLine>
   const dividerIdx = lines.indexOf(null)
   const hasImplicitExplicitSplit = dividerIdx !== -1
   const implicitLines = hasImplicitExplicitSplit ? lines.slice(0, dividerIdx) as Line[] : []
@@ -2444,6 +2538,7 @@ function ItemPreviewCard({ name, lines, deltas }: { name: string | null; lines: 
     <div key={key} className={`gear-preview-affix${implicit ? ' gear-preview-affix--implicit' : ''}${line.corroded ? ' gear-preview-affix--corroded' : ''}`}>
       {line.text}
       {line.label && <span className="gear-affix-label">({line.label})</span>}
+      <ModifierBadge status={statusByText[line.text] ?? null} />
     </div>
   )
 
