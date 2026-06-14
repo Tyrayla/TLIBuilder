@@ -1,0 +1,28 @@
+{
+  "available_levels": [
+    0,
+    1,
+    2
+  ],
+  "default_level": 1,
+  "gate_text": "Supports Acuteness Focus.",
+  "level_kind": "tier",
+  "lines": [
+    {
+      "badge_text": "+20 % additional damage for the supported skill",
+      "kind": "special",
+      "text": "+20 % additional damage for the supported skill",
+      "values_by_level": null
+    },
+    {
+      "badge_text": "+29 % additional Focus Speed for the supported skill",
+      "kind": "scaling",
+      "text": "",
+      "values_by_level": {
+        "0": "+34 % additional Focus Speed for the supported skill",
+        "1": "+29 % additional Focus Speed for the supported skill",
+        "2": "+25 % additional Focus Speed for the supported skill"
+      }
+    }
+  ]
+}

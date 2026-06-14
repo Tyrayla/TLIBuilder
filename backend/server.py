@@ -1368,7 +1368,22 @@ def get_skills():
     data = season_manager.load_skills(active)
     if not data:
         return {"season": active, "skills": []}
-    return {"season": active, "skills": data.get("skills", [])}
+    from engine.tooltip import build_tooltip
+    skills = []
+    for s in data.get("skills", []):
+        out = dict(s)   # enrich a copy; never mutate the loaded store
+        try:
+            out["tooltip"] = build_tooltip(s)
+        except Exception:
+            # Never silently drop / 500: fall back to the raw description as flavor lines.
+            out["tooltip"] = {
+                "gate_text": None, "level_kind": "level",
+                "default_level": s.get("max_level") or 1, "available_levels": [s.get("max_level") or 1],
+                "lines": [{"kind": "flavor", "badge_text": d, "text": d, "values_by_level": None}
+                          for d in (s.get("description_lines") or [])],
+            }
+        skills.append(out)
+    return {"season": active, "skills": skills}
 
 
 @app.delete("/api/dev/skills")
@@ -2781,6 +2796,32 @@ def _affix_stat_keys(resolved: dict) -> list[str]:
     return out
 
 
+def _resolve_skill_line_keys(text: str) -> list[str]:
+    """Stat key(s) a structured tooltip line (skill/support, source='skill') resolves to — for badges.
+    Tries the support mapper (handles "for the supported skill" damage/capture/conditional lines, with a
+    permissive condition set so gated lines still resolve) and falls back to the unified node resolver
+    for general skill stat phrasing. Empty list → the badge shows 'Unrecognized (NYI)'."""
+    from engine.support_lines import SupportLine, _template
+    from engine.support_mapper import map_line, _ADDED_FLAT_RE
+    from engine.node_resolver import resolve_effect_text_keys
+    tmpl = _template(text)
+    # "adds X-Y <type> Damage" added-flat line → per-cat flat stats. Return BOTH cats so the badge
+    # matches whichever the supported skill uses (classifyKeys checks .some()).
+    m = _ADDED_FLAT_RE.search(tmpl)
+    if m and "damage" in tmpl:
+        d = m.group(1)
+        return [f"{d}_{c}_dmg_flat_{mm}" for c in ("attack", "spell") for mm in ("min", "max")]
+    # All gating conditions ON so conditional damage lines (cursed/numbed/fervor/blessing/ignite) resolve.
+    permissive = {"enemy_cursed": True, "enemy_numbed": True, "numbed_stacks": 10, "fervor_rating": 100,
+                  "focus_blessings": 4, "ignite_stacks": 5, "ailment_type_count": 3,
+                  "standing_still": True, "willpower_stacks": 6}
+    line = SupportLine(text=text, template=tmpl, scaling=False)
+    keys = [c.stat_key for c in map_line(line, 20, None, permissive)]   # cat=None: skip added-flat (handled above)
+    if keys:
+        return keys
+    return resolve_effect_text_keys(text, _parse_custom_mod_text, _translate_condition_expr)
+
+
 @app.post("/api/map-modifiers")
 def map_modifiers(req: MapModifiersRequest):
     """Map raw modifier texts (spirit / memory / talent / slate) to the engine stat key(s) they
@@ -2803,6 +2844,8 @@ def map_modifiers(req: MapModifiersRequest):
             # SAME unified resolver the engine uses (engine.node_resolver) — no more filter-builder recipes,
             # so node badges can't drift from the actual DPS contribution. node_id is irrelevant now.
             keys = resolve_effect_text_keys(it.text, _parse_custom_mod_text, _translate_condition_expr)
+        elif it.source == "skill":
+            keys = _resolve_skill_line_keys(it.text)
         elif it.source == "gear":
             keys = _affix_stat_keys(_resolve_affix({"raw_text": it.text, "affix_kind": "numeric"}))
         else:

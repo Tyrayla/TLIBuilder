@@ -668,7 +668,7 @@ export interface CoreTalentStatus {
 }
 
 // ── Modifier resolution (inert-modifier badges) ─────────────────────────────────
-export type ModifierSource = 'gear' | 'spirit' | 'memory' | 'talent' | 'slate'
+export type ModifierSource = 'gear' | 'spirit' | 'memory' | 'talent' | 'slate' | 'skill'
 export interface ModifierMapItem { key: string; text: string; source: ModifierSource; node_id?: string }
 export interface ModifierMapResponse { results: Record<string, { stat_keys: string[] }> }
 
@@ -984,6 +984,27 @@ export interface TowerSequenceEntry {
   source: string
 }
 
+// One split effect line of a skill/support tooltip (from backend engine.tooltip.build_tooltip).
+// `scaling` lines carry per-level resolved display strings in `values_by_level`; `special`/`flavor`
+// lines are shown verbatim via `text`. `badge_text` is the canonical string fed to the badge resolver.
+export interface SkillTooltipLine {
+  kind: 'scaling' | 'special' | 'flavor'
+  badge_text: string
+  text: string
+  values_by_level?: Record<number, string> | null
+}
+
+// Structured, level-aware tooltip for a skill/support. `level_kind` is "level" (skills/standard
+// supports) or "tier" (noble/magnificent/activation). The renderer clamps the current level into
+// `available_levels` (nearest ≤) and indexes each scaling line's `values_by_level`.
+export interface SkillTooltipSpec {
+  gate_text?: string | null   // support-target line ("Supports X Skills") — NOT rendered
+  level_kind: 'level' | 'tier'
+  default_level: number
+  available_levels: number[]
+  lines: SkillTooltipLine[]
+}
+
 export interface SkillItem {
   item_id: string
   name: string
@@ -998,6 +1019,7 @@ export interface SkillItem {
   weapon_restriction?: string | null
   main_stat?: string | null
   progression?: object[]
+  tooltip?: SkillTooltipSpec
   glossary?: Record<string, { name: string; description: string }>
 }
 

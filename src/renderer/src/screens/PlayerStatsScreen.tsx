@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary } from '../api/client'
+import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
+import { useReferenceStore } from '../store/referenceStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { GearTooltipBody } from '../components/tooltip/bodies/GearTooltipBody'
 import { SpiritTooltipBody } from '../components/tooltip/bodies/SpiritTooltipBody'
 import { SkillTooltipBody } from '../components/tooltip/bodies/SkillTooltipBody'
+import { StructuredSkillTooltipBody } from '../components/tooltip/bodies/StructuredSkillTooltipBody'
 import { MiniTree } from '../components/MiniTree'
 import { gearQualityColor } from '../utils/gearItem'
 import { sourceKindLabel, sourceKindColor } from '../utils/sourceKind'
@@ -26,6 +28,10 @@ interface BreakdownCtxValue {
   treeColors: Record<string, string>
   // memory name ("Memory of Origin") → its rarity color, for coloring hero-memory sources.
   memoryColors: Record<string, string>
+  // skill/support name → catalog SkillItem (carries the structured `tooltip` spec) for the new
+  // contribution hover; and support name → its equipped level/rolls so the spec resolves at the right tier.
+  skillsByName: Record<string, SkillItem> | null
+  supportInstances: Record<string, { level: number; specific_rolls?: Record<string, number> }>
 }
 
 const MEMORY_NAMES: Record<string, string> = {
@@ -138,7 +144,13 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
       ? (g.source_name ? (ctx.sourceLines.get(g.source_name) ?? []) : [])
       : (g.text ? [g.text] : [])
 
-  const hasHover = !!matchedItem || (isTalent && !!nodeId) || (isLines && lines.length > 0)
+  // Support contribution → prefer the structured, level-aware tooltip (same one the Skills screen uses)
+  // when its catalog SkillItem (with a tooltip spec) is found by name. Resolve at the equipped tier.
+  const supSkill = g.source_type === 'support' && g.source_name ? ctx.skillsByName?.[g.source_name] : undefined
+  const supSpec = supSkill?.tooltip
+  const supInst = g.source_name ? ctx.supportInstances[g.source_name] : undefined
+
+  const hasHover = !!matchedItem || (isTalent && !!nodeId) || !!supSpec || (isLines && lines.length > 0)
   const tip = useFloatingTooltip({ anchor: 'element', side: 'left', interactive: true })
 
   // Color by attribution (pure display — no recompute): gear → rarity/legendary color; talent + core talent
@@ -179,6 +191,11 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
             <div className="tooltip tooltip--gear" {...tip.floatingProps}><GearTooltipBody item={matchedItem} hideBadges /></div>
           ) : isTalent ? (
             <div className="tooltip" {...tip.floatingProps}><MiniTree treeName={treeName} nodeId={nodeId} /></div>
+          ) : supSpec ? (
+            <div className="tooltip tooltip--skill" {...tip.floatingProps}>
+              <StructuredSkillTooltipBody spec={supSpec} level={supInst?.level ?? supSpec.default_level}
+                                          specificRolls={supInst?.specific_rolls} />
+            </div>
           ) : (
             <div className="tooltip" {...tip.floatingProps}>
               {g.source_type === 'support' ? <SkillTooltipBody lines={lines} /> : <SpiritTooltipBody lines={lines} />}
@@ -1043,6 +1060,17 @@ export default function PlayerStatsScreen() {
     return m
   }, [pactSpirits, allSpirits, heroMemories, skills])
 
+  // Skill catalog (with tooltip specs) + each equipped support's level/rolls — for the structured
+  // contribution hover. Contributions carry only a source NAME, so we look the SkillItem up by name.
+  const skillsByName = useReferenceStore(s => s.skillsByName)
+  const supportInstances = useMemo(() => {
+    const m: Record<string, { level: number; specific_rolls?: Record<string, number> }> = {}
+    for (const sk of skills) for (const sup of sk.supports ?? []) {
+      m[sup.name] = { level: sup.level, specific_rolls: sup.specific_rolls }
+    }
+    return m
+  }, [skills])
+
   // memory name → its rarity color, for coloring hero-memory sources in breakdowns.
   const memoryColors = useMemo(() => {
     const m: Record<string, string> = {}
@@ -1060,7 +1088,7 @@ export default function PlayerStatsScreen() {
   const blessings = ((computedStats as { blessings?: BlessingSummary[] | null }).blessings) ?? null
 
   return (
-    <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors }}>
+    <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances }}>
       <div className="dark-scroll" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, height: '100%', overflowY: 'auto', padding: '16px 20px', boxSizing: 'border-box' }}>
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
         <div style={{ flex: '40', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>

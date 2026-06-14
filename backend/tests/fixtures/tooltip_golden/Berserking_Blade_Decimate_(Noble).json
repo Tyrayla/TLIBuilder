@@ -1,0 +1,28 @@
+{
+  "available_levels": [
+    0,
+    1,
+    2
+  ],
+  "default_level": 1,
+  "gate_text": "Supports Berserking Blade.",
+  "level_kind": "tier",
+  "lines": [
+    {
+      "badge_text": "+20 % additional damage for the supported skill",
+      "kind": "special",
+      "text": "+20 % additional damage for the supported skill",
+      "values_by_level": null
+    },
+    {
+      "badge_text": "When the supported skill hits, a target that has less than 58 % Life is considered to have Low Life",
+      "kind": "scaling",
+      "text": "",
+      "values_by_level": {
+        "0": "When the supported skill hits, a target that has less than 61.5 % Life is considered to have Low Life",
+        "1": "When the supported skill hits, a target that has less than 58 % Life is considered to have Low Life",
+        "2": "When the supported skill hits, a target that has less than 55.5 % Life is considered to have Low Life"
+      }
+    }
+  ]
+}

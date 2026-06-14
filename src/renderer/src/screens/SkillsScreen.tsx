@@ -12,9 +12,11 @@ import {
   getMaxEnergy,
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
+import { useReferenceStore } from '../store/referenceStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { SkillTooltipBody } from '../components/tooltip/bodies/SkillTooltipBody'
+import { StructuredSkillTooltipBody } from '../components/tooltip/bodies/StructuredSkillTooltipBody'
 import { DamageDeltaBand } from '../components/tooltip/DamageDeltaBand'
 import { useDamageDelta, useDamageDeltaList, withSupport, type DeltaRequest, type DamageDelta } from '../components/tooltip/useDamageDelta'
 import { buildEngineStatsPayload, type BuildState } from '../utils/statsPayload'
@@ -30,14 +32,18 @@ function hashStr(str: string): string {
 
 // Cursor-anchored skill / support hover tooltip via the shared primitive (informational —
 // no contributions band). Render-prop hands triggerProps to the hovered element.
-function SkillHoverTooltip({ name, descLines, children, deltaReq = null }: {
+function SkillHoverTooltip({ name, item, level, specificRolls, descLines, children, deltaReq = null }: {
   name: string
-  descLines: string[]
+  item?: SkillItem | null            // carries the structured `tooltip` spec (new path)
+  level?: number                     // current level/tier; defaults to the spec's default_level
+  specificRolls?: Record<string, number>
+  descLines?: string[]               // fallback flat lines when no spec (older cached data)
   children: (triggerProps: Record<string, unknown>) => React.ReactNode
   deltaReq?: DeltaRequest | null   // when set, a DPS-delta band is computed on hover (e.g. equip preview)
 }) {
   const tip = useFloatingTooltip({ anchor: 'cursor', side: 'top' })
   const delta = useDamageDelta(deltaReq, tip.open && !!deltaReq)
+  const spec = item?.tooltip
   return (
     <>
       {children(tip.triggerProps)}
@@ -45,7 +51,9 @@ function SkillHoverTooltip({ name, descLines, children, deltaReq = null }: {
         <FloatingPortal>
           <div className="tooltip tooltip--skill" {...tip.floatingProps}>
             <TooltipShell title={name} delta={deltaReq ? delta : undefined}>
-              <SkillTooltipBody lines={getAdvancedLines(cleanDescLines(descLines))} />
+              {spec
+                ? <StructuredSkillTooltipBody spec={spec} level={level ?? spec.default_level} specificRolls={specificRolls} />
+                : <SkillTooltipBody lines={getAdvancedLines(cleanDescLines(descLines ?? item?.description_lines ?? []))} />}
             </TooltipShell>
           </div>
         </FloatingPortal>
@@ -195,7 +203,8 @@ export default function SkillsScreen(_props: Props) {
   const characterLevel = characterLevelFrom(conditionState)
   const hasPrism = useBuildStore(s => s.hasPrism)
   const onHasPrismChange = useBuildStore(s => s.setHasPrism)
-  const [allItems, setAllItems] = useState<SkillItem[]>([])
+  const cachedSkills = useReferenceStore(s => s.skills)
+  const [fetchedItems, setFetchedItems] = useState<SkillItem[]>([])
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
   const [centerView, setCenterView] = useState<'catalog' | 'detail'>('catalog')
   const [focusedSupportIdx, setFocusedSupportIdx] = useState<number | null>(null)
@@ -205,9 +214,11 @@ export default function SkillsScreen(_props: Props) {
   const [search, setSearch] = useState('')
   const [supportSearch, setSupportSearch] = useState('')
 
+  // Prefer the shared reference cache (already tooltip-enriched); fetch only if it isn't loaded yet.
+  const allItems = cachedSkills ?? fetchedItems
   useEffect(() => {
-    api.getSkills().then(r => setAllItems(r.skills))
-  }, [])
+    if (!cachedSkills) api.getSkills().then(r => setFetchedItems(r.skills))
+  }, [cachedSkills])
 
   const getEquipped = (slot: number) => equippedSkills.find(s => s.slot === slot) ?? null
   const getSupport = (skill: EquippedSkill, idx: number) =>
@@ -418,7 +429,6 @@ export default function SkillsScreen(_props: Props) {
   }
 
   // ── helpers ────────────────────────────────────────────────────────────────
-  const isSubHeader = (line: string) => line.trim().endsWith(':') && line.length < 40
 
   // ── render helpers ─────────────────────────────────────────────────────────
   const renderSlotGroup = (slots: number[], label: string) => (
@@ -491,7 +501,7 @@ export default function SkillsScreen(_props: Props) {
               <div className="skill-catalog-empty">No skills match your search</div>
             )}
             {skillCatalogItems.map(item => (
-              <SkillHoverTooltip key={item.item_id} name={item.name} descLines={item.description_lines}>
+              <SkillHoverTooltip key={item.item_id} name={item.name} item={item}>
                 {tp => (
                   <div
                     {...tp}
@@ -544,7 +554,10 @@ export default function SkillsScreen(_props: Props) {
       <>
         <div className="skill-detail-header">
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-            <SkillHoverTooltip name={focusedEquipped.name} descLines={focusedEquipped.description_lines}>
+            <SkillHoverTooltip name={focusedEquipped.name}
+                               item={allItems.find(i => i.item_id === focusedEquipped.item_id)}
+                               level={focusedEquipped.level}
+                               descLines={focusedEquipped.description_lines}>
               {tp => (
                 <div {...tp} style={{ cursor: 'default', flex: 1, minWidth: 0 }}>
                   <div className="skill-detail-name">{focusedEquipped.name}</div>
@@ -616,7 +629,8 @@ export default function SkillsScreen(_props: Props) {
               </div>
             )
             return supItem
-              ? <SkillHoverTooltip key={idx} name={supItem.name} descLines={supItem.description_lines}>{tp => renderRow(tp)}</SkillHoverTooltip>
+              ? <SkillHoverTooltip key={idx} name={supItem.name} item={supItem} level={sup!.level}
+                                   specificRolls={sup!.specific_rolls} descLines={supItem.description_lines}>{tp => renderRow(tp)}</SkillHoverTooltip>
               : renderRow(null)
           })}
         </div>
@@ -649,7 +663,13 @@ export default function SkillsScreen(_props: Props) {
           {existingSupport && (
             <div className="skill-support-current">
               <span className="skill-support-current-label">Equipped:</span>
-              <span className="skill-support-current-name">{existingSupport.name}</span>
+              <SkillHoverTooltip name={existingSupport.name}
+                                 item={allItems.find(i => i.item_id === existingSupport.item_id)}
+                                 level={existingSupport.level}
+                                 specificRolls={existingSupport.specific_rolls}
+                                 descLines={existingSupport.description_lines}>
+                {tp => <span {...tp} className="skill-support-current-name" style={{ cursor: 'help' }}>{existingSupport.name}</span>}
+              </SkillHoverTooltip>
               <button
                 className={`btn btn-sm ${existingSupport.enabled === false ? 'btn-danger' : 'btn-success'}`}
                 style={{ marginLeft: 6 }}
@@ -758,12 +778,11 @@ export default function SkillsScreen(_props: Props) {
               )
             })
           })()}
-          {/* Resolved contribution summary. */}
+          {/* Resolved contribution summary. The rank's universal-damage contribution is already shown
+              inline on the Rank control, so it isn't repeated here. */}
           {existingSupport && (
             <div style={{ marginTop: 8, fontSize: 11, opacity: 0.7, lineHeight: 1.5 }}>
               Skill Lv {focusedEquipped.level}
-              {isRankedSupport(existingSupport.skill_type) &&
-                ` · Universal +${(rankAdditional(existingSupport.rank) * 100).toFixed(0)}% (Rank ${existingSupport.rank ?? DEFAULT_SUPPORT_RANK})`}
             </div>
           )}
           {/* DPS you'd lose by unequipping this support (slot-1 main skill only). */}
@@ -788,7 +807,7 @@ export default function SkillsScreen(_props: Props) {
             <div className="skill-catalog-empty">No compatible supports for this slot</div>
           )}
           {sortedSupportCatalog.map(item => (
-            <SkillHoverTooltip key={item.item_id} name={item.name} descLines={item.description_lines}>
+            <SkillHoverTooltip key={item.item_id} name={item.name} item={item}>
               {tp => (
                 <div
                   {...tp}
@@ -806,24 +825,16 @@ export default function SkillsScreen(_props: Props) {
           ))}
         </div>
         {selectedSupportItem && (
-          <>
-            <div className="skill-panel-divider" />
-            <div className="skill-detail-desc" style={{ maxHeight: 120, overflowY: 'auto' }}>
-              {getAdvancedLines(selectedSupportItem.description_lines).map((line, i) => (
-                <p key={i} className={isSubHeader(line) ? 'skill-desc-subheader' : 'skill-desc-line'}>{line}</p>
-              ))}
-            </div>
-            <button
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: 8 }}
-              onClick={assignSupport}
-              disabled={existingSupport?.item_id === selectedSupportId}
-            >
-              {existingSupport?.item_id === selectedSupportId
-                ? 'Already equipped'
-                : `Equip in Slot ${focusedSupportIdx}`}
-            </button>
-          </>
+          <button
+            className="btn btn-primary"
+            style={{ width: '100%', marginTop: 8 }}
+            onClick={assignSupport}
+            disabled={existingSupport?.item_id === selectedSupportId}
+          >
+            {existingSupport?.item_id === selectedSupportId
+              ? 'Already equipped'
+              : `Equip in Slot ${focusedSupportIdx}`}
+          </button>
         )}
         <button
           className="btn btn-secondary"
