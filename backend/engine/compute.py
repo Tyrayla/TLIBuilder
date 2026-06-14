@@ -390,6 +390,15 @@ def compute(
             "sources": [],
         }
 
+    # Movement speed — shown at a 0% baseline (the NET bonus; reductions go negative). Stored directly so the
+    # UI never has to subtract 100%. final = (1 + Σincreased) × (1 + Σadditional) − 1.
+    _ms = (1.0 + source.total("movement_speed_inc")) * (1.0 + source.total("movement_speed_additional")) - 1.0
+    source.add("movement_speed", _ms)
+    stat_map["movement_speed"] = {
+        "display_name": "Movement Speed", "category": "Character", "unit": "%",
+        "total": round(_ms, 4), "sources": [],
+    }
+
     # Clamp report: numeric conditions where the user's requested value exceeded the derived max
     clamped_numeric = {
         k: float(v) for k, v in condition_state.items()
@@ -514,6 +523,9 @@ def compute(
                                "taken_inc": source.total("numbed_lightning_taken")})
     target_stats = {**target_profile(source), "debuffs": _debuffs, "debuff_details": debuff_details}
 
+    from engine.aggregator import blessings_summary
+    blessings = blessings_summary(active_booleans, numeric_vals, source)
+
     return StatResult(
         stat_map=stat_map,
         condition_maximums=maxes,
@@ -524,4 +536,5 @@ def compute(
         consumed_stats=sorted(source.consumed_stats),
         target_stats=target_stats,
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,
+        blessings=blessings,
     )

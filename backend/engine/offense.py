@@ -300,27 +300,44 @@ def _target_mitigation(source: BuildSource, dtype: str) -> float:
     return (1.0 - eff_armor) * (1.0 - eff_resist)
 
 
+# Where the target's base mitigation/resistance comes from (so the UI shows the baseline, not magic numbers).
+TARGET_SOURCE = "Training dummy"
+
+
 def target_profile(source: BuildSource) -> dict:
-    """Base + effective target armor/resistance for the enemy-stats panel. `effective_*` reflect this
-    build's penetration; values are damage-REDUCTION fractions (negative = the target is amplified)."""
-    e_phys, _ = _target_effective(source, "physical")
-    e_nonphys, _ = _target_effective(source, "fire")
-    resists = {}
-    for t in ("fire", "cold", "lightning", "erosion"):
+    """The calculation target's defenses, with each step SEPARATED so the UI can show derivation:
+      base          → the dummy baseline constant (TARGET_*),
+      reduction     → enemy-resistance REDUCTION (lowers the enemy's actual resistance; a debuff),
+      resist        → the enemy's effective resistance = base + reduction (what a resistance MULTIPLIER
+                      would scale — penetration is NOT folded in here),
+      pen           → penetration, applied SEPARATELY at hit time (the attacker ignores this much),
+      effective     → resist − pen, the value actually used in the damage calc (negative = amplified).
+    Keeping pen out of `resist` is deliberate: pen and resistance-reduction are different mechanics, and
+    folding pen into the base would mis-scale any future enemy-resistance multiplier. All fractions."""
+    armor_pen = source.total("armor_pen")
+    all_red = source.total("all_resistance_reduction")   # signed; negative lowers enemy resistance
+
+    def res_parts(t: str) -> dict:
         base = TARGET_EROSION_RESIST if t == "erosion" else TARGET_ELEMENTAL_RESIST
-        resists[t] = {"base": base, "effective": _target_effective(source, t)[1]}
+        pen = (source.total("erosion_pen") if t == "erosion"
+               else source.total(f"{t}_pen") + source.total("elemental_pen"))
+        resist = base + all_red          # enemy's actual resistance (after reductions; multipliers go here)
+        return {"base": base, "reduction": all_red, "pen": pen, "resist": resist, "effective": resist - pen}
+
     return {
+        "source": TARGET_SOURCE,
         "armor": {
             "base_phys": TARGET_ARMOR_MITIGATION,
             "base_nonphys": TARGET_ARMOR_MITIGATION * TARGET_NONPHYS_ARMOR_FACTOR,
-            "effective_phys": e_phys,
-            "effective_nonphys": e_nonphys,
+            "pen": armor_pen,
+            "effective_phys": TARGET_ARMOR_MITIGATION - armor_pen,
+            "effective_nonphys": TARGET_ARMOR_MITIGATION * TARGET_NONPHYS_ARMOR_FACTOR - armor_pen,
         },
-        "resists": resists,
-        # The penetration that produced base→effective, so the UI can show what moved each value.
+        "resists": {t: res_parts(t) for t in ("fire", "cold", "lightning", "erosion")},
+        # Raw pen totals (kept for back-compat / debugging).
         "pen": {
-            "armor": source.total("armor_pen"),
-            "all_resistance_reduction": source.total("all_resistance_reduction"),
+            "armor": armor_pen,
+            "all_resistance_reduction": all_red,
             "elemental": source.total("elemental_pen"),
             "fire": source.total("fire_pen"),
             "cold": source.total("cold_pen"),
@@ -442,6 +459,7 @@ class OffenseResult:
     crit_multiplier: float = 1.5
     steep_strike_chance: float = 0.0
     attacks_per_second: float = 0.0
+    base_cast_time: float = 0.0        # spell base cast time (seconds); 0 for attacks (weapon-APS driven)
     total_dps: float = 0.0
     total_dps_vs_target: float = 0.0   # total DPS after target dummy mitigation
     nyi: list[str] = field(default_factory=list)
@@ -458,8 +476,12 @@ class OffenseResult:
     weapon_csr_mh: float = 0.0         # attack_crit_rating_mh (decimal, mainhand-only)
     base_csr: float = 0.0              # intrinsic base crit rating (spells get _BASE_SPELL_CRIT_RATING; attacks 0 — weapon provides it)
     # Per-type damage breakdown for the stats screen breakdown table
-    flat_dmg_min: dict[str, float] = field(default_factory=dict)  # flat before inc/add
+    flat_dmg_min: dict[str, float] = field(default_factory=dict)  # flat before inc/add (skill base + added)
     flat_dmg_max: dict[str, float] = field(default_factory=dict)
+    # The skill's INTRINSIC per-level base damage per type (spells only; attacks derive base from the
+    # weapon, which is already a keyed gear source). Surfaced so the breakdown can show it as a baseline.
+    base_dmg_min: dict[str, float] = field(default_factory=dict)
+    base_dmg_max: dict[str, float] = field(default_factory=dict)
     type_inc: dict[str, float] = field(default_factory=dict)      # total increased decimal (e.g. 2.77 = 277% increased)
     type_add: dict[str, float] = field(default_factory=dict)      # total more product (e.g. 1.65 = x1.65)
     above_max_mult: float = 1.0  # additional multiplier from being above max skill level (1.0 = at or below max)
@@ -591,6 +613,7 @@ def calculate_offense(
     is_spell = "spell" in skill_tags_lower
 
     flat_dmg: dict[str, tuple[float, float]] = {}
+    skill_base_dmg: dict[str, tuple[float, float]] = {}  # intrinsic per-level base (spells); shown as baseline
     if skill.is_spell:
         # Spell flat pool: the skill's intrinsic per-level base damage (UNSCALED by effectiveness) +
         # spell-tagged added flat (gear/supports), the latter scaled by the skill's added-damage
@@ -605,6 +628,8 @@ def calculate_offense(
             add_max = source.total(f"{dtype}_spell_dmg_flat_max")
             total_min = b_min + add_min * eff_mult
             total_max = b_max + add_max * eff_mult
+            if b_min > 0 or b_max > 0:
+                skill_base_dmg[dtype] = (b_min, b_max)
             if total_min > 0 or total_max > 0:
                 flat_dmg[dtype] = (total_min, total_max)
     else:
@@ -716,10 +741,12 @@ def calculate_offense(
     steep_add_mult = (1.0 + source.total("steep_strike_additional_dmg")) if _has_steep_form else 1.0
 
     # 5. Hit rate (casts/attacks per second).
+    base_cast_time = 0.0
     if skill.is_spell:
         # Spell: casts/sec = (1 / cast time) × (1 + cast speed inc) × Π(1 + cast speed additional).
         # No weapon APS for spells. Mirrors the attack block below but cast-driven.
         cast_time = skill.base_cast_time or 1.0
+        base_cast_time = cast_time
         aps = (1.0 / cast_time) * (1.0 + source.total("cast_speed_inc"))
         aps *= _speed_additional_product(source, _CAST_ADDITIONAL_STATS, skill_tags_lower)
     else:
@@ -827,6 +854,7 @@ def calculate_offense(
         crit_multiplier=crit_mult,
         steep_strike_chance=steep_chance,
         attacks_per_second=aps,
+        base_cast_time=base_cast_time,
         total_dps=sum(f.dps_contribution for f in hit_forms) * cast_multiplier,
         total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms) * cast_multiplier,
         weapon_attack_speed=source.total("weapon_attack_speed"),
@@ -838,6 +866,8 @@ def calculate_offense(
         base_csr=base_csr,
         flat_dmg_min={dtype: mn for dtype, (mn, _) in flat_dmg.items()},
         flat_dmg_max={dtype: mx for dtype, (_, mx) in flat_dmg.items()},
+        base_dmg_min={dtype: mn for dtype, (mn, _) in skill_base_dmg.items()},
+        base_dmg_max={dtype: mx for dtype, (_, mx) in skill_base_dmg.items()},
         type_inc=type_inc,
         type_add=type_add,
         above_max_mult=above_mult,

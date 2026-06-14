@@ -266,10 +266,11 @@ def _build_catalog(season_trees: dict, belt_blends: dict) -> dict[str, list[str]
     return cat
 
 
-def _collect(slots, slates, gear, season_trees, belt_blends) -> list[tuple[str, list[str]]]:
-    """Gather (name, effects) candidates from all four grant sources, in priority order (tree → slate
-    → legendary → belt blend). Dedup happens later — first occurrence wins."""
-    out: list[tuple[str, list[str]]] = []
+def _collect(slots, slates, gear, season_trees, belt_blends) -> list[tuple[str, list[str], str | None]]:
+    """Gather (name, effects, tree_name) candidates from all four grant sources, in priority order
+    (tree → slate → legendary → belt blend). `tree_name` is the granting tree for tree-slot cores (drives
+    the source color in the UI); None for slate/legendary/belt-blend cores. Dedup later — first wins."""
+    out: list[tuple[str, list[str], str | None]] = []
     catalog = _build_catalog(season_trees, belt_blends)
 
     # 1. Talent-tree slots — coreTalentSelections maps slot → display_name_key.
@@ -279,20 +280,21 @@ def _collect(slots, slates, gear, season_trees, belt_blends) -> list[tuple[str, 
         sels = slot.get("coreTalentSelections") or {}
         if not sels:
             continue
+        tree_name = slot.get("treeName", "") or None
         tree = (season_trees or {}).get(_slug(slot.get("treeName", ""))) or {}
         by_key = {ct.get("display_name_key"): ct for ct in tree.get("core_talents", []) or []}
         for talent_id in sels.values():
             ct = by_key.get(talent_id)
             if ct:
-                out.append((ct.get("name") or talent_id, ct.get("effects", []) or []))
+                out.append((ct.get("name") or talent_id, ct.get("effects", []) or [], tree_name))
             else:  # tree not loaded — fall back to the name-keyed catalog
-                out.append((talent_id, catalog.get(_normalize(talent_id), [])))
+                out.append((talent_id, catalog.get(_normalize(talent_id), []), tree_name))
 
     # 2. Slates — a slot flagged isCore grants the selected core talent (name + effects inline).
     for slate in slates or []:
         for sd in slate.get("slots", []) or []:
             if sd.get("isCore") and sd.get("coreName"):
-                out.append((sd["coreName"], sd.get("effects", []) or []))
+                out.append((sd["coreName"], sd.get("effects", []) or [], None))
 
     # 3 & 4. Gear — legendary `[Name] …` grants (names extracted client-side into granted_talents) and
     # the equipped belt blend (belt item's belt_blend id → blend catalog).
@@ -301,13 +303,13 @@ def _collect(slots, slates, gear, season_trees, belt_blends) -> list[tuple[str, 
         if not isinstance(gi, dict):
             continue
         for nm in gi.get("granted_talents", []) or []:
-            out.append((nm, catalog.get(_normalize(nm), [])))
+            out.append((nm, catalog.get(_normalize(nm), []), None))
         bb = gi.get("belt_blend")
         if bb is not None and str(bb) != "":
             blend = blend_by_id.get(str(bb))
             if blend:
                 nm = blend.get("talent_name") or f"Belt Blend {bb}"
-                out.append((nm, [blend.get("effect_text", "")]))
+                out.append((nm, [blend.get("effect_text", "")], None))
     return out
 
 
@@ -325,12 +327,14 @@ def resolve_core_talents(slots, slates, gear, season_trees, belt_blends, parse_m
     flags: set[str] = set()
     statuses: list[dict] = []
     seen: set[str] = set()
-    for name, effects in _collect(slots, slates, gear, season_trees, belt_blends):
+    for name, effects, tree_name in _collect(slots, slates, gear, season_trees, belt_blends):
         norm = _normalize(name)
         if not norm or norm in seen:
             continue  # Max Divinity Effect: 1 — count each talent exactly once across all sources
         seen.add(norm)
         c, f, s = _resolve_talent(name, effects, parse_mod, translate_cond)
+        for ce in c:
+            ce["tree"] = tree_name   # granting tree (None for slate/legendary/belt) → source color in UI
         contribs.extend(c)
         flags |= f
         statuses.extend(s)

@@ -202,3 +202,4 @@ class StatResult:
     consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
+    blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral

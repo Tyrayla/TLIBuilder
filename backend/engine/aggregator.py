@@ -96,6 +96,34 @@ _BLESSING_OVERRIDES: dict[str, list[tuple[str, list[tuple[str, float, str]]]]] =
     ],
 }
 
+def blessings_summary(active_booleans, numeric_vals, source) -> list[dict]:
+    """Per-blessing display summary: current stacks, max stacks, and the (post-override) per-stack effects.
+    Reuses the same tables the aggregator applies, so the panel always matches what's actually granted."""
+    out: list[dict] = []
+    for bkey, default_effects in _BLESSING_DEFAULT_EFFECTS.items():
+        stacks = float((numeric_vals or {}).get(bkey, 0.0) or 0.0)
+        short = bkey.replace("_blessings", "")
+        maximum = 4.0 + source.total(f"max_{short}_blessing_stacks_flat")
+        effects = default_effects
+        for flag, pairs in _BLESSING_OVERRIDES.items():
+            if flag not in (active_booleans or frozenset()):
+                continue
+            ov = next((eff for tb, eff in pairs if tb == bkey), None)
+            if ov is not None:
+                effects = ov
+                break
+        out.append({
+            "type": bkey,
+            "label": _BLESSING_LABELS.get(bkey, bkey),
+            "stacks": stacks,
+            "max": maximum,
+            "overridden": effects is not default_effects,
+            "effects": [{"stat": sk, "per_stack": per, "total": per * stacks, "text": text}
+                        for sk, per, text in effects],
+        })
+    return out
+
+
 # Flat base effects granted while dual wielding (gated by the auto-set 'dual_wielding' condition).
 # Fixed amounts — not scaled (an item can convert the block-chance portion to block ratio, but that
 # conversion isn't modeled yet). Block chance isn't consumed by the engine yet (block defense NYI).
@@ -408,6 +436,7 @@ def aggregate(
             source_type="core_talent",
             label=contrib.get("label", "Core Talent"),
             text=contrib.get("text", ""),
+            source_name=contrib.get("tree"),   # granting tree → UI colors the source by tree branch
             points=1,
         ))
 

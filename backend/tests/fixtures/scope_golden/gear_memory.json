@@ -25,15 +25,18 @@
     "all_stats_inc",
     "armor",
     "armor_additional",
+    "armor_effective_rate_non_physical_inc",
     "armor_flat",
     "armor_gear_flat",
     "armor_gear_inc",
     "armor_inc",
     "armor_pen",
+    "attack_block_chance_inc",
     "attack_crit_rating_gear",
     "attack_crit_rating_mh",
     "attack_speed_gear",
     "attack_speed_mh",
+    "block_ratio_inc",
     "cast_speed_inc",
     "cold_as_erosion",
     "cold_as_fire",
@@ -52,6 +55,7 @@
     "dexterity_additional",
     "dexterity_flat",
     "dexterity_inc",
+    "dmg_avoid_chance",
     "dmg_inc",
     "double_dmg_chance",
     "elemental_dmg_inc",
@@ -128,6 +132,7 @@
     "physical_spell_dmg_flat_max",
     "physical_spell_dmg_flat_min",
     "quadruple_dmg_chance",
+    "spell_block_chance_inc",
     "spell_crit_dmg_inc",
     "spell_crit_rating_flat",
     "spell_crit_rating_inc",
@@ -147,9 +152,17 @@
     "armor_additional": 0,
     "armor_flat": 0,
     "armor_inc": 0,
+    "armor_nonphys_mitigation": 0.0,
+    "armor_phys_mitigation": 0.0,
+    "attack_block_chance": 0,
+    "attack_evade_chance": 0.0,
+    "block_ratio": 0,
     "cold_resist": 0.0,
+    "cold_resist_max": 60.0,
     "cold_resist_raw": 0.0,
+    "dmg_avoid_chance": 0,
     "erosion_resist": 0.0,
+    "erosion_resist_max": 60.0,
     "erosion_resist_raw": 0.0,
     "es_additional": 0,
     "es_flat": 0,
@@ -159,11 +172,13 @@
     "evasion_flat": 0,
     "evasion_inc": 0,
     "fire_resist": 0.0,
+    "fire_resist_max": 60.0,
     "fire_resist_raw": 0.0,
     "life_additional": 0,
     "life_flat": 0,
     "life_inc": 0.12,
     "lightning_resist": 0.0,
+    "lightning_resist_max": 60.0,
     "lightning_resist_raw": 0.0,
     "mana_additional": 0,
     "mana_flat": 0,
@@ -173,12 +188,21 @@
     "max_mana": 0.0,
     "nyi": [
       "Effective HP"
-    ]
+    ],
+    "spell_block_chance": 0,
+    "spell_evade_chance": 0.0
   },
   "offense": {
     "above_max_mult": 1.0,
     "attacks_per_second": 1.5384615384615383,
+    "base_cast_time": 0.65,
     "base_csr": 500.0,
+    "base_dmg_max": {
+      "lightning": 289.0
+    },
+    "base_dmg_min": {
+      "lightning": 15.0
+    },
     "cast_multiplier": 1.0,
     "crit_chance": 0.054,
     "crit_multiplier": 1.5,
@@ -318,6 +342,13 @@
         }
       ],
       "total": 0.12,
+      "unit": "%"
+    },
+    "movement_speed": {
+      "category": "Character",
+      "display_name": "Movement Speed",
+      "sources": [],
+      "total": 0.0,
       "unit": "%"
     }
   }

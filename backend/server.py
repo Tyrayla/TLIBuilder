@@ -658,9 +658,7 @@ def engine_stats(req: EngineStatsRequest):
                 if cond_expr is not None:
                     entry["condition"] = cond_expr
                 custom_contributions.append(entry)
-            display_names = [
-                _get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed
-            ]
+            display_names = [_qualified_stat_display(e["stat_key"]) for e in parsed]
             custom_mod_statuses.append({
                 "text": mod_text,
                 "resolved": True,
@@ -810,6 +808,8 @@ def engine_stats(req: EngineStatsRequest):
         "consumable_universe": sorted(consumable_universe()),
         # Calc-target armor/resist (base + effective after penetration) + active enemy debuffs.
         "target_stats": result.target_stats,
+        # Per-blessing summary (stacks/max/effects) for the Blessings panel.
+        "blessings": result.blessings,
     }
 
 
@@ -2175,6 +2175,21 @@ def _get_stat_display_name(stat_key: str) -> str | None:
         return meta.display_name if meta else None
     except ValueError:
         return None
+
+
+def _qualified_stat_display(stat_key: str) -> str:
+    """Display name qualified by which POOL the stat key targets, so the same base stat's flat / increased /
+    additional pools read distinctly (e.g. Dexterity vs "Dexterity (increased)" vs "Dexterity (additional)").
+    Skips the qualifier when the display name already carries it. Flat = the bare base name."""
+    base = _get_stat_display_name(stat_key) or stat_key
+    low = base.lower()
+    if stat_key.endswith("_additional") and "additional" not in low:
+        return f"{base} (additional)"
+    if stat_key.endswith("_more") and "more" not in low:
+        return f"{base} (more)"
+    if stat_key.endswith("_inc") and "increased" not in low:
+        return f"{base} (increased)"
+    return base
 
 
 _BLESSING_KEY_MAP = {
