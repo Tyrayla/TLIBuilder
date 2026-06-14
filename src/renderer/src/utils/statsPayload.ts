@@ -4,6 +4,7 @@ import {
   buildCharacterContributions, buildMemoryEffects, buildSpiritEffects,
 } from '../api/client'
 import { itemHasSlot } from './gearItem'
+import { characterLevelFrom } from './conditions'
 import { useReferenceStore } from '../store/referenceStore'
 import type { useBuildStore } from '../store/buildStore'
 
@@ -73,17 +74,22 @@ function _excludeOnce(list: EffectInput[], exclude?: string[]): EffectInput[] {
 }
 
 export function buildEngineStatsPayload(s: BuildState) {
+  // Character level is the `level` condition (default 90) — the single source of truth now that the
+  // skills-screen level control is gone. Forced into condition_state so per-level scaling, base life/mana,
+  // and energy all agree (and the backend's characterLevel seeding never diverges).
+  const charLevel = characterLevelFrom(s.conditionState)
   return {
     slots: s.slots,
     slates: s.slates,
     // dual_wielding and unique_weapon_types are auto-derived from gear (override any stored value).
     condition_state: {
       ...s.conditionState,
+      level: charLevel,
       dual_wielding: isDualWielding(s.gear),
       unique_weapon_types: countUniqueWeaponTypes(s.gear),
     },
     gear: buildGearPayload(s.gear),
-    character: buildCharacterContributions(s.gear, s.characterLevel, s.hasPrism),
+    character: buildCharacterContributions(s.gear, charLevel, s.hasPrism),
     memory_effects: buildMemoryEffects(s.heroMemories),
     spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits), s.spiritEffectExclude),
     main_skill: s.mainSkill ?? null,

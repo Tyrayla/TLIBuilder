@@ -92,7 +92,8 @@ export default function BuildOverviewScreen() {
                       return <NumericConditionRow
                         key={cond.key}
                         cond={cond}
-                        value={(conditionState[cond.key] as number) ?? 0}
+                        // Unset → the condition's own default (e.g. Character Level 90), not a bare 0.
+                        value={(conditionState[cond.key] as number) ?? cond.default_value ?? 0}
                         max={getNumericMax(cond)}
                         clamp={clampReport[cond.key]}
                         onChange={v => setNumeric(cond.key, v)}

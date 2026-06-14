@@ -3,6 +3,7 @@ import { FloatingPortal } from '@floating-ui/react'
 import { HeroTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
+import { characterLevelFrom } from '../utils/conditions'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
@@ -399,7 +400,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   const traitId = useBuildStore(s => s.traitId)
   const traitSlotLevels = useBuildStore(s => s.traitSlotLevels)
   const advancedTraitSelections = useBuildStore(s => s.advancedTraitSelections)
-  const characterLevel = useBuildStore(s => s.characterLevel)
+  // Trait-tier unlocks use the `level` condition (default 90) — the single character-level source.
+  const characterLevel = characterLevelFrom(useBuildStore(s => s.conditionState))
   const heroMemories = useBuildStore(s => s.heroMemories)
   const setTraitData = useBuildStore(s => s.setTraitData)
   const setHeroMemories = useBuildStore(s => s.setHeroMemories)

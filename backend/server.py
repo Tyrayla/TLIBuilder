@@ -873,6 +873,9 @@ def get_conditions():
             entry["numeric_min"] = c.numeric_min
             entry["numeric_max"] = c.numeric_max
             entry["unit"] = c.unit
+            entry["default_value"] = c.default_value   # was omitted → frontend saw undefined → 0 defaults
+        else:
+            entry["default_bool"] = c.default_bool
         if c.key in derived_keys:
             entry["is_derived"] = True
         if not c.visible:

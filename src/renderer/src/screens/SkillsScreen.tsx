@@ -18,6 +18,7 @@ import { SkillTooltipBody } from '../components/tooltip/bodies/SkillTooltipBody'
 import { DamageDeltaBand } from '../components/tooltip/DamageDeltaBand'
 import { useDamageDelta, useDamageDeltaList, withSupport, type DeltaRequest, type DamageDelta } from '../components/tooltip/useDamageDelta'
 import { buildEngineStatsPayload, type BuildState } from '../utils/statsPayload'
+import { characterLevelFrom } from '../utils/conditions'
 import { modeledRolledLines } from '../utils/supportRolls'
 
 // djb2 string hash → short base36. Used to fingerprint the build slice the support-pick deltas depend on.
@@ -189,9 +190,10 @@ export default function SkillsScreen(_props: Props) {
   const equippedSkills = useBuildStore(s => s.skills)
   const onSkillsChange = useBuildStore(s => s.setSkills)
   const gear = useBuildStore(s => s.gear)
-  const characterLevel = useBuildStore(s => s.characterLevel)
+  // Character level now comes from the `level` condition (default 90); the old level control is gone.
+  const conditionState = useBuildStore(s => s.conditionState)
+  const characterLevel = characterLevelFrom(conditionState)
   const hasPrism = useBuildStore(s => s.hasPrism)
-  const onCharacterLevelChange = useBuildStore(s => s.setCharacterLevel)
   const onHasPrismChange = useBuildStore(s => s.setHasPrism)
   const [allItems, setAllItems] = useState<SkillItem[]>([])
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
@@ -849,13 +851,7 @@ export default function SkillsScreen(_props: Props) {
           </div>
           <div className="skills-left-footer">
             <div className="skills-energy-config">
-              <label className="skills-energy-config-label">Lvl</label>
-              <input
-                type="number" className="skills-energy-level-input"
-                min={1} max={100} value={characterLevel}
-                onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) onCharacterLevelChange(Math.max(1, Math.min(100, v))) }}
-              />
-              <label className="skills-energy-config-label" style={{ marginLeft: 8 }}>
+              <label className="skills-energy-config-label">
                 <input type="checkbox" checked={hasPrism} onChange={e => onHasPrismChange(e.target.checked)} style={{ marginRight: 4 }} />
                 Prism
               </label>
