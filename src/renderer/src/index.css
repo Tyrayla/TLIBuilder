@@ -154,6 +154,25 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   gap: 6px;
 }
 
+/* About / disclaimer modal (opened from the About button). */
+.about-modal-card { max-width: 560px; }
+.about-modal-body { padding: 0 20px 4px; max-height: 60vh; overflow-y: auto; }
+.about-section-title { font-size: 13px; font-weight: 700; color: #cfd6e6; margin: 14px 0 6px; }
+.about-modal-body p { font-size: 12.5px; line-height: 1.6; color: #a8a8b8; margin: 0 0 8px; }
+.about-contact { color: #c0c0d0; }
+/* Override the global user-select:none so the email / discord can be copied. */
+.about-contact span { user-select: text; cursor: text; color: #d8d8e6; }
+.about-links { display: flex; gap: 14px; margin-top: 6px; }
+.about-link-btn {
+  background: none;
+  border: none;
+  color: #7090e8;
+  cursor: pointer;
+  font-size: 12.5px;
+  padding: 0;
+}
+.about-link-btn:hover { text-decoration: underline; }
+
 .build-select-version {
   font-size: 11px;
   color: #444;
@@ -3405,6 +3424,21 @@ span.gear-affix-label {
 .trait-circle-name { font-size: 9px; line-height: 1.25; text-align: center; color: #9090b0; word-break: break-word; pointer-events: none; }
 .trait-circle.selected .trait-circle-name { color: #c0c0e0; }
 
+/* Icon-in-circle + name caption below (so the name never overlaps the art). */
+.trait-circle-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.trait-circle-img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
+.trait-circle-caption {
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  color: #9090b0;
+  max-width: 96px;
+  word-break: break-word;
+  pointer-events: none;
+}
+.trait-circle.selected + .trait-circle-caption { color: #c0c0e0; }
+.trait-circle.locked + .trait-circle-caption { opacity: 0.5; }
+
 .trait-circle-check {
   position: absolute;
   top: 2px;
@@ -4157,6 +4191,15 @@ span.gear-affix-label {
   border: 2.5px solid rgba(255,200,100,0.9);
   box-shadow: 0 0 10px rgba(255,180,80,0.45);
 }
+/* Node icon fills the ring (the colored border still conveys inner/mid/outer). */
+.pact-node-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
 
 /* Right panel: spirit selector (shown when a slot is active) */
 .pact-spirit-right-panel {
@@ -4223,14 +4266,34 @@ span.gear-affix-label {
 
 .pact-spirit-list-item {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 6px;
   background: rgba(255,255,255,0.03);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
+}
+.pact-spirit-portrait-wrap { display: flex; justify-content: center; margin-top: 10px; }
+.pact-spirit-portrait {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  border-radius: 8px;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.pact-spirit-list-main { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.pact-spirit-list-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
 }
 .pact-spirit-list-item:hover {
   background: rgba(255,255,255,0.07);

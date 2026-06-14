@@ -16,12 +16,12 @@ Fields kept per trait:
 Fields discarded: base_skill, status, version, atomic_links (within advanced_traits)
 """
 
-_TRAIT_KEEP = {"trait_id", "hero", "variant_name", "description", "levels",
+_TRAIT_KEEP = {"trait_id", "hero", "variant_name", "description", "icon_url", "levels",
                "artificial_moon", "advanced_traits"}
 
 _LEVEL_KEEP = {"level", "effects", "unlock_level"}
 
-_ADVANCED_KEEP = {"name", "unlock_level", "is_pick_one_from_two", "effects"}
+_ADVANCED_KEEP = {"name", "unlock_level", "is_pick_one_from_two", "effects", "icon_url"}
 
 
 def _clean_level(raw: dict) -> dict:
@@ -144,6 +144,7 @@ def import_crawler_hero_trait(data: dict) -> dict:
             "unlock_level": t.get("required_level", 0),
             "is_pick_one_from_two": level_counts[t.get("required_level", 0)] > 1,
             "effects": [t["description"]] if t.get("description") else [],
+            "icon_url": t.get("icon_url", ""),
         }
         for t in advanced_raw
     ]
@@ -159,6 +160,7 @@ def import_crawler_hero_trait(data: dict) -> dict:
         "hero": hero,
         "variant_name": name,
         "description": "",
+        "icon_url": icon_url,   # base-trait icon; UI pairs on its basename to a bundled hero_trait webp
         "levels": levels,
         "artificial_moon": {"description": "", "effects": am_effects},
         "advanced_traits": advanced_traits,

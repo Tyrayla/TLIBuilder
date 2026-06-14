@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
-import { HeroTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS } from '../api/client'
+import { HeroTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -221,26 +221,33 @@ function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
 // A trait circle (base or advanced) + its hover info tooltip. Hover-only — the tooltip shows
 // only while the icon itself is hovered (non-interactive, so moving onto the card dismisses
 // it), and clicking only selects the node (no pinning). Locked circles show no tooltip.
-function TraitCircle({ className, name, checked, locked, tipName, slotLevel, effects, moonEffects, onSelect }: {
-  className: string; name: string; checked: boolean; locked?: boolean
+function TraitCircle({ className, name, icon, checked, locked, tipName, slotLevel, effects, moonEffects, onSelect }: {
+  className: string; name: string; icon?: string | null; checked: boolean; locked?: boolean
   tipName: string; slotLevel: number; effects: string[]; moonEffects?: string[]
   onSelect?: () => void
 }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  // Icon fills the circle; the name sits as a caption below so it never overlaps the art. Falls back
+  // to the name inside the circle if an icon is missing.
+  const inner = (
+    <div className="trait-circle-inner">
+      {icon ? <img src={icon} className="trait-circle-img" alt="" /> : <span className="trait-circle-name">{name}</span>}
+    </div>
+  )
   if (locked) {
     return (
-      <div className={className}>
-        <div className="trait-circle-inner"><span className="trait-circle-name">{name}</span></div>
-        {checked && <span className="trait-circle-check">✓</span>}
+      <div className="trait-circle-wrap">
+        <div className={className}>{inner}{checked && <span className="trait-circle-check">✓</span>}</div>
+        <span className="trait-circle-caption">{name}</span>
       </div>
     )
   }
   return (
-    <>
+    <div className="trait-circle-wrap">
       <div {...tip.triggerProps} className={className} onClick={onSelect}>
-        <div className="trait-circle-inner"><span className="trait-circle-name">{name}</span></div>
-        {checked && <span className="trait-circle-check">✓</span>}
+        {inner}{checked && <span className="trait-circle-check">✓</span>}
       </div>
+      <span className="trait-circle-caption">{name}</span>
       {tip.open && (
         <FloatingPortal>
           <div className="trait-info-card" {...tip.floatingProps}>
@@ -248,7 +255,7 @@ function TraitCircle({ className, name, checked, locked, tipName, slotLevel, eff
           </div>
         </FloatingPortal>
       )}
-    </>
+    </div>
   )
 }
 
@@ -608,6 +615,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
               <TraitCircle
                 className="trait-circle selected trait-circle-base"
                 name={selectedTrait.variant_name}
+                icon={iconUrl('hero_trait', selectedTrait.icon_url)}
                 checked
                 tipName={selectedTrait.variant_name}
                 slotLevel={safeSlotLevels[SLOT_BASE]}
@@ -663,6 +671,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                             key={t.name}
                             className={`trait-circle${selected ? ' selected' : ''}${locked ? ' locked' : ''}`}
                             name={t.name}
+                            icon={iconUrl('hero_trait', t.icon_url)}
                             checked={selected}
                             locked={locked}
                             tipName={t.name}
@@ -684,6 +693,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                               key={t.name}
                               className={`trait-circle${selected ? ' selected' : ''}${locked ? ' locked' : ''}`}
                               name={t.name}
+                              icon={iconUrl('hero_trait', t.icon_url)}
                               checked={selected}
                               locked={locked}
                               tipName={t.name}

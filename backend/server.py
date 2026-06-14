@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 import uvicorn
 
@@ -77,6 +78,15 @@ async def _gate_dev_routes(request: Request, call_next):
     return await call_next(request)
 
 
+# Bundled entity icons (talent-tree node icons, hero-trait icons; pact-spirit etc. added later). Paired
+# by basename: a record's `icon_url` ends in "<file>.webp", served here from data/images/icons/<category>/.
+# makedirs guards the first-run case before bootstrapDataDir has populated userData. check_dir=False so a
+# missing dir never crashes startup.
+_ICONS_DIR = os.path.join(_DATA_ROOT, 'images', 'icons')
+os.makedirs(_ICONS_DIR, exist_ok=True)
+app.mount("/icons", StaticFiles(directory=_ICONS_DIR, check_dir=False), name="icons")
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _tree_from_config(name: str, config: dict) -> PassiveTree:
@@ -104,6 +114,7 @@ def _tree_from_season_data(name: str, data: dict) -> PassiveTree:
             column=n["column"],
             row=n["row"],
             max_points=n.get("max_rank") or n.get("max_points", 1),
+            icon_url=n.get("icon_url"),
         ))
     for conn in data.get("connections", []):
         tree.add_connection(conn["from"], conn["to"])
@@ -241,6 +252,7 @@ def get_tree(name: str):
             "node_type": n.node_type.value,
             "current_points": n.current_points,
             "effects": effects_by_id.get(n.id, []),
+            "icon_url": n.icon_url,
         })
 
     connections = [{"from": id1, "to": id2} for id1, id2 in tree.connections]

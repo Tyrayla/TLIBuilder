@@ -2,6 +2,19 @@ let BASE = ''
 let ipcMode = false
 export function getApiBase(): string { return BASE }
 
+// Host root for bundled entity icons (served by the Python backend at /icons/<category>/<file>.webp).
+// Images must load via a real URL even in IPC mode (an <img> can't go through the IPC bridge), so we
+// resolve the port here and expose iconUrl() to turn a record's icon_url into a local server URL.
+let ICON_BASE = ''
+export function iconUrl(category: string, iconRef: string | null | undefined): string | null {
+  if (!iconRef || !ICON_BASE) return null
+  // Records store a full CDN icon_url; we pair on its basename, which matches the bundled file.
+  const clean = iconRef.split('?')[0].split('#')[0]
+  const file = clean.substring(clean.lastIndexOf('/') + 1)
+  if (!file) return null
+  return `${ICON_BASE}/${category}/${file}`
+}
+
 const verbose = typeof window !== 'undefined' && window.api?.isVerbose === true
 const rlog = (...args: unknown[]) => { if (verbose) console.log('[api]', ...args) }
 const rerr = (...args: unknown[]) => { if (verbose) console.error('[api]', ...args) }
@@ -25,19 +38,22 @@ export async function initApi(): Promise<void> {
   if (window.api?.apiRequest) {
     ipcMode = true
     rlog('initApi — Electron IPC path: waiting for port readiness via getPythonPort')
-    await window.api.getPythonPort()
-    rlog('initApi — IPC ready, ipcMode=true')
+    const port = await window.api.getPythonPort()
+    ICON_BASE = `http://127.0.0.1:${port}/icons`
+    rlog(`initApi — IPC ready, ipcMode=true, ICON_BASE: ${ICON_BASE}`)
     return
   }
   rlog('initApi — browser path: scanning ports 8765-8774')
   for (let port = 8765; port <= 8774; port++) {
     if (await probePort(port)) {
       BASE = `http://127.0.0.1:${port}/api`
+      ICON_BASE = `http://127.0.0.1:${port}/icons`
       rlog(`initApi — found server on port ${port}, BASE: ${BASE}`)
       return
     }
   }
   BASE = 'http://127.0.0.1:8765/api'
+  ICON_BASE = 'http://127.0.0.1:8765/icons'
   rerr(`initApi — no server found on 8765-8774, defaulting BASE to: ${BASE}`)
 }
 
@@ -227,6 +243,7 @@ export interface TreeNode {
   node_type: string
   current_points: number
   effects: string[]
+  icon_url?: string | null   // CDN url; render via iconUrl('talent_tree', icon_url) → bundled webp
 }
 
 // Static per-line resolution for a core-talent effect (from /api/tree) — drives the NYI/Inactive badges
@@ -729,6 +746,7 @@ export interface HeroAdvancedTrait {
   unlock_level: number          // 45 | 60 | 75
   is_pick_one_from_two: boolean
   effects: string[]
+  icon_url?: string | null      // render via iconUrl('hero_trait', icon_url) → bundled webp
 }
 
 export interface HeroTrait {
@@ -736,6 +754,7 @@ export interface HeroTrait {
   hero: string
   variant_name: string
   description: string
+  icon_url?: string | null      // render via iconUrl('hero_trait', icon_url) → bundled webp
   levels: HeroTraitLevel[]
   artificial_moon: { description: string; effects: string[] }
   advanced_traits: HeroAdvancedTrait[]
@@ -747,6 +766,7 @@ export interface PactSpiritSlot {
   name: string
   effect: string[]   // atomic stat lines (one stat per entry) — see pact_spirit_importer normalization
   ring: 'inner' | 'mid' | 'outer'
+  icon_url?: string | null   // render via iconUrl('pactspirit', icon_url) → bundled webp
 }
 
 export interface PactSpiritRank {
@@ -758,6 +778,7 @@ export interface PactSpirit {
   item_id: string
   name: string
   description: string
+  portrait_url?: string | null   // spirit's main icon; render via iconUrl('pactspirit', portrait_url)
   affinities: string[]
   main_skill_name: string
   main_skill_effect: string
