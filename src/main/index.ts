@@ -248,13 +248,20 @@ function createWindow(): void {
   log('createWindow — creating BrowserWindow')
   const mainWindow = new BrowserWindow({
     width: 1280,
-    height: 800,
+    // +30 over the old 800/680: the frameless window's web content now includes our 30px title
+    // strip, so growing by the strip height keeps the usable area below it the same as before.
+    height: 830,
     minWidth: 1100,
-    minHeight: 680,
+    minHeight: 710,
     title: 'TLI Builder',
     icon: join(__dirname, '../../resources/icon.png'),
     show: false,
     autoHideMenuBar: true,
+    // Frameless custom title bar so the strip stays our blue at all times (the native Windows
+    // caption shades differently on focus/blur and can't be recolored per-app). titleBarOverlay
+    // gives us native min/max/close buttons painted to match; the renderer draws the blue drag strip.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#1a1a2e', symbolColor: '#cfd6e6', height: 30 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
@@ -289,11 +296,18 @@ function createWindow(): void {
     // response === 2 (Cancel): do nothing, window stays open
   })
 
-  mainWindow.on('ready-to-show', () => {
-    log('createWindow — ready-to-show, displaying window')
+  // Show the window once it's ready. With a frameless / titleBarOverlay window on Windows,
+  // 'ready-to-show' can be delayed or skipped unless DevTools is open (which is why the app launched
+  // under `dev:verbose` but stayed hidden under plain `dev`). 'did-finish-load' fires reliably either
+  // way, so we trigger off whichever comes first and guard against showing twice.
+  const showWindow = () => {
+    if (mainWindow.isDestroyed() || mainWindow.isVisible()) return
+    log('createWindow — showing window')
     mainWindow.show()
     if (isDev && isVerbose) mainWindow.webContents.openDevTools({ mode: 'detach' })
-  })
+  }
+  mainWindow.once('ready-to-show', showWindow)
+  mainWindow.webContents.once('did-finish-load', showWindow)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     safeOpenExternal(details.url)

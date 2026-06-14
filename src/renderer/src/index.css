@@ -20,6 +20,38 @@ html, body, #root {
   user-select: none;
 }
 
+/* Reserve space for the fixed title-bar strip. box-sizing:border-box keeps #root at 100%
+   height, so .screen (height:100%) fills the remaining area below the strip — no overflow. */
+#root { padding-top: 30px; }
+
+.titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  /* Match the general app background blue so the strip blends with the screens below it. */
+  background: var(--bg);
+  color: #cfd6e6;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  z-index: 10000;
+  -webkit-app-region: drag;
+}
+.titlebar-logo {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  -webkit-user-drag: none;
+}
+/* Anything interactive inside the strip would need this to stay clickable:
+   .titlebar :where(button, a, input) { -webkit-app-region: no-drag; } */
+
 .screen {
   height: 100%;
   display: flex;
@@ -986,7 +1018,9 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .app-layout {
   display: flex;
   width: 100%;
-  height: 100vh;
+  /* 100% (not 100vh) so it fills #root's content box below the fixed title strip; 100vh would
+     ignore the strip's reserved 30px and push the sidebar's bottom (Back to Builds) off-screen. */
+  height: 100%;
   overflow: hidden;
 }
 

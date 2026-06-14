@@ -128,8 +128,13 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
   const hasNodeLabel = g.label.includes(' · ')
   const treeName = g.source_name || (hasNodeLabel ? g.label.split(' · ')[0] : g.label)
   const nodeId = hasNodeLabel ? g.label.split(' · ').slice(-1)[0] : ''
-  // Spirit / memory / support: the source's effect lines (built once at the root).
-  const lines = isLines && g.source_name ? (ctx.sourceLines.get(g.source_name) ?? []) : []
+  // Support keeps its full effect list (that's the gem's identity, not stacked ranks). Pact spirit /
+  // hero memory show ONLY this contribution's own line — not the spirit's entire rank/value dump
+  // (hovering a single "+8% Attack Speed" row used to list every modifier the spirit grants).
+  const lines = !isLines ? []
+    : g.source_type === 'support'
+      ? (g.source_name ? (ctx.sourceLines.get(g.source_name) ?? []) : [])
+      : (g.text ? [g.text] : [])
 
   const hasHover = !!matchedItem || (isTalent && !!nodeId) || (isLines && lines.length > 0)
   const tip = useFloatingTooltip({ anchor: 'element', side: 'left', interactive: true })

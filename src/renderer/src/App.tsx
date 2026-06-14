@@ -172,7 +172,7 @@ function App() {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100vh', background: '#1a1a2e',
+        height: '100%', background: '#1a1a2e',
         color: appError ? '#ff6b6b' : '#888', flexDirection: 'column', gap: 8,
       }}>
         <span>{appError || 'Starting backend…'}</span>

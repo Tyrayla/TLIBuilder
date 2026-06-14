@@ -1339,7 +1339,7 @@ function ConditionsTab() {
     }),
   }
 
-  const listH = 'calc(100vh - 300px)'
+  const listH = 'calc(100vh - 330px)'  // +30 for the fixed title strip
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -1735,7 +1735,7 @@ export default function DevToolsScreen({ onBack, deprecatedTools, onToggleDeprec
   const [tab, setTab] = useState<Tab>('seasons')
 
   return (
-    <div className="screen" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <div className="screen" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 16, padding: '12px 20px',
         background: '#0e0e28', borderBottom: '1px solid #2a2a4a', flexShrink: 0,
