@@ -473,9 +473,9 @@ export default function TreeViewerScreen({
                 const selectedId = coreTalentSelections[slotIdx]
                 const isOpen = expandedSlot === slotIdx
                 const ptsToward = Math.min(total, slot.threshold)
-                const selectedTalentName = selectedId
-                  ? (slot.options.find(o => o.id === selectedId)?.name ?? null)
-                  : null
+                const selectedOpt = selectedId ? slot.options.find(o => o.id === selectedId) : null
+                const selectedTalentName = selectedOpt?.name ?? null
+                const selectedIcon = iconUrl('talent_tree', selectedOpt?.icon_url)
                 return (
                   <div key={slotIdx} className="core-talent-slot-item">
                     <button
@@ -484,9 +484,11 @@ export default function TreeViewerScreen({
                       onClick={() => setExpandedSlot(isOpen ? null : slotIdx)}
                       title={unlocked ? `Core Talent Slot ${slotIdx + 1} — click to expand` : `Locked — need ${slot.threshold} pts (click to preview)`}
                     >
-                      <span className="core-talent-circle-progress">
-                        {unlocked ? (selectedId ? '✓' : '?') : `${ptsToward}/${slot.threshold}`}
-                      </span>
+                      {selectedIcon
+                        ? <img src={selectedIcon} className="core-talent-circle-img" alt="" />
+                        : <span className="core-talent-circle-progress">
+                            {unlocked ? '?' : `${ptsToward}/${slot.threshold}`}
+                          </span>}
                     </button>
                     <span className="core-talent-circle-label">
                       {selectedTalentName ?? `Core Talent ${slotIdx + 1}`}
@@ -519,7 +521,12 @@ export default function TreeViewerScreen({
                         const selected = selectedId === opt.id
                         return (
                           <div key={opt.id} className={`core-talent-card${selected ? ' selected' : ''}${slotUnlocked ? '' : ' locked'}`}>
-                            <div className="core-talent-card-name">{opt.name}</div>
+                            <div className="core-talent-card-name">
+                              {iconUrl('talent_tree', opt.icon_url) && (
+                                <img src={iconUrl('talent_tree', opt.icon_url) ?? undefined} className="core-talent-card-icon" alt="" />
+                              )}
+                              <span>{opt.name}</span>
+                            </div>
                             <div className="core-talent-card-desc">
                               {opt.effects.map((e, i) => (
                                 <p key={i}>{e}<ModifierBadge status={coreEffectBadge(opt, i)} /></p>

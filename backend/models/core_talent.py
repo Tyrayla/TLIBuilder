@@ -6,6 +6,7 @@ class CoreTalent:
     id: str
     name: str
     effects: list[str] = field(default_factory=list)
+    icon_url: str | None = None   # CDN url; UI pairs on its basename to a bundled talent_tree webp
 
 
 @dataclass

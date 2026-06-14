@@ -127,6 +127,7 @@ def _tree_from_season_data(name: str, data: dict) -> PassiveTree:
                 id=ct["display_name_key"],
                 name=_format_core_talent_name(ct["display_name_key"], name),
                 effects=ct.get("effects", []),
+                icon_url=ct.get("icon_url"),
             )
             for ct in items
         ]
@@ -227,6 +228,36 @@ def get_trees():
     return [{"name": name, "color": entry["color"]} for name, entry in TREES.items()]
 
 
+@app.get("/api/tree-search")
+def tree_search(q: str = ""):
+    """Cross-tree node search for the overview screen. Returns trees whose nodes match ALL query words
+    (matched against each node's effect text, regular nodes + core talents), with a per-tree match count.
+    Mirrors the in-tree search so the overview highlights which trees contain what you're looking for."""
+    words = [w for w in q.strip().lower().split() if w]
+    if not words:
+        return []
+    active = season_manager.get_active_season()
+    if not active:
+        return []
+    results = []
+    for name in TREES:
+        data = season_manager.load_season_tree(active, _tree_name_to_slug(name))
+        if not data:
+            continue
+        count = 0
+        for n in data.get("nodes", []):
+            hay = " ".join(n.get("effects", [])).lower()
+            if all(w in hay for w in words):
+                count += 1
+        for ct in data.get("core_talents", []):
+            hay = " ".join(ct.get("effects", [])).lower()
+            if all(w in hay for w in words):
+                count += 1
+        if count:
+            results.append({"name": name, "match_count": count})
+    return results
+
+
 @app.get("/api/tree/{name}")
 def get_tree(name: str):
     if name not in TREES:
@@ -260,7 +291,7 @@ def get_tree(name: str):
         {
             "threshold": slot.threshold,
             "options": [
-                {"id": opt.id, "name": opt.name, "effects": opt.effects,
+                {"id": opt.id, "name": opt.name, "effects": opt.effects, "icon_url": opt.icon_url,
                  # Per-line resolution status (static — independent of selection), so badges show on any
                  # tree: "stat"/"override" resolve, "deferred"/"unresolved" badge as Unrecognized (NYI).
                  "effect_status": [_core_effect_status(e) for e in opt.effects]}

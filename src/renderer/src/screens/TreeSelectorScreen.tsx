@@ -40,6 +40,20 @@ export default function TreeSelectorScreen({
   const activeSlot = useBuildStore(s => s.activeSlot)
   const [localColors, setLocalColors] = useState<Record<string, string>>(treeColors)
 
+  // Cross-tree node search: matches maps tree name → match count (null = not searching).
+  const [search, setSearch] = useState('')
+  const [matches, setMatches] = useState<Map<string, number> | null>(null)
+  useEffect(() => {
+    const q = search.trim()
+    if (!q) { setMatches(null); return }
+    const t = setTimeout(() => {
+      api.searchTrees(q)
+        .then(res => setMatches(new Map(res.map(r => [r.name, r.match_count]))))
+        .catch(() => setMatches(new Map()))
+    }, 250)
+    return () => clearTimeout(t)
+  }, [search])
+
   useEffect(() => {
     if (Object.keys(treeColors).length === 0) {
       api.getTrees().then(trees => {
@@ -95,42 +109,66 @@ export default function TreeSelectorScreen({
             onSlotReorder={onSlotReorder}
           />
         )}
-        <div className="tree-grid">
-          {GROUPS.map(({ primary, trees }) => (
-            <div key={primary} className="tree-group-col">
-              <TreeCard
-                name={primary}
-                color={localColors[primary] || '#e94560'}
-                isPrimary
-                selectedSlot={previewMode ? -1 : slotOf(primary, slots)}
-                selectable={previewMode ? true : canAddTree(primary, slots)}
-                onSelect={() => onSelectTree(primary)}
-                onRemove={() => onRemoveTree(slotOf(primary, slots))}
-                onGoToTree={onGoToTree ? () => onGoToTree(slotOf(primary, slots)) : undefined}
-                previewMode={previewMode}
+        <div className="tree-main">
+          <div className="tree-overview-search">
+            <div className="tree-search-bar">
+              <input
+                className="tree-search-input"
+                placeholder="Search nodes across all trees…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
               />
-              <div className="tree-subtrees">
-                {trees.map(name => {
-                  const isShiftTarget = !previewMode && shiftCandidate?.treeName === name
-                  return (
-                    <TreeCard
-                      key={name}
-                      name={name}
-                      color={localColors[name] || '#0f3460'}
-                      selectedSlot={previewMode ? -1 : slotOf(name, slots)}
-                      selectable={previewMode ? true : canAddTree(name, slots)}
-                      onSelect={() => onSelectTree(name)}
-                      onRemove={() => onRemoveTree(slotOf(name, slots))}
-                      onGoToTree={onGoToTree ? () => onGoToTree(slotOf(name, slots)) : undefined}
-                      shiftCandidate={isShiftTarget ? shiftCandidate : null}
-                      onShiftUp={onShiftUp}
-                      previewMode={previewMode}
-                    />
-                  )
-                })}
-              </div>
+              {search && <button className="tree-search-clear" onClick={() => setSearch('')}>✕</button>}
             </div>
-          ))}
+            {search && (
+              <span className="tree-overview-search-status">
+                {matches === null ? 'Searching…'
+                  : matches.size === 0 ? 'No trees match'
+                  : `${matches.size} tree${matches.size === 1 ? '' : 's'} match`}
+              </span>
+            )}
+          </div>
+          <div className="tree-grid">
+            {GROUPS.map(({ primary, trees }) => (
+              <div key={primary} className="tree-group-col">
+                <TreeCard
+                  name={primary}
+                  color={localColors[primary] || '#e94560'}
+                  isPrimary
+                  selectedSlot={previewMode ? -1 : slotOf(primary, slots)}
+                  selectable={previewMode ? true : canAddTree(primary, slots)}
+                  onSelect={() => onSelectTree(primary)}
+                  onRemove={() => onRemoveTree(slotOf(primary, slots))}
+                  onGoToTree={onGoToTree ? () => onGoToTree(slotOf(primary, slots)) : undefined}
+                  previewMode={previewMode}
+                  searchActive={matches !== null}
+                  searchMatchCount={matches?.get(primary) ?? 0}
+                />
+                <div className="tree-subtrees">
+                  {trees.map(name => {
+                    const isShiftTarget = !previewMode && shiftCandidate?.treeName === name
+                    return (
+                      <TreeCard
+                        key={name}
+                        name={name}
+                        color={localColors[name] || '#0f3460'}
+                        selectedSlot={previewMode ? -1 : slotOf(name, slots)}
+                        selectable={previewMode ? true : canAddTree(name, slots)}
+                        onSelect={() => onSelectTree(name)}
+                        onRemove={() => onRemoveTree(slotOf(name, slots))}
+                        onGoToTree={onGoToTree ? () => onGoToTree(slotOf(name, slots)) : undefined}
+                        shiftCandidate={isShiftTarget ? shiftCandidate : null}
+                        onShiftUp={onShiftUp}
+                        previewMode={previewMode}
+                        searchActive={matches !== null}
+                        searchMatchCount={matches?.get(name) ?? 0}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -140,6 +178,7 @@ export default function TreeSelectorScreen({
 function TreeCard({
   name, color, isPrimary: isPrim, selectedSlot, selectable,
   onSelect, onRemove, onGoToTree, shiftCandidate, onShiftUp, previewMode = false,
+  searchActive = false, searchMatchCount = 0,
 }: {
   name: string
   color: string
@@ -152,13 +191,18 @@ function TreeCard({
   shiftCandidate?: { treeName: string; fromSlot: number } | null
   onShiftUp?: (fromSlot: number) => void
   previewMode?: boolean
+  searchActive?: boolean
+  searchMatchCount?: number
 }) {
   const isSelected = !previewMode && selectedSlot !== -1
   const isLocked = !isSelected && !selectable
   const isSelectable = selectable && !isSelected
   const isClickable = isSelectable || (isSelected && !!onGoToTree)
+  // Search highlighting: when a search is active, trees with matches glow; the rest dim.
+  const isSearchHit = searchActive && searchMatchCount > 0
+  const isSearchMiss = searchActive && searchMatchCount === 0
 
-  const borderColor = isSelected ? '#3a5a8a' : '#1e2535'
+  const borderColor = isSearchHit ? '#e9c046' : isSelected ? '#3a5a8a' : '#1e2535'
 
   function handleClick() {
     if (isSelectable) onSelect()
@@ -167,7 +211,7 @@ function TreeCard({
 
   return (
     <div
-      className={`tree-card${isPrim ? ' tree-card-primary' : ''}${isSelected ? ' tree-card-selected' : ''}${isLocked ? ' tree-card-locked' : ''}${isSelectable ? ' tree-card-selectable' : ''}`}
+      className={`tree-card${isPrim ? ' tree-card-primary' : ''}${isSelected ? ' tree-card-selected' : ''}${isLocked ? ' tree-card-locked' : ''}${isSelectable ? ' tree-card-selectable' : ''}${isSearchHit ? ' tree-card-search-hit' : ''}${isSearchMiss ? ' tree-card-search-miss' : ''}`}
       style={{ borderColor, cursor: isClickable ? 'pointer' : 'default' }}
       onClick={isClickable ? handleClick : undefined}
     >
@@ -175,6 +219,7 @@ function TreeCard({
       <div className="tree-card-name" style={{ color: isLocked ? '#444455' : '#ffffff' }}>
         {name}
       </div>
+      {isSearchHit && <span className="tree-card-match-badge">{searchMatchCount}</span>}
       {isSelected && (
         <div
           className="tree-card-btn tree-card-btn-remove"

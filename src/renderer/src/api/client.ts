@@ -258,6 +258,7 @@ export interface CoreTalentSlotOption {
   id: string
   name: string
   effects: string[]
+  icon_url?: string | null                   // render via iconUrl('talent_tree', icon_url) → bundled webp
   effect_status?: CoreTalentEffectStatus[]   // aligned 1:1 with effects
 }
 
@@ -1391,6 +1392,9 @@ export interface SeasonDiff {
 
 export const api = {
   getTrees: () => get<{ name: string; color: string }[]>('/trees'),
+
+  // Cross-tree node search for the overview — trees with nodes matching the query + per-tree match count.
+  searchTrees: (q: string) => get<{ name: string; match_count: number }[]>(`/tree-search?q=${encodeURIComponent(q)}`),
 
   getTree: (name: string) => get<TreeData>(`/tree/${encodeURIComponent(name)}`),
 
