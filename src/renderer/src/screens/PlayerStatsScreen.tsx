@@ -504,10 +504,11 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
     }, 0)
   }
 
-  // Shared cell styles
-  const thSt: React.CSSProperties = { textAlign: 'right', fontSize: 11, color: '#888', fontWeight: 600, paddingBottom: 3, paddingLeft: 4, paddingRight: 4, whiteSpace: 'nowrap' }
-  const td:   React.CSSProperties = { textAlign: 'right', fontSize: 11, fontVariantNumeric: 'tabular-nums', paddingLeft: 4, paddingRight: 4, color: '#e0e0e0', whiteSpace: 'nowrap' }
-  const tdLbl: React.CSSProperties = { textAlign: 'left', fontSize: 11, color: '#888', paddingRight: 8, whiteSpace: 'nowrap' }
+  // Shared cell styles. Tight font/padding so all six damage-type columns (incl. Erosion) fit the
+  // left column without overflowing into the middle column.
+  const thSt: React.CSSProperties = { textAlign: 'right', fontSize: 10, color: '#888', fontWeight: 600, paddingBottom: 3, paddingLeft: 2, paddingRight: 2, whiteSpace: 'nowrap' }
+  const td:   React.CSSProperties = { textAlign: 'right', fontSize: 10, fontVariantNumeric: 'tabular-nums', paddingLeft: 2, paddingRight: 2, color: '#e0e0e0', whiteSpace: 'nowrap' }
+  const tdLbl: React.CSSProperties = { textAlign: 'left', fontSize: 10, color: '#888', paddingRight: 6, whiteSpace: 'nowrap' }
   const tdDim: React.CSSProperties = { ...td, color: '#444' }
   const tdSub: React.CSSProperties = { ...tdLbl, color: '#666' }
 
@@ -517,7 +518,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
 
   return (
     <div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
         <thead>
           <tr>
             <th style={{ ...thSt, textAlign: 'left', color: '#555' }}></th>
@@ -1061,8 +1062,8 @@ export default function PlayerStatsScreen() {
   return (
     <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors }}>
       <div className="dark-scroll" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, height: '100%', overflowY: 'auto', padding: '16px 20px', boxSizing: 'border-box' }}>
-        {/* Left — skill offense */}
-        <div style={{ flex: '34', minWidth: '440px', display: 'flex', flexDirection: 'column' }}>
+        {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
+        <div style={{ flex: '40', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
           <SkillSelector skills={skills} selected={selectedSlot} onSelect={setSelectedSlot} />
           {selectedSlot !== 1 && !shownOffense && (
             <div style={{ fontSize: 12, color: '#555', marginBottom: 8 }}>
@@ -1073,15 +1074,15 @@ export default function PlayerStatsScreen() {
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility */}
-        <div style={{ flex: '30', minWidth: '240px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: '27', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
           <TargetPanel target={computedStats.target_stats} />
           <AttributesPanel statMap={statMap} />
           <BlessingsPanel blessings={blessings} />
           <UtilityPanel statMap={statMap} />
         </div>
 
-        {/* Right — defensive pools */}
-        <div style={{ flex: '36', minWidth: '240px', display: 'flex', flexDirection: 'column' }}>
+        {/* Right — defensive pools (trimmed to give the offense table room) */}
+        <div style={{ flex: '33', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
           <DefensePanels defense={defense} />
         </div>
       </div>

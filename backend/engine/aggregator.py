@@ -53,7 +53,7 @@ _BLESSING_DEFAULT_EFFECTS: dict[str, list[tuple[str, float, str]]] = {
         ("dmg_additional",   0.02, "+2% additional damage per Agility Blessing"),
     ],
     "tenacity_blessings": [
-        ("dmg_taken_additional", -0.04, "-4% Damage Taken per Tenacity Blessing"),
+        ("dmg_taken_additional", -0.04, "-4% additional Damage Taken per Tenacity Blessing"),
     ],
 }
 _BLESSING_LABELS: dict[str, str] = {
@@ -70,7 +70,7 @@ _BLESSING_LABELS: dict[str, str] = {
 # Wired SS12 overrides:
 #   Sacrifice    (core_sacrifice)  → Tenacity becomes offensive: +8% additional damage per stack
 #   Divine Grace (divine_grace, an aromatic belt blend) → Focus/Agility/Tenacity each grant +4%
-#                additional damage AND -4% Damage Taken per stack
+#                additional damage AND -4% additional Damage Taken per stack
 # Mind Focus (Focus → flat Physical = 1% Max Mana to Attacks/Spells) needs a post-derive max-mana step;
 # deferred to v2.
 #   override_flag → [(blessing_key, [(stat_key, per_stack_amount, source_text), ...]), ...]
@@ -83,15 +83,15 @@ _BLESSING_OVERRIDES: dict[str, list[tuple[str, list[tuple[str, float, str]]]]] =
     "divine_grace": [
         ("focus_blessings", [
             ("dmg_additional", 0.04, "+4% additional damage per Focus Blessing (Divine Grace)"),
-            ("dmg_taken_additional", -0.04, "-4% Damage Taken per Focus Blessing (Divine Grace)"),
+            ("dmg_taken_additional", -0.04, "-4% additional Damage Taken per Focus Blessing (Divine Grace)"),
         ]),
         ("agility_blessings", [
             ("dmg_additional", 0.04, "+4% additional damage per Agility Blessing (Divine Grace)"),
-            ("dmg_taken_additional", -0.04, "-4% Damage Taken per Agility Blessing (Divine Grace)"),
+            ("dmg_taken_additional", -0.04, "-4% additional Damage Taken per Agility Blessing (Divine Grace)"),
         ]),
         ("tenacity_blessings", [
             ("dmg_additional", 0.04, "+4% additional damage per Tenacity Blessing (Divine Grace)"),
-            ("dmg_taken_additional", -0.04, "-4% Damage Taken per Tenacity Blessing (Divine Grace)"),
+            ("dmg_taken_additional", -0.04, "-4% additional Damage Taken per Tenacity Blessing (Divine Grace)"),
         ]),
     ],
 }
