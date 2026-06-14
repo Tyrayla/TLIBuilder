@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { app, shell, BrowserWindow, ipcMain, dialog } =
+const { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme } =
   require('electron') as typeof import('electron')
+// Force dark mode so the native window title bar / frame renders dark (not the OS-default white).
+nativeTheme.themeSource = 'dark'
 import { join, relative, sep } from 'path'
 import { spawn, execFileSync, ChildProcess } from 'child_process'
 import { Socket } from 'net'
