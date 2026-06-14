@@ -215,14 +215,15 @@ export default function SkillsScreen(_props: Props) {
 
   const focusedEquipped = focusedSlot !== null ? getEquipped(focusedSlot) : null
 
-  // DPS contribution of the focused equipped support (slot-1 only — supports on other skills don't
-  // affect the computed main-skill DPS). Recomputes live as its rank/tier/roll change.
+  // What you'd LOSE by unequipping the focused support (slot-1 only). step = slot emptied, base = current,
+  // so the delta is the negative drop and the % is relative to current DPS (how much of your damage this
+  // support accounts for). Recomputes live as its rank/tier/roll change.
   const focusedEquippedSupport = (focusedSlot === 1 && focusedSupportIdx !== null && focusedEquipped)
     ? getSupport(focusedEquipped, focusedSupportIdx) : null
   const equippedSupportDelta = useDamageDelta(
     focusedEquippedSupport && focusedSupportIdx !== null
-      ? { key: `support-have:${focusedSupportIdx}:${focusedEquippedSupport.item_id}`,
-          base: s => withSupport(s, focusedSupportIdx, null) }
+      ? { key: `support-lose:${focusedSupportIdx}:${focusedEquippedSupport.item_id}`,
+          step: s => withSupport(s, focusedSupportIdx, null) }
       : null,
     !!focusedEquippedSupport,
   )
@@ -765,10 +766,10 @@ export default function SkillsScreen(_props: Props) {
                 ` · Universal +${(rankAdditional(existingSupport.rank) * 100).toFixed(0)}% (Rank ${existingSupport.rank ?? DEFAULT_SUPPORT_RANK})`}
             </div>
           )}
-          {/* Live DPS contribution of this support (slot-1 main skill only). */}
+          {/* DPS you'd lose by unequipping this support (slot-1 main skill only). */}
           {existingSupport && focusedSlot === 1 && (
             <div style={{ marginTop: 6 }}>
-              <DamageDeltaBand delta={equippedSupportDelta} label="Support contribution" />
+              <DamageDeltaBand delta={equippedSupportDelta} label="If unequipped" />
             </div>
           )}
         </div>
