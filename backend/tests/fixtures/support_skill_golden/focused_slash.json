@@ -72,6 +72,8 @@
     "evasion_gear_inc",
     "evasion_inc",
     "ferv",
+    "fervor_effect_inc",
+    "fervor_effect_skill_inc",
     "fire_as_erosion",
     "fire_attack_dmg_flat_max",
     "fire_attack_dmg_flat_min",
@@ -160,13 +162,13 @@
   ],
   "offense": {
     "above_max_mult": 1.0,
-    "attacks_per_second": 2.6400000000000006,
+    "attacks_per_second": 3.0624000000000007,
     "base_cast_time": 0.0,
     "base_csr": 0.0,
     "base_dmg_max": {},
     "base_dmg_min": {},
     "cast_multiplier": 1.0,
-    "crit_chance": 0.12,
+    "crit_chance": 0.396,
     "crit_multiplier": 1.5,
     "effective_level": 20,
     "flat_dmg_max": {
@@ -179,55 +181,55 @@
       "lightning": 10.0,
       "physical": 578.0
     },
-    "generic_add": 2.3918146559999998,
+    "generic_add": 7.420901555257343,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 3759.051494712729,
-        "avg_hit_with_crit": 3984.594584395493,
+        "avg_hit_pre_crit": 12448.839900662359,
+        "avg_hit_with_crit": 14913.710200993504,
         "damage_by_type": {
-          "fire": 383.07303530495994,
-          "lightning": 506.61408919080947,
-          "physical": 2869.3643702169597
+          "fire": 1188.531593090016,
+          "lightning": 2357.749547792319,
+          "physical": 8902.558759780024
         },
         "dps_contribution": 0.0,
         "dps_vs_target": 0.0,
         "effectiveness_pct": 154.0,
         "form_type": "exclusive",
         "hit_max_by_type": {
-          "fire": 497.25826698239996,
-          "lightning": 964.515285190195,
-          "physical": 3609.7266788352
+          "fire": 1542.8054333380016,
+          "lightning": 4488.792408296915,
+          "physical": 11199.624627194382
         },
         "hit_min_by_type": {
-          "fire": 268.88780362752,
-          "lightning": 48.71289319142399,
-          "physical": 2129.0020615987196
+          "fire": 834.2577528420305,
+          "lightning": 226.70668728772299,
+          "physical": 6605.492892365666
         },
         "name": "Sweep Slash",
         "proc_chance": 0.0
       },
       {
-        "avg_hit_pre_crit": 7518.102989425458,
-        "avg_hit_with_crit": 7969.189168790986,
+        "avg_hit_pre_crit": 40707.70647516592,
+        "avg_hit_with_crit": 48767.83235724877,
         "damage_by_type": {
-          "fire": 766.1460706099199,
-          "lightning": 1013.2281783816189,
-          "physical": 5738.7287404339195
+          "fire": 3886.4983094043528,
+          "lightning": 7709.841021280882,
+          "physical": 29111.36714448068
         },
-        "dps_contribution": 21038.659405608207,
-        "dps_vs_target": 10469.535693820324,
+        "dps_contribution": 149346.60981083868,
+        "dps_vs_target": 74247.86360321517,
         "effectiveness_pct": 308.0,
         "form_type": "exclusive",
         "hit_max_by_type": {
-          "fire": 994.5165339647999,
-          "lightning": 1929.03057038039,
-          "physical": 7219.4533576704
+          "fire": 5044.973767015265,
+          "lightning": 14678.35117513091,
+          "physical": 36622.77253092563
         },
         "hit_min_by_type": {
-          "fire": 537.77560725504,
-          "lightning": 97.42578638284797,
-          "physical": 4258.004123197439
+          "fire": 2728.0228517934397,
+          "lightning": 741.3308674308541,
+          "physical": 21599.96175803573
         },
         "name": "Steep Strike",
         "proc_chance": 1.0
@@ -263,12 +265,12 @@
     ],
     "steep_strike_chance": 1.0,
     "supported": true,
-    "total_dps": 21038.659405608207,
-    "total_dps_vs_target": 10469.535693820324,
+    "total_dps": 149346.60981083868,
+    "total_dps_vs_target": 74247.86360321517,
     "type_add": {
-      "fire": 2.3918146559999998,
-      "lightning": 3.1631748825599995,
-      "physical": 2.3918146559999998
+      "fire": 7.420901555257343,
+      "lightning": 9.814142306827835,
+      "physical": 7.420901555257343
     },
     "type_inc": {
       "fire": 0,
@@ -285,13 +287,13 @@
   "slot_offense": {
     "1": {
       "above_max_mult": 1.0,
-      "attacks_per_second": 2.6400000000000006,
+      "attacks_per_second": 3.0624000000000007,
       "base_cast_time": 0.0,
       "base_csr": 0.0,
       "base_dmg_max": {},
       "base_dmg_min": {},
       "cast_multiplier": 1.0,
-      "crit_chance": 0.12,
+      "crit_chance": 0.396,
       "crit_multiplier": 1.5,
       "effective_level": 20,
       "flat_dmg_max": {
@@ -304,55 +306,55 @@
         "lightning": 10.0,
         "physical": 578.0
       },
-      "generic_add": 2.3918146559999998,
+      "generic_add": 7.420901555257343,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 3759.051494712729,
-          "avg_hit_with_crit": 3984.594584395493,
+          "avg_hit_pre_crit": 12448.839900662359,
+          "avg_hit_with_crit": 14913.710200993504,
           "damage_by_type": {
-            "fire": 383.07303530495994,
-            "lightning": 506.61408919080947,
-            "physical": 2869.3643702169597
+            "fire": 1188.531593090016,
+            "lightning": 2357.749547792319,
+            "physical": 8902.558759780024
           },
           "dps_contribution": 0.0,
           "dps_vs_target": 0.0,
           "effectiveness_pct": 154.0,
           "form_type": "exclusive",
           "hit_max_by_type": {
-            "fire": 497.25826698239996,
-            "lightning": 964.515285190195,
-            "physical": 3609.7266788352
+            "fire": 1542.8054333380016,
+            "lightning": 4488.792408296915,
+            "physical": 11199.624627194382
           },
           "hit_min_by_type": {
-            "fire": 268.88780362752,
-            "lightning": 48.71289319142399,
-            "physical": 2129.0020615987196
+            "fire": 834.2577528420305,
+            "lightning": 226.70668728772299,
+            "physical": 6605.492892365666
           },
           "name": "Sweep Slash",
           "proc_chance": 0.0
         },
         {
-          "avg_hit_pre_crit": 7518.102989425458,
-          "avg_hit_with_crit": 7969.189168790986,
+          "avg_hit_pre_crit": 40707.70647516592,
+          "avg_hit_with_crit": 48767.83235724877,
           "damage_by_type": {
-            "fire": 766.1460706099199,
-            "lightning": 1013.2281783816189,
-            "physical": 5738.7287404339195
+            "fire": 3886.4983094043528,
+            "lightning": 7709.841021280882,
+            "physical": 29111.36714448068
           },
-          "dps_contribution": 21038.659405608207,
-          "dps_vs_target": 10469.535693820324,
+          "dps_contribution": 149346.60981083868,
+          "dps_vs_target": 74247.86360321517,
           "effectiveness_pct": 308.0,
           "form_type": "exclusive",
           "hit_max_by_type": {
-            "fire": 994.5165339647999,
-            "lightning": 1929.03057038039,
-            "physical": 7219.4533576704
+            "fire": 5044.973767015265,
+            "lightning": 14678.35117513091,
+            "physical": 36622.77253092563
           },
           "hit_min_by_type": {
-            "fire": 537.77560725504,
-            "lightning": 97.42578638284797,
-            "physical": 4258.004123197439
+            "fire": 2728.0228517934397,
+            "lightning": 741.3308674308541,
+            "physical": 21599.96175803573
           },
           "name": "Steep Strike",
           "proc_chance": 1.0
@@ -388,12 +390,12 @@
       ],
       "steep_strike_chance": 1.0,
       "supported": true,
-      "total_dps": 21038.659405608207,
-      "total_dps_vs_target": 10469.535693820324,
+      "total_dps": 149346.60981083868,
+      "total_dps_vs_target": 74247.86360321517,
       "type_add": {
-        "fire": 2.3918146559999998,
-        "lightning": 3.1631748825599995,
-        "physical": 2.3918146559999998
+        "fire": 7.420901555257343,
+        "lightning": 9.814142306827835,
+        "physical": 7.420901555257343
       },
       "type_inc": {
         "fire": 0,
@@ -439,6 +441,66 @@
         }
       ],
       "total": 0.1,
+      "unit": "%"
+    },
+    "attack_speed_inc": {
+      "category": "Attack Speed",
+      "display_name": "Attack Speed",
+      "sources": [
+        {
+          "amount": 0.16,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+4% Attack Speed per Agility Blessing"
+        }
+      ],
+      "total": 0.16,
+      "unit": "%"
+    },
+    "cast_speed_inc": {
+      "category": "Cast Speed",
+      "display_name": "Cast Speed",
+      "sources": [
+        {
+          "amount": 0.16,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+4% Cast Speed per Agility Blessing"
+        }
+      ],
+      "total": 0.16,
+      "unit": "%"
+    },
+    "crit_rating_inc": {
+      "category": "Critical Strike",
+      "display_name": "Critical Strike Rating",
+      "slot_sources": [
+        {
+          "amount": 0.3,
+          "label": "Attack Focus",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Attack Focus",
+          "source_type": "support",
+          "text": "Gains 2 Fervor Rating when the supported skill hits an enemy For every 10 Fervor Rating , the supported skill +3 % Critical Strike Rating |attack_focus|gains # fervor rating wh"
+        }
+      ],
+      "sources": [
+        {
+          "amount": 2.0,
+          "label": "Fervor Rating",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+2% Critical Strike Rating per Fervor Rating"
+        }
+      ],
+      "total": 2.0,
       "unit": "%"
     },
     "dmg_additional": {
@@ -504,10 +566,53 @@
           "source_name": "Jump",
           "source_type": "support",
           "text": "+4 % additional damage for the supported skill |jump|+#% additional damage fo"
+        },
+        {
+          "amount": 0.26,
+          "label": "Attack Focus",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Attack Focus",
+          "source_type": "support",
+          "text": "The supported skill 1.65 % additional damage for every 10 Fervor Rating |attack_focus|the supported skill#% ad"
         }
       ],
-      "sources": [],
-      "total": 0.0,
+      "sources": [
+        {
+          "amount": 0.2,
+          "label": "Focus Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+5% additional damage per Focus Blessing"
+        },
+        {
+          "amount": 0.08,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+2% additional damage per Agility Blessing"
+        }
+      ],
+      "total": 0.28,
+      "unit": "%"
+    },
+    "dmg_taken_additional": {
+      "category": "Damage Taken",
+      "display_name": "Additional Damage Taken",
+      "sources": [
+        {
+          "amount": -0.16,
+          "label": "Tenacity Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "-4% additional Damage Taken per Tenacity Blessing"
+        }
+      ],
+      "total": -0.16,
       "unit": "%"
     },
     "extra_jumps_flat": {
@@ -710,6 +815,22 @@
       "total": 0.0,
       "unit": "%"
     },
+    "numbed_lightning_taken": {
+      "category": "Ailments",
+      "display_name": "Numbed: Lightning Damage Taken",
+      "sources": [
+        {
+          "amount": 0.5,
+          "label": "Numbed Stacks",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+5% Lightning Damage taken per Numbed stack"
+        }
+      ],
+      "total": 0.5,
+      "unit": "%"
+    },
     "physical_attack_dmg_flat_max": {
       "category": "Physical",
       "display_name": "Max Physical Attack Damage",
@@ -795,6 +916,25 @@
       ],
       "total": 500.0,
       "unit": ""
+    },
+    "steep_strike_additional_dmg": {
+      "category": "Steep Strike",
+      "display_name": "Steep Strike Additional Damage",
+      "slot_sources": [
+        {
+          "amount": 0.635,
+          "label": "Focused Slash: Fervor (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Focused Slash: Fervor (Noble)",
+          "source_type": "support",
+          "text": "Steep Strike +64% additional damage (consumes Fervor; cost NYI) |focused_slash_fervor_noble|fervor"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
     },
     "weapon_attack_speed": {
       "category": "Gear",

@@ -49,6 +49,19 @@ def _flat_number(text: str) -> float | None:
     return _eval_token(m.group(0).replace(" ", "")) if m else None
 
 
+_RANGE_PCT = re.compile(r"\(?\s*([\d.]+)\s*[‐-―\-]\s*([\d.]+)\s*\)?\s*%")
+
+
+def _flat_dmg_value(text: str) -> list[float]:
+    """Value for a non-scaling damage line: the tier-MID of a '(a-b)%' range (matches the engine's
+    tier-midpoint convention, e.g. activation-medium ranges), else the first signed number."""
+    m = _RANGE_PCT.search(text)
+    if m:
+        return [(float(m.group(1)) + float(m.group(2))) / 2]
+    v = _flat_number(text)
+    return [v] if v is not None else []
+
+
 # ── Contributions ─────────────────────────────────────────────────────────────
 @dataclass
 class StatContribution:
@@ -74,12 +87,17 @@ _DMG_RULES: list[tuple[str, object, str]] = [
     (r"additional attack and cast speed for the supported", ("attack_speed_additional", "cast_speed_additional"), "pct"),
     (r"attack and cast speed for the supported", ("attack_speed_inc", "cast_speed_inc"), "pct"),
     (r"attack speed for the supported", "attack_speed_inc", "pct"),
+    (r"cast speed for the supported", "cast_speed_inc", "pct"),   # Psychic Burst (cast-speed only)
     (r"critical strike rating for the supported", "crit_rating_inc", "pct"),
     (r"(additional )?skill area for the supported", "skill_area_inc", "pct"),
     (r"additional projectile speed for the supported", "projectile_speed_additional", "pct"),
     (r"steep\s*strike\s*chance", "steep_strike_chance", "pct"),
-    # generic additional damage (LAST — only the bare line)
-    (r"^[+\-]?#% additional damage for the supported skill$", "dmg_additional", "pct"),
+    # generic additional damage (LAST — after all typed/conditional rules). The first allows a PREFIX
+    # but keeps the $ anchor so a trailing condition ("...when it lands a critical strike") still falls
+    # through to the conditional handler. The second is the bare line with no "for the supported" suffix
+    # (e.g. Activation Medium: Motionless), anchored both ends so it can't swallow typed/conditional lines.
+    (r"additional damage for the supported skill$", "dmg_additional", "pct"),
+    (r"^[+\-]?#\s*% additional damage$", "dmg_additional", "pct"),
 ]
 _DMG_COMPILED = [(re.compile(p), sk, vk) for p, sk, vk in _DMG_RULES]
 
@@ -90,8 +108,7 @@ def map_damage_line(line: SupportLine, level: int, cat: str | None = None) -> li
     for rx, stat_keys, vk in _DMG_COMPILED:
         if not rx.search(line.template):
             continue
-        vals = _level_value(line, level) if line.scaling else (
-            [v] if (v := _flat_number(line.text)) is not None else [])
+        vals = _level_value(line, level) if line.scaling else _flat_dmg_value(line.text)
         if not vals:
             return []
         amt = vals[0] / 100.0 if vk == "pct" else vals[0]
@@ -207,11 +224,15 @@ def map_conditional_line(line: SupportLine, level: int, conds: dict | None) -> l
         return [StatContribution("dmg_additional", base + per_stack * stacks, line.text)]
 
     if has(r"fervor\s*rating"):                              # Attack Focus — per-fervor (dmg or crit rating)
+        is_crit = has(r"critical\s*strike\s*rating")
+        # A fervor line with no damage/crit payload (e.g. the "Gains N Fervor Rating on hit" generation
+        # clause) is NOT a contribution — guard so it can't default to a bogus dmg_additional.
+        if not is_crit and not has(r"additional\s*damage"):
+            return []
         amt = base * (_cnum(conds, "fervor_rating") / _per_n(line.text))
         if amt == 0:
             return []
-        stat = "crit_rating_inc" if has(r"critical\s*strike\s*rating") else "dmg_additional"
-        return [StatContribution(stat, amt, line.text)]
+        return [StatContribution("crit_rating_inc" if is_crit else "dmg_additional", amt, line.text)]
 
     if has(r"stack\s*of\s*focus\s*blessing"):                # Overload — one additive bucket, capped
         amt = base * _cnum(conds, "focus_blessings")

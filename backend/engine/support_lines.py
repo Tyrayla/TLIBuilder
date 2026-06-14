@@ -72,15 +72,20 @@ def _progression_keys(skill_data: dict) -> dict[str, dict[int, str]]:
     for entry in skill_data.get("progression") or []:
         lvl = entry.get("level")
         for key, val in (entry.get("values") or {}).items():
-            if key == "Descript":
+            # Skip non-template keys: "Descript" (per-level flavor) and "name" (activation-medium/canvas
+            # cram the whole run-on description here, not a clean scaling-line template — those effects are
+            # parsed from the flat remainder instead, where each clause is split out).
+            if key in ("Descript", "name"):
                 continue
             out.setdefault(_template(key), {})[lvl] = str(val)
     return out
 
 
 _FLAT_SPLIT = re.compile(
-    # split before a LEADING signed number (one followed by a word — a new modifier, not a trailing value)
-    r"(?<=\.)\s+|\s+(?=[+\-]\d[\d.,]*\s*%?\s+[A-Za-z])"
+    # split before a LEADING signed number (one followed by a word — a new modifier, not a trailing value),
+    # but NOT when it directly follows "...skill" — there the "+N% X" is that clause's value, not a new
+    # modifier (e.g. "...the supported skill +3% Critical Strike Rating"), which a split would orphan.
+    r"(?<=\.)\s+|(?<!skill)\s+(?=[+\-]\d[\d.,]*\s*%?\s+[A-Za-z])"
     r"|\s+(?=Inflicts\b)|\s+(?=Buffs?\b)|\s+(?=When\b)|\s+(?=While\b)|\s+(?=Stacks?\b)"
     r"|\s+(?=The\s+supported\s+skill\b)|\s+(?=Supported\s+skills?\b)|\s+(?=Always\b)"
     r"|\s+(?=Triggers\b)|\s+(?=Automatically\b)|\s+(?=Prepares\b)|\s+(?=Gains\b)"

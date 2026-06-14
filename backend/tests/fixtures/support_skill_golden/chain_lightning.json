@@ -137,7 +137,7 @@
   ],
   "offense": {
     "above_max_mult": 1.0,
-    "attacks_per_second": 1.5384615384615383,
+    "attacks_per_second": 1.7846153846153843,
     "base_cast_time": 0.65,
     "base_csr": 500.0,
     "base_dmg_max": {
@@ -147,7 +147,7 @@
       "lightning": 15.0
     },
     "cast_multiplier": 1.7999999999999998,
-    "crit_chance": 0.17,
+    "crit_chance": 0.51,
     "crit_multiplier": 1.5,
     "effective_level": 14,
     "flat_dmg_max": {
@@ -160,30 +160,30 @@
       "lightning": 28.6,
       "physical": 106.08000000000001
     },
-    "generic_add": 2.1388321963008,
+    "generic_add": 3.2154347706307695,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 2171.9913051221647,
-        "avg_hit_with_crit": 2356.6105660575486,
+        "avg_hit_pre_crit": 4278.380037978408,
+        "avg_hit_with_crit": 5369.366947662901,
         "damage_by_type": {
-          "fire": 415.1341260098709,
-          "lightning": 1347.7745709742874,
-          "physical": 409.0826081380067
+          "fire": 624.0960396781991,
+          "lightning": 3039.2855685298555,
+          "physical": 614.9984297703537
         },
-        "dps_contribution": 3625.554717011613,
-        "dps_vs_target": 1783.3503441023015,
+        "dps_contribution": 9582.25486044456,
+        "dps_vs_target": 4709.07895414183,
         "effectiveness_pct": 100.0,
         "form_type": "additive",
         "hit_max_by_type": {
-          "fire": 490.17294762098453,
-          "lightning": 1971.171506558538,
-          "physical": 472.0183940053924
+          "fire": 736.9064025354829,
+          "lightning": 4445.070594149764,
+          "physical": 709.6135728119466
         },
         "hit_min_by_type": {
-          "fire": 265.05648278764346,
-          "lightning": 100.98069980578597,
-          "physical": 283.2110364032355
+          "fire": 398.47531396363155,
+          "lightning": 227.71551729003951,
+          "physical": 425.76814368716794
         },
         "name": "Chain Lightning",
         "proc_chance": 1.0
@@ -217,12 +217,12 @@
     ],
     "steep_strike_chance": 0.0,
     "supported": true,
-    "total_dps": 6525.998490620903,
-    "total_dps_vs_target": 3210.0306193841425,
+    "total_dps": 17248.058748800206,
+    "total_dps_vs_target": 8476.342117455293,
     "type_add": {
-      "fire": 2.1388321963008,
-      "lightning": 2.8286055796078067,
-      "physical": 2.1388321963008
+      "fire": 3.2154347706307695,
+      "lightning": 4.252412484159192,
+      "physical": 3.2154347706307695
     },
     "type_inc": {
       "fire": 0,
@@ -239,7 +239,7 @@
   "slot_offense": {
     "1": {
       "above_max_mult": 1.0,
-      "attacks_per_second": 1.5384615384615383,
+      "attacks_per_second": 1.7846153846153843,
       "base_cast_time": 0.65,
       "base_csr": 500.0,
       "base_dmg_max": {
@@ -249,7 +249,7 @@
         "lightning": 15.0
       },
       "cast_multiplier": 1.7999999999999998,
-      "crit_chance": 0.17,
+      "crit_chance": 0.51,
       "crit_multiplier": 1.5,
       "effective_level": 14,
       "flat_dmg_max": {
@@ -262,30 +262,30 @@
         "lightning": 28.6,
         "physical": 106.08000000000001
       },
-      "generic_add": 2.1388321963008,
+      "generic_add": 3.2154347706307695,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 2171.9913051221647,
-          "avg_hit_with_crit": 2356.6105660575486,
+          "avg_hit_pre_crit": 4278.380037978408,
+          "avg_hit_with_crit": 5369.366947662901,
           "damage_by_type": {
-            "fire": 415.1341260098709,
-            "lightning": 1347.7745709742874,
-            "physical": 409.0826081380067
+            "fire": 624.0960396781991,
+            "lightning": 3039.2855685298555,
+            "physical": 614.9984297703537
           },
-          "dps_contribution": 3625.554717011613,
-          "dps_vs_target": 1783.3503441023015,
+          "dps_contribution": 9582.25486044456,
+          "dps_vs_target": 4709.07895414183,
           "effectiveness_pct": 100.0,
           "form_type": "additive",
           "hit_max_by_type": {
-            "fire": 490.17294762098453,
-            "lightning": 1971.171506558538,
-            "physical": 472.0183940053924
+            "fire": 736.9064025354829,
+            "lightning": 4445.070594149764,
+            "physical": 709.6135728119466
           },
           "hit_min_by_type": {
-            "fire": 265.05648278764346,
-            "lightning": 100.98069980578597,
-            "physical": 283.2110364032355
+            "fire": 398.47531396363155,
+            "lightning": 227.71551729003951,
+            "physical": 425.76814368716794
           },
           "name": "Chain Lightning",
           "proc_chance": 1.0
@@ -319,12 +319,12 @@
       ],
       "steep_strike_chance": 0.0,
       "supported": true,
-      "total_dps": 6525.998490620903,
-      "total_dps_vs_target": 3210.0306193841425,
+      "total_dps": 17248.058748800206,
+      "total_dps_vs_target": 8476.342117455293,
       "type_add": {
-        "fire": 2.1388321963008,
-        "lightning": 2.8286055796078067,
-        "physical": 2.1388321963008
+        "fire": 3.2154347706307695,
+        "lightning": 4.252412484159192,
+        "physical": 3.2154347706307695
       },
       "type_inc": {
         "fire": 0,
@@ -370,6 +370,54 @@
         }
       ],
       "total": 0.1,
+      "unit": "%"
+    },
+    "attack_speed_inc": {
+      "category": "Attack Speed",
+      "display_name": "Attack Speed",
+      "sources": [
+        {
+          "amount": 0.16,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+4% Attack Speed per Agility Blessing"
+        }
+      ],
+      "total": 0.16,
+      "unit": "%"
+    },
+    "cast_speed_inc": {
+      "category": "Cast Speed",
+      "display_name": "Cast Speed",
+      "sources": [
+        {
+          "amount": 0.16,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+4% Cast Speed per Agility Blessing"
+        }
+      ],
+      "total": 0.16,
+      "unit": "%"
+    },
+    "crit_rating_inc": {
+      "category": "Critical Strike",
+      "display_name": "Critical Strike Rating",
+      "sources": [
+        {
+          "amount": 2.0,
+          "label": "Fervor Rating",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+2% Critical Strike Rating per Fervor Rating"
+        }
+      ],
+      "total": 2.0,
       "unit": "%"
     },
     "dmg_additional": {
@@ -447,7 +495,7 @@
           "text": "additional damage for the supported skill |chain_lightning_web_of_lightning_magnificent|specific"
         },
         {
-          "amount": 0.0,
+          "amount": 0.16,
           "label": "Overload",
           "points": 1,
           "scope": null,
@@ -467,8 +515,41 @@
           "text": "+4 % additional damage for the supported skill |jump|+#% additional damage fo"
         }
       ],
-      "sources": [],
-      "total": 0.0,
+      "sources": [
+        {
+          "amount": 0.2,
+          "label": "Focus Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+5% additional damage per Focus Blessing"
+        },
+        {
+          "amount": 0.08,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+2% additional damage per Agility Blessing"
+        }
+      ],
+      "total": 0.28,
+      "unit": "%"
+    },
+    "dmg_taken_additional": {
+      "category": "Damage Taken",
+      "display_name": "Additional Damage Taken",
+      "sources": [
+        {
+          "amount": -0.16,
+          "label": "Tenacity Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "-4% additional Damage Taken per Tenacity Blessing"
+        }
+      ],
+      "total": -0.16,
       "unit": "%"
     },
     "extra_jumps_flat": {
@@ -669,6 +750,22 @@
       "display_name": "Movement Speed",
       "sources": [],
       "total": 0.0,
+      "unit": "%"
+    },
+    "numbed_lightning_taken": {
+      "category": "Ailments",
+      "display_name": "Numbed: Lightning Damage Taken",
+      "sources": [
+        {
+          "amount": 0.5,
+          "label": "Numbed Stacks",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+5% Lightning Damage taken per Numbed stack"
+        }
+      ],
+      "total": 0.5,
       "unit": "%"
     },
     "physical_dmg_gear_flat_max": {

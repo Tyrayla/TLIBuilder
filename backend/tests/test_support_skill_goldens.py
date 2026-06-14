@@ -38,6 +38,15 @@ _STANDARD = [
 # Spells use their in-game default level; everything else a representative 20.
 _LEVEL = {"chain_lightning": 14}
 
+# Conditions turned ON so CONDITIONAL supports actually contribute (otherwise overload/attack_focus/etc.
+# resolve to 0 and the goldens wouldn't catch their bugs). A deliberately fully-buffed scenario.
+_GOLDEN_CONDITIONS = {
+    "focus_blessings": 4, "agility_blessings": 4, "tenacity_blessings": 4,
+    "fervor_rating": 100,
+    "enemy_cursed": True, "numbed_stacks": 10, "enemy_numbed": True,
+    "ignite_stacks": 5, "standing_still": True, "willpower_stacks": 6,
+}
+
 
 def _canvas_supports(skill_id: str) -> list[dict]:
     """The skill's bespoke Noble/Magnificent supports, found by name prefix ('<Skill>: ...') so the set
@@ -60,7 +69,7 @@ def _request(skill_id: str) -> dict:
     supports = _canvas_supports(skill_id) + [
         {"item_id": sid, "skill_type": "support_skill", "level": 20} for sid in _STANDARD
     ]
-    return make_request(skill_id, lvl, supports)
+    return make_request(skill_id, lvl, supports, extra_conditions=_GOLDEN_CONDITIONS)
 
 
 def _canonical(resp: dict) -> dict:
