@@ -3182,6 +3182,35 @@ span.gear-affix-label {
 
 .skill-search-clear:hover { color: #aaa; background: rgba(255,255,255,0.06); }
 
+/* Sort-order picker below the support search bar. */
+.skill-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #1e1e3a;
+  background: #0e0e1e;
+  flex-shrink: 0;
+}
+
+.skill-sort-label { color: #777; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+.skill-sort-select {
+  flex: 1;
+  background: #0a0a18;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: var(--fg);
+  font-size: 12px;
+  padding: 4px 8px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.skill-sort-select:focus { border-color: #5555aa; }
+.skill-sort-select option { background: #0e0e1e; color: var(--fg); }
+
 .skill-catalog-list {
   flex: 1;
   overflow-y: auto;
@@ -3190,6 +3219,20 @@ span.gear-affix-label {
   flex-direction: column;
   gap: 2px;
 }
+
+/* Dark-mode scrollbars for the skill/support scroll areas (matches the rest of the app). */
+.skill-catalog-list::-webkit-scrollbar,
+.skill-slots-scroll::-webkit-scrollbar,
+.skill-support-slots-section::-webkit-scrollbar { width: 8px; }
+.skill-catalog-list::-webkit-scrollbar-track,
+.skill-slots-scroll::-webkit-scrollbar-track,
+.skill-support-slots-section::-webkit-scrollbar-track { background: transparent; }
+.skill-catalog-list::-webkit-scrollbar-thumb,
+.skill-slots-scroll::-webkit-scrollbar-thumb,
+.skill-support-slots-section::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+.skill-catalog-list::-webkit-scrollbar-thumb:hover,
+.skill-slots-scroll::-webkit-scrollbar-thumb:hover,
+.skill-support-slots-section::-webkit-scrollbar-thumb:hover { background: #3a3a5a; background-clip: padding-box; }
 
 .skill-catalog-empty {
   color: #444;

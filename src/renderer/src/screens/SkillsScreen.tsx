@@ -13,6 +13,7 @@ import {
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
+import { useUiPrefs } from '../store/uiPrefsStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { SkillTooltipBody } from '../components/tooltip/bodies/SkillTooltipBody'
@@ -204,6 +205,8 @@ export default function SkillsScreen(_props: Props) {
   const hasPrism = useBuildStore(s => s.hasPrism)
   const onHasPrismChange = useBuildStore(s => s.setHasPrism)
   const cachedSkills = useReferenceStore(s => s.skills)
+  const supportSort = useUiPrefs(s => s.supportSort)
+  const setSupportSort = useUiPrefs(s => s.setSupportSort)
   const [fetchedItems, setFetchedItems] = useState<SkillItem[]>([])
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
   const [centerView, setCenterView] = useState<'catalog' | 'detail'>('catalog')
@@ -245,13 +248,16 @@ export default function SkillsScreen(_props: Props) {
     const base = isPassiveSlot(focusedSlot)
       ? allItems.filter(isPassiveSkillItem)
       : allItems.filter(isActiveSkillItem)
-    if (!search.trim()) return base
-    const q = search.toLowerCase()
-    return base.filter(s =>
-      s.name.toLowerCase().includes(q) ||
-      s.skill_tags.some(t => t.toLowerCase().includes(q)) ||
-      s.description_lines.some(l => l.toLowerCase().includes(q))
-    )
+    const matched = !search.trim() ? base : (() => {
+      const q = search.toLowerCase()
+      return base.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        s.skill_tags.some(t => t.toLowerCase().includes(q)) ||
+        s.description_lines.some(l => l.toLowerCase().includes(q))
+      )
+    })()
+    // Skills always sort alphabetically (a per-skill DPS sort would be inaccurate).
+    return [...matched].sort((a, b) => a.name.localeCompare(b.name))
   }, [allItems, focusedSlot, search])
 
   const supportCatalogItems = useMemo(() => {
@@ -294,8 +300,12 @@ export default function SkillsScreen(_props: Props) {
     supportCatalogItems.forEach((it, i) => { if (supportPickDeltas[i]) m[it.item_id] = supportPickDeltas[i] })
     return m
   }, [supportCatalogItems, supportPickDeltas])
-  // Sort by contribution (gain desc); unresolved/nyi sink, preserving original order among equals.
+  // Sort the support catalog by the user's chosen order (persisted). Alphabetical by default; DPS
+  // contribution sorts by swap-delta (gain desc) with unresolved/nyi sinking, preserving order among equals.
   const sortedSupportCatalog = useMemo(() => {
+    if (supportSort === 'alpha') {
+      return [...supportCatalogItems].sort((a, b) => a.name.localeCompare(b.name))
+    }
     const score = (i: number) => {
       const d = supportPickDeltas[i]
       return d && d.state === 'value' ? d.absolute : Number.NEGATIVE_INFINITY
@@ -303,7 +313,7 @@ export default function SkillsScreen(_props: Props) {
     return supportCatalogItems.map((it, i) => ({ it, i }))
       .sort((a, b) => score(b.i) - score(a.i))
       .map(x => x.it)
-  }, [supportCatalogItems, supportPickDeltas])
+  }, [supportCatalogItems, supportPickDeltas, supportSort])
 
   const selectedSkillItem  = allItems.find(i => i.item_id === selectedSkillId)  ?? null
   const selectedSupportItem = allItems.find(i => i.item_id === selectedSupportId) ?? null
@@ -801,6 +811,17 @@ export default function SkillsScreen(_props: Props) {
             onChange={e => setSupportSearch(e.target.value)}
           />
           {supportSearch && <button className="skill-search-clear" onClick={() => setSupportSearch('')}>×</button>}
+        </div>
+        <div className="skill-sort-row">
+          <span className="skill-sort-label">Sort</span>
+          <select
+            className="skill-sort-select"
+            value={supportSort}
+            onChange={e => setSupportSort(e.target.value as 'alpha' | 'dps')}
+          >
+            <option value="alpha">Alphabetical</option>
+            <option value="dps">DPS Contribution</option>
+          </select>
         </div>
         <div className="skill-catalog-list" style={{ flex: 1 }}>
           {supportCatalogItems.length === 0 && (
