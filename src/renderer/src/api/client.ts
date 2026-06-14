@@ -1119,7 +1119,12 @@ export function isSupportCompatible(
   const firstLine = support.description_lines[0] || ''
   if (!firstLine.startsWith('Supports')) return false
 
-  const raw = firstLine.replace(/^Supports\s+/, '').replace(/\.\s*$/, '').trim()
+  // The "Supports X Skills." requirement is ONLY the sentence up to its first period — the rest of the
+  // line is the support's effect text (the importer concatenates the whole description into one line).
+  // Without isolating it, the requirement parse choked on trailing effect text (e.g. Jump's "...or Chain
+  // Skills. +2 Jumps..." never matched Chain), so most supports were wrongly hidden.
+  const clauseMatch = firstLine.match(/^Supports\s+(.+?)\./)
+  const raw = (clauseMatch ? clauseMatch[1] : firstLine.replace(/^Supports\s+/, '')).trim()
   if (raw.toLowerCase() === 'any skill' || raw.toLowerCase() === 'any skills') return true
   if (/^skills?\s+that/i.test(raw)) return true
 

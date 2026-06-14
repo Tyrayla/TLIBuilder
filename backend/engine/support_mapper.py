@@ -121,6 +121,9 @@ def map_added_flat(line: SupportLine, level: int, cat: str) -> list[StatContribu
 # ── Capture rules: flat lines stored as inert stats (never dropped) ───────────
 # (regex on template, stat_key, value_kind). flag → amount 1.0; pct → ÷100; flat → raw count.
 _CAPTURE_RULES: list[tuple[str, str, str]] = [
+    # "+N Jumps for the supported skill" → extra_jumps_flat (consumed by jump-using skills' offense, e.g.
+    # Chain Lightning's Merge shotgun / Augmentation). NOT inert — it feeds DPS for those skills.
+    (r"jumps for the supported",                       "extra_jumps_flat", "flat"),
     (r"projectile quantity",                          "projectile_quantity_flat", "flat"),
     (r"shadow quantity",                              "max_shadow_quantity_flat", "flat"),
     (r"additional refractions|additional beams|beams for the supported", "extra_beams_flat", "flat"),

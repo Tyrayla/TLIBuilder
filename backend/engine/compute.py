@@ -234,7 +234,10 @@ def compute(
         for c in std_contribs:
             _se = SourceEntry(
                 stat=c["stat_key"], amount=c["amount"], source_type="support",
-                label=c.get("label", "Support"), text=c.get("text", ""), points=1)
+                label=c.get("label", "Support"), text=c.get("text", ""), points=1,
+                # The breakdown's Source Name column reads source_name; without it, it fell back to the
+                # (level-1) effect text. Use the support's name so the row shows e.g. "Overload".
+                source_name=c.get("source_name") or c.get("label"))
             # Standard supports are slot-local to their host skill (default slot 1) — fold only into that
             # slot's offense pass, like the Noble/Magnificent contributions above.
             _slot = c.get("slot")
