@@ -78,7 +78,9 @@ function fmtSourceValue(c: Collected): string {
 }
 
 // Grid shared by the breakdown header + each source row: Value · Stat · Source · Source Name.
-const BD_GRID = 'auto minmax(0,1fr) auto minmax(0,1.3fr)'
+// Value/Stat/Source size to their content (Stat is often a single repeated name like "Max Life", so it
+// shouldn't eat width); Source Name is the only flexible track, absorbing slack and truncating long names.
+const BD_GRID = 'auto auto auto minmax(0,1fr)'
 
 // Format a breakdown TOTAL: '%' unit treats the value as a fraction (0.6 → "60%"); else plain number.
 function fmtTotalVal(v: number, unit: string): string {
@@ -149,15 +151,21 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
   // Source column = type+context. Gear shows just its slot (drop the "Gear · " prefix → "Weapon 1");
   // everything else uses the short kind ("Pact Spirit", "Tree", …).
   const sourceLabel = isGear ? g.label.replace(/^Gear · /, '') : sourceKindLabel(g.source_type)
+  // Character baselines (50+13/level life, etc.) carry the value+scaling in their text; the scaling now
+  // lives in the breakdown's top formula, so the Source Name shows a clean identity instead ("Base
+  // Character" for the base, else the role: Gear / Levels / Prism).
+  const charName = g.source_type === 'character'
+    ? (() => { const sub = g.label.replace(/^Character · /, ''); return sub === 'Base' || !sub ? 'Base Character' : sub })()
+    : null
   // Source Name column = the real name (item / spirit / memory / support / tree); talents show just the tree.
-  const sourceName = g.source_name || (isTalent ? treeName : (g.text || g.label || '—'))
+  const sourceName = g.source_name || charName || (isTalent ? treeName : (g.text || g.label || '—'))
 
   return (
     <>
       <div {...(hasHover ? tip.triggerProps : {})}
         style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'baseline', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: hasHover ? 'help' : undefined, outline: tip.open ? '1px solid #fff' : undefined, outlineOffset: tip.open ? 3 : undefined, background: tip.open ? 'rgba(255,255,255,0.06)' : undefined }}>
         <span style={{ color: '#e0e0e0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', textAlign: 'right' }}>
-          {fmtSourceValue(g)}{g.count > 1 && <span style={{ color: '#666' }}> ×{g.count}</span>}
+          {g.count > 1 && <span style={{ color: '#666' }}>×{g.count} </span>}{fmtSourceValue(g)}
         </span>
         <span style={{ color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.statName}</span>
         <span style={{ color: kindColor, fontSize: 10, whiteSpace: 'nowrap' }}>{sourceLabel}</span>
@@ -305,7 +313,7 @@ function fmtNum(n: number): string {
 
 function fmtResistValue(capped: number, raw: number): React.ReactNode {
   const cappedStr = `${capped.toFixed(0)}%`
-  const display = raw > capped ? `${cappedStr} (${raw.toFixed(0)}% raw)` : cappedStr
+  const display = raw > capped ? `${cappedStr} (${raw.toFixed(0)}% total)` : cappedStr
   let color = '#e0e0e0'
   if (capped >= 60) color = '#6ddb6d'
   else if (capped >= 30) color = '#e0c050'
@@ -849,6 +857,10 @@ function UtilityPanel({ statMap }: { statMap: Record<string, StatEntry> }) {
 }
 
 const DEF_FORMULA = '(Base + Flat) × (1 + Increased) × Additional'
+// Life/Mana spell out the character base scaling (was buried in the base row's source name) — see
+// buildCharacterContributions: 50 + 13/level life, 40 + 5/level mana.
+const LIFE_FORMULA = '(50 + 13/level + Flat) × (1 + Increased) × Additional'
+const MANA_FORMULA = '(40 + 5/level + Flat) × (1 + Increased) × Additional'
 const RES_FORMULA = 'Σ Resist'
 
 // "Max <type> Resistance" sub-section for a resist breakdown: a 60% baseline (the default cap, mirrors
@@ -869,14 +881,14 @@ function DefensePanels({ defense }: { defense: DefenseResult | null }) {
   return (
     <>
       <StatPanel title="Life" accent="#c03030">
-        <Row label="Max Life" breakdown={{ title: 'Max Life', keys: ['max_life_flat', 'max_life_inc', 'max_life_additional'], total: defense.max_life, formula: DEF_FORMULA }}>{fmtNum(defense.max_life)}</Row>
+        <Row label="Max Life" breakdown={{ title: 'Max Life', keys: ['max_life_flat', 'max_life_inc', 'max_life_additional'], total: defense.max_life, formula: LIFE_FORMULA }}>{fmtNum(defense.max_life)}</Row>
         {defense.life_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Life — Flat Added', keys: ['max_life_flat'] }}>{fmtNum(defense.life_flat)}</SubRow>}
         {defense.life_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Life — Increased', keys: ['max_life_inc'] }}>{fmtPct(defense.life_inc)}</SubRow>}
         {defense.life_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Life — Additional', keys: ['max_life_additional'] }}>{fmtMult(defense.life_additional)}</SubRow>}
       </StatPanel>
 
       <StatPanel title="Mana" accent="#3060c0">
-        <Row label="Max Mana" breakdown={{ title: 'Max Mana', keys: ['max_mana_flat', 'max_mana_inc', 'max_mana_additional'], total: defense.max_mana, formula: DEF_FORMULA }}>{fmtNum(defense.max_mana)}</Row>
+        <Row label="Max Mana" breakdown={{ title: 'Max Mana', keys: ['max_mana_flat', 'max_mana_inc', 'max_mana_additional'], total: defense.max_mana, formula: MANA_FORMULA }}>{fmtNum(defense.max_mana)}</Row>
         {defense.mana_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Mana — Flat Added', keys: ['max_mana_flat'] }}>{fmtNum(defense.mana_flat)}</SubRow>}
         {defense.mana_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Mana — Increased', keys: ['max_mana_inc'] }}>{fmtPct(defense.mana_inc)}</SubRow>}
         {defense.mana_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Mana — Additional', keys: ['max_mana_additional'] }}>{fmtMult(defense.mana_additional)}</SubRow>}
