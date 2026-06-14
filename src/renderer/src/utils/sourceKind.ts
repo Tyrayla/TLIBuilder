@@ -17,11 +17,13 @@ const LABELS: Record<string, string> = {
   condition: 'Condition',
 }
 
+// Gear (rarity/legendary via gearQualityColor) and Tree (per-tree branch color) are resolved per-row at the
+// call site; these are the flat fallbacks + the colors for the remaining source types.
 const COLORS: Record<string, string> = {
-  Item: '#d99a4e',      // orange (item-name color)
+  Item: '#c8a050',      // gear fallback (legendary gold); real color comes from gearQualityColor
   Base: '#8a8aa0',      // grey
-  Tree: '#6fb86f',      // green
-  Slate: '#5fa8c0',     // cyan
+  Tree: '#6fb86f',      // fallback; real color is the tree's branch color
+  Slate: '#5fc0d0',     // cyan
   Core: '#c08fe0',      // purple
   Custom: '#d06a9a',    // pink
   Support: '#7a9af0',   // blue

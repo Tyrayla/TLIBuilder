@@ -491,6 +491,7 @@ export interface OffenseResult {
   crit_multiplier: number
   steep_strike_chance: number
   attacks_per_second: number
+  base_cast_time: number
   total_dps: number
   total_dps_vs_target: number
   nyi: string[]
@@ -503,6 +504,8 @@ export interface OffenseResult {
   base_csr: number
   flat_dmg_min: Record<string, number>
   flat_dmg_max: Record<string, number>
+  base_dmg_min: Record<string, number>
+  base_dmg_max: Record<string, number>
   type_inc: Record<string, number>
   type_add: Record<string, number>
   above_max_mult: number
@@ -528,6 +531,10 @@ export interface DefenseResult {
   cold_resist_raw: number
   lightning_resist_raw: number
   erosion_resist_raw: number
+  fire_resist_max: number
+  cold_resist_max: number
+  lightning_resist_max: number
+  erosion_resist_max: number
   life_flat: number
   life_inc: number
   life_additional: number
@@ -543,7 +550,27 @@ export interface DefenseResult {
   evasion_flat: number
   evasion_inc: number
   evasion_additional: number
+  // Armour → mitigation % and Evasion → evade chance (fractions), vs the calc target.
+  armor_phys_mitigation: number
+  armor_nonphys_mitigation: number
+  attack_evade_chance: number
+  spell_evade_chance: number
+  // Block (additive chance, display-only for now) + damage avoidance (fractions).
+  attack_block_chance: number
+  spell_block_chance: number
+  block_ratio: number
+  dmg_avoid_chance: number
   nyi: string[]
+}
+
+export interface BlessingEffect { stat: string; per_stack: number; total: number; text: string }
+export interface BlessingSummary {
+  type: string
+  label: string
+  stacks: number
+  max: number
+  overridden: boolean
+  effects: BlessingEffect[]
 }
 
 export interface CustomModStatus {
@@ -604,11 +631,13 @@ export interface TargetDebuff {
 }
 
 export interface TargetStats {
-  armor: { base_phys: number; base_nonphys: number; effective_phys: number; effective_nonphys: number }
-  resists: Record<string, { base: number; effective: number }>
+  source?: string   // where the base values come from (e.g. "Training dummy")
+  armor: { base_phys: number; base_nonphys: number; effective_phys: number; effective_nonphys: number; pen?: number }
+  // base → (+reduction) resist → (−pen) effective. reduction = enemy resistance debuff; pen = ignored at hit.
+  resists: Record<string, { base: number; reduction?: number; pen?: number; resist?: number; effective: number }>
   debuffs: string[]   // legacy flat list (kept for back-compat)
   debuff_details?: TargetDebuff[]
-  // The penetration that produced base→effective (fractions; reduction deltas).
+  // Raw penetration totals (fractions; reduction deltas).
   pen?: { armor: number; all_resistance_reduction: number; elemental: number;
           fire: number; cold: number; lightning: number; erosion: number }
 }

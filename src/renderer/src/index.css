@@ -1176,6 +1176,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .cond-grid::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
 .cond-grid::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
 
+/* Dark scrollbar for the stats screen's main scroll container (replaces the OS-default light one). */
+.dark-scroll::-webkit-scrollbar { width: 10px; }
+.dark-scroll::-webkit-scrollbar-track { background: transparent; }
+.dark-scroll::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+.dark-scroll::-webkit-scrollbar-thumb:hover { background: #3a3a5a; background-clip: padding-box; }
+
 .cond-masonry {
   columns: 230px;
   column-gap: 10px;

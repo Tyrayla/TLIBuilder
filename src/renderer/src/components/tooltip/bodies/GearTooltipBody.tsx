@@ -8,6 +8,7 @@ import type {
   LegendaryGearItem, LegendaryAffix, EquippedGearItem,
 } from '../../../api/client'
 import { tooltipAffixText, affixTypeLabel } from '../../../utils/affixText'
+import { gearQualityColor } from '../../../utils/gearItem'
 import { TooltipContributions } from '../TooltipContributions'
 import type { DamageDelta, LabeledDelta } from '../useDamageDelta'
 import { ModifierBadge, useGearModifierStatus, useGearModifierStatuses } from '../../ModifierBadge'
@@ -59,7 +60,7 @@ function getItemExplicits(item: LegendaryGearItem): LegendaryAffix[] {
   return affixes
 }
 
-export function GearTooltipBody({ item, delta, deltas }: { item: GearTooltipItem; delta?: DamageDelta; deltas?: LabeledDelta[] }) {
+export function GearTooltipBody({ item, delta, deltas, hideBadges }: { item: GearTooltipItem; delta?: DamageDelta; deltas?: LabeledDelta[]; hideBadges?: boolean }) {
   const customizations = 'customizations' in item ? item.customizations : undefined
   const baseType = ('base_type' in item ? item.base_type : undefined) ?? ''
   const typeLabel = getGearTypeLabel(baseType)
@@ -75,22 +76,24 @@ export function GearTooltipBody({ item, delta, deltas }: { item: GearTooltipItem
   const implicitStatuses = useGearModifierStatuses(implicits)
   const explicitStatuses = useGearModifierStatuses(explicits)
   const mutStatus = useGearModifierStatus(craftItem?.mutation_resolved_affix ?? null)
+  // Name colored by quality: legendaries gold; crafted/Vorax by mod count (same system as the gear labels).
+  const nameColor = craftItem ? gearQualityColor(craftItem) : '#c8a050'
 
   return (
     <>
       {typeLabel && <div className="gear-tooltip-type">{typeLabel}</div>}
-      <div className="gear-tooltip-name">{item.name}</div>
+      <div className="gear-tooltip-name" style={{ color: nameColor }}>{item.name}</div>
       {baseType && <div className="gear-tooltip-base">Base: {baseType}</div>}
       <div className="gear-tooltip-level">Required Level: {item.required_level}</div>
       <div className="gear-tooltip-divider" />
       {mutText && (
         <div className="gear-tooltip-affix gear-tooltip-affix--corroded">
-          {mutText}<ModifierBadge status={mutStatus} />
+          {mutText}{!hideBadges && <ModifierBadge status={mutStatus} />}
         </div>
       )}
       {implicits.map((affix, i) => (
         <div key={`imp-${i}`} className="gear-tooltip-affix gear-tooltip-affix--implicit">
-          {affix.raw_text}<ModifierBadge status={implicitStatuses[i]} />
+          {affix.raw_text}{!hideBadges && <ModifierBadge status={implicitStatuses[i]} />}
         </div>
       ))}
       {implicits.length > 0 && explicits.length > 0 && (
@@ -100,7 +103,7 @@ export function GearTooltipBody({ item, delta, deltas }: { item: GearTooltipItem
         <div key={`exp-${i}`} className="gear-tooltip-affix">
           {tooltipAffixText(affix, implicits.length + i, customizations)}
           {affixTypeLabel(affix.affix_type) && <span className="gear-affix-label">({affixTypeLabel(affix.affix_type)})</span>}
-          <ModifierBadge status={explicitStatuses[i]} />
+          {!hideBadges && <ModifierBadge status={explicitStatuses[i]} />}
         </div>
       ))}
       {/* Contributions live at the bottom and grow downward. `deltas` (one band per slot) takes
