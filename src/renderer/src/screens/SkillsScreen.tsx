@@ -17,7 +17,15 @@ import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { SkillTooltipBody } from '../components/tooltip/bodies/SkillTooltipBody'
 import { DamageDeltaBand } from '../components/tooltip/DamageDeltaBand'
 import { useDamageDelta, useDamageDeltaList, withSupport, type DeltaRequest, type DamageDelta } from '../components/tooltip/useDamageDelta'
+import { buildEngineStatsPayload, type BuildState } from '../utils/statsPayload'
 import { modeledRolledLines } from '../utils/supportRolls'
+
+// djb2 string hash → short base36. Used to fingerprint the build slice the support-pick deltas depend on.
+function hashStr(str: string): string {
+  let h = 5381
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0
+  return (h >>> 0).toString(36)
+}
 
 // Cursor-anchored skill / support hover tooltip via the shared primitive (informational —
 // no contributions band). Render-prop hands triggerProps to the hovered element.
@@ -245,15 +253,27 @@ export default function SkillsScreen(_props: Props) {
     )
   }, [allItems, focusedSlot, focusedSupportIdx, focusedEquipped, equippedSkills, supportSearch])
 
-  // Per-catalog-support equip DPS-delta (slot-1 only) — used to label each name and sort the list.
+  // Baseline signature FROZEN when the support panel opens (deps = focused slot/support only, NOT
+  // buildVersion), capturing the current build incl. the equipped support at its open-time rolls. So
+  // each pick-delta is the swap result vs the CURRENT support, computed once on open and cached — tweaking
+  // the equipped support's roll/rank/tier afterward doesn't change or recompute the catalog numbers.
+  const pickBaseSig = useMemo(() => {
+    if (focusedSlot !== 1 || focusedSupportIdx === null) return ''
+    return hashStr(JSON.stringify(buildEngineStatsPayload(useBuildStore.getState() as unknown as BuildState)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedSlot, focusedSupportIdx])
+
+  // Per-catalog-support DPS swap-delta (slot-1 only) vs the current support, used to label + sort the
+  // list. base omitted → current build (only the focused support index is swapped, other slots untouched).
   const supportPickReqs = useMemo<DeltaRequest[]>(() =>
     (focusedSlot === 1 && focusedSupportIdx !== null)
       ? supportCatalogItems.map(item => ({
-          key: `support-pick:${item.item_id}:${focusedSupportIdx}`,
+          key: `support-pick:${item.item_id}:${focusedSupportIdx}:${pickBaseSig}`,
           step: (s) => withSupport(s, focusedSupportIdx, makeSupport(item, focusedSupportIdx)),
+          stable: true,
         }))
       : [],
-    [supportCatalogItems, focusedSlot, focusedSupportIdx])
+    [supportCatalogItems, focusedSlot, focusedSupportIdx, pickBaseSig])
   const supportPickDeltas = useDamageDeltaList(supportPickReqs.length ? supportPickReqs : null, supportPickReqs.length > 0)
   const supportDeltaById = useMemo(() => {
     const m: Record<string, DamageDelta> = {}

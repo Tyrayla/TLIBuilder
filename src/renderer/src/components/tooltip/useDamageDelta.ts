@@ -31,9 +31,14 @@ export type StateTransform = (s: BuildState) => BuildState
 export interface LabeledDelta { label: string; delta: DamageDelta }
 
 export interface DeltaRequest {
-  key: string                // cache key (combined with buildVersion)
+  key: string                // cache key (combined with buildVersion, unless `stable`)
   step?: StateTransform      // build WITH the hovered thing (default: current build)
   base?: StateTransform      // the alternative build (default: current build)
+  // When true, the result is cached in a version-INDEPENDENT cache keyed solely by `key`. The caller
+  // must make `key` capture every input the result depends on (e.g. a signature of the relevant build
+  // slice). Used for support-pick deltas, which are independent of the equipped support's roll/rank/tier
+  // so they must not recompute when those change. See SkillsScreen's pickBaseSig.
+  stable?: boolean
 }
 
 const COMING_SOON: DamageDelta = { state: 'nyi', reason: 'coming soon' }
@@ -119,9 +124,16 @@ function sideStats(transform: StateTransform | undefined, s: BuildState, version
 let resultCacheVersion = -1
 const resultCache = new Map<string, DamageDelta>()
 
-// Synchronous cache peek (only valid for the current version; stale entries are ignored so a
-// re-hover after a build edit recomputes instead of flashing the old number).
+// Version-INDEPENDENT cache for `stable` requests whose key fully captures their inputs (it survives
+// buildVersion bumps; correctness comes from the caller's signature-bearing key). Bounded LRU-ish.
+const stableCache = new Map<string, DamageDelta>()
+const STABLE_CACHE_CAP = 500
+
+// Synchronous cache peek. Stable keys (self-validating) win; otherwise the version-gated cache, whose
+// stale entries are ignored so a re-hover after a build edit recomputes instead of flashing old data.
 function peekCache(key: string, version: number): DamageDelta | null {
+  const stable = stableCache.get(key)
+  if (stable) return stable
   if (resultCacheVersion !== version) return null
   return resultCache.get(key) ?? null
 }
@@ -130,7 +142,8 @@ function peekCache(key: string, version: number): DamageDelta | null {
 // the shared identity recompute across every request at a given version.
 async function computeDelta(req: DeltaRequest, s: BuildState, version: number): Promise<DamageDelta> {
   if (resultCacheVersion !== version) { resultCache.clear(); resultCacheVersion = version }
-  const cached = resultCache.get(req.key)
+  const cache = req.stable ? stableCache : resultCache
+  const cached = cache.get(req.key)
   if (cached) return cached
   const [step, base] = await Promise.all([
     sideStats(req.step, s, version),
@@ -148,7 +161,10 @@ async function computeDelta(req: DeltaRequest, s: BuildState, version: number): 
       result = { state: 'value', absolute, percent, direction: absolute > 0 ? 'gain' : 'loss' }
     }
   }
-  resultCache.set(req.key, result)
+  cache.set(req.key, result)
+  if (req.stable && stableCache.size > STABLE_CACHE_CAP) {
+    stableCache.delete(stableCache.keys().next().value as string)
+  }
   return result
 }
 
