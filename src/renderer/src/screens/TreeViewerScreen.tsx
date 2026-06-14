@@ -12,12 +12,14 @@ import { useDamageDelta, withNodePoints } from '../components/tooltip/useDamageD
 const COLS = 7
 const ROWS = 5
 const COL_LABELS = [0, 3, 6, 9, 12, 15, 18]
-const VW = 700
-const VH = 500
+// Larger viewBox than the node size → more breathing room between columns/rows (the tree scales to fit
+// the canvas, so this widens the gaps and shrinks the nodes a touch rather than zooming in).
+const VW = 820
+const VH = 586
 const HEADER = 42
 const CELL_W = VW / COLS
 const CELL_H = (VH - HEADER) / ROWS
-const NODE_R = 28
+const NODE_R = 26
 
 function nodeX(col: number) { return col * CELL_W + CELL_W / 2 }
 function nodeY(row: number) { return HEADER + row * CELL_H + CELL_H / 2 }
@@ -741,8 +743,9 @@ export default function TreeViewerScreen({
                 return (
                   <line key={i}
                     x1={x1 + ox} y1={y1 + oy} x2={x2 - ox} y2={y2 - oy}
-                    stroke={isLinked ? '#e9c046' : '#3a3a5a'}
-                    strokeWidth={isLinked ? 2.5 : 2}
+                    stroke={isLinked ? '#e9c046' : '#6b78b8'}
+                    strokeWidth={isLinked ? 3.5 : 3}
+                    strokeLinecap="round"
                   />
                 )
               })}
