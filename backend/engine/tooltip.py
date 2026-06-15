@@ -289,6 +289,34 @@ def _lines_passive(skill_data: dict) -> list[dict]:
     return _generic_lines(skill_data)
 
 
+_BUFF_INTRO_RE = re.compile(r"gain the following buff|activates? the aura|activates focus|gains a buff", re.I)
+
+
+def _lines_aura(skill_data: dict) -> list[dict]:
+    """Aura / Focus buff skills. The buff text is the part after "… gain the following buff:". Show the intro
+    as flavor (no badge) and each buff CLAUSE as its own badged line, so a modeled buff ("additional Lightning
+    Damage") badges as working instead of the whole blob reading NYI. Uses the DETAILED (Lv20) description —
+    the authoritative source the engine resolves from — falling back to the simple/legacy description."""
+    src = (skill_data.get("detailed_description")
+           or skill_data.get("simple_description")
+           or skill_data.get("description_lines") or [])
+    out: list[dict] = []
+    buff: list[str] = []
+    for raw in src:
+        c = _clean(raw)
+        if not c:
+            continue
+        if _BUFF_INTRO_RE.search(c):
+            out.append(_line("flavor", "", text=c))   # intro flavor — never badged
+        else:
+            buff.append(c)
+    # Join the buff lines before splitting: the crawler splits a single buff mid-sentence ("Gains" / "1
+    # stack(s)…"), so per-line clauses fragment. Joining + clause-splitting reassembles whole modifiers.
+    for clause in _split_clauses(" ".join(buff)):
+        out.append(_line(_kind_for(clause), clause, text=clause))
+    return out or _generic_lines(skill_data)
+
+
 def _generic_lines(skill_data: dict) -> list[dict]:
     """Fallback: split description_lines into shown clauses (no per-level data available)."""
     return [_line(_kind_for(c), c, text=c)
@@ -310,7 +338,9 @@ def build_tooltip(skill_data: dict) -> dict:
         lines, kind = _lines_active(skill_data), "level"
         default = skill_data.get("max_level") or (max(_levels(prog)) if _levels(prog) else 1)
     elif stype in _PASSIVE_TYPES:
-        lines, kind = _lines_passive(skill_data), "level"
+        tags = skill_data.get("skill_tags") or []
+        lines = _lines_aura(skill_data) if any(t in tags for t in ("Aura", "Focus")) else _lines_passive(skill_data)
+        kind = "level"
         default = skill_data.get("max_level") or (max(_levels(prog)) if _levels(prog) else 1)
     else:
         lines, kind, default = _generic_lines(skill_data), "level", skill_data.get("max_level") or 1
