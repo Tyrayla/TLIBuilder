@@ -2990,8 +2990,9 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.COMBO_STARTER_CAST_SPEED_ADDITIONAL: StatMeta(
         "Combo Starter Cast Speed", "Cast Speed", "additional", "%",
-        subgroup="speed",              stacking_rule="additive",
-        ui_priority=40,                source_types=_T,
+        subgroup="speed",              tags=("combo",),
+        stacking_rule="additive",      ui_priority=40,
+        source_types=_T,
     ),
     Stat.COMBO_STARTERS_COMBO_POINTS_FLAT: StatMeta(
         "Combo Points Gained from Combo Starters", "Utility", "added_flat",

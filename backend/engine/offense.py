@@ -82,7 +82,11 @@ _DEFERRED_ADDITIONAL: dict[str, str] = {
 # Additional-damage stats applied by a FORM-SCOPED multiplier (not the generic hit pool), so they must be
 # excluded here to avoid double-counting. Steep Strike Additional Damage applies ONLY to the Steep Strike
 # hit form (see calculate_offense `form_add_mult`) — it is consumed, just not a generic all-hits factor.
-_FORM_SCOPED_ADDITIONAL: frozenset = frozenset({"steep_strike_additional_dmg"})
+# Form-scoped additional-damage stats: applied ONLY to their specific hit form, never to the generic pool
+# (so they don't leak onto every skill). steep_strike is wired (read when the skill has a steep-strike form);
+# sweep_slash is a Berserking-Blade form mechanic whose legendary mod line isn't wired yet — kept out of the
+# generic pool so it can't wrongly apply/badge until it gets its own form-scoped reader.
+_FORM_SCOPED_ADDITIONAL: frozenset = frozenset({"steep_strike_additional_dmg", "sweep_slash_additional_dmg"})
 
 # Hit damage additional multiplier stats — each is an independent multiplicative pool.
 # Deferred stats (see _DEFERRED_ADDITIONAL) are excluded and listed in the NYI output.
@@ -137,12 +141,27 @@ _ELEMENTAL_DMG_TYPES = frozenset({"fire", "cold", "lightning"})
 _DTYPE_TAG_SET = frozenset(DAMAGE_TYPES) | {"elemental"}
 
 
+# EXCLUSIVE skill-type tags: a stat carrying one applies ONLY to skills that ALSO carry it — it can't be
+# satisfied by another shared tag via the OR-match below. 'minion' is the verified case (minion_spell_dmg_
+# additional must NOT leak onto a non-minion spell). MORE tags (e.g. sentry/trap/warcry subsystems) likely
+# belong here too, but each needs in-game verification before adding — extend this set as that's confirmed.
+_EXCLUSIVE_SKILL_TAGS: frozenset = frozenset({"minion"})
+
+
 def _skill_gate(tags: frozenset, mod_tags: set) -> bool:
     """A stat's SKILL-TYPE/subsystem tags (attack/spell/minion/sentry/projectile/…) must match the skill if
     it has any. This keeps a minion-scoped stat like minion_lightning_dmg_inc OUT of a non-minion skill's
-    pools even though it shares the 'lightning' damage-type tag (the bug: OR-matching applied it anyway)."""
+    pools even though it shares the 'lightning' damage-type tag (the bug: OR-matching applied it anyway).
+
+    An EXCLUSIVE tag (see _EXCLUSIVE_SKILL_TAGS) is AND-required: present on the stat ⇒ it must be present on
+    the skill, regardless of other shared tags. So minion_spell_dmg_additional ({minion, spell}) no longer
+    leaks onto a non-minion spell via the shared 'spell' tag."""
     skill = tags - _DTYPE_TAG_SET
-    return (not skill) or bool(skill & mod_tags)
+    if not skill:
+        return True
+    if (skill & _EXCLUSIVE_SKILL_TAGS) - mod_tags:
+        return False
+    return bool(skill & mod_tags)
 
 
 def _applies_to_dtype(tags: frozenset, dtype_tag: frozenset, mod_tags: set) -> bool:
@@ -213,19 +232,35 @@ def _build_additional_factors(source: BuildSource) -> list[tuple[float, frozense
     return factors
 
 
+def _record_applicable_keys(source: BuildSource, keyed_tags, applies: Callable[[frozenset], bool]) -> None:
+    """Mark every additional-pool key whose tags satisfy `applies` as consumed — even with no contribution —
+    so its modifiers badge Consumed consistently (not Inactive→Consumed depending on whether something else
+    feeds the pool). ONE shared rule for ALL additional pools (hit damage AND attack/cast speed) so they can
+    never drift out of sync: any pool that wants consistent badges calls this with its (key, tags) list and
+    its apply-predicate. `keyed_tags` is an iterable of (stat_key, tags)."""
+    if not source._recording:
+        return
+    for key, tags in keyed_tags:
+        if applies(tags):
+            source.consumed_stats.add(key)
+
+
 def _additional_product(
     source: BuildSource,
     factors: list[tuple[float, frozenset, str]],
     predicate: Callable[[frozenset], bool],
 ) -> float:
-    """Product of (1 + amount) over factors whose tags satisfy predicate. Records consumed_stats
-    for the keys that actually apply (parity with the old per-key source.total reads)."""
+    """Product of (1 + amount) over factors whose tags satisfy predicate. Records consumed_stats for every
+    skill-applicable additional key — INCLUDING ones with no current contribution — so an "additional damage"
+    modifier badges consistently (Consumed) instead of flipping Inactive→Consumed depending on whether
+    anything else currently feeds that pool. This mirrors the increased pools, which already record every
+    predicate-passing key via source.total(). Type-specific keys that don't apply to the skill/damage type
+    still aren't recorded (they remain correctly Inactive)."""
     p = 1.0
     for amount, tags, stat_key in factors:
         if predicate(tags):
-            if source._recording:
-                source.consumed_stats.add(stat_key)
             p *= (1.0 + amount)
+    _record_applicable_keys(source, _HIT_ADDITIONAL_STATS, predicate)
     return p
 
 
@@ -256,6 +291,11 @@ def _speed_additional_product(source: BuildSource, keys, skill_tags_lower: set[s
         remainder = raw - tracked.get(key, 0.0)
         if abs(remainder) > 1e-12:
             p *= (1.0 + remainder)
+    # Record skill-applicable speed-additional keys (shared rule with the hit pool). These pools are read via
+    # source_log, not source.total, so without this they'd never enter consumed_stats and would always badge
+    # Inactive despite contributing (the Quick Decision report). Only the relevant pool runs per skill type
+    # (cast for spells, attack for attacks), so this never cross-marks.
+    _record_applicable_keys(source, keys, lambda tags: not tags or bool(tags & skill_tags_lower))
     return p
 
 # ── Calculation-target defense (the "dummy") ──────────────────────────────────

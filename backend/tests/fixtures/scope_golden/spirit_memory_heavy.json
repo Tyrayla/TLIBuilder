@@ -37,6 +37,7 @@
     "attack_speed_gear",
     "attack_speed_mh",
     "block_ratio_inc",
+    "cast_speed_additional",
     "cast_speed_inc",
     "cold_as_erosion",
     "cold_as_fire",
@@ -58,6 +59,8 @@
     "dmg_additional",
     "dmg_avoid_chance",
     "dmg_inc",
+    "dmg_max_additional",
+    "dmg_min_additional",
     "double_dmg_chance",
     "elemental_dmg_additional",
     "elemental_dmg_inc",
@@ -83,6 +86,7 @@
     "fire_spell_dmg_flat_max",
     "fire_spell_dmg_flat_min",
     "frail_spell_taken",
+    "hit_dmg_additional",
     "intelligence",
     "intelligence_additional",
     "intelligence_flat",
@@ -94,6 +98,7 @@
     "lightning_convert_to_erosion",
     "lightning_convert_to_fire",
     "lightning_crit_dmg_inc",
+    "lightning_dmg_additional",
     "lightning_dmg_inc",
     "lightning_infiltration_taken",
     "lightning_pen",
@@ -138,6 +143,7 @@
     "spell_crit_dmg_inc",
     "spell_crit_rating_flat",
     "spell_crit_rating_inc",
+    "spell_dmg_additional",
     "spell_dmg_inc",
     "spell_double_dmg_chance",
     "spell_skill_level",
@@ -196,7 +202,7 @@
   },
   "offense": {
     "above_max_mult": 1.0,
-    "attacks_per_second": 1.7612307692307692,
+    "attacks_per_second": 1.6615384615384614,
     "base_cast_time": 0.65,
     "base_csr": 500.0,
     "base_dmg_max": {
@@ -224,8 +230,8 @@
         "damage_by_type": {
           "lightning": 361.80863999999997
         },
-        "dps_contribution": 653.1592220750769,
-        "dps_vs_target": 342.9085915894152,
+        "dps_contribution": 616.187945353846,
+        "dps_vs_target": 323.49867131076905,
         "effectiveness_pct": 100.0,
         "form_type": "additive",
         "hit_max_by_type": {
@@ -266,8 +272,8 @@
     ],
     "steep_strike_chance": 0.0,
     "supported": true,
-    "total_dps": 653.1592220750769,
-    "total_dps_vs_target": 342.9085915894152,
+    "total_dps": 616.187945353846,
+    "total_dps_vs_target": 323.49867131076905,
     "type_add": {
       "lightning": 1.9836
     },
