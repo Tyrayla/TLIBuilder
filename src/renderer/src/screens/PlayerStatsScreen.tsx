@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem } from '../api/client'
+import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -129,7 +129,7 @@ function BreakdownColHeader() {
 function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtxValue }) {
   const isGear = g.source_type === 'gear' || g.source_type === 'normal_gear' || g.source_type === 'legendary_gear'
   const isTalent = g.source_type === 'talent' || g.source_type === 'slate'
-  const isLines = g.source_type === 'pact_spirit' || g.source_type === 'hero_memory' || g.source_type === 'support'
+  const isLines = g.source_type === 'pact_spirit' || g.source_type === 'hero_memory' || g.source_type === 'support' || g.source_type === 'aura'
 
   // Gear: the backend carries the item NAME in source_name → match the equipped item for its tooltip.
   const matchedItem = isGear
@@ -145,7 +145,10 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
   const lines = !isLines ? []
     : g.source_type === 'support'
       ? (g.source_name ? (ctx.sourceLines.get(g.source_name) ?? []) : [])
-      : (g.text ? [g.text] : [])
+      // Aura buff text carries a " |aura|<id>" pooling-identity suffix — strip it for the tooltip.
+      : g.source_type === 'aura'
+        ? (g.text ? [g.text.replace(/\s*\|aura\|.*$/, '')] : [])
+        : (g.text ? [g.text] : [])
 
   // Support contribution → prefer the structured, level-aware tooltip (same one the Skills screen uses)
   // when its catalog SkillItem (with a tooltip spec) is found by name. Resolve at the equipped tier.
@@ -704,11 +707,17 @@ const AMBER = '#c87820'
 // Non-hit skills (passives / empower-style buffs) have no hit-DPS offense yet. Surface a Skill-Viewer
 // foundation with the mechanics we intend to model, marked NYI so nothing reads as silently missing.
 // Tailored by slot kind: passives (6-9) → reservation/aura/AoE; active buffs → empower effect/duration/cooldown.
-function SkillFoundationPanel({ skill }: { skill: EquippedSkill }) {
+function SkillFoundationPanel({ skill, aura }: { skill: EquippedSkill; aura?: AuraSummary | null }) {
+  const ctx = useContext(BreakdownCtx)
+  const conditionState = useBuildStore(s => s.conditionState)
+  const setConditionState = useBuildStore(s => s.setConditionState)
   const isPassive = skill.slot >= 6
   const rows = isPassive
     ? ['Reservation (Sealing)', 'Aura / Magus / Focus Effect', 'Area of Effect']
     : ['Empower Effect', 'Skill Duration', 'Cooldown', 'Area of Effect']
+  const statMapName = (stat: string) => ctx?.statMap?.[stat]?.display_name ?? stat
+  const fmtGrant = (stat: string, amt: number) =>
+    /_flat$/.test(stat) ? fmtNum(amt) : fmtPct(amt)
   return (
     <StatPanel title={`Skill — ${skill.name}`} accent={AMBER}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
@@ -717,18 +726,72 @@ function SkillFoundationPanel({ skill }: { skill: EquippedSkill }) {
       <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
         {isPassive ? 'This skill contributes build-wide (no hit DPS of its own).' : 'Buff / utility skill (no hit DPS of its own).'}
       </div>
-      {rows.map(label => <Row key={label} label={label} labelColor="#555">— NYI</Row>)}
+      {aura ? (
+        <>
+          <Row label="Aura Effect" breakdown={{
+            title: 'Aura Effect', keys: ['aura_effect_inc', 'aura_effect_additional'],
+            total: aura.aura_effect_inc, totalUnit: '%',
+            formula: '(1 + Σ increased) × (1 + Σ additional) − 1',
+          }}>{fmtPct(aura.aura_effect_inc)}</Row>
+          {aura.stack_condition && aura.max_stacks ? (() => {
+            const key = aura.stack_condition!
+            const cur = Number(conditionState[key] ?? 0)
+            return (
+              <Row label="Buff Stacks">
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="range" min={0} max={aura.max_stacks} value={cur}
+                    onChange={e => setConditionState({ ...conditionState, [key]: Number(e.target.value) })}
+                    style={{ width: 90 }} />
+                  <span style={{ fontSize: 11, color: '#bbb', minWidth: 34, textAlign: 'right' }}>{cur}/{aura.max_stacks}</span>
+                </span>
+              </Row>
+            )
+          })() : null}
+          <div style={{ fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Grants (you &amp; allies)</div>
+          {aura.granted.length === 0 && <div style={{ fontSize: 11, color: '#555' }}>No modeled buff lines.</div>}
+          {aura.granted.map((g, i) => {
+            // Final = Base × (1 + Aura Effect). Show that derivation on hover (the Aura Effect pool itself is
+            // not scaled — its base IS its final, so only show the multiplier step for the scaled buffs).
+            const scaled = !g.is_aura_effect && aura.aura_effect_inc !== 0
+            const extra = scaled ? [
+              { value: fmtGrant(g.stat, g.base), stat: 'Base', source: 'Aura', sourceName: aura.name },
+              { value: `×${(1 + aura.aura_effect_inc).toFixed(2)}`, stat: 'Aura Effect', source: '', sourceName: `+${Math.round(aura.aura_effect_inc * 100)}%` },
+            ] : undefined
+            return (
+              <Row key={i} label={statMapName(g.stat)} breakdown={extra ? {
+                title: statMapName(g.stat), keys: [], total: g.amount,
+                totalUnit: /_flat$/.test(g.stat) ? '' : '%',
+                formula: 'Base × (1 + Aura Effect)', extra,
+              } : undefined}>{fmtGrant(g.stat, g.amount)}</Row>
+            )
+          })}
+          {aura.nyi.length > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: '#a05a5a', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Not yet modeled</div>
+              {aura.nyi.map((t, i) => <div key={i} style={{ fontSize: 10, color: '#7a5a5a', lineHeight: 1.4 }}>{t}</div>)}
+            </>
+          )}
+          {(aura.review?.length ?? 0) > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: '#b08a4a', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Needs manual review (scaling unverified)</div>
+              {aura.review!.map((t, i) => <div key={i} style={{ fontSize: 10, color: '#8a7550', lineHeight: 1.4 }}>{t}</div>)}
+            </>
+          )}
+        </>
+      ) : (
+        rows.map(label => <Row key={label} label={label} labelColor="#555">— NYI</Row>)
+      )}
     </StatPanel>
   )
 }
 
-function OffensePanels({ offense, skill }: { offense: OffenseResult | null; skill?: EquippedSkill }) {
+function OffensePanels({ offense, skill, aura }: { offense: OffenseResult | null; skill?: EquippedSkill; aura?: AuraSummary | null }) {
 
   if (!offense) {
     // No computed offense for this slot. If a skill IS equipped here (passive/buff), show its foundation
     // panel; otherwise the slot is empty.
     return skill
-      ? <SkillFoundationPanel skill={skill} />
+      ? <SkillFoundationPanel skill={skill} aura={aura} />
       : <StatPanel title="Skill" accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
@@ -1126,6 +1189,9 @@ export default function PlayerStatsScreen() {
     ? (slotOffense[String(selectedSlot)] ?? null)
     : (selectedSlot === 1 ? offense : null)
   const blessings = ((computedStats as { blessings?: BlessingSummary[] | null }).blessings) ?? null
+  const auras = ((computedStats as { auras?: AuraSummary[] | null }).auras) ?? null
+  const selectedSkill = skills.find(sk => sk.slot === selectedSlot)
+  const selectedAura = auras?.find(a => a.skill_id === selectedSkill?.item_id) ?? null
 
   return (
     <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, selectedSlot }}>
@@ -1133,7 +1199,7 @@ export default function PlayerStatsScreen() {
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
         <div style={{ flex: '40', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
           <SkillSelector skills={skills} selected={selectedSlot} onSelect={setSelectedSlot} />
-          <OffensePanels offense={shownOffense} skill={skills.find(sk => sk.slot === selectedSlot)} />
+          <OffensePanels offense={shownOffense} skill={selectedSkill} aura={selectedAura} />
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility */}

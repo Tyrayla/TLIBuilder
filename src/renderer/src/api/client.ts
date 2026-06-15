@@ -655,6 +655,23 @@ export interface StatSheetResponse {
   // Calculation-target (dummy) armor/resist, base + effective after this build's penetration (values are
   // damage-REDUCTION fractions; negative effective = the target is amplified), plus active enemy debuffs.
   target_stats?: TargetStats | null
+  // Per equipped aura/Focus passive: the buff lines it grants (already scaled by Aura Effect + interpolated to
+  // level) + the applied Aura Effect + any buff lines not yet modeled (NYI).
+  auras?: AuraSummary[]
+  aura_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
+}
+
+export interface AuraGrant { stat: string; base: number; amount: number; text: string; per_stack?: boolean; is_aura_effect?: boolean }
+export interface AuraSummary {
+  skill_id: string
+  name: string
+  level: number
+  aura_effect_inc: number
+  granted: AuraGrant[]
+  nyi: string[]
+  review?: string[]   // modifiers applied but whose per-level scaling couldn't be verified vs the Lv1 anchor
+  stack_condition?: string | null   // settable numeric condition key for this aura's buff stacks
+  max_stacks?: number | null
 }
 
 export interface TargetDebuff {
@@ -1026,6 +1043,7 @@ export interface SkillItem {
   name: string
   internal_id?: number | null
   skill_type?: string
+  is_aura?: boolean
   description_lines: string[]
   raw_text: string
   skill_tags: string[]
@@ -1123,6 +1141,13 @@ function checkTag(tag: string, skillTags: string[], isPassiveSlot: boolean): boo
   return skillTags.some(t => t.toLowerCase() === tag.toLowerCase())
 }
 
+// Whether a skill actually deals damage (vs a pure Aura / buff / Focus passive). Used to gate
+// "Supports skills that deal damage" supports off non-damaging skills (e.g. an Aura like Electric Conversion).
+function skillDealsDamage(skill: { skill_tags: string[] }): boolean {
+  const dmgTags = ['attack', 'spell', 'minion', 'summon']
+  return skill.skill_tags.some(t => dmgTags.includes(t.toLowerCase()))
+}
+
 export function isSupportCompatible(
   support: SkillItem,
   parentSkill: EquippedSkill,
@@ -1142,8 +1167,13 @@ export function isSupportCompatible(
     return !isPassiveSlot && supportIdx === 1
   }
 
-  // Colon = skill-specific support (Magnificent → slot 3, Noble → slot 5)
-  if (support.name.includes(':')) {
+  // Skill-bound supports (Noble/Magnificent) carry a "<Parent Skill>: <Variant> (Tier)" name and lock to a
+  // specific parent skill + slot. ONLY these genuinely-bound types use the colon branch — every skill-bound
+  // colon support is noble/magnificent, while "Precise: X" (and other base support_skill colon names) are
+  // quality-tier VARIANTS of normal supports. So Precise variants must be matched by their "Supports X"
+  // description below (e.g. "Precise: Stand as One" → "Supports Aura Skills"), not hidden as a foreign binding.
+  const skillBound = support.skill_type === 'noble_support_skill' || support.skill_type === 'magnificent_support_skill'
+  if (skillBound && support.name.includes(':')) {
     const parentPart = support.name.split(':')[0].trim()
     if (parentSkill.name !== parentPart) return false
     const ordinals: [string, number][] = [
@@ -1170,7 +1200,10 @@ export function isSupportCompatible(
   const clauseMatch = firstLine.match(/^Supports\s+(.+?)\./)
   const raw = (clauseMatch ? clauseMatch[1] : firstLine.replace(/^Supports\s+/, '')).trim()
   if (raw.toLowerCase() === 'any skill' || raw.toLowerCase() === 'any skills') return true
-  if (/^skills?\s+that/i.test(raw)) return true
+  // "Supports skills that hit enemies / deal damage / summon …" all require an active damage/summon skill —
+  // a pure Aura/buff/Focus passive matches none of them, so gate on the skill actually dealing damage. (This
+  // is what stops Passivation, Added X Damage, Blind, etc. from showing for an Aura like Electric Conversion.)
+  if (/^skills?\s+that/i.test(raw)) return skillDealsDamage(parentSkill)
 
   const alternatives = raw.split(/\s+or\s+/i)
   return alternatives.some(alt => {
