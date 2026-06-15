@@ -74,13 +74,16 @@ type MothDirection = 'above' | 'below' | 'left' | 'right'
 const LEGEND_GOLD = '#c8881a'
 const PRAIRIE_PINK = '#c050a0'
 
-// ── Base shapes (4 shapes × 4 rotations) ─────────────────────────────────────
+// ── Base shapes (6 game forms × 4 rotations) ─────────────────────────────────
+// The six baseline tetromino forms (O, L, Z, T + the mirrors J=L2, S=Z2). Each form's rotation 0 matches its
+// art's natural orientation, and rotations advance 90° CW (so the overlay art rotates with orientationIndex).
+// BASE_FORMS (below) carries the matching art form/flip/sizing — kept index-aligned with BASE_SHAPES.
 
 interface BaseShape { label: string; rotations: [number, number][][] }
 
 const BASE_SHAPES: BaseShape[] = [
   {
-    label: 'Square',
+    label: 'O',   // O1
     rotations: [
       [[0,0],[0,1],[1,0],[1,1]],
       [[0,0],[0,1],[1,0],[1,1]],
@@ -89,32 +92,70 @@ const BASE_SHAPES: BaseShape[] = [
     ],
   },
   {
-    label: 'L',
+    label: 'L',        // L1
     rotations: [
-      [[0,0],[1,0],[2,0],[2,1]],   // upright
-      [[0,0],[0,1],[0,2],[1,0]],   // 90° CW
-      [[0,0],[0,1],[1,1],[2,1]],   // 180°
-      [[0,2],[1,0],[1,1],[1,2]],   // 270°
+      [[0,0],[1,0],[1,1],[1,2]],
+      [[0,0],[0,1],[1,0],[2,0]],
+      [[0,0],[0,1],[0,2],[1,2]],
+      [[0,1],[1,1],[2,0],[2,1]],
     ],
   },
   {
-    label: 'Z',
+    label: 'Z',        // Z1 (vertical S)
     rotations: [
-      [[0,0],[0,1],[1,1],[1,2]],
+      [[0,0],[1,0],[1,1],[2,1]],
+      [[0,1],[0,2],[1,0],[1,1]],
+      [[0,0],[1,0],[1,1],[2,1]],
+      [[0,1],[0,2],[1,0],[1,1]],
+    ],
+  },
+  {
+    label: 'T',        // T1
+    rotations: [
+      [[0,0],[0,1],[0,2],[1,1]],
+      [[0,1],[1,0],[1,1],[2,1]],
+      [[0,1],[1,0],[1,1],[1,2]],
+      [[0,0],[1,0],[1,1],[2,0]],
+    ],
+  },
+  {
+    label: 'J',        // L2 (mirror of L1)
+    rotations: [
+      [[0,2],[1,0],[1,1],[1,2]],
+      [[0,0],[1,0],[2,0],[2,1]],
+      [[0,0],[0,1],[0,2],[1,0]],
+      [[0,0],[0,1],[1,1],[2,1]],
+    ],
+  },
+  {
+    label: 'S',        // Z2 (mirror of Z1)
+    rotations: [
       [[0,1],[1,0],[1,1],[2,0]],
       [[0,0],[0,1],[1,1],[1,2]],
       [[0,1],[1,0],[1,1],[2,0]],
+      [[0,0],[0,1],[1,1],[1,2]],
     ],
   },
-  {
-    label: 'T',
-    rotations: [
-      [[0,1],[1,0],[1,1],[1,2]],   // up
-      [[0,0],[1,0],[1,1],[2,0]],   // right
-      [[0,0],[0,1],[0,2],[1,1]],   // down
-      [[0,1],[1,0],[1,1],[2,1]],   // left
-    ],
-  },
+]
+
+// Per-base-form art config, index-aligned with BASE_SHAPES. Mirror forms reuse their partner's art with a
+// horizontal flip. `natural` is the art's footprint [cols, rows]; scale/offset/stretch are tuned per form.
+interface BaseForm {
+  artForm: 'O1' | 'L1' | 'Z1' | 'T1'
+  flip: boolean
+  natural: [number, number]
+  scale: number
+  offset: [number, number]
+  stretchX?: number
+  stretchY?: number
+}
+const BASE_FORMS: BaseForm[] = [
+  { artForm: 'O1', flip: false, natural: [2, 2], scale: 1.35, offset: [7, 12] },  // Square
+  { artForm: 'L1', flip: false, natural: [3, 2], scale: 1.35, offset: [13, 20] },  // L
+  { artForm: 'Z1', flip: false, natural: [2, 3], scale: 1.35, offset: [22, 17] },  // Z
+  { artForm: 'T1', flip: false, natural: [3, 2], scale: 1.35, offset: [10, 18] },  // T
+  { artForm: 'L1', flip: true,  natural: [3, 2], scale: 1.35, offset: [-13, 20] }, // J (mirror of L — x negated)
+  { artForm: 'Z1', flip: true,  natural: [2, 3], scale: 1.35, offset: [-22, 17] }, // S (mirror of Z — x negated)
 ]
 
 const ROTATION_LABELS = ['↑ 0°', '→ 90°', '↓ 180°', '← 270°']
@@ -174,7 +215,7 @@ function anchorCells(kind: SlateKind, shapeIndex: number, orientationIndex: numb
 // grid gaps so the slate reads as a single piece — and the art rotates with the slate's orientation. Gaps
 // remain BETWEEN slates because each slate's overlay only covers its own footprint. Other kinds still slice
 // the art per-cell. (Rolling out one kind at a time: corner first.)
-const ART_OVERLAY_KINDS = new Set<SlateKind>(['corner_of_divinity', 'fallen_starlight', 'pedigree', 'residence_of_stars', 'space_rift', 'spark_of_moth_fire', 'when_sparks_set_prairie_ablaze'])
+const ART_OVERLAY_KINDS = new Set<SlateKind>(['base', 'corner_of_divinity', 'fallen_starlight', 'pedigree', 'residence_of_stars', 'space_rift', 'spark_of_moth_fire', 'when_sparks_set_prairie_ablaze'])
 // Kinds whose orientations are MIRROR states (a horizontal flip) rather than 90° rotations.
 const ART_FLIP_KINDS = new Set<SlateKind>(['pedigree'])
 // The art's NATURAL footprint in cells [cols, rows] — the orientation the raw image is drawn in. Used to size
@@ -302,13 +343,19 @@ const LEGENDARY_META: Record<LegendaryKind, { label: string; color: string }> = 
 }
 
 // Bundled slate icons (served from data/images/icons/divinity_slate/, paired by basename via iconUrl).
-const TREE_ICON: Record<PrimaryTree, string> = {
-  'God of War':           'UI_TalantNG_Z1_0_Icon_SA_128.webp',
-  'Goddess of Hunting':   'UI_TalantNG_Z1_0_Icon_Agi_128.webp',
-  'Goddess of Deception': 'UI_TalantNG_Z1_0_Icon_AI_128.webp',
-  'Goddess of Knowledge': 'UI_TalantNG_Z1_0_Icon_Int_128.webp',
-  'God of Might':         'UI_TalantNG_Z1_0_Icon_Str_128.webp',
-  'God of Machines':      'UI_TalantNG_Z1_0_Icon_SI_128.webp',
+// Base art filename = UI_TalantNG_<form>_0_Icon_<treeAbbr>_128.webp; mirror forms reuse the partner art flipped.
+const TREE_ABBR: Record<PrimaryTree, string> = {
+  'God of War':           'SA',
+  'Goddess of Hunting':   'Agi',
+  'Goddess of Deception': 'AI',
+  'Goddess of Knowledge': 'Int',
+  'God of Might':         'Str',
+  'God of Machines':      'SI',
+}
+function baseArtFile(artForm: string, treeType?: string | null): string | null {
+  if (!treeType) return null
+  const abbr = TREE_ABBR[treeType as PrimaryTree]
+  return abbr ? `UI_TalantNG_${artForm}_0_Icon_${abbr}_128.webp` : null
 }
 const LEGENDARY_ICON: Record<LegendaryKind, string> = {
   pedigree:                       'UI_MI_TalantNG_Gold_ZZ1_0_Icon_128.webp',
@@ -319,20 +366,21 @@ const LEGENDARY_ICON: Record<LegendaryKind, string> = {
   space_rift:                     'UI_MI_TalantNG_Gold_II1_0_Icon_128.webp',
   residence_of_stars:             'UI_MI_TalantNG_Gold_LL1_0_Icon_128.webp',
 }
-function slateIconFile(kind: SlateKind, treeType?: string | null): string | null {
-  if (kind === 'base') return treeType ? (TREE_ICON[treeType as PrimaryTree] ?? null) : null
+function slateIconFile(kind: SlateKind, treeType?: string | null, shapeIndex = 0): string | null {
+  if (kind === 'base') return baseArtFile(BASE_FORMS[shapeIndex]?.artForm ?? 'O1', treeType)
   return LEGENDARY_ICON[kind as LegendaryKind] ?? null
 }
 // Versioned URL — bump SLATE_ICON_V when the bundled webp are re-trimmed so the renderer cache reloads them.
-const SLATE_ICON_V = '2'
-function slateIconUrl(kind: SlateKind, treeType?: string | null): string | null {
-  const u = iconUrl('divinity_slate', slateIconFile(kind, treeType))
+const SLATE_ICON_V = '3'
+function slateIconUrl(kind: SlateKind, treeType?: string | null, shapeIndex = 0): string | null {
+  const u = iconUrl('divinity_slate', slateIconFile(kind, treeType, shapeIndex))
   return u ? `${u}?v=${SLATE_ICON_V}` : null
 }
-function SlateIcon({ kind, treeType, size = 26 }: { kind: SlateKind; treeType?: string | null; size?: number }) {
-  const src = slateIconUrl(kind, treeType)
+function SlateIcon({ kind, treeType, shapeIndex = 0, size = 26 }: { kind: SlateKind; treeType?: string | null; shapeIndex?: number; size?: number }) {
+  const src = slateIconUrl(kind, treeType, shapeIndex)
   if (!src) return null
-  return <img src={src} alt="" style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0 }} />
+  const flip = kind === 'base' && !!BASE_FORMS[shapeIndex]?.flip
+  return <img src={src} alt="" style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0, transform: flip ? 'scaleX(-1)' : undefined }} />
 }
 
 const PREVIEW_CELLS: Record<SlateKind, [number, number][]> = {
@@ -847,7 +895,7 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
       padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 10,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <SlateIcon kind={slate.kind} treeType={slate.treeType} size={30} />
+        <SlateIcon kind={slate.kind} treeType={slate.treeType} shapeIndex={slate.shapeIndex} size={30} />
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color, marginBottom: 2 }}>{label}</div>
           {slate.treeType && <div style={{ fontSize: 11, color: '#666' }}>{slate.treeType}</div>}
@@ -1547,8 +1595,8 @@ export default function SlateScreen({ treeColors }: Props) {
                   display: 'flex', alignItems: 'center', gap: 7, padding: '6px 10px', marginBottom: 4,
                   background: '#16162a', border: `1px solid ${color}33`, borderRadius: 5, cursor: 'pointer',
                 }} onClick={() => placeFromTemplate(t)} title="Click to place this saved slate on the board">
-                  {slateIconFile(t.kind as SlateKind, t.treeType)
-                    ? <SlateIcon kind={t.kind as SlateKind} treeType={t.treeType} size={22} />
+                  {slateIconFile(t.kind as SlateKind, t.treeType, t.shapeIndex)
+                    ? <SlateIcon kind={t.kind as SlateKind} treeType={t.treeType} shapeIndex={t.shapeIndex} size={22} />
                     : <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }} />}
                   <span style={{ flex: 1, fontSize: 13, color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
                   {t.slots.length > 0 && <span style={{ fontSize: 12, color: '#555' }}>{filled}/{t.slots.length}</span>}
@@ -1701,19 +1749,33 @@ export default function SlateScreen({ treeColors }: Props) {
             {placed.map(s => {
               if (!ART_OVERLAY_KINDS.has(s.kind)) return null
               if (dragSlate && dragSlate.slate.id === s.id) return null
-              const src = slateIconUrl(s.kind, s.treeType)
-              if (!src) return null
-              const box = slateBBoxPx(s.cells)
-              const scale = ART_OVERLAY_SCALE[s.kind] ?? 1
-              const sx = scale * (ART_OVERLAY_STRETCH_X[s.kind] ?? 1)   // horizontal stretch (x-scale only)
-              const sy = scale * (ART_OVERLAY_STRETCH_Y[s.kind] ?? 1)   // vertical stretch (y-scale only)
-              const [ox, oy] = ART_OVERLAY_OFFSET[s.kind] ?? [0, 0]
-              // The image is sized to the art's NATURAL footprint (cells), centred in the wrapper, then rotated —
-              // so a non-square shape isn't distorted by objectFit before the rotation. Defaults to the placed bbox.
               const cs = s.cells.map(c => c[1]), rs = s.cells.map(c => c[0])
               const placedCR: [number, number] = [Math.max(...cs) - Math.min(...cs) + 1, Math.max(...rs) - Math.min(...rs) + 1]
-              const [nc, nr] = ART_NATURAL_CELLS[s.kind] ?? placedCR
-              const imgW = nc * PITCH, imgH = nr * PITCH
+
+              // Resolve art + transform params. Base slates are per-FORM (art swapped by tree, mirror forms
+              // flipped, rotation per orientation); legendaries are per-KIND via the const maps above.
+              let src: string | null, ox: number, oy: number, sx: number, sy: number
+              let natural: [number, number], angle: number, flipX: boolean
+              if (s.kind === 'base') {
+                const form = BASE_FORMS[s.shapeIndex] ?? BASE_FORMS[0]
+                src = slateIconUrl('base', s.treeType, s.shapeIndex)
+                ;[ox, oy] = form.offset; natural = form.natural
+                angle = s.orientationIndex * 90; flipX = form.flip
+                sx = form.scale * (form.stretchX ?? 1); sy = form.scale * (form.stretchY ?? 1)
+              } else {
+                src = slateIconUrl(s.kind, s.treeType)
+                const scale = ART_OVERLAY_SCALE[s.kind] ?? 1
+                ;[ox, oy] = ART_OVERLAY_OFFSET[s.kind] ?? [0, 0]
+                natural = ART_NATURAL_CELLS[s.kind] ?? placedCR
+                angle = artOverlayAngle(s.kind, s.orientationIndex); flipX = artOverlayFlipX(s.kind, s.orientationIndex)
+                sx = scale * (ART_OVERLAY_STRETCH_X[s.kind] ?? 1); sy = scale * (ART_OVERLAY_STRETCH_Y[s.kind] ?? 1)
+              }
+              if (!src) return null
+              const box = slateBBoxPx(s.cells)
+              // Image is sized to the art's NATURAL footprint, centred in the wrapper, then rotated/flipped so a
+              // non-square shape isn't distorted by objectFit before the transform.
+              const imgW = natural[0] * PITCH, imgH = natural[1] * PITCH
+              const flipScaleX = (flipX ? -1 : 1) * sx
               // Wrapper clips to the WHOLE footprint shape (one cohesive unit, gaps covered); the art rotates and
               // scales up INSIDE the clip so it fills to the outline without bleeding or splitting per cell.
               return (
@@ -1726,12 +1788,12 @@ export default function SlateScreen({ treeColors }: Props) {
                     style={{
                       position: 'absolute', left: (box.width - imgW) / 2, top: (box.height - imgH) / 2, width: imgW, height: imgH,
                       objectFit: 'fill', display: 'block', transformOrigin: 'center',
-                      // Flip kinds: offset BEFORE scale so it lives in the art's natural frame and mirrors with the
-                      // flip (a screen-space offset would shift the wrong way on the mirrored state). Others:
-                      // offset after scale, before rotate (so the tuned value follows the rotation).
+                      // Flip-only kinds (pedigree): offset BEFORE scale so it lives in the art's natural frame and
+                      // mirrors with the flip. Rotating kinds (incl. base): offset after scale, before rotate, so
+                      // the tuned value follows the rotation.
                       transform: ART_FLIP_KINDS.has(s.kind)
-                        ? `scale(${(artOverlayFlipX(s.kind, s.orientationIndex) ? -1 : 1) * sx}, ${sy}) translate(${ox}px, ${oy}px)`
-                        : `rotate(${artOverlayAngle(s.kind, s.orientationIndex)}deg) translate(${ox}px, ${oy}px) scale(${sx}, ${sy})`,
+                        ? `scale(${flipScaleX}, ${sy}) translate(${ox}px, ${oy}px)`
+                        : `rotate(${angle}deg) translate(${ox}px, ${oy}px) scale(${flipScaleX}, ${sy})`,
                     }} />
                 </div>
               )
