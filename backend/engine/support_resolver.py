@@ -247,15 +247,17 @@ def _willpower_per_stack(data: dict, level: int) -> float | None:
     return float(m.group(1)) / 100.0 if m else None
 
 
-def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds):
+def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds, slot_cats=None):
     """Resolve standard supports via the parser + mapper (engine.support_lines / support_mapper).
     Returns (stat_contributions, condition_effects). Run INSIDE the fixed-point loop so conditional
     lines see converging conditions and auto-derived conditions feed back. Noble/Magnificent stay in
     resolve_support_contributions.
 
-      main_cat    'spell' | 'attack' | None — the supported skill's category (tag-gate + added-flat)
+      main_cat    'spell' | 'attack' | None — fallback category when a support's slot isn't in slot_cats
       main_dtypes the supported skill's damage types (for 'inflicts X when deals Y' gates)
       conds       the current condition_state ({key: value|bool})
+      slot_cats   {slot: 'spell'|'attack'|None} — each support resolves against ITS host skill's category
+                  (tag-gate + added-flat), so a non-main-slot skill's supports route to the right pool
     """
     from engine.support_lines import parse_support
     from engine.support_mapper import map_line, map_autoderive_line
@@ -273,14 +275,16 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
         stype = sup.get("skill_type") or data.get("skill_type") or ""
         if stype not in _STANDARD_TYPES:
             continue  # Noble/Magnificent handled elsewhere
+        # Gate + categorize against THIS support's host skill (its slot), not the main skill.
+        cat = (slot_cats or {}).get(sup.get("slot", 1), main_cat)
         parsed = parse_support(data)
-        if (parsed.gate == "spell-only" and main_cat != "spell") or \
-           (parsed.gate == "attack-only" and main_cat != "attack"):
+        if (parsed.gate == "spell-only" and cat != "spell") or \
+           (parsed.gate == "attack-only" and cat != "attack"):
             continue  # Attack/Spell tag-gate
         level = _tier_value(sup.get("level"))
         name = data.get("name") or item_id
         for line in parsed.lines:
-            for c in map_line(line, level, main_cat, conds):
+            for c in map_line(line, level, cat, conds):
                 contribs.append({
                     "stat_key": c.stat_key,
                     "amount": c.amount,

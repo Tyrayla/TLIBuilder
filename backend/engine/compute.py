@@ -198,6 +198,22 @@ def compute(
             main_cat = "spell" if _rm.is_spell else ("attack" if "attack" in _tags else None)
             main_dtypes = [d.lower() for d in _rm.damage_types]
 
+    # Per-slot category map so a support is gated/categorized by ITS host skill, not the main skill — a
+    # support on a non-main slot (e.g. an attack skill in slot 2) must resolve as that skill's category,
+    # else its added-flat lands in the wrong pool / is gated out and contributes nothing.
+    slot_cats: dict[int, str | None] = {}
+    if build_input.attached_supports and skills_input and skills_by_id is not None:
+        from engine.skill_resolver import resolve_skill as _resolve_skill
+        for _sk in skills_input:
+            _sd = skills_by_id.get(_sk["skill_id"])
+            if not _sd:
+                continue
+            _rs = _resolve_skill(_sd)
+            if not _rs.supported:
+                continue
+            _t = {t.lower() for t in _rs.tags}
+            slot_cats[_sk["slot"]] = "spell" if _rs.is_spell else ("attack" if "attack" in _t else None)
+
     # The main skill's slot (folds its slot-local supports/self-buffs + drives skill-effect dispatch).
     # main_enabled: a disabled main skill produces NO offense (DPS 0), not just its supports dropped.
     from engine import skill_effects
@@ -230,7 +246,7 @@ def compute(
         # Standard support_skill / activation_medium contributions, resolved against the CURRENT
         # condition_state so conditional lines see converged values and inflicted debuffs feed back.
         std_contribs, cond_effects = resolve_standard_supports(
-            build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state)
+            build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state, slot_cats)
         for c in std_contribs:
             _se = SourceEntry(
                 stat=c["stat_key"], amount=c["amount"], source_type="support",

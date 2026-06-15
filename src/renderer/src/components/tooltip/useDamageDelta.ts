@@ -69,15 +69,15 @@ export function withNodePoints(s: BuildState, slotIdx: number, nodeId: string, p
   return { ...s, slots }
 }
 
-// Set/replace (or remove, when `support` is null) a support at `supportIndex` on the main skill
-// (slot 1). Exported so the skills screen can build support `step`/`base` transforms:
-//   pick  → step = withSupport(idx, hypothetical), base = current  → swap-in result
-//   tune  → step = current, base = withSupport(idx, null)          → +contribution
-export function withSupport(s: BuildState, supportIndex: number, support: EquippedSupportSkill | null): BuildState {
+// Set/replace (or remove, when `support` is null) a support at `supportIndex` on the skill in `slot`.
+// Exported so the skills screen can build support `step`/`base` transforms for ANY focused slot:
+//   pick  → step = withSupport(slot, idx, hypothetical), base = current  → swap-in result
+//   tune  → step = current, base = withSupport(slot, idx, null)          → +contribution
+export function withSupport(s: BuildState, slot: number, supportIndex: number, support: EquippedSupportSkill | null): BuildState {
   return {
     ...s,
     skills: s.skills.map(sk => {
-      if (sk.slot !== 1) return sk
+      if (sk.slot !== slot) return sk
       const supports = (sk.supports ?? []).filter(x => x.support_index !== supportIndex)
       if (support) supports.push({ ...support, support_index: supportIndex })
       return { ...sk, supports }

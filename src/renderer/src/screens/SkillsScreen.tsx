@@ -229,15 +229,15 @@ export default function SkillsScreen(_props: Props) {
 
   const focusedEquipped = focusedSlot !== null ? getEquipped(focusedSlot) : null
 
-  // What you'd LOSE by unequipping the focused support (slot-1 only). step = slot emptied, base = current,
+  // What you'd LOSE by unequipping the focused support (any slot). step = slot emptied, base = current,
   // so the delta is the negative drop and the % is relative to current DPS (how much of your damage this
   // support accounts for). Recomputes live as its rank/tier/roll change.
-  const focusedEquippedSupport = (focusedSlot === 1 && focusedSupportIdx !== null && focusedEquipped)
+  const focusedEquippedSupport = (focusedSlot !== null && focusedSupportIdx !== null && focusedEquipped)
     ? getSupport(focusedEquipped, focusedSupportIdx) : null
   const equippedSupportDelta = useDamageDelta(
-    focusedEquippedSupport && focusedSupportIdx !== null
-      ? { key: `support-lose:${focusedSupportIdx}:${focusedEquippedSupport.item_id}`,
-          step: s => withSupport(s, focusedSupportIdx, null) }
+    focusedEquippedSupport && focusedSupportIdx !== null && focusedSlot !== null
+      ? { key: `support-lose:${focusedSlot}:${focusedSupportIdx}:${focusedEquippedSupport.item_id}`,
+          step: s => withSupport(s, focusedSlot, focusedSupportIdx, null) }
       : null,
     !!focusedEquippedSupport,
   )
@@ -278,18 +278,18 @@ export default function SkillsScreen(_props: Props) {
   // each pick-delta is the swap result vs the CURRENT support, computed once on open and cached — tweaking
   // the equipped support's roll/rank/tier afterward doesn't change or recompute the catalog numbers.
   const pickBaseSig = useMemo(() => {
-    if (focusedSlot !== 1 || focusedSupportIdx === null) return ''
+    if (focusedSlot === null || focusedSupportIdx === null) return ''
     return hashStr(JSON.stringify(buildEngineStatsPayload(useBuildStore.getState() as unknown as BuildState)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedSlot, focusedSupportIdx])
 
-  // Per-catalog-support DPS swap-delta (slot-1 only) vs the current support, used to label + sort the
-  // list. base omitted → current build (only the focused support index is swapped, other slots untouched).
+  // Per-catalog-support DPS swap-delta (for the focused slot) vs the current support, used to label + sort
+  // the list. base omitted → current build (only the focused slot's support index is swapped, others untouched).
   const supportPickReqs = useMemo<DeltaRequest[]>(() =>
-    (focusedSlot === 1 && focusedSupportIdx !== null)
+    (focusedSlot !== null && focusedSupportIdx !== null)
       ? supportCatalogItems.map(item => ({
-          key: `support-pick:${item.item_id}:${focusedSupportIdx}:${pickBaseSig}`,
-          step: (s) => withSupport(s, focusedSupportIdx, makeSupport(item, focusedSupportIdx)),
+          key: `support-pick:${focusedSlot}:${item.item_id}:${focusedSupportIdx}:${pickBaseSig}`,
+          step: (s) => withSupport(s, focusedSlot, focusedSupportIdx, makeSupport(item, focusedSupportIdx)),
           stable: true,
         }))
       : [],
@@ -795,8 +795,8 @@ export default function SkillsScreen(_props: Props) {
               Skill Lv {focusedEquipped.level}
             </div>
           )}
-          {/* DPS you'd lose by unequipping this support (slot-1 main skill only). */}
-          {existingSupport && focusedSlot === 1 && (
+          {/* DPS you'd lose by unequipping this support (the focused skill's own offense). */}
+          {existingSupport && (
             <div style={{ marginTop: 6 }}>
               <DamageDeltaBand delta={equippedSupportDelta} label="If unequipped" />
             </div>

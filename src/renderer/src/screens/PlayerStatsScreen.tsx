@@ -32,6 +32,9 @@ interface BreakdownCtxValue {
   // contribution hover; and support name → its equipped level/rolls so the spec resolves at the right tier.
   skillsByName: Record<string, SkillItem> | null
   supportInstances: Record<string, { level: number; specific_rolls?: Record<string, number> }>
+  // The skill slot currently being viewed — slot-local contributions are filtered to this so a stat's
+  // breakdown shows only the selected skill's supports (plus global sources), never another slot's.
+  selectedSlot: number
 }
 
 const MEMORY_NAMES: Record<string, string> = {
@@ -238,6 +241,7 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
   const slotGroups = new Map<number, GroupedCollected[]>()
   for (const g of groupCollected(slot)) {
     const k = g.slot ?? 0
+    if (k !== ctx.selectedSlot) continue   // show only the slot being viewed — no cross-slot leak
     if (!slotGroups.has(k)) slotGroups.set(k, [])
     slotGroups.get(k)!.push(g)
   }
@@ -404,7 +408,8 @@ function StatPanel({
 
 // ── Skill selector ────────────────────────────────────────────────────────────
 
-const SLOT_LABELS = ['Main', 'Act 2', 'Act 3', 'Act 4', 'Pas 1', 'Pas 2', 'Pas 3', 'Pas 4']
+// Slots 1-5 are active, 6-9 passive (slot = index + 1).
+const SLOT_LABELS = ['Main', 'Act 2', 'Act 3', 'Act 4', 'Act 5', 'Pas 1', 'Pas 2', 'Pas 3', 'Pas 4']
 
 function SkillSelector({
   skills,
@@ -696,22 +701,45 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
 
 const AMBER = '#c87820'
 
-function OffensePanels({ offense }: { offense: OffenseResult | null }) {
+// Non-hit skills (passives / empower-style buffs) have no hit-DPS offense yet. Surface a Skill-Viewer
+// foundation with the mechanics we intend to model, marked NYI so nothing reads as silently missing.
+// Tailored by slot kind: passives (6-9) → reservation/aura/AoE; active buffs → empower effect/duration/cooldown.
+function SkillFoundationPanel({ skill }: { skill: EquippedSkill }) {
+  const isPassive = skill.slot >= 6
+  const rows = isPassive
+    ? ['Reservation (Sealing)', 'Aura / Magus / Focus Effect', 'Area of Effect']
+    : ['Empower Effect', 'Skill Duration', 'Cooldown', 'Area of Effect']
+  return (
+    <StatPanel title={`Skill — ${skill.name}`} accent={AMBER}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+        {skill.skill_tags?.map(t => <span key={t} style={{ fontSize: 9, color: '#888', background: '#1a1a2e', borderRadius: 3, padding: '1px 5px' }}>{t}</span>)}
+      </div>
+      <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
+        {isPassive ? 'This skill contributes build-wide (no hit DPS of its own).' : 'Buff / utility skill (no hit DPS of its own).'}
+      </div>
+      {rows.map(label => <Row key={label} label={label} labelColor="#555">— NYI</Row>)}
+    </StatPanel>
+  )
+}
+
+function OffensePanels({ offense, skill }: { offense: OffenseResult | null; skill?: EquippedSkill }) {
 
   if (!offense) {
-    return (
-      <StatPanel title="Offense" accent={AMBER}>
-        <div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div>
-      </StatPanel>
-    )
+    // No computed offense for this slot. If a skill IS equipped here (passive/buff), show its foundation
+    // panel; otherwise the slot is empty.
+    return skill
+      ? <SkillFoundationPanel skill={skill} />
+      : <StatPanel title="Skill" accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
   if (!offense.supported) {
-    return (
-      <StatPanel title={`Offense — ${offense.skill_name}`} accent={AMBER}>
-        <div style={{ fontSize: 12, color: '#ff6b6b' }}>Skill calculation not yet supported.</div>
-      </StatPanel>
-    )
+    return skill
+      ? <SkillFoundationPanel skill={skill} />
+      : (
+        <StatPanel title={`Skill — ${offense.skill_name}`} accent={AMBER}>
+          <div style={{ fontSize: 12, color: '#ff6b6b' }}>Skill calculation not yet supported.</div>
+        </StatPanel>
+      )
   }
 
   const isSpell = hasTag(offense,'spell')
@@ -722,7 +750,7 @@ function OffensePanels({ offense }: { offense: OffenseResult | null }) {
 
   return (
     <>
-      <StatPanel title={`Offense — ${offense.skill_name} (Level ${offense.effective_level})`} accent={AMBER}>
+      <StatPanel title={`Skill — ${offense.skill_name} (Level ${offense.effective_level})`} accent={AMBER}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 6px' }}>
           <span style={{ fontSize: 12, color: '#999' }}>DPS</span>
           <span style={{ fontSize: 17, fontWeight: 700, color: '#f0c070', fontVariantNumeric: 'tabular-nums' }}>
@@ -1034,6 +1062,14 @@ export default function PlayerStatsScreen() {
   const heroMemories = useBuildStore(s => s.heroMemories)
   const [selectedSlot, setSelectedSlot] = useState(1)
 
+  // If the selected slot has no skill (e.g. the main damage skill is parked in slot 2 and slot 1 is
+  // empty), jump to the first populated slot so the viewer opens on a real skill instead of "Main · empty".
+  useEffect(() => {
+    if (skills.some(sk => sk.slot === selectedSlot)) return
+    const first = [...skills].sort((a, b) => a.slot - b.slot)[0]
+    if (first) setSelectedSlot(first.slot)
+  }, [skills, selectedSlot])
+
   // Tree name → branch color, fetched once (static; used to color talent sources in breakdowns).
   const [treeColors, setTreeColors] = useState<Record<string, string>>({})
   useEffect(() => {
@@ -1083,22 +1119,21 @@ export default function PlayerStatsScreen() {
   const statMap = (computedStats.stats ?? {}) as Record<string, StatEntry>
   const slotOffense = ((computedStats as { slot_offense?: Record<string, OffenseResult> | null }).slot_offense) ?? null
 
-  // Main slot uses the headline offense; other active slots use their per-slot offense (slot_offense).
-  const shownOffense = selectedSlot === 1 ? offense : (slotOffense?.[String(selectedSlot)] ?? null)
+  // slot_offense holds EVERY active slot's offense (incl. the main slot), so index it by the selected
+  // slot directly — don't assume the main skill is slot 1. Fall back to the headline offense only if the
+  // per-slot map is absent (legacy response).
+  const shownOffense = slotOffense
+    ? (slotOffense[String(selectedSlot)] ?? null)
+    : (selectedSlot === 1 ? offense : null)
   const blessings = ((computedStats as { blessings?: BlessingSummary[] | null }).blessings) ?? null
 
   return (
-    <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances }}>
+    <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, selectedSlot }}>
       <div className="dark-scroll" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, height: '100%', overflowY: 'auto', padding: '16px 20px', boxSizing: 'border-box' }}>
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
         <div style={{ flex: '40', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
           <SkillSelector skills={skills} selected={selectedSlot} onSelect={setSelectedSlot} />
-          {selectedSlot !== 1 && !shownOffense && (
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 8 }}>
-              No offense calculation for this slot yet.
-            </div>
-          )}
-          <OffensePanels offense={shownOffense} />
+          <OffensePanels offense={shownOffense} skill={skills.find(sk => sk.slot === selectedSlot)} />
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility */}

@@ -142,8 +142,14 @@ const DEFAULT_BUILD: LoadedBuild = {
 }
 
 function deriveMainSkill(skills: EquippedSkill[]): SkillEngineInput | null {
-  const slot1 = skills.find(sk => sk.slot === 1)
-  return slot1 ? { skill_id: slot1.item_id, level: slot1.level ?? 1 } : null
+  // The main skill drives the headline "DPS vs Target". Prefer slot 1, but fall back to the first
+  // populated ACTIVE slot (1-5) so a build with its damage skill parked outside slot 1 still has a main
+  // skill instead of a blank DPS. (Disabled skills are skipped.)
+  const actives = skills
+    .filter(sk => sk.slot <= 5 && sk.enabled !== false)
+    .sort((a, b) => a.slot - b.slot)
+  const main = actives.find(sk => sk.slot === 1) ?? actives[0]
+  return main ? { skill_id: main.item_id, level: main.level ?? 1 } : null
 }
 
 export const useBuildStore = create<BuildStore>((set) => ({

@@ -96,18 +96,19 @@ export function buildEngineStatsPayload(s: BuildState) {
     skills: s.skills.map(sk => ({
       slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1, enabled: sk.enabled !== false,
     })),
-    // The main skill (slot 1) carries the supports that scale its damage. The engine resolves their
-    // "additional damage for the supported skill" lines (rank + tier) into stat contributions, gated on
-    // the support (and its host skill) being enabled.
-    attached_supports: (s.skills.find(sk => sk.slot === 1)?.supports ?? []).map(sup => ({
-      item_id: sup.item_id,
-      skill_type: sup.skill_type,
-      rank: sup.rank,
-      level: sup.level,
-      specific_rolls: sup.specific_rolls,
-      slot: 1,
-      enabled: sup.enabled !== false,
-    })),
+    // Every skill slot carries its own supports. Each support is tagged with its host skill's slot so the
+    // engine folds it only into that slot's offense pass (add_slotted) — a non-main-slot skill (e.g. the
+    // main damage skill parked in slot 2) gets its supports computed too, not just slot 1's.
+    attached_supports: s.skills.flatMap(sk =>
+      (sk.supports ?? []).map(sup => ({
+        item_id: sup.item_id,
+        skill_type: sup.skill_type,
+        rank: sup.rank,
+        level: sup.level,
+        specific_rolls: sup.specific_rolls,
+        slot: sk.slot,
+        enabled: sup.enabled !== false,
+      }))),
     custom_mods: s.customMods,
   }
 }
