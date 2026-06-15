@@ -42,6 +42,9 @@ const BOARD_ROWS = 6
 const BOARD_COLS = 6
 const TOTAL_CELLS = 24
 const CELL = 72
+const GAP = 4                 // grid gap between cells (px)
+const PITCH = CELL + GAP      // cell-to-cell stride
+const BOARD_PX = BOARD_COLS * CELL + (BOARD_COLS - 1) * GAP   // full grid extent (for absolute overlays)
 
 function isValidCell(r: number, c: number): boolean {
   return r >= 0 && r < BOARD_ROWS && c >= 0 && c < BOARD_COLS && BOARD_VALID[r][c]
@@ -132,8 +135,8 @@ const LEGENDARY_ORIENTATIONS: Record<LegendaryKind, [number, number][][]> = {
   ],
   spark_of_moth_fire:             [[[0,0]]],
   when_sparks_set_prairie_ablaze: [[[0,0]]],
-  space_rift:                     [[[0,0]]],
-  residence_of_stars:             [[[0,0]]],
+  space_rift:                     [[[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]]],            // 6 tall × 1 wide
+  residence_of_stars:             [[[0,2],[1,0],[1,1],[1,2],[2,1],[2,2],[2,3],[3,1]]], // pinwheel (matches the LL1 art)
 }
 
 function getOrientationCells(kind: SlateKind, shapeIndex: number, orientationIndex: number): [number, number][] {
@@ -164,6 +167,126 @@ function centeredAnchor(kind: SlateKind, shapeIndex: number, orientationIndex: n
 function anchorCells(kind: SlateKind, shapeIndex: number, orientationIndex: number, anchor: [number, number]): [number, number][] {
   const [ar, ac] = anchor
   return getOrientationCells(kind, shapeIndex, orientationIndex).map(([dr, dc]) => [ar + dr, ac + dc] as [number, number])
+}
+
+// ── Unified slate art overlay ──────────────────────────────────────────────────
+// These kinds render their (shaped) art as ONE image spanning the whole footprint — covering the internal
+// grid gaps so the slate reads as a single piece — and the art rotates with the slate's orientation. Gaps
+// remain BETWEEN slates because each slate's overlay only covers its own footprint. Other kinds still slice
+// the art per-cell. (Rolling out one kind at a time: corner first.)
+const ART_OVERLAY_KINDS = new Set<SlateKind>(['corner_of_divinity', 'fallen_starlight', 'pedigree', 'residence_of_stars', 'space_rift', 'spark_of_moth_fire', 'when_sparks_set_prairie_ablaze'])
+// Kinds whose orientations are MIRROR states (a horizontal flip) rather than 90° rotations.
+const ART_FLIP_KINDS = new Set<SlateKind>(['pedigree'])
+// The art's NATURAL footprint in cells [cols, rows] — the orientation the raw image is drawn in. Used to size
+// the image before rotating so non-square shapes aren't distorted. Omit → uses the placed bbox (square shapes).
+const ART_NATURAL_CELLS: Partial<Record<SlateKind, [number, number]>> = {
+  corner_of_divinity: [2, 2],
+  fallen_starlight: [1, 2],   // art is a tall vertical domino
+}
+// Base angle to align each kind's art with its orientation-0 footprint (tune per kind), plus the per-step turn.
+// corner_of_divinity art (V1) is opaque at TL/BL/BR with a transparent TOP-RIGHT corner; orientation 0's empty
+// cell is BOTTOM-RIGHT, so a +90° base turn moves the art's hole TR→BR to match (then +90°/step from there).
+// fallen_starlight art is vertical; orientation 0 is the horizontal domino, so +90° turns it to match.
+const ART_BASE_ANGLE: Partial<Record<SlateKind, number>> = { corner_of_divinity: 90, fallen_starlight: 90, pedigree: 0, residence_of_stars: 0, space_rift: 0, spark_of_moth_fire: 0, when_sparks_set_prairie_ablaze: 0 }
+function artOverlayAngle(kind: SlateKind, orientationIndex: number): number {
+  if (ART_FLIP_KINDS.has(kind)) return ART_BASE_ANGLE[kind] ?? 0   // flip kinds don't rotate per step
+  return (ART_BASE_ANGLE[kind] ?? 0) + orientationIndex * 90       // others advance 90° clockwise per index
+}
+// pedigree art's natural shape = orientation 1; orientation 0 is its horizontal mirror.
+function artOverlayFlipX(kind: SlateKind, orientationIndex: number): boolean {
+  return kind === 'pedigree' && orientationIndex === 0
+}
+// Per-kind zoom for the unified art overlay — scales the shaped art up so its soft/feathered edges push past
+// the cell edges and the solid core fills each occupied cell (the art's own transparency keeps the hole).
+const ART_OVERLAY_SCALE: Partial<Record<SlateKind, number>> = { corner_of_divinity: 1.3, fallen_starlight: 1.6, pedigree: 1.3, residence_of_stars: 1.35, space_rift: 1.4, spark_of_moth_fire: 1.5, when_sparks_set_prairie_ablaze: 1.5 }
+// Per-kind fine offset in the art's UNROTATED frame (px) to centre off-centre source art. It rotates with the
+// overlay, so one value stays correct across all orientations. For corner (orientation 0 shown rotated 90° CW)
+// local +x,+y reads as screen left+down.
+const ART_OVERLAY_OFFSET: Partial<Record<SlateKind, [number, number]>> = { corner_of_divinity: [9, 16], fallen_starlight: [10, 10], pedigree: [8, 14], residence_of_stars: [20, 38], space_rift: [25, 10], spark_of_moth_fire: [12, 12], when_sparks_set_prairie_ablaze: [10, -20] }
+// Extra stretch (multiplies one axis only) for arts that don't match their footprint's aspect.
+const ART_OVERLAY_STRETCH_X: Partial<Record<SlateKind, number>> = { space_rift: 1.6 }
+const ART_OVERLAY_STRETCH_Y: Partial<Record<SlateKind, number>> = { when_sparks_set_prairie_ablaze: 1.4 }
+// How far the art clip is pulled in from the slate outline (px) — the visible border band between art and bars.
+const ART_INSET = 6
+// Slate outline colours — the app's light-purple slate accent (not the gold legendary colour).
+const OUTLINE_COLOR = '#9d8bc9'        // default bars
+const OUTLINE_COLOR_HOVER = '#bcaae8'  // hovered
+const OUTLINE_COLOR_SELECTED = '#d9ccff' // selected (light purple)
+// Pixel box the unified art fills — extends GAP/2 past the cells on every side so the art meets the slate
+// outline (which sits at the gap mid-line). Each cell contributes a full PITCH incl. its outer half-gaps.
+function slateBBoxPx(cells: [number, number][]): { left: number; top: number; width: number; height: number } {
+  const rs = cells.map(c => c[0]), cs = cells.map(c => c[1])
+  const minR = Math.min(...rs), minC = Math.min(...cs)
+  const cols = Math.max(...cs) - minC + 1, rows = Math.max(...rs) - minR + 1
+  return { left: minC * PITCH - GAP / 2, top: minR * PITCH - GAP / 2, width: cols * PITCH, height: rows * PITCH }
+}
+
+// Outer boundary polygon (board-px points) tracing a footprint's outline — used to draw the whole-slate
+// selection frame. Walks the unit-cell boundary edges and chains them; the outline sits GAP/2 outside the cells
+// so it reads as a frame wrapping the slate (internal gaps covered → one unified shape). Single loop (our slate
+// footprints have no holes).
+function footprintOutline(cells: [number, number][]): [number, number][] {
+  type P = [number, number]
+  const occ = new Set(cells.map(([r, c]) => `${r},${c}`))
+  const has = (r: number, c: number) => occ.has(`${r},${c}`)
+  const edges: [P, P][] = []
+  for (const [r, c] of cells) {
+    if (!has(r - 1, c)) edges.push([[r, c], [r, c + 1]])           // top    (L→R)
+    if (!has(r, c + 1)) edges.push([[r, c + 1], [r + 1, c + 1]])   // right  (T→B)
+    if (!has(r + 1, c)) edges.push([[r + 1, c + 1], [r + 1, c]])   // bottom (R→L)
+    if (!has(r, c - 1)) edges.push([[r + 1, c], [r, c]])           // left   (B→T)
+  }
+  if (!edges.length) return []
+  const k = (p: P) => `${p[0]},${p[1]}`
+  const byStart = new Map<string, [P, P]>()
+  for (const e of edges) byStart.set(k(e[0]), e)
+  const startC = edges[0][0]
+  const corners: P[] = [startC]
+  let cur = edges[0][1]
+  for (let guard = 0; k(cur) !== k(startC) && guard < 1000; guard++) {
+    corners.push(cur)
+    const e = byStart.get(k(cur))
+    if (!e) break
+    cur = e[1]
+  }
+  return corners.map(([cr, cc]) => [cc * PITCH - GAP / 2, cr * PITCH - GAP / 2] as P)
+}
+
+// Drop collinear vertices so edges strictly alternate horizontal/vertical (the per-cell tracer emits one edge
+// per cell side, leaving collinear points along straight runs).
+function simplifyRectilinear(pts: [number, number][]): [number, number][] {
+  const n = pts.length, out: [number, number][] = []
+  for (let i = 0; i < n; i++) {
+    const a = pts[(i - 1 + n) % n], b = pts[i], c = pts[(i + 1) % n]
+    const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    if (cross !== 0) out.push(b)
+  }
+  return out
+}
+// Inset a CW rectilinear polygon inward by `d`. Inward normal for a CW (y-down) edge is (-dy, dx); each vertex
+// moves by the sum of its two adjacent edge normals, which gives clean convex AND concave corners (the latter
+// is what fixes the little square poking into the L's inner corner).
+function insetRectilinear(pts: [number, number][], d: number): [number, number][] {
+  const n = pts.length
+  const norm = pts.map((p, i) => {
+    const q = pts[(i + 1) % n]
+    return [-Math.sign(q[1] - p[1]), Math.sign(q[0] - p[0])] as [number, number]
+  })
+  return pts.map((p, i) => {
+    const a = norm[(i - 1 + n) % n], b = norm[i]
+    return [p[0] + d * (a[0] + b[0]), p[1] + d * (a[1] + b[1])] as [number, number]
+  })
+}
+// clip-path for the WHOLE footprint as one cohesive shape (relative to the art box origin): the outline polygon
+// (which the bars trace) inset inward by `inset`, leaving a border band between the art and the bars. Concave
+// corners stay clean. The art rotates/scales inside this clip.
+function footprintInsetClip(cells: [number, number][], inset: number): string {
+  let pts = footprintOutline(cells)
+  if (!pts.length) return ''
+  pts = insetRectilinear(simplifyRectilinear(pts), inset)
+  const minR = Math.min(...cells.map(c => c[0])), minC = Math.min(...cells.map(c => c[1]))
+  const ox = minC * PITCH - GAP / 2, oy = minR * PITCH - GAP / 2   // = slateBBoxPx left/top
+  return `polygon(${pts.map(([x, y]) => `${x - ox}px ${y - oy}px`).join(', ')})`
 }
 
 // ── Legendary metadata ────────────────────────────────────────────────────────
@@ -200,8 +323,14 @@ function slateIconFile(kind: SlateKind, treeType?: string | null): string | null
   if (kind === 'base') return treeType ? (TREE_ICON[treeType as PrimaryTree] ?? null) : null
   return LEGENDARY_ICON[kind as LegendaryKind] ?? null
 }
+// Versioned URL — bump SLATE_ICON_V when the bundled webp are re-trimmed so the renderer cache reloads them.
+const SLATE_ICON_V = '2'
+function slateIconUrl(kind: SlateKind, treeType?: string | null): string | null {
+  const u = iconUrl('divinity_slate', slateIconFile(kind, treeType))
+  return u ? `${u}?v=${SLATE_ICON_V}` : null
+}
 function SlateIcon({ kind, treeType, size = 26 }: { kind: SlateKind; treeType?: string | null; size?: number }) {
-  const src = iconUrl('divinity_slate', slateIconFile(kind, treeType))
+  const src = slateIconUrl(kind, treeType)
   if (!src) return null
   return <img src={src} alt="" style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0 }} />
 }
@@ -213,8 +342,8 @@ const PREVIEW_CELLS: Record<SlateKind, [number, number][]> = {
   corner_of_divinity:             [[0,0],[0,1],[1,0]],
   spark_of_moth_fire:             [[0,0]],
   when_sparks_set_prairie_ablaze: [[0,0]],
-  space_rift:                     [[0,0]],
-  residence_of_stars:             [[0,0]],
+  space_rift:                     [[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]],
+  residence_of_stars:             [[0,2],[1,0],[1,1],[1,2],[2,1],[2,2],[2,3],[3,1]],
 }
 
 const SLATE_DESCRIPTIONS: Record<SlateKind, string> = {
@@ -404,17 +533,22 @@ function getMothModifier(moth: PlacedSlate, placed: PlacedSlate[]): string | nul
 // Space Rift / Residence of Stars copy a neighbor's MEDIUM-talent slot effects (not Micro). Space Rift =
 // one chosen L/R direction incl. Legendary Medium; Residence = all four, Medium only (excl. Legendary Medium).
 function copyMediumLines(slate: PlacedSlate, placed: PlacedSlate[], dirs: [number, number][], allowLegendaryMedium: boolean): string[] {
-  const [ar, ac] = slate.anchor
-  return dirs.flatMap(([dr, dc]) => {
-    const n = placed.find(s => s.id !== slate.id && s.cells.some(([r, c]) => r === ar + dr && c === ac + dc))
-    if (!n) return []
-    return n.slots.flatMap(sl => {
+  // Footprint-based: look at every cell adjacent to any of this slate's cells; copy each distinct neighbor
+  // slate's Medium talents once.
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const [cr, cc] of slate.cells) for (const [dr, dc] of dirs) {
+    const n = placed.find(s => s.id !== slate.id && s.cells.some(([r, c]) => r === cr + dr && c === cc + dc))
+    if (!n || seen.has(n.id)) continue
+    seen.add(n.id)
+    for (const sl of n.slots) {
       const t = sl.nodeType ?? ''
-      if (!sl.selectedNodeId || !t.includes('Medium Talent')) return []     // skip empty + Micro
-      if (!allowLegendaryMedium && t !== 'Medium Talent') return []          // Residence: skip Legendary Medium
-      return sl.effects
-    })
-  })
+      if (!sl.selectedNodeId || !t.includes('Medium Talent')) continue      // skip empty + Micro
+      if (!allowLegendaryMedium && t !== 'Medium Talent') continue           // Residence: skip Legendary Medium
+      out.push(...sl.effects)
+    }
+  }
+  return out
 }
 
 function slateCopyLines(slate: PlacedSlate, placed: PlacedSlate[]): string[] {
@@ -1474,7 +1608,7 @@ export default function SlateScreen({ treeColors }: Props) {
 
         {/* Board */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BOARD_COLS}, ${CELL}px)`, gridTemplateRows: `repeat(${BOARD_ROWS}, ${CELL}px)`, gap: 4 }}>
+          <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${BOARD_COLS}, ${CELL}px)`, gridTemplateRows: `repeat(${BOARD_ROWS}, ${CELL}px)`, gap: GAP }}>
             {Array.from({ length: BOARD_ROWS }, (_, row) =>
               Array.from({ length: BOARD_COLS }, (_, col) => {
                 const key = `${row},${col}`
@@ -1510,10 +1644,33 @@ export default function SlateScreen({ treeColors }: Props) {
                   : isEditing || isSelected ? (sColor ?? '#888')
                   : sColor ? `${sColor}88` : (valid ? '#1e1e3a' : 'transparent')
 
-                const isPrairie = slate?.kind === 'when_sparks_set_prairie_ablaze'
-                const isMoth = slate?.kind === 'spark_of_moth_fire'
-                const prairieMods = isPrairie ? getPrairieModifiers(slate!, placed) : []
-                const mothMod = isMoth ? getMothModifier(slate!, placed) : null
+                // The slate's icon fills its whole footprint: each occupied cell renders its slice of the
+                // image (sized to the slate's bounding box), so the art reads as one image across the shape.
+                // Art-overlay kinds draw their art via the single overlay layer below — the cell itself stays
+                // bare (transparent fill/border unless highlighted) so the footprint reads as one unified piece.
+                const useArtOverlay = !!slate && ART_OVERLAY_KINDS.has(slate.kind) && !isDragging
+                const slateIconSrc = slate && !isDragging && !useArtOverlay ? slateIconUrl(slate.kind, slate.treeType) : null
+                let iconBg: React.CSSProperties = {}
+                if (slate && slateIconSrc) {
+                  const rs = slate.cells.map(([r]) => r), cs = slate.cells.map(([, c]) => c)
+                  const minR = Math.min(...rs), minC = Math.min(...cs)
+                  const cols = Math.max(...cs) - minC + 1, rows = Math.max(...rs) - minR + 1, step = CELL + 4
+                  iconBg = cols === 1 && rows === 1
+                    ? { backgroundImage: `url(${slateIconSrc})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
+                    : {
+                        // Multi-cell: stretch the (trimmed) art across the slate's bounding box; each cell
+                        // shows its slice (step accounts for the 4px grid gaps).
+                        backgroundImage: `url(${slateIconSrc})`,
+                        backgroundSize: `${cols * CELL + (cols - 1) * 4}px ${rows * CELL + (rows - 1) * 4}px`,
+                        backgroundPosition: `-${(col - minC) * step}px -${(row - minR) * step}px`,
+                        backgroundRepeat: 'no-repeat',
+                      }
+                }
+
+                // Overlay slates stay fully bare — the art + the whole-slate outline do all the drawing, incl.
+                // conflict (red outline) and selection/hover state. No per-cell tint/border.
+                const cellBg = useArtOverlay ? 'transparent' : bg
+                const cellBorder = useArtOverlay ? 'transparent' : borderColor
 
                 return (
                   <div key={key}
@@ -1527,39 +1684,79 @@ export default function SlateScreen({ treeColors }: Props) {
                     onMouseLeave={() => { setHover(null); setHoverSlateId(null) }}
                     style={{
                       width: CELL, height: CELL, boxSizing: 'border-box',
-                      background: bg, border: `2px solid ${borderColor}`, borderRadius: 6,
+                      backgroundColor: cellBg, ...iconBg, border: `2px solid ${cellBorder}`, borderRadius: 6,
                       cursor: (creator && mode.type === 'creating') ? 'crosshair' : dragSlate ? 'grabbing' : slate ? 'grab' : 'default',
-                      transition: 'border-color 60ms, background 60ms',
+                      transition: 'border-color 60ms, background-color 60ms',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end',
                       padding: '3px 2px', position: 'relative', overflow: 'hidden',
-                      boxShadow: (isPlacedHere && !isGhost && !isDragging) ? 'inset 0 0 0 2px rgba(0,0,0,0.88)' : undefined,
+                      boxShadow: (isPlacedHere && !isGhost && !isDragging && !useArtOverlay) ? 'inset 0 0 0 2px rgba(0,0,0,0.88)' : undefined,
                     }}
-                  >
-                    {slate && !isDragging && slate.cells[0]?.[0] === row && slate.cells[0]?.[1] === col && slateIconFile(slate.kind, slate.treeType) && (
-                      <div style={{ position: 'absolute', top: 3, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: 0.92, pointerEvents: 'none' }}>
-                        <SlateIcon kind={slate.kind} treeType={slate.treeType} size={30} />
-                      </div>
-                    )}
-                    {isPrairie && prairieMods.length > 0 && (
-                      <div style={{ fontSize: 8, color: PRAIRIE_PINK, textAlign: 'center' }}>×{prairieMods.length}</div>
-                    )}
-                    {isMoth && (
-                      <div style={{ fontSize: 9, color: LEGEND_GOLD }}>
-                        {slate?.mothDirection ? { above: '↑', below: '↓', left: '←', right: '→' }[slate.mothDirection] : '?'}
-                        {mothMod ? ' ✓' : ''}
-                      </div>
-                    )}
-                    {sColor && slate && !isDragging && slate.cells[0]?.[0] === row && slate.cells[0]?.[1] === col && !isPrairie && !isMoth && (
-                      <span style={{ fontSize: 9, color: `${sColor}bb`, textAlign: 'center', lineHeight: 1.1 }}>
-                        {slate.kind === 'base'
-                          ? slate.treeType?.split(' ').pop()
-                          : LEGENDARY_META[slate.kind as LegendaryKind].label.split(' ')[0]}
-                      </span>
-                    )}
-                  </div>
+                  />
                 )
               })
             ).flat()}
+
+            {/* Unified art overlay: one rotated image per art-overlay slate, spanning its whole footprint
+                (covers the internal grid gaps so the slate reads as a single piece). */}
+            {placed.map(s => {
+              if (!ART_OVERLAY_KINDS.has(s.kind)) return null
+              if (dragSlate && dragSlate.slate.id === s.id) return null
+              const src = slateIconUrl(s.kind, s.treeType)
+              if (!src) return null
+              const box = slateBBoxPx(s.cells)
+              const scale = ART_OVERLAY_SCALE[s.kind] ?? 1
+              const sx = scale * (ART_OVERLAY_STRETCH_X[s.kind] ?? 1)   // horizontal stretch (x-scale only)
+              const sy = scale * (ART_OVERLAY_STRETCH_Y[s.kind] ?? 1)   // vertical stretch (y-scale only)
+              const [ox, oy] = ART_OVERLAY_OFFSET[s.kind] ?? [0, 0]
+              // The image is sized to the art's NATURAL footprint (cells), centred in the wrapper, then rotated —
+              // so a non-square shape isn't distorted by objectFit before the rotation. Defaults to the placed bbox.
+              const cs = s.cells.map(c => c[1]), rs = s.cells.map(c => c[0])
+              const placedCR: [number, number] = [Math.max(...cs) - Math.min(...cs) + 1, Math.max(...rs) - Math.min(...rs) + 1]
+              const [nc, nr] = ART_NATURAL_CELLS[s.kind] ?? placedCR
+              const imgW = nc * PITCH, imgH = nr * PITCH
+              // Wrapper clips to the WHOLE footprint shape (one cohesive unit, gaps covered); the art rotates and
+              // scales up INSIDE the clip so it fills to the outline without bleeding or splitting per cell.
+              return (
+                <div key={`art-${s.id}`}
+                  style={{
+                    position: 'absolute', left: box.left, top: box.top, width: box.width, height: box.height,
+                    overflow: 'hidden', clipPath: footprintInsetClip(s.cells, ART_INSET), pointerEvents: 'none',
+                  }}>
+                  <img src={src} alt="" draggable={false}
+                    style={{
+                      position: 'absolute', left: (box.width - imgW) / 2, top: (box.height - imgH) / 2, width: imgW, height: imgH,
+                      objectFit: 'fill', display: 'block', transformOrigin: 'center',
+                      // Flip kinds: offset BEFORE scale so it lives in the art's natural frame and mirrors with the
+                      // flip (a screen-space offset would shift the wrong way on the mirrored state). Others:
+                      // offset after scale, before rotate (so the tuned value follows the rotation).
+                      transform: ART_FLIP_KINDS.has(s.kind)
+                        ? `scale(${(artOverlayFlipX(s.kind, s.orientationIndex) ? -1 : 1) * sx}, ${sy}) translate(${ox}px, ${oy}px)`
+                        : `rotate(${artOverlayAngle(s.kind, s.orientationIndex)}deg) translate(${ox}px, ${oy}px) scale(${sx}, ${sy})`,
+                    }} />
+                </div>
+              )
+            })}
+
+            {/* Whole-slate outline: a single frame tracing each art-overlay slate's outer shape (board-space,
+                so it follows the real cells). Brightens when the slate is selected / hovered. */}
+            {placed.map(s => {
+              if (!ART_OVERLAY_KINDS.has(s.kind)) return null
+              if (dragSlate && dragSlate.slate.id === s.id) return null
+              const pts = footprintOutline(s.cells)
+              if (!pts.length) return null
+              const sel = s.id === editingSlateId
+              const hov = s.id === hoverSlateId
+              const conflict = s.cells.some(([r, c]) => conflictedCells.has(`${r},${c}`))
+              const col = conflict ? '#ff3030' : sel ? OUTLINE_COLOR_SELECTED : hov ? OUTLINE_COLOR_HOVER : OUTLINE_COLOR
+              return (
+                <svg key={`out-${s.id}`} width={BOARD_PX} height={BOARD_PX}
+                  style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', overflow: 'visible' }}>
+                  <polygon points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke={col}
+                    strokeWidth={conflict ? 3.5 : sel ? 3.5 : hov ? 2.5 : 2} strokeOpacity={conflict || sel ? 1 : hov ? 0.95 : 0.7} strokeLinejoin="round" />
+                </svg>
+              )
+            })}
+
           </div>
         </div>
 

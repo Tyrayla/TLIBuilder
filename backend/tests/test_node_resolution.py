@@ -147,6 +147,16 @@ class TestCopySlateMediumTalents:
         rift = {"kind": "space_rift", "anchor": [2, 1], "cells": [[2, 1]], "mothDirection": "left", "slots": []}
         assert self._amts([self._neighbor(), rift]) == base
 
+    def test_copy_dedups_neighbor_slate_once(self):
+        # A 6-tall Space Rift beside a 2-cell neighbor (adjacent on TWO of the rift's rows) copies that
+        # neighbor's Medium talents ONCE, not once per adjacent row.
+        nb = {"kind": "base", "cells": [[2, 2], [3, 2]],
+              "slots": [{"selectedNodeId": "warrior_c0_r1"}]}   # one Medium talent
+        rift = {"kind": "space_rift", "cells": [[r, 1] for r in range(6)], "mothDirection": "right", "slots": []}
+        base = self._amts([nb])
+        got = self._amts([nb, rift])
+        assert got["attack_dmg_inc"] == pytest.approx(base["attack_dmg_inc"] * 2)   # copied once → doubled
+
     def test_residence_copies_all4_medium_only(self):
         base = self._amts([self._neighbor()])
         res = {"kind": "residence_of_stars", "anchor": [2, 1], "cells": [[2, 1]], "slots": []}
