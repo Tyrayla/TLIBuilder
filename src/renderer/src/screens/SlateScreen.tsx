@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { FloatingPortal } from '@floating-ui/react'
 import { api, SlatePool, SlateModifierOption, CoreTalentOption, SavedSlate, SlateTemplate, iconUrl } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
+import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { ModifierBadge, useTextModifierStatuses } from '../components/ModifierBadge'
@@ -190,12 +192,17 @@ function getOrientationCount(kind: SlateKind): number {
 }
 
 function getCenterOffset(cells: [number, number][]): [number, number] {
-  const rows = cells.map(([r]) => r)
-  const cols = cells.map(([, c]) => c)
-  return [
-    Math.floor((Math.min(...rows) + Math.max(...rows)) / 2),
-    Math.floor((Math.min(...cols) + Math.max(...cols)) / 2),
-  ]
+  const rows = cells.map(([r]) => r), cols = cells.map(([, c]) => c)
+  // Centroid of the footprint's bounding box, then SNAP to the occupied cell nearest it — so the cursor always
+  // sits on a cell that's actually part of the slate (no "offset to the side" for L/T/corner/pinwheel shapes).
+  const cr = (Math.min(...rows) + Math.max(...rows)) / 2
+  const cc = (Math.min(...cols) + Math.max(...cols)) / 2
+  let best: [number, number] = cells[0], bestD = Infinity
+  for (const [r, c] of cells) {
+    const d = (r - cr) ** 2 + (c - cc) ** 2
+    if (d < bestD) { bestD = d; best = [r, c] }
+  }
+  return best
 }
 
 function centeredAnchor(kind: SlateKind, shapeIndex: number, orientationIndex: number, cursor: [number, number]): [number, number] {
@@ -341,6 +348,26 @@ const LEGENDARY_META: Record<LegendaryKind, { label: string; color: string }> = 
   residence_of_stars:             { label: 'Residence of Stars',                color: LEGEND_GOLD },
 }
 
+// Max copies allowed ON THE BOARD per kind (inventory is unlimited). Base slates have no limit.
+const SLATE_LIMITS: Partial<Record<SlateKind, number>> = {
+  corner_of_divinity: 3,
+  fallen_starlight: 3,
+  spark_of_moth_fire: 3,
+  pedigree: 1,
+  residence_of_stars: 1,
+  space_rift: 1,
+  when_sparks_set_prairie_ablaze: 1,
+}
+const SLATE_LIMIT_LABEL: Partial<Record<SlateKind, string>> = {
+  corner_of_divinity: 'Corners',
+  fallen_starlight: 'Starlights',
+  spark_of_moth_fire: 'Moths',
+  pedigree: 'Pedigree',
+  residence_of_stars: 'Residence',
+  space_rift: 'Space Rift',
+  when_sparks_set_prairie_ablaze: 'Prairie',
+}
+
 // Bundled slate icons (served from data/images/icons/divinity_slate/, paired by basename via iconUrl).
 // Base art filename = UI_TalantNG_<form>_0_Icon_<treeAbbr>_128.webp; mirror forms reuse the partner art flipped.
 const TREE_ABBR: Record<PrimaryTree, string> = {
@@ -463,7 +490,8 @@ function getSections(kind: SlateKind): { label: string; indices: number[]; canBe
 }
 
 export interface PlacedSlate {
-  id: string
+  id: string                 // unique per board placement
+  templateId: string         // stable identity for the inventory entry (survives edits; shared with re-placed copies)
   kind: SlateKind
   cells: [number, number][]
   orientationIndex: number
@@ -488,10 +516,12 @@ interface CreatorState {
   openPicker: number | null
   pickerSearch: string
   mothDirection: MothDirection | null
+  templateId?: string   // set when re-placing a saved template, so the placed copy links to its inventory entry
 }
 
 type PanelMode =
   | { type: 'idle' }
+  | { type: 'choosing' }
   | { type: 'creating'; creator: CreatorState }
   | { type: 'editing'; slateId: string; creator: CreatorState }
 
@@ -527,31 +557,32 @@ function getBottomEffects(slate: PlacedSlate): string[] {
 
 // ── Saved-slate templates (build inventory) ───────────────────────────────────
 
+// Build the inventory template for a slate, keyed by its STABLE templateId (so editing the slate updates the
+// same entry instead of spawning a new one).
 function toTemplate(s: PlacedSlate): SlateTemplate {
   return {
-    id: `${Date.now()}-${Math.random()}`,
+    id: s.templateId,
     kind: s.kind, orientationIndex: s.orientationIndex, shapeIndex: s.shapeIndex,
     slots: s.slots.map(sl => ({ ...sl })),
     treeType: s.treeType, mothDirection: s.mothDirection,
   }
 }
 
-// Config identity for dedupe (ignores board placement + the generated id).
-function templateIdentity(t: SlateTemplate): string {
-  return JSON.stringify([t.kind, t.treeType ?? '', t.mothDirection ?? '', t.shapeIndex, t.orientationIndex,
-    t.slots.map(s => [s.selectedNodeId ?? '', s.selectedCoreKey ?? ''])])
-}
-
 // ── Prairie / Moth helpers ────────────────────────────────────────────────────
 
 function getPrairieModifiers(prairie: PlacedSlate, placed: PlacedSlate[]): string[] {
   const [pr, pc] = prairie.anchor
-  return ([[-1,0],[1,0],[0,-1],[0,1]] as [number,number][]).flatMap(([dr, dc]) => {
+  const seen = new Set<string>()   // a neighbour touching on >1 side is still copied only ONCE
+  const out: string[] = []
+  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]] as [number,number][]) {
     const key = `${pr + dr},${pc + dc}`
     const neighbor = placed.find(s => s.id !== prairie.id && s.cells.some(([r, c]) => `${r},${c}` === key))
-    const effects = neighbor ? getBottomEffects(neighbor) : []
-    return effects.length ? [effects.join(' / ')] : []
-  })
+    if (!neighbor || seen.has(neighbor.id)) continue
+    seen.add(neighbor.id)
+    const effects = getBottomEffects(neighbor)
+    if (effects.length) out.push(effects.join(' / '))
+  }
+  return out
 }
 
 const MOTH_DELTA: Record<MothDirection, [number, number]> = { above: [-1,0], below: [1,0], left: [0,-1], right: [0,1] }
@@ -624,11 +655,11 @@ interface ModifierSlotProps {
   pool: SlatePool | null; isOpen: boolean; search: string; accentColor: string
   onTogglePicker: () => void; onCycleType: () => void
   onSelect: (mod: SlateModifierOption) => void; onSelectCore: (core: CoreTalentOption) => void
-  onClear: () => void; onToggleCoreMode: () => void; onSearchChange: (s: string) => void
+  onClear: () => void; onSearchChange: (s: string) => void
 }
 
 function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
-  onTogglePicker, onCycleType, onSelect, onSelectCore, onClear, onToggleCoreMode, onSearchChange,
+  onTogglePicker, onCycleType, onSelect, onSelectCore, onClear, onSearchChange,
 }: ModifierSlotProps) {
   const usedNodeIds = new Set(allSlots.map(s => s.selectedNodeId).filter(Boolean) as string[])
   const usedCoreKeys = new Set(allSlots.map(s => s.selectedCoreKey).filter(Boolean) as string[])
@@ -639,14 +670,16 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
     ? (slot.selectedCoreKey ? slot.effects.join(' / ') : null)
     : (slot.selectedNodeId ? slot.effects.join(' / ') : null)
 
-  const modOptions = !slot.isCore && pool
+  // canBeCore slots (e.g. Pedigree's bottom two) show ONE mixed, searchable list of core talents AND regular
+  // modifiers — no mode toggle. Plain slots show only modifiers.
+  const modOptions = pool
     ? getSlotModifierPool(pool, slot.slotType).filter(m => {
         if (m.nodeId === slot.selectedNodeId) return true
         if (usedNodeIds.has(m.nodeId)) return false
         return !search || m.effects.some(e => e.toLowerCase().includes(search.toLowerCase()))
       }) : []
 
-  const coreOptions = slot.isCore && pool
+  const coreOptions = slot.canBeCore && pool
     ? pool.core.filter(c => {
         if (c.key === slot.selectedCoreKey) return true
         return !search || c.effects.some(e => e.toLowerCase().includes(search.toLowerCase())) || c.name.toLowerCase().includes(search.toLowerCase())
@@ -688,14 +721,6 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
           }
         </div>
 
-        {slot.canBeCore && (
-          <div onClick={e => { e.stopPropagation(); onToggleCoreMode() }}
-            title={slot.isCore ? 'Switch to modifier' : 'Switch to core talent'}
-            style={{ fontSize: 14, color: slot.isCore ? LEGEND_GOLD : '#555', cursor: 'pointer', flexShrink: 0 }}>
-            {slot.isCore ? '◈' : '◇'}
-          </div>
-        )}
-
         {(slot.selectedNodeId || slot.selectedCoreKey) && (
           <div onClick={e => { e.stopPropagation(); onClear() }}
             style={{ fontSize: 14, color: '#444', cursor: 'pointer', flexShrink: 0 }}>✕</div>
@@ -713,10 +738,11 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
               style={{ width: '100%', boxSizing: 'border-box', background: '#1a1a3a', border: '1px solid #2a2a5a', color: '#ddd', padding: '5px 9px', fontSize: 14, borderRadius: 3 }}
             />
           </div>
-          {slot.isCore && pool && (
-            coreOptions.length === 0
-              ? <div style={{ padding: '11px 14px', fontSize: 14, color: '#444' }}>No core talents available</div>
-              : coreOptions.map(core => {
+          {/* Core talents first (canBeCore slots only), then modifiers — one combined searchable list. */}
+          {slot.canBeCore && coreOptions.length > 0 && (
+            <>
+              <div style={{ padding: '5px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: LEGEND_GOLD, background: '#13132a' }}>Core Talents</div>
+              {coreOptions.map(core => {
                 const selected = core.key === slot.selectedCoreKey
                 return (
                   <div key={core.key} onClick={() => onSelectCore(core)} style={{
@@ -730,22 +756,19 @@ function ModifierSlot({ slot, allSlots, pool, isOpen, search, accentColor,
                     <div style={{ fontSize: 11, color: '#444', marginTop: 2 }}>{core.treeName}</div>
                   </div>
                 )
-              })
+              })}
+            </>
           )}
-          {!slot.isCore && (
-            modOptions.length === 0
-              ? <div style={{ padding: '11px 14px', fontSize: 14, color: '#444' }}>
-                  {pool ? 'No modifiers available' : 'No season active — no modifier pool'}
-                </div>
-              : modOptions.map(mod => (
-                <SlateModRow
-                  key={mod.nodeId}
-                  mod={mod}
-                  selected={mod.nodeId === slot.selectedNodeId}
-                  accentColor={accentColor}
-                  onSelect={onSelect}
-                />
-              ))
+          {slot.canBeCore && modOptions.length > 0 && (
+            <div style={{ padding: '5px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: '#7a7aa0', background: '#13132a' }}>Modifiers</div>
+          )}
+          {modOptions.map(mod => (
+            <SlateModRow key={mod.nodeId} mod={mod} selected={mod.nodeId === slot.selectedNodeId} accentColor={accentColor} onSelect={onSelect} />
+          ))}
+          {modOptions.length === 0 && coreOptions.length === 0 && (
+            <div style={{ padding: '11px 14px', fontSize: 14, color: '#444' }}>
+              {pool ? 'No matches' : 'No season active — no modifier pool'}
+            </div>
           )}
         </div>
       )}
@@ -853,10 +876,12 @@ function ShapePanel({ creator, treeColors, onRotate, onSelectOrientation, onSele
   )
 }
 
-// ── Hover tooltip (right panel, idle mode) ────────────────────────────────────
+// ── Slate tooltip body (rendered inside a floating `.tooltip`) ─────────────────
+// Per-slate detail: icon/label/tree, copy mechanics, slot effects, and (for placed slates) the removal DPS
+// delta. `noDelta` is set for inventory tiles, which have no placed instance.
 
-function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
-  slate: PlacedSlate; treeColors: Record<string, string>; placed: PlacedSlate[]
+function SlateTooltipBody({ slate, treeColors, placed: allPlaced, noDelta }: {
+  slate: PlacedSlate; treeColors: Record<string, string>; placed: PlacedSlate[]; noDelta?: boolean
 }) {
   const isMoth = slate.kind === 'spark_of_moth_fire'
   const isPrairie = slate.kind === 'when_sparks_set_prairie_ablaze'
@@ -874,14 +899,11 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
   // negative/red band, matching the talent-node convention.
   const delta = useDamageDelta(
     { key: `slate:rm:${slate.id}`, step: s => ({ ...s, slates: s.slates.filter(sl => sl.id !== slate.id) }) },
-    true,
+    !noDelta,
   )
 
   return (
-    <div style={{
-      width: '100%', boxSizing: 'border-box', background: '#12121e',
-      padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 10,
-    }}>
+    <div style={{ minWidth: 200, maxWidth: 300, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <SlateIcon kind={slate.kind} treeType={slate.treeType} shapeIndex={slate.shapeIndex} size={30} />
         <div>
@@ -951,8 +973,43 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
         </div>
       )}
 
-      <TooltipContributions delta={delta} />
+      {!noDelta && <TooltipContributions delta={delta} />}
     </div>
+  )
+}
+
+// Saved-slate thumbnail in the inventory grid: click to place, right-click to delete, hover for a floating
+// detail tooltip (built from the template — no placed instance, so no DPS delta).
+function InventoryTile({ template, color, treeColors, onPlace, onDelete }: {
+  template: SlateTemplate; color: string; treeColors: Record<string, string>
+  onPlace: () => void; onDelete: () => void
+}) {
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  const pseudo: PlacedSlate = {
+    id: `tpl-${template.id}`, templateId: template.id, kind: template.kind as SlateKind, cells: [], anchor: [0, 0],
+    orientationIndex: template.orientationIndex, shapeIndex: template.shapeIndex,
+    slots: template.slots as unknown as CreatorSlot[],
+    treeType: template.treeType as PrimaryTree | undefined,
+    mothDirection: template.mothDirection as MothDirection | undefined,
+  }
+  return (
+    <>
+      <div {...tip.triggerProps} onClick={onPlace} onContextMenu={e => { e.preventDefault(); onDelete() }}
+        title="Click to place · right-click to delete"
+        style={{
+          position: 'relative', width: 62, height: 62, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: '#16162a', border: `1px solid ${color}55`, borderRadius: 7, cursor: 'pointer',
+        }}>
+        <SlateIcon kind={template.kind as SlateKind} treeType={template.treeType} shapeIndex={template.shapeIndex} size={48} />
+      </div>
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip" {...tip.floatingProps}>
+            <SlateTooltipBody slate={pseudo} treeColors={treeColors} placed={[]} noDelta />
+          </div>
+        </FloatingPortal>
+      )}
+    </>
   )
 }
 
@@ -968,13 +1025,18 @@ function mothBottomLines(moth: PlacedSlate, placed: PlacedSlate[]): string[] {
 }
 function prairieBottomLines(prairie: PlacedSlate, placed: PlacedSlate[]): string[] {
   const [pr, pc] = prairie.anchor
-  return ([[-1,0],[1,0],[0,-1],[0,1]] as [number,number][]).flatMap(([dr, dc]) => {
+  const seen = new Set<string>()   // copy each distinct neighbour slate only once
+  const out: string[] = []
+  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]] as [number,number][]) {
     const n = placed.find(s => s.id !== prairie.id && s.cells.some(([r, c]) => r === pr + dr && c === pc + dc))
-    return n ? getBottomEffects(n) : []
-  })
+    if (!n || seen.has(n.id)) continue
+    seen.add(n.id)
+    out.push(...getBottomEffects(n))
+  }
+  return out
 }
 
-function SlateOverview({ placed }: { placed: PlacedSlate[] }) {
+function SlateOverview({ placed, hideHeading }: { placed: PlacedSlate[]; hideHeading?: boolean }) {
   // Split placed-slate effects into deduped CORE TALENTS (count once by key, like the engine — never
   // summed) and modifier LINES (summed arithmetically by summarizeSlateBonuses).
   const { cores, modLines } = useMemo(() => {
@@ -1010,7 +1072,7 @@ function SlateOverview({ placed }: { placed: PlacedSlate[] }) {
   let coreIdx = 0
   return (
     <div style={{ padding: '14px 14px', boxSizing: 'border-box' }}>
-      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#8a7ad0', marginBottom: 4 }}>Slate Bonuses</div>
+      {!hideHeading && <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#8a7ad0', marginBottom: 4 }}>Slate Bonuses</div>}
       {empty && <div style={{ fontSize: 12, color: '#3a3a5a', fontStyle: 'italic', paddingTop: 6 }}>Configure slates to see their combined bonuses.</div>}
 
       {cores.map((c, ci) => (
@@ -1046,12 +1108,19 @@ export default function SlateScreen({ treeColors }: Props) {
   const setSlates = useBuildStore(s => s.setSlates)
   const slateInventory = useBuildStore(s => s.slateInventory)
   const setSlateInventory = useBuildStore(s => s.setSlateInventory)
-  const [placed, setPlaced] = useState<PlacedSlate[]>(() => slates as unknown as PlacedSlate[])
+  const [placed, setPlaced] = useState<PlacedSlate[]>(
+    () => (slates as unknown as PlacedSlate[]).map(s => ({ ...s, templateId: s.templateId ?? s.id })))
   const [mode, setMode] = useState<PanelMode>({ type: 'idle' })
   const [hover, setHover] = useState<[number, number] | null>(null)
   const [hoverSlateId, setHoverSlateId] = useState<string | null>(null)
   const [dragSlate, setDragSlate] = useState<{ slate: PlacedSlate; startCell: [number, number] } | null>(null)
   const suppressNextClick = useRef(false)
+  const boardRef = useRef<HTMLDivElement>(null)
+  const [bonusesOpen, setBonusesOpen] = useState(false)
+  const boardTip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
+  // Pre-edit snapshot of the slate currently being edited, so Cancel can revert (edits otherwise apply live).
+  const editSnapshot = useRef<PlacedSlate | null>(null)
+  const editingSlateId = mode.type === 'editing' ? mode.slateId : null
 
   // Sync the local board back to the build store — but ONLY when the slates actually changed.
   // Comparing against the store (instead of a first-render ref) avoids spuriously bumping
@@ -1064,25 +1133,28 @@ export default function SlateScreen({ treeColors }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed])
 
-  // Auto-keep every CONFIGURED slate in the build's inventory so it can be re-placed without rebuilding
-  // (deduped by config; removing a slate from the board doesn't remove its saved template).
+  // Auto-keep every CONFIGURED slate in the build's inventory so it can be re-placed without rebuilding.
+  // Entries are keyed by the slate's STABLE templateId and UPSERTED — so editing a slate updates its single
+  // entry rather than spawning one per intermediate state. The slate currently being edited is skipped so its
+  // in-progress (intermediate) states aren't saved; it's upserted once editing ends / focus switches away.
   useEffect(() => {
     const inv = useBuildStore.getState().slateInventory
-    const seen = new Set(inv.map(templateIdentity))
-    const add: SlateTemplate[] = []
+    const byId = new Map(inv.map(t => [t.id, t]))
+    let changed = false
     for (const sl of placed) {
-      if (!sl.slots.some(s => s.selectedNodeId || s.selectedCoreKey)) continue  // skip empty / Moth/Prairie
+      if (sl.id === editingSlateId) continue                                     // skip in-progress edits
+      if (!sl.slots.some(s => s.selectedNodeId || s.selectedCoreKey)) continue   // skip empty / Moth/Prairie
       const t = toTemplate(sl)
-      const id = templateIdentity(t)
-      if (!seen.has(id)) { seen.add(id); add.push(t) }
+      const prev = byId.get(t.id)
+      if (!prev || JSON.stringify(prev) !== JSON.stringify(t)) { byId.set(t.id, t); changed = true }
     }
-    if (add.length) setSlateInventory([...inv, ...add])
+    if (changed) setSlateInventory([...byId.values()])
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [placed])
+  }, [placed, editingSlateId])
 
   useEffect(() => {
     const handler = () => setMode(prev => {
-      if (prev.type === 'idle') return prev
+      if (prev.type !== 'creating' && prev.type !== 'editing') return prev
       return { ...prev, creator: { ...prev.creator, openPicker: null } }
     })
     window.addEventListener('click', handler)
@@ -1098,45 +1170,55 @@ export default function SlateScreen({ treeColors }: Props) {
       const sameCell = hover && hover[0] === dragSlate.startCell[0] && hover[1] === dragSlate.startCell[1]
 
       if (sameCell || !hover) {
-        // Click on idle mode — open edit panel; in editing mode the panel is already open
-        if (mode.type !== 'editing') {
-          const slate = dragSlate.slate
-          const poolScope = SLOT_CONFIG[slate.kind]?.poolScope
-          const needsPoolLoad = !slate.pool && poolScope !== 'none'
-          setMode({
-            type: 'editing', slateId: slate.id, creator: {
-              kind: slate.kind, shapeIndex: slate.shapeIndex, treeType: slate.treeType ?? null,
-              slots: slate.slots.map(s => ({ ...s })), orientationIndex: slate.orientationIndex,
-              pool: slate.pool ?? null, poolLoading: needsPoolLoad, openPicker: null, pickerSearch: '',
-              mothDirection: slate.mothDirection ?? null,
-            },
-          })
-          // Reload pool from API — always stripped from SavedSlate on back-navigation
-          if (needsPoolLoad) {
-            const slateId = slate.id
-            const poolPromise = poolScope === 'tree' && slate.treeType
-              ? api.getSlatePool(slate.treeType as PrimaryTree)
-              : api.getSlatePoolAll()
-            poolPromise
-              .then(pool => setMode(prev =>
-                prev.type === 'editing' && prev.slateId === slateId
-                  ? { ...prev, creator: { ...prev.creator, pool, poolLoading: false } }
-                  : prev
-              ))
-              .catch(() => setMode(prev =>
-                prev.type === 'editing' && prev.slateId === slateId
-                  ? { ...prev, creator: { ...prev.creator, poolLoading: false } }
-                  : prev
-              ))
-          }
+        // Press+release without moving = open/switch edit for this slate. Edits apply live, so switching away
+        // from another slate keeps its changes automatically. Snapshot this slate so Cancel can revert it — but
+        // only when STARTING a session on it (opening from idle or switching from another slate), NOT when
+        // re-clicking the slate already being edited, so the snapshot keeps its session-start position/config.
+        const slate = dragSlate.slate
+        const sameSession = mode.type === 'editing' && mode.slateId === slate.id
+        if (!sameSession) {
+          editSnapshot.current = { ...slate, slots: slate.slots.map(s => ({ ...s })), cells: slate.cells.map(c => [...c] as [number, number]) }
+        }
+        const poolScope = SLOT_CONFIG[slate.kind]?.poolScope
+        const needsPoolLoad = !slate.pool && poolScope !== 'none'
+        setMode({
+          type: 'editing', slateId: slate.id, creator: {
+            kind: slate.kind, shapeIndex: slate.shapeIndex, treeType: slate.treeType ?? null,
+            slots: slate.slots.map(s => ({ ...s })), orientationIndex: slate.orientationIndex,
+            pool: slate.pool ?? null, poolLoading: needsPoolLoad, openPicker: null, pickerSearch: '',
+            mothDirection: slate.mothDirection ?? null,
+          },
+        })
+        // Reload pool from API — always stripped from SavedSlate on back-navigation
+        if (needsPoolLoad) {
+          const slateId = slate.id
+          const poolPromise = poolScope === 'tree' && slate.treeType
+            ? api.getSlatePool(slate.treeType as PrimaryTree)
+            : api.getSlatePoolAll()
+          poolPromise
+            .then(pool => setMode(prev =>
+              prev.type === 'editing' && prev.slateId === slateId
+                ? { ...prev, creator: { ...prev.creator, pool, poolLoading: false } }
+                : prev
+            ))
+            .catch(() => setMode(prev =>
+              prev.type === 'editing' && prev.slateId === slateId
+                ? { ...prev, creator: { ...prev.creator, poolLoading: false } }
+                : prev
+            ))
         }
       } else if (hover) {
-        // Drag — move to new position (allow anywhere within grid bounds); mode stays unchanged
+        // Drag — move to new position (allow anywhere within grid bounds); mode stays unchanged. Reorder the
+        // moved slate to the END so it layers on top and is the one selected where it overlaps others.
         const { slate } = dragSlate
         const anchor = centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover)
         const cells = anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor)
         if (cells.every(([r, c]) => r >= 0 && r < BOARD_ROWS && c >= 0 && c < BOARD_COLS)) {
-          setPlaced(prev => prev.map(s => s.id === slate.id ? { ...s, cells, anchor } : s))
+          setPlaced(prev => {
+            const moved = prev.find(s => s.id === slate.id)
+            if (!moved) return prev
+            return [...prev.filter(s => s.id !== slate.id), { ...moved, cells, anchor }]
+          })
         }
       }
 
@@ -1146,41 +1228,44 @@ export default function SlateScreen({ treeColors }: Props) {
     return () => window.removeEventListener('pointerup', handler)
   }, [dragSlate, hover, placed, mode])
 
-  // Right-click anywhere exits editing/creating mode (saves editing state)
+  // Right-click anywhere exits editing/creating/choosing mode. Editing changes are already applied live, so
+  // this just returns to the inventory.
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (mode.type === 'idle') return
       e.preventDefault()
-      if (mode.type === 'editing') {
-        const { slateId, creator: c } = mode
-        setPlaced(prev => prev.map(s => s.id !== slateId ? s : {
-          ...s, slots: c.slots.map(sl => ({ ...sl })),
-          pool: c.pool ?? s.pool, treeType: c.treeType ?? s.treeType,
-          mothDirection: c.mothDirection ?? s.mothDirection,
-          orientationIndex: c.orientationIndex, shapeIndex: c.shapeIndex,
-        }))
-      }
       setMode({ type: 'idle' })
     }
     window.addEventListener('contextmenu', handler)
     return () => window.removeEventListener('contextmenu', handler)
   }, [mode])
 
-  const creator = mode.type !== 'idle' ? mode.creator : null
-  const editingSlateId = mode.type === 'editing' ? mode.slateId : null
+  const creator = (mode.type === 'creating' || mode.type === 'editing') ? mode.creator : null
 
-  // Instantly apply rotation/shape changes to the placed slate while editing
-  const editOrientIdx = mode.type === 'editing' ? mode.creator.orientationIndex : null
-  const editShapeIdx = mode.type === 'editing' ? mode.creator.shapeIndex : null
+  // Apply edits to the placed slate LIVE (slots, rolls, shape, rotation, tree, direction) — so the board, the
+  // bonuses panel, and the build stay current as you edit, and switching to another slate keeps these changes
+  // with no explicit Save. Cancel reverts from editSnapshot. Keyed on the data fields (not openPicker/search).
+  const editCreatorKey = mode.type === 'editing'
+    ? JSON.stringify([mode.creator.slots, mode.creator.shapeIndex, mode.creator.orientationIndex, mode.creator.treeType, mode.creator.mothDirection, !!mode.creator.pool])
+    : null
   useEffect(() => {
-    if (editOrientIdx === null || editShapeIdx === null || !editingSlateId) return
+    if (mode.type !== 'editing') return
+    const { slateId, creator: c } = mode
     setPlaced(prev => prev.map(s => {
-      if (s.id !== editingSlateId) return s
-      const cells = anchorCells(s.kind, editShapeIdx, editOrientIdx, s.anchor)
-      if (!cells.every(([r, c]) => r >= 0 && r < BOARD_ROWS && c >= 0 && c < BOARD_COLS)) return s
-      return { ...s, cells, orientationIndex: editOrientIdx, shapeIndex: editShapeIdx }
+      if (s.id !== slateId) return s
+      const cells = anchorCells(s.kind, c.shapeIndex, c.orientationIndex, s.anchor)
+      const inBounds = cells.every(([r, cc]) => r >= 0 && r < BOARD_ROWS && cc >= 0 && cc < BOARD_COLS)
+      return {
+        ...s,
+        slots: c.slots.map(sl => ({ ...sl })),
+        pool: c.pool ?? s.pool, treeType: c.treeType ?? s.treeType,
+        mothDirection: c.mothDirection ?? s.mothDirection,
+        orientationIndex: c.orientationIndex, shapeIndex: c.shapeIndex,
+        ...(inBounds ? { cells } : {}),
+      }
     }))
-  }, [editOrientIdx, editShapeIdx, editingSlateId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editCreatorKey])
 
   // Build occupied map (skip slate being edited or dragged)
   const occupied = new Map<string, string>()
@@ -1190,17 +1275,28 @@ export default function SlateScreen({ treeColors }: Props) {
     for (const [r, c] of s.cells) occupied.set(`${r},${c}`, s.id)
   }
 
-  // Ghost cells — only during creating mode or drag (not while editing an existing slate)
+  // While DRAGGING a placed slate, move it LIVE to the cursor — but only once it's actually moved off its start
+  // cell, so clicking-without-moving leaves it put (no flash to a new spot). The slate itself follows the
+  // pointer (feels attached) instead of leaving a static ghost behind.
+  const dragMoved = !!(dragSlate && hover && (hover[0] !== dragSlate.startCell[0] || hover[1] !== dragSlate.startCell[1]))
+  let dragTarget: { cells: [number, number][]; anchor: [number, number] } | null = null
+  if (dragMoved && dragSlate && hover) {
+    const { slate } = dragSlate
+    const anchor = centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover)
+    dragTarget = { cells: anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor), anchor }
+  }
+  // Placed slates as rendered: the dragged slate shown at its live target while moving, and moved to the END so
+  // it layers on TOP of whatever it overlaps (newest-over-area wins).
+  const renderPlaced = dragTarget && dragSlate
+    ? [...placed.filter(s => s.id !== dragSlate.slate.id),
+       { ...(placed.find(s => s.id === dragSlate.slate.id) ?? dragSlate.slate), cells: dragTarget.cells, anchor: dragTarget.anchor }]
+    : placed
+
+  // Ghost cells — only the creating-mode placement preview (drag uses the live move above).
   let ghostCells: [number, number][] = []
-  if (hover) {
-    if (creator && mode.type === 'creating') {
-      const anchor = centeredAnchor(creator.kind, creator.shapeIndex, creator.orientationIndex, hover)
-      ghostCells = anchorCells(creator.kind, creator.shapeIndex, creator.orientationIndex, anchor)
-    } else if (dragSlate) {
-      const { slate } = dragSlate
-      const anchor = centeredAnchor(slate.kind, slate.shapeIndex, slate.orientationIndex, hover)
-      ghostCells = anchorCells(slate.kind, slate.shapeIndex, slate.orientationIndex, anchor)
-    }
+  if (hover && creator && mode.type === 'creating') {
+    const anchor = centeredAnchor(creator.kind, creator.shapeIndex, creator.orientationIndex, hover)
+    ghostCells = anchorCells(creator.kind, creator.shapeIndex, creator.orientationIndex, anchor)
   }
   const ghostSet = new Set(ghostCells.map(([r, c]) => `${r},${c}`))
 
@@ -1210,20 +1306,18 @@ export default function SlateScreen({ treeColors }: Props) {
     if (isValidCell(r, c) && !occupied.has(`${r},${c}`)) ghostValidCells.add(`${r},${c}`)
   }
 
-  // All placed cells for rendering (first slate wins per cell)
+  // All placed cells for rendering — from renderPlaced. LAST slate wins per cell so the top-most (newest moved
+  // over the area) is the one selected/rendered, matching the visual layer order.
   const placedCellMap = new Map<string, string>()
-  for (const s of placed) {
-    for (const [r, c] of s.cells) {
-      const k = `${r},${c}`
-      if (!placedCellMap.has(k)) placedCellMap.set(k, s.id)
-    }
+  for (const s of renderPlaced) {
+    for (const [r, c] of s.cells) placedCellMap.set(`${r},${c}`, s.id)
   }
 
-  // Conflicted cells: out-of-bounds board cell OR overlapping slates
+  // Conflicted cells: out-of-bounds OR overlapping (from renderPlaced so a drag preview flags bad drops live).
   const conflictedCells = new Set<string>()
   {
     const cellSlates = new Map<string, string[]>()
-    for (const s of placed) {
+    for (const s of renderPlaced) {
       for (const [r, c] of s.cells) {
         const k = `${r},${c}`
         if (!isValidCell(r, c)) conflictedCells.add(k)
@@ -1233,7 +1327,23 @@ export default function SlateScreen({ treeColors }: Props) {
     }
     for (const [k, ids] of cellSlates) if (ids.length > 1) conflictedCells.add(k)
   }
-  const boardIsValid = conflictedCells.size === 0
+  // Per-kind placement limits (board only; the inventory is unlimited). Exceeding any invalidates the build.
+  const overLimit: [SlateKind, number][] = []
+  {
+    const counts = new Map<SlateKind, number>()
+    for (const s of placed) counts.set(s.kind, (counts.get(s.kind) ?? 0) + 1)
+    for (const [k, n] of counts) {
+      const max = SLATE_LIMITS[k]
+      if (max != null && n > max) overLimit.push([k, max])
+    }
+  }
+  const hasConflict = conflictedCells.size > 0
+  const boardIsValid = !hasConflict && overLimit.length === 0
+  const invalidReason = hasConflict
+    ? 'Slates overlap or leave the board'
+    : overLimit.length
+      ? `Too many ${SLATE_LIMIT_LABEL[overLimit[0][0]]} (max ${overLimit[0][1]})`
+      : ''
 
   const editingCells = new Set((editingSlateId ? placed.find(s => s.id === editingSlateId)?.cells : null)?.map(([r, c]) => `${r},${c}`) ?? [])
   const hoverSlateCells = new Set(!dragSlate && !creator && hoverSlateId
@@ -1246,7 +1356,7 @@ export default function SlateScreen({ treeColors }: Props) {
   // ── Creator helpers ─────────────────────────────────────────────────────────
 
   function updateCreator(patch: Partial<CreatorState>) {
-    setMode(prev => prev.type === 'idle' ? prev : { ...prev, creator: { ...prev.creator, ...patch } })
+    setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, ...patch } })
   }
 
   async function loadTreePool(tree: PrimaryTree) {
@@ -1263,17 +1373,17 @@ export default function SlateScreen({ treeColors }: Props) {
     setMode({ type: 'creating', creator: initial })
     if (kind === 'base') {
       setTimeout(() => {
-        setMode(prev => prev.type === 'idle' ? prev : { ...prev, creator: { ...prev.creator, poolLoading: true } })
+        setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, poolLoading: true } })
         api.getSlatePool(PRIMARY_TREES[0])
-          .then(pool => setMode(prev => prev.type === 'idle' ? prev : { ...prev, creator: { ...prev.creator, pool, poolLoading: false } }))
-          .catch(() => setMode(prev => prev.type === 'idle' ? prev : { ...prev, creator: { ...prev.creator, poolLoading: false } }))
+          .then(pool => setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, pool, poolLoading: false } }))
+          .catch(() => setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, poolLoading: false } }))
       }, 0)
     } else if (SLOT_CONFIG[kind].poolScope === 'all') {
       setTimeout(() => {
-        setMode(prev => prev.type === 'idle' ? prev : { ...prev, creator: { ...prev.creator, poolLoading: true } })
+        setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, poolLoading: true } })
         api.getSlatePoolAll()
-          .then(pool => setMode(prev => prev.type === 'idle' ? prev : { ...prev, creator: { ...prev.creator, pool, poolLoading: false } }))
-          .catch(() => setMode(prev => prev.type === 'idle' ? prev : { ...prev, creator: { ...prev.creator, poolLoading: false } }))
+          .then(pool => setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, pool, poolLoading: false } }))
+          .catch(() => setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, poolLoading: false } }))
       }, 0)
     }
   }
@@ -1289,6 +1399,7 @@ export default function SlateScreen({ treeColors }: Props) {
       slots: t.slots.map(s => ({ ...s })), orientationIndex: t.orientationIndex,
       pool: null, poolLoading: needsPool, openPicker: null, pickerSearch: '',
       mothDirection: (t.mothDirection as MothDirection) ?? null,
+      templateId: t.id,   // re-placed copy shares the saved entry's identity
     } })
     if (kind === 'base' && t.treeType) {
       api.getSlatePool(t.treeType as PrimaryTree).then(pool => updateCreator({ pool, poolLoading: false })).catch(() => updateCreator({ poolLoading: false }))
@@ -1317,19 +1428,13 @@ export default function SlateScreen({ treeColors }: Props) {
   }
 
   function handleSelectModifier(idx: number, mod: SlateModifierOption) {
-    updateSlot(idx, { selectedNodeId: mod.nodeId, selectedCoreKey: null, effects: mod.effects, nodeType: mod.nodeType })
+    updateSlot(idx, { isCore: false, selectedNodeId: mod.nodeId, selectedCoreKey: null, coreName: null, effects: mod.effects, nodeType: mod.nodeType })
     updateCreator({ openPicker: null })
   }
 
   function handleSelectCore(idx: number, core: CoreTalentOption) {
-    updateSlot(idx, { selectedCoreKey: core.key, selectedNodeId: null, coreName: core.name, effects: core.effects, nodeType: null })
+    updateSlot(idx, { isCore: true, selectedCoreKey: core.key, selectedNodeId: null, coreName: core.name, effects: core.effects, nodeType: null })
     updateCreator({ openPicker: null })
-  }
-
-  function handleToggleCoreMode(idx: number) {
-    if (!creator) return
-    const slot = creator.slots[idx]
-    updateSlot(idx, { isCore: !slot.isCore, selectedNodeId: null, selectedCoreKey: null, effects: [] })
   }
 
   function handleRotate() {
@@ -1340,15 +1445,10 @@ export default function SlateScreen({ treeColors }: Props) {
   // ── Board interactions ──────────────────────────────────────────────────────
 
   function handleCellPointerDown(row: number, col: number) {
-    if (mode.type === 'creating') return
-    if (mode.type === 'editing') {
-      const editingSlate = placed.find(s => s.id === editingSlateId)
-      if (!editingSlate) return
-      if (!editingSlate.cells.some(([r, c]) => r === row && c === col)) return
-      setDragSlate({ slate: editingSlate, startCell: [row, col] })
-      return
-    }
-    const slateId = occupied.get(`${row},${col}`)
+    if (mode.type === 'creating' || mode.type === 'choosing') return
+    // In idle OR editing, press on ANY placed slate: a release on the same cell opens/switches its editor,
+    // a release on a different cell moves it. Uses placedCellMap so the slate being edited is included too.
+    const slateId = placedCellMap.get(`${row},${col}`)
     if (!slateId) return
     const slate = placed.find(s => s.id === slateId)
     if (!slate) return
@@ -1364,8 +1464,9 @@ export default function SlateScreen({ treeColors }: Props) {
     const cells = anchorCells(creator.kind, creator.shapeIndex, creator.orientationIndex, anchor)
     if (!cells.every(([r, c]) => r >= 0 && r < BOARD_ROWS && c >= 0 && c < BOARD_COLS)) return
 
+    const id = `${Date.now()}-${Math.random()}`
     setPlaced(prev => [...prev, {
-      id: `${Date.now()}-${Math.random()}`, kind: creator.kind, cells, anchor,
+      id, templateId: creator.templateId ?? id, kind: creator.kind, cells, anchor,
       orientationIndex: creator.orientationIndex, shapeIndex: creator.shapeIndex,
       slots: creator.slots.map(s => ({ ...s })),
       pool: creator.pool ?? undefined, treeType: creator.treeType ?? undefined,
@@ -1379,14 +1480,19 @@ export default function SlateScreen({ treeColors }: Props) {
     if (editingSlateId === id) setMode({ type: 'idle' })
   }
 
-  function handleDoneEditing() {
-    if (!creator || mode.type !== 'editing') return
-    setPlaced(prev => prev.map(s => s.id !== editingSlateId ? s : {
-      ...s, slots: creator.slots.map(sl => ({ ...sl })),
-      pool: creator.pool ?? s.pool, treeType: creator.treeType ?? s.treeType,
-      mothDirection: creator.mothDirection ?? s.mothDirection,
-      orientationIndex: creator.orientationIndex, shapeIndex: creator.shapeIndex,
-    }))
+  // Save: edits are already applied live, so just close the editor.
+  function handleSaveEdit() {
+    editSnapshot.current = null
+    setMode({ type: 'idle' })
+  }
+
+  // Cancel: revert the in-progress slate to its pre-edit snapshot (editing), or return to the chooser (creating).
+  function handleCancelEdit() {
+    if (mode.type === 'editing' && editSnapshot.current) {
+      const snap = editSnapshot.current
+      setPlaced(prev => prev.map(s => s.id === snap.id ? snap : s))
+    }
+    editSnapshot.current = null
     setMode({ type: 'idle' })
   }
 
@@ -1406,28 +1512,33 @@ export default function SlateScreen({ treeColors }: Props) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }} onClick={e => e.stopPropagation()}>
 
-        {/* Large Done button — editing mode only, at the top */}
-        {mode.type === 'editing' && (
-          <button onClick={handleDoneEditing} style={{
-            width: '100%', padding: '13px 16px', marginBottom: 12, flexShrink: 0,
-            fontSize: 17, fontWeight: 700, letterSpacing: 0.5,
-            background: '#1a4a1a', color: '#5fdf5f',
-            border: '2px solid #2d8a2d', borderRadius: 7, cursor: 'pointer',
-          }}>
-            ✓ Done Editing
-          </button>
-        )}
+        {/* Save / Cancel / Remove header (editing shows all three; creating shows Cancel + a place hint) */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexShrink: 0 }}>
+          {mode.type === 'editing' && (
+            <button onClick={handleSaveEdit} style={{
+              flex: 1, padding: '10px 12px', fontSize: 14, fontWeight: 700,
+              background: '#1a4a1a', color: '#5fdf5f', border: '1px solid #2d8a2d', borderRadius: 7, cursor: 'pointer',
+            }}>✓ Save</button>
+          )}
+          <button onClick={handleCancelEdit} style={{
+            flex: mode.type === 'editing' ? '0 0 auto' : 1, padding: '10px 12px', fontSize: 14, fontWeight: 600,
+            background: '#1a1a3a', color: '#999', border: '1px solid #2a2a50', borderRadius: 7, cursor: 'pointer',
+          }}>✕ Cancel</button>
+          {mode.type === 'editing' && (
+            <button onClick={() => handleRemoveSlate(editingSlateId!)} style={{
+              flex: '0 0 auto', padding: '10px 12px', fontSize: 14, fontWeight: 600,
+              background: '#3a1010', color: '#dd5555', border: '1px solid #6a2020', borderRadius: 7, cursor: 'pointer',
+            }}>⊗ Remove</button>
+          )}
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexShrink: 0 }}>
-          <button onClick={() => setMode({ type: 'idle' })}
-            style={{ fontSize: 13, color: '#666', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-            {mode.type === 'editing' ? '✕ Close' : '← Cancel'}
-          </button>
+          <SlateIcon kind={kind} treeType={treeType} shapeIndex={creator.shapeIndex} size={28} />
           <span style={{ fontSize: 17, fontWeight: 700, color: kind === 'base' ? '#ccc' : accentColor }}>
             {kind === 'base' ? 'Base Slate' : LEGENDARY_META[kind as LegendaryKind].label}
           </span>
-          {mode.type === 'editing' && (
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#444' }}>right-click to close</span>
+          {mode.type === 'creating' && (
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#666' }}>Click the board to place</span>
           )}
         </div>
 
@@ -1491,7 +1602,7 @@ export default function SlateScreen({ treeColors }: Props) {
           </div>
         )}
 
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="dark-scroll" style={{ flex: 1, overflowY: 'auto' }}>
           {sections.map(({ label, indices }) => (
             <div key={label} style={{ marginBottom: 10 }}>
               {showDividers && (
@@ -1510,28 +1621,33 @@ export default function SlateScreen({ treeColors }: Props) {
                   onSelect={mod => handleSelectModifier(idx, mod)}
                   onSelectCore={core => handleSelectCore(idx, core)}
                   onClear={() => updateSlot(idx, { selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [], nodeType: null })}
-                  onToggleCoreMode={() => handleToggleCoreMode(idx)}
                   onSearchChange={s => updateCreator({ pickerSearch: s })}
                 />
               ))}
             </div>
           ))}
-        </div>
 
-        {mode.type === 'editing' && (
-          <button onClick={() => handleRemoveSlate(editingSlateId!)}
-            style={{ marginTop: 10, padding: '12px 16px', fontSize: 15, fontWeight: 600, background: '#3a1010', color: '#dd5555', border: '1px solid #6a2020', borderRadius: 7, cursor: 'pointer', flexShrink: 0, width: '100%' }}>
-            ⊗ Remove Slate
-          </button>
-        )}
+          {/* Shape / rotation controls — below the mod slots. */}
+          <ShapePanel
+            creator={creator} treeColors={treeColors}
+            onRotate={handleRotate}
+            onSelectOrientation={idx => updateCreator({ orientationIndex: idx })}
+            onSelectShape={idx => updateCreator({ shapeIndex: idx, orientationIndex: 0 })}
+          />
+        </div>
       </div>
     )
   }
 
-  function renderIdlePanel() {
+  // The slate-type chooser — opened by "Create Slate", replaces the left panel (Cancel returns to inventory).
+  function renderChooserPanel() {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#555', marginBottom: 10 }}>Add Slate</div>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }} className="dark-scroll">
+        <button onClick={() => setMode({ type: 'idle' })} style={{
+          width: '100%', padding: '10px 12px', marginBottom: 12, flexShrink: 0, fontSize: 14, fontWeight: 600,
+          background: '#1a1a3a', color: '#999', border: '1px solid #2a2a50', borderRadius: 7, cursor: 'pointer',
+        }}>✕ Cancel</button>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#555', marginBottom: 10, flexShrink: 0 }}>Create Slate</div>
 
         {/* Base Slate */}
         <button onClick={() => startCreating('base')} style={{
@@ -1564,42 +1680,39 @@ export default function SlateScreen({ treeColors }: Props) {
             </div>
           </button>
         ))}
+      </div>
+    )
+  }
 
-        {slateInventory.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#555', marginBottom: 7 }}>
+  function renderIdlePanel() {
+    return (
+      <div className="dark-scroll" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+        <button onClick={() => setMode({ type: 'choosing' })} style={{
+          width: '100%', padding: '12px 14px', marginBottom: 14, flexShrink: 0,
+          fontSize: 15, fontWeight: 700, background: '#1e2a4a', color: '#9db4e8',
+          border: '1px solid #2d4a7a', borderRadius: 8, cursor: 'pointer',
+        }}>+ Create Slate</button>
+
+        {slateInventory.length > 0 ? (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#555', marginBottom: 8 }}>
               Saved Slates <span style={{ color: '#3a3a5a' }}>(click to place)</span>
             </div>
-            {slateInventory.map(t => {
-              const color = t.kind === 'base'
-                ? (treeColors[t.treeType ?? ''] ?? '#666')
-                : LEGENDARY_META[t.kind as LegendaryKind]?.color ?? '#666'
-              const label = t.kind === 'base'
-                ? (t.treeType ?? 'Base Slate')
-                : LEGENDARY_META[t.kind as LegendaryKind]?.label ?? t.kind
-              const filled = t.slots.filter(s => s.selectedNodeId || s.selectedCoreKey).length
-              return (
-                <div key={t.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 7, padding: '6px 10px', marginBottom: 4,
-                  background: '#16162a', border: `1px solid ${color}33`, borderRadius: 5, cursor: 'pointer',
-                }} onClick={() => placeFromTemplate(t)} title="Click to place this saved slate on the board">
-                  {slateIconFile(t.kind as SlateKind, t.treeType, t.shapeIndex)
-                    ? <SlateIcon kind={t.kind as SlateKind} treeType={t.treeType} shapeIndex={t.shapeIndex} size={22} />
-                    : <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }} />}
-                  <span style={{ flex: 1, fontSize: 13, color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-                  {t.slots.length > 0 && <span style={{ fontSize: 12, color: '#555' }}>{filled}/{t.slots.length}</span>}
-                  <button onClick={e => { e.stopPropagation(); deleteTemplate(t.id) }}
-                    title="Delete saved slate"
-                    style={{ fontSize: 13, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>✕</button>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {placed.length === 0 && (
-          <div style={{ marginTop: 12, fontSize: 13, color: '#333', lineHeight: 1.8 }}>
-            Select a slate type to begin.<br />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {slateInventory.map(t => {
+                const color = t.kind === 'base'
+                  ? (treeColors[t.treeType ?? ''] ?? '#666')
+                  : LEGENDARY_META[t.kind as LegendaryKind]?.color ?? '#666'
+                return (
+                  <InventoryTile key={t.id} template={t} color={color} treeColors={treeColors}
+                    onPlace={() => placeFromTemplate(t)} onDelete={() => deleteTemplate(t.id)} />
+                )
+              })}
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 13, color: '#333', lineHeight: 1.8 }}>
+            No saved slates yet. Click <b style={{ color: '#888' }}>Create Slate</b> to build one.<br />
             Drag placed slates to move, click to edit.
           </div>
         )}
@@ -1624,7 +1737,7 @@ export default function SlateScreen({ treeColors }: Props) {
         <span style={{ marginLeft: 'auto', fontSize: 13, color: '#555' }}>{usedCells} / {TOTAL_CELLS} cells</span>
         {placed.length > 0 && !creator && !dragSlate && (
           <span style={{ fontSize: 12, fontWeight: 600, color: boardIsValid ? '#4ab87a' : '#f05555' }}>
-            {boardIsValid ? '✓ Valid' : '⚠ Conflicts'}
+            {boardIsValid ? '✓ Valid' : `⚠ ${invalidReason}`}
           </span>
         )}
         {(creator || dragSlate) && (
@@ -1639,19 +1752,61 @@ export default function SlateScreen({ treeColors }: Props) {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left panel */}
         <div style={{ width: 320, flexShrink: 0, background: '#12121e', borderRight: '1px solid #2a2a4a', padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
-          {creator ? renderCreatorPanel() : renderIdlePanel()}
+          {mode.type === 'choosing' ? renderChooserPanel() : creator ? renderCreatorPanel() : renderIdlePanel()}
         </div>
 
         {/* Board */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto' }}>
-          <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${BOARD_COLS}, ${CELL}px)`, gridTemplateRows: `repeat(${BOARD_ROWS}, ${CELL}px)`, gap: GAP }}>
+        <div {...boardTip.triggerProps} style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto' }}>
+          {/* Collapsible Slate Bonuses panel — top-right of the board area */}
+          <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 5 }}>
+            {bonusesOpen ? (
+              <div className="dark-scroll" style={{ width: 240, maxHeight: 'calc(100vh - 160px)', overflowY: 'auto', background: '#101020', border: '1px solid #2a2a4a', borderRadius: 8, boxShadow: '0 6px 24px rgba(0,0,0,0.55)' }}>
+                <button onClick={() => setBonusesOpen(false)} style={{
+                  position: 'sticky', top: 0, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '9px 13px', background: '#16162a', border: 'none', borderBottom: '1px solid #2a2a4a',
+                  color: '#8a7ad0', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, cursor: 'pointer',
+                }}>Slate Bonuses <span>▾</span></button>
+                <SlateOverview placed={placed} hideHeading />
+              </div>
+            ) : (
+              <button onClick={() => setBonusesOpen(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '9px 13px',
+                background: '#16162a', border: '1px solid #2a2a4a', borderRadius: 8, color: '#8a7ad0',
+                fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, cursor: 'pointer',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.45)',
+              }}>≡ Slate Bonuses <span>▸</span></button>
+            )}
+          </div>
+          <div ref={boardRef}
+            onPointerMove={e => {
+              // Track the hovered cell from the pointer position (not per-cell onMouseEnter) so the ghost follows
+              // the cursor smoothly with no gap dead-zones — only while placing or dragging.
+              if (!creator && !dragSlate) return
+              const rect = boardRef.current?.getBoundingClientRect()
+              if (!rect) return
+              const lx = e.clientX - rect.left, ly = e.clientY - rect.top
+              const c = Math.floor(lx / PITCH), r = Math.floor(ly / PITCH)
+              if (r < 0 || r >= BOARD_ROWS || c < 0 || c >= BOARD_COLS) return
+              // Hysteresis: only switch to a NEW cell once the cursor is well inside its body (not the edge/gap),
+              // so the slate lingers in place instead of twitching/teleporting when moving fast across boundaries.
+              const M = 8
+              setHover(prev => {
+                if (prev && prev[0] === r && prev[1] === c) return prev
+                const inX = lx - c * PITCH, inY = ly - r * PITCH
+                if (inX < M || inX > CELL - M || inY < M || inY > CELL - M) return prev   // near edge/gap → keep current
+                return [r, c]
+              })
+            }}
+            onPointerLeave={() => { if (creator || dragSlate) setHover(null) }}
+            style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${BOARD_COLS}, ${CELL}px)`, gridTemplateRows: `repeat(${BOARD_ROWS}, ${CELL}px)`, gap: GAP }}>
             {Array.from({ length: BOARD_ROWS }, (_, row) =>
               Array.from({ length: BOARD_COLS }, (_, col) => {
                 const key = `${row},${col}`
                 const valid = isValidCell(row, col)
                 const isGhost = ghostSet.has(key)
                 const isPlacedHere = placedCellMap.has(key)
-                if (!valid && !isGhost && !isPlacedHere) return <div key={key} style={{ width: CELL, height: CELL }} />
+                // Every grid cell is interactive (full square), even the "invisible" out-of-area ones — you can
+                // place/drag onto them; they're just flagged invalid (red outline + warning) rather than blocked.
 
                 const slateId = placedCellMap.get(key) ?? null
                 const slate = slateId ? placed.find(s => s.id === slateId) : null
@@ -1713,11 +1868,12 @@ export default function SlateScreen({ treeColors }: Props) {
                     onClick={() => handleCellClick(row, col)}
                     onPointerDown={() => handleCellPointerDown(row, col)}
                     onMouseEnter={() => {
-                      setHover([row, col])
-                      if (!creator && !dragSlate && slateId) setHoverSlateId(slateId)
+                      // During placing/dragging the grid's pointer-move (with hysteresis) owns `hover`; here we
+                      // only track which slate is hovered for the idle detail tooltip.
+                      if (!creator && !dragSlate) setHoverSlateId(slateId)
                       else if (!slateId) setHoverSlateId(null)
                     }}
-                    onMouseLeave={() => { setHover(null); setHoverSlateId(null) }}
+                    onMouseLeave={() => { setHoverSlateId(null) }}
                     style={{
                       width: CELL, height: CELL, boxSizing: 'border-box',
                       backgroundColor: cellBg, ...iconBg, border: `2px solid ${cellBorder}`, borderRadius: 6,
@@ -1733,10 +1889,10 @@ export default function SlateScreen({ treeColors }: Props) {
             ).flat()}
 
             {/* Unified art overlay: one rotated image per art-overlay slate, spanning its whole footprint
-                (covers the internal grid gaps so the slate reads as a single piece). */}
-            {placed.map(s => {
+                (covers the internal grid gaps so the slate reads as a single piece). Uses renderPlaced so a
+                dragged slate's art follows the cursor live. */}
+            {renderPlaced.map(s => {
               if (!ART_OVERLAY_KINDS.has(s.kind)) return null
-              if (dragSlate && dragSlate.slate.id === s.id) return null
               const cs = s.cells.map(c => c[1]), rs = s.cells.map(c => c[0])
               const placedCR: [number, number] = [Math.max(...cs) - Math.min(...cs) + 1, Math.max(...rs) - Math.min(...rs) + 1]
 
@@ -1789,9 +1945,8 @@ export default function SlateScreen({ treeColors }: Props) {
 
             {/* Whole-slate outline: a single frame tracing each art-overlay slate's outer shape (board-space,
                 so it follows the real cells). Brightens when the slate is selected / hovered. */}
-            {placed.map(s => {
+            {renderPlaced.map(s => {
               if (!ART_OVERLAY_KINDS.has(s.kind)) return null
-              if (dragSlate && dragSlate.slate.id === s.id) return null
               const pts = footprintOutline(s.cells)
               if (!pts.length) return null
               const sel = s.id === editingSlateId
@@ -1808,32 +1963,15 @@ export default function SlateScreen({ treeColors }: Props) {
             })}
 
           </div>
-        </div>
 
-        {/* Right column: top section = context (shape picker / hovered-slate tooltip), bottom section =
-            the always-visible Slate Bonuses overview (not replaced by hovering or editing). */}
-        <div style={{ width: 232, flexShrink: 0, borderLeft: '1px solid #2a2a4a', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Fixed-proportion split so the bonuses area stays a consistent size regardless of which slate
-              tooltip is shown above it. */}
-          <div className="dark-scroll" style={{ flex: '0 0 46%', minHeight: 0, overflowY: 'auto' }}>
-            {creator ? (
-              <ShapePanel
-                creator={creator} treeColors={treeColors}
-                onRotate={handleRotate}
-                onSelectOrientation={idx => updateCreator({ orientationIndex: idx })}
-                onSelectShape={idx => updateCreator({ shapeIndex: idx, orientationIndex: 0 })}
-              />
-            ) : hoverSlate ? (
-              <HoverTooltip slate={hoverSlate} treeColors={treeColors} placed={placed} />
-            ) : (
-              <div style={{ padding: '16px 14px', fontSize: 12, color: '#3a3a5a', lineHeight: 1.7 }}>
-                Hover a slate to inspect it, or add/edit one.
+          {/* Floating detail tooltip for the hovered board slate (idle only). */}
+          {boardTip.open && hoverSlate && (
+            <FloatingPortal>
+              <div className="tooltip" {...boardTip.floatingProps}>
+                <SlateTooltipBody slate={hoverSlate} treeColors={treeColors} placed={placed} />
               </div>
-            )}
-          </div>
-          <div className="dark-scroll" style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto', borderTop: '1px solid #2a2a4a', background: '#101020' }}>
-            <SlateOverview placed={placed} />
-          </div>
+            </FloatingPortal>
+          )}
         </div>
       </div>
     </div>

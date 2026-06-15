@@ -204,6 +204,7 @@ export interface SavedSlateSlot {
 
 export interface SavedSlate {
   id: string
+  templateId?: string
   kind: string
   cells: [number, number][]
   orientationIndex: number
