@@ -72,7 +72,6 @@ type SlotType = 'magic' | 'rare' | 'legendary'
 type MothDirection = 'above' | 'below' | 'left' | 'right'
 
 const LEGEND_GOLD = '#c8881a'
-const PRAIRIE_PINK = '#c050a0'
 
 // ── Base shapes (6 game forms × 4 rotations) ─────────────────────────────────
 // The six baseline tetromino forms (O, L, Z, T + the mirrors J=L2, S=Z2). Each form's rotation 0 matches its
@@ -333,13 +332,13 @@ function footprintInsetClip(cells: [number, number][], inset: number): string {
 // ── Legendary metadata ────────────────────────────────────────────────────────
 
 const LEGENDARY_META: Record<LegendaryKind, { label: string; color: string }> = {
-  pedigree:                       { label: 'Pedigree',                           color: LEGEND_GOLD },
+  pedigree:                       { label: 'Pedigree of Gods',                   color: LEGEND_GOLD },
   fallen_starlight:               { label: 'Fallen Starlight',                   color: LEGEND_GOLD },
   corner_of_divinity:             { label: 'Corner of Divinity',                 color: LEGEND_GOLD },
-  spark_of_moth_fire:             { label: 'Spark of Moth Fire',                 color: LEGEND_GOLD },
-  when_sparks_set_prairie_ablaze: { label: 'When Sparks Set the Prairie Ablaze', color: PRAIRIE_PINK },
-  space_rift:                     { label: 'Space Rift',                         color: '#5aa0d0' },
-  residence_of_stars:             { label: 'Residence of Stars',                color: '#5aa0d0' },
+  spark_of_moth_fire:             { label: 'Sparks of Moth Fire',                color: LEGEND_GOLD },
+  when_sparks_set_prairie_ablaze: { label: 'When Sparks Set the Prairie Ablaze', color: LEGEND_GOLD },
+  space_rift:                     { label: 'Space Rift',                         color: LEGEND_GOLD },
+  residence_of_stars:             { label: 'Residence of Stars',                color: LEGEND_GOLD },
 }
 
 // Bundled slate icons (served from data/images/icons/divinity_slate/, paired by basename via iconUrl).
@@ -381,17 +380,6 @@ function SlateIcon({ kind, treeType, shapeIndex = 0, size = 26 }: { kind: SlateK
   if (!src) return null
   const flip = kind === 'base' && !!BASE_FORMS[shapeIndex]?.flip
   return <img src={src} alt="" style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0, transform: flip ? 'scaleX(-1)' : undefined }} />
-}
-
-const PREVIEW_CELLS: Record<SlateKind, [number, number][]> = {
-  base:                           [[0,1],[1,0],[1,1],[1,2]],
-  pedigree:                       [[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1]],
-  fallen_starlight:               [[0,0],[0,1]],
-  corner_of_divinity:             [[0,0],[0,1],[1,0]],
-  spark_of_moth_fire:             [[0,0]],
-  when_sparks_set_prairie_ablaze: [[0,0]],
-  space_rift:                     [[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]],
-  residence_of_stars:             [[0,2],[1,0],[1,1],[1,2],[2,1],[2,2],[2,3],[3,1]],
 }
 
 const SLATE_DESCRIPTIONS: Record<SlateKind, string> = {
@@ -1551,11 +1539,11 @@ export default function SlateScreen({ treeColors }: Props) {
           background: '#1a1a3a', border: '1px solid #2a2a50', borderRadius: 7,
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14,
         }}>
-          <div style={{ flexShrink: 0, minWidth: 36, display: 'flex', justifyContent: 'center' }}>
-            <MiniShape offsets={PREVIEW_CELLS.base} color='#6060aa' size={15} />
+          <div style={{ flexShrink: 0, minWidth: 50, display: 'flex', justifyContent: 'center' }}>
+            <SlateIcon kind='base' treeType='God of War' shapeIndex={3} size={46} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#ccc', marginBottom: 3 }}>+ Base Slate</div>
+            <div style={{ fontSize: 17, fontWeight: 600, color: '#ccc', marginBottom: 3 }}>Base Slate</div>
             <div style={{ fontSize: 12, color: '#555' }}>{SLATE_DESCRIPTIONS.base}</div>
           </div>
         </button>
@@ -1567,11 +1555,11 @@ export default function SlateScreen({ treeColors }: Props) {
             background: '#1a1a3a', border: `1px solid #252540`, borderLeft: `3px solid ${meta.color}`,
             borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14,
           }}>
-            <div style={{ flexShrink: 0, minWidth: 36, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
-              <SlateIcon kind={kind} size={28} />
+            <div style={{ flexShrink: 0, minWidth: 50, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
+              <SlateIcon kind={kind} size={46} />
             </div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: meta.color, marginBottom: 3 }}>+ {meta.label}</div>
+              <div style={{ fontSize: 17, fontWeight: 600, color: meta.color, marginBottom: 3 }}>{meta.label}</div>
               <div style={{ fontSize: 12, color: '#555' }}>{SLATE_DESCRIPTIONS[kind]}</div>
             </div>
           </button>
