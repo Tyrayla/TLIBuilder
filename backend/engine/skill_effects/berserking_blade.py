@@ -171,7 +171,8 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
 
 def preseed(*, slot, condition_state, attached_supports, skills_by_id, **_) -> None:
     """Decimate: force enemy_low_life for this computation when the enemy is below the rolled threshold
-    (set before aggregation so the build's 'vs Low Life' mods emit). Scoped to the BB main slot."""
+    (set before aggregation so the build's 'vs Low Life' mods emit). Reads the Decimate config for THIS
+    slot, so it works on whichever slot Berserking Blade occupies (dispatched per equipped slot)."""
     cfg = extract_config(attached_supports, skills_by_id).get(slot, {})
     thr = cfg.get("decimate_threshold")
     if thr is not None and float(condition_state.get("enemy_life_pct", 100.0) or 0.0) < thr:

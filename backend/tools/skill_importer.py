@@ -71,7 +71,7 @@ def import_crawler_skill(data: dict) -> dict:
         if g.get("term_id")
     }
     simple = variant.get("simple_description") or ""
-    return {
+    out = {
         "item_id": item_id,
         "name": name,
         "internal_id": data.get("internal_id"),
@@ -87,6 +87,11 @@ def import_crawler_skill(data: dict) -> dict:
         "progression": data.get("progression") or [],
         "glossary": glossary,
     }
+    # Dev-set "can contribute to DPS" override — only persist when explicitly present (else /api/skills
+    # derives it from skill_type). Never write null, which would read as "explicitly ineligible".
+    if "dps_eligible" in data:
+        out["dps_eligible"] = bool(data["dps_eligible"])
+    return out
 
 
 def import_crawler_skills(items_data: list[dict]) -> list[dict]:

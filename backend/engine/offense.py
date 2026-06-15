@@ -301,7 +301,7 @@ def _target_mitigation(source: BuildSource, dtype: str) -> float:
 
 
 # Where the target's base mitigation/resistance comes from (so the UI shows the baseline, not magic numbers).
-TARGET_SOURCE = "Training dummy"
+TARGET_SOURCE = "Lvl 85 Dummy"
 
 
 def target_profile(source: BuildSource) -> dict:

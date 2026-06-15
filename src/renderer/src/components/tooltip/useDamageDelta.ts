@@ -39,6 +39,9 @@ export interface DeltaRequest {
   // slice). Used for support-pick deltas, which are independent of the equipped support's roll/rank/tier
   // so they must not recompute when those change. See SkillsScreen's pickBaseSig.
   stable?: boolean
+  // Which skill slot's DPS to measure the delta on. Defaults to the headline (main) offense; set this to
+  // the focused slot so a support on a non-main slot diffs THAT slot's offense (slot_offense[slot]).
+  measureSlot?: number
 }
 
 const COMING_SOON: DamageDelta = { state: 'nyi', reason: 'coming soon' }
@@ -85,8 +88,11 @@ export function withSupport(s: BuildState, slot: number, supportIndex: number, s
   }
 }
 
-function toStats(r: StatSheetResponse): Stats {
-  return { dps: r.offense?.total_dps_vs_target ?? null, supported: !!r.offense?.supported, stats: r.stats ?? {} }
+function toStats(r: StatSheetResponse, measureSlot?: number): Stats {
+  // Measure the headline offense by default; for a specific slot, diff that slot's per-slot offense so a
+  // change on a non-main skill registers (the headline only reflects the main slot).
+  const o = measureSlot != null ? (r.slot_offense?.[String(measureSlot)] ?? null) : (r.offense ?? null)
+  return { dps: o?.total_dps_vs_target ?? null, supported: !!o?.supported, stats: r.stats ?? {} }
 }
 
 // True if the change touched any damage-relevant stat (so a 0 DPS delta means "not modeled"
@@ -102,22 +108,23 @@ function changedTouchesDamage(a: StatMap, b: StatMap): boolean {
   return false
 }
 
-// The current build's stats, shared across all hovers at a given version (free when the store
-// result is current; otherwise computed fresh and deduped per version).
-let identityCache: { version: number; promise: Promise<Stats> } | null = null
-function identityStats(s: BuildState, version: number): Promise<Stats> {
+// The current build's RAW stats response, shared across all hovers at a given version (free when the
+// store result is current; otherwise computed fresh and deduped per version). Kept raw — not reduced to a
+// single dps — so each request can measure its own slot via toStats(measureSlot).
+let identityCache: { version: number; promise: Promise<StatSheetResponse> } | null = null
+function identityStats(s: BuildState, version: number): Promise<StatSheetResponse> {
   if (s.computedVersion === version && s.computedStats?.offense) {
-    return Promise.resolve(toStats(s.computedStats))
+    return Promise.resolve(s.computedStats)
   }
   if (identityCache && identityCache.version === version) return identityCache.promise
-  const promise = api.engineStats(buildEngineStatsPayload(s)).then(toStats)
+  const promise = api.engineStats(buildEngineStatsPayload(s))
   identityCache = { version, promise }
   return promise
 }
 
-function sideStats(transform: StateTransform | undefined, s: BuildState, version: number): Promise<Stats> {
+function sideStats(transform: StateTransform | undefined, s: BuildState, version: number): Promise<StatSheetResponse> {
   if (!transform) return identityStats(s, version)
-  return api.engineStats(buildEngineStatsPayload(transform(s))).then(toStats)
+  return api.engineStats(buildEngineStatsPayload(transform(s)))
 }
 
 // Memoized delta results per (version, request key) so re-hovering is instant.
@@ -145,10 +152,12 @@ async function computeDelta(req: DeltaRequest, s: BuildState, version: number): 
   const cache = req.stable ? stableCache : resultCache
   const cached = cache.get(req.key)
   if (cached) return cached
-  const [step, base] = await Promise.all([
+  const [stepRaw, baseRaw] = await Promise.all([
     sideStats(req.step, s, version),
     sideStats(req.base, s, version),
   ])
+  const step = toStats(stepRaw, req.measureSlot)
+  const base = toStats(baseRaw, req.measureSlot)
   let result: DamageDelta
   if (!step.supported || step.dps == null || !base.supported || base.dps == null) {
     result = SKILL_NYI

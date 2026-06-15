@@ -1020,6 +1020,8 @@ export interface SkillItem {
   main_stat?: string | null
   progression?: object[]
   tooltip?: SkillTooltipSpec
+  // Whether this skill can contribute to the build's total DPS (dev-set; default derived from skill_type).
+  dps_eligible?: boolean
   glossary?: Record<string, { name: string; description: string }>
 }
 
@@ -1052,6 +1054,10 @@ export interface EquippedSkill {
   supports: EquippedSupportSkill[]
   // Whether this skill (and its supports + sourced buffs/debuffs) contributes. Default true.
   enabled?: boolean
+  // Whether this (dps_eligible) skill is included in the sidebar's total DPS. Default true; toggled per
+  // skill on the Skills screen. Persisted in the build (rides in the skills array). Display-only — the
+  // engine still computes every slot's offense regardless.
+  countInDps?: boolean
 }
 
 const PASSIVE_TAGS = new Set(['Aura', 'Spirit Magus', 'Focus'])

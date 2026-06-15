@@ -1160,6 +1160,33 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   line-height: 1.1;
   letter-spacing: -0.5px;
 }
+/* Per-contributor breakdown under the total (name · dps, slot order). */
+.sidebar-dps-breakdown {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid #20204a;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar-dps-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10px;
+}
+.sidebar-dps-row-name {
+  color: #9a9ac0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-dps-row-val {
+  color: #cdb98a;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
 
 .sidebar-nav-btn {
   display: block;
@@ -3313,11 +3340,18 @@ span.gear-affix-label {
 
 .skill-detail-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 14px 16px 10px;
   flex-shrink: 0;
+}
+/* Action buttons + level control under the skill name — wraps so nothing is pushed off the panel. */
+.skill-detail-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 
 .skill-detail-name {

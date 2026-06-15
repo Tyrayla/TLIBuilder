@@ -237,7 +237,7 @@ export default function SkillsScreen(_props: Props) {
   const equippedSupportDelta = useDamageDelta(
     focusedEquippedSupport && focusedSupportIdx !== null && focusedSlot !== null
       ? { key: `support-lose:${focusedSlot}:${focusedSupportIdx}:${focusedEquippedSupport.item_id}`,
-          step: s => withSupport(s, focusedSlot, focusedSupportIdx, null) }
+          step: s => withSupport(s, focusedSlot, focusedSupportIdx, null), measureSlot: focusedSlot }
       : null,
     !!focusedEquippedSupport,
   )
@@ -290,7 +290,7 @@ export default function SkillsScreen(_props: Props) {
       ? supportCatalogItems.map(item => ({
           key: `support-pick:${focusedSlot}:${item.item_id}:${focusedSupportIdx}:${pickBaseSig}`,
           step: (s) => withSupport(s, focusedSlot, focusedSupportIdx, makeSupport(item, focusedSupportIdx)),
-          stable: true,
+          measureSlot: focusedSlot, stable: true,
         }))
       : [],
     [supportCatalogItems, focusedSlot, focusedSupportIdx, pickBaseSig])
@@ -391,6 +391,13 @@ export default function SkillsScreen(_props: Props) {
   const toggleSkillEnabled = (slot: number) => {
     onSkillsChange(equippedSkills.map(s =>
       s.slot === slot ? { ...s, enabled: s.enabled === false } : s
+    ))
+  }
+
+  // Include/exclude a (dps-eligible) skill from the sidebar's total DPS. Default on; persisted in the build.
+  const toggleCountInDps = (slot: number) => {
+    onSkillsChange(equippedSkills.map(s =>
+      s.slot === slot ? { ...s, countInDps: s.countInDps === false } : s
     ))
   }
 
@@ -563,31 +570,36 @@ export default function SkillsScreen(_props: Props) {
     return (
       <>
         <div className="skill-detail-header">
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-            <SkillHoverTooltip name={focusedEquipped.name}
-                               item={allItems.find(i => i.item_id === focusedEquipped.item_id)}
-                               level={focusedEquipped.level}
-                               descLines={focusedEquipped.description_lines}>
-              {tp => (
-                <div {...tp} style={{ cursor: 'default', flex: 1, minWidth: 0 }}>
-                  <div className="skill-detail-name">{focusedEquipped.name}</div>
-                  <div className="skill-detail-tags">
-                    {focusedEquipped.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
-                  </div>
+          <SkillHoverTooltip name={focusedEquipped.name}
+                             item={allItems.find(i => i.item_id === focusedEquipped.item_id)}
+                             level={focusedEquipped.level}
+                             descLines={focusedEquipped.description_lines}>
+            {tp => (
+              <div {...tp} style={{ cursor: 'default', minWidth: 0 }}>
+                <div className="skill-detail-name">{focusedEquipped.name}</div>
+                <div className="skill-detail-tags">
+                  {focusedEquipped.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
                 </div>
-              )}
-            </SkillHoverTooltip>
+              </div>
+            )}
+          </SkillHoverTooltip>
+          <div className="skill-detail-header-actions">
             <button
               className={`btn btn-sm ${focusedEquipped.enabled === false ? 'btn-danger' : 'btn-success'}`}
               title="Enable/disable this skill (and its supports) in the calculation"
               onClick={() => toggleSkillEnabled(focusedSlot)}
             >{focusedEquipped.enabled === false ? 'Disabled' : 'Enabled'}</button>
+            {allItems.find(i => i.item_id === focusedEquipped.item_id)?.dps_eligible && (
+              <button
+                className={`btn btn-sm ${focusedEquipped.countInDps === false ? 'btn-secondary' : 'btn-success'}`}
+                title="Include this skill in the sidebar's total DPS"
+                onClick={() => toggleCountInDps(focusedSlot)}
+              >{focusedEquipped.countInDps === false ? 'Not in DPS' : 'In DPS'}</button>
+            )}
             <button className="btn btn-secondary btn-sm" onClick={() => { setCenterView('catalog'); setSearch('') }}>Change</button>
             <button className="btn btn-danger btn-sm" onClick={() => removeSkill(focusedSlot)}>Remove</button>
-          </div>
-          <div className="skill-level-row" style={{ marginTop: 0, alignItems: 'center' }}>
-            <span className="skill-level-label">Level</span>
-            <div className="skill-level-controls">
+            <div className="skill-level-controls" style={{ marginLeft: 'auto' }}>
+              <span className="skill-level-label">Level</span>
               <button className="skill-level-btn" onClick={() => setEquippedLevel(focusedEquipped.level - 1)}>−</button>
               <input
                 type="number" className="skill-level-input" min={1} max={40} value={focusedEquipped.level}

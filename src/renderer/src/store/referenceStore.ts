@@ -28,6 +28,7 @@ interface ReferenceStore {
   // the Stats page, which looks up a contribution's source skill/support by name (`skillsByName`).
   skills: SkillItem[] | null
   skillsByName: Record<string, SkillItem> | null
+  skillsById: Record<string, SkillItem> | null
 
   // true once ALL fetches have settled (any mix of success/failure)
   referenceResolved: boolean
@@ -55,6 +56,7 @@ function freshClearedState() {
     conditions: null as Record<string, ConditionDef[]> | null,
     skills: null as SkillItem[] | null,
     skillsByName: null as Record<string, SkillItem> | null,
+    skillsById: null as Record<string, SkillItem> | null,
     referenceResolved: false,
     failedCatalogs: new Set<string>(),
   }
@@ -141,6 +143,7 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
     if (skillsResult.status === 'fulfilled') {
       updates.skills = skillsResult.value.skills
       updates.skillsByName = Object.fromEntries(skillsResult.value.skills.map((s) => [s.name, s]))
+      updates.skillsById = Object.fromEntries(skillsResult.value.skills.map((s) => [s.item_id, s]))
       if (skillsResult.value.season) season ??= skillsResult.value.season
     } else { failed.add('skills') }
 

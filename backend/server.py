@@ -1369,9 +1369,14 @@ def get_skills():
     if not data:
         return {"season": active, "skills": []}
     from engine.tooltip import build_tooltip
+    # Which skills CAN contribute to the build's total DPS. Dev-set: an explicit `dps_eligible` in the skill
+    # record wins; otherwise default by type (active / modularization deal hit damage; passives/supports/etc
+    # do not). The user then toggles inclusion per equipped skill (countInDps).
+    _DPS_TYPES = {"active_skill", "modularization_skill"}
     skills = []
     for s in data.get("skills", []):
         out = dict(s)   # enrich a copy; never mutate the loaded store
+        out["dps_eligible"] = bool(s["dps_eligible"]) if "dps_eligible" in s else (s.get("skill_type") in _DPS_TYPES)
         try:
             out["tooltip"] = build_tooltip(s)
         except Exception:

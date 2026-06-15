@@ -1010,7 +1010,7 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
   ]
   const details = target.debuff_details ?? []
   return (
-    <StatPanel title="Target (Dummy)" accent="#b03030">
+    <StatPanel title={`Target (${src})`} accent="#b03030">
       <div style={{ fontSize: 9, color: '#777', marginBottom: 5 }}>
         Base values from <span style={{ color: '#aaa' }}>{src}</span>. Penetration is applied at the hit — it does <i>not</i> lower the enemy's resistance.
       </div>

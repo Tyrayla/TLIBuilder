@@ -226,9 +226,21 @@ def compute(
                 main_enabled = _sk.get("enabled", True)
                 break
     # Type-C preseed before aggregation (e.g. Berserking Blade Decimate forcing enemy_low_life when the
-    # enemy is below the rolled threshold), dispatched per the main skill's module.
-    if build_input.main_skill:
-        skill_effects.preseed(build_input.main_skill.skill_id, slot=main_slot,
+    # enemy is below the rolled threshold) — dispatched for EVERY equipped skill, scoped by its slot, so a
+    # skill's preseed mechanic runs no matter which slot it's in (and per-slot for two-of-the-same-skill).
+    _main_id = build_input.main_skill.skill_id if build_input.main_skill else None
+    _main_covered = False
+    for _sk in (skills_input or []):
+        if not _sk.get("enabled", True):
+            continue
+        if _sk["skill_id"] == _main_id:
+            _main_covered = True
+        skill_effects.preseed(_sk["skill_id"], slot=_sk["slot"],
+                              condition_state=condition_state,
+                              attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
+    # Fallback: a main skill provided without a matching slot entry (legacy payloads) still preseeds.
+    if _main_id and not _main_covered:
+        skill_effects.preseed(_main_id, slot=main_slot,
                               condition_state=condition_state,
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
 
