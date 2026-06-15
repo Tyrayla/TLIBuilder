@@ -811,6 +811,13 @@ def engine_stats(req: EngineStatsRequest):
         gi["contributions"] = contribs
         gear_resolved.append(gi)
 
+    # ── Auras / Focus buffs ──────────────────────────────────────────────────
+    # Server only PARSES the buff lines into unscaled contributions (needs the text→stat parser). The engine
+    # (engine.utility, inside compute) scales them by the fully-aggregated Aura Effect + builds the summaries.
+    from engine.aura_resolver import resolve_auras
+    aura_buffs, aura_statuses, aura_stack_conditions, aura_meta = resolve_auras(
+        skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr)
+
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=core_condition_state,
@@ -823,6 +830,8 @@ def engine_stats(req: EngineStatsRequest):
         attached_supports=enabled_supports,
         core_talent_contributions=core_contributions,
         node_contributions=node_contributions,
+        aura_buffs=aura_buffs,
+        aura_meta=aura_meta,
     )
     result = compute(
         build, season_trees, filter_data,
@@ -853,6 +862,12 @@ def engine_stats(req: EngineStatsRequest):
         "target_stats": result.target_stats,
         # Per-blessing summary (stacks/max/effects) for the Blessings panel.
         "blessings": result.blessings,
+        # Per-aura summary (granted buff lines + applied Aura Effect + NYI lines) for the Skill panel —
+        # computed engine-side (engine.utility) so the Aura Effect total is the true post-aggregation value.
+        "auras": result.aura_summaries,
+        "aura_statuses": aura_statuses,
+        # Settable per-aura stack conditions ({key,label,max}) for the stack sliders.
+        "aura_stack_conditions": aura_stack_conditions,
     }
 
 
@@ -1377,6 +1392,10 @@ def get_skills():
     for s in data.get("skills", []):
         out = dict(s)   # enrich a copy; never mutate the loaded store
         out["dps_eligible"] = bool(s["dps_eligible"]) if "dps_eligible" in s else (s.get("skill_type") in _DPS_TYPES)
+        # Buff-passive flag: an Aura/Focus-tagged passive grants player buffs (aura_resolver) — lets the UI
+        # label it and show its granted effects.
+        out["is_aura"] = s.get("skill_type") == "passive_skill" and any(
+            t in (s.get("skill_tags") or []) for t in ("Aura", "Focus"))
         try:
             out["tooltip"] = build_tooltip(s)
         except Exception:
@@ -1910,6 +1929,16 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     distinct multiplicative factors."""
     residual, scope = detect_skill_scope(text.strip())
     results = _parse_custom_mod_text_base(residual)
+    if not results:
+        # Fallback: an INLINE skill-type qualifier the suffix detector + base resolver miss ("Melee Skill
+        # Damage", "Melee Attack Speed"). Peel it and retry; only adopt the scope if the residual resolves,
+        # so working typed-stat phrasings (resolved on the first try above) are never disturbed.
+        from engine.skill_scope import detect_inline_skill_scope
+        inline_residual, inline_scope = detect_inline_skill_scope(residual)
+        if inline_scope and inline_residual != residual:
+            retry = _parse_custom_mod_text_base(inline_residual)
+            if retry:
+                results, scope = retry, inline_scope
     if scope and results:
         original = text.strip()
         for d in results:

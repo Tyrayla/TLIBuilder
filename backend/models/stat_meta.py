@@ -2453,6 +2453,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=70,                source_types=_T,
     ),
+    Stat.AURA_EFFECT_ADDITIONAL: StatMeta(
+        "Aura Effect", "Buffs", "additional", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
+    ),
     Stat.CURSE_EFFECT_INC: StatMeta(
         "Curse Effect", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",

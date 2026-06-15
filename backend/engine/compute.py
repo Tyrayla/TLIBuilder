@@ -244,6 +244,7 @@ def compute(
                               condition_state=condition_state,
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
 
+    aura_summaries: list[dict] = []
     for iteration in range(_MAX_ITERS):
         active_booleans, numeric_vals = _derive_views(condition_state)
 
@@ -273,6 +274,13 @@ def compute(
                 source.add_slotted(c["stat_key"], c["amount"], _slot, None, _se)
             else:
                 source.add_with_source(c["stat_key"], c["amount"], _se)
+
+        # Aura / Focus buffs: scale by the now-fully-aggregated Aura Effect (gear + talents + custom +
+        # standard supports + the auras' own) and fold into the source BEFORE derive (so life-regen/resist
+        # auras feed derived stats too). Runs each pass so the self-feedback converges with the loop.
+        from engine.utility import apply_aura_buffs
+        aura_summaries = apply_aura_buffs(
+            source, build_input.aura_buffs, build_input.aura_meta, active_booleans, numeric_vals)
 
         # Compute derived stats (strength, armor, max_life, etc.) and inject
         # back into source so the pipeline and condition system can read them.
@@ -568,4 +576,5 @@ def compute(
         target_stats=target_stats,
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,
         blessings=blessings,
+        aura_summaries=aura_summaries,
     )

@@ -127,6 +127,8 @@ def consumable_universe() -> frozenset[str]:
         consumed.add(k)
     # Aggregator-level propagation/effect reads (see note above).
     consumed |= _AGGREGATOR_PROPAGATION_INPUTS
+    # engine.utility reads these to scale aura buffs by total Aura Effect (outside offense/defense/derive).
+    consumed |= {"aura_effect_inc", "aura_effect_additional"}
 
     missing = _SANITY_FLOOR - consumed
     if missing:

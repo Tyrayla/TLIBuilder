@@ -593,6 +593,7 @@ class Stat(Enum):
     ELIXIR_EFFECT_ADDITIONAL = "elixir_effect_additional"
     ELIXIR_DURATION_ADDITIONAL = "elixir_duration_additional"
     AURA_EFFECT_INC = "aura_effect_inc"
+    AURA_EFFECT_ADDITIONAL = "aura_effect_additional"
     CURSE_EFFECT_INC = "curse_effect_inc"
     CURSE_SKILL_AREA_INC = "curse_skill_area_inc"
     MAX_CURSES_FLAT = "max_curses_flat"

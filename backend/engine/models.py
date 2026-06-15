@@ -188,6 +188,10 @@ class BuildInput:
     # Pre-resolved talent-tree NODE + SLATE contributions (unified resolver, server.resolve_nodes). Same
     # shape as core_talent_contributions; amounts pre-scaled by points; conditionals gated via condition_expr.
     node_contributions: list[dict] = field(default_factory=list)
+    # Parsed-but-UNSCALED aura/Focus buffs (server.aura_resolver) + per-aura meta. engine.utility scales them by
+    # the fully-aggregated Aura Effect inside the compute loop and folds them in as source_type "aura".
+    aura_buffs: list[dict] = field(default_factory=list)
+    aura_meta: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -203,3 +207,4 @@ class StatResult:
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
+    aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
