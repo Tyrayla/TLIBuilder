@@ -60,8 +60,22 @@ def merge_skills(existing: list[dict], incoming: list[dict]) -> list[dict]:
 
 import re as _re
 
+def _as_lines(val) -> list[str]:
+    """Normalize a description field to a list of non-empty lines (the recrawl emits lists; older data a string)."""
+    if isinstance(val, list):
+        return [str(x) for x in val if str(x).strip()]
+    if isinstance(val, str) and val.strip():
+        return [val]
+    return []
+
+
 def import_crawler_skill(data: dict) -> dict:
-    """Import a single crawler skill file (one JSON file per skill)."""
+    """Import a single crawler skill file (one JSON file per skill).
+
+    The recrawl emits `simple_description` (Lv1) and `detailed_description` (Lv20) as SPLIT LINE LISTS, plus a
+    `sealed_mana` reservation amount. We keep both anchor descriptions (for aura/focus per-level interpolation)
+    and `sealed_mana`; `description_lines` mirrors the simple (Lv1) lines for back-compat with existing readers.
+    """
     name = data.get("name", "")
     item_id = _re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
     variant = (data.get("variants") or [{}])[0]
@@ -70,21 +84,26 @@ def import_crawler_skill(data: dict) -> dict:
         for g in (data.get("glossary") or [])
         if g.get("term_id")
     }
-    simple = variant.get("simple_description") or ""
+    simple = _as_lines(variant.get("simple_description"))
+    detailed = _as_lines(variant.get("detailed_description"))
     out = {
         "item_id": item_id,
         "name": name,
         "internal_id": data.get("internal_id"),
         "skill_type": data.get("skill_type", ""),
         "skill_tags": variant.get("tags") or [],
-        "description_lines": [simple] if simple else [],
-        "raw_text": variant.get("detailed_description") or "",
+        "description_lines": simple,                     # Lv1 lines (back-compat readers use this)
+        "simple_description": simple,                    # Lv1 anchor (split lines)
+        "detailed_description": detailed,                # Lv20 anchor (split lines)
+        "raw_text": " ".join(detailed or simple),
         "max_level": variant.get("max_level"),
         "mana_cost": variant.get("mana_cost"),
+        "sealed_mana": variant.get("sealed_mana"),       # reservation amount, e.g. "50%"
         "cast_speed": variant.get("cast_speed"),
+        "effectiveness_of_added_damage": variant.get("effectiveness_of_added_damage"),
         "weapon_restriction": variant.get("weapon_restriction"),
         "main_stat": variant.get("main_stat"),
-        "progression": data.get("progression") or [],
+        "progression": data.get("progression") or variant.get("progression") or [],
         "glossary": glossary,
     }
     # Dev-set "can contribute to DPS" override — only persist when explicitly present (else /api/skills
