@@ -197,6 +197,9 @@ export interface SavedSlateSlot {
   selectedCoreKey: string | null
   coreName: string | null
   effects: string[]
+  // The selected node's talent type (Micro/Medium/Legendary Medium) — drives the copy-slate "Medium
+  // talents" filter (Space Rift / Residence of Stars).
+  nodeType?: string | null
 }
 
 export interface SavedSlate {

@@ -116,6 +116,46 @@ class TestSlateMaxDivinityDedup:
         assert _amounts(both).get("max_mana_inc") == pytest.approx(_amounts(only_a).get("max_mana_inc"))
 
 
+class TestCopySlateMediumTalents:
+    """Space Rift / Residence of Stars copy a neighbour's MEDIUM talents (not Micro). Space Rift copies one
+    chosen L/R neighbour incl. Legendary Medium; Residence copies all-4, Medium only (excl. Legendary Medium)."""
+    def _trees(self):
+        return _tree("Warrior", [
+            {"id": "warrior_c0_r0", "node_type": "Micro Talent", "effects": ["+9 % damage"]},
+            {"id": "warrior_c0_r1", "node_type": "Medium Talent", "effects": ["+18 % Attack Damage"]},
+            {"id": "warrior_c0_r2", "node_type": "Legendary Medium Talent", "effects": ["+12 % Max Mana"]},
+        ])
+
+    def _neighbor(self):
+        return {"kind": "base", "anchor": [2, 2], "cells": [[2, 2]], "slots": [
+            {"selectedNodeId": "warrior_c0_r0"}, {"selectedNodeId": "warrior_c0_r1"}, {"selectedNodeId": "warrior_c0_r2"}]}
+
+    def _amts(self, slates):
+        return _amounts(resolve_nodes([], slates, self._trees(), pm, tc)[0])
+
+    def test_space_rift_copies_medium_incl_legendary_not_micro(self):
+        base = self._amts([self._neighbor()])
+        rift = {"kind": "space_rift", "anchor": [2, 1], "cells": [[2, 1]], "mothDirection": "right", "slots": []}
+        got = self._amts([self._neighbor(), rift])
+        assert got["attack_dmg_inc"] == pytest.approx(base["attack_dmg_inc"] * 2)   # Medium copied
+        assert got["max_mana_inc"] == pytest.approx(base["max_mana_inc"] * 2)        # Legendary Medium copied
+        assert got["dmg_inc"] == pytest.approx(base["dmg_inc"])                      # Micro NOT copied
+
+    def test_space_rift_direction_only(self):
+        base = self._amts([self._neighbor()])
+        # Pointing LEFT from [2,1] looks at empty [2,0] → copies nothing.
+        rift = {"kind": "space_rift", "anchor": [2, 1], "cells": [[2, 1]], "mothDirection": "left", "slots": []}
+        assert self._amts([self._neighbor(), rift]) == base
+
+    def test_residence_copies_all4_medium_only(self):
+        base = self._amts([self._neighbor()])
+        res = {"kind": "residence_of_stars", "anchor": [2, 1], "cells": [[2, 1]], "slots": []}
+        got = self._amts([self._neighbor(), res])
+        assert got["attack_dmg_inc"] == pytest.approx(base["attack_dmg_inc"] * 2)   # Medium copied
+        assert got["max_mana_inc"] == pytest.approx(base["max_mana_inc"])            # Legendary Medium NOT copied
+        assert got["dmg_inc"] == pytest.approx(base["dmg_inc"])                      # Micro NOT copied
+
+
 def _load_filter():
     from tools.node_type_filter_builder import load_filter
     return load_filter() or {}

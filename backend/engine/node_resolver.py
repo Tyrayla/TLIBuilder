@@ -30,8 +30,13 @@ from engine.affix_identity import affix_identity
 
 _NODE_ID_RE = re.compile(r"^(.+)_c\d+_r\d+$")
 
-# Slate copy mechanics (mirrors engine.aggregator): Moth copies one neighbour's bottom slot; Prairie all four.
-_COPY_SLATE_KINDS = frozenset({"spark_of_moth_fire", "when_sparks_set_prairie_ablaze"})
+# Slate copy mechanics. Moth/Prairie copy a neighbour's BOTTOM slot (Moth = one chosen direction, Prairie =
+# all four). Space Rift/Residence copy a neighbour's MEDIUM-talent slots (Space Rift = one chosen L/R
+# direction, incl. Legendary Medium; Residence = all four, Medium only — excludes Micro + Legendary Medium).
+_COPY_SLATE_KINDS = frozenset({"spark_of_moth_fire", "when_sparks_set_prairie_ablaze",
+                               "space_rift", "residence_of_stars"})
+_ONE_DIR_COPY = frozenset({"spark_of_moth_fire", "space_rift"})   # copy from the single mothDirection neighbour
+_MEDIUM_COPY = frozenset({"space_rift", "residence_of_stars"})    # copy Medium talents (vs the bottom slot)
 _MOTH_DELTAS = {"above": (-1, 0), "below": (1, 0), "left": (0, -1), "right": (0, 1)}
 
 
@@ -149,6 +154,11 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond):
         contribs.extend(c)
         statuses.extend(s)
 
+    def _node_type(node_id: str) -> str:
+        tree = (season_trees or {}).get(_slug_from_node_id(node_id)) or {}
+        node = {n["id"]: n for n in tree.get("nodes", []) or []}.get(node_id)
+        return (node or {}).get("node_type", "")
+
     position_to_slate: dict[tuple, dict] = {}
     for sl in slates or []:
         for pos in _slate_positions(sl):
@@ -160,15 +170,18 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond):
             if nid:
                 _resolve_slate_node(nid, f"Slate · {nid}")
 
-        # Moth/Prairie: copy the bottom slot of adjacent (non-copy) slates.
-        if slate.get("kind", "base") not in _COPY_SLATE_KINDS:
+        kind = slate.get("kind", "base")
+        if kind not in _COPY_SLATE_KINDS:
             continue
         ar, ac = slate.get("anchor", [0, 0])
-        if slate.get("kind") == "spark_of_moth_fire":
-            d = _MOTH_DELTAS.get(slate.get("mothDirection"), None)
+        # Which neighbours: one chosen direction (Moth/Space Rift) or all four (Prairie/Residence).
+        if kind in _ONE_DIR_COPY:
+            d = _MOTH_DELTAS.get(slate.get("mothDirection"))
             checks = [(ar + d[0], ac + d[1])] if d else []
         else:
             checks = [(ar + dr, ac + dc) for dr, dc in _MOTH_DELTAS.values()]
+        medium_copy = kind in _MEDIUM_COPY
+        medium_only = kind == "residence_of_stars"   # exclude Legendary Medium (and Micro)
         for pos in checks:
             adj = position_to_slate.get(pos)
             if not adj or adj.get("kind", "base") in _COPY_SLATE_KINDS:
@@ -176,8 +189,21 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond):
             adj_slots = adj.get("slots", []) or []
             if not adj_slots:
                 continue
-            nid = adj_slots[-1].get("selectedNodeId")   # only the bottom slot is copied
-            if nid:
-                _resolve_slate_node(nid, f"Slate · Copy · {nid}")
+            if medium_copy:
+                # Copy the neighbour's Medium-talent slots (Space Rift incl. Legendary Medium; Residence not).
+                for slot in adj_slots:
+                    nid = slot.get("selectedNodeId")
+                    if not nid:
+                        continue
+                    nt = _node_type(nid)
+                    if "Medium Talent" not in nt:       # skip Micro Talents
+                        continue
+                    if medium_only and nt != "Medium Talent":   # Residence: skip Legendary Medium
+                        continue
+                    _resolve_slate_node(nid, f"Slate · Copy · {nid}")
+            else:
+                nid = adj_slots[-1].get("selectedNodeId")   # Moth/Prairie: only the bottom slot
+                if nid:
+                    _resolve_slate_node(nid, f"Slate · Copy · {nid}")
 
     return contribs, statuses

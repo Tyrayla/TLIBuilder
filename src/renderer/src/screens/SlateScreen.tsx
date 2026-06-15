@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { api, SlatePool, SlateModifierOption, CoreTalentOption, SavedSlate, SlateTemplate } from '../api/client'
+import { api, SlatePool, SlateModifierOption, CoreTalentOption, SavedSlate, SlateTemplate, iconUrl } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
@@ -61,6 +61,8 @@ type LegendaryKind =
   | 'corner_of_divinity'
   | 'spark_of_moth_fire'
   | 'when_sparks_set_prairie_ablaze'
+  | 'space_rift'
+  | 'residence_of_stars'
 
 type SlateKind = 'base' | LegendaryKind
 type SlotType = 'magic' | 'rare' | 'legendary'
@@ -130,6 +132,8 @@ const LEGENDARY_ORIENTATIONS: Record<LegendaryKind, [number, number][][]> = {
   ],
   spark_of_moth_fire:             [[[0,0]]],
   when_sparks_set_prairie_ablaze: [[[0,0]]],
+  space_rift:                     [[[0,0]]],
+  residence_of_stars:             [[[0,0]]],
 }
 
 function getOrientationCells(kind: SlateKind, shapeIndex: number, orientationIndex: number): [number, number][] {
@@ -170,6 +174,36 @@ const LEGENDARY_META: Record<LegendaryKind, { label: string; color: string }> = 
   corner_of_divinity:             { label: 'Corner of Divinity',                 color: LEGEND_GOLD },
   spark_of_moth_fire:             { label: 'Spark of Moth Fire',                 color: LEGEND_GOLD },
   when_sparks_set_prairie_ablaze: { label: 'When Sparks Set the Prairie Ablaze', color: PRAIRIE_PINK },
+  space_rift:                     { label: 'Space Rift',                         color: '#5aa0d0' },
+  residence_of_stars:             { label: 'Residence of Stars',                color: '#5aa0d0' },
+}
+
+// Bundled slate icons (served from data/images/icons/divinity_slate/, paired by basename via iconUrl).
+const TREE_ICON: Record<PrimaryTree, string> = {
+  'God of War':           'UI_TalantNG_Z1_0_Icon_SA_128.webp',
+  'Goddess of Hunting':   'UI_TalantNG_Z1_0_Icon_Agi_128.webp',
+  'Goddess of Deception': 'UI_TalantNG_Z1_0_Icon_AI_128.webp',
+  'Goddess of Knowledge': 'UI_TalantNG_Z1_0_Icon_Int_128.webp',
+  'God of Might':         'UI_TalantNG_Z1_0_Icon_Str_128.webp',
+  'God of Machines':      'UI_TalantNG_Z1_0_Icon_SI_128.webp',
+}
+const LEGENDARY_ICON: Record<LegendaryKind, string> = {
+  pedigree:                       'UI_MI_TalantNG_Gold_ZZ1_0_Icon_128.webp',
+  fallen_starlight:               'UI_MI_TalantNG_Gold_I1_0_Icon_128.webp',
+  corner_of_divinity:             'UI_MI_TalantNG_Gold_V1_0_Icon_128.webp',
+  spark_of_moth_fire:             'UI_MI_TalantNG_Gold_O1_0_Icon_128.webp',
+  when_sparks_set_prairie_ablaze: 'UI_MI_TalantNG_Gold_O3_0_Icon_128.webp',
+  space_rift:                     'UI_MI_TalantNG_Gold_II1_0_Icon_128.webp',
+  residence_of_stars:             'UI_MI_TalantNG_Gold_LL1_0_Icon_128.webp',
+}
+function slateIconFile(kind: SlateKind, treeType?: string | null): string | null {
+  if (kind === 'base') return treeType ? (TREE_ICON[treeType as PrimaryTree] ?? null) : null
+  return LEGENDARY_ICON[kind as LegendaryKind] ?? null
+}
+function SlateIcon({ kind, treeType, size = 26 }: { kind: SlateKind; treeType?: string | null; size?: number }) {
+  const src = iconUrl('divinity_slate', slateIconFile(kind, treeType))
+  if (!src) return null
+  return <img src={src} alt="" style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0 }} />
 }
 
 const PREVIEW_CELLS: Record<SlateKind, [number, number][]> = {
@@ -179,6 +213,8 @@ const PREVIEW_CELLS: Record<SlateKind, [number, number][]> = {
   corner_of_divinity:             [[0,0],[0,1],[1,0]],
   spark_of_moth_fire:             [[0,0]],
   when_sparks_set_prairie_ablaze: [[0,0]],
+  space_rift:                     [[0,0]],
+  residence_of_stars:             [[0,0]],
 }
 
 const SLATE_DESCRIPTIONS: Record<SlateKind, string> = {
@@ -188,6 +224,8 @@ const SLATE_DESCRIPTIONS: Record<SlateKind, string> = {
   corner_of_divinity:             '2 modifiers · all-trees pool',
   spark_of_moth_fire:             'Copies one adjacent slate',
   when_sparks_set_prairie_ablaze: 'Copies up to 4 adjacent slates',
+  space_rift:                     "Copies a left/right neighbor's Medium talents",
+  residence_of_stars:             "Copies adjacent Medium talents (no Legendary)",
 }
 
 // ── Slot configuration ────────────────────────────────────────────────────────
@@ -222,6 +260,8 @@ const SLOT_CONFIG: Record<SlateKind, { sections: SectionDef[]; poolScope: 'tree'
   },
   spark_of_moth_fire:             { sections: [], poolScope: 'none' },
   when_sparks_set_prairie_ablaze: { sections: [], poolScope: 'none' },
+  space_rift:                     { sections: [], poolScope: 'none' },
+  residence_of_stars:             { sections: [], poolScope: 'none' },
 }
 
 // ── Slot model ────────────────────────────────────────────────────────────────
@@ -235,6 +275,7 @@ interface CreatorSlot {
   selectedCoreKey: string | null
   coreName: string | null
   effects: string[]
+  nodeType?: string | null   // selected node's talent type — for the copy-slate "Medium talents" filter
 }
 
 function initSlots(kind: SlateKind): CreatorSlot[] {
@@ -242,7 +283,7 @@ function initSlots(kind: SlateKind): CreatorSlot[] {
     Array.from({ length: s.count }, () => ({
       slotType: s.maxType, maxType: s.maxType,
       canBeCore: s.canBeCore ?? false, isCore: s.canBeCore ?? false,
-      selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [] as string[],
+      selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [] as string[], nodeType: null,
     }))
   )
 }
@@ -348,15 +389,40 @@ function getPrairieModifiers(prairie: PlacedSlate, placed: PlacedSlate[]): strin
   })
 }
 
+const MOTH_DELTA: Record<MothDirection, [number, number]> = { above: [-1,0], below: [1,0], left: [0,-1], right: [0,1] }
+
 function getMothModifier(moth: PlacedSlate, placed: PlacedSlate[]): string | null {
   if (!moth.mothDirection) return null
   const [mr, mc] = moth.anchor
-  const delta: Record<MothDirection, [number, number]> = { above: [-1,0], below: [1,0], left: [0,-1], right: [0,1] }
-  const [dr, dc] = delta[moth.mothDirection]
+  const [dr, dc] = MOTH_DELTA[moth.mothDirection]
   const target = placed.find(s => s.id !== moth.id && s.cells.some(([r, c]) => `${r},${c}` === `${mr + dr},${mc + dc}`))
   if (!target) return null
   const effects = getBottomEffects(target)
   return effects.length ? effects.join(' / ') : null
+}
+
+// Space Rift / Residence of Stars copy a neighbor's MEDIUM-talent slot effects (not Micro). Space Rift =
+// one chosen L/R direction incl. Legendary Medium; Residence = all four, Medium only (excl. Legendary Medium).
+function copyMediumLines(slate: PlacedSlate, placed: PlacedSlate[], dirs: [number, number][], allowLegendaryMedium: boolean): string[] {
+  const [ar, ac] = slate.anchor
+  return dirs.flatMap(([dr, dc]) => {
+    const n = placed.find(s => s.id !== slate.id && s.cells.some(([r, c]) => r === ar + dr && c === ac + dc))
+    if (!n) return []
+    return n.slots.flatMap(sl => {
+      const t = sl.nodeType ?? ''
+      if (!sl.selectedNodeId || !t.includes('Medium Talent')) return []     // skip empty + Micro
+      if (!allowLegendaryMedium && t !== 'Medium Talent') return []          // Residence: skip Legendary Medium
+      return sl.effects
+    })
+  })
+}
+
+function slateCopyLines(slate: PlacedSlate, placed: PlacedSlate[]): string[] {
+  if (slate.kind === 'spark_of_moth_fire') { const m = getMothModifier(slate, placed); return m ? [m] : [] }
+  if (slate.kind === 'when_sparks_set_prairie_ablaze') return getPrairieModifiers(slate, placed)
+  if (slate.kind === 'space_rift') return slate.mothDirection ? copyMediumLines(slate, placed, [MOTH_DELTA[slate.mothDirection]], true) : []
+  if (slate.kind === 'residence_of_stars') return copyMediumLines(slate, placed, Object.values(MOTH_DELTA), false)
+  return []
 }
 
 // ── Mini shape preview ────────────────────────────────────────────────────────
@@ -624,6 +690,8 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
 }) {
   const isMoth = slate.kind === 'spark_of_moth_fire'
   const isPrairie = slate.kind === 'when_sparks_set_prairie_ablaze'
+  const isMediumCopy = slate.kind === 'space_rift' || slate.kind === 'residence_of_stars'
+  const mediumCopyLines = isMediumCopy ? slateCopyLines(slate, allPlaced) : []
   const color = slate.kind === 'base'
     ? (treeColors[slate.treeType ?? ''] ?? '#666')
     : LEGENDARY_META[slate.kind as LegendaryKind].color
@@ -644,9 +712,12 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
       width: '100%', boxSizing: 'border-box', background: '#12121e',
       padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 10,
     }}>
-      <div>
-        <div style={{ fontSize: 14, fontWeight: 700, color, marginBottom: 2 }}>{label}</div>
-        {slate.treeType && <div style={{ fontSize: 11, color: '#666' }}>{slate.treeType}</div>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <SlateIcon kind={slate.kind} treeType={slate.treeType} size={30} />
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color, marginBottom: 2 }}>{label}</div>
+          {slate.treeType && <div style={{ fontSize: 11, color: '#666' }}>{slate.treeType}</div>}
+        </div>
       </div>
 
       {isMoth && (
@@ -668,6 +739,17 @@ function HoverTooltip({ slate, treeColors, placed: allPlaced }: {
           {prairieMods.length > 0
             ? prairieMods.map((m, i) => <div key={i} style={{ fontSize: 12, color: '#ddd', lineHeight: 1.5, marginBottom: 3 }}>{m}</div>)
             : <div style={{ fontSize: 12, color: '#3a3a5a', fontStyle: 'italic' }}>No adjacent slates</div>}
+        </div>
+      )}
+
+      {isMediumCopy && (
+        <div>
+          <div style={{ fontSize: 11, color: '#555', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+            {slate.kind === 'space_rift' ? `Copies Medium talents (${slate.mothDirection ?? '?'})` : 'Copies adjacent Medium talents'}
+          </div>
+          {mediumCopyLines.length > 0
+            ? mediumCopyLines.map((m, i) => <div key={i} style={{ fontSize: 12, color: '#ddd', lineHeight: 1.5, marginBottom: 3 }}>{m}</div>)
+            : <div style={{ fontSize: 12, color: '#3a3a5a', fontStyle: 'italic' }}>No adjacent Medium talents</div>}
         </div>
       )}
 
@@ -731,6 +813,8 @@ function SlateOverview({ placed }: { placed: PlacedSlate[] }) {
     for (const slate of placed) {
       if (slate.kind === 'spark_of_moth_fire') { lines.push(...mothBottomLines(slate, placed)); continue }
       if (slate.kind === 'when_sparks_set_prairie_ablaze') { lines.push(...prairieBottomLines(slate, placed)); continue }
+      if (slate.kind === 'space_rift') { lines.push(...(slate.mothDirection ? copyMediumLines(slate, placed, [MOTH_DELTA[slate.mothDirection]], true) : [])); continue }
+      if (slate.kind === 'residence_of_stars') { lines.push(...copyMediumLines(slate, placed, Object.values(MOTH_DELTA), false)); continue }
       for (const s of slate.slots) {
         if (s.isCore && s.selectedCoreKey) {
           if (!coreMap.has(s.selectedCoreKey)) coreMap.set(s.selectedCoreKey, { name: s.coreName ?? 'Core Talent', effects: s.effects })
@@ -1005,6 +1089,7 @@ export default function SlateScreen({ treeColors }: Props) {
     const initial = defaultCreator(kind)
     if (kind === 'base') initial.treeType = PRIMARY_TREES[0]
     if (kind === 'spark_of_moth_fire') initial.mothDirection = 'above'
+    if (kind === 'space_rift') initial.mothDirection = 'left'   // Space Rift copies left OR right
     setMode({ type: 'creating', creator: initial })
     if (kind === 'base') {
       setTimeout(() => {
@@ -1054,7 +1139,7 @@ export default function SlateScreen({ treeColors }: Props) {
   function handleCycleSlotType(idx: number) {
     if (!creator) return
     const slot = creator.slots[idx]
-    updateSlot(idx, { slotType: cycleSlotType(slot.slotType, slot.maxType), selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [], isCore: false })
+    updateSlot(idx, { slotType: cycleSlotType(slot.slotType, slot.maxType), selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [], isCore: false, nodeType: null })
   }
 
   function handleTogglePicker(idx: number) {
@@ -1062,12 +1147,12 @@ export default function SlateScreen({ treeColors }: Props) {
   }
 
   function handleSelectModifier(idx: number, mod: SlateModifierOption) {
-    updateSlot(idx, { selectedNodeId: mod.nodeId, selectedCoreKey: null, effects: mod.effects })
+    updateSlot(idx, { selectedNodeId: mod.nodeId, selectedCoreKey: null, effects: mod.effects, nodeType: mod.nodeType })
     updateCreator({ openPicker: null })
   }
 
   function handleSelectCore(idx: number, core: CoreTalentOption) {
-    updateSlot(idx, { selectedCoreKey: core.key, selectedNodeId: null, coreName: core.name, effects: core.effects })
+    updateSlot(idx, { selectedCoreKey: core.key, selectedNodeId: null, coreName: core.name, effects: core.effects, nodeType: null })
     updateCreator({ openPicker: null })
   }
 
@@ -1202,11 +1287,11 @@ export default function SlateScreen({ treeColors }: Props) {
           <div style={{ fontSize: 13, color: '#555', marginBottom: 10, flexShrink: 0 }}>Loading modifiers…</div>
         )}
 
-        {kind === 'spark_of_moth_fire' && (
+        {(kind === 'spark_of_moth_fire' || kind === 'space_rift') && (
           <div style={{ marginBottom: 14, flexShrink: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#555', marginBottom: 7 }}>Copy Direction</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
-              {(['above', 'below', 'left', 'right'] as MothDirection[]).map(dir => {
+              {((kind === 'space_rift' ? ['left', 'right'] : ['above', 'below', 'left', 'right']) as MothDirection[]).map(dir => {
                 const active = mothDirection === dir
                 const icon = { above: '↑', below: '↓', left: '←', right: '→' }[dir]
                 return (
@@ -1230,6 +1315,12 @@ export default function SlateScreen({ treeColors }: Props) {
           </div>
         )}
 
+        {kind === 'residence_of_stars' && (
+          <div style={{ fontSize: 13, color: '#666', lineHeight: 1.7, marginBottom: 12 }}>
+            Copies the Medium talents of each adjacent slate (up to 4). Legendary Medium talents are not copied.
+          </div>
+        )}
+
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {sections.map(({ label, indices }) => (
             <div key={label} style={{ marginBottom: 10 }}>
@@ -1248,7 +1339,7 @@ export default function SlateScreen({ treeColors }: Props) {
                   onCycleType={() => handleCycleSlotType(idx)}
                   onSelect={mod => handleSelectModifier(idx, mod)}
                   onSelectCore={core => handleSelectCore(idx, core)}
-                  onClear={() => updateSlot(idx, { selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [] })}
+                  onClear={() => updateSlot(idx, { selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [], nodeType: null })}
                   onToggleCoreMode={() => handleToggleCoreMode(idx)}
                   onSearchChange={s => updateCreator({ pickerSearch: s })}
                 />
@@ -1294,8 +1385,8 @@ export default function SlateScreen({ treeColors }: Props) {
             background: '#1a1a3a', border: `1px solid #252540`, borderLeft: `3px solid ${meta.color}`,
             borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14,
           }}>
-            <div style={{ flexShrink: 0, minWidth: 36, display: 'flex', justifyContent: 'center' }}>
-              <MiniShape offsets={PREVIEW_CELLS[kind]} color={meta.color} size={15} />
+            <div style={{ flexShrink: 0, minWidth: 36, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
+              <SlateIcon kind={kind} size={28} />
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 600, color: meta.color, marginBottom: 3 }}>+ {meta.label}</div>
@@ -1322,7 +1413,9 @@ export default function SlateScreen({ treeColors }: Props) {
                   display: 'flex', alignItems: 'center', gap: 7, padding: '6px 10px', marginBottom: 4,
                   background: '#16162a', border: `1px solid ${color}33`, borderRadius: 5, cursor: 'pointer',
                 }} onClick={() => placeFromTemplate(t)} title="Click to place this saved slate on the board">
-                  <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                  {slateIconFile(t.kind as SlateKind, t.treeType)
+                    ? <SlateIcon kind={t.kind as SlateKind} treeType={t.treeType} size={22} />
+                    : <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }} />}
                   <span style={{ flex: 1, fontSize: 13, color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
                   {t.slots.length > 0 && <span style={{ fontSize: 12, color: '#555' }}>{filled}/{t.slots.length}</span>}
                   <button onClick={e => { e.stopPropagation(); deleteTemplate(t.id) }}
@@ -1442,6 +1535,11 @@ export default function SlateScreen({ treeColors }: Props) {
                       boxShadow: (isPlacedHere && !isGhost && !isDragging) ? 'inset 0 0 0 2px rgba(0,0,0,0.88)' : undefined,
                     }}
                   >
+                    {slate && !isDragging && slate.cells[0]?.[0] === row && slate.cells[0]?.[1] === col && slateIconFile(slate.kind, slate.treeType) && (
+                      <div style={{ position: 'absolute', top: 3, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: 0.92, pointerEvents: 'none' }}>
+                        <SlateIcon kind={slate.kind} treeType={slate.treeType} size={30} />
+                      </div>
+                    )}
                     {isPrairie && prairieMods.length > 0 && (
                       <div style={{ fontSize: 8, color: PRAIRIE_PINK, textAlign: 'center' }}>×{prairieMods.length}</div>
                     )}
