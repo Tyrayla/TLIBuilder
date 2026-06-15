@@ -1297,6 +1297,14 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .dark-scroll::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
 .dark-scroll::-webkit-scrollbar-thumb:hover { background: #3a3a5a; background-clip: padding-box; }
 
+/* App-wide default dark scrollbars for ANY overflow container (component-specific rules above still win
+   via higher specificity). Replaces the OS-default light scrollbars everywhere. */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: #3a3a5a; background-clip: padding-box; }
+* { scrollbar-width: thin; scrollbar-color: #2a2a4a transparent; }
+
 .cond-masonry {
   columns: 230px;
   column-gap: 10px;

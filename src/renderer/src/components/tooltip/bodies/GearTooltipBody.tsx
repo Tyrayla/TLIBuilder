@@ -102,7 +102,7 @@ export function GearTooltipBody({ item, delta, deltas, hideBadges }: { item: Gea
       {explicits.map((affix, i) => (
         <div key={`exp-${i}`} className="gear-tooltip-affix">
           {tooltipAffixText(affix, implicits.length + i, customizations)}
-          {affixTypeLabel(affix.affix_type) && <span className="gear-affix-label">({affixTypeLabel(affix.affix_type)})</span>}
+          {affixTypeLabel(affix.affix_type, affix.tier) && <span className="gear-affix-label">({affixTypeLabel(affix.affix_type, affix.tier)})</span>}
           {!hideBadges && <ModifierBadge status={explicitStatuses[i]} />}
         </div>
       ))}

@@ -26,6 +26,7 @@ from engine.core_talent_resolver import (
     _strip_max_div, _split_condition, _split_compound, _expand_shared_stats,
     _classify_effect, _MAX_DIV_RE, _BASE_EFFECT_RE,
 )
+from engine.affix_identity import affix_identity
 
 _NODE_ID_RE = re.compile(r"^(.+)_c\d+_r\d+$")
 
@@ -136,7 +137,9 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond):
         kept: list[str] = []
         for eff in node.get("effects") or []:
             if _MAX_DIV_RE.search(eff or ""):
-                key = re.sub(r"\s+", " ", _strip_max_div(eff).lower()).strip()
+                # Key by VALUE-STRIPPED identity so a "(Max Divinity Effect: 1)" effect counts once across
+                # slates even if two slates grant it at different rolled values (the effect is gained once).
+                key = affix_identity(_strip_max_div(eff))
                 if key in seen_maxdiv:
                     statuses.append({"node_id": node_id, "text": eff, "resolved": True, "kind": "deduped"})
                     continue

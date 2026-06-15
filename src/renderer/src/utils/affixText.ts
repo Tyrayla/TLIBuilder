@@ -62,12 +62,19 @@ export function reconstructAffixText(affix: LegendaryAffix, chosenValues: Record
   return text
 }
 
-export function affixTypeLabel(affixType: string | undefined): string | undefined {
+export function affixTypeLabel(affixType: string | undefined, tier?: string | number): string | undefined {
   if (!affixType) return undefined
-  if (affixType === 'Base' || affixType === 'Base Affix') return 'Base Affix'
-  if (affixType === 'Legendary') return 'Legendary Affix'
-  const match = affixType.match(/^(Basic|Advanced|Ultimate)/i)
-  return match ? `${match[1]} Affix` : undefined
+  let label: string | undefined
+  if (affixType === 'Base' || affixType === 'Base Affix') label = 'Base Affix'
+  else if (affixType === 'Legendary') label = 'Legendary Affix'
+  else {
+    const match = affixType.match(/^(Basic|Advanced|Ultimate)/i)
+    label = match ? `${match[1]} Affix` : undefined
+  }
+  if (!label) return undefined
+  // Prefix the roll tier (T1/T2/…) when present and meaningful (>0); legendary/untiered affixes are unchanged.
+  const t = typeof tier === 'string' ? parseInt(tier, 10) : tier
+  return t && t > 0 ? `T${t} ${label}` : label
 }
 
 export function tooltipAffixText(affix: LegendaryAffix, affixIdx: number, customizations: CustomizedAffix[] | undefined): string {

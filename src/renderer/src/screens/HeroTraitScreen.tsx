@@ -164,12 +164,13 @@ function resolveMemoryEffect(sel: MemorySlotSelection): string {
   return mod.replace(/\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, val)
 }
 
-function getMemoryAffixLines(memory: CreatedHeroMemory): string[] {
-  const lines: string[] = []
-  if (memory.baseStat) lines.push(resolveMemoryEffect(memory.baseStat))
-  for (const fa of memory.fixedAffixes) { if (fa) lines.push(resolveMemoryEffect(fa)) }
-  for (const ra of memory.randomAffixes) { if (ra) lines.push(resolveMemoryEffect(ra)) }
-  return lines
+function getMemoryAffixLines(memory: CreatedHeroMemory): { text: string; tier: number }[] {
+  const out: { text: string; tier: number }[] = []
+  const add = (sel: MemorySlotSelection | null) => { if (sel) out.push({ text: resolveMemoryEffect(sel), tier: sel.tier ?? 0 }) }
+  add(memory.baseStat)
+  for (const fa of memory.fixedAffixes) add(fa)
+  for (const ra of memory.randomAffixes) add(ra)
+  return out
 }
 
 // ── Shared trait helpers ──────────────────────────────────────────────────────
@@ -266,7 +267,7 @@ function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
 }) {
   const tip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const lines = memory ? getMemoryAffixLines(memory) : []
-  const lineStatuses = useTextModifierStatuses(lines.map(text => ({ text, source: 'memory' as const })))
+  const lineStatuses = useTextModifierStatuses(lines.map(l => ({ text: l.text, source: 'memory' as const })))
   // Contribution of this socketed memory: remove it and diff vs the current build.
   const delta = useDamageDelta(
     tip.open && memory
@@ -297,7 +298,13 @@ function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
             </div>
             {lines.length > 0 ? (
               <ul className="memory-info-lines">
-                {lines.map((line, i) => <li key={i}>{line}<ModifierBadge status={lineStatuses[i]} /></li>)}
+                {lines.map((line, i) => (
+                  <li key={i}>
+                    {line.text}
+                    {line.tier > 0 && <span style={{ fontSize: 10, color: '#888' }}> (T{line.tier})</span>}
+                    <ModifierBadge status={lineStatuses[i]} />
+                  </li>
+                ))}
               </ul>
             ) : (
               <div className="memory-info-empty">No affixes configured</div>

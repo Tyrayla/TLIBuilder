@@ -1127,6 +1127,7 @@ function craftAffixToLegendary(a: CraftAffix | GraftAffix): LegendaryAffix {
     dual_stat_groups: c.dual_stat_groups,
     unit: c.unit ?? '',
     affix_type: a.affix_type,
+    tier: (a as { tier?: string | number }).tier,   // carry the roll tier so tooltips show "T2 …"
   }
 }
 

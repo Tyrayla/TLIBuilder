@@ -211,11 +211,23 @@ export interface SavedSlate {
   mothDirection?: string
 }
 
+// A configured slate kept in the build's saved-slates inventory (no board placement) — re-placeable.
+export interface SlateTemplate {
+  id: string
+  kind: string
+  orientationIndex: number
+  shapeIndex: number
+  slots: SavedSlateSlot[]
+  treeType?: string
+  mothDirection?: string
+}
+
 export interface Build {
   id?: string
   name: string
   slots: (TreeSlot | null)[]
   slates?: SavedSlate[]
+  slateInventory?: SlateTemplate[]
   conditionState?: Record<string, number | boolean>
   // Legacy fields — present on builds saved before the conditionState unification.
   // Read-only: never written by the current client; migrated to conditionState on load.
@@ -1259,6 +1271,9 @@ export interface LegendaryAffix {
   unit?: string
   // set for crafted/vorax items: 'Base' | 'Basic Affix' | 'Advanced Affix' | 'Ultimate Affix' | 'Legendary'
   affix_type?: string
+  // roll tier (T1/T2/…) on crafted/graft affixes; shown prefixed on the affix-kind label in tooltips
+  tier?: string | number
+
   // resolved by backend: structured engine expression if condition text was mapped
   condition_expr?: Record<string, unknown> | string | null
 }

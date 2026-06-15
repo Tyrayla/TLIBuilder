@@ -103,6 +103,18 @@ class TestSlateMaxDivinityDedup:
         assert _amounts(c1).get("max_mana_inc", 0) > 0
         assert _amounts(c0).get("max_mana_inc", 0) == 0
 
+    def test_same_effect_different_values_counted_once(self):
+        # Two DIFFERENT slate nodes granting the SAME Max-Divinity effect at DIFFERENT rolled values must
+        # still count ONCE (the effect is gained once regardless of value). Dedup is value-insensitive.
+        n_a = {"id": "warrior_c0_r0", "node_type": "Medium Talent", "effects": ["+12 % Max Mana (Max Divinity Effect: 1)"]}
+        n_b = {"id": "warrior_c0_r1", "node_type": "Medium Talent", "effects": ["+8 % Max Mana (Max Divinity Effect: 1)"]}
+        trees = _tree("Warrior", [n_a, n_b])
+        only_a, _ = resolve_nodes([], [{"kind": "base", "slots": [{"selectedNodeId": "warrior_c0_r0"}]}], trees, pm, tc)
+        both, _ = resolve_nodes([], [{"kind": "base", "slots": [
+            {"selectedNodeId": "warrior_c0_r0"}, {"selectedNodeId": "warrior_c0_r1"}]}], trees, pm, tc)
+        # Only the first-seen instance applies; the second (same effect) is deduped → totals equal.
+        assert _amounts(both).get("max_mana_inc") == pytest.approx(_amounts(only_a).get("max_mana_inc"))
+
 
 def _load_filter():
     from tools.node_type_filter_builder import load_filter
