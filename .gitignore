@@ -35,3 +35,7 @@ docs/stat-meta-review.csv
 
 # Generated static reference data for the web build (regenerate via backend/tools/export_web_data.py)
 web-data/
+
+# Web build output + generated backend bundle (regenerate via npm run build:web)
+dist-web/
+src/renderer/public/backend-py.zip

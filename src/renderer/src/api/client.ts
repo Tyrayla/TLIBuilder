@@ -9,6 +9,7 @@ export function getApiBase(): string { return BASE }
 // Layout: <BASE>/manifest.json -> {season}; <BASE>/<season>/<name>.json per catalog.
 const STATIC_DATA_BASE: string = (import.meta.env?.VITE_STATIC_DATA_BASE as string | undefined) || ''
 let staticSeason = ''
+let webCompute = false   // web build: run engine_stats in the Pyodide worker instead of the Python backend
 // API path -> static filename (the 10 reference catalogs the app loads once at startup).
 const STATIC_CATALOGS: Record<string, string> = {
   '/skills': 'skills',
@@ -68,6 +69,14 @@ export async function initApi(): Promise<void> {
       const m = await (await fetch(`${STATIC_DATA_BASE}/manifest.json`)).json()
       staticSeason = m.season || ''
       rlog(`initApi — static data base ${STATIC_DATA_BASE}, season ${staticSeason}`)
+      // Web build (no Electron IPC): run compute in the Pyodide worker. Kick off its load in the background;
+      // engineStats awaits readiness on first use.
+      if (!window.api?.apiRequest && staticSeason) {
+        webCompute = true
+        import('../web/pyodideCompute')
+          .then(m2 => m2.initPyodideCompute(STATIC_DATA_BASE, staticSeason))
+          .catch(e => rerr(`initApi — pyodide compute init failed: ${e}`))
+      }
     } catch (e) {
       rerr(`initApi — failed to load static manifest from ${STATIC_DATA_BASE}: ${e}`)
     }
@@ -1774,7 +1783,15 @@ export const api = {
     skills?: SkillSlotInput[]
     custom_mods?: string[]
     attached_supports?: AttachedSupportInput[]
-  }) => post<StatSheetResponse>('/engine/stats', payload),
+  }): Promise<StatSheetResponse> => {
+    if (webCompute) {
+      // Web: compute in the Pyodide worker (same engine, same response shape) instead of the backend.
+      return import('../web/pyodideCompute')
+        .then(m => m.computeStats(JSON.stringify(payload)))
+        .then(json => JSON.parse(json) as StatSheetResponse)
+    }
+    return post<StatSheetResponse>('/engine/stats', payload)
+  },
 
   resolveMod: (text: string) =>
     post<ResolveModResponse>('/resolve-mod', { text }),

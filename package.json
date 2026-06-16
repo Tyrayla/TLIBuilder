@@ -12,6 +12,8 @@
     "build:win": "npm run build && electron-builder --win",
     "build:backend": "cd backend && python -m PyInstaller backend.spec --distpath ../backend-dist --workpath ../backend-build --noconfirm",
     "build:release": "npm run build:backend && npm run build && electron-builder --win",
+    "build:web": "python backend/tools/export_backend_bundle.py && vite build --config vite.web.config.ts --mode web",
+    "build:web:data": "python backend/tools/export_web_data.py && python backend/tools/export_engine_bundle.py",
     "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false",
     "test": "vitest run"
   },

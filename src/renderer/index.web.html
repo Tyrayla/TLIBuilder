@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TLI Builder</title>
+    <!-- Web CSP: allow Pyodide (jsDelivr) + its wasm, micropip wheels (PyPI/pythonhosted), the data CDN, and the
+         share service. wasm-unsafe-eval is required by Pyodide; blob: covers the bundled module worker. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net blob:;
+        worker-src 'self' blob:;
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: blob: https://tlibuilder-data.pages.dev;
+        connect-src 'self' blob: data:
+          https://cdn.jsdelivr.net
+          https://pypi.org https://files.pythonhosted.org
+          https://tlibuilder-data.pages.dev
+          https://api.tlibuilder.com;
+      "
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
