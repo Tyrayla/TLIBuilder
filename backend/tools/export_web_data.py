@@ -13,6 +13,7 @@ Usage:  python backend/tools/export_web_data.py [--out DIR]   (default: <repo>/w
 import argparse
 import json
 import os
+import shutil
 import sys
 
 _BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -61,6 +62,16 @@ def main() -> None:
         size = os.path.getsize(path)
         total += size
         print(f"  {name:22s} {size / 1024:9.1f} KB")
+
+    # Entity icons (served via ICON_BASE on web). Copy the bundled icons dir to <out>/icons so the CDN serves
+    # /icons/<category>/<file>.webp, matching iconUrl(). ~10 MB of webp; cached per-icon on demand.
+    icons_src = os.path.join(server._DATA_ROOT, "images", "icons")
+    if os.path.isdir(icons_src):
+        icons_dst = os.path.join(args.out, "icons")
+        shutil.rmtree(icons_dst, ignore_errors=True)
+        shutil.copytree(icons_src, icons_dst)
+        n_icons = sum(len(fs) for _, _, fs in os.walk(icons_dst))
+        print(f"  icons                  {n_icons} files copied")
 
     with open(os.path.join(args.out, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump({"season": season}, f)

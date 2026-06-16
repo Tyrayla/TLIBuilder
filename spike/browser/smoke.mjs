@@ -48,6 +48,13 @@ try {
   const st = await page.evaluate(() => ({ ready: window.__tliComputeReady === true, err: window.__tliComputeError || null }))
   console.log(`compute worker: ${st.ready ? 'READY' : 'ERROR'} in ${((Date.now() - t0) / 1000).toFixed(1)}s${st.err ? ' — ' + st.err : ''}`)
   ok = st.ready && !st.err
+  if (ok) {
+    // Verify a specific tree loads through the worker (the path-decode fix).
+    const tree = await page.evaluate(() => window.__tliWebApi('GET', '/api/tree/God of War').catch(e => ({ error: String(e) })))
+    const treeOk = tree && Array.isArray(tree.nodes) && tree.nodes.length > 0
+    console.log(`tree "God of War": ${treeOk ? `OK (${tree.nodes.length} nodes)` : 'FAIL ' + JSON.stringify(tree).slice(0, 120)}`)
+    ok = ok && treeOk
+  }
 } catch (e) {
   console.log('TIMEOUT/ERROR waiting for app/worker:', String(e).split('\n')[0])
 }

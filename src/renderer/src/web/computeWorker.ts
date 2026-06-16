@@ -63,9 +63,11 @@ starlette.concurrency.run_in_threadpool = _inline_threadpool
 fastapi.routing.run_in_threadpool = _inline_threadpool
 server.season_manager.set_active_season(${JSON.stringify(msg.season)})
 
+from urllib.parse import unquote
 async def _api(method, path, body_text=''):
-    p, _, qs = path.partition('?')
-    scope = {'type':'http','http_version':'1.1','method':method,'path':p,'raw_path':p.encode(),
+    raw, _, qs = path.partition('?')
+    p = unquote(raw)   # ASGI scope['path'] must be percent-DECODED for Starlette routing (e.g. "God%20of%20War")
+    scope = {'type':'http','http_version':'1.1','method':method,'path':p,'raw_path':raw.encode(),
              'query_string':qs.encode(),'headers':[(b'content-type',b'application/json')],
              'scheme':'http','server':('localhost',80),'client':('127.0.0.1',0),'root_path':'',
              'asgi':{'version':'3.0','spec_version':'2.3'}}

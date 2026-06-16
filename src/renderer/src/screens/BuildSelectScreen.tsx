@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, Build } from '../api/client'
+import { api, Build, IS_WEB } from '../api/client'
 import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
 import SettingsOverlay from '../components/SettingsOverlay'
 import logoSrc from '../assets/logo.png'
@@ -185,7 +185,8 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
       <div className="build-select-footer">
         {version && <span className="build-select-version">v{version}</span>}
         <div className="build-select-footer-actions">
-          <button
+          {/* Auto-update is desktop-only; the web app updates by redeploy + refresh. */}
+          {!IS_WEB && <button
             className="btn btn-sm btn-secondary"
             onClick={handleCheckForUpdate}
             disabled={checkStatus === 'checking'}
@@ -196,7 +197,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               : checkStatus === 'available' ? 'Update available'
               : checkStatus === 'error' ? `Check failed`
               : 'Check for Update'}
-          </button>
+          </button>}
           <button
             className="btn btn-sm btn-secondary"
             onClick={() => setSettingsOpen(true)}

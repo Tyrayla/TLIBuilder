@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { IS_WEB } from '../api/client'
 
 type Channel = 'stable' | 'nightly'
 
@@ -36,8 +37,8 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
         <h3 className="modal-title">Settings</h3>
 
         <div className="settings-modal-body">
-          {/* ── Updates ───────────────────────────────────────────────────── */}
-          <section className="settings-section">
+          {/* ── Updates (desktop only; the web app updates by redeploy) ─────── */}
+          {!IS_WEB && <section className="settings-section">
             <h4 className="settings-section-title">Updates</h4>
             <div className="settings-row">
               <div className="settings-row-label">
@@ -59,7 +60,7 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
                 >Nightly</button>
               </div>
             </div>
-          </section>
+          </section>}
 
           {/* ── Display (not wired yet) ───────────────────────────────────── */}
           <section className="settings-section">

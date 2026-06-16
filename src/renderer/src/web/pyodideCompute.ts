@@ -31,7 +31,12 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
       if (m.type === 'progress') { progressListeners.forEach(cb => cb(m.msg || '')); return }
       if (m.type === 'ready') {
         resolve()
-        try { (window as unknown as Record<string, unknown>).__tliComputeReady = true; window.dispatchEvent(new Event('tli-compute-ready')) } catch { /* non-window ctx */ }
+        try {
+          const w = window as unknown as Record<string, unknown>
+          w.__tliComputeReady = true
+          w.__tliWebApi = webApiRequest   // diagnostic hook (smoke test / debugging)
+          window.dispatchEvent(new Event('tli-compute-ready'))
+        } catch { /* non-window ctx */ }
         return
       }
       if (m.type === 'result' && m.id != null) {
