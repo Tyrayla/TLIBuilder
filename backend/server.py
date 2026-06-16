@@ -22,7 +22,7 @@ from engine.skill_scope import detect_skill_scope
 _DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', 'data'))
 _TREES_META_PATH = os.path.join(_DATA_ROOT, 'trees_meta.json')
-with open(_TREES_META_PATH) as _f:
+with open(_TREES_META_PATH, encoding="utf-8") as _f:
     TREES: dict[str, dict] = json.load(_f)
 
 # Set in __main__ so the lifespan handler can print it after uvicorn is ready
@@ -39,7 +39,7 @@ _PHRASE_OVERRIDES: dict[str, object] = {}
 def _load_phrase_overrides() -> None:
     global _PHRASE_OVERRIDES
     try:
-        with open(_PHRASE_OVERRIDES_PATH) as f:
+        with open(_PHRASE_OVERRIDES_PATH, encoding="utf-8") as f:
             _PHRASE_OVERRIDES = json.load(f)
     except FileNotFoundError:
         _PHRASE_OVERRIDES = {}

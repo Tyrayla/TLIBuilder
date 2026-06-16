@@ -36,21 +36,13 @@ async function main() {
 
   const tImp0 = performance.now()
   await py.runPythonAsync(`
-import os, sys, builtins
+import os, sys
 sys.path.insert(0, '/stubs')
 sys.path.insert(0, '/be')
 os.environ['TLI_DATA_DIR'] = '/data'
 os.environ['TLI_DEV_MODE'] = '0'
-# SPIKE WORKAROUND (also a finding): the backend uses bare open() which is cp1252 on Windows desktop but
-# utf-8 in WASM, and some data files carry cp1252 bytes. Force utf-8 so the spike can measure. The real web
-# build must add encoding='utf-8' to file reads (and the data must be valid utf-8).
-_orig_open = builtins.open
-def _utf8_open(*a, **k):
-    mode = k.get('mode', a[1] if len(a) > 1 else 'r')
-    if 'b' not in mode:
-        k.setdefault('encoding', 'utf-8'); k.setdefault('errors', 'replace')
-    return _orig_open(*a, **k)
-builtins.open = _utf8_open
+# Phase 2a is in: the compute-path file reads now specify encoding='utf-8' and the one cp1252 data file was
+# converted to utf-8, so the engine loads in WASM with NO encoding workaround.
 import server
 print('server imported; active season =', server.season_manager.get_active_season())
 `)

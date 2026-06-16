@@ -71,3 +71,8 @@ spirit working after the reimport.
   minimizing backend↔frontend chatter (cache by build hash, client-side derivations) + an audit of auth,
   storage, CORS, cost. *(Assessment in progress — see docs/ web-hosting notes.)*
 - **Package size** (deferred): ~280–310 MB; levers filed (gzip data −16 MB, trim PyInstaller −20 MB).
+- **Web compute: extract a pure `compute_stat_sheet(dict)->dict`** (future optimization). The web build runs the
+  engine in Pyodide by reusing the whole backend (`import server`) with bundled fastapi/pydantic wheels (Path B,
+  chosen for low risk). Extracting the orchestration + helper closure out of the 3242-line `server.py` into a
+  fastapi-free module would shave ~2 MB (cached) + ~1 s one-time init off the web worker. Only worth it if web
+  init/payload becomes a problem.

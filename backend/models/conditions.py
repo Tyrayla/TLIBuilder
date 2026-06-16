@@ -30,7 +30,7 @@ class ConditionDef:
 
 def _load() -> tuple[list[ConditionDef], dict[str, str], dict[str, list[str]]]:
     try:
-        with open(_CONDITIONS_PATH) as f:
+        with open(_CONDITIONS_PATH, encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
         return [], {}, {}
