@@ -18,12 +18,12 @@ from unittest.mock import patch
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
-def isolated_builds_dir(tmp_path):
-    """Redirect builds_manager._DIR to a per-test temp directory."""
+def isolated_builds_dir(tmp_path, monkeypatch):
+    """Redirect builds_manager's storage to a per-test temp dir via TLI_PERSIST_DIR (paths are resolved per-call)."""
+    monkeypatch.setenv("TLI_PERSIST_DIR", str(tmp_path))
     builds_path = str(tmp_path / "builds")
     os.makedirs(builds_path, exist_ok=True)
-    with patch("persistence.builds_manager._DIR", builds_path):
-        yield builds_path
+    yield builds_path
 
 
 # Import after the path is set (conftest.py adds backend to sys.path)

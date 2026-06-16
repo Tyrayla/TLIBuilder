@@ -8,17 +8,57 @@ let nextId = 1
 const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
 const progressListeners = new Set<(msg: string) => void>()
 
+// Client-side build persistence (web only). The worker can't reliably write IndexedDB itself (Emscripten's
+// in-worker IDBFS syncfs fails silently in Brave), so the main thread owns storage: it seeds the worker with the
+// saved snapshot at init and re-writes it whenever the worker reports a mutation. One key holds a {path: text} map.
+const IDB_NAME = 'tli-builds'
+const IDB_STORE = 'kv'
+const IDB_KEY = 'persist'
+
+function openIdb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1)
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function idbGetSnapshot(): Promise<Record<string, string>> {
+  try {
+    const db = await openIdb()
+    return await new Promise((resolve) => {
+      const r = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(IDB_KEY)
+      r.onsuccess = () => resolve((r.result as Record<string, string>) || {})
+      r.onerror = () => resolve({})
+    })
+  } catch { return {} }
+}
+
+async function idbPutSnapshot(snapshot: Record<string, string>): Promise<void> {
+  try {
+    const db = await openIdb()
+    await new Promise<void>((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite')
+      tx.objectStore(IDB_STORE).put(snapshot, IDB_KEY)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
+    })
+  } catch { /* best-effort persist */ }
+}
+
 export function onComputeProgress(cb: (msg: string) => void): () => void {
   progressListeners.add(cb)
   return () => progressListeners.delete(cb)
 }
 
 interface WorkerOut {
-  type: 'progress' | 'ready' | 'result' | 'error'
+  type: 'progress' | 'ready' | 'result' | 'error' | 'persist'
   msg?: string
   id?: number
   status?: number
   body?: string
+  snapshot?: Record<string, string>
 }
 
 /** Start the worker + load Pyodide/engine/data. Idempotent; resolves when ready. */
@@ -46,6 +86,7 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
         else { try { p.resolve(m.body ? JSON.parse(m.body) : null) } catch (e) { p.reject(e as Error) } }
         return
       }
+      if (m.type === 'persist') { void idbPutSnapshot(m.snapshot || {}); return }
       if (m.type === 'error') {
         const err = new Error(m.msg || 'compute worker error')
         if (m.id != null) { pending.get(m.id)?.reject(err); pending.delete(m.id) }
@@ -54,8 +95,9 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
     }
     worker!.onerror = (e) => { try { (window as unknown as Record<string, unknown>).__tliComputeError = e.message } catch { /* */ } reject(new Error(`worker crashed: ${e.message}`)) }
   })
+  // Read the saved builds from IndexedDB (main thread owns storage), then seed the worker with them at init.
   const backendUrl = new URL('backend-py.zip', self.location.origin + import.meta.env.BASE_URL).href
-  worker.postMessage({ type: 'init', backendUrl, dataBase, season })
+  void idbGetSnapshot().then(persistSnapshot => worker!.postMessage({ type: 'init', backendUrl, dataBase, season, persistSnapshot }))
   return readyPromise
 }
 

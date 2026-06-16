@@ -3,19 +3,23 @@ import os
 import re
 import uuid
 
-# Persisted user data lives under TLI_PERSIST_DIR when set (the web build points this at an IndexedDB-backed
-# dir so builds survive reloads); otherwise it falls back to the game-data dir, as desktop has always done.
-_PERSIST_ROOT = os.environ.get('TLI_PERSIST_DIR') or os.environ.get('TLI_DATA_DIR') or os.path.normpath(
-    os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
-_DIR = os.path.normpath(os.path.join(_PERSIST_ROOT, 'builds'))
-
 _SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
+
+
+def _dir() -> str:
+    # Persisted user data lives under TLI_PERSIST_DIR when set (the web build points this at an IndexedDB-backed
+    # dir so builds survive reloads); otherwise it falls back to the game-data dir, as desktop has always done.
+    # Evaluated per-call (not at import) so it always reflects the env in effect when a request runs — the web
+    # worker sets TLI_PERSIST_DIR after this module may already be imported.
+    root = os.environ.get('TLI_PERSIST_DIR') or os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+        os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+    return os.path.normpath(os.path.join(root, 'builds'))
 
 
 def _file(build_id: str) -> str:
     if not _SAFE_ID.fullmatch(build_id):
         raise ValueError(f"Invalid build id: {build_id!r}")
-    return os.path.join(_DIR, f"{build_id}.txt")
+    return os.path.join(_dir(), f"{build_id}.txt")
 
 
 def _parse_nodes(raw: str) -> dict[str, int]:
@@ -119,7 +123,7 @@ def _read_file(build_id: str) -> dict:
 
 
 def _write_file(build: dict) -> None:
-    os.makedirs(_DIR, exist_ok=True)
+    os.makedirs(_dir(), exist_ok=True)
     slots = build.get('slots') or [None, None, None, None]
     slates = build.get('slates') or []
     with open(_file(build['id']), 'w') as f:
@@ -167,10 +171,11 @@ def _write_file(build: dict) -> None:
 
 
 def load() -> list[dict]:
-    if not os.path.isdir(_DIR):
+    d = _dir()
+    if not os.path.isdir(d):
         return []
     builds = []
-    for fname in sorted(os.listdir(_DIR)):
+    for fname in sorted(os.listdir(d)):
         if fname.endswith('.txt'):
             try:
                 builds.append(_read_file(fname[:-4]))

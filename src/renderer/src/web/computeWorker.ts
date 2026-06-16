@@ -3,15 +3,15 @@
 // serves the FastAPI app as a general in-browser backend: it dispatches ANY (method, path, body) through the
 // real ASGI app, so every endpoint (engine/stats, trees, resolve-mod, build-code, slate-pool, …) works exactly
 // like the server — off the main thread so the UI never blocks. Protocol:
-//   main -> worker: { type:'init', backendUrl, dataBase, season } | { type:'request', id, method, path, bodyJson }
-//   worker -> main: { type:'progress', msg } | { type:'ready' }
+//   main -> worker: { type:'init', backendUrl, dataBase, season, persistSnapshot } | { type:'request', id, method, path, bodyJson }
+//   worker -> main: { type:'progress', msg } | { type:'ready' } | { type:'persist', snapshot }
 //                 | { type:'result', id, status, body } | { type:'error', id?, msg }
 // Deps: pydantic/fastapi via micropip at init (network, one-time). A pre-deploy step will vendor these wheels.
 
 const PYODIDE_VERSION = '0.27.7'
 const PYODIDE_INDEX = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`
 
-interface InitMsg { type: 'init'; backendUrl: string; dataBase: string; season: string }
+interface InitMsg { type: 'init'; backendUrl: string; dataBase: string; season: string; persistSnapshot?: Record<string, string> }
 interface RequestMsg { type: 'request'; id: number; method: string; path: string; bodyJson: string }
 type InMsg = InitMsg | RequestMsg
 
@@ -24,14 +24,41 @@ let initPromise: Promise<void> | null = null
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m)
 const progress = (msg: string) => post({ type: 'progress', msg })
 
-// Flush (populate=false) or load (populate=true) the IDBFS-backed /persist mount. Promisifies FS.syncfs's
-// callback so we can await persistence after a build/save mutation, keeping user data across reloads.
-function syncfs(populate: boolean): Promise<void> {
-  return new Promise((resolve, reject) => py.FS.syncfs(populate, (err: unknown) => (err ? reject(err) : resolve())))
+// Snapshot every file under /persist into a {path: text} map (named builds + last-session save). The main thread
+// writes this to IndexedDB after a mutation. (Emscripten's in-worker IDBFS syncfs fails silently in some
+// browsers — Brave — so the worker only produces the snapshot and the main thread owns the actual storage.)
+function snapshotPersist(): Record<string, string> {
+  const out: Record<string, string> = {}
+  const walk = (dir: string) => {
+    let names: string[] = []
+    try { names = py.FS.readdir(dir) } catch { return }
+    for (const name of names) {
+      if (name === '.' || name === '..') continue
+      const path = `${dir}/${name}`
+      if (py.FS.isDir(py.FS.stat(path).mode)) walk(path)
+      else out[path] = py.FS.readFile(path, { encoding: 'utf8' })
+    }
+  }
+  walk('/persist')
+  return out
 }
 
-async function fetchBytes(url: string): Promise<Uint8Array> {
-  const res = await fetch(url)
+// Recreate the persisted files (and their parent dirs) in the in-memory FS at startup, from the main thread's
+// IndexedDB snapshot, so builds_manager/save_manager read them exactly as desktop would.
+function restorePersist(snapshot: Record<string, string>): void {
+  for (const path of Object.keys(snapshot)) {
+    const dir = path.slice(0, path.lastIndexOf('/'))
+    let cur = ''
+    for (const part of dir.split('/').filter(Boolean)) {
+      cur += `/${part}`
+      try { py.FS.mkdir(cur) } catch { /* already exists */ }
+    }
+    py.FS.writeFile(path, snapshot[path])
+  }
+}
+
+async function fetchBytes(url: string, cache?: RequestCache): Promise<Uint8Array> {
+  const res = await fetch(url, cache ? { cache } : undefined)
   if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`)
   return new Uint8Array(await res.arrayBuffer())
 }
@@ -47,18 +74,19 @@ async function init(msg: InitMsg): Promise<void> {
 
   progress('Loading game data…')
   const [backendZip, dataZip] = await Promise.all([
-    fetchBytes(msg.backendUrl),
+    // 'reload' bypasses the HTTP cache: backend-py.zip has a fixed filename, and some browsers (Brave) serve a
+    // stale copy to worker fetches despite must-revalidate — which would run an outdated backend after a deploy.
+    fetchBytes(msg.backendUrl, 'reload'),
     fetchBytes(`${msg.dataBase}/engine-data.zip`),
   ])
   py.FS.mkdir('/be'); py.unpackArchive(backendZip, 'zip', { extractDir: '/be' })
   py.FS.mkdir('/data'); py.unpackArchive(dataZip, 'zip', { extractDir: '/data' })
   py.FS.mkdir('/stubs'); py.FS.writeFile('/stubs/uvicorn.py', 'def run(*a, **k):\n    pass\n')
 
-  // Persist named builds + last-session save across reloads. Both persistence modules write under
-  // TLI_PERSIST_DIR (=/persist); mount that as IndexedDB-backed IDBFS and load any prior data into the FS.
+  // Restore persisted builds + last-session save into the in-memory FS (TLI_PERSIST_DIR=/persist). The snapshot
+  // comes from the main thread's IndexedDB; mutations are snapshotted back to it (see the request handler).
   py.FS.mkdir('/persist')
-  py.FS.mount(py.FS.filesystems.IDBFS, {}, '/persist')
-  await syncfs(true)
+  if (msg.persistSnapshot) restorePersist(msg.persistSnapshot)
 
   progress('Starting engine…')
   await py.runPythonAsync(`
@@ -113,11 +141,11 @@ self.onmessage = async (e: MessageEvent<InMsg>) => {
       if (!apiFn) throw new Error('worker not initialized')
       const resStr = await apiFn(msg.method, msg.path, msg.bodyJson)
       const { status, body } = JSON.parse(resStr)
-      // After a successful build/save mutation, flush the IDBFS mount so it survives a reload.
-      if (status < 400 && /^(POST|PUT|DELETE)$/i.test(msg.method) && /\/(builds|save)(\/|\?|$)/.test(msg.path)) {
-        try { await syncfs(false) } catch { /* best-effort persist */ }
-      }
       post({ type: 'result', id: msg.id, status, body })
+      // After a successful build/save mutation, hand the updated /persist snapshot to the main thread to store.
+      if (status < 400 && /^(POST|PUT|DELETE)$/i.test(msg.method) && /\/(builds|save)(\/|\?|$)/.test(msg.path)) {
+        try { post({ type: 'persist', snapshot: snapshotPersist() }) } catch { /* best-effort persist */ }
+      }
     } catch (err) {
       post({ type: 'error', id: msg.id, msg: String(err) })
     }

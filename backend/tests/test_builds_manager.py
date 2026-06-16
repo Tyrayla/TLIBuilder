@@ -6,7 +6,7 @@ from persistence import builds_manager
 
 
 def _save_read(tmp_path, monkeypatch, build):
-    monkeypatch.setattr(builds_manager, "_DIR", str(tmp_path))
+    monkeypatch.setenv("TLI_PERSIST_DIR", str(tmp_path))
     builds_manager.save_build(build)
     return builds_manager._read_file(build["id"])
 
