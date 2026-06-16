@@ -19,7 +19,7 @@ import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { SkillTooltipBody } from '../components/tooltip/bodies/SkillTooltipBody'
 import { StructuredSkillTooltipBody } from '../components/tooltip/bodies/StructuredSkillTooltipBody'
 import { DamageDeltaBand } from '../components/tooltip/DamageDeltaBand'
-import { useDamageDelta, useDamageDeltaList, withSupport, type DeltaRequest, type DamageDelta } from '../components/tooltip/useDamageDelta'
+import { useDamageDelta, useDamageDeltaList, withSupport, withSkill, type DeltaRequest, type DamageDelta } from '../components/tooltip/useDamageDelta'
 import { buildEngineStatsPayload, type BuildState } from '../utils/statsPayload'
 import { characterLevelFrom } from '../utils/conditions'
 import { modeledRolledLines } from '../utils/supportRolls'
@@ -173,6 +173,25 @@ function deltaInline(d: DamageDelta | undefined): React.ReactNode {
   return null
 }
 
+// Icon-only refresh button for the catalog sort rows. The swap-delta baseline is frozen when a panel opens
+// so the numbers stay stable while you tweak the equipped skill's level/rolls; this re-snapshots on demand.
+function RefreshButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="skill-sort-refresh"
+      title="Recompute the DPS deltas against the current build (level / roll changes)"
+      onClick={onClick}
+      style={{
+        marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 22, height: 22, padding: 0, lineHeight: 1, fontSize: 13, cursor: 'pointer',
+        background: 'transparent', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 4,
+        color: '#bbb',
+      }}
+    >↻</button>
+  )
+}
+
 // Build a fresh EquippedSupportSkill from a catalog item (default rank/tier + tier-mid rolls). Shared
 // by assignSupport and the catalog DPS-delta preview transform.
 function makeSupport(item: SkillItem, supportIndex: number): EquippedSupportSkill {
@@ -207,6 +226,8 @@ export default function SkillsScreen(_props: Props) {
   const cachedSkills = useReferenceStore(s => s.skills)
   const supportSort = useUiPrefs(s => s.supportSort)
   const setSupportSort = useUiPrefs(s => s.setSupportSort)
+  const passiveSort = useUiPrefs(s => s.passiveSort)
+  const setPassiveSort = useUiPrefs(s => s.setPassiveSort)
   const [fetchedItems, setFetchedItems] = useState<SkillItem[]>([])
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
   const [centerView, setCenterView] = useState<'catalog' | 'detail'>('catalog')
@@ -216,6 +237,9 @@ export default function SkillsScreen(_props: Props) {
   const [pendingLevel, setPendingLevel] = useState(20)
   const [search, setSearch] = useState('')
   const [supportSearch, setSupportSearch] = useState('')
+  // Bumped by the catalog refresh button to re-snapshot the swap-delta baseline (which is otherwise frozen
+  // when the panel opens, so tweaking the equipped skill's level/rolls doesn't recompute the catalog numbers).
+  const [refreshNonce, setRefreshNonce] = useState(0)
 
   // Prefer the shared reference cache (already tooltip-enriched); fetch only if it isn't loaded yet.
   const allItems = cachedSkills ?? fetchedItems
@@ -278,10 +302,12 @@ export default function SkillsScreen(_props: Props) {
   // each pick-delta is the swap result vs the CURRENT support, computed once on open and cached — tweaking
   // the equipped support's roll/rank/tier afterward doesn't change or recompute the catalog numbers.
   const pickBaseSig = useMemo(() => {
-    if (focusedSlot === null || focusedSupportIdx === null) return ''
+    if (focusedSlot === null) return ''
     return hashStr(JSON.stringify(buildEngineStatsPayload(useBuildStore.getState() as unknown as BuildState)))
+    // Re-snapshots when the focused slot/support changes OR the refresh button is pressed — NOT on every
+    // build edit, so the catalog numbers stay stable while you tweak the equipped skill, then refresh on demand.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedSlot, focusedSupportIdx])
+  }, [focusedSlot, focusedSupportIdx, refreshNonce])
 
   // Per-catalog-support DPS swap-delta (for the focused slot) vs the current support, used to label + sort
   // the list. base omitted → current build (only the focused slot's support index is swapped, others untouched).
@@ -314,6 +340,41 @@ export default function SkillsScreen(_props: Props) {
       .sort((a, b) => score(b.i) - score(a.i))
       .map(x => x.it)
   }, [supportCatalogItems, supportPickDeltas, supportSort])
+
+  // ── passive-skill catalog deltas (DPS contribution of equipping each candidate) ──────────────
+  // Only for passive slots: a passive/aura buffs the whole build, so we measure each candidate's effect on
+  // the MAIN skill's DPS (measureSlot omitted → headline offense), at the level you'd assign by default (20).
+  // Baseline is the same frozen-on-open signature the supports use, so it refreshes via the same button.
+  const passivePickReqs = useMemo<DeltaRequest[]>(() =>
+    (focusedSlot !== null && isPassiveSlot(focusedSlot))
+      ? skillCatalogItems.map(item => ({
+          key: `passive-pick:${focusedSlot}:${item.item_id}:${pickBaseSig}`,
+          step: (s) => withSkill(s, focusedSlot, item, 20),
+          stable: true,
+        }))
+      : [],
+    [skillCatalogItems, focusedSlot, pickBaseSig])
+  const passivePickDeltas = useDamageDeltaList(passivePickReqs.length ? passivePickReqs : null, passivePickReqs.length > 0)
+  const passiveDeltaById = useMemo(() => {
+    const m: Record<string, DamageDelta> = {}
+    skillCatalogItems.forEach((it, i) => { if (passivePickDeltas[i]) m[it.item_id] = passivePickDeltas[i] })
+    return m
+  }, [skillCatalogItems, passivePickDeltas])
+  // Sort the skill catalog. Active skills stay alphabetical (a per-skill DPS sort is meaningless across
+  // different main skills); passive skills honor passiveSort (DPS contribution sinks unresolved/nyi).
+  const sortedSkillCatalog = useMemo(() => {
+    const isPassive = focusedSlot !== null && isPassiveSlot(focusedSlot)
+    if (!isPassive || passiveSort === 'alpha') {
+      return [...skillCatalogItems].sort((a, b) => a.name.localeCompare(b.name))
+    }
+    const score = (i: number) => {
+      const d = passivePickDeltas[i]
+      return d && d.state === 'value' ? d.absolute : Number.NEGATIVE_INFINITY
+    }
+    return skillCatalogItems.map((it, i) => ({ it, i }))
+      .sort((a, b) => score(b.i) - score(a.i))
+      .map(x => x.it)
+  }, [skillCatalogItems, passivePickDeltas, passiveSort, focusedSlot])
 
   const selectedSkillItem  = allItems.find(i => i.item_id === selectedSkillId)  ?? null
   const selectedSupportItem = allItems.find(i => i.item_id === selectedSupportId) ?? null
@@ -513,11 +574,25 @@ export default function SkillsScreen(_props: Props) {
             />
             {search && <button className="skill-search-clear" onClick={() => setSearch('')}>×</button>}
           </div>
+          {isPassive && (
+            <div className="skill-sort-row">
+              <span className="skill-sort-label">Sort</span>
+              <select
+                className="skill-sort-select"
+                value={passiveSort}
+                onChange={e => setPassiveSort(e.target.value as 'alpha' | 'dps')}
+              >
+                <option value="alpha">Alphabetical</option>
+                <option value="dps">DPS Contribution</option>
+              </select>
+              <RefreshButton onClick={() => setRefreshNonce(n => n + 1)} />
+            </div>
+          )}
           <div className="skill-catalog-list">
-            {skillCatalogItems.length === 0 && (
+            {sortedSkillCatalog.length === 0 && (
               <div className="skill-catalog-empty">No skills match your search</div>
             )}
-            {skillCatalogItems.map(item => (
+            {sortedSkillCatalog.map(item => (
               <SkillHoverTooltip key={item.item_id} name={item.name} item={item}>
                 {tp => (
                   <div
@@ -530,6 +605,7 @@ export default function SkillsScreen(_props: Props) {
                     }}
                   >
                     <span className="skill-catalog-name">{item.name}</span>
+                    {isPassive && deltaInline(passiveDeltaById[item.item_id])}
                     <div className="skill-catalog-tags">
                       {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
                     </div>
@@ -834,6 +910,7 @@ export default function SkillsScreen(_props: Props) {
             <option value="alpha">Alphabetical</option>
             <option value="dps">DPS Contribution</option>
           </select>
+          <RefreshButton onClick={() => setRefreshNonce(n => n + 1)} />
         </div>
         <div className="skill-catalog-list" style={{ flex: 1 }}>
           {supportCatalogItems.length === 0 && (

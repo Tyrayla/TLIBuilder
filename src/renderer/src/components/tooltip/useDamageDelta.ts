@@ -15,7 +15,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
-import type { StatEntry, StatSheetResponse, EquippedSupportSkill } from '../../api/client'
+import type { StatEntry, StatSheetResponse, EquippedSupportSkill, SkillItem } from '../../api/client'
 import { useBuildStore } from '../../store/buildStore'
 import { buildEngineStatsPayload, type BuildState } from '../../utils/statsPayload'
 
@@ -76,6 +76,29 @@ export function withNodePoints(s: BuildState, slotIdx: number, nodeId: string, p
 // Exported so the skills screen can build support `step`/`base` transforms for ANY focused slot:
 //   pick  → step = withSupport(slot, idx, hypothetical), base = current  → swap-in result
 //   tune  → step = current, base = withSupport(slot, idx, null)          → +contribution
+// Swap the skill equipped in `slot` for `item` at `level` (or empty the slot when item is null), keeping the
+// slot's existing supports. Used by the passive-skill catalog to preview each candidate's DPS contribution:
+//   pick → step = withSkill(slot, candidate), base = current → swap-in result (measured on the MAIN skill,
+//   since a passive/aura buffs the whole build rather than dealing its own hit damage).
+export function withSkill(s: BuildState, slot: number, item: SkillItem | null, level: number): BuildState {
+  const others = s.skills.filter(sk => sk.slot !== slot)
+  if (!item) return { ...s, skills: others }
+  const existing = s.skills.find(sk => sk.slot === slot)
+  return {
+    ...s,
+    skills: [...others, {
+      ...existing,
+      slot,
+      item_id: item.item_id,
+      name: item.name,
+      level,
+      skill_tags: item.skill_tags,
+      description_lines: item.description_lines,
+      supports: existing?.supports ?? [],
+    }],
+  }
+}
+
 export function withSupport(s: BuildState, slot: number, supportIndex: number, support: EquippedSupportSkill | null): BuildState {
   return {
     ...s,
