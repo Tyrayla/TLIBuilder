@@ -131,6 +131,21 @@ function cleanDescLines(lines: string[]): string[] {
 
 function isPassiveSlot(slot: number) { return slot > 5 }
 
+// "Family" key: a base skill/support and its Precise variant collapse to the same family, so the catalog can
+// keep only one of a family socketable at once. A Precise variant's item_id is `precise_<base_id>` — but ONLY
+// when that base id actually exists, otherwise the name itself contains "Precise". E.g. "Precise Restrain"
+// (precise_restrain) pairs with "Restrain" (restrain); but "Precise Projectiles" (precise_projectiles) is the
+// BASE — its sibling is "Precise: Precise Projectiles" (precise_precise_projectiles), so precise_projectiles
+// stays its own family. Strip the leading "precise_" only when the stripped id is a known skill.
+function skillFamily(itemId: string, knownIds: Set<string>): string {
+  const id = itemId.toLowerCase()
+  if (id.startsWith('precise_')) {
+    const base = id.slice('precise_'.length)
+    if (knownIds.has(base)) return base
+  }
+  return id
+}
+
 const TIERED_SUPPORT_TYPES = new Set(['activation_medium_skill', 'magnificent_support_skill', 'noble_support_skill'])
 
 function supportLevelRange(skill_type: string | undefined): { min: number; max: number; default: number } {
@@ -269,9 +284,19 @@ export default function SkillsScreen(_props: Props) {
   // ── catalog lists ──────────────────────────────────────────────────────────
   const skillCatalogItems = useMemo(() => {
     if (focusedSlot === null) return []
-    const base = isPassiveSlot(focusedSlot)
+    let base = isPassiveSlot(focusedSlot)
       ? allItems.filter(isPassiveSkillItem)
       : allItems.filter(isActiveSkillItem)
+    if (isPassiveSlot(focusedSlot)) {
+      // Precise/base aura mutual exclusivity: a base aura and its "Precise: …" variant share a family and
+      // can't both be socketed; same-name auras don't double-socket either. Exclude any candidate whose
+      // family is already equipped in ANOTHER passive slot.
+      const knownIds = new Set(allItems.map(i => i.item_id.toLowerCase()))
+      const equippedFamilies = new Set(
+        equippedSkills.filter(s => isPassiveSlot(s.slot) && s.slot !== focusedSlot)
+          .map(s => skillFamily(s.item_id, knownIds)))
+      base = base.filter(s => !equippedFamilies.has(skillFamily(s.item_id, knownIds)))
+    }
     const matched = !search.trim() ? base : (() => {
       const q = search.toLowerCase()
       return base.filter(s =>
@@ -282,12 +307,19 @@ export default function SkillsScreen(_props: Props) {
     })()
     // Skills always sort alphabetically (a per-skill DPS sort would be inaccurate).
     return [...matched].sort((a, b) => a.name.localeCompare(b.name))
-  }, [allItems, focusedSlot, search])
+  }, [allItems, focusedSlot, search, equippedSkills])
 
   const supportCatalogItems = useMemo(() => {
     if (focusedSlot === null || focusedSupportIdx === null || !focusedEquipped) return []
     const passive = isPassiveSlot(focusedSlot)
-    const base = allItems.filter(s => isSupportCompatible(s, focusedEquipped, passive, focusedSupportIdx))
+    // No duplicate support on one skill: a support already socketed in another slot of THIS skill can't be
+    // socketed again — neither the same support nor its base/Precise sibling (e.g. Restrain ↔ Precise Restrain),
+    // which collapse to the same family.
+    const knownIds = new Set(allItems.map(i => i.item_id.toLowerCase()))
+    const occupiedFamilies = new Set((focusedEquipped.supports ?? [])
+      .filter(s => s.support_index !== focusedSupportIdx).map(s => skillFamily(s.item_id, knownIds)))
+    const base = allItems.filter(s =>
+      !occupiedFamilies.has(skillFamily(s.item_id, knownIds)) && isSupportCompatible(s, focusedEquipped, passive, focusedSupportIdx))
     if (!supportSearch.trim()) return base
     const q = supportSearch.toLowerCase()
     return base.filter(s =>
@@ -878,11 +910,6 @@ export default function SkillsScreen(_props: Props) {
           })()}
           {/* Resolved contribution summary. The rank's universal-damage contribution is already shown
               inline on the Rank control, so it isn't repeated here. */}
-          {existingSupport && (
-            <div style={{ marginTop: 8, fontSize: 11, opacity: 0.7, lineHeight: 1.5 }}>
-              Skill Lv {focusedEquipped.level}
-            </div>
-          )}
           {/* DPS you'd lose by unequipping this support (the focused skill's own offense). */}
           {existingSupport && (
             <div style={{ marginTop: 6 }}>
