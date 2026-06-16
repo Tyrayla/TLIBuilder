@@ -49,9 +49,13 @@ jobs:
       - name: Build and publish nightly prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # channel=nightly forces the update-metadata file to be `nightly.yml` (NOT `latest.yml`) — electron-builder
+        # does NOT derive the channel from the version's prerelease tag, so without this nightlies would overwrite the
+        # stable channel file. releaseType=prerelease marks the GitHub release as a prerelease.
         run: >
           npm run build &&
           npx electron-builder --win
           --config.extraMetadata.version=${{ steps.ver.outputs.version }}
+          --config.publish.channel=nightly
           --config.publish.releaseType=prerelease
           --publish always
