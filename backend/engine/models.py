@@ -208,3 +208,4 @@ class StatResult:
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
     aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
+    reservation:         dict | None = None         # mana/life sealing: totals + per-skill seal breakdowns

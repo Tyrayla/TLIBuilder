@@ -866,6 +866,8 @@ def engine_stats(req: EngineStatsRequest):
         # computed engine-side (engine.utility) so the Aura Effect total is the true post-aggregation value.
         "auras": result.aura_summaries,
         "aura_statuses": aura_statuses,
+        # Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
+        "reservation": result.reservation,
         # Settable per-aura stack conditions ({key,label,max}) for the stack sliders.
         "aura_stack_conditions": aura_stack_conditions,
     }

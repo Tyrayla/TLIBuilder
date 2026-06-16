@@ -2114,6 +2114,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="mana",               stacking_rule="additive",
         ui_priority=40,                source_types=_TB,
     ),
+    Stat.SEALED_MANA_COMPENSATION_ADDITIONAL: StatMeta(
+        "Sealed Mana Compensation", "Mana", "additional", "%",
+        subgroup="mana",               stacking_rule="additive",
+        ui_priority=40,                source_types=_TB,
+    ),
 
     # ── Energy Shield ─────────────────────────────────────────────────────────
     Stat.MAX_ENERGY_SHIELD_FLAT: StatMeta(

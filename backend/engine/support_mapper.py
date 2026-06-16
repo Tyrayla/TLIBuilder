@@ -105,6 +105,11 @@ _DMG_COMPILED = [(re.compile(p), sk, vk) for p, sk, vk in _DMG_RULES]
 def map_damage_line(line: SupportLine, level: int, cat: str | None = None) -> list[StatContribution]:
     """Emit stat contributions for a modeled damage/stat line; [] if no damage rule matches.
     `cat` is the supported skill's category ('spell'|'attack') for added-flat lines (not used yet)."""
+    # "up to +(N-M)%" ranged-cap lines are per-resource scaling (e.g. Lunar Eclipse's damage per Mana sealed),
+    # NOT flat additionals — skip so the generic "+N% additional damage" rule doesn't mis-read the rate as a
+    # flat bonus. Handled bespoke in engine.utility.apply_reservation.
+    if "up to" in line.template and "(" in line.template:
+        return []
     for rx, stat_keys, vk in _DMG_COMPILED:
         if not rx.search(line.template):
             continue
@@ -154,6 +159,17 @@ _CAPTURE_RULES: list[tuple[str, str, str]] = [
     (r"horizontal projectile penetration",            "horizontal_projectile_penetration_flat", "flat"),
     (r"demolisher charge restoration speed",          "demolisher_charge_speed_inc", "pct"),
     (r"aura effect for the supported",                "aura_effect_inc", "pct"),
+    # Sealed-mana reservation supports (slot-local; consumed by engine.utility.apply_reservation). The
+    # "additional" rule MUST precede the generic one (first match wins). Values may be negative (Seal
+    # Conversion's "-70% additional Sealed Mana Compensation"). seal_to_life = a flag toggling the host
+    # skill to seal Life instead of Mana ("Replaces Sealed Mana … with Sealed Life").
+    # \s* between words: the scraper glues word pairs inconsistently ("mana compensation" vs "manacompensation").
+    (r"additional\s*sealed\s*mana\s*compensation\s*for\s*the\s*supported", "sealed_mana_compensation_additional", "pct"),
+    (r"sealed\s*mana\s*compensation\s*for\s*the\s*supported", "sealed_mana_compensation_inc", "pct"),
+    (r"replaces\s*sealed\s*mana.*sealed\s*life",      "seal_to_life", "flag"),
+    # Lunar Eclipse: a support that IMPARTS a seal onto its host (even an active skill) + removes mana cost.
+    (r"seal\s*#\s*%\s*max\s*mana",                    "imparted_seal_mana_pct", "pct"),
+    (r"no\s*longer\s*costs\s*mana",                   "skill_no_mana_cost", "flag"),
     (r"wave interval",                                "wave_interval_inc", "pct"),
     (r"summonable minions|max .*minions for the supported", "extra_max_minions_flat", "flat"),
     (r"can(no|')t be interrupted",                    "es_uninterruptible", "flag"),

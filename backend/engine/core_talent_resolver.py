@@ -201,10 +201,16 @@ def _resolve_talent(name: str, effects, parse_mod, translate_cond):
         sv = _SET_VALUE_RE.search(text)
         if sv:
             cls = _classify_effect(eff, parse_mod, translate_cond)
+            _target = _normalize(sv.group(1))
             if cls.get("stat_key"):
                 contribs.append({"set_value": True, "stat_key": cls["stat_key"], "amount": cls["value"],
                                  "text": f"{eff} |core|{norm}", "label": label, "condition_expr": None})
                 statuses.append({"name": name, "text": eff, "resolved": True, "kind": "set_value"})
+            elif "support" in _target and "mana multiplier" in _target:
+                # Off the Beaten Track: forces every attached support's Mana Multiplier to a fixed value
+                # (95%). Consumed in engine.utility.apply_reservation as a core flag (no stat to set).
+                flags.add("core_support_mana_mult_95")
+                statuses.append({"name": name, "text": eff, "resolved": True, "kind": "override"})
             else:
                 statuses.append({"name": name, "text": eff, "resolved": False, "kind": "set_value"})
             continue

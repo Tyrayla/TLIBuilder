@@ -1,11 +1,14 @@
-"""Utility / buff stats — auras now, reservation & sealing (Phase 2) later.
+"""Utility / buff stats — aura buffs (apply_aura_buffs) and mana/life sealing (apply_reservation).
 
-Parallels offense.py / defense.py: it runs INSIDE the compute fixed-point loop, after the source is fully
-aggregated (gear, talents, custom mods, standard supports), so it can read the TRUE total Aura Effect and scale
-the (server-parsed, unscaled) aura buffs correctly. An aura's own Aura Effect is emitted first so it feeds the
-same-pass factor (self-feedback), and per-stack buffs are gated by their `<skill>_stacks` condition.
+Parallels offense.py / defense.py: both run INSIDE the compute fixed-point loop, after the source is fully
+aggregated (gear, talents, custom mods, standard supports), so they read the TRUE totals. apply_aura_buffs
+scales the (server-parsed, unscaled) aura buffs by Aura Effect; apply_reservation computes Sealed Mana / Sealed
+Life from each sealing skill's base seal × support Mana Multipliers ÷ (1 + Sealed Mana Compensation), per the
+Help-DB formulas, and runs after derive_stats so Max Mana / Max Life are final.
 """
 from __future__ import annotations
+
+import re
 
 from engine.aggregator import _eval_condition, _emit
 from engine.models import SourceEntry
@@ -96,3 +99,188 @@ def apply_aura_buffs(source, aura_buffs, aura_meta, active_booleans, numeric_val
         source._recording = prev_rec
 
     return summaries
+
+
+# ── Mana / Life sealing & reservation ───────────────────────────────────────────────
+_PCT = lambda s: float(str(s).rstrip("%")) / 100.0   # noqa: E731 — "110.0%" -> 1.10, "50%" -> 0.5
+# Lunar Eclipse's damage-per-Mana-sealed cap: "... up to +(57-60) % additional damage" (Noble rank range).
+_UP_TO_RANGE_RE = re.compile(r"up to\s*\+?\(?\s*([\d.]+)\s*[-–]\s*([\d.]+)\s*\)?\s*%", re.I)
+
+
+def _mana_multiplier(support_data: dict, otbt: bool) -> float:
+    """A support's Mana Multiplier (its `mana_cost`, e.g. '110.0%' -> 1.10). Off the Beaten Track forces it
+    to a fixed 95%."""
+    if otbt:
+        return 0.95
+    mc = support_data.get("mana_cost")
+    return _PCT(mc) if mc else 1.0
+
+
+def _seal_dmg_cap(desc: str, rank) -> float:
+    """Lunar Eclipse cap: parse 'up to +(min-max)%' and interpolate by the support's rank (1-5) within the
+    range; default to the midpoint. Returns a fraction (e.g. 0.585)."""
+    m = _UP_TO_RANGE_RE.search(desc or "")
+    if not m:
+        return 0.0
+    lo, hi = float(m.group(1)), float(m.group(2))
+    try:
+        r = max(1, min(5, int(rank)))
+        frac = (r - 1) / 4.0
+    except (TypeError, ValueError):
+        frac = 0.5
+    return (lo + (hi - lo) * frac) / 100.0
+
+
+def apply_reservation(source, skills_input, skills_by_id, attached_supports,
+                      active_booleans, numeric_vals) -> dict:
+    """Compute Sealed Mana / Sealed Life from every equipped sealing skill (ANY slot — auras, Focus, and
+    active skills a support makes seal, e.g. Moon Strike + Lunar Eclipse). Per skill:
+        amount = base_seal_frac × Max Mana × Π(support Mana Multiplier) / (1 + Sealed Mana Compensation)
+    Compensation is per-skill (global + slot-local support comp + class-scoped focus/magus pools). A Seal
+    Conversion support routes the amount to Sealed Life instead of Mana. Returns totals + per-skill pseudo-
+    source breakdowns; emits Ward ES (from sealed pools) and Lunar Eclipse's per-Mana-sealed damage."""
+    from engine.support_lines import parse_support
+    from engine.support_mapper import map_line
+    from engine.support_resolver import _tier_value, _support_level_bonus
+
+    skills_input = skills_input or []
+    max_mana = source.total("max_mana")
+    max_life = source.total("max_life")
+    otbt = "core_support_mana_mult_95" in (active_booleans or set())
+
+    prev_rec = source._recording
+    source._recording = True
+    per_skill: list[dict] = []
+    total_sealed_mana = 0.0
+    total_sealed_life = 0.0
+    lunar: list[tuple[int | None, float]] = []   # (slot, cap_frac) — damage-per-Mana-sealed, 2nd pass
+    # Global Sealed Mana Compensation (gear/talents); per-support comp is read per skill below. Increased and
+    # additional are SEPARATE multiplicative pools — the denominator is (1 + Σinc) × (1 + Σadd), NOT (1+Σ both)
+    # summed (matches the engine's flat×(1+inc)×Π(1+add) model in derive.py; verified in-game: a +37.5% inc /
+    # −66.25% add seal overflows Life because 1.375 × 0.3375 = 0.464 < 0.5, not 0.7125).
+    comp_global_inc = source.total("sealed_mana_compensation_inc")
+    comp_global_add = source.total("sealed_mana_compensation_additional")
+    try:
+        for sk in skills_input:
+            if sk.get("enabled") is False:
+                continue
+            slot = sk.get("slot")
+            data = skills_by_id.get(sk.get("skill_id")) or {}
+            tags = {t.lower() for t in (data.get("skill_tags") or [])}
+
+            # ── This skill's attached supports: read seal-modifiers DIRECTLY (works for every support type,
+            #    incl. Noble/Magnificent which skip resolve_standard_supports): Mana Multiplier (mana_cost),
+            #    Sealed-Mana-Compensation, Seal Conversion (→ Life), an imparted seal (Lunar Eclipse), and the
+            #    per-Mana-sealed damage cap. Parsed via the same parse_support/map_line the badges use. ──
+            sups = [s for s in (attached_supports or [])
+                    if s.get("slot") == slot and s.get("enabled", True) and s.get("item_id")]
+            mult = 1.0
+            mult_breakdown: list[dict] = []
+            comp_support_inc = 0.0
+            comp_support_add = 0.0
+            comp_sources: list[dict] = []
+            imparted = 0.0
+            to_life = False
+            for s in sups:
+                sd = skills_by_id.get(s["item_id"]) or {}
+                eff_level = _tier_value(s.get("level")) + _support_level_bonus(source, sd.get("skill_tags"))
+                for ln in parse_support(sd).lines:
+                    for c in map_line(ln, eff_level, None, {}):
+                        if c.stat_key == "sealed_mana_compensation_inc":
+                            comp_support_inc += c.amount
+                            comp_sources.append({"label": sd.get("name") or s["item_id"], "value": c.amount, "kind": "increased"})
+                            source.consumed_stats.add(c.stat_key)
+                        elif c.stat_key == "sealed_mana_compensation_additional":
+                            comp_support_add += c.amount
+                            comp_sources.append({"label": sd.get("name") or s["item_id"], "value": c.amount, "kind": "additional"})
+                            source.consumed_stats.add(c.stat_key)
+                        elif c.stat_key == "seal_to_life":
+                            to_life = True
+                            source.consumed_stats.add("seal_to_life")
+                        elif c.stat_key == "imparted_seal_mana_pct":
+                            imparted = max(imparted, c.amount)
+                            source.consumed_stats.add("imparted_seal_mana_pct")
+                m = _mana_multiplier(sd, otbt)
+                mult *= m
+                mult_breakdown.append({"name": sd.get("name") or s["item_id"], "mult": m})
+                desc = " ".join(sd.get("description_lines") or [])
+                if "mana sealed" in desc.lower() and "up to" in desc.lower():
+                    lunar.append((slot, _seal_dmg_cap(desc, s.get("rank"))))
+
+            # Class-scoped global compensation (Focus / Spirit Magus pools — gear/talents/spirits, not supports).
+            comp_class = 0.0
+            if "focus" in tags:
+                comp_class += source.total("focus_skill_sealed_mana_comp_inc")
+            if "spirit magus" in tags:
+                comp_class += source.total("spirit_magi_sealed_mana_comp_inc")
+
+            raw = data.get("sealed_mana")
+            if raw:
+                # A skill's OWN base seal scales with its supports (Mana Multipliers + per-support compensation).
+                base_frac = _PCT(raw)
+                comp_inc = comp_global_inc + comp_class + comp_support_inc
+                comp_add = comp_global_add + comp_support_add
+            else:
+                # A support-IMPARTED seal (Lunar Eclipse & similar) is a fixed reservation that scales ONLY with
+                # the GLOBAL Sealed Mana Compensation pool — NOT support Mana Multipliers, NOT per-support comp
+                # (verified in-game). Mana Cost % and Sealed Mana are distinct.
+                base_frac = imparted
+                mult, mult_breakdown, comp_sources = 1.0, [], []
+                comp_inc = comp_global_inc + comp_class
+                comp_add = comp_global_add
+            if base_frac <= 0.0:
+                continue
+
+            # Increased and additional compensation are SEPARATE multiplicative factors: the denominator is
+            # (1 + Σincreased) × (1 + Σadditional). `compensation` (net) is reported as denom − 1 so the displayed
+            # "÷ (1 + Sealed Mana Compensation)" stays exact while the breakdown rows carry each pool's own value.
+            denom = (1.0 + comp_inc) * (1.0 + comp_add)
+            comp = denom - 1.0
+            # Seal Conversion replaces the seal's POOL: a 50% seal becomes 50% of Max LIFE (not 50% of Mana
+            # re-labeled), then the compensation penalty applies. So the base scales off the target pool's max.
+            pool_max = max_life if to_life else max_mana
+            amount = base_frac * pool_max * mult / denom if denom != 0 else 0.0
+            if to_life:
+                total_sealed_life += amount
+            else:
+                total_sealed_mana += amount
+
+            per_skill.append({
+                "skill_id": sk.get("skill_id"), "name": data.get("name") or sk.get("skill_id"), "slot": slot,
+                "base_fraction": base_frac, "pool_max": pool_max, "support_mults": mult_breakdown,
+                "comp_sources": comp_sources, "compensation": comp,
+                "comp_increased": comp_inc, "comp_additional": comp_add, "amount": amount,
+                "pool": "life" if to_life else "mana",
+            })
+
+        # Ward — Energy Shield from sealed pools. Bump the ALREADY-DERIVED max_energy_shield directly (scaled
+        # by ES inc/additional), since derive_stats already ran this pass and isn't idempotent.
+        ward_flat = (source.total("energy_shield_per_sealed_mana") * total_sealed_mana
+                     + source.total("energy_shield_per_sealed_life") * total_sealed_life)
+        if ward_flat:
+            inc = source.total("max_energy_shield_inc")
+            add = source.total("max_energy_shield_additional")
+            source.add_with_source("max_energy_shield", ward_flat * (1.0 + inc) * (1.0 + add), SourceEntry(
+                stat="max_energy_shield", amount=ward_flat, source_type="condition",
+                label="Ward", text="Energy Shield from Sealed Mana/Life", points=1, source_name="Ward"))
+
+        # Lunar Eclipse — "+1% additional damage per 100 Mana sealed, up to the cap" (slot-local to the host;
+        # offense reads it from the final source after the loop).
+        for slot, cap in lunar:
+            bonus = min(total_sealed_mana / 100.0 * 0.01, cap) if cap > 0 else 0.0
+            if bonus > 0:
+                _emit(source, "dmg_additional", bonus, None,
+                      SourceEntry(stat="dmg_additional", amount=bonus, source_type="support",
+                                  label="Lunar Eclipse", text="+1% additional damage per 100 Mana sealed",
+                                  points=1, slot=slot, source_name="Lunar Eclipse"), slot=slot)
+    finally:
+        source._recording = prev_rec
+
+    return {
+        "max_mana": max_mana, "sealed_mana": total_sealed_mana, "unsealed_mana": max_mana - total_sealed_mana,
+        "max_life": max_life, "sealed_life": total_sealed_life, "unsealed_life": max_life - total_sealed_life,
+        "sealed_mana_compensation": (1.0 + comp_global_inc) * (1.0 + comp_global_add) - 1.0,
+        "insufficient_mana": total_sealed_mana > max_mana,
+        "insufficient_life": total_sealed_life > max_life,
+        "per_skill": per_skill,
+    }

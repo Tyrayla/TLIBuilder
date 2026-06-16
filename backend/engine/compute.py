@@ -245,6 +245,7 @@ def compute(
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
 
     aura_summaries: list[dict] = []
+    reservation: dict | None = None
     for iteration in range(_MAX_ITERS):
         active_booleans, numeric_vals = _derive_views(condition_state)
 
@@ -259,7 +260,8 @@ def compute(
         # Standard support_skill / activation_medium contributions, resolved against the CURRENT
         # condition_state so conditional lines see converged values and inflicted debuffs feed back.
         std_contribs, cond_effects = resolve_standard_supports(
-            build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state, slot_cats)
+            build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state, slot_cats,
+            source=source)
         for c in std_contribs:
             _se = SourceEntry(
                 stat=c["stat_key"], amount=c["amount"], source_type="support",
@@ -290,6 +292,13 @@ def compute(
         source._recording = True
         derive_stats(source, _set_value_overrides)
         source._recording = False
+
+        # Mana / Life sealing & reservation — after derive (Max Mana/Life final). Computes Sealed/Unsealed
+        # pools from each sealing skill's base seal × support Mana Multipliers ÷ (1 + Compensation); emits Ward
+        # ES + Lunar Eclipse damage into the source (converges with the loop). Runs each pass.
+        from engine.utility import apply_reservation
+        reservation = apply_reservation(
+            source, skills_input, skills_by_id, build_input.attached_supports, active_booleans, numeric_vals)
 
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS
@@ -459,7 +468,7 @@ def compute(
     # offense reads only what the active/modeled skill's pipeline touches — an unmodeled skill
     # reads nothing, so its damage mods fall out of consumed_stats and read as inert).
     source._recording = True
-    result_defense = asdict(calculate_defense(source))
+    result_defense = asdict(calculate_defense(source, reservation))
 
     # Per-slot support_behavior ({slot: {...}}) — the headline reads its own slot's behavior. Tolerate a
     # legacy flat dict (no per-slot keys) by treating it as slot 1's behavior.
@@ -577,4 +586,5 @@ def compute(
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,
         blessings=blessings,
         aura_summaries=aura_summaries,
+        reservation=reservation,
     )

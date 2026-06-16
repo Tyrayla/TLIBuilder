@@ -72,6 +72,8 @@
     "elemental_resistance",
     "energy_shield_gear_flat",
     "energy_shield_gear_inc",
+    "energy_shield_per_sealed_life",
+    "energy_shield_per_sealed_mana",
     "erosion_dmg_additional",
     "erosion_dmg_inc",
     "erosion_resistance",
@@ -152,6 +154,8 @@
     "physical_spell_dmg_flat_max",
     "physical_spell_dmg_flat_min",
     "quadruple_dmg_chance",
+    "sealed_mana_compensation_additional",
+    "sealed_mana_compensation_inc",
     "spell_block_chance_inc",
     "spell_crit_dmg_inc",
     "spell_crit_rating_flat",
@@ -195,6 +199,8 @@
     "fire_resist": 0.0,
     "fire_resist_max": 60.0,
     "fire_resist_raw": 0.0,
+    "insufficient_life": false,
+    "insufficient_mana": false,
     "life_additional": 0,
     "life_flat": 0,
     "life_inc": 0.27,
@@ -210,8 +216,13 @@
     "nyi": [
       "Effective HP"
     ],
+    "sealed_life": 0.0,
+    "sealed_mana": 0.0,
+    "sealed_mana_compensation": 0,
     "spell_block_chance": 0,
-    "spell_evade_chance": 0.0
+    "spell_evade_chance": 0.0,
+    "unsealed_life": 0.0,
+    "unsealed_mana": 0.0
   },
   "offense": {
     "above_max_mult": 1.0,

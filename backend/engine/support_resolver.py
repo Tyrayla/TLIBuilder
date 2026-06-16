@@ -225,6 +225,25 @@ def _tier_value(level) -> int:
         return 1
 
 
+# Skill-type/element tags a support can carry → the per-type skill-level stat it gains from.
+_SUPPORT_LEVEL_TAGS = ("attack", "spell", "melee", "projectile", "ranged", "channeled",
+                       "fire", "cold", "lightning", "erosion", "physical")
+
+
+def _support_level_bonus(source, tags) -> int:
+    """Extra effective levels a support gains from skill-level sources: global (all/support skill level) plus
+    any matching its OWN tags (e.g. Quick Return has the Attack tag → gains +Attack Skill Level; Off the Beaten
+    Track grants +4 Support Skill Level). Rounded down. `source` None → 0 (used by tooltip/badge paths)."""
+    if source is None:
+        return 0
+    bonus = source.total("all_skill_level") + source.total("support_skill_level")
+    tl = {t.lower() for t in (tags or [])}
+    for t in _SUPPORT_LEVEL_TAGS:
+        if t in tl:
+            bonus += source.total(f"{t}_skill_level")
+    return int(bonus)
+
+
 def _progression_for_tier(progression, tier: int) -> dict | None:
     """Find the progression entry whose level == tier; fall back to tier 1, then any entry."""
     if not isinstance(progression, list) or not progression:
@@ -247,7 +266,8 @@ def _willpower_per_stack(data: dict, level: int) -> float | None:
     return float(m.group(1)) / 100.0 if m else None
 
 
-def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds, slot_cats=None):
+def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds, slot_cats=None,
+                              source=None):
     """Resolve standard supports via the parser + mapper (engine.support_lines / support_mapper).
     Returns (stat_contributions, condition_effects). Run INSIDE the fixed-point loop so conditional
     lines see converging conditions and auto-derived conditions feed back. Noble/Magnificent stay in
@@ -281,7 +301,7 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
         if (parsed.gate == "spell-only" and cat != "spell") or \
            (parsed.gate == "attack-only" and cat != "attack"):
             continue  # Attack/Spell tag-gate
-        level = _tier_value(sup.get("level"))
+        level = _tier_value(sup.get("level")) + _support_level_bonus(source, data.get("skill_tags"))
         name = data.get("name") or item_id
         for line in parsed.lines:
             for c in map_line(line, level, cat, conds):
