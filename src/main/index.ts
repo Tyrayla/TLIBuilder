@@ -23,6 +23,32 @@ ipcMain.on('dirty-change', (_event, dirty: boolean) => { isDirtyMain = dirty })
 const log = (...args: unknown[]) => { if (isVerbose) console.log('[main]', ...args) }
 const err = (...args: unknown[]) => { if (isVerbose) console.error('[main]', ...args) }
 
+// ── Global app settings (userData/settings.json) ────────────────────────────
+// Owned by the main process so the updater can read the channel before the renderer loads. Holds the update
+// channel today; greyed-out display prefs (numberSeparator, decimalPrecision) are persisted but not yet wired.
+type UpdateChannel = 'stable' | 'nightly'
+interface AppSettings {
+  updateChannel: UpdateChannel
+  numberSeparator?: 'commas' | 'decimals'
+  decimalPrecision?: number
+}
+const DEFAULT_SETTINGS: AppSettings = { updateChannel: 'stable', numberSeparator: 'decimals', decimalPrecision: 2 }
+
+function settingsPath(): string {
+  return join(app.getPath('userData'), 'settings.json')
+}
+function readSettings(): AppSettings {
+  try {
+    const raw = JSON.parse(readFileSync(settingsPath(), 'utf-8'))
+    return { ...DEFAULT_SETTINGS, ...raw, updateChannel: raw.updateChannel === 'nightly' ? 'nightly' : 'stable' }
+  } catch {
+    return { ...DEFAULT_SETTINGS }
+  }
+}
+function writeSettings(s: AppSettings): void {
+  try { writeFileSync(settingsPath(), JSON.stringify(s, null, 2)) } catch (e) { err('writeSettings failed:', e) }
+}
+
 // Port readiness tracking — IPC callers wait until Python confirms its port
 let isPortReady = false
 const portWaiters: ((port: number) => void)[] = []
@@ -208,9 +234,19 @@ function startPython(): Promise<number> {
   })
 }
 
+// Point electron-updater at the chosen channel. Stable reads latest.yml and ignores prereleases; Nightly reads
+// nightly.yml and accepts X.Y.Z-nightly.N. allowDowngrade on the stable path lets a nightly tester roll back to
+// the last weekly release when switching channels.
+function applyChannel(ch: UpdateChannel): void {
+  autoUpdater.channel = ch === 'nightly' ? 'nightly' : 'latest'
+  autoUpdater.allowPrerelease = ch === 'nightly'
+  autoUpdater.allowDowngrade = ch === 'stable'
+}
+
 function initUpdater(win: typeof BrowserWindow.prototype): void {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
+  applyChannel(readSettings().updateChannel)
 
   autoUpdater.on('update-available', (info) => {
     win.webContents.send('update-available', {
@@ -380,11 +416,24 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('download-update', () => autoUpdater.downloadUpdate())
-  ipcMain.handle('install-update', () => autoUpdater.quitAndInstall(false, true))
+  // isSilent=true → the NSIS update installs without the wizard/UAC (per-user install); isForceRunAfter=true relaunches.
+  ipcMain.handle('install-update', () => autoUpdater.quitAndInstall(true, true))
   ipcMain.handle('get-app-version', () => app.getVersion())
   ipcMain.handle('check-for-update', async () => {
     try { await autoUpdater.checkForUpdates() } catch { /* error event fires */ }
   })
+
+  ipcMain.handle('get-settings', () => readSettings())
+  ipcMain.handle('set-setting', async (_e, key: keyof AppSettings, value: unknown) => {
+    const next = { ...readSettings(), [key]: value } as AppSettings
+    writeSettings(next)
+    if (key === 'updateChannel') {
+      applyChannel(next.updateChannel)
+      try { await autoUpdater.checkForUpdates() } catch { /* error event fires */ }
+    }
+    return next
+  })
+
   ipcMain.handle('open-external', (_event, url: string) => safeOpenExternal(url))
 
   // Open the window immediately so users see the "Starting backend…" state

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { api, Build } from '../api/client'
 import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
+import SettingsOverlay from '../components/SettingsOverlay'
 import logoSrc from '../assets/logo.png'
 
 interface Props {
@@ -25,6 +26,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   const [loading, setLoading] = useState(true)
 
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [importCode, setImportCode] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
@@ -125,8 +127,9 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
     }
   }
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!window.confirm(`Delete "${name || 'this build'}"? This can't be undone.`)) return
     await api.deleteBuild(id)
     loadBuilds()
   }
@@ -171,7 +174,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               <div className="build-card-actions">
                 <button
                   className="btn btn-danger btn-sm"
-                  onClick={e => build.id && handleDelete(build.id, e)}
+                  onClick={e => build.id && handleDelete(build.id, build.name, e)}
                 >Delete</button>
               </div>
             </div>
@@ -196,12 +199,20 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
           </button>
           <button
             className="btn btn-sm btn-secondary"
+            onClick={() => setSettingsOpen(true)}
+          >
+            ⚙ Settings
+          </button>
+          <button
+            className="btn btn-sm btn-secondary"
             onClick={() => setAboutOpen(true)}
           >
             About
           </button>
         </div>
       </div>
+
+      {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
 
       {aboutOpen && (
         <div className="modal-backdrop" onClick={() => setAboutOpen(false)}>

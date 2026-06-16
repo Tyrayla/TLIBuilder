@@ -1,0 +1,57 @@
+name: Nightly Build
+
+# Publishes a prerelease nightly off `staging`. The injected version (X.Y.Z-nightly.<run#>) makes electron-builder
+# emit a separate `nightly.yml` channel file + a GitHub prerelease, so stable users (who read `latest.yml`) are
+# never affected. package.json is NOT hand-edited — the version is injected at build time only.
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch: {}
+
+jobs:
+  nightly:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install fastapi "uvicorn[standard]" pydantic python-multipart pyinstaller
+
+      - name: Build backend with PyInstaller
+        run: python -m PyInstaller backend/backend.spec --distpath backend-dist --workpath backend-build --noconfirm
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Compute nightly version
+        id: ver
+        shell: pwsh
+        run: |
+          $base = (node -p "require('./package.json').version").Trim() -replace '-.*$', ''
+          $ver = "$base-nightly.${{ github.run_number }}"
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Nightly version: $ver"
+
+      - name: Build and publish nightly prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          npm run build &&
+          npx electron-builder --win
+          --config.extraMetadata.version=${{ steps.ver.outputs.version }}
+          --config.publish.releaseType=prerelease
+          --publish always

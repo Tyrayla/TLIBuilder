@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
+import SettingsOverlay from './SettingsOverlay'
 import type { OffenseResult } from '../api/client'
 
 interface Props {
@@ -74,6 +75,7 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
   const isTreeActive = screen === 'tree-selector' || screen === 'tree-viewer'
   const showModifierBadges = useUiPrefs(s => s.showModifierBadges)
   const toggleModifierBadges = useUiPrefs(s => s.toggleModifierBadges)
+  const [showSettings, setShowSettings] = useState(false)
 
   return (
     <div className="build-sidebar">
@@ -111,6 +113,7 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
 
       <NavBtn label="Import / Export" active={screen === 'import-export'} onClick={() => onNav('import-export')} />
       <NavBtn label="Notes" active={screen === 'notes'} onClick={() => onNav('notes')} />
+      <NavBtn label="⚙ Settings" active={false} onClick={() => setShowSettings(true)} />
 
       <div className="sidebar-spacer" />
 
@@ -120,6 +123,8 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
       </label>
 
       <button className="sidebar-nav-btn sidebar-back" onClick={onGoBack}>← Back to Builds</button>
+
+      {showSettings && <SettingsOverlay onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

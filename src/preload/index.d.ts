@@ -19,8 +19,16 @@ declare global {
       openExternal: (url: string) => Promise<void>
       onUpdateNotAvailable: (cb: () => void) => void
       onUpdateCheckError: (cb: (msg: string) => void) => void
+      getSettings: () => Promise<AppSettings>
+      setSetting: (key: keyof AppSettings, value: unknown) => Promise<AppSettings>
     }
   }
+}
+
+export interface AppSettings {
+  updateChannel: 'stable' | 'nightly'
+  numberSeparator?: 'commas' | 'decimals'
+  decimalPrecision?: number
 }
 
 export {}

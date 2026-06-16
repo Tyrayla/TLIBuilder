@@ -998,6 +998,43 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 14px 20px;
 }
 
+/* ── Settings modal ───────────────────────────────────────────────────────── */
+
+.settings-modal-card { width: 480px; max-width: 90vw; }
+.settings-modal-body { padding: 4px 20px 8px; }
+.settings-section { margin-bottom: 18px; }
+.settings-section-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #cfd6e6; margin: 8px 0 8px; display: flex; align-items: center; gap: 8px;
+}
+.settings-soon {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #6a7390; background: #131c30; border: 1px solid #243049;
+  border-radius: 3px; padding: 1px 5px;
+}
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.05);
+}
+.settings-row:first-of-type { border-top: none; }
+.settings-row-disabled { opacity: 0.45; }
+.settings-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.settings-row-label > span:first-child { font-size: 13px; color: #e0e0e0; }
+.settings-row-hint { font-size: 11px; color: #8088a0; line-height: 1.4; }
+.settings-segmented { display: inline-flex; border: 1px solid #2a3650; border-radius: 5px; overflow: hidden; flex: none; }
+.settings-seg-btn {
+  background: #0e1626; color: #9aa4bd; border: none; padding: 6px 14px; font-size: 12px;
+  cursor: pointer; transition: background 0.12s, color 0.12s;
+}
+.settings-seg-btn + .settings-seg-btn { border-left: 1px solid #2a3650; }
+.settings-seg-btn:hover:not(:disabled):not(.active) { background: #14203a; color: #c8d0e4; }
+.settings-seg-btn.active { background: var(--accent); color: #fff; }
+.settings-seg-btn:disabled { cursor: default; }
+.settings-select {
+  background: #0e1626; color: #c8d0e4; border: 1px solid #2a3650; border-radius: 5px;
+  padding: 6px 10px; font-size: 12px;
+}
+
 /* ── Share / Import modals ────────────────────────────────────────────────── */
 
 .overview-share-btn {
