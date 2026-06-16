@@ -555,6 +555,14 @@ export interface DefenseResult {
   max_life: number
   max_mana: number
   max_energy_shield: number
+  // Mana/Life sealing & reservation (defaults: full pools when nothing seals).
+  sealed_mana?: number
+  unsealed_mana?: number
+  sealed_life?: number
+  unsealed_life?: number
+  sealed_mana_compensation?: number
+  insufficient_mana?: boolean
+  insufficient_life?: boolean
   armor: number
   evasion: number
   fire_resist: number
@@ -659,6 +667,35 @@ export interface StatSheetResponse {
   // level) + the applied Aura Effect + any buff lines not yet modeled (NYI).
   auras?: AuraSummary[]
   aura_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
+  // Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
+  reservation?: ReservationResult | null
+}
+
+export interface ReservationSummary {
+  skill_id: string
+  name: string
+  slot: number | null
+  base_fraction: number
+  pool_max: number          // Max of the pool sealed (Max Mana, or Max Life when Seal-Converted)
+  support_mults: { name: string; mult: number }[]
+  comp_sources: { label: string; value: number; kind: 'increased' | 'additional' }[]
+  compensation: number       // net = (1+Σinc)×(1+Σadd) − 1
+  comp_increased: number     // Σ increased Sealed Mana Compensation (this skill)
+  comp_additional: number    // Σ additional Sealed Mana Compensation (this skill)
+  amount: number
+  pool: 'mana' | 'life'
+}
+export interface ReservationResult {
+  max_mana: number
+  sealed_mana: number
+  unsealed_mana: number
+  max_life: number
+  sealed_life: number
+  unsealed_life: number
+  sealed_mana_compensation: number
+  insufficient_mana: boolean
+  insufficient_life: boolean
+  per_skill: ReservationSummary[]
 }
 
 export interface AuraGrant { stat: string; base: number; amount: number; text: string; per_stack?: boolean; is_aura_effect?: boolean }

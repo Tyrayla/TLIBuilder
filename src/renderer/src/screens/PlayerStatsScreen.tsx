@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary } from '../api/client'
+import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -707,14 +707,15 @@ const AMBER = '#c87820'
 // Non-hit skills (passives / empower-style buffs) have no hit-DPS offense yet. Surface a Skill-Viewer
 // foundation with the mechanics we intend to model, marked NYI so nothing reads as silently missing.
 // Tailored by slot kind: passives (6-9) → reservation/aura/AoE; active buffs → empower effect/duration/cooldown.
-function SkillFoundationPanel({ skill, aura }: { skill: EquippedSkill; aura?: AuraSummary | null }) {
+function SkillFoundationPanel({ skill, aura, reservation }: { skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null }) {
   const ctx = useContext(BreakdownCtx)
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
   const isPassive = skill.slot >= 6
-  const rows = isPassive
+  const rows = (isPassive
     ? ['Reservation (Sealing)', 'Aura / Magus / Focus Effect', 'Area of Effect']
     : ['Empower Effect', 'Skill Duration', 'Cooldown', 'Area of Effect']
+  ).filter(r => !(reservation && r === 'Reservation (Sealing)'))   // real seal row shown below when modeled
   const statMapName = (stat: string) => ctx?.statMap?.[stat]?.display_name ?? stat
   const fmtGrant = (stat: string, amt: number) =>
     /_flat$/.test(stat) ? fmtNum(amt) : fmtPct(amt)
@@ -726,6 +727,35 @@ function SkillFoundationPanel({ skill, aura }: { skill: EquippedSkill; aura?: Au
       <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
         {isPassive ? 'This skill contributes build-wide (no hit DPS of its own).' : 'Buff / utility skill (no hit DPS of its own).'}
       </div>
+      {reservation && (() => {
+        const baseSeal = reservation.base_fraction * reservation.pool_max
+        const poolLabel = reservation.pool === 'life' ? 'Max Life' : 'Max Mana'
+        const fmtPctSigned = (v: number) => `${v > 0 ? '+' : ''}${(v * 100).toFixed(2)}%`
+        // Increased and additional comp are SEPARATE multiplicative pools. Show each per-support source under its
+        // pool, plus a "Global (talents/gear)" row per pool for the slice not coming from a support, so the
+        // breakdown reconciles with the total: Base × Π(Mult) ÷ ((1+Σinc) × (1+Σadd)).
+        const supInc = reservation.comp_sources.filter(c => c.kind === 'increased').reduce((a, c) => a + c.value, 0)
+        const supAdd = reservation.comp_sources.filter(c => c.kind === 'additional').reduce((a, c) => a + c.value, 0)
+        const globalInc = reservation.comp_increased - supInc
+        const globalAdd = reservation.comp_additional - supAdd
+        const extra = [
+          { value: fmtNum(baseSeal), stat: 'Base seal', source: 'Skill', sourceName: `${(reservation.base_fraction * 100).toFixed(0)}% of ${poolLabel}` },
+          ...reservation.support_mults.map(m => ({ value: `×${m.mult.toFixed(2)}`, stat: 'Mana Multiplier', source: 'Support', sourceName: m.name })),
+          ...reservation.comp_sources.map(c => ({
+            value: fmtPctSigned(c.value),
+            stat: c.kind === 'additional' ? 'Additional Sealed Mana Comp.' : 'Increased Sealed Mana Comp.',
+            source: 'Support', sourceName: c.label,
+          })),
+          ...(Math.abs(globalInc) > 1e-9 ? [{ value: fmtPctSigned(globalInc), stat: 'Increased Sealed Mana Comp.', source: 'Global', sourceName: 'Talents / Gear' }] : []),
+          ...(Math.abs(globalAdd) > 1e-9 ? [{ value: fmtPctSigned(globalAdd), stat: 'Additional Sealed Mana Comp.', source: 'Global', sourceName: 'Talents / Gear' }] : []),
+        ]
+        return (
+          <Row label={`Reservation — Sealed ${reservation.pool === 'life' ? 'Life' : 'Mana'}`} breakdown={{
+            title: `Sealed ${reservation.pool === 'life' ? 'Life' : 'Mana'}`, keys: [], total: reservation.amount, totalUnit: '',
+            formula: 'Base × Π(Mana Multiplier) ÷ ((1 + Σ increased) × (1 + Σ additional)) Sealed Mana Compensation', extra,
+          }}>{fmtNum(reservation.amount)}</Row>
+        )
+      })()}
       {aura ? (
         <>
           <Row label="Aura Effect" breakdown={{
@@ -785,19 +815,19 @@ function SkillFoundationPanel({ skill, aura }: { skill: EquippedSkill; aura?: Au
   )
 }
 
-function OffensePanels({ offense, skill, aura }: { offense: OffenseResult | null; skill?: EquippedSkill; aura?: AuraSummary | null }) {
+function OffensePanels({ offense, skill, aura, reservation }: { offense: OffenseResult | null; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null }) {
 
   if (!offense) {
     // No computed offense for this slot. If a skill IS equipped here (passive/buff), show its foundation
     // panel; otherwise the slot is empty.
     return skill
-      ? <SkillFoundationPanel skill={skill} aura={aura} />
+      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} />
       : <StatPanel title="Skill" accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
   if (!offense.supported) {
     return skill
-      ? <SkillFoundationPanel skill={skill} />
+      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} />
       : (
         <StatPanel title={`Skill — ${offense.skill_name}`} accent={AMBER}>
           <div style={{ fontSize: 12, color: '#ff6b6b' }}>Skill calculation not yet supported.</div>
@@ -983,10 +1013,35 @@ const maxResSection = (typeLabel: string, maxKey: string, maxVal: number): Break
   extra: [{ value: '60%', stat: `Max ${typeLabel} Resistance`, source: 'Baseline', sourceName: 'Default' }],
 })
 
-function DefensePanels({ defense }: { defense: DefenseResult | null }) {
+function DefensePanels({ defense, reservation }: { defense: DefenseResult | null; reservation: ReservationResult | null }) {
   if (!defense) {
     return <StatPanel title="Life" accent="#c03030"><div style={{ fontSize: 12, color: '#555' }}>No data.</div></StatPanel>
   }
+  // Per-pool seal breakdowns (Σ of each sealing skill's whole-number reservation), reused by the Sealed and
+  // Unsealed rows so both surface the same Max − Σ-reservations math on hover/click.
+  const sealRows = (pool: 'life' | 'mana') => (reservation?.per_skill ?? [])
+    .filter(p => p.pool === pool)
+    .map(p => ({ value: fmtNum(p.amount), stat: p.name, source: 'Reservation', sourceName: `${(p.base_fraction * 100).toFixed(0)}% seal` }))
+  const sealedBreakdown = (pool: 'life' | 'mana', total: number) => ({
+    title: pool === 'life' ? 'Sealed Life' : 'Sealed Mana', keys: [] as string[], total, totalUnit: '',
+    formula: 'Σ per-skill reservations', extra: sealRows(pool),
+  })
+  const unsealedBreakdown = (pool: 'life' | 'mana', max: number, sealed: number, total: number) => ({
+    title: pool === 'life' ? 'Unsealed (Available) Life' : 'Unsealed (Available) Mana', keys: [] as string[], total, totalUnit: '',
+    formula: pool === 'life'
+      ? 'Max Life − Sealed Life (available floored — rounds against you)'
+      : 'Max Mana − Sealed Mana (available floored — rounds against you)',
+    extra: [
+      { value: fmtNum(max), stat: `Max ${pool === 'life' ? 'Life' : 'Mana'}`, source: 'Base', sourceName: 'Total pool' },
+      { value: `−${fmtNum(sealed)}`, stat: `Sealed ${pool === 'life' ? 'Life' : 'Mana'}`, source: 'Reservation', sourceName: 'Reserved by sealing skills' },
+    ],
+  })
+  // Match the in-game "round against the player" display: floor the available pool, then derive Sealed = Max −
+  // Available so the two always sum to Max exactly (and Sealed effectively rounds up). Energy Shield is likewise
+  // truncated, not rounded (Ward example: 78.81 → 78). Scoped to these pools for now; the game appears to
+  // truncate every stat display (option B) — tracked in docs/BACKLOG.md.
+  const availDisp = (unsealedExact: number) => Math.floor(unsealedExact)
+  const sealedDisp = (max: number, unsealedExact: number) => Math.round(max) - Math.floor(unsealedExact)
   return (
     <>
       <StatPanel title="Life" accent="#c03030">
@@ -994,6 +1049,13 @@ function DefensePanels({ defense }: { defense: DefenseResult | null }) {
         {defense.life_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Life — Flat Added', keys: ['max_life_flat'] }}>{fmtNum(defense.life_flat)}</SubRow>}
         {defense.life_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Life — Increased', keys: ['max_life_inc'] }}>{fmtPct(defense.life_inc)}</SubRow>}
         {defense.life_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Life — Additional', keys: ['max_life_additional'] }}>{fmtMult(defense.life_additional)}</SubRow>}
+        {(defense.sealed_life ?? 0) > 0 && (
+          <>
+            <Row label="Sealed Life" labelColor={defense.insufficient_life ? '#e05050' : '#c87820'} breakdown={sealedBreakdown('life', defense.sealed_life!)}>{fmtNum(sealedDisp(defense.max_life, defense.unsealed_life ?? defense.max_life))}</Row>
+            <Row label="Unsealed Life" labelColor={defense.insufficient_life ? '#e05050' : undefined} breakdown={unsealedBreakdown('life', defense.max_life, defense.sealed_life!, defense.unsealed_life ?? defense.max_life)}>{fmtNum(availDisp(defense.unsealed_life ?? defense.max_life))}</Row>
+            {defense.insufficient_life && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Life — sealed exceeds Max Life by {fmtNum((defense.sealed_life ?? 0) - defense.max_life)} ({(((defense.sealed_life ?? 0) / defense.max_life - 1) * 100).toFixed(1)}%)</div>}
+          </>
+        )}
       </StatPanel>
 
       <StatPanel title="Mana" accent="#3060c0">
@@ -1001,10 +1063,18 @@ function DefensePanels({ defense }: { defense: DefenseResult | null }) {
         {defense.mana_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Mana — Flat Added', keys: ['max_mana_flat'] }}>{fmtNum(defense.mana_flat)}</SubRow>}
         {defense.mana_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Mana — Increased', keys: ['max_mana_inc'] }}>{fmtPct(defense.mana_inc)}</SubRow>}
         {defense.mana_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Mana — Additional', keys: ['max_mana_additional'] }}>{fmtMult(defense.mana_additional)}</SubRow>}
+        {(defense.sealed_mana ?? 0) > 0 && (
+          <>
+            <Row label="Sealed (Reserved) Mana" labelColor={defense.insufficient_mana ? '#e05050' : '#c87820'} breakdown={sealedBreakdown('mana', defense.sealed_mana!)}>{fmtNum(sealedDisp(defense.max_mana, defense.unsealed_mana ?? defense.max_mana))}</Row>
+            <Row label="Unsealed (Available) Mana" labelColor={defense.insufficient_mana ? '#e05050' : undefined} breakdown={unsealedBreakdown('mana', defense.max_mana, defense.sealed_mana!, defense.unsealed_mana ?? defense.max_mana)}>{fmtNum(availDisp(defense.unsealed_mana ?? defense.max_mana))}</Row>
+            {defense.insufficient_mana && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Mana — reserved exceeds Max Mana by {fmtNum((defense.sealed_mana ?? 0) - defense.max_mana)} ({(((defense.sealed_mana ?? 0) / defense.max_mana - 1) * 100).toFixed(1)}%)</div>}
+          </>
+        )}
       </StatPanel>
 
       <StatPanel title="Energy Shield" accent="#5aa0d0">
-        <Row label="Max Energy Shield" breakdown={{ title: 'Max Energy Shield', keys: ['max_energy_shield_flat', 'energy_shield_gear_flat', 'max_energy_shield_inc', 'energy_shield_gear_inc', 'max_energy_shield_additional'], total: defense.max_energy_shield, formula: DEF_FORMULA }}>{fmtNum(defense.max_energy_shield)}</Row>
+        {/* Energy Shield is truncated in-game, not rounded (Ward example: 78.81 → 78) — floor the display. */}
+        <Row label="Max Energy Shield" breakdown={{ title: 'Max Energy Shield', keys: ['max_energy_shield_flat', 'energy_shield_gear_flat', 'max_energy_shield_inc', 'energy_shield_gear_inc', 'max_energy_shield_additional'], total: defense.max_energy_shield, formula: DEF_FORMULA }}>{fmtNum(Math.floor(defense.max_energy_shield))}</Row>
         {defense.es_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Energy Shield — Flat Added', keys: ['max_energy_shield_flat', 'energy_shield_gear_flat'] }}>{fmtNum(defense.es_flat)}</SubRow>}
         {defense.es_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Energy Shield — Increased', keys: ['max_energy_shield_inc', 'energy_shield_gear_inc'] }}>{fmtPct(defense.es_inc)}</SubRow>}
         {defense.es_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Energy Shield — Additional', keys: ['max_energy_shield_additional'] }}>{fmtMult(defense.es_additional)}</SubRow>}
@@ -1190,8 +1260,11 @@ export default function PlayerStatsScreen() {
     : (selectedSlot === 1 ? offense : null)
   const blessings = ((computedStats as { blessings?: BlessingSummary[] | null }).blessings) ?? null
   const auras = ((computedStats as { auras?: AuraSummary[] | null }).auras) ?? null
+  const reservation = ((computedStats as { reservation?: ReservationResult | null }).reservation) ?? null
   const selectedSkill = skills.find(sk => sk.slot === selectedSlot)
   const selectedAura = auras?.find(a => a.skill_id === selectedSkill?.item_id) ?? null
+  const selectedReservation = reservation?.per_skill?.find(
+    p => p.skill_id === selectedSkill?.item_id && p.slot === selectedSlot) ?? null
 
   return (
     <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, selectedSlot }}>
@@ -1199,7 +1272,7 @@ export default function PlayerStatsScreen() {
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
         <div style={{ flex: '40', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
           <SkillSelector skills={skills} selected={selectedSlot} onSelect={setSelectedSlot} />
-          <OffensePanels offense={shownOffense} skill={selectedSkill} aura={selectedAura} />
+          <OffensePanels offense={shownOffense} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} />
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility */}
@@ -1212,7 +1285,7 @@ export default function PlayerStatsScreen() {
 
         {/* Right — defensive pools (trimmed to give the offense table room) */}
         <div style={{ flex: '33', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
-          <DefensePanels defense={defense} />
+          <DefensePanels defense={defense} reservation={reservation} />
         </div>
       </div>
     </BreakdownCtx.Provider>

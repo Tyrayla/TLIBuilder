@@ -85,3 +85,21 @@ follow-ups, the later sections are standing items pulled from project memory.
   minimizing backend↔frontend chatter (cache by build hash, client-side derivations) + an audit of auth,
   storage, CORS, cost.
 - **Package size** (deferred): ~280–310 MB; levers filed (gzip data −16 MB, trim PyInstaller −20 MB).
+
+## Display rounding (in-game matching)
+- **Global display truncation (option B)** — the game appears to *truncate* every displayed decimal (verified:
+  Energy Shield 78.81 → 78; an earlier value 287.64 → 287). We currently apply this only to the **reservation
+  pools + Energy Shield** on PlayerStatsScreen (option A: Unsealed = `floor(Max − Sealed)`, Sealed = `Max −
+  Unsealed` so they sum to Max and round against the player; ES `floor`ed). Revisit whether to switch the whole
+  app's number formatting (`fmtNum`, percents, DPS) to truncate to match the game everywhere — bigger change,
+  needs goldens/tests re-checked. Confirm the game truncates other stat types first (DPS, %, attributes).
+- **1-life floor (unconfirmed)** — the persistent "1 life" seen when fully sealed was traced to a chestpiece
+  `+1 Max Life` affix, not necessarily a game floor mechanic. Re-test a full-seal build **without** any flat
+  +Max Life gear: if Life stops at exactly 1 (vs hitting 0), add `usable = max(1, Max − Sealed)` (flat, applied
+  after all increases/additionals); same question for Mana.
+
+## Sealing follow-ups (found during Phase 2 build)
+- **Moon Strike: Lunar Eclipse (Noble)** — special seal mechanic not covered by the core reservation model:
+  the support itself seals 10% Max Mana (on an active skill), makes the host cost no mana, and grants
+  "+1% additional damage per 100 Mana sealed (up to +57-60%)". Needs a support-sourced seal + a
+  damage-per-sealed-mana stat wired into offense. Deferred from the core sealing pass.
