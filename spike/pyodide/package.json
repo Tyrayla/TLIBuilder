@@ -1,1 +1,0 @@
-{ "name": "tli-pyodide-spike", "private": true, "type": "module", "dependencies": { "pyodide": "^0.27.0" } }
