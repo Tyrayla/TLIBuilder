@@ -591,7 +591,7 @@ function App() {
 
   if (screen === 'build-select') {
     return (
-      <>
+      <div className="app-shell">
         {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
         <BuildSelectScreen
           onNewBuild={startNewBuild}
@@ -599,7 +599,7 @@ function App() {
           devMode={devMode}
           onDevTools={() => setScreen('dev-tools')}
         />
-      </>
+      </div>
     )
   }
 
@@ -723,19 +723,21 @@ function App() {
 
   return (
     <>
-      {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
-      <div className="app-layout">
-        <BuildSidebar
-          screen={screen}
-          buildName={buildName}
-          isDirty={isDirty}
-          onNav={handleSidebarNav}
-          onSave={handleSidebarSave}
-          onSaveAs={handleSidebarSaveAs}
-          onGoBack={goToBuildSelect}
-        />
-        <div className="app-content">
-          {screenContent}
+      <div className="app-shell">
+        {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
+        <div className="app-layout">
+          <BuildSidebar
+            screen={screen}
+            buildName={buildName}
+            isDirty={isDirty}
+            onNav={handleSidebarNav}
+            onSave={handleSidebarSave}
+            onSaveAs={handleSidebarSaveAs}
+            onGoBack={goToBuildSelect}
+          />
+          <div className="app-content">
+            {screenContent}
+          </div>
         </div>
       </div>
       {cascadeOverlay}
