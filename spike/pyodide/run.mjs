@@ -5,6 +5,7 @@
 // Usage:  node run.mjs
 import { loadPyodide } from 'pyodide'
 import { fileURLToPath } from 'url'
+import { readFileSync } from 'fs'
 import path from 'path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -22,17 +23,30 @@ async function main() {
   const tLoad1 = performance.now()
   console.log(`pyodide runtime loaded: ${ms(tLoad0, tLoad1)}`)
 
-  // Mount the real backend + data into the Pyodide virtual FS (no copying).
+  // Backend code: mount the real dir (in the browser worker this is a zip too; not the part under test here).
   py.FS.mkdir('/be'); py.FS.mount(py.FS.filesystems.NODEFS, { root: BACKEND }, '/be')
-  py.FS.mkdir('/data'); py.FS.mount(py.FS.filesystems.NODEFS, { root: DATA }, '/data')
+  // DATA: load the way the browser worker will — fetch engine-data.zip + unpackArchive into the FS (NO real-dir
+  // mount). This verifies both the worker's data mechanism AND that the bundle is complete.
+  const tUnz0 = performance.now()
+  py.FS.mkdir('/data')
+  const zipBytes = new Uint8Array(readFileSync(path.join(REPO, 'web-data', 'engine-data.zip')))
+  py.unpackArchive(zipBytes, 'zip', { extractDir: '/data' })
+  console.log(`engine-data.zip unpacked into FS: ${ms(tUnz0, performance.now())}`)
   // Stub uvicorn so `import server` doesn't pull the (unneeded) server runtime.
   py.FS.mkdir('/stubs'); py.FS.writeFile('/stubs/uvicorn.py', 'def run(*a, **k):\n    pass\n')
 
   const tDep0 = performance.now()
-  await py.loadPackage('micropip')
-  await py.runPythonAsync(`import micropip\nawait micropip.install(['fastapi', 'python-multipart'])`)
+  // Try OFFLINE first: load from Pyodide's bundled package set (no PyPI). Falls back to micropip if missing.
+  try {
+    await py.loadPackage(['pydantic', 'fastapi'])
+    console.log('deps via loadPackage (OFFLINE)')
+  } catch (e) {
+    console.log('loadPackage failed, falling back to micropip (network):', String(e).slice(0, 120))
+    await py.loadPackage('micropip')
+    await py.runPythonAsync(`import micropip\nawait micropip.install(['fastapi', 'python-multipart'])`)
+  }
   const tDep1 = performance.now()
-  console.log(`fastapi/pydantic installed: ${ms(tDep0, tDep1)}`)
+  console.log(`deps ready: ${ms(tDep0, tDep1)}`)
 
   const tImp0 = performance.now()
   await py.runPythonAsync(`
@@ -44,6 +58,9 @@ os.environ['TLI_DEV_MODE'] = '0'
 # Phase 2a is in: the compute-path file reads now specify encoding='utf-8' and the one cp1252 data file was
 # converted to utf-8, so the engine loads in WASM with NO encoding workaround.
 import server
+# The worker sets the active season explicitly (it knows it from the CDN manifest) rather than relying on a
+# pointer file in the bundle — multi-season-safe.
+server.season_manager.set_active_season('SS12')
 print('server imported; active season =', server.season_manager.get_active_season())
 `)
   const tImp1 = performance.now()
