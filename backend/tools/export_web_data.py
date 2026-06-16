@@ -65,6 +65,11 @@ def main() -> None:
     with open(os.path.join(args.out, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump({"season": season}, f)
 
+    # Cloudflare Pages _headers: allow cross-origin fetch (the web app / localhost reads this data domain) and
+    # cache for an hour (season-in-path means a new season is a new URL; re-exports propagate within the hour).
+    with open(os.path.join(args.out, "_headers"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("/*\n  Access-Control-Allow-Origin: *\n  Cache-Control: public, max-age=3600\n")
+
     print(f"  {'TOTAL':22s} {total / 1024:9.1f} KB  (~{total / 1048576:.1f} MB raw; CDN gzip/brotli -> ~1 MB on the wire)")
     print(f"  manifest.json -> {{'season': '{season}'}}")
 
