@@ -4,13 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TLI Builder</title>
-    <!-- Web CSP: allow Pyodide (jsDelivr) + its wasm, micropip wheels (PyPI/pythonhosted), the data CDN, and the
-         share service. wasm-unsafe-eval is required by Pyodide; blob: covers the bundled module worker. -->
+    <!-- Web CSP: allow Pyodide (jsDelivr) + its wasm, micropip wheels (PyPI/pythonhosted), the data CDN, the
+         share service, and Cloudflare Web Analytics (beacon + reporting endpoint). wasm-unsafe-eval is required
+         by Pyodide; blob: covers the bundled module worker. -->
     <meta
       http-equiv="Content-Security-Policy"
       content="
         default-src 'self';
-        script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net blob:;
+        script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://static.cloudflareinsights.com blob:;
         worker-src 'self' blob:;
         style-src 'self' 'unsafe-inline';
         img-src 'self' data: blob: https://tlibuilder-data.pages.dev;
@@ -18,7 +19,8 @@
           https://cdn.jsdelivr.net
           https://pypi.org https://files.pythonhosted.org
           https://tlibuilder-data.pages.dev
-          https://api.tlibuilder.com;
+          https://api.tlibuilder.com
+          https://cloudflareinsights.com;
       "
     />
   </head>
