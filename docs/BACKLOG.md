@@ -63,6 +63,12 @@ follow-ups, the later sections are standing items pulled from project memory.
   conditions active + autoderive/canvas resolvers.
 
 ## 6. UI / screens
+- **Update banner pushes content offscreen** (bug): when `UpdateBanner` shows at the top, it squishes the whole
+  `app-layout` / build-list down so the footer controls (About, ⚙ Settings, Check for Update) end up below the fold
+  and unreachable — you have to dismiss the banner with its ✕ to get to them. The banner should overlay (fixed/absolute)
+  or the layout below it should scroll / reserve space, instead of shoving content off-screen. Files:
+  `src/renderer/src/components/UpdateBanner.tsx`, `src/renderer/src/App.tsx` (app-layout), and the build-list footer in
+  `src/renderer/src/screens/BuildSelectScreen.tsx`.
 - **Per-slot/Berserking frontend toggle UI** (backend done; enable/disable primitive exists).
 - **Conditionals screen revamp**: category-style titled-card panels (match the Stats screen); merge Calc into
   Conditionals → rename "Config".
