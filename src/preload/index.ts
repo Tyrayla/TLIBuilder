@@ -26,4 +26,13 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('update-not-available', () => cb()),
   onUpdateCheckError: (cb: (msg: string) => void) =>
     ipcRenderer.on('update-check-error', (_e, msg) => cb(msg)),
+  getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('get-settings'),
+  setSetting: (key: keyof AppSettings, value: unknown): Promise<AppSettings> =>
+    ipcRenderer.invoke('set-setting', key, value),
 })
+
+interface AppSettings {
+  updateChannel: 'stable' | 'nightly'
+  numberSeparator?: 'commas' | 'decimals'
+  decimalPrecision?: number
+}

@@ -2,6 +2,19 @@ let BASE = ''
 let ipcMode = false
 export function getApiBase(): string { return BASE }
 
+// Host root for bundled entity icons (served by the Python backend at /icons/<category>/<file>.webp).
+// Images must load via a real URL even in IPC mode (an <img> can't go through the IPC bridge), so we
+// resolve the port here and expose iconUrl() to turn a record's icon_url into a local server URL.
+let ICON_BASE = ''
+export function iconUrl(category: string, iconRef: string | null | undefined): string | null {
+  if (!iconRef || !ICON_BASE) return null
+  // Records store a full CDN icon_url; we pair on its basename, which matches the bundled file.
+  const clean = iconRef.split('?')[0].split('#')[0]
+  const file = clean.substring(clean.lastIndexOf('/') + 1)
+  if (!file) return null
+  return `${ICON_BASE}/${category}/${file}`
+}
+
 const verbose = typeof window !== 'undefined' && window.api?.isVerbose === true
 const rlog = (...args: unknown[]) => { if (verbose) console.log('[api]', ...args) }
 const rerr = (...args: unknown[]) => { if (verbose) console.error('[api]', ...args) }
@@ -25,19 +38,22 @@ export async function initApi(): Promise<void> {
   if (window.api?.apiRequest) {
     ipcMode = true
     rlog('initApi — Electron IPC path: waiting for port readiness via getPythonPort')
-    await window.api.getPythonPort()
-    rlog('initApi — IPC ready, ipcMode=true')
+    const port = await window.api.getPythonPort()
+    ICON_BASE = `http://127.0.0.1:${port}/icons`
+    rlog(`initApi — IPC ready, ipcMode=true, ICON_BASE: ${ICON_BASE}`)
     return
   }
   rlog('initApi — browser path: scanning ports 8765-8774')
   for (let port = 8765; port <= 8774; port++) {
     if (await probePort(port)) {
       BASE = `http://127.0.0.1:${port}/api`
+      ICON_BASE = `http://127.0.0.1:${port}/icons`
       rlog(`initApi — found server on port ${port}, BASE: ${BASE}`)
       return
     }
   }
   BASE = 'http://127.0.0.1:8765/api'
+  ICON_BASE = 'http://127.0.0.1:8765/icons'
   rerr(`initApi — no server found on 8765-8774, defaulting BASE to: ${BASE}`)
 }
 
@@ -181,10 +197,14 @@ export interface SavedSlateSlot {
   selectedCoreKey: string | null
   coreName: string | null
   effects: string[]
+  // The selected node's talent type (Micro/Medium/Legendary Medium) — drives the copy-slate "Medium
+  // talents" filter (Space Rift / Residence of Stars).
+  nodeType?: string | null
 }
 
 export interface SavedSlate {
   id: string
+  templateId?: string
   kind: string
   cells: [number, number][]
   orientationIndex: number
@@ -195,11 +215,23 @@ export interface SavedSlate {
   mothDirection?: string
 }
 
+// A configured slate kept in the build's saved-slates inventory (no board placement) — re-placeable.
+export interface SlateTemplate {
+  id: string
+  kind: string
+  orientationIndex: number
+  shapeIndex: number
+  slots: SavedSlateSlot[]
+  treeType?: string
+  mothDirection?: string
+}
+
 export interface Build {
   id?: string
   name: string
   slots: (TreeSlot | null)[]
   slates?: SavedSlate[]
+  slateInventory?: SlateTemplate[]
   conditionState?: Record<string, number | boolean>
   // Legacy fields — present on builds saved before the conditionState unification.
   // Read-only: never written by the current client; migrated to conditionState on load.
@@ -227,6 +259,7 @@ export interface TreeNode {
   node_type: string
   current_points: number
   effects: string[]
+  icon_url?: string | null   // CDN url; render via iconUrl('talent_tree', icon_url) → bundled webp
 }
 
 // Static per-line resolution for a core-talent effect (from /api/tree) — drives the NYI/Inactive badges
@@ -241,6 +274,7 @@ export interface CoreTalentSlotOption {
   id: string
   name: string
   effects: string[]
+  icon_url?: string | null                   // render via iconUrl('talent_tree', icon_url) → bundled webp
   effect_status?: CoreTalentEffectStatus[]   // aligned 1:1 with effects
 }
 
@@ -417,8 +451,11 @@ export interface StatSource {
   source_type: string
   label: string
   text: string
+  source_name?: string | null  // display name of the origin (item/spirit/memory/support); drives "Source Name"
   amount: number
   points: number  // allocated points; >1 for multi-rank talent nodes
+  slot?: number | null   // set on slot-local (skill-specific) sources; null/absent = character-wide
+  scope?: string | null  // skill-tag scope ("attack"/"spell"/…) when restricted
 }
 
 export interface StatEntry {
@@ -427,6 +464,9 @@ export interface StatEntry {
   unit: string    // "" | "%"
   total: number
   sources: StatSource[]
+  // Slot-local (skill-specific) contributions — supports + skill self-buffs that fold into a skill slot's
+  // offense, NOT into `total`/`sources`. Surfaced separately so the breakdown can show them.
+  slot_sources?: StatSource[]
 }
 
 export interface SkillEngineInput {
@@ -485,6 +525,7 @@ export interface OffenseResult {
   crit_multiplier: number
   steep_strike_chance: number
   attacks_per_second: number
+  base_cast_time: number
   total_dps: number
   total_dps_vs_target: number
   nyi: string[]
@@ -494,8 +535,11 @@ export interface OffenseResult {
   weapon_crit_rating_flat: number
   weapon_csr_gear: number
   weapon_csr_mh: number
+  base_csr: number
   flat_dmg_min: Record<string, number>
   flat_dmg_max: Record<string, number>
+  base_dmg_min: Record<string, number>
+  base_dmg_max: Record<string, number>
   type_inc: Record<string, number>
   type_add: Record<string, number>
   above_max_mult: number
@@ -511,6 +555,14 @@ export interface DefenseResult {
   max_life: number
   max_mana: number
   max_energy_shield: number
+  // Mana/Life sealing & reservation (defaults: full pools when nothing seals).
+  sealed_mana?: number
+  unsealed_mana?: number
+  sealed_life?: number
+  unsealed_life?: number
+  sealed_mana_compensation?: number
+  insufficient_mana?: boolean
+  insufficient_life?: boolean
   armor: number
   evasion: number
   fire_resist: number
@@ -521,6 +573,10 @@ export interface DefenseResult {
   cold_resist_raw: number
   lightning_resist_raw: number
   erosion_resist_raw: number
+  fire_resist_max: number
+  cold_resist_max: number
+  lightning_resist_max: number
+  erosion_resist_max: number
   life_flat: number
   life_inc: number
   life_additional: number
@@ -536,7 +592,27 @@ export interface DefenseResult {
   evasion_flat: number
   evasion_inc: number
   evasion_additional: number
+  // Armour → mitigation % and Evasion → evade chance (fractions), vs the calc target.
+  armor_phys_mitigation: number
+  armor_nonphys_mitigation: number
+  attack_evade_chance: number
+  spell_evade_chance: number
+  // Block (additive chance, display-only for now) + damage avoidance (fractions).
+  attack_block_chance: number
+  spell_block_chance: number
+  block_ratio: number
+  dmg_avoid_chance: number
   nyi: string[]
+}
+
+export interface BlessingEffect { stat: string; per_stack: number; total: number; text: string }
+export interface BlessingSummary {
+  type: string
+  label: string
+  stacks: number
+  max: number
+  overridden: boolean
+  effects: BlessingEffect[]
 }
 
 export interface CustomModStatus {
@@ -587,12 +663,71 @@ export interface StatSheetResponse {
   // Calculation-target (dummy) armor/resist, base + effective after this build's penetration (values are
   // damage-REDUCTION fractions; negative effective = the target is amplified), plus active enemy debuffs.
   target_stats?: TargetStats | null
+  // Per equipped aura/Focus passive: the buff lines it grants (already scaled by Aura Effect + interpolated to
+  // level) + the applied Aura Effect + any buff lines not yet modeled (NYI).
+  auras?: AuraSummary[]
+  aura_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
+  // Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
+  reservation?: ReservationResult | null
+}
+
+export interface ReservationSummary {
+  skill_id: string
+  name: string
+  slot: number | null
+  base_fraction: number
+  pool_max: number          // Max of the pool sealed (Max Mana, or Max Life when Seal-Converted)
+  support_mults: { name: string; mult: number }[]
+  comp_sources: { label: string; value: number; kind: 'increased' | 'additional' }[]
+  compensation: number       // net = (1+Σinc)×(1+Σadd) − 1
+  comp_increased: number     // Σ increased Sealed Mana Compensation (this skill)
+  comp_additional: number    // Σ additional Sealed Mana Compensation (this skill)
+  amount: number
+  pool: 'mana' | 'life'
+}
+export interface ReservationResult {
+  max_mana: number
+  sealed_mana: number
+  unsealed_mana: number
+  max_life: number
+  sealed_life: number
+  unsealed_life: number
+  sealed_mana_compensation: number
+  insufficient_mana: boolean
+  insufficient_life: boolean
+  per_skill: ReservationSummary[]
+}
+
+export interface AuraGrant { stat: string; base: number; amount: number; text: string; per_stack?: boolean; is_aura_effect?: boolean }
+export interface AuraSummary {
+  skill_id: string
+  name: string
+  level: number
+  aura_effect_inc: number
+  granted: AuraGrant[]
+  nyi: string[]
+  review?: string[]   // modifiers applied but whose per-level scaling couldn't be verified vs the Lv1 anchor
+  stack_condition?: string | null   // settable numeric condition key for this aura's buff stacks
+  max_stacks?: number | null
+}
+
+export interface TargetDebuff {
+  name: string
+  scope: string       // which damage it amplifies, e.g. "All damage" / "Spell damage" / "Lightning damage"
+  taken_inc: number   // damage-taken increase fraction (0.15 = +15% taken)
+  stacks?: number
 }
 
 export interface TargetStats {
-  armor: { base_phys: number; base_nonphys: number; effective_phys: number; effective_nonphys: number }
-  resists: Record<string, { base: number; effective: number }>
-  debuffs: string[]
+  source?: string   // where the base values come from (e.g. "Training dummy")
+  armor: { base_phys: number; base_nonphys: number; effective_phys: number; effective_nonphys: number; pen?: number }
+  // base → (+reduction) resist → (−pen) effective. reduction = enemy resistance debuff; pen = ignored at hit.
+  resists: Record<string, { base: number; reduction?: number; pen?: number; resist?: number; effective: number }>
+  debuffs: string[]   // legacy flat list (kept for back-compat)
+  debuff_details?: TargetDebuff[]
+  // Raw penetration totals (fractions; reduction deltas).
+  pen?: { armor: number; all_resistance_reduction: number; elemental: number;
+          fire: number; cold: number; lightning: number; erosion: number }
 }
 
 export interface CoreTalentStatus {
@@ -603,7 +738,7 @@ export interface CoreTalentStatus {
 }
 
 // ── Modifier resolution (inert-modifier badges) ─────────────────────────────────
-export type ModifierSource = 'gear' | 'spirit' | 'memory' | 'talent' | 'slate'
+export type ModifierSource = 'gear' | 'spirit' | 'memory' | 'talent' | 'slate' | 'skill'
 export interface ModifierMapItem { key: string; text: string; source: ModifierSource; node_id?: string }
 export interface ModifierMapResponse { results: Record<string, { stat_keys: string[] }> }
 
@@ -682,6 +817,7 @@ export interface HeroAdvancedTrait {
   unlock_level: number          // 45 | 60 | 75
   is_pick_one_from_two: boolean
   effects: string[]
+  icon_url?: string | null      // render via iconUrl('hero_trait', icon_url) → bundled webp
 }
 
 export interface HeroTrait {
@@ -689,6 +825,7 @@ export interface HeroTrait {
   hero: string
   variant_name: string
   description: string
+  icon_url?: string | null      // render via iconUrl('hero_trait', icon_url) → bundled webp
   levels: HeroTraitLevel[]
   artificial_moon: { description: string; effects: string[] }
   advanced_traits: HeroAdvancedTrait[]
@@ -700,6 +837,7 @@ export interface PactSpiritSlot {
   name: string
   effect: string[]   // atomic stat lines (one stat per entry) — see pact_spirit_importer normalization
   ring: 'inner' | 'mid' | 'outer'
+  icon_url?: string | null   // render via iconUrl('pactspirit', icon_url) → bundled webp
 }
 
 export interface PactSpiritRank {
@@ -711,6 +849,7 @@ export interface PactSpirit {
   item_id: string
   name: string
   description: string
+  portrait_url?: string | null   // spirit's main icon; render via iconUrl('pactspirit', portrait_url)
   affinities: string[]
   main_skill_name: string
   main_skill_effect: string
@@ -724,22 +863,27 @@ export interface SelectedPactSpirit {
   rank: number  // 1–6
 }
 
+// An effect line plus the display NAME of its origin (pact-spirit / hero-memory name). The backend echoes
+// `source` onto each contribution's `source_name`, driving the stat-breakdown "Source Name" column.
+export interface EffectInput { text: string; source: string }
+
 export function buildSpiritEffects(
   selected: (SelectedPactSpirit | null)[],
   allSpirits: PactSpirit[]
-): string[] {
-  const effects: string[] = []
+): EffectInput[] {
+  const effects: EffectInput[] = []
   for (const sel of selected) {
     if (!sel) continue
     const spirit = allSpirits.find(s => s.item_id === sel.itemId)
     if (!spirit) continue
+    const src = spirit.name
     // Inner/mid effects are static; outer effects scale with rank and live in rankData.modifiers.
     // slot.effect is a list of atomic stat lines — push each.
     for (const slot of spirit.slots) {
-      if (slot.ring !== 'outer') effects.push(...slot.effect)
+      if (slot.ring !== 'outer') for (const t of slot.effect) effects.push({ text: t, source: src })
     }
     const rankData = spirit.upgrade_ranks.find(r => r.rank === sel.rank)
-    if (rankData) effects.push(...rankData.modifiers)
+    if (rankData) for (const t of rankData.modifiers) effects.push({ text: t, source: src })
   }
   return effects
 }
@@ -871,8 +1015,14 @@ export interface CreatedHeroMemory {
   randomAffixes: [MemorySlotSelection | null, MemorySlotSelection | null]
 }
 
-export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): string[] {
-  const effects: string[] = []
+const MEMORY_NAMES: Record<CreatedHeroMemory['memoryType'], string> = {
+  origin: 'Memory of Origin',
+  discipline: 'Memory of Discipline',
+  progress: 'Memory of Progress',
+}
+
+export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): EffectInput[] {
+  const effects: EffectInput[] = []
   const RANGE_RE = /\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g
   const resolveModifier = (sel: MemorySlotSelection): string => {
     // Ensure leading + for modifiers stored without it (handles legacy/missing-plus data)
@@ -883,9 +1033,11 @@ export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): stri
   }
   for (const mem of memories) {
     if (!mem) continue
-    if (mem.baseStat) effects.push(resolveModifier(mem.baseStat))
-    for (const fa of mem.fixedAffixes) { if (fa) effects.push(resolveModifier(fa)) }
-    for (const ra of mem.randomAffixes) { if (ra) effects.push(resolveModifier(ra)) }
+    const src = MEMORY_NAMES[mem.memoryType] ?? 'Hero Memory'
+    const push = (sel: MemorySlotSelection) => effects.push({ text: resolveModifier(sel), source: src })
+    if (mem.baseStat) push(mem.baseStat)
+    for (const fa of mem.fixedAffixes) { if (fa) push(fa) }
+    for (const ra of mem.randomAffixes) { if (ra) push(ra) }
   }
   return effects
 }
@@ -902,11 +1054,33 @@ export interface TowerSequenceEntry {
   source: string
 }
 
+// One split effect line of a skill/support tooltip (from backend engine.tooltip.build_tooltip).
+// `scaling` lines carry per-level resolved display strings in `values_by_level`; `special`/`flavor`
+// lines are shown verbatim via `text`. `badge_text` is the canonical string fed to the badge resolver.
+export interface SkillTooltipLine {
+  kind: 'scaling' | 'special' | 'flavor'
+  badge_text: string
+  text: string
+  values_by_level?: Record<number, string> | null
+}
+
+// Structured, level-aware tooltip for a skill/support. `level_kind` is "level" (skills/standard
+// supports) or "tier" (noble/magnificent/activation). The renderer clamps the current level into
+// `available_levels` (nearest ≤) and indexes each scaling line's `values_by_level`.
+export interface SkillTooltipSpec {
+  gate_text?: string | null   // support-target line ("Supports X Skills") — NOT rendered
+  level_kind: 'level' | 'tier'
+  default_level: number
+  available_levels: number[]
+  lines: SkillTooltipLine[]
+}
+
 export interface SkillItem {
   item_id: string
   name: string
   internal_id?: number | null
   skill_type?: string
+  is_aura?: boolean
   description_lines: string[]
   raw_text: string
   skill_tags: string[]
@@ -916,6 +1090,9 @@ export interface SkillItem {
   weapon_restriction?: string | null
   main_stat?: string | null
   progression?: object[]
+  tooltip?: SkillTooltipSpec
+  // Whether this skill can contribute to the build's total DPS (dev-set; default derived from skill_type).
+  dps_eligible?: boolean
   glossary?: Record<string, { name: string; description: string }>
 }
 
@@ -948,6 +1125,10 @@ export interface EquippedSkill {
   supports: EquippedSupportSkill[]
   // Whether this skill (and its supports + sourced buffs/debuffs) contributes. Default true.
   enabled?: boolean
+  // Whether this (dps_eligible) skill is included in the sidebar's total DPS. Default true; toggled per
+  // skill on the Skills screen. Persisted in the build (rides in the skills array). Display-only — the
+  // engine still computes every slot's offense regardless.
+  countInDps?: boolean
 }
 
 const PASSIVE_TAGS = new Set(['Aura', 'Spirit Magus', 'Focus'])
@@ -997,6 +1178,13 @@ function checkTag(tag: string, skillTags: string[], isPassiveSlot: boolean): boo
   return skillTags.some(t => t.toLowerCase() === tag.toLowerCase())
 }
 
+// Whether a skill actually deals damage (vs a pure Aura / buff / Focus passive). Used to gate
+// "Supports skills that deal damage" supports off non-damaging skills (e.g. an Aura like Electric Conversion).
+function skillDealsDamage(skill: { skill_tags: string[] }): boolean {
+  const dmgTags = ['attack', 'spell', 'minion', 'summon']
+  return skill.skill_tags.some(t => dmgTags.includes(t.toLowerCase()))
+}
+
 export function isSupportCompatible(
   support: SkillItem,
   parentSkill: EquippedSkill,
@@ -1016,8 +1204,13 @@ export function isSupportCompatible(
     return !isPassiveSlot && supportIdx === 1
   }
 
-  // Colon = skill-specific support (Magnificent → slot 3, Noble → slot 5)
-  if (support.name.includes(':')) {
+  // Skill-bound supports (Noble/Magnificent) carry a "<Parent Skill>: <Variant> (Tier)" name and lock to a
+  // specific parent skill + slot. ONLY these genuinely-bound types use the colon branch — every skill-bound
+  // colon support is noble/magnificent, while "Precise: X" (and other base support_skill colon names) are
+  // quality-tier VARIANTS of normal supports. So Precise variants must be matched by their "Supports X"
+  // description below (e.g. "Precise: Stand as One" → "Supports Aura Skills"), not hidden as a foreign binding.
+  const skillBound = support.skill_type === 'noble_support_skill' || support.skill_type === 'magnificent_support_skill'
+  if (skillBound && support.name.includes(':')) {
     const parentPart = support.name.split(':')[0].trim()
     if (parentSkill.name !== parentPart) return false
     const ordinals: [string, number][] = [
@@ -1037,9 +1230,17 @@ export function isSupportCompatible(
   const firstLine = support.description_lines[0] || ''
   if (!firstLine.startsWith('Supports')) return false
 
-  const raw = firstLine.replace(/^Supports\s+/, '').replace(/\.\s*$/, '').trim()
+  // The "Supports X Skills." requirement is ONLY the sentence up to its first period — the rest of the
+  // line is the support's effect text (the importer concatenates the whole description into one line).
+  // Without isolating it, the requirement parse choked on trailing effect text (e.g. Jump's "...or Chain
+  // Skills. +2 Jumps..." never matched Chain), so most supports were wrongly hidden.
+  const clauseMatch = firstLine.match(/^Supports\s+(.+?)\./)
+  const raw = (clauseMatch ? clauseMatch[1] : firstLine.replace(/^Supports\s+/, '')).trim()
   if (raw.toLowerCase() === 'any skill' || raw.toLowerCase() === 'any skills') return true
-  if (/^skills?\s+that/i.test(raw)) return true
+  // "Supports skills that hit enemies / deal damage / summon …" all require an active damage/summon skill —
+  // a pure Aura/buff/Focus passive matches none of them, so gate on the skill actually dealing damage. (This
+  // is what stops Passivation, Added X Damage, Blind, etc. from showing for an Aura like Electric Conversion.)
+  if (/^skills?\s+that/i.test(raw)) return skillDealsDamage(parentSkill)
 
   const alternatives = raw.split(/\s+or\s+/i)
   return alternatives.some(alt => {
@@ -1144,6 +1345,9 @@ export interface LegendaryAffix {
   unit?: string
   // set for crafted/vorax items: 'Base' | 'Basic Affix' | 'Advanced Affix' | 'Ultimate Affix' | 'Legendary'
   affix_type?: string
+  // roll tier (T1/T2/…) on crafted/graft affixes; shown prefixed on the affix-kind label in tooltips
+  tier?: string | number
+
   // resolved by backend: structured engine expression if condition text was mapped
   condition_expr?: Record<string, unknown> | string | null
 }
@@ -1310,6 +1514,9 @@ export interface SeasonDiff {
 
 export const api = {
   getTrees: () => get<{ name: string; color: string }[]>('/trees'),
+
+  // Cross-tree node search for the overview — trees with nodes matching the query + per-tree match count.
+  searchTrees: (q: string) => get<{ name: string; match_count: number }[]>(`/tree-search?q=${encodeURIComponent(q)}`),
 
   getTree: (name: string) => get<TreeData>(`/tree/${encodeURIComponent(name)}`),
 
@@ -1516,8 +1723,8 @@ export const api = {
     condition_state?: Record<string, number | boolean>
     gear?: GearEngineItem[]
     character?: CharacterStatContribution[]
-    memory_effects?: string[]
-    spirit_effects?: string[]
+    memory_effects?: EffectInput[]
+    spirit_effects?: EffectInput[]
     main_skill?: SkillEngineInput | null
     skills?: SkillSlotInput[]
     custom_mods?: string[]

@@ -25,15 +25,19 @@
     "all_stats_inc",
     "armor",
     "armor_additional",
+    "armor_effective_rate_non_physical_inc",
     "armor_flat",
     "armor_gear_flat",
     "armor_gear_inc",
     "armor_inc",
     "armor_pen",
+    "attack_block_chance_inc",
     "attack_crit_rating_gear",
     "attack_crit_rating_mh",
     "attack_speed_gear",
     "attack_speed_mh",
+    "block_ratio_inc",
+    "cast_speed_additional",
     "cast_speed_inc",
     "cold_as_erosion",
     "cold_as_fire",
@@ -53,7 +57,10 @@
     "dexterity_flat",
     "dexterity_inc",
     "dmg_additional",
+    "dmg_avoid_chance",
     "dmg_inc",
+    "dmg_max_additional",
+    "dmg_min_additional",
     "double_dmg_chance",
     "elemental_dmg_additional",
     "elemental_dmg_inc",
@@ -61,6 +68,8 @@
     "elemental_resistance",
     "energy_shield_gear_flat",
     "energy_shield_gear_inc",
+    "energy_shield_per_sealed_life",
+    "energy_shield_per_sealed_mana",
     "erosion_resistance",
     "erosion_resistance_max_inc",
     "erosion_spell_dmg_flat_max",
@@ -79,6 +88,7 @@
     "fire_spell_dmg_flat_max",
     "fire_spell_dmg_flat_min",
     "frail_spell_taken",
+    "hit_dmg_additional",
     "intelligence",
     "intelligence_additional",
     "intelligence_flat",
@@ -90,6 +100,7 @@
     "lightning_convert_to_erosion",
     "lightning_convert_to_fire",
     "lightning_crit_dmg_inc",
+    "lightning_dmg_additional",
     "lightning_dmg_inc",
     "lightning_infiltration_taken",
     "lightning_pen",
@@ -130,9 +141,13 @@
     "physical_spell_dmg_flat_max",
     "physical_spell_dmg_flat_min",
     "quadruple_dmg_chance",
+    "sealed_mana_compensation_additional",
+    "sealed_mana_compensation_inc",
+    "spell_block_chance_inc",
     "spell_crit_dmg_inc",
     "spell_crit_rating_flat",
     "spell_crit_rating_inc",
+    "spell_dmg_additional",
     "spell_dmg_inc",
     "spell_double_dmg_chance",
     "spell_skill_level",
@@ -149,9 +164,17 @@
     "armor_additional": 0,
     "armor_flat": 0,
     "armor_inc": 0,
+    "armor_nonphys_mitigation": 0.0,
+    "armor_phys_mitigation": 0.0,
+    "attack_block_chance": 0,
+    "attack_evade_chance": 0.0,
+    "block_ratio": 0,
     "cold_resist": 0.0,
+    "cold_resist_max": 60.0,
     "cold_resist_raw": 0.0,
+    "dmg_avoid_chance": 0,
     "erosion_resist": 0.0,
+    "erosion_resist_max": 60.0,
     "erosion_resist_raw": 0.0,
     "es_additional": 0,
     "es_flat": 0,
@@ -161,11 +184,15 @@
     "evasion_flat": 0,
     "evasion_inc": 0,
     "fire_resist": 0.0,
+    "fire_resist_max": 60.0,
     "fire_resist_raw": 0.0,
+    "insufficient_life": false,
+    "insufficient_mana": false,
     "life_additional": 0,
     "life_flat": 0,
     "life_inc": 0.12,
     "lightning_resist": 0.0,
+    "lightning_resist_max": 60.0,
     "lightning_resist_raw": 0.0,
     "mana_additional": 0,
     "mana_flat": 0,
@@ -175,11 +202,26 @@
     "max_mana": 0.0,
     "nyi": [
       "Effective HP"
-    ]
+    ],
+    "sealed_life": 0.0,
+    "sealed_mana": 0.0,
+    "sealed_mana_compensation": 0,
+    "spell_block_chance": 0,
+    "spell_evade_chance": 0.0,
+    "unsealed_life": 0.0,
+    "unsealed_mana": 0.0
   },
   "offense": {
     "above_max_mult": 1.0,
-    "attacks_per_second": 1.7612307692307692,
+    "attacks_per_second": 1.6615384615384614,
+    "base_cast_time": 0.65,
+    "base_csr": 500.0,
+    "base_dmg_max": {
+      "lightning": 289.0
+    },
+    "base_dmg_min": {
+      "lightning": 15.0
+    },
     "cast_multiplier": 1.0,
     "crit_chance": 0.05,
     "crit_multiplier": 1.5,
@@ -199,8 +241,8 @@
         "damage_by_type": {
           "lightning": 361.80863999999997
         },
-        "dps_contribution": 653.1592220750769,
-        "dps_vs_target": 342.9085915894152,
+        "dps_contribution": 616.187945353846,
+        "dps_vs_target": 323.49867131076905,
         "effectiveness_pct": 100.0,
         "form_type": "additive",
         "hit_max_by_type": {
@@ -241,8 +283,8 @@
     ],
     "steep_strike_chance": 0.0,
     "supported": true,
-    "total_dps": 653.1592220750769,
-    "total_dps_vs_target": 342.9085915894152,
+    "total_dps": 616.187945353846,
+    "total_dps_vs_target": 323.49867131076905,
     "type_add": {
       "lightning": 1.9836
     },
@@ -265,6 +307,7 @@
           "amount": 0.1,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+10 % Affliction Effect"
         }
@@ -280,6 +323,7 @@
           "amount": 0.08,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+8 % Attack and Cast Speed"
         }
@@ -295,6 +339,7 @@
           "amount": 0.08,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+8 % Attack and Cast Speed"
         }
@@ -310,6 +355,7 @@
           "amount": 0.12,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+12 % Critical Strike Damage for Combo Finishers"
         }
@@ -325,6 +371,7 @@
           "amount": 0.06,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+6 % additional Attack and Cast Speed for Combo Starters"
         }
@@ -340,6 +387,7 @@
           "amount": 0.06,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+6 % additional Attack and Cast Speed for Combo Starters"
         }
@@ -355,6 +403,7 @@
           "amount": 0.16,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+16 % additional damage against Cursed enemies"
         }
@@ -370,6 +419,7 @@
           "amount": 0.2,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+20 % damage +20 % Minion Damage"
         }
@@ -392,6 +442,7 @@
           "amount": 100.0,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+100 Intelligence"
         }
@@ -407,6 +458,7 @@
           "amount": 0.05,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+5 % Lightning Penetration"
         }
@@ -422,6 +474,7 @@
           "amount": 0.12,
           "label": "Hero Memory",
           "points": 1,
+          "source_name": null,
           "source_type": "hero_memory",
           "text": "+12 % Max Life"
         }
@@ -437,11 +490,19 @@
           "amount": 0.2,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+20 % damage +20 % Minion Damage"
         }
       ],
       "total": 0.2,
+      "unit": "%"
+    },
+    "movement_speed": {
+      "category": "Character",
+      "display_name": "Movement Speed",
+      "sources": [],
+      "total": 0.0,
       "unit": "%"
     }
   }

@@ -113,6 +113,7 @@ def resolve_support_contributions(
                         "amount": amount,
                         "text": f"{_UNIVERSAL_PHRASE} |{item_id}|universal",
                         "label": f"{name} (Rank {rank})",
+                        "source_name": name,
                         "slot": sup.get("slot", 1),
                     })
 
@@ -123,6 +124,7 @@ def resolve_support_contributions(
         if item_id in skill_effects.GENERIC_GUARD_IDS:
             c = skill_effects.support_contribution(sup, data)
             if c:
+                c.setdefault("source_name", name)
                 out.append(c)
             continue
 
@@ -151,6 +153,7 @@ def resolve_support_contributions(
                         "amount": frac,
                         "text": f"{_UNIVERSAL_PHRASE} |{item_id}|specific",
                         "label": f"{name} (Tier {tier})",
+                        "source_name": name,
                         "condition": cond_expr,
                         "slot": sup.get("slot", 1),
                     })
@@ -222,6 +225,25 @@ def _tier_value(level) -> int:
         return 1
 
 
+# Skill-type/element tags a support can carry → the per-type skill-level stat it gains from.
+_SUPPORT_LEVEL_TAGS = ("attack", "spell", "melee", "projectile", "ranged", "channeled",
+                       "fire", "cold", "lightning", "erosion", "physical")
+
+
+def _support_level_bonus(source, tags) -> int:
+    """Extra effective levels a support gains from skill-level sources: global (all/support skill level) plus
+    any matching its OWN tags (e.g. Quick Return has the Attack tag → gains +Attack Skill Level; Off the Beaten
+    Track grants +4 Support Skill Level). Rounded down. `source` None → 0 (used by tooltip/badge paths)."""
+    if source is None:
+        return 0
+    bonus = source.total("all_skill_level") + source.total("support_skill_level")
+    tl = {t.lower() for t in (tags or [])}
+    for t in _SUPPORT_LEVEL_TAGS:
+        if t in tl:
+            bonus += source.total(f"{t}_skill_level")
+    return int(bonus)
+
+
 def _progression_for_tier(progression, tier: int) -> dict | None:
     """Find the progression entry whose level == tier; fall back to tier 1, then any entry."""
     if not isinstance(progression, list) or not progression:
@@ -244,15 +266,18 @@ def _willpower_per_stack(data: dict, level: int) -> float | None:
     return float(m.group(1)) / 100.0 if m else None
 
 
-def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds):
+def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds, slot_cats=None,
+                              source=None):
     """Resolve standard supports via the parser + mapper (engine.support_lines / support_mapper).
     Returns (stat_contributions, condition_effects). Run INSIDE the fixed-point loop so conditional
     lines see converging conditions and auto-derived conditions feed back. Noble/Magnificent stay in
     resolve_support_contributions.
 
-      main_cat    'spell' | 'attack' | None — the supported skill's category (tag-gate + added-flat)
+      main_cat    'spell' | 'attack' | None — fallback category when a support's slot isn't in slot_cats
       main_dtypes the supported skill's damage types (for 'inflicts X when deals Y' gates)
       conds       the current condition_state ({key: value|bool})
+      slot_cats   {slot: 'spell'|'attack'|None} — each support resolves against ITS host skill's category
+                  (tag-gate + added-flat), so a non-main-slot skill's supports route to the right pool
     """
     from engine.support_lines import parse_support
     from engine.support_mapper import map_line, map_autoderive_line
@@ -270,14 +295,16 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
         stype = sup.get("skill_type") or data.get("skill_type") or ""
         if stype not in _STANDARD_TYPES:
             continue  # Noble/Magnificent handled elsewhere
+        # Gate + categorize against THIS support's host skill (its slot), not the main skill.
+        cat = (slot_cats or {}).get(sup.get("slot", 1), main_cat)
         parsed = parse_support(data)
-        if (parsed.gate == "spell-only" and main_cat != "spell") or \
-           (parsed.gate == "attack-only" and main_cat != "attack"):
+        if (parsed.gate == "spell-only" and cat != "spell") or \
+           (parsed.gate == "attack-only" and cat != "attack"):
             continue  # Attack/Spell tag-gate
-        level = _tier_value(sup.get("level"))
+        level = _tier_value(sup.get("level")) + _support_level_bonus(source, data.get("skill_tags"))
         name = data.get("name") or item_id
         for line in parsed.lines:
-            for c in map_line(line, level, main_cat, conds):
+            for c in map_line(line, level, cat, conds):
                 contribs.append({
                     "stat_key": c.stat_key,
                     "amount": c.amount,

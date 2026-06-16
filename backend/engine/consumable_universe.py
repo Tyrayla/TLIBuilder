@@ -127,6 +127,17 @@ def consumable_universe() -> frozenset[str]:
         consumed.add(k)
     # Aggregator-level propagation/effect reads (see note above).
     consumed |= _AGGREGATOR_PROPAGATION_INPUTS
+    # engine.utility reads these to scale aura buffs by total Aura Effect (outside offense/defense/derive).
+    consumed |= {"aura_effect_inc", "aura_effect_additional"}
+    # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
+    # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
+    consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",
+                 "focus_skill_sealed_mana_comp_inc", "spirit_magi_sealed_mana_comp_inc",
+                 "imparted_seal_mana_pct", "seal_to_life",
+                 "energy_shield_per_sealed_mana", "energy_shield_per_sealed_life"}
+    # support_resolver folds these skill-level sources into a support's effective level (+4 Support Skill
+    # Level from Off the Beaten Track, tag-matched levels like +Attack Skill Level for an Attack support).
+    consumed |= {"support_skill_level"}
 
     missing = _SANITY_FLOOR - consumed
     if missing:

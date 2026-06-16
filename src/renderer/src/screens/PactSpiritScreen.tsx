@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
-import { PactSpirit, PactSpiritSlot } from '../api/client'
+import { PactSpirit, PactSpiritSlot, iconUrl } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDeltaList } from '../components/tooltip/useDamageDelta'
@@ -15,7 +15,7 @@ interface Props {
 // Two damage deltas are priced at once: "This node" (remove just this node's effect line(s) from the
 // spirit) and "Spirit total" (remove the whole spirit). Spirits are still selected as a unit, but the
 // per-node number shows what each node is worth within the spirit.
-function PactNode({ ring, lines, spiritSlot }: { ring: string; lines: string[]; spiritSlot: number }) {
+function PactNode({ ring, lines, spiritSlot, icon }: { ring: string; lines: string[]; spiritSlot: number; icon?: string | null }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'top' })
   const deltas = useDamageDeltaList(
     tip.open
@@ -35,7 +35,9 @@ function PactNode({ ring, lines, spiritSlot }: { ring: string; lines: string[]; 
   ]
   return (
     <>
-      <div className={`pact-node node-${ring}`} {...tip.triggerProps} />
+      <div className={`pact-node node-${ring}`} {...tip.triggerProps}>
+        {icon && <img src={icon} className="pact-node-img" alt="" />}
+      </div>
       {tip.open && lines.length > 0 && (
         <FloatingPortal>
           <div className="tooltip tooltip--spirit" {...tip.floatingProps}>
@@ -193,6 +195,11 @@ export default function PactSpiritScreen(_props: Props) {
                 {[1, 2, 3, 4, 5, 6].map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
+            {spirit.portrait_url && (
+              <div className="pact-spirit-portrait-wrap">
+                <img src={iconUrl('pactspirit', spirit.portrait_url) ?? undefined} className="pact-spirit-portrait" alt="" />
+              </div>
+            )}
           </>
         ) : (
           <span style={{ color: '#666', fontSize: 12 }}>Loading…</span>
@@ -212,7 +219,7 @@ export default function PactSpiritScreen(_props: Props) {
           key={`node-${slotIdx}-${col}`}
           className={`pact-node-cell${slot ? ` has-node node-ring-${slot.ring}` : ''}`}
         >
-          {slot && <PactNode ring={slot.ring} lines={tooltipLines} spiritSlot={slotIdx} />}
+          {slot && <PactNode ring={slot.ring} lines={tooltipLines} spiritSlot={slotIdx} icon={iconUrl('pactspirit', slot.icon_url)} />}
         </div>
       )
     }
@@ -262,18 +269,23 @@ export default function PactSpiritScreen(_props: Props) {
                     className={`pact-spirit-list-item${isBound ? ' selected' : ''}`}
                     onClick={() => selectSpirit(spirit)}
                   >
-                    <div className="pact-spirit-list-header">
-                      <span className="pact-spirit-list-name">{spirit.name}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {isBound && <span className="pact-spirit-bound-badge">✓ Bound</span>}
-                        <div className="pact-spirit-affinities">
-                          {spirit.affinities.map(a => (
-                            <span key={a} className={`pact-affinity-tag affinity-${a.toLowerCase()}`}>{a}</span>
-                          ))}
+                    <div className="pact-spirit-list-main">
+                      <div className="pact-spirit-list-header">
+                        <span className="pact-spirit-list-name">{spirit.name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {isBound && <span className="pact-spirit-bound-badge">✓ Bound</span>}
+                          <div className="pact-spirit-affinities">
+                            {spirit.affinities.map(a => (
+                              <span key={a} className={`pact-affinity-tag affinity-${a.toLowerCase()}`}>{a}</span>
+                            ))}
+                          </div>
                         </div>
                       </div>
+                      <span className="pact-spirit-list-desc">{spirit.description}</span>
                     </div>
-                    <span className="pact-spirit-list-desc">{spirit.description}</span>
+                    {spirit.portrait_url && (
+                      <img src={iconUrl('pactspirit', spirit.portrait_url) ?? undefined} className="pact-spirit-list-icon" alt="" />
+                    )}
                   </div>
                 )
               })}

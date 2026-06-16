@@ -21,6 +21,29 @@ _SCOPE_MULTI_RE = re.compile(
     r'chance\s+for\s+([A-Za-z]+)\s+skills\s+to\s+deal\s+(double|triple|quadruple)\s+damage', re.I)
 
 
+# INLINE skill-type scope: the type word sits directly before the stat noun, optionally with a "Skill"
+# filler — "Melee Skill Damage", "Melee Attack Speed", "Projectile Cast Speed". The suffix detector below
+# ("… for/dealt by X Skills") misses these, and the base resolver chokes on the extra word(s). Used ONLY as
+# a FALLBACK after normal resolution fails (server._parse_custom_mod_text), so it never overrides the
+# typed-stat path — "additional Melee Damage" still resolves to melee_dmg_additional on the first, no-peel try.
+_INLINE_SCOPE_RE = re.compile(
+    r'\b(' + '|'.join(sorted(_SKILL_TYPE_TAG, key=len, reverse=True)) + r')\s+(?:skill\s+)?', re.I)
+
+
+def detect_inline_skill_scope(text: str) -> tuple[str, str | None]:
+    """Peel a leading inline skill-type qualifier ("Melee Skill " / "Melee ") and return (residual, tag),
+    or (text, None) if no recognized type word is present. Caller resolves the residual to the base stat and
+    scopes the result to `tag` (so "Melee Attack Speed" → attack_speed_inc scoped melee)."""
+    m = _INLINE_SCOPE_RE.search(text)
+    if not m:
+        return text, None
+    tag = _SKILL_TYPE_TAG.get(m.group(1).lower())
+    if not tag:
+        return text, None
+    residual = re.sub(r'\s{2,}', ' ', (text[:m.start()] + text[m.end():]).strip())
+    return residual, tag
+
+
 def detect_skill_scope(text: str) -> tuple[str, str | None]:
     """Return (residual_text_to_resolve, scope_tag|None). Strips a recognized 'for/dealt by <X> Skills'
     qualifier; unknown skill words are left in place (scope None → resolves/badges exactly as today)."""

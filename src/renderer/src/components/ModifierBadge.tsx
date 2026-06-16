@@ -57,7 +57,7 @@ export function useGearUnresolvedTexts(): Set<string> {
 //   resolved, in neither    → unused    (yellow)  — engine never reads it
 // Fail-open: if the universe set is empty (not loaded), a not-consumed stat shows 'inactive' (benign)
 // rather than 'unused', so a load race never paints a false "engine never reads it".
-function classifyKeys(keys: string[], consumed: Set<string>, universe: Set<string>): ModifierStatus {
+export function classifyKeys(keys: string[], consumed: Set<string>, universe: Set<string>): ModifierStatus {
   if (keys.some((k) => consumed.has(k))) return 'working'
   if (universe.size === 0) return 'inactive'
   if (keys.some((k) => universe.has(k))) return 'inactive'

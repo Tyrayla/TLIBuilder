@@ -198,6 +198,22 @@ def compute(
             main_cat = "spell" if _rm.is_spell else ("attack" if "attack" in _tags else None)
             main_dtypes = [d.lower() for d in _rm.damage_types]
 
+    # Per-slot category map so a support is gated/categorized by ITS host skill, not the main skill — a
+    # support on a non-main slot (e.g. an attack skill in slot 2) must resolve as that skill's category,
+    # else its added-flat lands in the wrong pool / is gated out and contributes nothing.
+    slot_cats: dict[int, str | None] = {}
+    if build_input.attached_supports and skills_input and skills_by_id is not None:
+        from engine.skill_resolver import resolve_skill as _resolve_skill
+        for _sk in skills_input:
+            _sd = skills_by_id.get(_sk["skill_id"])
+            if not _sd:
+                continue
+            _rs = _resolve_skill(_sd)
+            if not _rs.supported:
+                continue
+            _t = {t.lower() for t in _rs.tags}
+            slot_cats[_sk["slot"]] = "spell" if _rs.is_spell else ("attack" if "attack" in _t else None)
+
     # The main skill's slot (folds its slot-local supports/self-buffs + drives skill-effect dispatch).
     # main_enabled: a disabled main skill produces NO offense (DPS 0), not just its supports dropped.
     from engine import skill_effects
@@ -210,12 +226,26 @@ def compute(
                 main_enabled = _sk.get("enabled", True)
                 break
     # Type-C preseed before aggregation (e.g. Berserking Blade Decimate forcing enemy_low_life when the
-    # enemy is below the rolled threshold), dispatched per the main skill's module.
-    if build_input.main_skill:
-        skill_effects.preseed(build_input.main_skill.skill_id, slot=main_slot,
+    # enemy is below the rolled threshold) — dispatched for EVERY equipped skill, scoped by its slot, so a
+    # skill's preseed mechanic runs no matter which slot it's in (and per-slot for two-of-the-same-skill).
+    _main_id = build_input.main_skill.skill_id if build_input.main_skill else None
+    _main_covered = False
+    for _sk in (skills_input or []):
+        if not _sk.get("enabled", True):
+            continue
+        if _sk["skill_id"] == _main_id:
+            _main_covered = True
+        skill_effects.preseed(_sk["skill_id"], slot=_sk["slot"],
+                              condition_state=condition_state,
+                              attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
+    # Fallback: a main skill provided without a matching slot entry (legacy payloads) still preseeds.
+    if _main_id and not _main_covered:
+        skill_effects.preseed(_main_id, slot=main_slot,
                               condition_state=condition_state,
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
 
+    aura_summaries: list[dict] = []
+    reservation: dict | None = None
     for iteration in range(_MAX_ITERS):
         active_booleans, numeric_vals = _derive_views(condition_state)
 
@@ -230,11 +260,15 @@ def compute(
         # Standard support_skill / activation_medium contributions, resolved against the CURRENT
         # condition_state so conditional lines see converged values and inflicted debuffs feed back.
         std_contribs, cond_effects = resolve_standard_supports(
-            build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state)
+            build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state, slot_cats,
+            source=source)
         for c in std_contribs:
             _se = SourceEntry(
                 stat=c["stat_key"], amount=c["amount"], source_type="support",
-                label=c.get("label", "Support"), text=c.get("text", ""), points=1)
+                label=c.get("label", "Support"), text=c.get("text", ""), points=1,
+                # The breakdown's Source Name column reads source_name; without it, it fell back to the
+                # (level-1) effect text. Use the support's name so the row shows e.g. "Overload".
+                source_name=c.get("source_name") or c.get("label"))
             # Standard supports are slot-local to their host skill (default slot 1) — fold only into that
             # slot's offense pass, like the Noble/Magnificent contributions above.
             _slot = c.get("slot")
@@ -242,6 +276,13 @@ def compute(
                 source.add_slotted(c["stat_key"], c["amount"], _slot, None, _se)
             else:
                 source.add_with_source(c["stat_key"], c["amount"], _se)
+
+        # Aura / Focus buffs: scale by the now-fully-aggregated Aura Effect (gear + talents + custom +
+        # standard supports + the auras' own) and fold into the source BEFORE derive (so life-regen/resist
+        # auras feed derived stats too). Runs each pass so the self-feedback converges with the loop.
+        from engine.utility import apply_aura_buffs
+        aura_summaries = apply_aura_buffs(
+            source, build_input.aura_buffs, build_input.aura_meta, active_booleans, numeric_vals)
 
         # Compute derived stats (strength, armor, max_life, etc.) and inject
         # back into source so the pipeline and condition system can read them.
@@ -251,6 +292,13 @@ def compute(
         source._recording = True
         derive_stats(source, _set_value_overrides)
         source._recording = False
+
+        # Mana / Life sealing & reservation — after derive (Max Mana/Life final). Computes Sealed/Unsealed
+        # pools from each sealing skill's base seal × support Mana Multipliers ÷ (1 + Compensation); emits Ward
+        # ES + Lunar Eclipse damage into the source (converges with the loop). Runs each pass.
+        from engine.utility import apply_reservation
+        reservation = apply_reservation(
+            source, skills_input, skills_by_id, build_input.attached_supports, active_booleans, numeric_vals)
 
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS
@@ -345,8 +393,34 @@ def compute(
             "source_type": entry.source_type,
             "label": entry.label,
             "text": entry.text,
+            "source_name": entry.source_name,
             "amount": entry.amount,
             "points": entry.points,
+        })
+
+    # Slot-local contributions (supports / skill self-buffs) live in slot_log, NOT source_log, so they're
+    # absent from `total`/`sources` above. Surface them in a parallel `slot_sources` list per stat so the
+    # source breakdown can show them under a "Skill-specific (slot N)" group — without breaking the
+    # total == sum(sources) invariant. Only attached when non-empty, so unaffected builds stay byte-identical.
+    for entry in source.slot_log:
+        if entry.stat not in stat_map:
+            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
+            stat_map[entry.stat] = {
+                "display_name": meta.display_name if meta else entry.stat,
+                "category": meta.category if meta else "Other",
+                "unit": meta.unit if meta else "",
+                "total": 0.0,
+                "sources": [],
+            }
+        stat_map[entry.stat].setdefault("slot_sources", []).append({
+            "source_type": entry.source_type,
+            "label": entry.label,
+            "text": entry.text,
+            "source_name": entry.source_name,
+            "amount": entry.amount,
+            "points": entry.points,
+            "slot": entry.slot,
+            "scope": entry.scope,
         })
 
     # Add derived effective stats as the "Character" section of the stat sheet
@@ -363,6 +437,15 @@ def compute(
             "total": round(val, 2),
             "sources": [],
         }
+
+    # Movement speed — shown at a 0% baseline (the NET bonus; reductions go negative). Stored directly so the
+    # UI never has to subtract 100%. final = (1 + Σincreased) × (1 + Σadditional) − 1.
+    _ms = (1.0 + source.total("movement_speed_inc")) * (1.0 + source.total("movement_speed_additional")) - 1.0
+    source.add("movement_speed", _ms)
+    stat_map["movement_speed"] = {
+        "display_name": "Movement Speed", "category": "Character", "unit": "%",
+        "total": round(_ms, 4), "sources": [],
+    }
 
     # Clamp report: numeric conditions where the user's requested value exceeded the derived max
     clamped_numeric = {
@@ -385,7 +468,7 @@ def compute(
     # offense reads only what the active/modeled skill's pipeline touches — an unmodeled skill
     # reads nothing, so its damage mods fall out of consumed_stats and read as inert).
     source._recording = True
-    result_defense = asdict(calculate_defense(source))
+    result_defense = asdict(calculate_defense(source, reservation))
 
     # Per-slot support_behavior ({slot: {...}}) — the headline reads its own slot's behavior. Tolerate a
     # legacy flat dict (no per-slot keys) by treating it as slot 1's behavior.
@@ -469,7 +552,27 @@ def compute(
     _debuffs = [lbl for key, lbl in _DEBUFF_LABELS.items() if condition_state.get(key)]
     if float(condition_state.get("numbed_stacks", 0) or 0) > 0:
         _debuffs.append("Numbed")
-    target_stats = {**target_profile(source), "debuffs": _debuffs}
+    # Per-debuff detail: name + which damage it scopes + the damage-taken increase it applies (from the
+    # engine's _enemy_vuln_mult stats). Recording is off here, so these reads are golden-neutral.
+    debuff_details: list[dict] = []
+    if condition_state.get("enemy_paralyzed"):
+        debuff_details.append({"name": "Paralysis", "scope": "All damage",
+                               "taken_inc": source.total("paralysis_dmg_taken")})
+    if condition_state.get("enemy_affected_by_frail"):
+        debuff_details.append({"name": "Frail", "scope": "Spell damage",
+                               "taken_inc": source.total("frail_spell_taken")})
+    for _t in ("fire", "cold", "lightning"):
+        if condition_state.get(f"enemy_affected_by_{_t}_infiltration"):
+            debuff_details.append({"name": f"{_t.title()} Infiltration", "scope": f"{_t.title()} damage",
+                                   "taken_inc": source.total(f"{_t}_infiltration_taken")})
+    _numbed = float(condition_state.get("numbed_stacks", 0) or 0)
+    if _numbed > 0:
+        debuff_details.append({"name": "Numbed", "scope": "Lightning damage", "stacks": _numbed,
+                               "taken_inc": source.total("numbed_lightning_taken")})
+    target_stats = {**target_profile(source), "debuffs": _debuffs, "debuff_details": debuff_details}
+
+    from engine.aggregator import blessings_summary
+    blessings = blessings_summary(active_booleans, numeric_vals, source)
 
     return StatResult(
         stat_map=stat_map,
@@ -481,4 +584,7 @@ def compute(
         consumed_stats=sorted(source.consumed_stats),
         target_stats=target_stats,
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,
+        blessings=blessings,
+        aura_summaries=aura_summaries,
+        reservation=reservation,
     )

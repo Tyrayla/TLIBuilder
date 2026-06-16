@@ -14,6 +14,22 @@ export function itemHasSlot(item: EquippedGearItem, slot: GearSlot): boolean {
   return getItemSlots(item).includes(slot)
 }
 
+// Item-quality colors (mirror the .quality-* CSS): legendaries get their OWN gold; crafted/Vorax gear is
+// colored by its explicit-mod count (the standardized rarity system). Shared so the gear labels, the gear
+// tooltip, and the stat-breakdown source colors all agree.
+const QUALITY_COLORS = {
+  legendary: '#c8a050', normal: '#cccccc', magic: '#6699ff', rare: '#aa66ff', unique: '#ff66bb',
+} as const
+
+export function gearQualityColor(item: EquippedGearItem): string {
+  if (!item.is_crafted) return QUALITY_COLORS.legendary
+  const n = item.affixes.length - (item.implicit_count ?? 0)
+  if (n === 0) return QUALITY_COLORS.normal
+  if (n <= 2) return QUALITY_COLORS.magic
+  if (n <= 5) return QUALITY_COLORS.rare
+  return QUALITY_COLORS.unique
+}
+
 export function isLegendaryGearItem(item: LegendaryGearItem | EquippedGearItem): item is LegendaryGearItem {
   return 'variants' in item
 }

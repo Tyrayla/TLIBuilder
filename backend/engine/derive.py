@@ -82,6 +82,9 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
         inc_keys=["evasion_inc", "defense_inc"],
         add_pools=[["evasion_additional"]],
     ),
+    # Movement speed is NOT a DerivedStat: it's displayed at a 0% baseline (reductions go negative), which the
+    # linear (base+flat)×(1+inc)×Π(1+add) shape + its max(0,·) clamp can't represent. compute.py injects it
+    # directly as the NET bonus = (1+Σinc)×(1+Σadditional) − 1.
 ]
 
 # Fast lookup by output key

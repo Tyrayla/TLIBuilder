@@ -25,15 +25,19 @@
     "all_stats_inc",
     "armor",
     "armor_additional",
+    "armor_effective_rate_non_physical_inc",
     "armor_flat",
     "armor_gear_flat",
     "armor_gear_inc",
     "armor_inc",
     "armor_pen",
+    "attack_block_chance_inc",
     "attack_crit_rating_gear",
     "attack_crit_rating_mh",
     "attack_speed_gear",
     "attack_speed_mh",
+    "block_ratio_inc",
+    "cast_speed_additional",
     "cast_speed_inc",
     "cold_as_erosion",
     "cold_as_fire",
@@ -53,13 +57,19 @@
     "dexterity_flat",
     "dexterity_inc",
     "dmg_additional",
+    "dmg_avoid_chance",
     "dmg_inc",
+    "dmg_max_additional",
+    "dmg_min_additional",
     "double_dmg_chance",
+    "elemental_dmg_additional",
     "elemental_dmg_inc",
     "elemental_pen",
     "elemental_resistance",
     "energy_shield_gear_flat",
     "energy_shield_gear_inc",
+    "energy_shield_per_sealed_life",
+    "energy_shield_per_sealed_mana",
     "erosion_resistance",
     "erosion_resistance_max_inc",
     "erosion_spell_dmg_flat_max",
@@ -78,6 +88,7 @@
     "fire_spell_dmg_flat_max",
     "fire_spell_dmg_flat_min",
     "frail_spell_taken",
+    "hit_dmg_additional",
     "intelligence",
     "intelligence_additional",
     "intelligence_flat",
@@ -89,6 +100,7 @@
     "lightning_convert_to_erosion",
     "lightning_convert_to_fire",
     "lightning_crit_dmg_inc",
+    "lightning_dmg_additional",
     "lightning_dmg_inc",
     "lightning_infiltration_taken",
     "lightning_pen",
@@ -128,9 +140,13 @@
     "physical_spell_dmg_flat_max",
     "physical_spell_dmg_flat_min",
     "quadruple_dmg_chance",
+    "sealed_mana_compensation_additional",
+    "sealed_mana_compensation_inc",
+    "spell_block_chance_inc",
     "spell_crit_dmg_inc",
     "spell_crit_rating_flat",
     "spell_crit_rating_inc",
+    "spell_dmg_additional",
     "spell_dmg_inc",
     "spell_double_dmg_chance",
     "spell_skill_level",
@@ -147,9 +163,17 @@
     "armor_additional": 0,
     "armor_flat": 0,
     "armor_inc": 0,
+    "armor_nonphys_mitigation": 0.0,
+    "armor_phys_mitigation": 0.0,
+    "attack_block_chance": 0,
+    "attack_evade_chance": 0.0,
+    "block_ratio": 0,
     "cold_resist": 0.0,
+    "cold_resist_max": 60.0,
     "cold_resist_raw": 0.0,
+    "dmg_avoid_chance": 0,
     "erosion_resist": 0.0,
+    "erosion_resist_max": 60.0,
     "erosion_resist_raw": 0.0,
     "es_additional": 0,
     "es_flat": 0,
@@ -159,11 +183,15 @@
     "evasion_flat": 0,
     "evasion_inc": 0,
     "fire_resist": 0.0,
+    "fire_resist_max": 60.0,
     "fire_resist_raw": 0.0,
+    "insufficient_life": false,
+    "insufficient_mana": false,
     "life_additional": 0,
     "life_flat": 0,
     "life_inc": 0.09,
     "lightning_resist": 0.0,
+    "lightning_resist_max": 60.0,
     "lightning_resist_raw": 0.0,
     "mana_additional": 0,
     "mana_flat": 0,
@@ -173,11 +201,26 @@
     "max_mana": 0.0,
     "nyi": [
       "Effective HP"
-    ]
+    ],
+    "sealed_life": 0.0,
+    "sealed_mana": 0.0,
+    "sealed_mana_compensation": 0,
+    "spell_block_chance": 0,
+    "spell_evade_chance": 0.0,
+    "unsealed_life": 0.0,
+    "unsealed_mana": 0.0
   },
   "offense": {
     "above_max_mult": 1.0,
     "attacks_per_second": 1.5384615384615383,
+    "base_cast_time": 0.65,
+    "base_csr": 500.0,
+    "base_dmg_max": {
+      "lightning": 289.0
+    },
+    "base_dmg_min": {
+      "lightning": 15.0
+    },
     "cast_multiplier": 1.0,
     "crit_chance": 0.05,
     "crit_multiplier": 1.5,
@@ -255,6 +298,35 @@
     "weapon_csr_mh": 0
   },
   "stats": {
+    "dmg_additional": {
+      "category": "Generic",
+      "display_name": "Additional Damage",
+      "slot_sources": [
+        {
+          "amount": 0.17,
+          "label": "Chain Lightning: Web of Lightning (Magnificent) (Tier 1)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chain Lightning: Web of Lightning (Magnificent)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |chain_lightning_web_of_lightning_magnificent|specific"
+        },
+        {
+          "amount": -0.06,
+          "label": "Chain Lightning: Lucky (Noble) (Tier 1)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chain Lightning: Lucky (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |chain_lightning_lucky_noble|specific"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "max_energy_shield_inc": {
       "category": "Energy Shield",
       "display_name": "Max Energy Shield",
@@ -263,6 +335,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c0_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Max Energy Shield |node|assassin_c0_r2"
         }
@@ -278,11 +351,19 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c0_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Max Life |node|assassin_c0_r2"
         }
       ],
       "total": 0.09,
+      "unit": "%"
+    },
+    "movement_speed": {
+      "category": "Character",
+      "display_name": "Movement Speed",
+      "sources": [],
+      "total": 0.0,
       "unit": "%"
     }
   }

@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 import uvicorn
 
@@ -77,6 +78,15 @@ async def _gate_dev_routes(request: Request, call_next):
     return await call_next(request)
 
 
+# Bundled entity icons (talent-tree node icons, hero-trait icons; pact-spirit etc. added later). Paired
+# by basename: a record's `icon_url` ends in "<file>.webp", served here from data/images/icons/<category>/.
+# makedirs guards the first-run case before bootstrapDataDir has populated userData. check_dir=False so a
+# missing dir never crashes startup.
+_ICONS_DIR = os.path.join(_DATA_ROOT, 'images', 'icons')
+os.makedirs(_ICONS_DIR, exist_ok=True)
+app.mount("/icons", StaticFiles(directory=_ICONS_DIR, check_dir=False), name="icons")
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _tree_from_config(name: str, config: dict) -> PassiveTree:
@@ -104,6 +114,7 @@ def _tree_from_season_data(name: str, data: dict) -> PassiveTree:
             column=n["column"],
             row=n["row"],
             max_points=n.get("max_rank") or n.get("max_points", 1),
+            icon_url=n.get("icon_url"),
         ))
     for conn in data.get("connections", []):
         tree.add_connection(conn["from"], conn["to"])
@@ -116,6 +127,7 @@ def _tree_from_season_data(name: str, data: dict) -> PassiveTree:
                 id=ct["display_name_key"],
                 name=_format_core_talent_name(ct["display_name_key"], name),
                 effects=ct.get("effects", []),
+                icon_url=ct.get("icon_url"),
             )
             for ct in items
         ]
@@ -216,6 +228,36 @@ def get_trees():
     return [{"name": name, "color": entry["color"]} for name, entry in TREES.items()]
 
 
+@app.get("/api/tree-search")
+def tree_search(q: str = ""):
+    """Cross-tree node search for the overview screen. Returns trees whose nodes match ALL query words
+    (matched against each node's effect text, regular nodes + core talents), with a per-tree match count.
+    Mirrors the in-tree search so the overview highlights which trees contain what you're looking for."""
+    words = [w for w in q.strip().lower().split() if w]
+    if not words:
+        return []
+    active = season_manager.get_active_season()
+    if not active:
+        return []
+    results = []
+    for name in TREES:
+        data = season_manager.load_season_tree(active, _tree_name_to_slug(name))
+        if not data:
+            continue
+        count = 0
+        for n in data.get("nodes", []):
+            hay = " ".join(n.get("effects", [])).lower()
+            if all(w in hay for w in words):
+                count += 1
+        for ct in data.get("core_talents", []):
+            hay = " ".join(ct.get("effects", [])).lower()
+            if all(w in hay for w in words):
+                count += 1
+        if count:
+            results.append({"name": name, "match_count": count})
+    return results
+
+
 @app.get("/api/tree/{name}")
 def get_tree(name: str):
     if name not in TREES:
@@ -241,6 +283,7 @@ def get_tree(name: str):
             "node_type": n.node_type.value,
             "current_points": n.current_points,
             "effects": effects_by_id.get(n.id, []),
+            "icon_url": n.icon_url,
         })
 
     connections = [{"from": id1, "to": id2} for id1, id2 in tree.connections]
@@ -248,7 +291,7 @@ def get_tree(name: str):
         {
             "threshold": slot.threshold,
             "options": [
-                {"id": opt.id, "name": opt.name, "effects": opt.effects,
+                {"id": opt.id, "name": opt.name, "effects": opt.effects, "icon_url": opt.icon_url,
                  # Per-line resolution status (static — independent of selection), so badges show on any
                  # tree: "stat"/"override" resolve, "deferred"/"unresolved" badge as Unrecognized (NYI).
                  "effect_status": [_core_effect_status(e) for e in opt.effects]}
@@ -571,8 +614,10 @@ class EngineStatsRequest(BaseModel):
     condition_state: dict[str, float | bool] = {}
     gear:            list[dict] = []
     character:       list[dict] = []
-    memory_effects:  list[str] = []
-    spirit_effects:  list[str] = []
+    # Each item is either a bare effect string (legacy) or {text, source} where `source` is the hero-memory /
+    # pact-spirit display name surfaced in the stat-breakdown "Source Name" column.
+    memory_effects:  list[str | dict] = []
+    spirit_effects:  list[str | dict] = []
     main_skill:      SkillEngineInput | None = None   # kept for backward compat
     skills:          list[SkillSlotInput] = []         # all equipped skills with slot info
     custom_mods:     list[str] = []
@@ -656,9 +701,7 @@ def engine_stats(req: EngineStatsRequest):
                 if cond_expr is not None:
                     entry["condition"] = cond_expr
                 custom_contributions.append(entry)
-            display_names = [
-                _get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed
-            ]
+            display_names = [_qualified_stat_display(e["stat_key"]) for e in parsed]
             custom_mod_statuses.append({
                 "text": mod_text,
                 "resolved": True,
@@ -673,12 +716,20 @@ def engine_stats(req: EngineStatsRequest):
 
     # Pre-resolve pact-spirit / hero-memory effects through the unified resolver + build status lists so
     # nothing is silently dropped (cardinal rule), mirroring the custom-mod block above.
-    def _resolve_effect_list(effects: list[str], is_memory: bool) -> tuple[list[dict], list[dict]]:
+    def _resolve_effect_list(effects: list[str | dict], is_memory: bool) -> tuple[list[dict], list[dict]]:
         contribs: list[dict] = []
         statuses: list[dict] = []
-        for eff in effects:
+        for item in effects:
+            # Accept both the legacy bare-string shape and {text, source} (source = spirit/memory name).
+            if isinstance(item, dict):
+                eff = item.get("text", "")
+                source = item.get("source")
+            else:
+                eff, source = item, None
             parsed = _resolve_effect_modifiers(eff, is_memory=is_memory)
             if parsed:
+                if source:
+                    parsed = [{**p, "source": source} for p in parsed]
                 contribs.extend(parsed)
                 names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
                 statuses.append({"text": eff, "resolved": True, "stat_display": names})
@@ -760,6 +811,13 @@ def engine_stats(req: EngineStatsRequest):
         gi["contributions"] = contribs
         gear_resolved.append(gi)
 
+    # ── Auras / Focus buffs ──────────────────────────────────────────────────
+    # Server only PARSES the buff lines into unscaled contributions (needs the text→stat parser). The engine
+    # (engine.utility, inside compute) scales them by the fully-aggregated Aura Effect + builds the summaries.
+    from engine.aura_resolver import resolve_auras
+    aura_buffs, aura_statuses, aura_stack_conditions, aura_meta = resolve_auras(
+        skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr)
+
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=core_condition_state,
@@ -772,6 +830,8 @@ def engine_stats(req: EngineStatsRequest):
         attached_supports=enabled_supports,
         core_talent_contributions=core_contributions,
         node_contributions=node_contributions,
+        aura_buffs=aura_buffs,
+        aura_meta=aura_meta,
     )
     result = compute(
         build, season_trees, filter_data,
@@ -800,6 +860,16 @@ def engine_stats(req: EngineStatsRequest):
         "consumable_universe": sorted(consumable_universe()),
         # Calc-target armor/resist (base + effective after penetration) + active enemy debuffs.
         "target_stats": result.target_stats,
+        # Per-blessing summary (stacks/max/effects) for the Blessings panel.
+        "blessings": result.blessings,
+        # Per-aura summary (granted buff lines + applied Aura Effect + NYI lines) for the Skill panel —
+        # computed engine-side (engine.utility) so the Aura Effect total is the true post-aggregation value.
+        "auras": result.aura_summaries,
+        "aura_statuses": aura_statuses,
+        # Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
+        "reservation": result.reservation,
+        # Settable per-aura stack conditions ({key,label,max}) for the stack sliders.
+        "aura_stack_conditions": aura_stack_conditions,
     }
 
 
@@ -820,6 +890,9 @@ def get_conditions():
             entry["numeric_min"] = c.numeric_min
             entry["numeric_max"] = c.numeric_max
             entry["unit"] = c.unit
+            entry["default_value"] = c.default_value   # was omitted → frontend saw undefined → 0 defaults
+        else:
+            entry["default_bool"] = c.default_bool
         if c.key in derived_keys:
             entry["is_derived"] = True
         if not c.visible:
@@ -1312,7 +1385,31 @@ def get_skills():
     data = season_manager.load_skills(active)
     if not data:
         return {"season": active, "skills": []}
-    return {"season": active, "skills": data.get("skills", [])}
+    from engine.tooltip import build_tooltip
+    # Which skills CAN contribute to the build's total DPS. Dev-set: an explicit `dps_eligible` in the skill
+    # record wins; otherwise default by type (active / modularization deal hit damage; passives/supports/etc
+    # do not). The user then toggles inclusion per equipped skill (countInDps).
+    _DPS_TYPES = {"active_skill", "modularization_skill"}
+    skills = []
+    for s in data.get("skills", []):
+        out = dict(s)   # enrich a copy; never mutate the loaded store
+        out["dps_eligible"] = bool(s["dps_eligible"]) if "dps_eligible" in s else (s.get("skill_type") in _DPS_TYPES)
+        # Buff-passive flag: an Aura/Focus-tagged passive grants player buffs (aura_resolver) — lets the UI
+        # label it and show its granted effects.
+        out["is_aura"] = s.get("skill_type") == "passive_skill" and any(
+            t in (s.get("skill_tags") or []) for t in ("Aura", "Focus"))
+        try:
+            out["tooltip"] = build_tooltip(s)
+        except Exception:
+            # Never silently drop / 500: fall back to the raw description as flavor lines.
+            out["tooltip"] = {
+                "gate_text": None, "level_kind": "level",
+                "default_level": s.get("max_level") or 1, "available_levels": [s.get("max_level") or 1],
+                "lines": [{"kind": "flavor", "badge_text": d, "text": d, "values_by_level": None}
+                          for d in (s.get("description_lines") or [])],
+            }
+        skills.append(out)
+    return {"season": active, "skills": skills}
 
 
 @app.delete("/api/dev/skills")
@@ -1834,6 +1931,16 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     distinct multiplicative factors."""
     residual, scope = detect_skill_scope(text.strip())
     results = _parse_custom_mod_text_base(residual)
+    if not results:
+        # Fallback: an INLINE skill-type qualifier the suffix detector + base resolver miss ("Melee Skill
+        # Damage", "Melee Attack Speed"). Peel it and retry; only adopt the scope if the residual resolves,
+        # so working typed-stat phrasings (resolved on the first try above) are never disturbed.
+        from engine.skill_scope import detect_inline_skill_scope
+        inline_residual, inline_scope = detect_inline_skill_scope(residual)
+        if inline_scope and inline_residual != residual:
+            retry = _parse_custom_mod_text_base(inline_residual)
+            if retry:
+                results, scope = retry, inline_scope
     if scope and results:
         original = text.strip()
         for d in results:
@@ -2165,6 +2272,21 @@ def _get_stat_display_name(stat_key: str) -> str | None:
         return meta.display_name if meta else None
     except ValueError:
         return None
+
+
+def _qualified_stat_display(stat_key: str) -> str:
+    """Display name qualified by which POOL the stat key targets, so the same base stat's flat / increased /
+    additional pools read distinctly (e.g. Dexterity vs "Dexterity (increased)" vs "Dexterity (additional)").
+    Skips the qualifier when the display name already carries it. Flat = the bare base name."""
+    base = _get_stat_display_name(stat_key) or stat_key
+    low = base.lower()
+    if stat_key.endswith("_additional") and "additional" not in low:
+        return f"{base} (additional)"
+    if stat_key.endswith("_more") and "more" not in low:
+        return f"{base} (more)"
+    if stat_key.endswith("_inc") and "increased" not in low:
+        return f"{base} (increased)"
+    return base
 
 
 _BLESSING_KEY_MAP = {
@@ -2710,6 +2832,37 @@ def _affix_stat_keys(resolved: dict) -> list[str]:
     return out
 
 
+def _resolve_skill_line_keys(text: str) -> list[str]:
+    """Stat key(s) a structured tooltip line (skill/support, source='skill') resolves to — for badges.
+    Tries the support mapper (handles "for the supported skill" damage/capture/conditional lines, with a
+    permissive condition set so gated lines still resolve) and falls back to the unified node resolver
+    for general skill stat phrasing. Empty list → the badge shows 'Unrecognized (NYI)'."""
+    from engine.support_lines import SupportLine, _template
+    from engine.support_mapper import map_line, _ADDED_FLAT_RE
+    from engine.node_resolver import resolve_effect_text_keys
+    # Buff-grant lines ("Buffs grant +X% … to this skill") describe a granted buff the engine applies as a
+    # normal supported-skill modifier (e.g. Electric Overload's on-crit +15% Lightning). Normalize the wording
+    # so the line resolves like the direct "+X% … for the supported skill" form instead of badging NYI.
+    text = re.sub(r'^\s*buffs?\s+grants?\s+', '', text, flags=re.I)
+    text = re.sub(r'\bto (?:this|the supported) skill\b', 'for the supported skill', text, flags=re.I)
+    tmpl = _template(text)
+    # "adds X-Y <type> Damage" added-flat line → per-cat flat stats. Return BOTH cats so the badge
+    # matches whichever the supported skill uses (classifyKeys checks .some()).
+    m = _ADDED_FLAT_RE.search(tmpl)
+    if m and "damage" in tmpl:
+        d = m.group(1)
+        return [f"{d}_{c}_dmg_flat_{mm}" for c in ("attack", "spell") for mm in ("min", "max")]
+    # All gating conditions ON so conditional damage lines (cursed/numbed/fervor/blessing/ignite) resolve.
+    permissive = {"enemy_cursed": True, "enemy_numbed": True, "numbed_stacks": 10, "fervor_rating": 100,
+                  "focus_blessings": 4, "ignite_stacks": 5, "ailment_type_count": 3,
+                  "standing_still": True, "willpower_stacks": 6}
+    line = SupportLine(text=text, template=tmpl, scaling=False)
+    keys = [c.stat_key for c in map_line(line, 20, None, permissive)]   # cat=None: skip added-flat (handled above)
+    if keys:
+        return keys
+    return resolve_effect_text_keys(text, _parse_custom_mod_text, _translate_condition_expr)
+
+
 @app.post("/api/map-modifiers")
 def map_modifiers(req: MapModifiersRequest):
     """Map raw modifier texts (spirit / memory / talent / slate) to the engine stat key(s) they
@@ -2732,6 +2885,8 @@ def map_modifiers(req: MapModifiersRequest):
             # SAME unified resolver the engine uses (engine.node_resolver) — no more filter-builder recipes,
             # so node badges can't drift from the actual DPS contribution. node_id is irrelevant now.
             keys = resolve_effect_text_keys(it.text, _parse_custom_mod_text, _translate_condition_expr)
+        elif it.source == "skill":
+            keys = _resolve_skill_line_keys(it.text)
         elif it.source == "gear":
             keys = _affix_stat_keys(_resolve_affix({"raw_text": it.text, "affix_kind": "numeric"}))
         else:

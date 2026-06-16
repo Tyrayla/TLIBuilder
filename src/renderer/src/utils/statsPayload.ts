@@ -1,9 +1,10 @@
 import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution, CraftBaseItemGroup,
-  LegendaryAffix, CustomizedAffix,
+  LegendaryAffix, CustomizedAffix, EffectInput,
   buildCharacterContributions, buildMemoryEffects, buildSpiritEffects,
 } from '../api/client'
 import { itemHasSlot } from './gearItem'
+import { characterLevelFrom } from './conditions'
 import { useReferenceStore } from '../store/referenceStore'
 import type { useBuildStore } from '../store/buildStore'
 
@@ -61,46 +62,53 @@ export function countUniqueWeaponTypes(gear: EquippedGearItem[]): number {
  */
 // Remove ONE occurrence of each listed line from `list` (used to price a single pact-spirit node by
 // excluding just its effect line(s); one-occurrence removal so duplicate effect text on other nodes stays).
-function _excludeOnce(list: string[], exclude?: string[]): string[] {
+// Matches on the effect text so it works with the {text, source} effect shape.
+function _excludeOnce(list: EffectInput[], exclude?: string[]): EffectInput[] {
   if (!exclude || exclude.length === 0) return list
   const remaining = [...exclude]
-  return list.filter(line => {
-    const i = remaining.indexOf(line)
+  return list.filter(eff => {
+    const i = remaining.indexOf(eff.text)
     if (i >= 0) { remaining.splice(i, 1); return false }
     return true
   })
 }
 
 export function buildEngineStatsPayload(s: BuildState) {
+  // Character level is the `level` condition (default 90) — the single source of truth now that the
+  // skills-screen level control is gone. Forced into condition_state so per-level scaling, base life/mana,
+  // and energy all agree (and the backend's characterLevel seeding never diverges).
+  const charLevel = characterLevelFrom(s.conditionState)
   return {
     slots: s.slots,
     slates: s.slates,
     // dual_wielding and unique_weapon_types are auto-derived from gear (override any stored value).
     condition_state: {
       ...s.conditionState,
+      level: charLevel,
       dual_wielding: isDualWielding(s.gear),
       unique_weapon_types: countUniqueWeaponTypes(s.gear),
     },
     gear: buildGearPayload(s.gear),
-    character: buildCharacterContributions(s.gear, s.characterLevel, s.hasPrism),
+    character: buildCharacterContributions(s.gear, charLevel, s.hasPrism),
     memory_effects: buildMemoryEffects(s.heroMemories),
     spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits), s.spiritEffectExclude),
     main_skill: s.mainSkill ?? null,
     skills: s.skills.map(sk => ({
       slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1, enabled: sk.enabled !== false,
     })),
-    // The main skill (slot 1) carries the supports that scale its damage. The engine resolves their
-    // "additional damage for the supported skill" lines (rank + tier) into stat contributions, gated on
-    // the support (and its host skill) being enabled.
-    attached_supports: (s.skills.find(sk => sk.slot === 1)?.supports ?? []).map(sup => ({
-      item_id: sup.item_id,
-      skill_type: sup.skill_type,
-      rank: sup.rank,
-      level: sup.level,
-      specific_rolls: sup.specific_rolls,
-      slot: 1,
-      enabled: sup.enabled !== false,
-    })),
+    // Every skill slot carries its own supports. Each support is tagged with its host skill's slot so the
+    // engine folds it only into that slot's offense pass (add_slotted) — a non-main-slot skill (e.g. the
+    // main damage skill parked in slot 2) gets its supports computed too, not just slot 1's.
+    attached_supports: s.skills.flatMap(sk =>
+      (sk.supports ?? []).map(sup => ({
+        item_id: sup.item_id,
+        skill_type: sup.skill_type,
+        rank: sup.rank,
+        level: sup.level,
+        specific_rolls: sup.specific_rolls,
+        slot: sk.slot,
+        enabled: sup.enabled !== false,
+      }))),
     custom_mods: s.customMods,
   }
 }
@@ -381,14 +389,19 @@ function _buildDualWieldContributions(w1: EquippedGearItem, w2: EquippedGearItem
   const numWeapons = weapons.length
   const avgContribs: GearAffixContribution[] = []
 
-  // APS — per-weapon pre-multiply then average.
-  // Formula: eff_aps = aps × (1 + aps_gear/100 + aps_mh/100)
+  // APS — per-weapon pre-multiply then emit each weapon's proportional share (effAps/numWeapons),
+  // so the breakdown shows each weapon as its own hover-able source (matches CSR + damage below).
+  // Formula: eff_aps = aps × (1 + aps_gear/100 + aps_mh/100); shares sum to the averaged total.
   // attack_speed_gear and _mh are NOT emitted as global stats; engine sees (1+0) for that factor.
-  const totalEffAps = accums.reduce((s, a) =>
-    s + a.aps * (1 + (a.aps_gear + a.aps_mh) / 100), 0)
-  const avgAps = totalEffAps / numWeapons
-  if (avgAps > 0) {
-    avgContribs.push({ stat: 'weapon_attack_speed', display_value: avgAps, unit: '', item_name: `${w1.name} / ${w2.name}`, slot: null, condition: null })
+  for (let wi = 0; wi < numWeapons; wi++) {
+    const acc = accums[wi]
+    const wName = wi === 0 ? w1.name : w2.name
+    const wSlot = wi === 0 ? w1.slot as GearSlot : w2.slot as GearSlot
+    const effAps = acc.aps * (1 + (acc.aps_gear + acc.aps_mh) / 100)
+    const proportionalAps = effAps / numWeapons
+    if (proportionalAps > 0) {
+      avgContribs.push({ stat: 'weapon_attack_speed', display_value: proportionalAps, unit: '', item_name: wName, slot: wSlot, condition: null })
+    }
   }
 
   // CSR — per-weapon pre-multiply then average, emitted as separate per-weapon contributions
@@ -405,25 +418,25 @@ function _buildDualWieldContributions(w1: EquippedGearItem, w2: EquippedGearItem
     }
   }
 
-  // Damage — per-weapon: apply gear_inc multiplier first, then average across weapons.
-  // Formula: effective_min = flat_min × (1 + gear_inc / 100)
-  // The pre-multiplied value is emitted as a flat (unit:'') contribution so the engine
-  // applies × (1 + 0) — no gear_inc is emitted, preventing double-counting.
+  // Damage — per-weapon: apply each weapon's gear_inc multiplier, then emit that weapon's proportional
+  // share (effective/numWeapons) as its OWN contribution (name + slot), so each weapon shows as a
+  // separate, hover-able source instead of a merged "W1 / W2" entry. Shares sum to the averaged total.
+  // Formula: effective_min = flat_min × (1 + gear_inc / 100). The pre-multiplied value is emitted as a
+  // flat (unit:'') contribution so the engine applies × (1 + 0) — no gear_inc emitted (no double-count).
   for (const dtype of _WEAPON_DAMAGE_TYPES) {
-    let totalMin = 0, totalMax = 0
-    for (const acc of accums) {
-      const incDisplay = acc.dmg_gear_inc[dtype] ?? 0
-      const multiplier = 1 + incDisplay / 100
-      totalMin += (acc.dmg_flat_min[dtype] ?? 0) * multiplier
-      totalMax += (acc.dmg_flat_max[dtype] ?? 0) * multiplier
-    }
-    const avgMin = totalMin / numWeapons
-    const avgMax = totalMax / numWeapons
-    if (avgMin > 0) {
-      avgContribs.push({ stat: `${dtype}_dmg_gear_flat_min`, display_value: avgMin, unit: '', item_name: `${w1.name} / ${w2.name}`, slot: null, condition: null })
-    }
-    if (avgMax > 0) {
-      avgContribs.push({ stat: `${dtype}_dmg_gear_flat_max`, display_value: avgMax, unit: '', item_name: `${w1.name} / ${w2.name}`, slot: null, condition: null })
+    for (let wi = 0; wi < numWeapons; wi++) {
+      const acc = accums[wi]
+      const wName = wi === 0 ? w1.name : w2.name
+      const wSlot = wi === 0 ? w1.slot as GearSlot : w2.slot as GearSlot
+      const multiplier = 1 + (acc.dmg_gear_inc[dtype] ?? 0) / 100
+      const minShare = (acc.dmg_flat_min[dtype] ?? 0) * multiplier / numWeapons
+      const maxShare = (acc.dmg_flat_max[dtype] ?? 0) * multiplier / numWeapons
+      if (minShare > 0) {
+        avgContribs.push({ stat: `${dtype}_dmg_gear_flat_min`, display_value: minShare, unit: '', item_name: wName, slot: wSlot, condition: null })
+      }
+      if (maxShare > 0) {
+        avgContribs.push({ stat: `${dtype}_dmg_gear_flat_max`, display_value: maxShare, unit: '', item_name: wName, slot: wSlot, condition: null })
+      }
     }
   }
 

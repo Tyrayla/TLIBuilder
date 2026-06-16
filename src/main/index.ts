@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { app, shell, BrowserWindow, ipcMain, dialog } =
+const { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme } =
   require('electron') as typeof import('electron')
+// Force dark mode so the native window title bar / frame renders dark (not the OS-default white).
+nativeTheme.themeSource = 'dark'
 import { join, relative, sep } from 'path'
 import { spawn, execFileSync, ChildProcess } from 'child_process'
 import { Socket } from 'net'
@@ -20,6 +22,32 @@ ipcMain.on('dirty-change', (_event, dirty: boolean) => { isDirtyMain = dirty })
 
 const log = (...args: unknown[]) => { if (isVerbose) console.log('[main]', ...args) }
 const err = (...args: unknown[]) => { if (isVerbose) console.error('[main]', ...args) }
+
+// ── Global app settings (userData/settings.json) ────────────────────────────
+// Owned by the main process so the updater can read the channel before the renderer loads. Holds the update
+// channel today; greyed-out display prefs (numberSeparator, decimalPrecision) are persisted but not yet wired.
+type UpdateChannel = 'stable' | 'nightly'
+interface AppSettings {
+  updateChannel: UpdateChannel
+  numberSeparator?: 'commas' | 'decimals'
+  decimalPrecision?: number
+}
+const DEFAULT_SETTINGS: AppSettings = { updateChannel: 'stable', numberSeparator: 'decimals', decimalPrecision: 2 }
+
+function settingsPath(): string {
+  return join(app.getPath('userData'), 'settings.json')
+}
+function readSettings(): AppSettings {
+  try {
+    const raw = JSON.parse(readFileSync(settingsPath(), 'utf-8'))
+    return { ...DEFAULT_SETTINGS, ...raw, updateChannel: raw.updateChannel === 'nightly' ? 'nightly' : 'stable' }
+  } catch {
+    return { ...DEFAULT_SETTINGS }
+  }
+}
+function writeSettings(s: AppSettings): void {
+  try { writeFileSync(settingsPath(), JSON.stringify(s, null, 2)) } catch (e) { err('writeSettings failed:', e) }
+}
 
 // Port readiness tracking — IPC callers wait until Python confirms its port
 let isPortReady = false
@@ -206,9 +234,19 @@ function startPython(): Promise<number> {
   })
 }
 
+// Point electron-updater at the chosen channel. Stable reads latest.yml and ignores prereleases; Nightly reads
+// nightly.yml and accepts X.Y.Z-nightly.N. allowDowngrade on the stable path lets a nightly tester roll back to
+// the last weekly release when switching channels.
+function applyChannel(ch: UpdateChannel): void {
+  autoUpdater.channel = ch === 'nightly' ? 'nightly' : 'latest'
+  autoUpdater.allowPrerelease = ch === 'nightly'
+  autoUpdater.allowDowngrade = ch === 'stable'
+}
+
 function initUpdater(win: typeof BrowserWindow.prototype): void {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
+  applyChannel(readSettings().updateChannel)
 
   autoUpdater.on('update-available', (info) => {
     win.webContents.send('update-available', {
@@ -246,13 +284,20 @@ function createWindow(): void {
   log('createWindow — creating BrowserWindow')
   const mainWindow = new BrowserWindow({
     width: 1280,
-    height: 800,
+    // +30 over the old 800/680: the frameless window's web content now includes our 30px title
+    // strip, so growing by the strip height keeps the usable area below it the same as before.
+    height: 830,
     minWidth: 1100,
-    minHeight: 680,
+    minHeight: 710,
     title: 'TLI Builder',
     icon: join(__dirname, '../../resources/icon.png'),
     show: false,
     autoHideMenuBar: true,
+    // Frameless custom title bar so the strip stays our blue at all times (the native Windows
+    // caption shades differently on focus/blur and can't be recolored per-app). titleBarOverlay
+    // gives us native min/max/close buttons painted to match; the renderer draws the blue drag strip.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#1a1a2e', symbolColor: '#cfd6e6', height: 30 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
@@ -287,11 +332,18 @@ function createWindow(): void {
     // response === 2 (Cancel): do nothing, window stays open
   })
 
-  mainWindow.on('ready-to-show', () => {
-    log('createWindow — ready-to-show, displaying window')
+  // Show the window once it's ready. With a frameless / titleBarOverlay window on Windows,
+  // 'ready-to-show' can be delayed or skipped unless DevTools is open (which is why the app launched
+  // under `dev:verbose` but stayed hidden under plain `dev`). 'did-finish-load' fires reliably either
+  // way, so we trigger off whichever comes first and guard against showing twice.
+  const showWindow = () => {
+    if (mainWindow.isDestroyed() || mainWindow.isVisible()) return
+    log('createWindow — showing window')
     mainWindow.show()
     if (isDev && isVerbose) mainWindow.webContents.openDevTools({ mode: 'detach' })
-  })
+  }
+  mainWindow.once('ready-to-show', showWindow)
+  mainWindow.webContents.once('did-finish-load', showWindow)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     safeOpenExternal(details.url)
@@ -364,11 +416,24 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('download-update', () => autoUpdater.downloadUpdate())
-  ipcMain.handle('install-update', () => autoUpdater.quitAndInstall(false, true))
+  // isSilent=true → the NSIS update installs without the wizard/UAC (per-user install); isForceRunAfter=true relaunches.
+  ipcMain.handle('install-update', () => autoUpdater.quitAndInstall(true, true))
   ipcMain.handle('get-app-version', () => app.getVersion())
   ipcMain.handle('check-for-update', async () => {
     try { await autoUpdater.checkForUpdates() } catch { /* error event fires */ }
   })
+
+  ipcMain.handle('get-settings', () => readSettings())
+  ipcMain.handle('set-setting', async (_e, key: keyof AppSettings, value: unknown) => {
+    const next = { ...readSettings(), [key]: value } as AppSettings
+    writeSettings(next)
+    if (key === 'updateChannel') {
+      applyChannel(next.updateChannel)
+      try { await autoUpdater.checkForUpdates() } catch { /* error event fires */ }
+    }
+    return next
+  })
+
   ipcMain.handle('open-external', (_event, url: string) => safeOpenExternal(url))
 
   // Open the window immediately so users see the "Starting backend…" state

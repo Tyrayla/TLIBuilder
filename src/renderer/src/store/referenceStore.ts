@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type {
   LegendaryGearIndexItem, LegendaryGearItem, CraftBaseItemGroup,
-  CraftBaseType, Graft, HeroTrait, HeroMemoryAffix, ConditionDef,
+  CraftBaseType, Graft, HeroTrait, HeroMemoryAffix, ConditionDef, SkillItem,
 } from '../api/client'
 import { api } from '../api/client'
 
@@ -24,6 +24,11 @@ interface ReferenceStore {
   heroTraits: HeroTrait[] | null
   heroMemories: HeroMemoryData | null
   conditions: Record<string, ConditionDef[]> | null
+  // Skill/support catalog (carries each item's structured `tooltip` spec). Shared by SkillsScreen and
+  // the Stats page, which looks up a contribution's source skill/support by name (`skillsByName`).
+  skills: SkillItem[] | null
+  skillsByName: Record<string, SkillItem> | null
+  skillsById: Record<string, SkillItem> | null
 
   // true once ALL fetches have settled (any mix of success/failure)
   referenceResolved: boolean
@@ -49,6 +54,9 @@ function freshClearedState() {
     heroTraits: null as HeroTrait[] | null,
     heroMemories: null as HeroMemoryData | null,
     conditions: null as Record<string, ConditionDef[]> | null,
+    skills: null as SkillItem[] | null,
+    skillsByName: null as Record<string, SkillItem> | null,
+    skillsById: null as Record<string, SkillItem> | null,
     referenceResolved: false,
     failedCatalogs: new Set<string>(),
   }
@@ -75,6 +83,7 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
       api.getHeroTraits(),
       api.getHeroMemories(),
       api.getConditions(),
+      api.getSkills(),
     ])
 
     // Bail if a newer load (or clear) has superseded this one
@@ -83,7 +92,7 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
     const [
       idxResult, catalogResult, baseItemsResult,
       baseTypesResult, graftsResult, traitsResult,
-      memoriesResult, conditionsResult,
+      memoriesResult, conditionsResult, skillsResult,
     ] = results
 
     const failed = new Set<string>()
@@ -130,6 +139,13 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
     if (conditionsResult.status === 'fulfilled') {
       updates.conditions = conditionsResult.value
     } else { failed.add('conditions') }
+
+    if (skillsResult.status === 'fulfilled') {
+      updates.skills = skillsResult.value.skills
+      updates.skillsByName = Object.fromEntries(skillsResult.value.skills.map((s) => [s.name, s]))
+      updates.skillsById = Object.fromEntries(skillsResult.value.skills.map((s) => [s.item_id, s]))
+      if (skillsResult.value.season) season ??= skillsResult.value.season
+    } else { failed.add('skills') }
 
     set({ ...updates, season, referenceResolved: true, failedCatalogs: failed })
   },

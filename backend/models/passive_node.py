@@ -40,6 +40,7 @@ class PassiveNode:
     max_points: int   # varies per node
     current_points: int = field(default=0, init=True)
     stats: list[NodeStat] = field(default_factory=list)
+    icon_url: str | None = None   # CDN url from the scrape; UI pairs on its basename to a bundled webp
 
     @property
     def column_label(self) -> int:

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { debounce } from 'lodash-es'
 import { useBuildStore } from './buildStore'
-import { api, EMPTY_STAT_SHEET } from '../api/client'
+import { api } from '../api/client'
 import { buildEngineStatsPayload } from '../utils/statsPayload'
 
 export function useBuildCalculation() {
@@ -17,19 +17,8 @@ export function useBuildCalculation() {
 
       const version = s.buildVersion
 
-      const hasSource =
-        s.slots.some(Boolean) ||
-        s.slates.some(sl => sl.slots?.some(slot => slot.selectedNodeId !== null)) ||
-        s.gear.some(item => item.slot !== null) ||
-        // A main skill alone is enough to compute damage — don't gate offense on having a tree/gear.
-        s.mainSkill !== null ||
-        s.skills.length > 0
-
-      if (!hasSource) {
-        useBuildStore.getState().setComputedStats(EMPTY_STAT_SHEET, version)
-        return
-      }
-
+      // Always compute: the character base (Life/Mana/Energy/attributes by level) is present even with no
+      // gear/skill/tree, so the Stats screen shows all the default categories instead of a stub.
       useBuildStore.getState().setStatsLoading(true)
 
       try {

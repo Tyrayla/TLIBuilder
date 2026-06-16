@@ -106,6 +106,25 @@ class TestDecimate:
         assert off == pytest.approx(base_fs, rel=1e-6)  # focused_slash unaffected by BB's Decimate
         assert on_bb > base                              # BB itself is affected
 
+    def test_preseed_runs_off_slot(self):
+        # Berserking Blade in slot 2 (main skill is focused_slash in slot 1): its Decimate must STILL
+        # preseed enemy_low_life so slot 2's own offense gets the "vs Low Life" bonus. This guards the
+        # per-slot preseed dispatch (previously preseed ran only for the main skill).
+        def slot2_dps(supports):
+            r = engine_stats(EngineStatsRequest(
+                slots=[None, None, None, None], condition_state={"enemy_life_pct": 50},
+                gear=[_sword("weapon1"), _sword("weapon2"), self._VS_LL],
+                skills=[{"slot": 1, "skill_id": "focused_slash", "level": 14},
+                        {"slot": 2, "skill_id": "berserking_blade", "level": 14}],
+                main_skill={"skill_id": "focused_slash", "level": 14},
+                attached_supports=supports, characterLevel=100))
+            so = r.get("slot_offense") or {}
+            return (so.get(2) or so.get("2") or {}).get("total_dps")
+
+        on = slot2_dps([_sup("berserking_blade_decimate_noble", "noble_support_skill", slot=2)])
+        off = slot2_dps([])
+        assert on and off and on > off, f"off-slot Decimate preseed did not fire: {off} -> {on}"
+
 
 class TestSelfBuff:
     def test_skill_area_emitted_for_bb_only(self):

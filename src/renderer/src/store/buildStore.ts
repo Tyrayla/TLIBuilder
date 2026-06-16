@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { isEqual } from 'lodash-es'
 import type {
-  TreeSlot, SavedSlate, EquippedGearItem, EquippedSkill,
+  TreeSlot, SavedSlate, SlateTemplate, EquippedGearItem, EquippedSkill,
   CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput,
 } from '../api/client'
 import { EMPTY_STAT_SHEET } from '../api/client'
@@ -13,6 +13,7 @@ export interface LoadedBuild {
   activeSlot: number
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
+  slateInventory: SlateTemplate[]
   conditionState: Record<string, number | boolean>
   gear: EquippedGearItem[]
   skills: EquippedSkill[]
@@ -60,6 +61,7 @@ interface BuildStore {
   // Stats-relevant data fields
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
+  slateInventory: SlateTemplate[]
   conditionState: Record<string, number | boolean>
   gear: EquippedGearItem[]
   characterLevel: number
@@ -73,6 +75,7 @@ interface BuildStore {
   // Individual setters for stats-relevant fields (bump buildVersion)
   setSlots: (slots: (TreeSlot | null)[]) => void
   setSlates: (slates: SavedSlate[]) => void
+  setSlateInventory: (slateInventory: SlateTemplate[]) => void
   setConditionState: (state: Record<string, number | boolean>) => void
   setGear: (gear: EquippedGearItem[]) => void
   setCharacterLevel: (level: number) => void
@@ -127,6 +130,7 @@ const DEFAULT_BUILD: LoadedBuild = {
   activeSlot: 0,
   slots: [null, null, null, null],
   slates: [],
+  slateInventory: [],
   conditionState: {},
   gear: [],
   skills: [],
@@ -142,8 +146,14 @@ const DEFAULT_BUILD: LoadedBuild = {
 }
 
 function deriveMainSkill(skills: EquippedSkill[]): SkillEngineInput | null {
-  const slot1 = skills.find(sk => sk.slot === 1)
-  return slot1 ? { skill_id: slot1.item_id, level: slot1.level ?? 1 } : null
+  // The main skill drives the headline "DPS vs Target". Prefer slot 1, but fall back to the first
+  // populated ACTIVE slot (1-5) so a build with its damage skill parked outside slot 1 still has a main
+  // skill instead of a blank DPS. (Disabled skills are skipped.)
+  const actives = skills
+    .filter(sk => sk.slot <= 5 && sk.enabled !== false)
+    .sort((a, b) => a.slot - b.slot)
+  const main = actives.find(sk => sk.slot === 1) ?? actives[0]
+  return main ? { skill_id: main.item_id, level: main.level ?? 1 } : null
 }
 
 export const useBuildStore = create<BuildStore>((set) => ({
@@ -185,6 +195,8 @@ export const useBuildStore = create<BuildStore>((set) => ({
   // ── Stats-relevant individual setters ───────────────────────────────────────
   setSlots: (slots) => set((s) => ({ slots, buildVersion: s.buildVersion + 1 })),
   setSlates: (slates) => set((s) => ({ slates, buildVersion: s.buildVersion + 1 })),
+  // Inventory is display/library only (not engine-relevant) — bump version just to mark the build dirty.
+  setSlateInventory: (slateInventory) => set((s) => ({ slateInventory, buildVersion: s.buildVersion + 1 })),
   setConditionState: (conditionState) => set((s) => ({ conditionState, buildVersion: s.buildVersion + 1 })),
   setGear: (gear) => set((s) => ({ gear, buildVersion: s.buildVersion + 1 })),
   setCharacterLevel: (characterLevel) => set((s) => ({ characterLevel, buildVersion: s.buildVersion + 1 })),

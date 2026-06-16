@@ -20,6 +20,38 @@ html, body, #root {
   user-select: none;
 }
 
+/* Reserve space for the fixed title-bar strip. box-sizing:border-box keeps #root at 100%
+   height, so .screen (height:100%) fills the remaining area below the strip — no overflow. */
+#root { padding-top: 30px; }
+
+.titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  /* Match the general app background blue so the strip blends with the screens below it. */
+  background: var(--bg);
+  color: #cfd6e6;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  z-index: 10000;
+  -webkit-app-region: drag;
+}
+.titlebar-logo {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  -webkit-user-drag: none;
+}
+/* Anything interactive inside the strip would need this to stay clickable:
+   .titlebar :where(button, a, input) { -webkit-app-region: no-drag; } */
+
 .screen {
   height: 100%;
   display: flex;
@@ -122,6 +154,25 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   gap: 6px;
 }
 
+/* About / disclaimer modal (opened from the About button). */
+.about-modal-card { max-width: 560px; }
+.about-modal-body { padding: 0 20px 4px; max-height: 60vh; overflow-y: auto; }
+.about-section-title { font-size: 13px; font-weight: 700; color: #cfd6e6; margin: 14px 0 6px; }
+.about-modal-body p { font-size: 12.5px; line-height: 1.6; color: #a8a8b8; margin: 0 0 8px; }
+.about-contact { color: #c0c0d0; }
+/* Override the global user-select:none so the email / discord can be copied. */
+.about-contact span { user-select: text; cursor: text; color: #d8d8e6; }
+.about-links { display: flex; gap: 14px; margin-top: 6px; }
+.about-link-btn {
+  background: none;
+  border: none;
+  color: #7090e8;
+  cursor: pointer;
+  font-size: 12.5px;
+  padding: 0;
+}
+.about-link-btn:hover { text-decoration: underline; }
+
 .build-select-version {
   font-size: 11px;
   color: #444;
@@ -188,12 +239,45 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   min-height: 0;
 }
 
+.tree-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tree-overview-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 0;
+}
+.tree-overview-search .tree-search-input { width: 300px; font-size: 12px; padding: 5px 24px 5px 10px; }
+.tree-overview-search-status { font-size: 12px; color: #888; }
+
 .tree-grid {
   display: flex;
   flex: 1;
   gap: 12px;
   padding: 10px 14px;
   overflow: hidden;
+}
+
+/* Overview cross-tree search: matched trees glow gold + show a count badge; the rest dim. */
+.tree-card-search-hit { box-shadow: 0 0 0 1px #e9c046, 0 0 14px rgba(233,192,70,0.4); }
+.tree-card-search-miss { opacity: 0.3; }
+.tree-card-match-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #e9c046;
+  color: #1a1a2e;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 1px 7px;
+  z-index: 2;
 }
 
 .tree-group-col {
@@ -768,6 +852,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .core-talent-circle.has-selection { border-color: #c8a050; color: #c8a050; }
 .core-talent-circle.has-selection.open { border-color: #c8a050; background: #1a1500; color: #c8a050; }
 .core-talent-circle-progress { font-size: 15px; font-weight: 700; line-height: 1; }
+.core-talent-circle-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; pointer-events: none; -webkit-user-drag: none; }
 .core-talent-circle-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #666688; white-space: nowrap; text-align: center; }
 
 .core-talent-cards {
@@ -796,7 +881,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   transition: border-color 0.15s, background 0.15s;
 }
 .core-talent-card.selected { border-color: #6bcb77; background: #0c1a0e; }
-.core-talent-card-name { font-size: 13px; font-weight: 700; color: #d0d0e0; }
+.core-talent-card-name { font-size: 13px; font-weight: 700; color: #d0d0e0; display: flex; align-items: center; gap: 8px; }
+.core-talent-card-icon { width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; pointer-events: none; -webkit-user-drag: none; }
 .core-talent-card.selected .core-talent-card-name { color: #6bcb77; }
 .core-talent-card-desc { flex: 1; }
 .core-talent-card-desc p { font-size: 11px; color: #8888a0; line-height: 1.5; margin: 0 0 4px; }
@@ -827,6 +913,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .tooltip--node   { background: #0d1b2a; border-color: var(--accent); }
 .tooltip--node .tooltip-title { color: var(--accent); }
 .tooltip--gear   { min-width: 220px; max-width: 300px; }
+.tooltip--breakdown { max-width: 540px; overflow-y: auto; }
 .tooltip--skill  { max-width: 280px; }
 .tooltip--spirit { /* centered-above is handled by Floating UI placement now */ }
 .tooltip--stat   { width: 230px; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
@@ -911,6 +998,43 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 14px 20px;
 }
 
+/* ── Settings modal ───────────────────────────────────────────────────────── */
+
+.settings-modal-card { width: 480px; max-width: 90vw; }
+.settings-modal-body { padding: 4px 20px 8px; }
+.settings-section { margin-bottom: 18px; }
+.settings-section-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #cfd6e6; margin: 8px 0 8px; display: flex; align-items: center; gap: 8px;
+}
+.settings-soon {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #6a7390; background: #131c30; border: 1px solid #243049;
+  border-radius: 3px; padding: 1px 5px;
+}
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.05);
+}
+.settings-row:first-of-type { border-top: none; }
+.settings-row-disabled { opacity: 0.45; }
+.settings-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.settings-row-label > span:first-child { font-size: 13px; color: #e0e0e0; }
+.settings-row-hint { font-size: 11px; color: #8088a0; line-height: 1.4; }
+.settings-segmented { display: inline-flex; border: 1px solid #2a3650; border-radius: 5px; overflow: hidden; flex: none; }
+.settings-seg-btn {
+  background: #0e1626; color: #9aa4bd; border: none; padding: 6px 14px; font-size: 12px;
+  cursor: pointer; transition: background 0.12s, color 0.12s;
+}
+.settings-seg-btn + .settings-seg-btn { border-left: 1px solid #2a3650; }
+.settings-seg-btn:hover:not(:disabled):not(.active) { background: #14203a; color: #c8d0e4; }
+.settings-seg-btn.active { background: var(--accent); color: #fff; }
+.settings-seg-btn:disabled { cursor: default; }
+.settings-select {
+  background: #0e1626; color: #c8d0e4; border: 1px solid #2a3650; border-radius: 5px;
+  padding: 6px 10px; font-size: 12px;
+}
+
 /* ── Share / Import modals ────────────────────────────────────────────────── */
 
 .overview-share-btn {
@@ -985,7 +1109,9 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .app-layout {
   display: flex;
   width: 100%;
-  height: 100vh;
+  /* 100% (not 100vh) so it fills #root's content box below the fixed title strip; 100vh would
+     ignore the strip's reserved 30px and push the sidebar's bottom (Back to Builds) off-screen. */
+  height: 100%;
   overflow: hidden;
 }
 
@@ -1070,6 +1196,33 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
   letter-spacing: -0.5px;
+}
+/* Per-contributor breakdown under the total (name · dps, slot order). */
+.sidebar-dps-breakdown {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid #20204a;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar-dps-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10px;
+}
+.sidebar-dps-row-name {
+  color: #9a9ac0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-dps-row-val {
+  color: #cdb98a;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .sidebar-nav-btn {
@@ -1174,6 +1327,20 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .cond-grid::-webkit-scrollbar-track { background: transparent; }
 .cond-grid::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
 .cond-grid::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
+
+/* Dark scrollbar for the stats screen's main scroll container (replaces the OS-default light one). */
+.dark-scroll::-webkit-scrollbar { width: 10px; }
+.dark-scroll::-webkit-scrollbar-track { background: transparent; }
+.dark-scroll::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+.dark-scroll::-webkit-scrollbar-thumb:hover { background: #3a3a5a; background-clip: padding-box; }
+
+/* App-wide default dark scrollbars for ANY overflow container (component-specific rules above still win
+   via higher specificity). Replaces the OS-default light scrollbars everywhere. */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: #3a3a5a; background-clip: padding-box; }
+* { scrollbar-width: thin; scrollbar-color: #2a2a4a transparent; }
 
 .cond-masonry {
   columns: 230px;
@@ -3087,6 +3254,35 @@ span.gear-affix-label {
 
 .skill-search-clear:hover { color: #aaa; background: rgba(255,255,255,0.06); }
 
+/* Sort-order picker below the support search bar. */
+.skill-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #1e1e3a;
+  background: #0e0e1e;
+  flex-shrink: 0;
+}
+
+.skill-sort-label { color: #777; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+.skill-sort-select {
+  flex: 1;
+  background: #0a0a18;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: var(--fg);
+  font-size: 12px;
+  padding: 4px 8px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.skill-sort-select:focus { border-color: #5555aa; }
+.skill-sort-select option { background: #0e0e1e; color: var(--fg); }
+
 .skill-catalog-list {
   flex: 1;
   overflow-y: auto;
@@ -3095,6 +3291,20 @@ span.gear-affix-label {
   flex-direction: column;
   gap: 2px;
 }
+
+/* Dark-mode scrollbars for the skill/support scroll areas (matches the rest of the app). */
+.skill-catalog-list::-webkit-scrollbar,
+.skill-slots-scroll::-webkit-scrollbar,
+.skill-support-slots-section::-webkit-scrollbar { width: 8px; }
+.skill-catalog-list::-webkit-scrollbar-track,
+.skill-slots-scroll::-webkit-scrollbar-track,
+.skill-support-slots-section::-webkit-scrollbar-track { background: transparent; }
+.skill-catalog-list::-webkit-scrollbar-thumb,
+.skill-slots-scroll::-webkit-scrollbar-thumb,
+.skill-support-slots-section::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+.skill-catalog-list::-webkit-scrollbar-thumb:hover,
+.skill-slots-scroll::-webkit-scrollbar-thumb:hover,
+.skill-support-slots-section::-webkit-scrollbar-thumb:hover { background: #3a3a5a; background-clip: padding-box; }
 
 .skill-catalog-empty {
   color: #444;
@@ -3175,11 +3385,18 @@ span.gear-affix-label {
 
 .skill-detail-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 14px 16px 10px;
   flex-shrink: 0;
+}
+/* Action buttons + level control under the skill name — wraps so nothing is pushed off the panel. */
+.skill-detail-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 
 .skill-detail-name {
@@ -3363,6 +3580,21 @@ span.gear-affix-label {
 
 .trait-circle-name { font-size: 9px; line-height: 1.25; text-align: center; color: #9090b0; word-break: break-word; pointer-events: none; }
 .trait-circle.selected .trait-circle-name { color: #c0c0e0; }
+
+/* Icon-in-circle + name caption below (so the name never overlaps the art). */
+.trait-circle-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.trait-circle-img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
+.trait-circle-caption {
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  color: #9090b0;
+  max-width: 96px;
+  word-break: break-word;
+  pointer-events: none;
+}
+.trait-circle.selected + .trait-circle-caption { color: #c0c0e0; }
+.trait-circle.locked + .trait-circle-caption { opacity: 0.5; }
 
 .trait-circle-check {
   position: absolute;
@@ -4116,6 +4348,15 @@ span.gear-affix-label {
   border: 2.5px solid rgba(255,200,100,0.9);
   box-shadow: 0 0 10px rgba(255,180,80,0.45);
 }
+/* Node icon fills the ring (the colored border still conveys inner/mid/outer). */
+.pact-node-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
 
 /* Right panel: spirit selector (shown when a slot is active) */
 .pact-spirit-right-panel {
@@ -4182,14 +4423,34 @@ span.gear-affix-label {
 
 .pact-spirit-list-item {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 6px;
   background: rgba(255,255,255,0.03);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
+}
+.pact-spirit-portrait-wrap { display: flex; justify-content: center; margin-top: 10px; }
+.pact-spirit-portrait {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  border-radius: 8px;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.pact-spirit-list-main { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.pact-spirit-list-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
 }
 .pact-spirit-list-item:hover {
   background: rgba(255,255,255,0.07);

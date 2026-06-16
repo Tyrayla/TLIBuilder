@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
-import { HeroTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS } from '../api/client'
+import { HeroTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
+import { characterLevelFrom } from '../utils/conditions'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
@@ -163,12 +164,13 @@ function resolveMemoryEffect(sel: MemorySlotSelection): string {
   return mod.replace(/\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, val)
 }
 
-function getMemoryAffixLines(memory: CreatedHeroMemory): string[] {
-  const lines: string[] = []
-  if (memory.baseStat) lines.push(resolveMemoryEffect(memory.baseStat))
-  for (const fa of memory.fixedAffixes) { if (fa) lines.push(resolveMemoryEffect(fa)) }
-  for (const ra of memory.randomAffixes) { if (ra) lines.push(resolveMemoryEffect(ra)) }
-  return lines
+function getMemoryAffixLines(memory: CreatedHeroMemory): { text: string; tier: number }[] {
+  const out: { text: string; tier: number }[] = []
+  const add = (sel: MemorySlotSelection | null) => { if (sel) out.push({ text: resolveMemoryEffect(sel), tier: sel.tier ?? 0 }) }
+  add(memory.baseStat)
+  for (const fa of memory.fixedAffixes) add(fa)
+  for (const ra of memory.randomAffixes) add(ra)
+  return out
 }
 
 // ── Shared trait helpers ──────────────────────────────────────────────────────
@@ -221,26 +223,33 @@ function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
 // A trait circle (base or advanced) + its hover info tooltip. Hover-only — the tooltip shows
 // only while the icon itself is hovered (non-interactive, so moving onto the card dismisses
 // it), and clicking only selects the node (no pinning). Locked circles show no tooltip.
-function TraitCircle({ className, name, checked, locked, tipName, slotLevel, effects, moonEffects, onSelect }: {
-  className: string; name: string; checked: boolean; locked?: boolean
+function TraitCircle({ className, name, icon, checked, locked, tipName, slotLevel, effects, moonEffects, onSelect }: {
+  className: string; name: string; icon?: string | null; checked: boolean; locked?: boolean
   tipName: string; slotLevel: number; effects: string[]; moonEffects?: string[]
   onSelect?: () => void
 }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  // Icon fills the circle; the name sits as a caption below so it never overlaps the art. Falls back
+  // to the name inside the circle if an icon is missing.
+  const inner = (
+    <div className="trait-circle-inner">
+      {icon ? <img src={icon} className="trait-circle-img" alt="" /> : <span className="trait-circle-name">{name}</span>}
+    </div>
+  )
   if (locked) {
     return (
-      <div className={className}>
-        <div className="trait-circle-inner"><span className="trait-circle-name">{name}</span></div>
-        {checked && <span className="trait-circle-check">✓</span>}
+      <div className="trait-circle-wrap">
+        <div className={className}>{inner}{checked && <span className="trait-circle-check">✓</span>}</div>
+        <span className="trait-circle-caption">{name}</span>
       </div>
     )
   }
   return (
-    <>
+    <div className="trait-circle-wrap">
       <div {...tip.triggerProps} className={className} onClick={onSelect}>
-        <div className="trait-circle-inner"><span className="trait-circle-name">{name}</span></div>
-        {checked && <span className="trait-circle-check">✓</span>}
+        {inner}{checked && <span className="trait-circle-check">✓</span>}
       </div>
+      <span className="trait-circle-caption">{name}</span>
       {tip.open && (
         <FloatingPortal>
           <div className="trait-info-card" {...tip.floatingProps}>
@@ -248,7 +257,7 @@ function TraitCircle({ className, name, checked, locked, tipName, slotLevel, eff
           </div>
         </FloatingPortal>
       )}
-    </>
+    </div>
   )
 }
 
@@ -258,7 +267,7 @@ function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
 }) {
   const tip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const lines = memory ? getMemoryAffixLines(memory) : []
-  const lineStatuses = useTextModifierStatuses(lines.map(text => ({ text, source: 'memory' as const })))
+  const lineStatuses = useTextModifierStatuses(lines.map(l => ({ text: l.text, source: 'memory' as const })))
   // Contribution of this socketed memory: remove it and diff vs the current build.
   const delta = useDamageDelta(
     tip.open && memory
@@ -289,7 +298,13 @@ function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
             </div>
             {lines.length > 0 ? (
               <ul className="memory-info-lines">
-                {lines.map((line, i) => <li key={i}>{line}<ModifierBadge status={lineStatuses[i]} /></li>)}
+                {lines.map((line, i) => (
+                  <li key={i}>
+                    {line.text}
+                    {line.tier > 0 && <span style={{ fontSize: 10, color: '#888' }}> (T{line.tier})</span>}
+                    <ModifierBadge status={lineStatuses[i]} />
+                  </li>
+                ))}
               </ul>
             ) : (
               <div className="memory-info-empty">No affixes configured</div>
@@ -392,7 +407,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   const traitId = useBuildStore(s => s.traitId)
   const traitSlotLevels = useBuildStore(s => s.traitSlotLevels)
   const advancedTraitSelections = useBuildStore(s => s.advancedTraitSelections)
-  const characterLevel = useBuildStore(s => s.characterLevel)
+  // Trait-tier unlocks use the `level` condition (default 90) — the single character-level source.
+  const characterLevel = characterLevelFrom(useBuildStore(s => s.conditionState))
   const heroMemories = useBuildStore(s => s.heroMemories)
   const setTraitData = useBuildStore(s => s.setTraitData)
   const setHeroMemories = useBuildStore(s => s.setHeroMemories)
@@ -608,6 +624,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
               <TraitCircle
                 className="trait-circle selected trait-circle-base"
                 name={selectedTrait.variant_name}
+                icon={iconUrl('hero_trait', selectedTrait.icon_url)}
                 checked
                 tipName={selectedTrait.variant_name}
                 slotLevel={safeSlotLevels[SLOT_BASE]}
@@ -663,6 +680,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                             key={t.name}
                             className={`trait-circle${selected ? ' selected' : ''}${locked ? ' locked' : ''}`}
                             name={t.name}
+                            icon={iconUrl('hero_trait', t.icon_url)}
                             checked={selected}
                             locked={locked}
                             tipName={t.name}
@@ -684,6 +702,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                               key={t.name}
                               className={`trait-circle${selected ? ' selected' : ''}${locked ? ' locked' : ''}`}
                               name={t.name}
+                              icon={iconUrl('hero_trait', t.icon_url)}
                               checked={selected}
                               locked={locked}
                               tipName={t.name}

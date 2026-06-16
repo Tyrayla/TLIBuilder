@@ -1,6 +1,6 @@
 {
   "name": "tli-builder",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "TLI Builder - a build planner for Torchlight: Infinite",
   "author": "Tyrayla",
   "main": "./out/main/index.js",
@@ -63,9 +63,11 @@
     ],
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
+      "perMachine": false,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
     },
     "publish": {
       "provider": "github",

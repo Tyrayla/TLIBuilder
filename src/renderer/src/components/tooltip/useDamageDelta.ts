@@ -15,7 +15,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
-import type { StatEntry, StatSheetResponse, EquippedSupportSkill } from '../../api/client'
+import type { StatEntry, StatSheetResponse, EquippedSupportSkill, SkillItem } from '../../api/client'
 import { useBuildStore } from '../../store/buildStore'
 import { buildEngineStatsPayload, type BuildState } from '../../utils/statsPayload'
 
@@ -31,9 +31,17 @@ export type StateTransform = (s: BuildState) => BuildState
 export interface LabeledDelta { label: string; delta: DamageDelta }
 
 export interface DeltaRequest {
-  key: string                // cache key (combined with buildVersion)
+  key: string                // cache key (combined with buildVersion, unless `stable`)
   step?: StateTransform      // build WITH the hovered thing (default: current build)
   base?: StateTransform      // the alternative build (default: current build)
+  // When true, the result is cached in a version-INDEPENDENT cache keyed solely by `key`. The caller
+  // must make `key` capture every input the result depends on (e.g. a signature of the relevant build
+  // slice). Used for support-pick deltas, which are independent of the equipped support's roll/rank/tier
+  // so they must not recompute when those change. See SkillsScreen's pickBaseSig.
+  stable?: boolean
+  // Which skill slot's DPS to measure the delta on. Defaults to the headline (main) offense; set this to
+  // the focused slot so a support on a non-main slot diffs THAT slot's offense (slot_offense[slot]).
+  measureSlot?: number
 }
 
 const COMING_SOON: DamageDelta = { state: 'nyi', reason: 'coming soon' }
@@ -64,15 +72,38 @@ export function withNodePoints(s: BuildState, slotIdx: number, nodeId: string, p
   return { ...s, slots }
 }
 
-// Set/replace (or remove, when `support` is null) a support at `supportIndex` on the main skill
-// (slot 1). Exported so the skills screen can build support `step`/`base` transforms:
-//   pick  → step = withSupport(idx, hypothetical), base = current  → swap-in result
-//   tune  → step = current, base = withSupport(idx, null)          → +contribution
-export function withSupport(s: BuildState, supportIndex: number, support: EquippedSupportSkill | null): BuildState {
+// Set/replace (or remove, when `support` is null) a support at `supportIndex` on the skill in `slot`.
+// Exported so the skills screen can build support `step`/`base` transforms for ANY focused slot:
+//   pick  → step = withSupport(slot, idx, hypothetical), base = current  → swap-in result
+//   tune  → step = current, base = withSupport(slot, idx, null)          → +contribution
+// Swap the skill equipped in `slot` for `item` at `level` (or empty the slot when item is null), keeping the
+// slot's existing supports. Used by the passive-skill catalog to preview each candidate's DPS contribution:
+//   pick → step = withSkill(slot, candidate), base = current → swap-in result (measured on the MAIN skill,
+//   since a passive/aura buffs the whole build rather than dealing its own hit damage).
+export function withSkill(s: BuildState, slot: number, item: SkillItem | null, level: number): BuildState {
+  const others = s.skills.filter(sk => sk.slot !== slot)
+  if (!item) return { ...s, skills: others }
+  const existing = s.skills.find(sk => sk.slot === slot)
+  return {
+    ...s,
+    skills: [...others, {
+      ...existing,
+      slot,
+      item_id: item.item_id,
+      name: item.name,
+      level,
+      skill_tags: item.skill_tags,
+      description_lines: item.description_lines,
+      supports: existing?.supports ?? [],
+    }],
+  }
+}
+
+export function withSupport(s: BuildState, slot: number, supportIndex: number, support: EquippedSupportSkill | null): BuildState {
   return {
     ...s,
     skills: s.skills.map(sk => {
-      if (sk.slot !== 1) return sk
+      if (sk.slot !== slot) return sk
       const supports = (sk.supports ?? []).filter(x => x.support_index !== supportIndex)
       if (support) supports.push({ ...support, support_index: supportIndex })
       return { ...sk, supports }
@@ -80,8 +111,11 @@ export function withSupport(s: BuildState, supportIndex: number, support: Equipp
   }
 }
 
-function toStats(r: StatSheetResponse): Stats {
-  return { dps: r.offense?.total_dps_vs_target ?? null, supported: !!r.offense?.supported, stats: r.stats ?? {} }
+function toStats(r: StatSheetResponse, measureSlot?: number): Stats {
+  // Measure the headline offense by default; for a specific slot, diff that slot's per-slot offense so a
+  // change on a non-main skill registers (the headline only reflects the main slot).
+  const o = measureSlot != null ? (r.slot_offense?.[String(measureSlot)] ?? null) : (r.offense ?? null)
+  return { dps: o?.total_dps_vs_target ?? null, supported: !!o?.supported, stats: r.stats ?? {} }
 }
 
 // True if the change touched any damage-relevant stat (so a 0 DPS delta means "not modeled"
@@ -97,31 +131,39 @@ function changedTouchesDamage(a: StatMap, b: StatMap): boolean {
   return false
 }
 
-// The current build's stats, shared across all hovers at a given version (free when the store
-// result is current; otherwise computed fresh and deduped per version).
-let identityCache: { version: number; promise: Promise<Stats> } | null = null
-function identityStats(s: BuildState, version: number): Promise<Stats> {
+// The current build's RAW stats response, shared across all hovers at a given version (free when the
+// store result is current; otherwise computed fresh and deduped per version). Kept raw — not reduced to a
+// single dps — so each request can measure its own slot via toStats(measureSlot).
+let identityCache: { version: number; promise: Promise<StatSheetResponse> } | null = null
+function identityStats(s: BuildState, version: number): Promise<StatSheetResponse> {
   if (s.computedVersion === version && s.computedStats?.offense) {
-    return Promise.resolve(toStats(s.computedStats))
+    return Promise.resolve(s.computedStats)
   }
   if (identityCache && identityCache.version === version) return identityCache.promise
-  const promise = api.engineStats(buildEngineStatsPayload(s)).then(toStats)
+  const promise = api.engineStats(buildEngineStatsPayload(s))
   identityCache = { version, promise }
   return promise
 }
 
-function sideStats(transform: StateTransform | undefined, s: BuildState, version: number): Promise<Stats> {
+function sideStats(transform: StateTransform | undefined, s: BuildState, version: number): Promise<StatSheetResponse> {
   if (!transform) return identityStats(s, version)
-  return api.engineStats(buildEngineStatsPayload(transform(s))).then(toStats)
+  return api.engineStats(buildEngineStatsPayload(transform(s)))
 }
 
 // Memoized delta results per (version, request key) so re-hovering is instant.
 let resultCacheVersion = -1
 const resultCache = new Map<string, DamageDelta>()
 
-// Synchronous cache peek (only valid for the current version; stale entries are ignored so a
-// re-hover after a build edit recomputes instead of flashing the old number).
+// Version-INDEPENDENT cache for `stable` requests whose key fully captures their inputs (it survives
+// buildVersion bumps; correctness comes from the caller's signature-bearing key). Bounded LRU-ish.
+const stableCache = new Map<string, DamageDelta>()
+const STABLE_CACHE_CAP = 500
+
+// Synchronous cache peek. Stable keys (self-validating) win; otherwise the version-gated cache, whose
+// stale entries are ignored so a re-hover after a build edit recomputes instead of flashing old data.
 function peekCache(key: string, version: number): DamageDelta | null {
+  const stable = stableCache.get(key)
+  if (stable) return stable
   if (resultCacheVersion !== version) return null
   return resultCache.get(key) ?? null
 }
@@ -130,12 +172,15 @@ function peekCache(key: string, version: number): DamageDelta | null {
 // the shared identity recompute across every request at a given version.
 async function computeDelta(req: DeltaRequest, s: BuildState, version: number): Promise<DamageDelta> {
   if (resultCacheVersion !== version) { resultCache.clear(); resultCacheVersion = version }
-  const cached = resultCache.get(req.key)
+  const cache = req.stable ? stableCache : resultCache
+  const cached = cache.get(req.key)
   if (cached) return cached
-  const [step, base] = await Promise.all([
+  const [stepRaw, baseRaw] = await Promise.all([
     sideStats(req.step, s, version),
     sideStats(req.base, s, version),
   ])
+  const step = toStats(stepRaw, req.measureSlot)
+  const base = toStats(baseRaw, req.measureSlot)
   let result: DamageDelta
   if (!step.supported || step.dps == null || !base.supported || base.dps == null) {
     result = SKILL_NYI
@@ -148,7 +193,10 @@ async function computeDelta(req: DeltaRequest, s: BuildState, version: number): 
       result = { state: 'value', absolute, percent, direction: absolute > 0 ? 'gain' : 'loss' }
     }
   }
-  resultCache.set(req.key, result)
+  cache.set(req.key, result)
+  if (req.stable && stableCache.size > STABLE_CACHE_CAP) {
+    stableCache.delete(stableCache.keys().next().value as string)
+  }
   return result
 }
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui/react'
-import { api, getApiBase, TreeData, TreeNode, CoreTalentSlotOption } from '../api/client'
+import { api, getApiBase, iconUrl, TreeData, TreeNode, CoreTalentSlotOption } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 import { useBuildStore } from '../store/buildStore'
 import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, type ModifierStatus } from '../components/ModifierBadge'
@@ -12,12 +12,14 @@ import { useDamageDelta, withNodePoints } from '../components/tooltip/useDamageD
 const COLS = 7
 const ROWS = 5
 const COL_LABELS = [0, 3, 6, 9, 12, 15, 18]
-const VW = 700
-const VH = 500
+// Larger viewBox than the node size → more breathing room between columns/rows (the tree scales to fit
+// the canvas, so this widens the gaps and shrinks the nodes a touch rather than zooming in).
+const VW = 820
+const VH = 586
 const HEADER = 42
 const CELL_W = VW / COLS
 const CELL_H = (VH - HEADER) / ROWS
-const NODE_R = 28
+const NODE_R = 26
 
 function nodeX(col: number) { return col * CELL_W + CELL_W / 2 }
 function nodeY(row: number) { return HEADER + row * CELL_H + CELL_H / 2 }
@@ -36,6 +38,15 @@ function nextType(t: NodeTypeStr): NodeTypeStr {
   return NODE_TYPES[(i + 1) % NODE_TYPES.length]
 }
 function maxPointsFor(t: NodeTypeStr) { return t === 'Legendary Medium Talent' ? 1 : 3 }
+
+// Rarity ring colors keyed by node type — the node's own border (kept distinct from the allocation
+// progress arc rendered outside it).
+const RARITY_RING_COLOR: Record<string, string> = {
+  'Micro Talent': '#d0d0d0',
+  'Medium Talent': '#60a5fa',
+  'Legendary Medium Talent': '#e9c046',
+  default: '#d0d0d0',
+}
 
 function nodeColors(node: TreeNode, states: Record<string, number>, locked: boolean) {
   const pts = states[node.id] ?? 0
@@ -77,6 +88,13 @@ function TreeNodeG({
   // can desync from the store the engine prices against, yielding a 2-rank delta or a zeroed one
   // (bug-129 class).
   const maxPts = node.max_points
+  const full = pts >= node.max_points
+  const icon = iconUrl('talent_tree', node.icon_url)
+  // Rarity ring = the node border (white micro / blue medium / orange legendary). Always shown — even on
+  // locked nodes — so rarity reads at a glance; lock/allocation state comes from the dimmed icon + the
+  // absence of the outer progress arc instead. Allocation is a separate OUTER arc so the two never overlap.
+  const rarityColor = RARITY_RING_COLOR[node.node_type] ?? RARITY_RING_COLOR.default
+  const frac = node.max_points > 0 ? Math.min(1, pts / node.max_points) : 0
   const delta = useDamageDelta(
     tip.open ? {
       key: `node:${activeSlot}:${node.id}`,
@@ -100,25 +118,51 @@ function TreeNodeG({
         onContextMenu={e => { e.preventDefault(); onInteract(node, true) }}
       >
         {isSearching && isHit && (
-          <circle cx={cx} cy={cy} r={NODE_R + 6}
+          <circle cx={cx} cy={cy} r={NODE_R + 9}
             fill="rgba(233,192,70,0.12)"
             stroke="#e9c046"
             strokeWidth={2}
             style={{ pointerEvents: 'none' }}
           />
         )}
+        {/* Node body + rarity-colored border (white/blue/orange by type). */}
         <circle cx={cx} cy={cy} r={NODE_R}
-          fill={isLinkSrc ? '#2a4a2a' : colors.fill}
-          stroke={isLinkSrc ? '#6be946' : colors.stroke}
-          strokeWidth={isLinkSrc ? 3 : 2}
+          fill={isLinkSrc ? '#2a4a2a' : (locked ? '#191925' : '#0e1230')}
+          stroke={isLinkSrc ? '#6be946' : rarityColor}
+          strokeWidth={node.node_type === 'Legendary Medium Talent' ? 3 : 2.5}
         />
-        {(node.node_type === 'Medium Talent' || node.node_type === 'Legendary Medium Talent') && (
-          <circle cx={cx} cy={cy} r={NODE_R - 4}
-            fill="none"
-            stroke={node.node_type === 'Legendary Medium Talent' ? '#e9c046' : '#60a5fa'}
-            strokeWidth={1.5}
-            style={{ pointerEvents: 'none' }}
-          />
+        {icon && (
+          <>
+            <clipPath id={`nclip-${node.id}`}><circle cx={cx} cy={cy} r={NODE_R - 3} /></clipPath>
+            <image
+              href={icon}
+              x={cx - (NODE_R - 3)} y={cy - (NODE_R - 3)}
+              width={(NODE_R - 3) * 2} height={(NODE_R - 3) * 2}
+              clipPath={`url(#nclip-${node.id})`}
+              preserveAspectRatio="xMidYMid slice"
+              // Allocated nodes show the icon bright; locked/empty are dimmed so the tree reads at a glance.
+              opacity={locked ? 0.22 : full ? 0.95 : 0.5}
+              style={{ pointerEvents: 'none' }}
+            />
+          </>
+        )}
+        {/* Allocation = outer progress arc on its own radius, so it never overlaps the rarity border.
+            Faint full track + a red arc filled to pts/max (starts at 12 o'clock). */}
+        {!locked && (
+          <>
+            <circle cx={cx} cy={cy} r={NODE_R + 4}
+              fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={2.5}
+              style={{ pointerEvents: 'none' }}
+            />
+            {pts > 0 && (
+              <circle cx={cx} cy={cy} r={NODE_R + 4}
+                fill="none" stroke="#e94560" strokeWidth={2.5}
+                pathLength={1} strokeDasharray={`${frac} 1`} strokeLinecap="round"
+                transform={`rotate(-90 ${cx} ${cy})`}
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+          </>
         )}
         <text
           x={cx} y={cy + 4}
@@ -127,6 +171,10 @@ function TreeNodeG({
           fontSize={11}
           fontWeight="bold"
           fontFamily="Segoe UI"
+          // Dark outline keeps the count legible over the icon art behind it.
+          stroke={icon ? 'rgba(0,0,0,0.85)' : undefined}
+          strokeWidth={icon ? 2.5 : undefined}
+          paintOrder="stroke"
           style={{ pointerEvents: 'none' }}
         >
           {pts}/{node.max_points}
@@ -427,9 +475,9 @@ export default function TreeViewerScreen({
                 const selectedId = coreTalentSelections[slotIdx]
                 const isOpen = expandedSlot === slotIdx
                 const ptsToward = Math.min(total, slot.threshold)
-                const selectedTalentName = selectedId
-                  ? (slot.options.find(o => o.id === selectedId)?.name ?? null)
-                  : null
+                const selectedOpt = selectedId ? slot.options.find(o => o.id === selectedId) : null
+                const selectedTalentName = selectedOpt?.name ?? null
+                const selectedIcon = iconUrl('talent_tree', selectedOpt?.icon_url)
                 return (
                   <div key={slotIdx} className="core-talent-slot-item">
                     <button
@@ -438,9 +486,11 @@ export default function TreeViewerScreen({
                       onClick={() => setExpandedSlot(isOpen ? null : slotIdx)}
                       title={unlocked ? `Core Talent Slot ${slotIdx + 1} — click to expand` : `Locked — need ${slot.threshold} pts (click to preview)`}
                     >
-                      <span className="core-talent-circle-progress">
-                        {unlocked ? (selectedId ? '✓' : '?') : `${ptsToward}/${slot.threshold}`}
-                      </span>
+                      {selectedIcon
+                        ? <img src={selectedIcon} className="core-talent-circle-img" alt="" />
+                        : <span className="core-talent-circle-progress">
+                            {unlocked ? '?' : `${ptsToward}/${slot.threshold}`}
+                          </span>}
                     </button>
                     <span className="core-talent-circle-label">
                       {selectedTalentName ?? `Core Talent ${slotIdx + 1}`}
@@ -473,7 +523,12 @@ export default function TreeViewerScreen({
                         const selected = selectedId === opt.id
                         return (
                           <div key={opt.id} className={`core-talent-card${selected ? ' selected' : ''}${slotUnlocked ? '' : ' locked'}`}>
-                            <div className="core-talent-card-name">{opt.name}</div>
+                            <div className="core-talent-card-name">
+                              {iconUrl('talent_tree', opt.icon_url) && (
+                                <img src={iconUrl('talent_tree', opt.icon_url) ?? undefined} className="core-talent-card-icon" alt="" />
+                              )}
+                              <span>{opt.name}</span>
+                            </div>
                             <div className="core-talent-card-desc">
                               {opt.effects.map((e, i) => (
                                 <p key={i}>{e}<ModifierBadge status={coreEffectBadge(opt, i)} /></p>
@@ -688,8 +743,9 @@ export default function TreeViewerScreen({
                 return (
                   <line key={i}
                     x1={x1 + ox} y1={y1 + oy} x2={x2 - ox} y2={y2 - oy}
-                    stroke={isLinked ? '#e9c046' : '#3a3a5a'}
-                    strokeWidth={isLinked ? 2.5 : 2}
+                    stroke={isLinked ? '#e9c046' : '#6b78b8'}
+                    strokeWidth={isLinked ? 3.5 : 3}
+                    strokeLinecap="round"
                   />
                 )
               })}

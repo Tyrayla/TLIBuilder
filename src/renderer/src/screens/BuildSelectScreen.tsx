@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { api, Build } from '../api/client'
 import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
+import SettingsOverlay from '../components/SettingsOverlay'
 import logoSrc from '../assets/logo.png'
 
 interface Props {
@@ -24,6 +25,8 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   const [builds, setBuilds] = useState<Build[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [aboutOpen, setAboutOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [importCode, setImportCode] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
@@ -124,8 +127,9 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
     }
   }
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!window.confirm(`Delete "${name || 'this build'}"? This can't be undone.`)) return
     await api.deleteBuild(id)
     loadBuilds()
   }
@@ -170,7 +174,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               <div className="build-card-actions">
                 <button
                   className="btn btn-danger btn-sm"
-                  onClick={e => build.id && handleDelete(build.id, e)}
+                  onClick={e => build.id && handleDelete(build.id, build.name, e)}
                 >Delete</button>
               </div>
             </div>
@@ -195,12 +199,67 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
           </button>
           <button
             className="btn btn-sm btn-secondary"
-            onClick={() => window.api?.openExternal?.('https://github.com/Tyrayla/TLIBuilder')}
+            onClick={() => setSettingsOpen(true)}
+          >
+            ⚙ Settings
+          </button>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => setAboutOpen(true)}
           >
             About
           </button>
         </div>
       </div>
+
+      {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
+
+      {aboutOpen && (
+        <div className="modal-backdrop" onClick={() => setAboutOpen(false)}>
+          <div className="modal-card about-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-accent" />
+            <h3 className="modal-title">About TLI Builder{version ? ` · v${version}` : ''}</h3>
+            <div className="about-modal-body">
+              <h4 className="about-section-title">Disclaimer</h4>
+              <p>
+                <strong>TLI Builder is an unofficial, non-commercial fan-made project.</strong> It is not
+                affiliated with, endorsed by, sponsored by, or in any way officially connected to XD Inc. /
+                XD Games or any of their subsidiaries or affiliates.
+              </p>
+              <p>
+                <em>Torchlight: Infinite</em> and all related names, logos, characters, images, and assets
+                are trademarks and copyrights of their respective owners. They are used here solely for
+                identification and reference purposes.
+              </p>
+
+              <h4 className="about-section-title">Data &amp; Sources</h4>
+              <p>
+                Game data and icons used throughout TLI Builder — skills, gear, talent trees, pact spirits,
+                hero traits, and more — are sourced from <strong>TLIDB</strong>, the community Torchlight:
+                Infinite database, used with permission. Full credit and thanks go to the TLIDB team for
+                maintaining this resource. No ownership of any game assets is claimed.
+              </p>
+
+              <h4 className="about-section-title">Asset Removal &amp; Contact</h4>
+              <p>
+                If you are a rights holder (or an authorized representative) and would like any asset removed,
+                please reach out and it will be removed promptly:
+              </p>
+              <p className="about-contact">
+                Email: <span>Tyrayla@gmail.com</span><br />
+                Discord: <span>tyrayla</span>
+              </p>
+              <p className="about-links">
+                <button className="about-link-btn" onClick={() => window.api?.openExternal?.('https://tlidb.com')}>TLIDB</button>
+                <button className="about-link-btn" onClick={() => window.api?.openExternal?.('https://github.com/Tyrayla/TLIBuilder')}>GitHub</button>
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setAboutOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {importOpen && (
         <div className="modal-backdrop" onClick={() => setImportOpen(false)}>

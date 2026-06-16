@@ -26,11 +26,17 @@ from engine.core_talent_resolver import (
     _strip_max_div, _split_condition, _split_compound, _expand_shared_stats,
     _classify_effect, _MAX_DIV_RE, _BASE_EFFECT_RE,
 )
+from engine.affix_identity import affix_identity
 
 _NODE_ID_RE = re.compile(r"^(.+)_c\d+_r\d+$")
 
-# Slate copy mechanics (mirrors engine.aggregator): Moth copies one neighbour's bottom slot; Prairie all four.
-_COPY_SLATE_KINDS = frozenset({"spark_of_moth_fire", "when_sparks_set_prairie_ablaze"})
+# Slate copy mechanics. Moth/Prairie copy a neighbour's BOTTOM slot (Moth = one chosen direction, Prairie =
+# all four). Space Rift/Residence copy a neighbour's MEDIUM-talent slots (Space Rift = one chosen L/R
+# direction, incl. Legendary Medium; Residence = all four, Medium only — excludes Micro + Legendary Medium).
+_COPY_SLATE_KINDS = frozenset({"spark_of_moth_fire", "when_sparks_set_prairie_ablaze",
+                               "space_rift", "residence_of_stars"})
+_ONE_DIR_COPY = frozenset({"spark_of_moth_fire", "space_rift"})   # copy from the single mothDirection neighbour
+_MEDIUM_COPY = frozenset({"space_rift", "residence_of_stars"})    # copy Medium talents (vs the bottom slot)
 _MOTH_DELTAS = {"above": (-1, 0), "below": (1, 0), "left": (0, -1), "right": (0, 1)}
 
 
@@ -136,7 +142,9 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond):
         kept: list[str] = []
         for eff in node.get("effects") or []:
             if _MAX_DIV_RE.search(eff or ""):
-                key = re.sub(r"\s+", " ", _strip_max_div(eff).lower()).strip()
+                # Key by VALUE-STRIPPED identity so a "(Max Divinity Effect: 1)" effect counts once across
+                # slates even if two slates grant it at different rolled values (the effect is gained once).
+                key = affix_identity(_strip_max_div(eff))
                 if key in seen_maxdiv:
                     statuses.append({"node_id": node_id, "text": eff, "resolved": True, "kind": "deduped"})
                     continue
@@ -145,6 +153,11 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond):
         c, s = _resolve_node(node_id, kept, 1, label, "slate", parse_mod, translate_cond)
         contribs.extend(c)
         statuses.extend(s)
+
+    def _node_type(node_id: str) -> str:
+        tree = (season_trees or {}).get(_slug_from_node_id(node_id)) or {}
+        node = {n["id"]: n for n in tree.get("nodes", []) or []}.get(node_id)
+        return (node or {}).get("node_type", "")
 
     position_to_slate: dict[tuple, dict] = {}
     for sl in slates or []:
@@ -157,24 +170,45 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond):
             if nid:
                 _resolve_slate_node(nid, f"Slate · {nid}")
 
-        # Moth/Prairie: copy the bottom slot of adjacent (non-copy) slates.
-        if slate.get("kind", "base") not in _COPY_SLATE_KINDS:
+        kind = slate.get("kind", "base")
+        if kind not in _COPY_SLATE_KINDS:
             continue
-        ar, ac = slate.get("anchor", [0, 0])
-        if slate.get("kind") == "spark_of_moth_fire":
-            d = _MOTH_DELTAS.get(slate.get("mothDirection"), None)
-            checks = [(ar + d[0], ac + d[1])] if d else []
-        else:
-            checks = [(ar + dr, ac + dc) for dr, dc in _MOTH_DELTAS.values()]
-        for pos in checks:
-            adj = position_to_slate.get(pos)
-            if not adj or adj.get("kind", "base") in _COPY_SLATE_KINDS:
-                continue
-            adj_slots = adj.get("slots", []) or []
-            if not adj_slots:
-                continue
-            nid = adj_slots[-1].get("selectedNodeId")   # only the bottom slot is copied
-            if nid:
-                _resolve_slate_node(nid, f"Slate · Copy · {nid}")
+        # Footprint-based copy: look at every cell ADJACENT to any of this slate's own cells (one chosen
+        # direction for Moth/Space Rift, all four for Prairie/Residence) and copy each distinct neighbour
+        # slate once. Moth/Prairie copy its BOTTOM slot; Space Rift/Residence copy its MEDIUM talents
+        # (Space Rift incl. Legendary Medium; Residence Medium only).
+        dirs = ([_MOTH_DELTAS.get(slate.get("mothDirection"))] if kind in _ONE_DIR_COPY
+                else list(_MOTH_DELTAS.values()))
+        dirs = [d for d in dirs if d]
+        medium_copy = kind in _MEDIUM_COPY
+        medium_only = kind == "residence_of_stars"   # exclude Legendary Medium (and Micro)
+        copied_ids: set = set()
+        for cr, cc in (tuple(c) for c in slate.get("cells") or []):
+            for dr, dc in dirs:
+                adj = position_to_slate.get((cr + dr, cc + dc))
+                if not adj or adj.get("kind", "base") in _COPY_SLATE_KINDS:
+                    continue
+                aid = adj.get("id") or id(adj)
+                if aid in copied_ids:               # copy each neighbour slate once
+                    continue
+                copied_ids.add(aid)
+                adj_slots = adj.get("slots", []) or []
+                if not adj_slots:
+                    continue
+                if medium_copy:
+                    for slot in adj_slots:
+                        nid = slot.get("selectedNodeId")
+                        if not nid:
+                            continue
+                        nt = _node_type(nid)
+                        if "Medium Talent" not in nt:               # skip Micro Talents
+                            continue
+                        if medium_only and nt != "Medium Talent":   # Residence: skip Legendary Medium
+                            continue
+                        _resolve_slate_node(nid, f"Slate · Copy · {nid}")
+                else:
+                    nid = adj_slots[-1].get("selectedNodeId")       # Moth/Prairie: only the bottom slot
+                    if nid:
+                        _resolve_slate_node(nid, f"Slate · Copy · {nid}")
 
     return contribs, statuses

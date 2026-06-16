@@ -1,6 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
+import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
+import SettingsOverlay from './SettingsOverlay'
 import type { OffenseResult } from '../api/client'
 
 interface Props {
@@ -33,16 +35,38 @@ function fmtDps(n: number): string {
 function DpsBox({ onNav }: { onNav: (t: string) => void }) {
   const computedStats = useBuildStore(s => s.computedStats)
   const statsLoading  = useBuildStore(s => s.statsLoading)
-  // When multi-skill is supported, sum total_dps_vs_target across all active skill slots here.
-  const offense = (computedStats.offense ?? null) as OffenseResult | null
-  const hasDps  = offense !== null && offense.supported && offense.total_dps_vs_target > 0
+  const skills        = useBuildStore(s => s.skills)
+  const skillsById    = useReferenceStore(s => s.skillsById)
 
+  // Total DPS = sum of each contributing skill's own slot offense. A skill contributes when it's
+  // dps-eligible (dev flag), enabled, and toggled into Full DPS (countInDps). Listed in slot order.
+  const slotOffense = (computedStats as { slot_offense?: Record<string, OffenseResult> | null }).slot_offense ?? null
+  const contributors = [...skills]
+    .filter(sk => sk.enabled !== false && sk.countInDps !== false && !!skillsById?.[sk.item_id]?.dps_eligible)
+    .sort((a, b) => a.slot - b.slot)
+    .map(sk => ({ name: sk.name, dps: slotOffense?.[String(sk.slot)]?.total_dps_vs_target ?? 0 }))
+    .filter(c => c.dps > 0)
+  const total = contributors.reduce((s, c) => s + c.dps, 0)
+
+  // Keep showing the last computed total/rows while a recompute is in flight (computedStats holds the
+  // previous result until the new one lands) — only fall back to a placeholder when there's nothing yet.
+  // This avoids the box flashing "…"/empty on every edit.
   return (
-    <div className="sidebar-dps-box" onClick={() => onNav('calcs')} title="Click to open Calcs">
-      <div className="sidebar-dps-label">DPS vs Target</div>
+    <div className="sidebar-dps-box" onClick={() => onNav('stats')} title="Click to open Stats">
+      <div className="sidebar-dps-label">Full DPS</div>
       <div className="sidebar-dps-value">
-        {statsLoading ? '…' : hasDps ? fmtDps(offense!.total_dps_vs_target) : '—'}
+        {total > 0 ? fmtDps(total) : statsLoading ? '…' : '—'}
       </div>
+      {contributors.length > 0 && (
+        <div className="sidebar-dps-breakdown">
+          {contributors.map((c, i) => (
+            <div key={i} className="sidebar-dps-row">
+              <span className="sidebar-dps-row-name" title={c.name}>{c.name}</span>
+              <span className="sidebar-dps-row-val">{Math.round(c.dps).toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -51,6 +75,7 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
   const isTreeActive = screen === 'tree-selector' || screen === 'tree-viewer'
   const showModifierBadges = useUiPrefs(s => s.showModifierBadges)
   const toggleModifierBadges = useUiPrefs(s => s.toggleModifierBadges)
+  const [showSettings, setShowSettings] = useState(false)
 
   return (
     <div className="build-sidebar">
@@ -88,6 +113,7 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
 
       <NavBtn label="Import / Export" active={screen === 'import-export'} onClick={() => onNav('import-export')} />
       <NavBtn label="Notes" active={screen === 'notes'} onClick={() => onNav('notes')} />
+      <NavBtn label="⚙ Settings" active={false} onClick={() => setShowSettings(true)} />
 
       <div className="sidebar-spacer" />
 
@@ -97,6 +123,8 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
       </label>
 
       <button className="sidebar-nav-btn sidebar-back" onClick={onGoBack}>← Back to Builds</button>
+
+      {showSettings && <SettingsOverlay onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

@@ -92,7 +92,8 @@ export default function BuildOverviewScreen() {
                       return <NumericConditionRow
                         key={cond.key}
                         cond={cond}
-                        value={(conditionState[cond.key] as number) ?? 0}
+                        // Unset → the condition's own default (e.g. Character Level 90), not a bare 0.
+                        value={(conditionState[cond.key] as number) ?? cond.default_value ?? 0}
                         max={getNumericMax(cond)}
                         clamp={clampReport[cond.key]}
                         onChange={v => setNumeric(cond.key, v)}
@@ -144,11 +145,15 @@ interface NumericRowProps {
 
 function NumericConditionRow({ cond, value, max, clamp, onChange }: NumericRowProps) {
   const min = cond.numeric_min ?? 0
+  // The value an emptied field falls back to: the condition's own default (not a hardcoded 0).
+  const def = cond.default_value ?? min
   const [raw, setRaw] = useState(String(value))
 
   useEffect(() => { setRaw(String(value)) }, [value])
 
   const commit = (str: string) => {
+    // Cleared input → reset to the condition's default value, not the previous value or a hardcoded 0.
+    if (str.trim() === '') { onChange(def); setRaw(String(def)); return }
     const n = parseFloat(str)
     if (isNaN(n)) { setRaw(String(value)); return }
     const clamped = max !== null ? Math.min(Math.max(n, min), max) : Math.max(n, min)

@@ -1,0 +1,89 @@
+{
+  "available_levels": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "default_level": 20,
+  "gate_text": null,
+  "level_kind": "level",
+  "lines": [
+    {
+      "badge_text": "",
+      "kind": "scaling",
+      "text": "",
+      "values_by_level": {
+        "1": "Deals 1-19 Spell Lightning damage",
+        "10": "Deals 7-135 Spell Lightning damage",
+        "11": "Deals 9-174 Spell Lightning damage",
+        "12": "Deals 11-204 Spell Lightning damage",
+        "13": "Deals 13-246 Spell Lightning damage",
+        "14": "Deals 15-289 Spell Lightning damage",
+        "15": "Deals 18-343 Spell Lightning damage",
+        "16": "Deals 25-482 Spell Lightning damage",
+        "17": "Deals 30-568 Spell Lightning damage",
+        "18": "Deals 41-782 Spell Lightning damage",
+        "19": "Deals 61-1168 Spell Lightning damage",
+        "2": "Deals 1-21 Spell Lightning damage",
+        "20": "Deals 73-1393 Spell Lightning damage",
+        "3": "Deals 1-28 Spell Lightning damage",
+        "4": "Deals 2-39 Spell Lightning damage",
+        "5": "Deals 3-49 Spell Lightning damage",
+        "6": "Deals 3-60 Spell Lightning damage",
+        "7": "Deals 4-69 Spell Lightning damage",
+        "8": "Deals 5-86 Spell Lightning damage",
+        "9": "Deals 6-111 Spell Lightning damage"
+      }
+    },
+    {
+      "badge_text": "",
+      "kind": "scaling",
+      "text": "",
+      "values_by_level": {
+        "1": "Effectiveness of added damage: 136%",
+        "10": "Effectiveness of added damage: 136%",
+        "11": "Effectiveness of added damage: 136%",
+        "12": "Effectiveness of added damage: 136%",
+        "13": "Effectiveness of added damage: 136%",
+        "14": "Effectiveness of added damage: 136%",
+        "15": "Effectiveness of added damage: 136%",
+        "16": "Effectiveness of added damage: 136%",
+        "17": "Effectiveness of added damage: 136%",
+        "18": "Effectiveness of added damage: 136%",
+        "19": "Effectiveness of added damage: 136%",
+        "2": "Effectiveness of added damage: 136%",
+        "20": "Effectiveness of added damage: 136%",
+        "3": "Effectiveness of added damage: 136%",
+        "4": "Effectiveness of added damage: 136%",
+        "5": "Effectiveness of added damage: 136%",
+        "6": "Effectiveness of added damage: 136%",
+        "7": "Effectiveness of added damage: 136%",
+        "8": "Effectiveness of added damage: 136%",
+        "9": "Effectiveness of added damage: 136%"
+      }
+    },
+    {
+      "badge_text": "+2 Jumps for this skill",
+      "kind": "special",
+      "text": "+2 Jumps for this skill",
+      "values_by_level": null
+    }
+  ]
+}

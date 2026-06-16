@@ -49,6 +49,19 @@ def _flat_number(text: str) -> float | None:
     return _eval_token(m.group(0).replace(" ", "")) if m else None
 
 
+_RANGE_PCT = re.compile(r"\(?\s*([\d.]+)\s*[‐-―\-]\s*([\d.]+)\s*\)?\s*%")
+
+
+def _flat_dmg_value(text: str) -> list[float]:
+    """Value for a non-scaling damage line: the tier-MID of a '(a-b)%' range (matches the engine's
+    tier-midpoint convention, e.g. activation-medium ranges), else the first signed number."""
+    m = _RANGE_PCT.search(text)
+    if m:
+        return [(float(m.group(1)) + float(m.group(2))) / 2]
+    v = _flat_number(text)
+    return [v] if v is not None else []
+
+
 # ── Contributions ─────────────────────────────────────────────────────────────
 @dataclass
 class StatContribution:
@@ -74,12 +87,17 @@ _DMG_RULES: list[tuple[str, object, str]] = [
     (r"additional attack and cast speed for the supported", ("attack_speed_additional", "cast_speed_additional"), "pct"),
     (r"attack and cast speed for the supported", ("attack_speed_inc", "cast_speed_inc"), "pct"),
     (r"attack speed for the supported", "attack_speed_inc", "pct"),
+    (r"cast speed for the supported", "cast_speed_inc", "pct"),   # Psychic Burst (cast-speed only)
     (r"critical strike rating for the supported", "crit_rating_inc", "pct"),
     (r"(additional )?skill area for the supported", "skill_area_inc", "pct"),
     (r"additional projectile speed for the supported", "projectile_speed_additional", "pct"),
     (r"steep\s*strike\s*chance", "steep_strike_chance", "pct"),
-    # generic additional damage (LAST — only the bare line)
-    (r"^[+\-]?#% additional damage for the supported skill$", "dmg_additional", "pct"),
+    # generic additional damage (LAST — after all typed/conditional rules). The first allows a PREFIX
+    # but keeps the $ anchor so a trailing condition ("...when it lands a critical strike") still falls
+    # through to the conditional handler. The second is the bare line with no "for the supported" suffix
+    # (e.g. Activation Medium: Motionless), anchored both ends so it can't swallow typed/conditional lines.
+    (r"additional damage for the supported skill$", "dmg_additional", "pct"),
+    (r"^[+\-]?#\s*% additional damage$", "dmg_additional", "pct"),
 ]
 _DMG_COMPILED = [(re.compile(p), sk, vk) for p, sk, vk in _DMG_RULES]
 
@@ -87,11 +105,15 @@ _DMG_COMPILED = [(re.compile(p), sk, vk) for p, sk, vk in _DMG_RULES]
 def map_damage_line(line: SupportLine, level: int, cat: str | None = None) -> list[StatContribution]:
     """Emit stat contributions for a modeled damage/stat line; [] if no damage rule matches.
     `cat` is the supported skill's category ('spell'|'attack') for added-flat lines (not used yet)."""
+    # "up to +(N-M)%" ranged-cap lines are per-resource scaling (e.g. Lunar Eclipse's damage per Mana sealed),
+    # NOT flat additionals — skip so the generic "+N% additional damage" rule doesn't mis-read the rate as a
+    # flat bonus. Handled bespoke in engine.utility.apply_reservation.
+    if "up to" in line.template and "(" in line.template:
+        return []
     for rx, stat_keys, vk in _DMG_COMPILED:
         if not rx.search(line.template):
             continue
-        vals = _level_value(line, level) if line.scaling else (
-            [v] if (v := _flat_number(line.text)) is not None else [])
+        vals = _level_value(line, level) if line.scaling else _flat_dmg_value(line.text)
         if not vals:
             return []
         amt = vals[0] / 100.0 if vk == "pct" else vals[0]
@@ -121,6 +143,9 @@ def map_added_flat(line: SupportLine, level: int, cat: str) -> list[StatContribu
 # ── Capture rules: flat lines stored as inert stats (never dropped) ───────────
 # (regex on template, stat_key, value_kind). flag → amount 1.0; pct → ÷100; flat → raw count.
 _CAPTURE_RULES: list[tuple[str, str, str]] = [
+    # "+N Jumps for the supported skill" → extra_jumps_flat (consumed by jump-using skills' offense, e.g.
+    # Chain Lightning's Merge shotgun / Augmentation). NOT inert — it feeds DPS for those skills.
+    (r"jumps for the supported",                       "extra_jumps_flat", "flat"),
     (r"projectile quantity",                          "projectile_quantity_flat", "flat"),
     (r"shadow quantity",                              "max_shadow_quantity_flat", "flat"),
     (r"additional refractions|additional beams|beams for the supported", "extra_beams_flat", "flat"),
@@ -134,6 +159,17 @@ _CAPTURE_RULES: list[tuple[str, str, str]] = [
     (r"horizontal projectile penetration",            "horizontal_projectile_penetration_flat", "flat"),
     (r"demolisher charge restoration speed",          "demolisher_charge_speed_inc", "pct"),
     (r"aura effect for the supported",                "aura_effect_inc", "pct"),
+    # Sealed-mana reservation supports (slot-local; consumed by engine.utility.apply_reservation). The
+    # "additional" rule MUST precede the generic one (first match wins). Values may be negative (Seal
+    # Conversion's "-70% additional Sealed Mana Compensation"). seal_to_life = a flag toggling the host
+    # skill to seal Life instead of Mana ("Replaces Sealed Mana … with Sealed Life").
+    # \s* between words: the scraper glues word pairs inconsistently ("mana compensation" vs "manacompensation").
+    (r"additional\s*sealed\s*mana\s*compensation\s*for\s*the\s*supported", "sealed_mana_compensation_additional", "pct"),
+    (r"sealed\s*mana\s*compensation\s*for\s*the\s*supported", "sealed_mana_compensation_inc", "pct"),
+    (r"replaces\s*sealed\s*mana.*sealed\s*life",      "seal_to_life", "flag"),
+    # Lunar Eclipse: a support that IMPARTS a seal onto its host (even an active skill) + removes mana cost.
+    (r"seal\s*#\s*%\s*max\s*mana",                    "imparted_seal_mana_pct", "pct"),
+    (r"no\s*longer\s*costs\s*mana",                   "skill_no_mana_cost", "flag"),
     (r"wave interval",                                "wave_interval_inc", "pct"),
     (r"summonable minions|max .*minions for the supported", "extra_max_minions_flat", "flat"),
     (r"can(no|')t be interrupted",                    "es_uninterruptible", "flag"),
@@ -204,11 +240,15 @@ def map_conditional_line(line: SupportLine, level: int, conds: dict | None) -> l
         return [StatContribution("dmg_additional", base + per_stack * stacks, line.text)]
 
     if has(r"fervor\s*rating"):                              # Attack Focus — per-fervor (dmg or crit rating)
+        is_crit = has(r"critical\s*strike\s*rating")
+        # A fervor line with no damage/crit payload (e.g. the "Gains N Fervor Rating on hit" generation
+        # clause) is NOT a contribution — guard so it can't default to a bogus dmg_additional.
+        if not is_crit and not has(r"additional\s*damage"):
+            return []
         amt = base * (_cnum(conds, "fervor_rating") / _per_n(line.text))
         if amt == 0:
             return []
-        stat = "crit_rating_inc" if has(r"critical\s*strike\s*rating") else "dmg_additional"
-        return [StatContribution(stat, amt, line.text)]
+        return [StatContribution("crit_rating_inc" if is_crit else "dmg_additional", amt, line.text)]
 
     if has(r"stack\s*of\s*focus\s*blessing"):                # Overload — one additive bucket, capped
         amt = base * _cnum(conds, "focus_blessings")

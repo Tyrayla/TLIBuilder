@@ -489,6 +489,7 @@ class Stat(Enum):
     SKILL_COST_ADDITIONAL = "skill_cost_additional"
     SKILL_COST_REDUCTION = "skill_cost_reduction"    # legacy / talent-tree source
     SEALED_MANA_COMPENSATION_INC = "sealed_mana_compensation_inc"
+    SEALED_MANA_COMPENSATION_ADDITIONAL = "sealed_mana_compensation_additional"
 
     # ── Energy Shield ─────────────────────────────────────────────────────────
     MAX_ENERGY_SHIELD_FLAT = "max_energy_shield_flat"
@@ -593,6 +594,7 @@ class Stat(Enum):
     ELIXIR_EFFECT_ADDITIONAL = "elixir_effect_additional"
     ELIXIR_DURATION_ADDITIONAL = "elixir_duration_additional"
     AURA_EFFECT_INC = "aura_effect_inc"
+    AURA_EFFECT_ADDITIONAL = "aura_effect_additional"
     CURSE_EFFECT_INC = "curse_effect_inc"
     CURSE_SKILL_AREA_INC = "curse_skill_area_inc"
     MAX_CURSES_FLAT = "max_curses_flat"

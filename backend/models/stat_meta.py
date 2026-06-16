@@ -2114,6 +2114,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="mana",               stacking_rule="additive",
         ui_priority=40,                source_types=_TB,
     ),
+    Stat.SEALED_MANA_COMPENSATION_ADDITIONAL: StatMeta(
+        "Sealed Mana Compensation", "Mana", "additional", "%",
+        subgroup="mana",               stacking_rule="additive",
+        ui_priority=40,                source_types=_TB,
+    ),
 
     # ── Energy Shield ─────────────────────────────────────────────────────────
     Stat.MAX_ENERGY_SHIELD_FLAT: StatMeta(
@@ -2450,6 +2455,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.AURA_EFFECT_INC: StatMeta(
         "Aura Effect", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.AURA_EFFECT_ADDITIONAL: StatMeta(
+        "Aura Effect", "Buffs", "additional", "%",
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=70,                source_types=_T,
     ),
@@ -2985,8 +2995,9 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.COMBO_STARTER_CAST_SPEED_ADDITIONAL: StatMeta(
         "Combo Starter Cast Speed", "Cast Speed", "additional", "%",
-        subgroup="speed",              stacking_rule="additive",
-        ui_priority=40,                source_types=_T,
+        subgroup="speed",              tags=("combo",),
+        stacking_rule="additive",      ui_priority=40,
+        source_types=_T,
     ),
     Stat.COMBO_STARTERS_COMBO_POINTS_FLAT: StatMeta(
         "Combo Points Gained from Combo Starters", "Utility", "added_flat",

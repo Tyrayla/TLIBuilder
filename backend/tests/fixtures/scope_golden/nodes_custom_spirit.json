@@ -25,20 +25,25 @@
     "all_stats_inc",
     "armor",
     "armor_additional",
+    "armor_effective_rate_non_physical_inc",
     "armor_flat",
     "armor_gear_flat",
     "armor_gear_inc",
     "armor_inc",
     "armor_pen",
+    "attack_block_chance_inc",
     "attack_crit_rating_gear",
     "attack_crit_rating_mh",
     "attack_speed_gear",
     "attack_speed_mh",
+    "block_ratio_inc",
+    "cast_speed_additional",
     "cast_speed_inc",
     "cold_as_erosion",
     "cold_as_fire",
     "cold_convert_to_erosion",
     "cold_convert_to_fire",
+    "cold_dmg_additional",
     "cold_dmg_inc",
     "cold_infiltration_taken",
     "cold_pen",
@@ -56,13 +61,20 @@
     "dexterity_flat",
     "dexterity_inc",
     "dmg_additional",
+    "dmg_avoid_chance",
     "dmg_inc",
+    "dmg_max_additional",
+    "dmg_min_additional",
     "double_dmg_chance",
+    "elemental_dmg_additional",
     "elemental_dmg_inc",
     "elemental_pen",
     "elemental_resistance",
     "energy_shield_gear_flat",
     "energy_shield_gear_inc",
+    "energy_shield_per_sealed_life",
+    "energy_shield_per_sealed_mana",
+    "erosion_dmg_additional",
     "erosion_dmg_inc",
     "erosion_resistance",
     "erosion_resistance_max_inc",
@@ -77,12 +89,14 @@
     "ferv",
     "fire_as_erosion",
     "fire_convert_to_erosion",
+    "fire_dmg_additional",
     "fire_dmg_inc",
     "fire_resistance",
     "fire_resistance_max_inc",
     "fire_spell_dmg_flat_max",
     "fire_spell_dmg_flat_min",
     "frail_spell_taken",
+    "hit_dmg_additional",
     "intelligence",
     "intelligence_additional",
     "intelligence_flat",
@@ -94,6 +108,7 @@
     "lightning_convert_to_erosion",
     "lightning_convert_to_fire",
     "lightning_crit_dmg_inc",
+    "lightning_dmg_additional",
     "lightning_dmg_inc",
     "lightning_infiltration_taken",
     "lightning_pen",
@@ -132,13 +147,20 @@
     "physical_convert_to_erosion",
     "physical_convert_to_fire",
     "physical_convert_to_lightning",
+    "physical_dmg_additional",
     "physical_dmg_inc",
+    "physical_dmg_max_additional",
+    "physical_dmg_min_additional",
     "physical_spell_dmg_flat_max",
     "physical_spell_dmg_flat_min",
     "quadruple_dmg_chance",
+    "sealed_mana_compensation_additional",
+    "sealed_mana_compensation_inc",
+    "spell_block_chance_inc",
     "spell_crit_dmg_inc",
     "spell_crit_rating_flat",
     "spell_crit_rating_inc",
+    "spell_dmg_additional",
     "spell_dmg_inc",
     "spell_double_dmg_chance",
     "spell_skill_level",
@@ -155,9 +177,17 @@
     "armor_additional": 0,
     "armor_flat": 0,
     "armor_inc": 0,
+    "armor_nonphys_mitigation": 0.0,
+    "armor_phys_mitigation": 0.0,
+    "attack_block_chance": 0,
+    "attack_evade_chance": 0.0,
+    "block_ratio": 0,
     "cold_resist": 0.0,
+    "cold_resist_max": 60.0,
     "cold_resist_raw": 0.0,
+    "dmg_avoid_chance": 0,
     "erosion_resist": 0.0,
+    "erosion_resist_max": 60.0,
     "erosion_resist_raw": 0.0,
     "es_additional": 0,
     "es_flat": 0,
@@ -167,11 +197,15 @@
     "evasion_flat": 0,
     "evasion_inc": 0,
     "fire_resist": 0.0,
+    "fire_resist_max": 60.0,
     "fire_resist_raw": 0.0,
+    "insufficient_life": false,
+    "insufficient_mana": false,
     "life_additional": 0,
     "life_flat": 0,
     "life_inc": 0.27,
     "lightning_resist": 0.0,
+    "lightning_resist_max": 60.0,
     "lightning_resist_raw": 0.0,
     "mana_additional": 0,
     "mana_flat": 0,
@@ -181,11 +215,26 @@
     "max_mana": 0.0,
     "nyi": [
       "Effective HP"
-    ]
+    ],
+    "sealed_life": 0.0,
+    "sealed_mana": 0.0,
+    "sealed_mana_compensation": 0,
+    "spell_block_chance": 0,
+    "spell_evade_chance": 0.0,
+    "unsealed_life": 0.0,
+    "unsealed_mana": 0.0
   },
   "offense": {
     "above_max_mult": 1.0,
     "attacks_per_second": 1.923076923076923,
+    "base_cast_time": 0.65,
+    "base_csr": 500.0,
+    "base_dmg_max": {
+      "lightning": 289.0
+    },
+    "base_dmg_min": {
+      "lightning": 15.0
+    },
     "cast_multiplier": 1.0,
     "crit_chance": 0.05,
     "crit_multiplier": 1.75,
@@ -282,6 +331,7 @@
           "amount": 0.1,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+10 % Affliction Effect"
         }
@@ -297,6 +347,7 @@
           "amount": 0.3,
           "label": "Custom Config",
           "points": 1,
+          "source_name": null,
           "source_type": "custom",
           "text": "+30 % Attack Damage"
         }
@@ -312,6 +363,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c1_r1",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Attack Speed |node|assassin_c1_r1"
         },
@@ -319,6 +371,7 @@
           "amount": 0.16,
           "label": "Agility Blessing",
           "points": 1,
+          "source_name": null,
           "source_type": "condition",
           "text": "+4% Attack Speed per Agility Blessing"
         }
@@ -334,6 +387,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c1_r1",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Cast Speed |node|assassin_c1_r1"
         },
@@ -341,6 +395,7 @@
           "amount": 0.16,
           "label": "Agility Blessing",
           "points": 1,
+          "source_name": null,
           "source_type": "condition",
           "text": "+4% Cast Speed per Agility Blessing"
         }
@@ -356,6 +411,7 @@
           "amount": 0.25,
           "label": "Custom Config",
           "points": 1,
+          "source_name": null,
           "source_type": "custom",
           "text": "+25 % increased Critical Strike Damage"
         }
@@ -371,6 +427,7 @@
           "amount": 0.015,
           "label": "Pact Spirit",
           "points": 1,
+          "source_name": null,
           "source_type": "pact_spirit",
           "text": "+1.5 % Curse Effect"
         }
@@ -386,6 +443,7 @@
           "amount": 0.2,
           "label": "Focus Blessing",
           "points": 1,
+          "source_name": null,
           "source_type": "condition",
           "text": "+5% additional damage per Focus Blessing"
         },
@@ -393,6 +451,7 @@
           "amount": 0.08,
           "label": "Agility Blessing",
           "points": 1,
+          "source_name": null,
           "source_type": "condition",
           "text": "+2% additional damage per Agility Blessing"
         }
@@ -408,6 +467,7 @@
           "amount": 0.5,
           "label": "Custom Config",
           "points": 1,
+          "source_name": null,
           "source_type": "custom",
           "text": "Converts 50 % of Lightning Damage to Cold Damage"
         }
@@ -423,6 +483,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c0_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Max Energy Shield |node|assassin_c0_r2"
         },
@@ -430,6 +491,7 @@
           "amount": 0.18,
           "label": "Assassin \u00b7 assassin_c1_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+6 % Max Energy Shield |node|assassin_c1_r2"
         }
@@ -445,6 +507,7 @@
           "amount": 0.09,
           "label": "Assassin \u00b7 assassin_c0_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+3 % Max Life |node|assassin_c0_r2"
         },
@@ -452,11 +515,19 @@
           "amount": 0.18,
           "label": "Assassin \u00b7 assassin_c1_r2",
           "points": 1,
+          "source_name": null,
           "source_type": "talent",
           "text": "+6 % Max Life |node|assassin_c1_r2"
         }
       ],
       "total": 0.27,
+      "unit": "%"
+    },
+    "movement_speed": {
+      "category": "Character",
+      "display_name": "Movement Speed",
+      "sources": [],
+      "total": 0.0,
       "unit": "%"
     },
     "numbed_lightning_taken": {
@@ -467,6 +538,7 @@
           "amount": 0.5,
           "label": "Numbed Stacks",
           "points": 1,
+          "source_name": null,
           "source_type": "condition",
           "text": "+5% Lightning Damage taken per Numbed stack"
         }

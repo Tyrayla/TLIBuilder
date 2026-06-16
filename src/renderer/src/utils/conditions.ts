@@ -13,6 +13,13 @@ export function migrateOldConditions(
 }
 
 // Builds the default conditionState from condition definitions.
+// Character level is now driven solely by the `level` condition (no separate skills-screen control).
+// Defaults to 90 when unset (e.g. older builds whose conditionState predates the condition).
+export function characterLevelFrom(conditionState: Record<string, number | boolean>): number {
+  const v = conditionState?.['level']
+  return typeof v === 'number' && v > 0 ? Math.round(v) : 90
+}
+
 export function buildDefaultConditionState(
   defs: ConditionDef[],
 ): Record<string, number | boolean> {

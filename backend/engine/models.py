@@ -23,6 +23,11 @@ class SourceEntry:
     # NOTE: `slot` is deliberately NOT read by compute.py's stat_map (it reads source_type/label/text/
     # amount/points only), so adding it leaves character-stat output byte-identical.
     slot:         int | None = None
+    # Human display NAME of the originating thing (item name, pact-spirit name, hero-memory name, support
+    # name). Distinct from `label` (the type+context, e.g. "Gear · Chest") and `text` (the affix-pooling
+    # identity). Drives the stat-breakdown "Source Name" column + its hover tooltip. None for sources whose
+    # name the UI derives itself (talent → tree name from the label) or that have none (custom/character).
+    source_name:  str | None = None
 
 
 @dataclass
@@ -183,6 +188,10 @@ class BuildInput:
     # Pre-resolved talent-tree NODE + SLATE contributions (unified resolver, server.resolve_nodes). Same
     # shape as core_talent_contributions; amounts pre-scaled by points; conditionals gated via condition_expr.
     node_contributions: list[dict] = field(default_factory=list)
+    # Parsed-but-UNSCALED aura/Focus buffs (server.aura_resolver) + per-aura meta. engine.utility scales them by
+    # the fully-aggregated Aura Effect inside the compute loop and folds them in as source_type "aura".
+    aura_buffs: list[dict] = field(default_factory=list)
+    aura_meta: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -197,3 +206,6 @@ class StatResult:
     consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
+    blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
+    aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
+    reservation:         dict | None = None         # mana/life sealing: totals + per-skill seal breakdowns
