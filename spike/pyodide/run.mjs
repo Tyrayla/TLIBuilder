@@ -58,6 +58,13 @@ os.environ['TLI_DEV_MODE'] = '0'
 # Phase 2a is in: the compute-path file reads now specify encoding='utf-8' and the one cp1252 data file was
 # converted to utf-8, so the engine loads in WASM with NO encoding workaround.
 import server
+# Pyodide has no threads, but FastAPI runs sync (def) endpoints via run_in_threadpool. Patch it to run inline
+# (single-threaded WASM makes this correct) so the ASGI app can dispatch all routes.
+import fastapi.routing, starlette.concurrency
+async def _inline_threadpool(func, *a, **k):
+    return func(*a, **k)
+starlette.concurrency.run_in_threadpool = _inline_threadpool
+fastapi.routing.run_in_threadpool = _inline_threadpool
 # The worker sets the active season explicitly (it knows it from the CDN manifest) rather than relying on a
 # pointer file in the bundle — multi-season-safe.
 server.season_manager.set_active_season('SS12')
@@ -91,6 +98,22 @@ def make_req(slots):
 
 def run_once(req_dict):
     return server.engine_stats(server.EngineStatsRequest(**req_dict))
+
+# General in-browser backend: call the FastAPI ASGI app directly (no per-endpoint mapping).
+async def _api(method, path, body_text=''):
+    p, _, qs = path.partition('?')
+    scope = {'type':'http','http_version':'1.1','method':method,'path':p,'raw_path':p.encode(),
+             'query_string':qs.encode(),'headers':[(b'content-type',b'application/json')],
+             'scheme':'http','server':('localhost',80),'client':('127.0.0.1',0),'root_path':'',
+             'asgi':{'version':'3.0','spec_version':'2.3'}}
+    body = (body_text or '').encode()
+    async def receive(): return {'type':'http.request','body':body,'more_body':False}
+    state = {'status':500,'chunks':[]}
+    async def send(m):
+        if m['type']=='http.response.start': state['status']=m['status']
+        elif m['type']=='http.response.body': state['chunks'].append(bytes(m.get('body',b'')))
+    await server.app(scope, receive, send)
+    return json.dumps({'status':state['status'],'body':b''.join(state['chunks']).decode('utf-8')})
 
 global LIGHT_REQ, HEAVY_REQ
 LIGHT_REQ = make_req([None,None,None,None])
@@ -153,6 +176,14 @@ print('heavy: nodes=%d slates=%d gear=%d spirits=%d memories=%d' % (
     t.sort((a, b) => a - b)
     return { min: t[0], median: t[Math.floor(N / 2)], max: t[N - 1] }
   }
+  // Verify the general ASGI dispatch (the path the worker will use for non-catalog endpoints).
+  for (const p of ['/api/trees', '/api/tree-search?q=damage']) {
+    const r = JSON.parse(await py.runPythonAsync(`await _api('GET', ${JSON.stringify(p)})`))
+    console.log(`ASGI GET ${p} -> status ${r.status}, body ${r.body.length} bytes`)
+  }
+  const rp = JSON.parse(await py.runPythonAsync(`await _api('POST', '/api/resolve-mod', ${JSON.stringify(JSON.stringify({ text: '+10% increased damage' }))})`))
+  console.log(`ASGI POST /api/resolve-mod -> status ${rp.status}, body: ${rp.body.slice(0, 80)}`)
+
   const light = await measure(`run_once(LIGHT_REQ)`)
   const heavy = await measure(`run_once(HEAVY_REQ)`)
   const f = (x) => x.toFixed(0)

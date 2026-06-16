@@ -9,7 +9,9 @@ export function getApiBase(): string { return BASE }
 // Layout: <BASE>/manifest.json -> {season}; <BASE>/<season>/<name>.json per catalog.
 const STATIC_DATA_BASE: string = (import.meta.env?.VITE_STATIC_DATA_BASE as string | undefined) || ''
 let staticSeason = ''
-let webCompute = false   // web build: run engine_stats in the Pyodide worker instead of the Python backend
+let webCompute = false   // web build: dispatch backend calls through the Pyodide worker instead of HTTP/IPC
+type WebApi = typeof import('../web/pyodideCompute')
+let webApi: WebApi | null = null   // loaded once in initApi (web only) so get/post can call it synchronously
 // API path -> static filename (the 10 reference catalogs the app loads once at startup).
 const STATIC_CATALOGS: Record<string, string> = {
   '/skills': 'skills',
@@ -73,9 +75,9 @@ export async function initApi(): Promise<void> {
       // engineStats awaits readiness on first use.
       if (!window.api?.apiRequest && staticSeason) {
         webCompute = true
-        import('../web/pyodideCompute')
-          .then(m2 => m2.initPyodideCompute(STATIC_DATA_BASE, staticSeason))
-          .catch(e => rerr(`initApi — pyodide compute init failed: ${e}`))
+        webApi = await import('../web/pyodideCompute')
+        webApi.initPyodideCompute(STATIC_DATA_BASE, staticSeason)
+          .catch(e => rerr(`initApi — pyodide backend init failed: ${e}`))
       }
     } catch (e) {
       rerr(`initApi — failed to load static manifest from ${STATIC_DATA_BASE}: ${e}`)
@@ -118,6 +120,7 @@ async function get<T>(path: string, retries = 4): Promise<T> {
     if (!res.ok) throw new Error(`GET ${staticUrl} → ${res.status}`)
     return res.json()
   }
+  if (webCompute && webApi) return webApi.webApiRequest<T>('GET', `/api${path}`)
   if (ipcMode) {
     rlog(`GET (IPC) ${path}`)
     const result = await window.api!.apiRequest('GET', path) as { ok: boolean; status: number; data: T }
@@ -145,6 +148,7 @@ async function get<T>(path: string, retries = 4): Promise<T> {
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
+  if (webCompute && webApi) return webApi.webApiRequest<T>('POST', `/api${path}`, body)
   if (ipcMode) {
     rlog(`POST (IPC) ${path}`)
     const result = await window.api!.apiRequest('POST', path, body) as { ok: boolean; status: number; data: T }
@@ -165,6 +169,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
+  if (webCompute && webApi) return webApi.webApiRequest<T>('PUT', `/api${path}`, body)
   if (ipcMode) {
     rlog(`PUT (IPC) ${path}`)
     const result = await window.api!.apiRequest('PUT', path, body) as { ok: boolean; status: number; data: T }
@@ -185,6 +190,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del<T>(path: string, body?: unknown): Promise<T> {
+  if (webCompute && webApi) return webApi.webApiRequest<T>('DELETE', `/api${path}`, body)
   if (ipcMode) {
     rlog(`DELETE (IPC) ${path}`)
     const result = await window.api!.apiRequest('DELETE', path, body) as { ok: boolean; status: number; data: T }
@@ -1789,15 +1795,7 @@ export const api = {
     skills?: SkillSlotInput[]
     custom_mods?: string[]
     attached_supports?: AttachedSupportInput[]
-  }): Promise<StatSheetResponse> => {
-    if (webCompute) {
-      // Web: compute in the Pyodide worker (same engine, same response shape) instead of the backend.
-      return import('../web/pyodideCompute')
-        .then(m => m.computeStats(JSON.stringify(payload)))
-        .then(json => JSON.parse(json) as StatSheetResponse)
-    }
-    return post<StatSheetResponse>('/engine/stats', payload)
-  },
+  }): Promise<StatSheetResponse> => post<StatSheetResponse>('/engine/stats', payload),
 
   resolveMod: (text: string) =>
     post<ResolveModResponse>('/resolve-mod', { text }),
