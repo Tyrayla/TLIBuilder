@@ -83,9 +83,10 @@ def _progression_keys(skill_data: dict) -> dict[str, dict[int, str]]:
 
 _FLAT_SPLIT = re.compile(
     # split before a LEADING signed number (one followed by a word — a new modifier, not a trailing value),
-    # but NOT when it directly follows "...skill" — there the "+N% X" is that clause's value, not a new
-    # modifier (e.g. "...the supported skill +3% Critical Strike Rating"), which a split would orphan.
-    r"(?<=\.)\s+|(?<!skill)\s+(?=[+\-]\d[\d.,]*\s*%?\s+[A-Za-z])"
+    # but NOT when it directly follows "...skill" or "...grant" — there the "+N% X" is that clause's value,
+    # not a new modifier (e.g. "...the supported skill +3% Critical Strike Rating", or "Buffs grant +15%
+    # additional Lightning Damage..."), which a split would orphan.
+    r"(?<=\.)\s+|(?<!skill)(?<!grant)\s+(?=[+\-]\d[\d.,]*\s*%?\s+[A-Za-z])"
     r"|\s+(?=Inflicts\b)|\s+(?=Buffs?\b)|\s+(?=When\b)|\s+(?=While\b)|\s+(?=Stacks?\b)"
     r"|\s+(?=The\s+supported\s+skill\b)|\s+(?=Supported\s+skills?\b)|\s+(?=Always\b)"
     r"|\s+(?=Triggers\b)|\s+(?=Automatically\b)|\s+(?=Prepares\b)|\s+(?=Gains\b)"

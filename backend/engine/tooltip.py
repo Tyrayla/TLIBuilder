@@ -49,6 +49,11 @@ def _kind_for(text: str) -> str:
     return "special" if re.search(r"\d", text or "") else "flavor"
 
 
+# Buff trigger/duration clauses describe WHEN/how long a granted buff applies — they're mechanics, not
+# stat modifiers, so they get no coverage badge (the buff's actual stat line, "Buffs grant +X% …", does).
+_BUFF_FLAVOR_RE = re.compile(r"gains? a buff|the buff lasts|^buffs? last", re.I)
+
+
 def _line(kind: str, badge_text: str, text: str = "", values_by_level: dict | None = None) -> dict:
     return {"kind": kind, "badge_text": badge_text, "text": text,
             "values_by_level": values_by_level}
@@ -189,7 +194,9 @@ def _lines_standard_support(skill_data: dict) -> list[dict]:
             vbl = {lvl: _render_scaled(base, _level_value(ln, lvl)) for lvl in sorted(ln.tier_values)}
             out.append(_line("scaling", base, values_by_level=vbl))
         else:
-            out.append(_line(_kind_for(base), base, text=base))
+            # Buff trigger/duration clauses are flavor (no badge_text → no coverage badge).
+            badge = "" if _BUFF_FLAVOR_RE.search(base) else base
+            out.append(_line(_kind_for(base), badge, text=base))
     return out
 
 

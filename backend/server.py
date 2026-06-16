@@ -2838,6 +2838,11 @@ def _resolve_skill_line_keys(text: str) -> list[str]:
     from engine.support_lines import SupportLine, _template
     from engine.support_mapper import map_line, _ADDED_FLAT_RE
     from engine.node_resolver import resolve_effect_text_keys
+    # Buff-grant lines ("Buffs grant +X% … to this skill") describe a granted buff the engine applies as a
+    # normal supported-skill modifier (e.g. Electric Overload's on-crit +15% Lightning). Normalize the wording
+    # so the line resolves like the direct "+X% … for the supported skill" form instead of badging NYI.
+    text = re.sub(r'^\s*buffs?\s+grants?\s+', '', text, flags=re.I)
+    text = re.sub(r'\bto (?:this|the supported) skill\b', 'for the supported skill', text, flags=re.I)
     tmpl = _template(text)
     # "adds X-Y <type> Damage" added-flat line → per-cat flat stats. Return BOTH cats so the badge
     # matches whichever the supported skill uses (classifyKeys checks .some()).
