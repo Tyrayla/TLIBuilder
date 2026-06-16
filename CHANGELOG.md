@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.5.2] - 2026-06-16
+
+### Mana / Life sealing & reservation
+- Auras, Focus, and Spirit Magus skills now **seal Mana / Life** when active. Full reservation math: base seal × support Mana Multipliers ÷ ((1 + Σ increased) × (1 + Σ additional)) Sealed Mana Compensation — with increased and additional tracked as separate multiplicative pools.
+- **Seal Conversion** routes a seal onto Life (off Max Life) with its compensation penalty; **Off the Beaten Track** (95% support multiplier + support levels); **Ward** (Energy Shield from sealed pools); **Lunar Eclipse** (imparted seal + damage per Mana sealed).
+- Player Stats shows **Sealed / Unsealed (Available) Life and Mana** with insufficient-pool warnings and clickable per-skill reservation breakdowns. Sealed + Unsealed always sum to Max and round against the player to match in-game; Energy Shield is truncated to match.
+- Socketing rules: a base aura/support and its **Precise** variant are now mutually exclusive, and the same support can't be socketed twice on one skill.
+
+### Auras & Focus as build buffs
+- Equipped, enabled **Aura and Focus** skills now grant their buffs to the build, scaled by Aura Effect, flowing into the same stat pools offense and defense read. Per-aura buff breakdowns surface any not-yet-modeled lines.
+
+### Updates & Settings
+- **One-click silent updates** — no installer wizard, folder picker, or UAC prompt. After Download, "Restart & Install" relaunches straight onto the new version (a dirty build still prompts to save first).
+- New **Settings overlay** (gear button in the sidebar and the build list) with a **Stable / Nightly** release-channel toggle, so you can opt into frequent nightly patches.
+- Deleting a build now asks for confirmation first.
+
+### Skills & supports
+- Full **skill-data reimport** from the recrawl: deduplicated lines, detailed level-aware descriptions, and seal amounts.
+- Rebuilt skill/support tooltips with structured, level-aware lines; a support **sort dropdown**; passive-skill DPS-delta sorting and a catalog **refresh button**.
+- Supports and offense are computed **per skill slot** (no cross-slot contamination), with a Full-DPS sidebar and per-skill contribution toggles.
+- Fixed Attack Focus phantom damage and mapped additional support lines.
+
+### Talent tree, slates & stats
+- **Bundled game icons** for talents, hero traits, pact spirits, and core talents; cross-tree **node search** on the overview.
+- **Slate Board** rework: saved-slate inventory, floating tooltips, live editing, unified divinity-slate art, and affix tiers.
+- **Stats screen v2**: three-column category layout, real source names, per-weapon sources, and crit shown as a tooltip.
+- Character level is now driven by the level condition (default 90).
+
+### Quality of life
+- Custom title bar with logo and a dark window frame.
+- Clearing a conditional's value resets it to its default; brighter, roomier talent tree.
+
+---
+
+## [0.5.1] - 2026-06-13
+
+### Fixes
+- Emergency patch: **refresh bundled game data on app update** so updated catalogs and season data take effect after updating, instead of the app continuing to read the previously installed data.
+
+---
+
 ## [0.5.0] - 2026-06-13
 
 ### Damage calculation
