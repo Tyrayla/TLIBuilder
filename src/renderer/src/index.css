@@ -172,6 +172,17 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 0;
 }
 .about-link-btn:hover { text-decoration: underline; }
+/* Inline text link (within a sentence) — styled like an anchor, not a row button. */
+.about-link-inline {
+  background: none;
+  border: none;
+  color: #7090e8;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+.about-link-inline:hover { color: #8aa6f0; }
 
 .build-select-version {
   font-size: 11px;
