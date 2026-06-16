@@ -73,7 +73,9 @@ function App() {
   const activeSlot = useBuildStore(s => s.activeSlot)
   const buildVersion = useBuildStore(s => s.buildVersion)
 
-  useEffect(() => { window.api?.notifyDirty?.(isDirty) }, [isDirty])
+  // Only report "dirty" to the main process while a build is actually open. On the build-list menu there's
+  // nothing to save, so the native close/quit guard must never prompt there (it was firing on update-install).
+  useEffect(() => { window.api?.notifyDirty?.(isDirty && screen !== 'build-select') }, [isDirty, screen])
 
   // When condition definitions load, fill any empty conditionState with defaults.
   // This covers new builds and imported builds that predate the conditions system.
