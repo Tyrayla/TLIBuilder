@@ -81,6 +81,12 @@ export async function initApi(): Promise<void> {
       rerr(`initApi — failed to load static manifest from ${STATIC_DATA_BASE}: ${e}`)
     }
   }
+  // Web build: catalogs come from the CDN and compute from the Pyodide worker — there's no local backend to
+  // find, so skip the IPC/port-scan paths (which would otherwise spam CSP-blocked fetches to 127.0.0.1).
+  if (webCompute) {
+    rlog('initApi — web mode: static catalogs + Pyodide compute; no backend')
+    return
+  }
   if (window.api?.apiRequest) {
     ipcMode = true
     rlog('initApi — Electron IPC path: waiting for port readiness via getPythonPort')

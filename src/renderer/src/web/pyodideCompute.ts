@@ -28,17 +28,21 @@ export function initPyodideCompute(dataBase: string, season: string): Promise<vo
     worker!.onmessage = (e: MessageEvent<WorkerOut>) => {
       const m = e.data
       if (m.type === 'progress') { progressListeners.forEach(cb => cb(m.msg || '')); return }
-      if (m.type === 'ready') { resolve(); return }
+      if (m.type === 'ready') {
+        resolve()
+        try { (window as unknown as Record<string, unknown>).__tliComputeReady = true; window.dispatchEvent(new Event('tli-compute-ready')) } catch { /* non-window ctx */ }
+        return
+      }
       if (m.type === 'result' && m.id != null) {
         pending.get(m.id)?.resolve(m.respJson || '{}'); pending.delete(m.id); return
       }
       if (m.type === 'error') {
         const err = new Error(m.msg || 'compute worker error')
         if (m.id != null) { pending.get(m.id)?.reject(err); pending.delete(m.id) }
-        else reject(err)   // init error
+        else { try { (window as unknown as Record<string, unknown>).__tliComputeError = m.msg } catch { /* */ } reject(err) }  // init error
       }
     }
-    worker!.onerror = (e) => reject(new Error(`worker crashed: ${e.message}`))
+    worker!.onerror = (e) => { try { (window as unknown as Record<string, unknown>).__tliComputeError = e.message } catch { /* */ } reject(new Error(`worker crashed: ${e.message}`)) }
   })
   const backendUrl = new URL('backend-py.zip', self.location.origin + import.meta.env.BASE_URL).href
   worker.postMessage({ type: 'init', backendUrl, dataBase, season })
