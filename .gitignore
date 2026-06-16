@@ -32,3 +32,6 @@ docs/engine-plan.md
 docs/stat-audit*.md
 docs/stat-*-review.md
 docs/stat-meta-review.csv
+
+# Generated static reference data for the web build (regenerate via backend/tools/export_web_data.py)
+web-data/
