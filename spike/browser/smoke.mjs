@@ -55,6 +55,24 @@ try {
     console.log(`tree "God of War": ${treeOk ? `OK (${tree.nodes.length} nodes)` : 'FAIL ' + JSON.stringify(tree).slice(0, 120)}`)
     ok = ok && treeOk
   }
+  if (ok) {
+    // Persistence: save a build, reload the page (fresh worker), confirm it survived the IDBFS round-trip.
+    const saved = await page.evaluate(() => window.__tliWebApi('POST', '/api/builds',
+      { name: 'SMOKE_PERSIST', slots: [null, null, null, null] }).catch(e => ({ error: String(e) })))
+    const savedId = saved && saved.id
+    console.log(`save build: ${savedId ? `OK (id ${savedId})` : 'FAIL ' + JSON.stringify(saved).slice(0, 120)}`)
+    if (savedId) {
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 })
+      await page.waitForFunction(() => window.__tliComputeReady === true || !!window.__tliComputeError, { timeout: 180000 })
+      const after = await page.evaluate((id) => window.__tliWebApi('GET', '/api/builds')
+        .then(list => ({ has: Array.isArray(list) && list.some(b => b.id === id), n: Array.isArray(list) ? list.length : -1 }))
+        .catch(e => ({ error: String(e) })), savedId)
+      const persisted = !!(after && after.has)
+      console.log(`persist across reload: ${persisted ? `OK (${after.n} build(s) after reload)` : 'FAIL ' + JSON.stringify(after).slice(0, 120)}`)
+      ok = ok && persisted
+      await page.evaluate((id) => window.__tliWebApi('DELETE', '/api/builds/' + id).catch(() => {}), savedId)
+    } else { ok = false }
+  }
 } catch (e) {
   console.log('TIMEOUT/ERROR waiting for app/worker:', String(e).split('\n')[0])
 }

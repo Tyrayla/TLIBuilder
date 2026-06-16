@@ -24,6 +24,12 @@ let initPromise: Promise<void> | null = null
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m)
 const progress = (msg: string) => post({ type: 'progress', msg })
 
+// Flush (populate=false) or load (populate=true) the IDBFS-backed /persist mount. Promisifies FS.syncfs's
+// callback so we can await persistence after a build/save mutation, keeping user data across reloads.
+function syncfs(populate: boolean): Promise<void> {
+  return new Promise((resolve, reject) => py.FS.syncfs(populate, (err: unknown) => (err ? reject(err) : resolve())))
+}
+
 async function fetchBytes(url: string): Promise<Uint8Array> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`)
@@ -48,11 +54,17 @@ async function init(msg: InitMsg): Promise<void> {
   py.FS.mkdir('/data'); py.unpackArchive(dataZip, 'zip', { extractDir: '/data' })
   py.FS.mkdir('/stubs'); py.FS.writeFile('/stubs/uvicorn.py', 'def run(*a, **k):\n    pass\n')
 
+  // Persist named builds + last-session save across reloads. Both persistence modules write under
+  // TLI_PERSIST_DIR (=/persist); mount that as IndexedDB-backed IDBFS and load any prior data into the FS.
+  py.FS.mkdir('/persist')
+  py.FS.mount(py.FS.filesystems.IDBFS, {}, '/persist')
+  await syncfs(true)
+
   progress('Starting engine…')
   await py.runPythonAsync(`
 import os, sys
 sys.path.insert(0, '/stubs'); sys.path.insert(0, '/be')
-os.environ['TLI_DATA_DIR'] = '/data'; os.environ['TLI_DEV_MODE'] = '0'
+os.environ['TLI_DATA_DIR'] = '/data'; os.environ['TLI_PERSIST_DIR'] = '/persist'; os.environ['TLI_DEV_MODE'] = '0'
 import json
 import server
 # Pyodide has no threads, but FastAPI runs sync (def) endpoints via run_in_threadpool — patch it to run inline.
@@ -101,6 +113,10 @@ self.onmessage = async (e: MessageEvent<InMsg>) => {
       if (!apiFn) throw new Error('worker not initialized')
       const resStr = await apiFn(msg.method, msg.path, msg.bodyJson)
       const { status, body } = JSON.parse(resStr)
+      // After a successful build/save mutation, flush the IDBFS mount so it survives a reload.
+      if (status < 400 && /^(POST|PUT|DELETE)$/i.test(msg.method) && /\/(builds|save)(\/|\?|$)/.test(msg.path)) {
+        try { await syncfs(false) } catch { /* best-effort persist */ }
+      }
       post({ type: 'result', id: msg.id, status, body })
     } catch (err) {
       post({ type: 'error', id: msg.id, msg: String(err) })

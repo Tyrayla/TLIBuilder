@@ -3,9 +3,11 @@ import os
 import re
 import uuid
 
-_DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+# Persisted user data lives under TLI_PERSIST_DIR when set (the web build points this at an IndexedDB-backed
+# dir so builds survive reloads); otherwise it falls back to the game-data dir, as desktop has always done.
+_PERSIST_ROOT = os.environ.get('TLI_PERSIST_DIR') or os.environ.get('TLI_DATA_DIR') or os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
-_DIR = os.path.normpath(os.path.join(_DATA_ROOT, 'builds'))
+_DIR = os.path.normpath(os.path.join(_PERSIST_ROOT, 'builds'))
 
 _SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
 

@@ -1,9 +1,11 @@
 import json
 import os
 
-_DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+# Persisted last-session save lives under TLI_PERSIST_DIR when set (the web build points this at an
+# IndexedDB-backed dir so restore-last-build survives reloads); otherwise it falls back to the game-data dir.
+_PERSIST_ROOT = os.environ.get('TLI_PERSIST_DIR') or os.environ.get('TLI_DATA_DIR') or os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
-_SAVE_PATH = os.path.normpath(os.path.join(_DATA_ROOT, 'save.json'))
+_SAVE_PATH = os.path.normpath(os.path.join(_PERSIST_ROOT, 'save.json'))
 
 
 def save(tree_name: str, nodes: dict[str, int],
