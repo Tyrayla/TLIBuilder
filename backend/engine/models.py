@@ -192,6 +192,10 @@ class BuildInput:
     # the fully-aggregated Aura Effect inside the compute loop and folds them in as source_type "aura".
     aura_buffs: list[dict] = field(default_factory=list)
     aura_meta: dict = field(default_factory=dict)
+    # Active curses (server.curse_resolver.resolve_curses) + per-curse meta. engine.curse_resolver.apply_curses
+    # scales them by Curse Effect inside the compute loop and bakes the *_curse_taken enemy-vulnerability pools.
+    curses: list[dict] = field(default_factory=list)
+    curse_meta: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -208,4 +212,7 @@ class StatResult:
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
     aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
+    curse_summaries:     list | None = None        # per-curse display summary (Curse Effect, limit, debuff value)
+    curse_conflict:      dict | None = None         # set when active curses exceed the limit (needs resolution)
+    warnings:            list | None = None         # general build diagnostics (e.g. an ineffective/dead curse)
     reservation:         dict | None = None         # mana/life sealing: totals + per-skill seal breakdowns

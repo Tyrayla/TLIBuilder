@@ -1,6 +1,6 @@
 # TLI Builder — Outstanding Backlog
 
-Grouped by area. Pruned 2026-06-16 after the 0.5.2 release.
+Grouped by area. Pruned 2026-06-16 after the 0.5.2 release and the web launch.
 
 ## Shipped in 0.5.2 (removed from the open list)
 Mana/Life sealing & reservation (incl. Lunar Eclipse) · auras & Focus as build buffs · nightly channel + silent
@@ -9,7 +9,38 @@ in-game) · slate inventory + Add-to-Inventory + right-click delete/remove + con
 · structured level-aware skill/support tooltips · update-banner no longer pushes the footer off-screen · Dreamweaver
 spirit working after the reimport.
 
+## Shipped — Web-hosted version (2026-06-16)
+TLI Builder runs in the browser at **tlibuilder.com** (Cloudflare Pages app + `tlibuilder-data` Pages project for
+catalogs/icons/engine-data; info page at **about.tlibuilder.com** off the `gh-pages` branch). The pure-Python engine
+runs in a Pyodide Web Worker (Path B: `import server` with bundled fastapi/pydantic wheels); catalogs/icons load from
+the data CDN. Builds + last-session save persist client-side via **main-thread IndexedDB** (the worker snapshots
+`/persist` and the main thread owns storage; in-worker IDBFS was unreliable in Brave). Verified in Chrome/Edge/Brave.
+Merged to `dev`. Cloudflare Web Analytics enabled. **Remaining (optional):** see §7.
+
 **Dropped (decided against):** global display truncation (option B) and the 1-life reservation floor.
+
+## 0. Curses (core shipped 2026-06-17 — follow-ups)
+Shipped: curse application (slotted curse skills + curse-applying gear affixes), per-final-type damage-taken
+amplification (Vulnerability/Scorch/Biting Cold/Electrocute/Corruption + Timid all-hit) scaled by Curse Effect
+(increased) + Additional Curse Effect (multiplicative), curse limit (`max_curses_flat`) with the Hekate cap
+(`curse_limit_cap_flat`), over-limit conflict + Conditionals dropdown resolver, auto-set `enemy_cursed`, curse-only
+support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend/engine/curse_resolver.py`,
+`_enemy_vuln_mult`. Consolidated the duplicate `max_curse_flat`→`max_curses_flat`.
+- **Shackles of Malice** (curse *consumer*: +25% Hit Damage per curse on the enemy, removes curses) + its 4
+  dedicated supports (Defile/Mutual Destruction/Spite/Vendetta) — deferred. `curse_effect_additional` is already
+  modeled (Defile's line resolves) so wiring Shackles later is incremental. Needs a "curses-on-enemy count".
+- **Affix-applied curses beyond gear**: only gear affixes are detected today. Hero-trait/graft curse application
+  (e.g. Banquet of Bliss "cursed by Lv N Scorch") isn't auto-collected yet — add the same `_extract_affix_curse`
+  scan to those resolution paths.
+- **NYI curse lines**: Entangled Pain (DoT — no DoT engine), Dazzled (movement/Blind), ailment-chance lines
+  ("+10% chance to Trauma/Wilt/Ignite"). Surfaced NYI, not dropped.
+- **Curse uptime/duration**: "Lasts 5 s" / "+% Curse Duration" not modeled — assumes permanent uptime. Model real
+  uptime eventually.
+- **Curse Skill Area**: `curse_skill_area_inc` resolves (Terrain of Malice / talents) but is a display stub — no AoE
+  modeling yet.
+- In-game verification items filed in docs/INGAME_VERIFICATION_BACKLOG.md (over-limit precedence, additional-vs-
+  increased pooling, same-curse highest-level rule, Noble/Magnificent additional-damage-on-curse, multiplicative
+  Additional Curse Effect once a 2nd source exists).
 
 ## 1. Auras / buffs
 - **Verify the 7 aura review items in-game** (panel "Needs manual review"): Domain Expansion + Precise: Domain
@@ -51,6 +82,9 @@ spirit working after the reimport.
   conditions active + autoderive/canvas resolvers.
 
 ## 5. UI / screens
+- **BUG (open): skill-slot search menus unresponsive** — owner reports the skill-slot search/picker stops responding
+  entirely, possibly after deleting a build (trigger unconfirmed). Investigate stale state / dangling overlay or
+  unreset picker state on build delete. See `.wolf/buglog.json` (bug-skill-slot-search-unresponsive).
 - **Per-slot/Berserking frontend toggle UI** (backend done; enable/disable primitive exists).
 - **Conditionals screen revamp**: category-style titled-card panels (match the Stats screen); merge Calc into
   Conditionals → rename "Config".
@@ -67,10 +101,18 @@ spirit working after the reimport.
   stacking; offense/hit revamp (skill-specific section, projectiles).
 
 ## 7. Infra / hosting
-- **Web-hosted version**: host web + desktop simultaneously — needs a doc on reducing hosted-Python load +
-  minimizing backend↔frontend chatter (cache by build hash, client-side derivations) + an audit of auth,
-  storage, CORS, cost. *(Assessment in progress — see docs/ web-hosting notes.)*
+- **Web-hosted version — SHIPPED** (see the top of this doc). Open follow-ups: redeploy automation (currently
+  manual `wrangler`/drag-drop of `dist-web/` + `web-data/`); revisit the optional pure-compute extraction below if
+  web init time/payload ever becomes a problem.
 - **Package size** (deferred): ~280–310 MB; levers filed (gzip data −16 MB, trim PyInstaller −20 MB).
+- **Refactor the `server.py` monolith** (~3300 lines): split into focused modules (affix/line parsing, line→stat
+  matcher tables, endpoints, request models) with a **single source of truth for line→stat mapping** so duplicate
+  parsers can't drift — the `max_curse_flat` vs `max_curses_flat` split (two parsers, same concept, two keys) was
+  exactly this class of bug.
+- **Aggressively cache parsed lines** to cut recompute latency (the lag between editing a build and seeing updated
+  damage). `parse_mod` / `_parse_custom_mod_text` re-runs over every line each recompute; memoize by line text (the
+  mapping is pure given the text) so repeated lines across gear/talents/supports + successive recomputes are
+  near-free. Pairs with the build-hash result-cache idea.
 - **Web compute: extract a pure `compute_stat_sheet(dict)->dict`** (future optimization). The web build runs the
   engine in Pyodide by reusing the whole backend (`import server`) with bundled fastapi/pydantic wheels (Path B,
   chosen for low risk). Extracting the orchestration + helper closure out of the 3242-line `server.py` into a

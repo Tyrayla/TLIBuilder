@@ -200,6 +200,23 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   → **2.02/s** in-game = ×1.10×1.225 (multiplicative), not ×1.325 (additive).
 - Fix: additional attack/cast speed now pools PER-AFFIX (distinct sources multiply); `_speed_additional_product`.
 
+### CURSE-01 — Curse stacking / limit / pooling (multiple checks)
+- Status: ⏳ Needs in-game testing (curses shipped 2026-06-17 with assumed rules)
+- The engine currently ASSUMES the following; each needs confirming:
+  1. **Over-limit precedence.** With more curses than your curse limit, which one(s) apply? Believed "most recent
+     applied". Test: apply two curses (e.g. Vulnerability then Scorch) with limit 1, observe which is active on the
+     enemy. (The app makes you pick manually for now.)
+  2. **Same curse, different levels.** Apply the same curse from two sources at different levels (e.g. a Lv1 slotted
+     curse + a Lv20 gear-triggered curse). Believed: **only the highest level applies** (no stacking). Confirm.
+  3. **Different curses pooling.** Two different damage-taken curses on one enemy (e.g. Timid all-hit + Vulnerability
+     physical) — do their "+X% additional damage taken" lines **multiply** or add? Engine multiplies. Test on a
+     physical skill: record DPS with neither / Timid only / Vulnerability only / both, compare to ×(1.39)(1.39).
+  4. **Curse Effect scaling.** +X% Curse Effect — does it scale the damage-taken line linearly (engine: Base × (1 +
+     Curse Effect))? Test base vs +Curse Effect.
+  5. **Noble/Magnificent on curses.** Confirm "+additional damage for the supported skill" on a curse support does
+     nothing (curses deal no hit damage) — engine treats it as inert.
+- Method: physical or single-element skill vs the standard dummy; Recount span-average; report the number per case.
+
 ---
 
 ## How results are ingested

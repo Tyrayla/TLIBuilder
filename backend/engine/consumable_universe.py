@@ -129,6 +129,10 @@ def consumable_universe() -> frozenset[str]:
     consumed |= _AGGREGATOR_PROPAGATION_INPUTS
     # engine.utility reads these to scale aura buffs by total Aura Effect (outside offense/defense/derive).
     consumed |= {"aura_effect_inc", "aura_effect_additional"}
+    # engine.curse_resolver.apply_curses reads these to scale curses by Curse Effect + enforce the curse limit
+    # (outside the offense/defense/derive passes). The per-type *_curse_taken pools it bakes are read inside the
+    # synthetic offense pass (and aren't STAT_META keys), so they don't need listing here.
+    consumed |= {"curse_effect_inc", "curse_effect_additional", "max_curses_flat", "curse_limit_cap_flat"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
     consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",

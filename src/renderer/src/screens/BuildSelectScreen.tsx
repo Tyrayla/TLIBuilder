@@ -170,7 +170,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
           <p>Click <strong style={{ color: '#e0e0e0' }}>+ New Build</strong> to get started.</p>
         </div>
       ) : (
-        <div className="build-list">
+        <div className="build-list dark-scroll">
           {builds.map(build => (
             <div key={build.id} className="build-card" onClick={() => onOpenBuild(build)}>
               <div className="build-card-info">

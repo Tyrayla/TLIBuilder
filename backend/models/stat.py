@@ -385,6 +385,15 @@ class Stat(Enum):
     FIRE_INFILTRATION_TAKEN = "fire_infiltration_taken"
     COLD_INFILTRATION_TAKEN = "cold_infiltration_taken"
     LIGHTNING_INFILTRATION_TAKEN = "lightning_infiltration_taken"
+    # Curse enemy-vulnerability pools — "+X% additional <type> Damage taken" baked from an applied curse skill,
+    # scaled by Curse Effect, consumed per FINAL damage type by offense's enemy-vulnerability stage (so they're
+    # conversion-correct). Per-type for the elemental/physical/erosion curses; hit_curse_taken (Timid) is all hit.
+    PHYSICAL_CURSE_TAKEN = "physical_curse_taken"
+    FIRE_CURSE_TAKEN = "fire_curse_taken"
+    COLD_CURSE_TAKEN = "cold_curse_taken"
+    LIGHTNING_CURSE_TAKEN = "lightning_curse_taken"
+    EROSION_CURSE_TAKEN = "erosion_curse_taken"
+    HIT_CURSE_TAKEN = "hit_curse_taken"
     SLOW_CHANCE = "slow_chance"
     SLOW_EFFECT_RECEIVED_INC = "slow_effect_received_inc"
     BLIND_CHANCE = "blind_chance"
@@ -574,7 +583,8 @@ class Stat(Enum):
     REAPING_RECOVERY_SPEED_INC = "reaping_recovery_speed_inc"
 
     # ── Buff / Aura Effects ───────────────────────────────────────────────────
-    MAX_CURSE_FLAT = "max_curse_flat"
+    # (Curse limit lives in CURSE_LIMIT_CAP_FLAT / MAX_CURSES_FLAT below; the old duplicate `max_curse_flat`
+    #  was consolidated into `max_curses_flat`.)
     CURSE_EFFECT_AGAINST_INC = "curse_effect_against_inc"
     TAUNT_ON_HIT_CHANCE = "taunt_on_hit_chance"
     ATTACK_TAUNT_ON_HIT_CHANCE = "attack_taunt_on_hit_chance"
@@ -596,8 +606,10 @@ class Stat(Enum):
     AURA_EFFECT_INC = "aura_effect_inc"
     AURA_EFFECT_ADDITIONAL = "aura_effect_additional"
     CURSE_EFFECT_INC = "curse_effect_inc"
+    CURSE_EFFECT_ADDITIONAL = "curse_effect_additional"   # "+X% additional Curse Effect" (multiplies; e.g. Defile)
     CURSE_SKILL_AREA_INC = "curse_skill_area_inc"
-    MAX_CURSES_FLAT = "max_curses_flat"
+    MAX_CURSES_FLAT = "max_curses_flat"                   # "You can cast N additional Curses" (curse limit +N)
+    CURSE_LIMIT_CAP_FLAT = "curse_limit_cap_flat"         # "You can only cast N Curses" (Hekate's Vision — caps limit)
     FOCUS_SKILL_DMG_ADDITIONAL = "focus_skill_dmg_additional"
     FOCUS_SKILL_SEALED_MANA_COMP_INC = "focus_skill_sealed_mana_comp_inc"
     MARK_EFFECT_INC = "mark_effect_inc"

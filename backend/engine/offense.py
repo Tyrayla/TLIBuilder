@@ -407,6 +407,13 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
         mult *= 1.0 + source.total(f"{dtype}_infiltration_taken")
     if is_spell:                                            # Frail — Spell-form (all damage of a Spell skill)
         mult *= 1.0 + source.total("frail_spell_taken")
+    # Curses (applied curse skill, scaled by Curse Effect in apply_curses): the per-type pool keys off the FINAL
+    # converted dtype — so an "increased Lightning Damage taken" curse does nothing once 100% of the lightning is
+    # converted to cold. hit_curse_taken (Timid) is all hit damage. Distinct curse TYPES multiply (separate
+    # factors); same curse is deduped to one source upstream. Pooling vs the in-game "additional" wording is
+    # FLAGGED for verification (kept multiplicative, like the debuffs above).
+    mult *= 1.0 + source.total(f"{dtype}_curse_taken")
+    mult *= 1.0 + source.total("hit_curse_taken")
     return mult
 
 

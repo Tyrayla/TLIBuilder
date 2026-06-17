@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
-import type { ConditionDef } from '../api/client'
+import type { ConditionDef, CurseConflict } from '../api/client'
 
 // Conditions that only make sense when a specific skill is equipped (checked across ALL skill slots).
 // e.g. Berserking Blade's buff stacks are meaningless unless Berserking Blade is slotted somewhere.
@@ -18,6 +18,36 @@ export default function BuildOverviewScreen() {
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
   const skills = useBuildStore(s => s.skills)
+  const curseConflict = useBuildStore(
+    s => (s.computedStats as { curse_conflict?: CurseConflict | null }).curse_conflict) ?? null
+  const warnings = useBuildStore(
+    s => (s.computedStats as { warnings?: { kind: string; text: string }[] | null }).warnings) ?? null
+
+  // Curse over-limit resolution: pick which curse(s) apply (up to the limit). Selection rides per-curse boolean
+  // conditions `curse_sel_<name>` (set here, read by the engine's apply_curses). Hidden unless there's a conflict.
+  const curseSelKeys = curseConflict?.active.map(a => a.sel_key) ?? []
+  const curseSelected = curseSelKeys.filter(k => conditionState[k] === true)
+  const applyCurseSelection = (keys: string[]) => {
+    const set = new Set(keys.filter(Boolean))
+    const next = { ...conditionState }
+    for (const k of curseSelKeys) next[k] = set.has(k)
+    setConditionState(next)
+  }
+  const chooseCurseAt = (i: number, v: string) => {
+    const arr = [...curseSelected]
+    arr[i] = v
+    applyCurseSelection(arr)
+  }
+
+  // General CONFLICTS (red) — these block correct calculation until the player resolves them. Curse over-limit
+  // is the only one today; future blocking conflicts append here so the banner stays one general surface.
+  // (Contrast WARNINGS, which are purely informational and never gate functionality.)
+  const conflicts: { title: string; detail: string }[] = []
+  if (curseConflict) conflicts.push({
+    title: 'Curse conflict',
+    detail: `${curseConflict.active.length} curses are active but your curse limit is ${curseConflict.limit} — `
+      + 'resolve it in the Curse Conflict panel below (curse damage-taken isn\'t applied until you do).',
+  })
 
   const slottedSkillIds = new Set(skills.map(sk => sk.item_id))
   // A condition is hidden when it requires a skill that isn't equipped in any slot.
@@ -62,6 +92,30 @@ export default function BuildOverviewScreen() {
         {activeCondCount > 0 && <span className="panel-header-badge">{activeCondCount} active</span>}
       </div>
 
+      {conflicts.length > 0 && (
+        <div style={{
+          margin: '0 0 10px', padding: '8px 12px', borderRadius: 4,
+          background: 'rgba(192,57,43,0.12)', border: '1px solid #c0392b', color: '#e07a6e', fontSize: 11,
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠ Conflicts — must resolve</div>
+          {conflicts.map((c, i) => (
+            <div key={i} style={{ lineHeight: 1.5, color: '#df8d82' }}><strong>{c.title}:</strong> {c.detail}</div>
+          ))}
+        </div>
+      )}
+
+      {warnings && warnings.length > 0 && (
+        <div style={{
+          margin: '0 0 10px', padding: '8px 12px', borderRadius: 4,
+          background: 'rgba(176,138,74,0.12)', border: '1px solid #b08a4a', color: '#d8b45a', fontSize: 11,
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: warnings.length ? 4 : 0 }}>⚠ Warnings</div>
+          {warnings.map((w, i) => (
+            <div key={i} style={{ lineHeight: 1.5, color: '#c9a865' }}>• {w.text}</div>
+          ))}
+        </div>
+      )}
+
       {loading && <div className="panel-empty">Loading…</div>}
       {referenceResolved && conditionsFailed && (
         <div className="panel-empty" style={{ color: '#ff6b6b' }}>Couldn't load condition data — restart to retry.</div>
@@ -70,6 +124,30 @@ export default function BuildOverviewScreen() {
       {!loading && !conditionsFailed && (
         <div className="cond-grid">
           <div className="cond-masonry">
+          {curseConflict && (
+            <div className="cond-card" style={{ border: '1px solid #c0392b' }}>
+              <div className="cond-card-header" style={{ color: '#e07a6e' }}>⚠ Curse Conflict</div>
+              <div className="cond-card-body">
+                <div style={{ fontSize: 10.5, color: '#cf7d72', lineHeight: 1.45, marginBottom: 8 }}>
+                  Limit {curseConflict.limit}. Select which {curseConflict.limit === 1 ? 'curse applies' : `${curseConflict.limit} curses apply`} (rest suppressed):
+                </div>
+                {Array.from({ length: curseConflict.limit }).map((_, i) => (
+                  <select
+                    key={i}
+                    className="cond-stack-input"
+                    style={{ width: '100%', marginBottom: 6 }}
+                    value={curseSelected[i] ?? ''}
+                    onChange={e => chooseCurseAt(i, e.target.value)}
+                  >
+                    <option value="">— None —</option>
+                    {curseConflict.active
+                      .filter(a => a.sel_key === curseSelected[i] || !curseSelected.includes(a.sel_key))
+                      .map(a => <option key={a.sel_key} value={a.sel_key}>{a.name} ({a.source})</option>)}
+                  </select>
+                ))}
+              </div>
+            </div>
+          )}
           {condCategories.map(([cat, items]) => {
             const visibleItems = items.filter(c => c.visible !== false && !isSkillGatedOut(c.key))
             if (visibleItems.length === 0) return null

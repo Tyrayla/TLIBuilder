@@ -2468,6 +2468,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=70,                source_types=_T,
     ),
+    Stat.CURSE_EFFECT_ADDITIONAL: StatMeta(
+        "Additional Curse Effect", "Buffs", "additional", "%",
+        subgroup="buff_effect",        stacking_rule="multiplicative",
+        ui_priority=70,                source_types=_T,
+    ),
     Stat.CURSE_SKILL_AREA_INC: StatMeta(
         "Curse Skill Area", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
@@ -2477,6 +2482,11 @@ STAT_META: dict[Stat, StatMeta] = {
     # they're tracked + badge Inactive rather than Unrecognized.
     Stat.MAX_CURSES_FLAT: StatMeta(
         "Max Curses", "Utility", "added_flat", "",
+        subgroup="skill_mechanics",    stacking_rule="additive",
+        ui_priority=72,                source_types=_T,
+    ),
+    Stat.CURSE_LIMIT_CAP_FLAT: StatMeta(
+        "Curse Limit Cap", "Utility", "added_flat", "",
         subgroup="skill_mechanics",    stacking_rule="additive",
         ui_priority=72,                source_types=_T,
     ),
@@ -3079,11 +3089,6 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Buffs / Utility ───────────────────────────────────────────────────────
-    Stat.MAX_CURSE_FLAT: StatMeta(
-        "Max Curses", "Buffs", "added_flat",
-        subgroup="mechanics",          stacking_rule="additive",
-        ui_priority=60,                source_types=_T,
-    ),
     Stat.CURSE_EFFECT_AGAINST_INC: StatMeta(
         "Curse Effect Against You", "Buffs", "increased", "%",
         subgroup="mechanics",          stacking_rule="additive",

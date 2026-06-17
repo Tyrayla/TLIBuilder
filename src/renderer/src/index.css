@@ -146,9 +146,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 
 .build-select-footer {
-  position: absolute;
-  bottom: 20px;
-  left: 24px;
+  /* In the flex flow (not absolute) so it's always visible and the build list scrolls ABOVE it instead of
+     running behind it. flex-shrink:0 keeps it from being squeezed; margin-top:auto pins it to the bottom. */
+  flex-shrink: 0;
+  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -201,6 +202,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   gap: 8px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;        /* allow the flex item to shrink below content height so it scrolls instead of pushing the footer */
   padding-right: 4px;
 }
 

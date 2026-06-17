@@ -267,7 +267,7 @@ def _willpower_per_stack(data: dict, level: int) -> float | None:
 
 
 def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds, slot_cats=None,
-                              source=None):
+                              source=None, curse_slots=None):
     """Resolve standard supports via the parser + mapper (engine.support_lines / support_mapper).
     Returns (stat_contributions, condition_effects). Run INSIDE the fixed-point loop so conditional
     lines see converging conditions and auto-derived conditions feed back. Noble/Magnificent stay in
@@ -299,8 +299,9 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
         cat = (slot_cats or {}).get(sup.get("slot", 1), main_cat)
         parsed = parse_support(data)
         if (parsed.gate == "spell-only" and cat != "spell") or \
-           (parsed.gate == "attack-only" and cat != "attack"):
-            continue  # Attack/Spell tag-gate
+           (parsed.gate == "attack-only" and cat != "attack") or \
+           (parsed.gate == "curse-only" and sup.get("slot", 1) not in (curse_slots or set())):
+            continue  # Attack/Spell/Curse tag-gate
         level = _tier_value(sup.get("level")) + _support_level_bonus(source, data.get("skill_tags"))
         name = data.get("name") or item_id
         for line in parsed.lines:

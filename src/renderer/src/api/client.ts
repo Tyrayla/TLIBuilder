@@ -738,6 +738,14 @@ export interface StatSheetResponse {
   // level) + the applied Aura Effect + any buff lines not yet modeled (NYI).
   auras?: AuraSummary[]
   aura_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
+  // Per active curse: Curse Effect / limit / debuff value (scaled) + applied flag; per-curse meta (base stats +
+  // NYI lines) keyed by skill_id; NYI statuses; and the over-limit conflict that drives the resolution dropdown.
+  curses?: CurseSummary[]
+  curse_meta?: Record<string, CurseMeta>
+  curse_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
+  curse_conflict?: CurseConflict | null
+  // General build warnings/diagnostics (e.g. a curse amplifying a damage type the build doesn't deal).
+  warnings?: { kind: string; text: string }[]
   // Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
   reservation?: ReservationResult | null
 }
@@ -780,6 +788,37 @@ export interface AuraSummary {
   review?: string[]   // modifiers applied but whose per-level scaling couldn't be verified vs the Lv1 anchor
   stack_condition?: string | null   // settable numeric condition key for this aura's buff stacks
   max_stacks?: number | null
+}
+
+export interface CurseSummary {
+  skill_id: string
+  curse_name: string
+  level: number
+  stat_key: string | null     // which {type}_curse_taken / hit_curse_taken pool (null = NYI curse)
+  modeled: boolean
+  source_label: string        // where this curse comes from (slot N / gear item)
+  base_amount: number         // the curse's "+X% additional damage taken" line, pre-Curse-Effect (fraction)
+  scaled_amount: number       // after Curse Effect (Base × (1 + inc) × (1 + additional))
+  curse_effect_inc: number
+  curse_effect_additional: number
+  limit: number
+  n_active: number
+  applied: boolean            // false when suppressed by an unresolved over-limit conflict
+}
+export interface CurseMeta {
+  curse_name: string
+  level: number
+  type: string | null
+  base_amount: number
+  modeled: boolean
+  source_label: string
+  nyi: string[]
+  base_stats: { mana_cost?: number | string | null; cast_speed?: number | string | null; cooldown?: number | string | null; duration?: number | null }
+}
+export interface CurseConflict {
+  limit: number
+  active: { name: string; source: string; sel_key: string }[]
+  resolved: boolean
 }
 
 export interface TargetDebuff {

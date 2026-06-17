@@ -202,12 +202,15 @@ def compute(
     # support on a non-main slot (e.g. an attack skill in slot 2) must resolve as that skill's category,
     # else its added-flat lands in the wrong pool / is gated out and contributes nothing.
     slot_cats: dict[int, str | None] = {}
+    curse_slots: set[int] = set()   # slots whose host skill is a Curse (for the curse-only support gate)
     if build_input.attached_supports and skills_input and skills_by_id is not None:
         from engine.skill_resolver import resolve_skill as _resolve_skill
         for _sk in skills_input:
             _sd = skills_by_id.get(_sk["skill_id"])
             if not _sd:
                 continue
+            if "Curse" in (_sd.get("skill_tags") or []):
+                curse_slots.add(_sk["slot"])
             _rs = _resolve_skill(_sd)
             if not _rs.supported:
                 continue
@@ -245,6 +248,8 @@ def compute(
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
 
     aura_summaries: list[dict] = []
+    curse_summaries: list[dict] = []
+    curse_conflict: dict | None = None
     reservation: dict | None = None
     for iteration in range(_MAX_ITERS):
         active_booleans, numeric_vals = _derive_views(condition_state)
@@ -261,7 +266,7 @@ def compute(
         # condition_state so conditional lines see converged values and inflicted debuffs feed back.
         std_contribs, cond_effects = resolve_standard_supports(
             build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state, slot_cats,
-            source=source)
+            source=source, curse_slots=curse_slots)
         for c in std_contribs:
             _se = SourceEntry(
                 stat=c["stat_key"], amount=c["amount"], source_type="support",
@@ -283,6 +288,12 @@ def compute(
         from engine.utility import apply_aura_buffs
         aura_summaries = apply_aura_buffs(
             source, build_input.aura_buffs, build_input.aura_meta, active_booleans, numeric_vals)
+
+        # Curses: scale each applied curse by the now-aggregated Curse Effect and bake the per-final-type
+        # *_curse_taken enemy-vulnerability pools (consumed by offense). Runs each pass like the auras so curse
+        # effect / curse limit converge. enemy_cursed is auto-set server-side from curse presence (see server.py).
+        from engine.curse_resolver import apply_curses
+        curse_summaries, curse_conflict = apply_curses(source, build_input.curses, condition_state)
 
         # Compute derived stats (strength, armor, max_life, etc.) and inject
         # back into source so the pipeline and condition system can read them.
@@ -518,6 +529,28 @@ def compute(
             slot_offense[sk["slot"]] = _offense_for_slot(resolved_sk, sk["level"], sk["slot"], False)
     source._recording = False
 
+    # ── General build warnings (player diagnostics; extensible) ───────────────
+    # Ineffective curse: an applied curse amplifies a damage type the build doesn't actually deal (e.g. an
+    # Electrocute Lightning curse when 100% of the lightning is converted to cold) → it contributes nothing.
+    warnings: list[dict] = []
+    dealt_types: set[str] = set()
+    for _off in [result_offense, *slot_offense.values()]:
+        for _t, _v in ((_off or {}).get("damage_by_type") or {}).items():
+            if _v and _v > 0:
+                dealt_types.add(_t)
+    if dealt_types:   # only when the build actually computes damage (else we can't judge effectiveness)
+        for c in curse_summaries:
+            sk = c.get("stat_key")
+            if not (c.get("applied") and c.get("modeled") and sk) or sk == "hit_curse_taken":
+                continue
+            ctype = sk.replace("_curse_taken", "")
+            if ctype not in dealt_types:
+                warnings.append({
+                    "kind": "ineffective_curse",
+                    "text": f"{c['curse_name']} amplifies {ctype.capitalize()} Damage taken, but this build deals "
+                            f"no {ctype.capitalize()} damage (converted away?) — this curse contributes nothing.",
+                })
+
     # Skill slot summaries — effective level for every equipped skill
     result_skill_slots: list[dict] | None = None
     if skills_input and skills_by_id is not None:
@@ -586,5 +619,8 @@ def compute(
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,
         blessings=blessings,
         aura_summaries=aura_summaries,
+        curse_summaries=curse_summaries,
+        curse_conflict=curse_conflict,
+        warnings=warnings,
         reservation=reservation,
     )

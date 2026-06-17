@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary } from '../api/client'
+import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -707,7 +707,14 @@ const AMBER = '#c87820'
 // Non-hit skills (passives / empower-style buffs) have no hit-DPS offense yet. Surface a Skill-Viewer
 // foundation with the mechanics we intend to model, marked NYI so nothing reads as silently missing.
 // Tailored by slot kind: passives (6-9) → reservation/aura/AoE; active buffs → empower effect/duration/cooldown.
-function SkillFoundationPanel({ skill, aura, reservation }: { skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null }) {
+function _curseDebuffLabel(statKey: string | null): string {
+  if (!statKey) return 'Damage taken'
+  if (statKey === 'hit_curse_taken') return 'Hit Damage taken'
+  const t = statKey.replace('_curse_taken', '')
+  return `${t.charAt(0).toUpperCase()}${t.slice(1)} Damage taken`
+}
+
+function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta }: { skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null }) {
   const ctx = useContext(BreakdownCtx)
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
@@ -756,7 +763,69 @@ function SkillFoundationPanel({ skill, aura, reservation }: { skill: EquippedSki
           }}>{fmtNum(reservation.amount)}</Row>
         )
       })()}
-      {aura ? (
+      {curse ? (
+        <>
+          {/* Base stats (from the curse skill data) — always shown ("—" when absent), each with a source
+              breakdown (the skill base; curse base stats aren't engine-modified yet). */}
+          {(() => {
+            const bs = curseMeta?.base_stats
+            const baseRow = (label: string, raw: number | string | null | undefined, suffix = '') => {
+              const has = raw != null && raw !== ''
+              const display = has ? `${raw}${suffix}` : '—'
+              const n = parseFloat(String(raw))
+              return (
+                <Row key={label} label={label} breakdown={has ? {
+                  title: label, keys: [], total: isNaN(n) ? undefined : n,
+                  extra: [{ value: display, stat: 'Base', source: 'Skill', sourceName: curse.curse_name }],
+                } : undefined}>{display}</Row>
+              )
+            }
+            return (
+              <>
+                {baseRow('Mana Cost', bs?.mana_cost)}
+                {baseRow('Cast Speed', bs?.cast_speed)}
+                {baseRow('Cooldown', bs?.cooldown)}
+                {baseRow('Duration', bs?.duration, 's')}
+              </>
+            )
+          })()}
+          <Row label="Curse Effect" breakdown={{
+            title: 'Curse Effect', keys: ['curse_effect_inc'], total: curse.curse_effect_inc, totalUnit: '%',
+            formula: 'Σ increased Curse Effect',
+          }}>{fmtPct(curse.curse_effect_inc)}</Row>
+          <Row label="Additional Curse Effect" breakdown={{
+            title: 'Additional Curse Effect', keys: ['curse_effect_additional'], total: curse.curse_effect_additional,
+            totalUnit: '%', formula: 'Π(1 + additional) − 1',
+          }}>{fmtPct(curse.curse_effect_additional)}</Row>
+          <Row label="Curse Limit" breakdown={{
+            title: 'Curse Limit', keys: ['max_curses_flat', 'curse_limit_cap_flat'], total: curse.limit, totalUnit: '',
+            formula: '1 + Max Curses (capped by Curse Limit Cap)',
+          }}>{`${curse.n_active} / ${curse.limit}`}</Row>
+          <div style={{ fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Debuff applied to enemy</div>
+          {curse.modeled ? (() => {
+            // Final = Base × (1 + Curse Effect) × (1 + Additional Curse Effect). Show the derivation on hover.
+            const extra = [
+              { value: fmtPct(curse.base_amount), stat: 'Base', source: 'Curse', sourceName: curse.curse_name },
+              ...(curse.curse_effect_inc ? [{ value: `×${(1 + curse.curse_effect_inc).toFixed(2)}`, stat: 'Curse Effect', source: '', sourceName: `+${Math.round(curse.curse_effect_inc * 100)}%` }] : []),
+              ...(curse.curse_effect_additional ? [{ value: `×${(1 + curse.curse_effect_additional).toFixed(2)}`, stat: 'Additional Curse Effect', source: '', sourceName: `+${Math.round(curse.curse_effect_additional * 100)}%` }] : []),
+            ]
+            return (
+              <Row label={_curseDebuffLabel(curse.stat_key)} breakdown={{
+                title: _curseDebuffLabel(curse.stat_key), keys: [], total: curse.scaled_amount, totalUnit: '%',
+                formula: 'Base × (1 + Curse Effect) × (1 + Additional Curse Effect)', extra,
+              }}>{fmtPct(curse.scaled_amount)}{curse.applied ? '' : ' (suppressed)'}</Row>
+            )
+          })() : <Row label="Debuff" labelColor="#a05a5a">— NYI</Row>}
+          {!curse.applied && <div style={{ fontSize: 10, color: '#b08a4a', lineHeight: 1.4, marginTop: 2 }}>Suppressed — over the curse limit. Resolve the conflict on the Conditionals screen.</div>}
+          <Row label="Skill Area" labelColor="#555">— NYI</Row>
+          {(curseMeta?.nyi?.length ?? 0) > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: '#a05a5a', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Not yet modeled</div>
+              {curseMeta!.nyi.map((t, i) => <div key={i} style={{ fontSize: 10, color: '#7a5a5a', lineHeight: 1.4 }}>{t}</div>)}
+            </>
+          )}
+        </>
+      ) : aura ? (
         <>
           <Row label="Aura Effect" breakdown={{
             title: 'Aura Effect', keys: ['aura_effect_inc', 'aura_effect_additional'],
@@ -815,19 +884,19 @@ function SkillFoundationPanel({ skill, aura, reservation }: { skill: EquippedSki
   )
 }
 
-function OffensePanels({ offense, skill, aura, reservation }: { offense: OffenseResult | null; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null }) {
+function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta }: { offense: OffenseResult | null; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null }) {
 
   if (!offense) {
-    // No computed offense for this slot. If a skill IS equipped here (passive/buff), show its foundation
+    // No computed offense for this slot. If a skill IS equipped here (passive/buff/curse), show its foundation
     // panel; otherwise the slot is empty.
     return skill
-      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} />
+      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} />
       : <StatPanel title="Skill" accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
   if (!offense.supported) {
     return skill
-      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} />
+      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} />
       : (
         <StatPanel title={`Skill — ${offense.skill_name}`} accent={AMBER}>
           <div style={{ fontSize: 12, color: '#ff6b6b' }}>Skill calculation not yet supported.</div>
@@ -1260,9 +1329,13 @@ export default function PlayerStatsScreen() {
     : (selectedSlot === 1 ? offense : null)
   const blessings = ((computedStats as { blessings?: BlessingSummary[] | null }).blessings) ?? null
   const auras = ((computedStats as { auras?: AuraSummary[] | null }).auras) ?? null
+  const curses = ((computedStats as { curses?: CurseSummary[] | null }).curses) ?? null
+  const curseMeta = ((computedStats as { curse_meta?: Record<string, CurseMeta> | null }).curse_meta) ?? null
   const reservation = ((computedStats as { reservation?: ReservationResult | null }).reservation) ?? null
   const selectedSkill = skills.find(sk => sk.slot === selectedSlot)
   const selectedAura = auras?.find(a => a.skill_id === selectedSkill?.item_id) ?? null
+  const selectedCurse = curses?.find(c => c.skill_id === selectedSkill?.item_id) ?? null
+  const selectedCurseMeta = (curseMeta && selectedSkill?.item_id) ? curseMeta[selectedSkill.item_id] ?? null : null
   const selectedReservation = reservation?.per_skill?.find(
     p => p.skill_id === selectedSkill?.item_id && p.slot === selectedSlot) ?? null
 
@@ -1272,7 +1345,7 @@ export default function PlayerStatsScreen() {
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
         <div style={{ flex: '40', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
           <SkillSelector skills={skills} selected={selectedSlot} onSelect={setSelectedSlot} />
-          <OffensePanels offense={shownOffense} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} />
+          <OffensePanels offense={shownOffense} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} />
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility */}

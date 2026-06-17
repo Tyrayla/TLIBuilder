@@ -780,6 +780,7 @@ def engine_stats(req: EngineStatsRequest):
     from engine.core_talent_resolver import _split_condition
     gear_resolved: list[dict] = []
     gear_mod_statuses: list[dict] = []
+    affix_curses: list[dict] = []   # curses inflicted by gear affixes (craft bases / legendaries) → curse resolver
     for gi in req.gear:
         texts = gi.get("unresolved_texts") or []
         if not texts:
@@ -788,6 +789,14 @@ def engine_stats(req: EngineStatsRequest):
         gi = dict(gi)
         contribs = list(gi.get("contributions") or [])
         for t in texts:
+            # Curse-applying affix? Record it (counts toward the curse limit; magnitude comes from the curse
+            # skill at the affix level) and mark resolved — it has no stat contribution of its own.
+            ac = _extract_affix_curse(t)
+            if ac:
+                affix_curses.append({**ac, "source_label": gi.get("item_name") or "Gear"})
+                gear_mod_statuses.append({"text": t, "resolved": True,
+                                          "stat_display": f"Inflicts {ac['curse_name']} (Lv {ac['level']})"})
+                continue
             # Split off a leading ("If recently moved, +X%") or trailing ("+X% if Ignited") gate so the
             # stat clause resolves; the gate is translated and rides on the contribution's `condition`
             # (gated in the aggregator). A gate we can't translate makes the line UNRESOLVED (honest NYI),
@@ -818,6 +827,16 @@ def engine_stats(req: EngineStatsRequest):
     aura_buffs, aura_statuses, aura_stack_conditions, aura_meta = resolve_auras(
         skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr)
 
+    # ── Curses ───────────────────────────────────────────────────────────────
+    # Gather active curses from slotted curse skills + curse-applying affixes; the engine (curse_resolver, inside
+    # compute) scales by Curse Effect, enforces the curse limit, and bakes the enemy damage-taken pools. Any active
+    # curse means the enemy IS cursed → auto-set enemy_cursed so "+% damage against Cursed enemies" / Grudge work
+    # (the limit conflict only gates the damage-taken amplification, not the enemy being cursed).
+    from engine.curse_resolver import resolve_curses
+    active_curses, curse_statuses, curse_meta = resolve_curses(skills_input, affix_curses, skills_by_id)
+    if active_curses and not core_condition_state.get("enemy_cursed"):
+        core_condition_state = {**core_condition_state, "enemy_cursed": True}
+
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=core_condition_state,
@@ -832,6 +851,8 @@ def engine_stats(req: EngineStatsRequest):
         node_contributions=node_contributions,
         aura_buffs=aura_buffs,
         aura_meta=aura_meta,
+        curses=active_curses,
+        curse_meta=curse_meta,
     )
     result = compute(
         build, season_trees, filter_data,
@@ -866,6 +887,14 @@ def engine_stats(req: EngineStatsRequest):
         # computed engine-side (engine.utility) so the Aura Effect total is the true post-aggregation value.
         "auras": result.aura_summaries,
         "aura_statuses": aura_statuses,
+        # Per-curse summary (Curse Effect, limit, debuff value + applied flag), per-curse meta (base stats + NYI
+        # lines) for the Skill panel, NYI statuses, and the over-limit conflict (drives the resolution dropdown).
+        "curses": result.curse_summaries,
+        "curse_meta": curse_meta,
+        "curse_statuses": curse_statuses,
+        "curse_conflict": result.curse_conflict,
+        # General build warnings/diagnostics (e.g. a curse that amplifies a damage type the build doesn't deal).
+        "warnings": result.warnings,
         # Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
         "reservation": result.reservation,
         # Settable per-aura stack conditions ({key,label,max}) for the stack sliders.
@@ -1709,7 +1738,7 @@ _DUAL_MULTI_STAT_OVERRIDES: dict[str, tuple[list[str], list[str]]] = {
     "+(#) jumps +(#) % additional damage for every jump (multiplies)":
         (["extra_jumps_flat"], ["jump_dmg_for_every_additional"]),
     "you can cast (#) additional curses +(#) % curse effect":
-        (["max_curse_flat"], ["curse_effect_inc"]),
+        (["max_curses_flat"], ["curse_effect_inc"]),
     "+(#) % max mana +(#) skill cost":
         (["max_mana_inc"], ["skill_cost_flat"]),
     "+(#) % evasion +(#) max life":
@@ -1923,6 +1952,32 @@ def _normalize_for_custom_resolve(text: str) -> str:
     return re.sub(r'\s+', ' ', _CUSTOM_VERB_RE.sub('', text)).strip()
 
 
+# Curse-applying affixes name a specific curse + level: "Triggers Lv. 20 Scorch Curse upon inflicting damage" /
+# "Nearby enemies within 15 m are cursed by Lv. 20 Ominous". These don't map to a stat — they ADD a curse to the
+# build (counts toward the limit; magnitude comes from that curse skill's line at the level), so they're collected
+# into affix_curses and handed to the curse resolver.
+_CURSE_NAMES = {n.lower(): n for n in (
+    "Vulnerability", "Scorch", "Biting Cold", "Electrocute", "Corruption", "Timid",
+    "Entangled Pain", "Dazzled", "Ominous")}
+_AFFIX_CURSE_LV_RE = re.compile(r'(?:triggers|cursed by)\s+lv\.?\s*\(?\s*(?:[\d.]+\s*[-–]\s*)?([\d.]+)', re.I)
+
+
+def _extract_affix_curse(text: str) -> dict | None:
+    """{curse_name, level} if `text` inflicts a named curse (else None). Uses the high end of any level range."""
+    low = (text or "").lower()
+    if "curse" not in low and "cursed by" not in low:
+        return None
+    m = _AFFIX_CURSE_LV_RE.search(text or "")
+    if not m:
+        return None
+    level = int(float(m.group(1)))
+    tail = (text or "")[m.end():].lower()
+    for ln, proper in sorted(_CURSE_NAMES.items(), key=lambda kv: -len(kv[0])):
+        if ln in tail:
+            return {"curse_name": proper, "level": level}
+    return None
+
+
 def _parse_custom_mod_text(text: str) -> list[dict]:
     """Resolve freeform modifier text to {stat_key, amount, text, scope?} dicts. Thin wrapper that peels a
     skill-type scope qualifier ('… for Attack Skills') off first (shared engine.skill_scope helper),
@@ -2068,6 +2123,17 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     m = re.match(r'(?:you can cast\s+)?([\d.]+)\s+additional\s+curses?\b', t, re.I)
     if m:
         return [{"stat_key": "max_curses_flat", "amount": float(m.group(1)), "text": t}]
+
+    # "You can only cast N Curses" → Curse Limit Cap (Hekate's Vision — caps the limit instead of adding).
+    m = re.match(r'you can only cast\s+([\d.]+)\s+curses?\b', t, re.I)
+    if m:
+        return [{"stat_key": "curse_limit_cap_flat", "amount": float(m.group(1)), "text": t}]
+
+    # "+N% additional Curse Effect" → multiplicative Curse Effect pool (e.g. Defile). Must come before the
+    # generic Curse Effect matcher so plain "+N% Curse Effect" still maps to the increased pool.
+    m = re.search(r'([\d.]+)\s*%\s*additional\s+curse\s+effect', t, re.I)
+    if m:
+        return [{"stat_key": "curse_effect_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
 
     # "Damage Penetrates N% <type> Resistance" (pact-spirit pen nodes) — value sits mid-phrase, so the
     # start-anchored matchers below miss it. Maps to the player {type}_pen stat (elemental → elemental_pen).
