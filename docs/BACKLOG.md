@@ -34,8 +34,19 @@ Engine: `empower_resolver.py`, `utility.apply_empower_buffs`. Buffs assumed 100%
   "for every stack of Focus Blessing"/"Each buff grants … Stacks up to N" conditional stacking; `empower_skill_level`
   contribution; the Aim "-16% Attack and Cast Speed" compound only captures cast speed.
 - **Euphoria uptime/decay/refresh** assumed 100% — model real uptime later.
-- **Skill charges** are best-effort (parsed from cooldown text). Needs real base-charge data + structured cooldown;
-  Mass Effect's per-charge level-scaling uses the displayed (Lv1) value (approximate).
+- **Skill charges**: cooldown is now a **structured field** the importer writes (`cooldown`/`charges`/`duration`/
+  `icon_url` sourced from the recrawl; charges default to **1** for any cooldown skill). All 20 empower skills now
+  carry a cooldown, so Mass Effect scales correctly. Remaining: explicit **multi-charge counts aren't auto-detected**
+  (the text's "charge" mentions are mostly Demolisher/Terra resource mechanics, not max-charge counts) — default 1
+  may undercount the few skills with a real >1 base; fill those when found. Mass Effect's per-charge level-scaling
+  still uses the displayed (Lv1) value (approximate). **Durations** are captured structurally: a convenience scalar
+  `duration` (the skill's own "Lasts N s") plus a full `durations` list classified by kind — `skill` / `entity`
+  (sentry/remnant/terra lifetimes) / `per_stack` (per-stack buff duration + max_stacks, e.g. Speed Phantom's 1.2 s
+  Euphoria) / `interval` (tick/proc period) / `duration_mod` / `window` (DoT/HoT). Collect-everything: 203 entries
+  across 165 skills, **not consumed by the engine yet** — stored for future uptime/display. NOT captured: bare
+  fragment lines (a lone "1 s" the crawler split out) and a few rare projectile/area phrasings. `icon_url` stored,
+  not used yet. The eventual consumer is **real uptime** (duration vs cooldown; per-stack/conditional buffs are
+  hit-gated, so don't naively treat a per-stack duration as a skill-wide window).
 - **Per-skill Empower Effect scoping** ("+X% Empower Skill Effect for <skill>", ethereal prism) currently applies
   globally — add skill→slot scoping.
 - **"Affects allies" flag (NEW request, forward-looking):** a per-buff-source boolean (auras, empower, eventually
@@ -43,6 +54,22 @@ Engine: `empower_resolver.py`, `utility.apply_empower_buffs`. Buffs assumed 100%
   consumer today (party-play DPS isn't modeled); design + wire it WITH party-play so it isn't a dead field. Decide
   user-set toggle vs data-derived when building it.
 - See docs/INGAME_VERIFICATION_BACKLOG.md (EMPOWER-01) for verification items.
+
+## 0b. ★ NEXT — False "Unrecognized (NYI)" / "Inactive" on tooltips & badges
+**Do this BEFORE Spell Burst + Tangles.** Skill/support tooltips (and possibly other mod badges) flag lines as
+**Unrecognized (NYI)** or **Inactive** even when the mechanic IS handled or is one we model. Confirmed examples
+(Chain Lightning build):
+- **Chain Lightning skill tooltip**: "+2 Jumps for this skill" → *Unrecognized (NYI)* (jumps are a real, modeled
+  mechanic — should resolve or at least not read as unrecognized).
+- **Jump support tooltip**: "+2 Jumps for the supported skill" → *Inactive* (its "additional damage" line resolves
+  Consumed, but the jumps line is mislabeled).
+- **Lightning to Cold support tooltip**: "Converts 50% of the supported skill's Lightning Damage to Cold Damage" →
+  *Unrecognized (NYI)* (conversion lines — see §3 conversions).
+- Pattern: a line shown in a TOOLTIP gets its own recognize/badge pass that doesn't see what the engine actually
+  applies (or doesn't know jumps/conversion are modeled), so it falsely reads NYI/Inactive. Audit the tooltip line
+  classifier (`tooltip.py` `_kind_for` / badge resolver) vs the real resolver/consumable_universe so a line that is
+  applied (or is a known-modeled mechanic like Jumps) isn't tagged Unrecognized. Tie into the badge taxonomy
+  ([[project_badge_unification]]) — this is the inverse failure of "never silently drop": here we falsely cry NYI.
 
 ## 0. Curses (core shipped 2026-06-17 — follow-ups)
 Shipped: curse application (slotted curse skills + curse-applying gear affixes), per-final-type damage-taken
@@ -107,6 +134,9 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   conditions active + autoderive/canvas resolvers.
 
 ## 5. UI / screens
+- **Landing/main screen — add a Discord feedback link**: revisit the app's main screen/landing page (BuildSelectScreen)
+  so it contains a direct, visible link to the community Discord for feedback/bug reports/sharing. Pairs with the
+  existing About modal's about.tlibuilder.com link; consider a small footer/header social row (Discord + site).
 - **BUG (open): skill-slot search menus unresponsive** — owner reports the skill-slot search/picker stops responding
   entirely, possibly after deleting a build (trigger unconfirmed). Investigate stale state / dangling overlay or
   unreset picker state on build delete. See `.wolf/buglog.json` (bug-skill-slot-search-unresponsive).

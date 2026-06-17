@@ -102,6 +102,88 @@ def _normalize_deep(obj):
     return obj
 
 
+# ── Structured duration extraction ────────────────────────────────────────
+# The crawler has no structured duration field, so we mine every duration/timing clause from the description text
+# into a `durations` list (collect-everything: most are unused today but we don't want to recrawl/redo to add them).
+# Each clause is classified by kind so consumers can pick what they need without re-parsing prose:
+#   skill        — the skill/buff's own duration ("Lasts 6 s.")
+#   entity       — a spawned sub-entity's lifetime ("Sentry lasts 8 s", "Remnant lasts 0.65 s")
+#   per_stack    — duration of ONE stack of a stacking buff ("… lasting for 1.2 s, up to 8 stacks"); carries max_stacks
+#   interval     — a tick/proc period ("every 0.5 s", "every second")
+#   duration_mod — a bonus TO some duration ("+3 s duration for Sentries", "Thundercloud Duration +2.5 s")
+#   window       — a damage/restore-over-time window ("Deals X every second for 2 s", "Restores Y within 2 s")
+# Bare fragment lines (a lone "1 s" the crawler split out) are NOT captured — we can't tell what they time.
+_DN = r"([\d.]+)"
+_DUR_SKILL_RE = _re.compile(r"^\s*lasts?\s+(?:for\s+)?" + _DN + r"\s*s\b", _re.I)
+_DUR_ENTITY_RE = _re.compile(r"^(.*?\S)\s+lasts?\s+(?:for\s+)?" + _DN + r"\s*s\b", _re.I)
+_DUR_MOD_RE = _re.compile(r"\+\s*" + _DN + r"\s*s\b[^.]*?\bduration\b(?:\s+for\s+([A-Za-z][\w ]*?))?(?:[.,]|$)", _re.I)
+_DUR_MOD_REV_RE = _re.compile(r"\bduration\b[^.]*?\+\s*" + _DN + r"\s*s\b", _re.I)
+_DUR_STACKDUR_RE = _re.compile(r"(?:lasting for|for|lasts?(?:\s+for)?)\s+" + _DN + r"\s*s\b", _re.I)
+_DUR_MAXSTACK_RE = _re.compile(r"(?:up to|stacking up to)\s+(\d+)\s*(?:time|stack)", _re.I)
+_DUR_INTERVAL_RE = _re.compile(r"every\s+(?:" + _DN + r"\s*s|second)\b|interval:\s*" + _DN, _re.I)
+_DUR_WINDOW_RE = _re.compile(r"(?:deals|restores|inflict\w*|gain\w*|reaps)\b[^.]*?\b(?:within|in|for)\s+" + _DN + r"\s*s\b", _re.I)
+_DUR_ANY_RE = _re.compile(_DN + r"\s*s\b")
+_DUR_STACKHINT_RE = _re.compile(r"stack", _re.I)
+_DUR_ARTICLE_RE = _re.compile(r"^(?:the|a|an|each|this|that)\s+", _re.I)
+# Leading number of a cooldown string ("10 s" -> 10.0); the crawler now emits cooldown as a structured field.
+_COOLDOWN_NUM_RE = _re.compile(r"([\d.]+)")
+
+
+def _dur_entry(kind: str, seconds, source: str, subject=None, max_stacks=None) -> dict:
+    return {"kind": kind, "seconds": float(seconds) if seconds is not None else None,
+            "subject": subject, "max_stacks": max_stacks, "source": source}
+
+
+def extract_durations(lines: list[str]) -> list[dict]:
+    """Classify every duration/timing clause across the given description lines into structured entries (see the
+    kind taxonomy above). One entry per matched clause, in text order; the `source` line is kept for traceability."""
+    out: list[dict] = []
+    for raw in lines or []:
+        s = (raw or "").strip()
+        if not s or (not _DUR_ANY_RE.search(s) and "duration" not in s.lower()):
+            continue
+        stacked = bool(_DUR_STACKHINT_RE.search(s))
+        m = _DUR_SKILL_RE.match(s)
+        if m:
+            out.append(_dur_entry("skill", m.group(1), s))
+            continue
+        m = _DUR_ENTITY_RE.match(s)
+        if m and not stacked:
+            subj = _DUR_ARTICLE_RE.sub("", m.group(1).strip()).strip()
+            if 1 <= len(subj.split()) <= 4:
+                out.append(_dur_entry("entity", m.group(2), s, subject=subj))
+                continue
+        dm = _DUR_MOD_RE.search(s) or _DUR_MOD_REV_RE.search(s)
+        if dm:
+            subj = (dm.lastindex == 2 and dm.group(2) or "")
+            out.append(_dur_entry("duration_mod", dm.group(1), s, subject=(subj.strip() or None)))
+            continue
+        if stacked:
+            md = _DUR_STACKDUR_RE.search(s)
+            if md:
+                ms = _DUR_MAXSTACK_RE.search(s)
+                out.append(_dur_entry("per_stack", md.group(1), s,
+                                      max_stacks=int(ms.group(1)) if ms else None))
+                continue
+        mi = _DUR_INTERVAL_RE.search(s)
+        if mi:
+            out.append(_dur_entry("interval", mi.group(1) or mi.group(2) or "1", s))
+            continue
+        mw = _DUR_WINDOW_RE.search(s)
+        if mw:
+            out.append(_dur_entry("window", mw.group(1), s))
+            continue
+    return out
+
+
+def _skill_duration(durations: list[dict]) -> float | None:
+    """The skill/buff's own duration (first `skill`-kind entry) — the convenience scalar for simple readers."""
+    for d in durations:
+        if d["kind"] == "skill":
+            return d["seconds"]
+    return None
+
+
 def _as_lines(val) -> list[str]:
     """Normalize a description field to a list of non-empty lines (the recrawl emits lists; older data a string)."""
     if isinstance(val, list):
@@ -143,6 +225,14 @@ def import_crawler_skill(data: dict) -> dict:
     }
     simple = _dedup_lines([normalize_fractions(l) for l in _as_lines(variant.get("simple_description"))])
     detailed = _dedup_lines([normalize_fractions(l) for l in _as_lines(variant.get("detailed_description"))])
+    # Structured combat fields the recrawl now emits directly (cooldown, icon_url) plus two we derive here:
+    #   charges  — Help DB: only a skill with a cooldown can hold charges; default 1 (explicit higher counts
+    #              aren't reliably stated in the text, so we don't guess — see docs/BACKLOG.md). None = no cooldown.
+    #   duration — parsed from the "Lasts N s" line (no structured field exists for it).
+    cooldown = variant.get("cooldown")
+    charges = 1 if cooldown else None
+    durations = extract_durations(detailed or simple)
+    duration = _skill_duration(durations)
     out = {
         "item_id": item_id,
         "name": name,
@@ -157,6 +247,11 @@ def import_crawler_skill(data: dict) -> dict:
         "mana_cost": variant.get("mana_cost"),
         "sealed_mana": variant.get("sealed_mana"),       # reservation amount, e.g. "50%"
         "cast_speed": variant.get("cast_speed"),
+        "cooldown": cooldown,                            # e.g. "10 s"; None when the skill has no cooldown
+        "charges": charges,                              # base max charges (1 if cooldown, else None)
+        "duration": duration,                            # convenience scalar: the skill's own "Lasts N s", or None
+        "durations": durations,                          # full structured duration/timing capture (see extract_durations)
+        "icon_url": variant.get("icon_url"),             # CDN skill icon (not used yet; stored for future use)
         "effectiveness_of_added_damage": variant.get("effectiveness_of_added_damage"),
         "weapon_restriction": variant.get("weapon_restriction"),
         "main_stat": variant.get("main_stat"),

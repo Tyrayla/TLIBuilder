@@ -59,7 +59,9 @@ class TestCharges:
         assert skill_base_charges(SBI["black_hole"]) == 1   # Black Hole has a cooldown
 
     def test_no_cooldown_no_charge(self):
-        assert skill_base_charges(SBI["bull_s_rage"]) is None
+        # A skill with no cooldown can't hold charges (Help DB). The importer writes charges=None for these.
+        assert skill_base_charges({"charges": None, "cooldown": None,
+                                   "detailed_description": ["Deals fire damage"]}) is None
 
     def test_ambiguous_flagged(self):
         assert is_charge_ambiguous({"detailed_description": ["Has a cooldown but no number"]}) is True

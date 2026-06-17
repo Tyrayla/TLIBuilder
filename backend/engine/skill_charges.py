@@ -12,6 +12,8 @@ import re
 
 # First "<number> s" after a cooldown/CD mention on the same clause. \bcd\b avoids matching "cold"/"cdr".
 _COOLDOWN_RE = re.compile(r"(?:cooldown|\bcd\b)[^.\n]*?([\d.]+)\s*s\b", re.I)
+# Leading number of a structured cooldown string ("10 s" -> 10).
+_COOLDOWN_NUM_RE = re.compile(r"([\d.]+)")
 _CHARGE_COUNT_RE = re.compile(r"(?:max(?:imum)?\s+)?charges?\s*:?\s*(\d+)", re.I)
 _COOLDOWN_MENTION_RE = re.compile(r"cooldown|\bcd\b", re.I)
 
@@ -28,14 +30,24 @@ def _skill_text(skill: dict) -> str:
 
 
 def skill_cooldown(skill: dict) -> float | None:
-    """Cooldown (seconds) parsed from the skill text, or None when none is found."""
+    """Cooldown (seconds): the structured `cooldown` field the importer now writes ("10 s"/numeric), falling back to
+    parsing the skill text for older data. None when no cooldown exists."""
+    cd = skill.get("cooldown")
+    if isinstance(cd, (int, float)):
+        return float(cd)
+    if isinstance(cd, str):
+        m = _COOLDOWN_NUM_RE.search(cd)
+        if m:
+            return float(m.group(1))
     m = _COOLDOWN_RE.search(_skill_text(skill))
     return float(m.group(1)) if m else None
 
 
 def skill_base_charges(skill: dict) -> int | None:
-    """Base max charges: the explicit count if the text states one, else 1 for any skill with a cooldown; None when
-    the skill has no cooldown (can't have charges — not an error)."""
+    """Base max charges: the structured `charges` field the importer writes (1 for a cooldown skill, None otherwise),
+    falling back for older data to the explicit text count, else 1 for any cooldown skill / None for cooldown-less."""
+    if "charges" in skill:
+        return skill["charges"]
     if skill_cooldown(skill) is None:
         return None
     m = _CHARGE_COUNT_RE.search(_skill_text(skill))
