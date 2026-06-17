@@ -133,6 +133,9 @@ def consumable_universe() -> frozenset[str]:
     # (outside the offense/defense/derive passes). The per-type *_curse_taken pools it bakes are read inside the
     # synthetic offense pass (and aren't STAT_META keys), so they don't need listing here.
     consumed |= {"curse_effect_inc", "curse_effect_additional", "max_curses_flat", "curse_limit_cap_flat"}
+    # engine.utility.apply_empower_buffs reads Empower Skill Effect (and Mass Effect reads max_charge_flat) to
+    # scale the Euphoria buffs — outside the synthetic passes.
+    consumed |= {"empower_effect_inc", "empower_effect_additional", "max_charge_flat"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
     consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",

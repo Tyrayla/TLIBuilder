@@ -605,6 +605,11 @@ class Stat(Enum):
     ELIXIR_DURATION_ADDITIONAL = "elixir_duration_additional"
     AURA_EFFECT_INC = "aura_effect_inc"
     AURA_EFFECT_ADDITIONAL = "aura_effect_additional"
+    # Empower Skill Effect — scales the Euphoria buff an empower skill grants (global gear/talents + slot-local from
+    # the skill's own line + its empower supports). Increased sums, additional multiplies (like Aura Effect).
+    EMPOWER_EFFECT_INC = "empower_effect_inc"
+    EMPOWER_EFFECT_ADDITIONAL = "empower_effect_additional"
+    MAX_CHARGE_FLAT = "max_charge_flat"   # "+N Max Charge(s)" — skill charges (cooldown skills only; e.g. Mass Effect)
     CURSE_EFFECT_INC = "curse_effect_inc"
     CURSE_EFFECT_ADDITIONAL = "curse_effect_additional"   # "+X% additional Curse Effect" (multiplies; e.g. Defile)
     CURSE_SKILL_AREA_INC = "curse_skill_area_inc"

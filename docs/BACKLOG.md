@@ -19,6 +19,27 @@ Merged to `dev`. Cloudflare Web Analytics enabled. **Remaining (optional):** see
 
 **Dropped (decided against):** global display truncation (option B) and the 1-life reservation floor.
 
+## 0a. Empower skills (core shipped 2026-06-17 — follow-ups)
+Shipped: empower (Euphoria) PLAYER buffs from slotted empower skills, parsed like auras (Lv1/Lv20 interpolation),
+scaled by **Empower Skill Effect** (new `empower_effect_inc`/`empower_effect_additional`, global + slot-local),
+emitted as typed/scoped player damage stats so they ride the conversion-aware offense pipeline. Empower-only support
+gate; **Well-Fought Battle** (user-set casts, default max 3) + **Mass Effect** (charge-scaled). Per-skill **charges**
+helper (`skill_charges.py`: cooldown→base 1, else none; ambiguous cooldowns surfaced). Per-empower Player Stats panel.
+Engine: `empower_resolver.py`, `utility.apply_empower_buffs`. Buffs assumed 100% uptime; Euphoria assumed to stack.
+- **NYI (surfaced):** minion/Sentry/Spirit-Magi/ally-targeted empowers (no minion/party engine); per-enemy/per-Mark/
+  "for every stack of Focus Blessing"/"Each buff grants … Stacks up to N" conditional stacking; `empower_skill_level`
+  contribution; the Aim "-16% Attack and Cast Speed" compound only captures cast speed.
+- **Euphoria uptime/decay/refresh** assumed 100% — model real uptime later.
+- **Skill charges** are best-effort (parsed from cooldown text). Needs real base-charge data + structured cooldown;
+  Mass Effect's per-charge level-scaling uses the displayed (Lv1) value (approximate).
+- **Per-skill Empower Effect scoping** ("+X% Empower Skill Effect for <skill>", ethereal prism) currently applies
+  globally — add skill→slot scoping.
+- **"Affects allies" flag (NEW request, forward-looking):** a per-buff-source boolean (auras, empower, eventually
+  minions) marking whether the buff also benefits allies — default false; almost all auras + some empowers do. No
+  consumer today (party-play DPS isn't modeled); design + wire it WITH party-play so it isn't a dead field. Decide
+  user-set toggle vs data-derived when building it.
+- See docs/INGAME_VERIFICATION_BACKLOG.md (EMPOWER-01) for verification items.
+
 ## 0. Curses (core shipped 2026-06-17 — follow-ups)
 Shipped: curse application (slotted curse skills + curse-applying gear affixes), per-final-type damage-taken
 amplification (Vulnerability/Scorch/Biting Cold/Electrocute/Corruption + Timid all-hit) scaled by Curse Effect

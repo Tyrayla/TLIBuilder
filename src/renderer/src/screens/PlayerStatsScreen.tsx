@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta } from '../api/client'
+import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -714,7 +714,7 @@ function _curseDebuffLabel(statKey: string | null): string {
   return `${t.charAt(0).toUpperCase()}${t.slice(1)} Damage taken`
 }
 
-function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta }: { skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null }) {
+function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta, empower }: { skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null }) {
   const ctx = useContext(BreakdownCtx)
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
@@ -877,6 +877,57 @@ function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta }: { 
             </>
           )}
         </>
+      ) : empower ? (
+        <>
+          <Row label="Empower Effect" breakdown={{
+            title: 'Empower Effect', keys: ['empower_effect_inc', 'empower_effect_additional'],
+            total: empower.empower_effect_inc, totalUnit: '%',
+            formula: '(1 + Σ increased) × (1 + Σ additional) − 1',
+          }}>{fmtPct(empower.empower_effect_inc)}</Row>
+          {empower.stack_condition && empower.max_stacks ? (() => {
+            const key = empower.stack_condition!
+            const cur = Number(conditionState[key] ?? 0)
+            return (
+              <Row label="Buff Stacks">
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="range" min={0} max={empower.max_stacks} value={cur}
+                    onChange={e => setConditionState({ ...conditionState, [key]: Number(e.target.value) })}
+                    style={{ width: 90 }} />
+                  <span style={{ fontSize: 11, color: '#bbb', minWidth: 34, textAlign: 'right' }}>{cur}/{empower.max_stacks}</span>
+                </span>
+              </Row>
+            )
+          })() : null}
+          <div style={{ fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Grants (Euphoria)</div>
+          {empower.granted.length === 0 && <div style={{ fontSize: 11, color: '#555' }}>No modeled buff lines.</div>}
+          {empower.granted.map((g, i) => {
+            // Final = Base × (1 + Empower Effect); show the derivation on hover (the Empower-Effect pool isn't scaled).
+            const scaled = !g.is_empower_effect && empower.empower_effect_inc !== 0
+            const extra = scaled ? [
+              { value: fmtGrant(g.stat, g.base), stat: 'Base', source: 'Empower', sourceName: empower.name },
+              { value: `×${(1 + empower.empower_effect_inc).toFixed(2)}`, stat: 'Empower Effect', source: '', sourceName: `+${Math.round(empower.empower_effect_inc * 100)}%` },
+            ] : undefined
+            return (
+              <Row key={i} label={statMapName(g.stat)} breakdown={extra ? {
+                title: statMapName(g.stat), keys: [], total: g.amount,
+                totalUnit: /_flat$/.test(g.stat) ? '' : '%',
+                formula: 'Base × (1 + Empower Effect)', extra,
+              } : undefined}>{fmtGrant(g.stat, g.amount)}</Row>
+            )
+          })}
+          {empower.nyi.length > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: '#a05a5a', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Not yet modeled</div>
+              {empower.nyi.map((t, i) => <div key={i} style={{ fontSize: 10, color: '#7a5a5a', lineHeight: 1.4 }}>{t}</div>)}
+            </>
+          )}
+          {(empower.review?.length ?? 0) > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: '#b08a4a', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Needs manual review (scaling unverified)</div>
+              {empower.review!.map((t, i) => <div key={i} style={{ fontSize: 10, color: '#8a7550', lineHeight: 1.4 }}>{t}</div>)}
+            </>
+          )}
+        </>
       ) : (
         rows.map(label => <Row key={label} label={label} labelColor="#555">— NYI</Row>)
       )}
@@ -884,19 +935,19 @@ function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta }: { 
   )
 }
 
-function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta }: { offense: OffenseResult | null; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null }) {
+function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, empower }: { offense: OffenseResult | null; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null }) {
 
   if (!offense) {
-    // No computed offense for this slot. If a skill IS equipped here (passive/buff/curse), show its foundation
-    // panel; otherwise the slot is empty.
+    // No computed offense for this slot. If a skill IS equipped here (passive/buff/curse/empower), show its
+    // foundation panel; otherwise the slot is empty.
     return skill
-      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} />
+      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} />
       : <StatPanel title="Skill" accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
   if (!offense.supported) {
     return skill
-      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} />
+      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} />
       : (
         <StatPanel title={`Skill — ${offense.skill_name}`} accent={AMBER}>
           <div style={{ fontSize: 12, color: '#ff6b6b' }}>Skill calculation not yet supported.</div>
@@ -1331,11 +1382,13 @@ export default function PlayerStatsScreen() {
   const auras = ((computedStats as { auras?: AuraSummary[] | null }).auras) ?? null
   const curses = ((computedStats as { curses?: CurseSummary[] | null }).curses) ?? null
   const curseMeta = ((computedStats as { curse_meta?: Record<string, CurseMeta> | null }).curse_meta) ?? null
+  const empowers = ((computedStats as { empowers?: EmpowerSummary[] | null }).empowers) ?? null
   const reservation = ((computedStats as { reservation?: ReservationResult | null }).reservation) ?? null
   const selectedSkill = skills.find(sk => sk.slot === selectedSlot)
   const selectedAura = auras?.find(a => a.skill_id === selectedSkill?.item_id) ?? null
   const selectedCurse = curses?.find(c => c.skill_id === selectedSkill?.item_id) ?? null
   const selectedCurseMeta = (curseMeta && selectedSkill?.item_id) ? curseMeta[selectedSkill.item_id] ?? null : null
+  const selectedEmpower = empowers?.find(e => e.skill_id === selectedSkill?.item_id) ?? null
   const selectedReservation = reservation?.per_skill?.find(
     p => p.skill_id === selectedSkill?.item_id && p.slot === selectedSlot) ?? null
 
@@ -1345,7 +1398,7 @@ export default function PlayerStatsScreen() {
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
         <div style={{ flex: '40', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
           <SkillSelector skills={skills} selected={selectedSlot} onSelect={setSelectedSlot} />
-          <OffensePanels offense={shownOffense} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} />
+          <OffensePanels offense={shownOffense} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} />
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility */}

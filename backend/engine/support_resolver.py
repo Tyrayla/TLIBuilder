@@ -21,6 +21,63 @@ import re
 
 from engine.affix_identity import affix_identity
 
+# Empower-effect supports — bespoke (their lines don't map via the generic rules).
+_EMP_TEXT_KEYS = ("detailed_description", "simple_description", "raw_text")
+_ME_PER_RE = re.compile(r"([\d.]+)\s*%\s*effect for the supported", re.I)   # Mass Effect: per-charge %
+_ME_CAP_RE = re.compile(r"up to\s*([\d.]+)\s*%", re.I)
+_WFB_PER_RE = re.compile(r"([\d.]+)\s*%\s*effect", re.I)                     # Well-Fought Battle: per-cast %
+_WFB_MAX_RE = re.compile(r"stacking up to\s*(\d+)", re.I)
+
+
+def _support_text(data: dict) -> str:
+    parts: list[str] = []
+    for k in _EMP_TEXT_KEYS:
+        v = data.get(k)
+        if isinstance(v, str):
+            parts.append(v)
+        elif isinstance(v, (list, tuple)):
+            parts.extend(str(x) for x in v)
+    return " ".join(parts)
+
+
+def _empower_support_contrib(item_id, data, sup, conds, source, skills_by_id, slot_skill):
+    """Slot-local Empower Skill Effect from Mass Effect (per-charge × host charges, capped) or Well-Fought Battle
+    (per-cast × user-set casts, default max). Returns a contrib dict or None. Per-unit value uses the displayed
+    (Lv1) value — level-scaling is approximate (flagged)."""
+    txt = _support_text(data)
+    slot = sup.get("slot", 1)
+    name = data.get("name") or item_id
+    if item_id == "mass_effect":
+        mper = _ME_PER_RE.search(txt)
+        if not mper:
+            return None
+        per = float(mper.group(1)) / 100.0
+        cap = (float(_ME_CAP_RE.search(txt).group(1)) / 100.0) if _ME_CAP_RE.search(txt) else per * 3
+        from engine.skill_charges import skill_base_charges
+        host = skills_by_id.get((slot_skill or {}).get(slot)) or {}
+        base_ch = skill_base_charges(host)
+        # Charges exist only for cooldown skills; Mass Effect adds +1, plus any +Max Charge mods.
+        charges = (base_ch + 1 + int((source.total("max_charge_flat") if source else 0))) if base_ch else 0
+        amt = min(per * charges, cap) if charges else 0.0
+        if amt <= 0:
+            return None
+        return {"stat_key": "empower_effect_inc", "amount": amt, "label": name, "slot": slot,
+                "text": f"+{amt * 100:.1f}% Empower Skill Effect (Mass Effect, {charges} charges) |mass_effect|me"}
+    if item_id == "well_fought_battle":
+        wper = _WFB_PER_RE.search(txt)
+        if not wper:
+            return None
+        per = float(wper.group(1)) / 100.0
+        maxst = int(_WFB_MAX_RE.search(txt).group(1)) if _WFB_MAX_RE.search(txt) else 3
+        raw = (conds or {}).get("well_fought_battle_stacks")
+        stacks = maxst if raw is None else max(0, min(int(raw), maxst))
+        amt = per * stacks
+        if amt <= 0:
+            return None
+        return {"stat_key": "empower_effect_inc", "amount": amt, "label": name, "slot": slot,
+                "text": f"+{amt * 100:.1f}% Empower Skill Effect (Well-Fought Battle, {stacks} casts) |well_fought_battle|wfb"}
+    return None
+
 
 def _explicit_roll(sup: dict, line: str) -> float | None:
     """The user-set roll (signed fraction) for a specific line, keyed by the line's value-stripped
@@ -267,7 +324,7 @@ def _willpower_per_stack(data: dict, level: int) -> float | None:
 
 
 def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dtypes, conds, slot_cats=None,
-                              source=None, curse_slots=None):
+                              source=None, curse_slots=None, empower_slots=None, slot_skill=None):
     """Resolve standard supports via the parser + mapper (engine.support_lines / support_mapper).
     Returns (stat_contributions, condition_effects). Run INSIDE the fixed-point loop so conditional
     lines see converging conditions and auto-derived conditions feed back. Noble/Magnificent stay in
@@ -300,10 +357,22 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
         parsed = parse_support(data)
         if (parsed.gate == "spell-only" and cat != "spell") or \
            (parsed.gate == "attack-only" and cat != "attack") or \
-           (parsed.gate == "curse-only" and sup.get("slot", 1) not in (curse_slots or set())):
-            continue  # Attack/Spell/Curse tag-gate
+           (parsed.gate == "curse-only" and sup.get("slot", 1) not in (curse_slots or set())) or \
+           (parsed.gate == "empower-only" and sup.get("slot", 1) not in (empower_slots or set())):
+            continue  # Attack/Spell/Curse/Empower tag-gate
         level = _tier_value(sup.get("level")) + _support_level_bonus(source, data.get("skill_tags"))
         name = data.get("name") or item_id
+
+        # Empower-effect supports (bespoke): contribute slot-local Empower Skill Effect scaled by the host skill's
+        # charges (Mass Effect) or a user-set cast count (Well-Fought Battle, default max). Their lines don't map
+        # via the generic rules, so handle here. Level-scaling of the per-unit value is approximate (uses the
+        # displayed/Lv1 value) — flagged for later.
+        if item_id in ("mass_effect", "well_fought_battle"):
+            c = _empower_support_contrib(item_id, data, sup, conds, source, skills_by_id, slot_skill)
+            if c:
+                contribs.append(c)
+            continue
+
         for line in parsed.lines:
             for c in map_line(line, level, cat, conds):
                 contribs.append({

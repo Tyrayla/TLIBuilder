@@ -15,6 +15,7 @@
     "regain_stacks": 4.0,
     "tenacity_blessings": 4.0,
     "unique_weapon_types": 2.0,
+    "well_fought_battle_stacks": 3.0,
     "willpower_stacks": 6.0
   },
   "consumed_stats": [

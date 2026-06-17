@@ -50,7 +50,7 @@ class SupportLine:
 @dataclass
 class ParsedSupport:
     gate_text: str
-    gate: str                       # "spell-only" | "attack-only" | "curse-only" | "any skill"
+    gate: str                       # "spell-only" | "attack-only" | "curse-only" | "empower-only" | "any skill"
     lines: list[SupportLine] = field(default_factory=list)   # scaling lines first, then flat
 
 
@@ -58,6 +58,8 @@ def _gate_category(gate_text: str, skill_tags: list[str]) -> str:
     g = (gate_text or "").lower()
     if "curse" in g:                # "Supports Curse Skills" — attaches only to curse skills
         return "curse-only"
+    if "empower" in g:              # "Supports Empower Skills" — attaches only to empower skills
+        return "empower-only"
     has_spell, has_attack = "spell" in g, "attack" in g
     if not gate_text:
         t = {x.lower() for x in (skill_tags or [])}

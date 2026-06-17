@@ -196,6 +196,10 @@ class BuildInput:
     # scales them by Curse Effect inside the compute loop and bakes the *_curse_taken enemy-vulnerability pools.
     curses: list[dict] = field(default_factory=list)
     curse_meta: dict = field(default_factory=dict)
+    # Parsed-but-UNSCALED empower (Euphoria) buffs + per-empower meta. engine.utility.apply_empower_buffs scales
+    # them by Empower Skill Effect inside the compute loop and folds them in (source_type "empower").
+    empower_buffs: list[dict] = field(default_factory=list)
+    empower_meta: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -212,6 +216,7 @@ class StatResult:
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
     aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
+    empower_summaries:   list | None = None        # per-empower display summary (Empower Effect, granted buffs, NYI)
     curse_summaries:     list | None = None        # per-curse display summary (Curse Effect, limit, debuff value)
     curse_conflict:      dict | None = None         # set when active curses exceed the limit (needs resolution)
     warnings:            list | None = None         # general build diagnostics (e.g. an ineffective/dead curse)

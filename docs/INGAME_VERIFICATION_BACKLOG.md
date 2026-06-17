@@ -217,6 +217,17 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
      nothing (curses deal no hit damage) — engine treats it as inert.
 - Method: physical or single-element skill vs the standard dummy; Recount span-average; report the number per case.
 
+### EMPOWER-01 — Empower (Euphoria) buffs (multiple checks)
+- Status: ⏳ Needs in-game testing (empower shipped 2026-06-17 with assumed rules)
+- The engine ASSUMES the following; each needs confirming:
+  1. **Euphoria stacks across empower skills.** Slot 2+ empower skills — do all their Euphoria buffs apply at once,
+     or is only one Euphoria active at a time? Engine assumes they all stack (no limit).
+  2. **Empower Skill Effect pooling.** increased sums, additional multiplies ((1+inc)×(1+additional)). Confirm.
+  3. **Mass Effect charges.** "10.5% effect per +1 Charge, up to 31.5%" — confirm it scales with the empower skill's
+     Max Charges (cooldown skills only; +1 from Mass Effect). Report base charges of a few empower skills.
+  4. **Uptime.** Engine treats the buff as always-on (100%); real uptime/duration is unmodeled.
+- Method: a spell main skill + Secret Origin Unleash (+15% Spell) vs the standard dummy; Recount span-average.
+
 ---
 
 ## How results are ingested

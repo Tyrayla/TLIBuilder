@@ -827,6 +827,13 @@ def engine_stats(req: EngineStatsRequest):
     aura_buffs, aura_statuses, aura_stack_conditions, aura_meta = resolve_auras(
         skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr)
 
+    # ── Empower (Euphoria) buffs ─────────────────────────────────────────────
+    # Server parses the buff lines into unscaled contributions; the engine (utility.apply_empower_buffs, inside
+    # compute) scales them by Empower Skill Effect and builds the summaries.
+    from engine.empower_resolver import resolve_empowers
+    empower_buffs, empower_statuses, empower_stack_conditions, empower_meta = resolve_empowers(
+        skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr)
+
     # ── Curses ───────────────────────────────────────────────────────────────
     # Gather active curses from slotted curse skills + curse-applying affixes; the engine (curse_resolver, inside
     # compute) scales by Curse Effect, enforces the curse limit, and bakes the enemy damage-taken pools. Any active
@@ -853,6 +860,8 @@ def engine_stats(req: EngineStatsRequest):
         aura_meta=aura_meta,
         curses=active_curses,
         curse_meta=curse_meta,
+        empower_buffs=empower_buffs,
+        empower_meta=empower_meta,
     )
     result = compute(
         build, season_trees, filter_data,
@@ -887,6 +896,11 @@ def engine_stats(req: EngineStatsRequest):
         # computed engine-side (engine.utility) so the Aura Effect total is the true post-aggregation value.
         "auras": result.aura_summaries,
         "aura_statuses": aura_statuses,
+        # Per-empower summary (Empower Effect + granted buffs + NYI) for the Skill panel, statuses, and the
+        # settable per-empower buff-stack conditions (sliders).
+        "empowers": result.empower_summaries,
+        "empower_statuses": empower_statuses,
+        "empower_stack_conditions": empower_stack_conditions,
         # Per-curse summary (Curse Effect, limit, debuff value + applied flag), per-curse meta (base stats + NYI
         # lines) for the Skill panel, NYI statuses, and the over-limit conflict (drives the resolution dropdown).
         "curses": result.curse_summaries,

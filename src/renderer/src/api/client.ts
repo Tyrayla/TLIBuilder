@@ -738,6 +738,11 @@ export interface StatSheetResponse {
   // level) + the applied Aura Effect + any buff lines not yet modeled (NYI).
   auras?: AuraSummary[]
   aura_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
+  // Per equipped empower skill: the Euphoria buff lines it grants (scaled by Empower Effect + interpolated) + the
+  // applied Empower Effect + NYI lines; statuses; and settable per-empower buff-stack conditions (sliders).
+  empowers?: EmpowerSummary[]
+  empower_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
+  empower_stack_conditions?: { key: string; label: string; max: number }[]
   // Per active curse: Curse Effect / limit / debuff value (scaled) + applied flag; per-curse meta (base stats +
   // NYI lines) keyed by skill_id; NYI statuses; and the over-limit conflict that drives the resolution dropdown.
   curses?: CurseSummary[]
@@ -787,6 +792,19 @@ export interface AuraSummary {
   nyi: string[]
   review?: string[]   // modifiers applied but whose per-level scaling couldn't be verified vs the Lv1 anchor
   stack_condition?: string | null   // settable numeric condition key for this aura's buff stacks
+  max_stacks?: number | null
+}
+
+export interface EmpowerGrant { stat: string; base: number; amount: number; text: string; per_stack?: boolean; is_empower_effect?: boolean }
+export interface EmpowerSummary {
+  skill_id: string
+  name: string
+  level: number
+  empower_effect_inc: number        // applied Empower Skill Effect ((1+inc)×(1+additional) − 1)
+  granted: EmpowerGrant[]
+  nyi: string[]
+  review?: string[]
+  stack_condition?: string | null
   max_stacks?: number | null
 }
 

@@ -202,15 +202,21 @@ def compute(
     # support on a non-main slot (e.g. an attack skill in slot 2) must resolve as that skill's category,
     # else its added-flat lands in the wrong pool / is gated out and contributes nothing.
     slot_cats: dict[int, str | None] = {}
-    curse_slots: set[int] = set()   # slots whose host skill is a Curse (for the curse-only support gate)
+    curse_slots: set[int] = set()     # slots whose host skill is a Curse (for the curse-only support gate)
+    empower_slots: set[int] = set()   # slots whose host skill is an Empower (for the empower-only support gate)
+    slot_skill: dict[int, str] = {}   # slot -> skill_id (lets a support find its host skill, e.g. Mass Effect charges)
     if build_input.attached_supports and skills_input and skills_by_id is not None:
         from engine.skill_resolver import resolve_skill as _resolve_skill
         for _sk in skills_input:
+            slot_skill[_sk["slot"]] = _sk["skill_id"]
             _sd = skills_by_id.get(_sk["skill_id"])
             if not _sd:
                 continue
-            if "Curse" in (_sd.get("skill_tags") or []):
+            _sd_tags = _sd.get("skill_tags") or []
+            if "Curse" in _sd_tags:
                 curse_slots.add(_sk["slot"])
+            if "Empower" in _sd_tags:
+                empower_slots.add(_sk["slot"])
             _rs = _resolve_skill(_sd)
             if not _rs.supported:
                 continue
@@ -248,6 +254,7 @@ def compute(
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
 
     aura_summaries: list[dict] = []
+    empower_summaries: list[dict] = []
     curse_summaries: list[dict] = []
     curse_conflict: dict | None = None
     reservation: dict | None = None
@@ -266,7 +273,7 @@ def compute(
         # condition_state so conditional lines see converged values and inflicted debuffs feed back.
         std_contribs, cond_effects = resolve_standard_supports(
             build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state, slot_cats,
-            source=source, curse_slots=curse_slots)
+            source=source, curse_slots=curse_slots, empower_slots=empower_slots, slot_skill=slot_skill)
         for c in std_contribs:
             _se = SourceEntry(
                 stat=c["stat_key"], amount=c["amount"], source_type="support",
@@ -285,9 +292,14 @@ def compute(
         # Aura / Focus buffs: scale by the now-fully-aggregated Aura Effect (gear + talents + custom +
         # standard supports + the auras' own) and fold into the source BEFORE derive (so life-regen/resist
         # auras feed derived stats too). Runs each pass so the self-feedback converges with the loop.
-        from engine.utility import apply_aura_buffs
+        from engine.utility import apply_aura_buffs, apply_empower_buffs
         aura_summaries = apply_aura_buffs(
             source, build_input.aura_buffs, build_input.aura_meta, active_booleans, numeric_vals)
+
+        # Empower (Euphoria) buffs: scale by the now-aggregated Empower Skill Effect (global + slot-local from
+        # the skill + its empower supports) and fold in player-wide. Runs each pass like the auras.
+        empower_summaries = apply_empower_buffs(
+            source, build_input.empower_buffs, build_input.empower_meta, active_booleans, numeric_vals)
 
         # Curses: scale each applied curse by the now-aggregated Curse Effect and bake the per-final-type
         # *_curse_taken enemy-vulnerability pools (consumed by offense). Runs each pass like the auras so curse
@@ -619,6 +631,7 @@ def compute(
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,
         blessings=blessings,
         aura_summaries=aura_summaries,
+        empower_summaries=empower_summaries,
         curse_summaries=curse_summaries,
         curse_conflict=curse_conflict,
         warnings=warnings,

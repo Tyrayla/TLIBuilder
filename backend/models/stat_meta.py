@@ -2463,6 +2463,21 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=70,                source_types=_T,
     ),
+    Stat.EMPOWER_EFFECT_INC: StatMeta(
+        "Empower Skill Effect", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.EMPOWER_EFFECT_ADDITIONAL: StatMeta(
+        "Empower Skill Effect", "Buffs", "additional", "%",
+        subgroup="buff_effect",        stacking_rule="multiplicative",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.MAX_CHARGE_FLAT: StatMeta(
+        "Max Charges", "Utility", "added_flat", "",
+        subgroup="skill_mechanics",    stacking_rule="additive",
+        ui_priority=72,                source_types=_T,
+    ),
     Stat.CURSE_EFFECT_INC: StatMeta(
         "Curse Effect", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
