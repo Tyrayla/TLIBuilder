@@ -20,6 +20,10 @@ Merged to `dev`. Cloudflare Web Analytics enabled. **Remaining (optional):** see
 **Dropped (decided against):** global display truncation (option B) and the 1-life reservation floor.
 
 ## 0a. Empower skills (core shipped 2026-06-17 — follow-ups)
+- **★ HIGH PRIORITY — many empower skills lack progression tables in the data.** Their per-level scaling isn't
+  present, so the resolver can only interpolate from the Lv1 (simple) and Lv20 (detailed) anchors and can't scale
+  accurately (or past Lv20). Work out / import the missing empower progression tables (data + importer), then the
+  resolver can use real per-level values instead of the 2-point interpolation. Blocks accurate empower numbers.
 Shipped: empower (Euphoria) PLAYER buffs from slotted empower skills, parsed like auras (Lv1/Lv20 interpolation),
 scaled by **Empower Skill Effect** (new `empower_effect_inc`/`empower_effect_additional`, global + slot-local),
 emitted as typed/scoped player damage stats so they ride the conversion-aware offense pipeline. Empower-only support

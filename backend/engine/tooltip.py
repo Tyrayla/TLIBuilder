@@ -324,8 +324,23 @@ def _lines_aura(skill_data: dict) -> list[dict]:
     return out or _generic_lines(skill_data)
 
 
+_GENERIC_FLAVOR_RE = re.compile(r"gains?\s+euphoria|^\s*casts?\b|^\s*lasts?\s+[\d.]+\s*s", re.I)
+
+
 def _generic_lines(skill_data: dict) -> list[dict]:
-    """Fallback: split description_lines into shown clauses (no per-level data available)."""
+    """Fallback when there's no per-level progression. Prefer the DETAILED description — its lines are already
+    split per-modifier and curated for accuracy — rendering each as its own clause (so e.g. empower skills split
+    properly instead of showing the simple one-line blob). Falls back to description_lines (joined + clause-split)
+    when there's no detailed list."""
+    detailed = [_clean(l) for l in (skill_data.get("detailed_description") or []) if _clean(l)]
+    if detailed:
+        out: list[dict] = []
+        for c in detailed:
+            if _GENERIC_FLAVOR_RE.search(c):
+                out.append(_line("flavor", "", text=c))   # intro / "Lasts N s" — flavor, no badge
+            else:
+                out.append(_line(_kind_for(c), c, text=c))
+        return out
     return [_line(_kind_for(c), c, text=c)
             for c in _split_clauses(" ".join(skill_data.get("description_lines") or []))]
 

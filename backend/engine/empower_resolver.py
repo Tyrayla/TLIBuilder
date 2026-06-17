@@ -34,6 +34,13 @@ _ALLY_EUPHORIA_RE = re.compile(
 
 def _ally_targeted(lines) -> bool:
     return any(_ALLY_EUPHORIA_RE.search(l or "") for l in (lines or []))
+
+
+# "+X% <stat> for (every|each) stack of <Named>" → scale the per-stack value by an EXISTING settable numeric
+# condition (e.g. Focus Blessing → focus_blessings). The "up to N" cap is governed by that condition's own max
+# (Focus Blessings caps well below 8), so it isn't separately enforced (flagged).
+_PER_NAMED_RE = re.compile(r"^(.*?)\s+for (?:every|each) stack of (.+?)(?:\s+you have\b|\s+owned\b|[.,]|$)", re.I)
+_NAMED_COND = {"focus blessing": "focus_blessings"}
 # Pure noise (no stat): bare durations, life-cost swaps, mana drain, channel movement notes.
 _NOISE_RE = re.compile(r"^\s*lasts?\s+[\d.]+\s*s|costs?\s+life instead|consumes?\b[^.]*\bmana|"
                        r"movement is not restricted", re.I)
@@ -158,6 +165,25 @@ def resolve_empowers(skills_input, skills_by_id, parse_mod, translate_cond=None)
                 _emit(sid, name, e["stat_key"], float(e["amount"]), e.get("scope"), gate, True, f"{phrase} (per stack)")
         if cond_key:
             stack_conditions.append({"key": cond_key, "label": f"{name} - Buff Stacks", "max": max_stacks})
+
+        # ── "N% X for every stack of <Named>" → gate the per-stack value on the EXISTING numeric condition ──
+        # (e.g. Secret Origin Unleash: +3% Cast Speed per Focus Blessing → gated on focus_blessings). These lines
+        # carry a "Stacks up to N", so _flat_map routed them to un20 (NYI); pull the known ones back out.
+        for line in list(un20):
+            m = _PER_NAMED_RE.search(line)
+            if not m:
+                continue
+            named_key = _NAMED_COND.get(m.group(2).strip().lower())
+            if not named_key:
+                continue
+            res = parse_mod(m.group(1).strip()) or []
+            if not res:
+                continue
+            gate = {"op": "per", "key": named_key, "divisor": 1}
+            for e in res:
+                _emit(sid, name, e["stat_key"], float(e["amount"]), e.get("scope"), gate, True,
+                      f"{m.group(1).strip()} (per {m.group(2).strip()})")
+            un20.remove(line)
 
         nyi = sorted(set(un20) | set(nyi_d))
         for u in nyi:
