@@ -2,7 +2,7 @@
 import json, os
 import pytest
 from engine.support_lines import parse_support
-from engine.support_mapper import (parse_value, map_damage_line, map_added_flat, map_capture_line,
+from engine.support_mapper import (parse_value, map_via_parser, map_added_flat, map_capture_line,
                                    map_conditional_line, map_autoderive_line)
 
 _SKILLS = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons", "SS12", "_skills.json")
@@ -39,37 +39,37 @@ class TestDamageEmission:
     def test_generic_additional(self):
         # Multiple Projectiles: scaling "7.4% additional damage" → dmg_additional 0.074 at Lv1
         ln = next(l for l in self._lines("Multiple Projectiles") if l.scaling)
-        c = map_damage_line(ln, 1)
+        c = map_via_parser(ln, 1)
         assert len(c) == 1 and c[0].stat_key == "dmg_additional"
         assert c[0].amount == pytest.approx(0.074)
 
     def test_type_additional_lightning(self):
         ln = next(l for l in self._lines("High Voltage") if l.scaling)
-        c = map_damage_line(ln, 1)
+        c = map_via_parser(ln, 1)
         assert c[0].stat_key == "lightning_dmg_additional" and c[0].amount == pytest.approx(0.103)
 
     def test_negative_skill_area_and_proj_speed(self):
         # Nova Shot: -15% Skill Area → skill_area_inc -0.15; +15% additional Projectile Speed → new stat
         lines = self._lines("Nova Shot")
-        area = next(map_damage_line(l, 1) for l in lines if "skill area" in l.template)
+        area = next(map_via_parser(l, 1) for l in lines if "skill area" in l.template)
         assert area[0].stat_key == "skill_area_inc" and area[0].amount == pytest.approx(-0.15)
-        spd = next(map_damage_line(l, 1) for l in lines if "projectile speed" in l.template)
+        spd = next(map_via_parser(l, 1) for l in lines if "projectile speed" in l.template)
         assert spd[0].stat_key == "projectile_speed_additional" and spd[0].amount == pytest.approx(0.15)
 
     def test_attack_and_cast_speed_splits(self):
         ln = next(l for l in self._lines("Quick Mobility") if "attack and cast speed" in l.template)
-        c = map_damage_line(ln, 1)
+        c = map_via_parser(ln, 1)
         assert {x.stat_key for x in c} == {"attack_speed_inc", "cast_speed_inc"}
 
     def test_flat_negative_downside(self):
         # Steamroll: flat "-15% Attack Speed for the supported skill" → attack_speed_inc -0.15
         ln = next(l for l in self._lines("Steamroll") if "attack speed" in l.template and not l.scaling)
-        c = map_damage_line(ln, 1)
+        c = map_via_parser(ln, 1)
         assert c[0].stat_key == "attack_speed_inc" and c[0].amount == pytest.approx(-0.15)
 
     def test_non_damage_line_returns_empty(self):
         ln = next(l for l in self._lines("High Voltage") if "inflicts numbed" in l.template)
-        assert map_damage_line(ln, 1) == []
+        assert map_via_parser(ln, 1) == []
 
 
 class TestAddedFlat:
