@@ -518,6 +518,10 @@ function typeAddKeys(dtype: string): string[] {
 
 function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
   const totalDps = offense.total_dps_vs_target
+  // Same-target shotgun multiplier (e.g. Chain Lightning Merge+Web): total_dps_vs_target includes it but the
+  // per-form dps_vs_target does NOT, so every per-form / per-type figure below must apply it to reconcile to
+  // 100% (otherwise both "% of Total" and "Type Contribution" read 1/cast_multiplier). 1.0 when no shotgun.
+  const castMult = offense.cast_multiplier ?? 1
 
   // Per-dtype DPS total across all forms (proportional attribution via avg hit)
   const dtypeDpsTotal: Record<string, number> = {}
@@ -525,7 +529,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
     dtypeDpsTotal[dtype] = offense.hit_forms.reduce((sum, form) => {
       const dtypeAvg = form.damage_by_type[dtype] ?? 0
       const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-      return sum + prop * form.dps_vs_target
+      return sum + prop * form.dps_vs_target * castMult
     }, 0)
   }
 
@@ -629,7 +633,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
           {offense.hit_forms.map(form => {
             const formMin = ALL_DTYPES.reduce((s, d) => s + (form.hit_min_by_type[d] ?? 0), 0)
             const formMax = ALL_DTYPES.reduce((s, d) => s + (form.hit_max_by_type[d] ?? 0), 0)
-            const formPct = totalDps > 0 ? `${(form.dps_vs_target / totalDps * 100).toFixed(0)}%` : '—'
+            const formPct = totalDps > 0 ? `${(form.dps_vs_target * castMult / totalDps * 100).toFixed(0)}%` : '—'
 
             return (
               <React.Fragment key={form.name}>
@@ -639,6 +643,11 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                     {form.proc_chance < 1.0 && (
                       <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
                         {(form.proc_chance * 100).toFixed(0)}% chance
+                      </span>
+                    )}
+                    {castMult > 1 && (
+                      <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
+                        ×{castMult.toFixed(2)} same-target shotgun ({offense.shotgun_hits} hits)
                       </span>
                     )}
                   </td>
@@ -656,11 +665,11 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                 </tr>
                 <tr>
                   <td style={tdLbl}>DPS</td>
-                  <td style={{ ...td, color: '#f0c070' }}>{fmtNum(form.dps_vs_target)}</td>
+                  <td style={{ ...td, color: '#f0c070' }}>{fmtNum(form.dps_vs_target * castMult)}</td>
                   {ALL_DTYPES.map(d => {
                     const dtypeAvg = form.damage_by_type[d] ?? 0
                     const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-                    const dtypeDps = prop * form.dps_vs_target
+                    const dtypeDps = prop * form.dps_vs_target * castMult
                     return <td key={d} style={dtypeDps > 0 ? td : tdDim}>
                       {dtypeDps > 0 ? fmtNum(dtypeDps) : '—'}
                     </td>
@@ -672,7 +681,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                   {ALL_DTYPES.map(d => {
                     const dtypeAvg = form.damage_by_type[d] ?? 0
                     const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-                    const dtypeDps = prop * form.dps_vs_target
+                    const dtypeDps = prop * form.dps_vs_target * castMult
                     const pct = totalDps > 0 && dtypeDps > 0 ? `${(dtypeDps / totalDps * 100).toFixed(0)}%` : '—'
                     return <td key={d} style={{ ...td, color: dtypeDps > 0 ? '#888' : '#444' }}>{pct}</td>
                   })}

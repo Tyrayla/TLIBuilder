@@ -599,6 +599,11 @@ export interface OffenseResult {
   base_cast_time: number
   total_dps: number
   total_dps_vs_target: number
+  // Same-target shotgun (e.g. Chain Lightning Merge+Web): extra same-target hits per cast at falloff. Scales
+  // total DPS only — applied to total_dps(_vs_target) but NOT to per-form dps_vs_target — so the per-form /
+  // per-type breakdown must multiply by this to reconcile to 100%. 1.0 when no shotgun.
+  cast_multiplier: number
+  shotgun_hits: number
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number

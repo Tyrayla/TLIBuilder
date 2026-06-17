@@ -134,6 +134,16 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   conditions active + autoderive/canvas resolvers.
 
 ## 5. UI / screens
+- **★ Engine↔frontend display-fidelity audit (NEW initiative).** There are disconnects between how the engine
+  computes and how the frontend displays — the Stats screen / skill selector should eventually mirror the backend
+  math EXACTLY so the numbers are auditable line-by-line. First instance found + fixed 2026-06-17: the Skill Hit
+  Damage breakdown computed per-form / per-type DPS from `hit_forms[].dps_vs_target` (which excludes the
+  `cast_multiplier`) but compared it against `total_dps_vs_target` (which includes it), so "% of Total" and "Type
+  Contribution" both read `1/cast_multiplier` (e.g. 56% for a pure-lightning Chain Lightning with the Merge+Web
+  same-target shotgun). Fixed by applying `cast_multiplier` in the breakdown + surfacing the shotgun multiplier.
+  TODO: sweep the whole offense/defense/derive → display path for similar mismatches (multipliers applied to totals
+  but not to the per-line breakdown, proportional-attribution rounding, anything the UI recomputes instead of
+  reading from the engine). Goal: the engine emits the breakdown, the frontend just renders it.
 - **Landing/main screen — add a Discord feedback link**: revisit the app's main screen/landing page (BuildSelectScreen)
   so it contains a direct, visible link to the community Discord for feedback/bug reports/sharing. Pairs with the
   existing About modal's about.tlibuilder.com link; consider a small footer/header social row (Discord + site).
