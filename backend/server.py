@@ -2149,6 +2149,35 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": "curse_effect_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
 
+    # "N% [additional] Attack and Cast Speed" → BOTH attack & cast speed (same pool). Explicit because the
+    # generic single-stat resolver only catches "Cast Speed" and silently drops the Attack half (Quick Decision /
+    # Quick Mobility). Excludes scoped forms ("Minion …", "Warcry …") by anchoring at the value.
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*(additional\s+)?attack and cast speed\b', t, re.I)
+    if m:
+        pool = "additional" if m.group(2) else "inc"
+        amt = float(m.group(1)) / 100.0
+        return [{"stat_key": f"attack_speed_{pool}", "amount": amt, "text": t},
+                {"stat_key": f"cast_speed_{pool}", "amount": amt, "text": t}]
+
+    # "N% chance … to inflict M additional stack(s) of Wilt" → distinct stat from plain Wilt chance (chance for
+    # an EXTRA stack, a separate mechanic — owner-confirmed). Must precede any generic Wilt-chance match.
+    m = re.search(r'([\d.]+)\s*%\s*chance\b.*?\binflict\s+\d+\s+additional\s+stacks?\s+of\s+wilt', t, re.I)
+    if m:
+        return [{"stat_key": "wilt_additional_stack_chance", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Beam supports: "+N additional Beams/refractions" → extra count; "+N% additional Beam Length" → length.
+    m = re.search(r'([\d.]+)\s+additional\s+(?:beams|refractions)\b', t, re.I)
+    if m:
+        return [{"stat_key": "extra_beams_flat", "amount": float(m.group(1)), "text": t}]
+    m = re.search(r'([\d.]+)\s*%\s*additional\s+beam\s+length\b', t, re.I)
+    if m:
+        return [{"stat_key": "beam_length_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "+N to Max Summonable Minions" / "+N Max … Minions" → additional max minions (count).
+    m = re.search(r'([\d.]+)\s+(?:to\s+)?max\s+summonable\s+minions\b', t, re.I)
+    if m:
+        return [{"stat_key": "extra_max_minions_flat", "amount": float(m.group(1)), "text": t}]
+
     # "Damage Penetrates N% <type> Resistance" (pact-spirit pen nodes) — value sits mid-phrase, so the
     # start-anchored matchers below miss it. Maps to the player {type}_pen stat (elemental → elemental_pen).
     m = re.match(r'damage\s+penetrates\s+([\d.]+)\s*%\s*'
@@ -2925,6 +2954,13 @@ def _resolve_skill_line_keys(text: str) -> list[str]:
     # so the line resolves like the direct "+X% … for the supported skill" form instead of badging NYI.
     text = re.sub(r'^\s*buffs?\s+grants?\s+', '', text, flags=re.I)
     text = re.sub(r'\bto (?:this|the supported) skill\b', 'for the supported skill', text, flags=re.I)
+    # A skill's OWN line uses "for this skill" where the support mapper expects "for the supported skill"
+    # (e.g. Chain Lightning "+2 Jumps for this skill"). Normalize so the same stat resolves either way.
+    text = re.sub(r'\bfor this skill\b', 'for the supported skill', text, flags=re.I)
+    # Strip a "(the) (supported) skill's" possessive that sits between a parser keyword and its operand
+    # (e.g. "Converts 50% of the supported skill's Lightning Damage to Cold Damage" → "… of Lightning Damage
+    # to Cold Damage"), so conversion/added-flat lines resolve to their stat instead of badging NYI.
+    text = re.sub(r"\b(?:the\s+)?(?:supported\s+)?skill['’]s\s+", '', text, flags=re.I)
     tmpl = _template(text)
     # "adds X-Y <type> Damage" added-flat line → per-cat flat stats. Return BOTH cats so the badge
     # matches whichever the supported skill uses (classifyKeys checks .some()).
@@ -2940,7 +2976,13 @@ def _resolve_skill_line_keys(text: str) -> list[str]:
     keys = [c.stat_key for c in map_line(line, 20, None, permissive)]   # cat=None: skip added-flat (handled above)
     if keys:
         return keys
-    return resolve_effect_text_keys(text, _parse_custom_mod_text, _translate_condition_expr)
+    # Fallback: the unified node resolver maps the stat phrasing itself via stat_meta (which already honors the
+    # increased-vs-additional pool and the damage type). It doesn't understand the "for/of the (supported) skill"
+    # support-target phrase, so strip it (prefix or suffix) first. This recovers minion/penetration/etc. lines
+    # map_line doesn't cover, with NO per-stat table — the parser decides the exact stat from the bare phrasing.
+    bare = re.sub(r'^\s*the supported skill\s+', '', text, flags=re.I)
+    bare = re.sub(r'\s+(?:for|of)\s+(?:the supported|this) skill\b.*$', '', bare, flags=re.I).strip()
+    return resolve_effect_text_keys(bare, _parse_custom_mod_text, _translate_condition_expr)
 
 
 @app.post("/api/map-modifiers")

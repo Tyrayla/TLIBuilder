@@ -1440,6 +1440,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="wilt",               stacking_rule="additive_chance",
         ui_priority=22,                source_types=_T,
     ),
+    Stat.WILT_ADDITIONAL_STACK_CHANCE: StatMeta(
+        "Chance to inflict an additional Wilt stack", "Ailments", "chance", "%",
+        subgroup="wilt",               stacking_rule="additive_chance",
+        ui_priority=23,                source_types=_T,
+    ),
     Stat.WILT_DURATION_INC: StatMeta(
         "Wilt Duration", "Ailments", "increased", "%",
         subgroup="wilt",               stacking_rule="additive",
@@ -2435,6 +2440,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.WARCRY_SKILL_AREA_INC: StatMeta(
         "Warcry Skill Area", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=71,                source_types=_T,
+    ),
+    Stat.WARCRY_CAST_SPEED_INC: StatMeta(
+        "Warcry Cast Speed", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=71,                source_types=_T,
     ),

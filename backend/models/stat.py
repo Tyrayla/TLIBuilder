@@ -328,6 +328,8 @@ class Stat(Enum):
     WILT_DMG_FLAT_MIN = "wilt_dmg_flat_min"
     WILT_DMG_FLAT_MAX = "wilt_dmg_flat_max"
     WILT_CHANCE = "wilt_chance"
+    # Chance to inflict an ADDITIONAL stack of Wilt (distinct mechanic from WILT_CHANCE = chance to inflict at all).
+    WILT_ADDITIONAL_STACK_CHANCE = "wilt_additional_stack_chance"
     WILT_DURATION_INC = "wilt_duration_inc"
 
     # ── Tangle ───────────────────────────────────────────────────────────────
@@ -426,6 +428,7 @@ class Stat(Enum):
     # ── Cast Speed ───────────────────────────────────────────────────────────
     CAST_SPEED_INC = "cast_speed_inc"
     CAST_SPEED_ADDITIONAL = "cast_speed_additional"
+    WARCRY_CAST_SPEED_INC = "warcry_cast_speed_inc"   # "Warcry Cast Speed" (warcry-scoped; e.g. Lion's Roars)
 
     # ── Attack Speed ─────────────────────────────────────────────────────────
     ATTACK_SPEED_GEAR = "attack_speed_gear"
