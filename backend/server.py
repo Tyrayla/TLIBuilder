@@ -24,6 +24,7 @@ from engine.mod_parser import (
     _parse_custom_mod_text, _parse_custom_mod_text_base, _resolve_gear_stat, _norm_expr,
     _gear_normalize, _get_gear_candidates, _normalize_for_custom_resolve,
     _EXPRESSION_STAT_OVERRIDES, _POOL_QUALIFIERS, _POOL_QUALIFIER_WORDS,
+    _GEAR_COND_RE, _GEAR_SUFFIX_RE,
 )
 
 _DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
