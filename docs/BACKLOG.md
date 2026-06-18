@@ -19,6 +19,31 @@ Merged to `dev`. Cloudflare Web Analytics enabled. **Remaining (optional):** see
 
 **Dropped (decided against):** global display truncation (option B) and the 1-life reservation floor.
 
+## 0c. Tangles (core shipped 2026-06-17 — follow-ups)
+Shipped: the **Tangle skill type**. A Spell becomes a Tangle via an activator support (**Spell Tangle** /
+**Activation Medium: Tangle**, NOT Manifold); it's then cast by N attached tangles (each a full caster) instead of
+the player, so **Tangle DPS = single-cast offense × attached_count × (1 + Σ Tangle Damage Enhancement)**. Engine:
+`offense.calculate_offense(tangle=…)` adds the `"tangle"` mod tag (so `tangle_dmg_inc` / `tangle_dmg_additional` /
+`tangle_crit_rating_flat` apply via existing tag pools) + folds the count + enhancement multipliers into the DPS
+totals like `cast_multiplier`; `compute._offense_for_slot` detects the activator and sizes the counts
+(`attached = min(1 + extra_tangle_applied_flat, 2 + max_tangle_quantity_flat)`, default 1). New stats:
+`tangle_dmg_additional`, `tangle_dmg_enhancement_additional` (separate additive-within-itself multiplier),
+`tangle_crit_rating_flat`, `tangle_attach_range_inc`. **Dormant Entanglement** (+40% additional Tangle Damage per
+inactivated tangle) via user condition or the `has_dormant_entanglement_flag` (Acquaintance / gear). Conditions:
+`active_tangles` (lower-only override), `has_dormant_entanglement`. Fixed: "Tangle Damage Enhancement" was
+mis-mapping to `tangle_dmg_inc` (now `tangle_dmg_enhancement_additional`). Dedicated Tangle panel + auditable
+×count/×enhancement annotation in the Skill Hit Damage breakdown.
+- **USE vs CAST filtering (deferred):** tangle triggers are CASTS, not USES — USE-gated buffs/procs should not apply
+  to tangle casts. v1 applies all player buffs (may slightly over-count). Build the USE/CAST gate later.
+- **"+X per activated Tangle" node lines** (e.g. Movement Speed per activated tangle) — not yet scaled by the active
+  count (the `active_tangles` condition exists; wire the per-activated-tangle node contributions to it).
+- **Magister "when generating Tangle …" trigger nodes** (start ES charging / gain Focus Blessing on generate) — the
+  trigger-on-generate mechanic isn't modeled.
+- **Manifold "spawns all at once" + multi-enemy clear / attach prioritization** — positioning/clear, not boss DPS.
+- **Dormant Entanglement exploit (far future):** fast cast speed makes a tangle briefly inactive while its
+  projectiles are mid-air, feeding the +40% per inactivated — needs projectile-travel simulation; not worth doing.
+- See docs/INGAME_VERIFICATION_BACKLOG.md (TANGLE-01) for verification items.
+
 ## 0a. Empower skills (core shipped 2026-06-17 — follow-ups)
 - **★ HIGH PRIORITY — many empower skills lack progression tables in the data.** Their per-level scaling isn't
   present, so the resolver can only interpolate from the Lv1 (simple) and Lv20 (detailed) anchors and can't scale
@@ -164,6 +189,12 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
 - Source coloring (crafted gear by rarity #mods, talents by tree branch); hero-memory base values by rarity
   (owner has hand-gathered data); per-weapon dual-wield crit/damage display; verify Numbed×Grudge/Infiltration
   stacking; offense/hit revamp (skill-specific section, projectiles).
+- **Stats-screen offense rework — separate the "delivery multiplier" breakdowns.** The Skill Hit Damage area folds
+  the same-target shotgun (`cast_multiplier`) and the Tangle attached-count into the DPS as flat multipliers shown
+  only as small inline annotations. Rework the offense display so these "how the hit is delivered N times" multipliers
+  (shotgun hits, tangle count, future per-cast/trigger mechanics) get their own clearly-separated breakdown area
+  distinct from the per-hit damage breakdown (base × increased × additional × crit). Pairs with the engine↔frontend
+  display-fidelity audit (§5).
 
 ## 7. Infra / hosting
 - **Web-hosted version — SHIPPED** (see the top of this doc). Open follow-ups: redeploy automation (currently

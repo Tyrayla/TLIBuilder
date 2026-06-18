@@ -210,7 +210,11 @@ def _build_additional_factors(source: BuildSource) -> list[tuple[float, frozense
     for e in source.source_log:
         if e.stat not in _HIT_ADDITIONAL_KEYS:
             continue
-        ident = (e.stat, affix_identity(e.text or ""))
+        # "Damage Enhancement" affixes (e.g. Tangle/Combo/Focus Damage Enhancement) are ADDED TOGETHER into a
+        # single additional factor (Help DB) rather than each being its own ×(1+x) factor — so pool them by
+        # stat-key alone (shared identity), not by text, so two sources sum (50%+50% → +100%) instead of
+        # multiplying. Regular additional mods keep their per-text identity (distinct sources multiply).
+        ident = (e.stat, "" if e.stat.endswith("_enhancement_additional") else affix_identity(e.text or ""))
         if e.amount < 0:
             neg[ident].append(e.amount)
         else:
@@ -545,6 +549,15 @@ class OffenseResult:
     # DPS totals (NOT the per-hit-form damage — mirrors the in-game tooltip vs Recount split).
     cast_multiplier: float = 1.0
     shotgun_hits: int = 1        # same-target hits per cast (1 = no shotgun)
+    # Tangle mode (the skill is cast by N tangles, not the player). tangle_count = attached tangles on the target
+    # (each a full caster), tangle_enhancement = the ×(1 + Σ Tangle Damage Enhancement) multiplier. Both fold into
+    # the DPS totals like cast_multiplier (NOT the per-hit-form damage). 0 / 1.0 when the skill is not tangled.
+    tangle_count: int = 0
+    tangle_enhancement: float = 1.0
+    tangle_placeable: int = 0          # Max Tangle Quantity (base 2 + mods)
+    tangle_inactivated: int = 0        # placeable − active (feeds Dormant Entanglement)
+    tangle_duration: float = 0.0       # seconds (base 8 × duration mods) — display only
+    tangle_attach_range: float = 0.0   # metres (base 8 × attach-range mods) — display only
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -593,7 +606,12 @@ def calculate_offense(
     extra_additional: float = 0.0,
     support_behavior: dict | None = None,
     remove_mod_tags: set[str] | None = None,
+    tangle: dict | None = None,
 ) -> OffenseResult:
+    # tangle: when set (the skill has a Tangle activator support), the skill is cast by N tangles instead of the
+    # player. `tangle["count"]` = attached tangles on the target (each a full caster). Adds the "tangle" mod tag
+    # (so Tangle Damage / additional / crit pools apply via existing tag filtering) and folds two final
+    # multipliers into the DPS totals: the count, and ×(1 + Σ Tangle Damage Enhancement).
     # extra_additional: a skill-intrinsic generic "additional damage" pool (fraction), evaluated
     # by the caller from the skill's intrinsic_additional + condition state (e.g. Focused Slash's
     # Fervor bonus). Applied as one extra multiplicative pool on every hit.
@@ -611,6 +629,11 @@ def calculate_offense(
     mod_tags = skill_tags_lower | {t.lower() for t in skill.extra_damage_mod_tags}
     if remove_mod_tags:
         mod_tags = mod_tags - {t.lower() for t in remove_mod_tags}
+    # Tangle mode: tag the skill "tangle" so Tangle Damage (inc), additional Tangle Damage, and Tangle Crit
+    # Rating apply through the existing tag-filtered pools. The count + enhancement multipliers are folded into
+    # the DPS totals at the end (like cast_multiplier).
+    if tangle:
+        mod_tags = mod_tags | {"tangle"}
 
     # 0. Crit — computed here in the offense layer, NOT in the fixed-point loop
     # Weapon CSR (from weapon gear piece) scaled by gear-specific and MH-specific % mods only.
@@ -892,6 +915,21 @@ def calculate_offense(
         cast_multiplier = 1.0 + subsequent * (1.0 - float(support_behavior["falloff_coefficient"]))
         shotgun_hits = 1 + subsequent
 
+    # Tangle mode: N attached tangles each cast the skill (full caster), so the DPS scales by the count; Tangle
+    # Damage Enhancement is its own ×(1 + Σ) multiplier (additive within itself), separate from the inc/additional
+    # pools. Both fold into the DPS totals (the per-hit-form damage is unchanged), like the shotgun multiplier.
+    tangle_count = int(tangle["count"]) if tangle else 0
+    # Tangle Damage Enhancement now rides the ADDITIONAL pool (summed into one factor — see
+    # _build_additional_factors), so it's ALREADY in each hit's damage. tangle_enhancement is kept only for the
+    # Tangle panel display (the ×factor); the DPS total multiplier is the attached count alone.
+    tangle_enhancement = (1.0 + source.total("tangle_dmg_enhancement_additional")) if tangle else 1.0
+    tangle_mult = float(tangle_count) if tangle else 1.0
+    tangle_placeable = int(tangle["placeable"]) if tangle else 0
+    tangle_inactivated = int(tangle["inactivated"]) if tangle else 0
+    tangle_duration = (8.0 * (1.0 + source.total("tangle_duration_inc"))
+                       * (1.0 + source.total("tangle_duration_additional"))) if tangle else 0.0
+    tangle_attach_range = (8.0 * (1.0 + source.total("tangle_attach_range_inc"))) if tangle else 0.0
+
     return OffenseResult(
         skill_name=skill.name,
         supported=True,
@@ -902,8 +940,8 @@ def calculate_offense(
         steep_strike_chance=steep_chance,
         attacks_per_second=aps,
         base_cast_time=base_cast_time,
-        total_dps=sum(f.dps_contribution for f in hit_forms) * cast_multiplier,
-        total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms) * cast_multiplier,
+        total_dps=sum(f.dps_contribution for f in hit_forms) * cast_multiplier * tangle_mult,
+        total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms) * cast_multiplier * tangle_mult,
         weapon_attack_speed=source.total("weapon_attack_speed"),
         weapon_aps_gear=source.total("attack_speed_gear"),
         weapon_aps_mh=source.total("attack_speed_mh"),
@@ -926,6 +964,12 @@ def calculate_offense(
         skill_area_inc=source.total("skill_area_inc") if "area" in skill_tags_lower else 0.0,
         cast_multiplier=cast_multiplier,
         shotgun_hits=shotgun_hits,
+        tangle_count=tangle_count,
+        tangle_enhancement=tangle_enhancement,
+        tangle_placeable=tangle_placeable,
+        tangle_inactivated=tangle_inactivated,
+        tangle_duration=tangle_duration,
+        tangle_attach_range=tangle_attach_range,
         nyi=[
             "Support skill flat damage adds",
             "Elemental conversion",

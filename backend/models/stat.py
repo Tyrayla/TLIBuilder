@@ -337,7 +337,11 @@ class Stat(Enum):
     TANGLE_DURATION_INC = "tangle_duration_inc"
     TANGLE_DURATION_ADDITIONAL = "tangle_duration_additional"
     MAX_TANGLE_QUANTITY_FLAT = "max_tangle_quantity_flat"
-    EXTRA_TANGLE_APPLIED_FLAT = "extra_tangle_applied_flat"  # +N Tangles applied per application
+    EXTRA_TANGLE_APPLIED_FLAT = "extra_tangle_applied_flat"  # +N Tangles attachable per enemy
+    TANGLE_DMG_ADDITIONAL = "tangle_dmg_additional"          # additional pool (multiplicative); Dormant Entanglement
+    TANGLE_DMG_ENHANCEMENT_ADDITIONAL = "tangle_dmg_enhancement_additional"  # SEPARATE multiplier, additive within itself (matches *_enhancement_additional convention)
+    TANGLE_CRIT_RATING_FLAT = "tangle_crit_rating_flat"      # added to the tangled skill's crit rating
+    TANGLE_ATTACH_RANGE_INC = "tangle_attach_range_inc"      # display/tracked (base 8m); not a DPS factor
 
     # ── Trauma ───────────────────────────────────────────────────────────────
     TRAUMA_DMG_INC = "trauma_dmg_inc"

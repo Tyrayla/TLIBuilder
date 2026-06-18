@@ -15,6 +15,10 @@ log = logging.getLogger(__name__)
 
 _MAX_ITERS = 10
 
+# Support ids that turn a Spell into a Tangle (the skill is then cast by attached tangles, not the player).
+# Manifold Entanglement is NOT here — it's a normal damage support that spawns all tangles at once.
+_TANGLE_ACTIVATORS = frozenset({"spell_tangle", "activation_medium_tangle"})
+
 
 # "Gain on hit" automax flag → the numeric condition pinned to its derived max (full-uptime approximation).
 _AUTOMAX_TARGETS = [
@@ -513,10 +517,28 @@ def compute(
         # Intrinsic additionals read the slot-EFFECTIVE source so a slot-local amplifier (e.g. Tranquility's
         # fervor_effect_additional) scopes to the skill's bonus without touching the global Fervor→crit.
         extra = _eval_intrinsic_additional(resolved, eff, new_state)
+        # ── Tangle mode ── the slot is "tangled" if an activator support (Spell Tangle / Activation Medium:
+        # Tangle) is enabled on a Spell skill: the spell is cast by N attached tangles, not the player.
+        tangle = None
+        if resolved.is_spell and any(
+                s.get("item_id") in _TANGLE_ACTIVATORS and s.get("enabled", True)
+                for s in (build_input.attached_supports or []) if s.get("slot", 1) == slot):
+            placeable = 2 + int(eff.total("max_tangle_quantity_flat"))
+            attach_cap = max(0, min(1 + int(eff.total("extra_tangle_applied_flat")), placeable))
+            user = new_state.get("active_tangles")
+            active = min(int(user), attach_cap) if (user and float(user) > 0) else attach_cap
+            inactivated = max(0, placeable - active)
+            # Dormant Entanglement: +40% additional Tangle Damage per INACTIVATED tangle. Enabled by the user
+            # condition OR a granting source flag (Acquaintance core talent / gear). One pooled additional factor
+            # (1 + 0.40·n), applied via the tangle tag in calculate_offense.
+            has_dormant = new_state.get("has_dormant_entanglement") or eff.total("has_dormant_entanglement_flag") > 0
+            if has_dormant and inactivated > 0:
+                eff.add("tangle_dmg_additional", 0.40 * inactivated)
+            tangle = {"count": active, "placeable": placeable, "inactivated": inactivated}
         return asdict(calculate_offense(
             eff, resolved, level, is_main_skill=is_main, extra_additional=extra,
             support_behavior=_behavior_by_slot.get(slot, {}),
-            remove_mod_tags=overrides.get("remove_mod_tags")))
+            remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle))
 
     result_offense = None
     slot_offense: dict[int, dict] = {}

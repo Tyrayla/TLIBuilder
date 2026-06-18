@@ -142,8 +142,12 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     "warcry is cast immediately +(#) max warcry skill charges": "max_warcry_skill_charges_flat",
     # Defense
     "+(#) % additional defense gained from shield":      "shield_defense_additional",
-    # Tangle (single value)
-    "+(#) % tangle damage enhancement":                  "tangle_dmg_inc",
+    # Tangle. Enhancement is its OWN additive-within-itself multiplier (NOT the increased pool); additional
+    # Tangle Damage is the multiplicative additional pool; crit rating is flat; attach range is display-only.
+    "+(#) % tangle damage enhancement":                  "tangle_dmg_enhancement_additional",
+    "+(#) % additional tangle damage":                   "tangle_dmg_additional",
+    "+(#) tangle critical strike rating":                "tangle_crit_rating_flat",
+    "+(#) % tangle attach range":                        "tangle_attach_range_inc",
     # Shadow damage
     "+(#) % additional shadow damage":                   "shadow_dmg_additional",
     # Spell burst hit damage (single value)
@@ -362,6 +366,11 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         amt = float(m.group(1)) / 100.0
         return [{"stat_key": f"attack_speed_{pool}", "amount": amt, "text": t},
                 {"stat_key": f"cast_speed_{pool}", "amount": amt, "text": t}]
+
+    # "Has Dormant Entanglement" (Acquaintance core talent / gear) → flag enabling Dormant Entanglement's
+    # per-inactivated-tangle bonus (read in compute._offense_for_slot). No value in the text → amount 1.0.
+    if re.search(r'\bhas\s+dormant\s+entanglement\b', t, re.I):
+        return [{"stat_key": "has_dormant_entanglement_flag", "amount": 1.0, "text": t}]
 
     # "N% chance … to inflict M additional stack(s) of Wilt" → distinct stat from plain Wilt chance (chance for
     # an EXTRA stack, a separate mechanic — owner-confirmed). Must precede any generic Wilt-chance match.

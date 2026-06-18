@@ -604,6 +604,14 @@ export interface OffenseResult {
   // per-type breakdown must multiply by this to reconcile to 100%. 1.0 when no shotgun.
   cast_multiplier: number
   shotgun_hits: number
+  // Tangle mode (spell cast by N attached tangles, not the player). 0 / 1.0 when not tangled. tangle_count and
+  // tangle_enhancement fold into the DPS totals like cast_multiplier; the rest are display-only mechanic stats.
+  tangle_count: number
+  tangle_enhancement: number
+  tangle_placeable: number
+  tangle_inactivated: number
+  tangle_duration: number
+  tangle_attach_range: number
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number

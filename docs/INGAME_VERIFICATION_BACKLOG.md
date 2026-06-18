@@ -228,6 +228,25 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   4. **Uptime.** Engine treats the buff as always-on (100%); real uptime/duration is unmodeled.
 - Method: a spell main skill + Secret Origin Unleash (+15% Spell) vs the standard dummy; Recount span-average.
 
+### TANGLE-01 — Tangle DPS model (multipliers across multiple setups)
+- Status: ⬜ Pending — **verify the whole Tangle model against the live game across several different setups**
+  to confirm each multiplier behaves correctly (not just one build).
+- Setup: a Spell + **Spell Tangle** vs the standard dummy. Then vary ONE thing at a time and re-parse:
+  1. **Count.** Base (1 attached) → add "+1 apply additional Tangle to enemies" (gear/Peculiar Vibe). Expected
+     total DPS **×2** (each tangle is a full caster, no penalty). Also try +2 apply with ≥3 Max Tangle Quantity.
+  2. **Tangle Damage Enhancement.** Add a known "+X% Tangle Damage Enhancement"; expected **×(1 + X)**. Add a
+     SECOND enhancement source; expected additive within itself (56%+56% → ×2.12), NOT multiplicative.
+  3. **Additional Tangle Damage.** Add "+X% additional Tangle Damage"; expected its own multiplicative factor,
+     SEPARATE from enhancement.
+  4. **Plain Tangle Damage / Tangle Crit.** Confirm "+X% Tangle Damage" lands in the increased pool and "+N Tangle
+     Critical Strike Rating" raises the tangle's crit.
+  5. **Dormant Entanglement.** With Max Tangle Quantity > attached (≥1 inactivated) + Dormant enabled, expected
+     +40% **additional** Tangle Damage per inactivated tangle.
+  6. **Cast speed.** Confirm the tangle trigger rate scales 1:1 with the spell's cast rate.
+- Confirm in-game: **base attached-per-enemy = 1** and base **Max Tangle Quantity = 2** (Help DB); the player can't
+  manually cast the skill while a Tangle activator is enabled (use only spawns tangles, always a new one).
+- RESULT (per sub-test): Recount Avg DPS (span) + Duration, before/after; the mod + its roll; Skill level; Screenshot.
+
 ---
 
 ## How results are ingested

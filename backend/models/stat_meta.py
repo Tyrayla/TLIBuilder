@@ -1479,6 +1479,41 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="tangle",             stacking_rule="additive",
         ui_priority=71,                source_types=_TB,
     ),
+    # Multiplicative additional Tangle Damage (each source its own factor) — Dormant Entanglement + gear/talents.
+    # Applies via the tangle tag when the skill is in tangle mode (like other tagged additional pools).
+    Stat.TANGLE_DMG_ADDITIONAL: StatMeta(
+        "Additional Tangle Damage", "Ailments", "additional", "%",
+        subgroup="tangle",             pipeline_stage="additional",
+        tags=("tangle",),              affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_T,
+    ),
+    # Tangle Damage Enhancement: an ADDITIONAL-damage pool whose affixes are ADDED TOGETHER into one factor
+    # (Help DB: "the values of each Enhancement affix are stacked together" — 2×+50% = +100% additional). It rides
+    # the normal additional pool (so it shows in the additional source breakdown) but, unlike regular additional
+    # mods (each its own ×(1+x) factor), all *_enhancement_additional sources of a stat SUM into a single factor —
+    # see offense._build_additional_factors. tag "tangle" → applies in tangle mode like the other tangle pools.
+    Stat.TANGLE_DMG_ENHANCEMENT_ADDITIONAL: StatMeta(
+        "Tangle Damage Enhancement", "Ailments", "additional", "%",
+        subgroup="tangle",             pipeline_stage="additional",
+        tags=("tangle",),              affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_T,
+    ),
+    # Tangle-scoped crit rating (flat) — applies via the tangle tag through the existing crit-rating-flat pool.
+    Stat.TANGLE_CRIT_RATING_FLAT: StatMeta(
+        "Tangle Critical Strike Rating", "Critical Strike", "crit_rating",
+        subgroup="crit_rating",        pipeline_stage="crit_rating",
+        tags=("tangle",),              affects=_HIT,
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_T,
+    ),
+    # Tangle Attach Range (base 8m) — tracked/displayed; positioning, not a DPS factor (no pipeline_stage).
+    Stat.TANGLE_ATTACH_RANGE_INC: StatMeta(
+        "Tangle Attach Range", "Ailments", "increased", "%",
+        subgroup="tangle",             stacking_rule="additive",
+        ui_priority=72,                source_types=_T,
+    ),
 
     # ── Trauma ────────────────────────────────────────────────────────────────
     Stat.TRAUMA_DMG_INC: StatMeta(

@@ -145,6 +145,14 @@ def consumable_universe() -> frozenset[str]:
     # support_resolver folds these skill-level sources into a support's effective level (+4 Support Skill
     # Level from Off the Beaten Track, tag-matched levels like +Attack Skill Level for an Attack support).
     consumed |= {"support_skill_level"}
+    # Tangle mode (offense.calculate_offense / compute._offense_for_slot) reads these outside the synthetic
+    # passes: the Tangle Damage Enhancement multiplier, and the count stats that size attached/placeable tangles.
+    # (tangle_dmg_inc / tangle_dmg_additional / tangle_crit_rating_flat are already covered — the synthetic skill
+    # carries the "tangle" tag in _ALL_TAGS, so the tag-filtered pools read them.)
+    consumed |= {"tangle_dmg_enhancement_additional", "max_tangle_quantity_flat", "extra_tangle_applied_flat",
+                 "has_dormant_entanglement_flag",
+                 # display-only tangle mechanic reads (duration/attach range) in calculate_offense's tangle mode
+                 "tangle_duration_inc", "tangle_duration_additional", "tangle_attach_range_inc"}
 
     missing = _SANITY_FLOOR - consumed
     if missing:

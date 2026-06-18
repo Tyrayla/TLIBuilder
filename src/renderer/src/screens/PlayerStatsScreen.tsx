@@ -93,7 +93,9 @@ const BD_GRID = 'auto auto auto minmax(0,1fr)'
 
 // Format a breakdown TOTAL: '%' unit treats the value as a fraction (0.6 → "60%"); else plain number.
 function fmtTotalVal(v: number, unit: string): string {
-  return unit === '%' ? `${(v * 100).toFixed(0)}%` : (v % 1 === 0 ? v.toFixed(0) : v.toFixed(2))
+  if (unit === '%') return `${(v * 100).toFixed(0)}%`
+  if (unit === '×') return `×${v.toFixed(2)}`   // multiplier pools (e.g. Total Additional = Π(1+x))
+  return v % 1 === 0 ? v.toFixed(0) : v.toFixed(2)
 }
 
 // The title + Total header shared by the main breakdown and each section, so they look identical.
@@ -491,6 +493,8 @@ function genericIncKeys(offense: OffenseResult): string[] {
   if (hasTag(offense,'melee'))      keys.push('melee_dmg_inc')
   if (hasTag(offense,'area'))       keys.push('area_dmg_inc')
   if (hasTag(offense,'projectile')) keys.push('projectile_dmg_inc')
+  // Tangle mode adds the "tangle" tag inside offense (not on the skill's tags), so key off tangle_count.
+  if ((offense.tangle_count ?? 0) > 0) keys.push('tangle_dmg_inc')
   return keys
 }
 
@@ -507,6 +511,8 @@ function genericAddKeys(offense: OffenseResult): string[] {
   if (hasTag(offense,'melee'))      keys.push('melee_dmg_additional')
   if (hasTag(offense,'area'))       keys.push('area_dmg_additional')
   if (hasTag(offense,'projectile')) keys.push('projectile_dmg_additional')
+  // Tangle mode: additional + the enhancement pool (both ride the "tangle" tag, added inside offense).
+  if ((offense.tangle_count ?? 0) > 0) keys.push('tangle_dmg_additional', 'tangle_dmg_enhancement_additional')
   return keys
 }
 
@@ -522,6 +528,12 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
   // per-form dps_vs_target does NOT, so every per-form / per-type figure below must apply it to reconcile to
   // 100% (otherwise both "% of Total" and "Type Contribution" read 1/cast_multiplier). 1.0 when no shotgun.
   const castMult = offense.cast_multiplier ?? 1
+  // Tangle mode multiplier: total_dps_vs_target multiplies by the attached tangle COUNT (each tangle a full
+  // caster), which per-form dps_vs_target does NOT — so the breakdown applies it alongside the shotgun multiplier
+  // to reconcile to 100%. (Tangle Damage Enhancement is NOT here — it rides the additional pool, already in each
+  // form's damage.) 1 when not tangled (tangle_count 0).
+  const tangleMult = (offense.tangle_count ?? 0) > 0 ? offense.tangle_count : 1
+  const breakdownMult = castMult * tangleMult
 
   // Per-dtype DPS total across all forms (proportional attribution via avg hit)
   const dtypeDpsTotal: Record<string, number> = {}
@@ -529,7 +541,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
     dtypeDpsTotal[dtype] = offense.hit_forms.reduce((sum, form) => {
       const dtypeAvg = form.damage_by_type[dtype] ?? 0
       const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-      return sum + prop * form.dps_vs_target * castMult
+      return sum + prop * form.dps_vs_target * breakdownMult
     }, 0)
   }
 
@@ -589,7 +601,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                dash — a type with no specific modifier reads ×1.00. ── */}
           <tr>
             <td style={tdLbl}>Total Increased</td>
-            <td style={td}><Breakdown title="Total Increased — All Types" keys={genericIncKeys(offense)} formula="Σ Increased %">{(offense.generic_inc * 100).toFixed(0)}%</Breakdown></td>
+            <td style={td}><Breakdown title="Total Increased — All Types" keys={genericIncKeys(offense)} total={offense.generic_inc} totalUnit="%" formula="Σ Increased %">{(offense.generic_inc * 100).toFixed(0)}%</Breakdown></td>
             {ALL_DTYPES.map(d => {
               // Specific = this type's increase beyond the generic (catch-all) bucket. Types the skill
               // doesn't deal have no entry → treated as generic-only → 0% specific.
@@ -597,13 +609,13 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               const show = specific >= 0.005
               const txt = `${(specific * 100).toFixed(0)}%`
               return <td key={d} style={show ? td : tdDim}>
-                {show ? <Breakdown title={`Total Increased — ${DTYPE_LABEL[d]}`} keys={typeIncKeys(d)} formula="Σ this type's Increased %">{txt}</Breakdown> : txt}
+                {show ? <Breakdown title={`Total Increased — ${DTYPE_LABEL[d]}`} keys={typeIncKeys(d)} total={specific} totalUnit="%" formula="Σ this type's Increased %">{txt}</Breakdown> : txt}
               </td>
             })}
           </tr>
           <tr>
             <td style={tdLbl}>Total Additional</td>
-            <td style={td}><Breakdown title="Total Additional — All Types" keys={genericAddKeys(offense)} formula="Π (1 + Additional)">×{offense.generic_add.toFixed(2)}</Breakdown></td>
+            <td style={td}><Breakdown title="Total Additional — All Types" keys={genericAddKeys(offense)} total={offense.generic_add} totalUnit="×" formula="Π (1 + Additional)">×{offense.generic_add.toFixed(2)}</Breakdown></td>
             {ALL_DTYPES.map(d => {
               // Specific = type_add factored over the generic bucket. Types the skill doesn't deal have
               // no entry → ×1.00 (not 1/generic, which would show a phantom multiplier on empty types).
@@ -613,7 +625,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               const show = Math.abs(specificAdd - 1) >= 0.005
               const txt = `×${specificAdd.toFixed(2)}`
               return <td key={d} style={show ? td : tdDim}>
-                {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(d)} formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
+                {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(d)} total={specificAdd} totalUnit="×" formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
               </td>
             })}
           </tr>
@@ -633,7 +645,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
           {offense.hit_forms.map(form => {
             const formMin = ALL_DTYPES.reduce((s, d) => s + (form.hit_min_by_type[d] ?? 0), 0)
             const formMax = ALL_DTYPES.reduce((s, d) => s + (form.hit_max_by_type[d] ?? 0), 0)
-            const formPct = totalDps > 0 ? `${(form.dps_vs_target * castMult / totalDps * 100).toFixed(0)}%` : '—'
+            const formPct = totalDps > 0 ? `${(form.dps_vs_target * breakdownMult / totalDps * 100).toFixed(0)}%` : '—'
 
             return (
               <React.Fragment key={form.name}>
@@ -648,6 +660,11 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                     {castMult > 1 && (
                       <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
                         ×{castMult.toFixed(2)} same-target shotgun ({offense.shotgun_hits} hits)
+                      </span>
+                    )}
+                    {(offense.tangle_count ?? 0) > 0 && (
+                      <span style={{ color: '#8a7', fontWeight: 400, marginLeft: 6 }}>
+                        ×{offense.tangle_count} tangles
                       </span>
                     )}
                   </td>
@@ -665,11 +682,11 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                 </tr>
                 <tr>
                   <td style={tdLbl}>DPS</td>
-                  <td style={{ ...td, color: '#f0c070' }}>{fmtNum(form.dps_vs_target * castMult)}</td>
+                  <td style={{ ...td, color: '#f0c070' }}>{fmtNum(form.dps_vs_target * breakdownMult)}</td>
                   {ALL_DTYPES.map(d => {
                     const dtypeAvg = form.damage_by_type[d] ?? 0
                     const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-                    const dtypeDps = prop * form.dps_vs_target * castMult
+                    const dtypeDps = prop * form.dps_vs_target * breakdownMult
                     return <td key={d} style={dtypeDps > 0 ? td : tdDim}>
                       {dtypeDps > 0 ? fmtNum(dtypeDps) : '—'}
                     </td>
@@ -681,7 +698,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                   {ALL_DTYPES.map(d => {
                     const dtypeAvg = form.damage_by_type[d] ?? 0
                     const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-                    const dtypeDps = prop * form.dps_vs_target * castMult
+                    const dtypeDps = prop * form.dps_vs_target * breakdownMult
                     const pct = totalDps > 0 && dtypeDps > 0 ? `${(dtypeDps / totalDps * 100).toFixed(0)}%` : '—'
                     return <td key={d} style={{ ...td, color: dtypeDps > 0 ? '#888' : '#444' }}>{pct}</td>
                   })}
@@ -1030,6 +1047,39 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
           extra: [{ value: '150%', stat: 'Crit Multiplier', source: 'Baseline', sourceName: 'Base ×1.5' }],
         }}>{(offense.crit_multiplier * 100).toFixed(0)}%</Row>
       </StatPanel>
+
+      {(offense.tangle_count ?? 0) > 0 && (
+        <StatPanel title="Tangle" accent={AMBER}>
+          <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
+            Cast by attached Tangles (each a full caster) — Tangle DPS = per-cast × attached count. Tangle Damage /
+            Enhancement / Crit feed the normal damage pools above.
+          </div>
+          <Row label="Attached (casting)" breakdown={{
+            title: 'Attached Tangles', keys: ['extra_tangle_applied_flat'], total: offense.tangle_count, totalUnit: '',
+            extra: [{ value: '1', stat: 'Base', source: 'Baseline', sourceName: 'Base attach per enemy' }],
+            formula: 'min(1 base + Additional Tangles Applied, Max Placeable)',
+          }}>{offense.tangle_count}</Row>
+          <Row label="Max Placeable" breakdown={{
+            title: 'Max Tangle Quantity', keys: ['max_tangle_quantity_flat'], total: offense.tangle_placeable, totalUnit: '',
+            extra: [{ value: '2', stat: 'Base', source: 'Baseline', sourceName: 'Base Max Tangle Quantity' }],
+            formula: '2 base + Max Tangle Quantity',
+          }}>{offense.tangle_placeable}</Row>
+          <Row label="Inactivated" breakdown={{
+            title: 'Inactivated Tangles', keys: [], total: offense.tangle_inactivated, totalUnit: '',
+            formula: 'Max Placeable − Active (feeds Dormant Entanglement)',
+          }}>{offense.tangle_inactivated}</Row>
+          <Row label="Duration" breakdown={{
+            title: 'Tangle Duration', keys: ['tangle_duration_inc', 'tangle_duration_additional'], total: offense.tangle_duration, totalUnit: ' s',
+            extra: [{ value: '8 s', stat: 'Base', source: 'Baseline', sourceName: 'Base Duration' }],
+            formula: '8 s × (1 + Increased) × (1 + Additional)',
+          }}>{offense.tangle_duration.toFixed(1)} s</Row>
+          <Row label="Attach Range" breakdown={{
+            title: 'Tangle Attach Range', keys: ['tangle_attach_range_inc'], total: offense.tangle_attach_range, totalUnit: ' m',
+            extra: [{ value: '8 m', stat: 'Base', source: 'Baseline', sourceName: 'Base Attach Range' }],
+            formula: '8 m × (1 + Increased)',
+          }}>{offense.tangle_attach_range.toFixed(1)} m</Row>
+        </StatPanel>
+      )}
     </>
   )
 }

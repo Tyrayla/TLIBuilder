@@ -1,5 +1,6 @@
 {
   "condition_maximums": {
+    "active_tangles": 1.0,
     "agility_blessings": 4.0,
     "ailment_type_count": 5.0,
     "berserking_blade_stacks": 40.0,
@@ -81,6 +82,7 @@
     "evasion_gear_flat",
     "evasion_gear_inc",
     "evasion_inc",
+    "extra_tangle_applied_flat",
     "ferv",
     "fire_as_erosion",
     "fire_convert_to_erosion",
@@ -286,6 +288,12 @@
     ],
     "steep_strike_chance": 0.0,
     "supported": true,
+    "tangle_attach_range": 0.0,
+    "tangle_count": 0,
+    "tangle_duration": 0.0,
+    "tangle_enhancement": 1.0,
+    "tangle_inactivated": 0,
+    "tangle_placeable": 0,
     "total_dps": 499.53279999999995,
     "total_dps_vs_target": 244.77107199999992,
     "type_add": {
