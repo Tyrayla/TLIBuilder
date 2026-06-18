@@ -177,19 +177,24 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
   const charName = g.source_type === 'character'
     ? (() => { const sub = g.label.replace(/^Character · /, ''); return sub === 'Base' || !sub ? 'Base Character' : sub })()
     : null
+  // Core talents show the NODE name (from the "Core · <node>" label, e.g. "Play Safe") rather than just the
+  // granting tree — more specific, and the tree still drives the row color above. Other talents show the tree.
+  const coreName = g.source_type === 'core_talent' && hasNodeLabel
+    ? g.label.split(' · ').slice(1).join(' · ')
+    : null
   // Source Name column = the real name (item / spirit / memory / support / tree); talents show just the tree.
-  const sourceName = g.source_name || charName || (isTalent ? treeName : (g.text || g.label || '—'))
+  const sourceName = coreName || g.source_name || charName || (isTalent ? treeName : (g.text || g.label || '—'))
 
   return (
     <>
       <div {...(hasHover ? tip.triggerProps : {})}
-        style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'baseline', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: hasHover ? 'help' : undefined, outline: tip.open ? '1px solid #fff' : undefined, outlineOffset: tip.open ? 3 : undefined, background: tip.open ? 'rgba(255,255,255,0.06)' : undefined }}>
+        style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'start', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: hasHover ? 'help' : undefined, outline: tip.open ? '1px solid #fff' : undefined, outlineOffset: tip.open ? 3 : undefined, background: tip.open ? 'rgba(255,255,255,0.06)' : undefined }}>
         <span style={{ color: '#e0e0e0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', textAlign: 'right' }}>
           {g.count > 1 && <span style={{ color: '#666' }}>×{g.count} </span>}{fmtSourceValue(g)}
         </span>
-        <span style={{ color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.statName}</span>
+        <span style={{ color: '#888', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{g.statName}</span>
         <span style={{ color: kindColor, fontSize: 10, whiteSpace: 'nowrap' }}>{sourceLabel}</span>
-        <span style={{ color: kindColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: hasHover ? 'underline dotted' : undefined }}>
+        <span style={{ color: kindColor, whiteSpace: 'normal', overflowWrap: 'anywhere', textDecoration: hasHover ? 'underline dotted' : undefined }}>
           {sourceName}
         </span>
       </div>
@@ -226,11 +231,11 @@ interface BreakdownSection { label: string; keys: string[]; extra?: ExtraRow[]; 
 // One static (non-source) row, used for baselines + section extras.
 function ExtraRowView({ e }: { e: ExtraRow }) {
   return (
-    <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'baseline', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+    <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'start', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
       <span style={{ color: '#e0e0e0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', textAlign: 'right' }}>{e.value}</span>
-      <span style={{ color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.stat}</span>
+      <span style={{ color: '#888', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{e.stat}</span>
       <span style={{ color: '#8a8aa0', fontSize: 10, whiteSpace: 'nowrap' }}>{e.source}</span>
-      <span style={{ color: '#8a8aa0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.sourceName}</span>
+      <span style={{ color: '#8a8aa0', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{e.sourceName}</span>
     </div>
   )
 }
@@ -513,6 +518,8 @@ function genericAddKeys(offense: OffenseResult): string[] {
   if (hasTag(offense,'projectile')) keys.push('projectile_dmg_additional')
   // Tangle mode: additional + the enhancement pool (both ride the "tangle" tag, added inside offense).
   if ((offense.tangle_count ?? 0) > 0) keys.push('tangle_dmg_additional', 'tangle_dmg_enhancement_additional')
+  // Spell Burst mode adds the "spell_burst" tag inside offense → the burst-cast hit-damage pool applies.
+  if ((offense.spell_burst_count ?? 0) > 0) keys.push('spell_burst_hit_dmg_additional')
   return keys
 }
 
@@ -533,7 +540,11 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
   // to reconcile to 100%. (Tangle Damage Enhancement is NOT here — it rides the additional pool, already in each
   // form's damage.) 1 when not tangled (tangle_count 0).
   const tangleMult = (offense.tangle_count ?? 0) > 0 ? offense.tangle_count : 1
-  const breakdownMult = castMult * tangleMult
+  // Spell Burst mode multiplier: total_dps_vs_target multiplies by (casts/burst × bursts/sec ÷ aps), which the
+  // per-form dps_vs_target does NOT — so apply it alongside the shotgun/tangle multipliers to reconcile to 100%.
+  // 1 when not bursting. (The spell-burst hit-damage pool is already in each form's damage.)
+  const spellBurstMult = (offense.spell_burst_count ?? 0) > 0 ? (offense.spell_burst_mult ?? 1) : 1
+  const breakdownMult = castMult * tangleMult * spellBurstMult
 
   // Per-dtype DPS total across all forms (proportional attribution via avg hit)
   const dtypeDpsTotal: Record<string, number> = {}
@@ -729,6 +740,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
 // ── Offense panels ────────────────────────────────────────────────────────────
 
 const AMBER = '#c87820'
+const SKYBLUE = '#3a86c8'
 
 // Non-hit skills (passives / empower-style buffs) have no hit-DPS offense yet. Surface a Skill-Viewer
 // foundation with the mechanics we intend to model, marked NYI so nothing reads as silently missing.
@@ -996,6 +1008,18 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
             {fmtNum(offense.total_dps_vs_target)}
           </span>
         </div>
+        {(offense.spell_burst_count ?? 0) > 0 && (offense.non_spell_burst_dps_vs_target ?? 0) > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '0 0 6px', marginTop: -2 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+              <span style={{ color: '#7fb0e0' }}>Spell Burst</span>
+              <span style={{ color: '#7fb0e0', fontVariantNumeric: 'tabular-nums' }}>{fmtNum(offense.spell_burst_dps_vs_target)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+              <span style={{ color: '#999' }}>Non Spell Burst</span>
+              <span style={{ color: '#aaa', fontVariantNumeric: 'tabular-nums' }}>{fmtNum(offense.non_spell_burst_dps_vs_target)}</span>
+            </div>
+          </div>
+        )}
         {offense.above_max_mult > 1.0 && (
           <Row label="Above Max Multiplier">×{offense.above_max_mult.toFixed(3)}</Row>
         )}
@@ -1078,6 +1102,112 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
             extra: [{ value: '8 m', stat: 'Base', source: 'Baseline', sourceName: 'Base Attach Range' }],
             formula: '8 m × (1 + Increased)',
           }}>{offense.tangle_attach_range.toFixed(1)} m</Row>
+          <Row label="Tangle Damage Multiplier" labelColor="#d8b878">
+            <span style={{ color: '#f0c070' }}>×{(offense.tangle_mult ?? offense.tangle_count).toFixed(2)}</span>
+          </Row>
+        </StatPanel>
+      )}
+
+      {(offense.spell_burst_count ?? 0) > 0 && (
+        <StatPanel title="Spell Burst" accent={SKYBLUE}>
+          <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
+            An eligible Spell cast at full charge consumes all stacks and recasts itself (the triggering cast counts too).
+            Charge is a server-timed whole-tick countdown (30 Hz), so charge speed only helps at integer-tick crossings.
+            Spell Burst Hit Damage feeds the additional pool above.
+          </div>
+          <Row label="Max Spell Burst" breakdown={{
+            title: 'Max Spell Burst', keys: ['max_spell_burst_flat'], total: offense.spell_burst_count, totalUnit: '',
+            formula: 'Σ +Max Spell Burst (base 0)',
+          }}>{offense.spell_burst_count}</Row>
+          <Row label="Casts / Burst">{offense.spell_burst_casts_per_burst} <span style={{ color: '#777' }}>(M + 1)</span></Row>
+          <Row label="Charge Time" breakdown={{
+            title: 'Spell Burst Charge Time', keys: ['spell_burst_charge_speed_inc', 'spell_burst_charge_speed_additional'],
+            total: offense.spell_burst_charge_time, totalUnit: ' s',
+            extra: [{ value: '2 s', stat: 'Base', source: 'Baseline', sourceName: 'Base Charge Time' }],
+            formula: '2 s ÷ (1 + Increased) ÷ Π(1 + Additional)  [Play Safe feeds Cast Speed]',
+          }}>{offense.spell_burst_charge_time.toFixed(2)} s</Row>
+          {(() => {
+            const chg = offense.spell_burst_charge_to_next_inc, cast = offense.spell_burst_cast_to_next_inc
+            const chgPct = `+${(chg * 100).toFixed(1)}%`, castPct = `+${(cast * 100).toFixed(1)}%`
+            return (
+              <Row label="Charge Ticks" labelColor="#9ab" breakdown={{
+                title: 'Charge Ticks → next bursts/sec breakpoint', keys: [], total: offense.spell_burst_charge_ticks, totalUnit: ' ticks',
+                formula: 'Charge Ticks = ceil(30 × Charge Time) — server-timed, rounds UP to a whole tick. '
+                  + (offense.spell_burst_auto
+                    ? 'Auto: bursts/sec = 30 ÷ ticks, so every whole tick is a real gain (only sub-tick rounding is wasted).'
+                    : 'Manual: bursts/sec = 30 ÷ (ceil(charge ÷ cast)·cast), gated by BOTH charge speed AND cast speed — '
+                      + 'so many intermediate charge ticks add nothing, and cast speed can be the closer breakpoint. '
+                      + 'Both levers are scanned (incl. Play Safe cast→charge) for the next that actually raises bursts/sec.')
+                  + ' (Surging, if it is the limiter, masks this.)',
+                extra: [
+                  ...(chg > 0
+                    ? [{ value: chgPct, stat: `Charge Speed → next breakpoint${offense.spell_burst_next_breakpoint_ticks > 0 ? ` (${offense.spell_burst_next_breakpoint_ticks} ticks)` : ''}`, source: '', sourceName: 'more Spell Burst Charge Speed → higher bursts/sec' }]
+                    : [{ value: '—', stat: 'Charge Speed', source: '', sourceName: offense.spell_burst_charge_ticks <= 1 ? 'already at 1 tick (30 bursts/s)' : 'no reachable breakpoint' }]),
+                  ...(!offense.spell_burst_auto
+                    ? [cast > 0
+                        ? { value: castPct, stat: 'Cast Speed → next breakpoint', source: '', sourceName: 'raises bursts/sec (and feeds charge via Play Safe)' }
+                        : { value: '—', stat: 'Cast Speed', source: '', sourceName: 'charge-limited — cast speed cannot raise bursts/sec here' }]
+                    : []),
+                ],
+              }}>
+                {offense.spell_burst_charge_ticks}
+              </Row>
+            )
+          })()}
+          <Row label="Bursts / sec" breakdown={{
+            title: 'Bursts per Second', keys: [], total: offense.spell_burst_rate, totalUnit: ' /s',
+            formula: offense.spell_burst_auto
+              ? '30 ÷ Charge Ticks  (auto: fires the tick it is fully charged)'
+              : '30 ÷ (cast-aligned charge period)  (manual: waits for the next cast at/after the charge tick)',
+            extra: [
+              { value: `${offense.spell_burst_charge_ticks} ticks`, stat: 'Charge Ticks', source: 'Tick', sourceName: 'ceil(30 × Charge Time)' },
+              { value: offense.spell_burst_auto ? 'Auto' : 'Manual', stat: 'Trigger', source: '', sourceName: offense.spell_burst_auto ? 'instant at full charge' : 'gated by cast rate' },
+              ...(offense.spell_burst_auto ? [] : [{ value: `${offense.attacks_per_second.toFixed(2)} /s`, stat: 'Cast Rate', source: '', sourceName: 'player casts/sec (30-capped)' }]),
+            ],
+          }}>{offense.spell_burst_rate.toFixed(2)}</Row>
+          <Row label="Effective casts / sec" breakdown={{
+            title: 'Effective Casts per Second', keys: [],
+            total: offense.spell_burst_casts_per_burst * offense.spell_burst_rate, totalUnit: ' /s',
+            formula: 'Casts per Burst × Bursts per Second',
+            extra: [
+              { value: `${offense.spell_burst_casts_per_burst}`, stat: 'Casts / Burst', source: '', sourceName: 'M + 1' },
+              { value: `${offense.spell_burst_rate.toFixed(2)} /s`, stat: 'Bursts / sec', source: '', sourceName: '' },
+            ],
+          }}>{(offense.spell_burst_casts_per_burst * offense.spell_burst_rate).toFixed(2)}</Row>
+          <Row label="Trigger" breakdown={{
+            title: 'Spell Burst Trigger', keys: [],
+            formula: offense.spell_burst_auto
+              ? 'Auto-trigger: Spell Burst fires the instant it is fully charged — you do not cast manually, so only burst casts count.'
+              : 'Manual: you cast the skill yourself; a cast at full charge triggers the burst, and the casts you make between bursts are also counted.',
+            extra: [offense.spell_burst_auto
+              ? { value: '', stat: 'Source', source: '', sourceName: offense.spell_burst_auto_source || 'Auto-trigger' }
+              : { value: '', stat: 'Source', source: '', sourceName: 'Manual cast (base) — Solid River / Vorax / Burst Activation switch to Auto' }],
+          }}>{offense.spell_burst_auto ? 'Auto' : 'Manual'}</Row>
+          <Row label="Spell Burst DPS" labelColor="#9ad">
+            <span style={{ color: '#7fb0e0' }}>{fmtNum(offense.spell_burst_dps_vs_target)}</span>
+          </Row>
+          {!offense.spell_burst_auto && (
+            <Row label="Non Spell Burst DPS" breakdown={{
+              title: 'Non Spell Burst DPS', keys: [], total: offense.non_spell_burst_dps_vs_target, totalUnit: '',
+              formula: 'Casts made BETWEEN bursts (manual only) — normal casts that do NOT get the Spell Burst Hit '
+                + 'Damage pool. = per-normal-cast × (cast rate − bursts/sec). Auto-trigger has none (you do not cast manually).',
+              extra: [
+                { value: `${Math.max(0, offense.attacks_per_second - offense.spell_burst_rate).toFixed(2)} /s`, stat: 'Normal casts / sec', source: '', sourceName: 'cast rate − bursts/sec' },
+              ],
+            }}>{fmtNum(offense.non_spell_burst_dps_vs_target)}</Row>
+          )}
+          <Row label="Combined DPS" labelColor="#9ad" breakdown={{
+            title: 'Combined Skill DPS', keys: [], total: offense.total_dps_vs_target, totalUnit: '',
+            formula: offense.spell_burst_auto
+              ? 'Auto-trigger: all output is Spell Burst (you do not cast manually).'
+              : 'Manual: Spell Burst casts + the normal casts you make between bursts.',
+            extra: [
+              { value: fmtNum(offense.spell_burst_dps_vs_target), stat: 'Spell Burst DPS', source: '', sourceName: `${offense.spell_burst_casts_per_burst} casts/burst × ${offense.spell_burst_rate.toFixed(2)}/s` },
+              ...(offense.spell_burst_auto ? [] : [{ value: fmtNum(offense.non_spell_burst_dps_vs_target), stat: 'Non Spell Burst DPS', source: '', sourceName: 'casts between bursts' }]),
+            ],
+          }}>
+            <span style={{ color: '#f0c070' }}>{fmtNum(offense.total_dps_vs_target)}</span>
+          </Row>
         </StatPanel>
       )}
     </>

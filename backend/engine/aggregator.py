@@ -506,17 +506,22 @@ def aggregate(
     # 2 / (1 + chargeSpeed_inc) / Π(1 + chargeSpeed_additional_i)). Spell Burst charge speed isn't consumed
     # by the engine yet, so this populates the stats ready for when it is, without affecting DPS today.
     if source.total("cast_speed_to_spell_burst_charge") > 0:
-        cs_inc = source.total("cast_speed_inc")
-        if cs_inc:
-            source.add_with_source("spell_burst_charge_speed_inc", cs_inc, SourceEntry(
-                stat="spell_burst_charge_speed_inc", amount=cs_inc, source_type="core_talent",
-                label="Core · Play Safe", text="Cast Speed increased → Spell Burst Charge Speed", points=1))
+        # Propagate EACH cast-speed source individually (not one lumped factor), keeping its ORIGINAL attribution
+        # (source type / tree node / name) so the charge-speed breakdown shows each as the real cast-speed node —
+        # and tree nodes still highlight in the mini-tree on hover. The text notes it's propagated via Play Safe.
         # Snapshot first — add_with_source appends to source_log (don't mutate during iteration).
+        cs_inc = [e for e in source.source_log if e.stat == "cast_speed_inc" and e.amount]
+        for e in cs_inc:
+            source.add_with_source("spell_burst_charge_speed_inc", e.amount, SourceEntry(
+                stat="spell_burst_charge_speed_inc", amount=e.amount, source_type=e.source_type,
+                label=e.label, text=f"{e.text} → Spell Burst Charge Speed (Play Safe)",
+                source_name=e.source_name, points=e.points))
         cs_add = [e for e in source.source_log if e.stat == "cast_speed_additional" and e.amount]
         for e in cs_add:
             source.add_with_source("spell_burst_charge_speed_additional", e.amount, SourceEntry(
-                stat="spell_burst_charge_speed_additional", amount=e.amount, source_type="core_talent",
-                label="Core · Play Safe", text=f"{e.text} → Spell Burst Charge", points=1))
+                stat="spell_burst_charge_speed_additional", amount=e.amount, source_type=e.source_type,
+                label=e.label, text=f"{e.text} → Spell Burst Charge (Play Safe)",
+                source_name=e.source_name, points=e.points))
 
     # ── Bonus propagation: Gale (increased Projectile Speed → additional Projectile Damage) ──
     # additional Projectile Damage = coeff × increased Projectile Speed, as its OWN multiplicative factor

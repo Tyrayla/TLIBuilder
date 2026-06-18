@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Callable, Literal
@@ -6,6 +7,7 @@ from typing import Callable, Literal
 from engine.models import BuildSource
 from engine.affix_identity import affix_identity
 from engine.skill_resolver import ResolvedSkill
+from engine.tick import TICK_RATE, cap_rate, period_ticks, rate_from_ticks
 from models.stat_meta import STAT_META
 
 # ── Module-level stat lookups built from STAT_META ────────────────────────────
@@ -75,7 +77,6 @@ _DEFERRED_ADDITIONAL: dict[str, str] = {
     "enemy_nearby_dmg_taken_additional": "Requires 'nearby enemy' condition boolean (not yet wired)",
     "multistrike_increasing_dmg_inc":"Multistrike mechanic — stacks per successive hit in a multistrike chain, not a flat multiplier",
     "post_mobility_dmg_additional":  "Requires 'mobility skill cast recently' condition boolean (not yet created)",
-    "spell_burst_hit_dmg_additional":"Spell burst mechanic — unique per-burst hit scaling, deferred",
     "two_handed_base_dmg_additional":"May apply to base damage before inc/additional; stacking position unconfirmed — deferred",
 }
 
@@ -300,6 +301,22 @@ def _speed_additional_product(source: BuildSource, keys, skill_tags_lower: set[s
     # Inactive despite contributing (the Quick Decision report). Only the relevant pool runs per skill type
     # (cast for spells, attack for attacks), so this never cross-marks.
     _record_applicable_keys(source, keys, lambda tags: not tags or bool(tags & skill_tags_lower))
+    return p
+
+
+def _additional_total_product(source: BuildSource, key: str) -> float:
+    """Π(1 + amount) over DISTINCT affix sources of one additional-pool stat (same-identity positives sum),
+    with a total() fallback for untracked contributions (tests add() with no source_log text). Used for Spell
+    Burst Charge Speed additional, which combines per-source like the speed pools (owner: 2 / (1+inc) / Π(1+add_i))."""
+    entries = [e for e in source.source_log if e.stat == key]
+    if not entries:
+        return 1.0 + source.total(key)
+    pos: dict[str, float] = defaultdict(float)
+    for e in entries:
+        pos[affix_identity(e.text or "")] += e.amount
+    p = 1.0
+    for amt in pos.values():
+        p *= (1.0 + amt)
     return p
 
 # ── Calculation-target defense (the "dummy") ──────────────────────────────────
@@ -554,10 +571,32 @@ class OffenseResult:
     # the DPS totals like cast_multiplier (NOT the per-hit-form damage). 0 / 1.0 when the skill is not tangled.
     tangle_count: int = 0
     tangle_enhancement: float = 1.0
+    tangle_mult: float = 1.0           # total Tangle delivery multiplier folded into total_dps (= count; 1.0 if untangled)
     tangle_placeable: int = 0          # Max Tangle Quantity (base 2 + mods)
     tangle_inactivated: int = 0        # placeable − active (feeds Dormant Entanglement)
     tangle_duration: float = 0.0       # seconds (base 8 × duration mods) — display only
     tangle_attach_range: float = 0.0   # metres (base 8 × attach-range mods) — display only
+    # Spell Burst mode (an eligible Spell cast at full charge consumes all M stacks and auto-recasts the spell
+    # M times — the triggering cast also counts, so casts_per_burst = M + 1). The charge is a server-timed,
+    # whole-tick countdown (hard-rounded breakpoints — see engine/tick.py), so charge speed only helps at
+    # integer-tick crossings. spell_burst_mult is the TOTAL delivery multiplier folded into total_dps
+    # ( = casts_per_burst × bursts/sec ÷ aps); the per-hit-form damage already carries the spell_burst pools.
+    spell_burst_count: int = 0             # Max Spell Burst (M); 0 = not bursting
+    spell_burst_casts_per_burst: int = 0   # M + 1 (the M recasts + the triggering cast)
+    spell_burst_charge_ticks: int = 0      # whole-tick charge period (ceil(30 × T_eff))
+    spell_burst_charge_time: float = 0.0   # seconds to full charge (T_eff, after Surging) — display
+    spell_burst_charge_to_next_inc: float = 0.0   # charge-speed Increased % needed for the next DPS-relevant breakpoint
+    spell_burst_cast_to_next_inc: float = 0.0     # cast-speed Increased % to the next bursts/sec breakpoint (manual only)
+    spell_burst_next_breakpoint_ticks: int = 0    # charge-tick count of the next breakpoint that raises bursts/sec (0 = none)
+    spell_burst_rate: float = 0.0          # bursts per second (≤ 30)
+    spell_burst_mult: float = 1.0          # total damage multiplier from bursting (folded into total_dps)
+    spell_burst_auto: bool = False         # auto-trigger (instant at full charge) vs manual (cast-gated)
+    spell_burst_auto_source: str = ""      # what drives auto-trigger (e.g. Burst Activation); "" = manual
+    # Burst / non-burst DPS split (combined manual model — auto has no non-burst part). Sum to total_dps(_vs_target).
+    spell_burst_dps: float = 0.0
+    spell_burst_dps_vs_target: float = 0.0
+    non_spell_burst_dps: float = 0.0           # casts made BETWEEN bursts (manual only; 0 for auto-trigger)
+    non_spell_burst_dps_vs_target: float = 0.0
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -607,6 +646,7 @@ def calculate_offense(
     support_behavior: dict | None = None,
     remove_mod_tags: set[str] | None = None,
     tangle: dict | None = None,
+    spell_burst: dict | None = None,
 ) -> OffenseResult:
     # tangle: when set (the skill has a Tangle activator support), the skill is cast by N tangles instead of the
     # player. `tangle["count"]` = attached tangles on the target (each a full caster). Adds the "tangle" mod tag
@@ -634,6 +674,11 @@ def calculate_offense(
     # the DPS totals at the end (like cast_multiplier).
     if tangle:
         mod_tags = mod_tags | {"tangle"}
+    # Spell Burst mode: tag the skill "spell_burst" so "+X% additional Hit Damage for skills cast by Spell
+    # Burst" (spell_burst_hit_dmg_additional) applies only to burst casts. The charge/recast multiplier folds
+    # into the DPS totals at the end (like cast_multiplier / tangle_mult).
+    if spell_burst:
+        mod_tags = mod_tags | {"spell_burst"}
 
     # 0. Crit — computed here in the offense layer, NOT in the fixed-point loop
     # Weapon CSR (from weapon gear piece) scaled by gear-specific and MH-specific % mods only.
@@ -830,6 +875,11 @@ def calculate_offense(
         # Additional attack speed pools PER-AFFIX (distinct sources multiply) — verified in-game.
         aps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
 
+    # Global 30 Hz cap: a single caster can act at most once per server tick (smooth below that —
+    # see engine/tick.py). Per-caster, so Tangle's N casters / Spell Burst's instant recasts multiply
+    # the capped single-caster rate. Rarely binds (most builds < 30/s); a few high-APS goldens move.
+    aps = cap_rate(aps)
+
     # Augmentation: per-Jump (multiplies) compounding factor on hit damage. Scales with jumps REMAINING;
     # on a lone dummy the single hit is the first hit (full jumps remaining = total jumps), and
     # Augmentation excludes Web so there is no multi-hit chain here. Shows in per-hit damage.
@@ -930,6 +980,129 @@ def calculate_offense(
                        * (1.0 + source.total("tangle_duration_additional"))) if tangle else 0.0
     tangle_attach_range = (8.0 * (1.0 + source.total("tangle_attach_range_inc"))) if tangle else 0.0
 
+    # Spell Burst mode: an eligible Spell cast at full charge consumes all M stacks and auto-recasts the spell
+    # M times (the triggering cast also counts → casts_per_burst = M + 1, no damage cap — every stack is a full
+    # cast). The charge is a server-timed whole-tick countdown, so it hard-rounds (engine/tick.py); the player's
+    # cast rate stays smooth (already 30-capped above). Final delivery multiplier folds into total_dps.
+    # Manual triggering = COMBINED model: the player keeps casting between bursts, so total DPS = burst casts
+    # (the M+1-per-proc, boosted by the spell_burst pool) PLUS the normal casts in between (no spell_burst pool).
+    # Auto-trigger (Solid River / Burst Activation) = burst-only: you almost never cast manually with those, so
+    # the between-burst casts are excluded. The two parts are surfaced distinctly (spell_burst_dps / non_..._dps).
+    spell_burst_count = 0
+    spell_burst_casts_per_burst = 0
+    spell_burst_charge_ticks = 0
+    spell_burst_charge_time = 0.0
+    spell_burst_charge_to_next_inc = 0.0
+    spell_burst_cast_to_next_inc = 0.0
+    spell_burst_next_breakpoint_ticks = 0
+    spell_burst_rate = 0.0
+    spell_burst_mult = 1.0
+    spell_burst_dps = 0.0
+    spell_burst_dps_vs_target = 0.0
+    non_spell_burst_dps = 0.0
+    non_spell_burst_dps_vs_target = 0.0
+    spell_burst_auto = bool(spell_burst.get("auto")) if spell_burst else False
+    spell_burst_auto_source = spell_burst.get("auto_source", "") if spell_burst else ""
+    if spell_burst:
+        M = max(0, int(spell_burst["count"]))
+        spell_burst_count = M
+        spell_burst_casts_per_burst = M + 1
+        # Base charge time 2s, sped by Spell Burst Charge Speed: (1 + Σ inc) additive × Π(1 + add_i) per-source.
+        # Play Safe feeds cast-speed bonuses into these pools (aggregator). Higher chargeFactor → shorter charge.
+        charge_inc = source.total("spell_burst_charge_speed_inc")
+        charge_add_product = _additional_total_product(source, "spell_burst_charge_speed_additional")
+        charge_factor = max(1e-6, (1.0 + charge_inc) * charge_add_product)
+        T = 2.0 / charge_factor
+        # Surging Inspiration: each cast has a chance to immediately gain Spell Burst Charge stacks; the
+        # expected stacks/cast (spell_burst_chance_gain_stacks_flat) over the (capped) cast rate is an
+        # alternative fill that can reach max faster than the base charge. T_eff = min(T, M / surging_rate).
+        # Shape flagged for in-game verification (SPELLBURST-01).
+        surging_rate = aps * source.total("spell_burst_chance_gain_stacks_flat")  # stacks/sec (aps already 30-capped)
+        T_eff = T
+        if surging_rate > 0.0 and M > 0:
+            T_eff = min(T, M / surging_rate)
+        spell_burst_charge_time = T_eff
+        # Whole-tick charge period (server-timed → ceil). Auto-trigger fires the instant it completes.
+        charge_ticks = period_ticks(T_eff)
+        spell_burst_charge_ticks = charge_ticks
+        # Bursts/sec. AUTO: fires the tick the charge completes → 30 / charge_ticks. MANUAL: the player must cast
+        # at/after the charge completes; both the cast cadence and the charge are whole-tick server quantities, so
+        # the proc period rounds up to the next whole cast after the charge → proc_ticks = ceil(charge/cast)·cast,
+        # bursts = 30 / proc_ticks (verified in-game at the 43- and 45-tick breakpoints). This is intentionally
+        # non-monotonic at the tick level — the same server-timing quirk as Split Shot's 15→29→30 — so the
+        # breakpoint helper below SCANS rather than assumes monotonicity.
+        def _bursts(aps_v: float, ticks_v: int) -> float:
+            if spell_burst_auto:
+                return rate_from_ticks(ticks_v)
+            if aps_v <= 0.0:
+                return 0.0
+            ct = max(1, round(TICK_RATE / aps_v))
+            return TICK_RATE / (math.ceil(ticks_v / ct) * ct)
+        bursts_per_sec = min(_bursts(aps, charge_ticks), float(TICK_RATE))
+        spell_burst_rate = bursts_per_sec
+        # Breakpoint helper — the next investment that ACTUALLY raises bursts/sec (and thus DPS); steps that change
+        # nothing are skipped. Two levers, scanned so the Play Safe cast→charge coupling is handled exactly:
+        #   • Charge Speed — shortens the charge, dropping ceil(aps·T) at integer crossings → stepped gains.
+        #   • Cast Speed (MANUAL only) — raises aps (the bursts numerator) and, with Play Safe, also feeds charge.
+        # Auto ignores cast speed (no manual casting); for auto every whole charge tick is a real gain.
+        if charge_add_product > 0 and aps > 0.0:
+            if spell_burst_auto:
+                if charge_ticks > 1:
+                    spell_burst_next_breakpoint_ticks = charge_ticks - 1
+                    spell_burst_charge_to_next_inc = max(
+                        0.0, (60.0 / ((charge_ticks - 1) * charge_add_product) - 1.0) - charge_inc)
+            else:
+                dc = 0.0
+                while dc < 5.0:
+                    dc += 0.01
+                    ct2 = period_ticks(2.0 / max((1.0 + charge_inc + dc) * charge_add_product, 1e-6))
+                    if _bursts(aps, ct2) > bursts_per_sec + 1e-9:
+                        spell_burst_charge_to_next_inc = dc
+                        spell_burst_next_breakpoint_ticks = ct2
+                        break
+                cast_inc = source.total("cast_speed_inc")
+                ps_coeff = source.total("cast_speed_to_spell_burst_charge")  # Play Safe: cast→charge share (0 if none)
+                base_k = aps / (1.0 + cast_inc) if (1.0 + cast_inc) > 0 else aps   # aps = base_k × (1+cast_inc)
+                d = 0.0
+                while d < 5.0:
+                    d += 0.01
+                    aps2 = min(base_k * (1.0 + cast_inc + d), float(TICK_RATE))
+                    ct2 = period_ticks(2.0 / max((1.0 + charge_inc + ps_coeff * d) * charge_add_product, 1e-6))
+                    if _bursts(aps2, ct2) > bursts_per_sec + 1e-9:
+                        spell_burst_cast_to_next_inc = d
+                        break
+        # Cast accounting (per second). Each burst's triggering cast IS one of the player's casts and is counted
+        # as a burst cast (M+1 total per proc, all boosted by the spell_burst pool). The remaining player casts
+        # are normal (no pool). Auto-trigger → the player isn't casting manually, so no normal casts.
+        burst_casts_per_sec = spell_burst_casts_per_burst * bursts_per_sec
+        if spell_burst_auto:
+            normal_casts_per_sec = 0.0
+        else:
+            normal_casts_per_sec = max(0.0, aps - bursts_per_sec)   # subtract the triggering casts (now burst casts)
+        # Normal casts deal LESS than burst casts by exactly the spell_burst additional pool (the only per-cast
+        # difference between a burst and a normal cast). sb_pool_factor = per_cast_burst / per_cast_normal.
+        sb_pool_factor = 1.0
+        for amt, ftags, _sk in add_factors:
+            if "spell_burst" in ftags:
+                sb_pool_factor *= (1.0 + amt)
+        sb_pool_factor = max(sb_pool_factor, 1e-9)
+        # Fold everything into ONE multiplier on the (burst-damage) per-cast totals so the breakdown table still
+        # reconciles with a single scalar: spell_burst_mult = (burst casts + normal casts ÷ pool) ÷ aps. Auto →
+        # normal term is 0 → mult = (M+1)·bursts/sec ÷ aps (pure burst). The burst/normal split is reported too.
+        if aps > 0.0:
+            burst_share = burst_casts_per_sec / aps
+            normal_share = (normal_casts_per_sec / sb_pool_factor) / aps
+            spell_burst_mult = burst_share + normal_share
+            base_dps = sum(f.dps_contribution for f in hit_forms)
+            base_dps_vt = sum(f.dps_vs_target for f in hit_forms)
+            delivery = cast_multiplier * tangle_mult
+            spell_burst_dps = base_dps * delivery * burst_share
+            spell_burst_dps_vs_target = base_dps_vt * delivery * burst_share
+            non_spell_burst_dps = base_dps * delivery * normal_share
+            non_spell_burst_dps_vs_target = base_dps_vt * delivery * normal_share
+        else:
+            spell_burst_mult = 0.0
+
     return OffenseResult(
         skill_name=skill.name,
         supported=True,
@@ -940,8 +1113,8 @@ def calculate_offense(
         steep_strike_chance=steep_chance,
         attacks_per_second=aps,
         base_cast_time=base_cast_time,
-        total_dps=sum(f.dps_contribution for f in hit_forms) * cast_multiplier * tangle_mult,
-        total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms) * cast_multiplier * tangle_mult,
+        total_dps=sum(f.dps_contribution for f in hit_forms) * cast_multiplier * tangle_mult * spell_burst_mult,
+        total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms) * cast_multiplier * tangle_mult * spell_burst_mult,
         weapon_attack_speed=source.total("weapon_attack_speed"),
         weapon_aps_gear=source.total("attack_speed_gear"),
         weapon_aps_mh=source.total("attack_speed_mh"),
@@ -966,10 +1139,26 @@ def calculate_offense(
         shotgun_hits=shotgun_hits,
         tangle_count=tangle_count,
         tangle_enhancement=tangle_enhancement,
+        tangle_mult=tangle_mult,
         tangle_placeable=tangle_placeable,
         tangle_inactivated=tangle_inactivated,
         tangle_duration=tangle_duration,
         tangle_attach_range=tangle_attach_range,
+        spell_burst_count=spell_burst_count,
+        spell_burst_casts_per_burst=spell_burst_casts_per_burst,
+        spell_burst_charge_ticks=spell_burst_charge_ticks,
+        spell_burst_charge_time=spell_burst_charge_time,
+        spell_burst_charge_to_next_inc=spell_burst_charge_to_next_inc,
+        spell_burst_cast_to_next_inc=spell_burst_cast_to_next_inc,
+        spell_burst_next_breakpoint_ticks=spell_burst_next_breakpoint_ticks,
+        spell_burst_rate=spell_burst_rate,
+        spell_burst_mult=spell_burst_mult,
+        spell_burst_auto=spell_burst_auto,
+        spell_burst_auto_source=spell_burst_auto_source,
+        spell_burst_dps=spell_burst_dps,
+        spell_burst_dps_vs_target=spell_burst_dps_vs_target,
+        non_spell_burst_dps=non_spell_burst_dps,
+        non_spell_burst_dps_vs_target=non_spell_burst_dps_vs_target,
         nyi=[
             "Support skill flat damage adds",
             "Elemental conversion",

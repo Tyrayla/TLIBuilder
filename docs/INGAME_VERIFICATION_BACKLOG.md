@@ -249,6 +249,38 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ---
 
+### SPELLBURST-01 — Spell Burst DPS model + 30/s tick behaviour (multiple checks)
+- Status: 🔶 Partially verified — **combined total DPS matched in-game to within 1.2% over a 4-min test** with matching
+  gear (manual triggering, at the **39-charge-tick** breakpoint). Remaining checks below (M-vs-M+1 count, the
+  charge-speed breakpoint dead-zone shape, auto-trigger, per-support burst bonuses) still ⬜.
+- Setup: an eligible Spell (no cooldown, not channeled) with **+Max Spell Burst** gear, vs the standard dummy. Use the
+  Recount span average (≥60 s), not the tooltip. Vary ONE thing at a time:
+  1. **Casts per burst — M vs M+1.** Burst once and count the separate Spell Burst damage numbers per trigger. The app
+     assumes **M + 1** (the triggering cast counts). Confirm whether it's M or M+1.
+  2. **No damage cap.** Raise Max Spell Burst high (e.g. 3 → 7 → 14). DPS should scale **linearly with (M+1)** with no
+     plateau (the app applies no cap).
+  3. **Charge-limited regime.** Fast cast, slow charge (no Charge Speed). Recount DPS ÷ per-cast ≈ `(M+1) / T` with
+     `T ≈ 2 s`. Confirm **base charge time = 2 s** and the **Play Safe** Cast-Speed → Charge-Speed propagation.
+  4. **Charge-speed breakpoints (the key tick check).** Finely raise Spell Burst Charge Speed. The app predicts
+     **hard-rounded dead zones** (charge speed inside a tick band gives 0 gain; crossing to the next whole 30 Hz tick
+     jumps it). If DPS instead rises **smoothly** with every 1% charge speed, Spell Burst is NOT hard-rounded after all
+     → switch its charge to the smooth+cap model. (This single test validates the breakpoint vs smooth decision.)
+  5. **Cast-limited (manual) regime.** Auto-trigger OFF; drop cast speed below `1/T`. Casts/sec should fall to about
+     `(M+1) × cast_rate` (the cast gate). Near `cast ≈ charge` look for the ~50% "Scenario-C" drop (a burst waits for
+     the next cast after the charge tick).
+  6. **Auto-trigger.** With Burst Activation / Solid River, bursts should fire the instant charge fills (independent of
+     your cast cadence) → bursts/sec = `30 / charge_ticks`.
+  7. **Burst-only damage pools.** Add a "+X% additional Hit Damage for skills cast by Spell Burst" support; confirm it
+     lifts ONLY burst-cast damage (inert with `spell_burst_active` off). For **Heart of Flame** confirm +%/stack
+     consumed scales with M (cap 6); for **Prairie Fire** confirm the +%/activation ramp and its cap.
+- Also confirm globally (tick model): **everything caps at 30/s** (incl. DoT — the app uses 30, not 31), and that
+  general channeled skills scale **smoothly** (only the named breakpoint mechanisms — minions/Reap/Wind Rhythm/Split
+  Shot Rapid Advance — hard-round).
+- RESULT (per sub-test): Recount Avg DPS (span) + Duration, before/after; the mod + its roll; Max Spell Burst; cast &
+  charge speed; Skill level; Screenshot.
+
+---
+
 ## How results are ingested
 Owner: for each returned RESULT, configure the same build in the app (matching the tester's exact
 rolls/level/rank/tier) and compare the engine DPS to the reported Recount **span average**. Mark

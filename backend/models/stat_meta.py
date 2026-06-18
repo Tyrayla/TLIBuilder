@@ -2826,10 +2826,13 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="mechanics",          stacking_rule="additive",
         ui_priority=60,                source_types=_T,
     ),
+    # "+X% additional Hit Damage for skills cast by Spell Burst" — applies ONLY to burst casts, so it
+    # carries the "spell_burst" tag (added to mod_tags only in burst mode by calculate_offense). Each
+    # source is its own additional factor (per-affix), unlike the *_enhancement_additional pools.
     Stat.SPELL_BURST_HIT_DMG_ADDITIONAL: StatMeta(
         "Spell Burst Hit Damage", "Spell", "additional", "%",
         subgroup="damage",             pipeline_stage="additional",
-        tags=("spell",),               affects=_HIT,
+        tags=("spell_burst",),         affects=_HIT,
         stacking_rule="additive",      ui_priority=25,
         source_types=_T,
     ),

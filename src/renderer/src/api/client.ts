@@ -608,10 +608,32 @@ export interface OffenseResult {
   // tangle_enhancement fold into the DPS totals like cast_multiplier; the rest are display-only mechanic stats.
   tangle_count: number
   tangle_enhancement: number
+  tangle_mult: number          // total Tangle delivery multiplier folded into total_dps (= count; 1.0 if untangled)
   tangle_placeable: number
   tangle_inactivated: number
   tangle_duration: number
   tangle_attach_range: number
+  // Spell Burst mode (an eligible Spell cast at full charge consumes M stacks and auto-recasts the spell M
+  // times; the triggering cast also counts → casts_per_burst = M + 1). The charge is a server-timed whole-tick
+  // countdown (hard-rounded breakpoints), so charge speed only helps at integer-tick crossings. spell_burst_mult
+  // folds into total_dps like cast_multiplier; 0 / 1.0 when not bursting.
+  spell_burst_count: number            // Max Spell Burst (M); 0 = not bursting
+  spell_burst_casts_per_burst: number  // M + 1
+  spell_burst_charge_ticks: number     // whole-tick charge period (ceil(30 × charge time))
+  spell_burst_charge_time: number      // seconds to full charge (after Surging)
+  spell_burst_charge_to_next_inc: number   // charge-speed Increased % for the next bursts/sec breakpoint (0 = none found)
+  spell_burst_cast_to_next_inc: number     // cast-speed Increased % for the next bursts/sec breakpoint, manual (0 = none/charge-limited)
+  spell_burst_next_breakpoint_ticks: number // charge-tick count of the next charge-speed breakpoint (0 = none)
+  spell_burst_rate: number             // bursts per second (≤ 30)
+  spell_burst_mult: number             // total damage multiplier from bursting (folded into total_dps)
+  spell_burst_auto: boolean            // auto-trigger (instant at full charge) vs manual (cast-gated)
+  spell_burst_auto_source: string      // what drives auto-trigger (e.g. Burst Activation); "" = manual
+  // Burst / non-burst DPS split. Manual = combined (you cast between bursts → non-burst > 0); auto = burst-only
+  // (non-burst = 0). spell_burst_dps + non_spell_burst_dps = total_dps (same for the _vs_target pair).
+  spell_burst_dps: number
+  spell_burst_dps_vs_target: number
+  non_spell_burst_dps: number
+  non_spell_burst_dps_vs_target: number
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number

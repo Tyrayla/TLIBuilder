@@ -19,6 +19,48 @@ Merged to `dev`. Cloudflare Web Analytics enabled. **Remaining (optional):** see
 
 **Dropped (decided against):** global display truncation (option B) and the 1-life reservation floor.
 
+## 0d. Spell Burst + global 30/s tick model (core shipped 2026-06-18 — follow-ups)
+Shipped: the **Spell Burst** spell mechanic + the **server-tickrate model**. An eligible Spell (no cooldown, not
+channeled/sentry/combo/triggered) bursts inherently once **Max Spell Burst (M) ≥ 1**; an enabler support (Raging
+Storm / Wax and Wane / Psychic Burst) grants it to otherwise-ineligible skills. At full charge a cast consumes all M
+stacks and auto-recasts the spell M times — the triggering cast also counts, so **casts/burst = M + 1** (no damage
+cap, every stack is a full cast). Folded into `total_dps` as the final `spell_burst_mult` (mirrors `cast_multiplier` /
+`tangle_mult`). Engine: `offense.calculate_offense(spell_burst=…)` adds the `"spell_burst"` mod tag (so
+`spell_burst_hit_dmg_additional` applies only to burst casts); `compute._offense_for_slot` detects eligibility + sizes
+M. Conditions: `spell_burst_active` (default on — off → normal-cast DPS) and `spell_burst_auto_trigger` (instant at
+full charge vs cast-gated — this IS the burst/combined toggle).
+- **Combined manual model (owner 2026-06-18).** **Manual** triggering = the player keeps casting between bursts →
+  `total = burst casts (M+1 per proc, with the spell_burst pool) + the normal casts in between (no pool)`. The two are
+  surfaced distinctly (`spell_burst_dps` / `non_spell_burst_dps`, both vs-target too) and shown under the DPS total as
+  "Spell Burst: X / Non Spell Burst: Y". **Auto-trigger** (Solid River / Burst Activation) = burst-only (no manual
+  casting → `non_spell_burst_dps = 0`); turning auto on is the toggle that drops the between-burst casts.
+  `spell_burst_mult = (burst casts + normal casts ÷ sb_pool_factor) ÷ aps`, so the breakdown table still reconciles
+  with a single scalar. (Auto pure-burst = `(M+1)·bursts/sec ÷ aps`.)
+- **Tick model — `engine/tick.py` (30 Hz, owner-confirmed cap, NOT 31).** Two regimes: (1) **smooth + hard cap** —
+  the default for player rates; `cap_rate(raw)=min(raw,30)` is applied per-caster to `aps` in offense (rarely binds).
+  (2) **hard-rounded breakpoints** — `period_ticks(s)=ceil(s×30)` + `rate_from_ticks(n)=30/n`, an **explicit,
+  manually-approved per-mechanism opt-in**. Spell Burst charge is the FIRST opted-in user (its charge is a server-timed
+  whole-tick countdown → charge-speed dead zones between integer ticks).
+- **Charge:** `T = 2 s ÷ (1 + Σ charge_speed_inc) ÷ Π(1 + charge_speed_additional)`; Play Safe feeds Cast Speed into
+  those pools (aggregator, already shipped). **Surging Inspiration** = alternative fill `T_eff = min(T, M / surging_rate)`
+  where `surging_rate = aps × spell_burst_chance_gain_stacks_flat` (expected stacks/cast) — **shape flagged for in-game
+  verify**. Auto bursts/sec = `30 / charge_ticks`; manual waits for the next cast at/after the charge tick (cast-cadence
+  aligned, the Scenario-C ~50% trap when cast≈charge).
+- **Per-support ramped burst-damage bonuses (owner §7, mid-roll constants — VERIFY):** Heart of Flame (+10.5%/stack
+  consumed, ×min(M,6)) and Prairie Fire (+18%/activation, assumed at-cap ×6) are hand-modeled in a registry in
+  `compute._offense_for_slot` (`_SPELL_BURST_BONUS_SUPPORTS`); the flat "for skills cast by Spell Burst" lines map via
+  `mod_parser`. **Confirm the per-stack/per-activation percentages and whether casts/burst is M or M+1 in-game.**
+- **Charge sources to add NEXT (deferred, do immediately after — owner):** Insatiable Greed (Attack Speed → Charge
+  Speed), minion Spell Burst, Squiddle/Squidnova, Ingenuity Overload, **Solid River's auto-trigger gear mod** (needs a
+  parser line → set the auto flag).
+- **More breakpoint mechanisms reuse `tick.period_ticks` (each MANUALLY opted-in — owner approval per mechanism):**
+  **minions** (attack-time-in-ticks; Iris2 merged Magus +40% DPS at 7→5 ticks; **Rock Magus Ultimate 6-tick bug** —
+  5 & 7 ok, 6 not), **Reap** (server-timed; **900 CDR → 10 Reaps/s** cap), **Wind Rhythm** / auto-triggers
+  (ticks-per-proc), **Split Shot — Rapid Advance Canvas ONLY** (channeled-transform; raw APS 15→29 stays flat/worse,
+  **30 doubles** — general channeled skills are NOT hard-rounded). Keep them OUT of the opt-in set until confirmed.
+- **USE vs CAST gate (deferred, shared with Tangle):** the M auto-recasts are CASTs, not USEs.
+- See docs/INGAME_VERIFICATION_BACKLOG.md (SPELLBURST-01) for verification items.
+
 ## 0c. Tangles (core shipped 2026-06-17 — follow-ups)
 Shipped: the **Tangle skill type**. A Spell becomes a Tangle via an activator support (**Spell Tangle** /
 **Activation Medium: Tangle**, NOT Manifold); it's then cast by N attached tangles (each a full caster) instead of

@@ -19,6 +19,32 @@ _MAX_ITERS = 10
 # Manifold Entanglement is NOT here — it's a normal damage support that spawns all tangles at once.
 _TANGLE_ACTIVATORS = frozenset({"spell_tangle", "activation_medium_tangle"})
 
+# ── Spell Burst ────────────────────────────────────────────────────────────────
+# Supports that GRANT Spell Burst eligibility to a skill that wouldn't burst on its own (e.g. an Attack or a
+# channeled skill): "The supported skill can activate Spell Burst". An eligible Spell bursts inherently once
+# Max Spell Burst ≥ 1, so it needs no enabler.
+_SPELL_BURST_ENABLERS = frozenset({
+    "lightning_storm_raging_storm_noble",   # Raging Storm — "The supported skill can activate Spell Burst"
+    "moon_strike_wax_and_wane_noble",       # Wax and Wane — same, + a flat burst-damage bonus
+    "psychic_burst",                        # supports Spell Skills / skills that can activate Spell Burst
+})
+# Auto-trigger sources: Spell Burst fires the instant it's full-charged (no player cast needed). Otherwise the
+# player must cast at/after full charge (cast-rate-gated).
+_SPELL_BURST_AUTO_SOURCES = frozenset({"activation_medium_burst_activation"})
+# Tags that make a Spell INELIGIBLE for inherent Spell Burst (still burstable via an enabler support if stated).
+_SPELL_BURST_DISALLOWED_TAGS = frozenset({
+    "channeled", "sentry", "combo", "trigger", "triggered", "persistent", "aura", "passive", "mark",
+})
+# Per-support Spell-Burst damage bonuses that SCALE with stacks/activations (the generic parser maps only the
+# FLAT "for skills cast by Spell Burst" lines; these ramped lines are hand-modeled here — owner §7). Each adds
+# to spell_burst_hit_dmg_additional in burst mode. "per_stack" scales by min(M, cap) (stacks consumed = M);
+# "per_activation" assumes sustained DPS at the cap (×cap). pct values are mid-roll — flagged for in-game
+# verification (SPELLBURST-01). Cap from the line ("Stacks up to N").
+_SPELL_BURST_BONUS_SUPPORTS = {
+    "fire_burst_heart_of_flame_magnificent": {"mode": "per_stack",      "pct": 0.105, "cap": 6},
+    "fire_burst_prairie_fire_noble":         {"mode": "per_activation", "pct": 0.18,  "cap": 6},
+}
+
 
 # "Gain on hit" automax flag → the numeric condition pinned to its derived max (full-uptime approximation).
 _AUTOMAX_TARGETS = [
@@ -490,6 +516,7 @@ def compute(
     from engine.defense import calculate_defense
     from engine.offense import calculate_offense, skill_effective_level
     from engine.skill_resolver import resolve_skill
+    from engine import skill_charges
 
     # Record stat consumption across the offense + defense passes (defensive stats always read;
     # offense reads only what the active/modeled skill's pipeline touches — an unmodeled skill
@@ -502,7 +529,7 @@ def compute(
     _behavior = build_input.support_behavior or {}
     _behavior_by_slot = _behavior if all(isinstance(k, int) for k in _behavior) else {1: _behavior}
 
-    def _offense_for_slot(resolved, level, slot, is_main):
+    def _offense_for_slot(resolved, level, slot, is_main, skill_dict=None):
         """Compute one slot's offense, folding only that slot's slot-local contributions. The skill's
         skill_effects module (if any) emits its slot-local effects first — Berserking Blade's intrinsic
         buff + Sweep/Rampage, Focused Slash's Behead/Tranquility, Moon Strike's Rainbow/Lunar Ring — and
@@ -535,16 +562,51 @@ def compute(
             if has_dormant and inactivated > 0:
                 eff.add("tangle_dmg_additional", 0.40 * inactivated)
             tangle = {"count": active, "placeable": placeable, "inactivated": inactivated}
+        # ── Spell Burst mode ── M ≥ 1 (Max Spell Burst) makes an eligible Spell burst inherently; an enabler
+        # support (Raging Storm / Wax and Wane / Psychic Burst) grants it to otherwise-ineligible skills.
+        # Tangle and Spell Burst are mutually exclusive (a tangled spell is cast by the tangles, not bursting).
+        spell_burst = None
+        if tangle is None:
+            M = int(eff.total("max_spell_burst_flat"))
+            slot_supports = [s for s in (build_input.attached_supports or [])
+                             if s.get("slot", 1) == slot and s.get("enabled", True)]
+            slot_support_ids = {s.get("item_id") for s in slot_supports}
+            enabler = bool(slot_support_ids & _SPELL_BURST_ENABLERS)
+            tags_lower = {t.lower() for t in resolved.tags}
+            cooldown = skill_charges.skill_cooldown(skill_dict) if skill_dict else None
+            inherent = (resolved.is_spell
+                        and not (tags_lower & _SPELL_BURST_DISALLOWED_TAGS)
+                        and not cooldown)
+            able = M >= 1 and (inherent or enabler)
+            active_cond = new_state.get("spell_burst_active", True)
+            if able and active_cond:
+                # Auto-trigger from a Burst Activation support or the condition toggle. (Solid River / Vorax gear
+                # mods are other auto sources — deferred until their lines are parsed; see docs/BACKLOG.md.)
+                auto_source = ""
+                if slot_support_ids & _SPELL_BURST_AUTO_SOURCES:
+                    auto_source = "Activation Medium: Burst Activation"
+                elif new_state.get("spell_burst_auto_trigger"):
+                    auto_source = "Auto-Trigger (toggled on)"
+                auto = bool(auto_source)
+                # Ramped per-support burst-damage bonuses (Heart of Flame / Prairie Fire — owner §7).
+                for sid in slot_support_ids:
+                    spec = _SPELL_BURST_BONUS_SUPPORTS.get(sid)
+                    if not spec:
+                        continue
+                    n = min(M, spec["cap"]) if spec["mode"] == "per_stack" else spec["cap"]
+                    if n > 0:
+                        eff.add("spell_burst_hit_dmg_additional", spec["pct"] * n)
+                spell_burst = {"count": M, "auto": auto, "auto_source": auto_source}
         return asdict(calculate_offense(
             eff, resolved, level, is_main_skill=is_main, extra_additional=extra,
             support_behavior=_behavior_by_slot.get(slot, {}),
-            remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle))
+            remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst))
 
     result_offense = None
     slot_offense: dict[int, dict] = {}
     if skill_data and build_input.main_skill and main_enabled:
         result_offense = _offense_for_slot(
-            resolve_skill(skill_data), build_input.main_skill.level, main_slot, True)
+            resolve_skill(skill_data), build_input.main_skill.level, main_slot, True, skill_dict=skill_data)
         slot_offense[main_slot] = result_offense
 
     # Secondary active skill slots — each computed independently, folding only ITS slot's supports (no
@@ -560,7 +622,7 @@ def compute(
             resolved_sk = resolve_skill(sd)
             if not resolved_sk.supported:
                 continue
-            slot_offense[sk["slot"]] = _offense_for_slot(resolved_sk, sk["level"], sk["slot"], False)
+            slot_offense[sk["slot"]] = _offense_for_slot(resolved_sk, sk["level"], sk["slot"], False, skill_dict=sd)
     source._recording = False
 
     # ── General build warnings (player diagnostics; extensible) ───────────────

@@ -460,6 +460,25 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": "cast_speed_to_spell_burst_charge", "amount": float(m.group(1)) / 100.0, "text": t}]
 
+    # Spell Burst flat hit-damage pool: "+N% additional Hit Damage for skills cast by Spell Burst [when Spell
+    # Burst is activated by the supported skill]" (Psychic Burst, Moon Strike: Wax and Wane, the Burst Activation
+    # penalty). The trailing "when …" clause is always-true in burst mode, so it's dropped. `$`-anchored so the
+    # RAMPED variants ("for every 1 stack(s) … consumed" / "each time … Stacks up to N") do NOT match here —
+    # those scale with stacks and are hand-modeled per-support in compute._offense_for_slot (§7). Carries the
+    # spell_burst tag → applies only in burst mode.
+    m = re.match(r'([+\-]?[\d.]+)\s*%\s*additional\s+hit\s+damage\s+for\s+skills\s+cast\s+by\s+spell\s+burst'
+                 r'(?:\s+when\s+spell\s+burst\s+is\s+activated\s+by\s+the\s+supported\s+skill)?\s*$', t, re.I)
+    if m:
+        return [{"stat_key": "spell_burst_hit_dmg_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Surging Inspiration: "+N% chance to immediately gain M stack(s) of Spell Burst Charge when using a skill"
+    # → expected stacks gained per cast (chance × stacks). Feeds the alternative-fill path in offense (Surging
+    # can top Spell Burst to max faster than the base 2s charge). Shape flagged for in-game verification.
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*chance\s+to\s+immediately\s+gain\s+([\d.]+)\s*stack\(?s?\)?\s+of\s+spell\s+burst\s+charge', t, re.I)
+    if m:
+        return [{"stat_key": "spell_burst_chance_gain_stacks_flat",
+                 "amount": (float(m.group(1)) / 100.0) * float(m.group(2)), "text": t}]
+
     # Gale: "N% of the Projectile Speed bonus is also applied to the additional bonus for Projectile Damage"
     # — coefficient on increased projectile speed → additional projectile damage (own factor; aggregator).
     m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+projectile\s+speed\s+bonus\s+is\s+also\s+applied\s+to\s+the\s+additional\s+bonus\s+for\s+projectile\s+damage', t, re.I)
