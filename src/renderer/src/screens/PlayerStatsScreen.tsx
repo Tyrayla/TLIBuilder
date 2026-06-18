@@ -626,7 +626,8 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
           </tr>
           <tr>
             <td style={tdLbl}>Total Additional</td>
-            <td style={td}><Breakdown title="Total Additional — All Types" keys={genericAddKeys(offense)} total={offense.generic_add} totalUnit="×" formula="Π (1 + Additional)">×{offense.generic_add.toFixed(2)}</Breakdown></td>
+            <td style={td}><Breakdown title="Total Additional — All Types" keys={genericAddKeys(offense)} total={offense.generic_add} totalUnit="×" formula="Π (1 + Additional)"
+              extra={offense.main_stat_damage_bonus > 0 ? [{ value: `×${(1 + offense.main_stat_damage_bonus).toFixed(2)}`, stat: 'Additional Damage', source: 'Main Stat', sourceName: `${offense.main_stats.join(' + ')} Damage Bonus (+${(offense.main_stat_damage_bonus * 100).toFixed(1)}%)` }] : undefined}>×{offense.generic_add.toFixed(2)}</Breakdown></td>
             {ALL_DTYPES.map(d => {
               // Specific = type_add factored over the generic bucket. Types the skill doesn't deal have
               // no entry → ×1.00 (not 1/generic, which would show a phantom multiplier on empty types).
@@ -640,17 +641,8 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               </td>
             })}
           </tr>
-          {/* Damage Bonus from the skill's main-stat attributes (0.5% per point, summed). Its own
-              additional pool — already INCLUDED in Total Additional above; broken out here for clarity. */}
-          {offense.main_stat_damage_bonus > 0 && (
-            <tr>
-              <td style={tdSub}>↳ Damage Bonus</td>
-              <td style={td} title={`+${(offense.main_stat_damage_bonus * 100).toFixed(1)}% from ${offense.main_stats.join(' + ')}`}>
-                <Breakdown title="Damage Bonus — Main Stat" keys={offense.main_stats}>×{(1 + offense.main_stat_damage_bonus).toFixed(2)}</Breakdown>
-              </td>
-              {ALL_DTYPES.map(d => <td key={d} style={tdDim}>—</td>)}
-            </tr>
-          )}
+          {/* Main-stat Damage Bonus (0.5%/point) is part of Total Additional above — shown as a source inside that
+              breakdown (not its own row), since it's one cumulative additional multiplier, not a separate pool. */}
 
           {/* ── Per hit form ── */}
           {offense.hit_forms.map(form => {
@@ -671,11 +663,6 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                     {castMult > 1 && (
                       <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
                         ×{castMult.toFixed(2)} same-target shotgun ({offense.shotgun_hits} hits)
-                      </span>
-                    )}
-                    {(offense.tangle_count ?? 0) > 0 && (
-                      <span style={{ color: '#8a7', fontWeight: 400, marginLeft: 6 }}>
-                        ×{offense.tangle_count} tangles
                       </span>
                     )}
                   </td>
@@ -791,13 +778,17 @@ function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta, empo
             stat: c.kind === 'additional' ? 'Additional Sealed Mana Comp.' : 'Increased Sealed Mana Comp.',
             source: 'Support', sourceName: c.label,
           })),
-          ...(Math.abs(globalInc) > 1e-9 ? [{ value: fmtPctSigned(globalInc), stat: 'Increased Sealed Mana Comp.', source: 'Global', sourceName: 'Talents / Gear' }] : []),
-          ...(Math.abs(globalAdd) > 1e-9 ? [{ value: fmtPctSigned(globalAdd), stat: 'Additional Sealed Mana Comp.', source: 'Global', sourceName: 'Talents / Gear' }] : []),
         ]
+        // Global Sealed Mana Compensation (talents/gear, i.e. not from a support) — shown as a real per-source
+        // breakdown over the comp stats instead of one lumped "Talents / Gear" row.
+        const compSections = ((Math.abs(globalInc) > 1e-9 || Math.abs(globalAdd) > 1e-9)
+          ? [{ label: 'Global Sealed Mana Compensation', keys: ['sealed_mana_compensation_inc', 'sealed_mana_compensation_additional'] }]
+          : [])
         return (
           <Row label={`Reservation — Sealed ${reservation.pool === 'life' ? 'Life' : 'Mana'}`} breakdown={{
             title: `Sealed ${reservation.pool === 'life' ? 'Life' : 'Mana'}`, keys: [], total: reservation.amount, totalUnit: '',
-            formula: 'Base × Π(Mana Multiplier) ÷ ((1 + Σ increased) × (1 + Σ additional)) Sealed Mana Compensation', extra,
+            formula: 'Base × Π(Mana Multiplier) ÷ ((1 + Σ increased) × (1 + Σ additional)) Sealed Mana Compensation',
+            extra, sections: compSections,
           }}>{fmtNum(reservation.amount)}</Row>
         )
       })()}
@@ -1119,7 +1110,11 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
             title: 'Max Spell Burst', keys: ['max_spell_burst_flat'], total: offense.spell_burst_count, totalUnit: '',
             formula: 'Σ +Max Spell Burst (base 0)',
           }}>{offense.spell_burst_count}</Row>
-          <Row label="Casts / Burst">{offense.spell_burst_casts_per_burst} <span style={{ color: '#777' }}>(M + 1)</span></Row>
+          <Row label="Casts / Burst" breakdown={{
+            title: 'Casts per Burst', keys: ['max_spell_burst_flat'], total: offense.spell_burst_casts_per_burst, totalUnit: '',
+            formula: '1 (triggering cast) + Max Spell Burst',
+            extra: [{ value: '1', stat: 'Base', source: 'Baseline', sourceName: 'Triggering cast' }],
+          }}>{offense.spell_burst_casts_per_burst}</Row>
           <Row label="Charge Time" breakdown={{
             title: 'Spell Burst Charge Time', keys: ['spell_burst_charge_speed_inc', 'spell_burst_charge_speed_additional'],
             total: offense.spell_burst_charge_time, totalUnit: ' s',
