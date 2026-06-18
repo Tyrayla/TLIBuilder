@@ -2,6 +2,12 @@
 
 Grouped by area. Pruned 2026-06-16 after the 0.5.2 release and the web launch.
 
+## ★ NEXT (owner, 2026-06-18)
+1. **Release TONIGHT** with all the Spell Burst + Tangle + craft-fix work. **Main-menu / landing-page update** so the
+   **Discord link** (feedback sharing) is easy to find — do this as part of the release.
+2. **Hero Traits** (after the release) — implement **one ENTIRE hero trait at a time (all its nodes)**, not piecemeal.
+   (Ingenuity Overload / Creative Genius = Bing2 hero trait — its Spell Burst spike mechanic lands here.)
+
 ## Shipped in 0.5.2 (removed from the open list)
 Mana/Life sealing & reservation (incl. Lunar Eclipse) · auras & Focus as build buffs · nightly channel + silent
 auto-update + Settings overlay · full skill-data reimport · display rounding option A (sealed/unsealed + ES match
@@ -50,9 +56,25 @@ full charge vs cast-gated — this IS the burst/combined toggle).
   consumed, ×min(M,6)) and Prairie Fire (+18%/activation, assumed at-cap ×6) are hand-modeled in a registry in
   `compute._offense_for_slot` (`_SPELL_BURST_BONUS_SUPPORTS`); the flat "for skills cast by Spell Burst" lines map via
   `mod_parser`. **Confirm the per-stack/per-activation percentages and whether casts/burst is M or M+1 in-game.**
-- **Charge sources to add NEXT (deferred, do immediately after — owner):** Insatiable Greed (Attack Speed → Charge
-  Speed), minion Spell Burst, Squiddle/Squidnova, Ingenuity Overload, **Solid River's auto-trigger gear mod** (needs a
-  parser line → set the auto flag).
+- **Auto-trigger + charge sources (SHIPPED 2026-06-18, second pass).** Auto-trigger is now **stat-driven** so the mod
+  lines badge Consumed: `spell_burst_auto_trigger_flag` (Burst Activation support line, unconditional) and
+  `spell_burst_auto_charge_threshold` (Solid River's conditional "Burst Charge Recovery Speed ≥ N% of base" line);
+  offense enables auto when the flag is set or `charge_factor ≥ threshold`. **Vorax** works for free (a graft carrying
+  either line parses through the same matcher). **Insatiable Greed** (`attack_speed_to_spell_burst_charge`, 1.5):
+  aggregator propagates each Attack-Speed source × coeff into the charge-speed pools (like Play Safe). **Solid River
+  charge→burst-damage** (`charge_speed_to_spell_burst_hit_dmg` + `_per`/`_cap`): stepwise `floor(charge_inc/per)×bonus`
+  capped, into the spell_burst pool. **Squiddle/Squidnova**: `has_squidnova` condition auto-enables when Squiddle is
+  equipped (`has_squidnova_flag`); gated "+Spell Damage" + rank-6 "+1 Max Spell Burst" apply.
+  - **DEFERRED — general named-buff ("Gains <buff>") gear expansion.** Insatiable Greed's affix is `affix_kind:"special"`
+    ("Seals 10% Max Mana. Gains Insatiable Greed") and is dropped by the gear payload builder; the **engine** support is
+    done (the glossary text "150% of Attack Speed → Charge Speed" parses + propagates), so it works **via a custom mod**
+    today. Auto-expanding the gear affix needs a gear-amount-pipeline change (`statsPayload.buildGearPayload` /
+    `server._resolve_affix`) since amounts come from `numeric_values`, not parsed text — do as its own focused change.
+  - **DEFERRED — Squidnova Effect scaling.** `squidnova_effect_inc` ("+25/50% Squidnova Effect") is parsed but does not
+    yet scale the Squidnova-sourced Spell Damage (within-spirit dependency). Wire + verify the scaling shape.
+  - **Ingenuity Overload** = the Bing **Creative Genius** hero trait (resource/spike: +200% one-shot Max Spell Burst +
+    Ingenuity Essence, and a "+15% charge speed for 10s" buff) → lands with the **hero-trait** work, not here.
+  - **minion Spell Burst** — needs the minion engine.
 - **More breakpoint mechanisms reuse `tick.period_ticks` (each MANUALLY opted-in — owner approval per mechanism):**
   **minions** (attack-time-in-ticks; Iris2 merged Magus +40% DPS at 7→5 ticks; **Rock Magus Ultimate 6-tick bug** —
   5 & 7 ok, 6 not), **Reap** (server-timed; **900 CDR → 10 Reaps/s** cap), **Wind Rhythm** / auto-triggers

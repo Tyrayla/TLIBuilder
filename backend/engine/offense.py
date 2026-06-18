@@ -1025,6 +1025,18 @@ def calculate_offense(
         # Whole-tick charge period (server-timed → ceil). Auto-trigger fires the instant it completes.
         charge_ticks = period_ticks(T_eff)
         spell_burst_charge_ticks = charge_ticks
+        # Finalize auto-trigger from the stat-driven sources (needs charge_factor): an unconditional flag (Burst
+        # Activation), or Solid River's CONDITIONAL threshold (auto only when charge_factor ≥ N×base). The toggle
+        # passed from compute already set spell_burst_auto. Done BEFORE bursts so the combined/burst-only split is right.
+        if not spell_burst_auto:
+            if source.total("spell_burst_auto_trigger_flag") > 0:
+                spell_burst_auto = True
+                spell_burst_auto_source = spell_burst_auto_source or "Burst Activation"
+            else:
+                _auto_thr = source.total("spell_burst_auto_charge_threshold")
+                if _auto_thr > 0 and charge_factor >= _auto_thr:
+                    spell_burst_auto = True
+                    spell_burst_auto_source = spell_burst_auto_source or "Solid River / Vorax"
         # Bursts/sec. AUTO: fires the tick the charge completes → 30 / charge_ticks. MANUAL: the player must cast
         # at/after the charge completes; both the cast cadence and the charge are whole-tick server quantities, so
         # the proc period rounds up to the next whole cast after the charge → proc_ticks = ceil(charge/cast)·cast,

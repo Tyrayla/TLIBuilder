@@ -63,6 +63,19 @@ class Stat(Enum):
     SPELL_BURST_CHARGE_SPEED_ADDITIONAL = "spell_burst_charge_speed_additional"
     SPELL_BURST_CHANCE_GAIN_STACKS_FLAT = "spell_burst_chance_gain_stacks_flat"
     SPELL_BURST_HIT_DMG_ADDITIONAL = "spell_burst_hit_dmg_additional"
+    # Auto-trigger sources (stat-driven so the mod lines badge Consumed). _FLAG = unconditional (Burst Activation);
+    # _CHARGE_THRESHOLD = conditional charge-factor threshold (Solid River: auto only when charge speed ≥ N×base).
+    SPELL_BURST_AUTO_TRIGGER_FLAG = "spell_burst_auto_trigger_flag"
+    SPELL_BURST_AUTO_CHARGE_THRESHOLD = "spell_burst_auto_charge_threshold"
+    # Coefficient: N% of Attack Speed bonuses also apply to Spell Burst Charge Speed (Insatiable Greed, 1.5).
+    ATTACK_SPEED_TO_SPELL_BURST_CHARGE = "attack_speed_to_spell_burst_charge"
+    # Solid River: "For every +X% Spell Burst Charge Speed, +Y% burst hit damage, up to +Z%" (stepwise, capped).
+    CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG = "charge_speed_to_spell_burst_hit_dmg"
+    CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG_PER = "charge_speed_to_spell_burst_hit_dmg_per"
+    CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG_CAP = "charge_speed_to_spell_burst_hit_dmg_cap"
+    # Squiddle / Squidnova (pact spirit): bursting grants Squidnova → conditional buff; Effect scales it.
+    SQUIDNOVA_EFFECT_INC = "squidnova_effect_inc"
+    HAS_SQUIDNOVA_FLAG = "has_squidnova_flag"
 
     # ── Melee ────────────────────────────────────────────────────────────────
     MELEE_DMG_INC = "melee_dmg_inc"

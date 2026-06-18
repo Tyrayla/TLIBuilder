@@ -1010,6 +1010,22 @@ STAT_META: dict[Stat, StatMeta] = {
         "Cast Speed Applied to Spell Burst Charge Speed", "Generic", "conversion", "%",
         subgroup="mechanics", ui_priority=86, source_types=_T,
     ),
+    Stat.ATTACK_SPEED_TO_SPELL_BURST_CHARGE: StatMeta(
+        "Attack Speed Applied to Spell Burst Charge Speed", "Generic", "conversion", "%",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
+    Stat.CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG: StatMeta(
+        "Spell Burst Charge Speed Applied to Spell Burst Hit Damage", "Spell", "conversion", "%",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
+    Stat.CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG_PER: StatMeta(
+        "Spell Burst Charge→Hit Damage Step", "Spell", "added_flat",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
+    Stat.CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG_CAP: StatMeta(
+        "Spell Burst Charge→Hit Damage Cap", "Spell", "added_flat",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
     Stat.PROJ_SPEED_TO_PROJ_DMG: StatMeta(
         "Projectile Speed Applied to Additional Projectile Damage", "Generic", "conversion", "%",
         subgroup="mechanics", ui_priority=86, source_types=_T,
@@ -2823,6 +2839,26 @@ STAT_META: dict[Stat, StatMeta] = {
     # ── Spell Burst ───────────────────────────────────────────────────────────
     Stat.SPELL_BURST_CHANCE_GAIN_STACKS_FLAT: StatMeta(
         "Spell Burst Chance to Gain Stacks", "Spell", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    Stat.SPELL_BURST_AUTO_TRIGGER_FLAG: StatMeta(
+        "Spell Burst Auto-Trigger", "Spell", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    Stat.SPELL_BURST_AUTO_CHARGE_THRESHOLD: StatMeta(
+        "Spell Burst Auto-Trigger Charge Threshold", "Spell", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    Stat.SQUIDNOVA_EFFECT_INC: StatMeta(
+        "Squidnova Effect", "Spell", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    Stat.HAS_SQUIDNOVA_FLAG: StatMeta(
+        "Has Squidnova (source)", "Spell", "added_flat",
         subgroup="mechanics",          stacking_rule="additive",
         ui_priority=60,                source_types=_T,
     ),

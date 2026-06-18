@@ -479,6 +479,57 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         return [{"stat_key": "spell_burst_chance_gain_stacks_flat",
                  "amount": (float(m.group(1)) / 100.0) * float(m.group(2)), "text": t}]
 
+    # Insatiable Greed: "N% of the bonuses to Attack Speed is also applied to Spell Burst Charge Speed" — coefficient
+    # (1.5); the aggregator propagates each attack-speed source × coeff into the charge-speed pools (like Play Safe).
+    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+bonuses\s+to\s+attack\s+speed\s+is\s+also\s+applied\s+to\s+spell\s+burst', t, re.I)
+    if m:
+        return [{"stat_key": "attack_speed_to_spell_burst_charge", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Burst Activation (support): "When Spell Burst is fully charged, triggers the supported skill … attempts to
+    # trigger the supported skill's Spell Burst" → unconditional auto-trigger flag (badges Consumed via the support).
+    m = re.match(r'when\s+spell\s+burst\s+is\s+fully\s+charged.*spell\s+burst', t, re.I)
+    if m:
+        return [{"stat_key": "spell_burst_auto_trigger_flag", "amount": 1.0, "text": t}]
+
+    # Solid River: "When Burst Charge Recovery Speed is at least N% of the base value, reaching the Max Spell Burst
+    # Charge triggers … attempts to activate the Main Spell Skill's Spell Burst" → CONDITIONAL auto-trigger: the
+    # charge-factor threshold (N/100). offense enables auto only when charge_factor ≥ threshold. The trailing
+    # "-30% Movement Speed" splits off as its own line.
+    m = re.match(r'when\s+burst\s+charge\s+recovery\s+speed\s+is\s+at\s+least\s+\(?([\d.]+)(?:\s*[-–]\s*([\d.]+))?\)?\s*%.*spell\s+burst', t, re.I)
+    if m:
+        lo = float(m.group(1)); hi = float(m.group(2)) if m.group(2) else lo
+        return [{"stat_key": "spell_burst_auto_charge_threshold", "amount": (lo + hi) / 200.0, "text": t}]
+
+    # Solid River: "For every +X% Spell Burst Charge Speed, +Y% additional Hit Damage for skills cast by Spell Burst,
+    # up to +Z%" → stepwise charge-speed→burst-damage scaling (per X / bonus Y / cap Z). Mid-text ranges aren't
+    # collapsed upstream (only leading ranges are), so capture them here.
+    m = re.match(r'for\s+every\s+\+?\(?([\d.]+)(?:\s*[-–]\s*([\d.]+))?\)?\s*%\s*spell\s+burst\s+charge\s+speed,?\s*'
+                 r'\+?\(?([\d.]+)(?:\s*[-–]\s*([\d.]+))?\)?\s*%\s*additional\s+hit\s+damage\s+for\s+skills\s+cast\s+by\s+spell\s+burst.*'
+                 r'up\s+to\s+\+?([\d.]+)\s*%', t, re.I)
+    if m:
+        per = (float(m.group(1)) + (float(m.group(2)) if m.group(2) else float(m.group(1)))) / 200.0
+        bonus = (float(m.group(3)) + (float(m.group(4)) if m.group(4) else float(m.group(3)))) / 200.0
+        cap = float(m.group(5)) / 100.0
+        return [{"stat_key": "charge_speed_to_spell_burst_hit_dmg", "amount": bonus, "text": t},
+                {"stat_key": "charge_speed_to_spell_burst_hit_dmg_per", "amount": per, "text": t},
+                {"stat_key": "charge_speed_to_spell_burst_hit_dmg_cap", "amount": cap, "text": t}]
+
+    # "+N to Max Spell Burst" (the "to" variant, e.g. Squidnova's "+1 to Max Spell Burst") → max_spell_burst_flat.
+    m = re.match(r'\+?\s*([\d.]+)\s+to\s+max\s+spell\s+burst\b', t, re.I)
+    if m:
+        return [{"stat_key": "max_spell_burst_flat", "amount": float(m.group(1)), "text": t}]
+
+    # "+N% Squidnova Effect" → buff-effect multiplier scaling the Squidnova-sourced spell damage.
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*squidnova\s+effect\b', t, re.I)
+    if m:
+        return [{"stat_key": "squidnova_effect_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Squiddle source line: "Activating Spell Burst with at least N stack(s) of Max Spell Burst grants … Squidnova"
+    # → marker flag so compute can auto-enable the has_squidnova condition when Squiddle is equipped.
+    m = re.match(r'activating\s+spell\s+burst\s+with\s+at\s+least\s+[\d.]+\s+stack\(?s?\)?\s+of\s+max\s+spell\s+burst\s+grants.*squidnova', t, re.I)
+    if m:
+        return [{"stat_key": "has_squidnova_flag", "amount": 1.0, "text": t}]
+
     # Gale: "N% of the Projectile Speed bonus is also applied to the additional bonus for Projectile Damage"
     # — coefficient on increased projectile speed → additional projectile damage (own factor; aggregator).
     m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+projectile\s+speed\s+bonus\s+is\s+also\s+applied\s+to\s+the\s+additional\s+bonus\s+for\s+projectile\s+damage', t, re.I)

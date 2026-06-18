@@ -523,6 +523,43 @@ def aggregate(
                 label=e.label, text=f"{e.text} → Spell Burst Charge (Play Safe)",
                 source_name=e.source_name, points=e.points))
 
+    # ── Bonus propagation: Insatiable Greed (coeff × Attack Speed → Spell Burst Charge Speed) ──
+    # Like Play Safe but ×coefficient (150% for Insatiable Greed): each attack-speed source × coeff → charge speed,
+    # preserving attribution. Must run AFTER Play Safe so the charge-speed total is complete for the Solid River
+    # charge→burst-damage block below.
+    ig_coeff = source.total("attack_speed_to_spell_burst_charge")
+    if ig_coeff > 0:
+        as_inc = [e for e in source.source_log if e.stat == "attack_speed_inc" and e.amount]
+        for e in as_inc:
+            source.add_with_source("spell_burst_charge_speed_inc", e.amount * ig_coeff, SourceEntry(
+                stat="spell_burst_charge_speed_inc", amount=e.amount * ig_coeff, source_type=e.source_type,
+                label=e.label, text=f"{e.text} → Spell Burst Charge Speed (Insatiable Greed)",
+                source_name=e.source_name, points=e.points))
+        as_add = [e for e in source.source_log if e.stat == "attack_speed_additional" and e.amount]
+        for e in as_add:
+            source.add_with_source("spell_burst_charge_speed_additional", e.amount * ig_coeff, SourceEntry(
+                stat="spell_burst_charge_speed_additional", amount=e.amount * ig_coeff, source_type=e.source_type,
+                label=e.label, text=f"{e.text} → Spell Burst Charge (Insatiable Greed)",
+                source_name=e.source_name, points=e.points))
+
+    # ── Bonus propagation: Solid River (Spell Burst Charge Speed → additional Spell Burst Hit Damage) ──
+    # "For every +X% Spell Burst Charge Speed, +Y% additional Hit Damage for skills cast by Spell Burst, up to +Z%."
+    # Stepwise (floor) over the post-propagation charge-speed total, capped at Z. Feeds the spell_burst tag pool.
+    sr_coeff = source.total("charge_speed_to_spell_burst_hit_dmg")
+    sr_per = source.total("charge_speed_to_spell_burst_hit_dmg_per")
+    if sr_coeff > 0 and sr_per > 0:
+        cs_total = source.total("spell_burst_charge_speed_inc")
+        sr_cap = source.total("charge_speed_to_spell_burst_hit_dmg_cap")
+        steps = int(cs_total / sr_per)   # floor; "for every +X%"
+        amount = steps * sr_coeff
+        if sr_cap > 0:
+            amount = min(amount, sr_cap)
+        if amount:
+            source.add_with_source("spell_burst_hit_dmg_additional", amount, SourceEntry(
+                stat="spell_burst_hit_dmg_additional", amount=amount, source_type="legendary_gear",
+                label="Solid River", text="Solid River: Spell Burst Charge Speed → Spell Burst Hit Damage",
+                source_name="Solid River", points=1))
+
     # ── Bonus propagation: Gale (increased Projectile Speed → additional Projectile Damage) ──
     # additional Projectile Damage = coeff × increased Projectile Speed, as its OWN multiplicative factor
     # (unique text → distinct affix in offense's per-affix pool). FLAGGED for in-game pooling verification.

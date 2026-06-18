@@ -1935,6 +1935,7 @@ _COND_PATTERNS: list[tuple] = [
     # Blur is active. NOTE: "for N s after Blur ends" is a distinct post-Blur window we don't model yet
     # (deferred to full Blur modeling); for now it grants its bonus while Blur is active.
     (re.compile(r"blur\s+is\s+active|after\s+blur\s+ends", re.I), "blur_active"),
+    (re.compile(r"having\s+squidnova|have\s+squidnova", re.I), "has_squidnova"),
     (re.compile(r"taken\s+damage\s+in\s+the\s+last|recently\s+taken\s+damage", re.I), "recently_taken_damage"),
     (re.compile(r"used\s+a\s+mobility\s+skill", re.I), "recently_used_mobility"),
     # "Critical Strike or Reaped" → either condition satisfies it.

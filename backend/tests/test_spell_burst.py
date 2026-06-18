@@ -44,6 +44,15 @@ def _hit(o):
     return o["hit_forms"][0]["avg_hit_with_crit"]
 
 
+def _offense_spirit(spirit_effects, max_burst=3):
+    """Offense with pact-spirit effect lines (for Squiddle / Squidnova)."""
+    req = make_request(_SPELL, 20, gear=_gear_with(max_spell_burst_flat=max_burst))
+    req["spirit_effects"] = spirit_effects
+    r = engine_stats(EngineStatsRequest(**req))
+    d = r.model_dump() if hasattr(r, "model_dump") else r
+    return d["offense"]
+
+
 # ── Tick helper ────────────────────────────────────────────────────────────────
 class TestTickHelper:
     def test_cap_rate_clamps_at_30(self):
@@ -246,3 +255,84 @@ class TestParser:
             "+30 % chance to immediately gain 2 stack(s) of Spell Burst Charge when using a skill")
         assert r[0]["stat_key"] == "spell_burst_chance_gain_stacks_flat"
         assert r[0]["amount"] == pytest.approx(0.6)   # chance × stacks
+
+    def test_auto_trigger_lines_map(self):
+        m = lambda t: mp._parse_custom_mod_text(t)
+        assert m("When Spell Burst is fully charged, triggers the supported skill on the nearest enemy within 25m "
+                 "and attempts to trigger the supported skill's Spell Burst")[0]["stat_key"] == "spell_burst_auto_trigger_flag"
+        sr = m("When Burst Charge Recovery Speed is at least 240 % of the base value, reaching the Max Spell Burst "
+               "Charge triggers the Main Skill on the nearest enemy within 25m and attempts to activate the Main Spell Skill's Spell Burst")
+        assert sr[0]["stat_key"] == "spell_burst_auto_charge_threshold" and sr[0]["amount"] == pytest.approx(2.4)
+
+    def test_insatiable_greed_and_squidnova_lines_map(self):
+        m = lambda t: mp._parse_custom_mod_text(t)[0]
+        assert m("150% of the bonuses to Attack Speed is also applied to Spell Burst Charge Speed")["stat_key"] == "attack_speed_to_spell_burst_charge"
+        assert m("+1 to Max Spell Burst")["stat_key"] == "max_spell_burst_flat"
+        assert m("+25 % Squidnova Effect")["stat_key"] == "squidnova_effect_inc"
+        assert m("Activating Spell Burst with at least 6 stack(s) of Max Spell Burst grants 1 stack of Squidnova")["stat_key"] == "has_squidnova_flag"
+
+    def test_solid_river_charge_to_burst_dmg_line_maps(self):
+        r = {e["stat_key"]: e["amount"] for e in mp._parse_custom_mod_text(
+            "For every +(40-50) % Spell Burst Charge Speed, +(15-20) % additional Hit Damage for skills cast by Spell Burst , up to +80 %")}
+        assert r["charge_speed_to_spell_burst_hit_dmg"] == pytest.approx(0.175)
+        assert r["charge_speed_to_spell_burst_hit_dmg_per"] == pytest.approx(0.45)
+        assert r["charge_speed_to_spell_burst_hit_dmg_cap"] == pytest.approx(0.80)
+
+
+# ── Auto-trigger from gear/graft (stat-driven) ──────────────────────────────────────
+class TestAutoTriggerSources:
+    def test_flag_enables_auto(self):
+        o = _offense(max_burst=3, extra_gear={"spell_burst_auto_trigger_flag": 1})
+        assert o["spell_burst_auto"] and o["spell_burst_auto_source"] == "Burst Activation"
+        assert o["non_spell_burst_dps_vs_target"] == pytest.approx(0.0)   # auto → burst-only
+
+    def test_solid_river_threshold_is_conditional_on_charge(self):
+        # Threshold 2.4 → auto only when charge_factor ≥ 2.4.
+        below = _offense(max_burst=3, extra_gear={"spell_burst_auto_charge_threshold": 2.4, "spell_burst_charge_speed_inc": 0.5})
+        above = _offense(max_burst=3, extra_gear={"spell_burst_auto_charge_threshold": 2.4, "spell_burst_charge_speed_inc": 1.5})
+        assert not below["spell_burst_auto"]                       # cf 1.5 < 2.4 → manual
+        assert above["spell_burst_auto"] and above["spell_burst_auto_source"] == "Solid River / Vorax"
+
+
+# ── Insatiable Greed (Attack Speed → Charge Speed) ──────────────────────────────────
+class TestInsatiableGreed:
+    def test_attack_speed_propagates_to_charge_speed(self):
+        base = _offense(max_burst=3)
+        ig = _offense(max_burst=3, extra_gear={"attack_speed_to_spell_burst_charge": 1.5, "attack_speed_inc": 0.4})
+        # chargeFactor = 1 + 0.4×1.5 = 1.6 → T = 2/1.6 = 1.25s (down from 2.0s base).
+        assert ig["spell_burst_charge_time"] == pytest.approx(1.25, rel=1e-3)
+        assert ig["spell_burst_charge_time"] < base["spell_burst_charge_time"]
+
+
+# ── Solid River: Charge Speed → Spell Burst Hit Damage ──────────────────────────────
+class TestChargeToBurstDamage:
+    _SR = {"charge_speed_to_spell_burst_hit_dmg": 0.175, "charge_speed_to_spell_burst_hit_dmg_per": 0.45,
+           "charge_speed_to_spell_burst_hit_dmg_cap": 0.80}
+
+    def test_stepwise_scaling(self):
+        plain = _offense(max_burst=3, extra_gear={"spell_burst_charge_speed_inc": 1.0})
+        sr = _offense(max_burst=3, extra_gear={**self._SR, "spell_burst_charge_speed_inc": 1.0})
+        # floor(1.0 / 0.45) = 2 steps × 0.175 = +0.35 burst hit damage.
+        assert _hit(sr) / _hit(plain) == pytest.approx(1.35, rel=1e-3)
+
+    def test_capped(self):
+        sr = _offense(max_burst=3, extra_gear={**self._SR, "spell_burst_charge_speed_inc": 5.0})
+        plain = _offense(max_burst=3, extra_gear={"spell_burst_charge_speed_inc": 5.0})
+        # floor(5.0/0.45)=11 steps × 0.175 = 1.925, capped at 0.80 → ×1.80.
+        assert _hit(sr) / _hit(plain) == pytest.approx(1.80, rel=1e-3)
+
+
+# ── Squiddle / Squidnova (auto-enabled when equipped) ───────────────────────────────
+class TestSquidnova:
+    _R6 = [
+        "Activating Spell Burst with at least 6 stack(s) of Max Spell Burst grants 1 stack of Squidnova",
+        "+50 % Squidnova Effect",
+        "+8 % additional Spell Damage when having Squidnova",
+        "+1 to Max Spell Burst when having Squidnova",
+    ]
+
+    def test_squidnova_auto_enables_and_grants_buffs(self):
+        none = _offense(max_burst=3)
+        sq = _offense_spirit(self._R6, max_burst=3)
+        assert sq["spell_burst_count"] == 4               # +1 Max Spell Burst from Squidnova (auto-enabled)
+        assert _hit(sq) == pytest.approx(1.08 * _hit(none), rel=1e-3)   # +8% additional Spell Damage

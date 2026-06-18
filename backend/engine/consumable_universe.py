@@ -157,7 +157,13 @@ def consumable_universe() -> frozenset[str]:
     # passes: Max Spell Burst (count), the charge-speed pools, and Surging's stacks-per-cast. The burst hit-damage
     # additional pool is already covered — the synthetic skill carries the "spell_burst" tag in _ALL_TAGS.
     consumed |= {"max_spell_burst_flat", "spell_burst_charge_speed_inc", "spell_burst_charge_speed_additional",
-                 "spell_burst_chance_gain_stacks_flat"}
+                 "spell_burst_chance_gain_stacks_flat",
+                 # auto-trigger sources (offense finalizes auto), charge/burst conversions (aggregator), Squidnova
+                 "spell_burst_auto_trigger_flag", "spell_burst_auto_charge_threshold",
+                 "attack_speed_to_spell_burst_charge",
+                 "charge_speed_to_spell_burst_hit_dmg", "charge_speed_to_spell_burst_hit_dmg_per",
+                 "charge_speed_to_spell_burst_hit_dmg_cap",
+                 "squidnova_effect_inc", "has_squidnova_flag"}
 
     missing = _SANITY_FLOOR - consumed
     if missing:

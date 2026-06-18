@@ -28,9 +28,8 @@ _SPELL_BURST_ENABLERS = frozenset({
     "moon_strike_wax_and_wane_noble",       # Wax and Wane — same, + a flat burst-damage bonus
     "psychic_burst",                        # supports Spell Skills / skills that can activate Spell Burst
 })
-# Auto-trigger sources: Spell Burst fires the instant it's full-charged (no player cast needed). Otherwise the
-# player must cast at/after full charge (cast-rate-gated).
-_SPELL_BURST_AUTO_SOURCES = frozenset({"activation_medium_burst_activation"})
+# Auto-trigger is stat-driven (the mod lines parse to spell_burst_auto_trigger_flag / _auto_charge_threshold and
+# offense finalizes it against charge_factor) plus the manual spell_burst_auto_trigger condition toggle.
 # Tags that make a Spell INELIGIBLE for inherent Spell Burst (still burstable via an enabler support if stated).
 _SPELL_BURST_DISALLOWED_TAGS = frozenset({
     "channeled", "sentry", "combo", "trigger", "triggered", "persistent", "aura", "passive", "mark",
@@ -379,6 +378,12 @@ def compute(
             condition_state["at_full_life"] = _clp >= 100.0
             condition_state["life_lost_pct"] = max(0.0, 100.0 - _clp)
 
+        # Squidnova (Squiddle pact spirit): auto-enable "having Squidnova" when Squiddle is equipped (its source
+        # line emits has_squidnova_flag), since bursting reliably grants it — sustained-uptime approximation. The
+        # gated "when having Squidnova" lines (+Spell Damage, rank-6 +1 Max Spell Burst) then apply.
+        if source.total("has_squidnova_flag") > 0:
+            condition_state["has_squidnova"] = True
+
         # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
         # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values.
         _apply_cond_effects(condition_state, cond_effects, main_dtypes, manual_cond_keys)
@@ -580,12 +585,10 @@ def compute(
             able = M >= 1 and (inherent or enabler)
             active_cond = new_state.get("spell_burst_active", True)
             if able and active_cond:
-                # Auto-trigger from a Burst Activation support or the condition toggle. (Solid River / Vorax gear
-                # mods are other auto sources — deferred until their lines are parsed; see docs/BACKLOG.md.)
+                # Auto-trigger: the manual toggle here; gear/support sources (Burst Activation flag, Solid River /
+                # Vorax conditional threshold) are stat-driven and finalized in offense (it needs charge_factor).
                 auto_source = ""
-                if slot_support_ids & _SPELL_BURST_AUTO_SOURCES:
-                    auto_source = "Activation Medium: Burst Activation"
-                elif new_state.get("spell_burst_auto_trigger"):
+                if new_state.get("spell_burst_auto_trigger"):
                     auto_source = "Auto-Trigger (toggled on)"
                 auto = bool(auto_source)
                 # Ramped per-support burst-damage bonuses (Heart of Flame / Prairie Fire — owner §7).

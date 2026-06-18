@@ -281,6 +281,19 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ---
 
+### SPELLBURST-02 — Auto-trigger + charge sources (second pass)
+- Status: ⬜ Pending. Verify the newly-wired sources:
+  1. **Burst Activation** support → auto-trigger (instant; headline = burst-only, no between-burst casts).
+  2. **Solid River** → auto-trigger ONLY when Burst Charge Recovery Speed ≥ ~230–250% of base (drops to manual below
+     it). Confirm the exact threshold. Also its **charge→burst-damage**: "+Y% per +X% charge speed, up to +Z%" steps at
+     each +X% and caps at Z. And its Vorax'd copy (same line on another item) behaves identically.
+  3. **Insatiable Greed** (currently via custom mod): 150% of Attack Speed bonuses shorten the Spell Burst charge.
+  4. **Squiddle/Squidnova**: equipping Squiddle auto-grants the buff → +Spell Damage and (rank 6) +1 Max Spell Burst;
+     confirm whether **Squidnova Effect** (+25/50%) scales the Spell Damage bonus (currently parsed but not scaled).
+- RESULT: Recount Avg DPS (span) before/after each; the mod + roll; charge & cast speed; Max Spell Burst; Screenshot.
+
+---
+
 ## How results are ingested
 Owner: for each returned RESULT, configure the same build in the app (matching the tester's exact
 rolls/level/rank/tier) and compare the engine DPS to the reported Recount **span average**. Mark
