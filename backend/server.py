@@ -33,6 +33,37 @@ _TREES_META_PATH = os.path.join(_DATA_ROOT, 'trees_meta.json')
 with open(_TREES_META_PATH, encoding="utf-8") as _f:
     TREES: dict[str, dict] = json.load(_f)
 
+# Named-buff glossary (lower-cased name → description). A "Gains <NamedBuff>" affix carries no stat of its
+# own; its real modifier lines live only in the glossary, so we expand it before parsing (never silently drop).
+_GLOSSARY_BY_NAME: dict[str, str] = {}
+try:
+    with open(os.path.join(_DATA_ROOT, 'master_glossary.json'), encoding="utf-8") as _gf:
+        for _term in (json.load(_gf).get("terms") or []):
+            _n, _d = _term.get("name"), _term.get("description")
+            if _n and _d:
+                _GLOSSARY_BY_NAME[_n.strip().lower()] = _d.strip()
+except (OSError, ValueError):
+    pass
+
+
+def _split_clauses(text: str) -> list[str]:
+    """Split a compound affix into clauses on sentence boundaries (". " NOT inside a decimal like 1.2s)."""
+    return [c.strip() for c in re.split(r'(?<!\d)\.\s+', text or "") if c and c.strip()]
+
+
+def _expand_named_buffs(text: str) -> list[str]:
+    """Expand each "Gains <NamedBuff>" clause to the glossary description's clauses (recursively split), so the
+    authoritative parser can resolve the real lines. Non-"Gains" clauses pass through unchanged."""
+    out: list[str] = []
+    for clause in _split_clauses(text):
+        m = re.match(r'gains\s+(.+)$', clause, re.I)
+        desc = _GLOSSARY_BY_NAME.get(m.group(1).strip().lower()) if m else None
+        if desc:
+            out.extend(_split_clauses(desc))
+        else:
+            out.append(clause)
+    return out
+
 # Set in __main__ so the lifespan handler can print it after uvicorn is ready
 _SERVER_PORT = 8765
 _VERBOSE = False
@@ -805,26 +836,36 @@ def engine_stats(req: EngineStatsRequest):
                 gear_mod_statuses.append({"text": t, "resolved": True,
                                           "stat_display": f"Inflicts {ac['curse_name']} (Lv {ac['level']})"})
                 continue
-            # Split off a leading ("If recently moved, +X%") or trailing ("+X% if Ignited") gate so the
-            # stat clause resolves; the gate is translated and rides on the contribution's `condition`
-            # (gated in the aggregator). A gate we can't translate makes the line UNRESOLVED (honest NYI),
-            # never applied always-on — silently dropping the condition would be worse than a red badge.
-            stat_part, cond_part = _split_condition(t)
-            parsed = _parse_custom_mod_text(stat_part)
-            cond_expr = None
-            if parsed and cond_part is not None:
-                cond_expr = _translate_condition_expr(t) or _translate_condition_expr(cond_part)
-                if cond_expr is None:
-                    parsed = []
-            if parsed:
-                for e in parsed:
-                    contribs.append({"stat": e["stat_key"], "display_value": e["amount"], "unit": "",
-                                     "item_name": gi.get("item_name") or "Gear", "text": t,
-                                     "slot": None, "condition": cond_expr, "scope": e.get("scope")})
-                names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
-                gear_mod_statuses.append({"text": t, "resolved": True, "stat_display": names})
-            else:
-                gear_mod_statuses.append({"text": t, "resolved": False, "stat_display": None})
+            # Expand any "Gains <NamedBuff>" clause via the glossary (so its real lines parse), and split a
+            # compound affix into its clauses. Each clause is resolved independently and reported on its own —
+            # so e.g. "Seals 10% Max Mana. Gains Insatiable Greed" surfaces both the seal and the expanded
+            # "150% of Attack Speed → Spell Burst Charge Speed". Cardinal rule: never silently drop.
+            for clause in _expand_named_buffs(t):
+                # Self-contained special lines encode their own gate/value in the text (e.g. Solid River's
+                # "When Burst Charge Recovery Speed is at least N% …" → the auto-trigger threshold stat), so try
+                # the WHOLE clause first; the threshold rides in the stat value, gated downstream in offense.
+                cond_expr = None
+                parsed = _parse_custom_mod_text(clause)
+                if not parsed:
+                    # Otherwise split off a leading ("If recently moved, +X%") or trailing ("+X% if Ignited") gate
+                    # so the stat clause resolves; the gate is translated onto the contribution's `condition`
+                    # (gated in the aggregator). A gate we can't translate makes the line UNRESOLVED (honest NYI),
+                    # never applied always-on — silently dropping the condition would be worse than a red badge.
+                    stat_part, cond_part = _split_condition(clause)
+                    parsed = _parse_custom_mod_text(stat_part)
+                    if parsed and cond_part is not None:
+                        cond_expr = _translate_condition_expr(clause) or _translate_condition_expr(cond_part)
+                        if cond_expr is None:
+                            parsed = []
+                if parsed:
+                    for e in parsed:
+                        contribs.append({"stat": e["stat_key"], "display_value": e["amount"], "unit": "",
+                                         "item_name": gi.get("item_name") or "Gear", "text": clause,
+                                         "slot": None, "condition": cond_expr, "scope": e.get("scope")})
+                    names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
+                    gear_mod_statuses.append({"text": clause, "resolved": True, "stat_display": names})
+                else:
+                    gear_mod_statuses.append({"text": clause, "resolved": False, "stat_display": None})
         gi["contributions"] = contribs
         gear_resolved.append(gi)
 

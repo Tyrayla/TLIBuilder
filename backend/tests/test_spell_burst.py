@@ -293,6 +293,46 @@ class TestAutoTriggerSources:
         assert not below["spell_burst_auto"]                       # cf 1.5 < 2.4 → manual
         assert above["spell_burst_auto"] and above["spell_burst_auto_source"] == "Solid River / Vorax"
 
+    def test_solid_river_threshold_ignores_additional(self):
+        # The gate checks the INCREASED total only (before additional). High additional + low increased must NOT
+        # trip it (1 + 0.5 inc = 1.5 < 2.4), even though additional makes the full charge factor large.
+        o = _offense(max_burst=3, extra_gear={"spell_burst_auto_charge_threshold": 2.4,
+                                              "spell_burst_charge_speed_inc": 0.5,
+                                              "spell_burst_charge_speed_additional": 2.0})
+        assert not o["spell_burst_auto"]
+        # And the exposed increased-only field matches (1 + inc), not the post-additional factor.
+        assert o["spell_burst_charge_inc"] == pytest.approx(0.5)
+
+    def test_solid_river_auto_line_from_gear_unresolved_text(self):
+        # End-to-end via the real gear path: Solid River's line is a self-contained special affix that the
+        # full-clause parse must resolve (not lose to _split_condition). Auto only above the charge threshold.
+        line = ("When Burst Charge Recovery Speed is at least 240 % of the base value, reaching the Max Spell "
+                "Burst Charge triggers the Main Skill on the nearest enemy within 25m and attempts to activate "
+                "the Main Spell Skill's Spell Burst")
+        def off(csi):
+            req = make_request(_SPELL, 20)
+            gi = {"item_name": "Solid River", "contributions": [
+                {"stat": "max_spell_burst_flat", "display_value": 14, "unit": "", "slot": "helmet", "item_name": "Solid River", "text": "+14"},
+                {"stat": "spell_burst_charge_speed_inc", "display_value": csi, "unit": "", "slot": "helmet", "item_name": "Solid River", "text": "csi"}],
+                "unresolved_texts": [line]}
+            req["gear"] = DUAL_WEAPONS + [gi]
+            r = engine_stats(EngineStatsRequest(**req))
+            d = r.model_dump() if hasattr(r, "model_dump") else r
+            return d["offense"]
+        assert not off(0.5)["spell_burst_auto"]                    # cf 1.5 < 2.4
+        assert off(1.5)["spell_burst_auto"]                        # cf 2.5 ≥ 2.4
+
+
+# ── Spell crit must not include weapon Critical Strike Rating ────────────────────────
+class TestSpellCritNoWeaponCSR:
+    def test_spell_crit_ignores_weapon_csr(self):
+        # A spell uses its innate base 500 CSR only; the worn weapon's Critical Strike Rating must not leak in.
+        from tests.mock_build import make_request as _mr
+        # chain_lightning (spell) with DUAL_WEAPONS (which carry weapon_crit_rating_flat) → base 5% crit, no leak.
+        r = engine_stats(EngineStatsRequest(**_mr(_SPELL, 20, gear=DUAL_WEAPONS)))
+        d = r.model_dump() if hasattr(r, "model_dump") else r
+        assert d["offense"]["crit_chance"] == pytest.approx(0.05, abs=2e-3)
+
 
 # ── Insatiable Greed (Attack Speed → Charge Speed) ──────────────────────────────────
 class TestInsatiableGreed:
@@ -301,6 +341,30 @@ class TestInsatiableGreed:
         ig = _offense(max_burst=3, extra_gear={"attack_speed_to_spell_burst_charge": 1.5, "attack_speed_inc": 0.4})
         # chargeFactor = 1 + 0.4×1.5 = 1.6 → T = 2/1.6 = 1.25s (down from 2.0s base).
         assert ig["spell_burst_charge_time"] == pytest.approx(1.25, rel=1e-3)
+        assert ig["spell_burst_charge_time"] < base["spell_burst_charge_time"]
+
+    def test_named_buff_expansion_resolves_gains_insatiable_greed(self):
+        # "Gains Insatiable Greed" is a named-buff affix dropped to unresolved_texts; the backend expands it
+        # via the glossary so its "150% Attack Speed → Charge Speed" line applies (and the seal clause too).
+        from server import _expand_named_buffs
+        clauses = _expand_named_buffs("Seals 10 % Max Mana. Gains Insatiable Greed")
+        assert any("Attack Speed" in c and "Spell Burst Charge Speed" in c for c in clauses)
+
+    def test_insatiable_greed_works_from_gear_unresolved_text(self):
+        def off(unresolved=None):
+            req = make_request(_SPELL, 20)
+            gi = {"item_name": "IG", "contributions": [
+                {"stat": "max_spell_burst_flat", "display_value": 3, "unit": "", "slot": "ring", "item_name": "IG", "text": "+3"},
+                {"stat": "attack_speed_inc", "display_value": 0.4, "unit": "", "slot": "ring", "item_name": "IG", "text": "+40%"}]}
+            if unresolved:
+                gi["unresolved_texts"] = unresolved
+            req["gear"] = DUAL_WEAPONS + [gi]
+            r = engine_stats(EngineStatsRequest(**req))
+            d = r.model_dump() if hasattr(r, "model_dump") else r
+            return d["offense"]
+        base = off()
+        ig = off(["Seals 10 % Max Mana. Gains Insatiable Greed"])
+        assert ig["spell_burst_charge_time"] == pytest.approx(1.25, rel=1e-3)   # 40% atk × 1.5 = +60% charge
         assert ig["spell_burst_charge_time"] < base["spell_burst_charge_time"]
 
 

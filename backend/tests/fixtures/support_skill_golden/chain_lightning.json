@@ -167,7 +167,7 @@
       "lightning": 15.0
     },
     "cast_multiplier": 1.7999999999999998,
-    "crit_chance": 0.51,
+    "crit_chance": 0.15,
     "crit_multiplier": 1.5,
     "effective_level": 14,
     "flat_dmg_max": {
@@ -185,14 +185,14 @@
     "hit_forms": [
       {
         "avg_hit_pre_crit": 4278.380037978408,
-        "avg_hit_with_crit": 5369.366947662901,
+        "avg_hit_with_crit": 4599.258540826789,
         "damage_by_type": {
           "fire": 624.0960396781991,
           "lightning": 3039.2855685298555,
           "physical": 614.9984297703537
         },
-        "dps_contribution": 9582.25486044456,
-        "dps_vs_target": 4709.07895414183,
+        "dps_contribution": 8207.907549783191,
+        "dps_vs_target": 4033.6732077310494,
         "effectiveness_pct": 100.0,
         "form_type": "additive",
         "hit_max_by_type": {
@@ -240,6 +240,8 @@
     "spell_burst_auto_source": "",
     "spell_burst_cast_to_next_inc": 0.0,
     "spell_burst_casts_per_burst": 0,
+    "spell_burst_charge_factor": 1.0,
+    "spell_burst_charge_inc": 0.0,
     "spell_burst_charge_ticks": 0,
     "spell_burst_charge_time": 0.0,
     "spell_burst_charge_to_next_inc": 0.0,
@@ -258,8 +260,8 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
-    "total_dps": 17248.058748800206,
-    "total_dps_vs_target": 8476.342117455293,
+    "total_dps": 14774.233589609743,
+    "total_dps_vs_target": 7260.611773915888,
     "type_add": {
       "fire": 3.2154347706307695,
       "lightning": 4.252412484159192,
@@ -290,7 +292,7 @@
         "lightning": 15.0
       },
       "cast_multiplier": 1.7999999999999998,
-      "crit_chance": 0.51,
+      "crit_chance": 0.15,
       "crit_multiplier": 1.5,
       "effective_level": 14,
       "flat_dmg_max": {
@@ -308,14 +310,14 @@
       "hit_forms": [
         {
           "avg_hit_pre_crit": 4278.380037978408,
-          "avg_hit_with_crit": 5369.366947662901,
+          "avg_hit_with_crit": 4599.258540826789,
           "damage_by_type": {
             "fire": 624.0960396781991,
             "lightning": 3039.2855685298555,
             "physical": 614.9984297703537
           },
-          "dps_contribution": 9582.25486044456,
-          "dps_vs_target": 4709.07895414183,
+          "dps_contribution": 8207.907549783191,
+          "dps_vs_target": 4033.6732077310494,
           "effectiveness_pct": 100.0,
           "form_type": "additive",
           "hit_max_by_type": {
@@ -363,6 +365,8 @@
       "spell_burst_auto_source": "",
       "spell_burst_cast_to_next_inc": 0.0,
       "spell_burst_casts_per_burst": 0,
+      "spell_burst_charge_factor": 1.0,
+      "spell_burst_charge_inc": 0.0,
       "spell_burst_charge_ticks": 0,
       "spell_burst_charge_time": 0.0,
       "spell_burst_charge_to_next_inc": 0.0,
@@ -381,8 +385,8 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
-      "total_dps": 17248.058748800206,
-      "total_dps_vs_target": 8476.342117455293,
+      "total_dps": 14774.233589609743,
+      "total_dps_vs_target": 7260.611773915888,
       "type_add": {
         "fire": 3.2154347706307695,
         "lightning": 4.252412484159192,

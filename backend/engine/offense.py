@@ -585,6 +585,8 @@ class OffenseResult:
     spell_burst_casts_per_burst: int = 0   # M + 1 (the M recasts + the triggering cast)
     spell_burst_charge_ticks: int = 0      # whole-tick charge period (ceil(30 × T_eff))
     spell_burst_charge_time: float = 0.0   # seconds to full charge (T_eff, after Surging) — display
+    spell_burst_charge_factor: float = 1.0 # total Spell Burst Charge Speed multiplier ((1+Σinc)×Π(1+add)) — display
+    spell_burst_charge_inc: float = 0.0    # Σ Spell Burst Charge Speed INCREASED only (matches in-game; Solid River's gate)
     spell_burst_charge_to_next_inc: float = 0.0   # charge-speed Increased % needed for the next DPS-relevant breakpoint
     spell_burst_cast_to_next_inc: float = 0.0     # cast-speed Increased % to the next bursts/sec breakpoint (manual only)
     spell_burst_next_breakpoint_ticks: int = 0    # charge-tick count of the next breakpoint that raises bursts/sec (0 = none)
@@ -681,9 +683,11 @@ def calculate_offense(
         mod_tags = mod_tags | {"spell_burst"}
 
     # 0. Crit — computed here in the offense layer, NOT in the fixed-point loop
-    # Weapon CSR (from weapon gear piece) scaled by gear-specific and MH-specific % mods only.
-    # Other flat CSR (talents, rings) is NOT scaled by those gear mods.
-    weapon_csr = source.total("weapon_crit_rating_flat") * (
+    # Weapon CSR (from weapon gear piece) scaled by gear-specific and MH-specific % mods only — ATTACKS ONLY.
+    # Spells derive crit from their innate base 500 CSR, NOT the weapon (which is still worn for its other stats),
+    # so weapon Critical Strike Rating must not leak into a spell's crit. Tag-borrowing attacks (Moon Strike,
+    # is_spell=False) keep weapon CSR correctly.
+    weapon_csr = 0.0 if skill.is_spell else source.total("weapon_crit_rating_flat") * (
         1.0 + source.total("attack_crit_rating_gear") + source.total("attack_crit_rating_mh")
     )
     # Non-weapon flat CSR — attack_crit_rating_flat + spell_crit_rating_flat, tag-filtered to the skill.
@@ -992,6 +996,8 @@ def calculate_offense(
     spell_burst_casts_per_burst = 0
     spell_burst_charge_ticks = 0
     spell_burst_charge_time = 0.0
+    spell_burst_charge_factor = 1.0
+    spell_burst_charge_inc = 0.0
     spell_burst_charge_to_next_inc = 0.0
     spell_burst_cast_to_next_inc = 0.0
     spell_burst_next_breakpoint_ticks = 0
@@ -1012,6 +1018,8 @@ def calculate_offense(
         charge_inc = source.total("spell_burst_charge_speed_inc")
         charge_add_product = _additional_total_product(source, "spell_burst_charge_speed_additional")
         charge_factor = max(1e-6, (1.0 + charge_inc) * charge_add_product)
+        spell_burst_charge_factor = charge_factor
+        spell_burst_charge_inc = charge_inc
         T = 2.0 / charge_factor
         # Surging Inspiration: each cast has a chance to immediately gain Spell Burst Charge stacks; the
         # expected stacks/cast (spell_burst_chance_gain_stacks_flat) over the (capped) cast rate is an
@@ -1033,8 +1041,10 @@ def calculate_offense(
                 spell_burst_auto = True
                 spell_burst_auto_source = spell_burst_auto_source or "Burst Activation"
             else:
+                # Solid River checks "Burst Charge Recovery Speed ≥ N% of base" against the INCREASED total only,
+                # BEFORE additional bonuses (verified in-game) — so compare (1 + Σ increased), not charge_factor.
                 _auto_thr = source.total("spell_burst_auto_charge_threshold")
-                if _auto_thr > 0 and charge_factor >= _auto_thr:
+                if _auto_thr > 0 and (1.0 + charge_inc) >= _auto_thr:
                     spell_burst_auto = True
                     spell_burst_auto_source = spell_burst_auto_source or "Solid River / Vorax"
         # Bursts/sec. AUTO: fires the tick the charge completes → 30 / charge_ticks. MANUAL: the player must cast
@@ -1160,6 +1170,8 @@ def calculate_offense(
         spell_burst_casts_per_burst=spell_burst_casts_per_burst,
         spell_burst_charge_ticks=spell_burst_charge_ticks,
         spell_burst_charge_time=spell_burst_charge_time,
+        spell_burst_charge_factor=spell_burst_charge_factor,
+        spell_burst_charge_inc=spell_burst_charge_inc,
         spell_burst_charge_to_next_inc=spell_burst_charge_to_next_inc,
         spell_burst_cast_to_next_inc=spell_burst_cast_to_next_inc,
         spell_burst_next_breakpoint_ticks=spell_burst_next_breakpoint_ticks,

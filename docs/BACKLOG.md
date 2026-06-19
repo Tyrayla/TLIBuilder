@@ -65,11 +65,14 @@ full charge vs cast-gated — this IS the burst/combined toggle).
   charge→burst-damage** (`charge_speed_to_spell_burst_hit_dmg` + `_per`/`_cap`): stepwise `floor(charge_inc/per)×bonus`
   capped, into the spell_burst pool. **Squiddle/Squidnova**: `has_squidnova` condition auto-enables when Squiddle is
   equipped (`has_squidnova_flag`); gated "+Spell Damage" + rank-6 "+1 Max Spell Burst" apply.
-  - **DEFERRED — general named-buff ("Gains <buff>") gear expansion.** Insatiable Greed's affix is `affix_kind:"special"`
-    ("Seals 10% Max Mana. Gains Insatiable Greed") and is dropped by the gear payload builder; the **engine** support is
-    done (the glossary text "150% of Attack Speed → Charge Speed" parses + propagates), so it works **via a custom mod**
-    today. Auto-expanding the gear affix needs a gear-amount-pipeline change (`statsPayload.buildGearPayload` /
-    `server._resolve_affix`) since amounts come from `numeric_values`, not parsed text — do as its own focused change.
+  - **SHIPPED — general named-buff ("Gains <buff>") gear expansion.** A "Gains <NamedBuff>" affix (`affix_kind:"special"`,
+    e.g. "Seals 10% Max Mana. Gains Insatiable Greed") is dropped by the frontend to `unresolved_texts`; the backend
+    gear-unresolved loop (`server.py`) now `_expand_named_buffs` it — splitting compound clauses and substituting the
+    glossary description by name (`_GLOSSARY_BY_NAME` from `master_glossary.json`) — then resolves each clause via the
+    authoritative parser. So Insatiable Greed's "150% of Attack Speed → Spell Burst Charge Speed" applies straight from
+    gear (no custom mod needed), and every other named buff now resolves too (upholds never-silently-drop). NOTE: graft
+    (Vorax) special affixes resolve via `_resolve_affix` (not the unresolved channel) — if a Vorax'd named buff needs
+    the same treatment, extend the graft path similarly.
   - **DEFERRED — Squidnova Effect scaling.** `squidnova_effect_inc` ("+25/50% Squidnova Effect") is parsed but does not
     yet scale the Squidnova-sourced Spell Damage (within-spirit dependency). Wire + verify the scaling shape.
   - **Ingenuity Overload** = the Bing **Creative Genius** hero trait (resource/spike: +200% one-shot Max Spell Burst +

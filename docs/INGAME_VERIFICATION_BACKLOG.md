@@ -282,7 +282,8 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 ---
 
 ### SPELLBURST-02 — Auto-trigger + charge sources (second pass)
-- Status: ⬜ Pending. Verify the newly-wired sources:
+- Status: 🔶 Partially verified — a **Solid River spell-burst build matched in-game within 2%** (owner, 2026-06-18),
+  confirming the auto-trigger + charge model. Remaining sub-checks below still ⬜.
   1. **Burst Activation** support → auto-trigger (instant; headline = burst-only, no between-burst casts).
   2. **Solid River** → auto-trigger ONLY when Burst Charge Recovery Speed ≥ ~230–250% of base (drops to manual below
      it). Confirm the exact threshold. Also its **charge→burst-damage**: "+Y% per +X% charge speed, up to +Z%" steps at
