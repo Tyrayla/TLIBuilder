@@ -13,6 +13,17 @@ class SkillHitForm:
     # "steep_strike_chance"               → fires when steep procs
     # "_complement_steep_strike_chance"   → fires when steep does NOT proc (= 1 - steep_chance)
     # None                                → additive form; always fires
+    # ── Multi-form SPELL base (set per form when a spell has several intrinsic base-damage forms, e.g.
+    #    Icebound Beam's Cold Beam + Icy Blade). When base_dmg is set, offense computes THIS form's flat
+    #    from its own base + the shared added flat scaled by `added_eff` (per-form effectiveness), instead
+    #    of the skill-wide base. effectiveness_pct stays 100 for spells (no eff double-dip on base). ──
+    base_dmg: dict[str, tuple[float, float]] | None = None  # {dtype: (min, max)} intrinsic per-level base
+    added_eff: float | None = None    # this form's added-damage effectiveness (1.19 = 119%); None → skill-wide
+    # ── Channeled cadence (set on channeled skills) ──
+    channel_role: str | None = None   # "continuous" → fires every use; "burst" → once per RESET cycle; None → every use
+    hit_count: int = 1                # BASE projectiles/blades fired per occurrence (Icy Blade base = 2)
+    shotgun_falloff: float = 0.0      # same-target Shotgun Effect falloff coefficient (0.65 = each subsequent hit −65%)
+    scales_with_projectiles: bool = False  # if True, hit_count += projectile_quantity_flat (the blades shotgun a target)
 
 
 @dataclass
@@ -36,6 +47,32 @@ class IntrinsicAdditional:
 
 
 @dataclass
+class ChanneledSpec:
+    """A channeled skill's stack behaviour, declared by its resolver (the per-skill module). Consumed by
+    offense to set per-form cadence (see engine/uptime.channeled_rounds_per_cycle and the framework plan).
+
+      - behavior "reset"   → at max, dump ALL stacks and fire the burst form; cycle = ramp 0→max repeatedly.
+      - behavior "refresh" → hold at max while channeling; continuous damage scales at `max` stacks.
+
+    max/min are the BASE (intrinsic) values; offense adds max_channeled_stacks_flat / min_channeled_stacks_flat
+    from the build. `max_from_data` False means the skill line omitted the cap and the module hardcodes it
+    (Icebound Beam: normally "Channels up to 5 stacks", lost in the SS12 DB → fallback 5).
+    """
+    max_stacks: int
+    min_stacks: int = 0
+    behavior: Literal["reset", "refresh"] = "reset"
+    max_from_data: bool = False
+    # RESET only: does the use that reaches max ALSO fire the continuous form, or replace it with the burst?
+    # Icebound Beam: ADDITIVE (owner-confirmed — the Icy Blades fire while the beam is still going).
+    burst_replaces_continuous: bool = False
+    # RESET only: when the burst form actually fires (projectile_count ≥ 1), the CONTINUOUS form's damage is
+    # suppressed to this fraction (the channel "redistributes" beam damage into the blades). 1.0 = no
+    # suppression. Icebound Beam: 1/3 — validated in-game (beam 113 solo → ~38 steady-state once blades fire;
+    # 0/1/2/4/6-projectile recounts all fit beam×(1/3) + additive blades to within ~2%).
+    continuous_suppression_when_bursting: float = 1.0
+
+
+@dataclass
 class ResolvedSkill:
     skill_id: str
     name: str
@@ -43,6 +80,7 @@ class ResolvedSkill:
     max_level: int
     hit_forms_by_level: dict[int, list[SkillHitForm]]
     supported: bool = True  # False when skill_id is not in registry
+    channeled: "ChanneledSpec | None" = None  # set on channeled skills (Icebound Beam, …)
     base_steep_strike_chance: float = 0.0  # intrinsic passive from skill text (e.g. "This skill +20% Steep Strike chance")
     intrinsic_additional: list[IntrinsicAdditional] = field(default_factory=list)
     # Extra tags merged into the skill's tag set ONLY for damage increased/additional filtering, so a

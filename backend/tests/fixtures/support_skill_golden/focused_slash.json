@@ -191,6 +191,12 @@
     "base_dmg_max": {},
     "base_dmg_min": {},
     "cast_multiplier": 1.0,
+    "channeled_behavior": "",
+    "channeled_burst_rate": 0.0,
+    "channeled_max_stacks": 0,
+    "channeled_min_stacks": 0,
+    "channeled_rounds_per_cycle": 0.0,
+    "channeled_stacks": 0.0,
     "crit_chance": 0.396,
     "crit_multiplier": 1.5,
     "effective_level": 20,
@@ -210,6 +216,8 @@
       {
         "avg_hit_pre_crit": 12448.839900662359,
         "avg_hit_with_crit": 14913.710200993504,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
           "fire": 1188.531593090016,
           "lightning": 2357.749547792319,
@@ -218,6 +226,7 @@
         "dps_contribution": 0.0,
         "dps_vs_target": 0.0,
         "effectiveness_pct": 154.0,
+        "fires_per_sec": 0.0,
         "form_type": "exclusive",
         "hit_max_by_type": {
           "fire": 1542.8054333380016,
@@ -229,12 +238,17 @@
           "lightning": 226.70668728772299,
           "physical": 6605.492892365666
         },
+        "hits_per_fire": 1,
         "name": "Sweep Slash",
-        "proc_chance": 0.0
+        "proc_chance": 0.0,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       },
       {
         "avg_hit_pre_crit": 40707.70647516592,
         "avg_hit_with_crit": 48767.83235724877,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
           "fire": 3886.4983094043528,
           "lightning": 7709.841021280882,
@@ -243,6 +257,7 @@
         "dps_contribution": 149346.60981083868,
         "dps_vs_target": 74247.86360321517,
         "effectiveness_pct": 308.0,
+        "fires_per_sec": 3.0624000000000007,
         "form_type": "exclusive",
         "hit_max_by_type": {
           "fire": 5044.973767015265,
@@ -254,8 +269,11 @@
           "lightning": 741.3308674308541,
           "physical": 21599.96175803573
         },
+        "hits_per_fire": 1,
         "name": "Steep Strike",
-        "proc_chance": 1.0
+        "proc_chance": 1.0,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       }
     ],
     "main_stat_damage_bonus": 0.0,
@@ -277,6 +295,7 @@
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
     ],
+    "projectile_count": -1,
     "shotgun_hits": 1,
     "skill_area_inc": 0.0,
     "skill_name": "Focused Slash",
@@ -339,6 +358,12 @@
       "base_dmg_max": {},
       "base_dmg_min": {},
       "cast_multiplier": 1.0,
+      "channeled_behavior": "",
+      "channeled_burst_rate": 0.0,
+      "channeled_max_stacks": 0,
+      "channeled_min_stacks": 0,
+      "channeled_rounds_per_cycle": 0.0,
+      "channeled_stacks": 0.0,
       "crit_chance": 0.396,
       "crit_multiplier": 1.5,
       "effective_level": 20,
@@ -358,6 +383,8 @@
         {
           "avg_hit_pre_crit": 12448.839900662359,
           "avg_hit_with_crit": 14913.710200993504,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
             "fire": 1188.531593090016,
             "lightning": 2357.749547792319,
@@ -366,6 +393,7 @@
           "dps_contribution": 0.0,
           "dps_vs_target": 0.0,
           "effectiveness_pct": 154.0,
+          "fires_per_sec": 0.0,
           "form_type": "exclusive",
           "hit_max_by_type": {
             "fire": 1542.8054333380016,
@@ -377,12 +405,17 @@
             "lightning": 226.70668728772299,
             "physical": 6605.492892365666
           },
+          "hits_per_fire": 1,
           "name": "Sweep Slash",
-          "proc_chance": 0.0
+          "proc_chance": 0.0,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         },
         {
           "avg_hit_pre_crit": 40707.70647516592,
           "avg_hit_with_crit": 48767.83235724877,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
             "fire": 3886.4983094043528,
             "lightning": 7709.841021280882,
@@ -391,6 +424,7 @@
           "dps_contribution": 149346.60981083868,
           "dps_vs_target": 74247.86360321517,
           "effectiveness_pct": 308.0,
+          "fires_per_sec": 3.0624000000000007,
           "form_type": "exclusive",
           "hit_max_by_type": {
             "fire": 5044.973767015265,
@@ -402,8 +436,11 @@
             "lightning": 741.3308674308541,
             "physical": 21599.96175803573
           },
+          "hits_per_fire": 1,
           "name": "Steep Strike",
-          "proc_chance": 1.0
+          "proc_chance": 1.0,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         }
       ],
       "main_stat_damage_bonus": 0.0,
@@ -425,6 +462,7 @@
         "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
         "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
       ],
+      "projectile_count": -1,
       "shotgun_hits": 1,
       "skill_area_inc": 0.0,
       "skill_name": "Focused Slash",

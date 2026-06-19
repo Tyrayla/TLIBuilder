@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Callable, Literal
 
+from engine import uptime
 from engine.models import BuildSource
 from engine.affix_identity import affix_identity
 from engine.skill_resolver import ResolvedSkill
@@ -515,6 +516,12 @@ class HitFormResult:
     dps_vs_target: float = 0.0   # dps_contribution after target dummy mitigation
     hit_min_by_type: dict[str, float] = field(default_factory=dict)
     hit_max_by_type: dict[str, float] = field(default_factory=dict)
+    fires_per_sec: float = 0.0   # this form's effective occurrences/sec (rate × proc); channeled forms differ
+    hits_per_fire: int = 1       # projectiles/blades per occurrence (shotgun on one target)
+    shotgun_falloff: float = 0.0 # same-target Shotgun Effect falloff coefficient (each subsequent hit −this)
+    shotgun_mult: float = 1.0    # total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
+    base_min_by_type: dict[str, float] = field(default_factory=dict)  # this form's intrinsic base (spells)
+    base_max_by_type: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -599,6 +606,16 @@ class OffenseResult:
     spell_burst_dps_vs_target: float = 0.0
     non_spell_burst_dps: float = 0.0           # casts made BETWEEN bursts (manual only; 0 for auto-trigger)
     non_spell_burst_dps_vs_target: float = 0.0
+    # Channeled mode (a held skill gaining 1 stack/use; RESET dumps at max + fires a burst form). All 0 / ""
+    # when not channeled. The continuous form fires every use; the burst form at channeled_burst_rate. Stacks
+    # are display-only (steady state = the cap). See engine/uptime.channeled_rounds_per_cycle.
+    channeled_max_stacks: int = 0          # cap after +Max Channeled Stacks (0 = not channeled)
+    channeled_min_stacks: int = 0          # Min Channeled Stacks (first round from 0 gains 1 + this)
+    channeled_stacks: float = 0.0          # display steady-state stacks (= cap for a sustained channel)
+    channeled_rounds_per_cycle: float = 0.0  # uses per RESET cycle = max(1, max − min)
+    channeled_burst_rate: float = 0.0      # reset-burst occurrences/sec (= aps / rounds_per_cycle)
+    channeled_behavior: str = ""           # "reset" | "refresh" | "" (not channeled)
+    projectile_count: int = -1             # projectiles of the projectile-scaling form (Icy Blade); -1 = N/A (no such form)
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -664,6 +681,26 @@ def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags
         aps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
     # Global 30 Hz cap: a single caster acts at most once per server tick.
     return {"aps": cap_rate(aps), "base_cast_time": base_cast_time}
+
+
+def _spell_flat(source: BuildSource, base_map: dict, eff_mult: float):
+    """Spell flat pool for one (per-level base, added-damage effectiveness): the intrinsic base (UNSCALED
+    by effectiveness) + spell-tagged added flat (gear/supports) scaled by eff_mult. Weapon base does NOT
+    apply to spells. Returns (flat_dmg, skill_base_dmg). Shared by the single-form spell path and each
+    multi-form spell form (e.g. Icebound Beam's Cold Beam / Icy Blade, which carry per-form base+eff)."""
+    flat: dict[str, tuple[float, float]] = {}
+    base_only: dict[str, tuple[float, float]] = {}
+    for dtype in DAMAGE_TYPES:
+        b_min, b_max = base_map.get(dtype, (0.0, 0.0))
+        add_min = source.total(f"{dtype}_spell_dmg_flat_min")
+        add_max = source.total(f"{dtype}_spell_dmg_flat_max")
+        total_min = b_min + add_min * eff_mult
+        total_max = b_max + add_max * eff_mult
+        if b_min > 0 or b_max > 0:
+            base_only[dtype] = (b_min, b_max)
+        if total_min > 0 or total_max > 0:
+            flat[dtype] = (total_min, total_max)
+    return flat, base_only
 
 
 def calculate_offense(
@@ -761,23 +798,12 @@ def calculate_offense(
     flat_dmg: dict[str, tuple[float, float]] = {}
     skill_base_dmg: dict[str, tuple[float, float]] = {}  # intrinsic per-level base (spells); shown as baseline
     if skill.is_spell:
-        # Spell flat pool: the skill's intrinsic per-level base damage (UNSCALED by effectiveness) +
-        # spell-tagged added flat (gear/supports), the latter scaled by the skill's added-damage
-        # effectiveness. Weapon base does NOT apply to spells. Verified in-game — see
-        # docs/CHAIN_LIGHTNING_IMPLEMENTATION_PLAN.md §1.
+        # Spell flat pool — see _spell_flat. Verified in-game (docs/CHAIN_LIGHTNING_IMPLEMENTATION_PLAN.md §1).
+        # For multi-form spells (Icebound Beam) this is the HEADLINE (continuous) form's flat; each form
+        # recomputes its own flat from form.base_dmg + form.added_eff inside the hit-form loop below.
         # DEFERRED: min/max-damage reshaping (Phase 3, with Lucky); elemental-gear-flat→spell (flagged).
-        eff_mult = skill.added_dmg_effectiveness
-        base_for_level = skill.base_dmg_by_level.get(lookup_level, {})
-        for dtype in DAMAGE_TYPES:
-            b_min, b_max = base_for_level.get(dtype, (0.0, 0.0))
-            add_min = source.total(f"{dtype}_spell_dmg_flat_min")
-            add_max = source.total(f"{dtype}_spell_dmg_flat_max")
-            total_min = b_min + add_min * eff_mult
-            total_max = b_max + add_max * eff_mult
-            if b_min > 0 or b_max > 0:
-                skill_base_dmg[dtype] = (b_min, b_max)
-            if total_min > 0 or total_max > 0:
-                flat_dmg[dtype] = (total_min, total_max)
+        flat_dmg, skill_base_dmg = _spell_flat(
+            source, skill.base_dmg_by_level.get(lookup_level, {}), skill.added_dmg_effectiveness)
     else:
         for dtype in DAMAGE_TYPES:
             # Weapon implicit base, scaled by the weapon's own gear inc
@@ -893,6 +919,25 @@ def calculate_offense(
     aps = _rates["aps"]
     base_cast_time = _rates["base_cast_time"]
 
+    # ── Channeled cadence ── 1 stack per use; a RESET skill ramps 0→max over `rounds_per_cycle` uses then
+    # dumps + fires its burst form once per cycle. Min Channeled Stacks shortens the ramp (first round gains
+    # 1+Min). The continuous form fires every use (aps); the burst form fires at aps / rounds_per_cycle.
+    # cycle_time is constant here (Icebound never sits AT max → any not-at-max cast speed applies every round),
+    # so both forms anchor to the same aps — see the channeled framework plan. 0 / 1.0 when not channeled.
+    ch_max_stacks = 0
+    ch_min_stacks = 0
+    ch_rounds_per_cycle = 0.0
+    ch_burst_rate = 0.0
+    ch_behavior = ""
+    if skill.channeled:
+        ch_max_stacks = int(skill.channeled.max_stacks) + int(source.total("max_channeled_stacks_flat"))
+        ch_min_stacks = int(skill.channeled.min_stacks) + int(source.total("min_channeled_stacks_flat"))
+        ch_max_stacks = max(1, ch_max_stacks)
+        ch_min_stacks = max(0, min(ch_min_stacks, ch_max_stacks))
+        ch_rounds_per_cycle = uptime.channeled_rounds_per_cycle(ch_max_stacks, ch_min_stacks)
+        ch_burst_rate = aps / ch_rounds_per_cycle if ch_rounds_per_cycle else aps
+        ch_behavior = skill.channeled.behavior
+
     # Augmentation: per-Jump (multiplies) compounding factor on hit damage. Scales with jumps REMAINING;
     # on a lone dummy the single hit is the first hit (full jumps remaining = total jumps), and
     # Augmentation excludes Web so there is no multi-hit chain here. Shows in per-hit damage.
@@ -910,6 +955,15 @@ def calculate_offense(
     # Instead, a compounding additional multiplier is applied to all hit damage.
     above_mult = _above_max_mult(effective_level, skill.max_level)
     hit_forms: list[HitFormResult] = []
+    # Pre-scan the projectile-scaling (reset burst) form's count, BEFORE the loop, so the continuous form
+    # (processed first) knows whether the burst fires — and thus whether it's suppressed. -1 = no such form.
+    projectile_count = -1
+    for _f in skill.hit_forms_by_level.get(lookup_level, []):
+        if _f.scales_with_projectiles:
+            _n = max(0, _f.hit_count + int(source.total("projectile_quantity_flat")))
+            projectile_count = _n if projectile_count < 0 else max(projectile_count, _n)
+    # The reset burst fires when its projectile count ≥ 1 → the continuous form is then suppressed.
+    burst_active = projectile_count >= 1
     for form in skill.hit_forms_by_level.get(lookup_level, []):
         eff = form.effectiveness_pct
 
@@ -923,16 +977,31 @@ def calculate_offense(
             proc = 1.0
             form_add_mult = 1.0
 
+        # Channeled RESET redistribution: while the burst form fires, the CONTINUOUS form's damage is
+        # suppressed (Icebound Beam's Cold Beam drops to 1/3 once Icy Blades fire). Folded into form_add_mult
+        # so it scales the per-hit damage too (Hit Range shows the suppressed value). No effect at 0 projectiles.
+        if (skill.channeled and skill.channeled.behavior == "reset"
+                and form.channel_role == "continuous" and burst_active):
+            form_add_mult *= skill.channeled.continuous_suppression_when_bursting
+
         damage_by_type: dict[str, float] = {}
         hit_min_by_type: dict[str, float] = {}
         hit_max_by_type: dict[str, float] = {}
         avg_pre = 0.0
         avg_pre_vs_target = 0.0
+        # Multi-form SPELL base: a form with its own base_dmg (e.g. Icebound Beam's Cold Beam / Icy Blade)
+        # recomputes its flat from THAT base + the shared added flat scaled by THIS form's effectiveness
+        # (added_eff). Other forms use the skill-wide flat_dmg built above. base stays unscaled either way.
+        form_flat = flat_dmg
+        form_base = skill_base_dmg
+        if form.base_dmg is not None:
+            form_eff = form.added_eff if form.added_eff is not None else skill.added_dmg_effectiveness
+            form_flat, form_base = _spell_flat(source, form.base_dmg, form_eff)
         # Conversion stage: apply this form's effectiveness to the flat, then cascade through the
         # conversion chain. _apply_conversion returns each FINAL type's (min,max) already scaled by
         # (1 + path increases) × (path additionals) × generic; per-final-type factors (enemy vuln,
         # above-max, augmentation) and Lucky apply below. No conversion → final == native per-type result.
-        eff_flat = {t: (mn * (eff / 100.0), mx * (eff / 100.0)) for t, (mn, mx) in flat_dmg.items()}
+        eff_flat = {t: (mn * (eff / 100.0), mx * (eff / 100.0)) for t, (mn, mx) in form_flat.items()}
         converted = _apply_conversion(eff_flat, _path_spec_inc, _path_spec_add, generic_inc, generic_add,
                                       convert_fracs, adds_fracs)
         for dtype, (smin, smax) in converted.items():
@@ -954,6 +1023,28 @@ def calculate_offense(
         # Crit (expected-value) and double-damage (expected-value) both uplift the average, not per-hit.
         avg_post = avg_pre * crit_factor * double_dmg_factor
         avg_post_vs_target = avg_pre_vs_target * crit_factor * double_dmg_factor
+
+        # Per-form firing rate. Default = aps (every use). Channeled: a "burst" form fires once per RESET
+        # cycle (aps / rounds_per_cycle); a "continuous" form fires every use, except when the dump use
+        # REPLACES the continuous hit (burst_replaces_continuous) → it fires (rounds−1)/rounds of the time.
+        # Icebound Beam is additive (beam fires every round, owner-confirmed) so the beam stays at aps.
+        form_rate = aps
+        if skill.channeled and form.channel_role == "burst":
+            form_rate = ch_burst_rate
+        elif (skill.channeled and form.channel_role == "continuous"
+              and skill.channeled.burst_replaces_continuous and ch_rounds_per_cycle > 1):
+            form_rate = aps * (ch_rounds_per_cycle - 1.0) / ch_rounds_per_cycle
+        # Projectile count for this form. Projectile-scaling forms (Icy Blade) add +Projectile Quantity to
+        # the base count; all projectiles home onto one target and shotgun (1st full + each subsequent
+        # ×(1−falloff), linear — every subsequent deals (1−falloff) of the first). Such a form can drop to
+        # 0 projectiles (reduced Projectile Quantity) → it does NOT fire, isolating the continuous form.
+        # Non-scaling forms always fire (≥1 hit).
+        if form.scales_with_projectiles:
+            n_proj = max(0, form.hit_count + int(source.total("projectile_quantity_flat")))
+        else:
+            n_proj = max(1, form.hit_count)
+        form_shotgun = (1.0 + (n_proj - 1) * (1.0 - form.shotgun_falloff)) if n_proj >= 1 else 0.0
+
         hit_forms.append(HitFormResult(
             name=form.name,
             effectiveness_pct=eff,
@@ -962,10 +1053,16 @@ def calculate_offense(
             damage_by_type=damage_by_type,
             avg_hit_pre_crit=avg_pre,
             avg_hit_with_crit=avg_post,
-            dps_contribution=avg_post * aps * proc,
-            dps_vs_target=avg_post_vs_target * aps * proc,
+            dps_contribution=avg_post * form_rate * proc * form_shotgun,
+            dps_vs_target=avg_post_vs_target * form_rate * proc * form_shotgun,
             hit_min_by_type=hit_min_by_type,
             hit_max_by_type=hit_max_by_type,
+            fires_per_sec=form_rate * proc,
+            hits_per_fire=n_proj,
+            shotgun_falloff=form.shotgun_falloff,
+            shotgun_mult=form_shotgun,
+            base_min_by_type={t: mn for t, (mn, _) in form_base.items()},
+            base_max_by_type={t: mx for t, (_, mx) in form_base.items()},
         ))
 
     # Same-target shotgun (Merge lands Web's per-Jump chains on the same target). First hit 100%, each
@@ -1192,6 +1289,13 @@ def calculate_offense(
         spell_burst_dps_vs_target=spell_burst_dps_vs_target,
         non_spell_burst_dps=non_spell_burst_dps,
         non_spell_burst_dps_vs_target=non_spell_burst_dps_vs_target,
+        channeled_max_stacks=ch_max_stacks,
+        channeled_min_stacks=ch_min_stacks,
+        channeled_stacks=float(ch_max_stacks),
+        channeled_rounds_per_cycle=ch_rounds_per_cycle,
+        channeled_burst_rate=ch_burst_rate,
+        channeled_behavior=ch_behavior,
+        projectile_count=projectile_count,
         nyi=[
             "Support skill flat damage adds",
             "Elemental conversion",

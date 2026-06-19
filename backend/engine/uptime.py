@@ -65,6 +65,36 @@ def effective_stacks(
     return max(0.0, min(stacks, float(cap)))
 
 
+def channeled_rounds_per_cycle(max_stacks: float, min_stacks: float) -> float:
+    """USES per RESET cycle for a channeled skill — ramp 0 → max, then dump.
+
+    A "round of channeling" is one skill use (1 stack/use). From 0 the first round gains ``1 + min``
+    stacks (Help DB: "Base 1 stack + Min Channeled Stacks") and each later round +1, so reaching the
+    cap takes ``max(1, max − min)`` rounds. This is the single source of the RESET cadence; the reset
+    burst fires once per cycle, so its rate = ``use_rate / rounds_per_cycle``.
+
+    Deliberately ONE expression with no special "min == max" branch: once ``1 + min ≥ max`` the cycle
+    saturates at 1 round (detonate every use). Validated in-game on Icebound Beam — Min 3→4 halves the
+    cycle (2→1 round, ×2 detonation rate); Min 4→5 changes nothing. See the channeled framework plan.
+    """
+    m = max(0.0, float(max_stacks))
+    mn = max(0.0, min(float(min_stacks), m))
+    return max(1.0, m - mn)
+
+
+def channeled_cycle_average_stacks(max_stacks: float, min_stacks: float) -> float:
+    """Cycle-average CURRENT channeled stacks for a RESET skill — drives per-current-stack damage scaling.
+
+    Over a cycle the per-round stack sequence is ``(1+min), (2+min), …, max``, averaging
+    ``((1+min)+max)/2``, clamped to ``[0, max]``. (A REFRESH skill instead holds steady at ``max`` — use
+    that directly.) Skills whose continuous damage does NOT scale per current stack (e.g. Icebound Beam's
+    flat Cold Beam) ignore this; it exists for per-stack-scaling channeled skills and stack display.
+    """
+    m = max(0.0, float(max_stacks))
+    mn = max(0.0, min(float(min_stacks), m))
+    return max(0.0, min(((1.0 + mn) + m) / 2.0, m))
+
+
 def uptime_fraction(
     proc_per_sec: float,
     duration: float,

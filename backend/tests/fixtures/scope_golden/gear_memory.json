@@ -232,6 +232,12 @@
       "lightning": 15.0
     },
     "cast_multiplier": 1.0,
+    "channeled_behavior": "",
+    "channeled_burst_rate": 0.0,
+    "channeled_max_stacks": 0,
+    "channeled_min_stacks": 0,
+    "channeled_rounds_per_cycle": 0.0,
+    "channeled_stacks": 0.0,
     "crit_chance": 0.054,
     "crit_multiplier": 1.5,
     "effective_level": 14,
@@ -247,12 +253,19 @@
       {
         "avg_hit_pre_crit": 316.16,
         "avg_hit_with_crit": 324.69632,
+        "base_max_by_type": {
+          "lightning": 289.0
+        },
+        "base_min_by_type": {
+          "lightning": 15.0
+        },
         "damage_by_type": {
           "lightning": 316.16
         },
         "dps_contribution": 499.53279999999995,
         "dps_vs_target": 244.77107199999992,
         "effectiveness_pct": 100.0,
+        "fires_per_sec": 1.5384615384615383,
         "form_type": "additive",
         "hit_max_by_type": {
           "lightning": 601.12
@@ -260,8 +273,11 @@
         "hit_min_by_type": {
           "lightning": 31.200000000000003
         },
+        "hits_per_fire": 1,
         "name": "Chain Lightning",
-        "proc_chance": 1.0
+        "proc_chance": 1.0,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       }
     ],
     "main_stat_damage_bonus": 0.0,
@@ -283,6 +299,7 @@
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
     ],
+    "projectile_count": -1,
     "shotgun_hits": 1,
     "skill_area_inc": 0.0,
     "skill_name": "Chain Lightning",

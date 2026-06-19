@@ -167,6 +167,11 @@ def consumable_universe() -> frozenset[str]:
                  "charge_speed_to_spell_burst_hit_dmg_cap",
                  "squidnova_effect_inc", "has_squidnova_flag"}
 
+    # Channeled mode (offense.calculate_offense) reads the stack-cap pools to set the RESET cadence; they only
+    # fire for a channeled skill (Icebound Beam), outside the synthetic passes. projectile_quantity_flat scales
+    # a projectile-shotgun form's blade count (Icy Blade).
+    consumed |= {"max_channeled_stacks_flat", "min_channeled_stacks_flat", "projectile_quantity_flat"}
+
     missing = _SANITY_FLOOR - consumed
     if missing:
         raise RuntimeError(

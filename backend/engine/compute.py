@@ -644,6 +644,7 @@ def compute(
             tags_lower = {t.lower() for t in resolved.tags}
             cooldown = skill_charges.skill_cooldown(skill_dict) if skill_dict else None
             inherent = (resolved.is_spell
+                        and resolved.channeled is None   # a channeled spell ramps stacks, it doesn't burst
                         and not (tags_lower & _SPELL_BURST_DISALLOWED_TAGS)
                         and not cooldown)
             able = M >= 1 and (inherent or enabler)

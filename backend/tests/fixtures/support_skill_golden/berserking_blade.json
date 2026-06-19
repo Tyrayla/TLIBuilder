@@ -192,6 +192,12 @@
     "base_dmg_max": {},
     "base_dmg_min": {},
     "cast_multiplier": 1.0,
+    "channeled_behavior": "",
+    "channeled_burst_rate": 0.0,
+    "channeled_max_stacks": 0,
+    "channeled_min_stacks": 0,
+    "channeled_rounds_per_cycle": 0.0,
+    "channeled_stacks": 0.0,
     "crit_chance": 0.396,
     "crit_multiplier": 1.5,
     "effective_level": 20,
@@ -211,6 +217,8 @@
       {
         "avg_hit_pre_crit": 8350.069244284548,
         "avg_hit_with_crit": 10003.382954652889,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
           "fire": 797.2085094285311,
           "lightning": 1581.4623805788483,
@@ -219,6 +227,7 @@
         "dps_contribution": 24507.487968263213,
         "dps_vs_target": 12183.929894557179,
         "effectiveness_pct": 210.0,
+        "fires_per_sec": 2.4499200000000005,
         "form_type": "exclusive",
         "hit_max_by_type": {
           "fire": 1034.8379689697279,
@@ -230,12 +239,17 @@
           "lightning": 152.06369044027386,
           "physical": 4430.639600477797
         },
+        "hits_per_fire": 1,
         "name": "Sweep Slash",
-        "proc_chance": 0.8
+        "proc_chance": 0.8,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       },
       {
         "avg_hit_pre_crit": 22572.082134981778,
         "avg_hit_with_crit": 27041.354397708168,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
           "fire": 2155.030746103593,
           "lightning": 4275.042242583002,
@@ -244,6 +258,7 @@
         "dps_contribution": 16562.288741508306,
         "dps_vs_target": 8233.963643326904,
         "effectiveness_pct": 421.0,
+        "fires_per_sec": 0.6124800000000001,
         "form_type": "exclusive",
         "hit_max_by_type": {
           "fire": 2797.395680038318,
@@ -255,8 +270,11 @@
           "lightning": 411.0617540945195,
           "physical": 11976.997800460354
         },
+        "hits_per_fire": 1,
         "name": "Steep Strike",
-        "proc_chance": 0.2
+        "proc_chance": 0.2,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       }
     ],
     "main_stat_damage_bonus": 0.0,
@@ -278,6 +296,7 @@
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
     ],
+    "projectile_count": -1,
     "shotgun_hits": 1,
     "skill_area_inc": 1.0,
     "skill_name": "Berserking Blade",
@@ -341,6 +360,12 @@
       "base_dmg_max": {},
       "base_dmg_min": {},
       "cast_multiplier": 1.0,
+      "channeled_behavior": "",
+      "channeled_burst_rate": 0.0,
+      "channeled_max_stacks": 0,
+      "channeled_min_stacks": 0,
+      "channeled_rounds_per_cycle": 0.0,
+      "channeled_stacks": 0.0,
       "crit_chance": 0.396,
       "crit_multiplier": 1.5,
       "effective_level": 20,
@@ -360,6 +385,8 @@
         {
           "avg_hit_pre_crit": 8350.069244284548,
           "avg_hit_with_crit": 10003.382954652889,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
             "fire": 797.2085094285311,
             "lightning": 1581.4623805788483,
@@ -368,6 +395,7 @@
           "dps_contribution": 24507.487968263213,
           "dps_vs_target": 12183.929894557179,
           "effectiveness_pct": 210.0,
+          "fires_per_sec": 2.4499200000000005,
           "form_type": "exclusive",
           "hit_max_by_type": {
             "fire": 1034.8379689697279,
@@ -379,12 +407,17 @@
             "lightning": 152.06369044027386,
             "physical": 4430.639600477797
           },
+          "hits_per_fire": 1,
           "name": "Sweep Slash",
-          "proc_chance": 0.8
+          "proc_chance": 0.8,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         },
         {
           "avg_hit_pre_crit": 22572.082134981778,
           "avg_hit_with_crit": 27041.354397708168,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
             "fire": 2155.030746103593,
             "lightning": 4275.042242583002,
@@ -393,6 +426,7 @@
           "dps_contribution": 16562.288741508306,
           "dps_vs_target": 8233.963643326904,
           "effectiveness_pct": 421.0,
+          "fires_per_sec": 0.6124800000000001,
           "form_type": "exclusive",
           "hit_max_by_type": {
             "fire": 2797.395680038318,
@@ -404,8 +438,11 @@
             "lightning": 411.0617540945195,
             "physical": 11976.997800460354
           },
+          "hits_per_fire": 1,
           "name": "Steep Strike",
-          "proc_chance": 0.2
+          "proc_chance": 0.2,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         }
       ],
       "main_stat_damage_bonus": 0.0,
@@ -427,6 +464,7 @@
         "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
         "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
       ],
+      "projectile_count": -1,
       "shotgun_hits": 1,
       "skill_area_inc": 1.0,
       "skill_name": "Berserking Blade",

@@ -198,6 +198,12 @@
     "base_dmg_max": {},
     "base_dmg_min": {},
     "cast_multiplier": 1.0,
+    "channeled_behavior": "",
+    "channeled_burst_rate": 0.0,
+    "channeled_max_stacks": 0,
+    "channeled_min_stacks": 0,
+    "channeled_rounds_per_cycle": 0.0,
+    "channeled_stacks": 0.0,
     "crit_chance": 0.396,
     "crit_multiplier": 1.5,
     "effective_level": 20,
@@ -217,6 +223,8 @@
       {
         "avg_hit_pre_crit": 7712.780030890403,
         "avg_hit_with_crit": 9239.910477006702,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
           "fire": 736.3644171196463,
           "lightning": 1460.7629124610983,
@@ -225,6 +233,7 @@
         "dps_contribution": 21505.189402036853,
         "dps_vs_target": 10691.333211420919,
         "effectiveness_pct": 185.0,
+        "fires_per_sec": 2.3274240000000006,
         "form_type": "exclusive",
         "hit_max_by_type": {
           "fire": 955.8576568380024,
@@ -236,12 +245,17 @@
           "lightning": 140.4579723520287,
           "physical": 4092.486856684188
         },
+        "hits_per_fire": 1,
         "name": "Sweep Slash",
-        "proc_chance": 0.76
+        "proc_chance": 0.76,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       },
       {
         "avg_hit_pre_crit": 15425.560061780807,
         "avg_hit_with_crit": 18479.820954013405,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
           "fire": 1472.7288342392926,
           "lightning": 2921.5258249221965,
@@ -250,6 +264,7 @@
         "dps_contribution": 13582.22488549696,
         "dps_vs_target": 6752.420975634265,
         "effectiveness_pct": 370.0,
+        "fires_per_sec": 0.7349760000000002,
         "form_type": "exclusive",
         "hit_max_by_type": {
           "fire": 1911.7153136760048,
@@ -261,8 +276,11 @@
           "lightning": 280.9159447040574,
           "physical": 8184.973713368376
         },
+        "hits_per_fire": 1,
         "name": "Steep Strike",
-        "proc_chance": 0.24000000000000002
+        "proc_chance": 0.24000000000000002,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       }
     ],
     "main_stat_damage_bonus": 0.0,
@@ -284,6 +302,7 @@
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
     ],
+    "projectile_count": -1,
     "shotgun_hits": 1,
     "skill_area_inc": 0,
     "skill_name": "Moon Strike",
@@ -346,6 +365,12 @@
       "base_dmg_max": {},
       "base_dmg_min": {},
       "cast_multiplier": 1.0,
+      "channeled_behavior": "",
+      "channeled_burst_rate": 0.0,
+      "channeled_max_stacks": 0,
+      "channeled_min_stacks": 0,
+      "channeled_rounds_per_cycle": 0.0,
+      "channeled_stacks": 0.0,
       "crit_chance": 0.396,
       "crit_multiplier": 1.5,
       "effective_level": 20,
@@ -365,6 +390,8 @@
         {
           "avg_hit_pre_crit": 7712.780030890403,
           "avg_hit_with_crit": 9239.910477006702,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
             "fire": 736.3644171196463,
             "lightning": 1460.7629124610983,
@@ -373,6 +400,7 @@
           "dps_contribution": 21505.189402036853,
           "dps_vs_target": 10691.333211420919,
           "effectiveness_pct": 185.0,
+          "fires_per_sec": 2.3274240000000006,
           "form_type": "exclusive",
           "hit_max_by_type": {
             "fire": 955.8576568380024,
@@ -384,12 +412,17 @@
             "lightning": 140.4579723520287,
             "physical": 4092.486856684188
           },
+          "hits_per_fire": 1,
           "name": "Sweep Slash",
-          "proc_chance": 0.76
+          "proc_chance": 0.76,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         },
         {
           "avg_hit_pre_crit": 15425.560061780807,
           "avg_hit_with_crit": 18479.820954013405,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
             "fire": 1472.7288342392926,
             "lightning": 2921.5258249221965,
@@ -398,6 +431,7 @@
           "dps_contribution": 13582.22488549696,
           "dps_vs_target": 6752.420975634265,
           "effectiveness_pct": 370.0,
+          "fires_per_sec": 0.7349760000000002,
           "form_type": "exclusive",
           "hit_max_by_type": {
             "fire": 1911.7153136760048,
@@ -409,8 +443,11 @@
             "lightning": 280.9159447040574,
             "physical": 8184.973713368376
           },
+          "hits_per_fire": 1,
           "name": "Steep Strike",
-          "proc_chance": 0.24000000000000002
+          "proc_chance": 0.24000000000000002,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         }
       ],
       "main_stat_damage_bonus": 0.0,
@@ -432,6 +469,7 @@
         "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
         "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
       ],
+      "projectile_count": -1,
       "shotgun_hits": 1,
       "skill_area_inc": 0,
       "skill_name": "Moon Strike",
