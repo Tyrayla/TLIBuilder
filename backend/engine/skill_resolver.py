@@ -273,6 +273,75 @@ def _parse_cast_time(cast_speed: str) -> float:
     return float(m.group(1)) if m else 0.0
 
 
+def _parse_pct(raw: object, default: float = 1.0) -> float:
+    """Parse '40%' / '119%' → 0.40 / 1.19. Returns `default` if unparseable."""
+    m = re.search(r"([\d.]+)", str(raw or ""))
+    return float(m.group(1)) / 100.0 if m else default
+
+
+# ── Channeled skills ────────────────────────────────────────────────────────────
+# Icebound Beam — Tags: Spell, Channeled, Cold, Projectile, Beam. A RESET channeled skill with TWO
+# intrinsic base-damage forms that fire at DIFFERENT cadences:
+#   • Cold Beam (continuous): fires every use, the spell's per-level base (added-dmg effectiveness 40%).
+#   • Icy Blade (reset burst): at max channeled stacks (5), dump all stacks and fire 2 Icy Blades (each its
+#     own per-level base, effectiveness 119%); on one target the 1st is full, each subsequent −65% (shotgun).
+# Both forms are Cold Spell base — base damage scales per level, so effectiveness scales ADDED flat ONLY (no
+# base double-dip). The per-form base + effectiveness are read by offense (SkillHitForm.base_dmg/added_eff).
+_ICEBOUND_BEAM_RE = re.compile(
+    r"Cold Beam:\s*Deals\s+([\d.,]+)\s*-\s*([\d.,]+)\s+Spell\s+Cold\s+Damage"
+    r".*?Icy Blade:\s*Deals\s+([\d.,]+)\s*-\s*([\d.,]+)\s+Spell\s+Cold\s+Damage",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+@_register("icebound_beam")
+def _resolve_icebound_beam(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    beam_eff = _parse_pct(skill_data.get("effectiveness_of_added_damage"), 0.40)   # Cold Beam: 40%
+    forms_by_level: dict[int, list[SkillHitForm]] = {}
+    beam_base_by_level: dict[int, dict[str, tuple[float, float]]] = {}
+    blade_eff = 1.19
+    for lvl, values in progression.items():
+        m = _ICEBOUND_BEAM_RE.search(str(values.get("Descript", "")))
+        if not m:
+            continue
+        beam = (float(m.group(1).replace(",", "")), float(m.group(2).replace(",", "")))
+        blade = (float(m.group(3).replace(",", "")), float(m.group(4).replace(",", "")))
+        blade_eff = _parse_pct(values.get("Effectiveness of added damage"), 1.19)  # Icy Blade: 119%
+        beam_base_by_level[lvl] = {"cold": beam}
+        forms_by_level[lvl] = [
+            # effectiveness_pct=100 keeps the shared per-form eff multiply neutral (spell base is unscaled);
+            # the REAL added-damage effectiveness rides added_eff (applied to added flat only).
+            SkillHitForm("Cold Beam", 100.0, "additive", base_dmg={"cold": beam},
+                         added_eff=beam_eff, channel_role="continuous"),
+            # Base 2 blades (1 base projectile + the skill's intrinsic "Projectile Quantity +1"); +Projectile
+            # Quantity adds more, all homing/hitting one target with the 65% shotgun falloff.
+            SkillHitForm("Icy Blade", 100.0, "additive", base_dmg={"cold": blade},
+                         added_eff=blade_eff, channel_role="burst", hit_count=2, shotgun_falloff=0.65,
+                         scales_with_projectiles=True),
+        ]
+
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms_by_level,
+        supported=True,
+        is_spell=True,
+        # Headline base/effectiveness = the Cold Beam (continuous); the Icy Blade form overrides per-form.
+        base_dmg_by_level=beam_base_by_level,
+        base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
+        added_dmg_effectiveness=beam_eff,
+        damage_types=["cold"],
+        # "Channels up to 5 stacks" is absent from the SS12 DB → hardcode the cap (max_from_data=False).
+        # When the Icy Blade fires, the Cold Beam drops to 1/3 (the channel redistributes beam→blades).
+        channeled=ChanneledSpec(max_stacks=5, min_stacks=0, behavior="reset", max_from_data=False,
+                                continuous_suppression_when_bursting=1.0 / 3.0),
+    )
+
+
 _MAIN_STAT_NAMES = frozenset({"strength", "dexterity", "intelligence"})
 
 

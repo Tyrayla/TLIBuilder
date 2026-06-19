@@ -1,0 +1,1088 @@
+{
+  "consumed_stats": [
+    "active_skill_level",
+    "all_resistance_reduction",
+    "all_skill_level",
+    "all_stats_flat",
+    "all_stats_inc",
+    "armor",
+    "armor_additional",
+    "armor_effective_rate_non_physical_inc",
+    "armor_flat",
+    "armor_gear_flat",
+    "armor_gear_inc",
+    "armor_inc",
+    "armor_pen",
+    "attack_block_chance_inc",
+    "attack_crit_rating_gear",
+    "attack_crit_rating_mh",
+    "attack_speed_gear",
+    "attack_speed_mh",
+    "block_ratio_inc",
+    "cast_speed_additional",
+    "cast_speed_inc",
+    "channeled_dmg_additional",
+    "channeled_dmg_inc",
+    "cold_as_erosion",
+    "cold_as_fire",
+    "cold_convert_to_erosion",
+    "cold_convert_to_fire",
+    "cold_crit_dmg_inc",
+    "cold_curse_taken",
+    "cold_dmg_additional",
+    "cold_dmg_inc",
+    "cold_infiltration_taken",
+    "cold_pen",
+    "cold_resistance",
+    "cold_resistance_max_inc",
+    "cold_skill_level",
+    "cold_spell_dmg_flat_max",
+    "cold_spell_dmg_flat_min",
+    "crit_dmg_additional",
+    "crit_dmg_inc",
+    "crit_rating_additional",
+    "crit_rating_inc",
+    "defense_inc",
+    "dexterity_additional",
+    "dexterity_flat",
+    "dexterity_inc",
+    "dmg_additional",
+    "dmg_avoid_chance",
+    "dmg_inc",
+    "dmg_max_additional",
+    "dmg_min_additional",
+    "double_dmg_chance",
+    "elemental_dmg_additional",
+    "elemental_dmg_inc",
+    "elemental_pen",
+    "elemental_resistance",
+    "energy_shield_gear_flat",
+    "energy_shield_gear_inc",
+    "energy_shield_per_sealed_life",
+    "energy_shield_per_sealed_mana",
+    "erosion_resistance",
+    "erosion_resistance_max_inc",
+    "erosion_spell_dmg_flat_max",
+    "erosion_spell_dmg_flat_min",
+    "evasion",
+    "evasion_additional",
+    "evasion_flat",
+    "evasion_gear_flat",
+    "evasion_gear_inc",
+    "evasion_inc",
+    "extra_tangle_applied_flat",
+    "ferv",
+    "fire_as_erosion",
+    "fire_convert_to_erosion",
+    "fire_curse_taken",
+    "fire_dmg_additional",
+    "fire_dmg_inc",
+    "fire_infiltration_taken",
+    "fire_pen",
+    "fire_resistance",
+    "fire_resistance_max_inc",
+    "fire_spell_dmg_flat_max",
+    "fire_spell_dmg_flat_min",
+    "frail_spell_taken",
+    "hit_curse_taken",
+    "hit_dmg_additional",
+    "intelligence",
+    "intelligence_additional",
+    "intelligence_flat",
+    "intelligence_inc",
+    "lightning_as_cold",
+    "lightning_as_erosion",
+    "lightning_as_fire",
+    "lightning_convert_to_cold",
+    "lightning_convert_to_erosion",
+    "lightning_convert_to_fire",
+    "lightning_curse_taken",
+    "lightning_dmg_additional",
+    "lightning_dmg_inc",
+    "lightning_infiltration_taken",
+    "lightning_pen",
+    "lightning_resistance",
+    "lightning_resistance_max_inc",
+    "lightning_spell_dmg_flat_max",
+    "lightning_spell_dmg_flat_min",
+    "lucky_cold",
+    "lucky_fire",
+    "lucky_lightning",
+    "lucky_physical",
+    "main_skill_level",
+    "max_agility_blessing_stacks_flat",
+    "max_channeled_stacks_flat",
+    "max_electrify_stacks_flat",
+    "max_energy_shield",
+    "max_energy_shield_additional",
+    "max_energy_shield_flat",
+    "max_energy_shield_inc",
+    "max_focus_blessing_stacks_flat",
+    "max_ignite_flat",
+    "max_life",
+    "max_life_additional",
+    "max_life_flat",
+    "max_life_inc",
+    "max_mana",
+    "max_mana_additional",
+    "max_mana_flat",
+    "max_mana_inc",
+    "max_spell_burst_flat",
+    "max_tenacity_blessing_stacks_flat",
+    "min_channeled_stacks_flat",
+    "numbed_lightning_taken",
+    "paralysis_dmg_taken",
+    "physical_as_cold",
+    "physical_as_elemental",
+    "physical_as_erosion",
+    "physical_as_fire",
+    "physical_as_lightning",
+    "physical_convert_to_cold",
+    "physical_convert_to_erosion",
+    "physical_convert_to_fire",
+    "physical_convert_to_lightning",
+    "physical_curse_taken",
+    "physical_dmg_additional",
+    "physical_dmg_inc",
+    "physical_dmg_max_additional",
+    "physical_dmg_min_additional",
+    "physical_spell_dmg_flat_max",
+    "physical_spell_dmg_flat_min",
+    "projectile_crit_dmg_inc",
+    "projectile_crit_rating_inc",
+    "projectile_dmg_additional",
+    "projectile_dmg_inc",
+    "projectile_quantity_flat",
+    "projectile_skill_level",
+    "quadruple_dmg_chance",
+    "sealed_mana_compensation_additional",
+    "sealed_mana_compensation_inc",
+    "spell_block_chance_inc",
+    "spell_crit_dmg_inc",
+    "spell_crit_rating_flat",
+    "spell_crit_rating_inc",
+    "spell_dmg_additional",
+    "spell_dmg_inc",
+    "spell_double_dmg_chance",
+    "spell_skill_level",
+    "steep_strike_chance",
+    "strength_additional",
+    "strength_flat",
+    "strength_inc",
+    "triple_dmg_chance",
+    "weapon_attack_speed",
+    "weapon_crit_rating_flat"
+  ],
+  "offense": {
+    "above_max_mult": 1.0,
+    "attacks_per_second": 3.483483483483483,
+    "base_cast_time": 0.333,
+    "base_csr": 500.0,
+    "base_dmg_max": {
+      "cold": 257.0
+    },
+    "base_dmg_min": {
+      "cold": 171.0
+    },
+    "cast_multiplier": 1.0,
+    "channeled_behavior": "reset",
+    "channeled_burst_rate": 0.6966966966966966,
+    "channeled_max_stacks": 5,
+    "channeled_min_stacks": 0,
+    "channeled_rounds_per_cycle": 5.0,
+    "channeled_stacks": 5.0,
+    "crit_chance": 0.15,
+    "crit_multiplier": 1.5,
+    "effective_level": 20,
+    "flat_dmg_max": {
+      "cold": 257.0,
+      "fire": 54.0,
+      "lightning": 79.2,
+      "physical": 52.0
+    },
+    "flat_dmg_min": {
+      "cold": 171.0,
+      "fire": 29.200000000000003,
+      "lightning": 4.0,
+      "physical": 31.200000000000003
+    },
+    "generic_add": 3.0524741001215996,
+    "generic_inc": 0,
+    "hit_forms": [
+      {
+        "avg_hit_pre_crit": 386.36589173152475,
+        "avg_hit_with_crit": 415.3433336113891,
+        "base_max_by_type": {
+          "cold": 257.0
+        },
+        "base_min_by_type": {
+          "cold": 171.0
+        },
+        "damage_by_type": {
+          "cold": 217.74315247534076,
+          "fire": 42.32764085501951,
+          "lightning": 83.96745754614494,
+          "physical": 42.32764085501951
+        },
+        "dps_contribution": 1446.8416426102442,
+        "dps_vs_target": 710.5374669855123,
+        "effectiveness_pct": 100.0,
+        "fires_per_sec": 3.483483483483483,
+        "form_type": "additive",
+        "hit_max_by_type": {
+          "cold": 261.49528124375036,
+          "fire": 54.944533802188786,
+          "lightning": 159.86112109746824,
+          "physical": 52.90955106877439
+        },
+        "hit_min_by_type": {
+          "cold": 173.99102370693117,
+          "fire": 29.710747907850237,
+          "lightning": 8.07379399482163,
+          "physical": 31.745730641264636
+        },
+        "hits_per_fire": 1,
+        "name": "Cold Beam",
+        "proc_chance": 1.0,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
+      },
+      {
+        "avg_hit_pre_crit": 3463.1200830894477,
+        "avg_hit_with_crit": 3722.854089321156,
+        "base_max_by_type": {
+          "cold": 770.0
+        },
+        "base_min_by_type": {
+          "cold": 513.0
+        },
+        "damage_by_type": {
+          "cold": 1958.162135228006,
+          "fire": 377.7741946310491,
+          "lightning": 749.4095585993435,
+          "physical": 377.7741946310491
+        },
+        "dps_contribution": 3501.4951975236822,
+        "dps_vs_target": 1719.5522501977248,
+        "effectiveness_pct": 100.0,
+        "fires_per_sec": 0.6966966966966966,
+        "form_type": "additive",
+        "hit_max_by_type": {
+          "cold": 2350.4050570936315,
+          "fire": 490.37996418453497,
+          "lightning": 1426.760505794904,
+          "physical": 472.21774328881145
+        },
+        "hit_min_by_type": {
+          "cold": 1565.9192133623806,
+          "fire": 265.1684250775633,
+          "lightning": 72.05861140378303,
+          "physical": 283.33064597328683
+        },
+        "hits_per_fire": 2,
+        "name": "Icy Blade",
+        "proc_chance": 1.0,
+        "shotgun_falloff": 0.65,
+        "shotgun_mult": 1.35
+      }
+    ],
+    "main_stat_damage_bonus": 0.0,
+    "main_stats": [
+      "intelligence"
+    ],
+    "non_spell_burst_dps": 0.0,
+    "non_spell_burst_dps_vs_target": 0.0,
+    "nyi": [
+      "Support skill flat damage adds",
+      "Elemental conversion",
+      "Lucky crit",
+      "Ailment DPS",
+      "barrage_dmg_per_wave_inc \u2014 Barrage mechanic \u2014 scales per wave fired, not a flat multiplier",
+      "combo_finisher_additional \u2014 Combo finisher only \u2014 applies to finisher hits, not all hits; combo damage model NYI",
+      "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
+      "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
+      "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
+      "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
+    ],
+    "projectile_count": 2,
+    "shotgun_hits": 1,
+    "skill_area_inc": 0.0,
+    "skill_name": "Icebound Beam",
+    "skill_tags": [
+      "Spell",
+      "Channeled",
+      "Cold",
+      "Projectile",
+      "Horizontal",
+      "Beam"
+    ],
+    "spell_burst_auto": false,
+    "spell_burst_auto_source": "",
+    "spell_burst_cast_to_next_inc": 0.0,
+    "spell_burst_casts_per_burst": 0,
+    "spell_burst_charge_factor": 1.0,
+    "spell_burst_charge_inc": 0.0,
+    "spell_burst_charge_ticks": 0,
+    "spell_burst_charge_time": 0.0,
+    "spell_burst_charge_to_next_inc": 0.0,
+    "spell_burst_count": 0,
+    "spell_burst_dps": 0.0,
+    "spell_burst_dps_vs_target": 0.0,
+    "spell_burst_mult": 1.0,
+    "spell_burst_next_breakpoint_ticks": 0,
+    "spell_burst_rate": 0.0,
+    "steep_strike_chance": 0.0,
+    "supported": true,
+    "tangle_attach_range": 0.0,
+    "tangle_count": 0,
+    "tangle_duration": 0.0,
+    "tangle_enhancement": 1.0,
+    "tangle_inactivated": 0,
+    "tangle_mult": 1.0,
+    "tangle_placeable": 0,
+    "total_dps": 4948.336840133927,
+    "total_dps_vs_target": 2430.089717183237,
+    "type_add": {
+      "cold": 3.0524741001215996,
+      "fire": 3.0524741001215996,
+      "lightning": 4.036896997410815,
+      "physical": 3.0524741001215996
+    },
+    "type_inc": {
+      "cold": 0,
+      "fire": 0,
+      "lightning": 0,
+      "physical": 0
+    },
+    "weapon_aps_gear": 0,
+    "weapon_aps_mh": 0,
+    "weapon_attack_speed": 2.4000000000000004,
+    "weapon_crit_rating_flat": 1200.0,
+    "weapon_csr_gear": 0,
+    "weapon_csr_mh": 0
+  },
+  "slot_offense": {
+    "1": {
+      "above_max_mult": 1.0,
+      "attacks_per_second": 3.483483483483483,
+      "base_cast_time": 0.333,
+      "base_csr": 500.0,
+      "base_dmg_max": {
+        "cold": 257.0
+      },
+      "base_dmg_min": {
+        "cold": 171.0
+      },
+      "cast_multiplier": 1.0,
+      "channeled_behavior": "reset",
+      "channeled_burst_rate": 0.6966966966966966,
+      "channeled_max_stacks": 5,
+      "channeled_min_stacks": 0,
+      "channeled_rounds_per_cycle": 5.0,
+      "channeled_stacks": 5.0,
+      "crit_chance": 0.15,
+      "crit_multiplier": 1.5,
+      "effective_level": 20,
+      "flat_dmg_max": {
+        "cold": 257.0,
+        "fire": 54.0,
+        "lightning": 79.2,
+        "physical": 52.0
+      },
+      "flat_dmg_min": {
+        "cold": 171.0,
+        "fire": 29.200000000000003,
+        "lightning": 4.0,
+        "physical": 31.200000000000003
+      },
+      "generic_add": 3.0524741001215996,
+      "generic_inc": 0,
+      "hit_forms": [
+        {
+          "avg_hit_pre_crit": 386.36589173152475,
+          "avg_hit_with_crit": 415.3433336113891,
+          "base_max_by_type": {
+            "cold": 257.0
+          },
+          "base_min_by_type": {
+            "cold": 171.0
+          },
+          "damage_by_type": {
+            "cold": 217.74315247534076,
+            "fire": 42.32764085501951,
+            "lightning": 83.96745754614494,
+            "physical": 42.32764085501951
+          },
+          "dps_contribution": 1446.8416426102442,
+          "dps_vs_target": 710.5374669855123,
+          "effectiveness_pct": 100.0,
+          "fires_per_sec": 3.483483483483483,
+          "form_type": "additive",
+          "hit_max_by_type": {
+            "cold": 261.49528124375036,
+            "fire": 54.944533802188786,
+            "lightning": 159.86112109746824,
+            "physical": 52.90955106877439
+          },
+          "hit_min_by_type": {
+            "cold": 173.99102370693117,
+            "fire": 29.710747907850237,
+            "lightning": 8.07379399482163,
+            "physical": 31.745730641264636
+          },
+          "hits_per_fire": 1,
+          "name": "Cold Beam",
+          "proc_chance": 1.0,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
+        },
+        {
+          "avg_hit_pre_crit": 3463.1200830894477,
+          "avg_hit_with_crit": 3722.854089321156,
+          "base_max_by_type": {
+            "cold": 770.0
+          },
+          "base_min_by_type": {
+            "cold": 513.0
+          },
+          "damage_by_type": {
+            "cold": 1958.162135228006,
+            "fire": 377.7741946310491,
+            "lightning": 749.4095585993435,
+            "physical": 377.7741946310491
+          },
+          "dps_contribution": 3501.4951975236822,
+          "dps_vs_target": 1719.5522501977248,
+          "effectiveness_pct": 100.0,
+          "fires_per_sec": 0.6966966966966966,
+          "form_type": "additive",
+          "hit_max_by_type": {
+            "cold": 2350.4050570936315,
+            "fire": 490.37996418453497,
+            "lightning": 1426.760505794904,
+            "physical": 472.21774328881145
+          },
+          "hit_min_by_type": {
+            "cold": 1565.9192133623806,
+            "fire": 265.1684250775633,
+            "lightning": 72.05861140378303,
+            "physical": 283.33064597328683
+          },
+          "hits_per_fire": 2,
+          "name": "Icy Blade",
+          "proc_chance": 1.0,
+          "shotgun_falloff": 0.65,
+          "shotgun_mult": 1.35
+        }
+      ],
+      "main_stat_damage_bonus": 0.0,
+      "main_stats": [
+        "intelligence"
+      ],
+      "non_spell_burst_dps": 0.0,
+      "non_spell_burst_dps_vs_target": 0.0,
+      "nyi": [
+        "Support skill flat damage adds",
+        "Elemental conversion",
+        "Lucky crit",
+        "Ailment DPS",
+        "barrage_dmg_per_wave_inc \u2014 Barrage mechanic \u2014 scales per wave fired, not a flat multiplier",
+        "combo_finisher_additional \u2014 Combo finisher only \u2014 applies to finisher hits, not all hits; combo damage model NYI",
+        "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
+        "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
+        "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
+        "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
+      ],
+      "projectile_count": 2,
+      "shotgun_hits": 1,
+      "skill_area_inc": 0.0,
+      "skill_name": "Icebound Beam",
+      "skill_tags": [
+        "Spell",
+        "Channeled",
+        "Cold",
+        "Projectile",
+        "Horizontal",
+        "Beam"
+      ],
+      "spell_burst_auto": false,
+      "spell_burst_auto_source": "",
+      "spell_burst_cast_to_next_inc": 0.0,
+      "spell_burst_casts_per_burst": 0,
+      "spell_burst_charge_factor": 1.0,
+      "spell_burst_charge_inc": 0.0,
+      "spell_burst_charge_ticks": 0,
+      "spell_burst_charge_time": 0.0,
+      "spell_burst_charge_to_next_inc": 0.0,
+      "spell_burst_count": 0,
+      "spell_burst_dps": 0.0,
+      "spell_burst_dps_vs_target": 0.0,
+      "spell_burst_mult": 1.0,
+      "spell_burst_next_breakpoint_ticks": 0,
+      "spell_burst_rate": 0.0,
+      "steep_strike_chance": 0.0,
+      "supported": true,
+      "tangle_attach_range": 0.0,
+      "tangle_count": 0,
+      "tangle_duration": 0.0,
+      "tangle_enhancement": 1.0,
+      "tangle_inactivated": 0,
+      "tangle_mult": 1.0,
+      "tangle_placeable": 0,
+      "total_dps": 4948.336840133927,
+      "total_dps_vs_target": 2430.089717183237,
+      "type_add": {
+        "cold": 3.0524741001215996,
+        "fire": 3.0524741001215996,
+        "lightning": 4.036896997410815,
+        "physical": 3.0524741001215996
+      },
+      "type_inc": {
+        "cold": 0,
+        "fire": 0,
+        "lightning": 0,
+        "physical": 0
+      },
+      "weapon_aps_gear": 0,
+      "weapon_aps_mh": 0,
+      "weapon_attack_speed": 2.4000000000000004,
+      "weapon_crit_rating_flat": 1200.0,
+      "weapon_csr_gear": 0,
+      "weapon_csr_mh": 0
+    }
+  },
+  "stats": {
+    "attack_block_chance_inc": {
+      "category": "Defense",
+      "display_name": "Attack Block Chance",
+      "sources": [
+        {
+          "amount": 0.3,
+          "label": "Dual Wielding",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+30% Attack Block Chance (Dual Wield)"
+        }
+      ],
+      "total": 0.3,
+      "unit": "%"
+    },
+    "attack_speed_additional": {
+      "category": "Attack Speed",
+      "display_name": "Additional Attack Speed",
+      "sources": [
+        {
+          "amount": 0.1,
+          "label": "Dual Wielding",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+10% additional Attack Speed (Dual Wield)"
+        }
+      ],
+      "total": 0.1,
+      "unit": "%"
+    },
+    "attack_speed_inc": {
+      "category": "Attack Speed",
+      "display_name": "Attack Speed",
+      "sources": [
+        {
+          "amount": 0.16,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+4% Attack Speed per Agility Blessing"
+        }
+      ],
+      "total": 0.16,
+      "unit": "%"
+    },
+    "cast_speed_inc": {
+      "category": "Cast Speed",
+      "display_name": "Cast Speed",
+      "sources": [
+        {
+          "amount": 0.16,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+4% Cast Speed per Agility Blessing"
+        }
+      ],
+      "total": 0.16,
+      "unit": "%"
+    },
+    "crit_rating_inc": {
+      "category": "Critical Strike",
+      "display_name": "Critical Strike Rating",
+      "sources": [
+        {
+          "amount": 2.0,
+          "label": "Fervor Rating",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+2% Critical Strike Rating per Fervor Rating"
+        }
+      ],
+      "total": 2.0,
+      "unit": "%"
+    },
+    "dmg_additional": {
+      "category": "Generic",
+      "display_name": "Additional Damage",
+      "slot_sources": [
+        {
+          "amount": 0.2,
+          "label": "Icebound Beam: Chilling Spike (Noble) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Icebound Beam: Chilling Spike (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |icebound_beam_chilling_spike_noble|universal"
+        },
+        {
+          "amount": 0.2,
+          "label": "Icebound Beam: Frostbitten (Magnificent) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Icebound Beam: Frostbitten (Magnificent)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |icebound_beam_frostbitten_magnificent|universal"
+        },
+        {
+          "amount": 0.2,
+          "label": "Icebound Beam: Ring Blade (Noble) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Icebound Beam: Ring Blade (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |icebound_beam_ring_blade_noble|universal"
+        },
+        {
+          "amount": 0.09,
+          "label": "Icebound Beam: Ring Blade (Noble) (Tier 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Icebound Beam: Ring Blade (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |icebound_beam_ring_blade_noble|specific"
+        },
+        {
+          "amount": 0.16,
+          "label": "Overload",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Overload",
+          "source_type": "support",
+          "text": "3.05 % additional damage for the supported skill for each stack of Focus Blessing , stacking up to 8 time(s) |overload|#% additional damage for"
+        },
+        {
+          "amount": 0.078,
+          "label": "Jump",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Jump",
+          "source_type": "support",
+          "text": "+4 % additional damage for the supported skill |jump|+#% additional damage fo"
+        }
+      ],
+      "sources": [
+        {
+          "amount": 0.2,
+          "label": "Focus Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+5% additional damage per Focus Blessing"
+        },
+        {
+          "amount": 0.08,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+2% additional damage per Agility Blessing"
+        }
+      ],
+      "total": 0.28,
+      "unit": "%"
+    },
+    "dmg_taken_additional": {
+      "category": "Damage Taken",
+      "display_name": "Additional Damage Taken",
+      "sources": [
+        {
+          "amount": -0.16,
+          "label": "Tenacity Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "-4% additional Damage Taken per Tenacity Blessing"
+        }
+      ],
+      "total": -0.16,
+      "unit": "%"
+    },
+    "extra_jumps_flat": {
+      "category": "Utility",
+      "display_name": "Jumps",
+      "slot_sources": [
+        {
+          "amount": 2.0,
+          "label": "Jump",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Jump",
+          "source_type": "support",
+          "text": "+2 Jumps for the supported skill |jump|+# jumps for the support"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "fire_spell_dmg_flat_max": {
+      "category": "Fire",
+      "display_name": "Max Fire Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 135.0,
+          "label": "Added Fire Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Fire Damage",
+          "source_type": "support",
+          "text": "The supported skill adds 1 - 3 Fire Damage |added_fire_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "fire_spell_dmg_flat_min": {
+      "category": "Fire",
+      "display_name": "Min Fire Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 73.0,
+          "label": "Added Fire Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Fire Damage",
+          "source_type": "support",
+          "text": "The supported skill adds 1 - 3 Fire Damage |added_fire_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "lightning_dmg_additional": {
+      "category": "Lightning",
+      "display_name": "Additional Lightning Damage",
+      "slot_sources": [
+        {
+          "amount": 0.15,
+          "label": "Electric Overload",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Electric Overload",
+          "source_type": "support",
+          "text": "10.25 % additional Lightning Damage for the supported skill |electric_overload|#% additional lightning "
+        }
+      ],
+      "sources": [
+        {
+          "amount": 0.15,
+          "label": "Electric Overload",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+15% additional Lightning Damage (Electric Overload buff)"
+        }
+      ],
+      "total": 0.15,
+      "unit": "%"
+    },
+    "lightning_spell_dmg_flat_max": {
+      "category": "Lightning",
+      "display_name": "Max Lightning Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 198.0,
+          "label": "Added Lightning Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Lightning Damage",
+          "source_type": "support",
+          "text": "The supported skill adds 1 - 4 Lightning Damage |added_lightning_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "lightning_spell_dmg_flat_min": {
+      "category": "Lightning",
+      "display_name": "Min Lightning Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 10.0,
+          "label": "Added Lightning Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Lightning Damage",
+          "source_type": "support",
+          "text": "The supported skill adds 1 - 4 Lightning Damage |added_lightning_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "max_energy_flat": {
+      "category": "Utility",
+      "display_name": "Max Energy",
+      "sources": [
+        {
+          "amount": 4.0,
+          "label": "Character \u00b7 Base",
+          "points": 1,
+          "source_name": null,
+          "source_type": "character",
+          "text": "+4 Max Energy"
+        },
+        {
+          "amount": 90.0,
+          "label": "Character \u00b7 Levels",
+          "points": 1,
+          "source_name": null,
+          "source_type": "character",
+          "text": "+90 Max Energy"
+        }
+      ],
+      "total": 94.0,
+      "unit": ""
+    },
+    "max_life": {
+      "category": "Character",
+      "display_name": "Maximum Life",
+      "sources": [],
+      "total": 1207.0,
+      "unit": ""
+    },
+    "max_life_flat": {
+      "category": "Life",
+      "display_name": "Max Life",
+      "sources": [
+        {
+          "amount": 1207.0,
+          "label": "Character \u00b7 Base",
+          "points": 1,
+          "source_name": null,
+          "source_type": "character",
+          "text": "+1207 Max Life (50 + 13/level)"
+        }
+      ],
+      "total": 1207.0,
+      "unit": ""
+    },
+    "max_mana": {
+      "category": "Character",
+      "display_name": "Maximum Mana",
+      "sources": [],
+      "total": 485.0,
+      "unit": ""
+    },
+    "max_mana_flat": {
+      "category": "Mana",
+      "display_name": "Max Mana",
+      "sources": [
+        {
+          "amount": 485.0,
+          "label": "Character \u00b7 Base",
+          "points": 1,
+          "source_name": null,
+          "source_type": "character",
+          "text": "+485 Max Mana (40 + 5/level)"
+        }
+      ],
+      "total": 485.0,
+      "unit": ""
+    },
+    "movement_speed": {
+      "category": "Character",
+      "display_name": "Movement Speed",
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "numbed_lightning_taken": {
+      "category": "Ailments",
+      "display_name": "Numbed: Lightning Damage Taken",
+      "sources": [
+        {
+          "amount": 0.5,
+          "label": "Numbed Stacks",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+5% Lightning Damage taken per Numbed stack"
+        }
+      ],
+      "total": 0.5,
+      "unit": "%"
+    },
+    "physical_dmg_gear_flat_max": {
+      "category": "Gear",
+      "display_name": "Gear Physical Damage Max",
+      "sources": [
+        {
+          "amount": 350.0,
+          "label": "Gear \u00b7 Weapon 1",
+          "points": 1,
+          "source_name": "Test Sword",
+          "source_type": "gear",
+          "text": "Test Sword:physical_dmg_gear_flat_max"
+        },
+        {
+          "amount": 500.0,
+          "label": "Gear \u00b7 Weapon 2",
+          "points": 1,
+          "source_name": "Test Axe",
+          "source_type": "gear",
+          "text": "Test Axe:physical_dmg_gear_flat_max"
+        }
+      ],
+      "total": 850.0,
+      "unit": ""
+    },
+    "physical_dmg_gear_flat_min": {
+      "category": "Gear",
+      "display_name": "Gear Physical Damage Min",
+      "sources": [
+        {
+          "amount": 200.0,
+          "label": "Gear \u00b7 Weapon 1",
+          "points": 1,
+          "source_name": "Test Sword",
+          "source_type": "gear",
+          "text": "Test Sword:physical_dmg_gear_flat_min"
+        },
+        {
+          "amount": 300.0,
+          "label": "Gear \u00b7 Weapon 2",
+          "points": 1,
+          "source_name": "Test Axe",
+          "source_type": "gear",
+          "text": "Test Axe:physical_dmg_gear_flat_min"
+        }
+      ],
+      "total": 500.0,
+      "unit": ""
+    },
+    "physical_spell_dmg_flat_max": {
+      "category": "Physical",
+      "display_name": "Max Physical Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 130.0,
+          "label": "Added Physical Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Physical Damage",
+          "source_type": "support",
+          "text": "Supported skills add 2 - 3 physical damage |added_physical_damage|supported skills add#-#p"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "physical_spell_dmg_flat_min": {
+      "category": "Physical",
+      "display_name": "Min Physical Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 78.0,
+          "label": "Added Physical Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Physical Damage",
+          "source_type": "support",
+          "text": "Supported skills add 2 - 3 physical damage |added_physical_damage|supported skills add#-#p"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "weapon_attack_speed": {
+      "category": "Gear",
+      "display_name": "Weapon Attack Speed",
+      "sources": [
+        {
+          "amount": 1.3,
+          "label": "Gear \u00b7 Weapon 1",
+          "points": 1,
+          "source_name": "Test Sword",
+          "source_type": "gear",
+          "text": "Test Sword:weapon_attack_speed"
+        },
+        {
+          "amount": 1.1,
+          "label": "Gear \u00b7 Weapon 2",
+          "points": 1,
+          "source_name": "Test Axe",
+          "source_type": "gear",
+          "text": "Test Axe:weapon_attack_speed"
+        }
+      ],
+      "total": 2.4,
+      "unit": ""
+    },
+    "weapon_crit_rating_flat": {
+      "category": "Critical Strike",
+      "display_name": "Critical Strike Rating (Weapon)",
+      "sources": [
+        {
+          "amount": 600.0,
+          "label": "Gear \u00b7 Weapon 1",
+          "points": 1,
+          "source_name": "Test Sword",
+          "source_type": "gear",
+          "text": "Test Sword:weapon_crit_rating_flat"
+        },
+        {
+          "amount": 600.0,
+          "label": "Gear \u00b7 Weapon 2",
+          "points": 1,
+          "source_name": "Test Axe",
+          "source_type": "gear",
+          "text": "Test Axe:weapon_crit_rating_flat"
+        }
+      ],
+      "total": 1200.0,
+      "unit": ""
+    }
+  }
+}
