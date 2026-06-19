@@ -18,6 +18,10 @@ export default function BuildOverviewScreen() {
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
   const skills = useBuildStore(s => s.skills)
+  const traitId = useBuildStore(s => s.traitId)
+  // Show-all reveals every conditional (skill-gated + hero-trait for other/unselected traits). Defaults OFF
+  // so the screen stays focused on what's relevant; computed/auto-derived (visible:false) stay hidden always.
+  const [showAll, setShowAll] = useState(false)
   const curseConflict = useBuildStore(
     s => (s.computedStats as { curse_conflict?: CurseConflict | null }).curse_conflict) ?? null
   const warnings = useBuildStore(
@@ -56,6 +60,17 @@ export default function BuildOverviewScreen() {
     return req !== undefined && !slottedSkillIds.has(req)
   }
 
+  // What shows in the conditionals list. Computed/auto-derived (visible:false) are never user-shown. With
+  // show-all OFF: hide skill-gated conditions whose skill isn't equipped, and hero-trait conditions (those
+  // carry a trait_id) unless THAT trait is the selected one. Show-all reveals everything else.
+  const isCondVisible = (c: ConditionDef): boolean => {
+    if (c.visible === false) return false
+    if (showAll) return true
+    if (isSkillGatedOut(c.key)) return false
+    if (c.trait_id) return c.trait_id === traitId
+    return true
+  }
+
   const setBoolean = (key: string, value: boolean) =>
     setConditionState({ ...conditionState, [key]: value })
 
@@ -90,6 +105,10 @@ export default function BuildOverviewScreen() {
       <div className="cond-screen-header">
         <span>Conditionals</span>
         {activeCondCount > 0 && <span className="panel-header-badge">{activeCondCount} active</span>}
+        <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9aa', cursor: 'pointer', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+          <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />
+          Show all
+        </label>
       </div>
 
       {conflicts.length > 0 && (
@@ -149,7 +168,7 @@ export default function BuildOverviewScreen() {
             </div>
           )}
           {condCategories.map(([cat, items]) => {
-            const visibleItems = items.filter(c => c.visible !== false && !isSkillGatedOut(c.key))
+            const visibleItems = items.filter(isCondVisible)
             if (visibleItems.length === 0) return null
             return (
               <div key={cat} className="cond-card">

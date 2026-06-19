@@ -503,6 +503,7 @@ export interface ConditionDef {
   visible?: boolean
   is_derived?: boolean
   source?: string
+  trait_id?: string | null   // hero-trait conditions: shown only when this trait is selected (or Show all)
 }
 
 export interface ConditionSourceEntry {

@@ -91,9 +91,11 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
                                  "Wild Lightning: additional Numbed Effect from Movement Speed", "Wild Lightning"))
 
     # ── Swift as Lightning (75, pick): per 4 Numbed → MS + additional damage ───
+    # Buff stacks are USER-SET (swift_as_lightning_stacks): defaults to 1 for a single enemy, up to 10 —
+    # the "per 4 Numbed inflicted on the enemy" count depends on enemy count / hit volume we don't model.
     if "Swift as Lightning" in picks:
         t = _tier(slot_levels, 3)
-        buff = min(10.0, float(int(numbed_now // 4)))
+        buff = min(10.0, float(condition_state.get("swift_as_lightning_stacks", 1.0) or 0.0))
         if buff > 0:
             contribs.append(_contrib("movement_speed_inc", 0.02 * buff,
                                      "Swift as Lightning: Movement Speed", "Swift as Lightning"))

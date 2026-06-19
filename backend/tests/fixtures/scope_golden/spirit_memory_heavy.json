@@ -15,6 +15,7 @@
     "level": 100.0,
     "numbed_stacks": 10.0,
     "regain_stacks": 4.0,
+    "swift_as_lightning_stacks": 10.0,
     "tenacity_blessings": 4.0,
     "unique_weapon_types": 2.0,
     "well_fought_battle_stacks": 3.0,

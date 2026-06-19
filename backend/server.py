@@ -1033,6 +1033,8 @@ def get_conditions():
             entry["is_derived"] = True
         if not c.visible:
             entry["visible"] = False
+        if c.trait_id:
+            entry["trait_id"] = c.trait_id
         result.setdefault(c.category, []).append(entry)
     return result
 
