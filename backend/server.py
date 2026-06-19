@@ -662,6 +662,12 @@ class EngineStatsRequest(BaseModel):
     custom_mods:     list[str] = []
     attached_supports: list[dict] = []                 # main skill's supports: {item_id, skill_type, rank, level}
     characterLevel:  int | None = None                 # player level — seeds the `level` condition (per-level scaling, e.g. Brutality)
+    # Hero trait — same {text, source} shape as memory/spirit effects (for non-bespoke traits + the status surface).
+    trait_effects:   list[str | dict] = []
+    trait_id:        str | None = None
+    trait_slot_levels: list[int] = []                  # [base, lv45, lv60, lv75], each 1-5
+    advanced_trait_selections: list[str] = []
+    uptime_mode:     str = "max"                        # "max" (default, assume-max) | "real" (compute ramp)
 
 
 @app.post("/api/engine/stats")
@@ -778,6 +784,16 @@ def engine_stats(req: EngineStatsRequest):
 
     spirit_contributions, spirit_mod_statuses = _resolve_effect_list(req.spirit_effects, is_memory=False)
     memory_contributions, memory_mod_statuses = _resolve_effect_list(req.memory_effects, is_memory=True)
+
+    # Hero trait. A bespoke engine.hero_traits module OWNS its resolution (it recomputes contributions each
+    # loop pass for the uptime/MS coupling) — so skip the generic resolver and surface the module's per-line
+    # statuses. A non-bespoke trait pre-resolves its trait_effects here like spirits/memories.
+    from engine import hero_traits
+    if hero_traits.has_module(req.trait_id):
+        trait_contributions, trait_mod_statuses = [], hero_traits.status_lines(
+            req.trait_id, slot_levels=req.trait_slot_levels, advanced_picks=req.advanced_trait_selections)
+    else:
+        trait_contributions, trait_mod_statuses = _resolve_effect_list(req.trait_effects, is_memory=False)
 
     # Resolve the main skill's attached supports into stat contributions (additional-damage lines)
     # plus behavioral effects (shotgun falloff / chains-per-jump).
@@ -911,6 +927,11 @@ def engine_stats(req: EngineStatsRequest):
         curse_meta=curse_meta,
         empower_buffs=empower_buffs,
         empower_meta=empower_meta,
+        trait_id=req.trait_id,
+        trait_slot_levels=req.trait_slot_levels,
+        advanced_trait_selections=req.advanced_trait_selections,
+        trait_contributions=trait_contributions,
+        uptime_mode=req.uptime_mode,
     )
     result = compute(
         build, season_trees, filter_data,
@@ -929,6 +950,7 @@ def engine_stats(req: EngineStatsRequest):
         "gear_mod_statuses": gear_mod_statuses,
         "spirit_mod_statuses": spirit_mod_statuses,
         "memory_mod_statuses": memory_mod_statuses,
+        "trait_mod_statuses": trait_mod_statuses,
         "skill_slots": result.skill_slots,
         # Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Additive —
         # the renderer doesn't consume it yet.
@@ -939,6 +961,7 @@ def engine_stats(req: EngineStatsRequest):
         "consumable_universe": sorted(consumable_universe()),
         # Calc-target armor/resist (base + effective after penetration) + active enemy debuffs.
         "target_stats": result.target_stats,
+        "numbed": result.numbed,
         # Per-blessing summary (stacks/max/effects) for the Blessings panel.
         "blessings": result.blessings,
         # Per-aura summary (granted buff lines + applied Aura Effect + NYI lines) for the Skill panel —

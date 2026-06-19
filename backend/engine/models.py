@@ -200,6 +200,16 @@ class BuildInput:
     # them by Empower Skill Effect inside the compute loop and folds them in (source_type "empower").
     empower_buffs: list[dict] = field(default_factory=list)
     empower_meta: dict = field(default_factory=dict)
+    # Hero trait (Erika Lightning Shadow, …). For traits with a bespoke engine.hero_traits module the
+    # module owns resolution; trait_contributions is (re)computed each loop pass by the module and folded
+    # by aggregate() like spirit/memory contributions. For non-bespoke traits the server pre-resolves
+    # trait_effects into trait_contributions directly.
+    trait_id: str | None = None
+    trait_slot_levels: list[int] = field(default_factory=list)       # [base, lv45, lv60, lv75], each 1-5
+    advanced_trait_selections: list[str] = field(default_factory=list)
+    trait_contributions: list[dict] = field(default_factory=list)
+    # Uptime calc mode: "max" (default; assume-max/legacy behavior) | "real" (compute ramp via engine.uptime).
+    uptime_mode: str = "max"
 
 
 @dataclass
@@ -221,3 +231,4 @@ class StatResult:
     curse_conflict:      dict | None = None         # set when active curses exceed the limit (needs resolution)
     warnings:            list | None = None         # general build diagnostics (e.g. an ineffective/dead curse)
     reservation:         dict | None = None         # mana/life sealing: totals + per-skill seal breakdowns
+    numbed:              dict | None = None          # Numbed ailment box: base/stacks/duration/effect pools + uptime

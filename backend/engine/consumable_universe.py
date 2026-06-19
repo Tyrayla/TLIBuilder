@@ -34,7 +34,7 @@ _SANITY_FLOOR = frozenset({
 # not active for your build) rather than "Unconsumed" (yellow). MUST stay in sync with the `source.total(...)`
 # reads in engine/aggregator.py — test_consumable_universe.py scans the aggregator and fails if one is missing.
 _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
-    "fervor_effect_inc", "numbed_effect_inc",
+    "fervor_effect_inc", "numbed_effect_inc", "numbed_effect_additional",
     "frail_effect_inc", "fire_infiltration_effect_inc", "cold_infiltration_effect_inc",
     "lightning_infiltration_effect_inc",
     "cast_speed_to_spell_burst_charge", "proj_speed_to_proj_dmg", "projectile_speed_inc",
@@ -129,6 +129,8 @@ def consumable_universe() -> frozenset[str]:
     consumed |= _AGGREGATOR_PROPAGATION_INPUTS
     # engine.utility reads these to scale aura buffs by total Aura Effect (outside offense/defense/derive).
     consumed |= {"aura_effect_inc", "aura_effect_additional"}
+    # engine.compute reads Ailment Duration for the Numbed-ailment display box (per-stack lifetime).
+    consumed |= {"ailment_duration_inc"}
     # engine.curse_resolver.apply_curses reads these to scale curses by Curse Effect + enforce the curse limit
     # (outside the offense/defense/derive passes). The per-type *_curse_taken pools it bakes are read inside the
     # synthetic offense pass (and aren't STAT_META keys), so they don't need listing here.

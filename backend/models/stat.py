@@ -387,6 +387,12 @@ class Stat(Enum):
 
     # ── Status Effects ───────────────────────────────────────────────────────
     NUMBED_EFFECT_INC = "numbed_effect_inc"
+    # "additional Numbed Effect" — a separate MULTIPLICATIVE pool from numbed_effect_inc (e.g. Erika
+    # Lightning Shadow). per_stack = base × (1+Σ inc) × (1+Σ additional). See aggregator Numbed block.
+    NUMBED_EFFECT_ADDITIONAL = "numbed_effect_additional"
+    # Raises the Electrify stack cap (Erika Lightning Shadow — Dazzling Lightning). Feeds the
+    # electrify_stacks condition's max_from_stat.
+    MAX_ELECTRIFY_STACKS_FLAT = "max_electrify_stacks_flat"
     NUMBED_THRESHOLD_INC = "numbed_threshold_inc"
     # Enemy-vulnerability: additional Lightning Damage the target takes from Numbed stacks.
     # Engine-injected by the aggregator (not a gear/talent affix); consumed by offense's

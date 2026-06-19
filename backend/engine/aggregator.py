@@ -345,6 +345,11 @@ def aggregate(
     # gated in _apply_effect_contribs.
     _apply_effect_contribs(source, build.spirit_contributions, "pact_spirit", "Pact Spirit", active_booleans, numeric_vals)
     _apply_effect_contribs(source, build.memory_contributions, "hero_memory", "Hero Memory", active_booleans, numeric_vals)
+    # Hero-trait contributions: for a bespoke trait these are recomputed each pass by its hero_traits module
+    # (loop-top) so MS↔Numbed coupling converges; folded here BEFORE the Numbed block so additional Numbed
+    # Effect is in source when numbed_lightning_taken is computed.
+    _apply_effect_contribs(source, getattr(build, "trait_contributions", None) or [],
+                           "hero_trait", "Hero Trait", active_booleans, numeric_vals)
 
     # ── Custom mod contributions ──────────────────────────────────────────────
     for contrib in build.custom_contributions:
@@ -491,7 +496,11 @@ def aggregate(
         # per stack; Numbed-Effect scaling still multiplies on top. Flag set server-side when present.
         conductive = "core_conductive" in (active_booleans or frozenset())
         base_per_stack = 0.11 if conductive else _NUMBED_BASE_PER_STACK
-        per_stack = base_per_stack * (1.0 + source.total("numbed_effect_inc"))
+        # Numbed Effect: increased and additional are SEPARATE multiplicative pools (TLI convention,
+        # e.g. Erika Lightning Shadow's "additional Numbed Effect"): base × (1+Σinc) × (1+Σadditional).
+        per_stack = (base_per_stack
+                     * (1.0 + source.total("numbed_effect_inc"))
+                     * (1.0 + source.total("numbed_effect_additional")))
         amount = per_stack * numbed_stacks
         text = (f"+{base_per_stack * 100:.0f}% Lightning Damage taken per Numbed stack"
                 + (" (Conductive)" if conductive else ""))

@@ -639,6 +639,33 @@ def skill_effective_level(
     return max(1, base_level + bonus)
 
 
+def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags_lower=None) -> dict:
+    """The cheap "rates" stage of offense — a skill's rate primitives, independent of the heavy damage
+    calc. Currently attacks/cast per second (crit chance, hit rate can join this dict later). Extracted
+    so it can run INSIDE the aggregation loop for uptime models (which need APS during convergence) while
+    the damage calc stays one-shot post-loop; calculate_offense calls this too, so the APS math has one
+    source of truth. Slot-agnostic: computes rates for whatever skill it is given (no main-slot assumption).
+
+    Returns {"aps": float, "base_cast_time": float}.
+    """
+    if skill_tags_lower is None:
+        skill_tags_lower = {t.lower() for t in skill.tags}
+    base_cast_time = 0.0
+    if skill.is_spell:
+        # Spell: casts/sec = (1 / cast time) × (1 + cast speed inc) × Π(1 + cast speed additional).
+        cast_time = skill.base_cast_time or 1.0
+        base_cast_time = cast_time
+        aps = (1.0 / cast_time) * (1.0 + source.total("cast_speed_inc"))
+        aps *= _speed_additional_product(source, _CAST_ADDITIONAL_STATS, skill_tags_lower)
+    else:
+        # APS: base × (1 + per-weapon gear multipliers) × (1 + inc) × additional pools.
+        weapon_aps_mult = 1.0 + source.total("attack_speed_gear") + source.total("attack_speed_mh")
+        aps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
+        aps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
+    # Global 30 Hz cap: a single caster acts at most once per server tick.
+    return {"aps": cap_rate(aps), "base_cast_time": base_cast_time}
+
+
 def calculate_offense(
     source: BuildSource,
     skill: ResolvedSkill,
@@ -859,30 +886,12 @@ def calculate_offense(
                           for f in skill.hit_forms_by_level.get(lookup_level, []))
     steep_add_mult = (1.0 + source.total("steep_strike_additional_dmg")) if _has_steep_form else 1.0
 
-    # 5. Hit rate (casts/attacks per second).
-    base_cast_time = 0.0
-    if skill.is_spell:
-        # Spell: casts/sec = (1 / cast time) × (1 + cast speed inc) × Π(1 + cast speed additional).
-        # No weapon APS for spells. Mirrors the attack block below but cast-driven.
-        cast_time = skill.base_cast_time or 1.0
-        base_cast_time = cast_time
-        aps = (1.0 / cast_time) * (1.0 + source.total("cast_speed_inc"))
-        aps *= _speed_additional_product(source, _CAST_ADDITIONAL_STATS, skill_tags_lower)
-    else:
-        # APS: base × (1 + per-weapon gear multipliers) × (1 + inc) × additional pools
-        #    attack_speed_gear: per-weapon gear roll (pre-averaged by buildGearPayload for dual-wield;
-        #        for single weapon this is applied directly here)
-        #    attack_speed_mh: mainhand-only bonus (discarded for offhand by buildGearPayload;
-        #        for single weapon this is applied directly here)
-        weapon_aps_mult = 1.0 + source.total("attack_speed_gear") + source.total("attack_speed_mh")
-        aps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
-        # Additional attack speed pools PER-AFFIX (distinct sources multiply) — verified in-game.
-        aps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
-
-    # Global 30 Hz cap: a single caster can act at most once per server tick (smooth below that —
-    # see engine/tick.py). Per-caster, so Tangle's N casters / Spell Burst's instant recasts multiply
-    # the capped single-caster rate. Rarely binds (most builds < 30/s); a few high-APS goldens move.
-    aps = cap_rate(aps)
+    # 5. Hit rate (casts/attacks per second) — the shared "rates" stage (compute_skill_rates), which
+    # uptime models also call in-loop so the APS math has one source of truth. The 30 Hz per-caster cap
+    # (engine/tick.py) is applied inside it; Tangle's N casters / Spell Burst recasts multiply it later.
+    _rates = compute_skill_rates(source, skill, skill_tags_lower=skill_tags_lower)
+    aps = _rates["aps"]
+    base_cast_time = _rates["base_cast_time"]
 
     # Augmentation: per-Jump (multiplies) compounding factor on hit damage. Scales with jumps REMAINING;
     # on a lone dummy the single hit is the first hit (full jumps remaining = total jumps), and

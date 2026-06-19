@@ -282,12 +282,52 @@ def compute(
                               condition_state=condition_state,
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
 
+    # ── Hero traits (Erika Lightning Shadow, …) ───────────────────────────────
+    # A bespoke trait module owns its resolution: each loop pass it (re)computes build_input.trait_contributions
+    # (folded by aggregate) and, in real uptime mode, the converged Numbed steady-state. The Numbed application
+    # rate is driven by the lightning skill actually hitting — resolved by who/what hits, NEVER slot-by-index.
+    from engine import hero_traits
+    from engine import uptime as _uptime
+    from engine.offense import compute_skill_rates
+    from engine.skill_resolver import resolve_skill as _resolve_skill_for_trait
+    _trait_id = build_input.trait_id
+    _trait_active = hero_traits.has_module(_trait_id)
+    _uptime_real = _uptime.is_real(build_input.uptime_mode)
+    _ls_state: dict = {}
+    _inflict_resolved = None
+    if _trait_active and _uptime_real:
+        def _deals_lightning(sd):
+            rs = _resolve_skill_for_trait(sd)
+            return rs.supported and "lightning" in [d.lower() for d in rs.damage_types]
+        if skill_data and _deals_lightning(skill_data):
+            _inflict_resolved = _resolve_skill_for_trait(skill_data)          # main skill (slot may be non-1)
+        elif skills_input and skills_by_id:
+            for _sk in skills_input:
+                _sd = skills_by_id.get(_sk["skill_id"])
+                if _sd and _sk["slot"] != main_slot and _sk.get("enabled", True) and _deals_lightning(_sd):
+                    _inflict_resolved = _resolve_skill_for_trait(_sd)          # lightning skill in a non-main slot
+                    break
+
     aura_summaries: list[dict] = []
     empower_summaries: list[dict] = []
     curse_summaries: list[dict] = []
     curse_conflict: dict | None = None
     reservation: dict | None = None
+    _converged_iters = _MAX_ITERS
     for iteration in range(_MAX_ITERS):
+        # Loop-top: the trait module recomputes its contributions + Numbed override from the prior pass's
+        # converged scalars (in _ls_state), so MS↔Numbed coupling settles like auras.
+        if _trait_active:
+            _tr = hero_traits.apply(
+                _trait_id, build_input=build_input, condition_state=condition_state, ls_state=_ls_state,
+                uptime_mode=build_input.uptime_mode, slot_levels=build_input.trait_slot_levels,
+                advanced_picks=build_input.advanced_trait_selections)
+            build_input.trait_contributions = _tr.get("contributions") or []
+            _numbed_override = _tr.get("numbed_stacks")
+            if _numbed_override is not None:
+                # Engine-owned in real mode: mark manual so _apply_cond_effects' support max-rule won't clobber it.
+                condition_state["numbed_stacks"] = _numbed_override
+                manual_cond_keys.add("numbed_stacks")
         active_booleans, numeric_vals = _derive_views(condition_state)
 
         source = aggregate(
@@ -344,6 +384,13 @@ def compute(
         source._recording = True
         derive_stats(source, _set_value_overrides)
         source._recording = False
+
+        # Loop-bottom: capture the converged scalars the trait module's next pass needs (MS total,
+        # ailment duration, and the inflicting skill's APS — computed only in real mode so max-mode pays nothing).
+        if _trait_active:
+            _inflict_aps = (compute_skill_rates(source, _inflict_resolved)["aps"]
+                            if (_uptime_real and _inflict_resolved is not None) else None)
+            hero_traits.stash(_trait_id, source=source, ls_state=_ls_state, inflict_aps=_inflict_aps)
 
         # Mana / Life sealing & reservation — after derive (Max Mana/Life final). Computes Sealed/Unsealed
         # pools from each sealing skill's base seal × support Mana Multipliers ÷ (1 + Compensation); emits Ward
@@ -408,6 +455,7 @@ def compute(
         snapshot = _state_snapshot(new_state)
 
         if snapshot == prev_snapshot:
+            _converged_iters = iteration + 1
             break
         prev_snapshot = snapshot
         condition_state = new_state
@@ -417,6 +465,10 @@ def compute(
             "Returning last computed state. Check for circular/contradictory mechanics.",
             _MAX_ITERS,
         )
+
+    if _trait_active:
+        log.debug("hero trait %s (uptime=%s) converged in %d passes",
+                  _trait_id, build_input.uptime_mode, _converged_iters)
 
     # The numeric-condition cap/floor reads (max_*_blessing_stacks_flat, max_fervor_rating, …) happen in
     # the fixed-point loop above with recording OFF, so a node that ONLY raises a cap would false-badge
@@ -703,6 +755,31 @@ def compute(
                                "taken_inc": source.total("numbed_lightning_taken")})
     target_stats = {**target_profile(source), "debuffs": _debuffs, "debuff_details": debuff_details}
 
+    # ── Numbed ailment box (player-stats display) ─────────────────────────────
+    # Base +5% Lightning Damage taken per stack (11% if Conductive), scaled by the increased + additional
+    # Numbed Effect pools. Duration is the per-stack lifetime (base 2s × Ailment Duration). In real uptime
+    # mode the trait module also exposes the Feline Figure application rate + the (possibly doubled) FF
+    # Numbed duration that produced the steady-state stacks.
+    _ail_dur = source.total("ailment_duration_inc")
+    _conductive = "core_conductive" in (active_booleans or frozenset())
+    numbed = {
+        "base_per_stack": 0.11 if _conductive else 0.05,
+        "conductive": _conductive,
+        "duration": 2.0 * (1.0 + _ail_dur),
+        "stacks": _numbed,
+        "max_stacks": 10.0,
+        "effect_inc": source.total("numbed_effect_inc"),
+        "effect_additional": source.total("numbed_effect_additional"),
+        "lightning_taken": source.total("numbed_lightning_taken"),
+        "uptime_mode": build_input.uptime_mode,
+    }
+    if _trait_active and _uptime_real:
+        _ff_dur = 2.0 * (1.0 + _ail_dur)
+        if "Electroplated Motif" in (build_input.advanced_trait_selections or []):
+            _ff_dur *= 2.0
+        numbed["ff_duration"] = _ff_dur
+        numbed["application_rate"] = min(float(_ls_state.get("inflict_aps", 0.0) or 0.0), 1.0)
+
     from engine.aggregator import blessings_summary
     blessings = blessings_summary(active_booleans, numeric_vals, source)
 
@@ -723,4 +800,5 @@ def compute(
         curse_conflict=curse_conflict,
         warnings=warnings,
         reservation=reservation,
+        numbed=numbed,
     )

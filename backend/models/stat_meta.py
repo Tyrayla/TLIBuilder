@@ -1613,6 +1613,18 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="status_effects",     stacking_rule="additive",
         ui_priority=70,                source_types=_T,
     ),
+    # "additional Numbed Effect" — separate multiplicative pool (pool-strict resolver routes
+    # "+X% additional Numbed Effect" here because modifier_type is "additional").
+    Stat.NUMBED_EFFECT_ADDITIONAL: StatMeta(
+        "Numbed Effect", "Ailments", "additional", "%",
+        subgroup="status_effects",     stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.MAX_ELECTRIFY_STACKS_FLAT: StatMeta(
+        "Max Electrify Stacks", "Ailments", "added_flat",
+        subgroup="status_effects",     stacking_rule="additive",
+        ui_priority=71,                source_types=_T,
+    ),
     Stat.NUMBED_THRESHOLD_INC: StatMeta(
         "to the Max Life and Energy Shield Thresholds for Inflicting Numbed", "Ailments", "increased", "%",
         subgroup="status_effects",     stacking_rule="additive",

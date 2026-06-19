@@ -19,6 +19,13 @@ def _numbed_effect(frac):
     return [{"stat_key": "numbed_effect_inc", "amount": frac, "text": "Numbed Effect"}]
 
 
+def _numbed_effect_mix(inc=0.0, additional=0.0):
+    return [
+        {"stat_key": "numbed_effect_inc", "amount": inc, "text": "Numbed Effect"},
+        {"stat_key": "numbed_effect_additional", "amount": additional, "text": "additional Numbed Effect"},
+    ]
+
+
 class TestNumbed:
     def test_stacks_grant_lightning_taken(self):
         # 0.05 * 10 stacks = +50% Lightning Damage taken, no Numbed Effect.
@@ -33,6 +40,18 @@ class TestNumbed:
         # +50% Numbed Effect multiplies the base: 0.05 * 10 * (1 + 0.5) = 0.75.
         src = aggregate(_build(_numbed_effect(0.5)), {}, {}, numeric_vals={"numbed_stacks": 10.0})
         assert src.total("numbed_lightning_taken") == pytest.approx(0.75)
+
+    def test_additional_numbed_effect_is_separate_multiplicative_pool(self):
+        # inc and additional multiply separately: 0.05 * 10 * (1+0.5) * (1+0.6) = 1.20.
+        src = aggregate(_build(_numbed_effect_mix(inc=0.5, additional=0.6)), {}, {},
+                        numeric_vals={"numbed_stacks": 10.0})
+        assert src.total("numbed_lightning_taken") == pytest.approx(1.20)
+
+    def test_additional_numbed_effect_alone(self):
+        # 0.05 * 10 * (1+0.6) = 0.80.
+        src = aggregate(_build(_numbed_effect_mix(additional=0.6)), {}, {},
+                        numeric_vals={"numbed_stacks": 10.0})
+        assert src.total("numbed_lightning_taken") == pytest.approx(0.80)
 
     def test_numbed_effect_noop_without_stacks(self):
         src = aggregate(_build(_numbed_effect(0.5)), {}, {}, numeric_vals={"numbed_stacks": 0.0})

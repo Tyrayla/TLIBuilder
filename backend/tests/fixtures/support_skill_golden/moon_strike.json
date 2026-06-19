@@ -126,6 +126,7 @@
     "lucky_physical",
     "main_skill_level",
     "max_agility_blessing_stacks_flat",
+    "max_electrify_stacks_flat",
     "max_energy_shield",
     "max_energy_shield_additional",
     "max_energy_shield_flat",
