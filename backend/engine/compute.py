@@ -774,6 +774,7 @@ def compute(
     # Numbed duration that produced the steady-state stacks.
     _ail_dur = source.total("ailment_duration_inc")
     _conductive = "core_conductive" in (active_booleans or frozenset())
+    from engine.offense import additional_total_product
     numbed = {
         "base_per_stack": 0.11 if _conductive else 0.05,
         "conductive": _conductive,
@@ -781,7 +782,9 @@ def compute(
         "stacks": _numbed,
         "max_stacks": 10.0,
         "effect_inc": source.total("numbed_effect_inc"),
-        "effect_additional": source.total("numbed_effect_additional"),
+        # Effective additional = Π(1+each) − 1 (distinct sources multiply, same-text sum) — matches the calc,
+        # NOT the raw sum. So the box's ×(1+effect_additional) shows the real multiplier the engine applies.
+        "effect_additional": additional_total_product(source, "numbed_effect_additional") - 1.0,
         "lightning_taken": source.total("numbed_lightning_taken"),
         "uptime_mode": build_input.uptime_mode,
     }

@@ -53,6 +53,25 @@ class TestNumbed:
                         numeric_vals={"numbed_stacks": 10.0})
         assert src.total("numbed_lightning_taken") == pytest.approx(0.80)
 
+    def test_additional_numbed_effect_multiplies_per_distinct_source(self):
+        # Two DISTINCT additional sources MULTIPLY (×1.2 × ×1.3 = ×1.56), like every other additional pool —
+        # NOT sum (which would be ×1.5). 0.05 * 10 * 1.2 * 1.3 = 0.78.
+        contribs = [
+            {"stat_key": "numbed_effect_additional", "amount": 0.2, "text": "Source A"},
+            {"stat_key": "numbed_effect_additional", "amount": 0.3, "text": "Source B"},
+        ]
+        src = aggregate(_build(contribs), {}, {}, numeric_vals={"numbed_stacks": 10.0})
+        assert src.total("numbed_lightning_taken") == pytest.approx(0.78)
+
+    def test_same_source_additional_numbed_effect_sums(self):
+        # Same-text additional positives SUM into one factor (×1.5), not multiply: 0.05*10*1.5 = 0.75.
+        contribs = [
+            {"stat_key": "numbed_effect_additional", "amount": 0.25, "text": "Same Source"},
+            {"stat_key": "numbed_effect_additional", "amount": 0.25, "text": "Same Source"},
+        ]
+        src = aggregate(_build(contribs), {}, {}, numeric_vals={"numbed_stacks": 10.0})
+        assert src.total("numbed_lightning_taken") == pytest.approx(0.75)
+
     def test_numbed_effect_noop_without_stacks(self):
         src = aggregate(_build(_numbed_effect(0.5)), {}, {}, numeric_vals={"numbed_stacks": 0.0})
         assert src.total("numbed_lightning_taken") == 0.0

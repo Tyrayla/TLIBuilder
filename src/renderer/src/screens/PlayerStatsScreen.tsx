@@ -94,7 +94,7 @@ const BD_GRID = 'auto auto auto minmax(0,1fr)'
 
 // Format a breakdown TOTAL: '%' unit treats the value as a fraction (0.6 → "60%"); else plain number.
 function fmtTotalVal(v: number, unit: string): string {
-  if (unit === '%') return `${(v * 100).toFixed(0)}%`
+  if (unit === '%') return `${dec(v * 100)}%`   // up to 2 decimals, trims trailing zeros (14.44%, 50%)
   if (unit === '×') return `×${dec(v)}`   // multiplier pools (e.g. Total Additional = Π(1+x))
   return v % 1 === 0 ? v.toFixed(0) : dec(v)
 }
@@ -1517,7 +1517,9 @@ function NumbedPanel({ numbed, statMap, uptimeMode, conditionState, setCondition
   setConditionState: (s: Record<string, number | boolean>) => void
 }) {
   const inc = statMap['numbed_effect_inc']?.total ?? 0
-  const add = statMap['numbed_effect_additional']?.total ?? 0
+  // Effective additional = Π(1+each) − 1 (distinct sources multiply, like every other additional pool) —
+  // taken from the engine so the displayed ×multiplier matches the calc, not the raw per-source sum.
+  const add = numbed?.effect_additional ?? (statMap['numbed_effect_additional']?.total ?? 0)
   const taken = numbed?.lightning_taken ?? statMap['numbed_lightning_taken']?.total ?? 0
   const cur = Number(conditionState['numbed_stacks'] ?? 0)
   const stacks = numbed?.stacks ?? cur
@@ -1544,7 +1546,8 @@ function NumbedPanel({ numbed, statMap, uptimeMode, conditionState, setCondition
       <Row label="Increased Numbed Effect" breakdown={{ title: 'Increased Numbed Effect', keys: ['numbed_effect_inc'], total: inc, totalUnit: '%' }}>
         +{fmtPct(inc)}
       </Row>
-      <Row label="Additional Numbed Effect" breakdown={{ title: 'Additional Numbed Effect', keys: ['numbed_effect_additional'], total: add, totalUnit: '%' }}>
+      <Row label="Additional Numbed Effect" breakdown={{ title: 'Additional Numbed Effect', keys: ['numbed_effect_additional'], total: add, totalUnit: '%',
+        formula: 'Distinct sources multiply: ×(1 + each)' }}>
         {fmtMult(add)}
       </Row>
       <Row label="Duration" breakdown={{

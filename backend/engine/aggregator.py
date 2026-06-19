@@ -496,11 +496,13 @@ def aggregate(
         # per stack; Numbed-Effect scaling still multiplies on top. Flag set server-side when present.
         conductive = "core_conductive" in (active_booleans or frozenset())
         base_per_stack = 0.11 if conductive else _NUMBED_BASE_PER_STACK
-        # Numbed Effect: increased and additional are SEPARATE multiplicative pools (TLI convention,
-        # e.g. Erika Lightning Shadow's "additional Numbed Effect"): base × (1+Σinc) × (1+Σadditional).
+        # Numbed Effect: increased SUMS into one pool; additional follows the standard additional rule —
+        # each DISTINCT source is its own ×(1+x) factor (same-text positives sum), like every other
+        # additional pool in the engine. base × (1+Σinc) × Π(1+additional_i).
+        from engine.offense import additional_total_product
         per_stack = (base_per_stack
                      * (1.0 + source.total("numbed_effect_inc"))
-                     * (1.0 + source.total("numbed_effect_additional")))
+                     * additional_total_product(source, "numbed_effect_additional"))
         amount = per_stack * numbed_stacks
         text = (f"+{base_per_stack * 100:.0f}% Lightning Damage taken per Numbed stack"
                 + (" (Conductive)" if conductive else ""))

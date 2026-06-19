@@ -304,7 +304,7 @@ def _speed_additional_product(source: BuildSource, keys, skill_tags_lower: set[s
     return p
 
 
-def _additional_total_product(source: BuildSource, key: str) -> float:
+def additional_total_product(source: BuildSource, key: str) -> float:
     """Π(1 + amount) over DISTINCT affix sources of one additional-pool stat (same-identity positives sum),
     with a total() fallback for untracked contributions (tests add() with no source_log text). Used for Spell
     Burst Charge Speed additional, which combines per-source like the speed pools (owner: 2 / (1+inc) / Π(1+add_i))."""
@@ -1025,7 +1025,7 @@ def calculate_offense(
         # Base charge time 2s, sped by Spell Burst Charge Speed: (1 + Σ inc) additive × Π(1 + add_i) per-source.
         # Play Safe feeds cast-speed bonuses into these pools (aggregator). Higher chargeFactor → shorter charge.
         charge_inc = source.total("spell_burst_charge_speed_inc")
-        charge_add_product = _additional_total_product(source, "spell_burst_charge_speed_additional")
+        charge_add_product = additional_total_product(source, "spell_burst_charge_speed_additional")
         charge_factor = max(1e-6, (1.0 + charge_inc) * charge_add_product)
         spell_burst_charge_factor = charge_factor
         spell_burst_charge_inc = charge_inc
