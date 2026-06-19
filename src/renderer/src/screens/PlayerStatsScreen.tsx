@@ -1506,13 +1506,13 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
 // ── Numbed ailment box ────────────────────────────────────────────────────────
 // Numbed: +5% (or +11% Conductive) Lightning Damage the enemy takes per stack, scaled by the increased
 // AND additional Numbed Effect pools (separate multiplicative layers), over its per-stack duration. The
-// inc/additional rows hover to per-source breakdowns. In real uptime mode the steady-state stacks + the
-// Feline Figure application rate / FF Numbed duration that produced them are shown.
-function NumbedPanel({ numbed, statMap, uptimeMode, setUptimeMode, conditionState, setConditionState }: {
+// inc/additional rows hover to per-source breakdowns. Stacks are USER-SET (the Max/Real uptime swap is
+// disabled for now — we can't accurately estimate real Numbed uptime without enemy-HP/threshold modelling,
+// and incorrect is worse than incomplete; the real-mode code stays dormant via uptimeMode for later).
+function NumbedPanel({ numbed, statMap, uptimeMode, conditionState, setConditionState }: {
   numbed: NumbedInfo | null
   statMap: Record<string, StatEntry>
   uptimeMode: 'max' | 'real'
-  setUptimeMode: (m: 'max' | 'real') => void
   conditionState: Record<string, number | boolean>
   setConditionState: (s: Record<string, number | boolean>) => void
 }) {
@@ -1521,26 +1521,20 @@ function NumbedPanel({ numbed, statMap, uptimeMode, setUptimeMode, conditionStat
   const taken = numbed?.lightning_taken ?? statMap['numbed_lightning_taken']?.total ?? 0
   const cur = Number(conditionState['numbed_stacks'] ?? 0)
   const stacks = numbed?.stacks ?? cur
+  // The slider shows the EFFECTIVE stacks: the user's value once they've set it, else the engine's value
+  // (e.g. the baseline an "inflicts Numbed" source auto-floors to). Until the user touches it (not in
+  // conditionState), `cur` is 0 but the engine may have floored to 1 — show that, not 0.
+  const stacksManual = 'numbed_stacks' in conditionState
+  const sliderVal = stacksManual ? cur : Math.round(stacks)
   // Show only when Numbed is relevant to this build (any pool, any stacks, or an active debuff).
   if (inc === 0 && add === 0 && stacks === 0 && taken === 0) return null
   const base = numbed?.base_per_stack ?? 0.05
   const duration = numbed?.duration ?? 2
   const maxStacks = numbed?.max_stacks ?? 10
-  const real = uptimeMode === 'real'
+  const real = uptimeMode === 'real'   // dormant: the toggle is disabled, so this is currently always false
   const basePct = `${(base * 100).toFixed(0)}%`
   return (
     <StatPanel title="Numbed" accent="#e0d040">
-      <Row label="Uptime Mode">
-        <span style={{ display: 'flex', gap: 4 }}>
-          {(['max', 'real'] as const).map(m => (
-            <button key={m} onClick={() => setUptimeMode(m)} style={{
-              fontSize: 10, padding: '1px 7px', borderRadius: 3, cursor: 'pointer', textTransform: 'capitalize',
-              border: `1px solid ${uptimeMode === m ? '#e0d040' : '#333'}`,
-              background: uptimeMode === m ? '#e0d04022' : 'transparent', color: uptimeMode === m ? '#e0d040' : '#888',
-            }}>{m}</button>
-          ))}
-        </span>
-      </Row>
       <Row label="Base / Stack" breakdown={{
         title: 'Numbed — Base per Stack', keys: [], total: base, totalUnit: '%',
         formula: numbed?.conductive ? 'Conductive re-bases Numbed to +11% Lightning taken per stack'
@@ -1563,9 +1557,9 @@ function NumbedPanel({ numbed, statMap, uptimeMode, setUptimeMode, conditionStat
       ) : (
         <Row label="Stacks">
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <input type="range" min={0} max={maxStacks} value={cur}
+            <input type="range" min={0} max={maxStacks} value={sliderVal}
               onChange={e => setConditionState({ ...conditionState, numbed_stacks: Number(e.target.value) })} style={{ width: 90 }} />
-            <span style={{ fontSize: 11, color: '#bbb', minWidth: 34, textAlign: 'right' }}>{cur}/{maxStacks}</span>
+            <span style={{ fontSize: 11, color: '#bbb', minWidth: 34, textAlign: 'right' }}>{sliderVal}/{maxStacks}</span>
           </span>
         </Row>
       )}
@@ -1583,7 +1577,7 @@ function NumbedPanel({ numbed, statMap, uptimeMode, setUptimeMode, conditionStat
           { value: `×${dec(1 + add)}`, stat: 'Additional', source: '', sourceName: `+${Math.round(add * 100)}%` },
           { value: `×${dec(stacks)}`, stat: 'Stacks', source: '', sourceName: '' },
         ],
-      }}><span style={{ color: '#e0b0e0' }}>+{(taken * 100).toFixed(0)}%</span></Row>
+      }}><span style={{ color: '#e0b0e0' }}>+{dec(taken * 100)}%</span></Row>
     </StatPanel>
   )
 }
@@ -1599,8 +1593,7 @@ export default function PlayerStatsScreen() {
   const heroMemories = useBuildStore(s => s.heroMemories)
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
-  const uptimeMode = useBuildStore(s => s.uptimeMode)
-  const setUptimeMode = useBuildStore(s => s.setUptimeMode)
+  const uptimeMode = useBuildStore(s => s.uptimeMode)   // currently always 'max' (Real swap disabled)
   const [selectedSlot, setSelectedSlot] = useState(1)
 
   // If the selected slot has no skill (e.g. the main damage skill is parked in slot 2 and slot 1 is
@@ -1694,7 +1687,7 @@ export default function PlayerStatsScreen() {
           <TargetPanel target={computedStats.target_stats} />
           <NumbedPanel
             numbed={((computedStats as { numbed?: NumbedInfo | null }).numbed) ?? null}
-            statMap={statMap} uptimeMode={uptimeMode} setUptimeMode={setUptimeMode}
+            statMap={statMap} uptimeMode={uptimeMode}
             conditionState={conditionState} setConditionState={setConditionState} />
           <AttributesPanel statMap={statMap} />
           <BlessingsPanel blessings={blessings} />
