@@ -1,14 +1,14 @@
 import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution, CraftBaseItemGroup,
   LegendaryAffix, CustomizedAffix, EffectInput,
-  buildCharacterContributions, buildMemoryEffects, buildSpiritEffects,
+  buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects,
 } from '../api/client'
 import { itemHasSlot } from './gearItem'
 import { characterLevelFrom } from './conditions'
 import { useReferenceStore } from '../store/referenceStore'
 import type { useBuildStore } from '../store/buildStore'
 
-export { buildCharacterContributions, buildMemoryEffects, buildSpiritEffects }
+export { buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects }
 
 export type BuildState = ReturnType<typeof useBuildStore.getState>
 
@@ -92,6 +92,14 @@ export function buildEngineStatsPayload(s: BuildState) {
     character: buildCharacterContributions(s.gear, charLevel, s.hasPrism),
     memory_effects: buildMemoryEffects(s.heroMemories),
     spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits), s.spiritEffectExclude),
+    // Hero trait. trait_id/levels/picks drive the bespoke engine module; trait_effects feeds the status
+    // surface + generic (non-bespoke) traits. uptime_mode (Max|Real) selects assume-max vs computed ramp.
+    trait_id: s.traitId,
+    trait_slot_levels: s.traitSlotLevels,
+    advanced_trait_selections: s.advancedTraitSelections,
+    trait_effects: buildTraitEffects(s.traitId, s.traitSlotLevels, s.advancedTraitSelections,
+      useReferenceStore.getState().heroTraits ?? []),
+    uptime_mode: s.uptimeMode,
     main_skill: s.mainSkill ?? null,
     skills: s.skills.map(sk => ({
       slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1, enabled: sk.enabled !== false,

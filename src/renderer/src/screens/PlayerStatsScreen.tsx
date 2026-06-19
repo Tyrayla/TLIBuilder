@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary } from '../api/client'
+import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, NumbedInfo, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -1503,6 +1503,91 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
   )
 }
 
+// ── Numbed ailment box ────────────────────────────────────────────────────────
+// Numbed: +5% (or +11% Conductive) Lightning Damage the enemy takes per stack, scaled by the increased
+// AND additional Numbed Effect pools (separate multiplicative layers), over its per-stack duration. The
+// inc/additional rows hover to per-source breakdowns. In real uptime mode the steady-state stacks + the
+// Feline Figure application rate / FF Numbed duration that produced them are shown.
+function NumbedPanel({ numbed, statMap, uptimeMode, setUptimeMode, conditionState, setConditionState }: {
+  numbed: NumbedInfo | null
+  statMap: Record<string, StatEntry>
+  uptimeMode: 'max' | 'real'
+  setUptimeMode: (m: 'max' | 'real') => void
+  conditionState: Record<string, number | boolean>
+  setConditionState: (s: Record<string, number | boolean>) => void
+}) {
+  const inc = statMap['numbed_effect_inc']?.total ?? 0
+  const add = statMap['numbed_effect_additional']?.total ?? 0
+  const taken = numbed?.lightning_taken ?? statMap['numbed_lightning_taken']?.total ?? 0
+  const cur = Number(conditionState['numbed_stacks'] ?? 0)
+  const stacks = numbed?.stacks ?? cur
+  // Show only when Numbed is relevant to this build (any pool, any stacks, or an active debuff).
+  if (inc === 0 && add === 0 && stacks === 0 && taken === 0) return null
+  const base = numbed?.base_per_stack ?? 0.05
+  const duration = numbed?.duration ?? 2
+  const maxStacks = numbed?.max_stacks ?? 10
+  const real = uptimeMode === 'real'
+  const basePct = `${(base * 100).toFixed(0)}%`
+  return (
+    <StatPanel title="Numbed" accent="#e0d040">
+      <Row label="Uptime Mode">
+        <span style={{ display: 'flex', gap: 4 }}>
+          {(['max', 'real'] as const).map(m => (
+            <button key={m} onClick={() => setUptimeMode(m)} style={{
+              fontSize: 10, padding: '1px 7px', borderRadius: 3, cursor: 'pointer', textTransform: 'capitalize',
+              border: `1px solid ${uptimeMode === m ? '#e0d040' : '#333'}`,
+              background: uptimeMode === m ? '#e0d04022' : 'transparent', color: uptimeMode === m ? '#e0d040' : '#888',
+            }}>{m}</button>
+          ))}
+        </span>
+      </Row>
+      <Row label="Base / Stack" breakdown={{
+        title: 'Numbed — Base per Stack', keys: [], total: base, totalUnit: '%',
+        formula: numbed?.conductive ? 'Conductive re-bases Numbed to +11% Lightning taken per stack'
+                                    : 'Standard +5% Lightning Damage taken per stack',
+        extra: [{ value: basePct, stat: 'Lightning Damage Taken', source: numbed?.conductive ? 'Conductive' : 'Baseline', sourceName: 'per stack' }],
+      }}>{basePct}</Row>
+      <Row label="Increased Numbed Effect" breakdown={{ title: 'Increased Numbed Effect', keys: ['numbed_effect_inc'], total: inc, totalUnit: '%' }}>
+        +{fmtPct(inc)}
+      </Row>
+      <Row label="Additional Numbed Effect" breakdown={{ title: 'Additional Numbed Effect', keys: ['numbed_effect_additional'], total: add, totalUnit: '%' }}>
+        {fmtMult(add)}
+      </Row>
+      <Row label="Duration" breakdown={{
+        title: 'Numbed Duration', keys: ['ailment_duration_inc'], total: duration, totalUnit: 's',
+        formula: '2s × (1 + Ailment Duration)',
+        extra: [{ value: '2.00s', stat: 'Base Duration', source: 'Numbed', sourceName: 'per stack (independent)' }],
+      }}>{dec(duration)}s</Row>
+      {real ? (
+        <Row label="Stacks (steady state)"><span style={{ color: '#e0d0a0' }}>{dec(stacks)}/{maxStacks}</span></Row>
+      ) : (
+        <Row label="Stacks">
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="range" min={0} max={maxStacks} value={cur}
+              onChange={e => setConditionState({ ...conditionState, numbed_stacks: Number(e.target.value) })} style={{ width: 90 }} />
+            <span style={{ fontSize: 11, color: '#bbb', minWidth: 34, textAlign: 'right' }}>{cur}/{maxStacks}</span>
+          </span>
+        </Row>
+      )}
+      {real && numbed?.application_rate !== undefined && (
+        <Row label="Feline Figure Rate" labelColor="#777">
+          <span style={{ color: '#bbb' }}>{dec(numbed.application_rate)}/s{numbed.ff_duration !== undefined ? ` · ${dec(numbed.ff_duration)}s dur` : ''}</span>
+        </Row>
+      )}
+      <Row label="Lightning Damage Taken" breakdown={{
+        title: 'Numbed — Lightning Damage Taken', keys: [], total: taken, totalUnit: '%',
+        formula: 'Base × (1 + Increased) × (1 + Additional) × Stacks',
+        extra: [
+          { value: basePct, stat: 'Base / Stack', source: numbed?.conductive ? 'Conductive' : 'Baseline', sourceName: '' },
+          { value: `×${dec(1 + inc)}`, stat: 'Increased', source: '', sourceName: `+${Math.round(inc * 100)}%` },
+          { value: `×${dec(1 + add)}`, stat: 'Additional', source: '', sourceName: `+${Math.round(add * 100)}%` },
+          { value: `×${dec(stacks)}`, stat: 'Stacks', source: '', sourceName: '' },
+        ],
+      }}><span style={{ color: '#e0b0e0' }}>+{(taken * 100).toFixed(0)}%</span></Row>
+    </StatPanel>
+  )
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export default function PlayerStatsScreen() {
@@ -1512,6 +1597,10 @@ export default function PlayerStatsScreen() {
   const pactSpirits = useBuildStore(s => s.pactSpirits)
   const allSpirits = useBuildStore(s => s.allSpirits)
   const heroMemories = useBuildStore(s => s.heroMemories)
+  const conditionState = useBuildStore(s => s.conditionState)
+  const setConditionState = useBuildStore(s => s.setConditionState)
+  const uptimeMode = useBuildStore(s => s.uptimeMode)
+  const setUptimeMode = useBuildStore(s => s.setUptimeMode)
   const [selectedSlot, setSelectedSlot] = useState(1)
 
   // If the selected slot has no skill (e.g. the main damage skill is parked in slot 2 and slot 1 is
@@ -1603,6 +1692,10 @@ export default function PlayerStatsScreen() {
         {/* Middle — calculation target, attributes, blessings, utility */}
         <div style={{ flex: '27', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
           <TargetPanel target={computedStats.target_stats} />
+          <NumbedPanel
+            numbed={((computedStats as { numbed?: NumbedInfo | null }).numbed) ?? null}
+            statMap={statMap} uptimeMode={uptimeMode} setUptimeMode={setUptimeMode}
+            conditionState={conditionState} setConditionState={setConditionState} />
           <AttributesPanel statMap={statMap} />
           <BlessingsPanel blessings={blessings} />
           <UtilityPanel statMap={statMap} />

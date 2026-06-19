@@ -80,6 +80,10 @@ interface BuildStore {
   setGear: (gear: EquippedGearItem[]) => void
   setCharacterLevel: (level: number) => void
   setHasPrism: (v: boolean) => void
+  // Uptime calc mode (global): 'max' (assume-max, default) | 'real' (compute ramp). Not part of the saved
+  // build — a display/calc preference. Drives the engine's uptime_mode for ailment ramp (Numbed, …).
+  uptimeMode: 'max' | 'real'
+  setUptimeMode: (m: 'max' | 'real') => void
   setHeroMemories: (memories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]) => void
   setPactSpirits: (spirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => void
 
@@ -158,6 +162,7 @@ function deriveMainSkill(skills: EquippedSkill[]): SkillEngineInput | null {
 
 export const useBuildStore = create<BuildStore>((set) => ({
   ...DEFAULT_BUILD,
+  uptimeMode: 'max',   // global calc pref (not per-build) — persists across build loads
   allSpirits: [],
   spiritsResolved: false,
   spiritsFetchFailed: false,
@@ -201,6 +206,7 @@ export const useBuildStore = create<BuildStore>((set) => ({
   setGear: (gear) => set((s) => ({ gear, buildVersion: s.buildVersion + 1 })),
   setCharacterLevel: (characterLevel) => set((s) => ({ characterLevel, buildVersion: s.buildVersion + 1 })),
   setHasPrism: (hasPrism) => set((s) => ({ hasPrism, buildVersion: s.buildVersion + 1 })),
+  setUptimeMode: (uptimeMode) => set((s) => ({ uptimeMode, buildVersion: s.buildVersion + 1 })),
   setHeroMemories: (heroMemories) => set((s) => ({ heroMemories, buildVersion: s.buildVersion + 1 })),
   setPactSpirits: (pactSpirits) => set((s) => ({ pactSpirits, buildVersion: s.buildVersion + 1 })),
 

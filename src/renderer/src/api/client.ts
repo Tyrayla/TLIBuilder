@@ -771,6 +771,10 @@ export interface StatSheetResponse {
   // Calculation-target (dummy) armor/resist, base + effective after this build's penetration (values are
   // damage-REDUCTION fractions; negative effective = the target is amplified), plus active enemy debuffs.
   target_stats?: TargetStats | null
+  // Numbed ailment box: base per-stack (incl. Conductive), the increased/additional Numbed Effect pools,
+  // per-stack duration, effective stacks, the enemy Lightning-taken total, and (real uptime mode) the
+  // Feline Figure application rate + the FF-inflicted Numbed duration that produced the steady state.
+  numbed?: NumbedInfo | null
   // Per equipped aura/Focus passive: the buff lines it grants (already scaled by Aura Effect + interpolated to
   // level) + the applied Aura Effect + any buff lines not yet modeled (NYI).
   auras?: AuraSummary[]
@@ -893,6 +897,20 @@ export interface TargetStats {
   // Raw penetration totals (fractions; reduction deltas).
   pen?: { armor: number; all_resistance_reduction: number; elemental: number;
           fire: number; cold: number; lightning: number; erosion: number }
+}
+
+export interface NumbedInfo {
+  base_per_stack: number      // 0.05 (or 0.11 if Conductive) — base Lightning Damage taken per stack
+  conductive: boolean
+  duration: number            // per-stack lifetime, seconds (2s × Ailment Duration)
+  stacks: number              // effective stacks (max mode: user-set; real mode: computed steady state)
+  max_stacks: number
+  effect_inc: number          // Σ increased Numbed Effect
+  effect_additional: number   // Σ additional Numbed Effect (multiplicative pool)
+  lightning_taken: number     // final: base × (1+inc) × (1+additional) × stacks
+  uptime_mode: 'max' | 'real'
+  ff_duration?: number        // real mode: Feline Figure-inflicted Numbed duration (incl. Electroplated ×2)
+  application_rate?: number   // real mode: Feline Figure trigger rate (≤1/s, single target)
 }
 
 export interface CoreTalentStatus {
@@ -1205,6 +1223,46 @@ export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): Effe
     for (const ra of mem.randomAffixes) { if (ra) push(ra) }
   }
   return effects
+}
+
+// Expand the level-scaling "( a / b / c / d / e )" notation in a hero-trait effect string to the value at
+// `tierIndex` (0-based). Groups without a slash (plain parentheticals) are left untouched.
+const _TRAIT_SLASH_RE = /\(([^()]*\/[^()]*)\)/g
+function _expandTraitTier(text: string, tierIndex: number): string {
+  return text.replace(_TRAIT_SLASH_RE, (_m, inner: string) => {
+    const parts = inner.split('/').map(p => p.trim())
+    return parts[Math.min(Math.max(tierIndex, 0), parts.length - 1)] ?? parts[parts.length - 1]
+  })
+}
+
+// Build the engine `trait_effects` list from the selected hero trait. The base trait emits its chosen
+// level's effect lines (+ Artificial Moon at max base level); each selected advanced trait emits its
+// tier-expanded lines (tier = the slot level for that unlock tier: 45→slot1, 60→slot2, 75→slot3).
+// For traits with a bespoke engine module these feed only the status surface; for generic traits the
+// backend resolves them into contributions.
+export function buildTraitEffects(
+  traitId: string | null,
+  traitSlotLevels: number[],
+  advancedTraitSelections: string[],
+  allTraits: HeroTrait[],
+): EffectInput[] {
+  if (!traitId) return []
+  const trait = allTraits.find(t => t.trait_id === traitId)
+  if (!trait) return []
+  const out: EffectInput[] = []
+  const src = trait.variant_name
+  const slot = (i: number) => traitSlotLevels?.[i] ?? 1
+  const baseLevel = slot(0)
+  for (const e of trait.levels?.[baseLevel - 1]?.effects ?? []) out.push({ text: e, source: src })
+  if (baseLevel >= 5) for (const e of trait.artificial_moon?.effects ?? []) out.push({ text: e, source: src })
+  const picks = new Set(advancedTraitSelections ?? [])
+  for (const adv of trait.advanced_traits ?? []) {
+    if (!picks.has(adv.name)) continue
+    const slotIdx = adv.unlock_level >= 75 ? 3 : adv.unlock_level >= 60 ? 2 : 1
+    const tierIdx = slot(slotIdx) - 1
+    for (const e of adv.effects ?? []) out.push({ text: _expandTraitTier(e, tierIdx), source: adv.name })
+  }
+  return out
 }
 
 export interface MemoryRevivalAffix {
