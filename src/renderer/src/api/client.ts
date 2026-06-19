@@ -586,6 +586,14 @@ export interface HitFormResult {
   dps_vs_target: number
   hit_min_by_type: Record<string, number>
   hit_max_by_type: Record<string, number>
+  // This form's effective occurrences/sec (rate × proc). Channeled forms differ: a "continuous" form fires
+  // every use, a "burst" form once per RESET cycle. hits_per_fire = projectiles/blades per occurrence.
+  fires_per_sec: number
+  hits_per_fire: number
+  shotgun_falloff: number   // same-target Shotgun Effect falloff coefficient (each subsequent hit −this)
+  shotgun_mult: number      // total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
+  base_min_by_type: Record<string, number>   // this form's intrinsic base (multi-form spells)
+  base_max_by_type: Record<string, number>
 }
 
 export interface OffenseResult {
@@ -637,6 +645,16 @@ export interface OffenseResult {
   spell_burst_dps_vs_target: number
   non_spell_burst_dps: number
   non_spell_burst_dps_vs_target: number
+  // Channeled mode (held skill gaining 1 stack/use; RESET dumps at max + fires a burst form). All 0 / "" when
+  // not channeled. The continuous form fires every use; the burst form at channeled_burst_rate. Stacks are
+  // display-only (steady state = the cap).
+  channeled_max_stacks: number          // cap after +Max Channeled Stacks (0 = not channeled)
+  channeled_min_stacks: number          // Min Channeled Stacks (first round from 0 gains 1 + this)
+  channeled_stacks: number              // display steady-state stacks (= cap for a sustained channel)
+  channeled_rounds_per_cycle: number    // uses per RESET cycle = max(1, max − min)
+  channeled_burst_rate: number          // reset-burst occurrences/sec (= aps / rounds_per_cycle)
+  channeled_behavior: string            // "reset" | "refresh" | "" (not channeled)
+  projectile_count: number              // projectiles of the projectile-scaling form (Icy Blade); 0 = N/A
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number

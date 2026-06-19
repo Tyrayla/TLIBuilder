@@ -658,19 +658,27 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
             const formMax = ALL_DTYPES.reduce((s, d) => s + (form.hit_max_by_type[d] ?? 0), 0)
             const formPct = totalDps > 0 ? `${(form.dps_vs_target * breakdownMult / totalDps * 100).toFixed(0)}%` : '—'
 
+            const multiForm = offense.hit_forms.length > 1
+            const hpf = form.hits_per_fire ?? 1
             return (
               <React.Fragment key={form.name}>
+                {/* Each form is its own visually-separated area (border + faint background) so multi-form
+                    skills (e.g. Icebound Beam: Cold Beam + Icy Blade) read as distinct damage sources. */}
                 <tr>
-                  <td colSpan={7} style={{ paddingTop: 8, paddingBottom: 2, fontSize: 11, color: '#bbb', fontWeight: 600 }}>
+                  <td colSpan={7} style={{
+                    paddingTop: 6, paddingBottom: 4, marginTop: 4, fontSize: 11.5, color: '#e0d0a0', fontWeight: 700,
+                    borderTop: multiForm ? '1px solid rgba(200,160,80,0.25)' : undefined,
+                    background: multiForm ? 'rgba(200,160,80,0.05)' : undefined,
+                  }}>
                     {form.name}
                     {form.proc_chance < 1.0 && (
                       <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
                         {(form.proc_chance * 100).toFixed(0)}% chance
                       </span>
                     )}
-                    {castMult > 1 && (
-                      <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
-                        ×{dec(castMult)} same-target shotgun ({offense.shotgun_hits} hits)
+                    {(form.fires_per_sec ?? 0) > 0 && (
+                      <span style={{ color: '#8aa', fontWeight: 400, marginLeft: 6 }}>
+                        {dec(form.fires_per_sec)}/s
                       </span>
                     )}
                   </td>
@@ -686,6 +694,17 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                     </td>
                   })}
                 </tr>
+                {hpf > 1 && (
+                  <tr>
+                    <td style={tdLbl}>Shotgun</td>
+                    <td colSpan={6} style={{ ...td, color: '#cba', textAlign: 'left' }}>
+                      {hpf} projectiles hit one target — 1 × 100%
+                      {` + ${hpf - 1} × ${dec((1 - form.shotgun_falloff) * 100)}%`}
+                      {` = ×${dec(form.shotgun_mult)}`}
+                      <span style={{ color: '#666', marginLeft: 6 }}>(falloff coefficient {dec(form.shotgun_falloff * 100)}%)</span>
+                    </td>
+                  </tr>
+                )}
                 <tr>
                   <td style={tdLbl}>DPS</td>
                   <td style={{ ...td, color: '#f0c070' }}>{fmtNum(form.dps_vs_target * breakdownMult)}</td>
@@ -1026,7 +1045,12 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
           <Row label="Area of Effect">{offense.skill_area_inc !== 0 ? `+${(offense.skill_area_inc * 100).toFixed(0)}%` : '+0%'}</Row>
         )}
         {hasTag(offense,'projectile') && (
-          <Row label="Projectile Count" labelColor="#555">— NYI</Row>
+          (offense.projectile_count ?? -1) >= 0
+            ? <Row label="Projectile Count" breakdown={{
+                title: 'Projectile Count', keys: ['projectile_quantity_flat'], total: offense.projectile_count, totalUnit: '',
+                formula: 'skill base projectiles + Σ +Projectile Quantity (all home onto one target and shotgun); 0 = the projectile form does not fire',
+              }}>{offense.projectile_count}</Row>
+            : <Row label="Projectile Count" labelColor="#555">— NYI</Row>
         )}
       </StatPanel>
 
@@ -1218,6 +1242,45 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
           }}>
             <span style={{ color: '#f0c070' }}>{fmtNum(offense.total_dps_vs_target)}</span>
           </Row>
+        </StatPanel>
+      )}
+
+      {(offense.channeled_max_stacks ?? 0) > 0 && (
+        <StatPanel title="Channeled" accent={SKYBLUE}>
+          <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
+            Gains 1 channeled stack per use (the first round from 0 gains 1 + Min).{' '}
+            {offense.channeled_behavior === 'reset'
+              ? 'At max stacks it dumps ALL stacks and fires its burst form, then ramps again — so the continuous form fires every use while the burst fires once per cycle.'
+              : 'Holds at max while channeling.'}
+          </div>
+          <Row label="Max Channeled Stacks" breakdown={{
+            title: 'Max Channeled Stacks', keys: ['max_channeled_stacks_flat'], total: offense.channeled_max_stacks, totalUnit: '',
+            formula: 'skill base + Σ +Max Channeled Stacks',
+          }}>{offense.channeled_max_stacks}</Row>
+          <Row label="Min Channeled Stacks" breakdown={{
+            title: 'Min Channeled Stacks', keys: ['min_channeled_stacks_flat'], total: offense.channeled_min_stacks, totalUnit: '',
+            formula: 'Σ +Min Channeled Stacks — the first round from 0 gains 1 + Min (shortens the ramp)',
+          }}>{offense.channeled_min_stacks}</Row>
+          {offense.channeled_behavior === 'reset' && (
+            <>
+              <Row label="Uses / Cycle" breakdown={{
+                title: 'Uses per Reset Cycle', keys: [], total: offense.channeled_rounds_per_cycle, totalUnit: '',
+                formula: 'max(1, Max − Min) — uses to ramp 0 → Max before the dump',
+                extra: [
+                  { value: `${offense.channeled_max_stacks}`, stat: 'Max', source: '', sourceName: 'Max Channeled Stacks' },
+                  { value: `${offense.channeled_min_stacks}`, stat: 'Min', source: '', sourceName: 'Min Channeled Stacks' },
+                ],
+              }}>{dec(offense.channeled_rounds_per_cycle)}</Row>
+              <Row label="Burst Rate" breakdown={{
+                title: 'Reset Burst Rate', keys: [], total: offense.channeled_burst_rate, totalUnit: ' /s',
+                formula: 'Cast Rate ÷ Uses per Cycle — how often the dump/burst form fires',
+                extra: [
+                  { value: `${dec(offense.attacks_per_second)} /s`, stat: 'Cast Rate', source: '', sourceName: 'uses/sec' },
+                  { value: `${dec(offense.channeled_rounds_per_cycle)}`, stat: 'Uses / Cycle', source: '', sourceName: 'max(1, Max − Min)' },
+                ],
+              }}>{dec(offense.channeled_burst_rate)} /s</Row>
+            </>
+          )}
         </StatPanel>
       )}
     </>
