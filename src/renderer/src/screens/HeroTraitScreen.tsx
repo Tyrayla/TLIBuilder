@@ -320,16 +320,19 @@ function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
 }
 
 // One unified-slider affix row in the memory creator + its hover tooltip (resolved text).
-function AffixRow({ label, pool, source, current, onChange }: {
+function AffixRow({ label, pool, source, current, excludeNames, onChange }: {
   label: string
   pool: HeroMemoryAffix[]
   source: string
   current: MemorySlotSelection | null
+  excludeNames?: Set<string>   // affix names already chosen in sibling rows (a memory can't repeat a modifier)
   onChange: (sel: MemorySlotSelection | null) => void
 }) {
   const tip = useFloatingTooltip({ anchor: 'cursor', side: 'top' })
-  const names = getAffixNames(pool, source)
   const selectedName = current ? getAffixName(current.modifier) : ''
+  // Drop names taken by other rows, but always keep this row's own current selection so it stays visible.
+  const names = getAffixNames(pool, source)
+    .filter(n => n === selectedName || !excludeNames?.has(n))
   const tierEntries = selectedName ? getTierOptions(pool, source, selectedName) : []
   const tierRanges = buildTierRanges(tierEntries)
   const sliderMax = tierRanges.length > 0 ? tierRanges[tierRanges.length - 1].endPos : 0
@@ -377,14 +380,17 @@ function AffixRow({ label, pool, source, current, onChange }: {
             <div className="memory-tier-slider-wrapper">
               <div className="memory-tier-label-pill">Tier {currentTierInfo.tier}</div>
               <div className="memory-tier-slider-row">
-                <input
-                  type="range"
-                  className="memory-affix-slider"
-                  min={0}
-                  max={sliderMax}
-                  value={currentPos}
-                  onChange={e => handleSliderChange(parseInt(e.target.value))}
-                />
+                {/* A single fixed value has no positions to slide (sliderMax === 0) — show just the value. */}
+                {sliderMax > 0 && (
+                  <input
+                    type="range"
+                    className="memory-affix-slider"
+                    min={0}
+                    max={sliderMax}
+                    value={currentPos}
+                    onChange={e => handleSliderChange(parseInt(e.target.value))}
+                  />
+                )}
                 <span className="memory-affix-slider-val">
                   {Number.isInteger(currentTierInfo.value) ? currentTierInfo.value : dec(currentTierInfo.value)}
                 </span>
@@ -550,21 +556,33 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
         </div>
 
         <div className="memory-affix-list">
-          <AffixRow label="Base Stat" pool={memoryData.base_stats} source={MEMORY_SOURCES[creatorSlot]}
-            current={draft.baseStat}
-            onChange={sel => setDraft({ ...draft, baseStat: sel })} />
-          <AffixRow label="Fixed 1" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
-            current={draft.fixedAffixes[0]}
-            onChange={sel => setDraft({ ...draft, fixedAffixes: [sel, draft.fixedAffixes[1]] })} />
-          <AffixRow label="Fixed 2" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
-            current={draft.fixedAffixes[1]}
-            onChange={sel => setDraft({ ...draft, fixedAffixes: [draft.fixedAffixes[0], sel] })} />
-          <AffixRow label="Random 1" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
-            current={draft.randomAffixes[0]}
-            onChange={sel => setDraft({ ...draft, randomAffixes: [sel, draft.randomAffixes[1]] })} />
-          <AffixRow label="Random 2" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
-            current={draft.randomAffixes[1]}
-            onChange={sel => setDraft({ ...draft, randomAffixes: [draft.randomAffixes[0], sel] })} />
+          {(() => {
+            // A memory can't carry the same modifier twice — build each row's exclude set from the
+            // affix names chosen in the OTHER rows (fixed/random pools share affixes like Minion Crit Dmg).
+            const all = [draft.baseStat, draft.fixedAffixes[0], draft.fixedAffixes[1], draft.randomAffixes[0], draft.randomAffixes[1]]
+            const excludeFor = (self: MemorySlotSelection | null) => new Set(
+              all.filter(s => s !== self).map(s => s ? getAffixName(s.modifier) : null).filter((n): n is string => !!n)
+            )
+            return (
+              <>
+                <AffixRow label="Base Stat" pool={memoryData.base_stats} source={MEMORY_SOURCES[creatorSlot]}
+                  current={draft.baseStat} excludeNames={excludeFor(draft.baseStat)}
+                  onChange={sel => setDraft({ ...draft, baseStat: sel })} />
+                <AffixRow label="Fixed 1" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
+                  current={draft.fixedAffixes[0]} excludeNames={excludeFor(draft.fixedAffixes[0])}
+                  onChange={sel => setDraft({ ...draft, fixedAffixes: [sel, draft.fixedAffixes[1]] })} />
+                <AffixRow label="Fixed 2" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
+                  current={draft.fixedAffixes[1]} excludeNames={excludeFor(draft.fixedAffixes[1])}
+                  onChange={sel => setDraft({ ...draft, fixedAffixes: [draft.fixedAffixes[0], sel] })} />
+                <AffixRow label="Random 1" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
+                  current={draft.randomAffixes[0]} excludeNames={excludeFor(draft.randomAffixes[0])}
+                  onChange={sel => setDraft({ ...draft, randomAffixes: [sel, draft.randomAffixes[1]] })} />
+                <AffixRow label="Random 2" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
+                  current={draft.randomAffixes[1]} excludeNames={excludeFor(draft.randomAffixes[1])}
+                  onChange={sel => setDraft({ ...draft, randomAffixes: [draft.randomAffixes[0], sel] })} />
+              </>
+            )
+          })()}
         </div>
 
         <div className="modal-actions">

@@ -1370,7 +1370,10 @@ export default function SlateScreen({ treeColors }: Props) {
   }
 
   async function loadTreePool(tree: PrimaryTree) {
-    updateCreator({ treeType: tree, poolLoading: true, pool: null })
+    // Changing the tree swaps the entire modifier pool, so any modifiers already picked from the old
+    // tree are now invalid — reset the slots to avoid impossible cross-tree combos. (Call site only
+    // fires this when the tree actually changes, so this never wipes a same-tree re-click.)
+    updateCreator({ treeType: tree, poolLoading: true, pool: null, slots: initSlots(creator?.kind ?? 'base') })
     try { updateCreator({ pool: await api.getSlatePool(tree), poolLoading: false }) }
     catch { updateCreator({ poolLoading: false }) }
   }

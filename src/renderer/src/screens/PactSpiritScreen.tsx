@@ -96,7 +96,16 @@ export default function PactSpiritScreen(_props: Props) {
 
   const selectedItemId = activeSlot !== null ? (pactSpirits[activeSlot]?.itemId ?? null) : null
 
+  // A spirit can only be equipped once — hide any spirit already chosen in a DIFFERENT slot
+  // (the active slot's own pick stays in the list, pinned to the front below).
+  const otherSelectedIds = new Set(
+    pactSpirits
+      .map((p, i) => (i !== activeSlot ? p?.itemId ?? null : null))
+      .filter((id): id is string => !!id)
+  )
+
   const filteredSpirits = spiritData.filter(s => {
+    if (otherSelectedIds.has(s.item_id)) return false
     if (affinityFilter && !s.affinities.includes(affinityFilter)) return false
     if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false
     return true

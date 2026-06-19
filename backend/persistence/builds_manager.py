@@ -60,6 +60,9 @@ def _read_file(build_id: str) -> dict:
     slates_raw = data.get('slates', '')
     slates = json.loads(slates_raw) if slates_raw else []
 
+    slate_inventory_raw = data.get('slateInventory', '')
+    slate_inventory = json.loads(slate_inventory_raw) if slate_inventory_raw else []
+
     conditions_raw = data.get('conditions', '')
     conditions = json.loads(conditions_raw) if conditions_raw else []
 
@@ -104,6 +107,7 @@ def _read_file(build_id: str) -> dict:
         'name': data.get('name', ''),
         'slots': slots,
         'slates': slates,
+        'slateInventory': slate_inventory,
         'conditions': conditions,
         'conditionValues': condition_values,
         'conditionState': condition_state,
@@ -143,6 +147,8 @@ def _write_file(build: dict) -> None:
             f.write(f"slot{i}_nodes={nodes_str}\n")
             f.write(f"slot{i}_core_talents={json.dumps(core, separators=(',', ':'))}\n")
         f.write(f"slates={json.dumps(slates, separators=(',', ':'))}\n")
+        slate_inventory = build.get('slateInventory') or []
+        f.write(f"slateInventory={json.dumps(slate_inventory, separators=(',', ':'))}\n")
         conditions = build.get('conditions') or []
         f.write(f"conditions={json.dumps(conditions, separators=(',', ':'))}\n")
         condition_values = build.get('conditionValues') or {}
