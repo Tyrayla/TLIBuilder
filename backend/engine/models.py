@@ -210,6 +210,11 @@ class BuildInput:
     trait_contributions: list[dict] = field(default_factory=list)
     # Uptime calc mode: "max" (default; assume-max/legacy behavior) | "real" (compute ramp via engine.uptime).
     uptime_mode: str = "max"
+    # Generalized "inflicts Numbed" effects from non-support sources (talents/gear/slates/custom mods),
+    # built server-side by engine.ailment_inflict. Same shape as the support cond_effects: floor numbed_stacks
+    # + enable enemy_numbed, gated by hit damage type. `numbed_blocked` hard-overrides (H "cannot inflict").
+    inflict_cond_effects: list = field(default_factory=list)
+    numbed_blocked: bool = False
 
 
 @dataclass

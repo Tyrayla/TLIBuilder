@@ -169,10 +169,14 @@ def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys) -> N
     respecting manually-set values (never lower / never override). Gated by the supported skill's
     damage types (requires_dtype) and any precondition (requires_cond, e.g. enemy_cursed for Paralyze)."""
     dtypes = {d.lower() for d in (main_dtypes or [])}
+    _ELEMENTAL = {"fire", "cold", "lightning", "erosion"}
     for e in effects or []:
         if e.condition_key in manual_keys:
             continue
-        if e.requires_dtype and e.requires_dtype not in dtypes:
+        if e.requires_dtype == "elemental":
+            if not (dtypes & _ELEMENTAL):
+                continue
+        elif e.requires_dtype and e.requires_dtype not in dtypes:
             continue
         if e.requires_cond and not condition_state.get(e.requires_cond):
             continue
@@ -216,10 +220,12 @@ def compute(
         if c.get("set_value") and c.get("stat_key")
     }
 
-    # Resolve the main skill once for standard-support gating: category (spell|attack) + damage types.
+    # Resolve the main skill once for standard-support gating + the inflicts-Numbed damage-type gate:
+    # category (spell|attack) + damage types. Computed whenever a main skill exists (not only with
+    # supports) so the inflict_cond_effects lightning/elemental gate works on a support-less build too.
     main_cat: str | None = None
     main_dtypes: list[str] = []
-    if skill_data and build_input.attached_supports:
+    if skill_data:
         from engine.skill_resolver import resolve_skill
         _rm = resolve_skill(skill_data)
         if _rm.supported:
@@ -432,8 +438,14 @@ def compute(
             condition_state["has_squidnova"] = True
 
         # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
-        # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values.
-        _apply_cond_effects(condition_state, cond_effects, main_dtypes, manual_cond_keys)
+        # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values. Non-support
+        # "inflicts Numbed" sources (talents/gear/custom mods) ride the same path via inflict_cond_effects.
+        _apply_cond_effects(condition_state, list(cond_effects) + list(build_input.inflict_cond_effects),
+                            main_dtypes, manual_cond_keys)
+        # H — "cannot inflict Numbed" overrides everything (even a user-set value): no Numbed at all.
+        if build_input.numbed_blocked:
+            condition_state["enemy_numbed"] = False
+            condition_state["numbed_stacks"] = 0.0
 
         maxes = derive_condition_maximums(source)
         mins = derive_condition_minimums(source)
