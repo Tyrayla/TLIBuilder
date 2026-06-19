@@ -56,6 +56,9 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   useEffect(() => { loadBuilds() }, [])
 
   useEffect(() => {
+    // Desktop reads the version via IPC; the web build has no IPC, so it uses the version baked in at build
+    // time (vite `define` __APP_VERSION__). `typeof` guard keeps the desktop bundle safe where it's undefined.
+    if (typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__) setVersion(__APP_VERSION__)
     window.api?.getAppVersion?.().then(v => setVersion(v)).catch(() => {})
     window.api?.onUpdateNotAvailable?.(() => setCheckStatus('up-to-date'))
     window.api?.onUpdateAvailable?.(() => setCheckStatus('available'))
