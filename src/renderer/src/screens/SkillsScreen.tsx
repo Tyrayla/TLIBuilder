@@ -23,6 +23,7 @@ import { useDamageDelta, useDamageDeltaList, withSupport, withSkill, type DeltaR
 import { buildEngineStatsPayload, type BuildState } from '../utils/statsPayload'
 import { characterLevelFrom } from '../utils/conditions'
 import { modeledRolledLines } from '../utils/supportRolls'
+import { dec } from '../utils/num'
 
 // djb2 string hash → short base36. Used to fingerprint the build slice the support-pick deltas depend on.
 function hashStr(str: string): string {
@@ -181,7 +182,7 @@ function deltaInline(d: DamageDelta | undefined): React.ReactNode {
   if (d.state === 'value' && d.direction !== 'neutral') {
     return (
       <span style={{ fontSize: 11, fontWeight: 600, color: d.direction === 'gain' ? '#5fc16a' : '#e06c6c' }}>
-        {d.percent > 0 ? '+' : ''}{d.percent.toFixed(1)}%
+        {d.percent > 0 ? '+' : ''}{dec(d.percent)}%
       </span>
     )
   }
@@ -902,7 +903,7 @@ export default function SkillsScreen(_props: Props) {
                     onChange={e => updateRoll(r.identity, Number(e.target.value))}
                   />
                   <span style={{ minWidth: 92, textAlign: 'right', fontSize: 12, opacity: 0.85 }}>
-                    {(cur * 100).toFixed(1)}% <span style={{ opacity: 0.5 }}>({(r.min * 100).toFixed(0)}–{(r.max * 100).toFixed(0)}%)</span>
+                    {dec((cur * 100))}% <span style={{ opacity: 0.5 }}>({(r.min * 100).toFixed(0)}–{(r.max * 100).toFixed(0)}%)</span>
                   </span>
                 </div>
               )

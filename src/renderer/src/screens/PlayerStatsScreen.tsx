@@ -12,6 +12,7 @@ import { StructuredSkillTooltipBody } from '../components/tooltip/bodies/Structu
 import { MiniTree } from '../components/MiniTree'
 import { gearQualityColor } from '../utils/gearItem'
 import { sourceKindLabel, sourceKindColor } from '../utils/sourceKind'
+import { dec } from '../utils/num'
 
 // ── Source breakdown ────────────────────────────────────────────────────────────
 // Hover a stat/cell to open its breakdown; click to pin; click-off / Escape closes (the existing
@@ -79,10 +80,10 @@ function fmtSourceValue(c: Collected): string {
   // Increased/additional pools are stored as fractions (0.09 = 9%) — show them as percent, not "0.09%".
   if (c.unit === '%') {
     const p = v * 100
-    const s = Math.abs(p % 1) < 1e-9 ? p.toFixed(0) : p.toFixed(1)
+    const s = Math.abs(p % 1) < 1e-9 ? p.toFixed(0) : dec(p)
     return `${v > 0 ? '+' : ''}${s}%`
   }
-  const s = v % 1 === 0 ? v.toFixed(0) : v.toFixed(2)
+  const s = v % 1 === 0 ? v.toFixed(0) : dec(v)
   return `${v > 0 ? '+' : ''}${s}`
 }
 
@@ -94,8 +95,8 @@ const BD_GRID = 'auto auto auto minmax(0,1fr)'
 // Format a breakdown TOTAL: '%' unit treats the value as a fraction (0.6 → "60%"); else plain number.
 function fmtTotalVal(v: number, unit: string): string {
   if (unit === '%') return `${(v * 100).toFixed(0)}%`
-  if (unit === '×') return `×${v.toFixed(2)}`   // multiplier pools (e.g. Total Additional = Π(1+x))
-  return v % 1 === 0 ? v.toFixed(0) : v.toFixed(2)
+  if (unit === '×') return `×${dec(v)}`   // multiplier pools (e.g. Total Additional = Π(1+x))
+  return v % 1 === 0 ? v.toFixed(0) : dec(v)
 }
 
 // The title + Total header shared by the main breakdown and each section, so they look identical.
@@ -134,8 +135,15 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
   const isLines = g.source_type === 'pact_spirit' || g.source_type === 'hero_memory' || g.source_type === 'support' || g.source_type === 'aura'
 
   // Gear: the backend carries the item NAME in source_name → match the equipped item for its tooltip.
+  // Two dual-wield weapons share the SAME name, so name-only would always match the first; disambiguate by the
+  // slot encoded in the label ("Gear · Weapon 1"/"Weapon 2" → weapon1/weapon2) and fall back to name-only.
+  const _byName = (it: { name: string }) => it.name === g.source_name || it.name === g.text || it.name === g.label
+  const _labelSlot = g.label.startsWith('Gear · ') ? g.label.slice(7).toLowerCase().replace(/\s+/g, '') : null
+  const _slotMatches = (s: unknown) => _labelSlot == null ? true
+    : Array.isArray(s) ? s.map(String).map(x => x.toLowerCase()).includes(_labelSlot)
+    : String(s).toLowerCase() === _labelSlot
   const matchedItem = isGear
-    ? ctx.gear.find(it => it.name === g.source_name || it.name === g.text || it.name === g.label)
+    ? (ctx.gear.find(it => _byName(it) && _slotMatches((it as { slot?: unknown }).slot)) ?? ctx.gear.find(_byName))
     : undefined
   // Talent: tree name + node id from the "Tree · node_id" label; the mini tree highlights the node.
   const hasNodeLabel = g.label.includes(' · ')
@@ -334,11 +342,11 @@ const ATTR_COLOR: Record<string, string> = {
 }
 
 function fmtNum(n: number): string {
-  if (n >= 1_000_000_000_000_000) return `${(n / 1_000_000_000_000_000).toFixed(2)}Q`
-  if (n >= 1_000_000_000_000)     return `${(n / 1_000_000_000_000).toFixed(2)}T`
-  if (n >= 1_000_000_000)         return `${(n / 1_000_000_000).toFixed(2)}B`
-  if (n >= 1_000_000)             return `${(n / 1_000_000).toFixed(2)}M`
-  if (n >= 100_000)               return `${(n / 1_000).toFixed(1)}k`
+  if (n >= 1_000_000_000_000_000) return `${dec((n / 1_000_000_000_000_000))}Q`
+  if (n >= 1_000_000_000_000)     return `${dec((n / 1_000_000_000_000))}T`
+  if (n >= 1_000_000_000)         return `${dec((n / 1_000_000_000))}B`
+  if (n >= 1_000_000)             return `${dec((n / 1_000_000))}M`
+  if (n >= 100_000)               return `${dec((n / 1_000))}k`
   return n.toFixed(0)
 }
 
@@ -627,7 +635,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
           <tr>
             <td style={tdLbl}>Total Additional</td>
             <td style={td}><Breakdown title="Total Additional — All Types" keys={genericAddKeys(offense)} total={offense.generic_add} totalUnit="×" formula="Π (1 + Additional)"
-              extra={offense.main_stat_damage_bonus > 0 ? [{ value: `×${(1 + offense.main_stat_damage_bonus).toFixed(2)}`, stat: 'Additional Damage', source: 'Main Stat', sourceName: `${offense.main_stats.join(' + ')} Damage Bonus (+${(offense.main_stat_damage_bonus * 100).toFixed(1)}%)` }] : undefined}>×{offense.generic_add.toFixed(2)}</Breakdown></td>
+              extra={offense.main_stat_damage_bonus > 0 ? [{ value: `×${dec((1 + offense.main_stat_damage_bonus))}`, stat: 'Additional Damage', source: 'Main Stat', sourceName: `${offense.main_stats.join(' + ')} Damage Bonus (+${dec((offense.main_stat_damage_bonus * 100))}%)` }] : undefined}>×{dec(offense.generic_add)}</Breakdown></td>
             {ALL_DTYPES.map(d => {
               // Specific = type_add factored over the generic bucket. Types the skill doesn't deal have
               // no entry → ×1.00 (not 1/generic, which would show a phantom multiplier on empty types).
@@ -635,7 +643,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                 ? offense.type_add[d] / (offense.generic_add || 1)
                 : 1
               const show = Math.abs(specificAdd - 1) >= 0.005
-              const txt = `×${specificAdd.toFixed(2)}`
+              const txt = `×${dec(specificAdd)}`
               return <td key={d} style={show ? td : tdDim}>
                 {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(d)} total={specificAdd} totalUnit="×" formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
               </td>
@@ -662,7 +670,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                     )}
                     {castMult > 1 && (
                       <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
-                        ×{castMult.toFixed(2)} same-target shotgun ({offense.shotgun_hits} hits)
+                        ×{dec(castMult)} same-target shotgun ({offense.shotgun_hits} hits)
                       </span>
                     )}
                   </td>
@@ -762,7 +770,7 @@ function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta, empo
       {reservation && (() => {
         const baseSeal = reservation.base_fraction * reservation.pool_max
         const poolLabel = reservation.pool === 'life' ? 'Max Life' : 'Max Mana'
-        const fmtPctSigned = (v: number) => `${v > 0 ? '+' : ''}${(v * 100).toFixed(2)}%`
+        const fmtPctSigned = (v: number) => `${v > 0 ? '+' : ''}${dec((v * 100))}%`
         // Increased and additional comp are SEPARATE multiplicative pools. Show each per-support source under its
         // pool, plus a "Global (talents/gear)" row per pool for the slice not coming from a support, so the
         // breakdown reconciles with the total: Base × Π(Mult) ÷ ((1+Σinc) × (1+Σadd)).
@@ -772,7 +780,7 @@ function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta, empo
         const globalAdd = reservation.comp_additional - supAdd
         const extra = [
           { value: fmtNum(baseSeal), stat: 'Base seal', source: 'Skill', sourceName: `${(reservation.base_fraction * 100).toFixed(0)}% of ${poolLabel}` },
-          ...reservation.support_mults.map(m => ({ value: `×${m.mult.toFixed(2)}`, stat: 'Mana Multiplier', source: 'Support', sourceName: m.name })),
+          ...reservation.support_mults.map(m => ({ value: `×${dec(m.mult)}`, stat: 'Mana Multiplier', source: 'Support', sourceName: m.name })),
           ...reservation.comp_sources.map(c => ({
             value: fmtPctSigned(c.value),
             stat: c.kind === 'additional' ? 'Additional Sealed Mana Comp.' : 'Increased Sealed Mana Comp.',
@@ -835,8 +843,8 @@ function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta, empo
             // Final = Base × (1 + Curse Effect) × (1 + Additional Curse Effect). Show the derivation on hover.
             const extra = [
               { value: fmtPct(curse.base_amount), stat: 'Base', source: 'Curse', sourceName: curse.curse_name },
-              ...(curse.curse_effect_inc ? [{ value: `×${(1 + curse.curse_effect_inc).toFixed(2)}`, stat: 'Curse Effect', source: '', sourceName: `+${Math.round(curse.curse_effect_inc * 100)}%` }] : []),
-              ...(curse.curse_effect_additional ? [{ value: `×${(1 + curse.curse_effect_additional).toFixed(2)}`, stat: 'Additional Curse Effect', source: '', sourceName: `+${Math.round(curse.curse_effect_additional * 100)}%` }] : []),
+              ...(curse.curse_effect_inc ? [{ value: `×${dec((1 + curse.curse_effect_inc))}`, stat: 'Curse Effect', source: '', sourceName: `+${Math.round(curse.curse_effect_inc * 100)}%` }] : []),
+              ...(curse.curse_effect_additional ? [{ value: `×${dec((1 + curse.curse_effect_additional))}`, stat: 'Additional Curse Effect', source: '', sourceName: `+${Math.round(curse.curse_effect_additional * 100)}%` }] : []),
             ]
             return (
               <Row label={_curseDebuffLabel(curse.stat_key)} breakdown={{
@@ -883,7 +891,7 @@ function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta, empo
             const scaled = !g.is_aura_effect && aura.aura_effect_inc !== 0
             const extra = scaled ? [
               { value: fmtGrant(g.stat, g.base), stat: 'Base', source: 'Aura', sourceName: aura.name },
-              { value: `×${(1 + aura.aura_effect_inc).toFixed(2)}`, stat: 'Aura Effect', source: '', sourceName: `+${Math.round(aura.aura_effect_inc * 100)}%` },
+              { value: `×${dec((1 + aura.aura_effect_inc))}`, stat: 'Aura Effect', source: '', sourceName: `+${Math.round(aura.aura_effect_inc * 100)}%` },
             ] : undefined
             return (
               <Row key={i} label={statMapName(g.stat)} breakdown={extra ? {
@@ -934,7 +942,7 @@ function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta, empo
             const scaled = !g.is_empower_effect && empower.empower_effect_inc !== 0
             const extra = scaled ? [
               { value: fmtGrant(g.stat, g.base), stat: 'Base', source: 'Empower', sourceName: empower.name },
-              { value: `×${(1 + empower.empower_effect_inc).toFixed(2)}`, stat: 'Empower Effect', source: '', sourceName: `+${Math.round(empower.empower_effect_inc * 100)}%` },
+              { value: `×${dec((1 + empower.empower_effect_inc))}`, stat: 'Empower Effect', source: '', sourceName: `+${Math.round(empower.empower_effect_inc * 100)}%` },
             ] : undefined
             return (
               <Row key={i} label={statMapName(g.stat)} breakdown={extra ? {
@@ -1034,9 +1042,9 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
           title: rateLabel, keys: rateKeys, total: offense.attacks_per_second, totalUnit: '',
           formula: isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional',
           extra: isSpell && offense.base_cast_time > 0
-            ? [{ value: `${offense.base_cast_time.toFixed(2)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
+            ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
             : undefined,
-        }}>{offense.attacks_per_second.toFixed(2)}</Row>
+        }}>{dec(offense.attacks_per_second)}</Row>
       </StatPanel>
 
       <StatPanel title="Critical Strikes" accent={AMBER}>
@@ -1053,7 +1061,7 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
           extra: isSpell && offense.base_csr > 0
             ? [{ value: offense.base_csr.toFixed(0), stat: 'Base Crit Rating', source: 'Baseline', sourceName: 'Spell base' }]
             : undefined,
-        }}>{(offense.crit_chance * 100).toFixed(1)}%</Row>
+        }}>{dec((offense.crit_chance * 100))}%</Row>
         <Row label="Crit Multiplier" breakdown={{
           title: 'Crit Multiplier',
           keys: ['crit_damage'],
@@ -1087,14 +1095,14 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
             title: 'Tangle Duration', keys: ['tangle_duration_inc', 'tangle_duration_additional'], total: offense.tangle_duration, totalUnit: ' s',
             extra: [{ value: '8 s', stat: 'Base', source: 'Baseline', sourceName: 'Base Duration' }],
             formula: '8 s × (1 + Increased) × (1 + Additional)',
-          }}>{offense.tangle_duration.toFixed(1)} s</Row>
+          }}>{dec(offense.tangle_duration)} s</Row>
           <Row label="Attach Range" breakdown={{
             title: 'Tangle Attach Range', keys: ['tangle_attach_range_inc'], total: offense.tangle_attach_range, totalUnit: ' m',
             extra: [{ value: '8 m', stat: 'Base', source: 'Baseline', sourceName: 'Base Attach Range' }],
             formula: '8 m × (1 + Increased)',
-          }}>{offense.tangle_attach_range.toFixed(1)} m</Row>
+          }}>{dec(offense.tangle_attach_range)} m</Row>
           <Row label="Tangle Damage Multiplier" labelColor="#d8b878">
-            <span style={{ color: '#f0c070' }}>×{(offense.tangle_mult ?? offense.tangle_count).toFixed(2)}</span>
+            <span style={{ color: '#f0c070' }}>×{dec((offense.tangle_mult ?? offense.tangle_count))}</span>
           </Row>
         </StatPanel>
       )}
@@ -1120,10 +1128,17 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
             total: offense.spell_burst_charge_time, totalUnit: ' s',
             extra: [{ value: '2 s', stat: 'Base', source: 'Baseline', sourceName: 'Base Charge Time' }],
             formula: '2 s ÷ (1 + Increased) ÷ Π(1 + Additional)  [Play Safe feeds Cast Speed]',
-          }}>{offense.spell_burst_charge_time.toFixed(2)} s</Row>
+          }}>{dec(offense.spell_burst_charge_time)} s</Row>
+          <Row label="Charge Speed (Increased)" breakdown={{
+            title: 'Spell Burst Charge Speed — Increased', keys: ['spell_burst_charge_speed_inc'],
+            total: offense.spell_burst_charge_inc, totalUnit: '%',
+            formula: 'Σ Spell Burst Charge Speed Increased — matches the in-game stat. Additional bonuses are NOT '
+              + 'included here (they already shorten Charge Time above); Solid River’s auto-trigger checks THIS '
+              + 'increased total against its threshold, before additional.',
+          }}>+{dec((offense.spell_burst_charge_inc * 100))}%</Row>
           {(() => {
             const chg = offense.spell_burst_charge_to_next_inc, cast = offense.spell_burst_cast_to_next_inc
-            const chgPct = `+${(chg * 100).toFixed(1)}%`, castPct = `+${(cast * 100).toFixed(1)}%`
+            const chgPct = `+${dec((chg * 100))}%`, castPct = `+${dec((cast * 100))}%`
             return (
               <Row label="Charge Ticks" labelColor="#9ab" breakdown={{
                 title: 'Charge Ticks → next bursts/sec breakpoint', keys: [], total: offense.spell_burst_charge_ticks, totalUnit: ' ticks',
@@ -1157,18 +1172,18 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
             extra: [
               { value: `${offense.spell_burst_charge_ticks} ticks`, stat: 'Charge Ticks', source: 'Tick', sourceName: 'ceil(30 × Charge Time)' },
               { value: offense.spell_burst_auto ? 'Auto' : 'Manual', stat: 'Trigger', source: '', sourceName: offense.spell_burst_auto ? 'instant at full charge' : 'gated by cast rate' },
-              ...(offense.spell_burst_auto ? [] : [{ value: `${offense.attacks_per_second.toFixed(2)} /s`, stat: 'Cast Rate', source: '', sourceName: 'player casts/sec (30-capped)' }]),
+              ...(offense.spell_burst_auto ? [] : [{ value: `${dec(offense.attacks_per_second)} /s`, stat: 'Cast Rate', source: '', sourceName: 'player casts/sec (30-capped)' }]),
             ],
-          }}>{offense.spell_burst_rate.toFixed(2)}</Row>
+          }}>{dec(offense.spell_burst_rate)}</Row>
           <Row label="Effective casts / sec" breakdown={{
             title: 'Effective Casts per Second', keys: [],
             total: offense.spell_burst_casts_per_burst * offense.spell_burst_rate, totalUnit: ' /s',
             formula: 'Casts per Burst × Bursts per Second',
             extra: [
               { value: `${offense.spell_burst_casts_per_burst}`, stat: 'Casts / Burst', source: '', sourceName: 'M + 1' },
-              { value: `${offense.spell_burst_rate.toFixed(2)} /s`, stat: 'Bursts / sec', source: '', sourceName: '' },
+              { value: `${dec(offense.spell_burst_rate)} /s`, stat: 'Bursts / sec', source: '', sourceName: '' },
             ],
-          }}>{(offense.spell_burst_casts_per_burst * offense.spell_burst_rate).toFixed(2)}</Row>
+          }}>{dec((offense.spell_burst_casts_per_burst * offense.spell_burst_rate))}</Row>
           <Row label="Trigger" breakdown={{
             title: 'Spell Burst Trigger', keys: [],
             formula: offense.spell_burst_auto
@@ -1187,7 +1202,7 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
               formula: 'Casts made BETWEEN bursts (manual only) — normal casts that do NOT get the Spell Burst Hit '
                 + 'Damage pool. = per-normal-cast × (cast rate − bursts/sec). Auto-trigger has none (you do not cast manually).',
               extra: [
-                { value: `${Math.max(0, offense.attacks_per_second - offense.spell_burst_rate).toFixed(2)} /s`, stat: 'Normal casts / sec', source: '', sourceName: 'cast rate − bursts/sec' },
+                { value: `${dec(Math.max(0, offense.attacks_per_second - offense.spell_burst_rate))} /s`, stat: 'Normal casts / sec', source: '', sourceName: 'cast rate − bursts/sec' },
               ],
             }}>{fmtNum(offense.non_spell_burst_dps_vs_target)}</Row>
           )}
@@ -1197,7 +1212,7 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
               ? 'Auto-trigger: all output is Spell Burst (you do not cast manually).'
               : 'Manual: Spell Burst casts + the normal casts you make between bursts.',
             extra: [
-              { value: fmtNum(offense.spell_burst_dps_vs_target), stat: 'Spell Burst DPS', source: '', sourceName: `${offense.spell_burst_casts_per_burst} casts/burst × ${offense.spell_burst_rate.toFixed(2)}/s` },
+              { value: fmtNum(offense.spell_burst_dps_vs_target), stat: 'Spell Burst DPS', source: '', sourceName: `${offense.spell_burst_casts_per_burst} casts/burst × ${dec(offense.spell_burst_rate)}/s` },
               ...(offense.spell_burst_auto ? [] : [{ value: fmtNum(offense.non_spell_burst_dps_vs_target), stat: 'Non Spell Burst DPS', source: '', sourceName: 'casts between bursts' }]),
             ],
           }}>
@@ -1234,9 +1249,9 @@ function SubRow({ label, children, breakdown }: { label: string; children: React
 }
 
 function fmtPct(v: number): string { return `${(v * 100).toFixed(0)}%` }
-function fmtPct1(v: number): string { return `${(v * 100).toFixed(1)}%` }
+function fmtPct2(v: number): string { return `${dec((v * 100))}%` }
 function fmtSignedPct(v: number): string { return `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%` }
-function fmtMult(v: number): string { return `×${(1 + v).toFixed(2)}` }
+function fmtMult(v: number): string { return `×${dec((1 + v))}` }
 
 // ── Middle-column panels: Attributes / Blessings / Utility ──────────────────────
 
@@ -1357,7 +1372,7 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
           <>
             <Row label="Sealed Life" labelColor={defense.insufficient_life ? '#e05050' : '#c87820'} breakdown={sealedBreakdown('life', defense.sealed_life!)}>{fmtNum(sealedDisp(defense.max_life, defense.unsealed_life ?? defense.max_life))}</Row>
             <Row label="Unsealed Life" labelColor={defense.insufficient_life ? '#e05050' : undefined} breakdown={unsealedBreakdown('life', defense.max_life, defense.sealed_life!, defense.unsealed_life ?? defense.max_life)}>{fmtNum(availDisp(defense.unsealed_life ?? defense.max_life))}</Row>
-            {defense.insufficient_life && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Life — sealed exceeds Max Life by {fmtNum((defense.sealed_life ?? 0) - defense.max_life)} ({(((defense.sealed_life ?? 0) / defense.max_life - 1) * 100).toFixed(1)}%)</div>}
+            {defense.insufficient_life && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Life — sealed exceeds Max Life by {fmtNum((defense.sealed_life ?? 0) - defense.max_life)} ({dec((((defense.sealed_life ?? 0) / defense.max_life - 1) * 100))}%)</div>}
           </>
         )}
       </StatPanel>
@@ -1371,7 +1386,7 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
           <>
             <Row label="Sealed (Reserved) Mana" labelColor={defense.insufficient_mana ? '#e05050' : '#c87820'} breakdown={sealedBreakdown('mana', defense.sealed_mana!)}>{fmtNum(sealedDisp(defense.max_mana, defense.unsealed_mana ?? defense.max_mana))}</Row>
             <Row label="Unsealed (Available) Mana" labelColor={defense.insufficient_mana ? '#e05050' : undefined} breakdown={unsealedBreakdown('mana', defense.max_mana, defense.sealed_mana!, defense.unsealed_mana ?? defense.max_mana)}>{fmtNum(availDisp(defense.unsealed_mana ?? defense.max_mana))}</Row>
-            {defense.insufficient_mana && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Mana — reserved exceeds Max Mana by {fmtNum((defense.sealed_mana ?? 0) - defense.max_mana)} ({(((defense.sealed_mana ?? 0) / defense.max_mana - 1) * 100).toFixed(1)}%)</div>}
+            {defense.insufficient_mana && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Mana — reserved exceeds Max Mana by {fmtNum((defense.sealed_mana ?? 0) - defense.max_mana)} ({dec((((defense.sealed_mana ?? 0) / defense.max_mana - 1) * 100))}%)</div>}
           </>
         )}
       </StatPanel>
@@ -1396,8 +1411,8 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
         {defense.armor_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Armour — Flat Added', keys: ['armor_flat', 'armor_gear_flat'] }}>{fmtNum(defense.armor_flat)}</SubRow>}
         {defense.armor_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Armour — Increased', keys: ['armor_inc', 'armor_gear_inc', 'defense_inc'] }}>{fmtPct(defense.armor_inc)}</SubRow>}
         {defense.armor_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Armour — Additional', keys: ['armor_additional'] }}>{fmtMult(defense.armor_additional)}</SubRow>}
-        <Row label="Physical Damage Mitigation" breakdown={{ title: 'Physical Damage Mitigation', keys: [], total: defense.armor_phys_mitigation, totalUnit: '%', formula: 'Armor ÷ (0.9×Armor + 3000 + 300×min(Lvl,90)), cap 80%', extra: [{ value: fmtNum(defense.armor), stat: 'Armour', source: 'Rating', sourceName: '' }] }}>{fmtPct1(defense.armor_phys_mitigation)}</Row>
-        <Row label="Non-Physical Damage Mitigation" breakdown={{ title: 'Non-Physical Damage Mitigation', keys: ['armor_effective_rate_non_physical_inc'], total: defense.armor_nonphys_mitigation, totalUnit: '%', formula: 'Armor × (60% + Eff. Rate) ÷ same formula (cap 80%)', extra: [{ value: fmtNum(defense.armor), stat: 'Armour', source: 'Rating', sourceName: '' }, { value: '+60%', stat: 'Effective Rate (non-phys)', source: 'Baseline', sourceName: 'Default' }] }}>{fmtPct1(defense.armor_nonphys_mitigation)}</Row>
+        <Row label="Physical Damage Mitigation" breakdown={{ title: 'Physical Damage Mitigation', keys: [], total: defense.armor_phys_mitigation, totalUnit: '%', formula: 'Armor ÷ (0.9×Armor + 3000 + 300×min(Lvl,90)), cap 80%', extra: [{ value: fmtNum(defense.armor), stat: 'Armour', source: 'Rating', sourceName: '' }] }}>{fmtPct2(defense.armor_phys_mitigation)}</Row>
+        <Row label="Non-Physical Damage Mitigation" breakdown={{ title: 'Non-Physical Damage Mitigation', keys: ['armor_effective_rate_non_physical_inc'], total: defense.armor_nonphys_mitigation, totalUnit: '%', formula: 'Armor × (60% + Eff. Rate) ÷ same formula (cap 80%)', extra: [{ value: fmtNum(defense.armor), stat: 'Armour', source: 'Rating', sourceName: '' }, { value: '+60%', stat: 'Effective Rate (non-phys)', source: 'Baseline', sourceName: 'Default' }] }}>{fmtPct2(defense.armor_nonphys_mitigation)}</Row>
       </StatPanel>
 
       <StatPanel title="Evasion" accent="#3a8a66">
@@ -1405,18 +1420,18 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
         {defense.evasion_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Evasion — Flat Added', keys: ['evasion_flat', 'evasion_gear_flat'] }}>{fmtNum(defense.evasion_flat)}</SubRow>}
         {defense.evasion_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Evasion — Increased', keys: ['evasion_inc', 'evasion_gear_inc', 'defense_inc'] }}>{fmtPct(defense.evasion_inc)}</SubRow>}
         {defense.evasion_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Evasion — Additional', keys: ['evasion_additional'] }}>{fmtMult(defense.evasion_additional)}</SubRow>}
-        <Row label="Attack Evasion Rate" breakdown={{ title: 'Attack Evasion Rate', keys: [], total: defense.attack_evade_chance, totalUnit: '%', formula: '1 − (Acc×1.15)/(Acc + 0.5×Evasion^0.75), cap 75%', extra: [{ value: fmtNum(defense.evasion), stat: 'Evasion', source: 'Rating', sourceName: '' }] }}>{fmtPct1(defense.attack_evade_chance)}</Row>
-        <Row label="Spell Evasion Chance" breakdown={{ title: 'Spell Evasion Chance', keys: [], total: defense.spell_evade_chance, totalUnit: '%', formula: 'Same formula on 60% of Evasion (spell −40%)', extra: [{ value: fmtNum(defense.evasion * 0.6), stat: 'Evasion (×0.6)', source: 'Rating', sourceName: '' }] }}>{fmtPct1(defense.spell_evade_chance)}</Row>
+        <Row label="Attack Evasion Rate" breakdown={{ title: 'Attack Evasion Rate', keys: [], total: defense.attack_evade_chance, totalUnit: '%', formula: '1 − (Acc×1.15)/(Acc + 0.5×Evasion^0.75), cap 75%', extra: [{ value: fmtNum(defense.evasion), stat: 'Evasion', source: 'Rating', sourceName: '' }] }}>{fmtPct2(defense.attack_evade_chance)}</Row>
+        <Row label="Spell Evasion Chance" breakdown={{ title: 'Spell Evasion Chance', keys: [], total: defense.spell_evade_chance, totalUnit: '%', formula: 'Same formula on 60% of Evasion (spell −40%)', extra: [{ value: fmtNum(defense.evasion * 0.6), stat: 'Evasion (×0.6)', source: 'Rating', sourceName: '' }] }}>{fmtPct2(defense.spell_evade_chance)}</Row>
       </StatPanel>
 
       <StatPanel title="Block" accent="#6080b0">
-        <Row label="Attack Block Chance" breakdown={{ title: 'Attack Block Chance', keys: ['attack_block_chance_inc'], total: defense.attack_block_chance, totalUnit: '%' }}>{fmtPct1(defense.attack_block_chance)}</Row>
-        <Row label="Spell Block Chance" breakdown={{ title: 'Spell Block Chance', keys: ['spell_block_chance_inc'], total: defense.spell_block_chance, totalUnit: '%' }}>{fmtPct1(defense.spell_block_chance)}</Row>
-        <Row label="Block Ratio" breakdown={{ title: 'Block Ratio', keys: ['block_ratio_inc'], total: defense.block_ratio, totalUnit: '%' }}>{fmtPct1(defense.block_ratio)}</Row>
+        <Row label="Attack Block Chance" breakdown={{ title: 'Attack Block Chance', keys: ['attack_block_chance_inc'], total: defense.attack_block_chance, totalUnit: '%' }}>{fmtPct2(defense.attack_block_chance)}</Row>
+        <Row label="Spell Block Chance" breakdown={{ title: 'Spell Block Chance', keys: ['spell_block_chance_inc'], total: defense.spell_block_chance, totalUnit: '%' }}>{fmtPct2(defense.spell_block_chance)}</Row>
+        <Row label="Block Ratio" breakdown={{ title: 'Block Ratio', keys: ['block_ratio_inc'], total: defense.block_ratio, totalUnit: '%' }}>{fmtPct2(defense.block_ratio)}</Row>
       </StatPanel>
 
       <StatPanel title="Damage Avoidance" accent="#7060b0">
-        <Row label="Chance to Avoid Damage" breakdown={{ title: 'Chance to Avoid Damage', keys: ['dmg_avoid_chance'], total: defense.dmg_avoid_chance, totalUnit: '%' }}>{fmtPct1(defense.dmg_avoid_chance)}</Row>
+        <Row label="Chance to Avoid Damage" breakdown={{ title: 'Chance to Avoid Damage', keys: ['dmg_avoid_chance'], total: defense.dmg_avoid_chance, totalUnit: '%' }}>{fmtPct2(defense.dmg_avoid_chance)}</Row>
       </StatPanel>
 
       <StatPanel title="Absorb" accent="#50a0a0">

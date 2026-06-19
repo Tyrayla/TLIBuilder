@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { api } from '../api/client'
 import type { OffenseResult, DefenseResult, CustomModStatus } from '../api/client'
+import { dec } from '../utils/num'
 
 function NyiTag() {
   return <span className="nyi-tag">NYI</span>
@@ -173,42 +174,42 @@ function OffensePanel({ offense }: { offense: OffenseResult }) {
           <div style={{ fontWeight: 600, color: '#d0d0d0', marginBottom: 6 }}>
             {form.name}
             <span style={{ fontWeight: 400, fontSize: 12, color: '#888', marginLeft: 8 }}>
-              {form.effectiveness_pct.toFixed(1)}% · {(form.proc_chance * 100).toFixed(0)}% chance
+              {dec(form.effectiveness_pct)}% · {(form.proc_chance * 100).toFixed(0)}% chance
             </span>
           </div>
           {Object.entries(form.damage_by_type).map(([dtype, avg]) => (
-            <Row key={dtype} label={dtype.charAt(0).toUpperCase() + dtype.slice(1)} value={(avg as number).toFixed(1)} unit=" avg" />
+            <Row key={dtype} label={dtype.charAt(0).toUpperCase() + dtype.slice(1)} value={dec((avg as number))} unit=" avg" />
           ))}
-          <Row label="Avg Hit (pre-crit)" value={form.avg_hit_pre_crit.toFixed(1)} />
-          <Row label="Avg Hit (with crit)" value={form.avg_hit_with_crit.toFixed(1)} />
+          <Row label="Avg Hit (pre-crit)" value={dec(form.avg_hit_pre_crit)} />
+          <Row label="Avg Hit (with crit)" value={dec(form.avg_hit_with_crit)} />
           <Row label="DPS vs Target Dummy" value={form.dps_vs_target.toFixed(0)} />
         </div>
       ))}
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 8 }}>
         {offense.steep_strike_chance > 0 && (
-          <Row label="Steep Strike Chance" value={(offense.steep_strike_chance * 100).toFixed(1)} unit="%" />
+          <Row label="Steep Strike Chance" value={dec((offense.steep_strike_chance * 100))} unit="%" />
         )}
-        <Row label="Crit Chance" value={(offense.crit_chance * 100).toFixed(1)} unit="%" />
+        <Row label="Crit Chance" value={dec((offense.crit_chance * 100))} unit="%" />
         <Row label="Crit Multiplier" value={(offense.crit_multiplier * 100).toFixed(0)} unit="%" />
         {offense.weapon_crit_rating_flat > 0 && (
           <Row label="  Weapon CSR (base)" value={offense.weapon_crit_rating_flat.toFixed(0)} />
         )}
         {offense.weapon_csr_gear > 0 && (
-          <Row label="  CSR Gear Bonus" value={(offense.weapon_csr_gear * 100).toFixed(1)} unit="%" />
+          <Row label="  CSR Gear Bonus" value={dec((offense.weapon_csr_gear * 100))} unit="%" />
         )}
         {offense.weapon_csr_mh > 0 && (
-          <Row label="  CSR MH Bonus" value={(offense.weapon_csr_mh * 100).toFixed(1)} unit="%" />
+          <Row label="  CSR MH Bonus" value={dec((offense.weapon_csr_mh * 100))} unit="%" />
         )}
-        <Row label="Attacks per Second" value={offense.attacks_per_second.toFixed(2)} />
+        <Row label="Attacks per Second" value={dec(offense.attacks_per_second)} />
         {offense.weapon_attack_speed > 0 && (
           <Row label="  Weapon Base APS" value={offense.weapon_attack_speed.toFixed(3)} />
         )}
         {offense.weapon_aps_gear > 0 && (
-          <Row label="  APS Gear Bonus (MH)" value={(offense.weapon_aps_gear * 100).toFixed(1)} unit="%" />
+          <Row label="  APS Gear Bonus (MH)" value={dec((offense.weapon_aps_gear * 100))} unit="%" />
         )}
         {offense.weapon_aps_mh > 0 && (
-          <Row label="  APS MH-Only Bonus" value={(offense.weapon_aps_mh * 100).toFixed(1)} unit="%" />
+          <Row label="  APS MH-Only Bonus" value={dec((offense.weapon_aps_mh * 100))} unit="%" />
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 4px', marginTop: 4 }}>
           <span style={{ fontWeight: 700, color: '#e0e0e0' }}>DPS vs Target Dummy</span>

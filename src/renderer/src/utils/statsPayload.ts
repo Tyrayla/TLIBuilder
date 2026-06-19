@@ -321,6 +321,9 @@ const _WEAPON_DAMAGE_TYPES = ['physical', 'fire', 'cold', 'lightning', 'erosion'
 function _buildDualWieldContributions(w1: EquippedGearItem, w2: EquippedGearItem): GearEngineItem[] {
   const weapons = [w1, w2] as const
   const globalContribs: GearAffixContribution[] = []
+  // Per-weapon unresolved affix/implicit texts (e.g. a caster wand's "+40% Spell Damage" implicit) — these
+  // are global increased pools, not weapon base stats, so each weapon's stacks (like its typed affixes).
+  const unresolvedByWeapon: string[][] = weapons.map(() => [])
 
   type WeaponAccum = {
     aps:           number
@@ -345,7 +348,7 @@ function _buildDualWieldContributions(w1: EquippedGearItem, w2: EquippedGearItem
     const isMainhand = slot === 'weapon1'
     const acc       = accums[wi]
 
-    for (const c of _buildItemContributions(weapon, slot)) {
+    for (const c of _buildItemContributions(weapon, slot, unresolvedByWeapon[wi])) {
       if (c.stat === 'weapon_attack_speed') {
         acc.aps += c.display_value
       } else if (c.stat === 'attack_speed_gear') {
@@ -443,6 +446,13 @@ function _buildDualWieldContributions(w1: EquippedGearItem, w2: EquippedGearItem
   const result: GearEngineItem[] = []
   if (avgContribs.length > 0) result.push({ contributions: avgContribs })
   if (globalContribs.length > 0) result.push({ contributions: globalContribs })
+  // Each weapon's unresolved texts (e.g. wand "+40% Spell Damage" implicit) — backend-resolved, attributed to
+  // the weapon, and stacking from both (they're global pools, not averaged weapon base stats).
+  for (let wi = 0; wi < weapons.length; wi++) {
+    if (unresolvedByWeapon[wi].length > 0) {
+      result.push({ contributions: [], item_name: weapons[wi].name, unresolved_texts: unresolvedByWeapon[wi] })
+    }
+  }
   return result
 }
 
@@ -497,10 +507,15 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     // flat CSR, per-weapon gear multipliers) are effectively averaged across both weapons.
     // For identical weapons averaging = same as once, so we skip them on slots 1+.
     for (let i = 1; i < slots.length; i++) {
-      const globalContribs = _buildItemContributions(item, slots[i])
+      const u: string[] = []
+      const globalContribs = _buildItemContributions(item, slots[i], u)
         .filter(c => !_isWeaponSpecificStat(c.stat))
       if (globalContribs.length > 0) {
         result.push({ contributions: globalContribs })
+      }
+      // The 2nd copy's untyped global affixes/implicits (e.g. a wand's "+40% Spell Damage") stack too.
+      if (u.length > 0) {
+        result.push({ contributions: [], item_name: item.name, unresolved_texts: u })
       }
     }
   }

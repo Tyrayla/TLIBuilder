@@ -621,6 +621,8 @@ export interface OffenseResult {
   spell_burst_casts_per_burst: number  // M + 1
   spell_burst_charge_ticks: number     // whole-tick charge period (ceil(30 × charge time))
   spell_burst_charge_time: number      // seconds to full charge (after Surging)
+  spell_burst_charge_factor: number    // total Spell Burst Charge Speed multiplier ((1+Σinc)×Π(1+add))
+  spell_burst_charge_inc: number       // Σ Spell Burst Charge Speed INCREASED only (matches in-game; Solid River gate)
   spell_burst_charge_to_next_inc: number   // charge-speed Increased % for the next bursts/sec breakpoint (0 = none found)
   spell_burst_cast_to_next_inc: number     // cast-speed Increased % for the next bursts/sec breakpoint, manual (0 = none/charge-limited)
   spell_burst_next_breakpoint_ticks: number // charge-tick count of the next charge-speed breakpoint (0 = none)
@@ -1191,7 +1193,7 @@ export function buildMemoryEffects(memories: (CreatedHeroMemory | null)[]): Effe
     // Ensure leading + for modifiers stored without it (handles legacy/missing-plus data)
     const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
     if (sel.rolledValue === null) return mod
-    const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : sel.rolledValue.toFixed(1)
+    const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : sel.rolledValue.toFixed(2)
     return mod.replace(RANGE_RE, val)
   }
   for (const mem of memories) {
@@ -1472,6 +1474,11 @@ export function buildCharacterContributions(
   const baseMana = 40 + 5 * levelsGained
   contribs.push({ stat: 'max_mana_flat', amount: baseMana, label: 'Base', text: `+${baseMana} Max Mana (40 + 5/level)` })
 
+  // Base Evasion = 2 per level gained (Help DB: "Players have 0 Evasion by default. Evasion increased by 2 for
+  // every level gained."). Scaled by % increased Evasion via the engine's evasion_flat pool.
+  const baseEvasion = 2 * levelsGained
+  if (baseEvasion > 0) contribs.push({ stat: 'evasion_flat', amount: baseEvasion, label: 'Base', text: `+${baseEvasion} Evasion (2/level)` })
+
   contribs.push({ stat: 'max_energy_flat', amount: 4, label: 'Base', text: '+4 Max Energy' })
   const gearE = gear.reduce((s, g) => s + gearSlotEnergy(g.slot), 0)
   if (gearE > 0) contribs.push({ stat: 'max_energy_flat', amount: gearE, label: 'Gear', text: `+${gearE} Max Energy` })
@@ -1629,6 +1636,9 @@ export interface GearEngineItem {
   // Raw affix/implicit texts the frontend couldn't resolve (e.g. crafted base resistances/life).
   // The backend resolves and applies these, and reports any it still can't — so nothing is dropped.
   unresolved_texts?: string[]
+  // Item-level name for attributing unresolved_texts (e.g. a dual-wield weapon's name). Per-contribution
+  // item_name covers typed contributions; this covers the unresolved-text channel.
+  item_name?: string
 }
 
 export interface SeasonDiffNode {

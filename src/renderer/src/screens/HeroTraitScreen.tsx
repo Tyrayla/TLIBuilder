@@ -8,6 +8,7 @@ import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { ModifierBadge, useTextModifierStatuses, useTextModifierStatus } from '../components/ModifierBadge'
+import { dec } from '../utils/num'
 
 interface Props {
   onBack: () => void
@@ -160,7 +161,7 @@ function resolveMemoryEffect(sel: MemorySlotSelection): string {
   // Ensure leading + for modifiers that start with a digit (handles legacy stored data)
   const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
   if (sel.rolledValue === null) return mod
-  const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : sel.rolledValue.toFixed(1)
+  const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : dec(sel.rolledValue)
   return mod.replace(/\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, val)
 }
 
@@ -385,7 +386,7 @@ function AffixRow({ label, pool, source, current, onChange }: {
                   onChange={e => handleSliderChange(parseInt(e.target.value))}
                 />
                 <span className="memory-affix-slider-val">
-                  {Number.isInteger(currentTierInfo.value) ? currentTierInfo.value : currentTierInfo.value.toFixed(1)}
+                  {Number.isInteger(currentTierInfo.value) ? currentTierInfo.value : dec(currentTierInfo.value)}
                 </span>
               </div>
             </div>

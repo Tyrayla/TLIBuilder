@@ -4,6 +4,7 @@ import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
 import SettingsOverlay from './SettingsOverlay'
 import type { OffenseResult } from '../api/client'
+import { dec } from '../utils/num'
 
 interface Props {
   screen: string
@@ -24,11 +25,11 @@ function NavBtn({ label, active, onClick }: { label: string; active: boolean; on
 }
 
 function fmtDps(n: number): string {
-  if (n >= 1_000_000_000_000_000) return `${(n / 1_000_000_000_000_000).toFixed(2)}Q`
-  if (n >= 1_000_000_000_000)     return `${(n / 1_000_000_000_000).toFixed(2)}T`
-  if (n >= 1_000_000_000)         return `${(n / 1_000_000_000).toFixed(2)}B`
-  if (n >= 1_000_000)             return `${(n / 1_000_000).toFixed(2)}M`
-  if (n >= 100_000)               return `${(n / 1_000).toFixed(1)}k`
+  if (n >= 1_000_000_000_000_000) return `${dec((n / 1_000_000_000_000_000))}Q`
+  if (n >= 1_000_000_000_000)     return `${dec((n / 1_000_000_000_000))}T`
+  if (n >= 1_000_000_000)         return `${dec((n / 1_000_000_000))}B`
+  if (n >= 1_000_000)             return `${dec((n / 1_000_000))}M`
+  if (n >= 100_000)               return `${dec((n / 1_000))}k`
   return n.toFixed(0)
 }
 
