@@ -144,7 +144,15 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   return (
     <div className="screen build-select">
       <div className="build-select-top">
-        <div className="build-select-spacer" />
+        <div className="build-select-spacer">
+          <button
+            className="btn btn-sm"
+            onClick={() => openExternal('https://discord.gg/7hEySM4WYx')}
+            style={{ color: '#c7d0ff', borderColor: '#3a3f8a', background: '#1a1c3a' }}
+          >
+            💬 Join the Discord to share feedback or bugs you find!
+          </button>
+        </div>
         <img src={logoSrc} className="build-select-logo" alt="TLI Builder" />
         <div className="build-select-actions">
           {devMode && (
@@ -190,8 +198,9 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
       )}
 
       <div className="build-select-footer">
-        {version && <span className="build-select-version">v{version}</span>}
+        {/* Row 1: version + Check for Update, stacked above Settings/About. */}
         <div className="build-select-footer-actions">
+          {version && <span className="build-select-version">v{version}</span>}
           {/* Auto-update is desktop-only; the web app updates by redeploy + refresh. */}
           {!IS_WEB && <button
             className="btn btn-sm btn-secondary"
@@ -205,6 +214,9 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               : checkStatus === 'error' ? `Check failed`
               : 'Check for Update'}
           </button>}
+        </div>
+        {/* Row 2: Settings + About. */}
+        <div className="build-select-footer-actions">
           <button
             className="btn btn-sm btn-secondary"
             onClick={() => setSettingsOpen(true)}

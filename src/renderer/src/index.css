@@ -194,6 +194,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .build-select-footer-actions {
   display: flex;
   gap: 6px;
+  align-items: center;
 }
 
 .build-list {
