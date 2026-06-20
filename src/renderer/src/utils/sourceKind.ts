@@ -14,6 +14,7 @@ const LABELS: Record<string, string> = {
   skill: 'Skill',
   pact_spirit: 'Spirit',
   hero_memory: 'Memory',
+  hero_trait: 'Hero Trait',
   condition: 'Condition',
 }
 
@@ -30,6 +31,7 @@ const COLORS: Record<string, string> = {
   Skill: '#e0c060',     // gold
   Spirit: '#b06fd0',    // violet
   Memory: '#6fc0b0',    // teal
+  'Hero Trait': '#d0a860', // amber
   Condition: '#c08060', // brown
 }
 

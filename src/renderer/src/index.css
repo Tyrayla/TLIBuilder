@@ -3584,7 +3584,8 @@ span.gear-affix-label {
   overflow: visible;
 }
 .trait-circle:hover:not(.locked) { border-color: #4a4a8a; background: #111130; }
-.trait-circle.selected { border-color: #c0c0c0; background: #121220; }
+/* Selected nodes are indicated by the ✓ badge only — no heavy white ring (owner preference). */
+.trait-circle.selected { background: #121220; }
 .trait-circle.locked { opacity: 0.35; cursor: default; }
 
 /* Base trait circle — slightly larger, always selected */

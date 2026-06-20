@@ -196,7 +196,7 @@ function resolveLevel(text: string, level: number): string {
 
 // ── Tooltip content + trigger components (shared floating primitive) ───────────
 
-function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
+export function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
   name: string; slotLevel: number; effects: string[]; moonEffects?: string[]
 }) {
   return (
@@ -250,7 +250,6 @@ function TraitCircle({ className, name, icon, checked, locked, disabled, tipName
     <div className="trait-circle-wrap">
       <div {...tip.triggerProps}
         className={className}
-        style={disabled ? { opacity: 0.32, filter: 'grayscale(0.8)' } : undefined}
         onClick={onSelect}
         onContextMenu={onContextMenu ? e => { e.preventDefault(); onContextMenu() } : undefined}>
         {inner}{checked && !disabled && <span className="trait-circle-check">✓</span>}
@@ -554,6 +553,13 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     setTraitData(traitId, next, advancedTraitSelections)
   }
 
+  // Slot levels with `slotIdx` forced ENABLED (positive, remembered magnitude) — selecting/left-clicking enables.
+  const withEnabled = (slotIdx: number) => {
+    const n = [...safeSlotLevels]
+    n[slotIdx] = Math.abs(n[slotIdx]) || 1
+    return n
+  }
+
   function selectPrimary(name: string, threshold: number) {
     if (!traitId || !selectedTrait) return
     const falseNames = selectedTrait.advanced_traits
@@ -561,7 +567,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
       .map(t => t.name)
     const next = advancedTraitSelections.filter(n => !falseNames.includes(n))
     next.push(name)
-    setTraitData(traitId, safeSlotLevels, next)
+    setTraitData(traitId, withEnabled(SLOT_IDX[threshold]), next)   // picking also (re)enables the tier
   }
 
   function selectSub(name: string, threshold: number) {
@@ -571,7 +577,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
       .map(t => t.name)
     const next = advancedTraitSelections.filter(n => !trueNames.includes(n))
     next.push(name)
-    setTraitData(traitId, safeSlotLevels, next)
+    setTraitData(traitId, withEnabled(SLOT_IDX[threshold]), next)   // picking also (re)enables the tier
   }
 
   function switchTrait(newTraitId: string) {
@@ -579,15 +585,17 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     setTraitSkillSupports([])
   }
 
-  // Right-click a node to enable/disable it while staying on the trait. A DISABLED node is stored as a
-  // NEGATIVE slot level (remembers the magnitude); the engine skips tiers whose level < 1. Clicking a level
-  // button re-enables at that level.
-  function toggleNode(slotIdx: number) {
+  // A DISABLED node is stored as a NEGATIVE slot level (remembers the magnitude); the engine skips tiers whose
+  // level < 1. LEFT-click enables/selects a node; RIGHT-click disables it.
+  function enableNode(slotIdx: number) {
     if (!traitId) return
-    const cur = safeSlotLevels[slotIdx]
-    const mag = Math.abs(cur) || 1
+    setTraitData(traitId, withEnabled(slotIdx), advancedTraitSelections)
+  }
+
+  function disableNode(slotIdx: number) {
+    if (!traitId) return
     const next = [...safeSlotLevels]
-    next[slotIdx] = cur >= 1 ? -mag : mag
+    next[slotIdx] = -(Math.abs(next[slotIdx]) || 1)
     setTraitData(traitId, next, advancedTraitSelections)
   }
 
@@ -763,7 +771,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                 slotLevel={baseLevel}
                 effects={baseEffects}
                 moonEffects={showArtificialMoon ? selectedTrait.artificial_moon.effects : undefined}
-                onContextMenu={() => toggleNode(SLOT_BASE)}
+                onSelect={baseDisabled ? () => enableNode(SLOT_BASE) : undefined}
+                onContextMenu={() => disableNode(SLOT_BASE)}
               />
               {/* Holy Domain support slot — BELOW the trait, only when Invulnerability / Divine Intervention grants it. */}
               {traitGrantsSkillSlot(traitId, advancedTraitSelections) && (
@@ -830,7 +839,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                             slotLevel={slotLevel}
                             effects={t.effects ?? []}
                             onSelect={() => selectPrimary(t.name, threshold)}
-                            onContextMenu={selected && !locked ? () => toggleNode(slotIdx) : undefined}
+                            onContextMenu={selected && !locked ? () => disableNode(slotIdx) : undefined}
                           />
                         )
                       })}
@@ -854,7 +863,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                               slotLevel={slotLevel}
                               effects={t.effects ?? []}
                               onSelect={() => selectSub(t.name, threshold)}
-                              onContextMenu={selected && !locked ? () => toggleNode(slotIdx) : undefined}
+                              onContextMenu={selected && !locked ? () => disableNode(slotIdx) : undefined}
                             />
                           )
                         })}

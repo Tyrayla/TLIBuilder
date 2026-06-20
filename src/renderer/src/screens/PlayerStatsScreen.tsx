@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, NumbedInfo, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary } from '../api/client'
+import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, NumbedInfo, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, HeroTrait } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
+import { TraitTooltipBody } from './HeroTraitScreen'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { GearTooltipBody } from '../components/tooltip/bodies/GearTooltipBody'
 import { SpiritTooltipBody } from '../components/tooltip/bodies/SpiritTooltipBody'
@@ -33,6 +34,9 @@ interface BreakdownCtxValue {
   // contribution hover; and support name → its equipped level/rolls so the spec resolves at the right tier.
   skillsByName: Record<string, SkillItem> | null
   supportInstances: Record<string, { level: number; specific_rolls?: Record<string, number> }>
+  // hero-trait source name (node name) → the granting node's tooltip data (same tooltip as the Hero Trait
+  // screen). null when the name doesn't resolve to a node on the selected trait.
+  traitNodeTooltip: (sourceName: string) => { name: string; level: number; effects: string[]; moonEffects?: string[] } | null
   // The skill slot currently being viewed — slot-local contributions are filtered to this so a stat's
   // breakdown shows only the selected skill's supports (plus global sources), never another slot's.
   selectedSlot: number
@@ -166,7 +170,10 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
   const supSpec = supSkill?.tooltip
   const supInst = g.source_name ? ctx.supportInstances[g.source_name] : undefined
 
-  const hasHover = !!matchedItem || (isTalent && !!nodeId) || !!supSpec || (isLines && lines.length > 0)
+  // Hero trait: resolve the granting node → its full tooltip (same as the Hero Trait screen).
+  const traitNode = g.source_type === 'hero_trait' && g.source_name ? ctx.traitNodeTooltip(g.source_name) : null
+
+  const hasHover = !!matchedItem || (isTalent && !!nodeId) || !!supSpec || (isLines && lines.length > 0) || !!traitNode
   const tip = useFloatingTooltip({ anchor: 'element', side: 'left', interactive: true })
 
   // Color by attribution (pure display — no recompute): gear → rarity/legendary color; talent + core talent
@@ -216,6 +223,11 @@ function BreakdownSourceRow({ g, ctx }: { g: GroupedCollected; ctx: BreakdownCtx
             <div className="tooltip tooltip--skill" {...tip.floatingProps}>
               <StructuredSkillTooltipBody spec={supSpec} level={supInst?.level ?? supSpec.default_level}
                                           specificRolls={supInst?.specific_rolls} />
+            </div>
+          ) : traitNode ? (
+            <div className="trait-info-card" {...tip.floatingProps}>
+              <TraitTooltipBody name={traitNode.name} slotLevel={traitNode.level}
+                                effects={traitNode.effects} moonEffects={traitNode.moonEffects} />
             </div>
           ) : (
             <div className="tooltip" {...tip.floatingProps}>
@@ -1721,6 +1733,34 @@ export default function PlayerStatsScreen() {
     return m
   }, [heroMemories])
 
+  // hero-trait source name (node name) → the granting node's tooltip data, so hovering a "Hero Trait" source
+  // shows the SAME tooltip as the Hero Trait screen. Base trait = variant_name; "Artificial Moon"; else an
+  // advanced-trait name. Uses |level| so a disabled (negative-level) node still resolves its remembered level.
+  const traitId = useBuildStore(s => s.traitId)
+  const traitSlotLevels = useBuildStore(s => s.traitSlotLevels)
+  const heroTraitsCatalog = useReferenceStore(s => s.heroTraits)
+  const traitNodeTooltip = useMemo(() => {
+    const trait = (heroTraitsCatalog ?? []).find((t: HeroTrait) => t.trait_id === traitId)
+    const lvl = (i: number) => Math.max(1, Math.min(5, Math.abs(traitSlotLevels?.[i] ?? 1)))
+    return (sourceName: string) => {
+      if (!trait) return null
+      if (sourceName === trait.variant_name) {
+        const baseLevel = lvl(0)
+        return { name: trait.variant_name, level: baseLevel, effects: trait.levels?.[baseLevel - 1]?.effects ?? [],
+          moonEffects: baseLevel === 5 ? trait.artificial_moon?.effects : undefined }
+      }
+      if (sourceName === 'Artificial Moon') {
+        return { name: 'Artificial Moon', level: lvl(0), effects: trait.artificial_moon?.effects ?? [] }
+      }
+      const adv = trait.advanced_traits?.find(a => a.name === sourceName)
+      if (adv) {
+        const slotIdx = adv.unlock_level >= 75 ? 3 : adv.unlock_level >= 60 ? 2 : 1
+        return { name: adv.name, level: lvl(slotIdx), effects: adv.effects ?? [] }
+      }
+      return null
+    }
+  }, [heroTraitsCatalog, traitId, traitSlotLevels])
+
   const offense = (computedStats.offense ?? null) as OffenseResult | null
   const defense = (computedStats.defense ?? null) as DefenseResult | null
   const statMap = (computedStats.stats ?? {}) as Record<string, StatEntry>
@@ -1747,7 +1787,7 @@ export default function PlayerStatsScreen() {
     p => p.skill_id === selectedSkill?.item_id && p.slot === selectedSlot) ?? null
 
   return (
-    <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, selectedSlot }}>
+    <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, traitNodeTooltip, selectedSlot }}>
       <div className="dark-scroll" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, height: '100%', overflowY: 'auto', padding: '16px 20px', boxSizing: 'border-box' }}>
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
         <div style={{ flex: '40', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
