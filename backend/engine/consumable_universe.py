@@ -172,6 +172,10 @@ def consumable_universe() -> frozenset[str]:
     # a projectile-shotgun form's blade count (Icy Blade).
     consumed |= {"max_channeled_stacks_flat", "min_channeled_stacks_flat", "projectile_quantity_flat"}
 
+    # Rosa High Court Chariot: No Guard (offense enemy-vulnerability) + Block Ratio Upper Limit (defense), both
+    # engine-computed / read outside the synthetic passes.
+    consumed |= {"no_guard_dmg_taken", "block_ratio_upper_limit_flat"}
+
     missing = _SANITY_FLOOR - consumed
     if missing:
         raise RuntimeError(

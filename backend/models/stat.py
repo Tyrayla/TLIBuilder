@@ -423,6 +423,13 @@ class Stat(Enum):
     SLOW_EFFECT_RECEIVED_INC = "slow_effect_received_inc"
     BLIND_CHANCE = "blind_chance"
     PARALYSIS_EFFECT_2H_INC = "paralysis_effect_2h_inc"
+    # No Guard (Rosa High Court Chariot — Desperation): a GLOBAL enemy-vulnerability debuff inflicted on the
+    # at-max channeled dump. no_guard_dmg_taken is engine-computed by the trait module (base 10% × (1+stacks-lost)
+    # × (1+Block-Ratio effect)) and consumed by offense's enemy-vulnerability stage like paralysis_dmg_taken.
+    # no_guard_self_dmg_taken is the PLAYER self-debuff (No Guard hits you too) — emitted but NOT yet consumed by
+    # defense (NYI; lands with the conditional-defense path), so it surfaces with an NYI badge.
+    NO_GUARD_DMG_TAKEN = "no_guard_dmg_taken"
+    NO_GUARD_SELF_DMG_TAKEN = "no_guard_self_dmg_taken"
 
     # ── Channeled / Triggered / Combo Mechanics ──────────────────────────────
     CHANNELED_DMG_INC = "channeled_dmg_inc"
@@ -566,6 +573,9 @@ class Stat(Enum):
     ATTACK_BLOCK_CHANCE_INC = "attack_block_chance_inc"
     SPELL_BLOCK_CHANCE_INC = "spell_block_chance_inc"
     BLOCK_RATIO_INC = "block_ratio_inc"
+    # Raises the Block Ratio Upper Limit (base 60%, max 80%) — Rosa Invulnerability. Block Ratio (base 30%) is
+    # clamped to this limit in defense.py.
+    BLOCK_RATIO_UPPER_LIMIT_FLAT = "block_ratio_upper_limit_flat"
     INTIMIDATING_EFFECT_INC = "intimidating_effect_inc"
     SHIELD_ENERGY_SHIELD_INC = "shield_energy_shield_inc"
     CHEST_DEFENSE_INC = "chest_defense_inc"

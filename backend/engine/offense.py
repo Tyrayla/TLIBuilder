@@ -331,6 +331,10 @@ TARGET_ARMOR_MITIGATION = 0.50          # physical damage reduction provided by 
 TARGET_NONPHYS_ARMOR_FACTOR = 0.60      # fraction of armor that applies to non-physical damage
 TARGET_ELEMENTAL_RESIST = 0.30          # fire / cold / lightning
 TARGET_EROSION_RESIST = 0.30            # erosion
+# Enemy-Count weight of the calc target for "for each enemy" lines (Normal/Magic 1, Rare 2, Boss 5). The
+# training dummy is a Boss → 5 (e.g. Rosa Unbreakable Stand's per-enemy damage). TODO(target-config): vary by
+# the selected target type.
+TARGET_ENEMY_COUNT_WEIGHT = 5
 
 
 def _target_effective(source: BuildSource, dtype: str) -> tuple[float, float]:
@@ -423,6 +427,7 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
     outgoing amplification.
     """
     mult = 1.0 + source.total("paralysis_dmg_taken")        # global
+    mult *= 1.0 + source.total("no_guard_dmg_taken")        # global (Rosa Desperation — No Guard)
     if dtype == "lightning":
         mult *= 1.0 + source.total("numbed_lightning_taken")
     if dtype in ("fire", "cold", "lightning"):              # Infiltration — element-typed

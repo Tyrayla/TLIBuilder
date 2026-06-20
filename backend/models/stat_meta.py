@@ -1640,6 +1640,22 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=72,
         source_types=(),
     ),
+    # No Guard (Rosa Desperation) — GLOBAL enemy damage-taken (all types). Engine-computed by the trait module
+    # (base 10% × stacks-lost × Block-Ratio effect) and consumed by offense's enemy-vulnerability stage.
+    Stat.NO_GUARD_DMG_TAKEN: StatMeta(
+        "No Guard: Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        tags=(),                       affects=_HIT,
+        stacking_rule="additive",      ui_priority=72,
+        source_types=(),
+    ),
+    # Player-side No Guard self-debuff (No Guard hits you too). Emitted by the trait module but NOT yet consumed
+    # by defense (NYI; lands with the conditional-defense path) → surfaces with an NYI badge.
+    Stat.NO_GUARD_SELF_DMG_TAKEN: StatMeta(
+        "No Guard on You: Damage Taken", "Defense", "additional", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=72,                source_types=(),
+    ),
     # Frail / Infiltration effect — scale the per-application damage-taken value (like Numbed Effect).
     Stat.FRAIL_EFFECT_INC: StatMeta(
         "Frail Effect", "Ailments", "increased", "%",
@@ -2345,6 +2361,11 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.BLOCK_RATIO_INC: StatMeta(
         "Block Ratio", "Defense", "increased", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=39,                source_types=_T,
+    ),
+    Stat.BLOCK_RATIO_UPPER_LIMIT_FLAT: StatMeta(
+        "Block Ratio Upper Limit", "Defense", "added_flat", "%",
         subgroup="defense",            stacking_rule="additive",
         ui_priority=39,                source_types=_T,
     ),
