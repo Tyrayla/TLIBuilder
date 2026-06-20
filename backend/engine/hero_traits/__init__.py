@@ -5,8 +5,9 @@ The registry keys on `trait_id` so the engine dispatches generically with no per
 README.md for the hook convention.
 """
 from engine.hero_traits import lightning_shadow as _ls
+from engine.hero_traits import high_court_chariot as _hcc
 
-_MODULES = (_ls,)
+_MODULES = (_ls, _hcc)
 
 _APPLY = {m.TRAIT_ID: m.apply for m in _MODULES if hasattr(m, "apply")}
 _STASH = {m.TRAIT_ID: m.stash for m in _MODULES if hasattr(m, "stash")}

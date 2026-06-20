@@ -48,7 +48,13 @@ def _contrib(stat_key, amount, text, source):
 def _tier(slot_levels, idx):
     """0-based tier index (level-1) for slot `idx`, clamped to 0-4."""
     lvl = slot_levels[idx] if idx < len(slot_levels) else 1
-    return max(0, min(4, int(lvl) - 1))
+    return max(0, min(4, int(abs(lvl)) - 1))
+
+
+def _enabled(slot_levels, idx):
+    """A node/tier is DISABLED when its slot level is < 1 (the UI stores a disabled node as a negative level)."""
+    lvl = slot_levels[idx] if idx < len(slot_levels) else 1
+    return lvl >= 1
 
 
 def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, advanced_picks):
@@ -62,15 +68,17 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     ms_total = float(ls_state.get("ms_total", 0.0))                        # prev-pass Movement Speed fraction
 
     # ── Base trait ────────────────────────────────────────────────────────────
-    contribs.append(_contrib("numbed_effect_additional", _BASE_ADDITIONAL[_tier([base_lvl], 0)],
-                             "Lightning Shadow: additional Numbed Effect", "Lightning Shadow"))
-    # Artificial Moon (base level 5): +15% MS if inflicted Numbed recently.
-    if base_lvl >= 5 and condition_state.get("inflicted_numbed_recently"):
-        contribs.append(_contrib("movement_speed_inc", _ARTIFICIAL_MOON_MS,
-                                 "Artificial Moon: +15% Movement Speed (inflicted Numbed recently)", "Artificial Moon"))
+    # The base node can be disabled (right-click) while the trait stays selected → negative slot level.
+    if _enabled(slot_levels, 0):
+        contribs.append(_contrib("numbed_effect_additional", _BASE_ADDITIONAL[_tier([base_lvl], 0)],
+                                 "Lightning Shadow: additional Numbed Effect", "Lightning Shadow"))
+        # Artificial Moon (base level 5): +15% MS if inflicted Numbed recently.
+        if abs(base_lvl) >= 5 and condition_state.get("inflicted_numbed_recently"):
+            contribs.append(_contrib("movement_speed_inc", _ARTIFICIAL_MOON_MS,
+                                     "Artificial Moon: +15% Movement Speed (inflicted Numbed recently)", "Artificial Moon"))
 
     # ── Dazzling Lightning (45, pick) ─────────────────────────────────────────
-    if "Dazzling Lightning" in picks:
+    if "Dazzling Lightning" in picks and _enabled(slot_levels, 1):
         t = _tier(slot_levels, 1)
         contribs.append(_contrib("max_electrify_stacks_flat", float(_DAZZLING_MAX_ELECTRIFY[t]),
                                  "Dazzling Lightning: +Max Electrify Stacks", "Dazzling Lightning"))
@@ -78,14 +86,14 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
                                  "Dazzling Lightning: Movement Speed per Electrify stack", "Dazzling Lightning"))
 
     # ── Electroplated Motif (45, pick) ────────────────────────────────────────
-    if "Electroplated Motif" in picks:
+    if "Electroplated Motif" in picks and _enabled(slot_levels, 1):
         t = _tier(slot_levels, 1)
         contribs.append(_contrib("numbed_effect_additional", _ELECTROPLATED_ADDITIONAL[t],
                                  "Electroplated Motif: additional Numbed Effect", "Electroplated Motif"))
 
     # ── Wild Lightning (60, mandatory): MS → additional Numbed Effect, capped ──
     t = _tier(slot_levels, 2)
-    wild = min(_WILD_PER_MS * (ms_total * 100.0), _WILD_CAP[t])
+    wild = min(_WILD_PER_MS * (ms_total * 100.0), _WILD_CAP[t]) if _enabled(slot_levels, 2) else 0.0
     if wild > 0:
         contribs.append(_contrib("numbed_effect_additional", wild,
                                  "Wild Lightning: additional Numbed Effect from Movement Speed", "Wild Lightning"))
@@ -93,7 +101,7 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     # ── Swift as Lightning (75, pick): per 4 Numbed → MS + additional damage ───
     # Buff stacks are USER-SET (swift_as_lightning_stacks): defaults to 1 for a single enemy, up to 10 —
     # the "per 4 Numbed inflicted on the enemy" count depends on enemy count / hit volume we don't model.
-    if "Swift as Lightning" in picks:
+    if "Swift as Lightning" in picks and _enabled(slot_levels, 3):
         t = _tier(slot_levels, 3)
         buff = min(10.0, float(condition_state.get("swift_as_lightning_stacks", 1.0) or 0.0))
         if buff > 0:
@@ -103,7 +111,7 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
                                      "Swift as Lightning: additional damage", "Swift as Lightning"))
 
     # ── Charging Equation (75, pick): per Numbed stack → additional Numbed Effect ──
-    if "Charging Equation" in picks:
+    if "Charging Equation" in picks and _enabled(slot_levels, 3):
         t = _tier(slot_levels, 3)
         buff = min(10.0, numbed_now)
         if buff > 0:
