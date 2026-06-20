@@ -21,7 +21,9 @@ data/builds/*
 
 # OpenWolf and Claude Code — local AI tooling, not for version control
 .wolf/
-.claude/
+.claude/*
+# …except the shared engine-authoring skills (committed so the team/repo gets them)
+!.claude/skills/
 CLAUDE.md
 
 # docs: keep durable references tracked; handoffs / plans / audit snapshots stay local only
