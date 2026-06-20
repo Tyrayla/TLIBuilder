@@ -2,6 +2,7 @@ import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution, CraftBaseItemGroup,
   LegendaryAffix, CustomizedAffix, EffectInput,
   buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects,
+  traitGrantsSkillSlot, TRAIT_SKILL_SLOT, TRAIT_SKILL_ID,
 } from '../api/client'
 import { itemHasSlot } from './gearItem'
 import { characterLevelFrom } from './conditions'
@@ -78,6 +79,8 @@ export function buildEngineStatsPayload(s: BuildState) {
   // skills-screen level control is gone. Forced into condition_state so per-level scaling, base life/mana,
   // and energy all agree (and the backend's characterLevel seeding never diverges).
   const charLevel = characterLevelFrom(s.conditionState)
+  const _traitSkillActive = traitGrantsSkillSlot(s.traitId, s.advancedTraitSelections)
+    && (s.traitSkillSupports?.length ?? 0) > 0
   return {
     slots: s.slots,
     slates: s.slates,
@@ -101,22 +104,38 @@ export function buildEngineStatsPayload(s: BuildState) {
       useReferenceStore.getState().heroTraits ?? []),
     uptime_mode: s.uptimeMode,
     main_skill: s.mainSkill ?? null,
-    skills: s.skills.map(sk => ({
-      slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1, enabled: sk.enabled !== false,
-    })),
+    // The trait skill slot (Holy Domain) is injected as a synthetic slot-10 skill ONLY when the trait grants it
+    // AND supports are socketed — its supports then resolve through the normal per-slot machinery (slot 10).
+    skills: [
+      ...s.skills.map(sk => ({
+        slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1, enabled: sk.enabled !== false,
+      })),
+      ...(_traitSkillActive ? [{ slot: TRAIT_SKILL_SLOT, skill_id: TRAIT_SKILL_ID, level: 1, enabled: true }] : []),
+    ],
     // Every skill slot carries its own supports. Each support is tagged with its host skill's slot so the
     // engine folds it only into that slot's offense pass (add_slotted) — a non-main-slot skill (e.g. the
     // main damage skill parked in slot 2) gets its supports computed too, not just slot 1's.
-    attached_supports: s.skills.flatMap(sk =>
-      (sk.supports ?? []).map(sup => ({
+    attached_supports: [
+      ...s.skills.flatMap(sk =>
+        (sk.supports ?? []).map(sup => ({
+          item_id: sup.item_id,
+          skill_type: sup.skill_type,
+          rank: sup.rank,
+          level: sup.level,
+          specific_rolls: sup.specific_rolls,
+          slot: sk.slot,
+          enabled: sup.enabled !== false,
+        }))),
+      ...(_traitSkillActive ? s.traitSkillSupports.map(sup => ({
         item_id: sup.item_id,
         skill_type: sup.skill_type,
         rank: sup.rank,
         level: sup.level,
         specific_rolls: sup.specific_rolls,
-        slot: sk.slot,
+        slot: TRAIT_SKILL_SLOT,
         enabled: sup.enabled !== false,
-      }))),
+      })) : []),
+    ],
     custom_mods: s.customMods,
   }
 }

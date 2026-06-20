@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { isEqual } from 'lodash-es'
 import type {
-  TreeSlot, SavedSlate, SlateTemplate, EquippedGearItem, EquippedSkill,
+  TreeSlot, SavedSlate, SlateTemplate, EquippedGearItem, EquippedSkill, EquippedSupportSkill,
   CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput,
 } from '../api/client'
 import { EMPTY_STAT_SHEET } from '../api/client'
@@ -22,6 +22,7 @@ export interface LoadedBuild {
   traitId: string | null
   traitSlotLevels: number[]
   advancedTraitSelections: string[]
+  traitSkillSupports: EquippedSupportSkill[]
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   notes: string
@@ -47,9 +48,11 @@ interface BuildStore {
   traitId: string | null
   traitSlotLevels: number[]
   advancedTraitSelections: string[]
+  traitSkillSupports: EquippedSupportSkill[]   // supports socketed into the trait skill slot (Holy Domain)
   setTraitId: (id: string | null) => void
   setTraitSlotLevels: (levels: number[]) => void
   setAdvancedTraitSelections: (sels: string[]) => void
+  setTraitSkillSupports: (supports: EquippedSupportSkill[]) => void
 
   // Notes
   notes: string
@@ -143,6 +146,7 @@ const DEFAULT_BUILD: LoadedBuild = {
   traitId: null,
   traitSlotLevels: [1, 1, 1, 1],
   advancedTraitSelections: [],
+  traitSkillSupports: [],
   heroMemories: [null, null, null],
   pactSpirits: [null, null, null],
   notes: '',
@@ -189,6 +193,8 @@ export const useBuildStore = create<BuildStore>((set) => ({
   setTraitSlotLevels: (traitSlotLevels) => set((s) => ({ traitSlotLevels, buildVersion: s.buildVersion + 1 })),
   setAdvancedTraitSelections: (advancedTraitSelections) =>
     set((s) => ({ advancedTraitSelections, buildVersion: s.buildVersion + 1 })),
+  setTraitSkillSupports: (traitSkillSupports) =>
+    set((s) => ({ traitSkillSupports, buildVersion: s.buildVersion + 1 })),
 
   // ── Notes ───────────────────────────────────────────────────────────────────
   setNotes: (notes) => set({ notes }),

@@ -316,6 +316,7 @@ export interface Build {
   traitLevel?: number          // legacy field — kept for loading old saves
   traitSlotLevels?: number[]   // [base, lv45, lv60, lv75], each 1–5
   advancedTraitSelections?: string[]
+  traitSkillSupports?: EquippedSupportSkill[]   // supports socketed into the Holy Domain trait skill slot
   heroMemories?: (unknown | null)[]
   pactSpirits?: (unknown | null)[]
   notes?: string
@@ -727,7 +728,8 @@ export interface DefenseResult {
   // Block (additive chance, display-only for now) + damage avoidance (fractions).
   attack_block_chance: number
   spell_block_chance: number
-  block_ratio: number
+  block_ratio: number                // base 30% + mods, clamped to the upper limit
+  block_ratio_upper_limit: number    // base 60%, raisable to 80%
   dmg_avoid_chance: number
   nyi: string[]
 }
@@ -1270,15 +1272,21 @@ export function buildTraitEffects(
   if (!trait) return []
   const out: EffectInput[] = []
   const src = trait.variant_name
+  // A DISABLED node is a NEGATIVE slot level (the magnitude is its remembered level); skip disabled tiers.
   const slot = (i: number) => traitSlotLevels?.[i] ?? 1
-  const baseLevel = slot(0)
-  for (const e of trait.levels?.[baseLevel - 1]?.effects ?? []) out.push({ text: e, source: src })
-  if (baseLevel >= 5) for (const e of trait.artificial_moon?.effects ?? []) out.push({ text: e, source: src })
+  const tierEnabled = (i: number) => slot(i) >= 1
+  const tierLevel = (i: number) => Math.max(1, Math.min(5, Math.abs(slot(i))))
+  if (tierEnabled(0)) {
+    const baseLevel = tierLevel(0)
+    for (const e of trait.levels?.[baseLevel - 1]?.effects ?? []) out.push({ text: e, source: src })
+    if (baseLevel >= 5) for (const e of trait.artificial_moon?.effects ?? []) out.push({ text: e, source: src })
+  }
   const picks = new Set(advancedTraitSelections ?? [])
   for (const adv of trait.advanced_traits ?? []) {
     if (!picks.has(adv.name)) continue
     const slotIdx = adv.unlock_level >= 75 ? 3 : adv.unlock_level >= 60 ? 2 : 1
-    const tierIdx = slot(slotIdx) - 1
+    if (!tierEnabled(slotIdx)) continue
+    const tierIdx = tierLevel(slotIdx) - 1
     for (const e of adv.effects ?? []) out.push({ text: _expandTraitTier(e, tierIdx), source: adv.name })
   }
   return out
@@ -1387,6 +1395,23 @@ export function isActiveSkillItem(s: SkillItem): boolean {
 }
 
 // Compound tag aliases: support text spelling → canonical skill tag
+// ── Trait skill slot (Rosa High Court Chariot — Holy Domain) ──────────────────────
+// A canonical slot index for the trait-granted skill's supports, kept clear of the 1-9 active/passive slots.
+export const TRAIT_SKILL_SLOT = 10
+export const TRAIT_SKILL_ID = 'rosa_holy_domain'
+// The Holy Domain trait skill as a support-host (synthesized; deals no damage). Tags gate which supports attach.
+export const TRAIT_SKILL_PARENT: EquippedSkill = {
+  slot: TRAIT_SKILL_SLOT, item_id: TRAIT_SKILL_ID, name: 'Holy Domain',
+  skill_type: 'active_skill', level: 1, skill_tags: ['Spell', 'Area', 'Channeled'],
+  description_lines: [], supports: [],
+} as unknown as EquippedSkill
+
+/** Invulnerability or Divine Intervention (High Court Chariot) grants the Holy Domain support slot. */
+export function traitGrantsSkillSlot(traitId: string | null, picks: string[]): boolean {
+  return traitId === 'high_court_chariot'
+    && (picks.includes('Invulnerability') || picks.includes('Divine Intervention'))
+}
+
 const TAG_ALIASES: Record<string, string> = {
   'Slash Strike': 'Slash-Strike',
 }
@@ -1431,7 +1456,8 @@ export function isSupportCompatible(
   support: SkillItem,
   parentSkill: EquippedSkill,
   isPassiveSlot: boolean,
-  supportIdx: number
+  supportIdx: number,
+  isTraitSkillSlot = false   // the Holy Domain trait slot: a Support Skill OR Activation Medium support
 ): boolean {
   // Tag-based exclusion: certain support tags require the parent to share that tag
   if (support.skill_tags.includes('Spirit Magus') && !parentSkill.skill_tags.includes('Spirit Magus')) return false
@@ -1441,9 +1467,10 @@ export function isSupportCompatible(
   if (support.skill_tags.includes('Attack') && !support.skill_tags.includes('Spell') &&
       !parentSkill.skill_tags.includes('Attack')) return false
 
-  // Activation Medium: any active skill, slot 1 only (checked before description guard)
+  // Activation Medium: any active skill, slot 1 only — EXCEPT the trait skill slot, which explicitly accepts
+  // "a Support Skill or Activation Medium Support Skill" (Rosa Invulnerability / Divine Intervention).
   if (support.skill_tags.includes('Activation Medium')) {
-    return !isPassiveSlot && supportIdx === 1
+    return isTraitSkillSlot || (!isPassiveSlot && supportIdx === 1)
   }
 
   // Skill-bound supports (Noble/Magnificent) carry a "<Parent Skill>: <Variant> (Tier)" name and lock to a

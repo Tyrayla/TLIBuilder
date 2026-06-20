@@ -1490,7 +1490,14 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
       <StatPanel title="Block" accent="#6080b0">
         <Row label="Attack Block Chance" breakdown={{ title: 'Attack Block Chance', keys: ['attack_block_chance_inc'], total: defense.attack_block_chance, totalUnit: '%' }}>{fmtPct2(defense.attack_block_chance)}</Row>
         <Row label="Spell Block Chance" breakdown={{ title: 'Spell Block Chance', keys: ['spell_block_chance_inc'], total: defense.spell_block_chance, totalUnit: '%' }}>{fmtPct2(defense.spell_block_chance)}</Row>
-        <Row label="Block Ratio" breakdown={{ title: 'Block Ratio', keys: ['block_ratio_inc'], total: defense.block_ratio, totalUnit: '%' }}>{fmtPct2(defense.block_ratio)}</Row>
+        <Row label="Block Ratio" breakdown={{ title: 'Block Ratio', keys: ['block_ratio_inc'], total: defense.block_ratio, totalUnit: '%',
+          formula: '30% base + Σ Block Ratio, capped at the Upper Limit',
+          extra: [{ value: '30%', stat: 'Base', source: 'Baseline', sourceName: 'every character' }] }}>{fmtPct2(defense.block_ratio)}</Row>
+        {(defense.block_ratio_upper_limit ?? 0.6) !== 0.6 && (
+          <Row label="Block Ratio Upper Limit" breakdown={{ title: 'Block Ratio Upper Limit', keys: ['block_ratio_upper_limit_flat'], total: defense.block_ratio_upper_limit, totalUnit: '%',
+            formula: '60% base + Σ, capped at 80%',
+            extra: [{ value: '60%', stat: 'Base', source: 'Baseline', sourceName: 'every character' }] }}>{fmtPct2(defense.block_ratio_upper_limit)}</Row>
+        )}
       </StatPanel>
 
       <StatPanel title="Damage Avoidance" accent="#7060b0">

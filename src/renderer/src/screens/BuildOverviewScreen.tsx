@@ -214,7 +214,9 @@ export default function BuildOverviewScreen() {
                         <input
                           type="checkbox"
                           className="cond-check"
-                          checked={conditionState[cond.key] === true}
+                          // Unset → the condition's own default (e.g. inside_holy_domain defaults ON), mirroring
+                          // the numeric fields' default_value fallback, so a default-ON toggle shows checked.
+                          checked={(conditionState[cond.key] ?? cond.default_bool ?? false) === true}
                           onChange={e => setBoolean(cond.key, e.target.checked)}
                         />
                         <span className="cond-label">{cond.label}</span>
