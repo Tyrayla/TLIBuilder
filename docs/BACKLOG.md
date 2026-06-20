@@ -8,6 +8,16 @@ Grouped by area. Pruned 2026-06-16 after the 0.5.2 release and the web launch.
 2. **Hero Traits** (after the release) — implement **one ENTIRE hero trait at a time (all its nodes)**, not piecemeal.
    (Ingenuity Overload / Creative Genius = Bing2 hero trait — its Spell Burst spike mechanic lands here.)
 
+## Tooling / release — "What's New" changelog modal (low priority)
+The update "What's New in <version>" modal has two issues (seen on 0.5.3-nightly.3; not urgent):
+1. **Raw HTML shown as text** — the body renders `<p>…</p>` / `<br />` literally instead of as formatted lines
+   (changelog HTML is being escaped/displayed verbatim, not rendered).
+2. **Unhelpful auto-generated content** — it pulls raw git commit messages, including merge commits with conflict
+   markers (e.g. "Merge dev into main for release 0.5.2 / # Conflicts: CHANGELOG.md package.json src/main/index.ts").
+   Should show curated release notes (or at least filter out merge/conflict noise).
+Fix: render the changelog as HTML (or convert to plain text) and source it from a curated CHANGELOG section per
+release rather than raw commit subjects.
+
 ## Shipped in 0.5.2 (removed from the open list)
 Mana/Life sealing & reservation (incl. Lunar Eclipse) · auras & Focus as build buffs · nightly channel + silent
 auto-update + Settings overlay · full skill-data reimport · display rounding option A (sealed/unsealed + ES match
