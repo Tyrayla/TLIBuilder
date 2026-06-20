@@ -714,6 +714,10 @@ def engine_stats(req: EngineStatsRequest):
     needs_skills = bool(req.main_skill or req.skills or req.attached_supports)
     if needs_skills:
         skills_by_id = _get_skills_data(active_season)
+        # Inject the synthetic Rosa Holy Domain trait skill (not in crawler data) so its slot-10 supports resolve.
+        from engine.skill_resolver import ROSA_HOLY_DOMAIN_ID, ROSA_HOLY_DOMAIN_SKILL
+        if ROSA_HOLY_DOMAIN_ID not in skills_by_id:
+            skills_by_id = {**skills_by_id, ROSA_HOLY_DOMAIN_ID: ROSA_HOLY_DOMAIN_SKILL}
 
     if req.main_skill:
         main_skill = SkillRef(skill_id=req.main_skill.skill_id, level=req.main_skill.level)

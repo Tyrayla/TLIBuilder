@@ -359,6 +359,35 @@ def _parse_main_stats(raw: object) -> list[str]:
     return out
 
 
+# ── Rosa Holy Domain (trait skill) ──────────────────────────────────────────────
+# A trait-granted skill (Rosa High Court Chariot) that deals NO damage but can host supports (Invulnerability /
+# Divine Intervention grant the slot). Tagged Area + Channeled (+ Spell) so the appropriate supports gate to it.
+# Synthesized in code (NOT in the crawler-generated _skills.json) — server injects it into skills_by_id.
+ROSA_HOLY_DOMAIN_ID = "rosa_holy_domain"
+ROSA_HOLY_DOMAIN_SKILL = {
+    "item_id": ROSA_HOLY_DOMAIN_ID,
+    "name": "Holy Domain",
+    "skill_type": "active_skill",
+    "skill_tags": ["Spell", "Area", "Channeled"],
+    "description_lines": ["Trait Skill — deals no damage; supports modify the Holy Domain."],
+    "max_level": 1,
+    "progression": [],
+}
+
+
+@_register(ROSA_HOLY_DOMAIN_ID)
+def _resolve_rosa_holy_domain(skill_data: dict) -> ResolvedSkill:
+    return ResolvedSkill(
+        skill_id=skill_data.get("item_id", ROSA_HOLY_DOMAIN_ID),
+        name=skill_data.get("name", "Holy Domain"),
+        tags=skill_data.get("skill_tags", ["Spell", "Area", "Channeled"]),
+        max_level=skill_data.get("max_level", 1),
+        hit_forms_by_level={},   # deals no damage — only a host for supports
+        supported=True,
+        is_spell=True,
+    )
+
+
 def resolve_skill(skill_data: dict) -> ResolvedSkill:
     """Return a ResolvedSkill; supported=False for any skill not in the registry.
 
