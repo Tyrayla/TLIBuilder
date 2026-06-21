@@ -180,6 +180,14 @@ def consumable_universe() -> frozenset[str]:
     # Headwind's knockback enemy-vuln (offense enemy-vulnerability), and the surfaced knockback_chance (non-DPS).
     consumed |= {"channeled_attack_frequency_additional", "knockback_dmg_taken", "knockback_chance"}
 
+    # Icebound Beam canvas supports (offense reads these for the Icy Blade / beam-suppression calc): Chilling
+    # Spike's suppression-disable + extra-blade equivalents, and Ring Blade's Frozen-proc burst rate.
+    consumed |= {"continuous_suppression_disable", "icy_blade_extra_blade_equiv", "icy_blade_frozen_burst_rate"}
+
+    # Frostbite ailment: max_frostbite_rating_flat (compute derives Frostbite Rating from it) + frostbite_effect_inc
+    # + the baked frostbite_cold_taken enemy-vuln (offense cold branch) — read outside the synthetic passes.
+    consumed |= {"max_frostbite_rating_flat", "frostbite_effect_inc", "frostbite_cold_taken"}
+
     missing = _SANITY_FLOOR - consumed
     if missing:
         raise RuntimeError(

@@ -101,3 +101,55 @@ def scan_numbed_inflict(texts) -> NumbedInflict:
         elif kind == "elemental":
             out.elemental = True
     return out
+
+
+# ── Frostbite inflict (talents/gear/etc.) ─────────────────────────────────────
+# Unlike Numbed, Frostbite has no user stack count — the amount (Frostbite Rating) is auto-derived from Max
+# Frostbite Rating sources in compute. An inflict line's only job here is to ENABLE `enemy_frostbitten`
+# (gated on the build dealing Cold Damage). The prophet node "Inflicts Frostbite when dealing Hit Cold Damage"
+# is the canonical source; the support path is handled separately (engine.support_mapper).
+@dataclass
+class FrostbiteInflict:
+    cold: bool = False        # an "inflict Frostbite … (Cold/Hit/deal)" source is present
+    blocked: bool = False     # "cannot inflict Frostbite" — overrides everything
+
+    @property
+    def active(self) -> bool:
+        return self.blocked or self.cold
+
+    def matches(self, text: str) -> bool:
+        return _classify_frostbite(text) is not None
+
+    def condition_effects(self) -> list[ConditionEffect]:
+        if self.blocked or not self.cold:
+            return []
+        return [ConditionEffect("enemy_frostbitten", 1.0, "set_true", requires_dtype="cold")]
+
+
+def _classify_frostbite(raw: str) -> str | None:
+    """Classify a mod line -> 'block' | 'cold' | None."""
+    if not raw:
+        return None
+    t = raw.lower()
+    if "frostbite" not in t:
+        return None
+    if re.search(r"cannot\s+inflict", t) and "frostbite" in t:
+        return "block"
+    # Non-inflict frostbite lines (effect / rating / threshold wording) are not inflict sources.
+    if any(x in t for x in ("frostbite effect", "max frostbite rating", "frostbite rating", "thresholds for inflicting")):
+        return None
+    if re.search(r"\binflicts?\b", t) and re.search(r"\bfrostbite\b", t) and re.search(r"hit|deal|cold|critical", t):
+        return "cold"
+    return None
+
+
+def scan_frostbite_inflict(texts) -> FrostbiteInflict:
+    """Aggregate every mod line into a single FrostbiteInflict summary."""
+    out = FrostbiteInflict()
+    for raw in texts:
+        kind = _classify_frostbite(raw)
+        if kind == "block":
+            out.blocked = True
+        elif kind == "cold":
+            out.cold = True
+    return out

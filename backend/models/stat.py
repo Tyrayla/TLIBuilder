@@ -451,6 +451,12 @@ class Stat(Enum):
     # Additional strike rate for a channeled persistent entity (Howling Gale's Gale), e.g. Furious Sweep's
     # "+X% Gale Attack Frequency per channeled stack". offense multiplies the Gale rate by (1 + Σ this).
     CHANNELED_ATTACK_FREQUENCY_ADDITIONAL = "channeled_attack_frequency_additional"
+    # Icebound Beam canvas supports. Chilling Spike disables the RESET continuous-suppression (beam stays full)
+    # and adds extra penetrating Icy Blades (net single-target blade-equivalents, no shotgun). Ring Blade's
+    # Frozen proc adds full Icy Blade bursts per second while the enemy is Frozen. All engine-read in offense.
+    CONTINUOUS_SUPPRESSION_DISABLE = "continuous_suppression_disable"
+    ICY_BLADE_EXTRA_BLADE_EQUIV = "icy_blade_extra_blade_equiv"
+    ICY_BLADE_FROZEN_BURST_RATE = "icy_blade_frozen_burst_rate"
     JUMP_DMG_FOR_EVERY_ADDITIONAL = "jump_dmg_for_every_additional"  # revisit stacking behavior
 
     # ── Steep Strike ─────────────────────────────────────────────────────────

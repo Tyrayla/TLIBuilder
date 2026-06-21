@@ -463,6 +463,18 @@ def compute(
             if _key in maxes:
                 condition_state[_key] = maxes[_key]
 
+        # Frostbite Rating (auto-derived, NOT user-set): 10 base + Max Frostbite Rating sources, only while
+        # the enemy is Frostbitten. Capped at 120 normally; Condensed Frost lifts the cap to 200 (its over-120
+        # bonus is applied in the aggregator's enemy-vuln bake). Freeze: rating > 100 auto-sets enemy_frozen.
+        if condition_state.get("enemy_frostbitten"):
+            _raw = 10.0 + source.total("max_frostbite_rating_flat")
+            _cap = 200.0 if condition_state.get("condensed_frost") else 120.0
+            condition_state["frostbite_rating"] = min(_raw, _cap)
+        else:
+            condition_state["frostbite_rating"] = 0.0
+        if "enemy_frozen" not in manual_cond_keys:
+            condition_state["enemy_frozen"] = condition_state["frostbite_rating"] > 100.0
+
         new_state = _clamp_and_rederive(condition_state, maxes, mins)
         snapshot = _state_snapshot(new_state)
 

@@ -429,6 +429,8 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
     mult = 1.0 + source.total("paralysis_dmg_taken")        # global
     mult *= 1.0 + source.total("no_guard_dmg_taken")        # global (Rosa Desperation — No Guard)
     mult *= 1.0 + source.total("knockback_dmg_taken")       # global (Howling Gale — Headwind; gated by hook on enemy_knocked_back)
+    if dtype == "cold":
+        mult *= 1.0 + source.total("frostbite_cold_taken")  # Frostbite (+Condensed Frost) — baked in aggregator
     if dtype == "lightning":
         mult *= 1.0 + source.total("numbed_lightning_taken")
     if dtype in ("fire", "cold", "lightning"):              # Infiltration — element-typed
@@ -1001,7 +1003,10 @@ def calculate_offense(
         # suppressed (Icebound Beam's Cold Beam drops to 1/3 once Icy Blades fire). Folded into form_add_mult
         # so it scales the per-hit damage too (Hit Range shows the suppressed value). No effect at 0 projectiles.
         if (skill.channeled and skill.channeled.behavior == "reset"
-                and form.channel_role == "continuous" and burst_active):
+                and form.channel_role == "continuous" and burst_active
+                and not source.total("continuous_suppression_disable")):
+            # Chilling Spike (Icebound) sets continuous_suppression_disable → the Cold Beam runs at FULL
+            # damage even while the Icy Blades fire (owner-validated: beam 30-40 vs the normal 9-12).
             form_add_mult *= skill.channeled.continuous_suppression_when_bursting
 
         damage_by_type: dict[str, float] = {}
@@ -1069,6 +1074,25 @@ def calculate_offense(
             n_proj = max(1, form.hit_count)
         form_shotgun = (1.0 + (n_proj - 1) * (1.0 - form.shotgun_falloff)) if n_proj >= 1 else 0.0
 
+        # Icebound Beam canvas supports add extra Icy Blade damage onto the projectile-scaling (burst) form:
+        #   - Chilling Spike: extra penetrating blades, NO shotgun falloff — a net single-target
+        #     blade-equivalent count (icy_blade_extra_blade_equiv) fired at the burst rate.
+        #   - Ring Blade (Frozen proc): a full extra Icy Blade burst per its cooldown (icy_blade_frozen_burst_rate
+        #     = 1/cooldown), gated on enemy_frozen by the support. The proc fires on the FIRST beam hit AFTER each
+        #     cooldown, and the beam hits at the channel rate (aps) — so the EFFECTIVE rate is aps/ceil(aps×cooldown),
+        #     capped at the 1/cooldown ceiling. Higher cast speed pushes it toward the ceiling (owner-validated;
+        #     the small ε absorbs the 0.333s parse so a clean 3/s lands exactly 1 proc/s, not the 4th hit).
+        form_extra_mult = 0.0
+        if form.scales_with_projectiles:
+            frozen_rate = source.total("icy_blade_frozen_burst_rate")
+            eff_frozen = 0.0
+            if frozen_rate > 0.0 and aps > 0.0:
+                cooldown = 1.0 / frozen_rate
+                hits_per_cd = max(1, math.ceil(aps * cooldown - 0.05))
+                eff_frozen = min(frozen_rate, aps / hits_per_cd)
+            form_extra_mult = (source.total("icy_blade_extra_blade_equiv") * form_rate
+                               + eff_frozen * form_shotgun)
+
         hit_forms.append(HitFormResult(
             name=form.name,
             effectiveness_pct=eff,
@@ -1077,8 +1101,9 @@ def calculate_offense(
             damage_by_type=damage_by_type,
             avg_hit_pre_crit=avg_pre,
             avg_hit_with_crit=avg_post,
-            dps_contribution=avg_post * form_rate * proc * form_shotgun,
-            dps_vs_target=avg_post_vs_target * form_rate * proc * form_shotgun,
+            # Original term kept verbatim (+ extra term, which is 0.0 for non-Icy-Blade forms → no ULP drift).
+            dps_contribution=avg_post * form_rate * proc * form_shotgun + avg_post * proc * form_extra_mult,
+            dps_vs_target=avg_post_vs_target * form_rate * proc * form_shotgun + avg_post_vs_target * proc * form_extra_mult,
             hit_min_by_type=hit_min_by_type,
             hit_max_by_type=hit_max_by_type,
             fires_per_sec=form_rate * proc,

@@ -39,6 +39,7 @@
     "cold_skill_level",
     "cold_spell_dmg_flat_max",
     "cold_spell_dmg_flat_min",
+    "continuous_suppression_disable",
     "crit_dmg_additional",
     "crit_dmg_inc",
     "crit_rating_additional",
@@ -85,8 +86,11 @@
     "fire_spell_dmg_flat_max",
     "fire_spell_dmg_flat_min",
     "frail_spell_taken",
+    "frostbite_cold_taken",
     "hit_curse_taken",
     "hit_dmg_additional",
+    "icy_blade_extra_blade_equiv",
+    "icy_blade_frozen_burst_rate",
     "intelligence",
     "intelligence_additional",
     "intelligence_flat",
@@ -120,6 +124,7 @@
     "max_energy_shield_flat",
     "max_energy_shield_inc",
     "max_focus_blessing_stacks_flat",
+    "max_frostbite_rating_flat",
     "max_ignite_flat",
     "max_life",
     "max_life_additional",
@@ -210,12 +215,12 @@
       "lightning": 4.0,
       "physical": 31.200000000000003
     },
-    "generic_add": 3.0524741001215996,
+    "generic_add": 4.004907068841542,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 386.36589173152475,
-        "avg_hit_with_crit": 415.3433336113891,
+        "avg_hit_pre_crit": 1520.7593318087856,
+        "avg_hit_with_crit": 1634.8162816944446,
         "base_max_by_type": {
           "cold": 257.0
         },
@@ -223,27 +228,27 @@
           "cold": 171.0
         },
         "damage_by_type": {
-          "cold": 217.74315247534076,
-          "fire": 42.32764085501951,
-          "lightning": 83.96745754614494,
-          "physical": 42.32764085501951
+          "cold": 857.0501127320899,
+          "fire": 166.60413406380815,
+          "lightning": 330.50095094907937,
+          "physical": 166.60413406380815
         },
-        "dps_contribution": 1446.8416426102442,
-        "dps_vs_target": 710.5374669855123,
+        "dps_contribution": 5694.855515812479,
+        "dps_vs_target": 2796.718102302996,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 3.483483483483483,
         "form_type": "additive",
         "hit_max_by_type": {
-          "cold": 261.49528124375036,
-          "fire": 54.944533802188786,
-          "lightning": 159.86112109746824,
-          "physical": 52.90955106877439
+          "cold": 1029.2611166922761,
+          "fire": 216.26498171744325,
+          "lightning": 629.2229643069011,
+          "physical": 208.25516757976015
         },
         "hit_min_by_type": {
-          "cold": 173.99102370693117,
-          "fire": 29.710747907850237,
-          "lightning": 8.07379399482163,
-          "physical": 31.745730641264636
+          "cold": 684.8391087719036,
+          "fire": 116.94328641017303,
+          "lightning": 31.77893759125763,
+          "physical": 124.95310054785611
         },
         "hits_per_fire": 1,
         "name": "Cold Beam",
@@ -252,8 +257,8 @@
         "shotgun_mult": 1.0
       },
       {
-        "avg_hit_pre_crit": 3463.1200830894477,
-        "avg_hit_with_crit": 3722.854089321156,
+        "avg_hit_pre_crit": 4543.6828114150185,
+        "avg_hit_with_crit": 4884.459022271145,
         "base_max_by_type": {
           "cold": 770.0
         },
@@ -261,33 +266,33 @@
           "cold": 513.0
         },
         "damage_by_type": {
-          "cold": 1958.162135228006,
-          "fire": 377.7741946310491,
-          "lightning": 749.4095585993435,
-          "physical": 377.7741946310491
+          "cold": 2569.147884661849,
+          "fire": 495.64729883982915,
+          "lightning": 983.240329073511,
+          "physical": 495.6472988398292
         },
-        "dps_contribution": 3501.4951975236822,
-        "dps_vs_target": 1719.5522501977248,
+        "dps_contribution": 8133.137653660373,
+        "dps_vs_target": 3994.1094774056014,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 0.6966966966966966,
         "form_type": "additive",
         "hit_max_by_type": {
-          "cold": 2350.4050570936315,
-          "fire": 490.37996418453497,
-          "lightning": 1426.760505794904,
-          "physical": 472.21774328881145
+          "cold": 3083.778443007987,
+          "fire": 643.3883206093936,
+          "lightning": 1871.9383188130305,
+          "physical": 619.5591235497865
         },
         "hit_min_by_type": {
-          "cold": 1565.9192133623806,
-          "fire": 265.1684250775633,
-          "lightning": 72.05861140378303,
-          "physical": 283.33064597328683
+          "cold": 2054.5173263157108,
+          "fire": 347.90627707026465,
+          "lightning": 94.54233933399144,
+          "physical": 371.7354741298719
         },
-        "hits_per_fire": 2,
+        "hits_per_fire": 3,
         "name": "Icy Blade",
         "proc_chance": 1.0,
         "shotgun_falloff": 0.65,
-        "shotgun_mult": 1.35
+        "shotgun_mult": 1.7
       }
     ],
     "main_stat_damage_bonus": 0.0,
@@ -308,7 +313,7 @@
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
     ],
-    "projectile_count": 2,
+    "projectile_count": 3,
     "shotgun_hits": 1,
     "skill_area_inc": 0.0,
     "skill_name": "Icebound Beam",
@@ -344,13 +349,13 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
-    "total_dps": 4948.336840133927,
-    "total_dps_vs_target": 2430.089717183237,
+    "total_dps": 13827.993169472851,
+    "total_dps_vs_target": 6790.827579708597,
     "type_add": {
-      "cold": 3.0524741001215996,
-      "fire": 3.0524741001215996,
-      "lightning": 4.036896997410815,
-      "physical": 3.0524741001215996
+      "cold": 4.004907068841542,
+      "fire": 4.004907068841542,
+      "lightning": 5.296489598542938,
+      "physical": 4.004907068841542
     },
     "type_inc": {
       "cold": 0,
@@ -400,12 +405,12 @@
         "lightning": 4.0,
         "physical": 31.200000000000003
       },
-      "generic_add": 3.0524741001215996,
+      "generic_add": 4.004907068841542,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 386.36589173152475,
-          "avg_hit_with_crit": 415.3433336113891,
+          "avg_hit_pre_crit": 1520.7593318087856,
+          "avg_hit_with_crit": 1634.8162816944446,
           "base_max_by_type": {
             "cold": 257.0
           },
@@ -413,27 +418,27 @@
             "cold": 171.0
           },
           "damage_by_type": {
-            "cold": 217.74315247534076,
-            "fire": 42.32764085501951,
-            "lightning": 83.96745754614494,
-            "physical": 42.32764085501951
+            "cold": 857.0501127320899,
+            "fire": 166.60413406380815,
+            "lightning": 330.50095094907937,
+            "physical": 166.60413406380815
           },
-          "dps_contribution": 1446.8416426102442,
-          "dps_vs_target": 710.5374669855123,
+          "dps_contribution": 5694.855515812479,
+          "dps_vs_target": 2796.718102302996,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 3.483483483483483,
           "form_type": "additive",
           "hit_max_by_type": {
-            "cold": 261.49528124375036,
-            "fire": 54.944533802188786,
-            "lightning": 159.86112109746824,
-            "physical": 52.90955106877439
+            "cold": 1029.2611166922761,
+            "fire": 216.26498171744325,
+            "lightning": 629.2229643069011,
+            "physical": 208.25516757976015
           },
           "hit_min_by_type": {
-            "cold": 173.99102370693117,
-            "fire": 29.710747907850237,
-            "lightning": 8.07379399482163,
-            "physical": 31.745730641264636
+            "cold": 684.8391087719036,
+            "fire": 116.94328641017303,
+            "lightning": 31.77893759125763,
+            "physical": 124.95310054785611
           },
           "hits_per_fire": 1,
           "name": "Cold Beam",
@@ -442,8 +447,8 @@
           "shotgun_mult": 1.0
         },
         {
-          "avg_hit_pre_crit": 3463.1200830894477,
-          "avg_hit_with_crit": 3722.854089321156,
+          "avg_hit_pre_crit": 4543.6828114150185,
+          "avg_hit_with_crit": 4884.459022271145,
           "base_max_by_type": {
             "cold": 770.0
           },
@@ -451,33 +456,33 @@
             "cold": 513.0
           },
           "damage_by_type": {
-            "cold": 1958.162135228006,
-            "fire": 377.7741946310491,
-            "lightning": 749.4095585993435,
-            "physical": 377.7741946310491
+            "cold": 2569.147884661849,
+            "fire": 495.64729883982915,
+            "lightning": 983.240329073511,
+            "physical": 495.6472988398292
           },
-          "dps_contribution": 3501.4951975236822,
-          "dps_vs_target": 1719.5522501977248,
+          "dps_contribution": 8133.137653660373,
+          "dps_vs_target": 3994.1094774056014,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 0.6966966966966966,
           "form_type": "additive",
           "hit_max_by_type": {
-            "cold": 2350.4050570936315,
-            "fire": 490.37996418453497,
-            "lightning": 1426.760505794904,
-            "physical": 472.21774328881145
+            "cold": 3083.778443007987,
+            "fire": 643.3883206093936,
+            "lightning": 1871.9383188130305,
+            "physical": 619.5591235497865
           },
           "hit_min_by_type": {
-            "cold": 1565.9192133623806,
-            "fire": 265.1684250775633,
-            "lightning": 72.05861140378303,
-            "physical": 283.33064597328683
+            "cold": 2054.5173263157108,
+            "fire": 347.90627707026465,
+            "lightning": 94.54233933399144,
+            "physical": 371.7354741298719
           },
-          "hits_per_fire": 2,
+          "hits_per_fire": 3,
           "name": "Icy Blade",
           "proc_chance": 1.0,
           "shotgun_falloff": 0.65,
-          "shotgun_mult": 1.35
+          "shotgun_mult": 1.7
         }
       ],
       "main_stat_damage_bonus": 0.0,
@@ -498,7 +503,7 @@
         "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
         "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
       ],
-      "projectile_count": 2,
+      "projectile_count": 3,
       "shotgun_hits": 1,
       "skill_area_inc": 0.0,
       "skill_name": "Icebound Beam",
@@ -534,13 +539,13 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
-      "total_dps": 4948.336840133927,
-      "total_dps_vs_target": 2430.089717183237,
+      "total_dps": 13827.993169472851,
+      "total_dps_vs_target": 6790.827579708597,
       "type_add": {
-        "cold": 3.0524741001215996,
-        "fire": 3.0524741001215996,
-        "lightning": 4.036896997410815,
-        "physical": 3.0524741001215996
+        "cold": 4.004907068841542,
+        "fire": 4.004907068841542,
+        "lightning": 5.296489598542938,
+        "physical": 4.004907068841542
       },
       "type_inc": {
         "cold": 0,
@@ -652,6 +657,16 @@
           "text": "additional damage for the supported skill |icebound_beam_chilling_spike_noble|universal"
         },
         {
+          "amount": -0.015,
+          "label": "Icebound Beam: Chilling Spike (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Icebound Beam: Chilling Spike (Noble)",
+          "source_type": "support",
+          "text": "-1.50% additional Hit Damage |icebound_beam_chilling_spike_noble|chilling_spike"
+        },
+        {
           "amount": 0.2,
           "label": "Icebound Beam: Frostbitten (Magnificent) (Rank 5)",
           "points": 1,
@@ -660,6 +675,16 @@
           "source_name": "Icebound Beam: Frostbitten (Magnificent)",
           "source_type": "support",
           "text": "additional damage for the supported skill |icebound_beam_frostbitten_magnificent|universal"
+        },
+        {
+          "amount": 0.332,
+          "label": "Icebound Beam: Frostbitten (Magnificent)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Icebound Beam: Frostbitten (Magnificent)",
+          "source_type": "support",
+          "text": "+4.15% additional damage per Frostbitten stack (cap 8) |icebound_beam_frostbitten_magnificent|frostbitten"
         },
         {
           "amount": 0.2,
@@ -673,13 +698,13 @@
         },
         {
           "amount": 0.09,
-          "label": "Icebound Beam: Ring Blade (Noble) (Tier 5)",
+          "label": "Icebound Beam: Ring Blade (Noble)",
           "points": 1,
           "scope": null,
           "slot": 1,
           "source_name": "Icebound Beam: Ring Blade (Noble)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |icebound_beam_ring_blade_noble|specific"
+          "text": "+9.00% additional damage for the supported skill |icebound_beam_ring_blade_noble|ring_blade"
         },
         {
           "amount": 0.16,

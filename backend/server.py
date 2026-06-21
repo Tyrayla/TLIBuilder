@@ -914,7 +914,7 @@ def engine_stats(req: EngineStatsRequest):
     # ── Generalized "inflicts Numbed" detection (talents / gear / custom mods — not just supports) ──
     # Numbed stacks stay user-set; these lines only enable the enemy_numbed gate + auto-floor a baseline
     # stack (max-rule, gated by hit damage type in compute). Supports keep their own map_autoderive_line path.
-    from engine.ailment_inflict import scan_numbed_inflict
+    from engine.ailment_inflict import scan_numbed_inflict, scan_frostbite_inflict
     # Use the status lists (they already cover custom mods, gear, talents, core, spirit, memory) — one entry
     # per source line, so C "additional stacks" counts once per source (not doubled by req.custom_mods).
     _inflict_texts: list[str] = []
@@ -922,6 +922,7 @@ def engine_stats(req: EngineStatsRequest):
                 spirit_mod_statuses, memory_mod_statuses):
         _inflict_texts += [s.get("text", "") for s in (_sl or [])]
     _numbed_inflict = scan_numbed_inflict(_inflict_texts)
+    _frostbite_inflict = scan_frostbite_inflict(_inflict_texts)
     # Flip recognized inflict lines from NYI -> working so they don't badge red (never-silently-drop).
     if _numbed_inflict.active:
         for _sl in (custom_mod_statuses, gear_mod_statuses, core_talent_statuses, _node_statuses):
@@ -929,6 +930,12 @@ def engine_stats(req: EngineStatsRequest):
                 if not _st.get("resolved") and _numbed_inflict.matches(_st.get("text", "")):
                     _st["resolved"] = True
                     _st["stat_display"] = "Inflicts Numbed"
+    if _frostbite_inflict.active:
+        for _sl in (custom_mod_statuses, gear_mod_statuses, core_talent_statuses, _node_statuses):
+            for _st in (_sl or []):
+                if not _st.get("resolved") and _frostbite_inflict.matches(_st.get("text", "")):
+                    _st["resolved"] = True
+                    _st["stat_display"] = "Inflicts Frostbite"
     if active_curses and not core_condition_state.get("enemy_cursed"):
         core_condition_state = {**core_condition_state, "enemy_cursed": True}
 
@@ -955,7 +962,7 @@ def engine_stats(req: EngineStatsRequest):
         advanced_trait_selections=req.advanced_trait_selections,
         trait_contributions=trait_contributions,
         uptime_mode=req.uptime_mode,
-        inflict_cond_effects=_numbed_inflict.condition_effects(),
+        inflict_cond_effects=_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects(),
         numbed_blocked=_numbed_inflict.blocked,
     )
     result = compute(
@@ -1033,7 +1040,7 @@ def get_conditions():
             entry["default_value"] = c.default_value   # was omitted → frontend saw undefined → 0 defaults
         else:
             entry["default_bool"] = c.default_bool
-        if c.key in derived_keys:
+        if c.key in derived_keys or c.source == "derived":
             entry["is_derived"] = True
         if not c.visible:
             entry["visible"] = False

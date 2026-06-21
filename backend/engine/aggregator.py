@@ -511,6 +511,29 @@ def aggregate(
             label="Numbed Stacks", text=text, points=1,
         ))
 
+    # ── Frostbite (enemy vulnerability) ───────────────────────────────────────
+    # Frostbitten enemies take +1% additional Cold Damage per Frostbite Rating, capped at 120 (the rating
+    # above 120 is IGNORED here); Frostbite Effect scales the magnitude. Condensed Frost adds a SEPARATE
+    # +0.35%/point for the rating OVER 120 (cap +28%), NOT scaled by Frostbite Effect. frostbite_rating is the
+    # auto-derived numeric condition (compute loop). Baked into a cold-tagged stat read by offense's
+    # enemy-vulnerability stage. Both pieces are "additional Cold taken" → one additive pool (owner-confirmed).
+    if "enemy_frostbitten" in (active_booleans or frozenset()):
+        rating = float((numeric_vals or {}).get("frostbite_rating", 0.0) or 0.0)
+        if rating > 0:
+            base = min(rating, 120.0) * 0.01 * (1.0 + source.total("frostbite_effect_inc"))
+            over = 0.0
+            if "condensed_frost" in (active_booleans or frozenset()) and rating > 120.0:
+                over = min((rating - 120.0) * 0.0035, 0.28)   # Condensed Frost, cap +28%
+            amount = base + over
+            if amount:
+                source.add_with_source("frostbite_cold_taken", amount, SourceEntry(
+                    stat="frostbite_cold_taken", amount=amount, source_type="condition",
+                    label="Frostbite Rating",
+                    text=f"+{base * 100:.1f}% Cold Damage taken (Frostbite Rating {rating:.0f})"
+                         + (f" +{over * 100:.1f}% (Condensed Frost)" if over else ""),
+                    points=1,
+                ))
+
     # ── Bonus propagation: Play Safe (Cast Speed → Spell Burst Charge Speed) ──────
     # When granted (flag stat present), the player's cast-speed INCREASED total and EACH cast-speed
     # ADDITIONAL affix are ALSO applied to Spell Burst Charge Speed (owner: charge restoration time =

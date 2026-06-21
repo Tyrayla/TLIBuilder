@@ -1771,6 +1771,22 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=59,
         source_types=(),
     ),
+    # Icebound Beam canvas supports (engine-read in offense; emitted by skill_effects/icebound_beam).
+    Stat.CONTINUOUS_SUPPRESSION_DISABLE: StatMeta(
+        "Disable Beam Suppression (Chilling Spike)", "Generic", "flag",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=75,                source_types=(),
+    ),
+    Stat.ICY_BLADE_EXTRA_BLADE_EQUIV: StatMeta(
+        "Extra Icy Blades (Chilling Spike)", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=75,                source_types=(),
+    ),
+    Stat.ICY_BLADE_FROZEN_BURST_RATE: StatMeta(
+        "Icy Blade Bursts/s on Frozen (Ring Blade)", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=75,                source_types=(),
+    ),
     Stat.TRIGGERED_DMG_INC: StatMeta(
         "Damage for Triggered Skills", "Generic", "increased", "%",
         subgroup="generic_damage",     pipeline_stage="increased_reduced",

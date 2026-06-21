@@ -14,9 +14,9 @@ Each module may expose:
 The registry below aggregates these so the engine dispatches generically (no per-skill hardcoding).
 """
 from engine.skill_effects import berserking_blade as _bb, focused_slash as _fs, moon_strike as _ms
-from engine.skill_effects import howling_gale as _hg
+from engine.skill_effects import howling_gale as _hg, icebound_beam as _ib
 
-_MODULES = (_bb, _fs, _ms, _hg)
+_MODULES = (_bb, _fs, _ms, _hg, _ib)
 
 # Support ids handled bespoke/deferred — their specific line is skipped by the generic resolver (the
 # universal +20% rank line still applies).

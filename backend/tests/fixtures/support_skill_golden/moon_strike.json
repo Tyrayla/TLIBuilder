@@ -134,6 +134,7 @@
     "max_energy_shield_flat",
     "max_energy_shield_inc",
     "max_focus_blessing_stacks_flat",
+    "max_frostbite_rating_flat",
     "max_ignite_flat",
     "max_life",
     "max_life_additional",
