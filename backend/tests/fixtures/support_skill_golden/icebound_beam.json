@@ -714,6 +714,25 @@
       "total": 0.16,
       "unit": "%"
     },
+    "continuous_suppression_disable": {
+      "category": "Generic",
+      "display_name": "Disable Beam Suppression (Chilling Spike)",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Icebound Beam: Chilling Spike",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Cold Beam is no longer suppressed while Icy Blades fire |icebound_beam_chilling_spike_noble|chilling_spike"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
     "crit_rating_inc": {
       "category": "Critical Strike",
       "display_name": "Critical Strike Rating",
@@ -903,6 +922,25 @@
           "source_name": "Added Fire Damage",
           "source_type": "support",
           "text": "The supported skill adds 1 - 3 Fire Damage |added_fire_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "icy_blade_extra_blade_equiv": {
+      "category": "Generic",
+      "display_name": "Extra Icy Blades (Chilling Spike)",
+      "slot_sources": [
+        {
+          "amount": 0.69,
+          "label": "Icebound Beam: Chilling Spike",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "4 large penetrating Icy Blades (\u22480.69 single-target blade-equiv) |icebound_beam_chilling_spike_noble|chilling_spike"
         }
       ],
       "sources": [],
@@ -1148,6 +1186,25 @@
           "source_name": "Added Physical Damage",
           "source_type": "support",
           "text": "Supported skills add 2 - 3 physical damage |added_physical_damage|supported skills add#-#p"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "projectile_quantity_flat": {
+      "category": "Projectile",
+      "display_name": "Projectile Quantity",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Icebound Beam: Ring Blade",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Projectile Quantity +1 (fired from the enemy \u2192 all blades hit) |icebound_beam_ring_blade_noble|ring_blade"
         }
       ],
       "sources": [],

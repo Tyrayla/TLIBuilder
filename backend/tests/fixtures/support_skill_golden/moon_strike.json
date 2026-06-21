@@ -928,6 +928,25 @@
       "total": 485.0,
       "unit": ""
     },
+    "moon_strike_circular_chance": {
+      "category": "Steep Strike",
+      "display_name": "Circular Attack Chance",
+      "slot_sources": [
+        {
+          "amount": 0.2,
+          "label": "Moon Strike: Lunar Ring",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "20% circular-attack chance on Steep Strike (tracked; DPS-neutral) |lunar_ring"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "movement_speed": {
       "category": "Character",
       "display_name": "Movement Speed",
@@ -1036,6 +1055,25 @@
       ],
       "total": 500.0,
       "unit": ""
+    },
+    "steep_strike_chance": {
+      "category": "Steep Strike",
+      "display_name": "Steep Strike Chance",
+      "slot_sources": [
+        {
+          "amount": 0.04,
+          "label": "Moon Strike: Rainbow",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "+4% Steep Strike chance (1%/100 Max Mana) |rainbow"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
     },
     "weapon_attack_speed": {
       "category": "Gear",

@@ -532,6 +532,25 @@
       "total": 0.16,
       "unit": "%"
     },
+    "channeled_attack_frequency_additional": {
+      "category": "Cast Speed",
+      "display_name": "Additional Gale Attack Frequency",
+      "slot_sources": [
+        {
+          "amount": 0.37000000000000005,
+          "label": "Howling Gale: Furious Sweep",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Howling Gale: Furious Sweep (Noble)",
+          "source_type": "support",
+          "text": "+7.40% additional Gale Attack Frequency per channeled stack \u00d75 |howling_gale_furious_sweep_noble|furious"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "crit_rating_inc": {
       "category": "Critical Strike",
       "display_name": "Critical Strike Rating",

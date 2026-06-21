@@ -162,7 +162,7 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
             amt = per_stack * stacks
             source.add_slotted("channeled_attack_frequency_additional", amt, slot, None, SourceEntry(
                 stat="channeled_attack_frequency_additional", amount=amt, source_type="support",
-                label="Howling Gale: Furious Sweep",
+                label="Howling Gale: Furious Sweep", source_name=data.get("name", "Furious Sweep"),
                 text=f"+{per_stack * 100:.2f}% additional Gale Attack Frequency per channeled stack ×{stacks} |{FURIOUS}|furious",
                 points=1))
 

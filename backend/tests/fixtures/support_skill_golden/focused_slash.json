@@ -757,6 +757,25 @@
       "total": 0.0,
       "unit": ""
     },
+    "fervor_effect_skill_inc": {
+      "category": "Buffs",
+      "display_name": "Skill Fervor Effect",
+      "slot_sources": [
+        {
+          "amount": 1.25,
+          "label": "Focused Slash: Tranquility",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Fervor's bonus +125% (10 stacks, standing still) |tranquility"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "fire_attack_dmg_flat_max": {
       "category": "Fire",
       "display_name": "Max Fire Attack Damage",
@@ -1053,6 +1072,25 @@
           "source_name": "Focused Slash: Fervor (Noble)",
           "source_type": "support",
           "text": "Steep Strike +64% additional damage (consumes Fervor; cost NYI) |focused_slash_fervor_noble|fervor"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "steep_strike_chance": {
+      "category": "Steep Strike",
+      "display_name": "Steep Strike Chance",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Focused Slash: Behead",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Guaranteed Steep Strike |behead"
         }
       ],
       "sources": [],

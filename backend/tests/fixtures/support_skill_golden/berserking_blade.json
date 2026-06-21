@@ -1033,6 +1033,63 @@
       "total": 500.0,
       "unit": ""
     },
+    "skill_area_additional": {
+      "category": "Utility",
+      "display_name": "Additional Skill Area",
+      "slot_sources": [
+        {
+          "amount": 0.17,
+          "label": "Berserking Blade: Sweep",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "+0.43% additional Skill Area per buff \u00d740 |bb|sweep"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "skill_area_inc": {
+      "category": "Utility",
+      "display_name": "Skill Area",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Berserking Blade Buff",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "skill",
+          "text": "+2.5% Skill Area per buff stack \u00d740 |bb|buff"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "steep_strike_additional_dmg": {
+      "category": "Steep Strike",
+      "display_name": "Steep Strike Additional Damage",
+      "slot_sources": [
+        {
+          "amount": 0.3484,
+          "label": "Berserking Blade: Rampage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Skill Area bonus \u2192 +34.8% additional Steep Strike Damage |bb|rampage"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "weapon_attack_speed": {
       "category": "Gear",
       "display_name": "Weapon Attack Speed",

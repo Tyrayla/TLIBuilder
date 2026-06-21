@@ -532,30 +532,9 @@ def compute(
             "points": entry.points,
         })
 
-    # Slot-local contributions (supports / skill self-buffs) live in slot_log, NOT source_log, so they're
-    # absent from `total`/`sources` above. Surface them in a parallel `slot_sources` list per stat so the
-    # source breakdown can show them under a "Skill-specific (slot N)" group — without breaking the
-    # total == sum(sources) invariant. Only attached when non-empty, so unaffected builds stay byte-identical.
-    for entry in source.slot_log:
-        if entry.stat not in stat_map:
-            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
-            stat_map[entry.stat] = {
-                "display_name": meta.display_name if meta else entry.stat,
-                "category": meta.category if meta else "Other",
-                "unit": meta.unit if meta else "",
-                "total": 0.0,
-                "sources": [],
-            }
-        stat_map[entry.stat].setdefault("slot_sources", []).append({
-            "source_type": entry.source_type,
-            "label": entry.label,
-            "text": entry.text,
-            "source_name": entry.source_name,
-            "amount": entry.amount,
-            "points": entry.points,
-            "slot": entry.slot,
-            "scope": entry.scope,
-        })
+    # (Slot-local contributions are merged into stat_map AFTER the offense pass below — apply_slot_effects emits
+    # some of them during offense, so they aren't all in source.slot_log yet here. See the slot_log merge near
+    # the return.)
 
     # Add derived effective stats as the "Character" section of the stat sheet
     from engine.derive import ALL_DERIVED_STATS as _DERIVED
@@ -810,6 +789,32 @@ def compute(
 
     from engine.aggregator import blessings_summary
     blessings = blessings_summary(active_booleans, numeric_vals, source)
+
+    # Slot-local contributions (supports / skill self-buffs) live in slot_log, NOT source_log, so they're absent
+    # from `total`/`sources`. Surface them in a parallel `slot_sources` list per stat so the breakdown can show
+    # them under a "Skill-specific (slot N)" group. Done HERE (after the offense pass) because apply_slot_effects
+    # emits some slot-local stats during offense (e.g. Furious Sweep's Gale-frequency-additional) — building this
+    # earlier would miss them. Display-only; never touches `total`/`sources`, so totals stay byte-identical.
+    for entry in source.slot_log:
+        if entry.stat not in stat_map:
+            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
+            stat_map[entry.stat] = {
+                "display_name": meta.display_name if meta else entry.stat,
+                "category": meta.category if meta else "Other",
+                "unit": meta.unit if meta else "",
+                "total": 0.0,
+                "sources": [],
+            }
+        stat_map[entry.stat].setdefault("slot_sources", []).append({
+            "source_type": entry.source_type,
+            "label": entry.label,
+            "text": entry.text,
+            "source_name": entry.source_name,
+            "amount": entry.amount,
+            "points": entry.points,
+            "slot": entry.slot,
+            "scope": entry.scope,
+        })
 
     return StatResult(
         stat_map=stat_map,

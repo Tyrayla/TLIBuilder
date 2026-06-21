@@ -1656,9 +1656,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                 formula: '1 ÷ Cast Time × (1 + Increased) × Additional — how fast channeled stacks build (0 → Max)',
               }}>{dec(offense.attacks_per_second)} /s</Row>
               <Row label="Gale Attack Frequency" breakdown={{
-                title: 'Gale Attack Frequency', keys: ['cast_speed_inc', 'cast_speed_additional'],
+                title: 'Gale Attack Frequency', keys: ['cast_speed_inc', 'cast_speed_additional', 'channeled_attack_frequency_additional'],
                 total: offense.channeled_attack_frequency, totalUnit: ' /s',
-                formula: 'Base Attack Frequency × cast-speed multiplier — the persistent entity\'s strike rate (the damage rate)',
+                formula: 'Base Attack Frequency × cast-speed multiplier × (1 + additional Gale Attack Frequency) — the persistent entity\'s strike rate (the damage rate)',
                 extra: [{ value: '1.5 /s', stat: 'Base Attack Frequency', source: 'Baseline', sourceName: offense.skill_name }],
               }}>{dec(offense.channeled_attack_frequency)} /s</Row>
             </>
