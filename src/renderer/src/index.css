@@ -9,6 +9,14 @@
   --fg-dim:    #444455;
   --ok:        #6bcb77;
   --err:       #ff6b6b;
+  color-scheme: dark;   /* render native form controls (incl. <select> dropdowns) dark, always */
+}
+
+/* Dark dropdowns everywhere — the native <option> popup is OS-rendered; force a dark palette. */
+select { color-scheme: dark; }
+select option, select optgroup {
+  background-color: #1a1a2e;
+  color: #cfd6e6;
 }
 
 html, body, #root {

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
+import { useUiPrefs } from '../store/uiPrefsStore'
 import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, NumbedInfo, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, HeroTrait } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
@@ -412,69 +413,145 @@ function StatPanel({
   accent,
   children,
   defaultCollapsed = false,
+  info,
 }: {
   title: string
   accent: string
   children: React.ReactNode
   defaultCollapsed?: boolean
+  // Optional explanatory prose (the old grey description/formula text). Surfaced on a CLICK of the title rather
+  // than printed inline — keeps the box uncluttered while the detail stays one click away.
+  info?: string
 }) {
+  // Collapsing is opt-in (Settings → Display). When off, the box is always expanded and shows no +/− control.
+  const collapsible = useUiPrefs(s => s.collapsiblePanels)
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'bottom', trigger: 'click', interactive: true })
+  const showCollapsed = collapsible && collapsed
   return (
     <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderLeft: `3px solid ${accent}`, borderRadius: 4, marginBottom: 6 }}>
       <div
-        onClick={() => setCollapsed(c => !c)}
         style={{
+          // Neutral grey/black header across every box (category is conveyed by the accent left border, not the
+          // header tint) so Channeled / Skill Effects / Skill Damage etc. all read the same.
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '5px 10px', background: accent + '22', cursor: 'pointer', userSelect: 'none',
+          padding: '5px 10px', background: 'rgba(255,255,255,0.05)', userSelect: 'none',
         }}
       >
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#ccc' }}>{title}</span>
-        <span style={{ color: '#666', fontSize: 13, lineHeight: 1 }}>{collapsed ? '+' : '−'}</span>
+        <span
+          {...(info ? tip.triggerProps : {})}
+          style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#ccc', cursor: info ? 'help' : 'default', outline: info && tip.open ? '1px solid #fff' : undefined, outlineOffset: 3 }}
+        >
+          {title}{info ? <span style={{ color: '#888', fontWeight: 400, marginLeft: 5 }}>ⓘ</span> : null}
+        </span>
+        {collapsible && (
+          <span onClick={() => setCollapsed(c => !c)} style={{ color: '#888', fontSize: 13, lineHeight: 1, cursor: 'pointer', padding: '0 2px' }}>
+            {collapsed ? '+' : '−'}
+          </span>
+        )}
       </div>
-      {!collapsed && <div style={{ padding: '6px 10px' }}>{children}</div>}
+      {info && tip.open && (
+        <FloatingPortal>
+          <div className="tooltip" {...tip.floatingProps} style={{ ...(tip.floatingProps as { style?: React.CSSProperties }).style, maxWidth: 320, fontSize: 11, lineHeight: 1.4, padding: '8px 10px', color: '#cfd6e6' }}>
+            {info}
+          </div>
+        </FloatingPortal>
+      )}
+      {!showCollapsed && <div style={{ padding: '6px 10px' }}>{children}</div>}
     </div>
   )
 }
 
 // ── Skill selector ────────────────────────────────────────────────────────────
 
-// Slots 1-5 are active, 6-9 passive (slot = index + 1).
-const SLOT_LABELS = ['Main', 'Act 2', 'Act 3', 'Act 4', 'Act 5', 'Pas 1', 'Pas 2', 'Pas 3', 'Pas 4']
+// Slot → human label. Slots 1-5 active (1 = main), 6-9 passive (slot = index + 1).
+function slotLabel(slot: number): string {
+  if (slot === 1) return 'Main Skill Slot'
+  if (slot >= 2 && slot <= 5) return `Active Slot ${slot}`
+  if (slot >= 6 && slot <= 9) return `Passive Slot ${slot - 5}`
+  return `Slot ${slot}`
+}
 
-function SkillSelector({
-  skills,
-  selected,
-  onSelect,
+
+// Calculation modes — only "full_uptime" is wired today (≈ the engine's current "max"); the rest are stubbed
+// placeholders for a future uptime/scenario pass (Phase 2).
+const CALC_MODES: { key: string; label: string; enabled: boolean }[] = [
+  { key: 'full_uptime', label: 'Full Uptime', enabled: true },
+  { key: 'effective', label: 'Effective', enabled: false },
+  { key: 'mapping', label: 'Mapping', enabled: false },
+  { key: 'boss', label: 'Boss', enabled: false },
+]
+
+// Selection bar for the skill/offense area: pick the skill by NAME (not slot label), the calculation mode
+// (stub), and which damage form to show (All forms, or a single form's contribution).
+function SkillSelectionBar({
+  skills, selected, onSelect,
+  forms, selectedForm, onSelectForm,
+  calcMode, onCalcMode,
 }: {
   skills: EquippedSkill[]
   selected: number
   onSelect: (slot: number) => void
+  forms: string[]
+  selectedForm: string | null
+  onSelectForm: (form: string | null) => void
+  calcMode: string
+  onCalcMode: (mode: string) => void
 }) {
-  const bySlot = Object.fromEntries(skills.map(s => [s.slot, s]))
+  // Equipped skills in slot order, by name. Each carries its slot so selection maps back to slot_offense.
+  const ordered = [...skills].sort((a, b) => a.slot - b.slot)
+  const selectSt: React.CSSProperties = {
+    fontSize: 11, background: 'rgba(255,255,255,0.06)', color: '#cfd6e6',
+    border: '1px solid rgba(255,255,255,0.12)', borderRadius: 3, padding: '2px 4px',
+  }
+  const skillSelectSt: React.CSSProperties = {
+    fontSize: 12, fontWeight: 600, background: 'rgba(200,120,32,0.18)', color: '#f0c070',
+    border: '1px solid #c87820', borderRadius: 3, padding: '4px 6px', maxWidth: '100%',
+  }
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-      {SLOT_LABELS.map((label, i) => {
-        const slot = i + 1
-        const skill = bySlot[slot]
-        const isSelected = selected === slot
-        const isEmpty = !skill
-        return (
-          <button
-            key={slot}
-            disabled={isEmpty}
-            onClick={() => !isEmpty && onSelect(slot)}
-            title={skill ? `${skill.name} (L${skill.level})` : 'Empty'}
-            style={{
-              padding: '3px 8px', fontSize: 11, borderRadius: 3, cursor: isEmpty ? 'default' : 'pointer',
-              background: isSelected ? 'rgba(200,120,32,0.35)' : 'rgba(255,255,255,0.05)',
-              border: isSelected ? '1px solid #c87820' : '1px solid rgba(255,255,255,0.1)',
-              color: isEmpty ? '#444' : isSelected ? '#f0c070' : '#bbb',
-            }}
-          >
-            {label}
-          </button>
-        )
-      })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+      {/* Skill dropdown — select by name */}
+      <div>
+        {ordered.length === 0
+          ? <span style={{ fontSize: 11, color: '#555' }}>No skills equipped.</span>
+          : (
+            <select
+              value={selected}
+              onChange={e => onSelect(Number(e.target.value))}
+              style={skillSelectSt}
+            >
+              {ordered.map(sk => (
+                <option key={sk.slot} value={sk.slot}>{sk.name}</option>
+              ))}
+            </select>
+          )}
+      </div>
+      {/* Mode + form controls */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888' }}>
+          Mode
+          <select value={calcMode} onChange={e => onCalcMode(e.target.value)} style={selectSt}>
+            {CALC_MODES.map(m => (
+              <option key={m.key} value={m.key} disabled={!m.enabled}>
+                {m.label}{m.enabled ? '' : ' (soon)'}
+              </option>
+            ))}
+          </select>
+        </label>
+        {forms.length > 1 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888' }}>
+            Form
+            <select
+              value={selectedForm ?? '__all__'}
+              onChange={e => onSelectForm(e.target.value === '__all__' ? null : e.target.value)}
+              style={selectSt}
+            >
+              <option value="__all__">All forms (combined)</option>
+              {forms.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
     </div>
   )
 }
@@ -578,9 +655,9 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
 
   // Shared cell styles. Tight font/padding so all six damage-type columns (incl. Erosion) fit the
   // left column without overflowing into the middle column.
-  const thSt: React.CSSProperties = { textAlign: 'right', fontSize: 10, color: '#888', fontWeight: 600, paddingBottom: 3, paddingLeft: 2, paddingRight: 2, whiteSpace: 'nowrap' }
-  const td:   React.CSSProperties = { textAlign: 'right', fontSize: 10, fontVariantNumeric: 'tabular-nums', paddingLeft: 2, paddingRight: 2, color: '#e0e0e0', whiteSpace: 'nowrap' }
-  const tdLbl: React.CSSProperties = { textAlign: 'left', fontSize: 10, color: '#888', paddingRight: 6, whiteSpace: 'nowrap' }
+  const thSt: React.CSSProperties = { textAlign: 'right', fontSize: 12, color: '#888', fontWeight: 600, paddingBottom: 3, paddingLeft: 2, paddingRight: 2, whiteSpace: 'nowrap' }
+  const td:   React.CSSProperties = { textAlign: 'right', fontSize: 12, fontVariantNumeric: 'tabular-nums', paddingLeft: 2, paddingRight: 2, color: '#e0e0e0', whiteSpace: 'nowrap' }
+  const tdLbl: React.CSSProperties = { textAlign: 'left', fontSize: 12, color: '#888', paddingRight: 6, whiteSpace: 'nowrap' }
   const tdDim: React.CSSProperties = { ...td, color: '#444' }
   const tdSub: React.CSSProperties = { ...tdLbl, color: '#666' }
 
@@ -590,7 +667,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
 
   return (
     <div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr>
             <th style={{ ...thSt, textAlign: 'left', color: '#555' }}></th>
@@ -671,14 +748,13 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
             const formPct = totalDps > 0 ? `${(form.dps_vs_target * breakdownMult / totalDps * 100).toFixed(0)}%` : '—'
 
             const multiForm = offense.hit_forms.length > 1
-            const hpf = form.hits_per_fire ?? 1
             return (
               <React.Fragment key={form.name}>
                 {/* Each form is its own visually-separated area (border + faint background) so multi-form
                     skills (e.g. Icebound Beam: Cold Beam + Icy Blade) read as distinct damage sources. */}
                 <tr>
                   <td colSpan={7} style={{
-                    paddingTop: 6, paddingBottom: 4, marginTop: 4, fontSize: 11.5, color: '#e0d0a0', fontWeight: 700,
+                    paddingTop: 6, paddingBottom: 4, marginTop: 4, fontSize: 13, color: '#e0d0a0', fontWeight: 700,
                     borderTop: multiForm ? '1px solid rgba(200,160,80,0.25)' : undefined,
                     background: multiForm ? 'rgba(200,160,80,0.05)' : undefined,
                   }}>
@@ -688,11 +764,8 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                         {(form.proc_chance * 100).toFixed(0)}% chance
                       </span>
                     )}
-                    {(form.fires_per_sec ?? 0) > 0 && (
-                      <span style={{ color: '#8aa', fontWeight: 400, marginLeft: 6 }}>
-                        {dec(form.fires_per_sec)}/s
-                      </span>
-                    )}
+                    {/* Per-form rate lives in the Hit Rate box now, not here. Shotgun details live in the
+                        Shotgunning box. The damage table stays purely about damage. */}
                   </td>
                 </tr>
                 <tr>
@@ -706,17 +779,6 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                     </td>
                   })}
                 </tr>
-                {hpf > 1 && (
-                  <tr>
-                    <td style={tdLbl}>Shotgun</td>
-                    <td colSpan={6} style={{ ...td, color: '#cba', textAlign: 'left' }}>
-                      {hpf} projectiles hit one target — 1 × 100%
-                      {` + ${hpf - 1} × ${dec((1 - form.shotgun_falloff) * 100)}%`}
-                      {` = ×${dec(form.shotgun_mult)}`}
-                      <span style={{ color: '#666', marginLeft: 6 }}>(falloff coefficient {dec(form.shotgun_falloff * 100)}%)</span>
-                    </td>
-                  </tr>
-                )}
                 <tr>
                   <td style={tdLbl}>DPS</td>
                   <td style={{ ...td, color: '#f0c070' }}>{fmtNum(form.dps_vs_target * breakdownMult)}</td>
@@ -731,7 +793,9 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                 </tr>
                 <tr>
                   <td style={tdSub}>% of Total</td>
-                  <td style={{ ...td, color: '#aaa' }}>{formPct}</td>
+                  {/* "All Types" is the whole, so its own % is trivially 100% — show the form's SHARE only when
+                      there are multiple forms (where it's informative); blank it for a single form. */}
+                  <td style={{ ...td, color: '#aaa' }}>{multiForm ? formPct : ''}</td>
                   {ALL_DTYPES.map(d => {
                     const dtypeAvg = form.damage_by_type[d] ?? 0
                     const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
@@ -747,10 +811,11 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
           {/* ── Type contribution summary ── */}
           <tr><td colSpan={7} style={{ paddingTop: 6 }} /></tr>
           <tr>
-            <td style={{ ...tdLbl, color: '#666', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <td style={{ ...tdLbl, color: '#666', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Type Contribution
             </td>
-            <td style={{ ...td, color: '#aaa' }}>100%</td>
+            {/* "All Types" contribution is always 100% (it's the sum) — meaningless, so leave it blank. */}
+            <td style={td}></td>
             {ALL_DTYPES.map(d => {
               const dtypeDps = dtypeDpsTotal[d] ?? 0
               const pct = totalDps > 0 && dtypeDps > 0 ? `${(dtypeDps / totalDps * 100).toFixed(0)}%` : '—'
@@ -767,6 +832,38 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
 
 const AMBER = '#c87820'
 const SKYBLUE = '#3a86c8'
+const GREY = '#555'
+
+// Mechanic scaffolding: skills tagged with one of these get a dedicated box. The modeled mechanics (Tangle,
+// Spell Burst, Channeled) render their real boxes from offense data above; these are the not-yet-modeled ones —
+// each shows a small "modeling pending" stub so filling it in later is just swapping the body for real data.
+// Gated on skill_tags so only relevant skills surface a stub (mirrors how the real boxes gate on their data).
+const MECH_STUBS: { label: string; tag: string; note: string }[] = [
+  { label: 'Combo', tag: 'combo', note: 'Combo-stage scaling, stage gain/loss, and finisher hits are not modeled yet.' },
+  { label: 'Demolisher Charges', tag: 'demolisher', note: 'Demolisher charge generation, cap, and consumption are not modeled yet.' },
+  { label: 'Barrage', tag: 'barrage', note: 'Barrage wave count and release cadence are not modeled yet.' },
+  { label: 'Multistrike', tag: 'multistrike', note: 'Multistrike repeat-hit cadence is not modeled yet.' },
+]
+
+// Flex-item wrapper for the offense box grid: every box (rate, crit, skill effects, shotgun, tangle, spell
+// burst, channeled, stubs) is one of these so they flow left-to-right and wrap, filling the row with as many
+// boxes as fit. align-items:flex-start on the container lets boxes of different heights sit side by side.
+function GridBox({ children }: { children: React.ReactNode }) {
+  // A masonry column item: break-inside:avoid keeps a box whole within a column so the multi-column container
+  // packs boxes by height (no ragged row gaps). The StatPanel's own marginBottom provides the vertical spacing.
+  return <div style={{ breakInside: 'avoid' }}>{children}</div>
+}
+
+// A grey "modeling pending" box for an unimplemented mechanic — collapsed by default to stay out of the way.
+function MechanicStubPanel({ label, note }: { label: string; note: string }) {
+  return (
+    <StatPanel title={label} accent={GREY} defaultCollapsed>
+      <div style={{ fontSize: 10, color: '#777' }}>
+        {note} <span style={{ color: '#c8645a' }}>(NYI)</span>
+      </div>
+    </StatPanel>
+  )
+}
 
 // Non-hit skills (passives / empower-style buffs) have no hit-DPS offense yet. Surface a Skill-Viewer
 // foundation with the mechanics we intend to model, marked NYI so nothing reads as silently missing.
@@ -778,7 +875,7 @@ function _curseDebuffLabel(statKey: string | null): string {
   return `${t.charAt(0).toUpperCase()}${t.slice(1)} Damage taken`
 }
 
-function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta, empower }: { skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null }) {
+function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta, empower }: { slot: number; skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null }) {
   const ctx = useContext(BreakdownCtx)
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
@@ -791,7 +888,7 @@ function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta, empo
   const fmtGrant = (stat: string, amt: number) =>
     /_flat$/.test(stat) ? fmtNum(amt) : fmtPct(amt)
   return (
-    <StatPanel title={`Skill — ${skill.name}`} accent={AMBER}>
+    <StatPanel title={`${slotLabel(slot)} — ${skill.name} (Level ${skill.level})`} accent={AMBER}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
         {skill.skill_tags?.map(t => <span key={t} style={{ fontSize: 9, color: '#888', background: '#1a1a2e', borderRadius: 3, padding: '1px 5px' }}>{t}</span>)}
       </div>
@@ -1003,21 +1100,25 @@ function SkillFoundationPanel({ skill, aura, reservation, curse, curseMeta, empo
   )
 }
 
-function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, empower }: { offense: OffenseResult | null; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null }) {
+function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null }) {
+  // Character-wide stats the Skill Effects box surfaces (projectile speed / penetration / jumps). Per-skill
+  // scoping is Phase-2 engine work; for now we show the build-wide totals with their source breakdowns.
+  const bdCtx = useContext(BreakdownCtx)
+  const statMap = bdCtx?.statMap ?? {}
 
   if (!offense) {
     // No computed offense for this slot. If a skill IS equipped here (passive/buff/curse/empower), show its
     // foundation panel; otherwise the slot is empty.
     return skill
-      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} />
-      : <StatPanel title="Skill" accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
+      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} />
+      : <StatPanel title={slotLabel(slot)} accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
   if (!offense.supported) {
     return skill
-      ? <SkillFoundationPanel skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} />
+      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} />
       : (
-        <StatPanel title={`Skill — ${offense.skill_name}`} accent={AMBER}>
+        <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name}`} accent={AMBER}>
           <div style={{ fontSize: 12, color: '#ff6b6b' }}>Skill calculation not yet supported.</div>
         </StatPanel>
       )
@@ -1031,7 +1132,7 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
 
   return (
     <>
-      <StatPanel title={`Skill — ${offense.skill_name} (Level ${offense.effective_level})`} accent={AMBER}>
+      <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name} (Level ${offense.effective_level})`} accent={AMBER}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 6px' }}>
           <span style={{ fontSize: 12, color: '#999' }}>DPS</span>
           <span style={{ fontSize: 17, fontWeight: 700, color: '#f0c070', fontVariantNumeric: 'tabular-nums' }}>
@@ -1053,66 +1154,153 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
         {offense.above_max_mult > 1.0 && (
           <Row label="Above Max Multiplier">×{offense.above_max_mult.toFixed(3)}</Row>
         )}
-        {hasTag(offense,'area') && (
-          <Row label="Area of Effect">{offense.skill_area_inc !== 0 ? `+${(offense.skill_area_inc * 100).toFixed(0)}%` : '+0%'}</Row>
-        )}
-        {hasTag(offense,'projectile') && (
-          (offense.projectile_count ?? -1) >= 0
-            ? <Row label="Projectile Count" breakdown={{
-                title: 'Projectile Count', keys: ['projectile_quantity_flat'], total: offense.projectile_count, totalUnit: '',
-                formula: 'skill base projectiles + Σ +Projectile Quantity (all home onto one target and shotgun); 0 = the projectile form does not fire',
-              }}>{offense.projectile_count}</Row>
-            : <Row label="Projectile Count" labelColor="#555">— NYI</Row>
-        )}
       </StatPanel>
 
       <StatPanel title="Skill Hit Damage" accent={AMBER}>
-        <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
-          Hit = Base flat × (1 + Increased) × Additional × Crit × Above-max
-        </div>
         <DamageBreakdownTable offense={offense} />
       </StatPanel>
 
-      <StatPanel title="Hit Rate" accent={AMBER}>
-        <Row label={rateLabel} breakdown={{
-          title: rateLabel, keys: rateKeys, total: offense.attacks_per_second, totalUnit: '',
-          formula: isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional',
-          extra: isSpell && offense.base_cast_time > 0
-            ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
-            : undefined,
-        }}>{dec(offense.attacks_per_second)}</Row>
-      </StatPanel>
+      {/* Box grid: rate · crit · skill effects always present, then any mechanic boxes that apply (shotgun,
+          tangle, spell burst, channeled, stubs). Masonry packing (CSS multi-column) fills vertical gaps by box
+          height; capped at 4 columns (columnCount) and ~1070px wide so boxes don't sprawl. */}
+      <div style={{ columnWidth: 220, columnCount: 4, columnGap: 6, maxWidth: 1070 }}>
+        <GridBox>
+          <StatPanel title="Hit Rate" accent={AMBER}
+            info={isSpell ? 'Cast Rate = 1 ÷ Cast Time × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate — some forms fire every cast, others on a slower cadence.'
+              : 'Attack Rate = Weapon APS × (1 + Gear) × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate.'}>
+            {/* Multi-form skills list each form's own firing rate (forms fire at different cadences — e.g. beam
+                every cast, blade slower); the general cast/attack rate is dropped since the main form duplicates
+                it. Single-form skills show the one general rate. Each row carries its own source breakdown. */}
+            {offense.hit_forms.length > 1 ? (
+              offense.hit_forms.map(f => (
+                <Row key={f.name} label={f.name} labelColor="#8aa" breakdown={{
+                  title: `${f.name} — firing rate`, keys: rateKeys, total: f.fires_per_sec, totalUnit: ' /s',
+                  formula: isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional, at this form\'s cadence' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional, at this form\'s cadence',
+                  extra: isSpell && offense.base_cast_time > 0
+                    ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
+                    : undefined,
+                }}>{dec(f.fires_per_sec)}/s</Row>
+              ))
+            ) : (
+              <Row label={rateLabel} breakdown={{
+                title: rateLabel, keys: rateKeys, total: offense.attacks_per_second, totalUnit: '',
+                formula: isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional',
+                extra: isSpell && offense.base_cast_time > 0
+                  ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
+                  : undefined,
+              }}>{dec(offense.attacks_per_second)}</Row>
+            )}
+          </StatPanel>
+        </GridBox>
 
-      <StatPanel title="Critical Strikes" accent={AMBER}>
-        {/* Hover for the full breakdown (like the other rows) — no inline accordion. For spells the
-            intrinsic base crit rating is shown as a "Spell base" baseline; for attacks the weapon's base
-            crit rating shows as a real gear source via weapon_crit_rating_flat. */}
-        <Row label="Crit Chance" breakdown={{
-          title: 'Crit Chance',
-          keys: isSpell
-            ? ['spell_crit_rating_flat', 'spell_crit_rating_inc', 'crit_rating_inc', 'crit_rating_additional', 'projectile_crit_rating_inc']
-            : ['weapon_crit_rating_flat', 'attack_crit_rating_gear', 'attack_crit_rating_mh', 'attack_crit_rating_flat', 'attack_crit_rating_inc', 'crit_rating_inc', 'crit_rating_additional'],
-          total: offense.crit_chance, totalUnit: '%',
-          formula: '(Base + Flat) × (1 + Increased) ÷ 100',
-          extra: isSpell && offense.base_csr > 0
-            ? [{ value: offense.base_csr.toFixed(0), stat: 'Base Crit Rating', source: 'Baseline', sourceName: 'Spell base' }]
-            : undefined,
-        }}>{dec((offense.crit_chance * 100))}%</Row>
-        <Row label="Crit Multiplier" breakdown={{
-          title: 'Crit Multiplier',
-          keys: ['crit_damage'],
-          total: offense.crit_multiplier, totalUnit: '%',
-          formula: '150% + Σ Crit Damage',
-          extra: [{ value: '150%', stat: 'Crit Multiplier', source: 'Baseline', sourceName: 'Base ×1.5' }],
-        }}>{(offense.crit_multiplier * 100).toFixed(0)}%</Row>
-      </StatPanel>
+        <GridBox>
+          <StatPanel title="Critical Strikes" accent={AMBER}>
+            {/* Hover for the full breakdown (like the other rows) — no inline accordion. For spells the
+                intrinsic base crit rating is shown as a "Spell base" baseline; for attacks the weapon's base
+                crit rating shows as a real gear source via weapon_crit_rating_flat. */}
+            <Row label="Crit Chance" breakdown={{
+              title: 'Crit Chance',
+              keys: isSpell
+                ? ['spell_crit_rating_flat', 'spell_crit_rating_inc', 'crit_rating_inc', 'crit_rating_additional', 'projectile_crit_rating_inc']
+                : ['weapon_crit_rating_flat', 'attack_crit_rating_gear', 'attack_crit_rating_mh', 'attack_crit_rating_flat', 'attack_crit_rating_inc', 'crit_rating_inc', 'crit_rating_additional'],
+              total: offense.crit_chance, totalUnit: '%',
+              formula: '(Base + Flat) × (1 + Increased) ÷ 100',
+              extra: isSpell && offense.base_csr > 0
+                ? [{ value: offense.base_csr.toFixed(0), stat: 'Base Crit Rating', source: 'Baseline', sourceName: 'Spell base' }]
+                : undefined,
+            }}>{dec((offense.crit_chance * 100))}%</Row>
+            <Row label="Crit Multiplier" breakdown={{
+              title: 'Crit Multiplier',
+              keys: ['crit_damage'],
+              total: offense.crit_multiplier, totalUnit: '%',
+              formula: '150% + Σ Crit Damage',
+              extra: [{ value: '150%', stat: 'Crit Multiplier', source: 'Baseline', sourceName: 'Base ×1.5' }],
+            }}>{(offense.crit_multiplier * 100).toFixed(0)}%</Row>
+          </StatPanel>
+        </GridBox>
+
+        {/* Skill Effects — one of the 3 always-present boxes. Area/count/speed show for projectile-or-area skills;
+            penetrations and jumps only appear when the build actually has them. (Values are build-wide today;
+            per-skill scoping is Phase-2.) */}
+        {(() => {
+          const projSpeedInc = statMap['projectile_speed_inc']?.total ?? 0
+          const penetrations = statMap['horizontal_projectile_penetration_flat']?.total ?? 0
+          const extraJumps = statMap['extra_jumps_flat']?.total ?? 0
+          return (
+            <GridBox>
+              <StatPanel title="Skill Effects" accent={AMBER}>
+                {hasTag(offense, 'area') && (
+                  <Row label="Area of Effect">{offense.skill_area_inc !== 0 ? `+${(offense.skill_area_inc * 100).toFixed(0)}%` : '+0%'}</Row>
+                )}
+                {hasTag(offense, 'projectile') && (
+                  (offense.projectile_count ?? -1) >= 0
+                    ? <Row label="Projectile Count" breakdown={{
+                        title: 'Projectile Count', keys: ['projectile_quantity_flat'], total: offense.projectile_count, totalUnit: '',
+                        formula: 'skill base projectiles + Σ +Projectile Quantity (all home onto one target and shotgun); 0 = the projectile form does not fire',
+                      }}>{offense.projectile_count}</Row>
+                    : <Row label="Projectile Count" labelColor="#555">— NYI</Row>
+                )}
+                {/* Projectile Speed: always shown for projectile skills (even at +0%), with its source breakdown. */}
+                {hasTag(offense, 'projectile') && (
+                  <Row label="Projectile Speed" breakdown={{
+                    title: 'Projectile Speed', keys: ['projectile_speed_inc', 'projectile_speed_additional'],
+                    total: projSpeedInc, totalUnit: '%', formula: 'Σ Increased Projectile Speed × Π(1 + Additional)',
+                  }}>{projSpeedInc !== 0 ? `+${dec(projSpeedInc * 100)}%` : '+0%'}</Row>
+                )}
+                {/* Horizontal Penetration: only when the build has it. */}
+                {penetrations > 0 && (
+                  <Row label="Horizontal Penetration" breakdown={{
+                    title: 'Horizontal Penetration', keys: ['horizontal_projectile_penetration_flat'],
+                    total: penetrations, totalUnit: '', formula: 'Σ +Horizontal Projectile Penetration',
+                  }}>{penetrations}</Row>
+                )}
+                {/* Jumps / Chains: only when the build has extra jumps. */}
+                {extraJumps > 0 && (
+                  <Row label="Jumps" breakdown={{
+                    title: 'Extra Jumps', keys: ['extra_jumps_flat'],
+                    total: extraJumps, totalUnit: '', formula: 'Σ +Extra Jumps',
+                  }}>{extraJumps}</Row>
+                )}
+              </StatPanel>
+            </GridBox>
+          )
+        })()}
+
+        {/* Shotgunning: shows each form that lands multiple same-target hits (projectiles/blades) plus any
+            cast-level same-target shotgun. Hidden when nothing shotguns. */}
+        {(() => {
+          const sgForms = (offense.hit_forms ?? []).filter(f => (f.hits_per_fire ?? 0) > 1)
+          const castShotgun = (offense.shotgun_hits ?? 0) > 1
+          if (sgForms.length === 0 && !castShotgun) return null
+          return (
+            <GridBox>
+              <StatPanel title="Shotgunning" accent={AMBER}
+                info="Multiple hits land on the same target each occurrence; each subsequent hit is reduced by the falloff coefficient. Same-target multiplier = 1 + (hits − 1) × (1 − falloff).">
+                {sgForms.map((f, i) => (
+                  <React.Fragment key={f.name}>
+                    {/* One sub-block per form: name header, then the count / falloff / multiplier broken out
+                        across their own rows rather than crammed into a single line. */}
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#e0d0a0', marginTop: i > 0 ? 6 : 0, marginBottom: 1 }}>{f.name}</div>
+                    <Row label="Projectiles / hits">{f.hits_per_fire}</Row>
+                    <Row label="Falloff coefficient">{dec(f.shotgun_falloff * 100)}%</Row>
+                    <Row label="Same-target multiplier"><span style={{ color: '#f0c070' }}>×{dec(f.shotgun_mult)}</span></Row>
+                  </React.Fragment>
+                ))}
+                {castShotgun && (
+                  <>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#e0d0a0', marginTop: sgForms.length ? 6 : 0, marginBottom: 1 }}>Per cast</div>
+                    <Row label="Same-target hits">{offense.shotgun_hits}</Row>
+                    <Row label="Multiplier"><span style={{ color: '#f0c070' }}>×{dec(offense.cast_multiplier)}</span></Row>
+                  </>
+                )}
+              </StatPanel>
+            </GridBox>
+          )
+        })()}
 
       {(offense.tangle_count ?? 0) > 0 && (
-        <StatPanel title="Tangle" accent={AMBER}>
-          <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
-            Cast by attached Tangles (each a full caster) — Tangle DPS = per-cast × attached count. Tangle Damage /
-            Enhancement / Crit feed the normal damage pools above.
-          </div>
+        <GridBox><StatPanel title="Tangle" accent={AMBER}
+          info="Cast by attached Tangles (each a full caster) — Tangle DPS = per-cast × attached count. Tangle Damage / Enhancement / Crit feed the normal damage pools above.">
           <Row label="Attached (casting)" breakdown={{
             title: 'Attached Tangles', keys: ['extra_tangle_applied_flat'], total: offense.tangle_count, totalUnit: '',
             extra: [{ value: '1', stat: 'Base', source: 'Baseline', sourceName: 'Base attach per enemy' }],
@@ -1140,16 +1328,12 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
           <Row label="Tangle Damage Multiplier" labelColor="#d8b878">
             <span style={{ color: '#f0c070' }}>×{dec((offense.tangle_mult ?? offense.tangle_count))}</span>
           </Row>
-        </StatPanel>
+        </StatPanel></GridBox>
       )}
 
       {(offense.spell_burst_count ?? 0) > 0 && (
-        <StatPanel title="Spell Burst" accent={SKYBLUE}>
-          <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
-            An eligible Spell cast at full charge consumes all stacks and recasts itself (the triggering cast counts too).
-            Charge is a server-timed whole-tick countdown (30 Hz), so charge speed only helps at integer-tick crossings.
-            Spell Burst Hit Damage feeds the additional pool above.
-          </div>
+        <GridBox><StatPanel title="Spell Burst" accent={SKYBLUE}
+          info="An eligible Spell cast at full charge consumes all stacks and recasts itself (the triggering cast counts too). Charge is a server-timed whole-tick countdown (30 Hz), so charge speed only helps at integer-tick crossings. Spell Burst Hit Damage feeds the additional pool above.">
           <Row label="Max Spell Burst" breakdown={{
             title: 'Max Spell Burst', keys: ['max_spell_burst_flat'], total: offense.spell_burst_count, totalUnit: '',
             formula: 'Σ +Max Spell Burst (base 0)',
@@ -1254,19 +1438,18 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
           }}>
             <span style={{ color: '#f0c070' }}>{fmtNum(offense.total_dps_vs_target)}</span>
           </Row>
-        </StatPanel>
+        </StatPanel></GridBox>
       )}
 
       {(offense.channeled_max_stacks ?? 0) > 0 && (
-        <StatPanel title="Channeled" accent={SKYBLUE}>
-          <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
-            Gains 1 channeled stack per use (the first round from 0 gains 1 + Min).{' '}
-            {offense.channeled_behavior === 'reset'
+        <GridBox><StatPanel title="Channeled" accent={SKYBLUE}
+          info={'Gains 1 channeled stack per use (the first round from 0 gains 1 + Min). '
+            + (offense.channeled_behavior === 'reset'
               ? 'At max stacks it dumps ALL stacks and fires its burst form, then ramps again — so the continuous form fires every use while the burst fires once per cycle.'
-              : 'Holds at max while channeling.'}
-            {(offense.channeled_attack_frequency ?? 0) > 0 &&
-              ' The damage is dealt by a persistent entity striking at its own Attack Frequency (below), not the channel rate.'}
-          </div>
+              : 'Holds at max while channeling.')
+            + ((offense.channeled_attack_frequency ?? 0) > 0
+              ? ' The damage is dealt by a persistent entity striking at its own Attack Frequency (below), not the channel rate.'
+              : '')}>
           <Row label="Max Channeled Stacks" breakdown={{
             title: 'Max Channeled Stacks', keys: ['max_channeled_stacks_flat'], total: offense.channeled_max_stacks, totalUnit: '',
             formula: 'skill base + Σ +Max Channeled Stacks',
@@ -1310,8 +1493,15 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
               }}>{dec(offense.channeled_burst_rate)} /s</Row>
             </>
           )}
-        </StatPanel>
+        </StatPanel></GridBox>
       )}
+
+      {/* Stub boxes for mechanics this skill has but the engine doesn't model yet (Combo / Demolisher / Barrage /
+          Multistrike). The modeled mechanics above (Tangle / Spell Burst / Channeled) render real data instead. */}
+      {MECH_STUBS.filter(m => hasTag(offense, m.tag)).map(m => (
+        <GridBox key={m.tag}><MechanicStubPanel label={m.label} note={m.note} /></GridBox>
+      ))}
+      </div>
     </>
   )
 }
@@ -1562,9 +1752,6 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
   const details = target.debuff_details ?? []
   return (
     <StatPanel title={`Target (${src})`} accent="#b03030">
-      <div style={{ fontSize: 9, color: '#777', marginBottom: 5 }}>
-        Base values from <span style={{ color: '#aaa' }}>{src}</span>. Penetration is applied at the hit — it does <i>not</i> lower the enemy's resistance.
-      </div>
       {rows.map(r => {
         const changed = Math.abs(r.base - r.effective) > 1e-9
         const amplified = r.effective < 0
@@ -1696,7 +1883,14 @@ export default function PlayerStatsScreen() {
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
   const uptimeMode = useBuildStore(s => s.uptimeMode)   // currently always 'max' (Real swap disabled)
-  const [selectedSlot, setSelectedSlot] = useState(1)
+  // Persisted in uiPrefs so the viewed skill sticks across screen navigation (new/empty builds fall back to
+  // the first populated slot via the effect below).
+  const selectedSlot = useUiPrefs(s => s.statsSelectedSlot)
+  const setSelectedSlot = useUiPrefs(s => s.setStatsSelectedSlot)
+  const [calcMode, setCalcMode] = useState('full_uptime')   // stub; only full_uptime is wired (Phase 2)
+  const [selectedForm, setSelectedForm] = useState<string | null>(null)   // null = all forms combined
+  // Reset the form filter whenever the selected skill changes (forms differ per skill).
+  useEffect(() => { setSelectedForm(null) }, [selectedSlot])
 
   // If the selected slot has no skill (e.g. the main damage skill is parked in slot 2 and slot 1 is
   // empty), jump to the first populated slot so the viewer opens on a real skill instead of "Main · empty".
@@ -1789,6 +1983,23 @@ export default function PlayerStatsScreen() {
   const shownOffense = slotOffense
     ? (slotOffense[String(selectedSlot)] ?? null)
     : (selectedSlot === 1 ? offense : null)
+  // Form filter (Phase 1 = display-only): when a single form is selected, show just its damage by filtering
+  // hit_forms and scaling the headline DPS to that form's share of the combined total (so it reconciles with
+  // the shown numbers). Phase 2 swaps this for a true engine recompute (forced forms, Chilling Spike split).
+  const formNames = shownOffense?.hit_forms?.map(f => f.name) ?? []
+  const displayOffense = useMemo(() => {
+    if (!shownOffense || !selectedForm) return shownOffense
+    const form = shownOffense.hit_forms.find(f => f.name === selectedForm)
+    if (!form) return shownOffense
+    const sumVt = shownOffense.hit_forms.reduce((s, f) => s + f.dps_vs_target, 0) || 1
+    const sumD = shownOffense.hit_forms.reduce((s, f) => s + f.dps_contribution, 0) || 1
+    return {
+      ...shownOffense,
+      hit_forms: [form],
+      total_dps_vs_target: shownOffense.total_dps_vs_target * (form.dps_vs_target / sumVt),
+      total_dps: shownOffense.total_dps * (form.dps_contribution / sumD),
+    }
+  }, [shownOffense, selectedForm])
   const blessings = ((computedStats as { blessings?: BlessingSummary[] | null }).blessings) ?? null
   const auras = ((computedStats as { auras?: AuraSummary[] | null }).auras) ?? null
   const curses = ((computedStats as { curses?: CurseSummary[] | null }).curses) ?? null
@@ -1807,13 +2018,16 @@ export default function PlayerStatsScreen() {
     <BreakdownCtx.Provider value={{ statMap, gear, sourceLines, treeColors, memoryColors, skillsByName, supportInstances, traitNodeTooltip, selectedSlot }}>
       <div className="dark-scroll" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, height: '100%', overflowY: 'auto', padding: '16px 20px', boxSizing: 'border-box' }}>
         {/* Left — skill offense (widest min: must fit the 6-column damage-type table) */}
-        <div style={{ flex: '40', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
-          <SkillSelector skills={skills} selected={selectedSlot} onSelect={setSelectedSlot} />
-          <OffensePanels offense={shownOffense} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} />
+        <div style={{ flex: '55', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
+          <SkillSelectionBar
+            skills={skills} selected={selectedSlot} onSelect={setSelectedSlot}
+            forms={formNames} selectedForm={selectedForm} onSelectForm={setSelectedForm}
+            calcMode={calcMode} onCalcMode={setCalcMode} />
+          <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} />
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility */}
-        <div style={{ flex: '27', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: '22', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
           <TargetPanel target={computedStats.target_stats} />
           <NumbedPanel
             numbed={((computedStats as { numbed?: NumbedInfo | null }).numbed) ?? null}
@@ -1825,7 +2039,7 @@ export default function PlayerStatsScreen() {
         </div>
 
         {/* Right — defensive pools (trimmed to give the offense table room) */}
-        <div style={{ flex: '33', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: '23', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
           <DefensePanels defense={defense} reservation={reservation} />
         </div>
       </div>

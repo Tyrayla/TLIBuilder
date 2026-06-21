@@ -18,6 +18,14 @@ interface UiPrefsStore {
   // Passive-skill catalog sort order (same options as supports; only used on passive slots).
   passiveSort: CatalogSort
   setPassiveSort: (sort: CatalogSort) => void
+  // Stats screen: which skill slot is being viewed. Persisted so it sticks when navigating away and back
+  // (a new/empty build falls back to the first populated slot via the screen's effect).
+  statsSelectedSlot: number
+  setStatsSelectedSlot: (slot: number) => void
+  // Allow stat panels (StatPanel boxes) to collapse via their +/− control. Default OFF — boxes stay expanded
+  // and show no collapse control; the user opts in under Settings → Display.
+  collapsiblePanels: boolean
+  setCollapsiblePanels: (on: boolean) => void
 }
 
 export const useUiPrefs = create<UiPrefsStore>()(
@@ -29,6 +37,10 @@ export const useUiPrefs = create<UiPrefsStore>()(
       setSupportSort: (supportSort) => set({ supportSort }),
       passiveSort: 'alpha',
       setPassiveSort: (passiveSort) => set({ passiveSort }),
+      statsSelectedSlot: 1,
+      setStatsSelectedSlot: (statsSelectedSlot) => set({ statsSelectedSlot }),
+      collapsiblePanels: false,
+      setCollapsiblePanels: (collapsiblePanels) => set({ collapsiblePanels }),
     }),
     { name: 'tli-ui-prefs' },
   ),
