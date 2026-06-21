@@ -428,6 +428,7 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
     """
     mult = 1.0 + source.total("paralysis_dmg_taken")        # global
     mult *= 1.0 + source.total("no_guard_dmg_taken")        # global (Rosa Desperation — No Guard)
+    mult *= 1.0 + source.total("knockback_dmg_taken")       # global (Howling Gale — Headwind; gated by hook on enemy_knocked_back)
     if dtype == "lightning":
         mult *= 1.0 + source.total("numbed_lightning_taken")
     if dtype in ("fire", "cold", "lightning"):              # Infiltration — element-typed
@@ -620,6 +621,7 @@ class OffenseResult:
     channeled_rounds_per_cycle: float = 0.0  # uses per RESET cycle = max(1, max − min)
     channeled_burst_rate: float = 0.0      # reset-burst occurrences/sec (= aps / rounds_per_cycle)
     channeled_behavior: str = ""           # "reset" | "refresh" | "" (not channeled)
+    channeled_attack_frequency: float = 0.0  # persistent-entity strike rate (Howling Gale's Gale); 0 = N/A
     projectile_count: int = -1             # projectiles of the projectile-scaling form (Icy Blade); -1 = N/A (no such form)
 
 
@@ -934,6 +936,7 @@ def calculate_offense(
     ch_rounds_per_cycle = 0.0
     ch_burst_rate = 0.0
     ch_behavior = ""
+    ch_attack_frequency = 0.0   # persistent-entity strike rate (Howling Gale's Gale); 0 = not used
     if skill.channeled:
         ch_max_stacks = int(skill.channeled.max_stacks) + int(source.total("max_channeled_stacks_flat"))
         ch_min_stacks = int(skill.channeled.min_stacks) + int(source.total("min_channeled_stacks_flat"))
@@ -942,6 +945,18 @@ def calculate_offense(
         ch_rounds_per_cycle = uptime.channeled_rounds_per_cycle(ch_max_stacks, ch_min_stacks)
         ch_burst_rate = aps / ch_rounds_per_cycle if ch_rounds_per_cycle else aps
         ch_behavior = skill.channeled.behavior
+        # Persistent entity (Gale): its strike rate = attack_frequency × the cast-speed multiplier. aps already =
+        # (1/base_cast_time) × cast-speed product, so cast_speed_mult = aps × base_cast_time and the Gale rate =
+        # attack_frequency × cast_speed_mult. aps stays the channel build rate (shown separately).
+        if skill.channeled.attack_frequency:
+            cs_mult = aps * base_cast_time if base_cast_time else 1.0
+            ch_attack_frequency = skill.channeled.attack_frequency * cs_mult
+            # Furious Sweep: +X% additional Gale Attack Frequency per channeled stack. The hook bakes the total
+            # (per-stack × current stacks) into channeled_attack_frequency_additional; we apply it as an additional
+            # multiplier on the Gale rate (does NOT touch the channel build rate / aps).
+            freq_add = source.total("channeled_attack_frequency_additional")
+            if freq_add:
+                ch_attack_frequency *= 1.0 + freq_add
 
     # Augmentation: per-Jump (multiplies) compounding factor on hit damage. Scales with jumps REMAINING;
     # on a lone dummy the single hit is the first hit (full jumps remaining = total jumps), and
@@ -1036,6 +1051,10 @@ def calculate_offense(
         form_rate = aps
         if skill.channeled and form.channel_role == "burst":
             form_rate = ch_burst_rate
+        elif skill.channeled and form.channel_role == "continuous" and ch_attack_frequency:
+            # Persistent entity (Howling Gale's Gale): the continuous damage fires at the Gale's strike rate,
+            # not the channel build rate.
+            form_rate = ch_attack_frequency
         elif (skill.channeled and form.channel_role == "continuous"
               and skill.channeled.burst_replaces_continuous and ch_rounds_per_cycle > 1):
             form_rate = aps * (ch_rounds_per_cycle - 1.0) / ch_rounds_per_cycle
@@ -1300,6 +1319,7 @@ def calculate_offense(
         channeled_rounds_per_cycle=ch_rounds_per_cycle,
         channeled_burst_rate=ch_burst_rate,
         channeled_behavior=ch_behavior,
+        channeled_attack_frequency=ch_attack_frequency,
         projectile_count=projectile_count,
         nyi=[
             "Support skill flat damage adds",

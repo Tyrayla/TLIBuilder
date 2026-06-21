@@ -655,6 +655,7 @@ export interface OffenseResult {
   channeled_rounds_per_cycle: number    // uses per RESET cycle = max(1, max − min)
   channeled_burst_rate: number          // reset-burst occurrences/sec (= aps / rounds_per_cycle)
   channeled_behavior: string            // "reset" | "refresh" | "" (not channeled)
+  channeled_attack_frequency: number    // persistent-entity strike rate (Howling Gale's Gale); 0 = N/A
   projectile_count: number              // projectiles of the projectile-scaling form (Icy Blade); 0 = N/A
   nyi: string[]
   weapon_attack_speed: number
@@ -1317,12 +1318,22 @@ export interface SkillTooltipLine {
 // Structured, level-aware tooltip for a skill/support. `level_kind` is "level" (skills/standard
 // supports) or "tier" (noble/magnificent/activation). The renderer clamps the current level into
 // `available_levels` (nearest ≤) and indexes each scaling line's `values_by_level`.
+// Per-line roll metadata for a bespoke canvas support (engine.skill_effects.modeled_rolls). Drives the
+// support panel's per-line roll slider, keyed by the same `identity` the engine reads (affix_identity of the
+// tier line). `ranges_by_tier` holds the signed-fraction {min,max,mid} for each tier.
+export interface SkillModeledRoll {
+  identity: string
+  stat_keys: string[]
+  ranges_by_tier: Record<number, { min: number; max: number; mid: number }>
+}
+
 export interface SkillTooltipSpec {
   gate_text?: string | null   // support-target line ("Supports X Skills") — NOT rendered
   level_kind: 'level' | 'tier'
   default_level: number
   available_levels: number[]
   lines: SkillTooltipLine[]
+  modeled_rolls?: SkillModeledRoll[]   // bespoke canvas-support roll lines (Howling Gale, Berserking Blade, …)
 }
 
 export interface SkillItem {

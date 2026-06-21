@@ -176,6 +176,10 @@ def consumable_universe() -> frozenset[str]:
     # engine-computed / read outside the synthetic passes.
     consumed |= {"no_guard_dmg_taken", "block_ratio_upper_limit_flat"}
 
+    # Howling Gale canvas supports: Furious Sweep's Gale attack-frequency-additional (offense Gale-rate calc),
+    # Headwind's knockback enemy-vuln (offense enemy-vulnerability), and the surfaced knockback_chance (non-DPS).
+    consumed |= {"channeled_attack_frequency_additional", "knockback_dmg_taken", "knockback_chance"}
+
     missing = _SANITY_FLOOR - consumed
     if missing:
         raise RuntimeError(

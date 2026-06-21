@@ -111,6 +111,22 @@ export default function BuildOverviewScreen() {
         </label>
       </div>
 
+      {/* Target Type — placeholder. Only Boss is functional today (Enemy-Count weight 5, knockback-able);
+          the other tiers (weights + Supreme-Boss knockback immunity + per-type mitigation) are coming soon. */}
+      <div style={{ margin: '0 0 10px', padding: '8px 12px', borderRadius: 4, background: 'rgba(255,255,255,0.03)',
+        border: '1px solid #2a2a4a', display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, flexWrap: 'wrap' }}>
+        <span style={{ color: '#9aa', fontWeight: 600 }}>Target Type</span>
+        <select value="boss" disabled title="Boss only for now — other tiers coming soon"
+          style={{ background: '#0d0d1e', color: '#ddd', border: '1px solid #3a3a5a', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}>
+          <option value="normal">Normal</option>
+          <option value="magic">Magic</option>
+          <option value="rare">Rare</option>
+          <option value="boss">Boss</option>
+          <option value="supreme">Supreme Showdown Boss</option>
+        </select>
+        <span style={{ color: '#777' }}>Boss only for now — other tiers (Enemy Count weight + knockback immunity) coming soon.</span>
+      </div>
+
       {conflicts.length > 0 && (
         <div style={{
           margin: '0 0 10px', padding: '8px 12px', borderRadius: 4,

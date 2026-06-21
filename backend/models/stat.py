@@ -448,6 +448,9 @@ class Stat(Enum):
     INITIAL_MULTISTRIKE_COUNT_FLAT = "initial_multistrike_count_flat"
     MAX_CHANNELED_STACKS_FLAT = "max_channeled_stacks_flat"
     MIN_CHANNELED_STACKS_FLAT = "min_channeled_stacks_flat"
+    # Additional strike rate for a channeled persistent entity (Howling Gale's Gale), e.g. Furious Sweep's
+    # "+X% Gale Attack Frequency per channeled stack". offense multiplies the Gale rate by (1 + Σ this).
+    CHANNELED_ATTACK_FREQUENCY_ADDITIONAL = "channeled_attack_frequency_additional"
     JUMP_DMG_FOR_EVERY_ADDITIONAL = "jump_dmg_for_every_additional"  # revisit stacking behavior
 
     # ── Steep Strike ─────────────────────────────────────────────────────────
@@ -500,6 +503,9 @@ class Stat(Enum):
     KNOCKBACK_CHANCE = "knockback_chance"
     KNOCKBACK_DISTANCE_INC = "knockback_distance_inc"
     KNOCKBACK_DISTANCE_ADDITIONAL = "knockback_distance_additional"
+    # Howling Gale — Headwind: GLOBAL enemy-vulnerability (engine-computed by the support, gated on the
+    # enemy_knocked_back condition). Read in offense._enemy_vuln_mult.
+    KNOCKBACK_DMG_TAKEN = "knockback_dmg_taken"
 
     # ── Life ─────────────────────────────────────────────────────────────────
     MAX_LIFE_FLAT = "max_life_flat"

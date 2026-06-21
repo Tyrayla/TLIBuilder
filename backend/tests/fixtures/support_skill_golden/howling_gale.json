@@ -15,40 +15,31 @@
     "armor_gear_inc",
     "armor_inc",
     "armor_pen",
-    "attack_ailment_dmg_additional",
     "attack_block_chance_inc",
-    "attack_crit_dmg_inc",
-    "attack_crit_rating_flat",
     "attack_crit_rating_gear",
-    "attack_crit_rating_inc",
     "attack_crit_rating_mh",
-    "attack_dmg_additional",
-    "attack_dmg_inc",
-    "attack_double_dmg_chance",
-    "attack_skill_level",
-    "attack_speed_additional",
     "attack_speed_gear",
-    "attack_speed_inc",
     "attack_speed_mh",
     "block_ratio_inc",
     "block_ratio_upper_limit_flat",
+    "cast_speed_additional",
+    "cast_speed_inc",
+    "channeled_attack_frequency_additional",
+    "channeled_dmg_additional",
+    "channeled_dmg_inc",
     "cold_as_erosion",
     "cold_as_fire",
-    "cold_attack_dmg_flat_max",
-    "cold_attack_dmg_flat_min",
     "cold_convert_to_erosion",
     "cold_convert_to_fire",
-    "cold_dmg_gear_flat_max",
-    "cold_dmg_gear_flat_min",
-    "cold_dmg_gear_inc",
     "cold_resistance",
     "cold_resistance_max_inc",
+    "cold_spell_dmg_flat_max",
+    "cold_spell_dmg_flat_min",
     "crit_dmg_additional",
     "crit_dmg_inc",
     "crit_rating_additional",
     "crit_rating_inc",
     "defense_inc",
-    "dexterity",
     "dexterity_additional",
     "dexterity_flat",
     "dexterity_inc",
@@ -59,9 +50,6 @@
     "dmg_min_additional",
     "double_dmg_chance",
     "elemental_dmg_additional",
-    "elemental_dmg_gear_flat_max",
-    "elemental_dmg_gear_flat_min",
-    "elemental_dmg_gear_inc",
     "elemental_dmg_inc",
     "elemental_pen",
     "elemental_resistance",
@@ -69,13 +57,10 @@
     "energy_shield_gear_inc",
     "energy_shield_per_sealed_life",
     "energy_shield_per_sealed_mana",
-    "erosion_attack_dmg_flat_max",
-    "erosion_attack_dmg_flat_min",
-    "erosion_dmg_gear_flat_max",
-    "erosion_dmg_gear_flat_min",
-    "erosion_dmg_gear_inc",
     "erosion_resistance",
     "erosion_resistance_max_inc",
+    "erosion_spell_dmg_flat_max",
+    "erosion_spell_dmg_flat_min",
     "evasion",
     "evasion_additional",
     "evasion_flat",
@@ -85,19 +70,17 @@
     "extra_tangle_applied_flat",
     "ferv",
     "fire_as_erosion",
-    "fire_attack_dmg_flat_max",
-    "fire_attack_dmg_flat_min",
     "fire_convert_to_erosion",
     "fire_curse_taken",
     "fire_dmg_additional",
-    "fire_dmg_gear_flat_max",
-    "fire_dmg_gear_flat_min",
-    "fire_dmg_gear_inc",
     "fire_dmg_inc",
     "fire_infiltration_taken",
     "fire_pen",
     "fire_resistance",
     "fire_resistance_max_inc",
+    "fire_spell_dmg_flat_max",
+    "fire_spell_dmg_flat_min",
+    "frail_spell_taken",
     "hit_curse_taken",
     "hit_dmg_additional",
     "intelligence",
@@ -108,26 +91,24 @@
     "lightning_as_cold",
     "lightning_as_erosion",
     "lightning_as_fire",
-    "lightning_attack_dmg_flat_max",
-    "lightning_attack_dmg_flat_min",
     "lightning_convert_to_cold",
     "lightning_convert_to_erosion",
     "lightning_convert_to_fire",
     "lightning_curse_taken",
     "lightning_dmg_additional",
-    "lightning_dmg_gear_flat_max",
-    "lightning_dmg_gear_flat_min",
-    "lightning_dmg_gear_inc",
     "lightning_dmg_inc",
     "lightning_infiltration_taken",
     "lightning_pen",
     "lightning_resistance",
     "lightning_resistance_max_inc",
+    "lightning_spell_dmg_flat_max",
+    "lightning_spell_dmg_flat_min",
     "lucky_fire",
     "lucky_lightning",
     "lucky_physical",
     "main_skill_level",
     "max_agility_blessing_stacks_flat",
+    "max_channeled_stacks_flat",
     "max_electrify_stacks_flat",
     "max_energy_shield",
     "max_energy_shield_additional",
@@ -145,9 +126,7 @@
     "max_mana_inc",
     "max_spell_burst_flat",
     "max_tenacity_blessing_stacks_flat",
-    "melee_dmg_additional",
-    "melee_dmg_inc",
-    "melee_skill_level",
+    "min_channeled_stacks_flat",
     "no_guard_dmg_taken",
     "numbed_lightning_taken",
     "paralysis_dmg_taken",
@@ -156,8 +135,6 @@
     "physical_as_erosion",
     "physical_as_fire",
     "physical_as_lightning",
-    "physical_attack_dmg_flat_max",
-    "physical_attack_dmg_flat_min",
     "physical_convert_to_cold",
     "physical_convert_to_erosion",
     "physical_convert_to_fire",
@@ -165,17 +142,15 @@
     "physical_crit_dmg_inc",
     "physical_curse_taken",
     "physical_dmg_additional",
-    "physical_dmg_gear_flat_max",
-    "physical_dmg_gear_flat_min",
-    "physical_dmg_gear_inc",
     "physical_dmg_inc",
     "physical_dmg_max_additional",
     "physical_dmg_min_additional",
     "physical_skill_level",
+    "physical_spell_dmg_flat_max",
+    "physical_spell_dmg_flat_min",
     "quadruple_dmg_chance",
     "sealed_mana_compensation_additional",
     "sealed_mana_compensation_inc",
-    "shield_dmg_inc",
     "skill_area_inc",
     "spell_block_chance_inc",
     "spell_crit_dmg_inc",
@@ -184,7 +159,7 @@
     "spell_dmg_additional",
     "spell_dmg_inc",
     "spell_double_dmg_chance",
-    "steep_strike_additional_dmg",
+    "spell_skill_level",
     "steep_strike_chance",
     "strength_additional",
     "strength_flat",
@@ -195,101 +170,77 @@
   ],
   "offense": {
     "above_max_mult": 1.0,
-    "attacks_per_second": 3.0624000000000007,
-    "base_cast_time": 0.0,
-    "base_csr": 0.0,
-    "base_dmg_max": {},
-    "base_dmg_min": {},
+    "attacks_per_second": 4.215015015015014,
+    "base_cast_time": 0.333,
+    "base_csr": 500.0,
+    "base_dmg_max": {
+      "physical": 913.0
+    },
+    "base_dmg_min": {
+      "physical": 548.0
+    },
     "cast_multiplier": 1.0,
-    "channeled_attack_frequency": 0.0,
-    "channeled_behavior": "",
-    "channeled_burst_rate": 0.0,
-    "channeled_max_stacks": 0,
+    "channeled_attack_frequency": 2.8843979999999996,
+    "channeled_behavior": "refresh",
+    "channeled_burst_rate": 0.8430030030030029,
+    "channeled_max_stacks": 5,
     "channeled_min_stacks": 0,
-    "channeled_rounds_per_cycle": 0.0,
-    "channeled_stacks": 0.0,
-    "crit_chance": 0.396,
+    "channeled_rounds_per_cycle": 5.0,
+    "channeled_stacks": 5.0,
+    "crit_chance": 0.15,
     "crit_multiplier": 1.5,
     "effective_level": 20,
     "flat_dmg_max": {
-      "fire": 135.0,
-      "lightning": 198.0,
-      "physical": 980.0
+      "fire": 182.25,
+      "lightning": 267.3,
+      "physical": 1088.5
     },
     "flat_dmg_min": {
-      "fire": 73.0,
-      "lightning": 10.0,
-      "physical": 578.0
+      "fire": 98.55000000000001,
+      "lightning": 13.5,
+      "physical": 653.3
     },
-    "generic_add": 3.827257885237247,
+    "generic_add": 4.553507235594239,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 7712.780030890403,
-        "avg_hit_with_crit": 9239.910477006702,
-        "base_max_by_type": {},
-        "base_min_by_type": {},
-        "damage_by_type": {
-          "fire": 736.3644171196463,
-          "lightning": 1460.7629124610983,
-          "physical": 5515.652701309658
+        "avg_hit_pre_crit": 7224.0333829945685,
+        "avg_hit_with_crit": 7765.835886719161,
+        "base_max_by_type": {
+          "physical": 913.0
         },
-        "dps_contribution": 21505.189402036853,
-        "dps_vs_target": 10691.333211420919,
-        "effectiveness_pct": 185.0,
-        "fires_per_sec": 2.3274240000000006,
-        "form_type": "exclusive",
+        "base_min_by_type": {
+          "physical": 548.0
+        },
+        "damage_by_type": {
+          "fire": 786.3542715292403,
+          "lightning": 1559.9302861461306,
+          "physical": 4877.748825319198
+        },
+        "dps_contribution": 22399.76149998097,
+        "dps_vs_target": 11127.128851270396,
+        "effectiveness_pct": 100.0,
+        "fires_per_sec": 2.8843979999999996,
+        "form_type": "additive",
         "hit_max_by_type": {
-          "fire": 955.8576568380024,
-          "lightning": 2781.067852570168,
-          "physical": 6938.818545935129
+          "fire": 1020.7483332350715,
+          "lightning": 2969.867275547441,
+          "physical": 6096.485929911525
         },
         "hit_min_by_type": {
-          "fire": 516.8711774012902,
-          "lightning": 140.4579723520287,
-          "physical": 4092.486856684188
+          "fire": 551.9602098234092,
+          "lightning": 149.9932967448202,
+          "physical": 3659.011720726871
         },
         "hits_per_fire": 1,
-        "name": "Sweep Slash",
-        "proc_chance": 0.76,
-        "shotgun_falloff": 0.0,
-        "shotgun_mult": 1.0
-      },
-      {
-        "avg_hit_pre_crit": 15425.560061780807,
-        "avg_hit_with_crit": 18479.820954013405,
-        "base_max_by_type": {},
-        "base_min_by_type": {},
-        "damage_by_type": {
-          "fire": 1472.7288342392926,
-          "lightning": 2921.5258249221965,
-          "physical": 11031.305402619317
-        },
-        "dps_contribution": 13582.22488549696,
-        "dps_vs_target": 6752.420975634265,
-        "effectiveness_pct": 370.0,
-        "fires_per_sec": 0.7349760000000002,
-        "form_type": "exclusive",
-        "hit_max_by_type": {
-          "fire": 1911.7153136760048,
-          "lightning": 5562.135705140336,
-          "physical": 13877.637091870258
-        },
-        "hit_min_by_type": {
-          "fire": 1033.7423548025804,
-          "lightning": 280.9159447040574,
-          "physical": 8184.973713368376
-        },
-        "hits_per_fire": 1,
-        "name": "Steep Strike",
-        "proc_chance": 0.24000000000000002,
+        "name": "Howling Gale",
+        "proc_chance": 1.0,
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       }
     ],
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
-      "dexterity",
       "intelligence"
     ],
     "non_spell_burst_dps": 0.0,
@@ -309,13 +260,13 @@
     "projectile_count": -1,
     "shotgun_hits": 1,
     "skill_area_inc": 0,
-    "skill_name": "Moon Strike",
+    "skill_name": "Howling Gale",
     "skill_tags": [
-      "Attack",
-      "Area",
+      "Spell",
+      "Channeled",
       "Physical",
-      "Melee",
-      "Slash-Strike"
+      "Area",
+      "Persistent"
     ],
     "spell_burst_auto": false,
     "spell_burst_auto_source": "",
@@ -332,7 +283,7 @@
     "spell_burst_mult": 1.0,
     "spell_burst_next_breakpoint_ticks": 0,
     "spell_burst_rate": 0.0,
-    "steep_strike_chance": 0.24000000000000002,
+    "steep_strike_chance": 0.0,
     "supported": true,
     "tangle_attach_range": 0.0,
     "tangle_count": 0,
@@ -341,12 +292,12 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
-    "total_dps": 35087.414287533815,
-    "total_dps_vs_target": 17443.754187055183,
+    "total_dps": 22399.76149998097,
+    "total_dps_vs_target": 11127.128851270396,
     "type_add": {
-      "fire": 3.827257885237247,
-      "lightning": 5.06154855322626,
-      "physical": 3.827257885237247
+      "fire": 4.553507235594239,
+      "lightning": 6.022013319073381,
+      "physical": 4.553507235594239
     },
     "type_inc": {
       "fire": 0,
@@ -363,101 +314,77 @@
   "slot_offense": {
     "1": {
       "above_max_mult": 1.0,
-      "attacks_per_second": 3.0624000000000007,
-      "base_cast_time": 0.0,
-      "base_csr": 0.0,
-      "base_dmg_max": {},
-      "base_dmg_min": {},
+      "attacks_per_second": 4.215015015015014,
+      "base_cast_time": 0.333,
+      "base_csr": 500.0,
+      "base_dmg_max": {
+        "physical": 913.0
+      },
+      "base_dmg_min": {
+        "physical": 548.0
+      },
       "cast_multiplier": 1.0,
-      "channeled_attack_frequency": 0.0,
-      "channeled_behavior": "",
-      "channeled_burst_rate": 0.0,
-      "channeled_max_stacks": 0,
+      "channeled_attack_frequency": 2.8843979999999996,
+      "channeled_behavior": "refresh",
+      "channeled_burst_rate": 0.8430030030030029,
+      "channeled_max_stacks": 5,
       "channeled_min_stacks": 0,
-      "channeled_rounds_per_cycle": 0.0,
-      "channeled_stacks": 0.0,
-      "crit_chance": 0.396,
+      "channeled_rounds_per_cycle": 5.0,
+      "channeled_stacks": 5.0,
+      "crit_chance": 0.15,
       "crit_multiplier": 1.5,
       "effective_level": 20,
       "flat_dmg_max": {
-        "fire": 135.0,
-        "lightning": 198.0,
-        "physical": 980.0
+        "fire": 182.25,
+        "lightning": 267.3,
+        "physical": 1088.5
       },
       "flat_dmg_min": {
-        "fire": 73.0,
-        "lightning": 10.0,
-        "physical": 578.0
+        "fire": 98.55000000000001,
+        "lightning": 13.5,
+        "physical": 653.3
       },
-      "generic_add": 3.827257885237247,
+      "generic_add": 4.553507235594239,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 7712.780030890403,
-          "avg_hit_with_crit": 9239.910477006702,
-          "base_max_by_type": {},
-          "base_min_by_type": {},
-          "damage_by_type": {
-            "fire": 736.3644171196463,
-            "lightning": 1460.7629124610983,
-            "physical": 5515.652701309658
+          "avg_hit_pre_crit": 7224.0333829945685,
+          "avg_hit_with_crit": 7765.835886719161,
+          "base_max_by_type": {
+            "physical": 913.0
           },
-          "dps_contribution": 21505.189402036853,
-          "dps_vs_target": 10691.333211420919,
-          "effectiveness_pct": 185.0,
-          "fires_per_sec": 2.3274240000000006,
-          "form_type": "exclusive",
+          "base_min_by_type": {
+            "physical": 548.0
+          },
+          "damage_by_type": {
+            "fire": 786.3542715292403,
+            "lightning": 1559.9302861461306,
+            "physical": 4877.748825319198
+          },
+          "dps_contribution": 22399.76149998097,
+          "dps_vs_target": 11127.128851270396,
+          "effectiveness_pct": 100.0,
+          "fires_per_sec": 2.8843979999999996,
+          "form_type": "additive",
           "hit_max_by_type": {
-            "fire": 955.8576568380024,
-            "lightning": 2781.067852570168,
-            "physical": 6938.818545935129
+            "fire": 1020.7483332350715,
+            "lightning": 2969.867275547441,
+            "physical": 6096.485929911525
           },
           "hit_min_by_type": {
-            "fire": 516.8711774012902,
-            "lightning": 140.4579723520287,
-            "physical": 4092.486856684188
+            "fire": 551.9602098234092,
+            "lightning": 149.9932967448202,
+            "physical": 3659.011720726871
           },
           "hits_per_fire": 1,
-          "name": "Sweep Slash",
-          "proc_chance": 0.76,
-          "shotgun_falloff": 0.0,
-          "shotgun_mult": 1.0
-        },
-        {
-          "avg_hit_pre_crit": 15425.560061780807,
-          "avg_hit_with_crit": 18479.820954013405,
-          "base_max_by_type": {},
-          "base_min_by_type": {},
-          "damage_by_type": {
-            "fire": 1472.7288342392926,
-            "lightning": 2921.5258249221965,
-            "physical": 11031.305402619317
-          },
-          "dps_contribution": 13582.22488549696,
-          "dps_vs_target": 6752.420975634265,
-          "effectiveness_pct": 370.0,
-          "fires_per_sec": 0.7349760000000002,
-          "form_type": "exclusive",
-          "hit_max_by_type": {
-            "fire": 1911.7153136760048,
-            "lightning": 5562.135705140336,
-            "physical": 13877.637091870258
-          },
-          "hit_min_by_type": {
-            "fire": 1033.7423548025804,
-            "lightning": 280.9159447040574,
-            "physical": 8184.973713368376
-          },
-          "hits_per_fire": 1,
-          "name": "Steep Strike",
-          "proc_chance": 0.24000000000000002,
+          "name": "Howling Gale",
+          "proc_chance": 1.0,
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         }
       ],
       "main_stat_damage_bonus": 0.0,
       "main_stats": [
-        "dexterity",
         "intelligence"
       ],
       "non_spell_burst_dps": 0.0,
@@ -477,13 +404,13 @@
       "projectile_count": -1,
       "shotgun_hits": 1,
       "skill_area_inc": 0,
-      "skill_name": "Moon Strike",
+      "skill_name": "Howling Gale",
       "skill_tags": [
-        "Attack",
-        "Area",
+        "Spell",
+        "Channeled",
         "Physical",
-        "Melee",
-        "Slash-Strike"
+        "Area",
+        "Persistent"
       ],
       "spell_burst_auto": false,
       "spell_burst_auto_source": "",
@@ -500,7 +427,7 @@
       "spell_burst_mult": 1.0,
       "spell_burst_next_breakpoint_ticks": 0,
       "spell_burst_rate": 0.0,
-      "steep_strike_chance": 0.24000000000000002,
+      "steep_strike_chance": 0.0,
       "supported": true,
       "tangle_attach_range": 0.0,
       "tangle_count": 0,
@@ -509,12 +436,12 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
-      "total_dps": 35087.414287533815,
-      "total_dps_vs_target": 17443.754187055183,
+      "total_dps": 22399.76149998097,
+      "total_dps_vs_target": 11127.128851270396,
       "type_add": {
-        "fire": 3.827257885237247,
-        "lightning": 5.06154855322626,
-        "physical": 3.827257885237247
+        "fire": 4.553507235594239,
+        "lightning": 6.022013319073381,
+        "physical": 4.553507235594239
       },
       "type_inc": {
         "fire": 0,
@@ -597,18 +524,6 @@
     "crit_rating_inc": {
       "category": "Critical Strike",
       "display_name": "Critical Strike Rating",
-      "slot_sources": [
-        {
-          "amount": 0.3,
-          "label": "Attack Focus",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Attack Focus",
-          "source_type": "support",
-          "text": "Gains 2 Fervor Rating when the supported skill hits an enemy For every 10 Fervor Rating , the supported skill +3 % Critical Strike Rating |attack_focus|gains # fervor rating wh"
-        }
-      ],
       "sources": [
         {
           "amount": 2.0,
@@ -628,43 +543,63 @@
       "slot_sources": [
         {
           "amount": 0.2,
-          "label": "Moon Strike: Lunar Eclipse (Noble) (Rank 5)",
+          "label": "Howling Gale: Eye of the Gale (Noble) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Moon Strike: Lunar Eclipse (Noble)",
+          "source_name": "Howling Gale: Eye of the Gale (Noble)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |moon_strike_lunar_eclipse_noble|universal"
+          "text": "additional damage for the supported skill |howling_gale_eye_of_the_gale_noble|universal"
         },
         {
           "amount": 0.2,
-          "label": "Moon Strike: Lunar Ring (Magnificent) (Rank 5)",
+          "label": "Howling Gale: Furious Sweep (Noble) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Moon Strike: Lunar Ring (Magnificent)",
+          "source_name": "Howling Gale: Furious Sweep (Noble)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |moon_strike_lunar_ring_magnificent|universal"
+          "text": "additional damage for the supported skill |howling_gale_furious_sweep_noble|universal"
         },
         {
           "amount": 0.2,
-          "label": "Moon Strike: Rainbow (Magnificent) (Rank 5)",
+          "label": "Howling Gale: Headwind (Magnificent) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Moon Strike: Rainbow (Magnificent)",
+          "source_name": "Howling Gale: Headwind (Magnificent)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |moon_strike_rainbow_magnificent|universal"
+          "text": "additional damage for the supported skill |howling_gale_headwind_magnificent|universal"
         },
         {
           "amount": 0.2,
-          "label": "Moon Strike: Wax and Wane (Noble) (Rank 5)",
+          "label": "Howling Gale: Rapid Sweep (Magnificent) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Moon Strike: Wax and Wane (Noble)",
+          "source_name": "Howling Gale: Rapid Sweep (Magnificent)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |moon_strike_wax_and_wane_noble|universal"
+          "text": "additional damage for the supported skill |howling_gale_rapid_sweep_magnificent|universal"
+        },
+        {
+          "amount": 0.355,
+          "label": "Howling Gale: Rapid Sweep (Magnificent)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Howling Gale: Rapid Sweep (Magnificent)",
+          "source_type": "support",
+          "text": "+3.55% additional damage per 1 s the Gale lasts (cap 10) |howling_gale_rapid_sweep_magnificent|rapid_sweep"
+        },
+        {
+          "amount": 0.16,
+          "label": "Overload",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Overload",
+          "source_type": "support",
+          "text": "3.05 % additional damage for the supported skill for each stack of Focus Blessing , stacking up to 8 time(s) |overload|#% additional damage for"
         },
         {
           "amount": 0.078,
@@ -675,16 +610,6 @@
           "source_name": "Jump",
           "source_type": "support",
           "text": "+4 % additional damage for the supported skill |jump|+#% additional damage fo"
-        },
-        {
-          "amount": 0.26,
-          "label": "Attack Focus",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Attack Focus",
-          "source_type": "support",
-          "text": "The supported skill 1.65 % additional damage for every 10 Fervor Rating |attack_focus|the supported skill#% ad"
         }
       ],
       "sources": [
@@ -743,9 +668,9 @@
       "total": 0.0,
       "unit": ""
     },
-    "fire_attack_dmg_flat_max": {
+    "fire_spell_dmg_flat_max": {
       "category": "Fire",
-      "display_name": "Max Fire Attack Damage",
+      "display_name": "Max Fire Spell Damage",
       "slot_sources": [
         {
           "amount": 135.0,
@@ -762,9 +687,9 @@
       "total": 0.0,
       "unit": ""
     },
-    "fire_attack_dmg_flat_min": {
+    "fire_spell_dmg_flat_min": {
       "category": "Fire",
-      "display_name": "Min Fire Attack Damage",
+      "display_name": "Min Fire Spell Damage",
       "slot_sources": [
         {
           "amount": 73.0,
@@ -775,44 +700,6 @@
           "source_name": "Added Fire Damage",
           "source_type": "support",
           "text": "The supported skill adds 1 - 3 Fire Damage |added_fire_damage|the supported skill adds"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": ""
-    },
-    "lightning_attack_dmg_flat_max": {
-      "category": "Lightning",
-      "display_name": "Max Lightning Attack Damage",
-      "slot_sources": [
-        {
-          "amount": 198.0,
-          "label": "Added Lightning Damage",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Added Lightning Damage",
-          "source_type": "support",
-          "text": "The supported skill adds 1 - 4 Lightning Damage |added_lightning_damage|the supported skill adds"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": ""
-    },
-    "lightning_attack_dmg_flat_min": {
-      "category": "Lightning",
-      "display_name": "Min Lightning Attack Damage",
-      "slot_sources": [
-        {
-          "amount": 10.0,
-          "label": "Added Lightning Damage",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Added Lightning Damage",
-          "source_type": "support",
-          "text": "The supported skill adds 1 - 4 Lightning Damage |added_lightning_damage|the supported skill adds"
         }
       ],
       "sources": [],
@@ -846,6 +733,44 @@
       ],
       "total": 0.15,
       "unit": "%"
+    },
+    "lightning_spell_dmg_flat_max": {
+      "category": "Lightning",
+      "display_name": "Max Lightning Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 198.0,
+          "label": "Added Lightning Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Lightning Damage",
+          "source_type": "support",
+          "text": "The supported skill adds 1 - 4 Lightning Damage |added_lightning_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "lightning_spell_dmg_flat_min": {
+      "category": "Lightning",
+      "display_name": "Min Lightning Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 10.0,
+          "label": "Added Lightning Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Lightning Damage",
+          "source_type": "support",
+          "text": "The supported skill adds 1 - 4 Lightning Damage |added_lightning_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
     },
     "max_energy_flat": {
       "category": "Utility",
@@ -940,44 +865,6 @@
       "total": 0.5,
       "unit": "%"
     },
-    "physical_attack_dmg_flat_max": {
-      "category": "Physical",
-      "display_name": "Max Physical Attack Damage",
-      "slot_sources": [
-        {
-          "amount": 130.0,
-          "label": "Added Physical Damage",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Added Physical Damage",
-          "source_type": "support",
-          "text": "Supported skills add 2 - 3 physical damage |added_physical_damage|supported skills add#-#p"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": ""
-    },
-    "physical_attack_dmg_flat_min": {
-      "category": "Physical",
-      "display_name": "Min Physical Attack Damage",
-      "slot_sources": [
-        {
-          "amount": 78.0,
-          "label": "Added Physical Damage",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Added Physical Damage",
-          "source_type": "support",
-          "text": "Supported skills add 2 - 3 physical damage |added_physical_damage|supported skills add#-#p"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": ""
-    },
     "physical_dmg_gear_flat_max": {
       "category": "Gear",
       "display_name": "Gear Physical Damage Max",
@@ -1024,6 +911,44 @@
         }
       ],
       "total": 500.0,
+      "unit": ""
+    },
+    "physical_spell_dmg_flat_max": {
+      "category": "Physical",
+      "display_name": "Max Physical Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 130.0,
+          "label": "Added Physical Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Physical Damage",
+          "source_type": "support",
+          "text": "Supported skills add 2 - 3 physical damage |added_physical_damage|supported skills add#-#p"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "physical_spell_dmg_flat_min": {
+      "category": "Physical",
+      "display_name": "Min Physical Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 78.0,
+          "label": "Added Physical Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Physical Damage",
+          "source_type": "support",
+          "text": "Supported skills add 2 - 3 physical damage |added_physical_damage|supported skills add#-#p"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
       "unit": ""
     },
     "weapon_attack_speed": {

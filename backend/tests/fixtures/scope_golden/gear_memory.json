@@ -15,6 +15,7 @@
     "level": 100.0,
     "murderous_intent": 100.0,
     "numbed_stacks": 10.0,
+    "rapid_sweep_stacks": 10.0,
     "regain_stacks": 4.0,
     "swift_as_lightning_stacks": 10.0,
     "tenacity_blessings": 4.0,
@@ -101,6 +102,7 @@
     "intelligence_additional",
     "intelligence_flat",
     "intelligence_inc",
+    "knockback_dmg_taken",
     "lightning_as_cold",
     "lightning_as_erosion",
     "lightning_as_fire",
@@ -236,6 +238,7 @@
       "lightning": 15.0
     },
     "cast_multiplier": 1.0,
+    "channeled_attack_frequency": 0.0,
     "channeled_behavior": "",
     "channeled_burst_rate": 0.0,
     "channeled_max_stacks": 0,

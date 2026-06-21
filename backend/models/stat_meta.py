@@ -1656,6 +1656,15 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="defense",            stacking_rule="additive",
         ui_priority=72,                source_types=(),
     ),
+    # Howling Gale — Headwind: GLOBAL enemy-vuln (engine-computed by the support, gated on enemy_knocked_back).
+    # (Knockback Chance / Distance metas live in the Double Damage / Knockback section below.)
+    Stat.KNOCKBACK_DMG_TAKEN: StatMeta(
+        "Knockback: Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        tags=(),                       affects=_HIT,
+        stacking_rule="additive",      ui_priority=72,
+        source_types=(),
+    ),
     # Frail / Infiltration effect — scale the per-application damage-taken value (like Numbed Effect).
     Stat.FRAIL_EFFECT_INC: StatMeta(
         "Frail Effect", "Ailments", "increased", "%",
@@ -1753,6 +1762,14 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="speed",              tags=("channeled", "spell"),
         stacking_rule="additive",      ui_priority=59,
         source_types=_T,
+    ),
+    # Additional strike rate for a channeled persistent entity (Howling Gale's Gale — Furious Sweep). Engine-
+    # consumed by the Gale-rate calc in offense; emitted by the support hook.
+    Stat.CHANNELED_ATTACK_FREQUENCY_ADDITIONAL: StatMeta(
+        "Additional Gale Attack Frequency", "Cast Speed", "additional", "%",
+        subgroup="speed",              tags=("channeled",),
+        stacking_rule="additive",      ui_priority=59,
+        source_types=(),
     ),
     Stat.TRIGGERED_DMG_INC: StatMeta(
         "Damage for Triggered Skills", "Generic", "increased", "%",

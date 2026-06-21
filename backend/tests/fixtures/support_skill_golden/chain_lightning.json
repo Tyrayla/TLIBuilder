@@ -84,6 +84,7 @@
     "intelligence_additional",
     "intelligence_flat",
     "intelligence_inc",
+    "knockback_dmg_taken",
     "lightning_as_cold",
     "lightning_as_erosion",
     "lightning_as_fire",
@@ -170,6 +171,7 @@
       "lightning": 15.0
     },
     "cast_multiplier": 1.7999999999999998,
+    "channeled_attack_frequency": 0.0,
     "channeled_behavior": "",
     "channeled_burst_rate": 0.0,
     "channeled_max_stacks": 0,
@@ -312,6 +314,7 @@
         "lightning": 15.0
       },
       "cast_multiplier": 1.7999999999999998,
+      "channeled_attack_frequency": 0.0,
       "channeled_behavior": "",
       "channeled_burst_rate": 0.0,
       "channeled_max_stacks": 0,

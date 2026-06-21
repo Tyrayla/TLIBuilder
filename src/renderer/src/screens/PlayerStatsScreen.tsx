@@ -1264,6 +1264,8 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
             {offense.channeled_behavior === 'reset'
               ? 'At max stacks it dumps ALL stacks and fires its burst form, then ramps again — so the continuous form fires every use while the burst fires once per cycle.'
               : 'Holds at max while channeling.'}
+            {(offense.channeled_attack_frequency ?? 0) > 0 &&
+              ' The damage is dealt by a persistent entity striking at its own Attack Frequency (below), not the channel rate.'}
           </div>
           <Row label="Max Channeled Stacks" breakdown={{
             title: 'Max Channeled Stacks', keys: ['max_channeled_stacks_flat'], total: offense.channeled_max_stacks, totalUnit: '',
@@ -1273,6 +1275,21 @@ function OffensePanels({ offense, skill, aura, reservation, curse, curseMeta, em
             title: 'Min Channeled Stacks', keys: ['min_channeled_stacks_flat'], total: offense.channeled_min_stacks, totalUnit: '',
             formula: 'Σ +Min Channeled Stacks — the first round from 0 gains 1 + Min (shortens the ramp)',
           }}>{offense.channeled_min_stacks}</Row>
+          {(offense.channeled_attack_frequency ?? 0) > 0 && (
+            <>
+              <Row label="Channel Rate" breakdown={{
+                title: 'Channel Rate', keys: ['cast_speed_inc', 'cast_speed_additional', 'channeled_cast_speed_inc'],
+                total: offense.attacks_per_second, totalUnit: ' /s',
+                formula: '1 ÷ Cast Time × (1 + Increased) × Additional — how fast channeled stacks build (0 → Max)',
+              }}>{dec(offense.attacks_per_second)} /s</Row>
+              <Row label="Gale Attack Frequency" breakdown={{
+                title: 'Gale Attack Frequency', keys: ['cast_speed_inc', 'cast_speed_additional'],
+                total: offense.channeled_attack_frequency, totalUnit: ' /s',
+                formula: 'Base Attack Frequency × cast-speed multiplier — the persistent entity\'s strike rate (the damage rate)',
+                extra: [{ value: '1.5 /s', stat: 'Base Attack Frequency', source: 'Baseline', sourceName: offense.skill_name }],
+              }}>{dec(offense.channeled_attack_frequency)} /s</Row>
+            </>
+          )}
           {offense.channeled_behavior === 'reset' && (
             <>
               <Row label="Uses / Cycle" breakdown={{

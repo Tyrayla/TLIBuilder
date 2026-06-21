@@ -70,6 +70,10 @@ class ChanneledSpec:
     # suppression. Icebound Beam: 1/3 — validated in-game (beam 113 solo → ~38 steady-state once blades fire;
     # 0/1/2/4/6-projectile recounts all fit beam×(1/3) + additive blades to within ~2%).
     continuous_suppression_when_bursting: float = 1.0
+    # Persistent-entity strike rate (e.g. Howling Gale's "Base Attack Frequency 1.5"). When set, the CONTINUOUS
+    # form fires at `attack_frequency × cast-speed multiplier` (the spawned entity's rate), NOT the channel cast
+    # rate (aps); aps stays the stack-build rate, shown separately. None → the form fires at aps (Icebound).
+    attack_frequency: float | None = None
 
 
 @dataclass
@@ -339,6 +343,54 @@ def _resolve_icebound_beam(skill_data: dict) -> ResolvedSkill:
         # When the Icy Blade fires, the Cold Beam drops to 1/3 (the channel redistributes beam→blades).
         channeled=ChanneledSpec(max_stacks=5, min_stacks=0, behavior="reset", max_from_data=False,
                                 continuous_suppression_when_bursting=1.0 / 3.0),
+    )
+
+
+# Howling Gale — Tags: Spell, Channeled, Physical, Area, Persistent. A REFRESH channeled spell: you channel to
+# build Max Channeled Stacks (5), holding at max, which spawns a persistent "Gale" that strikes at its OWN Base
+# Attack Frequency (1.5/s × cast speed) — NOT the 0.333 s channel cast rate. Spell base (548-913 Physical at L20)
+# is unscaled by effectiveness (125% applies to added flat only). "+21.5% additional damage for every +1 ADDITIONAL
+# Max Channeled Stack" (beyond the base 5) → an intrinsic additional scaling off max_channeled_stacks_flat (gear).
+# Per-channeled-stack Duration/Area/Movement Speed are non-DPS (informational) for a sustained single-target calc.
+_HOWLING_GALE_FREQUENCY = 1.5
+_HOWLING_GALE_PER_ADDITIONAL_MAX_STACK = 0.215   # owner: counts stacks ABOVE base 5; flag — verify in-game
+
+
+@_register("howling_gale")
+def _resolve_howling_gale(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    base_by_level: dict[int, dict[str, tuple[float, float]]] = {}
+    effectiveness = 1.25
+    damage_types: list[str] = []
+    for lvl, values in progression.items():
+        m = _SPELL_BASE_DMG_RE.search(" ".join(str(v) for v in values.values()))
+        if m:
+            dtype = m.group(3).lower()
+            base_by_level[lvl] = {dtype: (float(m.group(1).replace(",", "")), float(m.group(2).replace(",", "")))}
+            if dtype not in damage_types:
+                damage_types.append(dtype)
+        eff = values.get("Effectiveness of added damage")
+        if eff:
+            em = re.search(r"(\d+(?:\.\d+)?)", str(eff))
+            if em:
+                effectiveness = float(em.group(1)) / 100.0
+    forms_by_level = {
+        lvl: [SkillHitForm("Howling Gale", 100.0, "additive", channel_role="continuous")]
+        for lvl in base_by_level
+    }
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"], name=skill_data["name"], tags=skill_data.get("skill_tags", []),
+        max_level=max_level, hit_forms_by_level=forms_by_level, supported=True, is_spell=True,
+        base_dmg_by_level=base_by_level, base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
+        added_dmg_effectiveness=effectiveness, damage_types=damage_types,
+        # REFRESH: hold at max 5; the Gale strikes at attack_frequency 1.5 × cast speed (the damage rate).
+        channeled=ChanneledSpec(max_stacks=5, min_stacks=0, behavior="refresh",
+                                attack_frequency=_HOWLING_GALE_FREQUENCY),
+        # +21.5% additional damage per ADDITIONAL Max Channeled Stack (beyond base 5) = per max_channeled_stacks_flat.
+        intrinsic_additional=[IntrinsicAdditional(
+            per=_HOWLING_GALE_PER_ADDITIONAL_MAX_STACK, rating_key="max_channeled_stacks_flat",
+            rating_source="stat", per_n=1.0)],
     )
 
 
