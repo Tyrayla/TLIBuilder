@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
-import { useUiPrefs } from '../store/uiPrefsStore'
 import SettingsOverlay from './SettingsOverlay'
 import type { OffenseResult } from '../api/client'
 import { dec } from '../utils/num'
@@ -74,8 +73,6 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
 
 export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave, onSaveAs, onGoBack }: Props) {
   const isTreeActive = screen === 'tree-selector' || screen === 'tree-viewer'
-  const showModifierBadges = useUiPrefs(s => s.showModifierBadges)
-  const toggleModifierBadges = useUiPrefs(s => s.toggleModifierBadges)
   const [showSettings, setShowSettings] = useState(false)
 
   return (
@@ -118,11 +115,7 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
 
       <div className="sidebar-spacer" />
 
-      <label className="sidebar-toggle" title="Show badges marking modifiers the engine doesn't recognize or use for this build">
-        <input type="checkbox" checked={showModifierBadges} onChange={toggleModifierBadges} />
-        <span>NYI flags</span>
-      </label>
-
+      {/* The "NYI flags" toggle moved to Settings → Display (defaults ON). */}
       <button className="sidebar-nav-btn sidebar-back" onClick={onGoBack}>← Back to Builds</button>
 
       {showSettings && <SettingsOverlay onClose={() => setShowSettings(false)} />}

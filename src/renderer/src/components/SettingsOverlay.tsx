@@ -20,6 +20,8 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false)
   const collapsiblePanels = useUiPrefs(s => s.collapsiblePanels)
   const setCollapsiblePanels = useUiPrefs(s => s.setCollapsiblePanels)
+  const showModifierBadges = useUiPrefs(s => s.showModifierBadges)
+  const toggleModifierBadges = useUiPrefs(s => s.toggleModifierBadges)
 
   useEffect(() => {
     window.api?.getSettings?.().then((s: AppSettings) => setChannel(s.updateChannel)).catch(() => {})
@@ -68,6 +70,22 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
           {/* ── Display ───────────────────────────────────────────────────── */}
           <section className="settings-section">
             <h4 className="settings-section-title">Display</h4>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <span>NYI flags</span>
+                <span className="settings-row-hint">Show badges marking modifiers the engine doesn't recognize or use for this build.</span>
+              </div>
+              <div className="settings-segmented">
+                <button
+                  className={`settings-seg-btn${!showModifierBadges ? ' active' : ''}`}
+                  onClick={() => { if (showModifierBadges) toggleModifierBadges() }}
+                >Off</button>
+                <button
+                  className={`settings-seg-btn${showModifierBadges ? ' active' : ''}`}
+                  onClick={() => { if (!showModifierBadges) toggleModifierBadges() }}
+                >On</button>
+              </div>
+            </div>
             <div className="settings-row">
               <div className="settings-row-label">
                 <span>Collapsible panels</span>

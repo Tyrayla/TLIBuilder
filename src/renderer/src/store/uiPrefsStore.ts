@@ -26,6 +26,10 @@ interface UiPrefsStore {
   // and show no collapse control; the user opts in under Settings → Display.
   collapsiblePanels: boolean
   setCollapsiblePanels: (on: boolean) => void
+  // Stats skill area: show EVERY mechanic/ailment/CC box even when this skill can't use it (e.g. Multistrike on
+  // a spell, Ignite on a non-hitting skill). Default OFF — boxes are skill-gated; the toggle reveals all.
+  statsShowAllBoxes: boolean
+  setStatsShowAllBoxes: (on: boolean) => void
 }
 
 export const useUiPrefs = create<UiPrefsStore>()(
@@ -41,6 +45,8 @@ export const useUiPrefs = create<UiPrefsStore>()(
       setStatsSelectedSlot: (statsSelectedSlot) => set({ statsSelectedSlot }),
       collapsiblePanels: false,
       setCollapsiblePanels: (collapsiblePanels) => set({ collapsiblePanels }),
+      statsShowAllBoxes: false,
+      setStatsShowAllBoxes: (statsShowAllBoxes) => set({ statsShowAllBoxes }),
     }),
     { name: 'tli-ui-prefs' },
   ),

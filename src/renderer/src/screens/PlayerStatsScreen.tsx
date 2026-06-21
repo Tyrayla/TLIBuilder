@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useContext } from 'react'
+import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffect } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
@@ -432,10 +432,11 @@ function StatPanel({
     <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderLeft: `3px solid ${accent}`, borderRadius: 4, marginBottom: 6 }}>
       <div
         style={{
-          // Neutral grey/black header across every box (category is conveyed by the accent left border, not the
-          // header tint) so Channeled / Skill Effects / Skill Damage etc. all read the same.
+          // Uniform cool-charcoal header across every box (category is conveyed by the accent left border, not the
+          // header tint) so Channeled / Skill Effects / Skill Damage etc. all read the same — but with a bit more
+          // depth/color than a flat grey.
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '5px 10px', background: 'rgba(255,255,255,0.05)', userSelect: 'none',
+          padding: '5px 10px', background: 'rgba(86,98,130,0.18)', userSelect: 'none',
         }}
       >
         <span
@@ -500,6 +501,8 @@ function SkillSelectionBar({
 }) {
   // Equipped skills in slot order, by name. Each carries its slot so selection maps back to slot_offense.
   const ordered = [...skills].sort((a, b) => a.slot - b.slot)
+  const showAll = useUiPrefs(s => s.statsShowAllBoxes)
+  const setShowAll = useUiPrefs(s => s.setStatsShowAllBoxes)
   const selectSt: React.CSSProperties = {
     fontSize: 11, background: 'rgba(255,255,255,0.06)', color: '#cfd6e6',
     border: '1px solid rgba(255,255,255,0.12)', borderRadius: 3, padding: '2px 4px',
@@ -551,6 +554,12 @@ function SkillSelectionBar({
             </select>
           </label>
         )}
+        {/* Reveal every mechanic/ailment/CC box even when this skill can't use it (find a box you think is
+            wrongly hidden). Default off → boxes are skill-gated. */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888', cursor: 'pointer' }}>
+          <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />
+          Show all boxes
+        </label>
       </div>
     </div>
   )
@@ -753,10 +762,11 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                 {/* Each form is its own visually-separated area (border + faint background) so multi-form
                     skills (e.g. Icebound Beam: Cold Beam + Icy Blade) read as distinct damage sources. */}
                 <tr>
+                  {/* Form name only — no full-row banner. A neutral separator line divides forms; the name keeps
+                      its own colour to mark it as a distinct damage source. */}
                   <td colSpan={7} style={{
                     paddingTop: 6, paddingBottom: 4, marginTop: 4, fontSize: 13, color: '#e0d0a0', fontWeight: 700,
-                    borderTop: multiForm ? '1px solid rgba(200,160,80,0.25)' : undefined,
-                    background: multiForm ? 'rgba(200,160,80,0.05)' : undefined,
+                    borderTop: multiForm ? '1px solid rgba(255,255,255,0.10)' : undefined,
                   }}>
                     {form.name}
                     {form.proc_chance < 1.0 && (
@@ -845,13 +855,76 @@ const MECH_STUBS: { label: string; tag: string; note: string }[] = [
   { label: 'Multistrike', tag: 'multistrike', note: 'Multistrike repeat-hit cadence is not modeled yet.' },
 ]
 
-// Flex-item wrapper for the offense box grid: every box (rate, crit, skill effects, shotgun, tangle, spell
-// burst, channeled, stubs) is one of these so they flow left-to-right and wrap, filling the row with as many
-// boxes as fit. align-items:flex-start on the container lets boxes of different heights sit side by side.
+// Wrapper for each box in the offense grid. Just a block — the MasonryGrid handles columns/placement.
 function GridBox({ children }: { children: React.ReactNode }) {
-  // A masonry column item: break-inside:avoid keeps a box whole within a column so the multi-column container
-  // packs boxes by height (no ragged row gaps). The StatPanel's own marginBottom provides the vertical spacing.
-  return <div style={{ breakInside: 'avoid' }}>{children}</div>
+  return <div>{children}</div>
+}
+
+function sameBuckets(a: number[][], b: number[][]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].length !== b[i].length) return false
+    for (let j = 0; j < a[i].length; j++) if (a[i][j] !== b[i][j]) return false
+  }
+  return true
+}
+
+// Row-major masonry: keeps source order across the top row (Hit Rate → Crit → Skill Effects fill columns
+// 0..N-1), then drops each remaining box into whichever column is currently shortest (measured heights) so the
+// vertical gaps fill in. Column count derives from container width (cap maxColumns); empty children are dropped.
+function MasonryGrid({ children, columnWidth = 220, gap = 6, maxColumns = 4, maxWidth }: {
+  children: React.ReactNode; columnWidth?: number; gap?: number; maxColumns?: number; maxWidth?: number
+}) {
+  const items = React.Children.toArray(children)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const itemRefs = useRef<Array<HTMLDivElement | null>>([])
+  const [cols, setCols] = useState(1)
+  const [buckets, setBuckets] = useState<number[][]>([])
+
+  useLayoutEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const compute = () => setCols(Math.max(1, Math.min(maxColumns, Math.floor((el.clientWidth + gap) / (columnWidth + gap)))))
+    compute()
+    const ro = new ResizeObserver(compute)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [columnWidth, gap, maxColumns])
+
+  // Re-measure each render; bail (same ref) when the layout is unchanged so we don't loop.
+  useLayoutEffect(() => {
+    const heights = new Array(cols).fill(0)
+    const next: number[][] = Array.from({ length: cols }, () => [])
+    items.forEach((_, i) => {
+      let c: number
+      if (i < cols) c = i                                   // first row: keep source order across the columns
+      else { c = 0; for (let k = 1; k < cols; k++) if (heights[k] < heights[c]) c = k }  // then shortest column
+      next[c].push(i)
+      heights[c] += (itemRefs.current[i]?.offsetHeight ?? 0) + gap
+    })
+    setBuckets(prev => sameBuckets(prev, next) ? prev : next)
+  })
+
+  // Fallback distribution (round-robin) until heights are measured / when cols changes — also guarantees the
+  // first row stays in source order (i < cols → column i).
+  const valid = buckets.length === cols && buckets.reduce((s, c) => s + c.length, 0) === items.length
+  const layout = valid ? buckets : (() => {
+    const b: number[][] = Array.from({ length: cols }, () => [])
+    items.forEach((_, i) => b[i % cols].push(i))
+    return b
+  })()
+
+  return (
+    <div ref={wrapRef} style={{ display: 'flex', gap, alignItems: 'flex-start', maxWidth }}>
+      {layout.map((col, ci) => (
+        <div key={ci} style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          {col.map(i => (
+            <div key={i} ref={el => { itemRefs.current[i] = el }}>{items[i]}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // A grey "modeling pending" box for an unimplemented mechanic — collapsed by default to stay out of the way.
@@ -1105,6 +1178,8 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   // scoping is Phase-2 engine work; for now we show the build-wide totals with their source breakdowns.
   const bdCtx = useContext(BreakdownCtx)
   const statMap = bdCtx?.statMap ?? {}
+  // "Show all boxes" reveals every mechanic/ailment/CC box regardless of skill-gating.
+  const showAll = useUiPrefs(s => s.statsShowAllBoxes)
 
   if (!offense) {
     // No computed offense for this slot. If a skill IS equipped here (passive/buff/curse/empower), show its
@@ -1129,6 +1204,66 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   const rateKeys = isSpell
     ? ['cast_speed_inc', 'cast_speed_additional', 'combo_starter_cast_speed_additional']
     : ['weapon_attack_speed', 'attack_speed_inc', 'attack_speed_gear', 'attack_speed_mh', 'attack_speed_additional', 'combo_starter_attack_speed_additional']
+
+  // Whether this skill lands hits — a precondition for inflicting ailments / crowd control. A skill that deals
+  // no hit damage (pure aura/buff/persistent with no strike) can't apply these unless it has special behavior,
+  // so those boxes stay hidden for it.
+  const canHit = (offense.total_dps ?? 0) > 0 || (offense.hit_forms ?? []).some(f => (f.dps_contribution ?? 0) > 0)
+  const stat = (k: string) => statMap[k]?.total ?? 0
+
+  // The damage types this skill actually deals — each ailment is gated to its element (fire→Ignite, cold→
+  // Frostbite/Freeze, lightning→Numbed, physical→Trauma, erosion→Wilt), so e.g. a pure-cold skill never shows
+  // an Ignite box. (Build-wide vs per-skill scoping of the chances/effects is Phase-2; Show-all overrides.)
+  const dealtTypes = new Set<string>()
+  for (const f of offense.hit_forms ?? []) {
+    for (const d of ALL_DTYPES) {
+      if ((f.hit_max_by_type?.[d] ?? 0) > 0 || (f.damage_by_type?.[d] ?? 0) > 0) dealtTypes.add(d)
+    }
+  }
+  const dealsType = (d: string) => dealtTypes.has(d)
+
+  // Damaging ailments (DoT damage itself is NOT modeled yet → "Damage NYI"); each box shows the inflict chance
+  // and the build's scaling mods, gated to skills that deal the matching damage type.
+  const AILMENTS: { key: string; name: string; accent: string; dtype: string; chanceKey: string;
+    mods: { label: string; keys: string[] }[] }[] = [
+    { key: 'ignite', name: 'Ignite', accent: '#e87030', dtype: 'fire', chanceKey: 'ignite_chance', mods: [
+      { label: 'Increased Damage', keys: ['ignite_dmg_inc'] },
+      { label: 'Additional Damage', keys: ['ignite_dmg_additional'] },
+      { label: 'Duration', keys: ['ignite_duration_inc'] } ] },
+    { key: 'wilt', name: 'Wilt', accent: '#80c878', dtype: 'erosion', chanceKey: 'wilt_chance', mods: [
+      { label: 'Increased Damage', keys: ['wilt_dmg_inc'] },
+      { label: 'Additional Damage', keys: ['wilt_dmg_additional'] },
+      { label: 'Duration', keys: ['wilt_duration_inc'] } ] },
+    { key: 'trauma', name: 'Trauma', accent: '#d09060', dtype: 'physical', chanceKey: 'trauma_chance', mods: [
+      { label: 'Increased Damage', keys: ['trauma_dmg_inc'] },
+      { label: 'Additional Damage', keys: ['trauma_dmg_additional'] } ] },
+  ]
+  const generalAilmentChance = stat('damaging_ailment_chance')
+
+  // Non-damage ailments — debuffs on the target rather than DoT. Cold → Frostbite (+ Freeze status); Lightning →
+  // Numbed. Gated to skills that deal the matching type. Numbed/Frostbite surface their effect + damage-taken
+  // amplification from the build's stats; Freeze is a status stub until its chance/duration is modeled.
+  const NONDMG: { key: string; name: string; accent: string; dtype: string;
+    rows: { label: string; keys: string[] }[]; note?: string; statusNYI?: string }[] = [
+    { key: 'numbed', name: 'Numbed', accent: '#e0d040', dtype: 'lightning', rows: [
+      { label: 'Effect', keys: ['numbed_effect_inc'] },
+      { label: 'Lightning Damage Taken', keys: ['numbed_lightning_taken'] } ] },
+    // Frostbite and Freeze share a box — Freeze is the heavy-Cold-buildup status that follows Frostbite.
+    { key: 'frostbite', name: 'Frostbite / Freeze', accent: '#60b8e8', dtype: 'cold', rows: [
+      { label: 'Effect', keys: ['frostbite_effect_inc'] },
+      { label: 'Cold Damage Taken', keys: ['frostbite_cold_taken'] } ], statusNYI: 'Freeze',
+      note: 'Frostbite amplifies the Cold damage enemies take; heavy Cold buildup also Freezes them. Freeze chance / duration / shatter aren\'t modeled yet.' },
+  ]
+
+  // Crowd control — chance-only stats (effects beyond chance aren't simulated). One box, listing whichever apply.
+  const CC: { label: string; key: string }[] = [
+    { label: 'Knockback', key: 'knockback_chance' },
+    { label: 'Slow', key: 'slow_chance' },
+    { label: 'Blind', key: 'blind_chance' },
+    { label: 'Paralyze', key: 'paralyze_chance' },
+    { label: 'Taunt on Hit', key: 'taunt_on_hit_chance' },
+  ]
+  const ccActive = CC.filter(c => stat(c.key) > 0)
 
   return (
     <>
@@ -1161,9 +1296,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       </StatPanel>
 
       {/* Box grid: rate · crit · skill effects always present, then any mechanic boxes that apply (shotgun,
-          tangle, spell burst, channeled, stubs). Masonry packing (CSS multi-column) fills vertical gaps by box
-          height; capped at 4 columns (columnCount) and ~1070px wide so boxes don't sprawl. */}
-      <div style={{ columnWidth: 220, columnCount: 4, columnGap: 6, maxWidth: 1070 }}>
+          tangle, spell burst, channeled, ailments, stubs). Row-major masonry keeps Hit Rate → Crit → Skill
+          Effects across the top, then fills the shortest column; capped at 4 columns / ~1070px. */}
+      <MasonryGrid columnWidth={220} gap={6} maxColumns={4} maxWidth={1070}>
         <GridBox>
           <StatPanel title="Hit Rate" accent={AMBER}
             info={isSpell ? 'Cast Rate = 1 ÷ Cast Time × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate — some forms fire every cast, others on a slower cadence.'
@@ -1260,6 +1395,12 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                     title: 'Extra Jumps', keys: ['extra_jumps_flat'],
                     total: extraJumps, totalUnit: '', formula: 'Σ +Extra Jumps',
                   }}>{extraJumps}</Row>
+                )}
+                {/* Skill Cost — the resolved per-cast cost after cost multipliers/conversions (Mana, or Life when
+                    converted), with its source breakdown. Not wired yet; scaffolded here (Show-all reveals it) so
+                    it's a one-line swap to the real value once the engine exposes the resolved cost. */}
+                {showAll && (
+                  <Row label="Mana Cost" labelColor="#555">— NYI</Row>
                 )}
               </StatPanel>
             </GridBox>
@@ -1496,12 +1637,89 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         </StatPanel></GridBox>
       )}
 
+      {/* Damaging-ailment boxes (Ignite=fire / Wilt=erosion / Trauma=physical) — informational: inflict chance +
+          scaling mods, with DoT damage flagged NYI (not modeled). Shown when this skill deals the matching type
+          (or Show-all). Per-skill scoping + "cannot inflict" override chains in the breakdown are Phase-2. */}
+      {AILMENTS.filter(a => (canHit && dealsType(a.dtype)) || showAll).map(a => {
+        const chance = stat(a.chanceKey)
+        return (
+          <GridBox key={a.key}>
+            <StatPanel title={a.name} accent={a.accent}
+              info={`Chance to inflict ${a.name} on hit (${a.dtype} damage), plus the build's ${a.name} scaling. The damage-over-time itself is not modeled yet (Damage: NYI).`}>
+              <Row label="Chance" breakdown={{
+                title: `${a.name} Chance`, keys: [a.chanceKey], total: chance, totalUnit: '%',
+                formula: `Σ ${a.name} Chance${generalAilmentChance > 0 ? ' (+ Damaging Ailment Chance)' : ''}`,
+              }}>{dec(chance * 100)}%</Row>
+              {a.mods.map(m => {
+                const v = stat(m.keys[0])
+                return (
+                  <Row key={m.label} label={m.label} breakdown={{ title: `${a.name} — ${m.label}`, keys: m.keys, total: v, totalUnit: '%', formula: `Σ ${a.name} ${m.label}` }}>
+                    {v !== 0 ? `+${dec(v * 100)}%` : '+0%'}
+                  </Row>
+                )
+              })}
+              <Row label="Damage" labelColor="#c8645a">NYI</Row>
+            </StatPanel>
+          </GridBox>
+        )
+      })}
+
+      {/* Non-damage ailment boxes (Numbed=lightning / Frostbite=cold / Freeze=cold) — debuffs on the target.
+          Gated to skills that deal the matching type. */}
+      {NONDMG.filter(n => (canHit && dealsType(n.dtype)) || showAll).map(n => (
+        <GridBox key={n.key}>
+          <StatPanel title={n.name} accent={n.accent}
+            info={n.note ?? `${n.name} debuff applied to enemies hit by ${n.dtype} damage. Values are the build's ${n.name} scaling.`}>
+            {n.rows.length > 0
+              ? n.rows.map(r => {
+                  const v = stat(r.keys[0])
+                  return (
+                    <Row key={r.label} label={r.label} breakdown={{ title: `${n.name} — ${r.label}`, keys: r.keys, total: v, totalUnit: '%', formula: `Σ ${n.name} ${r.label}` }}>
+                      {v !== 0 ? `+${dec(v * 100)}%` : '+0%'}
+                    </Row>
+                  )
+                })
+              : <Row label="Status" labelColor="#888">applied · <span style={{ color: '#c8645a' }}>NYI</span></Row>}
+            {n.statusNYI && (
+              <Row label={n.statusNYI} labelColor="#888"><span style={{ color: '#c8645a' }}>NYI</span></Row>
+            )}
+          </StatPanel>
+        </GridBox>
+      ))}
+
+      {/* Crowd Control — chance-only stats (the effects beyond chance aren't simulated). */}
+      {((canHit && ccActive.length > 0) || showAll) && (
+        <GridBox>
+          <StatPanel title="Crowd Control" accent={GREY}
+            info="Chance to apply each crowd-control effect on hit. The effects themselves (duration, distance, etc.) aren't simulated yet.">
+            {(showAll ? CC : ccActive).map(c => {
+              const v = stat(c.key)
+              return (
+                <Row key={c.key} label={c.label} breakdown={{ title: `${c.label} Chance`, keys: [c.key], total: v, totalUnit: '%', formula: `Σ ${c.label} Chance` }}>
+                  {dec(v * 100)}%
+                </Row>
+              )
+            })}
+          </StatPanel>
+        </GridBox>
+      )}
+
       {/* Stub boxes for mechanics this skill has but the engine doesn't model yet (Combo / Demolisher / Barrage /
-          Multistrike). The modeled mechanics above (Tangle / Spell Burst / Channeled) render real data instead. */}
-      {MECH_STUBS.filter(m => hasTag(offense, m.tag)).map(m => (
+          Multistrike). The modeled mechanics above (Tangle / Spell Burst / Channeled) render real data instead.
+          Show-all reveals every stub regardless of the skill's tags. */}
+      {MECH_STUBS.filter(m => showAll || hasTag(offense, m.tag)).map(m => (
         <GridBox key={m.tag}><MechanicStubPanel label={m.label} note={m.note} /></GridBox>
       ))}
-      </div>
+
+      {/* Consume boxes — not wired yet. Made now and hidden (only the Show-all toggle reveals them) so they're
+          easy to populate later with the skill's per-cast / over-time Life & Mana consumption. */}
+      {showAll && (
+        <>
+          <GridBox><MechanicStubPanel label="Mana Consume" note="Mana consumed by this skill (per cast / over time) is not wired yet." /></GridBox>
+          <GridBox><MechanicStubPanel label="Life Consume" note="Life consumed by this skill (per cast / over time) is not wired yet." /></GridBox>
+        </>
+      )}
+      </MasonryGrid>
     </>
   )
 }
@@ -1772,19 +1990,19 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
         )
       })}
       {(details.length > 0 || target.debuffs.length > 0) && (
-        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#9a6a9a', margin: '6px 0 2px' }}>
-          Active Debuffs
-        </div>
+        <>
+          {/* Names-only list of the debuffs currently on the target — the exact amplification values live in the
+              per-type resistance rows above (and their breakdowns), so they're not repeated here. */}
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#9a6a9a', margin: '6px 0 2px' }}>
+            Active Debuffs
+          </div>
+          <div style={{ fontSize: 12, color: '#d0a0e0', lineHeight: 1.5 }}>
+            {details.length > 0
+              ? details.map(d => `${d.name}${d.stacks ? ` ×${Math.round(d.stacks)}` : ''}`).join(', ')
+              : target.debuffs.join(', ')}
+          </div>
+        </>
       )}
-      {details.length > 0
-        ? details.map(d => (
-            <Row key={d.name} label={`${d.name}${d.stacks ? ` ×${Math.round(d.stacks)}` : ''}`} labelColor="#d0a0e0">
-              <span style={{ color: '#e0b0e0' }}>+{(d.taken_inc * 100).toFixed(0)}% {d.scope} taken</span>
-            </Row>
-          ))
-        : target.debuffs.length > 0 && (
-            <Row label="Active"><span style={{ color: '#d0a0e0' }}>{target.debuffs.join(', ')}</span></Row>
-          )}
     </StatPanel>
   )
 }
