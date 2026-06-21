@@ -24,6 +24,7 @@ _REPRESENTATIVE = [
     "Added Lightning Damage",                       # support_skill — added-flat RANGE
     "Multiple Projectiles",                         # support_skill — % scaling + always-show special line
     "Chain Lightning",                              # active_skill — damage range + "+2 Jumps"
+    "Howling Gale",                                 # active_skill (modeled) — detailed_description split + 'modeled' coverage
     "Blazing Incineration",                         # passive_skill — Descript scaling + #skillstone strip
     "Acuteness Focus: Sharpening (Magnificent)",    # magnificent — fixed +20% + (a-b)% MIDPOINT per tier
     "Berserking Blade: Decimate (Noble)",           # noble — universal damage line + threshold midpoint

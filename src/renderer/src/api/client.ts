@@ -1313,6 +1313,9 @@ export interface SkillTooltipLine {
   badge_text: string
   text: string
   values_by_level?: Record<number, string> | null
+  // 'modeled' → engine models this skill's intrinsic mechanic (green badge), set backend-side for modeled
+  // skills. null/absent → use the badge_text keys path (build-specific Consumed/Inactive/NYI).
+  coverage?: 'modeled' | null
 }
 
 // Structured, level-aware tooltip for a skill/support. `level_kind` is "level" (skills/standard

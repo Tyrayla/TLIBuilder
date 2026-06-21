@@ -440,6 +440,48 @@ def _resolve_rosa_holy_domain(skill_data: dict) -> ResolvedSkill:
     )
 
 
+# Skill-specific modeled mechanics not derivable from the generic ResolvedSkill fields below (e.g. Icebound's
+# shotgun/projectile/beam handling, Berserking's buff Skill-Area/stack-cap). Phrases are lowercased substrings.
+# NOTE: when a NEW skill is brought to full modeling, add its modeled-mechanic phrases here (or rely on the
+# generic ResolvedSkill rules in classify_intrinsic_line for channeled / intrinsic_additional / steep-strike).
+_SKILL_MODELED_PHRASES: dict[str, tuple[str, ...]] = {
+    "icebound_beam": ("shotgun effect falloff", "projectile quantity", "beam reflection",
+                      "fires 1 projectile", "hit the same enemy"),
+    "berserking_blade": ("skill area for each stack of buff", "stacks up to"),
+}
+
+
+def classify_intrinsic_line(line: str, resolved: ResolvedSkill) -> str | None:
+    """Coverage of an active skill's intrinsic tooltip clause:
+      'modeled' → the clause names a mechanic the engine ACTUALLY models for this skill (→ green badge).
+      None      → not a positively-modeled mechanic; leave the line untouched (its existing keys path decides,
+                  so genuinely-unimplemented mechanics honestly stay NYI).
+    Strictly gated on ResolvedSkill so it can only green what is truly modeled (generic, low per-season drift)."""
+    if not resolved.supported:
+        return None
+    t = (line or "").lower()
+    if resolved.base_steep_strike_chance and "steep strike chance" in t:
+        return "modeled"
+    if resolved.channeled:
+        if "max channeled stack" in t:
+            return "modeled"
+        if resolved.channeled.attack_frequency and "attack frequency" in t:
+            return "modeled"
+    if resolved.intrinsic_additional and "additional damage" in t and (
+            "for every" in t or "per " in t or "max channeled stack" in t):
+        return "modeled"
+    # "This skill is affected by <X> Effect" — modeled when an intrinsic additional scales with that effect
+    # (e.g. Focused Slash: Fervor Effect scales the per-Fervor-Rating bonus via effect_key).
+    if any(ia.effect_key for ia in resolved.intrinsic_additional) and "affected by" in t and "effect" in t:
+        return "modeled"
+    if resolved.extra_damage_mod_tags and "also appl" in t and "damage" in t:
+        return "modeled"
+    for phrase in _SKILL_MODELED_PHRASES.get(resolved.skill_id, ()):
+        if phrase in t:
+            return "modeled"
+    return None
+
+
 def resolve_skill(skill_data: dict) -> ResolvedSkill:
     """Return a ResolvedSkill; supported=False for any skill not in the registry.
 

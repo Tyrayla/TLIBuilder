@@ -10,6 +10,7 @@
   "lines": [
     {
       "badge_text": "The supported skill +15.5 % additional Cooldown Recovery Speed",
+      "coverage": null,
       "kind": "scaling",
       "text": "",
       "values_by_level": {
@@ -20,6 +21,7 @@
     },
     {
       "badge_text": "+15.5 % additional Duration for the supported skill",
+      "coverage": null,
       "kind": "scaling",
       "text": "",
       "values_by_level": {
@@ -30,12 +32,14 @@
     },
     {
       "badge_text": "Always attempts to trigger the supported skill when there is a boss within (6–20) m.",
+      "coverage": null,
       "kind": "special",
       "text": "Always attempts to trigger the supported skill when there is a boss within (6–20) m.",
       "values_by_level": null
     },
     {
       "badge_text": "Interval: 0.1s",
+      "coverage": null,
       "kind": "special",
       "text": "Interval: 0.1s",
       "values_by_level": null

@@ -55,9 +55,10 @@ def _kind_for(text: str) -> str:
 _BUFF_FLAVOR_RE = re.compile(r"gains? a buff|the buff lasts|^buffs? last", re.I)
 
 
-def _line(kind: str, badge_text: str, text: str = "", values_by_level: dict | None = None) -> dict:
+def _line(kind: str, badge_text: str, text: str = "", values_by_level: dict | None = None,
+          coverage: str | None = None) -> dict:
     return {"kind": kind, "badge_text": badge_text, "text": text,
-            "values_by_level": values_by_level}
+            "values_by_level": values_by_level, "coverage": coverage}
 
 
 # ── value rendering ────────────────────────────────────────────────────────────
@@ -233,12 +234,65 @@ def _lines_tiered(skill_data: dict) -> list[dict]:
     return out
 
 
+# A short value-only entry the crawler split off from its label (e.g. "1.5", "5", "65%"). Used to re-join
+# "Base Attack Frequency:" + "1.5" -> one line.
+_VALUE_LINE_RE = re.compile(r"^[+\-]?\d[\d.,]*\s*%?$")
+# Sentence boundary only — gentle split for the already-clause-level detailed_description (avoids the aggressive
+# "for this/the supported skill" fragmentation that _CLAUSE_SPLIT applies to run-on strings).
+_SENTENCE_SPLIT = re.compile(r"(?<=\.)\s+")
+
+
+def _join_value_labels(entries: list[str]) -> list[str]:
+    """Merge a trailing-colon label entry with the following bare-value entry (crawler artifact):
+    ["Base Attack Frequency:", "1.5"] -> ["Base Attack Frequency: 1.5"]."""
+    out, i = [], 0
+    while i < len(entries):
+        cur = _norm(entries[i] or "")
+        if cur.endswith(":") and i + 1 < len(entries) and _VALUE_LINE_RE.match(_norm(entries[i + 1] or "")):
+            out.append(_norm(cur + " " + _norm(entries[i + 1])))
+            i += 2
+            continue
+        if cur:
+            out.append(cur)
+        i += 1
+    return out
+
+
+def _active_clauses(skill_data: dict, dmg_ref: str) -> list[str]:
+    """The non-damage mechanic/special clauses for an active skill, ONE per line. Prefers the crawler's clean
+    per-clause `detailed_description`; falls back to `simple_description` -> `description_lines`. The run-on
+    per-level `Descript` is intentionally NOT used (it was the source of garbled multi-clause lines). Section
+    headers ("Howling Gale:", "Buff:") and any clause that duplicates the damage line are dropped."""
+    dd = skill_data.get("detailed_description") or []
+    if dd:
+        pieces: list[str] = []
+        for entry in _join_value_labels(dd):
+            e = _clean(entry)
+            if not e or e.endswith(":"):          # section header (label with no value) — skip
+                continue
+            pieces.extend(_SENTENCE_SPLIT.split(e))   # break the occasional multi-sentence entry only
+    else:
+        src = skill_data.get("simple_description") or skill_data.get("description_lines") or []
+        pieces = _split_clauses(" ".join(src))        # run-on summary — needs the aggressive splitter
+    out, seen = [], set()
+    for piece in pieces:
+        c = _norm(piece)
+        if not c or _GATE_RE.match(c) or _INSTALL_RE.search(c):
+            continue
+        if dmg_ref and _is_dup(c, dmg_ref):           # intrinsic damage value — shown by the damage line
+            continue
+        key = _template(c)
+        if key and key not in seen:
+            seen.add(key)
+            out.append(c)
+    return out
+
+
 def _lines_active(skill_data: dict) -> list[dict]:
     prog = skill_data.get("progression") or []
     levels = _levels(prog)
     if not levels:
         return _generic_lines(skill_data)
-    name = skill_data.get("name") or ""
     by_lvl = {e.get("level"): (e.get("values") or {}) for e in prog}
     out: list[dict] = []
 
@@ -256,14 +310,8 @@ def _lines_active(skill_data: dict) -> list[dict]:
 
     out.extend(_templated_lines(by_lvl, levels))   # support-style {template: value} keys (Blink, summons)
 
-    # Special clauses: authoritative = Descript (minus its damage clause), extra = description_lines.
-    rep = base = levels[-1] if levels[-1] in by_lvl else levels[0]
-    descript = _strip_name_prefix(_clean(by_lvl[rep].get("Descript") or ""), name)
-    auth = [c for c in _split_clauses(descript) if not _is_dup(c, next(iter(dmg.values()), ""))] if dmg else _split_clauses(descript)
-    extra = _split_clauses(" ".join(skill_data.get("description_lines") or []))
-    if dmg:
-        extra = [c for c in extra if not _is_dup(c, next(iter(dmg.values())))]
-    for c in _merge_detail(auth, extra):
+    # Mechanic/special clauses — from the clean per-clause detailed_description (NOT the run-on Descript).
+    for c in _active_clauses(skill_data, next(iter(dmg.values()), "")):
         out.append(_line(_kind_for(c), c, text=c))
     return out
 
@@ -397,6 +445,19 @@ def build_tooltip(skill_data: dict) -> dict:
             if not skill_effects.resolve_line_keys(bt):   # None or [] → not a stat clause → no badge
                 ln["badge_text"] = ""
         modeled = skill_effects.modeled_rolls(item_id, skill_data)
+
+    # Modeled active skills: positively mark their intrinsic mechanic lines as 'modeled' (green) so they don't
+    # badge NYI. Only lines the engine TRULY models (per classify_intrinsic_line) go green; everything else is
+    # left as-is, so genuinely-unimplemented mechanics honestly stay NYI. Clears badge_text on greened lines so
+    # they don't ALSO run the keys path.
+    from engine.skill_resolver import _REGISTRY, resolve_skill, classify_intrinsic_line
+    if item_id in _REGISTRY:
+        resolved = resolve_skill(skill_data)
+        for ln in lines:
+            bt = ln.get("badge_text") or ""
+            if bt and classify_intrinsic_line(bt, resolved) == "modeled":
+                ln["coverage"] = "modeled"
+                ln["badge_text"] = ""
 
     return {"gate_text": gate, "level_kind": kind, "default_level": default,
             "available_levels": avail, "lines": lines, "modeled_rolls": modeled}

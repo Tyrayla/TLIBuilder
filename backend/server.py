@@ -1547,8 +1547,9 @@ def get_skills():
             out["tooltip"] = {
                 "gate_text": None, "level_kind": "level",
                 "default_level": s.get("max_level") or 1, "available_levels": [s.get("max_level") or 1],
-                "lines": [{"kind": "flavor", "badge_text": d, "text": d, "values_by_level": None}
+                "lines": [{"kind": "flavor", "badge_text": d, "text": d, "values_by_level": None, "coverage": None}
                           for d in (s.get("description_lines") or [])],
+                "modeled_rolls": [],
             }
         skills.append(out)
     return {"season": active, "skills": skills}

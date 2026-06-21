@@ -19,7 +19,9 @@ import { useUiPrefs } from '../store/uiPrefsStore'
 import { affixStatKeys } from '../utils/affixText'
 import type { ModifierSource } from '../api/client'
 
-export type ModifierStatus = 'working' | 'inactive' | 'unused' | 'unrecognized'
+// 'modeled' is a green, BUILD-INDEPENDENT status for a skill's own intrinsic mechanic (the engine models it),
+// distinct from 'working'/"Consumed" which is a build-specific resolved stat. Set directly by the backend tooltip.
+export type ModifierStatus = 'working' | 'inactive' | 'unused' | 'unrecognized' | 'modeled'
 
 type StatBearingAffix = Parameters<typeof affixStatKeys>[0] & { affix_kind?: string }
 export interface TextModifier { text: string | null | undefined; source: ModifierSource; nodeId?: string }
@@ -140,12 +142,14 @@ const LABEL: Record<ModifierStatus, string> = {
   inactive: 'Inactive',
   unused: 'Unconsumed',
   unrecognized: 'Unrecognized (NYI)',
+  modeled: 'Modeled',
 }
 const TITLE: Record<ModifierStatus, string> = {
   working: 'Resolved to an engine stat that this build actively consumes.',
   inactive: "The engine models this stat, but your selected skill/calculation doesn't read it (it would work on another build).",
   unused: "Resolves to a stat the engine doesn't read anywhere yet — recognized, not modeled.",
   unrecognized: "This modifier doesn't map to any stat the engine models yet.",
+  modeled: "This skill's intrinsic mechanic is modeled by the engine.",
 }
 
 // Renders nothing for null status or when the toggle is off. Every resolved state (incl. green

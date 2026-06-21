@@ -27,6 +27,7 @@
   "lines": [
     {
       "badge_text": "",
+      "coverage": null,
       "kind": "scaling",
       "text": "",
       "values_by_level": {
@@ -54,6 +55,7 @@
     },
     {
       "badge_text": "",
+      "coverage": null,
       "kind": "scaling",
       "text": "",
       "values_by_level": {
@@ -81,6 +83,7 @@
     },
     {
       "badge_text": "+2 Jumps for this skill",
+      "coverage": null,
       "kind": "special",
       "text": "+2 Jumps for this skill",
       "values_by_level": null

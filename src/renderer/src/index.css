@@ -103,6 +103,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   color: #ff6b6b !important;
   background: rgba(255,107,107,0.10); border-style: dashed; border-color: rgba(255,107,107,0.5);
 }
+/* "Modeled" = green, build-independent (the skill's intrinsic mechanic is modeled by the engine). Teal-green
+   to read as "working" while staying distinct from the build-specific "Consumed". */
+.nyi-tag--modeled {
+  color: #3fc9b0 !important;
+  background: rgba(63,201,176,0.12); border-color: rgba(63,201,176,0.34);
+}
 
 .btn-back {
   background: transparent;
