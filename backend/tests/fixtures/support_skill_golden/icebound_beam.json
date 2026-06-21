@@ -318,7 +318,7 @@
         "dps_contribution": 2348.0606615170113,
         "dps_vs_target": 1153.111104355592,
         "effectiveness_pct": 100.0,
-        "fires_per_sec": 0.48072072072072064,
+        "fires_per_sec": 0.6966966966966966,
         "form_type": "additive",
         "hit_max_by_type": {
           "cold": 3083.778443007987,
@@ -336,7 +336,7 @@
         "name": "Chilling Spike",
         "proc_chance": 1.0,
         "shotgun_falloff": 0.0,
-        "shotgun_mult": 1.0
+        "shotgun_mult": 0.69
       }
     ],
     "main_stat_damage_bonus": 0.0,
@@ -552,7 +552,7 @@
           "dps_contribution": 2348.0606615170113,
           "dps_vs_target": 1153.111104355592,
           "effectiveness_pct": 100.0,
-          "fires_per_sec": 0.48072072072072064,
+          "fires_per_sec": 0.6966966966966966,
           "form_type": "additive",
           "hit_max_by_type": {
             "cold": 3083.778443007987,
@@ -570,7 +570,7 @@
           "name": "Chilling Spike",
           "proc_chance": 1.0,
           "shotgun_falloff": 0.0,
-          "shotgun_mult": 1.0
+          "shotgun_mult": 0.69
         }
       ],
       "main_stat_damage_bonus": 0.0,

@@ -1142,10 +1142,13 @@ def calculate_offense(
                 dps_vs_target=avg_post_vs_target * proc * chilling_extra,
                 hit_min_by_type=hit_min_by_type,
                 hit_max_by_type=hit_max_by_type,
-                fires_per_sec=form_rate * proc * chilling_equiv,
+                # Fires WITH Icy Blade (same burst rate at max channeled stacks). The 0.69 net single-target
+                # blade-equivalent is a per-occurrence damage factor (stored in shotgun_mult, not the rate),
+                # so dps = avg × rate × equiv reconciles without faking a slower cadence.
+                fires_per_sec=form_rate * proc,
                 hits_per_fire=1,
                 shotgun_falloff=0.0,
-                shotgun_mult=1.0,
+                shotgun_mult=chilling_equiv,
                 base_min_by_type={t: mn for t, (mn, _) in form_base.items()},
                 base_max_by_type={t: mx for t, (_, mx) in form_base.items()},
             ))

@@ -635,7 +635,20 @@ function typeAddKeys(dtype: string): string[] {
   return keys
 }
 
+// The enemy-vulnerability stat keys that feed _enemy_vuln_mult for a given damage type — mirrors the engine so
+// the Enemy Multiplier breakdown shows the real sources of the amplification (Numbed/Paralysis/Frostbite/…).
+function enemyVulnKeys(dtype: string, isSpell: boolean): string[] {
+  const keys = ['paralysis_dmg_taken', 'no_guard_dmg_taken', 'knockback_dmg_taken', 'hit_curse_taken', `${dtype}_curse_taken`]
+  if (dtype === 'cold') keys.push('frostbite_cold_taken')
+  if (dtype === 'lightning') keys.push('numbed_lightning_taken')
+  if (dtype === 'fire' || dtype === 'cold' || dtype === 'lightning') keys.push(`${dtype}_infiltration_taken`)
+  if (isSpell) keys.push('frail_spell_taken')
+  return keys
+}
+
 function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
+  const ctx = useContext(BreakdownCtx)
+  const isSpell = hasTag(offense, 'spell')
   const totalDps = offense.total_dps_vs_target
   // Same-target shotgun multiplier (e.g. Chain Lightning Merge+Web): total_dps_vs_target includes it but the
   // per-form dps_vs_target does NOT, so every per-form / per-type figure below must apply it to reconcile to
@@ -759,7 +772,19 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               <td style={td}>{offense.total_dps > 0 ? `×${dec(offense.total_dps_vs_target / offense.total_dps)}` : '—'}</td>
               {ALL_DTYPES.map(d => {
                 const m = offense.enemy_mult_by_type?.[d]
-                return <td key={d} style={m !== undefined ? td : tdDim}>{m !== undefined ? `×${dec(m)}` : '—'}</td>
+                if (m === undefined) return <td key={d} style={tdDim}>—</td>
+                // Split the multiplier into (target mitigation) × (Π enemy vulnerability) for the breakdown:
+                // the vuln keys carry the real sources; mitigation = m ÷ that product (the armour/resist part).
+                const vk = enemyVulnKeys(d, isSpell)
+                const vulnProduct = vk.reduce((p, k) => p * (1 + (ctx?.statMap[k]?.total ?? 0)), 1)
+                const mitigation = vulnProduct > 0 ? m / vulnProduct : m
+                return <td key={d} style={td}>
+                  <Breakdown title={`Enemy Multiplier — ${DTYPE_LABEL[d]}`} keys={vk} total={m} totalUnit="×"
+                    formula="Target Mitigation × Π(1 + enemy vulnerability)"
+                    extra={[{ value: `×${dec(mitigation)}`, stat: 'Target Mitigation', source: 'Target', sourceName: '(1 − armour) × (1 − resistance)' }]}>
+                    ×{dec(m)}
+                  </Breakdown>
+                </td>
               })}
             </tr>
           )}
