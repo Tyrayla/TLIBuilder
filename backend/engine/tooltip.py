@@ -217,8 +217,21 @@ def _lines_tiered(skill_data: dict) -> list[dict]:
     base_list = tier_clauses.get(base_t, [])
 
     # Fixed lines from description_lines (e.g. the universal "+20% additional damage" rank line) that
-    # aren't part of the per-tier roll clauses.
-    desc_clauses = _split_clauses(" ".join(skill_data.get("description_lines") or []))
+    # aren't part of the per-tier roll clauses. Split each description_line INDIVIDUALLY (they're already
+    # clause-separated) — joining them first glued a period-less line (e.g. Chilling Spike's "+4 large Icy
+    # Blade Projectiles…") onto the next "(-N…)" line, which then deduped away.
+    desc_clauses: list[str] = []
+    _kept_t: list[str] = []
+    for _ln in (skill_data.get("description_lines") or []):
+        for _part in re.split(r"\\n|\n", _ln):     # some lines glue clauses with a (literal or real) newline
+            for _c in _split_clauses(_part):
+                _t = _template(_c)
+                # Skip repeats AND superset/subset combined lines (the crawler sometimes emits a line that
+                # concatenates two others) — keep the shorter, drop the one that contains/equals it.
+                if not _t or any(_t == k or _t in k or k in _t for k in _kept_t):
+                    continue
+                _kept_t.append(_t)
+                desc_clauses.append(_c)
     fixed = [c for c in desc_clauses if not any(_is_dup(c, b) for b in base_list)]
 
     out: list[dict] = [_line(_kind_for(c), c, text=c) for c in fixed]
