@@ -1225,6 +1225,14 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   // so those boxes stay hidden for it.
   const canHit = (offense.total_dps ?? 0) > 0 || (offense.hit_forms ?? []).some(f => (f.dps_contribution ?? 0) > 0)
   const stat = (k: string) => statMap[k]?.total ?? 0
+  // Per-skill value: the character-wide total PLUS this slot's skill-specific (support) contributions — same
+  // slot scoping the breakdown body uses, so Skill Effects shows the value for the SELECTED skill, not build-wide.
+  const statForSlot = (k: string) => {
+    const e = statMap[k]
+    if (!e) return 0
+    const slotPart = (e.slot_sources ?? []).filter(s => s.slot === slot).reduce((sum, s) => sum + (s.amount ?? 0), 0)
+    return (e.total ?? 0) + slotPart
+  }
 
   // The damage types this skill actually deals — each ailment is gated to its element (fire→Ignite, cold→
   // Frostbite/Freeze, lightning→Numbed, physical→Trauma, erosion→Wilt), so e.g. a pure-cold skill never shows
@@ -1374,9 +1382,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             penetrations and jumps only appear when the build actually has them. (Values are build-wide today;
             per-skill scoping is Phase-2.) */}
         {(() => {
-          const projSpeedInc = statMap['projectile_speed_inc']?.total ?? 0
-          const penetrations = statMap['horizontal_projectile_penetration_flat']?.total ?? 0
-          const extraJumps = statMap['extra_jumps_flat']?.total ?? 0
+          const projSpeedInc = statForSlot('projectile_speed_inc')
+          const penetrations = statForSlot('horizontal_projectile_penetration_flat')
+          const extraJumps = statForSlot('extra_jumps_flat')
           return (
             <GridBox>
               <StatPanel title="Skill Effects" accent={AMBER}>
