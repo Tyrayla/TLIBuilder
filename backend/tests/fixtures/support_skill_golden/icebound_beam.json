@@ -203,6 +203,12 @@
     "crit_chance": 0.15,
     "crit_multiplier": 1.5,
     "effective_level": 20,
+    "enemy_mult_by_type": {
+      "cold": 0.48999999999999994,
+      "fire": 0.48999999999999994,
+      "lightning": 0.7349999999999999,
+      "physical": 0.5
+    },
     "flat_dmg_max": {
       "cold": 257.0,
       "fire": 54.0,
@@ -393,6 +399,12 @@
       "crit_chance": 0.15,
       "crit_multiplier": 1.5,
       "effective_level": 20,
+      "enemy_mult_by_type": {
+        "cold": 0.48999999999999994,
+        "fire": 0.48999999999999994,
+        "lightning": 0.7349999999999999,
+        "physical": 0.5
+      },
       "flat_dmg_max": {
         "cold": 257.0,
         "fire": 54.0,

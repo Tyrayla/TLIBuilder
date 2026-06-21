@@ -657,6 +657,9 @@ export interface OffenseResult {
   channeled_behavior: string            // "reset" | "refresh" | "" (not channeled)
   channeled_attack_frequency: number    // persistent-entity strike rate (Howling Gale's Gale); 0 = N/A
   projectile_count: number              // projectiles of the projectile-scaling form (Icy Blade); 0 = N/A
+  // Combined per-type ENEMY damage multiplier on outgoing damage: (1−armor)(1−resist) × enemy vulnerability
+  // (Paralysis/Numbed/Frostbite/curses/…). Only types this skill deals are present. 1.0 = neutral.
+  enemy_mult_by_type?: Record<string, number>
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number

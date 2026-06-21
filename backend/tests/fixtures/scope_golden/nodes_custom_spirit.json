@@ -266,6 +266,10 @@
     "crit_chance": 0.05,
     "crit_multiplier": 1.75,
     "effective_level": 14,
+    "enemy_mult_by_type": {
+      "cold": 0.48999999999999994,
+      "lightning": 0.7349999999999999
+    },
     "flat_dmg_max": {
       "lightning": 289.0
     },

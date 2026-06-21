@@ -625,6 +625,11 @@ class OffenseResult:
     channeled_behavior: str = ""           # "reset" | "refresh" | "" (not channeled)
     channeled_attack_frequency: float = 0.0  # persistent-entity strike rate (Howling Gale's Gale); 0 = N/A
     projectile_count: int = -1             # projectiles of the projectile-scaling form (Icy Blade); -1 = N/A (no such form)
+    # Combined per-type ENEMY damage multiplier on OUTGOING damage = target armor/resist mitigation
+    # (1−armor)(1−resist) × enemy vulnerability (Paralysis / Numbed / Frostbite / Infiltration / curses / …).
+    # 1.0 = neutral; <1 = net-mitigated, >1 = net-amplified. Surfaced so the damage area can show one
+    # "Enemy Multiplier" line per type. Depends on is_spell (Frail is Spell-form).
+    enemy_mult_by_type: dict[str, float] = field(default_factory=dict)
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -1346,6 +1351,14 @@ def calculate_offense(
         channeled_behavior=ch_behavior,
         channeled_attack_frequency=ch_attack_frequency,
         projectile_count=projectile_count,
+        # Only for types this skill actually deals — those stats were already read (consumed) in the per-type
+        # loop above, so re-reading is golden-neutral; reading types the skill doesn't deal would wrongly mark
+        # their enemy-vuln stats "Consumed".
+        enemy_mult_by_type={
+            dt: _target_mitigation(source, dt) * _enemy_vuln_mult(source, dt, is_spell)
+            for dt in ("physical", "fire", "cold", "lightning", "erosion")
+            if any(f.hit_max_by_type.get(dt, 0.0) > 0.0 for f in hit_forms)
+        },
         nyi=[
             "Support skill flat damage adds",
             "Elemental conversion",

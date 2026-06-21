@@ -206,6 +206,11 @@
     "crit_chance": 0.396,
     "crit_multiplier": 1.5,
     "effective_level": 20,
+    "enemy_mult_by_type": {
+      "fire": 0.48999999999999994,
+      "lightning": 0.7349999999999999,
+      "physical": 0.5
+    },
     "flat_dmg_max": {
       "fire": 135.0,
       "lightning": 198.0,
@@ -375,6 +380,11 @@
       "crit_chance": 0.396,
       "crit_multiplier": 1.5,
       "effective_level": 20,
+      "enemy_mult_by_type": {
+        "fire": 0.48999999999999994,
+        "lightning": 0.7349999999999999,
+        "physical": 0.5
+      },
       "flat_dmg_max": {
         "fire": 135.0,
         "lightning": 198.0,

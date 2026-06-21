@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, NumbedInfo, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, HeroTrait } from '../api/client'
+import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, HeroTrait } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from './HeroTraitScreen'
@@ -750,6 +750,20 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
           {/* Main-stat Damage Bonus (0.5%/point) is part of Total Additional above — shown as a source inside that
               breakdown (not its own row), since it's one cumulative additional multiplier, not a separate pool. */}
 
+          {/* ── Enemy Multiplier: the cumulative outgoing multiplier the TARGET applies per type — armor/resist
+               mitigation × enemy vulnerability (Paralysis/Numbed/Frostbite/Infiltration/curses). All Types = the
+               net multiplier across the skill's damage (total vs-target ÷ total pre-mitigation). ── */}
+          {offense.enemy_mult_by_type && Object.keys(offense.enemy_mult_by_type).length > 0 && (
+            <tr>
+              <td style={tdLbl}>Enemy Multiplier</td>
+              <td style={td}>{offense.total_dps > 0 ? `×${dec(offense.total_dps_vs_target / offense.total_dps)}` : '—'}</td>
+              {ALL_DTYPES.map(d => {
+                const m = offense.enemy_mult_by_type?.[d]
+                return <td key={d} style={m !== undefined ? td : tdDim}>{m !== undefined ? `×${dec(m)}` : '—'}</td>
+              })}
+            </tr>
+          )}
+
           {/* ── Per hit form ── */}
           {offense.hit_forms.map(form => {
             const formMin = ALL_DTYPES.reduce((s, d) => s + (form.hit_min_by_type[d] ?? 0), 0)
@@ -871,9 +885,10 @@ function sameBuckets(a: number[][], b: number[][]): boolean {
 
 // Row-major masonry: keeps source order across the top row (Hit Rate → Crit → Skill Effects fill columns
 // 0..N-1), then drops each remaining box into whichever column is currently shortest (measured heights) so the
-// vertical gaps fill in. Column count derives from container width (cap maxColumns); empty children are dropped.
-function MasonryGrid({ children, columnWidth = 220, gap = 6, maxColumns = 4, maxWidth }: {
-  children: React.ReactNode; columnWidth?: number; gap?: number; maxColumns?: number; maxWidth?: number
+// vertical gaps fill in. Column count derives purely from container width / columnWidth (no hard cap); each
+// column is capped at columnMax so boxes don't sprawl on very wide screens. Empty children are dropped.
+function MasonryGrid({ children, columnWidth = 220, columnMax = 340, gap = 6 }: {
+  children: React.ReactNode; columnWidth?: number; columnMax?: number; gap?: number
 }) {
   const items = React.Children.toArray(children)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -884,12 +899,12 @@ function MasonryGrid({ children, columnWidth = 220, gap = 6, maxColumns = 4, max
   useLayoutEffect(() => {
     const el = wrapRef.current
     if (!el) return
-    const compute = () => setCols(Math.max(1, Math.min(maxColumns, Math.floor((el.clientWidth + gap) / (columnWidth + gap)))))
+    const compute = () => setCols(Math.max(1, Math.floor((el.clientWidth + gap) / (columnWidth + gap))))
     compute()
     const ro = new ResizeObserver(compute)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [columnWidth, gap, maxColumns])
+  }, [columnWidth, gap])
 
   // Re-measure each render; bail (same ref) when the layout is unchanged so we don't loop.
   useLayoutEffect(() => {
@@ -915,9 +930,9 @@ function MasonryGrid({ children, columnWidth = 220, gap = 6, maxColumns = 4, max
   })()
 
   return (
-    <div ref={wrapRef} style={{ display: 'flex', gap, alignItems: 'flex-start', maxWidth }}>
+    <div ref={wrapRef} style={{ display: 'flex', gap, alignItems: 'flex-start', justifyContent: 'flex-start' }}>
       {layout.map((col, ci) => (
-        <div key={ci} style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div key={ci} style={{ flex: '1 1 0', minWidth: 0, maxWidth: columnMax, display: 'flex', flexDirection: 'column' }}>
           {col.map(i => (
             <div key={i} ref={el => { itemRefs.current[i] = el }}>{items[i]}</div>
           ))}
@@ -1297,8 +1312,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
       {/* Box grid: rate · crit · skill effects always present, then any mechanic boxes that apply (shotgun,
           tangle, spell burst, channeled, ailments, stubs). Row-major masonry keeps Hit Rate → Crit → Skill
-          Effects across the top, then fills the shortest column; capped at 4 columns / ~1070px. */}
-      <MasonryGrid columnWidth={220} gap={6} maxColumns={4} maxWidth={1070}>
+          Effects across the top, then fills the shortest column. Column count scales with width; box width is
+          capped by columnMax so boxes don't sprawl. */}
+      <MasonryGrid columnWidth={220} columnMax={340} gap={6}>
         <GridBox>
           <StatPanel title="Hit Rate" accent={AMBER}
             info={isSpell ? 'Cast Rate = 1 ÷ Cast Time × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate — some forms fire every cast, others on a slower cadence.'
@@ -1762,7 +1778,7 @@ function AttributesPanel({ statMap }: { statMap: Record<string, StatEntry> }) {
     </Row>
   )
   return (
-    <StatPanel title="Attributes" accent="#9a8ac0">
+    <StatPanel title="Attributes" accent="#c0a040">
       {row('strength', 'Strength', ['strength_flat', 'all_stats_flat', 'strength_inc', 'all_stats_inc', 'strength_additional'])}
       {row('dexterity', 'Dexterity', ['dexterity_flat', 'all_stats_flat', 'dexterity_inc', 'all_stats_inc', 'dexterity_additional'])}
       {row('intelligence', 'Intelligence', ['intelligence_flat', 'all_stats_flat', 'intelligence_inc', 'all_stats_inc', 'intelligence_additional'])}
@@ -1778,7 +1794,7 @@ function blessingDesc(text: string): string {
 function BlessingsPanel({ blessings }: { blessings: BlessingSummary[] | null | undefined }) {
   if (!blessings || blessings.length === 0) return null
   return (
-    <StatPanel title="Blessings" accent="#c0a040">
+    <StatPanel title="Blessings" accent="#9a8ac0">
       {blessings.map(b => {
         // Each effect → a breakdown row (its total + the override source if the base effect was changed).
         const extra = b.effects.map(e => {
@@ -1815,6 +1831,9 @@ function UtilityPanel({ statMap }: { statMap: Record<string, StatEntry> }) {
 }
 
 const DEF_FORMULA = '(Base + Flat) × (1 + Increased) × Additional'
+// Evasion has a character base of 2 per level gained (Help DB), folded into evasion_flat — surface it in the
+// formula like Life/Mana do their 50+13/level, 40+5/level bases.
+const EVASION_FORMULA = '(2/level + Flat) × (1 + Increased) × Additional'
 // Life/Mana spell out the character base scaling (was buried in the base row's source name) — see
 // buildCharacterContributions: 50 + 13/level life, 40 + 5/level mana.
 const LIFE_FORMULA = '(50 + 13/level + Flat) × (1 + Increased) × Additional'
@@ -1906,7 +1925,7 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
         <Row label="Erosion" labelColor={DTYPE_COLOR.erosion} breakdown={{ title: 'Erosion Resistance', keys: ['erosion_resistance'], formula: RES_FORMULA, sections: [maxResSection('Erosion', 'erosion_resistance_max_inc', defense.erosion_resist_max)] }}>{fmtResistValue(defense.erosion_resist, defense.erosion_resist_raw)}</Row>
       </StatPanel>
 
-      <StatPanel title="Armour" accent="#308060">
+      <StatPanel title="Armour" accent="#8a6a3a">
         <Row label="Armour" breakdown={{ title: 'Armour', keys: ['armor_flat', 'armor_gear_flat', 'armor_inc', 'armor_gear_inc', 'defense_inc', 'armor_additional'], total: defense.armor, formula: DEF_FORMULA }}>{fmtNum(defense.armor)}</Row>
         {defense.armor_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Armour — Flat Added', keys: ['armor_flat', 'armor_gear_flat'] }}>{fmtNum(defense.armor_flat)}</SubRow>}
         {defense.armor_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Armour — Increased', keys: ['armor_inc', 'armor_gear_inc', 'defense_inc'] }}>{fmtPct(defense.armor_inc)}</SubRow>}
@@ -1916,7 +1935,7 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
       </StatPanel>
 
       <StatPanel title="Evasion" accent="#3a8a66">
-        <Row label="Evasion" breakdown={{ title: 'Evasion', keys: ['evasion_flat', 'evasion_gear_flat', 'evasion_inc', 'evasion_gear_inc', 'defense_inc', 'evasion_additional'], total: defense.evasion, formula: DEF_FORMULA }}>{fmtNum(defense.evasion)}</Row>
+        <Row label="Evasion" breakdown={{ title: 'Evasion', keys: ['evasion_flat', 'evasion_gear_flat', 'evasion_inc', 'evasion_gear_inc', 'defense_inc', 'evasion_additional'], total: defense.evasion, formula: EVASION_FORMULA }}>{fmtNum(defense.evasion)}</Row>
         {defense.evasion_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Evasion — Flat Added', keys: ['evasion_flat', 'evasion_gear_flat'] }}>{fmtNum(defense.evasion_flat)}</SubRow>}
         {defense.evasion_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Evasion — Increased', keys: ['evasion_inc', 'evasion_gear_inc', 'defense_inc'] }}>{fmtPct(defense.evasion_inc)}</SubRow>}
         {defense.evasion_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Evasion — Additional', keys: ['evasion_additional'] }}>{fmtMult(defense.evasion_additional)}</SubRow>}
@@ -1959,33 +1978,33 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
   const a = target.armor
   // Each row carries the SEPARATED steps: base (dummy constant) → reduction (enemy resist debuff) → resist
   // → pen (ignored at hit, NOT a resistance reduction) → effective.
+  // Each row shows the EFFECTIVE value (after this build's penetration) as a single number; the base + the
+  // penetration that produced it live in the source breakdown. Base resists are the dummy default for now —
+  // they'll be set on the Conditionals/Config screen after its rework.
+  // penKeys = the stat keys whose penetration produced this row's effective value — fed into the breakdown so
+  // it shows the REAL source(s) of the penetration (e.g. "+50% Cold Resistance Penetration · custom config").
   const rows = [
-    { label: 'Armour (Physical)', color: DTYPE_COLOR.physical, base: a.base_phys, reduction: 0, pen: a.pen ?? 0, effective: a.effective_phys },
-    { label: 'Armour (Non-Physical)', color: DTYPE_COLOR.physical, base: a.base_nonphys, reduction: 0, pen: a.pen ?? 0, effective: a.effective_nonphys },
+    { label: 'Effective Armour (Physical)', baseStat: 'Armour', color: DTYPE_COLOR.physical, base: a.base_phys, reduction: 0, penKeys: ['armor_pen'], effective: a.effective_phys },
+    { label: 'Effective Armour (Non-Physical)', baseStat: 'Armour', color: DTYPE_COLOR.physical, base: a.base_nonphys, reduction: 0, penKeys: ['armor_pen'], effective: a.effective_nonphys },
     ...(['fire', 'cold', 'lightning', 'erosion'] as const).map(t => {
       const r = target.resists[t] ?? { base: 0, effective: 0 }
-      return { label: `${t.charAt(0).toUpperCase() + t.slice(1)} Resistance`, color: DTYPE_COLOR[t], base: r.base, reduction: r.reduction ?? 0, pen: r.pen ?? 0, effective: r.effective }
+      const T = `${t.charAt(0).toUpperCase() + t.slice(1)} Resistance`
+      const penKeys = t === 'erosion' ? ['erosion_pen'] : [`${t}_pen`, 'elemental_pen']
+      return { label: `Effective ${T}`, baseStat: T, color: DTYPE_COLOR[t], base: r.base, reduction: r.reduction ?? 0, penKeys, effective: r.effective }
     }),
   ]
   const details = target.debuff_details ?? []
   return (
     <StatPanel title={`Target (${src})`} accent="#b03030">
       {rows.map(r => {
-        const changed = Math.abs(r.base - r.effective) > 1e-9
         const amplified = r.effective < 0
-        const extra: ExtraRow[] = [{ value: pct(r.base), stat: r.label.replace(/ \((Physical|Non-Physical)\)/, ''), source: 'Base', sourceName: src }]
+        const extra: ExtraRow[] = [{ value: pct(r.base), stat: r.baseStat, source: 'Base', sourceName: src }]
         if (Math.abs(r.reduction) > 1e-9) extra.push({ value: spct(r.reduction), stat: 'Resistance Reduction', source: 'Debuff', sourceName: 'lowers enemy resistance' })
-        if (Math.abs(r.pen) > 1e-9) extra.push({ value: `−${pct(r.pen)}`, stat: 'Penetration', source: 'At hit', sourceName: 'ignored — not a resistance reduction' })
         return (
           <Row key={r.label} label={r.label} labelColor={r.color}
-            breakdown={{ title: r.label, keys: [], total: r.effective, totalUnit: '%', extra }}>
-            {pct(r.base)}
-            {changed && (
-              <span style={{ color: amplified ? '#ff8c6b' : '#8fd98f' }}>
-                {' → '}{pct(r.effective)}{amplified ? ' (amplified)' : ''}
-                {!!r.pen && Math.abs(r.pen) > 1e-9 && <span style={{ color: '#666' }}> ({pct(r.pen)} pen)</span>}
-              </span>
-            )}
+            breakdown={{ title: r.label, keys: r.penKeys, total: r.effective, totalUnit: '%', extra,
+              formula: 'Base − Penetration (penetration is ignored at the hit, it is not a resistance reduction)' }}>
+            <span style={{ color: amplified ? '#ff8c6b' : undefined }}>{pct(r.effective)}</span>
           </Row>
         )
       })}
@@ -2007,87 +2026,8 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
   )
 }
 
-// ── Numbed ailment box ────────────────────────────────────────────────────────
-// Numbed: +5% (or +11% Conductive) Lightning Damage the enemy takes per stack, scaled by the increased
-// AND additional Numbed Effect pools (separate multiplicative layers), over its per-stack duration. The
-// inc/additional rows hover to per-source breakdowns. Stacks are USER-SET (the Max/Real uptime swap is
-// disabled for now — we can't accurately estimate real Numbed uptime without enemy-HP/threshold modelling,
-// and incorrect is worse than incomplete; the real-mode code stays dormant via uptimeMode for later).
-function NumbedPanel({ numbed, statMap, uptimeMode, conditionState, setConditionState }: {
-  numbed: NumbedInfo | null
-  statMap: Record<string, StatEntry>
-  uptimeMode: 'max' | 'real'
-  conditionState: Record<string, number | boolean>
-  setConditionState: (s: Record<string, number | boolean>) => void
-}) {
-  const inc = statMap['numbed_effect_inc']?.total ?? 0
-  // Effective additional = Π(1+each) − 1 (distinct sources multiply, like every other additional pool) —
-  // taken from the engine so the displayed ×multiplier matches the calc, not the raw per-source sum.
-  const add = numbed?.effect_additional ?? (statMap['numbed_effect_additional']?.total ?? 0)
-  const taken = numbed?.lightning_taken ?? statMap['numbed_lightning_taken']?.total ?? 0
-  const cur = Number(conditionState['numbed_stacks'] ?? 0)
-  const stacks = numbed?.stacks ?? cur
-  // The slider shows the EFFECTIVE stacks: the user's value once they've set it, else the engine's value
-  // (e.g. the baseline an "inflicts Numbed" source auto-floors to). Until the user touches it (not in
-  // conditionState), `cur` is 0 but the engine may have floored to 1 — show that, not 0.
-  const stacksManual = 'numbed_stacks' in conditionState
-  const sliderVal = stacksManual ? cur : Math.round(stacks)
-  // Show only when Numbed is relevant to this build (any pool, any stacks, or an active debuff).
-  if (inc === 0 && add === 0 && stacks === 0 && taken === 0) return null
-  const base = numbed?.base_per_stack ?? 0.05
-  const duration = numbed?.duration ?? 2
-  const maxStacks = numbed?.max_stacks ?? 10
-  const real = uptimeMode === 'real'   // dormant: the toggle is disabled, so this is currently always false
-  const basePct = `${(base * 100).toFixed(0)}%`
-  return (
-    <StatPanel title="Numbed" accent="#e0d040">
-      <Row label="Base / Stack" breakdown={{
-        title: 'Numbed — Base per Stack', keys: [], total: base, totalUnit: '%',
-        formula: numbed?.conductive ? 'Conductive re-bases Numbed to +11% Lightning taken per stack'
-                                    : 'Standard +5% Lightning Damage taken per stack',
-        extra: [{ value: basePct, stat: 'Lightning Damage Taken', source: numbed?.conductive ? 'Conductive' : 'Baseline', sourceName: 'per stack' }],
-      }}>{basePct}</Row>
-      <Row label="Increased Numbed Effect" breakdown={{ title: 'Increased Numbed Effect', keys: ['numbed_effect_inc'], total: inc, totalUnit: '%' }}>
-        +{fmtPct(inc)}
-      </Row>
-      <Row label="Additional Numbed Effect" breakdown={{ title: 'Additional Numbed Effect', keys: ['numbed_effect_additional'], total: add, totalUnit: '%',
-        formula: 'Distinct sources multiply: ×(1 + each)' }}>
-        {fmtMult(add)}
-      </Row>
-      <Row label="Duration" breakdown={{
-        title: 'Numbed Duration', keys: ['ailment_duration_inc'], total: duration, totalUnit: 's',
-        formula: '2s × (1 + Ailment Duration)',
-        extra: [{ value: '2.00s', stat: 'Base Duration', source: 'Numbed', sourceName: 'per stack (independent)' }],
-      }}>{dec(duration)}s</Row>
-      {real ? (
-        <Row label="Stacks (steady state)"><span style={{ color: '#e0d0a0' }}>{dec(stacks)}/{maxStacks}</span></Row>
-      ) : (
-        <Row label="Stacks">
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <input type="range" min={0} max={maxStacks} value={sliderVal}
-              onChange={e => setConditionState({ ...conditionState, numbed_stacks: Number(e.target.value) })} style={{ width: 90 }} />
-            <span style={{ fontSize: 11, color: '#bbb', minWidth: 34, textAlign: 'right' }}>{sliderVal}/{maxStacks}</span>
-          </span>
-        </Row>
-      )}
-      {real && numbed?.application_rate !== undefined && (
-        <Row label="Feline Figure Rate" labelColor="#777">
-          <span style={{ color: '#bbb' }}>{dec(numbed.application_rate)}/s{numbed.ff_duration !== undefined ? ` · ${dec(numbed.ff_duration)}s dur` : ''}</span>
-        </Row>
-      )}
-      <Row label="Lightning Damage Taken" breakdown={{
-        title: 'Numbed — Lightning Damage Taken', keys: [], total: taken, totalUnit: '%',
-        formula: 'Base × (1 + Increased) × (1 + Additional) × Stacks',
-        extra: [
-          { value: basePct, stat: 'Base / Stack', source: numbed?.conductive ? 'Conductive' : 'Baseline', sourceName: '' },
-          { value: `×${dec(1 + inc)}`, stat: 'Increased', source: '', sourceName: `+${Math.round(inc * 100)}%` },
-          { value: `×${dec(1 + add)}`, stat: 'Additional', source: '', sourceName: `+${Math.round(add * 100)}%` },
-          { value: `×${dec(stacks)}`, stat: 'Stacks', source: '', sourceName: '' },
-        ],
-      }}><span style={{ color: '#e0b0e0' }}>+{dec(taken * 100)}%</span></Row>
-    </StatPanel>
-  )
-}
+// The interactive Numbed-stacks panel was removed from this (Calculations) screen — condition stacks are set on
+// the Conditionals screen. The Numbed effect now shows read-only as a damage-type-gated box in the skill area.
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
@@ -2098,9 +2038,6 @@ export default function PlayerStatsScreen() {
   const pactSpirits = useBuildStore(s => s.pactSpirits)
   const allSpirits = useBuildStore(s => s.allSpirits)
   const heroMemories = useBuildStore(s => s.heroMemories)
-  const conditionState = useBuildStore(s => s.conditionState)
-  const setConditionState = useBuildStore(s => s.setConditionState)
-  const uptimeMode = useBuildStore(s => s.uptimeMode)   // currently always 'max' (Real swap disabled)
   // Persisted in uiPrefs so the viewed skill sticks across screen navigation (new/empty builds fall back to
   // the first populated slot via the effect below).
   const selectedSlot = useUiPrefs(s => s.statsSelectedSlot)
@@ -2244,13 +2181,10 @@ export default function PlayerStatsScreen() {
           <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} />
         </div>
 
-        {/* Middle — calculation target, attributes, blessings, utility */}
+        {/* Middle — calculation target, attributes, blessings, utility. (Condition-setting controls like Numbed
+            stacks live on the Conditionals screen, not here — this screen only displays the calculation.) */}
         <div style={{ flex: '22', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
           <TargetPanel target={computedStats.target_stats} />
-          <NumbedPanel
-            numbed={((computedStats as { numbed?: NumbedInfo | null }).numbed) ?? null}
-            statMap={statMap} uptimeMode={uptimeMode}
-            conditionState={conditionState} setConditionState={setConditionState} />
           <AttributesPanel statMap={statMap} />
           <BlessingsPanel blessings={blessings} />
           <UtilityPanel statMap={statMap} />
