@@ -2505,6 +2505,14 @@ def _resolve_skill_line_keys(text: str) -> list[str]:
     from engine.support_lines import SupportLine, _template
     from engine.support_mapper import map_line, _ADDED_FLAT_RE
     from engine.node_resolver import resolve_effect_text_keys
+    from engine import skill_effects
+    # Bespoke canvas-support lines (Howling Gale, Berserking Blade, …) are handled in engine.skill_effects, so
+    # the generic mapper below deliberately skips them — without this they'd badge NYI despite being consumed.
+    # A non-empty list = a stat line (badge classifies it); [] = a recognized behavioral line whose badge the
+    # tooltip already suppresses (so it won't be queried here); None = not bespoke → fall through.
+    bespoke = skill_effects.resolve_line_keys(text)
+    if bespoke:
+        return bespoke
     # Buff-grant lines ("Buffs grant +X% … to this skill") describe a granted buff the engine applies as a
     # normal supported-skill modifier (e.g. Electric Overload's on-crit +15% Lightning). Normalize the wording
     # so the line resolves like the direct "+X% … for the supported skill" form instead of badging NYI.

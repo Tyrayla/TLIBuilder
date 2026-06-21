@@ -40,10 +40,24 @@ function isModeled(low: string): boolean {
 }
 
 export function modeledRolledLines(skill: SkillItem | undefined, tier: number): RolledLine[] {
-  // The engine reads `values.name` (one modeled line per Noble/Magnificent support today).
+  const out: RolledLine[] = []
+  // 1) The generic "additional damage for the supported skill" / "(multiplies)" line (one per Noble/Mag),
+  //    parsed client-side from `values.name` — keyed by the engine's affix identity.
   const text = progressionEntry(skill, tier)?.values?.name
-  if (!text || !isModeled(text.toLowerCase())) return []
-  const r = parseRange(text)
-  if (!r) return []
-  return [{ identity: affixIdentity(text), text, min: r.min, max: r.max, mid: (r.min + r.max) / 2 }]
+  if (text && isModeled(text.toLowerCase())) {
+    const r = parseRange(text)
+    if (r) out.push({ identity: affixIdentity(text), text, min: r.min, max: r.max, mid: (r.min + r.max) / 2 })
+  }
+  // 2) Bespoke canvas-support roll lines (Howling Gale, Berserking Blade, …) — the BACKEND computes the
+  //    correct range per line (engine.skill_effects.modeled_rolls), so multi-value lines like Headwind pick the
+  //    right roll, not a fixed leading value. Identity + ranges come straight from the engine → guaranteed to
+  //    match what it reads. Pick this tier's range (fall back to tier 1, then any).
+  for (const mr of skill?.tooltip?.modeled_rolls ?? []) {
+    const ranges = mr.ranges_by_tier ?? {}
+    const range = ranges[tier] ?? ranges[1] ?? Object.values(ranges)[0]
+    if (!range) continue
+    if (out.some((o) => o.identity === mr.identity)) continue   // never double-count a line
+    out.push({ identity: mr.identity, text: '', min: range.min, max: range.max, mid: range.mid })
+  }
+  return out
 }

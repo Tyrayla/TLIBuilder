@@ -98,5 +98,6 @@
       "text": "This skill deals additional Damage if a Critical Strike of it was dealt recently.",
       "values_by_level": null
     }
-  ]
+  ],
+  "modeled_rolls": []
 }

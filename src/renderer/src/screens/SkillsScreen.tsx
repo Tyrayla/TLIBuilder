@@ -208,6 +208,41 @@ function RefreshButton({ onClick }: { onClick: () => void }) {
   )
 }
 
+// A typed exact-value input for a support's per-line roll (a signed fraction). Shows/accepts the value as a
+// percentage (up to 2 decimals), with the tier's valid range beside it. Keeps local text state so partial
+// typing isn't fought by clamping; commits (clamped to [min,max]) on blur / Enter. Re-syncs if the stored
+// value changes externally (e.g. a tier change re-seeds the mid).
+function RollInput(
+  { value, min, max, onCommit }: { value: number; min: number; max: number; onCommit: (frac: number) => void },
+) {
+  const fmt = (frac: number) => dec(frac * 100)
+  const [text, setText] = useState(fmt(value))
+  const [editing, setEditing] = useState(false)
+  useEffect(() => { if (!editing) setText(fmt(value)) }, [value, editing])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const commit = () => {
+    setEditing(false)
+    const pct = Number(text)
+    if (Number.isNaN(pct)) { setText(fmt(value)); return }
+    const frac = Math.min(max, Math.max(min, pct / 100))
+    onCommit(frac)
+    setText(fmt(frac))
+  }
+  return (
+    <>
+      <input
+        type="number" className="skill-level-input" style={{ width: 70 }}
+        min={min * 100} max={max * 100} step={0.01} value={text}
+        onFocus={() => setEditing(true)}
+        onChange={e => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+      />
+      <span style={{ fontSize: 12, opacity: 0.5 }}>% ({dec(min * 100)}–{dec(max * 100)}%)</span>
+    </>
+  )
+}
+
 // Build a fresh EquippedSupportSkill from a catalog item (default rank/tier + tier-mid rolls). Shared
 // by assignSupport and the catalog DPS-delta preview transform.
 function makeSupport(item: SkillItem, supportIndex: number): EquippedSupportSkill {
@@ -875,7 +910,7 @@ export default function SkillsScreen(_props: Props) {
               </div>
             )
           })()}
-          {/* Roll sliders — one per engine-modeled rolled line (today: Noble/Magnificent specific line). */}
+          {/* Roll inputs — one per engine-modeled rolled line. Type the exact value within the tier range. */}
           {existingSupport && (() => {
             const supItem = allItems.find(i => i.item_id === existingSupport.item_id)
             const rolls = modeledRolledLines(supItem, existingSupport.level)
@@ -902,9 +937,7 @@ export default function SkillsScreen(_props: Props) {
                     value={cur}
                     onChange={e => updateRoll(r.identity, Number(e.target.value))}
                   />
-                  <span style={{ minWidth: 92, textAlign: 'right', fontSize: 12, opacity: 0.85 }}>
-                    {dec((cur * 100))}% <span style={{ opacity: 0.5 }}>({(r.min * 100).toFixed(0)}–{(r.max * 100).toFixed(0)}%)</span>
-                  </span>
+                  <RollInput value={cur} min={r.min} max={r.max} onCommit={v => updateRoll(r.identity, v)} />
                 </div>
               )
             })

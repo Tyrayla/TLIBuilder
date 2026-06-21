@@ -92,5 +92,6 @@
         "9": "The supported skill adds 1 - 21 Lightning Damage"
       }
     }
-  ]
+  ],
+  "modeled_rolls": []
 }

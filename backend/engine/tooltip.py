@@ -29,6 +29,7 @@ _PASSIVE_TYPES = {"passive_skill"}
 # ── text cleaning ──────────────────────────────────────────────────────────────
 _SKILLSTONE = re.compile(r"#\s*skillstone[^#]*#", re.I)     # "#skillstone, 1894, affix#" data artifact
 _LV_ANNOT = re.compile(r"\(\s*Lv\.?\s*\d+\s*:[^)]*\)")       # "(Lv1:2)" per-level annotations
+_UNIVERSAL = "additional damage for the supported skill"     # rank line — resolved generically, keep its badge
 _INSTALL_RE = re.compile(r"can only be installed", re.I)     # install-restriction meta (not an effect)
 _GATE_RE = re.compile(r"^\s*Supports\b", re.I)              # "Supports X Skills." support-target line
 _RANGE_NUM = re.compile(r"(\d[\d.,]*)\s*[‐-―–\-]\s*(\d[\d.,]*)")   # "1 - 4", "73-1393"
@@ -380,5 +381,22 @@ def build_tooltip(skill_data: dict) -> dict:
         default = max((l for l in avail if l <= default), default=avail[0]) if kind == "level" \
             else (1 if 1 in avail else avail[0])
 
+    # Bespoke canvas supports (Howling Gale / Berserking Blade / …): their specific lines are modeled in
+    # engine.skill_effects, not the generic mapper. (1) Resolve each line's badge there so stat clauses show
+    # Consumed; SUPPRESS the badge on behavioral/flavor clauses ("Stacks up to 10", "Doubles the cap") that
+    # carry no stat modifier — they'd otherwise badge NYI. (2) Emit `modeled_rolls` so the panel can show a
+    # per-line roll slider for tunable lines. Non-bespoke skills are untouched (genuine gaps still badge NYI).
+    from engine import skill_effects
+    item_id = skill_data.get("item_id")
+    modeled = []
+    if item_id in skill_effects.GENERIC_GUARD_IDS:
+        for ln in lines:
+            bt = ln.get("badge_text") or ""
+            if not bt or _UNIVERSAL in bt.lower():
+                continue
+            if not skill_effects.resolve_line_keys(bt):   # None or [] → not a stat clause → no badge
+                ln["badge_text"] = ""
+        modeled = skill_effects.modeled_rolls(item_id, skill_data)
+
     return {"gate_text": gate, "level_kind": kind, "default_level": default,
-            "available_levels": avail, "lines": lines}
+            "available_levels": avail, "lines": lines, "modeled_rolls": modeled}

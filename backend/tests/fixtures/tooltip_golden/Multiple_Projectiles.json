@@ -98,5 +98,6 @@
       "text": "Projectile Quantity of the supported skill +2",
       "values_by_level": null
     }
-  ]
+  ],
+  "modeled_rolls": []
 }

@@ -85,5 +85,6 @@
       "text": "+2 Jumps for this skill",
       "values_by_level": null
     }
-  ]
+  ],
+  "modeled_rolls": []
 }
