@@ -1087,6 +1087,11 @@ def calculate_offense(
         #     cooldown, and the beam hits at the channel rate (aps) — so the EFFECTIVE rate is aps/ceil(aps×cooldown),
         #     capped at the 1/cooldown ceiling. Higher cast speed pushes it toward the ceiling (owner-validated;
         #     the small ε absorbs the 0.333s parse so a clean 3/s lands exactly 1 proc/s, not the 4th hit).
+        # Ring Blade's Frozen burst stays on Icy Blade (it IS an extra Icy Blade burst); Chilling Spike's extra
+        # penetrating blades are split into their OWN form below (chilling_extra), so the total is unchanged but
+        # the breakdown shows Chilling Spike separately and the form selector can isolate it.
+        chilling_equiv = 0.0
+        chilling_extra = 0.0
         form_extra_mult = 0.0
         if form.scales_with_projectiles:
             frozen_rate = source.total("icy_blade_frozen_burst_rate")
@@ -1095,8 +1100,9 @@ def calculate_offense(
                 cooldown = 1.0 / frozen_rate
                 hits_per_cd = max(1, math.ceil(aps * cooldown - 0.05))
                 eff_frozen = min(frozen_rate, aps / hits_per_cd)
-            form_extra_mult = (source.total("icy_blade_extra_blade_equiv") * form_rate
-                               + eff_frozen * form_shotgun)
+            chilling_equiv = source.total("icy_blade_extra_blade_equiv")
+            chilling_extra = chilling_equiv * form_rate
+            form_extra_mult = eff_frozen * form_shotgun   # Frozen burst only — Chilling Spike is its own form
 
         hit_forms.append(HitFormResult(
             name=form.name,
@@ -1118,6 +1124,31 @@ def calculate_offense(
             base_min_by_type={t: mn for t, (mn, _) in form_base.items()},
             base_max_by_type={t: mx for t, (_, mx) in form_base.items()},
         ))
+
+        # Chilling Spike (Icebound canvas support): its extra penetrating blades — split off Icy Blade into their
+        # own additive form so the breakdown/selector treats them distinctly. Same per-hit damage as Icy Blade;
+        # the net single-target blade-equivalent (chilling_equiv, no shotgun) rides the burst rate. Total DPS is
+        # unchanged (this slice was previously folded into Icy Blade's form_extra_mult).
+        if form.scales_with_projectiles and chilling_extra > 0.0:
+            hit_forms.append(HitFormResult(
+                name="Chilling Spike",
+                effectiveness_pct=eff,
+                form_type="additive",
+                proc_chance=proc,
+                damage_by_type=damage_by_type,
+                avg_hit_pre_crit=avg_pre,
+                avg_hit_with_crit=avg_post,
+                dps_contribution=avg_post * proc * chilling_extra,
+                dps_vs_target=avg_post_vs_target * proc * chilling_extra,
+                hit_min_by_type=hit_min_by_type,
+                hit_max_by_type=hit_max_by_type,
+                fires_per_sec=form_rate * proc * chilling_equiv,
+                hits_per_fire=1,
+                shotgun_falloff=0.0,
+                shotgun_mult=1.0,
+                base_min_by_type={t: mn for t, (mn, _) in form_base.items()},
+                base_max_by_type={t: mx for t, (_, mx) in form_base.items()},
+            ))
 
     # Same-target shotgun (Merge lands Web's per-Jump chains on the same target). First hit 100%, each
     # subsequent (one per Jump) deals (1 − falloff). Scales total DPS only; per-hit damage unchanged.

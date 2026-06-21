@@ -277,8 +277,8 @@
           "lightning": 983.240329073511,
           "physical": 495.6472988398292
         },
-        "dps_contribution": 8133.137653660373,
-        "dps_vs_target": 3994.1094774056014,
+        "dps_contribution": 5785.076992143361,
+        "dps_vs_target": 2840.9983730500094,
         "effectiveness_pct": 100.0,
         "fires_per_sec": 0.6966966966966966,
         "form_type": "additive",
@@ -299,6 +299,44 @@
         "proc_chance": 1.0,
         "shotgun_falloff": 0.65,
         "shotgun_mult": 1.7
+      },
+      {
+        "avg_hit_pre_crit": 4543.6828114150185,
+        "avg_hit_with_crit": 4884.459022271145,
+        "base_max_by_type": {
+          "cold": 770.0
+        },
+        "base_min_by_type": {
+          "cold": 513.0
+        },
+        "damage_by_type": {
+          "cold": 2569.147884661849,
+          "fire": 495.64729883982915,
+          "lightning": 983.240329073511,
+          "physical": 495.6472988398292
+        },
+        "dps_contribution": 2348.0606615170113,
+        "dps_vs_target": 1153.111104355592,
+        "effectiveness_pct": 100.0,
+        "fires_per_sec": 0.48072072072072064,
+        "form_type": "additive",
+        "hit_max_by_type": {
+          "cold": 3083.778443007987,
+          "fire": 643.3883206093936,
+          "lightning": 1871.9383188130305,
+          "physical": 619.5591235497865
+        },
+        "hit_min_by_type": {
+          "cold": 2054.5173263157108,
+          "fire": 347.90627707026465,
+          "lightning": 94.54233933399144,
+          "physical": 371.7354741298719
+        },
+        "hits_per_fire": 1,
+        "name": "Chilling Spike",
+        "proc_chance": 1.0,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       }
     ],
     "main_stat_damage_bonus": 0.0,
@@ -473,8 +511,8 @@
             "lightning": 983.240329073511,
             "physical": 495.6472988398292
           },
-          "dps_contribution": 8133.137653660373,
-          "dps_vs_target": 3994.1094774056014,
+          "dps_contribution": 5785.076992143361,
+          "dps_vs_target": 2840.9983730500094,
           "effectiveness_pct": 100.0,
           "fires_per_sec": 0.6966966966966966,
           "form_type": "additive",
@@ -495,6 +533,44 @@
           "proc_chance": 1.0,
           "shotgun_falloff": 0.65,
           "shotgun_mult": 1.7
+        },
+        {
+          "avg_hit_pre_crit": 4543.6828114150185,
+          "avg_hit_with_crit": 4884.459022271145,
+          "base_max_by_type": {
+            "cold": 770.0
+          },
+          "base_min_by_type": {
+            "cold": 513.0
+          },
+          "damage_by_type": {
+            "cold": 2569.147884661849,
+            "fire": 495.64729883982915,
+            "lightning": 983.240329073511,
+            "physical": 495.6472988398292
+          },
+          "dps_contribution": 2348.0606615170113,
+          "dps_vs_target": 1153.111104355592,
+          "effectiveness_pct": 100.0,
+          "fires_per_sec": 0.48072072072072064,
+          "form_type": "additive",
+          "hit_max_by_type": {
+            "cold": 3083.778443007987,
+            "fire": 643.3883206093936,
+            "lightning": 1871.9383188130305,
+            "physical": 619.5591235497865
+          },
+          "hit_min_by_type": {
+            "cold": 2054.5173263157108,
+            "fire": 347.90627707026465,
+            "lightning": 94.54233933399144,
+            "physical": 371.7354741298719
+          },
+          "hits_per_fire": 1,
+          "name": "Chilling Spike",
+          "proc_chance": 1.0,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         }
       ],
       "main_stat_damage_bonus": 0.0,

@@ -47,11 +47,26 @@ def test_chilling_spike_unsuppresses_beam():
     assert cs == pytest.approx(base * 3.0, rel=0.03)
 
 
-def test_chilling_spike_adds_extra_blades():
+def test_chilling_spike_adds_extra_blades_as_own_form():
+    # Chilling Spike's extra blades are now their OWN form (split off Icy Blade). Icy Blade itself is unchanged;
+    # the new "Chilling Spike" form carries ~0.69 blade-equivalents on the base 2-blade shotgun (1.35).
     base = _form(_offense(), "Icy Blade")["dps_contribution"]
-    cs = _form(_offense(supports=[_sup(CHILLING)]), "Icy Blade")["dps_contribution"]
-    # +~0.69 blade-equivalents on top of the base 2-blade shotgun (1.35) → ×(1 + 0.69/1.35).
-    assert cs == pytest.approx(base * (1 + 0.69 / 1.35), rel=0.02)
+    o = _offense(supports=[_sup(CHILLING)])
+    icy = _form(o, "Icy Blade")["dps_contribution"]
+    cs = _form(o, "Chilling Spike")["dps_contribution"]
+    # Chilling Spike's default −1.5% additional Hit Damage roll lowers ALL Icy Blade damage slightly; the split
+    # itself doesn't change Icy Blade's blade count (still the base 2-blade ×1.35 shotgun).
+    assert icy == pytest.approx(base * 0.985, rel=0.01)
+    assert cs == pytest.approx(icy * (0.69 / 1.35), rel=0.02)   # the split-off blade-equivalents (no shotgun)
+
+
+def test_chilling_spike_split_preserves_total():
+    # The split is presentational: total DPS with Chilling Spike = Icy Blade (unchanged) + the new Chilling
+    # Spike form + Cold Beam — i.e. the same total the folded-into-Icy-Blade model produced.
+    o = _offense(supports=[_sup(CHILLING)])
+    parts = sum(f["dps_contribution"] for f in o["hit_forms"])
+    assert o["total_dps"] == pytest.approx(parts, rel=1e-6)
+    assert any(f["name"] == "Chilling Spike" for f in o["hit_forms"])
 
 
 def test_chilling_spike_hit_damage_roll_signed():
