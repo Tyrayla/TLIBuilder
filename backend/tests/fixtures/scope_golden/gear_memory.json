@@ -298,6 +298,13 @@
       "dexterity",
       "intelligence"
     ],
+    "multistrike_avg_count": 0.0,
+    "multistrike_chain": [],
+    "multistrike_chance": 0.0,
+    "multistrike_increment": 0.0,
+    "multistrike_max_count": 0,
+    "multistrike_mult": 1.0,
+    "multistrike_repeat_aps": 0.0,
     "non_spell_burst_dps": 0.0,
     "non_spell_burst_dps_vs_target": 0.0,
     "nyi": [

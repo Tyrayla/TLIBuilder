@@ -522,6 +522,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="minion_mechanics",   stacking_rule="additive_chance",
         ui_priority=22,                source_types=_T,
     ),
+    Stat.MINION_MULTISTRIKE_INCREASING_DMG_INC: StatMeta(
+        "Minions' Multistrikes deal increasing damage", "Minion", "added_flat",
+        subgroup="minion_mechanics",   stacking_rule="additive",
+        ui_priority=22,                source_types=_T,
+    ),
     Stat.MINION_SKILL_AREA_INC: StatMeta(
         "Minion Skill Area", "Minion", "increased", "%",
         subgroup="minion_mechanics",   stacking_rule="additive",
@@ -1823,6 +1828,16 @@ STAT_META: dict[Stat, StatMeta] = {
     Stat.INITIAL_MULTISTRIKE_COUNT_FLAT: StatMeta(
         "Initial Multistrike Count", "Generic", "added_flat",
         subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=23,                source_types=_T,
+    ),
+    Stat.MULTISTRIKE_INCREASING_DMG_ADDITIONAL: StatMeta(
+        "Additional Multistrike Damage Increment", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=23,                source_types=_T,
+    ),
+    Stat.MULTISTRIKE_MAX_COUNT_PROC_CHANCE: StatMeta(
+        "Chance to count as Max Multistrike Count", "Generic", "chance", "%",
+        subgroup="mechanics",          stacking_rule="additive_chance",
         ui_priority=23,                source_types=_T,
     ),
     Stat.MAX_CHANNELED_STACKS_FLAT: StatMeta(

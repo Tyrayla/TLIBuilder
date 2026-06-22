@@ -562,10 +562,30 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         return [{"stat_key": f"{kind}_dmg_flat_min", "amount": lo, "text": t},
                 {"stat_key": f"{kind}_dmg_flat_max", "amount": hi, "text": t}]
 
-    # "Multistrikes deal N% increasing damage" → ramping multistrike damage (tracked; ramp NYI in offense).
-    m = re.match(r'(?:minions\'?\s+)?multistrikes?\s+deal\s+([\d.]+)\s*%\s*increasing\s+damage', t, re.I)
+    # "Minions' Multistrikes deal N% increasing damage" → MINION stat (NYI for player DPS). Checked FIRST so the
+    # minion line never falls through to the player increment below (that double-counted, e.g. Quick Advancement).
+    m = re.match(r'minions\'?\s+multistrikes?\s+deal\s+([\d.]+)\s*%\s*increasing\s+damage', t, re.I)
+    if m:
+        return [{"stat_key": "minion_multistrike_increasing_dmg_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "Multistrikes [of the supported skill] deal N% increasing damage" → per-stack Multistrike Damage Increment.
+    m = re.match(r'multistrikes?\s+(?:of\s+the\s+supported\s+skill\s+)?deal\s+([\d.]+)\s*%\s*increasing\s+damage', t, re.I)
     if m:
         return [{"stat_key": "multistrike_increasing_dmg_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "+N% additional Multistrike Damage Increment" → multiplies the base increment (NOT the increment itself).
+    m = re.search(r'([\d.]+)\s*%\s*additional\s+multistrike\s+damage\s+increment', t, re.I)
+    if m:
+        return [{"stat_key": "multistrike_increasing_dmg_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "+N% chance [for the supported skill] to trigger Multistrike" / "+N% Multistrike Chance" → Multistrike Chance.
+    m = re.search(r'([\d.]+)\s*%\s*chance\s+(?:for\s+the\s+supported\s+skill\s+)?to\s+trigger\s+multistrike', t, re.I)
+    if not m:
+        # Anchored fallback for "+N% Multistrike Chance" GRANTS only — must start the line, so mid-line
+        # references like "… for every 1% Multistrike chance" (a scaling basis, not a grant) don't match.
+        m = re.match(r'\+?\s*([\d.]+)\s*%\s*multistrike\s+chance\b', t, re.I)
+    if m:
+        return [{"stat_key": "multistrike_chance", "amount": float(m.group(1)) / 100.0, "text": t}]
 
     # "+N% additional Base Damage for Two-Handed Weapons" → tracked (deferred additional pool).
     m = re.match(r'([\d.]+)\s*%\s*additional\s+base\s+damage\s+for\s+two-?handed\s+weapons', t, re.I)

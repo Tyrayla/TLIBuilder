@@ -188,6 +188,12 @@ def consumable_universe() -> frozenset[str]:
     # + the baked frostbite_cold_taken enemy-vuln (offense cold branch) — read outside the synthetic passes.
     consumed |= {"max_frostbite_rating_flat", "frostbite_effect_inc", "frostbite_cold_taken"}
 
+    # Multistrike (offense multistrike stage, attack skills): chance + per-stack increment (+ its additional) +
+    # initial-count pre-stack + Cat Dive's max-count proc chance. Gated to multistrike builds, so read outside
+    # the synthetic passes — whitelist them so a modeled multistrike stat never false-yellows.
+    consumed |= {"multistrike_chance", "multistrike_increasing_dmg_inc", "multistrike_increasing_dmg_additional",
+                 "initial_multistrike_count_flat", "multistrike_max_count_proc_chance"}
+
     missing = _SANITY_FLOOR - consumed
     if missing:
         raise RuntimeError(

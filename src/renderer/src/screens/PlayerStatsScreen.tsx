@@ -912,7 +912,6 @@ const MECH_STUBS: { label: string; tag: string; note: string }[] = [
   { label: 'Combo', tag: 'combo', note: 'Combo-stage scaling, stage gain/loss, and finisher hits are not modeled yet.' },
   { label: 'Demolisher Charges', tag: 'demolisher', note: 'Demolisher charge generation, cap, and consumption are not modeled yet.' },
   { label: 'Barrage', tag: 'barrage', note: 'Barrage wave count and release cadence are not modeled yet.' },
-  { label: 'Multistrike', tag: 'multistrike', note: 'Multistrike repeat-hit cadence is not modeled yet.' },
 ]
 
 // Wrapper for each box in the offense grid. Just a block — the MasonryGrid handles columns/placement.
@@ -1774,8 +1773,34 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         </GridBox>
       )}
 
-      {/* Stub boxes for mechanics this skill has but the engine doesn't model yet (Combo / Demolisher / Barrage /
-          Multistrike). The modeled mechanics above (Tangle / Spell Burst / Channeled) render real data instead.
+      {/* Multistrike (attack skills): the auto-repeat DPS multiplier + its inputs. Shown when this skill has any
+          Multistrike Chance (or Show-all). */}
+      {((offense.multistrike_chance ?? 0) > 0 || showAll) && (
+        <GridBox><StatPanel title="Multistrike" accent={AMBER}
+          info="Using an attack skill has a chance to auto-repeat it: every full 100% chance = +1 guaranteed repeat, the leftover is the chance of one more. Each repeat pays its own attack time (repeats get +20% increased attack speed) and deals increasing damage (the n-th hit of a chain gets (n−1) increment stacks; Initial Count pre-stacks it). DPS multiplier = expected chain damage ÷ (rate × expected chain time).">
+          <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.multistrike_mult ?? 1)}</span></Row>
+          <Row label="Chance">{dec((offense.multistrike_chance ?? 0) * 100)}%</Row>
+          <Row label="Repeat Attack Speed" breakdown={{
+            title: 'Repeat Attack Speed', keys: [], total: offense.multistrike_repeat_aps ?? 0, totalUnit: ' /s',
+            formula: 'Base Attack Rate × (1 + Increased AS + 0.20) ÷ (1 + Increased AS) — repeats gain +20% INCREASED attack speed; the first hit of a chain does not.',
+            extra: [{ value: `${dec(offense.attacks_per_second)} /s`, stat: 'Base Attack Rate', source: 'Rate', sourceName: 'first hit / no multistrike' }],
+          }}>{dec(offense.multistrike_repeat_aps ?? 0)} /s</Row>
+          <Row label="Avg Count">{dec(offense.multistrike_avg_count ?? 0)}</Row>
+          <Row label="Max Count">{offense.multistrike_max_count ?? 0}</Row>
+          <Row label="Damage Increment / stack">+{dec((offense.multistrike_increment ?? 0) * 100)}%</Row>
+          {(offense.multistrike_chain ?? []).length > 0 && (
+            <>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#888', margin: '6px 0 2px' }}>Chain length</div>
+              {(offense.multistrike_chain ?? []).map(ch => (
+                <Row key={ch.count} label={`${ch.count} attacks`}>{dec(ch.prob * 100)}%</Row>
+              ))}
+            </>
+          )}
+        </StatPanel></GridBox>
+      )}
+
+      {/* Stub boxes for mechanics this skill has but the engine doesn't model yet (Combo / Demolisher / Barrage).
+          The modeled mechanics above (Tangle / Spell Burst / Channeled / Multistrike) render real data instead.
           Show-all reveals every stub regardless of the skill's tags. */}
       {MECH_STUBS.filter(m => showAll || hasTag(offense, m.tag)).map(m => (
         <GridBox key={m.tag}><MechanicStubPanel label={m.label} note={m.note} /></GridBox>

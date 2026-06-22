@@ -28,6 +28,18 @@ _ME_CAP_RE = re.compile(r"up to\s*([\d.]+)\s*%", re.I)
 _WFB_PER_RE = re.compile(r"([\d.]+)\s*%\s*effect", re.I)                     # Well-Fought Battle: per-cast %
 _WFB_MAX_RE = re.compile(r"stacking up to\s*(\d+)", re.I)
 
+# Support MECHANIC lines (beyond "additional damage for the supported skill"): a SAFE whitelist of stat keys the
+# generic resolver may surface from a support's lines via the shared parser (engine.mod_parser). Only these are
+# emitted — every other line is left to the additional-damage / bespoke paths so we never misread arbitrary text.
+# Emitted SLOT-LOCAL (the supported skill's slot), like the additional-damage lines.
+_SUPPORT_MECHANIC_KEYS = frozenset({
+    "multistrike_chance", "multistrike_increasing_dmg_inc",
+    "multistrike_increasing_dmg_additional", "initial_multistrike_count_flat",
+})
+# Mechanic stats whose magnitude scales with the support's GEM LEVEL — read the progression[level] value rather
+# than the (Lv1) description text. (Multistrike Chance: 101%@L1 → 116%@L16 → 140%@L40.)
+_LEVEL_SCALED_MECHANIC_KEYS = frozenset({"multistrike_chance"})
+
 
 def _support_text(data: dict) -> str:
     parts: list[str] = []
@@ -131,6 +143,64 @@ def _dedup_join(lines: list[str]) -> str:
     return " ".join(out)
 
 
+def _norm_line(s: str) -> str:
+    return re.sub(r"[\s%]+", "", s or "").lower()
+
+
+def _progression_value_for_line(prog_entry: dict, line: str) -> float | None:
+    """The level-scaled numeric for `line` from a progression entry's `values` (keyed by the Lv1 line text).
+    Falls back to the single value when the entry has exactly one (e.g. Multistrike's chance-only progression)."""
+    vals = (prog_entry or {}).get("values") or {}
+    nl = _norm_line(line)
+    for k, v in vals.items():
+        if _norm_line(k) == nl:
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return None
+    if len(vals) == 1:
+        try:
+            return float(next(iter(vals.values())))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _support_mechanic_contribs(sup: dict, data: dict) -> list[dict]:
+    """Slot-local MECHANIC contributions (Multistrike chance / increment / initial count, …) parsed from a
+    support's lines — whitelisted stats only, with gem-level scaling for the ones that scale. Generic: any
+    support carrying these lines flows through here (the Multistrike support, Wind Stalker's granted support,
+    future sources), so we don't write a bespoke resolver per support."""
+    from engine.mod_parser import _parse_custom_mod_text
+    name = data.get("name") or sup.get("item_id")
+    slot = sup.get("slot", 1)
+    prog_entry = _progression_for_tier(data.get("progression"), _tier_value(sup.get("level")))
+    seen: set = set()
+    out: list[dict] = []
+    for line in (data.get("description_lines") or []):
+        # "for every / for each X" lines are CONDITIONAL scaling (e.g. "+12% increment for every 1 Sentry",
+        # "+1 Projectile for every 80% Multistrike chance") — not flat grants. The generic parser would grab the
+        # number and drop the qualifier, so skip them here (they need bespoke per-skill handling when modeled).
+        if re.search(r"\bfor\s+(?:every|each)\b", line, re.I):
+            continue
+        for parsed in (_parse_custom_mod_text(line) or []):
+            sk = parsed.get("stat_key")
+            if sk not in _SUPPORT_MECHANIC_KEYS or sk in seen:
+                continue
+            amount = parsed.get("amount", 0.0)
+            if sk in _LEVEL_SCALED_MECHANIC_KEYS:
+                scaled = _progression_value_for_line(prog_entry, line)
+                if scaled is not None:
+                    amount = scaled / 100.0
+            if amount == 0.0:
+                continue
+            seen.add(sk)
+            out.append({"stat_key": sk, "amount": amount,
+                        "text": f"{line.strip()} |{sup.get('item_id')}|mechanic",
+                        "label": name, "source_name": name, "slot": slot})
+    return out
+
+
 def resolve_support_contributions(
     attached_supports: list[dict] | None,
     skills_by_id: dict[str, dict] | None,
@@ -156,6 +226,10 @@ def resolve_support_contributions(
             continue
         skill_type = sup.get("skill_type") or data.get("skill_type") or ""
         name = data.get("name") or item_id
+
+        # 0) Mechanic lines (Multistrike chance/increment, …) — whitelisted, slot-local, level-scaled. Runs for
+        #    every support; emits nothing unless a whitelisted phrase is present.
+        out.extend(_support_mechanic_contribs(sup, data))
 
         # 1) Universal rank line — Noble/Magnificent only, and only when the support's data actually
         #    carries the line (summon/minion supports don't; ~12–15% of noble/mag).

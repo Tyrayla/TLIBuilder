@@ -660,6 +660,15 @@ export interface OffenseResult {
   // Combined per-type ENEMY damage multiplier on outgoing damage: (1−armor)(1−resist) × enemy vulnerability
   // (Paralysis/Numbed/Frostbite/curses/…). Only types this skill deals are present. 1.0 = neutral.
   enemy_mult_by_type?: Record<string, number>
+  // Multistrike (attack skills): per-cast delivery multiplier from auto-repeats with increasing damage + the
+  // +20% repeat attack speed. mult 1.0 / chance 0 when not multistriking.
+  multistrike_chance?: number          // total chance (fraction; 1.16 = 116%)
+  multistrike_avg_count?: number       // expected attacks per chain = 1 + chance
+  multistrike_increment?: number       // effective per-stack increment (base × (1 + additional))
+  multistrike_max_count?: number       // longest possible chain (Max Multistrike Count)
+  multistrike_mult?: number            // delivery multiplier folded into total_dps
+  multistrike_repeat_aps?: number      // attack rate during repeats (base aps × the +20%-increased factor)
+  multistrike_chain?: { count: number; prob: number }[]   // chain-length distribution
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number

@@ -118,6 +118,7 @@ class Stat(Enum):
     MINION_CAST_SPEED_INC = "minion_cast_speed_inc"
     MINION_LIFE_REGEN_SPEED_INC = "minion_life_regen_speed_inc"
     MINION_MULTISTRIKE_CHANCE = "minion_multistrike_chance"
+    MINION_MULTISTRIKE_INCREASING_DMG_INC = "minion_multistrike_increasing_dmg_inc"
     MINION_IGNITE_CHANCE = "minion_ignite_chance"
     MINION_AFFLICTION_EFFECT_INC = "minion_affliction_effect_inc"
     MINION_AFFLICTION_PER_SECOND_FLAT = "minion_affliction_per_second_flat"
@@ -446,6 +447,12 @@ class Stat(Enum):
     BARRAGE_DMG_PER_WAVE_INC = "barrage_dmg_per_wave_inc"
     MULTISTRIKE_CHANCE = "multistrike_chance"
     INITIAL_MULTISTRIKE_COUNT_FLAT = "initial_multistrike_count_flat"
+    # Multiplies the base Multistrike Damage Increment: effective increment = base × (1 + Σ this). Read by the
+    # offense multistrike stage, NOT a damage pool.
+    MULTISTRIKE_INCREASING_DMG_ADDITIONAL = "multistrike_increasing_dmg_additional"
+    # Cat Dive (Wind Stalker): per-attack chance during multistrike to be counted at the Max Multistrike Count
+    # for increment purposes. Read by the offense multistrike stage.
+    MULTISTRIKE_MAX_COUNT_PROC_CHANCE = "multistrike_max_count_proc_chance"
     MAX_CHANNELED_STACKS_FLAT = "max_channeled_stacks_flat"
     MIN_CHANNELED_STACKS_FLAT = "min_channeled_stacks_flat"
     # Additional strike rate for a channeled persistent entity (Howling Gale's Gale), e.g. Furious Sweep's

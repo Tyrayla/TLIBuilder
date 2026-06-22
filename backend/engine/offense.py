@@ -630,6 +630,15 @@ class OffenseResult:
     # 1.0 = neutral; <1 = net-mitigated, >1 = net-amplified. Surfaced so the damage area can show one
     # "Enemy Multiplier" line per type. Depends on is_spell (Frail is Spell-form).
     enemy_mult_by_type: dict[str, float] = field(default_factory=dict)
+    # Multistrike (attack skills): per-cast delivery multiplier from auto-repeats — each repeat pays its own
+    # attack time (+20% increased AS) and deals increasing damage. 1.0 = no multistrike. The rest drive the box.
+    multistrike_chance: float = 0.0           # total chance (fraction, e.g. 1.16 = 116%)
+    multistrike_avg_count: float = 0.0        # expected attacks per chain = 1 + chance
+    multistrike_increment: float = 0.0        # effective per-stack increment = base × (1 + additional)
+    multistrike_max_count: int = 0            # K = longest possible chain (Max Multistrike Count)
+    multistrike_mult: float = 1.0             # delivery multiplier folded into total_dps
+    multistrike_repeat_aps: float = 0.0       # attack rate during repeats = aps × (1 + as_inc + 0.20)/(1 + as_inc)
+    multistrike_chain: list = field(default_factory=list)  # [{count, prob}] chain-length distribution
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -1329,6 +1338,53 @@ def calculate_offense(
         else:
             spell_burst_mult = 0.0
 
+    # ── Multistrike (attack skills) ──────────────────────────────────────────────────────────────────────
+    # Using an attack skill has a chance to auto-repeat it; each repeat pays its own attack time (repeats get
+    # +20% INCREASED attack speed) and deals increasing damage (the n-th attack of a chain gets (n−1) increment
+    # stacks; Initial Multistrike Count pre-stacks the count without adding attacks). DPS is time-weighted:
+    #   multiplier = E[chain damage] ÷ (aps × E[chain time]) = E[f(L)] ÷ (1 + chance/s).
+    # Gated to attack skills (not spell/channeled/mobility/sentry) with chance > 0; reads are presence-gated
+    # (mirror enemy_mult / only_deal_cold) so non-multistrike builds stay golden-identical. Plan: docs.
+    multistrike_mult = 1.0
+    multistrike_chance = 0.0
+    multistrike_avg_count = 0.0
+    multistrike_increment = 0.0
+    multistrike_max_count = 0
+    multistrike_repeat_aps = 0.0
+    multistrike_chain: list = []
+    if (is_attack and not skill.channeled
+            and "mobility" not in skill_tags_lower and "sentry" not in skill_tags_lower
+            and "multistrike_chance" in _present and source.total("multistrike_chance") > 0.0):
+        c = source.total("multistrike_chance")
+        inc = source.total("multistrike_increasing_dmg_inc") * (1.0 + source.total("multistrike_increasing_dmg_additional"))
+        init = source.total("initial_multistrike_count_flat")   # pre-stacks the count (adds NO attacks)
+        q = source.total("multistrike_max_count_proc_chance")    # Cat Dive: chance to count an attack at Max Count
+        # +20% Attack Speed during multistrike is INCREASED — it adds into the increased AS pool for the REPEAT
+        # attacks (owner-verified: at +9% increased AS, 1.5 → 1.935 = 1.5×(1+0.09+0.20), NOT 1.635×1.20). So the
+        # repeat AS factor dilutes against existing increased AS, like every increased source.
+        as_inc = source.total("attack_speed_inc")
+        s = (1.0 + as_inc + 0.20) / (1.0 + as_inc)
+        G = int(math.floor(c))
+        p = c - G
+        K = 1 + G + (1 if p > 1e-9 else 0)                       # longest possible chain = Max Multistrike Count
+
+        def _chain_dmg(L: int) -> float:
+            # Σ n=1..L of (1 + inc·(init + n − 1)) = L + inc·(init·L + L(L−1)/2)
+            base = L + inc * (init * L + L * (L - 1) / 2.0)
+            if q > 0.0:                                          # Cat Dive: each attack +inc·(K−n) with prob q
+                base += q * inc * (K * L - L * (L + 1) / 2.0)
+            return base
+
+        e_chain = (1.0 - p) * _chain_dmg(1 + G) + p * _chain_dmg(2 + G)
+        multistrike_mult = e_chain / (1.0 + c / s) if s > 0.0 else e_chain
+        multistrike_chance = c
+        multistrike_avg_count = 1.0 + c
+        multistrike_increment = inc
+        multistrike_max_count = K
+        multistrike_repeat_aps = aps * s
+        multistrike_chain = ([{"count": 1 + G, "prob": 1.0}] if p <= 1e-9
+                             else [{"count": 1 + G, "prob": 1.0 - p}, {"count": 2 + G, "prob": p}])
+
     return OffenseResult(
         skill_name=skill.name,
         supported=True,
@@ -1339,8 +1395,8 @@ def calculate_offense(
         steep_strike_chance=steep_chance,
         attacks_per_second=aps,
         base_cast_time=base_cast_time,
-        total_dps=sum(f.dps_contribution for f in hit_forms) * cast_multiplier * tangle_mult * spell_burst_mult,
-        total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms) * cast_multiplier * tangle_mult * spell_burst_mult,
+        total_dps=sum(f.dps_contribution for f in hit_forms) * cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult,
+        total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms) * cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult,
         weapon_attack_speed=source.total("weapon_attack_speed"),
         weapon_aps_gear=source.total("attack_speed_gear"),
         weapon_aps_mh=source.total("attack_speed_mh"),
@@ -1403,6 +1459,13 @@ def calculate_offense(
             for dt in ("physical", "fire", "cold", "lightning", "erosion")
             if any(f.hit_max_by_type.get(dt, 0.0) > 0.0 for f in hit_forms)
         },
+        multistrike_chance=multistrike_chance,
+        multistrike_avg_count=multistrike_avg_count,
+        multistrike_increment=multistrike_increment,
+        multistrike_max_count=multistrike_max_count,
+        multistrike_mult=multistrike_mult,
+        multistrike_repeat_aps=multistrike_repeat_aps,
+        multistrike_chain=multistrike_chain,
         nyi=[
             "Support skill flat damage adds",
             "Elemental conversion",
