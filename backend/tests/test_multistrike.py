@@ -1,9 +1,11 @@
 """Multistrike system (attack skills) — the offense DPS multiplier from auto-repeats with increasing damage.
 
-Model (owner-validated vs an in-game lvl-85 dummy test: ×1.65 model vs ×1.73 measured, ~5% noise):
-  multiplier = E[chain damage] / (aps × E[chain time]) = E[f(L)] / (1 + chance/s)
-where f(L) = L + inc·(init·L + L(L-1)/2) (+ Cat-Dive boost), inc = base × (1 + additional), and repeats get
-+20% INCREASED attack speed (s). Worked example (1.16 chance, 0.82 increment, no other AS): ×1.6487.
+Model (owner-validated vs in-game: base 352 → 618 over a 5-min dummy test = ×1.755, plus a throughput test of
+~1.92 attacks/sec = the multistrike rate 1.935, confirming the +20% buff persists across all attacks):
+  multiplier = E[chain damage] / (chain time × aps) = s × E[f(L)] / (1 + chance)
+where f(L) = L + inc·(init·L + L(L-1)/2) (+ Cat-Dive boost), inc = base × (1 + additional), and s = the +20%
+INCREASED attack-speed factor applied to every attack. Worked example (1.16 chance, 0.82 increment, no other
+AS → s=1.20): ×1.8013.
 """
 import pytest
 from server import engine_stats, EngineStatsRequest
@@ -32,10 +34,10 @@ def test_support_grants_chance_and_increment():
 
 
 def test_multiplier_matches_worked_example():
-    # inc 0.82 = support 0.27 + 0.55 (Quick Advancement, here via gear), chance 1.16, no other AS → ×1.6487.
+    # inc 0.82 = support 0.27 + 0.55 (Quick Advancement, here via gear), chance 1.16, no other AS, s=1.20 → ×1.8013.
     o = _off(gear=_gear(multistrike_increasing_dmg_inc=0.55), sups=MS_SUP)
     assert o["multistrike_increment"] == pytest.approx(0.82, abs=0.001)
-    assert o["multistrike_mult"] == pytest.approx(1.6487, rel=0.005)
+    assert o["multistrike_mult"] == pytest.approx(1.8013, rel=0.005)
 
 
 def test_multiplier_scales_total_dps():
@@ -63,6 +65,17 @@ def test_cat_dive_max_count_proc_raises_mult():
     a = _off(sups=MS_SUP)
     b = _off(gear=_gear(multistrike_max_count_proc_chance=0.5), sups=MS_SUP)
     assert b["multistrike_mult"] > a["multistrike_mult"]                  # boosts pre-max hits toward max count
+
+
+def test_sub_100_chance_does_not_speed_non_multistrike_swings():
+    # 50% chance, 0.82 increment, s=1.20. Only the 50% of swings that multistrike run at +20%; the other 50% are
+    # lone base-speed attacks. E[f] = 0.5·f(1) + 0.5·f(2) = 0.5·1 + 0.5·2.82 = 1.91 (f is the CHAIN SUM); time =
+    # 0.5·1 + 0.5·(2/1.2) = 1.3333; mult = 1.91/1.3333 = 1.4325 — NOT the s·E[f]/(1+c) = 1.528 you'd get crediting
+    # +20% to every swing (which would wrongly speed up the lone non-multistrike attacks).
+    o = _off(gear=_gear(multistrike_chance=0.5, multistrike_increasing_dmg_inc=0.82))
+    assert o["multistrike_chance"] == pytest.approx(0.5, abs=0.001)
+    assert o["multistrike_mult"] == pytest.approx(1.4325, rel=0.005)
+    assert o["multistrike_mult"] < 1.528                                  # base-speed non-MS swings, not all at +20%
 
 
 def test_spell_skill_ignores_multistrike():

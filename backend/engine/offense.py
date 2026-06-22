@@ -1339,10 +1339,14 @@ def calculate_offense(
             spell_burst_mult = 0.0
 
     # ── Multistrike (attack skills) ──────────────────────────────────────────────────────────────────────
-    # Using an attack skill has a chance to auto-repeat it; each repeat pays its own attack time (repeats get
-    # +20% INCREASED attack speed) and deals increasing damage (the n-th attack of a chain gets (n−1) increment
-    # stacks; Initial Multistrike Count pre-stacks the count without adding attacks). DPS is time-weighted:
-    #   multiplier = E[chain damage] ÷ (aps × E[chain time]) = E[f(L)] ÷ (1 + chance/s).
+    # Using an attack skill has a chance to auto-repeat it; the +20% INCREASED attack speed during multistrike applies
+    # to the WHOLE chain (first hit included — it is "during multistrike" for attack speed) the moment a swing becomes
+    # a chain (owner-verified by throughput: 116% chance / 1.5 base → measured ~1.92 attacks/sec = the multistrike rate
+    # 1.935, not the 1.78 a "first hit slow, repeats fast" model predicts). When chance ≥ 100% every swing is a chain,
+    # so every attack runs at aps×s. When chance < 100% (rare) the swings that DON'T multistrike are lone base-speed
+    # attacks and get NO +20% — handled per-outcome below. Damage is time-weighted with increasing damage (the n-th
+    # attack of a chain gets (n−1) increment stacks; Initial Multistrike Count pre-stacks the count without adding
+    # attacks). multiplier = E[chain damage] ÷ (E[chain time] × aps); for chance ≥ 100% this is s × E[f(L)] ÷ (1 + c).
     # Gated to attack skills (not spell/channeled/mobility/sentry) with chance > 0; reads are presence-gated
     # (mirror enemy_mult / only_deal_cold) so non-multistrike builds stay golden-identical. Plan: docs.
     multistrike_mult = 1.0
@@ -1376,7 +1380,15 @@ def calculate_offense(
             return base
 
         e_chain = (1.0 - p) * _chain_dmg(1 + G) + p * _chain_dmg(2 + G)
-        multistrike_mult = e_chain / (1.0 + c / s) if s > 0.0 else e_chain
+        # Attack-speed application: the roll happens up front. A swing that becomes a multistrike chain (length ≥ 2)
+        # runs the WHOLE chain at the multistrike rate aps×s — the first hit included (it is "during multistrike" for
+        # attack speed, though it still gets 0 increment stacks). A swing that does NOT multistrike — only possible
+        # when chance < 100% (G == 0 and the leftover roll fails → a lone length-1 attack) — runs at BASE speed with
+        # NO +20%. For chance ≥ 100% every swing is a chain, so this reduces to s × E[f] / (1 + chance).
+        def _chain_time(L: int) -> float:                        # chain duration × aps (normalized)
+            return 1.0 if L <= 1 else L / s
+        denom = (1.0 - p) * _chain_time(1 + G) + p * _chain_time(2 + G)
+        multistrike_mult = e_chain / denom if denom > 0.0 else e_chain
         multistrike_chance = c
         multistrike_avg_count = 1.0 + c
         multistrike_increment = inc
