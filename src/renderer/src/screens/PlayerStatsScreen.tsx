@@ -476,6 +476,14 @@ function slotLabel(slot: number): string {
 
 // Calculation modes — only "full_uptime" is wired today (≈ the engine's current "max"); the rest are stubbed
 // placeholders for a future uptime/scenario pass (Phase 2).
+// Enemy type → Enemy-Count weight for "for each enemy" lines (Normal/Magic 1, Rare 2, Boss 5). Set via the
+// enemy_count_weight condition; Boss (5) is the training-dummy default so unset builds are unchanged.
+const ENEMY_TYPES: { label: string; weight: number }[] = [
+  { label: 'Boss', weight: 5 },
+  { label: 'Rare', weight: 2 },
+  { label: 'Normal', weight: 1 },
+]
+
 const CALC_MODES: { key: string; label: string; enabled: boolean }[] = [
   { key: 'full_uptime', label: 'Full Uptime', enabled: true },
   { key: 'effective', label: 'Effective', enabled: false },
@@ -503,6 +511,10 @@ function SkillSelectionBar({
   const ordered = [...skills].sort((a, b) => a.slot - b.slot)
   const showAll = useUiPrefs(s => s.statsShowAllBoxes)
   const setShowAll = useUiPrefs(s => s.setStatsShowAllBoxes)
+  // Enemy type (target scenario) drives the enemy_count_weight condition → recompute. Default Boss (5).
+  const conditionState = useBuildStore(s => s.conditionState)
+  const setConditionState = useBuildStore(s => s.setConditionState)
+  const enemyWeight = Number(conditionState['enemy_count_weight'] ?? 5)
   const selectSt: React.CSSProperties = {
     fontSize: 11, background: 'rgba(255,255,255,0.06)', color: '#cfd6e6',
     border: '1px solid rgba(255,255,255,0.12)', borderRadius: 3, padding: '2px 4px',
@@ -539,6 +551,15 @@ function SkillSelectionBar({
                 {m.label}{m.enabled ? '' : ' (soon)'}
               </option>
             ))}
+          </select>
+        </label>
+        {/* Enemy type → enemy-count weight for "for each enemy" lines (e.g. Rosa's Unbreakable Stand). */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888' }}>
+          Enemy
+          <select value={enemyWeight}
+            onChange={e => setConditionState({ ...conditionState, enemy_count_weight: Number(e.target.value) })}
+            style={selectSt}>
+            {ENEMY_TYPES.map(t => <option key={t.weight} value={t.weight}>{t.label}</option>)}
           </select>
         </label>
         {forms.length > 1 && (

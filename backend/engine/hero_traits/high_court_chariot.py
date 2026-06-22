@@ -79,7 +79,10 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     block_ratio_pct = block_ratio * 100.0                       # in "% points" for per-1%-Block-Ratio lines
 
     from engine.offense import TARGET_ENEMY_COUNT_WEIGHT
-    weighted_enemies = enemies * TARGET_ENEMY_COUNT_WEIGHT      # dummy is a Boss → ×5
+    # Enemy-Count weight by enemy type (Normal/Magic 1, Rare 2, Boss 5). Configurable via condition_state
+    # (enemy_count_weight); defaults to the Boss training-dummy weight so unset builds are unchanged.
+    weight = float(condition_state.get("enemy_count_weight") or TARGET_ENEMY_COUNT_WEIGHT)
+    weighted_enemies = enemies * weight
 
     base_on = _enabled(slot_levels, 0)   # the base node can be disabled (right-click) while the trait stays selected
 
