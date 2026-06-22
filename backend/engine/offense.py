@@ -873,6 +873,12 @@ def calculate_offense(
     convert_fracs, adds_fracs = _conversion_fracs(source)
     has_conversion = any(convert_fracs.values()) or any(adds_fracs.values())
     calc_types = list(DAMAGE_TYPES) if has_conversion else list(flat_dmg.keys())
+    # "You can only deal <Type> Damage" (Extreme Coldness): any FINAL (post-conversion) damage that isn't an
+    # allowed type deals zero. Read only when the flag is present (all_stats avoids consuming it on every build,
+    # keeping consumed_stats/goldens stable). Empty = no restriction.
+    _present = source.all_stats()
+    only_deal_types = {t for t in DAMAGE_TYPES
+                       if f"can_only_deal_{t}" in _present and source.total(f"can_only_deal_{t}") > 0.0}
 
     type_inc: dict[str, float] = {}
     type_add: dict[str, float] = {}
@@ -1035,6 +1041,10 @@ def calculate_offense(
         converted = _apply_conversion(eff_flat, _path_spec_inc, _path_spec_add, generic_inc, generic_add,
                                       convert_fracs, adds_fracs)
         for dtype, (smin, smax) in converted.items():
+            # "You can only deal <Type>" — a FINAL packet left as a non-allowed type deals zero (applied AFTER
+            # conversion, so damage that converted INTO an allowed type still counts).
+            if only_deal_types and dtype not in only_deal_types:
+                continue
             # Enemy-vulnerability (Numbed etc.) and Augmentation are per-FINAL-type / global multipliers.
             vuln = _enemy_vuln_mult(source, dtype, is_spell)
             type_min = smin * above_mult * vuln * aug_factor * form_add_mult

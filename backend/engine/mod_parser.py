@@ -351,6 +351,13 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": "curse_limit_cap_flat", "amount": float(m.group(1)), "text": t}]
 
+    # "You can only deal <Type> Damage" (Extreme Coldness, etc.) → can_only_deal_<type> flag. Offense zeroes any
+    # FINAL (post-conversion) damage that isn't an allowed type, so converting to <type> still counts but anything
+    # left as another type at the end deals zero.
+    m = re.match(r'you can only deal\s+(physical|fire|cold|lightning|erosion)\s+damage\b', t, re.I)
+    if m:
+        return [{"stat_key": f"can_only_deal_{m.group(1).lower()}", "amount": 1.0, "text": t}]
+
     # "+N% additional Curse Effect" → multiplicative Curse Effect pool (e.g. Defile). Must come before the
     # generic Curse Effect matcher so plain "+N% Curse Effect" still maps to the increased pool.
     m = re.search(r'([\d.]+)\s*%\s*additional\s+curse\s+effect', t, re.I)
