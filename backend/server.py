@@ -807,6 +807,19 @@ def engine_stats(req: EngineStatsRequest):
     # Default enabled=True and absent slot → kept, so today's payloads resolve the identical set.
     enabled_supports = [s for s in req.attached_supports
                         if s.get("enabled", True) and s.get("slot", 1) not in _disabled_slots]
+    # Hero traits may grant the main skill a free support that consumes no UI slot (e.g. Wind Stalker's Have Fun →
+    # Lv10 Multistrike). Resolve the main skill's slot and fold the trait's virtual supports in BEFORE the resolver
+    # so they produce slot-local contributions even when no real support is equipped. Generic — dispatched by trait_id.
+    from engine import hero_traits as _hero_traits
+    _main_slot = 1
+    if req.main_skill:
+        for _sk in req.skills:
+            if _sk.skill_id == req.main_skill.skill_id:
+                _main_slot = _sk.slot
+                break
+    enabled_supports = enabled_supports + _hero_traits.virtual_supports(
+        req.trait_id, slot_levels=req.trait_slot_levels,
+        advanced_picks=req.advanced_trait_selections, main_slot=_main_slot)
     if enabled_supports:
         from engine.support_resolver import resolve_support_contributions, resolve_support_behavior
         support_contributions = resolve_support_contributions(enabled_supports, skills_by_id, _translate_condition_expr)

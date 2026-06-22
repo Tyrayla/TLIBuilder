@@ -62,9 +62,12 @@ def test_additional_increment_multiplies_base():
 
 
 def test_cat_dive_max_count_proc_raises_mult():
+    # Cat Dive: with prob q each attack deals as the FINAL attack of its chain (realized L), +inc·(L−n). chance 1.16,
+    # inc 0.27, s=1.20, q=0.5 → boost q·inc·L(L−1)/2 per chain lifts the mult 1.398 → 1.497 (verified by hand).
     a = _off(sups=MS_SUP)
     b = _off(gear=_gear(multistrike_max_count_proc_chance=0.5), sups=MS_SUP)
-    assert b["multistrike_mult"] > a["multistrike_mult"]                  # boosts pre-max hits toward max count
+    assert a["multistrike_mult"] == pytest.approx(1.398, rel=0.005)
+    assert b["multistrike_mult"] == pytest.approx(1.497, rel=0.005)       # realized-L Cat Dive boost
 
 
 def test_sub_100_chance_does_not_speed_non_multistrike_swings():

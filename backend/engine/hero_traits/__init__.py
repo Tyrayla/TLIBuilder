@@ -6,12 +6,14 @@ README.md for the hook convention.
 """
 from engine.hero_traits import lightning_shadow as _ls
 from engine.hero_traits import high_court_chariot as _hcc
+from engine.hero_traits import wind_stalker as _ws
 
-_MODULES = (_ls, _hcc)
+_MODULES = (_ls, _hcc, _ws)
 
 _APPLY = {m.TRAIT_ID: m.apply for m in _MODULES if hasattr(m, "apply")}
 _STASH = {m.TRAIT_ID: m.stash for m in _MODULES if hasattr(m, "stash")}
 _STATUS = {m.TRAIT_ID: m.status_lines for m in _MODULES if hasattr(m, "status_lines")}
+_VIRTUAL = {m.TRAIT_ID: m.virtual_supports for m in _MODULES if hasattr(m, "virtual_supports")}
 
 
 def has_module(trait_id: str | None) -> bool:
@@ -35,4 +37,11 @@ def stash(trait_id: str, **kw) -> None:
 def status_lines(trait_id: str, **kw) -> list[dict]:
     """Per-line working/NYI statuses for the never-silently-drop surface. [] when no module."""
     fn = _STATUS.get(trait_id)
+    return (fn(**kw) or []) if fn else []
+
+
+def virtual_supports(trait_id: str, **kw) -> list[dict]:
+    """Free supports a trait grants to the main skill (no UI slot) — folded into support resolution by the caller.
+    Each is a normal support dict {item_id, slot, level, …}. [] when no module / none granted."""
+    fn = _VIRTUAL.get(trait_id)
     return (fn(**kw) or []) if fn else []

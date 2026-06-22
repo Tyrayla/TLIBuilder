@@ -1375,8 +1375,11 @@ def calculate_offense(
         def _chain_dmg(L: int) -> float:
             # Σ n=1..L of (1 + inc·(init + n − 1)) = L + inc·(init·L + L(L−1)/2)
             base = L + inc * (init * L + L * (L - 1) / 2.0)
-            if q > 0.0:                                          # Cat Dive: each attack +inc·(K−n) with prob q
-                base += q * inc * (K * L - L * (L + 1) / 2.0)
+            if q > 0.0:
+                # Cat Dive (owner): with prob q, an attack deals damage as the FINAL attack of THIS chain (realized
+                # length L), gaining inc·(L−n) stacks. Σ n=1..L of (L−n) = L(L−1)/2 (final attack & a lone length-1
+                # swing add 0). Independent of init (it cancels). NOT the theoretical max K.
+                base += q * inc * (L * (L - 1) / 2.0)
             return base
 
         e_chain = (1.0 - p) * _chain_dmg(1 + G) + p * _chain_dmg(2 + G)
