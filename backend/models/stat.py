@@ -431,6 +431,15 @@ class Stat(Enum):
     # defense (NYI; lands with the conditional-defense path), so it surfaces with an NYI badge.
     NO_GUARD_DMG_TAKEN = "no_guard_dmg_taken"
     NO_GUARD_SELF_DMG_TAKEN = "no_guard_self_dmg_taken"
+    # Tide (Selena — Sing with the Tide): a GLOBAL enemy-vulnerability debuff while the enemy stands on a Tide
+    # (base +5-20% by trait level, × Tide Effect). Engine-computed by the trait module, consumed by offense's
+    # enemy-vulnerability stage like no_guard_dmg_taken.
+    TIDE_DMG_TAKEN = "tide_dmg_taken"
+    # Tide Effect (Selena): the effect-scalar that amplifies the Tide's damage bonuses (your on-Tide +15%, Wave
+    # Aria, Idyll, and the enemy Tide damage-taken). Standard effect pooling: tide_mult = (1 + Σ inc) ×
+    # Π(1 + additional). Only the Selena trait emits these today (no gear/parser source).
+    TIDE_EFFECT_INC = "tide_effect_inc"
+    TIDE_EFFECT_ADDITIONAL = "tide_effect_additional"
 
     # ── Channeled / Triggered / Combo Mechanics ──────────────────────────────
     CHANNELED_DMG_INC = "channeled_dmg_inc"

@@ -177,6 +177,7 @@
     "strength_additional",
     "strength_flat",
     "strength_inc",
+    "tide_dmg_taken",
     "triple_dmg_chance",
     "weapon_attack_speed",
     "weapon_crit_rating_flat"

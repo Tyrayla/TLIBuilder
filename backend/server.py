@@ -794,8 +794,12 @@ def engine_stats(req: EngineStatsRequest):
     # statuses. A non-bespoke trait pre-resolves its trait_effects here like spirits/memories.
     from engine import hero_traits
     if hero_traits.has_module(req.trait_id):
+        # Pass the main skill's tags/name so a module can warn when a state makes it contribute nothing
+        # (e.g. Selena's Bard converts non-Channeled/Instant/Mobility skills to Bard Song). Modules ignore via **_.
         trait_contributions, trait_mod_statuses = [], hero_traits.status_lines(
-            req.trait_id, slot_levels=req.trait_slot_levels, advanced_picks=req.advanced_trait_selections)
+            req.trait_id, slot_levels=req.trait_slot_levels, advanced_picks=req.advanced_trait_selections,
+            main_skill_tags=(skill_data or {}).get("skill_tags"),
+            main_skill_name=(skill_data or {}).get("name"))
     else:
         trait_contributions, trait_mod_statuses = _resolve_effect_list(req.trait_effects, is_memory=False)
 

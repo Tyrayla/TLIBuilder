@@ -145,7 +145,7 @@ def stash(*, source, ls_state, inflict_aps):
         ls_state["inflict_aps"] = inflict_aps
 
 
-def status_lines(*, slot_levels, advanced_picks):
+def status_lines(*, slot_levels, advanced_picks, **_):
     """One status row per trait line so every line is surfaced (never silently dropped)."""
     picks = set(advanced_picks or [])
     out: list[dict] = []

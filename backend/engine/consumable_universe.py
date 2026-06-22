@@ -194,6 +194,10 @@ def consumable_universe() -> frozenset[str]:
     consumed |= {"multistrike_chance", "multistrike_increasing_dmg_inc", "multistrike_increasing_dmg_additional",
                  "initial_multistrike_count_flat", "multistrike_max_count_proc_chance"}
 
+    # Selena Sing with the Tide: Tide enemy-vuln (offense enemy-vulnerability) + the Tide Effect scalars the trait
+    # module emits/reads. Engine-computed / read outside the synthetic passes — whitelist so they never false-yellow.
+    consumed |= {"tide_dmg_taken", "tide_effect_inc", "tide_effect_additional"}
+
     missing = _SANITY_FLOOR - consumed
     if missing:
         raise RuntimeError(

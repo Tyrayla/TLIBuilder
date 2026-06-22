@@ -1661,6 +1661,27 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="defense",            stacking_rule="additive",
         ui_priority=72,                source_types=(),
     ),
+    # Tide (Selena — Sing with the Tide) — GLOBAL enemy damage-taken while on a Tide. Engine-computed by the trait
+    # module (base 5-20% by level × Tide Effect) and consumed by offense's enemy-vulnerability stage.
+    Stat.TIDE_DMG_TAKEN: StatMeta(
+        "Tide: Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        tags=(),                       affects=_HIT,
+        stacking_rule="additive",      ui_priority=72,
+        source_types=(),
+    ),
+    # Tide Effect (Selena) — effect-scalar amplifying the Tide's damage bonuses. Standard pooling: increased +
+    # additional (multiplicative across distinct sources). Trait-emitted today (no gear/parser source).
+    Stat.TIDE_EFFECT_INC: StatMeta(
+        "Tide Effect", "Generic", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=72,                source_types=(),
+    ),
+    Stat.TIDE_EFFECT_ADDITIONAL: StatMeta(
+        "Tide Effect", "Generic", "additional", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=72,                source_types=(),
+    ),
     # Howling Gale — Headwind: GLOBAL enemy-vuln (engine-computed by the support, gated on enemy_knocked_back).
     # (Knockback Chance / Distance metas live in the Double Damage / Knockback section below.)
     Stat.KNOCKBACK_DMG_TAKEN: StatMeta(

@@ -429,6 +429,7 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
     mult = 1.0 + source.total("paralysis_dmg_taken")        # global
     mult *= 1.0 + source.total("no_guard_dmg_taken")        # global (Rosa Desperation — No Guard)
     mult *= 1.0 + source.total("knockback_dmg_taken")       # global (Howling Gale — Headwind; gated by hook on enemy_knocked_back)
+    mult *= 1.0 + source.total("tide_dmg_taken")            # global (Selena Sing with the Tide; gated on enemy_on_tide, × Tide Effect)
     if dtype == "cold":
         mult *= 1.0 + source.total("frostbite_cold_taken")  # Frostbite (+Condensed Frost) — baked in aggregator
     if dtype == "lightning":

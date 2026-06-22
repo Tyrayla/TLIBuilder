@@ -4,6 +4,7 @@
     "agility_blessings": 4.0,
     "ailment_type_count": 5.0,
     "berserking_blade_stacks": 40.0,
+    "chantey_stacks": 2.0,
     "current_life_pct": 100.0,
     "electrify_stacks": 3.0,
     "elemental_hit_pen_stacks": 4.0,
@@ -13,6 +14,7 @@
     "fortitude_stacks": 3.0,
     "frostbite_rating": 10.0,
     "frostbitten_stacks": 8.0,
+    "idyll_stacks": 15.0,
     "ignite_stacks": 1.0,
     "level": 100.0,
     "murderous_intent": 100.0,
@@ -188,6 +190,7 @@
     "strength_additional",
     "strength_flat",
     "strength_inc",
+    "tide_dmg_taken",
     "triple_dmg_chance",
     "weapon_attack_speed",
     "weapon_crit_rating_flat"
