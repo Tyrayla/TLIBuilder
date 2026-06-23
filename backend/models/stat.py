@@ -48,6 +48,9 @@ class Stat(Enum):
     # ── Attack ───────────────────────────────────────────────────────────────
     ATTACK_DMG_INC = "attack_dmg_inc"
     ATTACK_DMG_ADDITIONAL = "attack_dmg_additional"
+    # Additional damage scoped to the MAIN-HAND weapon's share of an attack hit (e.g. Rosa Born to Cleanse).
+    # A standard additional multiplier, applied only to the weapon1 base portion (offense injects it into the flat).
+    MAIN_HAND_DMG_ADDITIONAL = "main_hand_dmg_additional"
     ATTACK_DOUBLE_DMG_CHANCE = "attack_double_dmg_chance"
     ATTACK_SKILL_LEVEL = "attack_skill_level"
     TWO_HANDED_BASE_DMG_ADDITIONAL = "two_handed_base_dmg_additional"
@@ -57,6 +60,9 @@ class Stat(Enum):
     # ── Spell ────────────────────────────────────────────────────────────────
     SPELL_DMG_INC = "spell_dmg_inc"
     SPELL_DMG_ADDITIONAL = "spell_dmg_additional"
+    # Flag (Rosa Unsullied Blade): when >0, Spell DAMAGE pools (spell_dmg_inc/additional + per-element spell damage)
+    # ALSO apply to attack skills — offense augments the damage-pool tag set with "spell" for attacks.
+    SPELL_DMG_TO_ATTACK = "spell_dmg_to_attack"
     SPELL_DOUBLE_DMG_CHANCE = "spell_double_dmg_chance"
     SPELL_SKILL_LEVEL = "spell_skill_level"
     SPELL_BURST_CHARGE_SPEED_INC = "spell_burst_charge_speed_inc"
@@ -440,6 +446,15 @@ class Stat(Enum):
     # Π(1 + additional). Only the Selena trait emits these today (no gear/parser source).
     TIDE_EFFECT_INC = "tide_effect_inc"
     TIDE_EFFECT_ADDITIONAL = "tide_effect_additional"
+    # Mercury Baptism (Rosa — Unsullied Blade): recorded fraction (0.12-0.44) of non-channeled attack ELEMENTAL hit
+    # damage, re-dealt as TRUE damage. Read by the offense Mercury Baptism stage.
+    MERCURY_BAPTISM_FRACTION = "mercury_baptism_fraction"
+    # Mercury Points resource (Rosa). max_mercury_points = flat × (1 + inc); feeds Utmost Devotion's per-point ele.
+    MAX_MERCURY_POINTS_FLAT = "max_mercury_points_flat"
+    MAX_MERCURY_POINTS_INC = "max_mercury_points_inc"
+    # Flag (Rosa): the base trait overrides/prevents all non-Mystic-Mercury mana consumption; Utmost Devotion clears
+    # it. Mana-system stat — no DPS consumer yet (mapped for a future mana-cost hookup).
+    MANA_COST_OVERRIDE = "mana_cost_override"
 
     # ── Channeled / Triggered / Combo Mechanics ──────────────────────────────
     CHANNELED_DMG_INC = "channeled_dmg_inc"

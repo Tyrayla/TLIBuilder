@@ -309,7 +309,8 @@ def aggregate(
         val = contrib.get("display_value", 0)
         unit = contrib.get("unit", "")
         amount = val / 100.0 if unit == "%" else float(val)
-        slot_label = (contrib.get("slot") or "item").replace("1", " 1").replace("2", " 2").title()
+        _gslot = contrib.get("slot")
+        slot_label = (_gslot or "item").replace("1", " 1").replace("2", " 2").title()
         entry = SourceEntry(
             stat=stat,
             amount=amount,
@@ -320,6 +321,8 @@ def aggregate(
             # Item NAME for the breakdown "Source Name" column + item-tooltip match (distinct from `text`).
             source_name=contrib.get("item_name") or None,
             points=1,
+            # Preserve weapon identity so offense can scope a main-hand-only modifier to the weapon1 base.
+            weapon_slot=_gslot if _gslot in ("weapon1", "weapon2") else None,
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)
 

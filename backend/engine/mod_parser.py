@@ -155,6 +155,7 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     # Critical Strike Rating — gear-specific % (scales gear flat only) and main-hand weapon
     "+(#) % attack critical strike rating for this gear":          "attack_crit_rating_gear",
     "+(#) % critical strike rating for the main-hand weapon":      "attack_crit_rating_mh",
+    "+(#) % additional damage for the main-hand weapon":           "main_hand_dmg_additional",
     # Flat defense — "maximum X" fuzzy-matches the derived stat key; override to the raw flat input stat
     "+(#) maximum life":             "max_life_flat",
     "+(#) to maximum life":          "max_life_flat",

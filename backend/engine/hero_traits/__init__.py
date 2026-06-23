@@ -8,8 +8,9 @@ from engine.hero_traits import lightning_shadow as _ls
 from engine.hero_traits import high_court_chariot as _hcc
 from engine.hero_traits import wind_stalker as _ws
 from engine.hero_traits import sing_with_the_tide as _swt
+from engine.hero_traits import unsullied_blade as _ub
 
-_MODULES = (_ls, _hcc, _ws, _swt)
+_MODULES = (_ls, _hcc, _ws, _swt, _ub)
 
 _APPLY = {m.TRAIT_ID: m.apply for m in _MODULES if hasattr(m, "apply")}
 _STASH = {m.TRAIT_ID: m.stash for m in _MODULES if hasattr(m, "stash")}

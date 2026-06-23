@@ -334,6 +334,11 @@ def compute(
                 # Engine-owned in real mode: mark manual so _apply_cond_effects' support max-rule won't clobber it.
                 condition_state["numbed_stacks"] = _numbed_override
                 manual_cond_keys.add("numbed_stacks")
+            # Engine-owned conditions a trait sets each pass (e.g. Rosa sets the dominant infiltration so the
+            # aggregator applies it). Written before _derive_views so the same pass picks them up; marked manual.
+            for _ck, _cv in (_tr.get("set_conditions") or {}).items():
+                condition_state[_ck] = _cv
+                manual_cond_keys.add(_ck)
         active_booleans, numeric_vals = _derive_views(condition_state)
 
         source = aggregate(
@@ -404,6 +409,13 @@ def compute(
         from engine.utility import apply_reservation
         reservation = apply_reservation(
             source, skills_input, skills_by_id, build_input.attached_supports, active_booleans, numeric_vals)
+
+        # Stash converged Max/Unsealed Mana for the next pass's hero-trait apply() (Rosa Realm scaling tracks the
+        # unsealed fraction). Runs after reservation each pass; converges with the loop. stash() (above) runs before
+        # reservation, so this is the only place the trait can read accurate unsealed mana.
+        if _trait_active:
+            _ls_state["max_mana"] = reservation["max_mana"]
+            _ls_state["unsealed_mana"] = reservation["unsealed_mana"]
 
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS

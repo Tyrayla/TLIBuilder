@@ -640,6 +640,10 @@ class OffenseResult:
     multistrike_mult: float = 1.0             # delivery multiplier folded into total_dps
     multistrike_repeat_aps: float = 0.0       # attack rate during repeats = aps × (1 + as_inc + 0.20)/(1 + as_inc)
     multistrike_chain: list = field(default_factory=list)  # [{count, prob}] chain-length distribution
+    # Mercury Baptism (Rosa Unsullied Blade): recorded fraction of elemental hit damage re-dealt as TRUE damage,
+    # and the resulting unmitigated DPS (vs target), folded into total_dps_vs_target.
+    mercury_baptism_fraction: float = 0.0
+    mercury_baptism_dps: float = 0.0
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -829,6 +833,10 @@ def calculate_offense(
         flat_dmg, skill_base_dmg = _spell_flat(
             source, skill.base_dmg_by_level.get(lookup_level, {}), skill.added_dmg_effectiveness)
     else:
+        # Main-hand-only additional damage (Rosa Born to Cleanse): a standard additional multiplier scoped to the
+        # weapon1 base share. Injected into the flat (conversion-safe; linear pipeline ⇒ ≡ multiplying the main-hand
+        # weapon's final damage by (1+mh_add)). Presence-gated via all_stats so non-Rosa consumed_stats is unchanged.
+        mh_add = source.total("main_hand_dmg_additional") if "main_hand_dmg_additional" in source.all_stats() else 0.0
         for dtype in DAMAGE_TYPES:
             # Weapon implicit base, scaled by the weapon's own gear inc
             dmg_min = source.total(f"{dtype}_dmg_gear_flat_min")
@@ -843,6 +851,9 @@ def calculate_offense(
             if is_spell:
                 total_min += source.total(f"{dtype}_spell_dmg_flat_min")
                 total_max += source.total(f"{dtype}_spell_dmg_flat_max")
+            if is_attack and mh_add:
+                total_min += source.main_hand_flat(dtype, "min") * (1.0 + gear_inc) * mh_add
+                total_max += source.main_hand_flat(dtype, "max") * (1.0 + gear_inc) * mh_add
             if total_min > 0 or total_max > 0:
                 flat_dmg[dtype] = (total_min, total_max)
 
@@ -890,6 +901,14 @@ def calculate_offense(
     only_deal_types = {t for t in DAMAGE_TYPES
                        if f"can_only_deal_{t}" in _present and source.total(f"can_only_deal_{t}") > 0.0}
 
+    # Rosa Unsullied Blade: "Spell Damage bonus + additional also apply to Attack Damage". Augment the DAMAGE-pool
+    # tag set with "spell" for attack skills when the flag is present, so spell_dmg_inc/additional (+ per-element
+    # spell damage) bridge to the attack's damage pools ONLY — crit/area/cast-speed keep plain mod_tags below.
+    # Presence-gated → non-Rosa builds byte-identical.
+    pool_tags = mod_tags
+    if is_attack and "spell_dmg_to_attack" in _present and source.total("spell_dmg_to_attack") > 0.0:
+        pool_tags = mod_tags | {"spell"}
+
     type_inc: dict[str, float] = {}
     type_add: dict[str, float] = {}
     for dtype in calc_types:
@@ -899,11 +918,11 @@ def calculate_offense(
         type_inc[dtype] = sum(
             source.total(key)
             for key, tags in _HIT_INC_STATS
-            if _applies_to_dtype(tags, dtype_tag, mod_tags)
+            if _applies_to_dtype(tags, dtype_tag, pool_tags)
         )
         type_add[dtype] = _additional_product(
             source, add_factors,
-            lambda tags, dt=dtype_tag: _applies_to_dtype(tags, dt, mod_tags),
+            lambda tags, dt=dtype_tag: _applies_to_dtype(tags, dt, pool_tags),
         ) * intrinsic_add
 
     # Generic (non-dtype-specific) multipliers — applies uniformly to every damage type.
@@ -911,11 +930,11 @@ def calculate_offense(
     generic_inc = sum(
         source.total(key)
         for key, tags in _HIT_INC_STATS
-        if not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, mod_tags)
+        if not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags)
     )
     generic_add = _additional_product(
         source, add_factors,
-        lambda tags: not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, mod_tags),
+        lambda tags: not (tags & _DTYPE_TAG_SET) and _skill_gate(tags, pool_tags),
     ) * intrinsic_add
 
     # Type-specific bonuses for the conversion cascade, computed over the UNION of a packet's path types
@@ -1401,6 +1420,31 @@ def calculate_offense(
         multistrike_chain = ([{"count": 1 + G, "prob": 1.0}] if p <= 1e-9
                              else [{"count": 1 + G, "prob": 1.0 - p}, {"count": 2 + G, "prob": p}])
 
+    _delivery = cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult
+    total_dps = sum(f.dps_contribution for f in hit_forms) * _delivery
+    total_dps_vs_target = sum(f.dps_vs_target for f in hit_forms) * _delivery
+
+    # ── Mercury Baptism (Rosa Unsullied Blade) ────────────────────────────────────────────────────────────
+    # Records a fraction (0.12-0.44) of non-channeled attack ELEMENTAL hit damage DEALT and re-deals it as TRUE
+    # damage every 0.5s; in sustained DPS the record/dump window cancels, so it's `fraction × (elemental DPS dealt)`
+    # added unmitigated on top (no _target_mitigation / enemy_vuln). Presence-gated → non-Rosa builds unchanged.
+    mercury_baptism_fraction = 0.0
+    mercury_baptism_dps = 0.0
+    if (is_attack and not skill.channeled
+            and "mercury_baptism_fraction" in _present and source.total("mercury_baptism_fraction") > 0.0):
+        mbf = source.total("mercury_baptism_fraction")
+
+        def _elem_share(form: HitFormResult) -> float:
+            tot = sum(form.damage_by_type.values())
+            return (sum(form.damage_by_type.get(t, 0.0) for t in _ELEMENTAL_DMG_TYPES) / tot) if tot > 0.0 else 0.0
+
+        elem_premit = sum(f.dps_contribution * _elem_share(f) for f in hit_forms) * _delivery
+        elem_vt = sum(f.dps_vs_target * _elem_share(f) for f in hit_forms) * _delivery
+        mercury_baptism_fraction = mbf
+        mercury_baptism_dps = mbf * elem_vt                  # true damage (unmitigated), vs-target
+        total_dps += mbf * elem_premit
+        total_dps_vs_target += mbf * elem_vt
+
     return OffenseResult(
         skill_name=skill.name,
         supported=True,
@@ -1411,8 +1455,8 @@ def calculate_offense(
         steep_strike_chance=steep_chance,
         attacks_per_second=aps,
         base_cast_time=base_cast_time,
-        total_dps=sum(f.dps_contribution for f in hit_forms) * cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult,
-        total_dps_vs_target=sum(f.dps_vs_target for f in hit_forms) * cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult,
+        total_dps=total_dps,
+        total_dps_vs_target=total_dps_vs_target,
         weapon_attack_speed=source.total("weapon_attack_speed"),
         weapon_aps_gear=source.total("attack_speed_gear"),
         weapon_aps_mh=source.total("attack_speed_mh"),
@@ -1482,6 +1526,8 @@ def calculate_offense(
         multistrike_mult=multistrike_mult,
         multistrike_repeat_aps=multistrike_repeat_aps,
         multistrike_chain=multistrike_chain,
+        mercury_baptism_fraction=mercury_baptism_fraction,
+        mercury_baptism_dps=mercury_baptism_dps,
         nyi=[
             "Support skill flat damage adds",
             "Elemental conversion",

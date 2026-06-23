@@ -28,6 +28,10 @@ class SourceEntry:
     # identity). Drives the stat-breakdown "Source Name" column + its hover tooltip. None for sources whose
     # name the UI derives itself (talent → tree name from the label) or that have none (custom/character).
     source_name:  str | None = None
+    # Weapon slot this contribution came from ("weapon1" = main-hand, "weapon2" = off-hand), set by the aggregator
+    # for gear contributions. Lets offense scope a main-hand-only modifier to the weapon1 base share (see
+    # BuildSource.main_hand_flat). None for non-weapon sources. Not read by compute.py's stat_map → output-neutral.
+    weapon_slot:  str | None = None
 
 
 @dataclass
@@ -132,6 +136,13 @@ class BuildSource:
 
     def all_stats(self) -> set[str]:
         return {s for s, _ in self._entries}
+
+    def main_hand_flat(self, dtype: str, which: str) -> float:
+        """Sum of the MAIN-HAND (weapon1) weapon-base flat damage for `dtype` ('min'|'max'), from source_log
+        entries tagged weapon_slot == 'weapon1'. Used to scope a main-hand-only additional modifier (e.g. Rosa
+        Born to Cleanse) to the main-hand weapon's share of an attack hit."""
+        key = f"{dtype}_dmg_gear_flat_{which}"
+        return sum(e.amount for e in self.source_log if e.stat == key and e.weapon_slot == "weapon1")
 
 
 @dataclass

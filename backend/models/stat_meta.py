@@ -245,6 +245,13 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",     ui_priority=10,
         source_types=_T,
     ),
+    # Main-hand-only additional damage (Rosa Born to Cleanse). NO pipeline_stage → it is NOT auto-folded into the
+    # additional pool; offense reads it explicitly and injects it into the main-hand weapon-base flat only.
+    Stat.MAIN_HAND_DMG_ADDITIONAL: StatMeta(
+        "Additional Main-Hand Weapon Damage", "Attack", "additional", "%",
+        subgroup="attack_damage",     stacking_rule="additive",
+        ui_priority=11,               source_types=_T,
+    ),
     Stat.ATTACK_DOUBLE_DMG_CHANCE: StatMeta(
         "Attack Double Damage Chance", "Attack", "chance", "%",
         subgroup="double_damage",     pipeline_stage="double_damage",
@@ -287,6 +294,13 @@ STAT_META: dict[Stat, StatMeta] = {
         tags=("spell",),              affects=_HIT_DOT,
         stacking_rule="additive",     ui_priority=10,
         source_types=_T,
+    ),
+    # Flag (Rosa Unsullied Blade): Spell DAMAGE pools also apply to attacks (offense augments the attack damage-pool
+    # tag set with "spell"). No pipeline_stage → inert in pools; read explicitly by offense.
+    Stat.SPELL_DMG_TO_ATTACK: StatMeta(
+        "Spell Damage applies to Attacks", "Spell", "flag",
+        subgroup="mechanics",         stacking_rule="additive",
+        ui_priority=75,               source_types=(),
     ),
     Stat.SPELL_DOUBLE_DMG_CHANCE: StatMeta(
         "Spell Double Damage Chance", "Spell", "chance", "%",
@@ -1681,6 +1695,27 @@ STAT_META: dict[Stat, StatMeta] = {
         "Tide Effect", "Generic", "additional", "%",
         subgroup="mechanics",          stacking_rule="additive",
         ui_priority=72,                source_types=(),
+    ),
+    # Rosa — Unsullied Blade. All read explicitly (no pipeline_stage → inert in the damage pools).
+    Stat.MERCURY_BAPTISM_FRACTION: StatMeta(
+        "Mercury Baptism (% of elemental hit as True Damage)", "Generic", "chance", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=72,                source_types=(),
+    ),
+    Stat.MAX_MERCURY_POINTS_FLAT: StatMeta(
+        "Max Mercury Points", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=73,                source_types=(),
+    ),
+    Stat.MAX_MERCURY_POINTS_INC: StatMeta(
+        "Max Mercury Points", "Generic", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=73,                source_types=(),
+    ),
+    Stat.MANA_COST_OVERRIDE: StatMeta(
+        "Mana Consumption Override (Mystic Mercury)", "Mana", "flag",
+        subgroup="mana",               stacking_rule="additive",
+        ui_priority=75,                source_types=(),
     ),
     # Howling Gale — Headwind: GLOBAL enemy-vuln (engine-computed by the support, gated on enemy_knocked_back).
     # (Knockback Chance / Distance metas live in the Double Damage / Knockback section below.)

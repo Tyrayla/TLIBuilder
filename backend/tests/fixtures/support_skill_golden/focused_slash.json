@@ -292,6 +292,8 @@
       "strength",
       "dexterity"
     ],
+    "mercury_baptism_dps": 0.0,
+    "mercury_baptism_fraction": 0.0,
     "multistrike_avg_count": 0.0,
     "multistrike_chain": [],
     "multistrike_chance": 0.0,
@@ -472,6 +474,8 @@
         "strength",
         "dexterity"
       ],
+      "mercury_baptism_dps": 0.0,
+      "mercury_baptism_fraction": 0.0,
       "multistrike_avg_count": 0.0,
       "multistrike_chain": [],
       "multistrike_chance": 0.0,

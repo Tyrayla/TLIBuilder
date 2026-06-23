@@ -198,6 +198,11 @@ def consumable_universe() -> frozenset[str]:
     # module emits/reads. Engine-computed / read outside the synthetic passes — whitelist so they never false-yellow.
     consumed |= {"tide_dmg_taken", "tide_effect_inc", "tide_effect_additional"}
 
+    # Rosa Unsullied Blade: spell→attack bridge flag + Mercury Baptism fraction (offense), main-hand additional
+    # (offense main-hand flat injection), Mercury Points + mana-override (trait module / future mana hookup).
+    consumed |= {"spell_dmg_to_attack", "mercury_baptism_fraction", "main_hand_dmg_additional",
+                 "max_mercury_points_flat", "max_mercury_points_inc", "mana_cost_override"}
+
     missing = _SANITY_FLOOR - consumed
     if missing:
         raise RuntimeError(
