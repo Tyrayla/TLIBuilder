@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui/react'
-import { api, getApiBase, iconUrl, TreeData, TreeNode, CoreTalentSlotOption } from '../api/client'
+import { api, getApiBase, iconUrl, TreeData, TreeNode, CoreTalentSlotOption,
+  PrismCatalogItem, CraftedPrism, PlacedPrism, PrismRolls } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
+import PrismOverlay from '../components/PrismOverlay'
+import { isPrimary } from '../treeGroups'
 import { useBuildStore } from '../store/buildStore'
 import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, type ModifierStatus } from '../components/ModifierBadge'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -193,6 +196,105 @@ function TreeNodeG({
   )
 }
 
+// A reflected COPY rendered in an Inverse Image's mirror box: shows the SOURCE node (point-reflected from the
+// other side), allocatable with broken connection-prereqs (only the column threshold gates it). Its own tooltip
+// shows the source node's effects; the prism multiplier is applied to DPS in Plan 2.
+function ReflectedNodeG({ col, row, src, pts, unlocked, posKey, onAlloc }: {
+  col: number; row: number; src: TreeNode; pts: number; unlocked: boolean; posKey: string; onAlloc: (add: boolean) => void
+}) {
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  const cx = nodeX(col), cy = nodeY(row)
+  const icon = iconUrl('talent_tree', src.icon_url)
+  const rarity = RARITY_RING_COLOR[src.node_type] ?? RARITY_RING_COLOR.default
+  const full = pts >= src.max_points
+  const frac = src.max_points > 0 ? Math.min(1, pts / src.max_points) : 0
+  return (
+    <>
+      <g {...tip.triggerProps} style={{ cursor: unlocked ? 'pointer' : 'default' }}
+        onClick={e => { e.preventDefault(); onAlloc(true) }}
+        onContextMenu={e => { e.preventDefault(); onAlloc(false) }}>
+        {/* Reflected-copy marker ring (violet, dashed) */}
+        <circle cx={cx} cy={cy} r={NODE_R + 7} fill="none" stroke="#c79bff" strokeWidth={1.5}
+          strokeDasharray="3 3" opacity={0.6} style={{ pointerEvents: 'none' }} />
+        <circle cx={cx} cy={cy} r={NODE_R} fill={unlocked ? '#0e1230' : '#191925'}
+          stroke={rarity} strokeWidth={src.node_type === 'Legendary Medium Talent' ? 3 : 2.5} />
+        {icon && (
+          <>
+            <clipPath id={`rclip-${posKey}`}><circle cx={cx} cy={cy} r={NODE_R - 3} /></clipPath>
+            <image href={icon} x={cx - (NODE_R - 3)} y={cy - (NODE_R - 3)}
+              width={(NODE_R - 3) * 2} height={(NODE_R - 3) * 2} clipPath={`url(#rclip-${posKey})`}
+              preserveAspectRatio="xMidYMid slice" opacity={!unlocked ? 0.22 : full ? 0.95 : 0.5}
+              style={{ pointerEvents: 'none' }} />
+          </>
+        )}
+        {unlocked && (
+          <>
+            <circle cx={cx} cy={cy} r={NODE_R + 4} fill="none" stroke="rgba(255,255,255,0.08)"
+              strokeWidth={2.5} style={{ pointerEvents: 'none' }} />
+            {pts > 0 && (
+              <circle cx={cx} cy={cy} r={NODE_R + 4} fill="none" stroke="#c79bff" strokeWidth={2.5}
+                pathLength={1} strokeDasharray={`${frac} 1`} strokeLinecap="round"
+                transform={`rotate(-90 ${cx} ${cy})`} style={{ pointerEvents: 'none' }} />
+            )}
+          </>
+        )}
+        <text x={cx} y={cy + 4} textAnchor="middle" fill="#fff" fontSize={11} fontWeight="bold"
+          stroke={icon ? 'rgba(0,0,0,0.85)' : undefined} strokeWidth={icon ? 2.5 : undefined}
+          paintOrder="stroke" style={{ pointerEvents: 'none' }}>{pts}/{src.max_points}</text>
+      </g>
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--node" {...tip.floatingProps}>
+            <TooltipShell title={`${src.node_type} ${pts}/${src.max_points} · Reflected`}>
+              <NodeTooltipBody node={src} pts={pts} />
+            </TooltipShell>
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
+
+// The installed prism on its anchor node: prism icon, a hover tooltip showing its rolls, left-click to edit,
+// right-click to remove. The anchor node is overridden (grants no effect) and breaks the prereq chain.
+function PrismAnchorG({ prism, cx, cy, onEdit, onRemove }: {
+  prism: PlacedPrism; cx: number; cy: number; onEdit: () => void; onRemove: () => void
+}) {
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  const TLABEL: [keyof PrismRolls, string][] = [['micro', 'Micro'], ['medium', 'Medium'], ['legendary', 'Legendary Medium']]
+  return (
+    <>
+      <g {...tip.triggerProps} style={{ cursor: 'pointer' }}
+        onClick={e => { e.preventDefault(); onEdit() }}
+        onContextMenu={e => { e.preventDefault(); onRemove() }}>
+        <clipPath id="prism-anchor-clip"><circle cx={cx} cy={cy} r={NODE_R - 2} /></clipPath>
+        <circle cx={cx} cy={cy} r={NODE_R} fill="#1a1326" stroke="#e9c046" strokeWidth={3} />
+        <image href={iconUrl('prism', prism.iconUrl) ?? undefined}
+          x={cx - NODE_R + 2} y={cy - NODE_R + 2} width={(NODE_R - 2) * 2} height={(NODE_R - 2) * 2}
+          clipPath="url(#prism-anchor-clip)" />
+      </g>
+      {tip.open && (
+        <FloatingPortal>
+          <div className="tooltip tooltip--node" {...tip.floatingProps}>
+            <TooltipShell title={prism.name}>
+              <div style={{ padding: '6px 2px' }}>
+                {TLABEL.map(([k, lbl]) => (
+                  <div key={k} style={{ fontSize: 12, color: prism.rolls[k] <= -100 ? '#666' : '#cfd3ee' }}>
+                    {prism.rolls[k] > 0 ? '+' : ''}{prism.rolls[k]}% all reflected {lbl} Talent Effects
+                  </div>
+                ))}
+                <div style={{ marginTop: 6, fontSize: 11, color: '#8a8aa5' }}>
+                  Overrides this node · breaks prerequisites · left-click to edit · right-click to remove
+                </div>
+              </div>
+            </TooltipShell>
+          </div>
+        </FloatingPortal>
+      )}
+    </>
+  )
+}
+
 interface Props {
   treeName: string
   treeColor: string
@@ -279,6 +381,20 @@ export default function TreeViewerScreen({
   const [linkFrom, setLinkFrom] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ nodeId: string } | null>(null)
 
+  // ── Prisms ─────────────────────────────────────────────────────────────────
+  const prisms = useBuildStore(s => s.prisms)
+  const prismInventory = useBuildStore(s => s.prismInventory)
+  const setPrisms = useBuildStore(s => s.setPrisms)
+  const setPrismInventory = useBuildStore(s => s.setPrismInventory)
+  const [prismCatalog, setPrismCatalog] = useState<PrismCatalogItem[]>([])
+  const [prismOverlayOpen, setPrismOverlayOpen] = useState(false)
+  const [placingPrism, setPlacingPrism] = useState<CraftedPrism | null>(null)
+  const [editingPlaced, setEditingPlaced] = useState<PlacedPrism | null>(null)
+  const [hoverPlaceCell, setHoverPlaceCell] = useState<{ col: number; row: number } | null>(null)
+  useEffect(() => { api.getEtherealPrism().then(r => setPrismCatalog(r.items ?? [])).catch(() => {}) }, [])
+  // The prism installed on THIS tree (Plan 1: ≤1 per tree). previewMode never shows prisms.
+  const treePrism = previewMode ? undefined : prisms.find(p => p.treeName === treeName)
+
   const loadTree = useCallback(() => {
     setTreeData(null)
     setLoadError('')
@@ -301,12 +417,17 @@ export default function TreeViewerScreen({
   }, [deprecatedTools])
 
 
-  const total = sumPoints(nodeStates)
+  // Prism reflected-box points count toward the budget + column thresholds (they cost points in-game).
+  const total = sumPoints(nodeStates) + (treePrism ? sumPoints(treePrism.boxAllocations) : 0)
 
   // Column unlock = points spent in columns strictly to the LEFT of a column (its own and
   // further-right points don't count). Column 0 is always open.
   const colPoints = Array(COLS).fill(0) as number[]
-  if (treeData) for (const n of treeData.nodes) colPoints[n.column] += nodeStates[n.id] ?? 0
+  if (treeData) {
+    for (const n of treeData.nodes) colPoints[n.column] += nodeStates[n.id] ?? 0
+    // Reflected-box allocations are position-keyed ("col,row") — their column is the key's first field.
+    if (treePrism) for (const [pos, pts] of Object.entries(treePrism.boxAllocations)) colPoints[Number(pos.split(',')[0]) || 0] += pts
+  }
   const isColUnlocked = (col: number): boolean => {
     if (col === 0) return true
     let before = 0
@@ -332,11 +453,28 @@ export default function TreeViewerScreen({
 
   // ── Normal allocation ──────────────────────────────────────────────────────
 
+  // Node ids whose prerequisite chain a placed Prism breaks: the overridden anchor + every reflected-box cell.
+  // (Connections from these never gate; the reflected cells are allocated client-side, never via this validator.)
+  const prismBrokenIds = (): string[] => {
+    if (!treePrism || !treeData) return []
+    const byPos: Record<string, TreeNode> = {}
+    for (const n of treeData.nodes) byPos[`${n.column},${n.row}`] = n
+    const anchor = byPos[`${treePrism.anchorCol},${treePrism.anchorRow}`]
+    const ids = anchor ? [anchor.id] : []
+    // Every existing node in the reflected region is replaced/deleted → its connections are broken.
+    const mc = 6 - treePrism.anchorCol, mr = 4 - treePrism.anchorRow
+    for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
+      const cell = byPos[`${mc + dc},${mr + dr}`]
+      if (cell && cell.id !== anchor?.id) ids.push(cell.id)
+    }
+    return ids
+  }
+
   const handleClick = async (nodeId: string, action: 'allocate' | 'deallocate') => {
     if (processing) return
     setProcessing(true)
     try {
-      const res = await api.validateAllocate(treeName, nodeStates, nodeId, action)
+      const res = await api.validateAllocate(treeName, nodeStates, nodeId, action, prismBrokenIds())
       if (res.allowed) {
         setNodeStates(res.node_states)
         if (!previewMode) updateSlotNodeStates(activeSlot, res.node_states)
@@ -608,6 +746,14 @@ export default function TreeViewerScreen({
                 {searchHits.size} match{searchHits.size !== 1 ? 'es' : ''}
               </span>
             )}
+            {!isPrimary(treeName) && (
+              <button
+                className="btn btn-sm"
+                style={{ marginLeft: 14, background: '#241a3a', color: '#c79bff' }}
+                onClick={() => { setPlacingPrism(null); setPrismOverlayOpen(true) }}
+                title="Craft and install prisms"
+              >◈ Add Prism</button>
+            )}
           </div>
           <div className="viewer-header-right">
             {devMode && deprecatedTools && (
@@ -656,6 +802,92 @@ export default function TreeViewerScreen({
 
   const nodeMap = Object.fromEntries(treeData.nodes.map(n => [n.id, n]))
   const occupiedKeys = new Set(treeData.nodes.map(n => `${n.column},${n.row}`))
+
+  // ── Prism reflection geometry ──────────────────────────────────────────────
+  // Inverse Image: point-reflect through the tree centre (3,2): mirror(c,r)=(6−c,4−r). The prism's 3×3 box
+  // is the SOURCE (unmodified); the reflected box's cells show COPIES of the source nodes. The central 3×3
+  // (cols 2-4 × rows 1-3) is locked (a box and its image overlap there). Plan 1 = visuals + allocation, no DPS.
+  const nodeByPos: Record<string, TreeNode> = {}
+  for (const n of treeData.nodes) nodeByPos[`${n.column},${n.row}`] = n
+  const inCentralLock = (c: number, r: number) => c >= 2 && c <= 4 && r >= 1 && r <= 3
+  const isPrimaryTree = isPrimary(treeName)
+
+  // For the placed prism: the anchor node id + a map of reflected-cell node id → its SOURCE node (the
+  // point-reflected primary-box node it copies). Keyed by NODE ID so the normal node map + connections can
+  // reliably skip/break by id (a position lookup desynced when the box clipped at edges).
+  const anchorNode = treePrism ? nodeByPos[`${treePrism.anchorCol},${treePrism.anchorRow}`] : undefined
+  const anchorId = anchorNode?.id
+  // Reflected box = 3×3 around mirror(anchor), clipped. EVERY cell in it is replaced: a copy of its mirror-source
+  // (primary-box node) when that source exists, or EMPTY (existing node deleted) when the source is empty.
+  const reflCells: { col: number; row: number; src: TreeNode | null }[] = []
+  const reflectedPositions = new Set<string>()
+  if (treePrism) {
+    const mc = 6 - treePrism.anchorCol, mr = 4 - treePrism.anchorRow
+    for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
+      const rc = mc + dc, rr = mr + dr
+      if (rc < 0 || rc > 6 || rr < 0 || rr > 4) continue
+      if (rc === treePrism.anchorCol && rr === treePrism.anchorRow) continue   // never overlaps the anchor (central locked)
+      reflCells.push({ col: rc, row: rr, src: nodeByPos[`${6 - rc},${4 - rr}`] ?? null })
+      reflectedPositions.add(`${rc},${rr}`)
+    }
+  }
+  // A node id is "prism-handled" (skipped from the normal tree + its connections broken) if it's the anchor or
+  // sits in the reflected region (replaced by a copy or deleted).
+  const isPrismHandledId = (id: string): boolean => {
+    if (!treePrism) return false
+    if (id === anchorId) return true
+    const n = nodeMap[id]
+    return !!n && reflectedPositions.has(`${n.column},${n.row}`)
+  }
+
+  const canPlaceOn = (n: TreeNode): boolean =>
+    !isPrimaryTree && !inCentralLock(n.column, n.row) &&
+    // 1 Inverse Image total across all trees (Plan 1 only models inverse_image).
+    !prisms.some(p => p.kind === 'inverse_image' && p.treeName !== treeName)
+
+  const placePrismAt = (n: TreeNode) => {
+    if (!placingPrism || !canPlaceOn(n)) {
+      setStatus({ msg: 'Cannot place a prism there (primary tree / central lock / already placed elsewhere).', ok: false })
+      return
+    }
+    const placed: PlacedPrism = {
+      id: `${Date.now()}-${Math.floor(performance.now() * 1000) % 1000000}`,
+      templateId: placingPrism.id, kind: placingPrism.kind, name: placingPrism.name,
+      iconUrl: placingPrism.iconUrl, rolls: placingPrism.rolls,
+      treeName, anchorCol: n.column, anchorRow: n.row, boxAllocations: {},
+    }
+    // resetOnPlace: wipe this tree's allocations (column-point math shifts with the reflection).
+    const cleared = Object.fromEntries(Object.keys(nodeStates).map(k => [k, 0]))
+    setNodeStates(cleared)
+    updateSlotNodeStates(activeSlot, cleared)
+    setPrisms([...prisms.filter(p => p.treeName !== treeName), placed])
+    setPlacingPrism(null)
+    setStatus({ msg: `Placed ${placed.name}. Tree reset; reflected nodes are prerequisite-free.`, ok: true })
+  }
+
+  const removePrism = () => {
+    if (!treePrism) return
+    setPrisms(prisms.filter(p => p.id !== treePrism.id))
+    const cleared = Object.fromEntries(Object.keys(nodeStates).map(k => [k, 0]))
+    setNodeStates(cleared)
+    updateSlotNodeStates(activeSlot, cleared)
+    setStatus({ msg: 'Prism removed; tree reset.', ok: true })
+  }
+
+  // Allocate into a reflected copy (keyed by position — cells can be empty grid slots). Connection prereqs are
+  // broken; only the column threshold applies.
+  const allocateReflected = (col: number, row: number, src: TreeNode, add: boolean) => {
+    if (!treePrism) return
+    const key = `${col},${row}`
+    const cur = treePrism.boxAllocations[key] ?? 0
+    if (add) {
+      if (!isColUnlocked(col)) { setStatus({ msg: `Need ${col * 3} pts in earlier columns.`, ok: false }); return }
+      if (cur >= src.max_points) return
+    } else if (cur <= 0) return
+    const next = { ...treePrism.boxAllocations, [key]: cur + (add ? 1 : -1) }
+    if (next[key] <= 0) delete next[key]
+    setPrisms(prisms.map(p => p.id === treePrism.id ? { ...p, boxAllocations: next } : p))
+  }
 
   const debugHint: Record<DebugTool, string> = {
     create: 'Click empty slot to create node; click existing node to delete it',
@@ -732,6 +964,8 @@ export default function TreeViewerScreen({
               {treeData.connections.map(({ from, to }, i) => {
                 const n1 = nodeMap[from]; const n2 = nodeMap[to]
                 if (!n1 || !n2) return null
+                // Prism breaks prerequisites: drop connection lines touching the anchor or any reflected copy.
+                if (isPrismHandledId(from) || isPrismHandledId(to)) return null
                 const x1 = nodeX(n1.column), y1 = nodeY(n1.row)
                 const x2 = nodeX(n2.column), y2 = nodeY(n2.row)
                 const dx = x2 - x1, dy = y2 - y1
@@ -776,6 +1010,8 @@ export default function TreeViewerScreen({
               }
 
               {treeData.nodes.map(node => {
+                // Nodes the prism overrides (anchor) or copies (reflected box) are drawn in the prism layer below.
+                if (isPrismHandledId(node.id)) return null
                 const cx = nodeX(node.column)
                 const cy = nodeY(node.row)
                 const pts = nodeStates[node.id] ?? 0
@@ -797,10 +1033,85 @@ export default function TreeViewerScreen({
                     isSearching={isSearching}
                     processing={processing}
                     debugMode={debugMode}
-                    onInteract={handleNodeInteract}
+                    onInteract={placingPrism ? (n => placePrismAt(n)) : handleNodeInteract}
                   />
                 )
               })}
+
+              {/* Prism layer: box outlines (white, like in-game) + anchor prism + reflected copies */}
+              {treePrism && (() => {
+                const boxRect = (cc: number, cr: number, key: string) => {
+                  const x = nodeX(Math.max(0, cc - 1)) - NODE_R - 6
+                  const x2 = nodeX(Math.min(6, cc + 1)) + NODE_R + 6
+                  const y = nodeY(Math.max(0, cr - 1)) - NODE_R - 6
+                  const y2 = nodeY(Math.min(4, cr + 1)) + NODE_R + 6
+                  return <rect key={key} x={x} y={y} width={x2 - x} height={y2 - y} rx={12}
+                    fill="none" stroke="#ffffff" strokeWidth={1.5} strokeDasharray="6 4" opacity={0.55} />
+                }
+                return (
+                  <>
+                    {boxRect(treePrism.anchorCol, treePrism.anchorRow, 'pbox')}
+                    {boxRect(6 - treePrism.anchorCol, 4 - treePrism.anchorRow, 'rbox')}
+                    {anchorNode && (
+                      <PrismAnchorG prism={treePrism} cx={nodeX(anchorNode.column)} cy={nodeY(anchorNode.row)}
+                        onEdit={() => { setEditingPlaced(treePrism); setPrismOverlayOpen(true) }}
+                        onRemove={removePrism} />
+                    )}
+                    {reflCells.map(({ col, row, src }) => {
+                      if (!src) return null    // mirror source empty → this reflected cell is empty (deleted)
+                      const key = `${col},${row}`
+                      return (
+                        <ReflectedNodeG key={`refl-${key}`} col={col} row={row} src={src} posKey={key}
+                          pts={treePrism.boxAllocations[key] ?? 0}
+                          unlocked={isColUnlocked(col)}
+                          onAlloc={add => allocateReflected(col, row, src, add)} />
+                      )
+                    })}
+                  </>
+                )
+              })()}
+
+              {/* Placement mode: highlight valid drop cells */}
+              {placingPrism && treeData.nodes.map(node => {
+                const ok = canPlaceOn(node)
+                const cx = nodeX(node.column), cy = nodeY(node.row)
+                return (
+                  <circle key={`place-${node.id}`} cx={cx} cy={cy} r={NODE_R + 3}
+                    fill={ok ? 'rgba(150,110,255,0.12)' : 'rgba(255,80,80,0.06)'}
+                    stroke={ok ? 'rgba(180,140,255,0.8)' : 'rgba(255,80,80,0.3)'}
+                    strokeWidth={2} strokeDasharray="5 3"
+                    style={{ cursor: ok ? 'pointer' : 'not-allowed' }}
+                    onMouseEnter={() => setHoverPlaceCell({ col: node.column, row: node.row })}
+                    onMouseLeave={() => setHoverPlaceCell(c => (c && c.col === node.column && c.row === node.row) ? null : c)}
+                    onClick={() => ok && placePrismAt(node)} />
+                )
+              })}
+
+              {/* Placement preview: simulate the primary + reflected boxes (and the prism) at the hovered cell */}
+              {placingPrism && hoverPlaceCell && !inCentralLock(hoverPlaceCell.col, hoverPlaceCell.row) && (() => {
+                const a = hoverPlaceCell
+                const ghostBox = (cc: number, cr: number, key: string) => {
+                  const x = nodeX(Math.max(0, cc - 1)) - NODE_R - 6
+                  const x2 = nodeX(Math.min(6, cc + 1)) + NODE_R + 6
+                  const y = nodeY(Math.max(0, cr - 1)) - NODE_R - 6
+                  const y2 = nodeY(Math.min(4, cr + 1)) + NODE_R + 6
+                  return <rect key={key} x={x} y={y} width={x2 - x} height={y2 - y} rx={12}
+                    fill="rgba(255,255,255,0.04)" stroke="#ffffff" strokeWidth={1.5} strokeDasharray="6 4"
+                    opacity={0.8} style={{ pointerEvents: 'none' }} />
+                }
+                const acx = nodeX(a.col), acy = nodeY(a.row)
+                return (
+                  <g style={{ pointerEvents: 'none' }}>
+                    {ghostBox(a.col, a.row, 'gp')}
+                    {ghostBox(6 - a.col, 4 - a.row, 'gr')}
+                    <clipPath id="ghost-prism-clip"><circle cx={acx} cy={acy} r={NODE_R - 2} /></clipPath>
+                    <circle cx={acx} cy={acy} r={NODE_R} fill="#1a1326" stroke="#e9c046" strokeWidth={3} opacity={0.85} />
+                    <image href={iconUrl('prism', placingPrism.iconUrl) ?? undefined}
+                      x={acx - NODE_R + 2} y={acy - NODE_R + 2} width={(NODE_R - 2) * 2} height={(NODE_R - 2) * 2}
+                      clipPath="url(#ghost-prism-clip)" opacity={0.85} />
+                  </g>
+                )
+              })()}
             </svg>
           </div>
 
@@ -810,6 +1121,30 @@ export default function TreeViewerScreen({
 
         </div>
       </div>
+
+      {/* Prism placement banner */}
+      {placingPrism && (
+        <div style={{ position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)', zIndex: 35,
+          background: '#241a3a', border: '1px solid #6a4a9a', borderRadius: 8, padding: '8px 14px',
+          display: 'flex', alignItems: 'center', gap: 12, color: '#d8c8ff', fontSize: 13 }}>
+          <span>Placing <strong>{placingPrism.name}</strong> — click a highlighted node{isPrimaryTree ? ' (not available on a primary tree)' : ''}.</span>
+          <button className="btn btn-sm" style={{ background: '#3a2a4a', color: '#ccaaff' }}
+            onClick={() => setPlacingPrism(null)}>Cancel</button>
+        </div>
+      )}
+
+      {/* Prism inventory / craft overlay */}
+      {prismOverlayOpen && (
+        <PrismOverlay
+          catalog={prismCatalog}
+          inventory={prismInventory}
+          setInventory={setPrismInventory}
+          onPlace={p => { setPrismOverlayOpen(false); setEditingPlaced(null); setPlacingPrism(p) }}
+          onClose={() => { setPrismOverlayOpen(false); setEditingPlaced(null) }}
+          editPlaced={editingPlaced}
+          onUpdatePlaced={rolls => { if (treePrism) setPrisms(prisms.map(p => p.id === treePrism.id ? { ...p, rolls } : p)) }}
+        />
+      )}
 
       {/* Confirm delete dialog */}
       {confirmDelete && (

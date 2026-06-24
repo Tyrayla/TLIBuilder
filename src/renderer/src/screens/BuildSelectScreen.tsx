@@ -77,7 +77,8 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   }, [importOpen])
 
   const KNOWN_BUILD_KEYS = new Set([
-    'name', 'id', 'slots', 'slates', 'conditions', 'conditionValues', 'conditionState',
+    'name', 'id', 'slots', 'slates', 'slateInventory', 'prisms', 'prismInventory',
+    'conditions', 'conditionValues', 'conditionState',
     'gear', 'skills', 'characterLevel', 'hasPrism', 'traitId',
     'traitLevel', 'traitSlotLevels', 'advancedTraitSelections',
     'heroMemories', 'pactSpirits', 'notes', 'customMods',

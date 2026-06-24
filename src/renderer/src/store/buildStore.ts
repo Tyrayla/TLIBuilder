@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { isEqual } from 'lodash-es'
 import type {
-  TreeSlot, SavedSlate, SlateTemplate, EquippedGearItem, EquippedSkill, EquippedSupportSkill,
+  TreeSlot, SavedSlate, SlateTemplate, PlacedPrism, CraftedPrism, EquippedGearItem, EquippedSkill, EquippedSupportSkill,
   CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput,
 } from '../api/client'
 import { EMPTY_STAT_SHEET } from '../api/client'
@@ -14,6 +14,8 @@ export interface LoadedBuild {
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
   slateInventory: SlateTemplate[]
+  prisms: PlacedPrism[]
+  prismInventory: CraftedPrism[]
   conditionState: Record<string, number | boolean>
   gear: EquippedGearItem[]
   skills: EquippedSkill[]
@@ -65,6 +67,8 @@ interface BuildStore {
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
   slateInventory: SlateTemplate[]
+  prisms: PlacedPrism[]
+  prismInventory: CraftedPrism[]
   conditionState: Record<string, number | boolean>
   gear: EquippedGearItem[]
   characterLevel: number
@@ -79,6 +83,8 @@ interface BuildStore {
   setSlots: (slots: (TreeSlot | null)[]) => void
   setSlates: (slates: SavedSlate[]) => void
   setSlateInventory: (slateInventory: SlateTemplate[]) => void
+  setPrisms: (prisms: PlacedPrism[]) => void
+  setPrismInventory: (prismInventory: CraftedPrism[]) => void
   setConditionState: (state: Record<string, number | boolean>) => void
   setGear: (gear: EquippedGearItem[]) => void
   setCharacterLevel: (level: number) => void
@@ -138,6 +144,8 @@ const DEFAULT_BUILD: LoadedBuild = {
   slots: [null, null, null, null],
   slates: [],
   slateInventory: [],
+  prisms: [],
+  prismInventory: [],
   conditionState: {},
   gear: [],
   skills: [],
@@ -208,6 +216,9 @@ export const useBuildStore = create<BuildStore>((set) => ({
   setSlates: (slates) => set((s) => ({ slates, buildVersion: s.buildVersion + 1 })),
   // Inventory is display/library only (not engine-relevant) — bump version just to mark the build dirty.
   setSlateInventory: (slateInventory) => set((s) => ({ slateInventory, buildVersion: s.buildVersion + 1 })),
+  // Prisms: placed prisms drive tree placement/visuals (no DPS yet in Plan 1); inventory is library-only.
+  setPrisms: (prisms) => set((s) => ({ prisms, buildVersion: s.buildVersion + 1 })),
+  setPrismInventory: (prismInventory) => set((s) => ({ prismInventory, buildVersion: s.buildVersion + 1 })),
   setConditionState: (conditionState) => set((s) => ({ conditionState, buildVersion: s.buildVersion + 1 })),
   setGear: (gear) => set((s) => ({ gear, buildVersion: s.buildVersion + 1 })),
   setCharacterLevel: (characterLevel) => set((s) => ({ characterLevel, buildVersion: s.buildVersion + 1 })),

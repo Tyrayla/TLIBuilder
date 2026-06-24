@@ -49,7 +49,10 @@ class PassiveTree:
     def total_points(self) -> int:
         return sum(n.current_points for n in self.nodes.values())
 
-    def allocate(self, node_id: str):
+    def allocate(self, node_id: str, prereq_satisfied: set[str] | None = None):
+        # `prereq_satisfied` = node ids whose OUTGOING connection prerequisites are treated as met regardless of
+        # their points (a Prism's overridden anchor + its reflected-box cells break the prereq chain there).
+        prereq_satisfied = prereq_satisfied or set()
         node = self.nodes.get(node_id)
         if node is None:
             raise ValueError(f"Node '{node_id}' not found.")
@@ -68,6 +71,8 @@ class PassiveTree:
         # meet its threshold before this node can receive any points.
         for id1, id2 in self.connections:
             if id2 == node_id:
+                if id1 in prereq_satisfied:
+                    continue                 # prereq chain broken here by a Prism
                 prereq = self.nodes.get(id1)
                 if prereq is not None:
                     needed = _prereq_threshold(prereq)
@@ -80,7 +85,8 @@ class PassiveTree:
 
         node.current_points += 1
 
-    def deallocate(self, node_id: str):
+    def deallocate(self, node_id: str, prereq_satisfied: set[str] | None = None):
+        prereq_satisfied = prereq_satisfied or set()
         node = self.nodes.get(node_id)
         if node is None:
             raise ValueError(f"Node '{node_id}' not found.")
@@ -100,7 +106,7 @@ class PassiveTree:
         # Connection prerequisite check: removing a point from this node must not
         # drop it below the threshold required by any node it feeds into.
         needed = _prereq_threshold(node)
-        if node.current_points - 1 < needed:
+        if node.current_points - 1 < needed and node_id not in prereq_satisfied:
             for id1, id2 in self.connections:
                 if id1 == node_id:
                     dep = self.nodes.get(id2)

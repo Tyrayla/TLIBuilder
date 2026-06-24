@@ -2,6 +2,7 @@
 Importers for singleton crawler files: destiny, ethereal_prism, hero_memories,
 memory_revival, tower_sequence. Each has exactly one file per season.
 """
+import re
 
 
 def _flatten_sections(data: dict, item_key: str | None = None) -> list[dict]:
@@ -27,13 +28,64 @@ def import_destiny(data: dict, season_name: str) -> dict:
     }
 
 
+_TEMPER_RANGE_RE = re.compile(
+    r'\[(Micro|Medium|Legendary Medium) Talent Effect Range:\s*(-?\d+)\s*-\s*(-?\d+)\]', re.I)
+_TEMPER_KEY = {"micro": "micro", "medium": "medium", "legendary medium": "legendary"}
+
+
+def _parse_temper_ranges(glossary) -> dict | None:
+    """Pull the per-tier roll ranges out of an Inverse Image's 'Temper' glossary description, e.g.
+    '[Micro Talent Effect Range: -100-200][Medium ...: -100-100][Legendary Medium ...: -100-50]'."""
+    for g in (glossary or []):
+        desc = g.get("description", "") if isinstance(g, dict) else ""
+        if "Talent Effect Range" not in desc:
+            continue
+        ranges = {}
+        for label, lo, hi in _TEMPER_RANGE_RE.findall(desc):
+            ranges[_TEMPER_KEY[label.lower()]] = [int(lo), int(hi)]
+        if ranges:
+            return ranges
+    return None
+
+
+def _prism_item(it: dict, kind: str) -> dict:
+    out = {
+        "name": it.get("name", ""),
+        "kind": kind,
+        "icon_url": it.get("icon_url", ""),
+        "tags": it.get("tags") or [],
+        "detail": it.get("detail") or [],
+        "implicit": it.get("implicit") or [],
+    }
+    rr = _parse_temper_ranges(it.get("glossary"))
+    if rr:
+        out["roll_ranges"] = rr
+    return out
+
+
 def import_ethereal_prism(data: dict, season_name: str) -> dict:
-    raw_items = _flatten_sections(data)
-    modifiers = [it.get("Modifier", "") for it in raw_items if it.get("Modifier")]
+    """New 4-section crawler format → a structured prism catalog: prism ITEMS (Inverse Image + Ethereal Prisms,
+    each with name/icon/tags/detail/implicit and, for Inverse Image, the tempered roll ranges) plus the base- and
+    random-affix pools (kept for the future Ethereal-Prism crafting work)."""
+    items, base_affixes, random_affixes = [], [], []
+    for section in (data.get("sections") or []):
+        header = (section.get("header") or "").strip().lower()
+        sec_items = section.get("items") or []
+        if header.startswith("base affix"):
+            base_affixes = [it.get("Modifier", "") for it in sec_items if it.get("Modifier")]
+        elif header.startswith("random affix"):
+            random_affixes = [{"modifier": it.get("Modifier", ""), "type": it.get("Type", "")}
+                              for it in sec_items if it.get("Modifier")]
+        elif header.startswith("inverse image"):
+            items += [_prism_item(it, "inverse_image") for it in sec_items if it.get("name")]
+        elif header.startswith("item"):
+            items += [_prism_item(it, "ethereal_prism") for it in sec_items if it.get("name")]
     return {
         "season": season_name,
-        "modifier_count": len(modifiers),
-        "modifiers": modifiers,
+        "item_count": len(items),
+        "items": items,
+        "base_affixes": base_affixes,
+        "random_affixes": random_affixes,
     }
 
 

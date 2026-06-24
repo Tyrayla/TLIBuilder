@@ -356,6 +356,8 @@ class AllocateRequest(BaseModel):
     node_states: dict[str, int]
     node_id: str
     action: str  # "allocate" or "deallocate"
+    # Node ids whose prerequisite chain is broken by an installed Prism (anchor + reflected-box cells).
+    prereq_satisfied: list[str] = []
 
 
 @app.post("/api/validate-allocate")
@@ -363,13 +365,14 @@ def validate_allocate(req: AllocateRequest):
     if req.tree_name not in TREES:
         raise HTTPException(status_code=404, detail="Tree not found")
     tree = _build_tree(req.tree_name)
+    _broken = set(req.prereq_satisfied)
     for node_id, pts in req.node_states.items():
         if node_id in tree.nodes:
             tree.nodes[node_id].current_points = pts
 
     if req.action == "allocate":
         try:
-            tree.allocate(req.node_id)
+            tree.allocate(req.node_id, _broken)
             return {"allowed": True,
                     "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
         except ValueError:
@@ -377,7 +380,7 @@ def validate_allocate(req: AllocateRequest):
                     "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
     elif req.action == "deallocate":
         try:
-            tree.deallocate(req.node_id)
+            tree.deallocate(req.node_id, _broken)
             return {"allowed": True,
                     "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
         except ValueError:
@@ -2749,12 +2752,18 @@ def import_ethereal_prism_endpoint(req: ImportSingletonRequest):
 @app.get("/api/ethereal-prism")
 def get_ethereal_prism():
     active = season_manager.get_active_season()
+    empty = {"items": [], "base_affixes": [], "random_affixes": []}
     if not active:
-        return {"season": None, "modifiers": []}
+        return {"season": None, **empty}
     data = season_manager.load_ethereal_prism(active)
     if not data:
-        return {"season": active, "modifiers": []}
-    return {"season": active, "modifiers": data.get("modifiers", [])}
+        return {"season": active, **empty}
+    return {
+        "season": active,
+        "items": data.get("items", []),
+        "base_affixes": data.get("base_affixes", []),
+        "random_affixes": data.get("random_affixes", []),
+    }
 
 
 @app.post("/api/dev/import-hero-memories")

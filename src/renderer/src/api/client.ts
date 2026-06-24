@@ -297,12 +297,60 @@ export interface SlateTemplate {
   mothDirection?: string
 }
 
+// ── Prisms ──────────────────────────────────────────────────────────────────
+// A prism item from the imported catalog (GET /ethereal-prism). Inverse Image carries roll_ranges.
+export interface PrismCatalogItem {
+  name: string
+  kind: 'inverse_image' | 'ethereal_prism'
+  icon_url: string
+  tags: string[]
+  detail: string[]
+  implicit: string[]
+  roll_ranges?: { micro: [number, number]; medium: [number, number]; legendary: [number, number] }
+}
+export interface PrismCatalog {
+  season: string | null
+  items: PrismCatalogItem[]
+  base_affixes: string[]
+  random_affixes: { modifier: string; type: string }[]
+}
+// The three Inverse Image affix rolls (% multipliers; −100 = off/untempered).
+export interface PrismRolls {
+  micro: number
+  medium: number
+  legendary: number
+}
+// A crafted prism kept in the build's prism inventory (no tree placement) — re-placeable, like SlateTemplate.
+export interface CraftedPrism {
+  id: string
+  kind: 'inverse_image' | 'ethereal_prism'
+  name: string
+  iconUrl: string
+  rolls: PrismRolls
+}
+// A prism installed on a tree. anchorCol/anchorRow = the node it sits on; boxAllocations = points spent in the
+// reflected box (kept OUT of the DPS path in Plan 1), keyed by the existing node id at each reflected position.
+export interface PlacedPrism {
+  id: string
+  templateId: string
+  kind: 'inverse_image' | 'ethereal_prism'
+  name: string
+  iconUrl: string
+  rolls: PrismRolls
+  treeName: string
+  anchorCol: number
+  anchorRow: number
+  boxAllocations: Record<string, number>
+}
+
 export interface Build {
   id?: string
   name: string
   slots: (TreeSlot | null)[]
   slates?: SavedSlate[]
   slateInventory?: SlateTemplate[]
+  prisms?: PlacedPrism[]
+  prismInventory?: CraftedPrism[]
   conditionState?: Record<string, number | boolean>
   // Legacy fields — present on builds saved before the conditionState unification.
   // Read-only: never written by the current client; migrated to conditionState on load.
@@ -1974,7 +2022,7 @@ export const api = {
 
   importEtherealPrism: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-ethereal-prism', { season_name: seasonName, data }),
-  getEtherealPrism: () => get<{ season: string | null; modifiers: string[] }>('/ethereal-prism'),
+  getEtherealPrism: () => get<PrismCatalog>('/ethereal-prism'),
 
   importHeroMemories: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-hero-memories', { season_name: seasonName, data }),
@@ -2074,8 +2122,9 @@ export const api = {
     tree_name: string,
     node_states: Record<string, number>,
     node_id: string,
-    action: 'allocate' | 'deallocate'
+    action: 'allocate' | 'deallocate',
+    prereq_satisfied: string[] = []
   ) => post<{ allowed: boolean; node_states: Record<string, number> }>('/validate-allocate', {
-    tree_name, node_states, node_id, action,
+    tree_name, node_states, node_id, action, prereq_satisfied,
   }),
 }

@@ -63,6 +63,11 @@ def _read_file(build_id: str) -> dict:
     slate_inventory_raw = data.get('slateInventory', '')
     slate_inventory = json.loads(slate_inventory_raw) if slate_inventory_raw else []
 
+    prisms_raw = data.get('prisms', '')
+    prisms = json.loads(prisms_raw) if prisms_raw else []
+    prism_inventory_raw = data.get('prismInventory', '')
+    prism_inventory = json.loads(prism_inventory_raw) if prism_inventory_raw else []
+
     conditions_raw = data.get('conditions', '')
     conditions = json.loads(conditions_raw) if conditions_raw else []
 
@@ -108,6 +113,8 @@ def _read_file(build_id: str) -> dict:
         'slots': slots,
         'slates': slates,
         'slateInventory': slate_inventory,
+        'prisms': prisms,
+        'prismInventory': prism_inventory,
         'conditions': conditions,
         'conditionValues': condition_values,
         'conditionState': condition_state,
@@ -149,6 +156,10 @@ def _write_file(build: dict) -> None:
         f.write(f"slates={json.dumps(slates, separators=(',', ':'))}\n")
         slate_inventory = build.get('slateInventory') or []
         f.write(f"slateInventory={json.dumps(slate_inventory, separators=(',', ':'))}\n")
+        prisms = build.get('prisms') or []
+        f.write(f"prisms={json.dumps(prisms, separators=(',', ':'))}\n")
+        prism_inventory = build.get('prismInventory') or []
+        f.write(f"prismInventory={json.dumps(prism_inventory, separators=(',', ':'))}\n")
         conditions = build.get('conditions') or []
         f.write(f"conditions={json.dumps(conditions, separators=(',', ':'))}\n")
         condition_values = build.get('conditionValues') or {}

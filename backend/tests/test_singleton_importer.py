@@ -23,10 +23,27 @@ _DESTINY_DATA = {
 
 _ETHEREAL_DATA = {
     "entity_type": "ethereal_prism",
-    "sections": [{"header": "Base Affix /2", "columns": ["Modifier"], "items": [
-        {"Modifier": "Adds an additional effect to the Core Talent: +12 % Attack Damage"},
-        {"Modifier": "Adds an additional effect: +12 % Spell Damage"},
-    ]}],
+    "sections": [
+        {"header": "Base Affix /2", "columns": ["Modifier"], "items": [
+            {"Modifier": "Adds an additional effect to the Core Talent: +12 % Attack Damage"},
+            {"Modifier": "Adds an additional effect: +12 % Spell Damage"},
+        ]},
+        {"header": "Random Affix /2", "columns": ["Modifier", "Type"], "items": [
+            {"Modifier": "The Effect Area expands to 3x3 Rectangle", "Type": ""},
+            {"Modifier": "+10 % additional damage", "Type": "Damage"},
+        ]},
+        {"header": "Item /1", "columns": [], "items": [
+            {"name": "Ethereal Prism: Haze", "icon_url": "https://cdn.tlidb.com/x/UI_Blue00.webp",
+             "tags": ["Prism"], "detail": ["Non-Core slot"], "implicit": [], "glossary": []},
+        ]},
+        {"header": "Inverse Image /1", "columns": [], "items": [
+            {"name": "Inverse Image", "icon_url": "https://cdn.tlidb.com/x/UI_Golden01.webp",
+             "tags": ["Prism"], "detail": ["1 - 3 random affix slots are Tempered"],
+             "implicit": ["-100 % all reflected Micro Talent Effects"],
+             "glossary": [{"term_id": "1", "name": "Temper",
+                           "description": "...[Micro Talent Effect Range: -100-200][Medium Talent Effect Range: -100-100][Legendary Medium Talent Effect Range: -100-50]"}]},
+        ]},
+    ],
 }
 
 _HERO_MEM_DATA = {
@@ -75,10 +92,17 @@ def test_destiny_season_stored():
     assert r["season"] == "SS12"
 
 
-def test_ethereal_prism_flattens_modifiers():
+def test_ethereal_prism_catalog():
     r = import_ethereal_prism(_ETHEREAL_DATA, "SS12")
-    assert r["modifier_count"] == 2
-    assert "Core Talent" in r["modifiers"][0]
+    assert r["season"] == "SS12"
+    assert r["item_count"] == 2                       # 1 Ethereal Prism + 1 Inverse Image
+    assert len(r["base_affixes"]) == 2 and "Core Talent" in r["base_affixes"][0]
+    assert len(r["random_affixes"]) == 2 and r["random_affixes"][0]["modifier"].startswith("The Effect Area")
+    inv = next(i for i in r["items"] if i["kind"] == "inverse_image")
+    assert inv["name"] == "Inverse Image"
+    assert inv["roll_ranges"] == {"micro": [-100, 200], "medium": [-100, 100], "legendary": [-100, 50]}
+    eth = next(i for i in r["items"] if i["kind"] == "ethereal_prism")
+    assert eth["name"] == "Ethereal Prism: Haze" and "roll_ranges" not in eth
 
 
 def test_hero_memories_new_format():
