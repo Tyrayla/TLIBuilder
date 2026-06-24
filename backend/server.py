@@ -358,6 +358,8 @@ class AllocateRequest(BaseModel):
     action: str  # "allocate" or "deallocate"
     # Node ids whose prerequisite chain is broken by an installed Prism (anchor + reflected-box cells).
     prereq_satisfied: list[str] = []
+    # Node id → raised max-point cap (an Ethereal Prism's over-allocation affix).
+    max_overrides: dict[str, int] = {}
 
 
 @app.post("/api/validate-allocate")
@@ -372,7 +374,7 @@ def validate_allocate(req: AllocateRequest):
 
     if req.action == "allocate":
         try:
-            tree.allocate(req.node_id, _broken)
+            tree.allocate(req.node_id, _broken, req.max_overrides)
             return {"allowed": True,
                     "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
         except ValueError:
@@ -2752,7 +2754,7 @@ def import_ethereal_prism_endpoint(req: ImportSingletonRequest):
         raise HTTPException(400, "season_name must not be empty")
     parsed = import_ethereal_prism(req.data, req.season_name)
     season_manager.save_ethereal_prism(req.season_name, parsed)
-    return {"ok": True, "count": parsed["modifier_count"]}
+    return {"ok": True, "count": parsed["item_count"]}
 
 
 @app.get("/api/ethereal-prism")
@@ -2764,11 +2766,13 @@ def get_ethereal_prism():
     data = season_manager.load_ethereal_prism(active)
     if not data:
         return {"season": active, **empty}
+    from tools.prism_catalog import categorize_prism_catalog
     return {
         "season": active,
         "items": data.get("items", []),
         "base_affixes": data.get("base_affixes", []),
         "random_affixes": data.get("random_affixes", []),
+        "catalog": categorize_prism_catalog(data),
     }
 
 

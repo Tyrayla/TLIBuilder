@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui/react'
 import { api, getApiBase, iconUrl, TreeData, TreeNode, CoreTalentSlotOption,
-  PrismCatalogItem, CraftedPrism, PlacedPrism, PrismRolls } from '../api/client'
+  PrismCatalogItem, CraftedPrism, PlacedPrism, PrismRolls, EtherealCatalog, EtherealConfig } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
-import PrismOverlay from '../components/PrismOverlay'
+import PrismOverlay, { RARE_TINT } from '../components/PrismOverlay'
 import { isPrimary } from '../treeGroups'
 import { useBuildStore } from '../store/buildStore'
 import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, type ModifierStatus } from '../components/ModifierBadge'
@@ -84,12 +84,15 @@ interface TreeNodeGProps {
   processing: boolean
   debugMode: boolean
   onInteract: (node: TreeNode, isRight: boolean) => void
+  maxOverride?: number      // raised cap from an Ethereal Prism's over-allocation affix
+  inPrismBox?: boolean      // node sits inside a placed Ethereal Prism's effect area
 }
 
 // A single passive-tree node (SVG group) plus its hover tooltip, routed through the shared
 // floating-tooltip primitive. Element-anchored; damage-delta band wired (NYI until backend).
 function TreeNodeG({
   node, cx, cy, pts, colors, locked, isLinkSrc, isHit, isSearching, processing, debugMode, onInteract,
+  maxOverride, inPrismBox,
 }: TreeNodeGProps) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
   const activeSlot = useBuildStore(s => s.activeSlot)
@@ -98,14 +101,14 @@ function TreeNodeG({
   // `pts` — so the step is always exactly one rank off the base. Using `pts` (local tree state) here
   // can desync from the store the engine prices against, yielding a 2-rank delta or a zeroed one
   // (bug-129 class).
-  const maxPts = node.max_points
-  const full = pts >= node.max_points
+  const maxPts = maxOverride ?? node.max_points     // Ethereal over-allocation raises the cap
+  const full = pts >= maxPts
   const icon = iconUrl('talent_tree', node.icon_url)
   // Rarity ring = the node border (white micro / blue medium / orange legendary). Always shown — even on
   // locked nodes — so rarity reads at a glance; lock/allocation state comes from the dimmed icon + the
   // absence of the outer progress arc instead. Allocation is a separate OUTER arc so the two never overlap.
   const rarityColor = RARITY_RING_COLOR[node.node_type] ?? RARITY_RING_COLOR.default
-  const frac = node.max_points > 0 ? Math.min(1, pts / node.max_points) : 0
+  const frac = maxPts > 0 ? Math.min(1, pts / maxPts) : 0
   const delta = useDamageDelta(
     tip.open ? {
       key: `node:${activeSlot}:${node.id}`,
@@ -135,6 +138,11 @@ function TreeNodeG({
             strokeWidth={2}
             style={{ pointerEvents: 'none' }}
           />
+        )}
+        {/* Inside a placed Ethereal Prism's effect area: a violet marker ring (modify-in-place). */}
+        {inPrismBox && (
+          <circle cx={cx} cy={cy} r={NODE_R + 7} fill="none" stroke="#c79bff" strokeWidth={1.5}
+            strokeDasharray="3 3" opacity={0.55} style={{ pointerEvents: 'none' }} />
         )}
         {/* Node body + rarity-colored border (white/blue/orange by type). */}
         <circle cx={cx} cy={cy} r={NODE_R}
@@ -188,13 +196,13 @@ function TreeNodeG({
           paintOrder="stroke"
           style={{ pointerEvents: 'none' }}
         >
-          {pts}/{node.max_points}
+          {pts}/{maxPts}
         </text>
       </g>
       {tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--node" {...tip.floatingProps}>
-            <TooltipShell title={`${node.node_type} ${pts}/${node.max_points}`} delta={delta}>
+            <TooltipShell title={`${node.node_type} ${pts}/${maxPts}`} delta={delta}>
               <NodeTooltipBody node={node} pts={pts} />
             </TooltipShell>
           </div>
@@ -284,27 +292,42 @@ function PrismAnchorG({ prism, cx, cy, onEdit, onRemove }: {
 }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
   const TLABEL: [keyof PrismRolls, string][] = [['micro', 'Micro'], ['medium', 'Medium'], ['legendary', 'Legendary Medium']]
+  const eth = prism.kind === 'ethereal_prism' ? prism.ethereal : undefined
+  const rare = eth?.rarity === 'rare'
+  const ring = rare ? '#c79bff' : '#e9c046'
+  const tint = rare && eth?.tintWhenRare
+  const short = (s: string, n = 96) => s.length > n ? s.slice(0, n - 1) + '…' : s
   return (
     <>
       <g {...tip.triggerProps} style={{ cursor: 'pointer' }}
         onClick={e => { e.preventDefault(); onEdit() }}
         onContextMenu={e => { e.preventDefault(); onRemove() }}>
         <clipPath id="prism-anchor-clip"><circle cx={cx} cy={cy} r={NODE_R - 2} /></clipPath>
-        <circle cx={cx} cy={cy} r={NODE_R} fill="#1a1326" stroke="#e9c046" strokeWidth={3} />
+        <circle cx={cx} cy={cy} r={NODE_R} fill="#1a1326" stroke={ring} strokeWidth={3} />
         <image href={iconUrl('prism', prism.iconUrl) ?? undefined}
           x={cx - NODE_R + 2} y={cy - NODE_R + 2} width={(NODE_R - 2) * 2} height={(NODE_R - 2) * 2}
-          clipPath="url(#prism-anchor-clip)" />
+          clipPath="url(#prism-anchor-clip)" style={{ filter: tint ? RARE_TINT : undefined }} />
       </g>
       {tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--node" {...tip.floatingProps}>
             <TooltipShell title={prism.name}>
               <div style={{ padding: '6px 2px' }}>
-                {TLABEL.map(([k, lbl]) => (
-                  <div key={k} style={{ fontSize: 12, color: prism.rolls[k] <= -100 ? '#666' : '#cfd3ee' }}>
-                    {prism.rolls[k] > 0 ? '+' : ''}{prism.rolls[k]}% all reflected {lbl} Talent Effects
+                {eth ? (
+                  <div style={{ fontSize: 12, color: '#cfd3ee', lineHeight: 1.5 }}>
+                    <div style={{ color: rare ? '#c79bff' : '#e9c046', textTransform: 'capitalize' }}>{eth.rarity}</div>
+                    <div>{short(eth.implicit)}</div>
+                    {eth.boxCols && <div style={{ color: '#9aa' }}>Effect Area: {eth.boxCols}×{eth.boxRows}</div>}
+                    {eth.middle && <div>{short(eth.middle)}</div>}
+                    {eth.advanced && <div>{short(eth.advanced)}</div>}
                   </div>
-                ))}
+                ) : (
+                  TLABEL.map(([k, lbl]) => (
+                    <div key={k} style={{ fontSize: 12, color: prism.rolls[k] <= -100 ? '#666' : '#cfd3ee' }}>
+                      {prism.rolls[k] > 0 ? '+' : ''}{prism.rolls[k]}% all reflected {lbl} Talent Effects
+                    </div>
+                  ))
+                )}
                 <div style={{ marginTop: 6, fontSize: 11, color: '#8a8aa5' }}>
                   Overrides this node · breaks prerequisites · left-click to edit · right-click to remove
                 </div>
@@ -409,11 +432,14 @@ export default function TreeViewerScreen({
   const setPrisms = useBuildStore(s => s.setPrisms)
   const setPrismInventory = useBuildStore(s => s.setPrismInventory)
   const [prismCatalog, setPrismCatalog] = useState<PrismCatalogItem[]>([])
+  const [etherealCat, setEtherealCat] = useState<EtherealCatalog | null>(null)
   const [prismOverlayOpen, setPrismOverlayOpen] = useState(false)
   const [placingPrism, setPlacingPrism] = useState<CraftedPrism | null>(null)
   const [editingPlaced, setEditingPlaced] = useState<PlacedPrism | null>(null)
   const [hoverPlaceCell, setHoverPlaceCell] = useState<{ col: number; row: number } | null>(null)
-  useEffect(() => { api.getEtherealPrism().then(r => setPrismCatalog(r.items ?? [])).catch(() => {}) }, [])
+  useEffect(() => {
+    api.getEtherealPrism().then(r => { setPrismCatalog(r.items ?? []); setEtherealCat(r.catalog ?? null) }).catch(() => {})
+  }, [])
   // The prism installed on THIS tree (Plan 1: ≤1 per tree). previewMode never shows prisms.
   const treePrism = previewMode ? undefined : prisms.find(p => p.treeName === treeName)
 
@@ -475,28 +501,59 @@ export default function TreeViewerScreen({
 
   // ── Normal allocation ──────────────────────────────────────────────────────
 
-  // Node ids whose prerequisite chain a placed Prism breaks: the overridden anchor + every reflected-box cell.
-  // (Connections from these never gate; the reflected cells are allocated client-side, never via this validator.)
+  // Node ids whose prerequisite chain a placed Prism breaks. Inverse Image: the overridden anchor + every
+  // reflected-box cell (those cells are allocated client-side, never via this validator). Ethereal Prism: just
+  // the overridden anchor (the box modifies the existing nodes in place — they stay normal/prereq-gated).
   const prismBrokenIds = (): string[] => {
     if (!treePrism || !treeData) return []
     const byPos: Record<string, TreeNode> = {}
     for (const n of treeData.nodes) byPos[`${n.column},${n.row}`] = n
     const anchor = byPos[`${treePrism.anchorCol},${treePrism.anchorRow}`]
     const ids = anchor ? [anchor.id] : []
-    // Every existing node in the reflected region is replaced/deleted → its connections are broken.
-    const mc = 6 - treePrism.anchorCol, mr = 4 - treePrism.anchorRow
-    for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
-      const cell = byPos[`${mc + dc},${mr + dr}`]
-      if (cell && cell.id !== anchor?.id) ids.push(cell.id)
+    if (treePrism.kind === 'inverse_image') {
+      const mc = 6 - treePrism.anchorCol, mr = 4 - treePrism.anchorRow
+      for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
+        const cell = byPos[`${mc + dc},${mr + dr}`]
+        if (cell && cell.id !== anchor?.id) ids.push(cell.id)
+      }
     }
     return ids
+  }
+
+  // Ethereal Prism effect-area geometry: the NxM box (anchor-centred, clipped) and the existing nodes in it.
+  const ethBoxGeom = (): { cfg?: EtherealConfig; positions: Set<string> } | null => {
+    if (!treePrism || treePrism.kind !== 'ethereal_prism') return null
+    const cfg = treePrism.ethereal
+    const W = cfg?.boxCols, H = cfg?.boxRows
+    if (!W || !H) return { cfg, positions: new Set() }   // no area-size affix → no effect box yet
+    const left = Math.floor((W - 1) / 2), top = Math.floor((H - 1) / 2)
+    const positions = new Set<string>()
+    for (let c = treePrism.anchorCol - left; c < treePrism.anchorCol - left + W; c++)
+      for (let r = treePrism.anchorRow - top; r < treePrism.anchorRow - top + H; r++) {
+        if (c < 0 || c > 6 || r < 0 || r > 4) continue
+        positions.add(`${c},${r}`)
+      }
+    return { cfg, positions }
+  }
+  // Over-allocation: raise the max-point cap of box nodes of the affix's tier by N. Prereq threshold untouched.
+  const prismMaxOverrides = (): Record<string, number> => {
+    const g = ethBoxGeom()
+    if (!g || !g.cfg?.advanced || !treeData) return {}
+    const m = g.cfg.advanced.match(/Points can be allocated to all\s+(Micro|Medium|Legendary Medium)\s+Talent.*?(\d+)\s+additional/i)
+    if (!m) return {}
+    const tierType = m[1] === 'Legendary Medium' ? 'Legendary Medium Talent' : `${m[1]} Talent`
+    const count = Number(m[2])
+    const out: Record<string, number> = {}
+    for (const n of treeData.nodes)
+      if (g.positions.has(`${n.column},${n.row}`) && n.node_type === tierType) out[n.id] = n.max_points + count
+    return out
   }
 
   const handleClick = async (nodeId: string, action: 'allocate' | 'deallocate') => {
     if (processing) return
     setProcessing(true)
     try {
-      const res = await api.validateAllocate(treeName, nodeStates, nodeId, action, prismBrokenIds())
+      const res = await api.validateAllocate(treeName, nodeStates, nodeId, action, prismBrokenIds(), prismMaxOverrides())
       if (res.allowed) {
         setNodeStates(res.node_states)
         if (!previewMode) updateSlotNodeStates(activeSlot, res.node_states)
@@ -626,7 +683,56 @@ export default function TreeViewerScreen({
     if (!previewMode) updateSlotCoreTalentSelections(activeSlot, next)
   }
 
+  // Dismiss the open core-talent menu on any click outside it (e.g. opening the prism menu, clicking a node).
+  useEffect(() => {
+    if (expandedSlot === null) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement
+      if (t.closest?.('.core-talent-cards') || t.closest?.('.core-talent-circle')) return
+      setExpandedSlot(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [expandedSlot])
+
   // Core-talent widget (circles + Floating dropdown) — shared by the normal and preview headers.
+  // Part A (visual only): how a placed Ethereal Prism affects this tree's Core Talent. The actual swap/effects
+  // resolve in the engine (Plan B); here we just surface it, gated by the same point threshold.
+  const ethCoreInfo = (): { label: string; detail: string } | null => {
+    if (!treePrism || treePrism.kind !== 'ethereal_prism' || !treePrism.ethereal) return null
+    const e = treePrism.ethereal
+    if (/effects of Random Affixes/i.test(e.implicit)) return null   // Phantasmagoria amplify — no Core Talent change
+    const dnr = !!e.advanced && /no longer replace the original talent/i.test(e.advanced)
+    if (/^Replaces the Core Talent/i.test(e.implicit))
+      return dnr
+        ? { label: `Adds Core Talent: ${e.shortName}`, detail: 'Do-Not-Replace — added as an extra box below the original Core Talent.' }
+        : { label: `Replaces Core Talent → ${e.shortName}`, detail: 'Replaces the selected Core Talent at the threshold.' }
+    if (/^Adds an additional effect/i.test(e.implicit)) {
+      const i = e.implicit.indexOf('Advanced Talent Panel:')
+      return { label: 'Adds an effect to the Core Talent',
+        detail: (i >= 0 ? e.implicit.slice(i + 'Advanced Talent Panel:'.length) : e.implicit).trim() }
+    }
+    return null
+  }
+  const ethCore = ethCoreInfo()
+  const ethCoreThreshold = treeData?.core_talent_slots[0]?.threshold ?? 24
+  const ethCoreActive = total >= ethCoreThreshold
+  const ethRare = treePrism?.kind === 'ethereal_prism' && treePrism.ethereal?.rarity === 'rare'
+
+  // Prism effect banner shown INSIDE the expanded core-talent panel (not as a header note — that squished the tree).
+  const ethCoreBanner = ethCore ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 10px', marginBottom: 8,
+      border: `1px solid ${ethRare ? '#7a4ea0' : '#5a4a2a'}`, borderRadius: 6, background: '#161426', fontSize: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ color: ethRare ? '#c79bff' : '#e9c046', fontWeight: 600 }}>◈ {ethCore.label}</span>
+        <span style={{ marginLeft: 'auto', color: ethCoreActive ? '#6bcb77' : '#888' }}>
+          {ethCoreActive ? 'Active' : `${Math.min(total, ethCoreThreshold)}/${ethCoreThreshold}`}
+        </span>
+      </div>
+      <div style={{ color: '#9aa', lineHeight: 1.35 }}>{ethCore.detail}</div>
+    </div>
+  ) : null
+
   const coreTalentWidget = treeData && treeData.core_talent_slots.length > 0 ? (
           <div className="core-talent-header-widget">
             <div className="core-talent-circles">
@@ -673,6 +779,7 @@ export default function TreeViewerScreen({
                     style={coreFloat.floatingStyles}
                     className="core-talent-cards"
                   >
+                    {ethCoreBanner}
                     {!slotUnlocked && (
                       <div className="core-talent-locked-note">
                         Locked — allocate {slot.threshold} points in this tree to select.
@@ -839,11 +946,13 @@ export default function TreeViewerScreen({
   // reliably skip/break by id (a position lookup desynced when the box clipped at edges).
   const anchorNode = treePrism ? nodeByPos[`${treePrism.anchorCol},${treePrism.anchorRow}`] : undefined
   const anchorId = anchorNode?.id
-  // Reflected box = 3×3 around mirror(anchor), clipped. EVERY cell in it is replaced: a copy of its mirror-source
-  // (primary-box node) when that source exists, or EMPTY (existing node deleted) when the source is empty.
+  const isInversePlaced = treePrism?.kind === 'inverse_image'
+  const isEtherealPlaced = treePrism?.kind === 'ethereal_prism'
+  // Inverse Image reflected box = 3×3 around mirror(anchor), clipped. EVERY cell in it is replaced: a copy of
+  // its mirror-source (primary-box node) when that source exists, or EMPTY (existing node deleted) otherwise.
   const reflCells: { col: number; row: number; src: TreeNode | null }[] = []
   const reflectedPositions = new Set<string>()
-  if (treePrism) {
+  if (treePrism && isInversePlaced) {
     const mc = 6 - treePrism.anchorCol, mr = 4 - treePrism.anchorRow
     for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
       const rc = mc + dc, rr = mr + dr
@@ -853,19 +962,46 @@ export default function TreeViewerScreen({
       reflectedPositions.add(`${rc},${rr}`)
     }
   }
-  // A node id is "prism-handled" (skipped from the normal tree + its connections broken) if it's the anchor or
-  // sits in the reflected region (replaced by a copy or deleted).
+  // Ethereal effect-area box: the existing nodes inside the NxM box (modify-in-place; stay normal nodes).
+  const ethGeom = isEtherealPlaced ? ethBoxGeom() : null
+  const ethBoxPositions = ethGeom?.positions ?? new Set<string>()
+  const ethBoxNodeIds = new Set(
+    treeData ? treeData.nodes.filter(n => ethBoxPositions.has(`${n.column},${n.row}`)).map(n => n.id) : [])
+  const ethMaxOverrides = isEtherealPlaced ? prismMaxOverrides() : {}
+  // A node id is "prism-handled" (skipped from the normal tree + its connections broken) when it's the overridden
+  // anchor, or — for Inverse Image only — a reflected-region cell. Ethereal box nodes stay as normal nodes.
   const isPrismHandledId = (id: string): boolean => {
     if (!treePrism) return false
     if (id === anchorId) return true
-    const n = nodeMap[id]
-    return !!n && reflectedPositions.has(`${n.column},${n.row}`)
+    if (isInversePlaced) { const n = nodeMap[id]; return !!n && reflectedPositions.has(`${n.column},${n.row}`) }
+    return false
   }
 
-  const canPlaceOn = (n: TreeNode): boolean =>
-    !isPrimaryTree && !inCentralLock(n.column, n.row) &&
-    // 1 Inverse Image total across all trees (Plan 1 only models inverse_image).
-    !prisms.some(p => p.kind === 'inverse_image' && p.treeName !== treeName)
+  const canPlaceOn = (n: TreeNode): boolean => {
+    if (isPrimaryTree) return false
+    if (placingPrism?.kind === 'inverse_image')
+      // Inverse Image: 1 total, central 3×3 locked.
+      return !inCentralLock(n.column, n.row) && !prisms.some(p => p.kind === 'inverse_image' && p.treeName !== treeName)
+    if (placingPrism?.kind === 'ethereal_prism')
+      // Ethereal: 1 total, no central lock.
+      return !prisms.some(p => p.kind === 'ethereal_prism' && p.treeName !== treeName)
+    return false
+  }
+
+  // Ethereal placement clears the anchor + every allocated node reachable forward from it (those that depended on
+  // the anchor as a prereq), since the anchor is now overridden. The rest of the tree is left untouched.
+  const clearDownstreamOfAnchor = (rootId: string): Record<string, number> => {
+    const next = { ...nodeStates }
+    const fwd: Record<string, string[]> = {}
+    for (const { from, to } of (treeData?.connections ?? [])) (fwd[from] ??= []).push(to)
+    const queue = [rootId]; const seen = new Set<string>([rootId])
+    while (queue.length) {
+      const id = queue.shift()!
+      next[id] = 0
+      for (const nb of (fwd[id] ?? [])) if (!seen.has(nb)) { seen.add(nb); queue.push(nb) }
+    }
+    return next
+  }
 
   const placePrismAt = (n: TreeNode) => {
     if (!placingPrism || !canPlaceOn(n)) {
@@ -875,25 +1011,43 @@ export default function TreeViewerScreen({
     const placed: PlacedPrism = {
       id: `${Date.now()}-${Math.floor(performance.now() * 1000) % 1000000}`,
       templateId: placingPrism.id, kind: placingPrism.kind, name: placingPrism.name,
-      iconUrl: placingPrism.iconUrl, rolls: placingPrism.rolls,
+      iconUrl: placingPrism.iconUrl, rolls: placingPrism.rolls, ethereal: placingPrism.ethereal,
       treeName, anchorCol: n.column, anchorRow: n.row, boxAllocations: {},
     }
-    // resetOnPlace: wipe this tree's allocations (column-point math shifts with the reflection).
-    const cleared = Object.fromEntries(Object.keys(nodeStates).map(k => [k, 0]))
-    setNodeStates(cleared)
-    updateSlotNodeStates(activeSlot, cleared)
+    if (placingPrism.kind === 'inverse_image') {
+      // resetOnPlace: wipe this tree's allocations (column-point math shifts with the reflection).
+      const cleared = Object.fromEntries(Object.keys(nodeStates).map(k => [k, 0]))
+      setNodeStates(cleared)
+      updateSlotNodeStates(activeSlot, cleared)
+      setStatus({ msg: `Placed ${placed.name}. Tree reset; reflected nodes are prerequisite-free.`, ok: true })
+    } else {
+      // Ethereal: clear only the anchor + nodes downstream of it; keep the rest of the tree.
+      const next = clearDownstreamOfAnchor(n.id)
+      setNodeStates(next)
+      updateSlotNodeStates(activeSlot, next)
+      setStatus({ msg: `Placed ${placed.name}. Anchor overridden; downstream nodes cleared.`, ok: true })
+    }
     setPrisms([...prisms.filter(p => p.treeName !== treeName), placed])
     setPlacingPrism(null)
-    setStatus({ msg: `Placed ${placed.name}. Tree reset; reflected nodes are prerequisite-free.`, ok: true })
   }
 
   const removePrism = () => {
     if (!treePrism) return
+    if (treePrism.kind === 'inverse_image') {
+      const cleared = Object.fromEntries(Object.keys(nodeStates).map(k => [k, 0]))
+      setNodeStates(cleared)
+      updateSlotNodeStates(activeSlot, cleared)
+      setStatus({ msg: 'Prism removed; tree reset.', ok: true })
+    } else {
+      // Ethereal: clamp any over-allocated box node back down to its normal max; leave the rest.
+      const next = { ...nodeStates }
+      if (treeData) for (const node of treeData.nodes)
+        if ((next[node.id] ?? 0) > node.max_points) next[node.id] = node.max_points
+      setNodeStates(next)
+      updateSlotNodeStates(activeSlot, next)
+      setStatus({ msg: 'Prism removed.', ok: true })
+    }
     setPrisms(prisms.filter(p => p.id !== treePrism.id))
-    const cleared = Object.fromEntries(Object.keys(nodeStates).map(k => [k, 0]))
-    setNodeStates(cleared)
-    updateSlotNodeStates(activeSlot, cleared)
-    setStatus({ msg: 'Prism removed; tree reset.', ok: true })
   }
 
   // Allocate into a reflected copy (keyed by position — cells can be empty grid slots). Connection prereqs are
@@ -1056,12 +1210,15 @@ export default function TreeViewerScreen({
                     processing={processing}
                     debugMode={debugMode}
                     onInteract={placingPrism ? (n => placePrismAt(n)) : handleNodeInteract}
+                    maxOverride={ethMaxOverrides[node.id]}
+                    inPrismBox={ethBoxNodeIds.has(node.id)}
                   />
                 )
               })}
 
-              {/* Prism layer: box outlines (white, like in-game) + anchor prism + reflected copies */}
+              {/* Prism layer: box outlines (white, like in-game) + anchor prism + (Inverse Image) reflected copies */}
               {treePrism && (() => {
+                // A rounded box outline spanning a 3×3 around (cc,cr), clipped to the grid (Inverse Image).
                 const boxRect = (cc: number, cr: number, key: string) => {
                   const x = nodeX(Math.max(0, cc - 1)) - NODE_R - 6
                   const x2 = nodeX(Math.min(6, cc + 1)) + NODE_R + 6
@@ -1070,10 +1227,21 @@ export default function TreeViewerScreen({
                   return <rect key={key} x={x} y={y} width={x2 - x} height={y2 - y} rx={12}
                     fill="none" stroke="#ffffff" strokeWidth={1.5} strokeDasharray="6 4" opacity={0.55} />
                 }
+                // A box outline spanning an arbitrary set of cell positions (Ethereal effect area).
+                const spanRect = (positions: Set<string>, key: string) => {
+                  if (positions.size === 0) return null
+                  const cs = [...positions].map(p => Number(p.split(',')[0]))
+                  const rs = [...positions].map(p => Number(p.split(',')[1]))
+                  const x = nodeX(Math.min(...cs)) - NODE_R - 6, x2 = nodeX(Math.max(...cs)) + NODE_R + 6
+                  const y = nodeY(Math.min(...rs)) - NODE_R - 6, y2 = nodeY(Math.max(...rs)) + NODE_R + 6
+                  return <rect key={key} x={x} y={y} width={x2 - x} height={y2 - y} rx={12}
+                    fill="none" stroke="#ffffff" strokeWidth={1.5} strokeDasharray="6 4" opacity={0.55} />
+                }
                 return (
                   <>
-                    {boxRect(treePrism.anchorCol, treePrism.anchorRow, 'pbox')}
-                    {boxRect(6 - treePrism.anchorCol, 4 - treePrism.anchorRow, 'rbox')}
+                    {isInversePlaced && boxRect(treePrism.anchorCol, treePrism.anchorRow, 'pbox')}
+                    {isInversePlaced && boxRect(6 - treePrism.anchorCol, 4 - treePrism.anchorRow, 'rbox')}
+                    {isEtherealPlaced && spanRect(ethBoxPositions, 'ebox')}
                     {anchorNode && (
                       <PrismAnchorG prism={treePrism} cx={nodeX(anchorNode.column)} cy={nodeY(anchorNode.row)}
                         onEdit={() => { setEditingPlaced(treePrism); setPrismOverlayOpen(true) }}
@@ -1111,9 +1279,11 @@ export default function TreeViewerScreen({
                 )
               })}
 
-              {/* Placement preview: simulate the primary + reflected boxes (and the prism) at the hovered cell */}
-              {placingPrism && hoverPlaceCell && !inCentralLock(hoverPlaceCell.col, hoverPlaceCell.row) && (() => {
+              {/* Placement preview: ghost box(es) + the prism icon at the hovered cell. */}
+              {placingPrism && hoverPlaceCell &&
+                !(placingPrism.kind === 'inverse_image' && inCentralLock(hoverPlaceCell.col, hoverPlaceCell.row)) && (() => {
                 const a = hoverPlaceCell
+                const eth = placingPrism.kind === 'ethereal_prism' ? placingPrism.ethereal : undefined
                 const ghostBox = (cc: number, cr: number, key: string) => {
                   const x = nodeX(Math.max(0, cc - 1)) - NODE_R - 6
                   const x2 = nodeX(Math.min(6, cc + 1)) + NODE_R + 6
@@ -1123,16 +1293,32 @@ export default function TreeViewerScreen({
                     fill="rgba(255,255,255,0.04)" stroke="#ffffff" strokeWidth={1.5} strokeDasharray="6 4"
                     opacity={0.8} style={{ pointerEvents: 'none' }} />
                 }
+                // Ethereal: a single NxM ghost box (anchor-centred, clipped) around the hovered cell. No size → no box.
+                const ghostSpan = (key: string) => {
+                  const W = eth?.boxCols, H = eth?.boxRows
+                  if (!W || !H) return null
+                  const left = Math.floor((W - 1) / 2), top = Math.floor((H - 1) / 2)
+                  const c0 = Math.max(0, a.col - left), c1 = Math.min(6, a.col - left + W - 1)
+                  const r0 = Math.max(0, a.row - top), r1 = Math.min(4, a.row - top + H - 1)
+                  const x = nodeX(c0) - NODE_R - 6, x2 = nodeX(c1) + NODE_R + 6
+                  const y = nodeY(r0) - NODE_R - 6, y2 = nodeY(r1) + NODE_R + 6
+                  return <rect key={key} x={x} y={y} width={x2 - x} height={y2 - y} rx={12}
+                    fill="rgba(255,255,255,0.04)" stroke="#ffffff" strokeWidth={1.5} strokeDasharray="6 4"
+                    opacity={0.8} style={{ pointerEvents: 'none' }} />
+                }
                 const acx = nodeX(a.col), acy = nodeY(a.row)
+                const rare = eth?.rarity === 'rare'
                 return (
                   <g style={{ pointerEvents: 'none' }}>
-                    {ghostBox(a.col, a.row, 'gp')}
-                    {ghostBox(6 - a.col, 4 - a.row, 'gr')}
+                    {placingPrism.kind === 'inverse_image' ? (
+                      <>{ghostBox(a.col, a.row, 'gp')}{ghostBox(6 - a.col, 4 - a.row, 'gr')}</>
+                    ) : ghostSpan('ges')}
                     <clipPath id="ghost-prism-clip"><circle cx={acx} cy={acy} r={NODE_R - 2} /></clipPath>
-                    <circle cx={acx} cy={acy} r={NODE_R} fill="#1a1326" stroke="#e9c046" strokeWidth={3} opacity={0.85} />
+                    <circle cx={acx} cy={acy} r={NODE_R} fill="#1a1326" stroke={rare ? '#c79bff' : '#e9c046'} strokeWidth={3} opacity={0.85} />
                     <image href={iconUrl('prism', placingPrism.iconUrl) ?? undefined}
                       x={acx - NODE_R + 2} y={acy - NODE_R + 2} width={(NODE_R - 2) * 2} height={(NODE_R - 2) * 2}
-                      clipPath="url(#ghost-prism-clip)" opacity={0.85} />
+                      clipPath="url(#ghost-prism-clip)"
+                      style={{ filter: rare && eth?.tintWhenRare ? RARE_TINT : undefined }} opacity={0.85} />
                   </g>
                 )
               })()}
@@ -1160,13 +1346,14 @@ export default function TreeViewerScreen({
       {/* Prism inventory / craft overlay */}
       {prismOverlayOpen && (
         <PrismOverlay
-          catalog={prismCatalog}
+          items={prismCatalog}
+          ethereal={etherealCat}
           inventory={prismInventory}
           setInventory={setPrismInventory}
           onPlace={p => { setPrismOverlayOpen(false); setEditingPlaced(null); setPlacingPrism(p) }}
           onClose={() => { setPrismOverlayOpen(false); setEditingPlaced(null) }}
           editPlaced={editingPlaced}
-          onUpdatePlaced={rolls => { if (treePrism) setPrisms(prisms.map(p => p.id === treePrism.id ? { ...p, rolls } : p)) }}
+          onUpdatePlaced={patch => { if (treePrism) setPrisms(prisms.map(p => p.id === treePrism.id ? { ...p, ...patch } : p)) }}
           onRemovePlaced={removePrism}
         />
       )}

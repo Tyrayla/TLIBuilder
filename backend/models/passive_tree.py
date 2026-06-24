@@ -49,10 +49,14 @@ class PassiveTree:
     def total_points(self) -> int:
         return sum(n.current_points for n in self.nodes.values())
 
-    def allocate(self, node_id: str, prereq_satisfied: set[str] | None = None):
+    def allocate(self, node_id: str, prereq_satisfied: set[str] | None = None,
+                 max_overrides: dict[str, int] | None = None):
         # `prereq_satisfied` = node ids whose OUTGOING connection prerequisites are treated as met regardless of
         # their points (a Prism's overridden anchor + its reflected-box cells break the prereq chain there).
+        # `max_overrides` = node id → raised max-point cap (an Ethereal Prism's over-allocation affix). Only the
+        # headroom for extra points grows; the prereq threshold (_prereq_threshold) is untouched.
         prereq_satisfied = prereq_satisfied or set()
+        max_overrides = max_overrides or {}
         node = self.nodes.get(node_id)
         if node is None:
             raise ValueError(f"Node '{node_id}' not found.")
@@ -63,9 +67,10 @@ class PassiveTree:
                 f"Column {node.column_label} is locked. "
                 f"Need {needed} points in earlier columns, have {have}."
             )
-        if node.is_full:
+        eff_max = max_overrides.get(node_id, node.max_points)
+        if node.current_points >= eff_max:
             raise ValueError(
-                f"'{node.node_type.value}' is already at max ({node.max_points}/{node.max_points}).")
+                f"'{node.node_type.value}' is already at max ({node.current_points}/{eff_max}).")
 
         # Connection prerequisite: every source node pointing to this node must
         # meet its threshold before this node can receive any points.

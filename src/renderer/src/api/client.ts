@@ -308,11 +308,48 @@ export interface PrismCatalogItem {
   implicit: string[]
   roll_ranges?: { micro: [number, number]; medium: [number, number]; legendary: [number, number] }
 }
+// ── Ethereal-Prism crafting catalog (the enriched `catalog` field of GET /ethereal-prism) ───────────
+export type PrismRarity = 'rare' | 'legendary'
+export interface PrismImplicit {
+  kind: 'replace' | 'amplify' | 'add_choice'
+  text?: string         // replace/amplify: the fixed implicit line
+  options?: string[]    // add_choice (Haze): the 10 selectable "Adds an additional effect…" lines
+}
+export interface EtherealCatalogItem {
+  name: string
+  short_name: string
+  kind: 'ethereal_prism'
+  icon_url: string
+  tags: string[]
+  detail: string[]
+  rarities: PrismRarity[]
+  default_rarity: PrismRarity
+  tint_when_rare: boolean   // apply the purple CSS filter for the rare variant (named prisms only)
+  implicit: PrismImplicit
+}
+export interface AreaSizeAffix { modifier: string; cols: number; rows: number }
+export interface MiddleAffix { modifier: string; tier: 'micro' | 'medium' | 'legendary' | '' }
+export interface AdvancedAffix {
+  modifier: string
+  kind: 'over_alloc' | 'ignore_prereq' | 'conditional'
+  tier?: 'micro' | 'medium' | 'legendary' | ''
+  count?: number
+}
+export interface DoNotReplaceAffix { modifier: string; penalty: string }
+export interface EtherealCatalog {
+  items: EtherealCatalogItem[]
+  area_size: AreaSizeAffix[]
+  middle: MiddleAffix[]
+  advanced: AdvancedAffix[]
+  do_not_replace: Record<string, DoNotReplaceAffix[]>   // keyed by prism short_name
+  penalties: string[]
+}
 export interface PrismCatalog {
   season: string | null
   items: PrismCatalogItem[]
   base_affixes: string[]
   random_affixes: { modifier: string; type: string }[]
+  catalog?: EtherealCatalog
 }
 // The three Inverse Image affix rolls (% multipliers; −100 = off/untempered).
 export interface PrismRolls {
@@ -320,13 +357,28 @@ export interface PrismRolls {
   medium: number
   legendary: number
 }
+// An Ethereal Prism's crafted configuration (implicit + the 1–3 random-affix slots). Distinct from Inverse
+// Image's `rolls`. boxCols/boxRows are derived from the chosen area-size affix for placement geometry.
+export interface EtherealConfig {
+  shortName: string
+  rarity: PrismRarity
+  implicit: string             // resolved implicit line (replace/amplify text, or Haze's chosen add option)
+  tintWhenRare: boolean        // mirror of the catalog item flag (icon rendering)
+  areaSize?: string            // chosen Slot-1 area-size modifier
+  boxCols?: number             // box footprint derived from areaSize
+  boxRows?: number
+  middle?: string              // chosen Slot-2 middle-tier modifier
+  advanced?: string            // chosen Slot-3 advanced/do-not-replace modifier (legendary only)
+}
 // A crafted prism kept in the build's prism inventory (no tree placement) — re-placeable, like SlateTemplate.
+// `rolls` is used by Inverse Image; `ethereal` by Ethereal Prisms.
 export interface CraftedPrism {
   id: string
   kind: 'inverse_image' | 'ethereal_prism'
   name: string
   iconUrl: string
   rolls: PrismRolls
+  ethereal?: EtherealConfig
 }
 // A prism installed on a tree. anchorCol/anchorRow = the node it sits on; boxAllocations = points spent in the
 // reflected box (kept OUT of the DPS path in Plan 1), keyed by the existing node id at each reflected position.
@@ -337,6 +389,7 @@ export interface PlacedPrism {
   name: string
   iconUrl: string
   rolls: PrismRolls
+  ethereal?: EtherealConfig
   treeName: string
   anchorCol: number
   anchorRow: number
@@ -2123,8 +2176,9 @@ export const api = {
     node_states: Record<string, number>,
     node_id: string,
     action: 'allocate' | 'deallocate',
-    prereq_satisfied: string[] = []
+    prereq_satisfied: string[] = [],
+    max_overrides: Record<string, number> = {}
   ) => post<{ allowed: boolean; node_states: Record<string, number> }>('/validate-allocate', {
-    tree_name, node_states, node_id, action, prereq_satisfied,
+    tree_name, node_states, node_id, action, prereq_satisfied, max_overrides,
   }),
 }
