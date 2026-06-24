@@ -616,6 +616,7 @@ class EnemyConfigRequest(BaseModel):
 class EngineComputeRequest(BaseModel):
     slots:      list[SlotData | None]
     slates:     list[dict] = []
+    prisms:     list[dict] = []
     skill:      SkillConfigRequest
     enemy:      EnemyConfigRequest = EnemyConfigRequest()
     conditions: list[str] = []
@@ -653,6 +654,7 @@ class SkillSlotInput(BaseModel):
 class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
+    prisms:          list[dict] = []
     condition_state: dict[str, float | bool] = {}
     gear:            list[dict] = []
     character:       list[dict] = []
@@ -700,6 +702,9 @@ def engine_stats(req: EngineStatsRequest):
                 m = re.match(r"^(.+)_c\d+_r\d+$", node_id)
                 if m:
                     needed_slugs.add(m.group(1))
+    for prism in (req.prisms or []):                       # a Prism reflects nodes of its own tree
+        if prism.get("treeName"):
+            needed_slugs.add(_slug(prism["treeName"]))
 
     season_trees: dict[str, dict] = {}
     for slug in needed_slugs:
@@ -847,6 +852,7 @@ def engine_stats(req: EngineStatsRequest):
     from engine.consumable_universe import consumable_universe
     node_contributions, _node_statuses = resolve_nodes(
         slots, slates, season_trees, _parse_custom_mod_text, _translate_condition_expr,
+        prisms=req.prisms,
     )
     core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}}
     # Seed player level (for per-level scaling like Brutality) unless the user set it explicitly.

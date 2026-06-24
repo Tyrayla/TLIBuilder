@@ -103,8 +103,9 @@ def resolve_effect_text_keys(text, parse_mod, translate_cond) -> list[str]:
     return out
 
 
-def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond):
-    """Resolve all allocated tree nodes (× points) + slate slots (× 1, Max-Divinity-deduped) to contributions."""
+def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond, prisms=None):
+    """Resolve all allocated tree nodes (× points) + slate slots (× 1, Max-Divinity-deduped) + Prism reflected
+    copies (source effect × tier roll × points) to contributions."""
     contribs: list[dict] = []
     statuses: list[dict] = []
 
@@ -210,5 +211,38 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond):
                     nid = adj_slots[-1].get("selectedNodeId")       # Moth/Prairie: only the bottom slot
                     if nid:
                         _resolve_slate_node(nid, f"Slate · Copy · {nid}")
+
+    # ── Prisms (Inverse Image): reflected copies = source effect × tier roll × points ─────────────────
+    # Each allocated reflected cell "col,row" copies the point-reflected source node at (6−col, 4−row); its
+    # effect is scaled by the prism's roll for the SOURCE node's tier (−100% → ×0). The reflected copy uses a
+    # distinct pooling id so it never merges with the source node's own normal allocation.
+    _PRISM_TIER = {"Micro Talent": "micro", "Medium Talent": "medium", "Legendary Medium Talent": "legendary"}
+    for prism in prisms or []:
+        if prism.get("kind") != "inverse_image":
+            continue
+        tree = (season_trees or {}).get(_tree_slug(prism.get("treeName", ""))) or {}
+        by_pos = {(n.get("column"), n.get("row")): n for n in tree.get("nodes", []) or []}
+        rolls = prism.get("rolls") or {}
+        for pos_key, pts in (prism.get("boxAllocations") or {}).items():
+            if not pts or pts <= 0:
+                continue
+            try:
+                col, row = (int(x) for x in str(pos_key).split(","))
+            except (ValueError, TypeError):
+                continue
+            src = by_pos.get((6 - col, 4 - row))           # mirror source (primary box)
+            if not src:
+                continue
+            roll = rolls.get(_PRISM_TIER.get(src.get("node_type", ""), ""), -100)
+            mult = 1.0 + float(roll) / 100.0
+            if mult <= 0:                                  # −100% (or lower) → no effect
+                continue
+            c, s = _resolve_node(f"{src['id']}::refl::{pos_key}", src.get("effects") or [], int(pts),
+                                 f"{prism.get('treeName', '')} · Inverse Image ({src['id']})", "node",
+                                 parse_mod, translate_cond)
+            for x in c:
+                x["amount"] *= mult
+            contribs.extend(c)
+            statuses.extend(s)
 
     return contribs, statuses

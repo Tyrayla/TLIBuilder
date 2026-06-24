@@ -31,6 +31,14 @@ function sumPoints(states: Record<string, number>) {
 }
 
 const NODE_TYPES = ['Micro Talent', 'Medium Talent', 'Legendary Medium Talent'] as const
+// Prism reflected effect = source effect × (1 + roll/100), where the roll is the prism's value for the SOURCE
+// node's tier (matches the engine in node_resolver.resolve_nodes).
+const PRISM_TIER_KEY: Record<string, keyof PrismRolls> = {
+  'Micro Talent': 'micro', 'Medium Talent': 'medium', 'Legendary Medium Talent': 'legendary',
+}
+function prismMult(rolls: PrismRolls, nodeType: string): number {
+  return 1 + (rolls[PRISM_TIER_KEY[nodeType] ?? 'micro'] ?? -100) / 100
+}
 type NodeTypeStr = typeof NODE_TYPES[number]
 
 
@@ -199,8 +207,8 @@ function TreeNodeG({
 // A reflected COPY rendered in an Inverse Image's mirror box: shows the SOURCE node (point-reflected from the
 // other side), allocatable with broken connection-prereqs (only the column threshold gates it). Its own tooltip
 // shows the source node's effects; the prism multiplier is applied to DPS in Plan 2.
-function ReflectedNodeG({ col, row, src, pts, unlocked, posKey, onAlloc }: {
-  col: number; row: number; src: TreeNode; pts: number; unlocked: boolean; posKey: string; onAlloc: (add: boolean) => void
+function ReflectedNodeG({ col, row, src, pts, unlocked, posKey, mult, onAlloc }: {
+  col: number; row: number; src: TreeNode; pts: number; unlocked: boolean; posKey: string; mult: number; onAlloc: (add: boolean) => void
 }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
   const cx = nodeX(col), cy = nodeY(row)
@@ -246,7 +254,7 @@ function ReflectedNodeG({ col, row, src, pts, unlocked, posKey, onAlloc }: {
         <FloatingPortal>
           <div className="tooltip tooltip--node" {...tip.floatingProps}>
             <TooltipShell title={`${src.node_type} ${pts}/${src.max_points} · Reflected`}>
-              <NodeTooltipBody node={src} pts={pts} />
+              <NodeTooltipBody node={src} pts={pts} mult={mult} />
             </TooltipShell>
           </div>
         </FloatingPortal>
@@ -1064,6 +1072,7 @@ export default function TreeViewerScreen({
                         <ReflectedNodeG key={`refl-${key}`} col={col} row={row} src={src} posKey={key}
                           pts={treePrism.boxAllocations[key] ?? 0}
                           unlocked={isColUnlocked(col)}
+                          mult={prismMult(treePrism.rolls, src.node_type)}
                           onAlloc={add => allocateReflected(col, row, src, add)} />
                       )
                     })}
@@ -1143,6 +1152,7 @@ export default function TreeViewerScreen({
           onClose={() => { setPrismOverlayOpen(false); setEditingPlaced(null) }}
           editPlaced={editingPlaced}
           onUpdatePlaced={rolls => { if (treePrism) setPrisms(prisms.map(p => p.id === treePrism.id ? { ...p, rolls } : p)) }}
+          onRemovePlaced={removePrism}
         />
       )}
 

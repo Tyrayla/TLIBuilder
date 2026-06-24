@@ -13,6 +13,7 @@ interface Props {
   onClose: () => void
   editPlaced?: PlacedPrism | null              // when opened to edit the prism installed on the tree
   onUpdatePlaced?: (rolls: PrismRolls) => void
+  onRemovePlaced?: () => void
 }
 
 const TIERS: { key: keyof PrismRolls; label: string }[] = [
@@ -29,7 +30,7 @@ function newId(): string {
 
 type EditTarget = { rolls: PrismRolls; source: 'new' | 'inventory' | 'placed'; id?: string }
 
-export default function PrismOverlay({ catalog, inventory, setInventory, onPlace, onClose, editPlaced, onUpdatePlaced }: Props) {
+export default function PrismOverlay({ catalog, inventory, setInventory, onPlace, onClose, editPlaced, onUpdatePlaced, onRemovePlaced }: Props) {
   const inverse = catalog.find(c => c.kind === 'inverse_image')
   const ranges = inverse?.roll_ranges ?? DEFAULT_RANGES
   const [edit, setEdit] = useState<EditTarget | null>(
@@ -105,8 +106,12 @@ export default function PrismOverlay({ catalog, inventory, setInventory, onPlace
               <button className="btn btn-sm" onClick={() => editPlaced ? onClose() : setEdit(null)}
                 style={{ background: '#222', color: '#aaa' }}>Cancel</button>
               {edit.source === 'placed' ? (
-                <button className="btn btn-sm" onClick={() => { onUpdatePlaced?.(edit.rolls); onClose() }}
-                  style={{ background: '#1c3a22', color: '#9fe0a8' }}>Save changes</button>
+                <>
+                  <button className="btn btn-sm" onClick={() => { onRemovePlaced?.(); onClose() }}
+                    style={{ background: '#3a1a1a', color: '#ff8a8a' }}>Remove prism</button>
+                  <button className="btn btn-sm" onClick={() => { onUpdatePlaced?.(edit.rolls); onClose() }}
+                    style={{ background: '#1c3a22', color: '#9fe0a8' }}>Save changes</button>
+                </>
               ) : (
                 <>
                   <button className="btn btn-sm" onClick={saveToInventory}

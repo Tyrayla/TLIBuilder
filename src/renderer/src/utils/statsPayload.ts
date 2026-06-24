@@ -84,6 +84,7 @@ export function buildEngineStatsPayload(s: BuildState) {
   return {
     slots: s.slots,
     slates: s.slates,
+    prisms: s.prisms,   // Inverse Image reflected copies → DPS via node_resolver
     // dual_wielding and unique_weapon_types are auto-derived from gear (override any stored value).
     condition_state: {
       ...s.conditionState,
