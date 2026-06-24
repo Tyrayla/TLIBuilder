@@ -10,7 +10,7 @@ import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, type Modifier
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { NodeTooltipBody } from '../components/tooltip/bodies/NodeTooltipBody'
-import { useDamageDelta, withNodePoints } from '../components/tooltip/useDamageDelta'
+import { useDamageDelta, withNodePoints, withPrismBoxPoints } from '../components/tooltip/useDamageDelta'
 
 const COLS = 7
 const ROWS = 5
@@ -207,11 +207,25 @@ function TreeNodeG({
 // A reflected COPY rendered in an Inverse Image's mirror box: shows the SOURCE node (point-reflected from the
 // other side), allocatable with broken connection-prereqs (only the column threshold gates it). Its own tooltip
 // shows the source node's effects; the prism multiplier is applied to DPS in Plan 2.
-function ReflectedNodeG({ col, row, src, pts, unlocked, posKey, mult, onAlloc }: {
-  col: number; row: number; src: TreeNode; pts: number; unlocked: boolean; posKey: string; mult: number; onAlloc: (add: boolean) => void
+function ReflectedNodeG({ col, row, src, pts, unlocked, posKey, mult, prismId, onAlloc }: {
+  col: number; row: number; src: TreeNode; pts: number; unlocked: boolean; posKey: string; mult: number
+  prismId: string; onAlloc: (add: boolean) => void
 }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
   const cx = nodeX(col), cy = nodeY(row)
+  // Marginal DPS of stepping this reflected copy ±1 — priced by the engine via the prisms payload (so it
+  // covers the reflected effect's scaled stats, and any future prism-granted stats, generically).
+  const delta = useDamageDelta(
+    tip.open ? {
+      key: `prism:${prismId}:${posKey}`,
+      step: s => {
+        const cur = s.prisms.find(p => p.id === prismId)?.boxAllocations?.[posKey] ?? 0
+        const tgt = cur < src.max_points ? cur + 1 : Math.max(0, cur - 1)
+        return withPrismBoxPoints(s, prismId, posKey, tgt)
+      },
+    } : null,
+    tip.open,
+  )
   const icon = iconUrl('talent_tree', src.icon_url)
   const rarity = RARITY_RING_COLOR[src.node_type] ?? RARITY_RING_COLOR.default
   const full = pts >= src.max_points
@@ -253,7 +267,7 @@ function ReflectedNodeG({ col, row, src, pts, unlocked, posKey, mult, onAlloc }:
       {tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--node" {...tip.floatingProps}>
-            <TooltipShell title={`${src.node_type} ${pts}/${src.max_points} · Reflected`}>
+            <TooltipShell title={`${src.node_type} ${pts}/${src.max_points} · Reflected`} delta={delta}>
               <NodeTooltipBody node={src} pts={pts} mult={mult} />
             </TooltipShell>
           </div>
@@ -1073,6 +1087,7 @@ export default function TreeViewerScreen({
                           pts={treePrism.boxAllocations[key] ?? 0}
                           unlocked={isColUnlocked(col)}
                           mult={prismMult(treePrism.rolls, src.node_type)}
+                          prismId={treePrism.id}
                           onAlloc={add => allocateReflected(col, row, src, add)} />
                       )
                     })}
