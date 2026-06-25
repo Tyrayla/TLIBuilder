@@ -644,6 +644,10 @@ class OffenseResult:
     # and the resulting unmitigated DPS (vs target), folded into total_dps_vs_target.
     mercury_baptism_fraction: float = 0.0
     mercury_baptism_dps: float = 0.0
+    # Spell Ripple (Ethereal Prism): spell hits proc a Pulse dealing TRUE damage = fraction × hit damage
+    # (fraction = 0.5 chance × 1.5 = 0.75), folded in unmitigated.
+    spell_ripple_fraction: float = 0.0
+    spell_ripple_dps: float = 0.0
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -1423,6 +1427,7 @@ def calculate_offense(
     _delivery = cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult
     total_dps = sum(f.dps_contribution for f in hit_forms) * _delivery
     total_dps_vs_target = sum(f.dps_vs_target for f in hit_forms) * _delivery
+    _base_dps_pre_true, _base_vt_pre_true = total_dps, total_dps_vs_target   # hit DPS before true-damage stages
 
     # ── Mercury Baptism (Rosa Unsullied Blade) ────────────────────────────────────────────────────────────
     # Records a fraction (0.12-0.44) of non-channeled attack ELEMENTAL hit damage DEALT and re-deals it as TRUE
@@ -1444,6 +1449,19 @@ def calculate_offense(
         mercury_baptism_dps = mbf * elem_vt                  # true damage (unmitigated), vs-target
         total_dps += mbf * elem_premit
         total_dps_vs_target += mbf * elem_vt
+
+    # ── Spell Ripple (Ethereal Prism) ───────────────────────────────────────────────────────────────────────
+    # Spell hits proc a Pulse dealing TRUE damage = 150% of Hit Damage at 50% chance → fraction 0.75 of the spell's
+    # hit DPS, added unmitigated (no mitigation/enemy-vuln). Computed from the pre-true-damage hit DPS. Presence-
+    # gated → non-Spell-Ripple builds unchanged.
+    spell_ripple_fraction = 0.0
+    spell_ripple_dps = 0.0
+    if (is_spell and "spell_ripple_fraction" in _present and source.total("spell_ripple_fraction") > 0.0):
+        srf = source.total("spell_ripple_fraction")
+        spell_ripple_fraction = srf
+        spell_ripple_dps = srf * _base_vt_pre_true            # true damage (unmitigated), vs-target
+        total_dps += srf * _base_dps_pre_true
+        total_dps_vs_target += srf * _base_vt_pre_true
 
     return OffenseResult(
         skill_name=skill.name,
@@ -1528,6 +1546,8 @@ def calculate_offense(
         multistrike_chain=multistrike_chain,
         mercury_baptism_fraction=mercury_baptism_fraction,
         mercury_baptism_dps=mercury_baptism_dps,
+        spell_ripple_fraction=spell_ripple_fraction,
+        spell_ripple_dps=spell_ripple_dps,
         nyi=[
             "Support skill flat damage adds",
             "Elemental conversion",

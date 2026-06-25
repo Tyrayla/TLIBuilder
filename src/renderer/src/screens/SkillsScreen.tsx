@@ -10,6 +10,7 @@ import {
   isSupportCompatible,
   getSupportEnergyCost,
   getMaxEnergy,
+  hasEffortlessCommandEnergy,
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
@@ -272,8 +273,10 @@ export default function SkillsScreen(_props: Props) {
   // Character level now comes from the `level` condition (default 90); the old level control is gone.
   const conditionState = useBuildStore(s => s.conditionState)
   const characterLevel = characterLevelFrom(conditionState)
-  const hasPrism = useBuildStore(s => s.hasPrism)
-  const onHasPrismChange = useBuildStore(s => s.setHasPrism)
+  const prisms = useBuildStore(s => s.prisms)
+  const slots = useBuildStore(s => s.slots)
+  // +1000 Max Energy comes from a placed Effortless Command Ethereal Prism (≥24 pts) — not a manual toggle.
+  const hasPrism = hasEffortlessCommandEnergy(prisms, slots)
   const cachedSkills = useReferenceStore(s => s.skills)
   const supportSort = useUiPrefs(s => s.supportSort)
   const setSupportSort = useUiPrefs(s => s.setSupportSort)
@@ -1033,12 +1036,6 @@ export default function SkillsScreen(_props: Props) {
             {renderSlotGroup(PASSIVE_SLOTS, 'Passive Skills')}
           </div>
           <div className="skills-left-footer">
-            <div className="skills-energy-config">
-              <label className="skills-energy-config-label">
-                <input type="checkbox" checked={hasPrism} onChange={e => onHasPrismChange(e.target.checked)} style={{ marginRight: 4 }} />
-                Prism
-              </label>
-            </div>
             <span className={`skills-energy-total${energyOver ? ' over' : ''}`}>
               {totalEnergyCost} / {maxEnergy} Energy
             </span>

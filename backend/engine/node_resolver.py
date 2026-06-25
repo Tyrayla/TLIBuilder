@@ -245,4 +245,48 @@ def resolve_nodes(slots, slates, season_trees, parse_mod, translate_cond, prisms
             contribs.extend(c)
             statuses.extend(s)
 
+    # ── Prisms (Ethereal): "All <tier> Talent within the area also gain: X" ────────────────────────────
+    # Each ALLOCATED box node of the affix's tier additionally grants the stat, scaled PER POINT (a 3/3 Micro
+    # node with a "+6% Attack Damage" Micro affix → +18%). Phantasmagoria's value is the ×1.75 string already.
+    _ETH_TIER = {"micro": "Micro Talent", "medium": "Medium Talent", "legendary medium": "Legendary Medium Talent"}
+    _ETH_AREA_RE = re.compile(r"All\s+(Micro|Medium|Legendary Medium)\s+Talent.*?also gain:\s*(.+)$", re.I)
+    states_by_tree: dict[str, dict] = {}
+    for slot in slots or []:
+        if slot and slot.get("treeName"):
+            states_by_tree[_tree_slug(slot["treeName"])] = slot.get("nodeStates") or {}
+    for prism in prisms or []:
+        if prism.get("kind") != "ethereal_prism":
+            continue
+        eth = prism.get("ethereal") or {}
+        m = _ETH_AREA_RE.search(eth.get("middle") or "")
+        if not m:
+            continue
+        want_type = _ETH_TIER.get(m.group(1).lower())
+        stat_clause = m.group(2).strip()
+        W, H = eth.get("boxCols"), eth.get("boxRows")
+        ac, ar = prism.get("anchorCol"), prism.get("anchorRow")
+        if not (W and H and want_type) or ac is None or ar is None:
+            continue
+        slug = _tree_slug(prism.get("treeName", ""))
+        by_pos = {(n.get("column"), n.get("row")): n
+                  for n in ((season_trees or {}).get(slug) or {}).get("nodes", []) or []}
+        node_states = states_by_tree.get(slug, {})
+        left, top = (int(W) - 1) // 2, (int(H) - 1) // 2
+        pid = prism.get("id") or prism.get("treeName", "")
+        label = f"{prism.get('treeName', '')} · {eth.get('shortName', 'Ethereal Prism')} Area Bonus"
+        for cc in range(ac - left, ac - left + int(W)):
+            for rr in range(ar - top, ar - top + int(H)):
+                if not (0 <= cc <= 6 and 0 <= rr <= 4):
+                    continue
+                node = by_pos.get((cc, rr))
+                if not node or node.get("node_type") != want_type:
+                    continue
+                pts = int(node_states.get(node["id"], 0) or 0)
+                if pts <= 0:
+                    continue
+                c, s = _resolve_node(f"{pid}::ether::{node['id']}", [stat_clause], pts, label,
+                                     "node", parse_mod, translate_cond)
+                contribs.extend(c)
+                statuses.extend(s)
+
     return contribs, statuses

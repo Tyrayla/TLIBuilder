@@ -475,6 +475,12 @@ def compute(
             if _key in maxes:
                 condition_state[_key] = maxes[_key]
 
+        # Unmatched Valor (Ethereal Prism): grants Have Fervor + pins Fervor Rating to a FIXED 130, set after
+        # user input + automax so nothing can lower it (cap is already 130 in conditions.json).
+        if condition_state.get("unmatched_valor"):
+            condition_state["fervor"] = True
+            condition_state["fervor_rating"] = 130.0
+
         # Frostbite Rating (auto-derived, NOT user-set): 10 base + Max Frostbite Rating sources, only while
         # the enemy is Frostbitten. Capped at 120 normally; Condensed Frost lifts the cap to 200 (its over-120
         # bonus is applied in the aggregator's enemy-vuln bake). Freeze: rating > 100 auto-sets enemy_frozen.

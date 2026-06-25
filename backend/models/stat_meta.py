@@ -1702,6 +1702,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="mechanics",          stacking_rule="additive",
         ui_priority=72,                source_types=(),
     ),
+    Stat.SPELL_RIPPLE_FRACTION: StatMeta(
+        "Spell Ripple (% of spell hit as True Damage)", "Generic", "chance", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=72,                source_types=(),
+    ),
     Stat.MAX_MERCURY_POINTS_FLAT: StatMeta(
         "Max Mercury Points", "Generic", "added_flat",
         subgroup="mechanics",          stacking_rule="additive",

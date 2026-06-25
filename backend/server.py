@@ -842,10 +842,34 @@ def engine_stats(req: EngineStatsRequest):
     # so the aggregator's blessing/Numbed override loops pick them up. (roadmap #4)
     from engine.core_talent_resolver import resolve_core_talents
     belt_blends_data = season_manager.load_belt_blends(active_season) or {}
+
+    # Ethereal Prism Core-Talent replace/add (Plan B). Resolve FIRST so we know which trees a pure REPLACE prism
+    # supersedes, then drop those trees' native Core Talent before resolving the rest.
+    prism_core_contribs: list[dict] = []
+    prism_set_conditions: dict = {}
+    prism_core_statuses: list[dict] = []
+    _replaced_trees: set[str] = set()
+    if any((p or {}).get("kind") == "ethereal_prism" for p in (req.prisms or [])):
+        from engine.prism_core_talents import resolve_prism_core_talents
+        from tools.prism_catalog import categorize_prism_catalog
+        _eth_cat = categorize_prism_catalog(season_manager.load_ethereal_prism(active_season) or {})
+        _eth_desc = {it.get("short_name", ""): it.get("replace_description", "") for it in _eth_cat.get("items", [])}
+        prism_core_contribs, prism_set_conditions, prism_core_statuses, _replaced_trees = resolve_prism_core_talents(
+            req.prisms, slots, _eth_desc, _parse_custom_mod_text, _translate_condition_expr,
+        )
+    slots_for_core = slots
+    if _replaced_trees:
+        slots_for_core = [
+            ({**s, "coreTalentSelections": {}} if s and _slug(s.get("treeName", "")) in _replaced_trees else s)
+            for s in slots
+        ]
+
     core_contributions, core_flags, core_talent_statuses = resolve_core_talents(
-        slots, slates, req.gear, season_trees, belt_blends_data,
+        slots_for_core, slates, req.gear, season_trees, belt_blends_data,
         _parse_custom_mod_text, _translate_condition_expr,
     )
+    core_contributions = core_contributions + prism_core_contribs
+    core_talent_statuses = core_talent_statuses + prism_core_statuses
     # Resolve allocated talent-tree NODES + SLATE slots through the SAME unified resolver (replaces the
     # filter-builder recipes). Amounts pre-scaled by points; conditionals gated in the aggregator.
     from engine.node_resolver import resolve_nodes
@@ -854,7 +878,7 @@ def engine_stats(req: EngineStatsRequest):
         slots, slates, season_trees, _parse_custom_mod_text, _translate_condition_expr,
         prisms=req.prisms,
     )
-    core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}}
+    core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}, **prism_set_conditions}
     # Seed player level (for per-level scaling like Brutality) unless the user set it explicitly.
     if req.characterLevel is not None and "level" not in req.condition_state:
         core_condition_state["level"] = float(req.characterLevel)

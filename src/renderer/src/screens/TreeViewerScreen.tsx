@@ -784,6 +784,13 @@ export default function TreeViewerScreen({
   const ethCoreActive = total >= ethCoreThreshold
   const ethRare = treePrism?.kind === 'ethereal_prism' && treePrism.ethereal?.rarity === 'rare'
 
+  // Whether the engine actually models this prism's Core-Talent effect (status comes back as resolved/unresolved).
+  // Drives an honest "In DPS" / "Not modeled (NYI)" badge so an unmodeled replacement never looks active.
+  const ethPrismStatus = treePrism?.kind === 'ethereal_prism' && treePrism.ethereal
+    ? (coreTalentStatuses ?? []).find(st => st.name === `${treePrism.ethereal!.shortName} (Prism)`)
+    : undefined
+  const ethModeled = ethPrismStatus?.resolved === true
+
   // Prism effect banner shown INSIDE the expanded core-talent panel (not as a header note — that squished the tree).
   // Width-constrained (won't widen the panel past the 4 cards) and each effect clause on its own wrapped line.
   const ethCoreBanner = ethCore ? (
@@ -792,6 +799,13 @@ export default function TreeViewerScreen({
       maxWidth: 670, boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ color: ethRare ? '#c79bff' : '#e9c046', fontWeight: 600 }}>◈ {ethCore.label}</span>
+        {ethCoreActive && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+            background: ethModeled ? 'rgba(107,203,119,0.15)' : 'rgba(255,107,107,0.15)',
+            color: ethModeled ? '#6bcb77' : '#ff6b6b' }}>
+            {ethModeled ? 'In DPS' : 'Not modeled (NYI)'}
+          </span>
+        )}
         <span style={{ marginLeft: 'auto', color: ethCoreActive ? '#6bcb77' : '#888' }}>
           {ethCoreActive ? 'Active' : `${Math.min(total, ethCoreThreshold)}/${ethCoreThreshold}`}
         </span>

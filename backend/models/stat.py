@@ -449,6 +449,9 @@ class Stat(Enum):
     # Mercury Baptism (Rosa — Unsullied Blade): recorded fraction (0.12-0.44) of non-channeled attack ELEMENTAL hit
     # damage, re-dealt as TRUE damage. Read by the offense Mercury Baptism stage.
     MERCURY_BAPTISM_FRACTION = "mercury_baptism_fraction"
+    # Spell Ripple (Ethereal Prism): fraction (0.75 = 50% chance × 150%) of spell hit damage re-dealt as TRUE
+    # damage. Read by the offense Spell Ripple stage.
+    SPELL_RIPPLE_FRACTION = "spell_ripple_fraction"
     # Mercury Points resource (Rosa). max_mercury_points = flat × (1 + inc); feeds Utmost Devotion's per-point ele.
     MAX_MERCURY_POINTS_FLAT = "max_mercury_points_flat"
     MAX_MERCURY_POINTS_INC = "max_mercury_points_inc"

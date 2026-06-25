@@ -93,7 +93,7 @@ export function buildEngineStatsPayload(s: BuildState) {
       unique_weapon_types: countUniqueWeaponTypes(s.gear),
     },
     gear: buildGearPayload(s.gear),
-    character: buildCharacterContributions(s.gear, charLevel, s.hasPrism),
+    character: buildCharacterContributions(s.gear, charLevel),
     memory_effects: buildMemoryEffects(s.heroMemories),
     spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits), s.spiritEffectExclude),
     // Hero trait. trait_id/levels/picks drive the bespoke engine module; trait_effects feeds the status

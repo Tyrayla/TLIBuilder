@@ -20,7 +20,6 @@ export interface LoadedBuild {
   gear: EquippedGearItem[]
   skills: EquippedSkill[]
   characterLevel: number
-  hasPrism: boolean
   traitId: string | null
   traitSlotLevels: number[]
   advancedTraitSelections: string[]
@@ -72,7 +71,6 @@ interface BuildStore {
   conditionState: Record<string, number | boolean>
   gear: EquippedGearItem[]
   characterLevel: number
-  hasPrism: boolean
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   // Transient: never set on the real store — only by damage-delta `step`/`base` transforms to price a
@@ -88,7 +86,6 @@ interface BuildStore {
   setConditionState: (state: Record<string, number | boolean>) => void
   setGear: (gear: EquippedGearItem[]) => void
   setCharacterLevel: (level: number) => void
-  setHasPrism: (v: boolean) => void
   // Uptime calc mode (global): 'max' (assume-max, default) | 'real' (compute ramp). Not part of the saved
   // build — a display/calc preference. Drives the engine's uptime_mode for ailment ramp (Numbed, …).
   uptimeMode: 'max' | 'real'
@@ -150,7 +147,6 @@ const DEFAULT_BUILD: LoadedBuild = {
   gear: [],
   skills: [],
   characterLevel: 100,
-  hasPrism: false,
   traitId: null,
   traitSlotLevels: [1, 1, 1, 1],
   advancedTraitSelections: [],
@@ -222,7 +218,6 @@ export const useBuildStore = create<BuildStore>((set) => ({
   setConditionState: (conditionState) => set((s) => ({ conditionState, buildVersion: s.buildVersion + 1 })),
   setGear: (gear) => set((s) => ({ gear, buildVersion: s.buildVersion + 1 })),
   setCharacterLevel: (characterLevel) => set((s) => ({ characterLevel, buildVersion: s.buildVersion + 1 })),
-  setHasPrism: (hasPrism) => set((s) => ({ hasPrism, buildVersion: s.buildVersion + 1 })),
   setUptimeMode: (uptimeMode) => set((s) => ({ uptimeMode, buildVersion: s.buildVersion + 1 })),
   setHeroMemories: (heroMemories) => set((s) => ({ heroMemories, buildVersion: s.buildVersion + 1 })),
   setPactSpirits: (pactSpirits) => set((s) => ({ pactSpirits, buildVersion: s.buildVersion + 1 })),

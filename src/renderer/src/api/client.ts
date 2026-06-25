@@ -417,7 +417,6 @@ export interface Build {
   gear?: EquippedGearItem[]
   skills?: EquippedSkill[]
   characterLevel?: number
-  hasPrism?: boolean
   traitId?: string | null
   traitLevel?: number          // legacy field — kept for loading old saves
   traitSlotLevels?: number[]   // [base, lv45, lv60, lv75], each 1–5
@@ -1673,9 +1672,19 @@ function gearSlotEnergy(slot: GearSlot | GearSlot[] | null): number {
   return 0  // amulet, belt, ring1, ring2
 }
 
-export function getMaxEnergy(level: number, gear: EquippedGearItem[], hasPrism: boolean): number {
+export function getMaxEnergy(level: number, gear: EquippedGearItem[], effortlessCommand: boolean): number {
   const fromGear = gear.reduce((s, g) => s + gearSlotEnergy(g.slot), 0)
-  return 4 + fromGear + Math.min(Math.max(level, 0), 100) + (hasPrism ? 1000 : 0)
+  return 4 + fromGear + Math.min(Math.max(level, 0), 100) + (effortlessCommand ? 1000 : 0)
+}
+
+// +1000 Max Energy comes from placing the Effortless Command Ethereal Prism (the engine grants it via the
+// core-talent path; this derives the same for the client-side energy-budget display). Threshold-gated at 24 pts.
+export function hasEffortlessCommandEnergy(prisms: PlacedPrism[], slots: (TreeSlot | null)[]): boolean {
+  return (prisms ?? []).some(p => {
+    if (p.kind !== 'ethereal_prism' || p.ethereal?.shortName !== 'Effortless Command') return false
+    const ns = slots.find(s => s?.treeName === p.treeName)?.nodeStates ?? {}
+    return Object.values(ns).reduce((a, b) => a + (b || 0), 0) >= 24
+  })
 }
 
 export interface CharacterStatContribution {
@@ -1696,7 +1705,6 @@ export interface CharacterStatContribution {
 export function buildCharacterContributions(
   gear: EquippedGearItem[],
   characterLevel: number,
-  hasPrism: boolean,
 ): CharacterStatContribution[] {
   const contribs: CharacterStatContribution[] = []
   const lvl = Math.min(Math.max(characterLevel, 0), 100)
@@ -1719,7 +1727,8 @@ export function buildCharacterContributions(
   const gearE = gear.reduce((s, g) => s + gearSlotEnergy(g.slot), 0)
   if (gearE > 0) contribs.push({ stat: 'max_energy_flat', amount: gearE, label: 'Gear', text: `+${gearE} Max Energy` })
   if (lvl > 0) contribs.push({ stat: 'max_energy_flat', amount: lvl, label: 'Levels', text: `+${lvl} Max Energy` })
-  if (hasPrism) contribs.push({ stat: 'max_energy_flat', amount: 1000, label: 'Prism', text: '+1000 Max Energy (Effortless Command)' })
+  // +1000 Max Energy (Effortless Command) is granted by the engine when that Ethereal Prism is placed — no
+  // longer a manual toggle here (it would double-count with the prism's core-talent grant).
   return contribs
 }
 

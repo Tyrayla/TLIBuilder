@@ -78,6 +78,9 @@ _SHARED_STAT_JOINS = [
      ["Attack Speed", "Cast Speed"]),
     (re.compile(r"\bAttack and Cast Speed\b", re.I),
      ["Attack Speed", "Cast Speed"]),
+    # "Elemental and Erosion Resistance" (and its Penetration variant) = one magnitude, two stats.
+    (re.compile(r"\bElemental and Erosion Resistance\b", re.I),
+     ["Elemental Resistance", "Erosion Resistance"]),
 ]
 
 
