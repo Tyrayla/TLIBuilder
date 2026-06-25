@@ -4761,3 +4761,44 @@ span.gear-affix-label {
 /* Help/hint text — brighter lavender for readability (owner pick, 2026-06-25). */
 .loadout-hint { font-size: 12px; color: #cdbff2; line-height: 1.45; }
 .loadout-check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
+
+/* ── Config screen: conditions (left) + Custom Modifiers (right) ───────────────── */
+.config-body { display: flex; flex: 1; min-height: 0; gap: 12px; }
+.config-conditions { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.config-custommods {
+  width: 300px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+  border-left: 1px solid #1e1e3a; padding-left: 12px;
+}
+.config-custommods-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: #c8a050; margin-bottom: 8px; flex-shrink: 0;
+}
+
+/* PoB-style custom-mod editor: colored backdrop behind a transparent-text textarea. */
+.cmods-wrap { flex: 1; min-height: 0; display: flex; }
+.cmods-editor {
+  position: relative; flex: 1; min-height: 0;
+  border: 1px solid #2a2a50; border-radius: 6px; background: #0a0a16; overflow: hidden;
+}
+.cmods-highlight, .cmods-textarea {
+  position: absolute; inset: 0; margin: 0; padding: 8px 10px;
+  font-family: inherit; font-size: 12px; line-height: 18px;
+  white-space: pre; overflow: auto; tab-size: 2; box-sizing: border-box;
+}
+.cmods-highlight { pointer-events: none; color: #8890b0; z-index: 0; }
+.cmods-line { min-height: 18px; }
+.cmods-line-ok { color: #6ddb6d; }
+.cmods-line-bad { color: #ff6b6b; }
+.cmods-line-pending { color: #b8bbe0; }
+.cmods-textarea {
+  z-index: 1; background: transparent; border: none; outline: none; resize: none;
+  color: transparent; caret-color: #e0e0f0;
+}
+.cmods-textarea::placeholder { color: #555577; }
+.cmods-tip {
+  position: fixed; z-index: 9999; pointer-events: none;
+  background: #0e0e1e; border: 1px solid #3a3a6a; border-radius: 5px;
+  padding: 4px 8px; font-size: 11px; max-width: 260px;
+}
+.cmods-tip-ok { color: #9ee89e; }
+.cmods-tip-bad { color: #ff9b9b; }

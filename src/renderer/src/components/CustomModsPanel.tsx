@@ -1,124 +1,101 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useBuildStore } from '../store/buildStore'
-import { api } from '../api/client'
 import type { CustomModStatus } from '../api/client'
 
-// Stable empty default so the selector below never returns a fresh array (which would loop re-renders).
+// Stable empty default so the selector never returns a fresh array (which would loop re-renders).
 const EMPTY_STATUSES: CustomModStatus[] = []
 
-// User-entered modifier lines. Self-contained: reads the mods + add/remove actions from the build store and the
-// per-mod resolution statuses from the latest computed stats. Lives on the Config screen (was on the old Calcs page).
+// Editor metrics — MUST match the .cmods-* CSS (line-height + top padding) so the colored backdrop lines up with
+// the textarea text and the hover→line math is correct.
+const LINE_H = 18
+const PAD_TOP = 8
+
+// Path-of-Building-style custom-modifier editor: a free multi-line text box where each line is one modifier.
+// Lines resolve independently (strict per-line) — green if recognized to a stat, red if not. Hovering a line shows
+// the stat it resolved to (or "Unrecognized"). The colored backdrop sits behind a transparent-text textarea.
 export default function CustomModsPanel() {
   const customMods = useBuildStore(s => s.customMods)
-  const addCustomMod = useBuildStore(s => s.addCustomMod)
-  const removeCustomMod = useBuildStore(s => s.removeCustomMod)
-  // Default OUTSIDE the selector — selecting `?? []` inside returns a new array each render → infinite loop.
+  const setCustomMods = useBuildStore(s => s.setCustomMods)
   const statuses = (useBuildStore(s => s.computedStats.custom_mod_statuses) ?? EMPTY_STATUSES) as CustomModStatus[]
-  const [inputText, setInputText] = useState('')
-  const [preview, setPreview] = useState<{ resolved: boolean; label: string } | null>(null)
+
+  const [text, setText] = useState(() => customMods.join('\n'))
+  const taRef = useRef<HTMLTextAreaElement>(null)
+  const hlRef = useRef<HTMLDivElement>(null)
+  const [hover, setHover] = useState<{ x: number; y: number; label: string; ok: boolean } | null>(null)
+
+  // Resync the editor from the store on EXTERNAL change (e.g. opening a build) — but not from our own keystrokes
+  // (where the derived lines already equal customMods), so the caret never jumps while typing.
+  useEffect(() => {
+    const derived = text.split('\n').map(s => s.trim()).filter(Boolean)
+    if (JSON.stringify(derived) !== JSON.stringify(customMods)) setText(customMods.join('\n'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customMods])
 
   const statusMap = Object.fromEntries(statuses.map(s => [s.text, s]))
+  const lines = text.split('\n')
 
-  const handlePreview = useCallback(async (text: string) => {
-    const t = text.trim()
-    if (!t) { setPreview(null); return }
-    try {
-      const res = await api.resolveMod(t)
-      if (res.resolved.length > 0) {
-        setPreview({ resolved: true, label: res.resolved.map(r => r.display_name).join(', ') })
-      } else {
-        setPreview({ resolved: false, label: 'unrecognized' })
-      }
-    } catch {
-      setPreview(null)
-    }
-  }, [])
-
-  const handleAdd = () => {
-    const t = inputText.trim()
-    if (!t) return
-    addCustomMod(t)
-    setInputText('')
-    setPreview(null)
+  const lineClass = (raw: string): string => {
+    const t = raw.trim()
+    if (!t) return ''
+    const st = statusMap[t]
+    if (!st) return 'cmods-line-pending'   // typed but not yet resolved by the engine pass
+    return st.resolved ? 'cmods-line-ok' : 'cmods-line-bad'
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleAdd()
+  const onChange = (v: string) => {
+    setText(v)
+    setCustomMods(v.split('\n').map(s => s.trim()).filter(Boolean))
+  }
+
+  const syncScroll = () => {
+    if (hlRef.current && taRef.current) {
+      hlRef.current.scrollTop = taRef.current.scrollTop
+      hlRef.current.scrollLeft = taRef.current.scrollLeft
+    }
+  }
+
+  const onMove = (e: React.MouseEvent) => {
+    const ta = taRef.current
+    if (!ta) return
+    const rect = ta.getBoundingClientRect()
+    const idx = Math.floor((e.clientY - rect.top + ta.scrollTop - PAD_TOP) / LINE_H)
+    const t = lines[idx]?.trim()
+    if (!t) { setHover(null); return }
+    const st = statusMap[t]
+    if (!st) { setHover({ x: e.clientX, y: e.clientY, label: 'Resolving…', ok: true }); return }
+    setHover({
+      x: e.clientX, y: e.clientY,
+      label: st.resolved ? (st.stat_display || 'Recognized') : 'Unrecognized',
+      ok: st.resolved,
+    })
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        <input
-          value={inputText}
-          onChange={e => { setInputText(e.target.value); handlePreview(e.target.value) }}
-          onKeyDown={handleKeyDown}
-          placeholder="e.g. 10% additional attack damage"
-          style={{
-            flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 4, padding: '5px 8px', fontSize: 12, color: '#e0e0e0', outline: 'none',
-          }}
+    <div className="cmods-wrap">
+      <div className="cmods-editor">
+        <div className="cmods-highlight" ref={hlRef} aria-hidden>
+          {lines.map((ln, i) => (
+            <div key={i} className={`cmods-line ${lineClass(ln)}`}>{ln === '' ? '​' : ln}</div>
+          ))}
+        </div>
+        <textarea
+          ref={taRef}
+          className="cmods-textarea"
+          value={text}
+          spellCheck={false}
+          placeholder={'One modifier per line, e.g.\n10% additional attack damage\n+200 to maximum life'}
+          onChange={e => onChange(e.target.value)}
+          onScroll={syncScroll}
+          onMouseMove={onMove}
+          onMouseLeave={() => setHover(null)}
         />
-        <button
-          onClick={handleAdd}
-          style={{
-            background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
-            borderRadius: 4, padding: '5px 10px', fontSize: 12, color: '#e0e0e0', cursor: 'pointer',
-          }}
-        >
-          Add
-        </button>
       </div>
-
-      {preview && inputText.trim() && (
-        <div style={{ fontSize: 11, marginBottom: 6, paddingLeft: 2 }}>
-          {preview.resolved
-            ? <span style={{ color: '#6ddb6d' }}>✓ {preview.label}</span>
-            : <span style={{ color: '#ff6b6b' }}>✗ unrecognized</span>}
+      {hover && (
+        <div className={`cmods-tip ${hover.ok ? 'cmods-tip-ok' : 'cmods-tip-bad'}`}
+          style={{ left: hover.x + 12, top: hover.y + 14 }}>
+          {hover.ok ? '✓ ' : '✗ '}{hover.label}
         </div>
       )}
-
-      {customMods.length === 0 && (
-        <div style={{ fontSize: 12, color: '#666', fontStyle: 'italic' }}>No custom mods added.</div>
-      )}
-
-      {customMods.map((mod, i) => {
-        const st = statusMap[mod]
-        return (
-          <div
-            key={i}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '4px 6px', marginBottom: 3,
-              background: 'rgba(255,255,255,0.03)', borderRadius: 4,
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}
-          >
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 12, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {mod}
-              </div>
-              {st && (
-                <div style={{ fontSize: 10, marginTop: 1 }}>
-                  {st.resolved
-                    ? <span style={{ color: '#6ddb6d' }}>✓ {st.stat_display}</span>
-                    : <span style={{ color: '#ff6b6b' }}>✗ unrecognized</span>}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => removeCustomMod(i)}
-              style={{
-                marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer',
-                color: '#777', fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0,
-              }}
-              title="Remove"
-            >
-              ×
-            </button>
-          </div>
-        )
-      })}
     </div>
   )
 }

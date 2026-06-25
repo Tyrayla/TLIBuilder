@@ -904,6 +904,8 @@ export interface StatSheetResponse {
   stats: Record<string, StatEntry>
   condition_maximums: Record<string, number>
   clamp_report: Record<string, { requested: number; applied: number }>
+  // Condition keys any build mod references (gate on/off) — the Config screen hides the rest unless Show all.
+  referenced_conditions?: string[]
   offense?: OffenseResult | null
   defense?: DefenseResult | null
   custom_mod_statuses?: CustomModStatus[]

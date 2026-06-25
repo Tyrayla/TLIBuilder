@@ -229,6 +229,29 @@ def _eval_condition(
     return False
 
 
+def _extract_cond_keys(expr, out: set) -> None:
+    """Collect every condition key an expression references (regardless of whether it currently holds), so the UI
+    can hide conditions no build mod references. Mirrors the expression shapes in _eval_condition; `const` is a
+    benign always-on clause (no key)."""
+    if expr is None:
+        return
+    if isinstance(expr, str):
+        out.add(expr)
+        return
+    if not isinstance(expr, dict) or "const" in expr:
+        return
+    if "and" in expr:
+        for e in expr["and"]:
+            _extract_cond_keys(e, out)
+    elif "or" in expr:
+        for e in expr["or"]:
+            _extract_cond_keys(e, out)
+    elif "not" in expr:
+        _extract_cond_keys(expr["not"], out)
+    elif "key" in expr:
+        out.add(expr["key"])
+
+
 def _apply_effect_contribs(source, contribs, source_type, label, active_booleans, numeric_vals):
     """Apply pre-resolved pact-spirit / hero-memory contributions (server._resolve_effect_modifiers).
     Gates on the optional translated `condition` exactly like the gear-contribution loop: boolean → on/off,
@@ -240,6 +263,7 @@ def _apply_effect_contribs(source, contribs, source_type, label, active_booleans
             continue
         amount = float(contrib.get("amount", 0))
         cond = contrib.get("condition")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -295,6 +319,7 @@ def aggregate(
         if not stat:
             continue
         cond = contrib.get("condition")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -361,6 +386,7 @@ def aggregate(
             continue
         amount = float(contrib.get("amount", 0))
         cond = contrib.get("condition")            # gate split off server-side (e.g. "vs Low Life enemies")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -391,6 +417,7 @@ def aggregate(
             continue
         amount = float(contrib.get("amount", 0))
         cond = contrib.get("condition")            # gated specific-tier line ("…when only 1 enemy nearby")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -430,6 +457,7 @@ def aggregate(
             continue
         amount = float(contrib.get("amount", 0))
         cond = contrib.get("condition_expr")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -457,6 +485,7 @@ def aggregate(
             continue
         amount = float(contrib.get("amount", 0))
         cond = contrib.get("condition_expr")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):

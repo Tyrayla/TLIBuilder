@@ -4,11 +4,17 @@ import { useReferenceStore } from '../store/referenceStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
 import type { ConditionDef, CurseConflict } from '../api/client'
 import CustomModsPanel from '../components/CustomModsPanel'
+import { wornWeaponFlags, type WornWeaponFlags } from '../utils/statsPayload'
 
-// Conditions that only make sense when a specific skill is equipped (checked across ALL skill slots).
-// e.g. Berserking Blade's buff stacks are meaningless unless Berserking Blade is slotted somewhere.
-const SKILL_GATED_CONDITIONS: Record<string, string> = {
-  berserking_blade_stacks: 'berserking_blade',
+// Categories whose conditions always show (player-side scenario inputs relevant to any build).
+const ALWAYS_SHOW_CATEGORIES = new Set([
+  'Blessings', 'Enemy', 'Resources', 'Movement', 'Character', 'Recent', 'Fervor', 'Attributes',
+])
+// Exceptions inside an always-show category that are instead source-gated (only shown if a mod consumes them).
+const REFERENCE_GATED_KEYS = new Set(['mana_consumed_recently', 'life_consumed_recently'])
+// Equipment conditions gated on what the player is actually wielding (not on mod references).
+const EQUIPMENT_GATE: Record<string, keyof WornWeaponFlags> = {
+  holding_shield: 'shield', holding_one_handed: 'oneHanded', holding_two_handed: 'twoHanded', dual_wielding: 'dualWield',
 }
 
 // Per-category accent color for the Config panels' left border (falls back to a neutral lavender).
@@ -49,8 +55,10 @@ export default function BuildOverviewScreen() {
   const clampReport = useBuildStore(s => s.computedStats.clamp_report)
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
-  const skills = useBuildStore(s => s.skills)
   const traitId = useBuildStore(s => s.traitId)
+  const gear = useBuildStore(s => s.gear)
+  // Condition keys any build mod references (stable ref — only changes when stats recompute, so no render loop).
+  const referencedConditions = useBuildStore(s => s.computedStats.referenced_conditions)
   // Show-all reveals every conditional (skill-gated + hero-trait for other/unselected traits). Defaults OFF
   // so the screen stays focused on what's relevant; computed/auto-derived (visible:false) stay hidden always.
   const [showAll, setShowAll] = useState(false)
@@ -85,22 +93,31 @@ export default function BuildOverviewScreen() {
       + 'resolve it in the Curse Conflict panel below (curse damage-taken isn\'t applied until you do).',
   })
 
-  const slottedSkillIds = new Set(skills.map(sk => sk.item_id))
-  // A condition is hidden when it requires a skill that isn't equipped in any slot.
-  const isSkillGatedOut = (key: string): boolean => {
-    const req = SKILL_GATED_CONDITIONS[key]
-    return req !== undefined && !slottedSkillIds.has(req)
+  const worn = wornWeaponFlags(gear)
+  const referenced = new Set(referencedConditions ?? [])
+
+  // A condition is "active" when the user has it on (boolean true / numeric > 0, honoring its default).
+  const isCondActive = (c: ConditionDef): boolean => {
+    const v = conditionState[c.key]
+    if (c.value_type === 'boolean') return (v ?? c.default_bool) === true
+    return (((v as number) ?? c.default_value ?? 0)) > 0
   }
 
-  // What shows in the conditionals list. Computed/auto-derived (visible:false) are never user-shown. With
-  // show-all OFF: hide skill-gated conditions whose skill isn't equipped, and hero-trait conditions (those
-  // carry a trait_id) unless THAT trait is the selected one. Show-all reveals everything else.
+  // What shows in the Config list. Hidden by default unless the build has a SOURCE for it, so the screen only
+  // surfaces relevant scenario inputs. visible:false (computed/derived) is never shown. Order of checks:
+  //  - Show all → everything; an already-active toggle is never hidden.
+  //  - Equipment → gated on the weapon/offhand actually worn.
+  //  - Hero-trait conditions (trait_id) → only when THAT trait is selected.
+  //  - Always-show categories (Blessings/Enemy/Resources/…) → shown, except consumption keys.
+  //  - Everything else (Buffs/Skill/Combat/Tangle/Spell Burst + consumption) → only if a build mod references it.
   const isCondVisible = (c: ConditionDef): boolean => {
     if (c.visible === false) return false
     if (showAll) return true
-    if (isSkillGatedOut(c.key)) return false
+    if (isCondActive(c)) return true
+    if (c.key in EQUIPMENT_GATE) return worn[EQUIPMENT_GATE[c.key]]
     if (c.trait_id) return c.trait_id === traitId
-    return true
+    if (c.category && ALWAYS_SHOW_CATEGORIES.has(c.category) && !REFERENCE_GATED_KEYS.has(c.key)) return true
+    return referenced.has(c.key)
   }
 
   const setBoolean = (key: string, value: boolean) =>
@@ -121,7 +138,7 @@ export default function BuildOverviewScreen() {
   if (conditionsData) {
     for (const items of Object.values(conditionsData)) {
       for (const cond of items) {
-        if (cond.is_derived || cond.visible === false || isSkillGatedOut(cond.key)) continue
+        if (cond.is_derived || cond.visible === false) continue
         const val = conditionState[cond.key]
         if (cond.value_type === 'boolean' && val === true) activeCondCount++
         if (cond.value_type === 'numeric' && (val as number) > 0) activeCondCount++
@@ -183,11 +200,8 @@ export default function BuildOverviewScreen() {
         </div>
       )}
 
-      {/* Custom modifiers — dedicated panel pinned at the top of Config (was on the old Calcs page). */}
-      <ConfigPanel title="Custom Modifiers" accent="#c8a050" full>
-        <CustomModsPanel />
-      </ConfigPanel>
-
+      <div className="config-body">
+        <div className="config-conditions">
       {loading && <div className="panel-empty">Loading…</div>}
       {referenceResolved && conditionsFailed && (
         <div className="panel-empty" style={{ color: '#ff6b6b' }}>Couldn't load condition data — restart to retry.</div>
@@ -277,6 +291,13 @@ export default function BuildOverviewScreen() {
           </div>
         </div>
       )}
+        </div>
+
+        <aside className="config-custommods">
+          <div className="config-custommods-title">Custom Modifiers</div>
+          <CustomModsPanel />
+        </aside>
+      </div>
     </div>
   )
 }

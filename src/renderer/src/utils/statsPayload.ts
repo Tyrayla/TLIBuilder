@@ -56,6 +56,22 @@ export function countUniqueWeaponTypes(gear: EquippedGearItem[]): number {
   return classes.size
 }
 
+// Which weapon-class scenarios the equipped gear actually satisfies — drives Config's Equipment-condition
+// visibility (show "Holding Two-Handed" only when a 2H is worn, etc.). Reuses the weapon-class catalog map.
+export interface WornWeaponFlags { shield: boolean; oneHanded: boolean; twoHanded: boolean; dualWield: boolean }
+export function wornWeaponFlags(gear: EquippedGearItem[]): WornWeaponFlags {
+  const classMap = weaponClassMap()
+  let shield = false, oneHanded = false, twoHanded = false
+  for (const w of gear) {
+    if (!(itemHasSlot(w, 'weapon1') || itemHasSlot(w, 'weapon2'))) continue
+    if (isShieldItem(w)) { shield = true; continue }
+    const cls = w.base_type ? classMap.get(w.base_type) : undefined
+    if (cls?.startsWith('two_handed')) twoHanded = true
+    else if (cls?.startsWith('one_handed')) oneHanded = true
+  }
+  return { shield, oneHanded, twoHanded, dualWield: isDualWielding(gear) }
+}
+
 /**
  * Assemble the `/engine/stats` request payload from current store state.
  * Shared by the background recalc (useBuildCalculation) and the damage-delta hook so both

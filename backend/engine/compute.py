@@ -852,4 +852,5 @@ def compute(
         warnings=warnings,
         reservation=reservation,
         numbed=numbed,
+        referenced_conditions=sorted(source.referenced_conditions),
     )

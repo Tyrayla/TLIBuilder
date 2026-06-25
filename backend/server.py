@@ -1025,6 +1025,8 @@ def engine_stats(req: EngineStatsRequest):
         "stats": result.stat_map,
         "condition_maximums": result.condition_maximums,
         "clamp_report": result.clamp_report,
+        # Condition keys any build mod references (gate on/off) — the Config screen hides the rest by default.
+        "referenced_conditions": result.referenced_conditions,
         "offense": result.offense,
         "defense": result.defense,
         "custom_mod_statuses": custom_mod_statuses,

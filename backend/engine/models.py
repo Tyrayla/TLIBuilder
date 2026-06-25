@@ -78,6 +78,9 @@ class BuildSource:
     # → byte-identical output (the same dormancy guarantee scoped_entries gives).
     slot_entries: list[tuple[str, float, int, str | None]] = field(default_factory=list)  # (stat, amount, slot, scope)
     slot_log: list[SourceEntry] = field(default_factory=list)
+    # Condition keys referenced by ANY contribution in this build (collected before the on/off gate, so a
+    # condition counts even when currently toggled off). Drives the UI's "hide conditions with no source".
+    referenced_conditions: set[str] = field(default_factory=set)
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
@@ -248,3 +251,4 @@ class StatResult:
     warnings:            list | None = None         # general build diagnostics (e.g. an ineffective/dead curse)
     reservation:         dict | None = None         # mana/life sealing: totals + per-skill seal breakdowns
     numbed:              dict | None = None          # Numbed ailment box: base/stacks/duration/effect pools + uptime
+    referenced_conditions: list[str] = field(default_factory=list)  # condition keys any build mod references (gate on/off) — UI hides the rest
