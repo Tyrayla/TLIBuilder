@@ -25,9 +25,8 @@ import StatsScreen from './screens/StatsScreen'
 import PlayerStatsScreen from './screens/PlayerStatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
-import CalcsScreen from './screens/CalcsScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'debug-stats' | 'calcs' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'debug-stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
 
 interface CascadeModal {
   removingSlot: number
@@ -754,8 +753,6 @@ function App() {
     screenContent = <PlayerStatsScreen />
   } else if (screen === 'debug-stats') {
     screenContent = import.meta.env.DEV ? <StatsScreen /> : null
-  } else if (screen === 'calcs') {
-    screenContent = <CalcsScreen />
   } else if (screen === 'gear') {
     screenContent = <GearScreen onBack={() => setScreen('build-overview')} />
   } else if (screen === 'skills') {

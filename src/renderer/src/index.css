@@ -1409,25 +1409,37 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   column-gap: 10px;
 }
 
+/* Config panels — match the Stats screen's StatPanel look: accent LEFT border (color set inline per category) +
+   cool-charcoal uppercase header. */
 .cond-card {
-  background: #0a0a1a;
+  background: #0d0d1c;
   border: 1px solid #1e1e3a;
+  border-left: 3px solid #7a6cc8;   /* color overridden inline per category accent */
   border-radius: 6px;
   overflow: hidden;
   break-inside: avoid;       /* keep a category card whole within a column */
   margin-bottom: 10px;       /* multicol uses margins, not grid gap */
 }
+/* Full-width panel (e.g. the Custom Modifiers panel pinned above the category masonry). */
+.cond-card--full { width: 100%; }
 
 .cond-card-header {
-  background: #101025;
-  padding: 5px 10px 4px;
+  background: rgba(86,98,130,0.18);
+  padding: 5px 10px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #6666aa;
+  color: #cccccc;
   border-bottom: 1px solid #1a1a32;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  user-select: none;
 }
+.cond-card-header--clickable { cursor: pointer; }
+.cond-card-collapse { color: #8a8aa5; font-size: 13px; line-height: 1; }
 
 .cond-card-body {
   padding: 6px 8px;

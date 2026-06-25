@@ -1,12 +1,44 @@
 import React, { useEffect, useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
+import { useUiPrefs } from '../store/uiPrefsStore'
 import type { ConditionDef, CurseConflict } from '../api/client'
+import CustomModsPanel from '../components/CustomModsPanel'
 
 // Conditions that only make sense when a specific skill is equipped (checked across ALL skill slots).
 // e.g. Berserking Blade's buff stacks are meaningless unless Berserking Blade is slotted somewhere.
 const SKILL_GATED_CONDITIONS: Record<string, string> = {
   berserking_blade_stacks: 'berserking_blade',
+}
+
+// Per-category accent color for the Config panels' left border (falls back to a neutral lavender).
+const CATEGORY_ACCENT: Record<string, string> = {
+  Buffs: '#7fc97f', Enemy: '#e0726a', 'Hero Trait': '#c0a0ff', Skill: '#f0c070', Combat: '#e8923c',
+  Recent: '#9aa0c8', Resources: '#6fc0e0', Blessings: '#9090e0', Movement: '#60c0e8', Fervor: '#c8a050',
+  Character: '#e0a050', Equipment: '#8a8aa0', Tangle: '#8888ff', 'Spell Burst': '#c8a0ff', Attributes: '#6fa8e0',
+}
+const accentFor = (cat: string): string => CATEGORY_ACCENT[cat] ?? '#7a6cc8'
+
+// Config panel: accent left-border + cool-charcoal uppercase header, matching the Stats screen's StatPanel.
+// Collapsible only when Settings → Display "Collapsible panels" is on (mirrors the Stats screen). Default expanded.
+function ConfigPanel({ title, accent, headerColor, full, children }: {
+  title: React.ReactNode; accent: string; headerColor?: string; full?: boolean; children: React.ReactNode
+}) {
+  const collapsible = useUiPrefs(s => s.collapsiblePanels)
+  const [collapsed, setCollapsed] = useState(false)
+  const showCollapsed = collapsible && collapsed
+  return (
+    <div className={`cond-card${full ? ' cond-card--full' : ''}`} style={{ borderLeftColor: accent }}>
+      <div className={`cond-card-header${collapsible ? ' cond-card-header--clickable' : ''}`}
+        style={headerColor ? { color: headerColor } : undefined}
+        onClick={collapsible ? () => setCollapsed(c => !c) : undefined}
+        role={collapsible ? 'button' : undefined}>
+        <span>{title}</span>
+        {collapsible && <span className="cond-card-collapse">{collapsed ? '+' : '−'}</span>}
+      </div>
+      {!showCollapsed && <div className="cond-card-body">{children}</div>}
+    </div>
+  )
 }
 
 export default function BuildOverviewScreen() {
@@ -103,7 +135,7 @@ export default function BuildOverviewScreen() {
   return (
     <div className="screen build-overview">
       <div className="cond-screen-header">
-        <span>Conditionals</span>
+        <span>Config</span>
         {activeCondCount > 0 && <span className="panel-header-badge">{activeCondCount} active</span>}
         <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9aa', cursor: 'pointer', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
           <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />
@@ -151,6 +183,11 @@ export default function BuildOverviewScreen() {
         </div>
       )}
 
+      {/* Custom modifiers — dedicated panel pinned at the top of Config (was on the old Calcs page). */}
+      <ConfigPanel title="Custom Modifiers" accent="#c8a050" full>
+        <CustomModsPanel />
+      </ConfigPanel>
+
       {loading && <div className="panel-empty">Loading…</div>}
       {referenceResolved && conditionsFailed && (
         <div className="panel-empty" style={{ color: '#ff6b6b' }}>Couldn't load condition data — restart to retry.</div>
@@ -160,36 +197,31 @@ export default function BuildOverviewScreen() {
         <div className="cond-grid">
           <div className="cond-masonry">
           {curseConflict && (
-            <div className="cond-card" style={{ border: '1px solid #c0392b' }}>
-              <div className="cond-card-header" style={{ color: '#e07a6e' }}>⚠ Curse Conflict</div>
-              <div className="cond-card-body">
-                <div style={{ fontSize: 10.5, color: '#cf7d72', lineHeight: 1.45, marginBottom: 8 }}>
-                  Limit {curseConflict.limit}. Select which {curseConflict.limit === 1 ? 'curse applies' : `${curseConflict.limit} curses apply`} (rest suppressed):
-                </div>
-                {Array.from({ length: curseConflict.limit }).map((_, i) => (
-                  <select
-                    key={i}
-                    className="cond-stack-input"
-                    style={{ width: '100%', marginBottom: 6 }}
-                    value={curseSelected[i] ?? ''}
-                    onChange={e => chooseCurseAt(i, e.target.value)}
-                  >
-                    <option value="">— None —</option>
-                    {curseConflict.active
-                      .filter(a => a.sel_key === curseSelected[i] || !curseSelected.includes(a.sel_key))
-                      .map(a => <option key={a.sel_key} value={a.sel_key}>{a.name} ({a.source})</option>)}
-                  </select>
-                ))}
+            <ConfigPanel title="⚠ Curse Conflict" accent="#c0392b" headerColor="#e07a6e">
+              <div style={{ fontSize: 10.5, color: '#cf7d72', lineHeight: 1.45, marginBottom: 8 }}>
+                Limit {curseConflict.limit}. Select which {curseConflict.limit === 1 ? 'curse applies' : `${curseConflict.limit} curses apply`} (rest suppressed):
               </div>
-            </div>
+              {Array.from({ length: curseConflict.limit }).map((_, i) => (
+                <select
+                  key={i}
+                  className="cond-stack-input"
+                  style={{ width: '100%', marginBottom: 6 }}
+                  value={curseSelected[i] ?? ''}
+                  onChange={e => chooseCurseAt(i, e.target.value)}
+                >
+                  <option value="">— None —</option>
+                  {curseConflict.active
+                    .filter(a => a.sel_key === curseSelected[i] || !curseSelected.includes(a.sel_key))
+                    .map(a => <option key={a.sel_key} value={a.sel_key}>{a.name} ({a.source})</option>)}
+                </select>
+              ))}
+            </ConfigPanel>
           )}
           {condCategories.map(([cat, items]) => {
             const visibleItems = items.filter(isCondVisible)
             if (visibleItems.length === 0) return null
             return (
-              <div key={cat} className="cond-card">
-                <div className="cond-card-header">{cat}</div>
-                <div className="cond-card-body">
+              <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
                   {visibleItems.map(cond => {
                     const isComputed = cond.source === 'computed_stat'
                     if (cond.value_type === 'numeric') {
@@ -239,8 +271,7 @@ export default function BuildOverviewScreen() {
                       </label>
                     )
                   })}
-                </div>
-              </div>
+              </ConfigPanel>
             )
           })}
           </div>

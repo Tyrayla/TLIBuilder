@@ -54,7 +54,7 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
   // previous result until the new one lands) — only fall back to a placeholder when there's nothing yet.
   // This avoids the box flashing "…"/empty on every edit.
   return (
-    <div className="sidebar-dps-box" onClick={() => onNav('stats')} title="Click to open Stats">
+    <div className="sidebar-dps-box" onClick={() => onNav('stats')} title="Click to open Calcs">
       <div className="sidebar-dps-label">Full DPS</div>
       <div className="sidebar-dps-value">
         {total > 0 ? fmtDps(total) : statsLoading ? '…' : '—'}
@@ -155,12 +155,11 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
 
       <div className="sidebar-divider" />
 
-      <NavBtn label="Conditionals" active={screen === 'build-overview'} onClick={() => onNav('build-overview')} />
-      <NavBtn label="Stats" active={screen === 'stats'} onClick={() => onNav('stats')} />
+      <NavBtn label="Config" active={screen === 'build-overview'} onClick={() => onNav('build-overview')} />
+      <NavBtn label="Calcs" active={screen === 'stats'} onClick={() => onNav('stats')} />
       {import.meta.env.DEV && (
         <NavBtn label="Debug Stats" active={screen === 'debug-stats'} onClick={() => onNav('debug-stats')} />
       )}
-      <NavBtn label="Calcs" active={screen === 'calcs'} onClick={() => onNav('calcs')} />
       <NavBtn label="Notes" active={screen === 'notes'} onClick={() => onNav('notes')} />
 
       <div className="sidebar-divider" />
