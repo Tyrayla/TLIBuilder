@@ -1338,11 +1338,60 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 16px 20px;
   gap: 12px;
   box-sizing: border-box;
+  min-height: 0;
 }
 
 .notes-header {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
 }
+.notes-help-btn {
+  width: 20px; height: 20px; border-radius: 50%; border: 1px solid #3a3a6a;
+  background: #14142a; color: #b0b0d0; font-size: 12px; line-height: 1; cursor: pointer;
+}
+.notes-help-btn:hover { border-color: #5a4ea0; color: #d8c8ff; }
+.notes-help-pop {
+  position: absolute; top: 30px; left: 0; z-index: 50; max-width: 440px;
+  background: #0e0e1e; border: 1px solid #3a3a6a; border-radius: 6px; padding: 10px 12px;
+  font-size: 12px; color: #cdd2f0; display: flex; flex-direction: column; gap: 6px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6); line-height: 1.45;
+}
+.notes-help-title { font-weight: 700; color: #c7a0ff; }
+
+/* Inline hyperlink editor (Lexical) */
+.notes-editor { position: relative; flex: 1; min-height: 0; display: flex; }
+.notes-contenteditable {
+  flex: 1; min-height: 0; overflow-y: auto; outline: none;
+  background: #0c0c1a; border: 1px solid #2a2a4a; border-radius: 6px;
+  padding: 12px 14px; font-size: 13px; line-height: 1.7; color: #d8d8ec; white-space: pre-wrap;
+}
+.notes-contenteditable:focus { border-color: #4a3a7a; }
+.notes-placeholder { position: absolute; top: 12px; left: 14px; color: #4a4a66; font-size: 13px; pointer-events: none; }
+.note-paragraph { margin: 0; }
+
+/* Inline entity chip */
+.note-chip { border-bottom: 1px dotted currentColor; cursor: default; font-weight: 600; padding: 0 1px; white-space: nowrap; }
+.note-chip-host { display: inline; }
+.note-chip-tip { max-width: 320px; }
+.note-chip-tip-title { font-weight: 700; font-size: 12px; }
+.note-chip-tip-kind { font-size: 10px; color: #8a8aa5; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+.note-chip-tip-line { font-size: 11px; color: #c0c4e0; line-height: 1.4; }
+
+/* @-mention typeahead dropdown */
+.note-typeahead {
+  background: #0d0d20; border: 1px solid #3a3a6a; border-radius: 6px; box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  padding: 4px; max-height: 300px; overflow-y: auto; min-width: 240px;
+}
+.note-typeahead-item {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: none; border: none; text-align: left; padding: 5px 8px; border-radius: 4px; cursor: pointer;
+}
+.note-typeahead-item:hover, .note-typeahead-item.active { background: #1a1040; }
+.note-typeahead-name { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-typeahead-kind { font-size: 10px; color: #8a8aa5; flex-shrink: 0; }
 
 .notes-textarea {
   flex: 1;
@@ -4803,18 +4852,20 @@ span.gear-affix-label {
 .cmods-tip-ok { color: #9ee89e; }
 .cmods-tip-bad { color: #ff9b9b; }
 
-/* Enemy / Target editor (Config) */
+/* Enemy / Target editor (Config) — a fixed-width side panel anchored left of Custom Modifiers. */
 .enemy-box {
-  margin: 0 0 10px; padding: 8px 12px; border-radius: 4px;
+  width: 220px; flex-shrink: 0; align-self: flex-start;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 8px 12px; border-radius: 4px;
   background: rgba(255,255,255,0.03); border: 1px solid #2a2a4a;
 }
-.enemy-box-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.enemy-box-head { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .enemy-box-title { font-size: 11px; font-weight: 700; color: #e0726a; text-transform: uppercase; letter-spacing: 0.06em; }
 .enemy-target-select {
-  background: #0d0d1e; color: #ddd; border: 1px solid #3a3a5a; border-radius: 4px; padding: 3px 6px; font-size: 11px;
+  background: #0d0d1e; color: #ddd; border: 1px solid #3a3a5a; border-radius: 4px; padding: 3px 6px; font-size: 11px; width: 100%;
 }
-.enemy-box-note { color: #777; font-size: 11px; }
-.enemy-fields { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-top: 8px; }
+.enemy-box-note { color: #777; font-size: 10.5px; line-height: 1.35; }
+.enemy-fields { display: flex; flex-direction: column; gap: 8px; }
 .enemy-field { display: flex; flex-direction: column; gap: 3px; }
 .enemy-field-label { font-size: 10px; color: #9aa; text-transform: uppercase; letter-spacing: 0.04em; }
 .enemy-field-input { display: flex; align-items: center; gap: 3px; }

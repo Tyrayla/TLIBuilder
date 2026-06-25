@@ -242,7 +242,9 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
     set((s) => ({ traitSkillSupports, buildVersion: s.buildVersion + 1 })),
 
   // ── Notes ───────────────────────────────────────────────────────────────────
-  setNotes: (notes) => set({ notes }),
+  // Bump buildVersion so notes edits flag the build dirty. They don't affect DPS, so useBuildCalculation
+  // short-circuits the recompute (the engine fingerprint excludes notes) — dirty without wasted engine calls.
+  setNotes: (notes) => set((s) => ({ notes, buildVersion: s.buildVersion + 1 })),
 
   // ── Compound trait setter ────────────────────────────────────────────────────
   setTraitData: (traitId, traitSlotLevels, advancedTraitSelections) =>

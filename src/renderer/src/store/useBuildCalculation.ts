@@ -3,6 +3,7 @@ import { debounce } from 'lodash-es'
 import { useBuildStore } from './buildStore'
 import { api } from '../api/client'
 import { buildEngineStatsPayload } from '../utils/statsPayload'
+import { loadoutKeyFromState } from '../utils/loadoutAreas'
 
 export function useBuildCalculation() {
   const buildVersion = useBuildStore((s) => s.buildVersion)
@@ -20,6 +21,15 @@ export function useBuildCalculation() {
       if (s.computedVersion >= s.buildVersion) return
 
       const version = s.buildVersion
+
+      // Engine inputs unchanged (e.g. only notes/name edited — those bump buildVersion to flag the build dirty
+      // but don't affect DPS) → skip the recompute, just re-mark current from the active loadout's cached result.
+      const key = loadoutKeyFromState(s as unknown as Record<string, unknown>, s.uptimeMode)
+      const cached = s.activeLoadoutId ? s.loadoutStatsCache[s.activeLoadoutId] : undefined
+      if (cached && cached.key === key) {
+        useBuildStore.getState().setComputedStats(cached.stats, version)
+        return
+      }
 
       // Always compute: the character base (Life/Mana/Energy/attributes by level) is present even with no
       // gear/skill/tree, so the Stats screen shows all the default categories instead of a stub.

@@ -215,8 +215,6 @@ export default function BuildOverviewScreen() {
         </label>
       </div>
 
-      <EnemyTargetBox />
-
       {conflicts.length > 0 && (
         <div style={{
           margin: '0 0 10px', padding: '8px 12px', borderRadius: 4,
@@ -333,6 +331,8 @@ export default function BuildOverviewScreen() {
         </div>
       )}
         </div>
+
+        <EnemyTargetBox />
 
         <aside className="config-custommods">
           <div className="config-custommods-title">Custom Modifiers</div>
