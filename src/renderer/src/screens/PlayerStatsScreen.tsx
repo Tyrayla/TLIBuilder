@@ -110,7 +110,7 @@ function BreakdownHeader({ title, total, totalUnit, formula }: { title: string; 
     <>
       <div style={{ marginBottom: 3 }}>
         <span style={{ fontWeight: 700, color: '#cfcfe6' }}>{title}</span>
-        {formula && <span style={{ fontWeight: 400, color: '#5f5f72', fontSize: 10, marginLeft: 8, fontVariantNumeric: 'tabular-nums' }}>{formula}</span>}
+        {formula && <span style={{ fontWeight: 400, color: '#bdb4e6', fontSize: 11, marginLeft: 8, fontVariantNumeric: 'tabular-nums' }}>{formula}</span>}
       </div>
       {total !== undefined && (
         <div style={{ marginBottom: 6, display: 'flex', alignItems: 'baseline', gap: 12 }}>

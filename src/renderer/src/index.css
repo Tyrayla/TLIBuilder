@@ -953,7 +953,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 /* Shell chrome */
 .tooltip-title    { font-size: 13px; font-weight: 700; color: #c8a050; margin-bottom: 2px; }
-.tooltip-subtitle { font-size: 11px; color: #7070aa; margin-bottom: 2px; }
+.tooltip-subtitle { font-size: 11px; color: #bdb4e6; margin-bottom: 2px; }
 .tooltip-divider  { border-top: 1px solid #2a2a3a; margin: 6px 0; }
 .tooltip-body     { display: flex; flex-direction: column; gap: 2px; }
 
@@ -1049,7 +1049,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .settings-row-disabled { opacity: 0.45; }
 .settings-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .settings-row-label > span:first-child { font-size: 13px; color: #e0e0e0; }
-.settings-row-hint { font-size: 11px; color: #8088a0; line-height: 1.4; }
+.settings-row-hint { font-size: 11px; color: #cdbff2; line-height: 1.4; }
 .settings-segmented { display: inline-flex; border: 1px solid #2a3650; border-radius: 5px; overflow: hidden; flex: none; }
 .settings-seg-btn {
   background: #0e1626; color: #9aa4bd; border: none; padding: 6px 14px; font-size: 12px;
@@ -4223,13 +4223,14 @@ span.gear-affix-label {
   flex: 1;
   overflow: hidden;
 }
-/* One row per spirit: the card (left) + a nested node area (right). */
+/* One row per spirit: the card (left) + a nested node area (right). The card STRETCHES to the row height so
+   empty "Add Pactspirit" cells are always the same size as filled cards (not content-sized). */
 .pact-spirit-row {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 205px 1fr;
   flex: 1;
   min-height: 0;
-  align-items: center;
+  align-items: stretch;
 }
 /* Node area: 10 columns × 2 rows (node row + Undetermined branch row), packed tight + vertically centered so
    branch slots sit DIRECTLY under the nodes above and their connector lines meet. */
@@ -4240,14 +4241,16 @@ span.gear-affix-label {
   row-gap: 16px;
   align-content: center;
 }
-/* Vertical link from the outer node down to the Undetermined node. */
+/* Vertical link from the outer node down to the Undetermined node. The line is over-long and the Undetermined
+   node sits at z-index 0 (below the outer node, see rule near .pact-node) so the overshoot tucks behind the outer
+   node — guaranteeing the visible segment always bridges the gap cleanly regardless of exact row spacing. */
 .pact-node-undet::before {
   content: '';
   position: absolute;
   left: 50%;
   bottom: 100%;
   width: 2px;
-  height: 24px;
+  height: 48px;
   background: rgba(255,255,255,0.18);
   transform: translateX(-50%);
 }
@@ -4265,7 +4268,7 @@ span.gear-affix-label {
   padding: 14px 12px;
   gap: 8px;
   overflow: hidden;
-  min-height: 90px;
+  min-height: 200px;
 }
 .pact-card-cell:hover {
   border-color: rgba(255,255,255,0.35);
@@ -4423,6 +4426,9 @@ span.gear-affix-label {
   box-shadow: 0 0 14px 5px rgba(255,255,255,0.28);
   transform: scale(1.12);
 }
+/* Undetermined node below the outer: keep it under the outer node so its over-long vertical connector's overshoot
+   hides behind the outer node (clean gap-bridging line). Placed after .pact-node so it wins the z-index. */
+.pact-node-undet { z-index: 0; }
 
 .pact-node.node-inner {
   width: 28px;
@@ -4732,5 +4738,6 @@ span.gear-affix-label {
 .loadout-area-label { display: flex; align-items: center; gap: 4px; color: #c0c0d8; }
 .loadout-expand { color: #44446a; font-size: 9px; cursor: default; }
 .loadout-area-ctrl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.loadout-hint { font-size: 11px; color: #7a7a98; }
+/* Help/hint text — brighter lavender for readability (owner pick, 2026-06-25). */
+.loadout-hint { font-size: 12px; color: #cdbff2; line-height: 1.45; }
 .loadout-check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
