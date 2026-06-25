@@ -56,6 +56,8 @@ def _prism_item(it: dict, kind: str) -> dict:
         "tags": it.get("tags") or [],
         "detail": it.get("detail") or [],
         "implicit": it.get("implicit") or [],
+        # For replace prisms, the glossary carries the replacement Core Talent's name + description.
+        "glossary": it.get("glossary") or [],
     }
     rr = _parse_temper_ranges(it.get("glossary"))
     if rr:

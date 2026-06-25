@@ -59,13 +59,28 @@ def test_random_affix_pools_split_and_dedupe():
     assert cat["do_not_replace"]["Juggernaut"][0]["penalty"] == "-8 % Defense"
 
 
-def test_phantasmagoria_scaled_dupe_stripped_but_overalloc_counts_kept():
+def test_phantasmagoria_base_and_scaled_tagged_overalloc_counts_kept():
     cat = categorize_prism_catalog(_RAW)
-    blocks = [m["modifier"] for m in cat["middle"] if "Block Ratio" in m["modifier"]]
-    assert blocks == ["All Legendary Medium Talent within the area also gain: +5 % Block Ratio"]   # +9 % dropped
+    blocks = {m["modifier"]: m["scaled"] for m in cat["middle"] if "Block Ratio" in m["modifier"]}
+    # both the base (+5 %) and the ×1.75 Phantasmagoria variant (+9 %) are kept, oppositely tagged
+    assert blocks["All Legendary Medium Talent within the area also gain: +5 % Block Ratio"] is False
+    assert blocks["All Legendary Medium Talent within the area also gain: +9 % Block Ratio"] is True
     # the over-allocation 1/2/3-additional-time counts share a skeleton but must all survive
     counts = sorted(a["count"] for a in cat["advanced"] if a["kind"] == "over_alloc")
     assert counts == [1, 2, 3]
+
+
+def test_scaled_variant_groups_despite_missing_plus_sign():
+    """The base writes '+N %' but the scaled variant writes 'M %' (no '+') — they must still pair."""
+    raw = {"items": [{"name": "Ethereal Prism: Phantasmagoria", "kind": "ethereal_prism", "icon_url": "", "tags": [], "detail": []}],
+           "base_affixes": ["+75 % to the effects of Random Affixes on this Prism"],
+           "random_affixes": [
+               {"modifier": "All Micro Talent within the area also gain: +6 % Aura Effect", "type": "Prism Gauge - Rare"},
+               {"modifier": "All Micro Talent within the area also gain: 10.5 % Aura Effect", "type": "Prism Gauge - Rare"},
+           ]}
+    mid = {m["modifier"]: m["scaled"] for m in categorize_prism_catalog(raw)["middle"]}
+    assert mid["All Micro Talent within the area also gain: +6 % Aura Effect"] is False
+    assert mid["All Micro Talent within the area also gain: 10.5 % Aura Effect"] is True
 
 
 # ── Over-allocation cap ──────────────────────────────────────────────────────
@@ -85,6 +100,27 @@ def test_over_allocation_raises_cap():
         t.allocate("a")
     t.allocate("a", max_overrides={"a": 5})   # raised cap lets a 4th point in
     assert t.nodes["a"].current_points == 4
+
+
+def test_extra_column_points_unlock_a_column():
+    # An Inverse Image's reflected-box points (virtual cells) count toward column-unlock thresholds.
+    t = PassiveTree("t")
+    t.add_node(PassiveNode(id="a", node_type=NodeType.MICRO, column=0, row=0, max_points=3))
+    t.add_node(PassiveNode(id="b", node_type=NodeType.MICRO, column=1, row=0, max_points=3))
+    with pytest.raises(ValueError):       # col 1 locked: 0 points before it
+        t.allocate("b")
+    t.extra_column_points = {0: 3}        # box puts 3 points in column 0
+    t.allocate("b")                       # col 1 now unlocked
+    assert t.nodes["b"].current_points == 1
+
+
+def test_extra_column_points_protect_against_strand_on_deallocate():
+    # Removing a real point that would strand the box's points in a later column is rejected.
+    t = PassiveTree("t")
+    t.add_node(PassiveNode(id="a", node_type=NodeType.MICRO, column=0, row=0, max_points=3, current_points=3))
+    t.extra_column_points = {1: 1}        # 1 box point sits in column 1 (needs 3 before it)
+    with pytest.raises(ValueError):
+        t.deallocate("a")                 # would drop column-0 to 2 (<3) and strand the box point
 
 
 def test_over_allocation_does_not_relax_prereq():

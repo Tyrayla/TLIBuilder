@@ -326,9 +326,14 @@ export interface EtherealCatalogItem {
   default_rarity: PrismRarity
   tint_when_rare: boolean   // apply the purple CSS filter for the rare variant (named prisms only)
   implicit: PrismImplicit
+  replace_description: string   // replace prisms: the replacement Core Talent's effect text (from the glossary)
 }
 export interface AreaSizeAffix { modifier: string; cols: number; rows: number }
-export interface MiddleAffix { modifier: string; tier: 'micro' | 'medium' | 'legendary' | '' }
+export interface MiddleAffix {
+  modifier: string
+  tier: 'micro' | 'medium' | 'legendary' | ''
+  scaled: boolean   // true = the ×1.75 Phantasmagoria-only variant; false = base (every other prism)
+}
 export interface AdvancedAffix {
   modifier: string
   kind: 'over_alloc' | 'ignore_prereq' | 'conditional'
@@ -2177,8 +2182,9 @@ export const api = {
     node_id: string,
     action: 'allocate' | 'deallocate',
     prereq_satisfied: string[] = [],
-    max_overrides: Record<string, number> = {}
-  ) => post<{ allowed: boolean; node_states: Record<string, number> }>('/validate-allocate', {
-    tree_name, node_states, node_id, action, prereq_satisfied, max_overrides,
+    max_overrides: Record<string, number> = {},
+    extra_column_points: Record<number, number> = {}
+  ) => post<{ allowed: boolean; reason?: string; node_states: Record<string, number> }>('/validate-allocate', {
+    tree_name, node_states, node_id, action, prereq_satisfied, max_overrides, extra_column_points,
   }),
 }

@@ -307,9 +307,13 @@ function EtherealForm({ draft, ethereal, setDraft, actions }: {
 }) {
   const { item } = draft
   const tint = draft.rarity === 'rare' && item.tint_when_rare
-  // Slot-2 pool by rarity: rare prisms cannot roll Legendary-Medium-targeting bonuses (orange-exclusive); legendary
-  // prisms get the full pool. (Blue vs purple among Micro/Medium isn't in the source data — icon-colour only.)
-  const middlePool = draft.rarity === 'rare' ? ethereal.middle.filter(m => m.tier !== 'legendary') : ethereal.middle
+  const isPhant = item.implicit.kind === 'amplify'   // Phantasmagoria
+  // Slot-2 pool:
+  //  • Phantasmagoria rolls ONLY the ×1.75-scaled variants; every other prism rolls ONLY the base variants.
+  //  • Rare prisms cannot roll Legendary-Medium-targeting bonuses (orange-exclusive); legendary get the full pool.
+  //  (Blue vs purple among Micro/Medium isn't in the source data — icon-colour only.)
+  let middlePool = ethereal.middle.filter(m => m.scaled === isPhant)
+  if (draft.rarity === 'rare') middlePool = middlePool.filter(m => m.tier !== 'legendary')
   const middleOpts = middlePool.map(m => ({ v: m.modifier, t: m.modifier.replace('within the area also gain:', '→') }))
   const dnr = ethereal.do_not_replace[item.short_name] ?? []
   const advOpts = [
@@ -359,6 +363,11 @@ function EtherealForm({ draft, ethereal, setDraft, actions }: {
           <div style={{ color: '#8a8fb0', fontSize: 11, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.4 }}>Implicit</div>
           <div style={{ background: '#0d0f18', border: '1px solid #2a2e44', borderRadius: 4, padding: '6px 8px',
             fontSize: 12, color: '#bcc0dd' }}>{implicitSummary(item)}</div>
+          {isPhant && (
+            <div style={{ fontSize: 10.5, color: '#6f7494', marginTop: 3 }}>
+              Already reflected in the Slot 2 values below (Phantasmagoria rolls the boosted variants).
+            </div>
+          )}
         </div>
       )}
 
@@ -420,7 +429,7 @@ function InventoryTip({ prism }: { prism: CraftedPrism }) {
       ) : prism.ethereal ? (
         <div style={{ fontSize: 11.5, color: '#bcc0dd', lineHeight: 1.45 }}>
           <div style={{ color: '#888', textTransform: 'capitalize' }}>{prism.ethereal.rarity}</div>
-          <div>{shorten(prism.ethereal.implicit)}</div>
+          <div>{shorten(condensePrismImplicit(prism.ethereal.implicit, prism.ethereal.shortName))}</div>
           {prism.ethereal.boxCols && <div>Area: {prism.ethereal.boxCols}×{prism.ethereal.boxRows}</div>}
           {prism.ethereal.middle && <div>{shorten(prism.ethereal.middle)}</div>}
           {prism.ethereal.advanced && <div>{shorten(prism.ethereal.advanced)}</div>}
@@ -435,6 +444,13 @@ function shorten(s: string, n = 90): string { return s.length > n ? s.slice(0, n
 function addEffectTail(s: string): string {
   const i = s.indexOf('Advanced Talent Panel:')
   return shorten((i >= 0 ? s.slice(i + 'Advanced Talent Panel:'.length) : s).trim(), 70)
+}
+// Condense the verbose "Replaces the Core Talent on the God of …/… Advanced Talent Panel with X" implicit (the
+// God-of-X panel list is identical boilerplate on every prism — never show it).
+export function condensePrismImplicit(implicit: string, shortName: string): string {
+  if (/^Replaces the Core Talent/i.test(implicit)) return `Replaces the Core Talent with ${shortName}`
+  if (/^Adds an additional effect/i.test(implicit)) return `Adds to the Core Talent: ${addEffectTail(implicit)}`
+  return implicit
 }
 function implicitSummary(item: EtherealCatalogItem): string {
   if (item.implicit.kind === 'replace') return `Replaces the Core Talent with: ${item.short_name}`

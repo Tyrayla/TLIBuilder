@@ -7,6 +7,7 @@ Run at serve time by `GET /api/ethereal-prism`; no game-data is hardcoded — ev
 """
 from __future__ import annotations
 import re
+from collections import defaultdict
 
 _AREA_RE = re.compile(r"Effect Area expands to\s+(\d+)\s*x\s*(\d+)", re.I)
 _OVERALLOC_RE = re.compile(
@@ -21,7 +22,9 @@ _DNR_PENALTIES = ("-15 to All Stats", "-5 % Elemental Resistance", "-8 % Defense
 
 _TIER_KEY = {"micro": "micro", "medium": "medium", "legendary medium": "legendary"}
 
-_NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
+# Sign glued to the digits (NOT a separate '\s*') so '+6 %' and '10.5 %' normalise to the same skeleton — the
+# catalog writes the base value with a leading '+' but the Phantasmagoria-scaled value without one.
+_NUM_RE = re.compile(r"[+-]?\d+(?:\.\d+)?")
 
 
 def _skeleton(s: str) -> str:
@@ -34,29 +37,24 @@ def _first_num(s: str):
     return float(m.group()) if m else None
 
 
-def _strip_phantasmagoria_scaled(rows: list[dict]) -> list[dict]:
-    """Drop the ×1.75 "Phantasmagoria" variant of each stat. The catalog lists some affixes twice — the base
-    value AND that value pre-multiplied by Phantasmagoria's +75% implicit (e.g. '+5 % Block Ratio' AND
-    '+9 % Block Ratio'). We keep only the base; Phantasmagoria applies its +75% itself."""
-    groups: dict[str, list[dict]] = {}
+def _tag_phantasmagoria_scaled(rows: list[dict]) -> list[dict]:
+    """Tag each middle ("area bonus") affix as base or its ×1.75 Phantasmagoria variant. The catalog lists every
+    such stat twice — the base value AND that value ×1.75 (Phantasmagoria's +75% pre-applied, e.g. '+6 % Aura
+    Effect' AND '10.5 % Aura Effect'). Within a stat skeleton the smallest value is the base; any larger value is
+    the scaled variant. BOTH are kept and flagged so the UI can show base mods on every prism except
+    Phantasmagoria and the scaled mods only on Phantasmagoria (the +75% is read straight from the value, not
+    applied again)."""
+    groups: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
-        groups.setdefault(_skeleton(r["modifier"]), []).append(r)
-    keep: list[dict] = []
+        groups[_skeleton(r["modifier"])].append(r)
+    out: list[dict] = []
     for g in groups.values():
-        if len(g) == 1:
-            keep.append(g[0])
-            continue
-        valued = [(_first_num(r["modifier"]), r) for r in g]
-        valued = [(v, r) for v, r in valued if v is not None]
-        if not valued:
-            keep.extend(g)
-            continue
-        lo = min(v for v, _ in valued)
-        for v, r in valued:
-            is_scaled = v != lo and lo > 0 and (abs(v - round(lo * 1.75)) <= 1 or 1.7 <= v / lo <= 1.85)
-            if not is_scaled:
-                keep.append(r)
-    return keep
+        lo = min((v for v in (_first_num(r["modifier"]) for r in g) if v is not None), default=None)
+        for r in g:
+            v = _first_num(r["modifier"])
+            scaled = lo is not None and v is not None and v != lo and lo > 0 and 1.6 <= v / lo <= 2.1
+            out.append({**r, "scaled": scaled})
+    return out
 
 
 def _short_name(item_name: str) -> str:
@@ -138,10 +136,9 @@ def categorize_prism_catalog(catalog: dict) -> dict:
                 out.append(row)
         return out
     area_size = _dedupe_by_mod(area_size)
-    # Phantasmagoria's +75% only scales the middle-row ("area bonus") affixes, so the ×1.75 duplicates live only
-    # there — strip them (keep the base value). The area-size and advanced/legendary slots have no scaled variants
-    # (over-allocation counts / conditionals), so they are left as-is.
-    middle = _strip_phantasmagoria_scaled(_dedupe_by_mod(middle))
+    # Phantasmagoria's +75% only scales the middle-row ("area bonus") affixes, so the base/×1.75 pairs live only
+    # there — tag them (keep both). The area-size and advanced/legendary slots have no scaled variants.
+    middle = _tag_phantasmagoria_scaled(_dedupe_by_mod(middle))
     advanced = _dedupe_by_mod(advanced)
     for k in do_not_replace:
         do_not_replace[k] = _dedupe_by_mod(do_not_replace[k])
@@ -162,6 +159,8 @@ def categorize_prism_catalog(catalog: dict) -> dict:
         else:
             implicit = {"kind": "replace", "text": replace_by_name.get(short, "")}
             rarities, default, tint = ["rare", "legendary"], "legendary", True
+        # For replace prisms the item glossary holds the replacement Core Talent's description.
+        gl = (it.get("glossary") or [{}])[0] if it.get("glossary") else {}
         items_out.append({
             "name": it.get("name", ""),
             "short_name": short,
@@ -173,6 +172,7 @@ def categorize_prism_catalog(catalog: dict) -> dict:
             "default_rarity": default,
             "tint_when_rare": tint,
             "implicit": implicit,
+            "replace_description": gl.get("description", "") if implicit["kind"] == "replace" else "",
         })
 
     return {

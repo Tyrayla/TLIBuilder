@@ -16,6 +16,9 @@ class PassiveTree:
         self.nodes: Dict[str, PassiveNode] = {}
         self.connections: list[tuple[str, str]] = []
         self.core_talent_slots: list[CoreTalentSlot] = []
+        # Extra points per column index from an installed Inverse Image's reflected box (those cells are virtual —
+        # not real nodes — but they cost points and count toward the budget + column-unlock thresholds in-game).
+        self.extra_column_points: Dict[int, int] = {}
 
     def add_node(self, node: PassiveNode):
         self.nodes[node.id] = node
@@ -33,11 +36,13 @@ class PassiveTree:
         )
 
     def points_in_column(self, col: int) -> int:
-        return sum(n.current_points for n in self.nodes.values() if n.column == col)
+        return (sum(n.current_points for n in self.nodes.values() if n.column == col)
+                + self.extra_column_points.get(col, 0))
 
     def points_before_column(self, col: int) -> int:
         """Points spent in columns strictly to the LEFT of `col` (the unlock currency)."""
-        return sum(n.current_points for n in self.nodes.values() if n.column < col)
+        return (sum(n.current_points for n in self.nodes.values() if n.column < col)
+                + sum(p for c, p in self.extra_column_points.items() if c < col))
 
     def is_column_unlocked(self, col: int) -> bool:
         # Column 0 is always open; column N needs N*3 points spent in columns to its left
@@ -47,7 +52,7 @@ class PassiveTree:
         return self.points_before_column(col) >= col * 3
 
     def total_points(self) -> int:
-        return sum(n.current_points for n in self.nodes.values())
+        return sum(n.current_points for n in self.nodes.values()) + sum(self.extra_column_points.values())
 
     def allocate(self, node_id: str, prereq_satisfied: set[str] | None = None,
                  max_overrides: dict[str, int] | None = None):
