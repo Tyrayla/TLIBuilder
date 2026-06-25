@@ -4200,12 +4200,38 @@ span.gear-affix-label {
 
 /* CSS Grid: 11 columns (1 card + 10 nodes), 3 equal rows */
 .pact-spirit-grid {
-  display: grid;
-  grid-template-columns: 240px repeat(10, 1fr);
-  grid-template-rows: repeat(3, 1fr);
+  display: flex;
+  flex-direction: column;
   flex: 1;
   overflow: hidden;
-  align-items: stretch;
+}
+/* One row per spirit: the card (left) + a nested node area (right). */
+.pact-spirit-row {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+}
+/* Node area: 10 columns × 2 rows (node row + Undetermined branch row), packed tight + vertically centered so
+   branch slots sit DIRECTLY under the nodes above and their connector lines meet. */
+.pact-nodes-area {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: auto auto;
+  row-gap: 16px;
+  align-content: center;
+}
+/* Vertical link from the outer node down to the Undetermined node. */
+.pact-node-undet::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 2px;
+  height: 24px;
+  background: rgba(255,255,255,0.18);
+  transform: translateX(-50%);
 }
 
 /* Card column cells */
@@ -4353,12 +4379,18 @@ span.gear-affix-label {
   transform: translateY(-50%);
 }
 
-.pact-node-cell.node-ring-inner::before { left: 0;              right: calc(50% + 13px); }
-.pact-node-cell.node-ring-inner::after  { left: calc(50% + 13px); right: 0; }
-.pact-node-cell.node-ring-mid::before   { left: 0;              right: calc(50% + 16px); }
-.pact-node-cell.node-ring-mid::after    { left: calc(50% + 16px); right: 0; }
-.pact-node-cell.node-ring-outer::before { left: 0;              right: calc(50% + 22px); }
+.pact-node-cell.node-ring-inner::before { left: 0;              right: calc(50% + 14px); }
+.pact-node-cell.node-ring-inner::after  { left: calc(50% + 14px); right: 0; }
+.pact-node-cell.node-ring-mid::before   { left: 0;              right: calc(50% + 23px); }
+.pact-node-cell.node-ring-mid::after    { left: calc(50% + 23px); right: 0; }
+.pact-node-cell.node-ring-outer::before { left: 0;              right: calc(50% + 33px); }
 .pact-node-cell.node-ring-outer::after  { display: none; }
+
+/* Branch-end connectors: suppress the half-line that would otherwise dangle into empty space. Placed AFTER the
+   node-ring rules above so it wins on equal specificity (else node-ring-mid::before re-shows the line). */
+.pact-node-cell.pact-branch-undet::after  { display: none; }   /* Undetermined node: nothing to its right */
+.pact-node-cell.pact-branch-first::before { display: none; }   /* leftmost extra slot: nothing to its left */
+.pact-node-cell.pact-branch-solo::before  { display: none; }   /* Undetermined node w/ no extra slots: nothing to its left */
 
 /* Node circles */
 .pact-node {
@@ -4375,23 +4407,23 @@ span.gear-affix-label {
 }
 
 .pact-node.node-inner {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   background: rgba(255,255,255,0.55);
   border: 2px solid rgba(255,255,255,0.75);
 }
 .pact-node.node-mid {
-  width: 32px;
-  height: 32px;
+  width: 46px;
+  height: 46px;
   background: rgba(180,210,255,0.55);
-  border: 2px solid rgba(180,210,255,0.85);
+  border: 2.5px solid rgba(180,210,255,0.85);
 }
 .pact-node.node-outer {
-  width: 44px;
-  height: 44px;
+  width: 66px;
+  height: 66px;
   background: rgba(255,180,80,0.6);
-  border: 2.5px solid rgba(255,200,100,0.9);
-  box-shadow: 0 0 10px rgba(255,180,80,0.45);
+  border: 3px solid rgba(255,200,100,0.9);
+  box-shadow: 0 0 12px rgba(255,180,80,0.5);
 }
 /* Node icon fills the ring (the colored border still conveys inner/mid/outer). */
 .pact-node-img {

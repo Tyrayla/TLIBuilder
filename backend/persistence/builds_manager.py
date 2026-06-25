@@ -98,6 +98,11 @@ def _read_file(build_id: str) -> dict:
     pact_spirits_raw = data.get('pact_spirits', '')
     pact_spirits = json.loads(pact_spirits_raw) if pact_spirits_raw else [None, None, None]
 
+    fates_raw = data.get('fates', '')
+    fates = json.loads(fates_raw) if fates_raw else {}
+    undetermined_raw = data.get('undetermined', '')
+    undetermined = json.loads(undetermined_raw) if undetermined_raw else [None, None, None]
+
     notes_raw = data.get('notes', '')
     notes = json.loads(notes_raw) if notes_raw else ''
 
@@ -128,6 +133,8 @@ def _read_file(build_id: str) -> dict:
         'advancedTraitSelections': advanced_trait_selections,
         'heroMemories': hero_memories,
         'pactSpirits': pact_spirits,
+        'fates': fates,
+        'undetermined': undetermined,
         'notes': notes,
         'customMods': custom_mods,
     }
@@ -179,6 +186,10 @@ def _write_file(build: dict) -> None:
         f.write(f"hero_memories={json.dumps(hero_memories, separators=(',', ':'))}\n")
         pact_spirits = build.get('pactSpirits') or [None, None, None]
         f.write(f"pact_spirits={json.dumps(pact_spirits, separators=(',', ':'))}\n")
+        fates = build.get('fates') or {}
+        f.write(f"fates={json.dumps(fates, separators=(',', ':'))}\n")
+        undetermined = build.get('undetermined') or [None, None, None]
+        f.write(f"undetermined={json.dumps(undetermined, separators=(',', ':'))}\n")
         notes = build.get('notes') or ''
         f.write(f"notes={json.dumps(notes, separators=(',', ':'))}\n")
         condition_state = build.get('conditionState') or {}

@@ -95,7 +95,7 @@ export function buildEngineStatsPayload(s: BuildState) {
     gear: buildGearPayload(s.gear),
     character: buildCharacterContributions(s.gear, charLevel),
     memory_effects: buildMemoryEffects(s.heroMemories),
-    spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits), s.spiritEffectExclude),
+    spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits, s.fates, s.undetermined), s.spiritEffectExclude),
     // Hero trait. trait_id/levels/picks drive the bespoke engine module; trait_effects feeds the status
     // surface + generic (non-bespoke) traits. uptime_mode (Max|Real) selects assume-max vs computed ramp.
     trait_id: s.traitId,

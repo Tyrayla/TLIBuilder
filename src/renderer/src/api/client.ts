@@ -424,6 +424,8 @@ export interface Build {
   traitSkillSupports?: EquippedSupportSkill[]   // supports socketed into the Holy Domain trait skill slot
   heroMemories?: (unknown | null)[]
   pactSpirits?: (unknown | null)[]
+  fates?: Record<string, InstalledFate>           // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
+  undetermined?: (UndeterminedFate | null)[]      // one per spirit slot
   notes?: string
   customMods?: string[]
 }
@@ -1185,28 +1187,104 @@ export interface SelectedPactSpirit {
   rank: number  // 1–6
 }
 
+// ── Pact Fates / Kismets (the /destiny `catalog`) ───────────────────────────────────────────────────
+export type FateKind = 'micro_fate' | 'medium_fate' | 'kismet' | 'dual_kismet' | 'undetermined'
+export interface FateCatalogItem {
+  name: string
+  short_name: string
+  kind: FateKind
+  node_tier: 'micro' | 'medium' | ''
+  effect_text: string        // raw effect with (lo–hi) ranges (mid-substituted when emitted)
+  icon_url?: string | null   // render via iconUrl('destiny', icon_url) once crawler icons land
+}
+export interface FateCatalog {
+  items: FateCatalogItem[]
+  micro: FateCatalogItem[]   // installable on micro (inner) nodes
+  medium: FateCatalogItem[]  // installable on medium (mid) nodes (Medium Fates + Kismets + Dual Kismets)
+  undetermined: FateCatalogItem | null
+}
+// A fate installed on a spirit node (or an undetermined extra slot).
+export interface InstalledFate {
+  name: string
+  shortName: string
+  kind: 'micro_fate' | 'medium_fate' | 'kismet' | 'dual_kismet'
+  nodeTier: 'micro' | 'medium'
+  effectText: string
+  iconUrl?: string | null
+}
+// An Undetermined Fate installed below a spirit's outer node: grants extra micro/medium fate slots (right-to-left).
+export interface UndeterminedFate {
+  extraMicro: number   // 0–5
+  extraMedium: number  // 0–3
+  slots: (InstalledFate | null)[]   // length extraMicro+extraMedium; [0..extraMicro) micro, rest medium
+}
+export const FATE_MICRO_LIMIT = 9
+export const FATE_MEDIUM_LIMIT = 4
+
+// Substitute each "(lo–hi)" roll range with its midpoint (the default-roll convention).
+export function fateMidEffect(effectText: string): string {
+  return (effectText || '').replace(/\((\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)\)/g, (_m, a, b) => {
+    const mid = (parseFloat(a) + parseFloat(b)) / 2
+    return String(Number.isInteger(mid) ? mid : Math.round(mid * 100) / 100)
+  })
+}
+
 // An effect line plus the display NAME of its origin (pact-spirit / hero-memory name). The backend echoes
 // `source` onto each contribution's `source_name`, driving the stat-breakdown "Source Name" column.
 export interface EffectInput { text: string; source: string }
 
 export function buildSpiritEffects(
   selected: (SelectedPactSpirit | null)[],
-  allSpirits: PactSpirit[]
+  allSpirits: PactSpirit[],
+  fates: Record<string, InstalledFate> = {},
+  undetermined: (UndeterminedFate | null)[] = [],
 ): EffectInput[] {
   const effects: EffectInput[] = []
-  for (const sel of selected) {
-    if (!sel) continue
+
+  // Dual Kismet pairing is build-wide: a dual kismet only grants its effect when 2 of the same are installed.
+  const allInstalled: InstalledFate[] = [...Object.values(fates)]
+  for (const u of undetermined) if (u) for (const f of u.slots) if (f) allInstalled.push(f)
+  const dualCount: Record<string, number> = {}
+  for (const f of allInstalled) if (f.kind === 'dual_kismet') dualCount[f.shortName] = (dualCount[f.shortName] || 0) + 1
+
+  const emitFate = (f: InstalledFate) => {
+    if (f.kind === 'dual_kismet' && (dualCount[f.shortName] || 0) < 2) return  // unpaired → no effect
+    effects.push({ text: fateMidEffect(f.effectText), source: `Fate: ${f.shortName}` })
+  }
+
+  selected.forEach((sel, si) => {
+    if (!sel) return
     const spirit = allSpirits.find(s => s.item_id === sel.itemId)
-    if (!spirit) continue
+    if (!spirit) return
     const src = spirit.name
-    // Inner/mid effects are static; outer effects scale with rank and live in rankData.modifiers.
-    // slot.effect is a list of atomic stat lines — push each.
-    for (const slot of spirit.slots) {
-      if (slot.ring !== 'outer') for (const t of slot.effect) effects.push({ text: t, source: src })
-    }
+    // Inner/mid nodes: emit the installed fate's effect, else the node's own effect lines. Outer = rank modifiers.
+    spirit.slots.forEach((slot, i) => {
+      if (slot.ring === 'outer') return
+      const f = fates[`${si}:${i}`]
+      if (f) emitFate(f)
+      else for (const t of slot.effect) effects.push({ text: t, source: src })
+    })
     const rankData = spirit.upgrade_ranks.find(r => r.rank === sel.rank)
     if (rankData) for (const t of rankData.modifiers) effects.push({ text: t, source: src })
-  }
+
+    // Undetermined Fate node: the combined +6% Damage / +6% Minion Damage generic, OR (when an Undetermined Fate
+    // is installed) the extra slots it grants — each empty slot defaults to the generic for its tier.
+    const u = undetermined[si]
+    if (!u) {
+      effects.push({ text: '+6 % Damage', source: 'Pact: Undetermined' })
+      effects.push({ text: '+6 % Minion Damage', source: 'Pact: Undetermined' })
+    } else {
+      // Every empty extra slot grants the same generic +6% Damage / +6% Minion Damage regardless of micro/medium
+      // (tier only governs size + what can be socketed, per owner).
+      u.slots.forEach(f => {
+        if (f) emitFate(f)
+        else {
+          effects.push({ text: '+6 % Damage', source: 'Pact: Undetermined' })
+          effects.push({ text: '+6 % Minion Damage', source: 'Pact: Undetermined' })
+        }
+      })
+    }
+  })
   return effects
 }
 
@@ -2085,7 +2163,7 @@ export const api = {
 
   importDestiny: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-destiny', { season_name: seasonName, data }),
-  getDestiny: () => get<{ season: string | null; items: DestinyItem[] }>('/destiny'),
+  getDestiny: () => get<{ season: string | null; items: DestinyItem[]; catalog?: FateCatalog }>('/destiny'),
 
   importEtherealPrism: (seasonName: string, data: object) =>
     post<{ ok: boolean; count: number }>('/dev/import-ethereal-prism', { season_name: seasonName, data }),

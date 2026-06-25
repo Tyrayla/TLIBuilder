@@ -2766,7 +2766,8 @@ def get_destiny():
     data = season_manager.load_destiny(active)
     if not data:
         return {"season": active, "items": []}
-    return {"season": active, "items": data.get("items", [])}
+    from tools.destiny_catalog import categorize_destiny
+    return {"season": active, "items": data.get("items", []), "catalog": categorize_destiny(data)}
 
 
 @app.post("/api/dev/import-ethereal-prism")

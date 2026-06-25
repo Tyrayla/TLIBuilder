@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { isEqual } from 'lodash-es'
 import type {
   TreeSlot, SavedSlate, SlateTemplate, PlacedPrism, CraftedPrism, EquippedGearItem, EquippedSkill, EquippedSupportSkill,
-  CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput,
+  CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput, InstalledFate, UndeterminedFate,
 } from '../api/client'
 import { EMPTY_STAT_SHEET } from '../api/client'
 
@@ -26,6 +26,8 @@ export interface LoadedBuild {
   traitSkillSupports: EquippedSupportSkill[]
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
+  fates: Record<string, InstalledFate>
+  undetermined: (UndeterminedFate | null)[]
   notes: string
   customMods: string[]
 }
@@ -73,6 +75,8 @@ interface BuildStore {
   characterLevel: number
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
+  fates: Record<string, InstalledFate>            // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
+  undetermined: (UndeterminedFate | null)[]       // one per spirit slot (index 0–2)
   // Transient: never set on the real store — only by damage-delta `step`/`base` transforms to price a
   // single pact-spirit node (one occurrence of each listed effect line is removed before payload build).
   spiritEffectExclude?: string[]
@@ -92,6 +96,8 @@ interface BuildStore {
   setUptimeMode: (m: 'max' | 'real') => void
   setHeroMemories: (memories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]) => void
   setPactSpirits: (spirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => void
+  setFates: (fates: Record<string, InstalledFate>) => void
+  setUndetermined: (undetermined: (UndeterminedFate | null)[]) => void
 
   // Slot mutation actions (bump buildVersion)
   setSlot: (slotIndex: number, slot: TreeSlot | null) => void
@@ -153,6 +159,8 @@ const DEFAULT_BUILD: LoadedBuild = {
   traitSkillSupports: [],
   heroMemories: [null, null, null],
   pactSpirits: [null, null, null],
+  fates: {},
+  undetermined: [null, null, null],
   notes: '',
   customMods: [],
 }
@@ -221,6 +229,8 @@ export const useBuildStore = create<BuildStore>((set) => ({
   setUptimeMode: (uptimeMode) => set((s) => ({ uptimeMode, buildVersion: s.buildVersion + 1 })),
   setHeroMemories: (heroMemories) => set((s) => ({ heroMemories, buildVersion: s.buildVersion + 1 })),
   setPactSpirits: (pactSpirits) => set((s) => ({ pactSpirits, buildVersion: s.buildVersion + 1 })),
+  setFates: (fates) => set((s) => ({ fates, buildVersion: s.buildVersion + 1 })),
+  setUndetermined: (undetermined) => set((s) => ({ undetermined, buildVersion: s.buildVersion + 1 })),
 
   // ── Slot mutation actions ────────────────────────────────────────────────────
   setSlot: (slotIndex, slot) =>

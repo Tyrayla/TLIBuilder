@@ -17,7 +17,9 @@ def _flatten_sections(data: dict, item_key: str | None = None) -> list[dict]:
 def import_destiny(data: dict, season_name: str) -> dict:
     raw_items = _flatten_sections(data)
     items = [
-        {"name": it.get("name", ""), "text": it.get("text", "")}
+        {"name": it.get("name", ""), "icon_url": it.get("icon_url", "") or "",
+         "implicit": it.get("implicit") or [],   # effect lines (clean)
+         "detail": it.get("detail") or []}       # "Install to replace a Micro/Medium Talent Node" + flavor
         for it in raw_items
         if it.get("name")
     ]
