@@ -6,6 +6,7 @@
 // follows the chain to the owner (the end of the chain) and uses the owner's snapshot. Editing an inherited area
 // writes through to the owner (handled at flush time in `buildStore.switchLoadout`).
 import type { AreaKey, Loadout } from '../api/client'
+import { DEFAULT_TARGET_CONFIG } from './targetPresets'
 
 export type AreaSnapshot = Record<string, unknown>
 export type LoadoutData = Partial<Record<AreaKey, AreaSnapshot>>
@@ -24,6 +25,7 @@ export const AREA_FIELDS: Record<AreaKey, string[]> = {
   level: ['characterLevel'],
   customMods: ['customMods'],
   notes: ['notes'],
+  target: ['targetConfig'],
 }
 
 export const ALL_AREAS = Object.keys(AREA_FIELDS) as AreaKey[]
@@ -34,7 +36,7 @@ export const ENGINE_AREAS: AreaKey[] = ALL_AREAS.filter(a => a !== 'notes')
 export const AREA_LABELS: Record<AreaKey, string> = {
   talents: 'Talents', slates: 'Slates', prisms: 'Prisms', gear: 'Gear', skills: 'Skills', trait: 'Hero Trait',
   spirits: 'Pact Spirits', memories: 'Hero Memories', conditions: 'Conditionals', level: 'Character Level',
-  customMods: 'Custom Mods', notes: 'Notes',
+  customMods: 'Custom Mods', notes: 'Notes', target: 'Target',
 }
 
 // Default (empty/"from scratch") snapshot per area — mirrors DEFAULT_BUILD in buildStore. Used when a loadout has
@@ -52,6 +54,7 @@ export const DEFAULT_AREA_SNAPSHOT: Record<AreaKey, AreaSnapshot> = {
   level: { characterLevel: 100 },
   customMods: { customMods: [] },
   notes: { notes: '' },
+  target: { targetConfig: DEFAULT_TARGET_CONFIG },
 }
 
 const clone = <T,>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v)))

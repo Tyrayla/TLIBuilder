@@ -116,6 +116,9 @@ def _read_file(build_id: str) -> dict:
     loadouts = json.loads(loadouts_raw) if loadouts_raw else []
     active_loadout_id = data.get('activeLoadoutId', '') or ''
 
+    target_config_raw = data.get('targetConfig', '')
+    target_config = json.loads(target_config_raw) if target_config_raw else None
+
     return {
         'id': data.get('id', build_id),
         'name': data.get('name', ''),
@@ -143,6 +146,7 @@ def _read_file(build_id: str) -> dict:
         'customMods': custom_mods,
         'loadouts': loadouts,
         'activeLoadoutId': active_loadout_id,
+        'targetConfig': target_config,
     }
 
 
@@ -205,6 +209,9 @@ def _write_file(build: dict) -> None:
         loadouts = build.get('loadouts') or []
         f.write(f"loadouts={json.dumps(loadouts, separators=(',', ':'))}\n")
         f.write(f"activeLoadoutId={build.get('activeLoadoutId', '') or ''}\n")
+        target_config = build.get('targetConfig')
+        if target_config:
+            f.write(f"targetConfig={json.dumps(target_config, separators=(',', ':'))}\n")
 
 
 def load() -> list[dict]:

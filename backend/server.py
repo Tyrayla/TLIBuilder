@@ -651,6 +651,17 @@ class SkillSlotInput(BaseModel):
     enabled:  bool = True   # disabled skills (and their supports + sourced buffs/debuffs) drop out of the calc
 
 
+class TargetConfigRequest(BaseModel):
+    # Editable calc-target ("training dummy") stats as PERCENTAGES (may be negative → amplification). The engine
+    # converts to fractions and applies them in offense mitigation. Defaults = the historical Lv85 dummy.
+    level:        int = 85
+    armor:        float = 50.0
+    fireRes:      float = 30.0
+    coldRes:      float = 30.0
+    lightningRes: float = 30.0
+    erosionRes:   float = 30.0
+
+
 class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
@@ -673,6 +684,7 @@ class EngineStatsRequest(BaseModel):
     trait_slot_levels: list[int] = []                  # [base, lv45, lv60, lv75], each 1-5
     advanced_trait_selections: list[str] = []
     uptime_mode:     str = "max"                        # "max" (default, assume-max) | "real" (compute ramp)
+    target_config:   TargetConfigRequest | None = None  # editable calc-target stats; None → Lv85 dummy defaults
 
 
 @app.post("/api/engine/stats")
@@ -989,6 +1001,16 @@ def engine_stats(req: EngineStatsRequest):
     if active_curses and not core_condition_state.get("enemy_cursed"):
         core_condition_state = {**core_condition_state, "enemy_cursed": True}
 
+    # Editable calc-target stats → fractions for the offense mitigation (None keeps the engine's Lv85 defaults).
+    _tc = req.target_config
+    target_config = None if _tc is None else {
+        "level": _tc.level,
+        "armor": _tc.armor / 100.0,
+        "fire_res": _tc.fireRes / 100.0,
+        "cold_res": _tc.coldRes / 100.0,
+        "lightning_res": _tc.lightningRes / 100.0,
+        "erosion_res": _tc.erosionRes / 100.0,
+    }
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=core_condition_state,
@@ -1012,6 +1034,7 @@ def engine_stats(req: EngineStatsRequest):
         advanced_trait_selections=req.advanced_trait_selections,
         trait_contributions=trait_contributions,
         uptime_mode=req.uptime_mode,
+        target_config=target_config,
         inflict_cond_effects=_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects(),
         numbed_blocked=_numbed_inflict.blocked,
     )

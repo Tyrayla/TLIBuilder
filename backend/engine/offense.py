@@ -346,15 +346,19 @@ def _target_effective(source: BuildSource, dtype: str) -> tuple[float, float]:
     taken). Penetration is stored positive and subtracted; `all_resistance_reduction` is a signed delta
     (negative when it lowers resistance) and applies to all elemental + erosion resists. Physical has no
     resistance term."""
+    tc = getattr(source, "target_config", None) or {}     # editable dummy stats (fractions); else the constants
+    armor = tc.get("armor", TARGET_ARMOR_MITIGATION)
     armor_pen = source.total("armor_pen")
     if dtype == "physical":
-        return TARGET_ARMOR_MITIGATION - armor_pen, 0.0
-    eff_armor = TARGET_ARMOR_MITIGATION * TARGET_NONPHYS_ARMOR_FACTOR - armor_pen
+        return armor - armor_pen, 0.0
+    eff_armor = armor * TARGET_NONPHYS_ARMOR_FACTOR - armor_pen
     all_res_red = source.total("all_resistance_reduction")          # signed (negative when reducing res)
     if dtype == "erosion":
-        eff_resist = TARGET_EROSION_RESIST - source.total("erosion_pen") + all_res_red
+        base_res = tc.get("erosion_res", TARGET_EROSION_RESIST)
+        eff_resist = base_res - source.total("erosion_pen") + all_res_red
     else:  # fire / cold / lightning — elemental_pen stacks on top of the per-type pen
-        eff_resist = (TARGET_ELEMENTAL_RESIST - source.total(f"{dtype}_pen")
+        base_res = tc.get(f"{dtype}_res", TARGET_ELEMENTAL_RESIST)
+        eff_resist = (base_res - source.total(f"{dtype}_pen")
                       - source.total("elemental_pen") + all_res_red)
     return eff_armor, eff_resist
 
@@ -380,24 +384,28 @@ def target_profile(source: BuildSource) -> dict:
       effective     → resist − pen, the value actually used in the damage calc (negative = amplified).
     Keeping pen out of `resist` is deliberate: pen and resistance-reduction are different mechanics, and
     folding pen into the base would mis-scale any future enemy-resistance multiplier. All fractions."""
+    tc = getattr(source, "target_config", None) or {}     # editable dummy stats (fractions); else the constants
+    armor = tc.get("armor", TARGET_ARMOR_MITIGATION)
+    level = tc.get("level", 85)
     armor_pen = source.total("armor_pen")
     all_red = source.total("all_resistance_reduction")   # signed; negative lowers enemy resistance
 
     def res_parts(t: str) -> dict:
-        base = TARGET_EROSION_RESIST if t == "erosion" else TARGET_ELEMENTAL_RESIST
+        base = (tc.get("erosion_res", TARGET_EROSION_RESIST) if t == "erosion"
+                else tc.get(f"{t}_res", TARGET_ELEMENTAL_RESIST))
         pen = (source.total("erosion_pen") if t == "erosion"
                else source.total(f"{t}_pen") + source.total("elemental_pen"))
         resist = base + all_red          # enemy's actual resistance (after reductions; multipliers go here)
         return {"base": base, "reduction": all_red, "pen": pen, "resist": resist, "effective": resist - pen}
 
     return {
-        "source": TARGET_SOURCE,
+        "source": f"Lvl {level} Dummy",
         "armor": {
-            "base_phys": TARGET_ARMOR_MITIGATION,
-            "base_nonphys": TARGET_ARMOR_MITIGATION * TARGET_NONPHYS_ARMOR_FACTOR,
+            "base_phys": armor,
+            "base_nonphys": armor * TARGET_NONPHYS_ARMOR_FACTOR,
             "pen": armor_pen,
-            "effective_phys": TARGET_ARMOR_MITIGATION - armor_pen,
-            "effective_nonphys": TARGET_ARMOR_MITIGATION * TARGET_NONPHYS_ARMOR_FACTOR - armor_pen,
+            "effective_phys": armor - armor_pen,
+            "effective_nonphys": armor * TARGET_NONPHYS_ARMOR_FACTOR - armor_pen,
         },
         "resists": {t: res_parts(t) for t in ("fire", "cold", "lightning", "erosion")},
         # Raw pen totals (kept for back-compat / debugging).

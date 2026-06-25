@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout } from './api/client'
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
 import { snapshotAllAreas } from './utils/loadoutAreas'
+import { DEFAULT_TARGET_CONFIG, sanitizeTargetConfig } from './utils/targetPresets'
 import { useBuildStore } from './store/buildStore'
 import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
@@ -62,7 +63,7 @@ function ensureLoadouts(
     }
   }
   const id = genLoadoutId()
-  return { loadouts: [{ id, name: 'New Loadout', data: snapshotAllAreas(payload), inherit: {} }], activeLoadoutId: id }
+  return { loadouts: [{ id, name: 'Loadout 1', data: snapshotAllAreas(payload), inherit: {} }], activeLoadoutId: id }
 }
 
 function App() {
@@ -142,9 +143,10 @@ function App() {
 
   useEffect(() => {
     window.api?.onRequestSave?.(() => {
+      useBuildStore.getState().flushActiveLoadout()
       const s = useBuildStore.getState()
       if (s.buildId) {
-        const build = { id: s.buildId, name: s.buildName, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods }
+        const build = { id: s.buildId, name: s.buildName, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
         api.postBuild(build)
           .then(saved => {
             useBuildStore.getState().setBuildId(saved.id ?? null)
@@ -248,7 +250,7 @@ function App() {
       gear: [], skills: [], characterLevel: 100,
       traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitSkillSupports: [],
       heroMemories: [null, null, null] as [null, null, null], pactSpirits: [null, null, null] as [null, null, null], fates: {}, undetermined: [null, null, null],
-      notes: '', customMods: [],
+      notes: '', customMods: [], targetConfig: DEFAULT_TARGET_CONFIG,
     }
     useBuildStore.getState().loadBuild({ ...payload, ...ensureLoadouts(payload) })
     loadedVersionRef.current = useBuildStore.getState().buildVersion
@@ -400,6 +402,7 @@ function App() {
       undetermined: Array.isArray(build.undetermined) ? build.undetermined : [null, null, null],
       notes: typeof build.notes === 'string' ? build.notes : '',
       customMods: Array.isArray(build.customMods) ? (build.customMods as string[]).filter(m => typeof m === 'string') : [],
+      targetConfig: sanitizeTargetConfig(build.targetConfig),
     }
     // Restore loadouts (default-migrating pre-feature builds into one "New Loadout"); then reconcile the active
     // loadout's snapshot with the freshly-loaded (crafted-re-resolved) store so saved data stays consistent.
@@ -520,7 +523,7 @@ function App() {
   const saveBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
-    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
+    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
@@ -531,7 +534,7 @@ function App() {
   const saveAsBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
-    const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
+    const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
@@ -594,6 +597,7 @@ function App() {
       undetermined: s.undetermined,
       notes: s.notes,
       customMods: s.customMods,
+      targetConfig: s.targetConfig,
     }
   }
 

@@ -5,6 +5,7 @@ import { useUiPrefs } from '../store/uiPrefsStore'
 import type { ConditionDef, CurseConflict } from '../api/client'
 import CustomModsPanel from '../components/CustomModsPanel'
 import { wornWeaponFlags, type WornWeaponFlags } from '../utils/statsPayload'
+import { TARGET_LEVELS, presetTargetConfig, NONPHYS_ARMOR_FACTOR, type TargetLevel } from '../utils/targetPresets'
 
 // Categories whose conditions always show (player-side scenario inputs relevant to any build).
 const ALWAYS_SHOW_CATEGORIES = new Set([
@@ -43,6 +44,60 @@ function ConfigPanel({ title, accent, headerColor, full, children }: {
         {collapsible && <span className="cond-card-collapse">{collapsed ? '+' : '−'}</span>}
       </div>
       {!showCollapsed && <div className="cond-card-body">{children}</div>}
+    </div>
+  )
+}
+
+// A single negative-allowing % field for the enemy editor (local string state so "-" / partial typing is smooth).
+function EnemyNum({ label, value, onChange, hint }: {
+  label: string; value: number; onChange: (v: number) => void; hint?: string
+}) {
+  const [raw, setRaw] = useState(String(value))
+  useEffect(() => { setRaw(String(value)) }, [value])
+  const commit = (s: string) => {
+    const n = parseFloat(s)
+    const v = isNaN(n) ? 0 : n
+    onChange(v); setRaw(String(v))
+  }
+  return (
+    <div className="enemy-field">
+      <span className="enemy-field-label">{label}</span>
+      <div className="enemy-field-input">
+        <input className="cond-stack-input" type="text" inputMode="numeric" value={raw}
+          onChange={e => setRaw(e.target.value)}
+          onBlur={e => commit(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }} />
+        <span className="enemy-field-pct">%</span>
+      </div>
+      {hint && <span className="enemy-field-hint">{hint}</span>}
+    </div>
+  )
+}
+
+// Always-present calc-target editor. Picking a dummy level loads the preset; the 5 fields are then editable
+// (negatives allowed). Armor-vs-Non-Phys (armor×0.6) + Armor-vs-DoT (0%) are derived/fixed, shown as a hint.
+function EnemyTargetBox() {
+  const tc = useBuildStore(s => s.targetConfig)
+  const setTargetConfig = useBuildStore(s => s.setTargetConfig)
+  const setField = (k: keyof typeof tc, v: number) => setTargetConfig({ ...tc, [k]: v })
+  return (
+    <div className="enemy-box">
+      <div className="enemy-box-head">
+        <span className="enemy-box-title">Enemy / Target</span>
+        <select className="enemy-target-select" value={tc.level}
+          onChange={e => setTargetConfig(presetTargetConfig(Number(e.target.value) as TargetLevel))}>
+          {TARGET_LEVELS.map(l => <option key={l} value={l}>Training Dummy — Lv {l}</option>)}
+        </select>
+        <span className="enemy-box-note">All boss. Picking a level loads its defaults; edit any field (negatives allowed).</span>
+      </div>
+      <div className="enemy-fields">
+        <EnemyNum label="Armor" value={tc.armor} onChange={v => setField('armor', v)}
+          hint={`vs Non-Phys ${Math.round(tc.armor * NONPHYS_ARMOR_FACTOR)}% · vs DoT 0%`} />
+        <EnemyNum label="Fire Res" value={tc.fireRes} onChange={v => setField('fireRes', v)} />
+        <EnemyNum label="Cold Res" value={tc.coldRes} onChange={v => setField('coldRes', v)} />
+        <EnemyNum label="Lightning Res" value={tc.lightningRes} onChange={v => setField('lightningRes', v)} />
+        <EnemyNum label="Erosion Res" value={tc.erosionRes} onChange={v => setField('erosionRes', v)} />
+      </div>
     </div>
   )
 }
@@ -160,21 +215,7 @@ export default function BuildOverviewScreen() {
         </label>
       </div>
 
-      {/* Target Type — placeholder. Only Boss is functional today (Enemy-Count weight 5, knockback-able);
-          the other tiers (weights + Supreme-Boss knockback immunity + per-type mitigation) are coming soon. */}
-      <div style={{ margin: '0 0 10px', padding: '8px 12px', borderRadius: 4, background: 'rgba(255,255,255,0.03)',
-        border: '1px solid #2a2a4a', display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, flexWrap: 'wrap' }}>
-        <span style={{ color: '#9aa', fontWeight: 600 }}>Target Type</span>
-        <select value="boss" disabled title="Boss only for now — other tiers coming soon"
-          style={{ background: '#0d0d1e', color: '#ddd', border: '1px solid #3a3a5a', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}>
-          <option value="normal">Normal</option>
-          <option value="magic">Magic</option>
-          <option value="rare">Rare</option>
-          <option value="boss">Boss</option>
-          <option value="supreme">Supreme Showdown Boss</option>
-        </select>
-        <span style={{ color: '#777' }}>Boss only for now — other tiers (Enemy Count weight + knockback immunity) coming soon.</span>
-      </div>
+      <EnemyTargetBox />
 
       {conflicts.length > 0 && (
         <div style={{

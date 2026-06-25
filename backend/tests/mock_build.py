@@ -81,6 +81,9 @@ def make_request(
         skills=[{"slot": 1, "skill_id": skill_id, "level": level}],
         main_skill={"skill_id": skill_id, "level": level},
         attached_supports=attached_supports or [],
+        # Default Lv85 dummy (== the engine's historical constants) so tests/goldens exercise the parameterized
+        # target-mitigation path; identical output. Override via extra (target_config=...) to test other levels.
+        target_config={"level": 85, "armor": 50.0, "fireRes": 30.0, "coldRes": 30.0, "lightningRes": 30.0, "erosionRes": 30.0},
     )
     req.update(extra)
     return req

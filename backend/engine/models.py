@@ -81,6 +81,8 @@ class BuildSource:
     # Condition keys referenced by ANY contribution in this build (collected before the on/off gate, so a
     # condition counts even when currently toggled off). Drives the UI's "hide conditions with no source".
     referenced_conditions: set[str] = field(default_factory=set)
+    # Editable calc-target stats (fractions) for offense mitigation; None → offense's Lv85 constants.
+    target_config: dict | None = None
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
@@ -174,6 +176,9 @@ class BuildInput:
     season:     str                     # active season name for data lookups
     skill:      SkillConfig | None = None
     enemy:      EnemyConfig | None = None
+    # Editable calc-target ("dummy") stats as FRACTIONS: {level, armor, fire_res, cold_res, lightning_res,
+    # erosion_res}. None → offense uses its historical Lv85 constants.
+    target_config: dict | None = None
     # Unified condition state: boolean conditions store True/False, numeric store float.
     condition_state: dict[str, float | bool] = field(default_factory=dict)
     gear:            list[dict] = field(default_factory=list)  # GearEngineItem dicts

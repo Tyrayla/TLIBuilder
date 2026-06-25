@@ -154,6 +154,8 @@ export function buildEngineStatsPayload(s: BuildState) {
       })) : []),
     ],
     custom_mods: s.customMods,
+    // Editable calc-target ("dummy") stats — percentages; the engine converts to fractions + applies mitigation.
+    target_config: s.targetConfig,
   }
 }
 

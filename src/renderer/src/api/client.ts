@@ -406,7 +406,19 @@ export interface PlacedPrism {
 // loadout (the "general") via `inherit`; editing an inherited area writes through to the general.
 export type AreaKey =
   | 'talents' | 'slates' | 'prisms' | 'gear' | 'skills' | 'trait'
-  | 'spirits' | 'memories' | 'conditions' | 'level' | 'customMods' | 'notes'
+  | 'spirits' | 'memories' | 'conditions' | 'level' | 'customMods' | 'notes' | 'target'
+
+// Editable calc-target ("training dummy") stats. Percentages (may be negative → amplification). `level` selects a
+// preset (40/60/75/85, all boss); the 5 numbers are then independently editable. Armor-vs-Non-Phys (armor×0.6) and
+// Armor-vs-DoT (0) are derived/fixed, not stored.
+export interface TargetConfig {
+  level: number
+  armor: number
+  fireRes: number
+  coldRes: number
+  lightningRes: number
+  erosionRes: number
+}
 
 export interface Loadout {
   id: string
@@ -446,6 +458,7 @@ export interface Build {
   undetermined?: (UndeterminedFate | null)[]      // one per spirit slot
   notes?: string
   customMods?: string[]
+  targetConfig?: TargetConfig
 }
 
 export interface TreeNode {

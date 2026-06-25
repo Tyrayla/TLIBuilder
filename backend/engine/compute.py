@@ -348,6 +348,7 @@ def compute(
             active_booleans=active_booleans,
             numeric_vals=numeric_vals,
         )
+        source.target_config = build_input.target_config   # editable dummy stats → offense mitigation
 
         # Standard support_skill / activation_medium contributions, resolved against the CURRENT
         # condition_state so conditional lines see converged values and inflicted debuffs feed back.
