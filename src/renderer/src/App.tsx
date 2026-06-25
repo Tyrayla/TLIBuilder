@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
+import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout } from './api/client'
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
+import { snapshotAllAreas } from './utils/loadoutAreas'
 import { useBuildStore } from './store/buildStore'
+import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useReferenceStore } from './store/referenceStore'
 import { useMappingStore } from './store/mappingStore'
@@ -38,6 +40,29 @@ function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
     if (!slots[i]) return i
   }
   return 0
+}
+
+const genLoadoutId = (): string =>
+  (globalThis.crypto?.randomUUID?.() ?? `lo${Date.now()}${Math.floor(Math.random() * 1e6)}`)
+
+// Resolve a build's loadouts on load: restore saved loadouts (default-migrating pre-feature builds, which have
+// none, into a single "New Loadout" snapshot of the loaded areas). `payload` is the LoadedBuild-shaped object.
+function ensureLoadouts(
+  payload: Record<string, unknown>,
+  srcLoadouts?: Loadout[],
+  srcActiveId?: string,
+): { loadouts: Loadout[]; activeLoadoutId: string } {
+  if (Array.isArray(srcLoadouts) && srcLoadouts.length > 0) {
+    const loadouts = srcLoadouts
+      .filter(l => l && typeof l.id === 'string')
+      .map(l => ({ id: l.id, name: l.name ?? 'Loadout', data: l.data ?? {}, inherit: l.inherit ?? {} }))
+    if (loadouts.length > 0) {
+      const activeLoadoutId = loadouts.find(l => l.id === srcActiveId)?.id ?? loadouts[0].id
+      return { loadouts, activeLoadoutId }
+    }
+  }
+  const id = genLoadoutId()
+  return { loadouts: [{ id, name: 'New Loadout', data: snapshotAllAreas(payload), inherit: {} }], activeLoadoutId: id }
 }
 
 function App() {
@@ -213,14 +238,15 @@ function App() {
   }
 
   const startNewBuild = () => {
-    useBuildStore.getState().loadBuild({
+    const payload = {
       buildId: null, buildName: '', activeSlot: 0,
-      slots: [null, null, null, null], slates: [], slateInventory: [], prisms: [], prismInventory: [], conditionState: {},
+      slots: [null, null, null, null] as (TreeSlot | null)[], slates: [], slateInventory: [], prisms: [], prismInventory: [], conditionState: {},
       gear: [], skills: [], characterLevel: 100,
       traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitSkillSupports: [],
-      heroMemories: [null, null, null], pactSpirits: [null, null, null], fates: {}, undetermined: [null, null, null],
+      heroMemories: [null, null, null] as [null, null, null], pactSpirits: [null, null, null] as [null, null, null], fates: {}, undetermined: [null, null, null],
       notes: '', customMods: [],
-    })
+    }
+    useBuildStore.getState().loadBuild({ ...payload, ...ensureLoadouts(payload) })
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
     setScreen('build-overview')
@@ -332,7 +358,7 @@ function App() {
       }
     }
 
-    useBuildStore.getState().loadBuild({
+    const loadPayload: Omit<LoadedBuild, 'loadouts' | 'activeLoadoutId'> = {
       buildId: build.id ?? null,
       buildName: build.name,
       slots,
@@ -370,7 +396,11 @@ function App() {
       undetermined: Array.isArray(build.undetermined) ? build.undetermined : [null, null, null],
       notes: typeof build.notes === 'string' ? build.notes : '',
       customMods: Array.isArray(build.customMods) ? (build.customMods as string[]).filter(m => typeof m === 'string') : [],
-    })
+    }
+    // Restore loadouts (default-migrating pre-feature builds into one "New Loadout"); then reconcile the active
+    // loadout's snapshot with the freshly-loaded (crafted-re-resolved) store so saved data stays consistent.
+    useBuildStore.getState().loadBuild({ ...loadPayload, ...ensureLoadouts(loadPayload, build.loadouts, build.activeLoadoutId) })
+    useBuildStore.getState().flushActiveLoadout()
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
     setScreen('build-overview')
@@ -484,8 +514,9 @@ function App() {
   }
 
   const saveBuild = async (name: string) => {
+    useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
-    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods }
+    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
@@ -494,8 +525,9 @@ function App() {
   }
 
   const saveAsBuild = async (name: string) => {
+    useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
-    const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods }
+    const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
@@ -535,9 +567,12 @@ function App() {
   }
 
   const getBuildPayload = () => {
+    useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
     return {
       name: s.buildName,
+      loadouts: s.loadouts,
+      activeLoadoutId: s.activeLoadoutId,
       characterLevel: s.characterLevel,
       slots: s.slots,
       slates: s.slates, slateInventory: s.slateInventory,

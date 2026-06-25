@@ -112,6 +112,10 @@ def _read_file(build_id: str) -> dict:
     custom_mods_raw = data.get('customMods', '')
     custom_mods = json.loads(custom_mods_raw) if custom_mods_raw else []
 
+    loadouts_raw = data.get('loadouts', '')
+    loadouts = json.loads(loadouts_raw) if loadouts_raw else []
+    active_loadout_id = data.get('activeLoadoutId', '') or ''
+
     return {
         'id': data.get('id', build_id),
         'name': data.get('name', ''),
@@ -137,6 +141,8 @@ def _read_file(build_id: str) -> dict:
         'undetermined': undetermined,
         'notes': notes,
         'customMods': custom_mods,
+        'loadouts': loadouts,
+        'activeLoadoutId': active_loadout_id,
     }
 
 
@@ -196,6 +202,9 @@ def _write_file(build: dict) -> None:
         f.write(f"conditionState={json.dumps(condition_state, separators=(',', ':'))}\n")
         custom_mods = build.get('customMods') or []
         f.write(f"customMods={json.dumps(custom_mods, separators=(',', ':'))}\n")
+        loadouts = build.get('loadouts') or []
+        f.write(f"loadouts={json.dumps(loadouts, separators=(',', ':'))}\n")
+        f.write(f"activeLoadoutId={build.get('activeLoadoutId', '') or ''}\n")
 
 
 def load() -> list[dict]:

@@ -401,10 +401,28 @@ export interface PlacedPrism {
   boxAllocations: Record<string, number>
 }
 
+// ── Loadouts ──────────────────────────────────────────────────────────────────
+// A loadout is a full, independent variant of the build's swappable areas. Areas can inherit from another
+// loadout (the "general") via `inherit`; editing an inherited area writes through to the general.
+export type AreaKey =
+  | 'talents' | 'slates' | 'prisms' | 'gear' | 'skills' | 'trait'
+  | 'spirits' | 'memories' | 'conditions' | 'level' | 'customMods' | 'notes'
+
+export interface Loadout {
+  id: string
+  name: string
+  // Per-area snapshot of this loadout's OWN values (each value is an object of that area's store fields).
+  data: Partial<Record<AreaKey, Record<string, unknown>>>
+  // area → source loadout id this loadout inherits that area from.
+  inherit?: Partial<Record<AreaKey, string>>
+}
+
 export interface Build {
   id?: string
   name: string
   slots: (TreeSlot | null)[]
+  loadouts?: Loadout[]
+  activeLoadoutId?: string
   slates?: SavedSlate[]
   slateInventory?: SlateTemplate[]
   prisms?: PlacedPrism[]

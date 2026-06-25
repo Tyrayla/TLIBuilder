@@ -15,6 +15,10 @@ export function useBuildCalculation() {
       // buildVersion, so the hook re-runs with spiritsResolved: true.
       if (!s.spiritsResolved) return
 
+      // Already up to date — e.g. a loadout swap served stats from the per-loadout cache and set
+      // computedVersion to the current buildVersion. Nothing to recompute.
+      if (s.computedVersion >= s.buildVersion) return
+
       const version = s.buildVersion
 
       // Always compute: the character base (Life/Mana/Energy/attributes by level) is present even with no
@@ -26,6 +30,11 @@ export function useBuildCalculation() {
         // Version guard: reject stale/out-of-order responses
         if (version >= useBuildStore.getState().computedVersion) {
           useBuildStore.getState().setComputedStats(result, version)
+          // Cache against the active loadout so swapping back is instant — but only if no edit landed mid-flight,
+          // so the cached fingerprint (computed from current state) matches the state this result came from.
+          if (version === useBuildStore.getState().buildVersion) {
+            useBuildStore.getState().cacheActiveLoadoutStats(result)
+          }
         }
       } catch {
         useBuildStore.getState().setStatsError(
