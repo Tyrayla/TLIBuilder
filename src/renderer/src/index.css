@@ -4255,12 +4255,14 @@ span.gear-affix-label {
   transform: translateX(-50%);
 }
 
-/* Card column cells */
+/* Card column cells. Positioned + raised so the first node's left connector (which overshoots left to reach the
+   card) tucks BEHIND the card — only the segment in the gap between card and node stays visible. */
 .pact-card-cell {
+  position: relative;
+  z-index: 2;
   border: 1.5px solid rgba(255,255,255,0.18);
   border-radius: 8px;
   margin: 10px 6px 10px 16px;
-  background: rgba(255,255,255,0.03);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   display: flex;
@@ -4269,14 +4271,16 @@ span.gear-affix-label {
   gap: 8px;
   overflow: hidden;
   min-height: 200px;
+  background: #101020;
 }
+/* Opaque backgrounds (not translucent) so the tucked-behind connector line never shows through the card. */
 .pact-card-cell:hover {
   border-color: rgba(255,255,255,0.35);
-  background: rgba(255,255,255,0.05);
+  background: #18182c;
 }
 .pact-card-cell.active {
   border-color: rgba(255,255,255,0.55);
-  background: rgba(255,255,255,0.06);
+  background: #1c1c34;
 }
 .pact-card-cell.empty {
   align-items: center;
@@ -4412,6 +4416,10 @@ span.gear-affix-label {
 .pact-node-cell.pact-branch-undet::after  { display: none; }   /* Undetermined node: nothing to its right */
 .pact-node-cell.pact-branch-first::before { display: none; }   /* leftmost extra slot: nothing to its left */
 .pact-node-cell.pact-branch-solo::before  { display: none; }   /* Undetermined node w/ no extra slots: nothing to its left */
+
+/* The first (leftmost) node links back to the spirit card — extend its left connector left to reach the card so
+   the line isn't left floating in the gap between the card and the first node. */
+.pact-nodes-area .pact-node-cell:first-child::before { left: -14px; }
 
 /* Node circles */
 .pact-node {
