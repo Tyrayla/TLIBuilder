@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { IS_WEB } from '../api/client'
-import { useUiPrefs } from '../store/uiPrefsStore'
+import { useUiPrefs, UI_SCALE_MIN, UI_SCALE_MAX } from '../store/uiPrefsStore'
 
 type Channel = 'stable' | 'nightly'
 
@@ -22,6 +22,8 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
   const setCollapsiblePanels = useUiPrefs(s => s.setCollapsiblePanels)
   const showModifierBadges = useUiPrefs(s => s.showModifierBadges)
   const toggleModifierBadges = useUiPrefs(s => s.toggleModifierBadges)
+  const uiScale = useUiPrefs(s => s.uiScale)
+  const setUiScale = useUiPrefs(s => s.setUiScale)
 
   useEffect(() => {
     window.api?.getSettings?.().then((s: AppSettings) => setChannel(s.updateChannel)).catch(() => {})
@@ -70,6 +72,25 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
           {/* ── Display ───────────────────────────────────────────────────── */}
           <section className="settings-section">
             <h4 className="settings-section-title">Display</h4>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <span>UI scale</span>
+                <span className="settings-row-hint">Zoom the whole interface (fonts, spacing, icons). Helps if text feels too small.</span>
+              </div>
+              <div className="settings-scale">
+                <input
+                  type="range"
+                  className="settings-scale-slider"
+                  min={Math.round(UI_SCALE_MIN * 100)}
+                  max={Math.round(UI_SCALE_MAX * 100)}
+                  step={5}
+                  value={Math.round(uiScale * 100)}
+                  onChange={e => setUiScale(Number(e.target.value) / 100)}
+                />
+                <span className="settings-scale-val">{Math.round(uiScale * 100)}%</span>
+                <button className="settings-seg-btn" onClick={() => setUiScale(1)} disabled={uiScale === 1}>Reset</button>
+              </div>
+            </div>
             <div className="settings-row">
               <div className="settings-row-label">
                 <span>NYI flags</span>

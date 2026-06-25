@@ -7,6 +7,7 @@ import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useReferenceStore } from './store/referenceStore'
 import { useMappingStore } from './store/mappingStore'
+import { useUiPrefs } from './store/uiPrefsStore'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
@@ -101,6 +102,10 @@ function App() {
   // Only report "dirty" to the main process while a build is actually open. On the build-list menu there's
   // nothing to save, so the native close/quit guard must never prompt there (it was firing on update-install).
   useEffect(() => { window.api?.notifyDirty?.(isDirty && screen !== 'build-select') }, [isDirty, screen])
+
+  // Global UI zoom (Settings → Display). Applied as CSS zoom on the document root so the whole interface scales.
+  const uiScale = useUiPrefs(s => s.uiScale)
+  useEffect(() => { document.documentElement.style.zoom = String(uiScale || 1) }, [uiScale])
 
   // When condition definitions load, fill any empty conditionState with defaults.
   // This covers new builds and imported builds that predate the conditions system.

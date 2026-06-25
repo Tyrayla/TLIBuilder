@@ -1170,9 +1170,17 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 /* ── Build Sidebar ─────────────────────────────────────────── */
 
-.build-sidebar {
-  width: 155px;
+/* Shell wraps the scrolling sidebar + a right-edge resize handle. The shell is the flex item (fixed-but-draggable
+   width); the inner sidebar fills it. */
+.sidebar-shell {
+  position: relative;
   flex-shrink: 0;
+  display: flex;
+  height: 100%;
+}
+.build-sidebar {
+  width: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   background: #06060e;
@@ -1181,6 +1189,16 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   overflow-y: auto;
   gap: 2px;
 }
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 30;
+}
+.sidebar-resize-handle:hover { background: rgba(124,108,200,0.45); }
 
 .sidebar-build-name {
   font-size: 12px;
@@ -4698,6 +4716,11 @@ span.gear-affix-label {
 .loadout-btn-danger:hover:not(:disabled) { border-color: #8a3a3a; color: #ff9b9b; }
 .loadout-btn-wide { width: 100%; justify-content: center; text-align: center; }
 .loadout-src-name { font-size: 12px; color: #b8bbe0; }
+
+/* Settings → Display: UI scale slider */
+.settings-scale { display: flex; align-items: center; gap: 10px; }
+.settings-scale-slider { width: 150px; accent-color: #7a5ec8; cursor: pointer; }
+.settings-scale-val { font-size: 12px; color: #d2d4ee; min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Edit view — area/source grid */
 .loadout-area-grid { display: flex; flex-direction: column; border: 1px solid #1f1f3a; border-radius: 6px; overflow: hidden; }

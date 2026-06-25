@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
+import { useUiPrefs, SIDEBAR_MIN, SIDEBAR_MAX } from '../store/uiPrefsStore'
 import SettingsOverlay from './SettingsOverlay'
 import LoadoutOverlay from './LoadoutOverlay'
 import type { OffenseResult } from '../api/client'
@@ -112,8 +113,29 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
   const isTreeActive = screen === 'tree-selector' || screen === 'tree-viewer'
   const [showSettings, setShowSettings] = useState(false)
   const [loadoutView, setLoadoutView] = useState<null | 'list' | 'create'>(null)
+  const sidebarWidth = useUiPrefs(s => s.sidebarWidth)
+  const setSidebarWidth = useUiPrefs(s => s.setSidebarWidth)
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = sidebarWidth
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startW + (ev.clientX - startX)))
+      setSidebarWidth(w)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.userSelect = ''
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    document.body.style.userSelect = 'none'
+  }
 
   return (
+    <div className="sidebar-shell" style={{ width: sidebarWidth }}>
     <div className="build-sidebar">
       <div className="sidebar-build-name" title={buildName || 'New Build'}>
         {buildName || 'New Build'}
@@ -162,6 +184,8 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
 
       {showSettings && <SettingsOverlay onClose={() => setShowSettings(false)} />}
       {loadoutView && <LoadoutOverlay initialView={loadoutView} onClose={() => setLoadoutView(null)} />}
+    </div>
+      <div className="sidebar-resize-handle" onMouseDown={startResize} title="Drag to resize the sidebar" />
     </div>
   )
 }
