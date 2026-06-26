@@ -458,6 +458,13 @@ class Stat(Enum):
     # Flag (Rosa): the base trait overrides/prevents all non-Mystic-Mercury mana consumption; Utmost Devotion clears
     # it. Mana-system stat — no DPS consumer yet (mapped for a future mana-cost hookup).
     MANA_COST_OVERRIDE = "mana_cost_override"
+    # NOTE for the future skill-cost model: there are two DISTINCT cost mechanics, do not conflate them.
+    #   • "Skills no longer cost Mana" (core talent Frozen Lotus; support flag skill_no_mana_cost above) SETS the
+    #     skill's BASE cost to 0 — so any cost increases/multipliers still resolve to 0, and cost-derived effects
+    #     ("per N Mana spent") see 0. It is NOT a cost OVERRIDE/cap on the final value.
+    #   • A cost override/cap (e.g. mana_cost_override) replaces the FINAL paid value.
+    # Today neither is consumed (the engine has no skill mana-cost computation); Frozen Lotus resolves to an
+    # unresolved/NYI status. When skill cost is modeled, Frozen Lotus must zero the BASE cost.
 
     # ── Channeled / Triggered / Combo Mechanics ──────────────────────────────
     CHANNELED_DMG_INC = "channeled_dmg_inc"

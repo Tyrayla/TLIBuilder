@@ -151,28 +151,33 @@ export default function BuildOverviewScreen() {
   const worn = wornWeaponFlags(gear)
   const referenced = new Set(referencedConditions ?? [])
 
-  // A condition is "active" when the user has it on (boolean true / numeric > 0, honoring its default).
-  const isCondActive = (c: ConditionDef): boolean => {
+  // Has the user EXPLICITLY set this condition (vs. just carrying a default)? Only an explicit user toggle keeps
+  // an otherwise-hidden condition visible — a positive default must NOT, or every hero-trait/skill condition with
+  // a nonzero default would leak in regardless of whether its source is in the build.
+  const isCondUserSet = (c: ConditionDef): boolean => {
     const v = conditionState[c.key]
-    if (c.value_type === 'boolean') return (v ?? c.default_bool) === true
-    return (((v as number) ?? c.default_value ?? 0)) > 0
+    if (v === undefined) return false
+    return c.value_type === 'boolean' ? v === true : (v as number) > 0
   }
 
   // What shows in the Config list. Hidden by default unless the build has a SOURCE for it, so the screen only
-  // surfaces relevant scenario inputs. visible:false (computed/derived) is never shown. Order of checks:
-  //  - Show all → everything; an already-active toggle is never hidden.
-  //  - Equipment → gated on the weapon/offhand actually worn.
-  //  - Hero-trait conditions (trait_id) → only when THAT trait is selected.
+  // surfaces relevant scenario inputs. visible:false (computed/derived) is never shown. Order matters — the HARD
+  // source gates run first so a positive default can't force an irrelevant condition in:
+  //  - Show all → everything.
+  //  - Equipment → only when that weapon/offhand is actually worn.
+  //  - Hero-trait conditions (trait_id) → ONLY when THAT trait is selected.
   //  - Always-show categories (Blessings/Enemy/Resources/…) → shown, except consumption keys.
-  //  - Everything else (Buffs/Skill/Combat/Tangle/Spell Burst + consumption) → only if a build mod references it.
+  //  - Referenced → a build mod (incl. equipped skills' effects) references it → e.g. Skill conditions show only
+  //    when their skill is in the build.
+  //  - Otherwise, keep showing anything the user explicitly toggled on.
   const isCondVisible = (c: ConditionDef): boolean => {
     if (c.visible === false) return false
     if (showAll) return true
-    if (isCondActive(c)) return true
     if (c.key in EQUIPMENT_GATE) return worn[EQUIPMENT_GATE[c.key]]
     if (c.trait_id) return c.trait_id === traitId
     if (c.category && ALWAYS_SHOW_CATEGORIES.has(c.category) && !REFERENCE_GATED_KEYS.has(c.key)) return true
-    return referenced.has(c.key)
+    if (referenced.has(c.key)) return true
+    return isCondUserSet(c)
   }
 
   const setBoolean = (key: string, value: boolean) =>
