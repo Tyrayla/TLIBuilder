@@ -157,8 +157,11 @@ Engine: `empower_resolver.py`, `utility.apply_empower_buffs`. Buffs assumed 100%
   user-set toggle vs data-derived when building it.
 - See docs/INGAME_VERIFICATION_BACKLOG.md (EMPOWER-01) for verification items.
 
-## 0b. ★ NEXT — False "Unrecognized (NYI)" / "Inactive" on tooltips & badges
-**Do this BEFORE Spell Burst + Tangles.** Skill/support tooltips (and possibly other mod badges) flag lines as
+## 0b. RESOLVED — False "Unrecognized (NYI)" / "Inactive" on tooltips & badges
+**RESOLVED (owner confirmed 2026-06-26).** The tooltip line classifier / badge resolver no longer falsely flags
+modeled mechanics (jumps, conversions, etc.) as NYI/Inactive. Kept below for history.
+
+Skill/support tooltips (and possibly other mod badges) flag lines as
 **Unrecognized (NYI)** or **Inactive** even when the mechanic IS handled or is one we model. Confirmed examples
 (Chain Lightning build):
 - **Chain Lightning skill tooltip**: "+2 Jumps for this skill" → *Unrecognized (NYI)* (jumps are a real, modeled
@@ -220,8 +223,11 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
 ## 3. Skill modeling / contributions
 - **Hook up ALL standard talent nodes** + model more skills (goal: a playable build accurate into the millions
   of DPS). Order: conversions → standard nodes → non-active-skill contributions.
-- **Core-talent conversion lines** → then the general damage-type conversion system (all conversions currently
-  tracked-NYI). Owner to explain each conversion line.
+- **Core-talent line IMPLEMENTATIONS** (the general damage-type conversion system is DONE — shipped 2026-06-11).
+  These remaining core-talent lines are mostly NOT conversions — they're **bonus-sharing** (like Gale's
+  proj-speed→proj-dmg, already live) or other per-talent mechanics to wire/fix (Arcane/Ward/Joined Force/Rebirth/
+  Co-resonance/Rock/True Flame/United Stand), several blocked on subsystems (skill-cost, sealed-mana/reservation,
+  regain, EHP). Treat as per-talent implementations, not a conversion effort.
 - **Non-main-skill damage contributions**: passive/active non-main skills contribute damage; auras/empower/
   curses (the reservation engine they depend on now exists).
 - **Skill viewer deep modeling**: per-skill empower/duration/cooldown, reservation/aura/AoE, per-skill
@@ -230,7 +236,8 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
 - **Fervor gating**: add a "Have Fervor" source; gate base Fervor application instead of unconditional.
 
 ## 4. Data / crawler / import
-- **Crawler & import rework** (DB scraper): reimport + schema rework across importers/backend.
+- **Crawler & import rework** — DONE. Scraper built; importer/schema rework complete; data reimported in
+  split-line (atomic modifier/slot) format.
 - **Master glossary expansion**: keep data/master_glossary.json in sync; expand Help DB glossary terms.
 - **Revisit ~22 unmapped support DPS lines** (ailment/DoT, Tendonslicer, Projectile Penetration) with
   conditions active + autoderive/canvas resolvers.
@@ -255,7 +262,8 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
 - **Per-slot/Berserking frontend toggle UI** (backend done; enable/disable primitive exists).
 - **Conditionals screen revamp**: category-style titled-card panels (match the Stats screen); merge Calc into
   Conditionals → rename "Config".
-- **Roll tier tooltips** (T1/T2/…) on gear + hero-memory tooltips (hero-memory has `tier`; gear needs plumbing).
+- **Roll tier tooltips** (T1/T2/…) on gear + hero-memory tooltips — DONE (`affixTypeLabel(type, tier)`).
+- **Slate inventory + summed-bonus overview** — DONE (shipped 2026-06-15; SlateOverview + saved-slates panel).
 - **Deprecated StatsScreen.tsx** (debug dump) — remove or fold; real screen is PlayerStatsScreen.tsx.
 - **Source tagging**: add a tag/type column to Player Stats source attribution.
 - **Settings overlay follow-ups**: wire the greyed number-separator + decimal-precision controls; theme/accent;

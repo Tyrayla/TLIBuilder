@@ -22,12 +22,11 @@ import TreeSelectorScreen from './screens/TreeSelectorScreen'
 import TreeViewerScreen from './screens/TreeViewerScreen'
 import DevToolsScreen from './screens/DevToolsScreen'
 import SlateScreen from './screens/SlateScreen'
-import StatsScreen from './screens/StatsScreen'
 import PlayerStatsScreen from './screens/PlayerStatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'debug-stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
 
 interface CascadeModal {
   removingSlot: number
@@ -755,8 +754,6 @@ function App() {
     )
   } else if (screen === 'stats') {
     screenContent = <PlayerStatsScreen />
-  } else if (screen === 'debug-stats') {
-    screenContent = import.meta.env.DEV ? <StatsScreen /> : null
   } else if (screen === 'gear') {
     screenContent = <GearScreen onBack={() => setScreen('build-overview')} />
   } else if (screen === 'skills') {

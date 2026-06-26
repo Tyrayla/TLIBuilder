@@ -157,9 +157,6 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
 
       <NavBtn label="Config" active={screen === 'build-overview'} onClick={() => onNav('build-overview')} />
       <NavBtn label="Calcs" active={screen === 'stats'} onClick={() => onNav('stats')} />
-      {import.meta.env.DEV && (
-        <NavBtn label="Debug Stats" active={screen === 'debug-stats'} onClick={() => onNav('debug-stats')} />
-      )}
       <NavBtn label="Notes" active={screen === 'notes'} onClick={() => onNav('notes')} />
 
       <div className="sidebar-divider" />
