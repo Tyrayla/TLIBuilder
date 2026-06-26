@@ -903,6 +903,9 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                 const slotLevel = nodeLevel(slotIdx)
                 const locked = characterLevel < threshold
                 const groups = buildGroups(group)
+                // Split-circle bubbles are ONLY for levels with multiple groups (i.e. Creative Genius) — they save
+                // the vertical space two groups would need. Every other trait keeps its standard stacked options.
+                const multiGroup = groups.length > 1
                 const memSlotIdx = THRESHOLD_TO_MEMORY_SLOT[threshold]
                 const memory = heroMemories[memSlotIdx] ?? null
                 const rarityColor = memory ? MEMORY_RARITY_COLORS[memory.rarity] : undefined
@@ -957,15 +960,39 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                       ) : (
                         <div className="ht-group" key={`p${g.id}`}>
                           <div className="ht-group-label">Pick One</div>
-                          <PickGroup
-                            nodes={g.nodes}
-                            slotLevel={slotLevel}
-                            locked={locked}
-                            tierDisabled={tierDisabled}
-                            selectedNames={advancedTraitSelections}
-                            onSelect={name => selectInGroup(name, threshold, g.nodes.map(n => n.name))}
-                            onDisable={() => disableNode(slotIdx)}
-                          />
+                          {multiGroup ? (
+                            // Creative Genius (multiple groups per level): combined split-circle that fans out.
+                            <PickGroup
+                              nodes={g.nodes}
+                              slotLevel={slotLevel}
+                              locked={locked}
+                              tierDisabled={tierDisabled}
+                              selectedNames={advancedTraitSelections}
+                              onSelect={name => selectInGroup(name, threshold, g.nodes.map(n => n.name))}
+                              onDisable={() => disableNode(slotIdx)}
+                            />
+                          ) : (
+                            // Standard layout: the options stacked as individual circles.
+                            g.nodes.map(t => {
+                              const sel = advancedTraitSelections.includes(t.name)
+                              return (
+                                <TraitCircle
+                                  key={t.name}
+                                  className={`trait-circle${sel ? ' selected' : ''}${locked ? ' locked' : ''}`}
+                                  name={t.name}
+                                  icon={iconUrl('hero_trait', t.icon_url)}
+                                  checked={sel}
+                                  locked={locked}
+                                  disabled={sel && tierDisabled}
+                                  tipName={t.name}
+                                  slotLevel={slotLevel}
+                                  effects={t.effects ?? []}
+                                  onSelect={() => selectInGroup(t.name, threshold, g.nodes.map(n => n.name))}
+                                  onContextMenu={sel && !locked ? () => disableNode(slotIdx) : undefined}
+                                />
+                              )
+                            })
+                          )}
                         </div>
                       ))}
                     </div>
