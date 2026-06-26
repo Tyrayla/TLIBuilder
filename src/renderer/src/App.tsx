@@ -1,10 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields } from './api/client'
+import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, SelectedPactSpirit, ResolvedAffixFields, Loadout } from './api/client'
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
+import { snapshotAllAreas } from './utils/loadoutAreas'
+import { DEFAULT_TARGET_CONFIG, sanitizeTargetConfig } from './utils/targetPresets'
 import { useBuildStore } from './store/buildStore'
+import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useReferenceStore } from './store/referenceStore'
 import { useMappingStore } from './store/mappingStore'
+import { useUiPrefs } from './store/uiPrefsStore'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
@@ -18,13 +22,11 @@ import TreeSelectorScreen from './screens/TreeSelectorScreen'
 import TreeViewerScreen from './screens/TreeViewerScreen'
 import DevToolsScreen from './screens/DevToolsScreen'
 import SlateScreen from './screens/SlateScreen'
-import StatsScreen from './screens/StatsScreen'
 import PlayerStatsScreen from './screens/PlayerStatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
-import CalcsScreen from './screens/CalcsScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'debug-stats' | 'calcs' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
 
 interface CascadeModal {
   removingSlot: number
@@ -38,6 +40,29 @@ function firstEmptySlot(slots: (TreeSlot | null)[], from = 0): number {
     if (!slots[i]) return i
   }
   return 0
+}
+
+const genLoadoutId = (): string =>
+  (globalThis.crypto?.randomUUID?.() ?? `lo${Date.now()}${Math.floor(Math.random() * 1e6)}`)
+
+// Resolve a build's loadouts on load: restore saved loadouts (default-migrating pre-feature builds, which have
+// none, into a single "New Loadout" snapshot of the loaded areas). `payload` is the LoadedBuild-shaped object.
+function ensureLoadouts(
+  payload: Record<string, unknown>,
+  srcLoadouts?: Loadout[],
+  srcActiveId?: string,
+): { loadouts: Loadout[]; activeLoadoutId: string } {
+  if (Array.isArray(srcLoadouts) && srcLoadouts.length > 0) {
+    const loadouts = srcLoadouts
+      .filter(l => l && typeof l.id === 'string')
+      .map(l => ({ id: l.id, name: l.name ?? 'Loadout', data: l.data ?? {}, inherit: l.inherit ?? {} }))
+    if (loadouts.length > 0) {
+      const activeLoadoutId = loadouts.find(l => l.id === srcActiveId)?.id ?? loadouts[0].id
+      return { loadouts, activeLoadoutId }
+    }
+  }
+  const id = genLoadoutId()
+  return { loadouts: [{ id, name: 'Loadout 1', data: snapshotAllAreas(payload), inherit: {} }], activeLoadoutId: id }
 }
 
 function App() {
@@ -73,7 +98,13 @@ function App() {
   const activeSlot = useBuildStore(s => s.activeSlot)
   const buildVersion = useBuildStore(s => s.buildVersion)
 
-  useEffect(() => { window.api?.notifyDirty?.(isDirty) }, [isDirty])
+  // Only report "dirty" to the main process while a build is actually open. On the build-list menu there's
+  // nothing to save, so the native close/quit guard must never prompt there (it was firing on update-install).
+  useEffect(() => { window.api?.notifyDirty?.(isDirty && screen !== 'build-select') }, [isDirty, screen])
+
+  // Global UI zoom (Settings → Display). Applied as CSS zoom on the document root so the whole interface scales.
+  const uiScale = useUiPrefs(s => s.uiScale)
+  useEffect(() => { document.documentElement.style.zoom = String(uiScale || 1) }, [uiScale])
 
   // When condition definitions load, fill any empty conditionState with defaults.
   // This covers new builds and imported builds that predate the conditions system.
@@ -111,9 +142,10 @@ function App() {
 
   useEffect(() => {
     window.api?.onRequestSave?.(() => {
+      useBuildStore.getState().flushActiveLoadout()
       const s = useBuildStore.getState()
       if (s.buildId) {
-        const build = { id: s.buildId, name: s.buildName, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, hasPrism: s.hasPrism, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, notes: s.notes, customMods: s.customMods }
+        const build = { id: s.buildId, name: s.buildName, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
         api.postBuild(build)
           .then(saved => {
             useBuildStore.getState().setBuildId(saved.id ?? null)
@@ -211,14 +243,15 @@ function App() {
   }
 
   const startNewBuild = () => {
-    useBuildStore.getState().loadBuild({
+    const payload = {
       buildId: null, buildName: '', activeSlot: 0,
-      slots: [null, null, null, null], slates: [], slateInventory: [], conditionState: {},
-      gear: [], skills: [], characterLevel: 100, hasPrism: false,
-      traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [],
-      heroMemories: [null, null, null], pactSpirits: [null, null, null],
-      notes: '', customMods: [],
-    })
+      slots: [null, null, null, null] as (TreeSlot | null)[], slates: [], slateInventory: [], prisms: [], prismInventory: [], conditionState: {},
+      gear: [], skills: [], characterLevel: 100,
+      traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitSkillSupports: [],
+      heroMemories: [null, null, null] as [null, null, null], pactSpirits: [null, null, null] as [null, null, null], fates: {}, undetermined: [null, null, null],
+      notes: '', customMods: [], targetConfig: DEFAULT_TARGET_CONFIG,
+    }
+    useBuildStore.getState().loadBuild({ ...payload, ...ensureLoadouts(payload) })
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
     setScreen('build-overview')
@@ -330,13 +363,15 @@ function App() {
       }
     }
 
-    useBuildStore.getState().loadBuild({
+    const loadPayload: Omit<LoadedBuild, 'loadouts' | 'activeLoadoutId'> = {
       buildId: build.id ?? null,
       buildName: build.name,
       slots,
       activeSlot: firstEmptySlot(slots),
       slates: build.slates ?? [],
       slateInventory: build.slateInventory ?? [],
+      prisms: build.prisms ?? [],
+      prismInventory: build.prismInventory ?? [],
       conditionState: build.conditionState ?? migrateOldConditions(build.conditions, build.conditionValues),
       gear,
       skills: (build.skills ?? []).map(s => ({
@@ -348,10 +383,10 @@ function App() {
         })),
       })),
       characterLevel: build.characterLevel ?? 100,
-      hasPrism: build.hasPrism ?? false,
       traitId: build.traitId ?? null,
       traitSlotLevels: build.traitSlotLevels ?? [build.traitLevel ?? 1, 1, 1, 1],
       advancedTraitSelections: build.advancedTraitSelections ?? [],
+      traitSkillSupports: build.traitSkillSupports ?? [],
       heroMemories: [
         sanitizeHeroMemory((build.heroMemories ?? [])[0]),
         sanitizeHeroMemory((build.heroMemories ?? [])[1]),
@@ -362,9 +397,16 @@ function App() {
         sanitizePactSpirit((build.pactSpirits ?? [])[1]),
         sanitizePactSpirit((build.pactSpirits ?? [])[2]),
       ],
+      fates: (build.fates && typeof build.fates === 'object') ? build.fates : {},
+      undetermined: Array.isArray(build.undetermined) ? build.undetermined : [null, null, null],
       notes: typeof build.notes === 'string' ? build.notes : '',
       customMods: Array.isArray(build.customMods) ? (build.customMods as string[]).filter(m => typeof m === 'string') : [],
-    })
+      targetConfig: sanitizeTargetConfig(build.targetConfig),
+    }
+    // Restore loadouts (default-migrating pre-feature builds into one "New Loadout"); then reconcile the active
+    // loadout's snapshot with the freshly-loaded (crafted-re-resolved) store so saved data stays consistent.
+    useBuildStore.getState().loadBuild({ ...loadPayload, ...ensureLoadouts(loadPayload, build.loadouts, build.activeLoadoutId) })
+    useBuildStore.getState().flushActiveLoadout()
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
     setScreen('build-overview')
@@ -478,8 +520,9 @@ function App() {
   }
 
   const saveBuild = async (name: string) => {
+    useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
-    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, hasPrism: s.hasPrism, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, notes: s.notes, customMods: s.customMods }
+    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
@@ -488,8 +531,9 @@ function App() {
   }
 
   const saveAsBuild = async (name: string) => {
+    useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
-    const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, hasPrism: s.hasPrism, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, notes: s.notes, customMods: s.customMods }
+    const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
@@ -529,23 +573,30 @@ function App() {
   }
 
   const getBuildPayload = () => {
+    useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
     return {
       name: s.buildName,
+      loadouts: s.loadouts,
+      activeLoadoutId: s.activeLoadoutId,
       characterLevel: s.characterLevel,
-      hasPrism: s.hasPrism,
       slots: s.slots,
       slates: s.slates, slateInventory: s.slateInventory,
+      prisms: s.prisms, prismInventory: s.prismInventory,
       conditionState: s.conditionState,
       gear: s.gear,
       skills: s.skills,
       traitId: s.traitId,
       traitSlotLevels: s.traitSlotLevels,
       advancedTraitSelections: s.advancedTraitSelections,
+      traitSkillSupports: s.traitSkillSupports,
       heroMemories: s.heroMemories,
       pactSpirits: s.pactSpirits,
+      fates: s.fates,
+      undetermined: s.undetermined,
       notes: s.notes,
       customMods: s.customMods,
+      targetConfig: s.targetConfig,
     }
   }
 
@@ -589,7 +640,7 @@ function App() {
 
   if (screen === 'build-select') {
     return (
-      <>
+      <div className="app-shell">
         {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
         <BuildSelectScreen
           onNewBuild={startNewBuild}
@@ -597,7 +648,7 @@ function App() {
           devMode={devMode}
           onDevTools={() => setScreen('dev-tools')}
         />
-      </>
+      </div>
     )
   }
 
@@ -703,10 +754,6 @@ function App() {
     )
   } else if (screen === 'stats') {
     screenContent = <PlayerStatsScreen />
-  } else if (screen === 'debug-stats') {
-    screenContent = import.meta.env.DEV ? <StatsScreen /> : null
-  } else if (screen === 'calcs') {
-    screenContent = <CalcsScreen />
   } else if (screen === 'gear') {
     screenContent = <GearScreen onBack={() => setScreen('build-overview')} />
   } else if (screen === 'skills') {
@@ -721,19 +768,21 @@ function App() {
 
   return (
     <>
-      {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
-      <div className="app-layout">
-        <BuildSidebar
-          screen={screen}
-          buildName={buildName}
-          isDirty={isDirty}
-          onNav={handleSidebarNav}
-          onSave={handleSidebarSave}
-          onSaveAs={handleSidebarSaveAs}
-          onGoBack={goToBuildSelect}
-        />
-        <div className="app-content">
-          {screenContent}
+      <div className="app-shell">
+        {updateInfo && <UpdateBanner info={updateInfo} downloading={updateDownloading} progress={updateProgress} downloaded={updateDownloaded} onDownload={handleUpdateDownload} onInstall={() => window.api?.installUpdate?.()} />}
+        <div className="app-layout">
+          <BuildSidebar
+            screen={screen}
+            buildName={buildName}
+            isDirty={isDirty}
+            onNav={handleSidebarNav}
+            onSave={handleSidebarSave}
+            onSaveAs={handleSidebarSaveAs}
+            onGoBack={goToBuildSelect}
+          />
+          <div className="app-content">
+            {screenContent}
+          </div>
         </div>
       </div>
       {cascadeOverlay}

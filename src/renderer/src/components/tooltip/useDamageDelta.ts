@@ -80,6 +80,21 @@ export function withNodePoints(s: BuildState, slotIdx: number, nodeId: string, p
 // slot's existing supports. Used by the passive-skill catalog to preview each candidate's DPS contribution:
 //   pick → step = withSkill(slot, candidate), base = current → swap-in result (measured on the MAIN skill,
 //   since a passive/aura buffs the whole build rather than dealing its own hit damage).
+// Set a Prism reflected-box cell (keyed "col,row") to a point count (<=0 removes it). The engine prices the
+// reflected copy's marginal DPS — and any stat the prism grants — through the normal prisms payload.
+export function withPrismBoxPoints(s: BuildState, prismId: string, posKey: string, points: number): BuildState {
+  return {
+    ...s,
+    prisms: s.prisms.map(p => {
+      if (p.id !== prismId) return p
+      const boxAllocations = { ...p.boxAllocations }
+      if (points <= 0) delete boxAllocations[posKey]
+      else boxAllocations[posKey] = points
+      return { ...p, boxAllocations }
+    }),
+  }
+}
+
 export function withSkill(s: BuildState, slot: number, item: SkillItem | null, level: number): BuildState {
   const others = s.skills.filter(sk => sk.slot !== slot)
   if (!item) return { ...s, skills: others }

@@ -1,6 +1,7 @@
 // The damage-preview band rendered inside TooltipShell. See useDamageDelta.
 import React from 'react'
 import type { DamageDelta } from './useDamageDelta'
+import { dec } from '../../utils/num'
 
 function formatSigned(n: number): string {
   const sign = n > 0 ? '+' : ''
@@ -9,7 +10,7 @@ function formatSigned(n: number): string {
 
 function formatSignedPct(n: number): string {
   const sign = n > 0 ? '+' : ''
-  return `${sign}${n.toFixed(1)}`
+  return `${sign}${dec(n)}`
 }
 
 // `label` defaults to "Damage" (the left cell). For multi-slot gear previews the caller passes a

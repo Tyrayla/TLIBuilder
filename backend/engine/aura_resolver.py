@@ -35,8 +35,10 @@ def _num(s: str) -> float:
     return float(s)
 
 
-def _buff_lines(lines) -> list[str]:
-    return [l for l in (lines or []) if l and l.strip() and not _INTRO_RE.search(l)]
+def _buff_lines(lines, intro_re=_INTRO_RE) -> list[str]:
+    """Drop the intro line ("gain the following buff" / "gains Euphoria") + blanks; keep the buff lines.
+    `intro_re` is overridable so other buff resolvers (e.g. empower's Euphoria) can reuse this."""
+    return [l for l in (lines or []) if l and l.strip() and not intro_re.search(l)]
 
 
 def _per_stack_pairs(text: str) -> dict:

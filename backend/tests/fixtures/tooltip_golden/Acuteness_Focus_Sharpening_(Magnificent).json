@@ -10,12 +10,14 @@
   "lines": [
     {
       "badge_text": "+20 % additional damage for the supported skill",
+      "coverage": null,
       "kind": "special",
       "text": "+20 % additional damage for the supported skill",
       "values_by_level": null
     },
     {
       "badge_text": "+29 % additional Focus Speed for the supported skill",
+      "coverage": null,
       "kind": "scaling",
       "text": "",
       "values_by_level": {
@@ -24,5 +26,6 @@
         "2": "+25 % additional Focus Speed for the supported skill"
       }
     }
-  ]
+  ],
+  "modeled_rolls": []
 }

@@ -153,6 +153,21 @@ def emit_rampage(source, slot: int, eff, coeff: float) -> None:
             points=1))
 
 
+# ── Modeled-line specs (badge stat-keys + roll ranges) ────────────────────────
+# See engine/skill_effects/howling_gale.py for the spec shape. `keys=[]` = a recognized BEHAVIORAL line (sets a
+# condition / cap, no stat modifier → no coverage badge) that still carries a tunable roll (Decimate's threshold).
+LINE_SPECS = [
+    {"support_ids": {DESPERATION}, "phrase": re.compile(r"every\s*5\s*%\s*life\s*lost", re.I),
+     "keys": ["dmg_additional"], "range_re": _DESP_PER},
+    {"support_ids": {SWEEP}, "phrase": re.compile(r"additional\s+skill\s+area", re.I),
+     "keys": ["skill_area_additional"], "range_re": _SWEEP_RE},
+    {"support_ids": {DECIMATE}, "phrase": re.compile(r"low\s+life", re.I),
+     "keys": [], "range_re": _DECIMATE_RE},
+    {"support_ids": {RAMPAGE}, "phrase": re.compile(r"of\s+the\s+bonuses", re.I),
+     "keys": ["steep_strike_additional_dmg"], "range_re": _RAMPAGE_RE},
+]
+
+
 # ── skill_effects registry interface ──────────────────────────────────────────
 GUARD_IDS = BB_SUPPORT_IDS                       # specific lines handled here, not the generic parser
 CONTRIB_HOOKS = {DESPERATION: desperation_contribution}  # type-A support-path contributions
@@ -162,6 +177,10 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
                        skills_by_id, **_) -> dict:
     """Slot-local emissions for a Berserking Blade slot: the intrinsic Skill-Area buff (always), Sweep's
     additional Skill Area, and Rampage's skill-area→Steep-Strike share. No offense overrides."""
+    # The buff-stack count is baked into the emitted amounts (not expressed as a condition_expr), so register
+    # it here as a referenced condition — it's the only signal that scopes its Config visibility to builds that
+    # actually run Berserking Blade (this handler is dispatched only for equipped Berserking Blade slots).
+    source.referenced_conditions.add("berserking_blade_stacks")
     cfg = extract_config(attached_supports, skills_by_id).get(slot, {})
     n = stacks(condition_state, "sweep_per_stack" in cfg)
     emit_self_buff(source, slot, n, cfg.get("sweep_per_stack", 0.0))

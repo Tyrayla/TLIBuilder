@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
-import { HeroTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl } from '../api/client'
+import { HeroTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl,
+  SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
 import { characterLevelFrom } from '../utils/conditions'
@@ -8,6 +9,7 @@ import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { ModifierBadge, useTextModifierStatuses, useTextModifierStatus } from '../components/ModifierBadge'
+import { dec } from '../utils/num'
 
 interface Props {
   onBack: () => void
@@ -160,7 +162,7 @@ function resolveMemoryEffect(sel: MemorySlotSelection): string {
   // Ensure leading + for modifiers that start with a digit (handles legacy stored data)
   const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
   if (sel.rolledValue === null) return mod
-  const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : sel.rolledValue.toFixed(1)
+  const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : dec(sel.rolledValue)
   return mod.replace(/\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, val)
 }
 
@@ -194,7 +196,7 @@ function resolveLevel(text: string, level: number): string {
 
 // ── Tooltip content + trigger components (shared floating primitive) ───────────
 
-function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
+export function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
   name: string; slotLevel: number; effects: string[]; moonEffects?: string[]
 }) {
   return (
@@ -223,10 +225,10 @@ function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
 // A trait circle (base or advanced) + its hover info tooltip. Hover-only — the tooltip shows
 // only while the icon itself is hovered (non-interactive, so moving onto the card dismisses
 // it), and clicking only selects the node (no pinning). Locked circles show no tooltip.
-function TraitCircle({ className, name, icon, checked, locked, tipName, slotLevel, effects, moonEffects, onSelect }: {
-  className: string; name: string; icon?: string | null; checked: boolean; locked?: boolean
+function TraitCircle({ className, name, icon, checked, locked, disabled, tipName, slotLevel, effects, moonEffects, onSelect, onContextMenu }: {
+  className: string; name: string; icon?: string | null; checked: boolean; locked?: boolean; disabled?: boolean
   tipName: string; slotLevel: number; effects: string[]; moonEffects?: string[]
-  onSelect?: () => void
+  onSelect?: () => void; onContextMenu?: () => void
 }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
   // Icon fills the circle; the name sits as a caption below so it never overlaps the art. Falls back
@@ -246,8 +248,11 @@ function TraitCircle({ className, name, icon, checked, locked, tipName, slotLeve
   }
   return (
     <div className="trait-circle-wrap">
-      <div {...tip.triggerProps} className={className} onClick={onSelect}>
-        {inner}{checked && <span className="trait-circle-check">✓</span>}
+      <div {...tip.triggerProps}
+        className={className}
+        onClick={onSelect}
+        onContextMenu={onContextMenu ? e => { e.preventDefault(); onContextMenu() } : undefined}>
+        {inner}{checked && !disabled && <span className="trait-circle-check">✓</span>}
       </div>
       <span className="trait-circle-caption">{name}</span>
       {tip.open && (
@@ -319,16 +324,19 @@ function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
 }
 
 // One unified-slider affix row in the memory creator + its hover tooltip (resolved text).
-function AffixRow({ label, pool, source, current, onChange }: {
+function AffixRow({ label, pool, source, current, excludeNames, onChange }: {
   label: string
   pool: HeroMemoryAffix[]
   source: string
   current: MemorySlotSelection | null
+  excludeNames?: Set<string>   // affix names already chosen in sibling rows (a memory can't repeat a modifier)
   onChange: (sel: MemorySlotSelection | null) => void
 }) {
   const tip = useFloatingTooltip({ anchor: 'cursor', side: 'top' })
-  const names = getAffixNames(pool, source)
   const selectedName = current ? getAffixName(current.modifier) : ''
+  // Drop names taken by other rows, but always keep this row's own current selection so it stays visible.
+  const names = getAffixNames(pool, source)
+    .filter(n => n === selectedName || !excludeNames?.has(n))
   const tierEntries = selectedName ? getTierOptions(pool, source, selectedName) : []
   const tierRanges = buildTierRanges(tierEntries)
   const sliderMax = tierRanges.length > 0 ? tierRanges[tierRanges.length - 1].endPos : 0
@@ -376,16 +384,19 @@ function AffixRow({ label, pool, source, current, onChange }: {
             <div className="memory-tier-slider-wrapper">
               <div className="memory-tier-label-pill">Tier {currentTierInfo.tier}</div>
               <div className="memory-tier-slider-row">
-                <input
-                  type="range"
-                  className="memory-affix-slider"
-                  min={0}
-                  max={sliderMax}
-                  value={currentPos}
-                  onChange={e => handleSliderChange(parseInt(e.target.value))}
-                />
+                {/* A single fixed value has no positions to slide (sliderMax === 0) — show just the value. */}
+                {sliderMax > 0 && (
+                  <input
+                    type="range"
+                    className="memory-affix-slider"
+                    min={0}
+                    max={sliderMax}
+                    value={currentPos}
+                    onChange={e => handleSliderChange(parseInt(e.target.value))}
+                  />
+                )}
                 <span className="memory-affix-slider-val">
-                  {Number.isInteger(currentTierInfo.value) ? currentTierInfo.value : currentTierInfo.value.toFixed(1)}
+                  {Number.isInteger(currentTierInfo.value) ? currentTierInfo.value : dec(currentTierInfo.value)}
                 </span>
               </div>
             </div>
@@ -396,6 +407,92 @@ function AffixRow({ label, pool, source, current, onChange }: {
         <FloatingPortal>
           <div className="memory-affix-hover-tooltip" {...tip.floatingProps}>{resolvedText}</div>
         </FloatingPortal>
+      )}
+    </>
+  )
+}
+
+// The Holy Domain trait-skill slot: a circular button (memory-slot style) that opens a centered overlay to
+// socket ONE support (a Support Skill or Activation Medium support) into the trait skill. Inert until the
+// Barrier/Guard systems land — but slotting Guard here will then auto-grant Barrier with no Rosa revisit.
+function TraitSkillSlot({ supports, allSkills, onChange }: {
+  supports: EquippedSupportSkill[]; allSkills: SkillItem[]; onChange: (s: EquippedSupportSkill[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const socketed = supports[0] ?? null
+
+  const compatible = useMemo(() => {
+    const base = allSkills.filter(it =>
+      ((it.skill_type ?? '').includes('support') || (it.skill_tags ?? []).includes('Activation Medium'))
+      && isSupportCompatible(it, TRAIT_SKILL_PARENT, false, 1, true))
+    if (!search.trim()) return base
+    const q = search.toLowerCase()
+    return base.filter(it => it.name.toLowerCase().includes(q)
+      || (it.skill_tags ?? []).some(t => t.toLowerCase().includes(q)))
+  }, [allSkills, search])
+
+  const pick = (it: SkillItem) => {
+    onChange([{
+      support_index: 1, item_id: it.item_id, name: it.name,
+      skill_type: it.skill_type ?? 'support_skill', level: 20,
+      skill_tags: it.skill_tags ?? [], description_lines: it.description_lines ?? [], enabled: true,
+    }])
+    setOpen(false); setSearch('')
+  }
+
+  return (
+    <>
+      <div
+        className={`memory-slot-circle${socketed ? ' filled' : ''}`}
+        style={socketed ? { borderColor: '#c8a86a', boxShadow: '0 0 10px #c8a86a44' } : undefined}
+        title="Holy Domain — Support Slot"
+        onClick={e => { e.stopPropagation(); setOpen(true) }}
+      >
+        {socketed
+          ? <span style={{ color: '#e0c890', fontSize: 10, fontWeight: 700, textAlign: 'center', padding: '0 2px', lineHeight: 1.05 }}>{socketed.name}</span>
+          : <span className="memory-slot-plus">+</span>}
+      </div>
+      {open && (
+        <div className="modal-backdrop" onClick={() => setOpen(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, width: '90%' }}>
+            <div className="modal-accent" />
+            <h3 className="modal-title">Holy Domain — Support Slot</h3>
+            <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
+              Install a Support Skill or Activation Medium support to modify the Holy Domain trait skill.
+            </div>
+            <input
+              autoFocus value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search supports…"
+              style={{ width: '100%', padding: '6px 8px', marginBottom: 8, background: '#0d0d1e',
+                border: '1px solid #3a3a5a', borderRadius: 4, color: '#ddd', fontSize: 12 }}
+            />
+            {socketed && (
+              <button className="btn btn-danger" style={{ marginBottom: 8 }}
+                onClick={() => { onChange([]); setOpen(false) }}>
+                Remove {socketed.name}
+              </button>
+            )}
+            <div style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {compatible.length === 0
+                ? <div style={{ color: '#777', fontSize: 12, padding: 8 }}>No compatible supports found.</div>
+                : compatible.map(it => (
+                  <div key={it.item_id} onClick={() => pick(it)}
+                    style={{ padding: '6px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12,
+                      background: socketed?.item_id === it.item_id ? 'rgba(200,168,106,0.18)' : 'rgba(255,255,255,0.03)',
+                      color: '#ddd' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,168,106,0.12)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = socketed?.item_id === it.item_id ? 'rgba(200,168,106,0.18)' : 'rgba(255,255,255,0.03)')}>
+                    <div style={{ fontWeight: 600 }}>{it.name}</div>
+                    <div style={{ fontSize: 10, color: '#888' }}>{(it.skill_tags ?? []).join(' · ')}</div>
+                  </div>
+                ))}
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
@@ -412,6 +509,9 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   const heroMemories = useBuildStore(s => s.heroMemories)
   const setTraitData = useBuildStore(s => s.setTraitData)
   const setHeroMemories = useBuildStore(s => s.setHeroMemories)
+  const traitSkillSupports = useBuildStore(s => s.traitSkillSupports)
+  const setTraitSkillSupports = useBuildStore(s => s.setTraitSkillSupports)
+  const allSkills = useReferenceStore(s => s.skills) ?? []
   const allTraits = useReferenceStore(s => s.heroTraits) ?? []
   const memoryData = useReferenceStore(s => s.heroMemories)
   const referenceResolved = useReferenceStore(s => s.referenceResolved)
@@ -438,7 +538,11 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
       : [1, 1, 1, 1]
   )
 
-  const baseLevel = safeSlotLevels[SLOT_BASE]
+  // A negative slot level = the node is DISABLED (the magnitude is its remembered level).
+  const nodeDisabled = (slotIdx: number) => safeSlotLevels[slotIdx] < 1
+  const nodeLevel = (slotIdx: number) => Math.max(1, Math.min(5, Math.abs(safeSlotLevels[slotIdx])))
+  const baseLevel = nodeLevel(SLOT_BASE)
+  const baseDisabled = nodeDisabled(SLOT_BASE)
   const baseEffects = selectedTrait?.levels[baseLevel - 1]?.effects ?? []
   const showArtificialMoon = baseLevel === 5 && (selectedTrait?.artificial_moon?.effects?.length ?? 0) > 0
 
@@ -449,6 +553,13 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     setTraitData(traitId, next, advancedTraitSelections)
   }
 
+  // Slot levels with `slotIdx` forced ENABLED (positive, remembered magnitude) — selecting/left-clicking enables.
+  const withEnabled = (slotIdx: number) => {
+    const n = [...safeSlotLevels]
+    n[slotIdx] = Math.abs(n[slotIdx]) || 1
+    return n
+  }
+
   function selectPrimary(name: string, threshold: number) {
     if (!traitId || !selectedTrait) return
     const falseNames = selectedTrait.advanced_traits
@@ -456,7 +567,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
       .map(t => t.name)
     const next = advancedTraitSelections.filter(n => !falseNames.includes(n))
     next.push(name)
-    setTraitData(traitId, safeSlotLevels, next)
+    setTraitData(traitId, withEnabled(SLOT_IDX[threshold]), next)   // picking also (re)enables the tier
   }
 
   function selectSub(name: string, threshold: number) {
@@ -466,11 +577,26 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
       .map(t => t.name)
     const next = advancedTraitSelections.filter(n => !trueNames.includes(n))
     next.push(name)
-    setTraitData(traitId, safeSlotLevels, next)
+    setTraitData(traitId, withEnabled(SLOT_IDX[threshold]), next)   // picking also (re)enables the tier
   }
 
   function switchTrait(newTraitId: string) {
     setTraitData(newTraitId, [1, 1, 1, 1], [])
+    setTraitSkillSupports([])
+  }
+
+  // A DISABLED node is stored as a NEGATIVE slot level (remembers the magnitude); the engine skips tiers whose
+  // level < 1. LEFT-click enables/selects a node; RIGHT-click disables it.
+  function enableNode(slotIdx: number) {
+    if (!traitId) return
+    setTraitData(traitId, withEnabled(slotIdx), advancedTraitSelections)
+  }
+
+  function disableNode(slotIdx: number) {
+    if (!traitId) return
+    const next = [...safeSlotLevels]
+    next[slotIdx] = -(Math.abs(next[slotIdx]) || 1)
+    setTraitData(traitId, next, advancedTraitSelections)
   }
 
   // ── Memory creator helpers ────────────────────────────────────────────────
@@ -549,21 +675,33 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
         </div>
 
         <div className="memory-affix-list">
-          <AffixRow label="Base Stat" pool={memoryData.base_stats} source={MEMORY_SOURCES[creatorSlot]}
-            current={draft.baseStat}
-            onChange={sel => setDraft({ ...draft, baseStat: sel })} />
-          <AffixRow label="Fixed 1" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
-            current={draft.fixedAffixes[0]}
-            onChange={sel => setDraft({ ...draft, fixedAffixes: [sel, draft.fixedAffixes[1]] })} />
-          <AffixRow label="Fixed 2" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
-            current={draft.fixedAffixes[1]}
-            onChange={sel => setDraft({ ...draft, fixedAffixes: [draft.fixedAffixes[0], sel] })} />
-          <AffixRow label="Random 1" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
-            current={draft.randomAffixes[0]}
-            onChange={sel => setDraft({ ...draft, randomAffixes: [sel, draft.randomAffixes[1]] })} />
-          <AffixRow label="Random 2" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
-            current={draft.randomAffixes[1]}
-            onChange={sel => setDraft({ ...draft, randomAffixes: [draft.randomAffixes[0], sel] })} />
+          {(() => {
+            // A memory can't carry the same modifier twice — build each row's exclude set from the
+            // affix names chosen in the OTHER rows (fixed/random pools share affixes like Minion Crit Dmg).
+            const all = [draft.baseStat, draft.fixedAffixes[0], draft.fixedAffixes[1], draft.randomAffixes[0], draft.randomAffixes[1]]
+            const excludeFor = (self: MemorySlotSelection | null) => new Set(
+              all.filter(s => s !== self).map(s => s ? getAffixName(s.modifier) : null).filter((n): n is string => !!n)
+            )
+            return (
+              <>
+                <AffixRow label="Base Stat" pool={memoryData.base_stats} source={MEMORY_SOURCES[creatorSlot]}
+                  current={draft.baseStat} excludeNames={excludeFor(draft.baseStat)}
+                  onChange={sel => setDraft({ ...draft, baseStat: sel })} />
+                <AffixRow label="Fixed 1" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
+                  current={draft.fixedAffixes[0]} excludeNames={excludeFor(draft.fixedAffixes[0])}
+                  onChange={sel => setDraft({ ...draft, fixedAffixes: [sel, draft.fixedAffixes[1]] })} />
+                <AffixRow label="Fixed 2" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
+                  current={draft.fixedAffixes[1]} excludeNames={excludeFor(draft.fixedAffixes[1])}
+                  onChange={sel => setDraft({ ...draft, fixedAffixes: [draft.fixedAffixes[0], sel] })} />
+                <AffixRow label="Random 1" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
+                  current={draft.randomAffixes[0]} excludeNames={excludeFor(draft.randomAffixes[0])}
+                  onChange={sel => setDraft({ ...draft, randomAffixes: [sel, draft.randomAffixes[1]] })} />
+                <AffixRow label="Random 2" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
+                  current={draft.randomAffixes[1]} excludeNames={excludeFor(draft.randomAffixes[1])}
+                  onChange={sel => setDraft({ ...draft, randomAffixes: [draft.randomAffixes[0], sel] })} />
+              </>
+            )
+          })()}
         </div>
 
         <div className="modal-actions">
@@ -607,16 +745,18 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
 
             {/* Base trait — always selected */}
             <div className="trait-base-col">
-              {/* Disabled memory slot — Revival Memories (future) */}
+              {/* Top slot reserved for future Revival Hero Memories. */}
               <div className="memory-slot-circle disabled" title="Coming Soon">
                 <span className="memory-slot-coming-soon">Coming Soon</span>
               </div>
-              <div className="trait-tier-label">Base Trait</div>
+              <div className={`trait-tier-label${baseDisabled ? ' locked' : ''}`}>
+                Base Trait{baseDisabled ? ' (off)' : ''}
+              </div>
               <div className="trait-slot-level-row">
                 {[1, 2, 3, 4, 5].map(lv => (
                   <button
                     key={lv}
-                    className={`trait-slot-level-btn${safeSlotLevels[SLOT_BASE] === lv ? ' active' : ''}`}
+                    className={`trait-slot-level-btn${nodeLevel(SLOT_BASE) === lv && !baseDisabled ? ' active' : ''}`}
                     onClick={e => { e.stopPropagation(); setSlotLevel(SLOT_BASE, lv) }}
                   >{lv}</button>
                 ))}
@@ -626,11 +766,21 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                 name={selectedTrait.variant_name}
                 icon={iconUrl('hero_trait', selectedTrait.icon_url)}
                 checked
+                disabled={baseDisabled}
                 tipName={selectedTrait.variant_name}
-                slotLevel={safeSlotLevels[SLOT_BASE]}
+                slotLevel={baseLevel}
                 effects={baseEffects}
                 moonEffects={showArtificialMoon ? selectedTrait.artificial_moon.effects : undefined}
+                onSelect={baseDisabled ? () => enableNode(SLOT_BASE) : undefined}
+                onContextMenu={() => disableNode(SLOT_BASE)}
               />
+              {/* Holy Domain support slot — BELOW the trait, only when Invulnerability / Divine Intervention grants it. */}
+              {traitGrantsSkillSlot(traitId, advancedTraitSelections) && (
+                <div style={{ marginTop: 10 }}>
+                  <div className="trait-tier-label" style={{ fontSize: 10, marginBottom: 4 }}>Support Slot</div>
+                  <TraitSkillSlot supports={traitSkillSupports} allSkills={allSkills} onChange={setTraitSkillSupports} />
+                </div>
+              )}
             </div>
 
             <div className="trait-v-divider" />
@@ -641,7 +791,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                 const group = selectedTrait.advanced_traits.filter(t => t.unlock_level === threshold)
                 if (group.length === 0) return null
                 const slotIdx = SLOT_IDX[threshold]
-                const slotLevel = safeSlotLevels[slotIdx]
+                const tierDisabled = nodeDisabled(slotIdx)
+                const slotLevel = nodeLevel(slotIdx)
                 const locked = characterLevel < threshold
                 const primaries = group.filter(t => !t.is_pick_one_from_two)
                 const subs = group.filter(t => t.is_pick_one_from_two)
@@ -659,14 +810,14 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                       onOpen={() => openMemoryCreator(memSlotIdx)}
                     />
 
-                    <div className={`trait-tier-label${locked ? ' locked' : ''}`}>
-                      Level {threshold}
+                    <div className={`trait-tier-label${locked || tierDisabled ? ' locked' : ''}`}>
+                      Level {threshold}{tierDisabled ? ' (off)' : ''}
                     </div>
                     <div className="trait-slot-level-row">
                       {[1, 2, 3, 4, 5].map(lv => (
                         <button
                           key={lv}
-                          className={`trait-slot-level-btn${slotLevel === lv ? ' active' : ''}${locked ? ' locked' : ''}`}
+                          className={`trait-slot-level-btn${slotLevel === lv && !tierDisabled ? ' active' : ''}${locked ? ' locked' : ''}`}
                           onClick={e => { e.stopPropagation(); !locked && setSlotLevel(slotIdx, lv) }}
                         >{lv}</button>
                       ))}
@@ -683,10 +834,12 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                             icon={iconUrl('hero_trait', t.icon_url)}
                             checked={selected}
                             locked={locked}
+                            disabled={selected && tierDisabled}
                             tipName={t.name}
                             slotLevel={slotLevel}
                             effects={t.effects ?? []}
                             onSelect={() => selectPrimary(t.name, threshold)}
+                            onContextMenu={selected && !locked ? () => disableNode(slotIdx) : undefined}
                           />
                         )
                       })}
@@ -705,10 +858,12 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                               icon={iconUrl('hero_trait', t.icon_url)}
                               checked={selected}
                               locked={locked}
+                              disabled={selected && tierDisabled}
                               tipName={t.name}
                               slotLevel={slotLevel}
                               effects={t.effects ?? []}
                               onSelect={() => selectSub(t.name, threshold)}
+                              onContextMenu={selected && !locked ? () => disableNode(slotIdx) : undefined}
                             />
                           )
                         })}

@@ -10,6 +10,7 @@ import {
   isSupportCompatible,
   getSupportEnergyCost,
   getMaxEnergy,
+  hasEffortlessCommandEnergy,
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
@@ -23,6 +24,7 @@ import { useDamageDelta, useDamageDeltaList, withSupport, withSkill, type DeltaR
 import { buildEngineStatsPayload, type BuildState } from '../utils/statsPayload'
 import { characterLevelFrom } from '../utils/conditions'
 import { modeledRolledLines } from '../utils/supportRolls'
+import { dec } from '../utils/num'
 
 // djb2 string hash → short base36. Used to fingerprint the build slice the support-pick deltas depend on.
 function hashStr(str: string): string {
@@ -181,7 +183,7 @@ function deltaInline(d: DamageDelta | undefined): React.ReactNode {
   if (d.state === 'value' && d.direction !== 'neutral') {
     return (
       <span style={{ fontSize: 11, fontWeight: 600, color: d.direction === 'gain' ? '#5fc16a' : '#e06c6c' }}>
-        {d.percent > 0 ? '+' : ''}{d.percent.toFixed(1)}%
+        {d.percent > 0 ? '+' : ''}{dec(d.percent)}%
       </span>
     )
   }
@@ -204,6 +206,41 @@ function RefreshButton({ onClick }: { onClick: () => void }) {
         color: '#bbb',
       }}
     >↻</button>
+  )
+}
+
+// A typed exact-value input for a support's per-line roll (a signed fraction). Shows/accepts the value as a
+// percentage (up to 2 decimals), with the tier's valid range beside it. Keeps local text state so partial
+// typing isn't fought by clamping; commits (clamped to [min,max]) on blur / Enter. Re-syncs if the stored
+// value changes externally (e.g. a tier change re-seeds the mid).
+function RollInput(
+  { value, min, max, onCommit }: { value: number; min: number; max: number; onCommit: (frac: number) => void },
+) {
+  const fmt = (frac: number) => dec(frac * 100)
+  const [text, setText] = useState(fmt(value))
+  const [editing, setEditing] = useState(false)
+  useEffect(() => { if (!editing) setText(fmt(value)) }, [value, editing])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const commit = () => {
+    setEditing(false)
+    const pct = Number(text)
+    if (Number.isNaN(pct)) { setText(fmt(value)); return }
+    const frac = Math.min(max, Math.max(min, pct / 100))
+    onCommit(frac)
+    setText(fmt(frac))
+  }
+  return (
+    <>
+      <input
+        type="number" className="skill-level-input" style={{ width: 70 }}
+        min={min * 100} max={max * 100} step={0.01} value={text}
+        onFocus={() => setEditing(true)}
+        onChange={e => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+      />
+      <span style={{ fontSize: 12, opacity: 0.5 }}>% ({dec(min * 100)}–{dec(max * 100)}%)</span>
+    </>
   )
 }
 
@@ -236,8 +273,10 @@ export default function SkillsScreen(_props: Props) {
   // Character level now comes from the `level` condition (default 90); the old level control is gone.
   const conditionState = useBuildStore(s => s.conditionState)
   const characterLevel = characterLevelFrom(conditionState)
-  const hasPrism = useBuildStore(s => s.hasPrism)
-  const onHasPrismChange = useBuildStore(s => s.setHasPrism)
+  const prisms = useBuildStore(s => s.prisms)
+  const slots = useBuildStore(s => s.slots)
+  // +1000 Max Energy comes from a placed Effortless Command Ethereal Prism (≥24 pts) — not a manual toggle.
+  const hasPrism = hasEffortlessCommandEnergy(prisms, slots)
   const cachedSkills = useReferenceStore(s => s.skills)
   const supportSort = useUiPrefs(s => s.supportSort)
   const setSupportSort = useUiPrefs(s => s.setSupportSort)
@@ -874,7 +913,7 @@ export default function SkillsScreen(_props: Props) {
               </div>
             )
           })()}
-          {/* Roll sliders — one per engine-modeled rolled line (today: Noble/Magnificent specific line). */}
+          {/* Roll inputs — one per engine-modeled rolled line. Type the exact value within the tier range. */}
           {existingSupport && (() => {
             const supItem = allItems.find(i => i.item_id === existingSupport.item_id)
             const rolls = modeledRolledLines(supItem, existingSupport.level)
@@ -901,9 +940,7 @@ export default function SkillsScreen(_props: Props) {
                     value={cur}
                     onChange={e => updateRoll(r.identity, Number(e.target.value))}
                   />
-                  <span style={{ minWidth: 92, textAlign: 'right', fontSize: 12, opacity: 0.85 }}>
-                    {(cur * 100).toFixed(1)}% <span style={{ opacity: 0.5 }}>({(r.min * 100).toFixed(0)}–{(r.max * 100).toFixed(0)}%)</span>
-                  </span>
+                  <RollInput value={cur} min={r.min} max={r.max} onCommit={v => updateRoll(r.identity, v)} />
                 </div>
               )
             })
@@ -999,12 +1036,6 @@ export default function SkillsScreen(_props: Props) {
             {renderSlotGroup(PASSIVE_SLOTS, 'Passive Skills')}
           </div>
           <div className="skills-left-footer">
-            <div className="skills-energy-config">
-              <label className="skills-energy-config-label">
-                <input type="checkbox" checked={hasPrism} onChange={e => onHasPrismChange(e.target.checked)} style={{ marginRight: 4 }} />
-                Prism
-              </label>
-            </div>
             <span className={`skills-energy-total${energyOver ? ' over' : ''}`}>
               {totalEnergyCost} / {maxEnergy} Energy
             </span>

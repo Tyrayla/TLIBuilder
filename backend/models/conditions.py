@@ -26,11 +26,12 @@ class ConditionDef:
     default_bool: bool = False
     visible: bool = True
     source: str = "user"
+    trait_id: str | None = None   # set on hero-trait conditions; UI shows them only for the selected trait
 
 
 def _load() -> tuple[list[ConditionDef], dict[str, str], dict[str, list[str]]]:
     try:
-        with open(_CONDITIONS_PATH) as f:
+        with open(_CONDITIONS_PATH, encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
         return [], {}, {}

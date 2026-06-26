@@ -28,6 +28,10 @@ class SourceEntry:
     # identity). Drives the stat-breakdown "Source Name" column + its hover tooltip. None for sources whose
     # name the UI derives itself (talent → tree name from the label) or that have none (custom/character).
     source_name:  str | None = None
+    # Weapon slot this contribution came from ("weapon1" = main-hand, "weapon2" = off-hand), set by the aggregator
+    # for gear contributions. Lets offense scope a main-hand-only modifier to the weapon1 base share (see
+    # BuildSource.main_hand_flat). None for non-weapon sources. Not read by compute.py's stat_map → output-neutral.
+    weapon_slot:  str | None = None
 
 
 @dataclass
@@ -74,6 +78,11 @@ class BuildSource:
     # → byte-identical output (the same dormancy guarantee scoped_entries gives).
     slot_entries: list[tuple[str, float, int, str | None]] = field(default_factory=list)  # (stat, amount, slot, scope)
     slot_log: list[SourceEntry] = field(default_factory=list)
+    # Condition keys referenced by ANY contribution in this build (collected before the on/off gate, so a
+    # condition counts even when currently toggled off). Drives the UI's "hide conditions with no source".
+    referenced_conditions: set[str] = field(default_factory=set)
+    # Editable calc-target stats (fractions) for offense mitigation; None → offense's Lv85 constants.
+    target_config: dict | None = None
 
     def add(self, stat: str, amount: float) -> None:
         self._entries.append((stat, amount))
@@ -133,6 +142,13 @@ class BuildSource:
     def all_stats(self) -> set[str]:
         return {s for s, _ in self._entries}
 
+    def main_hand_flat(self, dtype: str, which: str) -> float:
+        """Sum of the MAIN-HAND (weapon1) weapon-base flat damage for `dtype` ('min'|'max'), from source_log
+        entries tagged weapon_slot == 'weapon1'. Used to scope a main-hand-only additional modifier (e.g. Rosa
+        Born to Cleanse) to the main-hand weapon's share of an attack hit."""
+        key = f"{dtype}_dmg_gear_flat_{which}"
+        return sum(e.amount for e in self.source_log if e.stat == key and e.weapon_slot == "weapon1")
+
 
 @dataclass
 class ComputedResult:
@@ -160,6 +176,9 @@ class BuildInput:
     season:     str                     # active season name for data lookups
     skill:      SkillConfig | None = None
     enemy:      EnemyConfig | None = None
+    # Editable calc-target ("dummy") stats as FRACTIONS: {level, armor, fire_res, cold_res, lightning_res,
+    # erosion_res}. None → offense uses its historical Lv85 constants.
+    target_config: dict | None = None
     # Unified condition state: boolean conditions store True/False, numeric store float.
     condition_state: dict[str, float | bool] = field(default_factory=dict)
     gear:            list[dict] = field(default_factory=list)  # GearEngineItem dicts
@@ -192,6 +211,29 @@ class BuildInput:
     # the fully-aggregated Aura Effect inside the compute loop and folds them in as source_type "aura".
     aura_buffs: list[dict] = field(default_factory=list)
     aura_meta: dict = field(default_factory=dict)
+    # Active curses (server.curse_resolver.resolve_curses) + per-curse meta. engine.curse_resolver.apply_curses
+    # scales them by Curse Effect inside the compute loop and bakes the *_curse_taken enemy-vulnerability pools.
+    curses: list[dict] = field(default_factory=list)
+    curse_meta: dict = field(default_factory=dict)
+    # Parsed-but-UNSCALED empower (Euphoria) buffs + per-empower meta. engine.utility.apply_empower_buffs scales
+    # them by Empower Skill Effect inside the compute loop and folds them in (source_type "empower").
+    empower_buffs: list[dict] = field(default_factory=list)
+    empower_meta: dict = field(default_factory=dict)
+    # Hero trait (Erika Lightning Shadow, …). For traits with a bespoke engine.hero_traits module the
+    # module owns resolution; trait_contributions is (re)computed each loop pass by the module and folded
+    # by aggregate() like spirit/memory contributions. For non-bespoke traits the server pre-resolves
+    # trait_effects into trait_contributions directly.
+    trait_id: str | None = None
+    trait_slot_levels: list[int] = field(default_factory=list)       # [base, lv45, lv60, lv75], each 1-5
+    advanced_trait_selections: list[str] = field(default_factory=list)
+    trait_contributions: list[dict] = field(default_factory=list)
+    # Uptime calc mode: "max" (default; assume-max/legacy behavior) | "real" (compute ramp via engine.uptime).
+    uptime_mode: str = "max"
+    # Generalized "inflicts Numbed" effects from non-support sources (talents/gear/slates/custom mods),
+    # built server-side by engine.ailment_inflict. Same shape as the support cond_effects: floor numbed_stacks
+    # + enable enemy_numbed, gated by hit damage type. `numbed_blocked` hard-overrides (H "cannot inflict").
+    inflict_cond_effects: list = field(default_factory=list)
+    numbed_blocked: bool = False
 
 
 @dataclass
@@ -208,4 +250,10 @@ class StatResult:
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
     aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
+    empower_summaries:   list | None = None        # per-empower display summary (Empower Effect, granted buffs, NYI)
+    curse_summaries:     list | None = None        # per-curse display summary (Curse Effect, limit, debuff value)
+    curse_conflict:      dict | None = None         # set when active curses exceed the limit (needs resolution)
+    warnings:            list | None = None         # general build diagnostics (e.g. an ineffective/dead curse)
     reservation:         dict | None = None         # mana/life sealing: totals + per-skill seal breakdowns
+    numbed:              dict | None = None          # Numbed ailment box: base/stacks/duration/effect pools + uptime
+    referenced_conditions: list[str] = field(default_factory=list)  # condition keys any build mod references (gate on/off) — UI hides the rest

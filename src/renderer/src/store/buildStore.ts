@@ -1,10 +1,19 @@
 import { create } from 'zustand'
 import { isEqual } from 'lodash-es'
 import type {
-  TreeSlot, SavedSlate, SlateTemplate, EquippedGearItem, EquippedSkill,
-  CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput,
+  TreeSlot, SavedSlate, SlateTemplate, PlacedPrism, CraftedPrism, EquippedGearItem, EquippedSkill, EquippedSupportSkill,
+  CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput, InstalledFate, UndeterminedFate,
+  Loadout, TargetConfig,
 } from '../api/client'
 import { EMPTY_STAT_SHEET } from '../api/client'
+import { DEFAULT_TARGET_CONFIG } from '../utils/targetPresets'
+import {
+  ALL_AREAS, readArea, resolvedPatch, loadoutById, ownerLoadout, snapshotAllAreas,
+  loadoutKeyFromResolved, loadoutKeyFromState,
+} from '../utils/loadoutAreas'
+
+const genLoadoutId = (): string =>
+  (globalThis.crypto?.randomUUID?.() ?? `lo${Date.now()}${Math.floor(Math.random() * 1e6)}`)
 
 // All fields that are loaded/reset atomically when opening a build
 export interface LoadedBuild {
@@ -14,18 +23,25 @@ export interface LoadedBuild {
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
   slateInventory: SlateTemplate[]
+  prisms: PlacedPrism[]
+  prismInventory: CraftedPrism[]
   conditionState: Record<string, number | boolean>
   gear: EquippedGearItem[]
   skills: EquippedSkill[]
   characterLevel: number
-  hasPrism: boolean
   traitId: string | null
   traitSlotLevels: number[]
   advancedTraitSelections: string[]
+  traitSkillSupports: EquippedSupportSkill[]
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
+  fates: Record<string, InstalledFate>
+  undetermined: (UndeterminedFate | null)[]
   notes: string
   customMods: string[]
+  targetConfig: TargetConfig
+  loadouts: Loadout[]
+  activeLoadoutId: string
 }
 
 interface BuildStore {
@@ -47,9 +63,11 @@ interface BuildStore {
   traitId: string | null
   traitSlotLevels: number[]
   advancedTraitSelections: string[]
+  traitSkillSupports: EquippedSupportSkill[]   // supports socketed into the trait skill slot (Holy Domain)
   setTraitId: (id: string | null) => void
   setTraitSlotLevels: (levels: number[]) => void
   setAdvancedTraitSelections: (sels: string[]) => void
+  setTraitSkillSupports: (supports: EquippedSupportSkill[]) => void
 
   // Notes
   notes: string
@@ -62,12 +80,15 @@ interface BuildStore {
   slots: (TreeSlot | null)[]
   slates: SavedSlate[]
   slateInventory: SlateTemplate[]
+  prisms: PlacedPrism[]
+  prismInventory: CraftedPrism[]
   conditionState: Record<string, number | boolean>
   gear: EquippedGearItem[]
   characterLevel: number
-  hasPrism: boolean
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
+  fates: Record<string, InstalledFate>            // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
+  undetermined: (UndeterminedFate | null)[]       // one per spirit slot (index 0–2)
   // Transient: never set on the real store — only by damage-delta `step`/`base` transforms to price a
   // single pact-spirit node (one occurrence of each listed effect line is removed before payload build).
   spiritEffectExclude?: string[]
@@ -76,12 +97,22 @@ interface BuildStore {
   setSlots: (slots: (TreeSlot | null)[]) => void
   setSlates: (slates: SavedSlate[]) => void
   setSlateInventory: (slateInventory: SlateTemplate[]) => void
+  setPrisms: (prisms: PlacedPrism[]) => void
+  setPrismInventory: (prismInventory: CraftedPrism[]) => void
   setConditionState: (state: Record<string, number | boolean>) => void
   setGear: (gear: EquippedGearItem[]) => void
   setCharacterLevel: (level: number) => void
-  setHasPrism: (v: boolean) => void
+  // Calc-target ("training dummy") stats — per-loadout (a loadout area). Bumps buildVersion to recompute DPS-vs-target.
+  targetConfig: TargetConfig
+  setTargetConfig: (t: TargetConfig) => void
+  // Uptime calc mode (global): 'max' (assume-max, default) | 'real' (compute ramp). Not part of the saved
+  // build — a display/calc preference. Drives the engine's uptime_mode for ailment ramp (Numbed, …).
+  uptimeMode: 'max' | 'real'
+  setUptimeMode: (m: 'max' | 'real') => void
   setHeroMemories: (memories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]) => void
   setPactSpirits: (spirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]) => void
+  setFates: (fates: Record<string, InstalledFate>) => void
+  setUndetermined: (undetermined: (UndeterminedFate | null)[]) => void
 
   // Slot mutation actions (bump buildVersion)
   setSlot: (slotIndex: number, slot: TreeSlot | null) => void
@@ -111,6 +142,20 @@ interface BuildStore {
   removeCustomMod: (index: number) => void
   updateCustomMod: (index: number, text: string) => void
 
+  // ── Loadouts ────────────────────────────────────────────────────────────────
+  // Each loadout is a full variant of the swappable areas; the live store reflects the active loadout's resolved
+  // view. `loadoutStatsCache` is transient (never persisted) — it lets unchanged loadouts swap with no recompute.
+  loadouts: Loadout[]
+  activeLoadoutId: string
+  loadoutStatsCache: Record<string, { stats: StatSheetResponse; key: string }>
+  // Structural edits (rename/create/delete/inheritance). Flushes the live store into the active loadout first (so
+  // unsaved edits aren't lost), applies the mutator to a deep copy of the loadouts, re-syncs the active loadout's
+  // resolved view into the store, and bumps buildVersion (marks dirty + recalc + cache refresh).
+  editLoadouts: (mutator: (loadouts: Loadout[]) => Loadout[]) => void
+  switchLoadout: (targetId: string) => void           // flush current → load target (one bump; cache-aware)
+  flushActiveLoadout: () => void                       // write the live store back into the active loadout (pre-save)
+  cacheActiveLoadoutStats: (stats: StatSheetResponse) => void  // called by useBuildCalculation when results land
+
   // Computed output — writing these MUST NOT bump buildVersion (infinite loop)
   computedStats: StatSheetResponse
   statsLoading: boolean
@@ -131,18 +176,25 @@ const DEFAULT_BUILD: LoadedBuild = {
   slots: [null, null, null, null],
   slates: [],
   slateInventory: [],
+  prisms: [],
+  prismInventory: [],
   conditionState: {},
   gear: [],
   skills: [],
   characterLevel: 100,
-  hasPrism: false,
   traitId: null,
   traitSlotLevels: [1, 1, 1, 1],
   advancedTraitSelections: [],
+  traitSkillSupports: [],
   heroMemories: [null, null, null],
   pactSpirits: [null, null, null],
+  fates: {},
+  undetermined: [null, null, null],
   notes: '',
   customMods: [],
+  targetConfig: DEFAULT_TARGET_CONFIG,
+  loadouts: [],
+  activeLoadoutId: '',
 }
 
 function deriveMainSkill(skills: EquippedSkill[]): SkillEngineInput | null {
@@ -156,8 +208,9 @@ function deriveMainSkill(skills: EquippedSkill[]): SkillEngineInput | null {
   return main ? { skill_id: main.item_id, level: main.level ?? 1 } : null
 }
 
-export const useBuildStore = create<BuildStore>((set) => ({
+export const useBuildStore = create<BuildStore>((set, get) => ({
   ...DEFAULT_BUILD,
+  uptimeMode: 'max',   // global calc pref (not per-build) — persists across build loads
   allSpirits: [],
   spiritsResolved: false,
   spiritsFetchFailed: false,
@@ -167,6 +220,7 @@ export const useBuildStore = create<BuildStore>((set) => ({
   statsError: '',
   buildVersion: 0,
   computedVersion: -1,
+  loadoutStatsCache: {},
 
   // ── Build identity ──────────────────────────────────────────────────────────
   setBuildId: (buildId) => set({ buildId }),
@@ -184,9 +238,13 @@ export const useBuildStore = create<BuildStore>((set) => ({
   setTraitSlotLevels: (traitSlotLevels) => set((s) => ({ traitSlotLevels, buildVersion: s.buildVersion + 1 })),
   setAdvancedTraitSelections: (advancedTraitSelections) =>
     set((s) => ({ advancedTraitSelections, buildVersion: s.buildVersion + 1 })),
+  setTraitSkillSupports: (traitSkillSupports) =>
+    set((s) => ({ traitSkillSupports, buildVersion: s.buildVersion + 1 })),
 
   // ── Notes ───────────────────────────────────────────────────────────────────
-  setNotes: (notes) => set({ notes }),
+  // Bump buildVersion so notes edits flag the build dirty. They don't affect DPS, so useBuildCalculation
+  // short-circuits the recompute (the engine fingerprint excludes notes) — dirty without wasted engine calls.
+  setNotes: (notes) => set((s) => ({ notes, buildVersion: s.buildVersion + 1 })),
 
   // ── Compound trait setter ────────────────────────────────────────────────────
   setTraitData: (traitId, traitSlotLevels, advancedTraitSelections) =>
@@ -197,12 +255,18 @@ export const useBuildStore = create<BuildStore>((set) => ({
   setSlates: (slates) => set((s) => ({ slates, buildVersion: s.buildVersion + 1 })),
   // Inventory is display/library only (not engine-relevant) — bump version just to mark the build dirty.
   setSlateInventory: (slateInventory) => set((s) => ({ slateInventory, buildVersion: s.buildVersion + 1 })),
+  // Prisms: placed prisms drive tree placement/visuals (no DPS yet in Plan 1); inventory is library-only.
+  setPrisms: (prisms) => set((s) => ({ prisms, buildVersion: s.buildVersion + 1 })),
+  setPrismInventory: (prismInventory) => set((s) => ({ prismInventory, buildVersion: s.buildVersion + 1 })),
   setConditionState: (conditionState) => set((s) => ({ conditionState, buildVersion: s.buildVersion + 1 })),
   setGear: (gear) => set((s) => ({ gear, buildVersion: s.buildVersion + 1 })),
   setCharacterLevel: (characterLevel) => set((s) => ({ characterLevel, buildVersion: s.buildVersion + 1 })),
-  setHasPrism: (hasPrism) => set((s) => ({ hasPrism, buildVersion: s.buildVersion + 1 })),
+  setTargetConfig: (targetConfig) => set((s) => ({ targetConfig, buildVersion: s.buildVersion + 1 })),
+  setUptimeMode: (uptimeMode) => set((s) => ({ uptimeMode, buildVersion: s.buildVersion + 1 })),
   setHeroMemories: (heroMemories) => set((s) => ({ heroMemories, buildVersion: s.buildVersion + 1 })),
   setPactSpirits: (pactSpirits) => set((s) => ({ pactSpirits, buildVersion: s.buildVersion + 1 })),
+  setFates: (fates) => set((s) => ({ fates, buildVersion: s.buildVersion + 1 })),
+  setUndetermined: (undetermined) => set((s) => ({ undetermined, buildVersion: s.buildVersion + 1 })),
 
   // ── Slot mutation actions ────────────────────────────────────────────────────
   setSlot: (slotIndex, slot) =>
@@ -255,6 +319,7 @@ export const useBuildStore = create<BuildStore>((set) => ({
       ...data,
       mainSkill: deriveMainSkill(data.skills),
       computedStats: EMPTY_STAT_SHEET,
+      loadoutStatsCache: {},
       buildVersion: s.buildVersion + 1,
     })),
 
@@ -298,6 +363,90 @@ export const useBuildStore = create<BuildStore>((set) => ({
     set((s) => {
       const customMods = s.customMods.map((m, i) => (i === index ? text : m))
       return { customMods, buildVersion: s.buildVersion + 1 }
+    }),
+
+  // ── Loadouts ─────────────────────────────────────────────────────────────────
+  // Structural edits only (rename, create, delete, inheritance links). Does NOT touch the live store fields or
+  // trigger a recalc — the active loadout's resolved view is unchanged. Callers that change the active loadout's
+  // resolved value (e.g. removing an inherited link) should follow with switchLoadout to re-sync the store.
+  editLoadouts: (mutator) => {
+    get().flushActiveLoadout()
+    set((s) => {
+      const loadouts = mutator(JSON.parse(JSON.stringify(s.loadouts)) as Loadout[])
+      const activeLoadoutId = loadoutById(loadouts, s.activeLoadoutId) ? s.activeLoadoutId : (loadouts[0]?.id ?? '')
+      const patch = activeLoadoutId ? resolvedPatch(loadouts, activeLoadoutId) : {}
+      return {
+        loadouts,
+        activeLoadoutId,
+        ...patch,
+        mainSkill: deriveMainSkill((patch.skills as EquippedSkill[] | undefined) ?? s.skills),
+        buildVersion: s.buildVersion + 1,
+      }
+    })
+  },
+
+  // Write the live store's area values back into the active loadout's owner snapshots. No version bump (structural).
+  // Used before saving/exporting and after loading, to keep the active loadout's data in sync with the store.
+  flushActiveLoadout: () =>
+    set((s) => {
+      const state = s as unknown as Record<string, unknown>
+      if (!loadoutById(s.loadouts, s.activeLoadoutId)) {
+        const id = genLoadoutId()
+        return { loadouts: [{ id, name: 'Loadout 1', data: snapshotAllAreas(state), inherit: {} }], activeLoadoutId: id }
+      }
+      const loadouts = s.loadouts.map(l => ({ ...l, data: { ...l.data } }))
+      const cur = loadoutById(loadouts, s.activeLoadoutId)!
+      for (const area of ALL_AREAS) {
+        const owner = ownerLoadout(loadouts, cur.id, area) ?? cur
+        owner.data = { ...owner.data, [area]: readArea(state, area) }
+      }
+      return { loadouts }
+    }),
+
+  cacheActiveLoadoutStats: (stats) =>
+    set((s) => {
+      if (!s.activeLoadoutId) return s
+      const key = loadoutKeyFromState(s as unknown as Record<string, unknown>, s.uptimeMode)
+      return { loadoutStatsCache: { ...s.loadoutStatsCache, [s.activeLoadoutId]: { stats, key } } }
+    }),
+
+  switchLoadout: (targetId) =>
+    set((s) => {
+      if (targetId === s.activeLoadoutId) return s
+      const target = loadoutById(s.loadouts, targetId)
+      if (!target) return s
+
+      // 1. Flush the current active loadout: write each area's live store values into its OWNER loadout's snapshot
+      //    (owner = end of the inherit chain), so edits to inherited areas update the general.
+      const loadouts = s.loadouts.map(l => ({ ...l, data: { ...l.data } }))
+      const cur = loadoutById(loadouts, s.activeLoadoutId)
+      if (cur) {
+        for (const area of ALL_AREAS) {
+          const owner = ownerLoadout(loadouts, cur.id, area) ?? cur
+          owner.data = { ...owner.data, [area]: readArea(s as unknown as Record<string, unknown>, area) }
+        }
+      }
+
+      // 2. Load the target's resolved view into the store.
+      const patch = resolvedPatch(loadouts, targetId)
+      const nextVersion = s.buildVersion + 1
+
+      // 3. Cache: if the target's resolved engine inputs match its cached fingerprint, apply the cached stats and
+      //    mark them current (computedVersion = nextVersion) so useBuildCalculation skips the recompute.
+      const key = loadoutKeyFromResolved(loadouts, targetId, s.uptimeMode)
+      const cached = s.loadoutStatsCache[targetId]
+      const hit = cached && cached.key === key
+
+      return {
+        ...patch,
+        loadouts,
+        activeLoadoutId: targetId,
+        mainSkill: deriveMainSkill((patch.skills as EquippedSkill[] | undefined) ?? s.skills),
+        buildVersion: nextVersion,
+        ...(hit
+          ? { computedStats: cached!.stats, computedVersion: nextVersion, statsLoading: false, statsError: '' }
+          : {}),
+      }
     }),
 
   // ── Computed output (MUST NOT bump buildVersion) ────────────────────────────

@@ -18,7 +18,32 @@ interface UiPrefsStore {
   // Passive-skill catalog sort order (same options as supports; only used on passive slots).
   passiveSort: CatalogSort
   setPassiveSort: (sort: CatalogSort) => void
+  // Stats screen: which skill slot is being viewed. Persisted so it sticks when navigating away and back
+  // (a new/empty build falls back to the first populated slot via the screen's effect).
+  statsSelectedSlot: number
+  setStatsSelectedSlot: (slot: number) => void
+  // Allow stat panels (StatPanel boxes) to collapse via their +/− control. Default OFF — boxes stay expanded
+  // and show no collapse control; the user opts in under Settings → Display.
+  collapsiblePanels: boolean
+  setCollapsiblePanels: (on: boolean) => void
+  // Stats skill area: show EVERY mechanic/ailment/CC box even when this skill can't use it (e.g. Multistrike on
+  // a spell, Ignite on a non-hitting skill). Default OFF — boxes are skill-gated; the toggle reveals all.
+  statsShowAllBoxes: boolean
+  setStatsShowAllBoxes: (on: boolean) => void
+  // Global UI zoom (1 = 100%). Applied as CSS zoom on the document root so the whole interface scales uniformly
+  // (fonts + spacing + icons), like browser zoom. Persisted across sessions.
+  uiScale: number
+  setUiScale: (scale: number) => void
+  // Build sidebar width in px (user-draggable). Persisted across sessions.
+  sidebarWidth: number
+  setSidebarWidth: (px: number) => void
 }
+
+export const UI_SCALE_MIN = 0.8
+export const UI_SCALE_MAX = 1.2
+export const SIDEBAR_MIN = 140
+export const SIDEBAR_MAX = 360
+export const SIDEBAR_DEFAULT = 155
 
 export const useUiPrefs = create<UiPrefsStore>()(
   persist(
@@ -29,6 +54,16 @@ export const useUiPrefs = create<UiPrefsStore>()(
       setSupportSort: (supportSort) => set({ supportSort }),
       passiveSort: 'alpha',
       setPassiveSort: (passiveSort) => set({ passiveSort }),
+      statsSelectedSlot: 1,
+      setStatsSelectedSlot: (statsSelectedSlot) => set({ statsSelectedSlot }),
+      collapsiblePanels: false,
+      setCollapsiblePanels: (collapsiblePanels) => set({ collapsiblePanels }),
+      statsShowAllBoxes: false,
+      setStatsShowAllBoxes: (statsShowAllBoxes) => set({ statsShowAllBoxes }),
+      uiScale: 1,
+      setUiScale: (uiScale) => set({ uiScale }),
+      sidebarWidth: 155,
+      setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
     }),
     { name: 'tli-ui-prefs' },
   ),

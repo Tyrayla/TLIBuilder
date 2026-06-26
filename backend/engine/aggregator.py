@@ -229,6 +229,29 @@ def _eval_condition(
     return False
 
 
+def _extract_cond_keys(expr, out: set) -> None:
+    """Collect every condition key an expression references (regardless of whether it currently holds), so the UI
+    can hide conditions no build mod references. Mirrors the expression shapes in _eval_condition; `const` is a
+    benign always-on clause (no key)."""
+    if expr is None:
+        return
+    if isinstance(expr, str):
+        out.add(expr)
+        return
+    if not isinstance(expr, dict) or "const" in expr:
+        return
+    if "and" in expr:
+        for e in expr["and"]:
+            _extract_cond_keys(e, out)
+    elif "or" in expr:
+        for e in expr["or"]:
+            _extract_cond_keys(e, out)
+    elif "not" in expr:
+        _extract_cond_keys(expr["not"], out)
+    elif "key" in expr:
+        out.add(expr["key"])
+
+
 def _apply_effect_contribs(source, contribs, source_type, label, active_booleans, numeric_vals):
     """Apply pre-resolved pact-spirit / hero-memory contributions (server._resolve_effect_modifiers).
     Gates on the optional translated `condition` exactly like the gear-contribution loop: boolean → on/off,
@@ -240,6 +263,7 @@ def _apply_effect_contribs(source, contribs, source_type, label, active_booleans
             continue
         amount = float(contrib.get("amount", 0))
         cond = contrib.get("condition")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -295,6 +319,7 @@ def aggregate(
         if not stat:
             continue
         cond = contrib.get("condition")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -309,7 +334,8 @@ def aggregate(
         val = contrib.get("display_value", 0)
         unit = contrib.get("unit", "")
         amount = val / 100.0 if unit == "%" else float(val)
-        slot_label = (contrib.get("slot") or "item").replace("1", " 1").replace("2", " 2").title()
+        _gslot = contrib.get("slot")
+        slot_label = (_gslot or "item").replace("1", " 1").replace("2", " 2").title()
         entry = SourceEntry(
             stat=stat,
             amount=amount,
@@ -320,6 +346,8 @@ def aggregate(
             # Item NAME for the breakdown "Source Name" column + item-tooltip match (distinct from `text`).
             source_name=contrib.get("item_name") or None,
             points=1,
+            # Preserve weapon identity so offense can scope a main-hand-only modifier to the weapon1 base.
+            weapon_slot=_gslot if _gslot in ("weapon1", "weapon2") else None,
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)
 
@@ -345,6 +373,11 @@ def aggregate(
     # gated in _apply_effect_contribs.
     _apply_effect_contribs(source, build.spirit_contributions, "pact_spirit", "Pact Spirit", active_booleans, numeric_vals)
     _apply_effect_contribs(source, build.memory_contributions, "hero_memory", "Hero Memory", active_booleans, numeric_vals)
+    # Hero-trait contributions: for a bespoke trait these are recomputed each pass by its hero_traits module
+    # (loop-top) so MS↔Numbed coupling converges; folded here BEFORE the Numbed block so additional Numbed
+    # Effect is in source when numbed_lightning_taken is computed.
+    _apply_effect_contribs(source, getattr(build, "trait_contributions", None) or [],
+                           "hero_trait", "Hero Trait", active_booleans, numeric_vals)
 
     # ── Custom mod contributions ──────────────────────────────────────────────
     for contrib in build.custom_contributions:
@@ -353,6 +386,7 @@ def aggregate(
             continue
         amount = float(contrib.get("amount", 0))
         cond = contrib.get("condition")            # gate split off server-side (e.g. "vs Low Life enemies")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -383,6 +417,7 @@ def aggregate(
             continue
         amount = float(contrib.get("amount", 0))
         cond = contrib.get("condition")            # gated specific-tier line ("…when only 1 enemy nearby")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -422,6 +457,7 @@ def aggregate(
             continue
         amount = float(contrib.get("amount", 0))
         cond = contrib.get("condition_expr")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -449,6 +485,7 @@ def aggregate(
             continue
         amount = float(contrib.get("amount", 0))
         cond = contrib.get("condition_expr")
+        _extract_cond_keys(cond, source.referenced_conditions)
         if cond is not None:
             cond_result = _eval_condition(cond, active_booleans, numeric_vals)
             if isinstance(cond_result, float):
@@ -491,7 +528,13 @@ def aggregate(
         # per stack; Numbed-Effect scaling still multiplies on top. Flag set server-side when present.
         conductive = "core_conductive" in (active_booleans or frozenset())
         base_per_stack = 0.11 if conductive else _NUMBED_BASE_PER_STACK
-        per_stack = base_per_stack * (1.0 + source.total("numbed_effect_inc"))
+        # Numbed Effect: increased SUMS into one pool; additional follows the standard additional rule —
+        # each DISTINCT source is its own ×(1+x) factor (same-text positives sum), like every other
+        # additional pool in the engine. base × (1+Σinc) × Π(1+additional_i).
+        from engine.offense import additional_total_product
+        per_stack = (base_per_stack
+                     * (1.0 + source.total("numbed_effect_inc"))
+                     * additional_total_product(source, "numbed_effect_additional"))
         amount = per_stack * numbed_stacks
         text = (f"+{base_per_stack * 100:.0f}% Lightning Damage taken per Numbed stack"
                 + (" (Conductive)" if conductive else ""))
@@ -500,23 +543,88 @@ def aggregate(
             label="Numbed Stacks", text=text, points=1,
         ))
 
+    # ── Frostbite (enemy vulnerability) ───────────────────────────────────────
+    # Frostbitten enemies take +1% additional Cold Damage per Frostbite Rating, capped at 120 (the rating
+    # above 120 is IGNORED here); Frostbite Effect scales the magnitude. Condensed Frost adds a SEPARATE
+    # +0.35%/point for the rating OVER 120 (cap +28%), NOT scaled by Frostbite Effect. frostbite_rating is the
+    # auto-derived numeric condition (compute loop). Baked into a cold-tagged stat read by offense's
+    # enemy-vulnerability stage. Both pieces are "additional Cold taken" → one additive pool (owner-confirmed).
+    if "enemy_frostbitten" in (active_booleans or frozenset()):
+        rating = float((numeric_vals or {}).get("frostbite_rating", 0.0) or 0.0)
+        if rating > 0:
+            base = min(rating, 120.0) * 0.01 * (1.0 + source.total("frostbite_effect_inc"))
+            over = 0.0
+            if "condensed_frost" in (active_booleans or frozenset()) and rating > 120.0:
+                over = min((rating - 120.0) * 0.0035, 0.28)   # Condensed Frost, cap +28%
+            amount = base + over
+            if amount:
+                source.add_with_source("frostbite_cold_taken", amount, SourceEntry(
+                    stat="frostbite_cold_taken", amount=amount, source_type="condition",
+                    label="Frostbite Rating",
+                    text=f"+{base * 100:.1f}% Cold Damage taken (Frostbite Rating {rating:.0f})"
+                         + (f" +{over * 100:.1f}% (Condensed Frost)" if over else ""),
+                    points=1,
+                ))
+
     # ── Bonus propagation: Play Safe (Cast Speed → Spell Burst Charge Speed) ──────
     # When granted (flag stat present), the player's cast-speed INCREASED total and EACH cast-speed
     # ADDITIONAL affix are ALSO applied to Spell Burst Charge Speed (owner: charge restoration time =
     # 2 / (1 + chargeSpeed_inc) / Π(1 + chargeSpeed_additional_i)). Spell Burst charge speed isn't consumed
     # by the engine yet, so this populates the stats ready for when it is, without affecting DPS today.
     if source.total("cast_speed_to_spell_burst_charge") > 0:
-        cs_inc = source.total("cast_speed_inc")
-        if cs_inc:
-            source.add_with_source("spell_burst_charge_speed_inc", cs_inc, SourceEntry(
-                stat="spell_burst_charge_speed_inc", amount=cs_inc, source_type="core_talent",
-                label="Core · Play Safe", text="Cast Speed increased → Spell Burst Charge Speed", points=1))
+        # Propagate EACH cast-speed source individually (not one lumped factor), keeping its ORIGINAL attribution
+        # (source type / tree node / name) so the charge-speed breakdown shows each as the real cast-speed node —
+        # and tree nodes still highlight in the mini-tree on hover. The text notes it's propagated via Play Safe.
         # Snapshot first — add_with_source appends to source_log (don't mutate during iteration).
+        cs_inc = [e for e in source.source_log if e.stat == "cast_speed_inc" and e.amount]
+        for e in cs_inc:
+            source.add_with_source("spell_burst_charge_speed_inc", e.amount, SourceEntry(
+                stat="spell_burst_charge_speed_inc", amount=e.amount, source_type=e.source_type,
+                label=e.label, text=f"{e.text} → Spell Burst Charge Speed (Play Safe)",
+                source_name=e.source_name, points=e.points))
         cs_add = [e for e in source.source_log if e.stat == "cast_speed_additional" and e.amount]
         for e in cs_add:
             source.add_with_source("spell_burst_charge_speed_additional", e.amount, SourceEntry(
-                stat="spell_burst_charge_speed_additional", amount=e.amount, source_type="core_talent",
-                label="Core · Play Safe", text=f"{e.text} → Spell Burst Charge", points=1))
+                stat="spell_burst_charge_speed_additional", amount=e.amount, source_type=e.source_type,
+                label=e.label, text=f"{e.text} → Spell Burst Charge (Play Safe)",
+                source_name=e.source_name, points=e.points))
+
+    # ── Bonus propagation: Insatiable Greed (coeff × Attack Speed → Spell Burst Charge Speed) ──
+    # Like Play Safe but ×coefficient (150% for Insatiable Greed): each attack-speed source × coeff → charge speed,
+    # preserving attribution. Must run AFTER Play Safe so the charge-speed total is complete for the Solid River
+    # charge→burst-damage block below.
+    ig_coeff = source.total("attack_speed_to_spell_burst_charge")
+    if ig_coeff > 0:
+        as_inc = [e for e in source.source_log if e.stat == "attack_speed_inc" and e.amount]
+        for e in as_inc:
+            source.add_with_source("spell_burst_charge_speed_inc", e.amount * ig_coeff, SourceEntry(
+                stat="spell_burst_charge_speed_inc", amount=e.amount * ig_coeff, source_type=e.source_type,
+                label=e.label, text=f"{e.text} → Spell Burst Charge Speed (Insatiable Greed)",
+                source_name=e.source_name, points=e.points))
+        as_add = [e for e in source.source_log if e.stat == "attack_speed_additional" and e.amount]
+        for e in as_add:
+            source.add_with_source("spell_burst_charge_speed_additional", e.amount * ig_coeff, SourceEntry(
+                stat="spell_burst_charge_speed_additional", amount=e.amount * ig_coeff, source_type=e.source_type,
+                label=e.label, text=f"{e.text} → Spell Burst Charge (Insatiable Greed)",
+                source_name=e.source_name, points=e.points))
+
+    # ── Bonus propagation: Solid River (Spell Burst Charge Speed → additional Spell Burst Hit Damage) ──
+    # "For every +X% Spell Burst Charge Speed, +Y% additional Hit Damage for skills cast by Spell Burst, up to +Z%."
+    # Stepwise (floor) over the post-propagation charge-speed total, capped at Z. Feeds the spell_burst tag pool.
+    sr_coeff = source.total("charge_speed_to_spell_burst_hit_dmg")
+    sr_per = source.total("charge_speed_to_spell_burst_hit_dmg_per")
+    if sr_coeff > 0 and sr_per > 0:
+        cs_total = source.total("spell_burst_charge_speed_inc")
+        sr_cap = source.total("charge_speed_to_spell_burst_hit_dmg_cap")
+        steps = int(cs_total / sr_per)   # floor; "for every +X%"
+        amount = steps * sr_coeff
+        if sr_cap > 0:
+            amount = min(amount, sr_cap)
+        if amount:
+            source.add_with_source("spell_burst_hit_dmg_additional", amount, SourceEntry(
+                stat="spell_burst_hit_dmg_additional", amount=amount, source_type="legendary_gear",
+                label="Solid River", text="Solid River: Spell Burst Charge Speed → Spell Burst Hit Damage",
+                source_name="Solid River", points=1))
 
     # ── Bonus propagation: Gale (increased Projectile Speed → additional Projectile Damage) ──
     # additional Projectile Damage = coeff × increased Projectile Speed, as its OWN multiplicative factor

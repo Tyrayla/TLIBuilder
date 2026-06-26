@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
-import { useUiPrefs } from '../store/uiPrefsStore'
+import { useUiPrefs, SIDEBAR_MIN, SIDEBAR_MAX } from '../store/uiPrefsStore'
 import SettingsOverlay from './SettingsOverlay'
+import LoadoutOverlay from './LoadoutOverlay'
 import type { OffenseResult } from '../api/client'
+import { dec } from '../utils/num'
 
 interface Props {
   screen: string
@@ -24,11 +26,11 @@ function NavBtn({ label, active, onClick }: { label: string; active: boolean; on
 }
 
 function fmtDps(n: number): string {
-  if (n >= 1_000_000_000_000_000) return `${(n / 1_000_000_000_000_000).toFixed(2)}Q`
-  if (n >= 1_000_000_000_000)     return `${(n / 1_000_000_000_000).toFixed(2)}T`
-  if (n >= 1_000_000_000)         return `${(n / 1_000_000_000).toFixed(2)}B`
-  if (n >= 1_000_000)             return `${(n / 1_000_000).toFixed(2)}M`
-  if (n >= 100_000)               return `${(n / 1_000).toFixed(1)}k`
+  if (n >= 1_000_000_000_000_000) return `${dec((n / 1_000_000_000_000_000))}Q`
+  if (n >= 1_000_000_000_000)     return `${dec((n / 1_000_000_000_000))}T`
+  if (n >= 1_000_000_000)         return `${dec((n / 1_000_000_000))}B`
+  if (n >= 1_000_000)             return `${dec((n / 1_000_000))}M`
+  if (n >= 100_000)               return `${dec((n / 1_000))}k`
   return n.toFixed(0)
 }
 
@@ -52,7 +54,7 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
   // previous result until the new one lands) — only fall back to a placeholder when there's nothing yet.
   // This avoids the box flashing "…"/empty on every edit.
   return (
-    <div className="sidebar-dps-box" onClick={() => onNav('stats')} title="Click to open Stats">
+    <div className="sidebar-dps-box" onClick={() => onNav('stats')} title="Click to open Calcs">
       <div className="sidebar-dps-label">Full DPS</div>
       <div className="sidebar-dps-value">
         {total > 0 ? fmtDps(total) : statsLoading ? '…' : '—'}
@@ -71,13 +73,69 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
   )
 }
 
+// Active-loadout dropdown + gear. The dropdown floats over the nav (absolute) rather than pushing it down.
+function LoadoutBar({ onManage }: { onManage: (v: 'list' | 'create') => void }) {
+  const loadouts = useBuildStore(s => s.loadouts)
+  const activeId = useBuildStore(s => s.activeLoadoutId)
+  const switchLoadout = useBuildStore(s => s.switchLoadout)
+  const [open, setOpen] = useState(false)
+  const active = loadouts.find(l => l.id === activeId)
+  return (
+    <div className="sidebar-loadout-row">
+      <div className="loadout-dd">
+        <button className="loadout-dd-trigger" onClick={() => setOpen(o => !o)} title="Switch loadout">
+          <span className="loadout-dd-name">{active?.name ?? 'Loadout'}</span>
+          <span className="loadout-dd-caret">{open ? '▴' : '▾'}</span>
+        </button>
+        {open && (
+          <>
+            <div className="loadout-dd-backdrop" onClick={() => setOpen(false)} />
+            <div className="loadout-dd-menu">
+              {loadouts.map(l => (
+                <button key={l.id} className={`loadout-dd-item${l.id === activeId ? ' active' : ''}`}
+                  onClick={() => { switchLoadout(l.id); setOpen(false) }}>
+                  <span className="loadout-dd-item-name">{l.name}</span>
+                  {l.id === activeId && <span className="loadout-dd-check">✓</span>}
+                </button>
+              ))}
+              <div className="loadout-dd-sep" />
+              <button className="loadout-dd-item" onClick={() => { setOpen(false); onManage('create') }}>＋ New loadout…</button>
+              <button className="loadout-dd-item" onClick={() => { setOpen(false); onManage('list') }}>⚙ Manage…</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave, onSaveAs, onGoBack }: Props) {
   const isTreeActive = screen === 'tree-selector' || screen === 'tree-viewer'
-  const showModifierBadges = useUiPrefs(s => s.showModifierBadges)
-  const toggleModifierBadges = useUiPrefs(s => s.toggleModifierBadges)
   const [showSettings, setShowSettings] = useState(false)
+  const [loadoutView, setLoadoutView] = useState<null | 'list' | 'create'>(null)
+  const sidebarWidth = useUiPrefs(s => s.sidebarWidth)
+  const setSidebarWidth = useUiPrefs(s => s.setSidebarWidth)
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = sidebarWidth
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startW + (ev.clientX - startX)))
+      setSidebarWidth(w)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.userSelect = ''
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    document.body.style.userSelect = 'none'
+  }
 
   return (
+    <div className="sidebar-shell" style={{ width: sidebarWidth }}>
     <div className="build-sidebar">
       <div className="sidebar-build-name" title={buildName || 'New Build'}>
         {buildName || 'New Build'}
@@ -93,12 +151,13 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
 
       <div className="sidebar-divider" />
 
-      <NavBtn label="Conditionals" active={screen === 'build-overview'} onClick={() => onNav('build-overview')} />
-      <NavBtn label="Stats" active={screen === 'stats'} onClick={() => onNav('stats')} />
-      {import.meta.env.DEV && (
-        <NavBtn label="Debug Stats" active={screen === 'debug-stats'} onClick={() => onNav('debug-stats')} />
-      )}
-      <NavBtn label="Calcs" active={screen === 'calcs'} onClick={() => onNav('calcs')} />
+      <LoadoutBar onManage={setLoadoutView} />
+
+      <div className="sidebar-divider" />
+
+      <NavBtn label="Config" active={screen === 'build-overview'} onClick={() => onNav('build-overview')} />
+      <NavBtn label="Calcs" active={screen === 'stats'} onClick={() => onNav('stats')} />
+      <NavBtn label="Notes" active={screen === 'notes'} onClick={() => onNav('notes')} />
 
       <div className="sidebar-divider" />
 
@@ -112,19 +171,17 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
       <div className="sidebar-divider" />
 
       <NavBtn label="Import / Export" active={screen === 'import-export'} onClick={() => onNav('import-export')} />
-      <NavBtn label="Notes" active={screen === 'notes'} onClick={() => onNav('notes')} />
       <NavBtn label="⚙ Settings" active={false} onClick={() => setShowSettings(true)} />
 
       <div className="sidebar-spacer" />
 
-      <label className="sidebar-toggle" title="Show badges marking modifiers the engine doesn't recognize or use for this build">
-        <input type="checkbox" checked={showModifierBadges} onChange={toggleModifierBadges} />
-        <span>NYI flags</span>
-      </label>
-
+      {/* The "NYI flags" toggle moved to Settings → Display (defaults ON). */}
       <button className="sidebar-nav-btn sidebar-back" onClick={onGoBack}>← Back to Builds</button>
 
       {showSettings && <SettingsOverlay onClose={() => setShowSettings(false)} />}
+      {loadoutView && <LoadoutOverlay initialView={loadoutView} onClose={() => setLoadoutView(null)} />}
+    </div>
+      <div className="sidebar-resize-handle" onMouseDown={startResize} title="Drag to resize the sidebar" />
     </div>
   )
 }

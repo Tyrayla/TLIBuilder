@@ -19,8 +19,13 @@ interface Props {
 export default function UpdateBanner({ info, downloading, progress, downloaded, onDownload, onInstall }: Props) {
   const [dismissed, setDismissed] = useState(false)
   const [changelogOpen, setChangelogOpen] = useState(false)
-  // Release notes are GitHub-flavored markdown; render to HTML for the modal (which injects HTML).
-  const notesHtml = useMemo(() => markdownToHtml(info.releaseNotes), [info.releaseNotes])
+  // electron-updater's GitHub provider already returns the release notes as HTML — inject those directly.
+  // Only fall back to the markdown converter if the notes don't already look like HTML (e.g. a generic feed).
+  const notesHtml = useMemo(() => {
+    const notes = info.releaseNotes || ''
+    const looksLikeHtml = /<\/?(h[1-6]|ul|ol|li|p|strong|em|a|code|pre|blockquote|br|div)\b/i.test(notes)
+    return looksLikeHtml ? notes : markdownToHtml(notes)
+  }, [info.releaseNotes])
 
   if (dismissed) return null
 

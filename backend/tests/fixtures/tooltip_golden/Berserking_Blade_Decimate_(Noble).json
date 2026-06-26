@@ -10,12 +10,14 @@
   "lines": [
     {
       "badge_text": "+20 % additional damage for the supported skill",
+      "coverage": null,
       "kind": "special",
       "text": "+20 % additional damage for the supported skill",
       "values_by_level": null
     },
     {
-      "badge_text": "When the supported skill hits, a target that has less than 58 % Life is considered to have Low Life",
+      "badge_text": "",
+      "coverage": null,
       "kind": "scaling",
       "text": "",
       "values_by_level": {
@@ -23,6 +25,29 @@
         "1": "When the supported skill hits, a target that has less than 58 % Life is considered to have Low Life",
         "2": "When the supported skill hits, a target that has less than 55.5 % Life is considered to have Low Life"
       }
+    }
+  ],
+  "modeled_rolls": [
+    {
+      "identity": "when the supported skill hits a target that has less than life is considered to have low life",
+      "ranges_by_tier": {
+        "0": {
+          "max": 0.63,
+          "mid": 0.615,
+          "min": 0.6
+        },
+        "1": {
+          "max": 0.59,
+          "mid": 0.58,
+          "min": 0.57
+        },
+        "2": {
+          "max": 0.56,
+          "mid": 0.555,
+          "min": 0.55
+        }
+      },
+      "stat_keys": []
     }
   ]
 }

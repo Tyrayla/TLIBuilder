@@ -245,6 +245,13 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",     ui_priority=10,
         source_types=_T,
     ),
+    # Main-hand-only additional damage (Rosa Born to Cleanse). NO pipeline_stage → it is NOT auto-folded into the
+    # additional pool; offense reads it explicitly and injects it into the main-hand weapon-base flat only.
+    Stat.MAIN_HAND_DMG_ADDITIONAL: StatMeta(
+        "Additional Main-Hand Weapon Damage", "Attack", "additional", "%",
+        subgroup="attack_damage",     stacking_rule="additive",
+        ui_priority=11,               source_types=_T,
+    ),
     Stat.ATTACK_DOUBLE_DMG_CHANCE: StatMeta(
         "Attack Double Damage Chance", "Attack", "chance", "%",
         subgroup="double_damage",     pipeline_stage="double_damage",
@@ -287,6 +294,13 @@ STAT_META: dict[Stat, StatMeta] = {
         tags=("spell",),              affects=_HIT_DOT,
         stacking_rule="additive",     ui_priority=10,
         source_types=_T,
+    ),
+    # Flag (Rosa Unsullied Blade): Spell DAMAGE pools also apply to attacks (offense augments the attack damage-pool
+    # tag set with "spell"). No pipeline_stage → inert in pools; read explicitly by offense.
+    Stat.SPELL_DMG_TO_ATTACK: StatMeta(
+        "Spell Damage applies to Attacks", "Spell", "flag",
+        subgroup="mechanics",         stacking_rule="additive",
+        ui_priority=75,               source_types=(),
     ),
     Stat.SPELL_DOUBLE_DMG_CHANCE: StatMeta(
         "Spell Double Damage Chance", "Spell", "chance", "%",
@@ -520,6 +534,11 @@ STAT_META: dict[Stat, StatMeta] = {
     Stat.MINION_MULTISTRIKE_CHANCE: StatMeta(
         "Minion Multistrike Chance", "Minion", "chance", "%",
         subgroup="minion_mechanics",   stacking_rule="additive_chance",
+        ui_priority=22,                source_types=_T,
+    ),
+    Stat.MINION_MULTISTRIKE_INCREASING_DMG_INC: StatMeta(
+        "Minions' Multistrikes deal increasing damage", "Minion", "added_flat",
+        subgroup="minion_mechanics",   stacking_rule="additive",
         ui_priority=22,                source_types=_T,
     ),
     Stat.MINION_SKILL_AREA_INC: StatMeta(
@@ -1010,6 +1029,22 @@ STAT_META: dict[Stat, StatMeta] = {
         "Cast Speed Applied to Spell Burst Charge Speed", "Generic", "conversion", "%",
         subgroup="mechanics", ui_priority=86, source_types=_T,
     ),
+    Stat.ATTACK_SPEED_TO_SPELL_BURST_CHARGE: StatMeta(
+        "Attack Speed Applied to Spell Burst Charge Speed", "Generic", "conversion", "%",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
+    Stat.CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG: StatMeta(
+        "Spell Burst Charge Speed Applied to Spell Burst Hit Damage", "Spell", "conversion", "%",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
+    Stat.CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG_PER: StatMeta(
+        "Spell Burst Charge→Hit Damage Step", "Spell", "added_flat",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
+    Stat.CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG_CAP: StatMeta(
+        "Spell Burst Charge→Hit Damage Cap", "Spell", "added_flat",
+        subgroup="mechanics", ui_priority=86, source_types=_T,
+    ),
     Stat.PROJ_SPEED_TO_PROJ_DMG: StatMeta(
         "Projectile Speed Applied to Additional Projectile Damage", "Generic", "conversion", "%",
         subgroup="mechanics", ui_priority=86, source_types=_T,
@@ -1440,6 +1475,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="wilt",               stacking_rule="additive_chance",
         ui_priority=22,                source_types=_T,
     ),
+    Stat.WILT_ADDITIONAL_STACK_CHANCE: StatMeta(
+        "Chance to inflict an additional Wilt stack", "Ailments", "chance", "%",
+        subgroup="wilt",               stacking_rule="additive_chance",
+        ui_priority=23,                source_types=_T,
+    ),
     Stat.WILT_DURATION_INC: StatMeta(
         "Wilt Duration", "Ailments", "increased", "%",
         subgroup="wilt",               stacking_rule="additive",
@@ -1473,6 +1513,41 @@ STAT_META: dict[Stat, StatMeta] = {
         "Max Tangle Quantity", "Ailments", "added_flat",
         subgroup="tangle",             stacking_rule="additive",
         ui_priority=71,                source_types=_TB,
+    ),
+    # Multiplicative additional Tangle Damage (each source its own factor) — Dormant Entanglement + gear/talents.
+    # Applies via the tangle tag when the skill is in tangle mode (like other tagged additional pools).
+    Stat.TANGLE_DMG_ADDITIONAL: StatMeta(
+        "Additional Tangle Damage", "Ailments", "additional", "%",
+        subgroup="tangle",             pipeline_stage="additional",
+        tags=("tangle",),              affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_T,
+    ),
+    # Tangle Damage Enhancement: an ADDITIONAL-damage pool whose affixes are ADDED TOGETHER into one factor
+    # (Help DB: "the values of each Enhancement affix are stacked together" — 2×+50% = +100% additional). It rides
+    # the normal additional pool (so it shows in the additional source breakdown) but, unlike regular additional
+    # mods (each its own ×(1+x) factor), all *_enhancement_additional sources of a stat SUM into a single factor —
+    # see offense._build_additional_factors. tag "tangle" → applies in tangle mode like the other tangle pools.
+    Stat.TANGLE_DMG_ENHANCEMENT_ADDITIONAL: StatMeta(
+        "Tangle Damage Enhancement", "Ailments", "additional", "%",
+        subgroup="tangle",             pipeline_stage="additional",
+        tags=("tangle",),              affects=_HIT_DOT,
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_T,
+    ),
+    # Tangle-scoped crit rating (flat) — applies via the tangle tag through the existing crit-rating-flat pool.
+    Stat.TANGLE_CRIT_RATING_FLAT: StatMeta(
+        "Tangle Critical Strike Rating", "Critical Strike", "crit_rating",
+        subgroup="crit_rating",        pipeline_stage="crit_rating",
+        tags=("tangle",),              affects=_HIT,
+        stacking_rule="additive",      ui_priority=11,
+        source_types=_T,
+    ),
+    # Tangle Attach Range (base 8m) — tracked/displayed; positioning, not a DPS factor (no pipeline_stage).
+    Stat.TANGLE_ATTACH_RANGE_INC: StatMeta(
+        "Tangle Attach Range", "Ailments", "increased", "%",
+        subgroup="tangle",             stacking_rule="additive",
+        ui_priority=72,                source_types=_T,
     ),
 
     # ── Trauma ────────────────────────────────────────────────────────────────
@@ -1557,6 +1632,18 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="status_effects",     stacking_rule="additive",
         ui_priority=70,                source_types=_T,
     ),
+    # "additional Numbed Effect" — separate multiplicative pool (pool-strict resolver routes
+    # "+X% additional Numbed Effect" here because modifier_type is "additional").
+    Stat.NUMBED_EFFECT_ADDITIONAL: StatMeta(
+        "Numbed Effect", "Ailments", "additional", "%",
+        subgroup="status_effects",     stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.MAX_ELECTRIFY_STACKS_FLAT: StatMeta(
+        "Max Electrify Stacks", "Ailments", "added_flat",
+        subgroup="status_effects",     stacking_rule="additive",
+        ui_priority=71,                source_types=_T,
+    ),
     Stat.NUMBED_THRESHOLD_INC: StatMeta(
         "to the Max Life and Energy Shield Thresholds for Inflicting Numbed", "Ailments", "increased", "%",
         subgroup="status_effects",     stacking_rule="additive",
@@ -1569,6 +1656,78 @@ STAT_META: dict[Stat, StatMeta] = {
         "Numbed: Lightning Damage Taken", "Ailments", "additional", "%",
         subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
         tags=("lightning",),           affects=_HIT,
+        stacking_rule="additive",      ui_priority=72,
+        source_types=(),
+    ),
+    # No Guard (Rosa Desperation) — GLOBAL enemy damage-taken (all types). Engine-computed by the trait module
+    # (base 10% × stacks-lost × Block-Ratio effect) and consumed by offense's enemy-vulnerability stage.
+    Stat.NO_GUARD_DMG_TAKEN: StatMeta(
+        "No Guard: Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        tags=(),                       affects=_HIT,
+        stacking_rule="additive",      ui_priority=72,
+        source_types=(),
+    ),
+    # Player-side No Guard self-debuff (No Guard hits you too). Emitted by the trait module but NOT yet consumed
+    # by defense (NYI; lands with the conditional-defense path) → surfaces with an NYI badge.
+    Stat.NO_GUARD_SELF_DMG_TAKEN: StatMeta(
+        "No Guard on You: Damage Taken", "Defense", "additional", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=72,                source_types=(),
+    ),
+    # Tide (Selena — Sing with the Tide) — GLOBAL enemy damage-taken while on a Tide. Engine-computed by the trait
+    # module (base 5-20% by level × Tide Effect) and consumed by offense's enemy-vulnerability stage.
+    Stat.TIDE_DMG_TAKEN: StatMeta(
+        "Tide: Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        tags=(),                       affects=_HIT,
+        stacking_rule="additive",      ui_priority=72,
+        source_types=(),
+    ),
+    # Tide Effect (Selena) — effect-scalar amplifying the Tide's damage bonuses. Standard pooling: increased +
+    # additional (multiplicative across distinct sources). Trait-emitted today (no gear/parser source).
+    Stat.TIDE_EFFECT_INC: StatMeta(
+        "Tide Effect", "Generic", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=72,                source_types=(),
+    ),
+    Stat.TIDE_EFFECT_ADDITIONAL: StatMeta(
+        "Tide Effect", "Generic", "additional", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=72,                source_types=(),
+    ),
+    # Rosa — Unsullied Blade. All read explicitly (no pipeline_stage → inert in the damage pools).
+    Stat.MERCURY_BAPTISM_FRACTION: StatMeta(
+        "Mercury Baptism (% of elemental hit as True Damage)", "Generic", "chance", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=72,                source_types=(),
+    ),
+    Stat.SPELL_RIPPLE_FRACTION: StatMeta(
+        "Spell Ripple (% of spell hit as True Damage)", "Generic", "chance", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=72,                source_types=(),
+    ),
+    Stat.MAX_MERCURY_POINTS_FLAT: StatMeta(
+        "Max Mercury Points", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=73,                source_types=(),
+    ),
+    Stat.MAX_MERCURY_POINTS_INC: StatMeta(
+        "Max Mercury Points", "Generic", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=73,                source_types=(),
+    ),
+    Stat.MANA_COST_OVERRIDE: StatMeta(
+        "Mana Consumption Override (Mystic Mercury)", "Mana", "flag",
+        subgroup="mana",               stacking_rule="additive",
+        ui_priority=75,                source_types=(),
+    ),
+    # Howling Gale — Headwind: GLOBAL enemy-vuln (engine-computed by the support, gated on enemy_knocked_back).
+    # (Knockback Chance / Distance metas live in the Double Damage / Knockback section below.)
+    Stat.KNOCKBACK_DMG_TAKEN: StatMeta(
+        "Knockback: Damage Taken", "Ailments", "additional", "%",
+        subgroup="status_effects",     pipeline_stage="enemy_vulnerability",
+        tags=(),                       affects=_HIT,
         stacking_rule="additive",      ui_priority=72,
         source_types=(),
     ),
@@ -1670,6 +1829,30 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=59,
         source_types=_T,
     ),
+    # Additional strike rate for a channeled persistent entity (Howling Gale's Gale — Furious Sweep). Engine-
+    # consumed by the Gale-rate calc in offense; emitted by the support hook.
+    Stat.CHANNELED_ATTACK_FREQUENCY_ADDITIONAL: StatMeta(
+        "Additional Gale Attack Frequency", "Cast Speed", "additional", "%",
+        subgroup="speed",              tags=("channeled",),
+        stacking_rule="additive",      ui_priority=59,
+        source_types=(),
+    ),
+    # Icebound Beam canvas supports (engine-read in offense; emitted by skill_effects/icebound_beam).
+    Stat.CONTINUOUS_SUPPRESSION_DISABLE: StatMeta(
+        "Disable Beam Suppression (Chilling Spike)", "Generic", "flag",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=75,                source_types=(),
+    ),
+    Stat.ICY_BLADE_EXTRA_BLADE_EQUIV: StatMeta(
+        "Extra Icy Blades (Chilling Spike)", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=75,                source_types=(),
+    ),
+    Stat.ICY_BLADE_FROZEN_BURST_RATE: StatMeta(
+        "Icy Blade Bursts/s on Frozen (Ring Blade)", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=75,                source_types=(),
+    ),
     Stat.TRIGGERED_DMG_INC: StatMeta(
         "Damage for Triggered Skills", "Generic", "increased", "%",
         subgroup="generic_damage",     pipeline_stage="increased_reduced",
@@ -1706,6 +1889,16 @@ STAT_META: dict[Stat, StatMeta] = {
     Stat.INITIAL_MULTISTRIKE_COUNT_FLAT: StatMeta(
         "Initial Multistrike Count", "Generic", "added_flat",
         subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=23,                source_types=_T,
+    ),
+    Stat.MULTISTRIKE_INCREASING_DMG_ADDITIONAL: StatMeta(
+        "Additional Multistrike Damage Increment", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=23,                source_types=_T,
+    ),
+    Stat.MULTISTRIKE_MAX_COUNT_PROC_CHANCE: StatMeta(
+        "Chance to count as Max Multistrike Count", "Generic", "chance", "%",
+        subgroup="mechanics",          stacking_rule="additive_chance",
         ui_priority=23,                source_types=_T,
     ),
     Stat.MAX_CHANNELED_STACKS_FLAT: StatMeta(
@@ -2280,6 +2473,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="defense",            stacking_rule="additive",
         ui_priority=39,                source_types=_T,
     ),
+    Stat.BLOCK_RATIO_UPPER_LIMIT_FLAT: StatMeta(
+        "Block Ratio Upper Limit", "Defense", "added_flat", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=39,                source_types=_T,
+    ),
     Stat.INTIMIDATING_EFFECT_INC: StatMeta(
         "Intimidating Effect", "Defense", "increased", "%",
         subgroup="defense",            stacking_rule="additive",
@@ -2438,6 +2636,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=71,                source_types=_T,
     ),
+    Stat.WARCRY_CAST_SPEED_INC: StatMeta(
+        "Warcry Cast Speed", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=71,                source_types=_T,
+    ),
     Stat.ELIXIR_EFFECT_INC: StatMeta(
         "Elixir Skill Effect", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
@@ -2463,9 +2666,29 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=70,                source_types=_T,
     ),
+    Stat.EMPOWER_EFFECT_INC: StatMeta(
+        "Empower Skill Effect", "Buffs", "increased", "%",
+        subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.EMPOWER_EFFECT_ADDITIONAL: StatMeta(
+        "Empower Skill Effect", "Buffs", "additional", "%",
+        subgroup="buff_effect",        stacking_rule="multiplicative",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.MAX_CHARGE_FLAT: StatMeta(
+        "Max Charges", "Utility", "added_flat", "",
+        subgroup="skill_mechanics",    stacking_rule="additive",
+        ui_priority=72,                source_types=_T,
+    ),
     Stat.CURSE_EFFECT_INC: StatMeta(
         "Curse Effect", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
+        ui_priority=70,                source_types=_T,
+    ),
+    Stat.CURSE_EFFECT_ADDITIONAL: StatMeta(
+        "Additional Curse Effect", "Buffs", "additional", "%",
+        subgroup="buff_effect",        stacking_rule="multiplicative",
         ui_priority=70,                source_types=_T,
     ),
     Stat.CURSE_SKILL_AREA_INC: StatMeta(
@@ -2477,6 +2700,11 @@ STAT_META: dict[Stat, StatMeta] = {
     # they're tracked + badge Inactive rather than Unrecognized.
     Stat.MAX_CURSES_FLAT: StatMeta(
         "Max Curses", "Utility", "added_flat", "",
+        subgroup="skill_mechanics",    stacking_rule="additive",
+        ui_priority=72,                source_types=_T,
+    ),
+    Stat.CURSE_LIMIT_CAP_FLAT: StatMeta(
+        "Curse Limit Cap", "Utility", "added_flat", "",
         subgroup="skill_mechanics",    stacking_rule="additive",
         ui_priority=72,                source_types=_T,
     ),
@@ -2756,10 +2984,33 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="mechanics",          stacking_rule="additive",
         ui_priority=60,                source_types=_T,
     ),
+    Stat.SPELL_BURST_AUTO_TRIGGER_FLAG: StatMeta(
+        "Spell Burst Auto-Trigger", "Spell", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    Stat.SPELL_BURST_AUTO_CHARGE_THRESHOLD: StatMeta(
+        "Spell Burst Auto-Trigger Charge Threshold", "Spell", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    Stat.SQUIDNOVA_EFFECT_INC: StatMeta(
+        "Squidnova Effect", "Spell", "increased", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    Stat.HAS_SQUIDNOVA_FLAG: StatMeta(
+        "Has Squidnova (source)", "Spell", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    # "+X% additional Hit Damage for skills cast by Spell Burst" — applies ONLY to burst casts, so it
+    # carries the "spell_burst" tag (added to mod_tags only in burst mode by calculate_offense). Each
+    # source is its own additional factor (per-affix), unlike the *_enhancement_additional pools.
     Stat.SPELL_BURST_HIT_DMG_ADDITIONAL: StatMeta(
         "Spell Burst Hit Damage", "Spell", "additional", "%",
         subgroup="damage",             pipeline_stage="additional",
-        tags=("spell",),               affects=_HIT,
+        tags=("spell_burst",),         affects=_HIT,
         stacking_rule="additive",      ui_priority=25,
         source_types=_T,
     ),
@@ -3079,11 +3330,6 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Buffs / Utility ───────────────────────────────────────────────────────
-    Stat.MAX_CURSE_FLAT: StatMeta(
-        "Max Curses", "Buffs", "added_flat",
-        subgroup="mechanics",          stacking_rule="additive",
-        ui_priority=60,                source_types=_T,
-    ),
     Stat.CURSE_EFFECT_AGAINST_INC: StatMeta(
         "Curse Effect Against You", "Buffs", "increased", "%",
         subgroup="mechanics",          stacking_rule="additive",

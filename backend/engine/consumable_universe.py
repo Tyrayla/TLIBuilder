@@ -34,7 +34,7 @@ _SANITY_FLOOR = frozenset({
 # not active for your build) rather than "Unconsumed" (yellow). MUST stay in sync with the `source.total(...)`
 # reads in engine/aggregator.py — test_consumable_universe.py scans the aggregator and fails if one is missing.
 _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
-    "fervor_effect_inc", "numbed_effect_inc",
+    "fervor_effect_inc", "numbed_effect_inc", "numbed_effect_additional",
     "frail_effect_inc", "fire_infiltration_effect_inc", "cold_infiltration_effect_inc",
     "lightning_infiltration_effect_inc",
     "cast_speed_to_spell_burst_charge", "proj_speed_to_proj_dmg", "projectile_speed_inc",
@@ -44,7 +44,7 @@ _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
 
 _ALL_TAGS = [
     "attack", "spell", "minion", "projectile", "ranged", "channeled", "area", "melee", "trauma", "wilt",
-    "ignite", "tangle", "sentry", "warcry", "reaping", "affliction", "multistrike",
+    "ignite", "tangle", "sentry", "warcry", "reaping", "affliction", "multistrike", "spell_burst",
     # Damage-type tags — element-tagged stats (e.g. fire_crit_dmg_inc) are read only when the skill's
     # mod_tags include that element (offense._CRIT_DMG_STATS tag-filter). The universe is the union over
     # ALL skills, so it carries every element tag; omitting these falsely badges type crit damage "yellow".
@@ -129,6 +129,15 @@ def consumable_universe() -> frozenset[str]:
     consumed |= _AGGREGATOR_PROPAGATION_INPUTS
     # engine.utility reads these to scale aura buffs by total Aura Effect (outside offense/defense/derive).
     consumed |= {"aura_effect_inc", "aura_effect_additional"}
+    # engine.compute reads Ailment Duration for the Numbed-ailment display box (per-stack lifetime).
+    consumed |= {"ailment_duration_inc"}
+    # engine.curse_resolver.apply_curses reads these to scale curses by Curse Effect + enforce the curse limit
+    # (outside the offense/defense/derive passes). The per-type *_curse_taken pools it bakes are read inside the
+    # synthetic offense pass (and aren't STAT_META keys), so they don't need listing here.
+    consumed |= {"curse_effect_inc", "curse_effect_additional", "max_curses_flat", "curse_limit_cap_flat"}
+    # engine.utility.apply_empower_buffs reads Empower Skill Effect (and Mass Effect reads max_charge_flat) to
+    # scale the Euphoria buffs — outside the synthetic passes.
+    consumed |= {"empower_effect_inc", "empower_effect_additional", "max_charge_flat"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
     consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",
@@ -138,6 +147,62 @@ def consumable_universe() -> frozenset[str]:
     # support_resolver folds these skill-level sources into a support's effective level (+4 Support Skill
     # Level from Off the Beaten Track, tag-matched levels like +Attack Skill Level for an Attack support).
     consumed |= {"support_skill_level"}
+    # Tangle mode (offense.calculate_offense / compute._offense_for_slot) reads these outside the synthetic
+    # passes: the Tangle Damage Enhancement multiplier, and the count stats that size attached/placeable tangles.
+    # (tangle_dmg_inc / tangle_dmg_additional / tangle_crit_rating_flat are already covered — the synthetic skill
+    # carries the "tangle" tag in _ALL_TAGS, so the tag-filtered pools read them.)
+    consumed |= {"tangle_dmg_enhancement_additional", "max_tangle_quantity_flat", "extra_tangle_applied_flat",
+                 "has_dormant_entanglement_flag",
+                 # display-only tangle mechanic reads (duration/attach range) in calculate_offense's tangle mode
+                 "tangle_duration_inc", "tangle_duration_additional", "tangle_attach_range_inc"}
+    # Spell Burst mode (offense.calculate_offense / compute._offense_for_slot) reads these outside the synthetic
+    # passes: Max Spell Burst (count), the charge-speed pools, and Surging's stacks-per-cast. The burst hit-damage
+    # additional pool is already covered — the synthetic skill carries the "spell_burst" tag in _ALL_TAGS.
+    consumed |= {"max_spell_burst_flat", "spell_burst_charge_speed_inc", "spell_burst_charge_speed_additional",
+                 "spell_burst_chance_gain_stacks_flat",
+                 # auto-trigger sources (offense finalizes auto), charge/burst conversions (aggregator), Squidnova
+                 "spell_burst_auto_trigger_flag", "spell_burst_auto_charge_threshold",
+                 "attack_speed_to_spell_burst_charge",
+                 "charge_speed_to_spell_burst_hit_dmg", "charge_speed_to_spell_burst_hit_dmg_per",
+                 "charge_speed_to_spell_burst_hit_dmg_cap",
+                 "squidnova_effect_inc", "has_squidnova_flag"}
+
+    # Channeled mode (offense.calculate_offense) reads the stack-cap pools to set the RESET cadence; they only
+    # fire for a channeled skill (Icebound Beam), outside the synthetic passes. projectile_quantity_flat scales
+    # a projectile-shotgun form's blade count (Icy Blade).
+    consumed |= {"max_channeled_stacks_flat", "min_channeled_stacks_flat", "projectile_quantity_flat"}
+
+    # Rosa High Court Chariot: No Guard (offense enemy-vulnerability) + Block Ratio Upper Limit (defense), both
+    # engine-computed / read outside the synthetic passes.
+    consumed |= {"no_guard_dmg_taken", "block_ratio_upper_limit_flat"}
+
+    # Howling Gale canvas supports: Furious Sweep's Gale attack-frequency-additional (offense Gale-rate calc),
+    # Headwind's knockback enemy-vuln (offense enemy-vulnerability), and the surfaced knockback_chance (non-DPS).
+    consumed |= {"channeled_attack_frequency_additional", "knockback_dmg_taken", "knockback_chance"}
+
+    # Icebound Beam canvas supports (offense reads these for the Icy Blade / beam-suppression calc): Chilling
+    # Spike's suppression-disable + extra-blade equivalents, and Ring Blade's Frozen-proc burst rate.
+    consumed |= {"continuous_suppression_disable", "icy_blade_extra_blade_equiv", "icy_blade_frozen_burst_rate"}
+
+    # Frostbite ailment: max_frostbite_rating_flat (compute derives Frostbite Rating from it) + frostbite_effect_inc
+    # + the baked frostbite_cold_taken enemy-vuln (offense cold branch) — read outside the synthetic passes.
+    consumed |= {"max_frostbite_rating_flat", "frostbite_effect_inc", "frostbite_cold_taken"}
+
+    # Multistrike (offense multistrike stage, attack skills): chance + per-stack increment (+ its additional) +
+    # initial-count pre-stack + Cat Dive's max-count proc chance. Gated to multistrike builds, so read outside
+    # the synthetic passes — whitelist them so a modeled multistrike stat never false-yellows.
+    consumed |= {"multistrike_chance", "multistrike_increasing_dmg_inc", "multistrike_increasing_dmg_additional",
+                 "initial_multistrike_count_flat", "multistrike_max_count_proc_chance"}
+
+    # Selena Sing with the Tide: Tide enemy-vuln (offense enemy-vulnerability) + the Tide Effect scalars the trait
+    # module emits/reads. Engine-computed / read outside the synthetic passes — whitelist so they never false-yellow.
+    consumed |= {"tide_dmg_taken", "tide_effect_inc", "tide_effect_additional"}
+
+    # Rosa Unsullied Blade: spell→attack bridge flag + Mercury Baptism fraction (offense), main-hand additional
+    # (offense main-hand flat injection), Mercury Points + mana-override (trait module / future mana hookup).
+    consumed |= {"spell_dmg_to_attack", "mercury_baptism_fraction", "main_hand_dmg_additional",
+                 "max_mercury_points_flat", "max_mercury_points_inc", "mana_cost_override",
+                 "spell_ripple_fraction"}
 
     missing = _SANITY_FLOOR - consumed
     if missing:

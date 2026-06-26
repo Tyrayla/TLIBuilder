@@ -13,6 +13,17 @@ class SkillHitForm:
     # "steep_strike_chance"               → fires when steep procs
     # "_complement_steep_strike_chance"   → fires when steep does NOT proc (= 1 - steep_chance)
     # None                                → additive form; always fires
+    # ── Multi-form SPELL base (set per form when a spell has several intrinsic base-damage forms, e.g.
+    #    Icebound Beam's Cold Beam + Icy Blade). When base_dmg is set, offense computes THIS form's flat
+    #    from its own base + the shared added flat scaled by `added_eff` (per-form effectiveness), instead
+    #    of the skill-wide base. effectiveness_pct stays 100 for spells (no eff double-dip on base). ──
+    base_dmg: dict[str, tuple[float, float]] | None = None  # {dtype: (min, max)} intrinsic per-level base
+    added_eff: float | None = None    # this form's added-damage effectiveness (1.19 = 119%); None → skill-wide
+    # ── Channeled cadence (set on channeled skills) ──
+    channel_role: str | None = None   # "continuous" → fires every use; "burst" → once per RESET cycle; None → every use
+    hit_count: int = 1                # BASE projectiles/blades fired per occurrence (Icy Blade base = 2)
+    shotgun_falloff: float = 0.0      # same-target Shotgun Effect falloff coefficient (0.65 = each subsequent hit −65%)
+    scales_with_projectiles: bool = False  # if True, hit_count += projectile_quantity_flat (the blades shotgun a target)
 
 
 @dataclass
@@ -36,6 +47,36 @@ class IntrinsicAdditional:
 
 
 @dataclass
+class ChanneledSpec:
+    """A channeled skill's stack behaviour, declared by its resolver (the per-skill module). Consumed by
+    offense to set per-form cadence (see engine/uptime.channeled_rounds_per_cycle and the framework plan).
+
+      - behavior "reset"   → at max, dump ALL stacks and fire the burst form; cycle = ramp 0→max repeatedly.
+      - behavior "refresh" → hold at max while channeling; continuous damage scales at `max` stacks.
+
+    max/min are the BASE (intrinsic) values; offense adds max_channeled_stacks_flat / min_channeled_stacks_flat
+    from the build. `max_from_data` False means the skill line omitted the cap and the module hardcodes it
+    (Icebound Beam: normally "Channels up to 5 stacks", lost in the SS12 DB → fallback 5).
+    """
+    max_stacks: int
+    min_stacks: int = 0
+    behavior: Literal["reset", "refresh"] = "reset"
+    max_from_data: bool = False
+    # RESET only: does the use that reaches max ALSO fire the continuous form, or replace it with the burst?
+    # Icebound Beam: ADDITIVE (owner-confirmed — the Icy Blades fire while the beam is still going).
+    burst_replaces_continuous: bool = False
+    # RESET only: when the burst form actually fires (projectile_count ≥ 1), the CONTINUOUS form's damage is
+    # suppressed to this fraction (the channel "redistributes" beam damage into the blades). 1.0 = no
+    # suppression. Icebound Beam: 1/3 — validated in-game (beam 113 solo → ~38 steady-state once blades fire;
+    # 0/1/2/4/6-projectile recounts all fit beam×(1/3) + additive blades to within ~2%).
+    continuous_suppression_when_bursting: float = 1.0
+    # Persistent-entity strike rate (e.g. Howling Gale's "Base Attack Frequency 1.5"). When set, the CONTINUOUS
+    # form fires at `attack_frequency × cast-speed multiplier` (the spawned entity's rate), NOT the channel cast
+    # rate (aps); aps stays the stack-build rate, shown separately. None → the form fires at aps (Icebound).
+    attack_frequency: float | None = None
+
+
+@dataclass
 class ResolvedSkill:
     skill_id: str
     name: str
@@ -43,6 +84,7 @@ class ResolvedSkill:
     max_level: int
     hit_forms_by_level: dict[int, list[SkillHitForm]]
     supported: bool = True  # False when skill_id is not in registry
+    channeled: "ChanneledSpec | None" = None  # set on channeled skills (Icebound Beam, …)
     base_steep_strike_chance: float = 0.0  # intrinsic passive from skill text (e.g. "This skill +20% Steep Strike chance")
     intrinsic_additional: list[IntrinsicAdditional] = field(default_factory=list)
     # Extra tags merged into the skill's tag set ONLY for damage increased/additional filtering, so a
@@ -57,7 +99,8 @@ class ResolvedSkill:
     base_cast_time: float = 0.0                 # seconds per cast (e.g. 0.65)
     added_dmg_effectiveness: float = 1.0        # 136% → 1.36; applied to ADDED flat only, NOT base
     damage_types: list[str] = field(default_factory=list)  # e.g. ["lightning"]
-    jumps_base: int = 0                         # base Jumps (Phase 4; unused for hit damage today)
+    jumps_base: int = 0                         # base Jumps (e.g. Chain Lightning +2); displayed in Skill Effects
+    mana_cost: float = 0.0                       # base per-cast Mana Cost (display only — reductions/conversions NYI)
     # Main attribute(s) for this skill, lowercased (e.g. ["dexterity", "intelligence"]). Each point of
     # a main-stat attribute grants +0.5% damage to this skill; multi-main-stat skills SUM the attribute
     # totals before applying. Source: TLI Help DB (Strength/Dexterity/Intelligence). Parsed in
@@ -235,6 +278,130 @@ def _parse_cast_time(cast_speed: str) -> float:
     return float(m.group(1)) if m else 0.0
 
 
+def _parse_mana_cost(raw: object) -> float:
+    """Parse the skill's base per-cast Mana Cost ('8' → 8.0). 0.0 if absent/unparseable. Display-only — cost
+    reductions/conversions and 'Skills no longer cost Mana' are not modeled by the engine yet."""
+    m = re.search(r"[\d.]+", str(raw or ""))
+    return float(m.group(0)) if m else 0.0
+
+
+def _parse_pct(raw: object, default: float = 1.0) -> float:
+    """Parse '40%' / '119%' → 0.40 / 1.19. Returns `default` if unparseable."""
+    m = re.search(r"([\d.]+)", str(raw or ""))
+    return float(m.group(1)) / 100.0 if m else default
+
+
+# ── Channeled skills ────────────────────────────────────────────────────────────
+# Icebound Beam — Tags: Spell, Channeled, Cold, Projectile, Beam. A RESET channeled skill with TWO
+# intrinsic base-damage forms that fire at DIFFERENT cadences:
+#   • Cold Beam (continuous): fires every use, the spell's per-level base (added-dmg effectiveness 40%).
+#   • Icy Blade (reset burst): at max channeled stacks (5), dump all stacks and fire 2 Icy Blades (each its
+#     own per-level base, effectiveness 119%); on one target the 1st is full, each subsequent −65% (shotgun).
+# Both forms are Cold Spell base — base damage scales per level, so effectiveness scales ADDED flat ONLY (no
+# base double-dip). The per-form base + effectiveness are read by offense (SkillHitForm.base_dmg/added_eff).
+_ICEBOUND_BEAM_RE = re.compile(
+    r"Cold Beam:\s*Deals\s+([\d.,]+)\s*-\s*([\d.,]+)\s+Spell\s+Cold\s+Damage"
+    r".*?Icy Blade:\s*Deals\s+([\d.,]+)\s*-\s*([\d.,]+)\s+Spell\s+Cold\s+Damage",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+@_register("icebound_beam")
+def _resolve_icebound_beam(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    beam_eff = _parse_pct(skill_data.get("effectiveness_of_added_damage"), 0.40)   # Cold Beam: 40%
+    forms_by_level: dict[int, list[SkillHitForm]] = {}
+    beam_base_by_level: dict[int, dict[str, tuple[float, float]]] = {}
+    blade_eff = 1.19
+    for lvl, values in progression.items():
+        m = _ICEBOUND_BEAM_RE.search(str(values.get("Descript", "")))
+        if not m:
+            continue
+        beam = (float(m.group(1).replace(",", "")), float(m.group(2).replace(",", "")))
+        blade = (float(m.group(3).replace(",", "")), float(m.group(4).replace(",", "")))
+        blade_eff = _parse_pct(values.get("Effectiveness of added damage"), 1.19)  # Icy Blade: 119%
+        beam_base_by_level[lvl] = {"cold": beam}
+        forms_by_level[lvl] = [
+            # effectiveness_pct=100 keeps the shared per-form eff multiply neutral (spell base is unscaled);
+            # the REAL added-damage effectiveness rides added_eff (applied to added flat only).
+            SkillHitForm("Cold Beam", 100.0, "additive", base_dmg={"cold": beam},
+                         added_eff=beam_eff, channel_role="continuous"),
+            # Base 2 blades (1 base projectile + the skill's intrinsic "Projectile Quantity +1"); +Projectile
+            # Quantity adds more, all homing/hitting one target with the 65% shotgun falloff.
+            SkillHitForm("Icy Blade", 100.0, "additive", base_dmg={"cold": blade},
+                         added_eff=blade_eff, channel_role="burst", hit_count=2, shotgun_falloff=0.65,
+                         scales_with_projectiles=True),
+        ]
+
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms_by_level,
+        supported=True,
+        is_spell=True,
+        # Headline base/effectiveness = the Cold Beam (continuous); the Icy Blade form overrides per-form.
+        base_dmg_by_level=beam_base_by_level,
+        base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
+        added_dmg_effectiveness=beam_eff,
+        damage_types=["cold"],
+        # "Channels up to 5 stacks" is absent from the SS12 DB → hardcode the cap (max_from_data=False).
+        # When the Icy Blade fires, the Cold Beam drops to 1/3 (the channel redistributes beam→blades).
+        channeled=ChanneledSpec(max_stacks=5, min_stacks=0, behavior="reset", max_from_data=False,
+                                continuous_suppression_when_bursting=1.0 / 3.0),
+    )
+
+
+# Howling Gale — Tags: Spell, Channeled, Physical, Area, Persistent. A REFRESH channeled spell: you channel to
+# build Max Channeled Stacks (5), holding at max, which spawns a persistent "Gale" that strikes at its OWN Base
+# Attack Frequency (1.5/s × cast speed) — NOT the 0.333 s channel cast rate. Spell base (548-913 Physical at L20)
+# is unscaled by effectiveness (125% applies to added flat only). "+21.5% additional damage for every +1 ADDITIONAL
+# Max Channeled Stack" (beyond the base 5) → an intrinsic additional scaling off max_channeled_stacks_flat (gear).
+# Per-channeled-stack Duration/Area/Movement Speed are non-DPS (informational) for a sustained single-target calc.
+_HOWLING_GALE_FREQUENCY = 1.5
+_HOWLING_GALE_PER_ADDITIONAL_MAX_STACK = 0.215   # owner: counts stacks ABOVE base 5; flag — verify in-game
+
+
+@_register("howling_gale")
+def _resolve_howling_gale(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    base_by_level: dict[int, dict[str, tuple[float, float]]] = {}
+    effectiveness = 1.25
+    damage_types: list[str] = []
+    for lvl, values in progression.items():
+        m = _SPELL_BASE_DMG_RE.search(" ".join(str(v) for v in values.values()))
+        if m:
+            dtype = m.group(3).lower()
+            base_by_level[lvl] = {dtype: (float(m.group(1).replace(",", "")), float(m.group(2).replace(",", "")))}
+            if dtype not in damage_types:
+                damage_types.append(dtype)
+        eff = values.get("Effectiveness of added damage")
+        if eff:
+            em = re.search(r"(\d+(?:\.\d+)?)", str(eff))
+            if em:
+                effectiveness = float(em.group(1)) / 100.0
+    forms_by_level = {
+        lvl: [SkillHitForm("Howling Gale", 100.0, "additive", channel_role="continuous")]
+        for lvl in base_by_level
+    }
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"], name=skill_data["name"], tags=skill_data.get("skill_tags", []),
+        max_level=max_level, hit_forms_by_level=forms_by_level, supported=True, is_spell=True,
+        base_dmg_by_level=base_by_level, base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
+        added_dmg_effectiveness=effectiveness, damage_types=damage_types,
+        # REFRESH: hold at max 5; the Gale strikes at attack_frequency 1.5 × cast speed (the damage rate).
+        channeled=ChanneledSpec(max_stacks=5, min_stacks=0, behavior="refresh",
+                                attack_frequency=_HOWLING_GALE_FREQUENCY),
+        # +21.5% additional damage per ADDITIONAL Max Channeled Stack (beyond base 5) = per max_channeled_stacks_flat.
+        intrinsic_additional=[IntrinsicAdditional(
+            per=_HOWLING_GALE_PER_ADDITIONAL_MAX_STACK, rating_key="max_channeled_stacks_flat",
+            rating_source="stat", per_n=1.0)],
+    )
+
+
 _MAIN_STAT_NAMES = frozenset({"strength", "dexterity", "intelligence"})
 
 
@@ -250,6 +417,77 @@ def _parse_main_stats(raw: object) -> list[str]:
         if name in _MAIN_STAT_NAMES and name not in out:
             out.append(name)
     return out
+
+
+# ── Rosa Holy Domain (trait skill) ──────────────────────────────────────────────
+# A trait-granted skill (Rosa High Court Chariot) that deals NO damage but can host supports (Invulnerability /
+# Divine Intervention grant the slot). Tagged Area + Channeled (+ Spell) so the appropriate supports gate to it.
+# Synthesized in code (NOT in the crawler-generated _skills.json) — server injects it into skills_by_id.
+ROSA_HOLY_DOMAIN_ID = "rosa_holy_domain"
+ROSA_HOLY_DOMAIN_SKILL = {
+    "item_id": ROSA_HOLY_DOMAIN_ID,
+    "name": "Holy Domain",
+    "skill_type": "active_skill",
+    "skill_tags": ["Spell", "Area", "Channeled"],
+    "description_lines": ["Trait Skill — deals no damage; supports modify the Holy Domain."],
+    "max_level": 1,
+    "progression": [],
+}
+
+
+@_register(ROSA_HOLY_DOMAIN_ID)
+def _resolve_rosa_holy_domain(skill_data: dict) -> ResolvedSkill:
+    return ResolvedSkill(
+        skill_id=skill_data.get("item_id", ROSA_HOLY_DOMAIN_ID),
+        name=skill_data.get("name", "Holy Domain"),
+        tags=skill_data.get("skill_tags", ["Spell", "Area", "Channeled"]),
+        max_level=skill_data.get("max_level", 1),
+        hit_forms_by_level={},   # deals no damage — only a host for supports
+        supported=True,
+        is_spell=True,
+    )
+
+
+# Skill-specific modeled mechanics not derivable from the generic ResolvedSkill fields below (e.g. Icebound's
+# shotgun/projectile/beam handling, Berserking's buff Skill-Area/stack-cap). Phrases are lowercased substrings.
+# NOTE: when a NEW skill is brought to full modeling, add its modeled-mechanic phrases here (or rely on the
+# generic ResolvedSkill rules in classify_intrinsic_line for channeled / intrinsic_additional / steep-strike).
+_SKILL_MODELED_PHRASES: dict[str, tuple[str, ...]] = {
+    "icebound_beam": ("shotgun effect falloff", "projectile quantity", "beam reflection",
+                      "fires 1 projectile", "hit the same enemy"),
+    "berserking_blade": ("skill area for each stack of buff", "stacks up to"),
+}
+
+
+def classify_intrinsic_line(line: str, resolved: ResolvedSkill) -> str | None:
+    """Coverage of an active skill's intrinsic tooltip clause:
+      'modeled' → the clause names a mechanic the engine ACTUALLY models for this skill (→ green badge).
+      None      → not a positively-modeled mechanic; leave the line untouched (its existing keys path decides,
+                  so genuinely-unimplemented mechanics honestly stay NYI).
+    Strictly gated on ResolvedSkill so it can only green what is truly modeled (generic, low per-season drift)."""
+    if not resolved.supported:
+        return None
+    t = (line or "").lower()
+    if resolved.base_steep_strike_chance and "steep strike chance" in t:
+        return "modeled"
+    if resolved.channeled:
+        if "max channeled stack" in t:
+            return "modeled"
+        if resolved.channeled.attack_frequency and "attack frequency" in t:
+            return "modeled"
+    if resolved.intrinsic_additional and "additional damage" in t and (
+            "for every" in t or "per " in t or "max channeled stack" in t):
+        return "modeled"
+    # "This skill is affected by <X> Effect" — modeled when an intrinsic additional scales with that effect
+    # (e.g. Focused Slash: Fervor Effect scales the per-Fervor-Rating bonus via effect_key).
+    if any(ia.effect_key for ia in resolved.intrinsic_additional) and "affected by" in t and "effect" in t:
+        return "modeled"
+    if resolved.extra_damage_mod_tags and "also appl" in t and "damage" in t:
+        return "modeled"
+    for phrase in _SKILL_MODELED_PHRASES.get(resolved.skill_id, ()):
+        if phrase in t:
+            return "modeled"
+    return None
 
 
 def resolve_skill(skill_data: dict) -> ResolvedSkill:
@@ -269,4 +507,5 @@ def resolve_skill(skill_data: dict) -> ResolvedSkill:
         )
     resolved = handler(skill_data)
     resolved.main_stat = _parse_main_stats(skill_data.get("main_stat"))
+    resolved.mana_cost = _parse_mana_cost(skill_data.get("mana_cost"))
     return resolved

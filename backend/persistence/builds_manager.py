@@ -3,17 +3,23 @@ import os
 import re
 import uuid
 
-_DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
-    os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
-_DIR = os.path.normpath(os.path.join(_DATA_ROOT, 'builds'))
-
 _SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
+
+
+def _dir() -> str:
+    # Persisted user data lives under TLI_PERSIST_DIR when set (the web build points this at an IndexedDB-backed
+    # dir so builds survive reloads); otherwise it falls back to the game-data dir, as desktop has always done.
+    # Evaluated per-call (not at import) so it always reflects the env in effect when a request runs — the web
+    # worker sets TLI_PERSIST_DIR after this module may already be imported.
+    root = os.environ.get('TLI_PERSIST_DIR') or os.environ.get('TLI_DATA_DIR') or os.path.normpath(
+        os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+    return os.path.normpath(os.path.join(root, 'builds'))
 
 
 def _file(build_id: str) -> str:
     if not _SAFE_ID.fullmatch(build_id):
         raise ValueError(f"Invalid build id: {build_id!r}")
-    return os.path.join(_DIR, f"{build_id}.txt")
+    return os.path.join(_dir(), f"{build_id}.txt")
 
 
 def _parse_nodes(raw: str) -> dict[str, int]:
@@ -54,6 +60,14 @@ def _read_file(build_id: str) -> dict:
     slates_raw = data.get('slates', '')
     slates = json.loads(slates_raw) if slates_raw else []
 
+    slate_inventory_raw = data.get('slateInventory', '')
+    slate_inventory = json.loads(slate_inventory_raw) if slate_inventory_raw else []
+
+    prisms_raw = data.get('prisms', '')
+    prisms = json.loads(prisms_raw) if prisms_raw else []
+    prism_inventory_raw = data.get('prismInventory', '')
+    prism_inventory = json.loads(prism_inventory_raw) if prism_inventory_raw else []
+
     conditions_raw = data.get('conditions', '')
     conditions = json.loads(conditions_raw) if conditions_raw else []
 
@@ -84,6 +98,11 @@ def _read_file(build_id: str) -> dict:
     pact_spirits_raw = data.get('pact_spirits', '')
     pact_spirits = json.loads(pact_spirits_raw) if pact_spirits_raw else [None, None, None]
 
+    fates_raw = data.get('fates', '')
+    fates = json.loads(fates_raw) if fates_raw else {}
+    undetermined_raw = data.get('undetermined', '')
+    undetermined = json.loads(undetermined_raw) if undetermined_raw else [None, None, None]
+
     notes_raw = data.get('notes', '')
     notes = json.loads(notes_raw) if notes_raw else ''
 
@@ -93,11 +112,21 @@ def _read_file(build_id: str) -> dict:
     custom_mods_raw = data.get('customMods', '')
     custom_mods = json.loads(custom_mods_raw) if custom_mods_raw else []
 
+    loadouts_raw = data.get('loadouts', '')
+    loadouts = json.loads(loadouts_raw) if loadouts_raw else []
+    active_loadout_id = data.get('activeLoadoutId', '') or ''
+
+    target_config_raw = data.get('targetConfig', '')
+    target_config = json.loads(target_config_raw) if target_config_raw else None
+
     return {
         'id': data.get('id', build_id),
         'name': data.get('name', ''),
         'slots': slots,
         'slates': slates,
+        'slateInventory': slate_inventory,
+        'prisms': prisms,
+        'prismInventory': prism_inventory,
         'conditions': conditions,
         'conditionValues': condition_values,
         'conditionState': condition_state,
@@ -111,13 +140,18 @@ def _read_file(build_id: str) -> dict:
         'advancedTraitSelections': advanced_trait_selections,
         'heroMemories': hero_memories,
         'pactSpirits': pact_spirits,
+        'fates': fates,
+        'undetermined': undetermined,
         'notes': notes,
         'customMods': custom_mods,
+        'loadouts': loadouts,
+        'activeLoadoutId': active_loadout_id,
+        'targetConfig': target_config,
     }
 
 
 def _write_file(build: dict) -> None:
-    os.makedirs(_DIR, exist_ok=True)
+    os.makedirs(_dir(), exist_ok=True)
     slots = build.get('slots') or [None, None, None, None]
     slates = build.get('slates') or []
     with open(_file(build['id']), 'w') as f:
@@ -137,6 +171,12 @@ def _write_file(build: dict) -> None:
             f.write(f"slot{i}_nodes={nodes_str}\n")
             f.write(f"slot{i}_core_talents={json.dumps(core, separators=(',', ':'))}\n")
         f.write(f"slates={json.dumps(slates, separators=(',', ':'))}\n")
+        slate_inventory = build.get('slateInventory') or []
+        f.write(f"slateInventory={json.dumps(slate_inventory, separators=(',', ':'))}\n")
+        prisms = build.get('prisms') or []
+        f.write(f"prisms={json.dumps(prisms, separators=(',', ':'))}\n")
+        prism_inventory = build.get('prismInventory') or []
+        f.write(f"prismInventory={json.dumps(prism_inventory, separators=(',', ':'))}\n")
         conditions = build.get('conditions') or []
         f.write(f"conditions={json.dumps(conditions, separators=(',', ':'))}\n")
         condition_values = build.get('conditionValues') or {}
@@ -156,19 +196,30 @@ def _write_file(build: dict) -> None:
         f.write(f"hero_memories={json.dumps(hero_memories, separators=(',', ':'))}\n")
         pact_spirits = build.get('pactSpirits') or [None, None, None]
         f.write(f"pact_spirits={json.dumps(pact_spirits, separators=(',', ':'))}\n")
+        fates = build.get('fates') or {}
+        f.write(f"fates={json.dumps(fates, separators=(',', ':'))}\n")
+        undetermined = build.get('undetermined') or [None, None, None]
+        f.write(f"undetermined={json.dumps(undetermined, separators=(',', ':'))}\n")
         notes = build.get('notes') or ''
         f.write(f"notes={json.dumps(notes, separators=(',', ':'))}\n")
         condition_state = build.get('conditionState') or {}
         f.write(f"conditionState={json.dumps(condition_state, separators=(',', ':'))}\n")
         custom_mods = build.get('customMods') or []
         f.write(f"customMods={json.dumps(custom_mods, separators=(',', ':'))}\n")
+        loadouts = build.get('loadouts') or []
+        f.write(f"loadouts={json.dumps(loadouts, separators=(',', ':'))}\n")
+        f.write(f"activeLoadoutId={build.get('activeLoadoutId', '') or ''}\n")
+        target_config = build.get('targetConfig')
+        if target_config:
+            f.write(f"targetConfig={json.dumps(target_config, separators=(',', ':'))}\n")
 
 
 def load() -> list[dict]:
-    if not os.path.isdir(_DIR):
+    d = _dir()
+    if not os.path.isdir(d):
         return []
     builds = []
-    for fname in sorted(os.listdir(_DIR)):
+    for fname in sorted(os.listdir(d)):
         if fname.endswith('.txt'):
             try:
                 builds.append(_read_file(fname[:-4]))

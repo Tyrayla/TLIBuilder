@@ -1,0 +1,135 @@
+{
+  "available_levels": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "default_level": 20,
+  "gate_text": null,
+  "level_kind": "level",
+  "lines": [
+    {
+      "badge_text": "",
+      "coverage": null,
+      "kind": "scaling",
+      "text": "",
+      "values_by_level": {
+        "1": "Deals 8-12 Spell Physical damage",
+        "10": "Deals 51-85 Spell Physical damage",
+        "11": "Deals 66-110 Spell Physical damage",
+        "12": "Deals 78-129 Spell Physical damage",
+        "13": "Deals 95-157 Spell Physical damage",
+        "14": "Deals 112-185 Spell Physical damage",
+        "15": "Deals 133-220 Spell Physical damage",
+        "16": "Deals 187-311 Spell Physical damage",
+        "17": "Deals 221-368 Spell Physical damage",
+        "18": "Deals 306-509 Spell Physical damage",
+        "19": "Deals 458-763 Spell Physical damage",
+        "2": "Deals 8-13 Spell Physical damage",
+        "20": "Deals 548-913 Spell Physical damage",
+        "3": "Deals 11-17 Spell Physical damage",
+        "4": "Deals 15-24 Spell Physical damage",
+        "5": "Deals 19-30 Spell Physical damage",
+        "6": "Deals 23-37 Spell Physical damage",
+        "7": "Deals 26-43 Spell Physical damage",
+        "8": "Deals 33-53 Spell Physical damage",
+        "9": "Deals 42-70 Spell Physical damage"
+      }
+    },
+    {
+      "badge_text": "",
+      "coverage": null,
+      "kind": "scaling",
+      "text": "",
+      "values_by_level": {
+        "1": "Effectiveness of added damage: 125%",
+        "10": "Effectiveness of added damage: 130%",
+        "11": "Effectiveness of added damage: 130%",
+        "12": "Effectiveness of added damage: 131%",
+        "13": "Effectiveness of added damage: 131%",
+        "14": "Effectiveness of added damage: 132%",
+        "15": "Effectiveness of added damage: 133%",
+        "16": "Effectiveness of added damage: 133%",
+        "17": "Effectiveness of added damage: 134%",
+        "18": "Effectiveness of added damage: 134%",
+        "19": "Effectiveness of added damage: 135%",
+        "2": "Effectiveness of added damage: 125%",
+        "20": "Effectiveness of added damage: 135%",
+        "3": "Effectiveness of added damage: 126%",
+        "4": "Effectiveness of added damage: 127%",
+        "5": "Effectiveness of added damage: 127%",
+        "6": "Effectiveness of added damage: 128%",
+        "7": "Effectiveness of added damage: 128%",
+        "8": "Effectiveness of added damage: 129%",
+        "9": "Effectiveness of added damage: 129%"
+      }
+    },
+    {
+      "badge_text": "",
+      "coverage": "modeled",
+      "kind": "special",
+      "text": "Base Attack Frequency: 1.5",
+      "values_by_level": null
+    },
+    {
+      "badge_text": "",
+      "coverage": "modeled",
+      "kind": "special",
+      "text": "Max Channeled Stacks: 5",
+      "values_by_level": null
+    },
+    {
+      "badge_text": "Each channeled stack +2.5 s Duration for Gale.",
+      "coverage": null,
+      "kind": "special",
+      "text": "Each channeled stack +2.5 s Duration for Gale.",
+      "values_by_level": null
+    },
+    {
+      "badge_text": "Each channeled stack +10% Skill Area for Gale.",
+      "coverage": null,
+      "kind": "special",
+      "text": "Each channeled stack +10% Skill Area for Gale.",
+      "values_by_level": null
+    },
+    {
+      "badge_text": "Each channeled stack increases Movement Speed for Gale.",
+      "coverage": null,
+      "kind": "flavor",
+      "text": "Each channeled stack increases Movement Speed for Gale.",
+      "values_by_level": null
+    },
+    {
+      "badge_text": "",
+      "coverage": "modeled",
+      "kind": "special",
+      "text": "This skill 21.5 % additional damage for every +1 additional Max Channeled Stack(s)",
+      "values_by_level": null
+    },
+    {
+      "badge_text": "",
+      "coverage": "modeled",
+      "kind": "flavor",
+      "text": "Bonuses and additional bonuses for Cast Speed are also applied to Gale's Attack Frequency",
+      "values_by_level": null
+    }
+  ],
+  "modeled_rolls": []
+}

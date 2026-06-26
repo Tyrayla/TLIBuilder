@@ -31,6 +31,7 @@
     "attack_speed_inc",
     "attack_speed_mh",
     "block_ratio_inc",
+    "block_ratio_upper_limit_flat",
     "cold_as_erosion",
     "cold_as_fire",
     "cold_attack_dmg_flat_max",
@@ -81,11 +82,13 @@
     "evasion_gear_flat",
     "evasion_gear_inc",
     "evasion_inc",
+    "extra_tangle_applied_flat",
     "ferv",
     "fire_as_erosion",
     "fire_attack_dmg_flat_max",
     "fire_attack_dmg_flat_min",
     "fire_convert_to_erosion",
+    "fire_curse_taken",
     "fire_dmg_additional",
     "fire_dmg_gear_flat_max",
     "fire_dmg_gear_flat_min",
@@ -95,11 +98,13 @@
     "fire_pen",
     "fire_resistance",
     "fire_resistance_max_inc",
+    "hit_curse_taken",
     "hit_dmg_additional",
     "intelligence",
     "intelligence_additional",
     "intelligence_flat",
     "intelligence_inc",
+    "knockback_dmg_taken",
     "lightning_as_cold",
     "lightning_as_erosion",
     "lightning_as_fire",
@@ -108,6 +113,7 @@
     "lightning_convert_to_cold",
     "lightning_convert_to_erosion",
     "lightning_convert_to_fire",
+    "lightning_curse_taken",
     "lightning_dmg_additional",
     "lightning_dmg_gear_flat_max",
     "lightning_dmg_gear_flat_min",
@@ -122,11 +128,13 @@
     "lucky_physical",
     "main_skill_level",
     "max_agility_blessing_stacks_flat",
+    "max_electrify_stacks_flat",
     "max_energy_shield",
     "max_energy_shield_additional",
     "max_energy_shield_flat",
     "max_energy_shield_inc",
     "max_focus_blessing_stacks_flat",
+    "max_frostbite_rating_flat",
     "max_ignite_flat",
     "max_life",
     "max_life_additional",
@@ -136,10 +144,12 @@
     "max_mana_additional",
     "max_mana_flat",
     "max_mana_inc",
+    "max_spell_burst_flat",
     "max_tenacity_blessing_stacks_flat",
     "melee_dmg_additional",
     "melee_dmg_inc",
     "melee_skill_level",
+    "no_guard_dmg_taken",
     "numbed_lightning_taken",
     "paralysis_dmg_taken",
     "physical_as_cold",
@@ -154,6 +164,7 @@
     "physical_convert_to_fire",
     "physical_convert_to_lightning",
     "physical_crit_dmg_inc",
+    "physical_curse_taken",
     "physical_dmg_additional",
     "physical_dmg_gear_flat_max",
     "physical_dmg_gear_flat_min",
@@ -179,6 +190,7 @@
     "strength_additional",
     "strength_flat",
     "strength_inc",
+    "tide_dmg_taken",
     "triple_dmg_chance",
     "weapon_attack_speed",
     "weapon_crit_rating_flat"
@@ -191,9 +203,21 @@
     "base_dmg_max": {},
     "base_dmg_min": {},
     "cast_multiplier": 1.0,
+    "channeled_attack_frequency": 0.0,
+    "channeled_behavior": "",
+    "channeled_burst_rate": 0.0,
+    "channeled_max_stacks": 0,
+    "channeled_min_stacks": 0,
+    "channeled_rounds_per_cycle": 0.0,
+    "channeled_stacks": 0.0,
     "crit_chance": 0.396,
     "crit_multiplier": 1.5,
     "effective_level": 20,
+    "enemy_mult_by_type": {
+      "fire": 0.48999999999999994,
+      "lightning": 0.7349999999999999,
+      "physical": 0.5
+    },
     "flat_dmg_max": {
       "fire": 135.0,
       "lightning": 198.0,
@@ -210,6 +234,8 @@
       {
         "avg_hit_pre_crit": 7712.780030890403,
         "avg_hit_with_crit": 9239.910477006702,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
           "fire": 736.3644171196463,
           "lightning": 1460.7629124610983,
@@ -218,6 +244,7 @@
         "dps_contribution": 21505.189402036853,
         "dps_vs_target": 10691.333211420919,
         "effectiveness_pct": 185.0,
+        "fires_per_sec": 2.3274240000000006,
         "form_type": "exclusive",
         "hit_max_by_type": {
           "fire": 955.8576568380024,
@@ -229,12 +256,17 @@
           "lightning": 140.4579723520287,
           "physical": 4092.486856684188
         },
+        "hits_per_fire": 1,
         "name": "Sweep Slash",
-        "proc_chance": 0.76
+        "proc_chance": 0.76,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       },
       {
         "avg_hit_pre_crit": 15425.560061780807,
         "avg_hit_with_crit": 18479.820954013405,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
           "fire": 1472.7288342392926,
           "lightning": 2921.5258249221965,
@@ -243,6 +275,7 @@
         "dps_contribution": 13582.22488549696,
         "dps_vs_target": 6752.420975634265,
         "effectiveness_pct": 370.0,
+        "fires_per_sec": 0.7349760000000002,
         "form_type": "exclusive",
         "hit_max_by_type": {
           "fire": 1911.7153136760048,
@@ -254,15 +287,32 @@
           "lightning": 280.9159447040574,
           "physical": 8184.973713368376
         },
+        "hits_per_fire": 1,
         "name": "Steep Strike",
-        "proc_chance": 0.24000000000000002
+        "proc_chance": 0.24000000000000002,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       }
     ],
+    "jumps": 0,
+    "jumps_base": 0,
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
       "dexterity",
       "intelligence"
     ],
+    "mana_cost": 1.0,
+    "mercury_baptism_dps": 0.0,
+    "mercury_baptism_fraction": 0.0,
+    "multistrike_avg_count": 0.0,
+    "multistrike_chain": [],
+    "multistrike_chance": 0.0,
+    "multistrike_increment": 0.0,
+    "multistrike_max_count": 0,
+    "multistrike_mult": 1.0,
+    "multistrike_repeat_aps": 0.0,
+    "non_spell_burst_dps": 0.0,
+    "non_spell_burst_dps_vs_target": 0.0,
     "nyi": [
       "Support skill flat damage adds",
       "Elemental conversion",
@@ -273,9 +323,9 @@
       "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
       "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
-      "spell_burst_hit_dmg_additional \u2014 Spell burst mechanic \u2014 unique per-burst hit scaling, deferred",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
     ],
+    "projectile_count": -1,
     "shotgun_hits": 1,
     "skill_area_inc": 0,
     "skill_name": "Moon Strike",
@@ -286,8 +336,32 @@
       "Melee",
       "Slash-Strike"
     ],
+    "spell_burst_auto": false,
+    "spell_burst_auto_source": "",
+    "spell_burst_cast_to_next_inc": 0.0,
+    "spell_burst_casts_per_burst": 0,
+    "spell_burst_charge_factor": 1.0,
+    "spell_burst_charge_inc": 0.0,
+    "spell_burst_charge_ticks": 0,
+    "spell_burst_charge_time": 0.0,
+    "spell_burst_charge_to_next_inc": 0.0,
+    "spell_burst_count": 0,
+    "spell_burst_dps": 0.0,
+    "spell_burst_dps_vs_target": 0.0,
+    "spell_burst_mult": 1.0,
+    "spell_burst_next_breakpoint_ticks": 0,
+    "spell_burst_rate": 0.0,
+    "spell_ripple_dps": 0.0,
+    "spell_ripple_fraction": 0.0,
     "steep_strike_chance": 0.24000000000000002,
     "supported": true,
+    "tangle_attach_range": 0.0,
+    "tangle_count": 0,
+    "tangle_duration": 0.0,
+    "tangle_enhancement": 1.0,
+    "tangle_inactivated": 0,
+    "tangle_mult": 1.0,
+    "tangle_placeable": 0,
     "total_dps": 35087.414287533815,
     "total_dps_vs_target": 17443.754187055183,
     "type_add": {
@@ -316,9 +390,21 @@
       "base_dmg_max": {},
       "base_dmg_min": {},
       "cast_multiplier": 1.0,
+      "channeled_attack_frequency": 0.0,
+      "channeled_behavior": "",
+      "channeled_burst_rate": 0.0,
+      "channeled_max_stacks": 0,
+      "channeled_min_stacks": 0,
+      "channeled_rounds_per_cycle": 0.0,
+      "channeled_stacks": 0.0,
       "crit_chance": 0.396,
       "crit_multiplier": 1.5,
       "effective_level": 20,
+      "enemy_mult_by_type": {
+        "fire": 0.48999999999999994,
+        "lightning": 0.7349999999999999,
+        "physical": 0.5
+      },
       "flat_dmg_max": {
         "fire": 135.0,
         "lightning": 198.0,
@@ -335,6 +421,8 @@
         {
           "avg_hit_pre_crit": 7712.780030890403,
           "avg_hit_with_crit": 9239.910477006702,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
             "fire": 736.3644171196463,
             "lightning": 1460.7629124610983,
@@ -343,6 +431,7 @@
           "dps_contribution": 21505.189402036853,
           "dps_vs_target": 10691.333211420919,
           "effectiveness_pct": 185.0,
+          "fires_per_sec": 2.3274240000000006,
           "form_type": "exclusive",
           "hit_max_by_type": {
             "fire": 955.8576568380024,
@@ -354,12 +443,17 @@
             "lightning": 140.4579723520287,
             "physical": 4092.486856684188
           },
+          "hits_per_fire": 1,
           "name": "Sweep Slash",
-          "proc_chance": 0.76
+          "proc_chance": 0.76,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         },
         {
           "avg_hit_pre_crit": 15425.560061780807,
           "avg_hit_with_crit": 18479.820954013405,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
             "fire": 1472.7288342392926,
             "lightning": 2921.5258249221965,
@@ -368,6 +462,7 @@
           "dps_contribution": 13582.22488549696,
           "dps_vs_target": 6752.420975634265,
           "effectiveness_pct": 370.0,
+          "fires_per_sec": 0.7349760000000002,
           "form_type": "exclusive",
           "hit_max_by_type": {
             "fire": 1911.7153136760048,
@@ -379,15 +474,32 @@
             "lightning": 280.9159447040574,
             "physical": 8184.973713368376
           },
+          "hits_per_fire": 1,
           "name": "Steep Strike",
-          "proc_chance": 0.24000000000000002
+          "proc_chance": 0.24000000000000002,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         }
       ],
+      "jumps": 0,
+      "jumps_base": 0,
       "main_stat_damage_bonus": 0.0,
       "main_stats": [
         "dexterity",
         "intelligence"
       ],
+      "mana_cost": 1.0,
+      "mercury_baptism_dps": 0.0,
+      "mercury_baptism_fraction": 0.0,
+      "multistrike_avg_count": 0.0,
+      "multistrike_chain": [],
+      "multistrike_chance": 0.0,
+      "multistrike_increment": 0.0,
+      "multistrike_max_count": 0,
+      "multistrike_mult": 1.0,
+      "multistrike_repeat_aps": 0.0,
+      "non_spell_burst_dps": 0.0,
+      "non_spell_burst_dps_vs_target": 0.0,
       "nyi": [
         "Support skill flat damage adds",
         "Elemental conversion",
@@ -398,9 +510,9 @@
         "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
         "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
         "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
-        "spell_burst_hit_dmg_additional \u2014 Spell burst mechanic \u2014 unique per-burst hit scaling, deferred",
         "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
       ],
+      "projectile_count": -1,
       "shotgun_hits": 1,
       "skill_area_inc": 0,
       "skill_name": "Moon Strike",
@@ -411,8 +523,32 @@
         "Melee",
         "Slash-Strike"
       ],
+      "spell_burst_auto": false,
+      "spell_burst_auto_source": "",
+      "spell_burst_cast_to_next_inc": 0.0,
+      "spell_burst_casts_per_burst": 0,
+      "spell_burst_charge_factor": 1.0,
+      "spell_burst_charge_inc": 0.0,
+      "spell_burst_charge_ticks": 0,
+      "spell_burst_charge_time": 0.0,
+      "spell_burst_charge_to_next_inc": 0.0,
+      "spell_burst_count": 0,
+      "spell_burst_dps": 0.0,
+      "spell_burst_dps_vs_target": 0.0,
+      "spell_burst_mult": 1.0,
+      "spell_burst_next_breakpoint_ticks": 0,
+      "spell_burst_rate": 0.0,
+      "spell_ripple_dps": 0.0,
+      "spell_ripple_fraction": 0.0,
       "steep_strike_chance": 0.24000000000000002,
       "supported": true,
+      "tangle_attach_range": 0.0,
+      "tangle_count": 0,
+      "tangle_duration": 0.0,
+      "tangle_enhancement": 1.0,
+      "tangle_inactivated": 0,
+      "tangle_mult": 1.0,
+      "tangle_placeable": 0,
       "total_dps": 35087.414287533815,
       "total_dps_vs_target": 17443.754187055183,
       "type_add": {
@@ -821,6 +957,25 @@
       "total": 485.0,
       "unit": ""
     },
+    "moon_strike_circular_chance": {
+      "category": "Steep Strike",
+      "display_name": "Circular Attack Chance",
+      "slot_sources": [
+        {
+          "amount": 0.2,
+          "label": "Moon Strike: Lunar Ring",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "20% circular-attack chance on Steep Strike (tracked; DPS-neutral) |lunar_ring"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "movement_speed": {
       "category": "Character",
       "display_name": "Movement Speed",
@@ -929,6 +1084,25 @@
       ],
       "total": 500.0,
       "unit": ""
+    },
+    "steep_strike_chance": {
+      "category": "Steep Strike",
+      "display_name": "Steep Strike Chance",
+      "slot_sources": [
+        {
+          "amount": 0.04,
+          "label": "Moon Strike: Rainbow",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "+4% Steep Strike chance (1%/100 Max Mana) |rainbow"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
     },
     "weapon_attack_speed": {
       "category": "Gear",

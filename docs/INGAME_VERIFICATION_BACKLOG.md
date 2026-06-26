@@ -200,6 +200,99 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   → **2.02/s** in-game = ×1.10×1.225 (multiplicative), not ×1.325 (additive).
 - Fix: additional attack/cast speed now pools PER-AFFIX (distinct sources multiply); `_speed_additional_product`.
 
+### CURSE-01 — Curse stacking / limit / pooling (multiple checks)
+- Status: ⏳ Needs in-game testing (curses shipped 2026-06-17 with assumed rules)
+- The engine currently ASSUMES the following; each needs confirming:
+  1. **Over-limit precedence.** With more curses than your curse limit, which one(s) apply? Believed "most recent
+     applied". Test: apply two curses (e.g. Vulnerability then Scorch) with limit 1, observe which is active on the
+     enemy. (The app makes you pick manually for now.)
+  2. **Same curse, different levels.** Apply the same curse from two sources at different levels (e.g. a Lv1 slotted
+     curse + a Lv20 gear-triggered curse). Believed: **only the highest level applies** (no stacking). Confirm.
+  3. **Different curses pooling.** Two different damage-taken curses on one enemy (e.g. Timid all-hit + Vulnerability
+     physical) — do their "+X% additional damage taken" lines **multiply** or add? Engine multiplies. Test on a
+     physical skill: record DPS with neither / Timid only / Vulnerability only / both, compare to ×(1.39)(1.39).
+  4. **Curse Effect scaling.** +X% Curse Effect — does it scale the damage-taken line linearly (engine: Base × (1 +
+     Curse Effect))? Test base vs +Curse Effect.
+  5. **Noble/Magnificent on curses.** Confirm "+additional damage for the supported skill" on a curse support does
+     nothing (curses deal no hit damage) — engine treats it as inert.
+- Method: physical or single-element skill vs the standard dummy; Recount span-average; report the number per case.
+
+### EMPOWER-01 — Empower (Euphoria) buffs (multiple checks)
+- Status: ⏳ Needs in-game testing (empower shipped 2026-06-17 with assumed rules)
+- The engine ASSUMES the following; each needs confirming:
+  1. **Euphoria stacks across empower skills.** Slot 2+ empower skills — do all their Euphoria buffs apply at once,
+     or is only one Euphoria active at a time? Engine assumes they all stack (no limit).
+  2. **Empower Skill Effect pooling.** increased sums, additional multiplies ((1+inc)×(1+additional)). Confirm.
+  3. **Mass Effect charges.** "10.5% effect per +1 Charge, up to 31.5%" — confirm it scales with the empower skill's
+     Max Charges (cooldown skills only; +1 from Mass Effect). Report base charges of a few empower skills.
+  4. **Uptime.** Engine treats the buff as always-on (100%); real uptime/duration is unmodeled.
+- Method: a spell main skill + Secret Origin Unleash (+15% Spell) vs the standard dummy; Recount span-average.
+
+### TANGLE-01 — Tangle DPS model (multipliers across multiple setups)
+- Status: ⬜ Pending — **verify the whole Tangle model against the live game across several different setups**
+  to confirm each multiplier behaves correctly (not just one build).
+- Setup: a Spell + **Spell Tangle** vs the standard dummy. Then vary ONE thing at a time and re-parse:
+  1. **Count.** Base (1 attached) → add "+1 apply additional Tangle to enemies" (gear/Peculiar Vibe). Expected
+     total DPS **×2** (each tangle is a full caster, no penalty). Also try +2 apply with ≥3 Max Tangle Quantity.
+  2. **Tangle Damage Enhancement.** Add a known "+X% Tangle Damage Enhancement"; expected **×(1 + X)**. Add a
+     SECOND enhancement source; expected additive within itself (56%+56% → ×2.12), NOT multiplicative.
+  3. **Additional Tangle Damage.** Add "+X% additional Tangle Damage"; expected its own multiplicative factor,
+     SEPARATE from enhancement.
+  4. **Plain Tangle Damage / Tangle Crit.** Confirm "+X% Tangle Damage" lands in the increased pool and "+N Tangle
+     Critical Strike Rating" raises the tangle's crit.
+  5. **Dormant Entanglement.** With Max Tangle Quantity > attached (≥1 inactivated) + Dormant enabled, expected
+     +40% **additional** Tangle Damage per inactivated tangle.
+  6. **Cast speed.** Confirm the tangle trigger rate scales 1:1 with the spell's cast rate.
+- Confirm in-game: **base attached-per-enemy = 1** and base **Max Tangle Quantity = 2** (Help DB); the player can't
+  manually cast the skill while a Tangle activator is enabled (use only spawns tangles, always a new one).
+- RESULT (per sub-test): Recount Avg DPS (span) + Duration, before/after; the mod + its roll; Skill level; Screenshot.
+
+---
+
+### SPELLBURST-01 — Spell Burst DPS model + 30/s tick behaviour (multiple checks)
+- Status: 🔶 Partially verified — **combined total DPS matched in-game to within 1.2% over a 4-min test** with matching
+  gear (manual triggering, at the **39-charge-tick** breakpoint). Remaining checks below (M-vs-M+1 count, the
+  charge-speed breakpoint dead-zone shape, auto-trigger, per-support burst bonuses) still ⬜.
+- Setup: an eligible Spell (no cooldown, not channeled) with **+Max Spell Burst** gear, vs the standard dummy. Use the
+  Recount span average (≥60 s), not the tooltip. Vary ONE thing at a time:
+  1. **Casts per burst — M vs M+1.** Burst once and count the separate Spell Burst damage numbers per trigger. The app
+     assumes **M + 1** (the triggering cast counts). Confirm whether it's M or M+1.
+  2. **No damage cap.** Raise Max Spell Burst high (e.g. 3 → 7 → 14). DPS should scale **linearly with (M+1)** with no
+     plateau (the app applies no cap).
+  3. **Charge-limited regime.** Fast cast, slow charge (no Charge Speed). Recount DPS ÷ per-cast ≈ `(M+1) / T` with
+     `T ≈ 2 s`. Confirm **base charge time = 2 s** and the **Play Safe** Cast-Speed → Charge-Speed propagation.
+  4. **Charge-speed breakpoints (the key tick check).** Finely raise Spell Burst Charge Speed. The app predicts
+     **hard-rounded dead zones** (charge speed inside a tick band gives 0 gain; crossing to the next whole 30 Hz tick
+     jumps it). If DPS instead rises **smoothly** with every 1% charge speed, Spell Burst is NOT hard-rounded after all
+     → switch its charge to the smooth+cap model. (This single test validates the breakpoint vs smooth decision.)
+  5. **Cast-limited (manual) regime.** Auto-trigger OFF; drop cast speed below `1/T`. Casts/sec should fall to about
+     `(M+1) × cast_rate` (the cast gate). Near `cast ≈ charge` look for the ~50% "Scenario-C" drop (a burst waits for
+     the next cast after the charge tick).
+  6. **Auto-trigger.** With Burst Activation / Solid River, bursts should fire the instant charge fills (independent of
+     your cast cadence) → bursts/sec = `30 / charge_ticks`.
+  7. **Burst-only damage pools.** Add a "+X% additional Hit Damage for skills cast by Spell Burst" support; confirm it
+     lifts ONLY burst-cast damage (inert with `spell_burst_active` off). For **Heart of Flame** confirm +%/stack
+     consumed scales with M (cap 6); for **Prairie Fire** confirm the +%/activation ramp and its cap.
+- Also confirm globally (tick model): **everything caps at 30/s** (incl. DoT — the app uses 30, not 31), and that
+  general channeled skills scale **smoothly** (only the named breakpoint mechanisms — minions/Reap/Wind Rhythm/Split
+  Shot Rapid Advance — hard-round).
+- RESULT (per sub-test): Recount Avg DPS (span) + Duration, before/after; the mod + its roll; Max Spell Burst; cast &
+  charge speed; Skill level; Screenshot.
+
+---
+
+### SPELLBURST-02 — Auto-trigger + charge sources (second pass)
+- Status: 🔶 Partially verified — a **Solid River spell-burst build matched in-game within 2%** (owner, 2026-06-18),
+  confirming the auto-trigger + charge model. Remaining sub-checks below still ⬜.
+  1. **Burst Activation** support → auto-trigger (instant; headline = burst-only, no between-burst casts).
+  2. **Solid River** → auto-trigger ONLY when Burst Charge Recovery Speed ≥ ~230–250% of base (drops to manual below
+     it). Confirm the exact threshold. Also its **charge→burst-damage**: "+Y% per +X% charge speed, up to +Z%" steps at
+     each +X% and caps at Z. And its Vorax'd copy (same line on another item) behaves identically.
+  3. **Insatiable Greed** (currently via custom mod): 150% of Attack Speed bonuses shorten the Spell Burst charge.
+  4. **Squiddle/Squidnova**: equipping Squiddle auto-grants the buff → +Spell Damage and (rank 6) +1 Max Spell Burst;
+     confirm whether **Squidnova Effect** (+25/50%) scales the Spell Damage bonus (currently parsed but not scaled).
+- RESULT: Recount Avg DPS (span) before/after each; the mod + roll; charge & cast speed; Max Spell Burst; Screenshot.
+
 ---
 
 ## How results are ingested

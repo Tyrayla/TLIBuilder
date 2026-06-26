@@ -1,0 +1,72 @@
+---
+name: engine-verify
+description: Run the TLI Builder engine verification suite after changing engine code — typecheck, Python tests, the consumable-universe scan, and the golden re-capture (with an additive-only diff check). Use when asked to "verify the engine", "run the checks/tests", "re-capture goldens", or at the end of the add-stat / add-condition / add-hero-trait / add-skill / add-support skills.
+---
+
+# engine-verify
+
+Runs the full verification gate for engine changes. **Never commits** — report results and let the owner decide.
+See `docs/ENGINE_AUTHORING.md` for the gotchas this enforces.
+
+## 1. Typecheck (only if frontend/TS changed)
+From the repo root:
+```
+npx tsc --noEmit -p tsconfig.web.json 2>&1 | grep -cE "error TS"
+```
+Expect `0`. (Run from repo root — running elsewhere falsely reports `1` because the config isn't found.)
+
+## 2. Python tests
+```
+cd backend && python -m pytest -q 2>&1 | tail -5
+```
+If a specific area changed, run its file first for a fast signal (e.g. `python -m pytest tests/test_channeled.py -q`).
+
+## 3. Consumable-universe scan
+Part of the full suite, but call it out — it's the easy-to-forget one:
+```
+cd backend && python -m pytest tests/test_consumable_universe.py -q 2>&1 | tail -5
+```
+If it fails listing a missing stat, add that stat to the `consumed |= {...}` block in
+`backend/engine/consumable_universe.py` (only stats the engine reads on every run; see the doc).
+
+## 4. Golden re-capture (only when output legitimately changed)
+Golden tests fail when you intentionally change engine output (new `OffenseResult`/`HitFormResult` field, a new
+always-read stat entering `consumed_stats`, a new `@_register`'d skill, or a real damage change).
+
+**First, prove the diff is additive-only** (no pre-existing value changed — only new keys added). From `backend`:
+```
+python - <<'PY'
+import json, os
+from server import engine_stats, EngineStatsRequest
+from tests.test_support_skill_goldens import _request, _canonical, _GOLDEN_DIR
+def changed(old, new, path=""):
+    if isinstance(old, dict) and isinstance(new, dict):
+        for k in old:
+            if k not in new: yield f"{path}.{k} REMOVED"
+            else: yield from changed(old[k], new[k], f"{path}.{k}")
+    elif isinstance(old, list) and isinstance(new, list):
+        rem = [x for x in old if x not in new]
+        if rem: yield f"{path}: REMOVED {rem}"
+    elif old != new:
+        yield f"{path}: {old!r} -> {new!r}"
+for sid in ["chain_lightning","moon_strike","berserking_blade"]:
+    g = json.load(open(os.path.join(_GOLDEN_DIR, f"{sid}.json"), encoding="utf-8"))
+    c = json.loads(json.dumps(_canonical(engine_stats(EngineStatsRequest(**_request(sid)))), sort_keys=True))
+    diffs = list(changed(g, c))
+    print(sid, "value changes:", diffs if diffs else "NONE (additive only)")
+PY
+```
+- If any spot-checked skill shows a real value change, **stop** — that's a behavior change to review with the owner,
+  not a mechanical re-capture.
+- If additive-only, re-capture: delete the changed fixtures and run twice (first captures + skips, second asserts):
+```
+cd backend
+rm -f tests/fixtures/support_skill_golden/*.json tests/fixtures/scope_golden/*.json
+python -m pytest tests/test_support_skill_goldens.py tests/test_skill_scope_nochange.py -q 2>&1 | tail -3
+python -m pytest tests/test_support_skill_goldens.py tests/test_skill_scope_nochange.py -q 2>&1 | tail -3
+```
+(Only delete the goldens you expect to change. A new skill adds a brand-new `support_skill_golden/<id>.json`.)
+
+## 5. Report
+Summarize: tsc error count, pytest pass count, consumable-universe status, and whether goldens were re-captured
+(and that the diff was additive-only). Do **not** commit. Surface anything unexpected to the owner.

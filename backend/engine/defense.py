@@ -18,6 +18,22 @@ _MAX_EVADE_CHANCE     = 0.75
 # Non-Physical Damage" (armor_effective_rate_non_physical_inc).
 _BASE_NONPHYS_ARMOR_RATE = 0.60
 
+# Block Ratio (the fraction of damage absorbed on a Block). Base 30% for every character, clamped to the
+# Block Ratio Upper Limit (base 60%, raisable to 80% via block_ratio_upper_limit_flat — Rosa Invulnerability).
+_BASE_BLOCK_RATIO = 0.30
+_BASE_BLOCK_RATIO_UPPER_LIMIT = 0.60
+_MAX_BLOCK_RATIO_UPPER_LIMIT = 0.80
+
+
+def block_ratio_value(source: BuildSource) -> tuple[float, float]:
+    """(block_ratio, upper_limit) — base 30% + Σ block_ratio_inc, clamped to the Upper Limit (base 60% +
+    block_ratio_upper_limit_flat, hard-capped at 80%). Shared by defense (display) and the High Court Chariot
+    trait module (per-1%-Block-Ratio No Guard / Murderous Intent scaling) so both read the same value."""
+    upper_limit = min(_BASE_BLOCK_RATIO_UPPER_LIMIT + source.total("block_ratio_upper_limit_flat"),
+                      _MAX_BLOCK_RATIO_UPPER_LIMIT)
+    block_ratio = min(_BASE_BLOCK_RATIO + source.total("block_ratio_inc"), upper_limit)
+    return block_ratio, upper_limit
+
 
 def _armor_mitigation(armor: float) -> float:
     """Physical damage reduction from armor (Help DB): armor / (0.9·armor + 3000 + 300·min(level,90)),
@@ -113,7 +129,8 @@ class DefenseResult:
     # Block (additive chance, base 0; not consumed by the engine yet — display only, verify in-game).
     attack_block_chance: float = 0.0
     spell_block_chance: float = 0.0
-    block_ratio: float = 0.0
+    block_ratio: float = 0.0                  # base 30% + mods, clamped to the upper limit
+    block_ratio_upper_limit: float = 0.60     # base 60%, raisable to 80%
     dmg_avoid_chance: float = 0.0
     nyi: list[str] = field(default_factory=lambda: ["Effective HP"])
 
@@ -131,6 +148,7 @@ def calculate_defense(source: BuildSource, reservation: dict | None = None) -> D
     nonphys_rate = _BASE_NONPHYS_ARMOR_RATE + source.total("armor_effective_rate_non_physical_inc")
     _max_mana = source.total("max_mana")
     _max_life = source.total("max_life")
+    _block_ratio, _block_ratio_upper_limit = block_ratio_value(source)
     return DefenseResult(
         max_life=_max_life,
         max_mana=_max_mana,
@@ -150,7 +168,8 @@ def calculate_defense(source: BuildSource, reservation: dict | None = None) -> D
         spell_evade_chance=_evade_chance(evasion * 0.6),
         attack_block_chance=source.total("attack_block_chance_inc"),
         spell_block_chance=source.total("spell_block_chance_inc"),
-        block_ratio=source.total("block_ratio_inc"),
+        block_ratio=_block_ratio,
+        block_ratio_upper_limit=_block_ratio_upper_limit,
         dmg_avoid_chance=source.total("dmg_avoid_chance"),
         fire_resist=fire_c,
         cold_resist=cold_c,

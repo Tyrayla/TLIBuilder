@@ -47,6 +47,7 @@
   "lines": [
     {
       "badge_text": "The supported skill adds 1 - 4 Lightning Damage",
+      "coverage": null,
       "kind": "scaling",
       "text": "",
       "values_by_level": {
@@ -92,5 +93,6 @@
         "9": "The supported skill adds 1 - 21 Lightning Damage"
       }
     }
-  ]
+  ],
+  "modeled_rolls": []
 }

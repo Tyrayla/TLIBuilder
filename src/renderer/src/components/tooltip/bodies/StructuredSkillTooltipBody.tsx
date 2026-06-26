@@ -44,7 +44,8 @@ export function StructuredSkillTooltipBody(
     return display
   })
 
-  // Empty badge_text (intrinsic core damage / effectiveness) → no badge.
+  // Empty badge_text (intrinsic core damage / effectiveness, or a backend-classified 'modeled' line) → no
+  // keys lookup. Lines flagged coverage==='modeled' get the green Modeled badge directly (build-independent).
   const statuses = useTextModifierStatuses(
     spec.lines.map((ln) => ({ text: ln.badge_text || null, source: 'skill' as const })),
   )
@@ -54,7 +55,7 @@ export function StructuredSkillTooltipBody(
       {resolved.map((display, i) => (
         <p key={i}>
           {display}
-          <ModifierBadge status={statuses[i]} />
+          <ModifierBadge status={spec.lines[i].coverage === 'modeled' ? 'modeled' : statuses[i]} />
         </p>
       ))}
     </div>

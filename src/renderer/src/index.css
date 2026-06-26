@@ -9,6 +9,14 @@
   --fg-dim:    #444455;
   --ok:        #6bcb77;
   --err:       #ff6b6b;
+  color-scheme: dark;   /* render native form controls (incl. <select> dropdowns) dark, always */
+}
+
+/* Dark dropdowns everywhere — the native <option> popup is OS-rendered; force a dark palette. */
+select { color-scheme: dark; }
+select option, select optgroup {
+  background-color: #1a1a2e;
+  color: #cfd6e6;
 }
 
 html, body, #root {
@@ -103,6 +111,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   color: #ff6b6b !important;
   background: rgba(255,107,107,0.10); border-style: dashed; border-color: rgba(255,107,107,0.5);
 }
+/* "Modeled" = green, build-independent (the skill's intrinsic mechanic is modeled by the engine). Teal-green
+   to read as "working" while staying distinct from the build-specific "Consumed". */
+.nyi-tag--modeled {
+  color: #3fc9b0 !important;
+  background: rgba(63,201,176,0.12); border-color: rgba(63,201,176,0.34);
+}
 
 .btn-back {
   background: transparent;
@@ -146,9 +160,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 
 .build-select-footer {
-  position: absolute;
-  bottom: 20px;
-  left: 24px;
+  /* In the flex flow (not absolute) so it's always visible and the build list scrolls ABOVE it instead of
+     running behind it. flex-shrink:0 keeps it from being squeezed; margin-top:auto pins it to the bottom. */
+  flex-shrink: 0;
+  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -172,6 +187,17 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 0;
 }
 .about-link-btn:hover { text-decoration: underline; }
+/* Inline text link (within a sentence) — styled like an anchor, not a row button. */
+.about-link-inline {
+  background: none;
+  border: none;
+  color: #7090e8;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+.about-link-inline:hover { color: #8aa6f0; }
 
 .build-select-version {
   font-size: 11px;
@@ -182,6 +208,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .build-select-footer-actions {
   display: flex;
   gap: 6px;
+  align-items: center;
 }
 
 .build-list {
@@ -190,6 +217,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   gap: 8px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;        /* allow the flex item to shrink below content height so it scrolls instead of pushing the footer */
   padding-right: 4px;
 }
 
@@ -863,7 +891,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   background: #0a0a18; border: 1px solid #2a2a4a; border-radius: 8px;
   padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.7);
 }
-.core-talent-card-row { display: flex; gap: 10px; min-width: 0; }
+/* Wrap to the next line rather than widening the panel past the 4-card width (4×160 + 3×10 = 670). */
+.core-talent-card-row { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; max-width: 670px; }
 /* Locked slot — options stay viewable, selection is disabled until the threshold is met. */
 .core-talent-locked-note {
   font-size: 11px; font-weight: 600; color: #e0a050;
@@ -924,7 +953,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 /* Shell chrome */
 .tooltip-title    { font-size: 13px; font-weight: 700; color: #c8a050; margin-bottom: 2px; }
-.tooltip-subtitle { font-size: 11px; color: #7070aa; margin-bottom: 2px; }
+.tooltip-subtitle { font-size: 11px; color: #bdb4e6; margin-bottom: 2px; }
 .tooltip-divider  { border-top: 1px solid #2a2a3a; margin: 6px 0; }
 .tooltip-body     { display: flex; flex-direction: column; gap: 2px; }
 
@@ -1020,7 +1049,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .settings-row-disabled { opacity: 0.45; }
 .settings-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .settings-row-label > span:first-child { font-size: 13px; color: #e0e0e0; }
-.settings-row-hint { font-size: 11px; color: #8088a0; line-height: 1.4; }
+.settings-row-hint { font-size: 11px; color: #cdbff2; line-height: 1.4; }
 .settings-segmented { display: inline-flex; border: 1px solid #2a3650; border-radius: 5px; overflow: hidden; flex: none; }
 .settings-seg-btn {
   background: #0e1626; color: #9aa4bd; border: none; padding: 6px 14px; font-size: 12px;
@@ -1106,6 +1135,21 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 /* ── App Layout (sidebar + content) ───────────────────────── */
 
+/* Full-height column wrapping the optional update banner + the screen/app-layout. The banner keeps its
+   height (flex-shrink:0) and the content below shrinks to fill the rest — so the banner never pushes the
+   content (e.g. the build-list footer) off-screen. With no banner, the single child just fills 100%. */
+.app-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.app-shell > .screen,
+.app-shell > .app-layout {
+  flex: 1 1 auto;
+  height: auto;       /* override the bare 100% so it fills the space BELOW the banner, not the whole column */
+  min-height: 0;
+}
+
 .app-layout {
   display: flex;
   width: 100%;
@@ -1126,9 +1170,17 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 /* ── Build Sidebar ─────────────────────────────────────────── */
 
-.build-sidebar {
-  width: 155px;
+/* Shell wraps the scrolling sidebar + a right-edge resize handle. The shell is the flex item (fixed-but-draggable
+   width); the inner sidebar fills it. */
+.sidebar-shell {
+  position: relative;
   flex-shrink: 0;
+  display: flex;
+  height: 100%;
+}
+.build-sidebar {
+  width: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   background: #06060e;
@@ -1137,6 +1189,16 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   overflow-y: auto;
   gap: 2px;
 }
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 30;
+}
+.sidebar-resize-handle:hover { background: rgba(124,108,200,0.45); }
 
 .sidebar-build-name {
   font-size: 12px;
@@ -1276,11 +1338,60 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 16px 20px;
   gap: 12px;
   box-sizing: border-box;
+  min-height: 0;
 }
 
 .notes-header {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
 }
+.notes-help-btn {
+  width: 20px; height: 20px; border-radius: 50%; border: 1px solid #3a3a6a;
+  background: #14142a; color: #b0b0d0; font-size: 12px; line-height: 1; cursor: pointer;
+}
+.notes-help-btn:hover { border-color: #5a4ea0; color: #d8c8ff; }
+.notes-help-pop {
+  position: absolute; top: 30px; left: 0; z-index: 50; max-width: 440px;
+  background: #0e0e1e; border: 1px solid #3a3a6a; border-radius: 6px; padding: 10px 12px;
+  font-size: 12px; color: #cdd2f0; display: flex; flex-direction: column; gap: 6px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6); line-height: 1.45;
+}
+.notes-help-title { font-weight: 700; color: #c7a0ff; }
+
+/* Inline hyperlink editor (Lexical) */
+.notes-editor { position: relative; flex: 1; min-height: 0; display: flex; }
+.notes-contenteditable {
+  flex: 1; min-height: 0; overflow-y: auto; outline: none;
+  background: #0c0c1a; border: 1px solid #2a2a4a; border-radius: 6px;
+  padding: 12px 14px; font-size: 13px; line-height: 1.7; color: #d8d8ec; white-space: pre-wrap;
+}
+.notes-contenteditable:focus { border-color: #4a3a7a; }
+.notes-placeholder { position: absolute; top: 12px; left: 14px; color: #4a4a66; font-size: 13px; pointer-events: none; }
+.note-paragraph { margin: 0; }
+
+/* Inline entity chip */
+.note-chip { border-bottom: 1px dotted currentColor; cursor: default; font-weight: 600; padding: 0 1px; white-space: nowrap; }
+.note-chip-host { display: inline; }
+.note-chip-tip { max-width: 320px; }
+.note-chip-tip-title { font-weight: 700; font-size: 12px; }
+.note-chip-tip-kind { font-size: 10px; color: #8a8aa5; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+.note-chip-tip-line { font-size: 11px; color: #c0c4e0; line-height: 1.4; }
+
+/* @-mention typeahead dropdown */
+.note-typeahead {
+  background: #0d0d20; border: 1px solid #3a3a6a; border-radius: 6px; box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  padding: 4px; max-height: 300px; overflow-y: auto; min-width: 240px;
+}
+.note-typeahead-item {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: none; border: none; text-align: left; padding: 5px 8px; border-radius: 4px; cursor: pointer;
+}
+.note-typeahead-item:hover, .note-typeahead-item.active { background: #1a1040; }
+.note-typeahead-name { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-typeahead-kind { font-size: 10px; color: #8a8aa5; flex-shrink: 0; }
 
 .notes-textarea {
   flex: 1;
@@ -1342,30 +1453,42 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 *::-webkit-scrollbar-thumb:hover { background: #3a3a5a; background-clip: padding-box; }
 * { scrollbar-width: thin; scrollbar-color: #2a2a4a transparent; }
 
-.cond-masonry {
-  columns: 230px;
-  column-gap: 10px;
-}
+/* Explicit 3-column layout (replaces CSS multi-column) so panels can be placed deterministically — Character
+   pinned top-middle, the rest balanced by the column-balancer in BuildOverviewScreen. */
+.cond-columns { display: flex; gap: 12px; align-items: flex-start; }
+.cond-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
+/* Config panels — match the Stats screen's StatPanel look: accent LEFT border (color set inline per category) +
+   cool-charcoal uppercase header. */
 .cond-card {
-  background: #0a0a1a;
+  background: #0d0d1c;
   border: 1px solid #1e1e3a;
+  border-left: 3px solid #7a6cc8;   /* color overridden inline per category accent */
   border-radius: 6px;
   overflow: hidden;
   break-inside: avoid;       /* keep a category card whole within a column */
   margin-bottom: 10px;       /* multicol uses margins, not grid gap */
 }
+/* Full-width panel (e.g. the Custom Modifiers panel pinned above the category masonry). */
+.cond-card--full { width: 100%; }
 
 .cond-card-header {
-  background: #101025;
-  padding: 5px 10px 4px;
+  background: rgba(86,98,130,0.18);
+  padding: 5px 10px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #6666aa;
+  color: #cccccc;
   border-bottom: 1px solid #1a1a32;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  user-select: none;
 }
+.cond-card-header--clickable { cursor: pointer; }
+.cond-card-collapse { color: #8a8aa5; font-size: 13px; line-height: 1; }
 
 .cond-card-body {
   padding: 6px 8px;
@@ -3555,7 +3678,8 @@ span.gear-affix-label {
   overflow: visible;
 }
 .trait-circle:hover:not(.locked) { border-color: #4a4a8a; background: #111130; }
-.trait-circle.selected { border-color: #c0c0c0; background: #121220; }
+/* Selected nodes are indicated by the ✓ badge only — no heavy white ring (owner preference). */
+.trait-circle.selected { background: #121220; }
 .trait-circle.locked { opacity: 0.35; cursor: default; }
 
 /* Base trait circle — slightly larger, always selected */
@@ -4155,20 +4279,51 @@ span.gear-affix-label {
 
 /* CSS Grid: 11 columns (1 card + 10 nodes), 3 equal rows */
 .pact-spirit-grid {
-  display: grid;
-  grid-template-columns: 240px repeat(10, 1fr);
-  grid-template-rows: repeat(3, 1fr);
+  display: flex;
+  flex-direction: column;
   flex: 1;
   overflow: hidden;
+}
+/* One row per spirit: the card (left) + a nested node area (right). The card STRETCHES to the row height so
+   empty "Add Pactspirit" cells are always the same size as filled cards (not content-sized). */
+.pact-spirit-row {
+  display: grid;
+  grid-template-columns: 205px 1fr;
+  flex: 1;
+  min-height: 0;
   align-items: stretch;
 }
+/* Node area: 10 columns × 2 rows (node row + Undetermined branch row), packed tight + vertically centered so
+   branch slots sit DIRECTLY under the nodes above and their connector lines meet. */
+.pact-nodes-area {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: auto auto;
+  row-gap: 16px;
+  align-content: center;
+}
+/* Vertical link from the outer node down to the Undetermined node. The line is over-long and the Undetermined
+   node sits at z-index 0 (below the outer node, see rule near .pact-node) so the overshoot tucks behind the outer
+   node — guaranteeing the visible segment always bridges the gap cleanly regardless of exact row spacing. */
+.pact-node-undet::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 2px;
+  height: 48px;
+  background: rgba(255,255,255,0.18);
+  transform: translateX(-50%);
+}
 
-/* Card column cells */
+/* Card column cells. Positioned + raised so the first node's left connector (which overshoots left to reach the
+   card) tucks BEHIND the card — only the segment in the gap between card and node stays visible. */
 .pact-card-cell {
+  position: relative;
+  z-index: 2;
   border: 1.5px solid rgba(255,255,255,0.18);
   border-radius: 8px;
   margin: 10px 6px 10px 16px;
-  background: rgba(255,255,255,0.03);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   display: flex;
@@ -4176,15 +4331,17 @@ span.gear-affix-label {
   padding: 14px 12px;
   gap: 8px;
   overflow: hidden;
-  min-height: 90px;
+  min-height: 200px;
+  background: #101020;
 }
+/* Opaque backgrounds (not translucent) so the tucked-behind connector line never shows through the card. */
 .pact-card-cell:hover {
   border-color: rgba(255,255,255,0.35);
-  background: rgba(255,255,255,0.05);
+  background: #18182c;
 }
 .pact-card-cell.active {
   border-color: rgba(255,255,255,0.55);
-  background: rgba(255,255,255,0.06);
+  background: #1c1c34;
 }
 .pact-card-cell.empty {
   align-items: center;
@@ -4308,12 +4465,22 @@ span.gear-affix-label {
   transform: translateY(-50%);
 }
 
-.pact-node-cell.node-ring-inner::before { left: 0;              right: calc(50% + 13px); }
-.pact-node-cell.node-ring-inner::after  { left: calc(50% + 13px); right: 0; }
-.pact-node-cell.node-ring-mid::before   { left: 0;              right: calc(50% + 16px); }
-.pact-node-cell.node-ring-mid::after    { left: calc(50% + 16px); right: 0; }
-.pact-node-cell.node-ring-outer::before { left: 0;              right: calc(50% + 22px); }
+.pact-node-cell.node-ring-inner::before { left: 0;              right: calc(50% + 14px); }
+.pact-node-cell.node-ring-inner::after  { left: calc(50% + 14px); right: 0; }
+.pact-node-cell.node-ring-mid::before   { left: 0;              right: calc(50% + 23px); }
+.pact-node-cell.node-ring-mid::after    { left: calc(50% + 23px); right: 0; }
+.pact-node-cell.node-ring-outer::before { left: 0;              right: calc(50% + 33px); }
 .pact-node-cell.node-ring-outer::after  { display: none; }
+
+/* Branch-end connectors: suppress the half-line that would otherwise dangle into empty space. Placed AFTER the
+   node-ring rules above so it wins on equal specificity (else node-ring-mid::before re-shows the line). */
+.pact-node-cell.pact-branch-undet::after  { display: none; }   /* Undetermined node: nothing to its right */
+.pact-node-cell.pact-branch-first::before { display: none; }   /* leftmost extra slot: nothing to its left */
+.pact-node-cell.pact-branch-solo::before  { display: none; }   /* Undetermined node w/ no extra slots: nothing to its left */
+
+/* The first (leftmost) node links back to the spirit card — extend its left connector left to reach the card so
+   the line isn't left floating in the gap between the card and the first node. */
+.pact-nodes-area .pact-node-cell:first-child::before { left: -14px; }
 
 /* Node circles */
 .pact-node {
@@ -4328,25 +4495,28 @@ span.gear-affix-label {
   box-shadow: 0 0 14px 5px rgba(255,255,255,0.28);
   transform: scale(1.12);
 }
+/* Undetermined node below the outer: keep it under the outer node so its over-long vertical connector's overshoot
+   hides behind the outer node (clean gap-bridging line). Placed after .pact-node so it wins the z-index. */
+.pact-node-undet { z-index: 0; }
 
 .pact-node.node-inner {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   background: rgba(255,255,255,0.55);
   border: 2px solid rgba(255,255,255,0.75);
 }
 .pact-node.node-mid {
-  width: 32px;
-  height: 32px;
+  width: 46px;
+  height: 46px;
   background: rgba(180,210,255,0.55);
-  border: 2px solid rgba(180,210,255,0.85);
+  border: 2.5px solid rgba(180,210,255,0.85);
 }
 .pact-node.node-outer {
-  width: 44px;
-  height: 44px;
+  width: 66px;
+  height: 66px;
   background: rgba(255,180,80,0.6);
-  border: 2.5px solid rgba(255,200,100,0.9);
-  box-shadow: 0 0 10px rgba(255,180,80,0.45);
+  border: 3px solid rgba(255,200,100,0.9);
+  box-shadow: 0 0 12px rgba(255,180,80,0.5);
 }
 /* Node icon fills the ring (the colored border still conveys inner/mid/outer). */
 .pact-node-img {
@@ -4514,3 +4684,190 @@ span.gear-affix-label {
   padding-left: 4px;
   border-left: 2px solid rgba(255,180,80,0.4);
 }
+
+/* ── Loadouts ──────────────────────────────────────────────────────────────── */
+/* Sidebar bar: active-loadout dropdown (grows) + gear button (fixed). */
+.sidebar-loadout-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 2px 8px;
+}
+.loadout-dd { position: relative; flex: 1; min-width: 0; }
+.loadout-dd-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: #11112a;
+  border: 1px solid #34345e;
+  border-radius: 5px;
+  color: #ececfb;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.loadout-dd-trigger:hover { border-color: #5a4ea0; background: #181838; }
+.loadout-dd-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loadout-dd-caret { color: #9a9ac8; font-size: 9px; flex-shrink: 0; }
+/* Click-catcher behind the floating menu. */
+.loadout-dd-backdrop { position: fixed; inset: 0; z-index: 60; }
+/* Floating menu overlays the nav items below (absolute + high z-index). */
+.loadout-dd-menu {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  right: 0;
+  z-index: 61;
+  background: #0d0d20;
+  border: 1px solid #3a3a6a;
+  border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  padding: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.loadout-dd-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: #d2d4ee;
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.loadout-dd-item:hover { background: #221a44; color: #ffffff; }
+.loadout-dd-item.active { color: #ffffff; font-weight: 600; }
+.loadout-dd-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loadout-dd-check { color: #9c8cff; flex-shrink: 0; }
+.loadout-dd-sep { height: 1px; background: #1a1a30; margin: 4px 2px; }
+
+/* Overlay */
+.loadout-modal-card { min-width: 460px; max-width: 560px; }
+.loadout-body { padding: 14px 20px 18px; display: flex; flex-direction: column; gap: 12px; }
+.loadout-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9aa; }
+.loadout-input {
+  background: #0a0a18; border: 1px solid #2a2a50; border-radius: 4px;
+  color: #e0e0f0; font-size: 13px; padding: 6px 8px;
+}
+.loadout-input:focus { outline: none; border-color: #5a4ea0; }
+.loadout-radio { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #c0c0d8; cursor: pointer; }
+.loadout-select {
+  background: #0a0a18; border: 1px solid #2a2a50; border-radius: 4px;
+  color: #d8c8ff; font-size: 12px; padding: 3px 6px; margin-left: 4px; cursor: pointer;
+}
+
+/* List view */
+.loadout-list { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
+.loadout-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: rgba(255,255,255,0.03); border: 1px solid #2a2a3e; border-radius: 6px; padding: 6px 10px;
+}
+.loadout-row.active { border-color: #5a4ea0; background: #14102a; }
+.loadout-row-name {
+  flex: 1; min-width: 0; text-align: left; background: none; border: none; cursor: pointer;
+  color: #e0e0f0; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.loadout-active-dot { color: #7cc47c; font-size: 9px; }
+.loadout-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.loadout-btn {
+  background: #14142a; border: 1px solid #2a2a50; border-radius: 4px;
+  color: #b0b0d0; font-size: 12px; padding: 5px 11px; cursor: pointer;
+}
+.loadout-btn:hover:not(:disabled) { border-color: #4a3a7a; color: #d8c8ff; }
+.loadout-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.loadout-btn-primary { background: #2a1a5a; border-color: #4a3a8a; color: #e8e0ff; }
+.loadout-btn-primary:hover:not(:disabled) { background: #34227a; }
+.loadout-btn-danger:hover:not(:disabled) { border-color: #8a3a3a; color: #ff9b9b; }
+.loadout-btn-wide { width: 100%; justify-content: center; text-align: center; }
+.loadout-src-name { font-size: 12px; color: #b8bbe0; }
+
+/* Settings → Display: UI scale slider */
+.settings-scale { display: flex; align-items: center; gap: 10px; }
+.settings-scale-slider { width: 150px; accent-color: #7a5ec8; cursor: pointer; }
+.settings-scale-val { font-size: 12px; color: #d2d4ee; min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Edit view — area/source grid */
+.loadout-area-grid { display: flex; flex-direction: column; border: 1px solid #1f1f3a; border-radius: 6px; overflow: hidden; }
+.loadout-area-head, .loadout-area-row {
+  display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 8px; padding: 5px 10px;
+}
+.loadout-area-head { background: rgba(86,98,130,0.18); font-size: 11px; color: #8888aa; text-transform: uppercase; }
+.loadout-area-row { border-top: 1px solid #15152a; font-size: 12px; }
+.loadout-area-label { display: flex; align-items: center; gap: 4px; color: #c0c0d8; }
+.loadout-expand { color: #44446a; font-size: 9px; cursor: default; }
+.loadout-area-ctrl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Help/hint text — brighter lavender for readability (owner pick, 2026-06-25). */
+.loadout-hint { font-size: 12px; color: #cdbff2; line-height: 1.45; }
+.loadout-check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
+
+/* ── Config screen: conditions (left) + Custom Modifiers (right) ───────────────── */
+.config-body { display: flex; flex: 1; min-height: 0; gap: 12px; }
+.config-conditions { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.config-custommods {
+  width: 300px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+  border-left: 1px solid #1e1e3a; padding-left: 12px;
+}
+.config-custommods-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: #c8a050; margin-bottom: 8px; flex-shrink: 0;
+}
+
+/* PoB-style custom-mod editor: colored backdrop behind a transparent-text textarea. */
+.cmods-wrap { flex: 1; min-height: 0; display: flex; }
+.cmods-editor {
+  position: relative; flex: 1; min-height: 0;
+  border: 1px solid #2a2a50; border-radius: 6px; background: #0a0a16; overflow: hidden;
+}
+.cmods-highlight, .cmods-textarea {
+  position: absolute; inset: 0; margin: 0; padding: 8px 10px;
+  font-family: inherit; font-size: 12px; line-height: 18px;
+  white-space: pre; overflow: auto; tab-size: 2; box-sizing: border-box;
+}
+.cmods-highlight { pointer-events: none; color: #8890b0; z-index: 0; }
+.cmods-line { min-height: 18px; }
+.cmods-line-ok { color: #6ddb6d; }
+.cmods-line-bad { color: #ff6b6b; }
+.cmods-line-pending { color: #b8bbe0; }
+.cmods-textarea {
+  z-index: 1; background: transparent; border: none; outline: none; resize: none;
+  color: transparent; caret-color: #e0e0f0;
+}
+.cmods-textarea::placeholder { color: #555577; }
+.cmods-tip {
+  position: fixed; z-index: 9999; pointer-events: none;
+  background: #0e0e1e; border: 1px solid #3a3a6a; border-radius: 5px;
+  padding: 4px 8px; font-size: 11px; max-width: 260px;
+}
+.cmods-tip-ok { color: #9ee89e; }
+.cmods-tip-bad { color: #ff9b9b; }
+
+/* Enemy / Target editor (Config) — rendered as a regular .cond-card panel in the masonry; these style only its
+   inner body (the level select, note, and the 5 editable fields). */
+.enemy-target-select {
+  background: #0d0d1e; color: #ddd; border: 1px solid #3a3a5a; border-radius: 4px; padding: 3px 6px; font-size: 11px; width: 100%;
+}
+.enemy-box-note { color: #777; font-size: 10.5px; line-height: 1.35; }
+/* Merged into the top of the Enemy panel — divider separates the target fields from the enemy conditions below. */
+.enemy-fields {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 2px 0 8px; margin-bottom: 6px; border-bottom: 1px solid #1a1a32;
+}
+/* The 4 resists laid out 2-up so the merged Enemy panel stays compact (better masonry balance). */
+.enemy-res-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.enemy-field { display: flex; flex-direction: column; gap: 3px; }
+.enemy-field-label { font-size: 10px; color: #9aa; text-transform: uppercase; letter-spacing: 0.04em; }
+.enemy-field-input { display: flex; align-items: center; gap: 3px; }
+.enemy-field-input .cond-stack-input { width: 56px; }
+.enemy-field-pct { font-size: 10px; color: #6a6a88; }
+.enemy-field-hint { font-size: 10px; color: #6a6a88; }

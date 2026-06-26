@@ -71,55 +71,8 @@ class StatContribution:
     modeled: bool = True      # False = captured-but-inert (stored, no DPS effect yet)
 
 
-# ── Damage / stat line rules ──────────────────────────────────────────────────
-# (regex on number-stripped template, stat_key(s), value_kind). stat_keys may be a tuple (one line →
-# several stats, e.g. attack+cast speed). value_kind "pct" = percent→fraction (÷100); flats use the raw
-# count. Added-flat `{cat}` lines (spell|attack) are handled separately once we wire the skill category.
-_DMG_RULES: list[tuple[str, object, str]] = [
-    (r"additional\s*lightning\s*damage for the supported", "lightning_dmg_additional", "pct"),
-    (r"additional\s*fire\s*damage for the supported", "fire_dmg_additional", "pct"),
-    (r"additional\s*cold\s*damage for the supported", "cold_dmg_additional", "pct"),
-    (r"additional\s*elemental\s*damage for the supported", "elemental_dmg_additional", "pct"),
-    (r"additional\s*physical\s*damage for the supported", "physical_dmg_additional", "pct"),
-    (r"additional\s*area\s*damage for the supported", "area_dmg_additional", "pct"),
-    (r"additional\s*melee\s*damage for the supported", "melee_dmg_additional", "pct"),
-    (r"additional\s*trauma\s*damage for the supported", "trauma_dmg_additional", "pct"),
-    (r"additional attack and cast speed for the supported", ("attack_speed_additional", "cast_speed_additional"), "pct"),
-    (r"attack and cast speed for the supported", ("attack_speed_inc", "cast_speed_inc"), "pct"),
-    (r"attack speed for the supported", "attack_speed_inc", "pct"),
-    (r"cast speed for the supported", "cast_speed_inc", "pct"),   # Psychic Burst (cast-speed only)
-    (r"critical strike rating for the supported", "crit_rating_inc", "pct"),
-    (r"(additional )?skill area for the supported", "skill_area_inc", "pct"),
-    (r"additional projectile speed for the supported", "projectile_speed_additional", "pct"),
-    (r"steep\s*strike\s*chance", "steep_strike_chance", "pct"),
-    # generic additional damage (LAST — after all typed/conditional rules). The first allows a PREFIX
-    # but keeps the $ anchor so a trailing condition ("...when it lands a critical strike") still falls
-    # through to the conditional handler. The second is the bare line with no "for the supported" suffix
-    # (e.g. Activation Medium: Motionless), anchored both ends so it can't swallow typed/conditional lines.
-    (r"additional damage for the supported skill$", "dmg_additional", "pct"),
-    (r"^[+\-]?#\s*% additional damage$", "dmg_additional", "pct"),
-]
-_DMG_COMPILED = [(re.compile(p), sk, vk) for p, sk, vk in _DMG_RULES]
-
-
-def map_damage_line(line: SupportLine, level: int, cat: str | None = None) -> list[StatContribution]:
-    """Emit stat contributions for a modeled damage/stat line; [] if no damage rule matches.
-    `cat` is the supported skill's category ('spell'|'attack') for added-flat lines (not used yet)."""
-    # "up to +(N-M)%" ranged-cap lines are per-resource scaling (e.g. Lunar Eclipse's damage per Mana sealed),
-    # NOT flat additionals — skip so the generic "+N% additional damage" rule doesn't mis-read the rate as a
-    # flat bonus. Handled bespoke in engine.utility.apply_reservation.
-    if "up to" in line.template and "(" in line.template:
-        return []
-    for rx, stat_keys, vk in _DMG_COMPILED:
-        if not rx.search(line.template):
-            continue
-        vals = _level_value(line, level) if line.scaling else _flat_dmg_value(line.text)
-        if not vals:
-            return []
-        amt = vals[0] / 100.0 if vk == "pct" else vals[0]
-        keys = stat_keys if isinstance(stat_keys, tuple) else (stat_keys,)
-        return [StatContribution(stat_key=k, amount=amt, text=line.text) for k in keys]
-    return []
+# Damage / general stat mapping is no longer table-driven here — map_line delegates to engine.mod_parser
+# (the single authority) via map_via_parser, so supports can't drift from gear/talents on pool or type.
 
 
 # ── Added-flat damage (needs the supported skill's category: spell | attack) ──
@@ -299,11 +252,56 @@ def map_autoderive_line(line: SupportLine) -> list[ConditionEffect]:
     return []
 
 
+# ── Authoritative stat mapping (delegates to engine.mod_parser — the SINGLE source of truth) ─────────
+_STAT_PCT_UNIT: dict[str, bool] = {}
+
+
+def _stat_is_pct(stat_key: str) -> bool:
+    """Whether a stat's value is a percentage (unit '%') — so a level-scaled raw number is divided by 100."""
+    if not _STAT_PCT_UNIT:
+        from models.stat_meta import STAT_META
+        for s, m in STAT_META.items():
+            _STAT_PCT_UNIT[s.value] = (m.unit == "%")
+    return _STAT_PCT_UNIT.get(stat_key, False)
+
+
+_SUPPORT_TARGET_RE = re.compile(r'\s+(?:for|of)\s+(?:the supported|this) skill\b.*$', re.I)
+_SUPPORT_TARGET_LEAD_RE = re.compile(r'^\s*the supported skill\s+', re.I)
+
+
+def _strip_support_target(text: str) -> str:
+    """Drop the 'for/of the (supported/this) skill' target phrase so the general parser sees the bare stat."""
+    return _SUPPORT_TARGET_RE.sub('', _SUPPORT_TARGET_LEAD_RE.sub('', text or '')).strip()
+
+
+def map_via_parser(line: SupportLine, level: int) -> list[StatContribution]:
+    """AUTHORITATIVE flat-stat mapping: resolve the phrase → (stat_key, pool, type) via engine.mod_parser (one
+    source of truth, so supports can't drift from gear/talents on the increased-vs-additional pool or the damage
+    type), then apply the support's LEVEL-scaled value (a scaling line's text only carries an anchor value).
+    Added-flat and conditional lines are handled by their bespoke passes BEFORE this is reached."""
+    from engine.mod_parser import _parse_custom_mod_text
+    parsed = _parse_custom_mod_text(_strip_support_target(line.text))
+    if not parsed:
+        return []
+    if line.scaling:
+        vals = _level_value(line, level)
+        if not vals:
+            return []
+        v = vals[0]
+        return [StatContribution(d["stat_key"], v / 100.0 if _stat_is_pct(d["stat_key"]) else v, line.text)
+                for d in parsed]
+    # Non-scaling line: the text carries the literal value, already pool/type-correct from the parser.
+    return [StatContribution(d["stat_key"], d["amount"], line.text) for d in parsed]
+
+
 def map_line(line: SupportLine, level: int, cat: str | None = None,
              conds: dict | None = None) -> list[StatContribution]:
-    """Unified stat-contribution path: damage → added-flat → conditional → capture. Returns [] for
-    unmapped/skip and for auto-derive lines (those produce ConditionEffects via map_autoderive_line)."""
-    return (map_damage_line(line, level, cat)
-            or (map_added_flat(line, level, cat) if cat else [])
+    """Unified stat-contribution path. Bespoke passes first — category-routed added-flat, then conditional/
+    scaled lines — then the AUTHORITATIVE general parser (engine.mod_parser), then the inert capture fallback
+    for flags/utility the parser doesn't model yet. Returns [] for auto-derive lines (those produce
+    ConditionEffects via map_autoderive_line). The general parser is the single mapping authority: support_mapper
+    no longer keeps its own damage/stat table, so a support can't drift from gear/talents on pool or type."""
+    return ((map_added_flat(line, level, cat) if cat else [])
             or map_conditional_line(line, level, conds)
+            or map_via_parser(line, level)
             or map_capture_line(line, level))

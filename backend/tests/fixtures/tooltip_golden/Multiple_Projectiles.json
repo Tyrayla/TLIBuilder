@@ -47,6 +47,7 @@
   "lines": [
     {
       "badge_text": "7.4 % additional damage for the supported skill",
+      "coverage": null,
       "kind": "scaling",
       "text": "",
       "values_by_level": {
@@ -94,9 +95,11 @@
     },
     {
       "badge_text": "Projectile Quantity of the supported skill +2",
+      "coverage": null,
       "kind": "special",
       "text": "Projectile Quantity of the supported skill +2",
       "values_by_level": null
     }
-  ]
+  ],
+  "modeled_rolls": []
 }

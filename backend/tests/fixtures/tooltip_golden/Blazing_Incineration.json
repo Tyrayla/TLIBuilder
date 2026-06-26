@@ -47,6 +47,7 @@
   "lines": [
     {
       "badge_text": "",
+      "coverage": null,
       "kind": "scaling",
       "text": "Deals Spell Fire Damage equal to 278% of Base Damage.",
       "values_by_level": {
@@ -94,9 +95,11 @@
     },
     {
       "badge_text": "This skill deals additional Damage if a Critical Strike of it was dealt recently.",
+      "coverage": null,
       "kind": "flavor",
       "text": "This skill deals additional Damage if a Critical Strike of it was dealt recently.",
       "values_by_level": null
     }
-  ]
+  ],
+  "modeled_rolls": []
 }

@@ -1,14 +1,15 @@
 import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution, CraftBaseItemGroup,
   LegendaryAffix, CustomizedAffix, EffectInput,
-  buildCharacterContributions, buildMemoryEffects, buildSpiritEffects,
+  buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects,
+  traitGrantsSkillSlot, TRAIT_SKILL_SLOT, TRAIT_SKILL_ID,
 } from '../api/client'
 import { itemHasSlot } from './gearItem'
 import { characterLevelFrom } from './conditions'
 import { useReferenceStore } from '../store/referenceStore'
 import type { useBuildStore } from '../store/buildStore'
 
-export { buildCharacterContributions, buildMemoryEffects, buildSpiritEffects }
+export { buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects }
 
 export type BuildState = ReturnType<typeof useBuildStore.getState>
 
@@ -55,6 +56,22 @@ export function countUniqueWeaponTypes(gear: EquippedGearItem[]): number {
   return classes.size
 }
 
+// Which weapon-class scenarios the equipped gear actually satisfies — drives Config's Equipment-condition
+// visibility (show "Holding Two-Handed" only when a 2H is worn, etc.). Reuses the weapon-class catalog map.
+export interface WornWeaponFlags { shield: boolean; oneHanded: boolean; twoHanded: boolean; dualWield: boolean }
+export function wornWeaponFlags(gear: EquippedGearItem[]): WornWeaponFlags {
+  const classMap = weaponClassMap()
+  let shield = false, oneHanded = false, twoHanded = false
+  for (const w of gear) {
+    if (!(itemHasSlot(w, 'weapon1') || itemHasSlot(w, 'weapon2'))) continue
+    if (isShieldItem(w)) { shield = true; continue }
+    const cls = w.base_type ? classMap.get(w.base_type) : undefined
+    if (cls?.startsWith('two_handed')) twoHanded = true
+    else if (cls?.startsWith('one_handed')) oneHanded = true
+  }
+  return { shield, oneHanded, twoHanded, dualWield: isDualWielding(gear) }
+}
+
 /**
  * Assemble the `/engine/stats` request payload from current store state.
  * Shared by the background recalc (useBuildCalculation) and the damage-delta hook so both
@@ -78,9 +95,12 @@ export function buildEngineStatsPayload(s: BuildState) {
   // skills-screen level control is gone. Forced into condition_state so per-level scaling, base life/mana,
   // and energy all agree (and the backend's characterLevel seeding never diverges).
   const charLevel = characterLevelFrom(s.conditionState)
+  const _traitSkillActive = traitGrantsSkillSlot(s.traitId, s.advancedTraitSelections)
+    && (s.traitSkillSupports?.length ?? 0) > 0
   return {
     slots: s.slots,
     slates: s.slates,
+    prisms: s.prisms,   // Inverse Image reflected copies → DPS via node_resolver
     // dual_wielding and unique_weapon_types are auto-derived from gear (override any stored value).
     condition_state: {
       ...s.conditionState,
@@ -89,27 +109,53 @@ export function buildEngineStatsPayload(s: BuildState) {
       unique_weapon_types: countUniqueWeaponTypes(s.gear),
     },
     gear: buildGearPayload(s.gear),
-    character: buildCharacterContributions(s.gear, charLevel, s.hasPrism),
+    character: buildCharacterContributions(s.gear, charLevel),
     memory_effects: buildMemoryEffects(s.heroMemories),
-    spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits), s.spiritEffectExclude),
+    spirit_effects: _excludeOnce(buildSpiritEffects(s.pactSpirits, s.allSpirits, s.fates, s.undetermined), s.spiritEffectExclude),
+    // Hero trait. trait_id/levels/picks drive the bespoke engine module; trait_effects feeds the status
+    // surface + generic (non-bespoke) traits. uptime_mode (Max|Real) selects assume-max vs computed ramp.
+    trait_id: s.traitId,
+    trait_slot_levels: s.traitSlotLevels,
+    advanced_trait_selections: s.advancedTraitSelections,
+    trait_effects: buildTraitEffects(s.traitId, s.traitSlotLevels, s.advancedTraitSelections,
+      useReferenceStore.getState().heroTraits ?? []),
+    uptime_mode: s.uptimeMode,
     main_skill: s.mainSkill ?? null,
-    skills: s.skills.map(sk => ({
-      slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1, enabled: sk.enabled !== false,
-    })),
+    // The trait skill slot (Holy Domain) is injected as a synthetic slot-10 skill ONLY when the trait grants it
+    // AND supports are socketed — its supports then resolve through the normal per-slot machinery (slot 10).
+    skills: [
+      ...s.skills.map(sk => ({
+        slot: sk.slot, skill_id: sk.item_id, level: sk.level ?? 1, enabled: sk.enabled !== false,
+      })),
+      ...(_traitSkillActive ? [{ slot: TRAIT_SKILL_SLOT, skill_id: TRAIT_SKILL_ID, level: 1, enabled: true }] : []),
+    ],
     // Every skill slot carries its own supports. Each support is tagged with its host skill's slot so the
     // engine folds it only into that slot's offense pass (add_slotted) — a non-main-slot skill (e.g. the
     // main damage skill parked in slot 2) gets its supports computed too, not just slot 1's.
-    attached_supports: s.skills.flatMap(sk =>
-      (sk.supports ?? []).map(sup => ({
+    attached_supports: [
+      ...s.skills.flatMap(sk =>
+        (sk.supports ?? []).map(sup => ({
+          item_id: sup.item_id,
+          skill_type: sup.skill_type,
+          rank: sup.rank,
+          level: sup.level,
+          specific_rolls: sup.specific_rolls,
+          slot: sk.slot,
+          enabled: sup.enabled !== false,
+        }))),
+      ...(_traitSkillActive ? s.traitSkillSupports.map(sup => ({
         item_id: sup.item_id,
         skill_type: sup.skill_type,
         rank: sup.rank,
         level: sup.level,
         specific_rolls: sup.specific_rolls,
-        slot: sk.slot,
+        slot: TRAIT_SKILL_SLOT,
         enabled: sup.enabled !== false,
-      }))),
+      })) : []),
+    ],
     custom_mods: s.customMods,
+    // Editable calc-target ("dummy") stats — percentages; the engine converts to fractions + applies mitigation.
+    target_config: s.targetConfig,
   }
 }
 
@@ -321,6 +367,9 @@ const _WEAPON_DAMAGE_TYPES = ['physical', 'fire', 'cold', 'lightning', 'erosion'
 function _buildDualWieldContributions(w1: EquippedGearItem, w2: EquippedGearItem): GearEngineItem[] {
   const weapons = [w1, w2] as const
   const globalContribs: GearAffixContribution[] = []
+  // Per-weapon unresolved affix/implicit texts (e.g. a caster wand's "+40% Spell Damage" implicit) — these
+  // are global increased pools, not weapon base stats, so each weapon's stacks (like its typed affixes).
+  const unresolvedByWeapon: string[][] = weapons.map(() => [])
 
   type WeaponAccum = {
     aps:           number
@@ -345,7 +394,7 @@ function _buildDualWieldContributions(w1: EquippedGearItem, w2: EquippedGearItem
     const isMainhand = slot === 'weapon1'
     const acc       = accums[wi]
 
-    for (const c of _buildItemContributions(weapon, slot)) {
+    for (const c of _buildItemContributions(weapon, slot, unresolvedByWeapon[wi])) {
       if (c.stat === 'weapon_attack_speed') {
         acc.aps += c.display_value
       } else if (c.stat === 'attack_speed_gear') {
@@ -443,6 +492,13 @@ function _buildDualWieldContributions(w1: EquippedGearItem, w2: EquippedGearItem
   const result: GearEngineItem[] = []
   if (avgContribs.length > 0) result.push({ contributions: avgContribs })
   if (globalContribs.length > 0) result.push({ contributions: globalContribs })
+  // Each weapon's unresolved texts (e.g. wand "+40% Spell Damage" implicit) — backend-resolved, attributed to
+  // the weapon, and stacking from both (they're global pools, not averaged weapon base stats).
+  for (let wi = 0; wi < weapons.length; wi++) {
+    if (unresolvedByWeapon[wi].length > 0) {
+      result.push({ contributions: [], item_name: weapons[wi].name, unresolved_texts: unresolvedByWeapon[wi] })
+    }
+  }
   return result
 }
 
@@ -497,10 +553,15 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     // flat CSR, per-weapon gear multipliers) are effectively averaged across both weapons.
     // For identical weapons averaging = same as once, so we skip them on slots 1+.
     for (let i = 1; i < slots.length; i++) {
-      const globalContribs = _buildItemContributions(item, slots[i])
+      const u: string[] = []
+      const globalContribs = _buildItemContributions(item, slots[i], u)
         .filter(c => !_isWeaponSpecificStat(c.stat))
       if (globalContribs.length > 0) {
         result.push({ contributions: globalContribs })
+      }
+      // The 2nd copy's untyped global affixes/implicits (e.g. a wand's "+40% Spell Damage") stack too.
+      if (u.length > 0) {
+        result.push({ contributions: [], item_name: item.name, unresolved_texts: u })
       }
     }
   }

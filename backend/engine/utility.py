@@ -101,6 +101,73 @@ def apply_aura_buffs(source, aura_buffs, aura_meta, active_booleans, numeric_val
     return summaries
 
 
+def apply_empower_buffs(source, empower_buffs, empower_meta, active_booleans, numeric_vals) -> list[dict]:
+    """Scale + emit empower (Euphoria) buffs into `source`; return per-empower summaries. Mirrors apply_aura_buffs:
+    Empower Skill Effect is read SLOT-LOCAL (global gear/talents + the skill's own line + its empower supports), but
+    the buffs are emitted PLAYER-WIDE (slot=None) so they reach the slot-1 main skill. Increased sums, additional
+    multiplies. Recording on so the Empower-Effect reads register as consumed (empower-effect mods badge working)."""
+    if not empower_buffs:
+        return []
+
+    by_skill: dict[str, list[dict]] = {}
+    for b in empower_buffs:
+        by_skill.setdefault(b["skill_id"], []).append(b)
+
+    prev_rec = source._recording
+    source._recording = True
+    summaries: list[dict] = []
+    try:
+        for sid, m in (empower_meta or {}).items():
+            slot = m.get("slot")
+            blist = by_skill.get(sid, [])
+
+            # Phase 1: emit this skill's OWN Empower-Effect entries (slot-scoped) — its own line + its supports —
+            # so they feed only this empower's factor (not other skills').
+            for b in blist:
+                if not b["is_empower_effect"]:
+                    continue
+                g = _gate_mult(b["condition_expr"], active_booleans, numeric_vals)
+                if g == 0.0:
+                    continue
+                amt = b["base_amount"] * g
+                _emit(source, b["stat_key"], amt, b.get("scope"),
+                      SourceEntry(stat=b["stat_key"], amount=amt, source_type="empower",
+                                  label=b["name"], text=b["text"], points=1, slot=slot,
+                                  source_name=b["name"]), slot=slot)
+
+            # Slot-local Empower Effect = global + this skill's slot-scoped entries.
+            eff = source.materialize_for_skill(set(), slot=slot) if slot is not None else source
+            factor = (1.0 + eff.total("empower_effect_inc")) * (1.0 + eff.total("empower_effect_additional"))
+
+            # Phase 2: emit the player-wide buffs (slot=None) scaled by the factor (gated).
+            granted: list[dict] = []
+            for b in blist:
+                g = _gate_mult(b["condition_expr"], active_booleans, numeric_vals)
+                base = b["base_amount"] * g
+                if b["is_empower_effect"]:
+                    amt = base   # the Empower-Effect pool itself is not scaled by Empower Effect
+                else:
+                    amt = base * factor
+                    if g != 0.0:
+                        _emit(source, b["stat_key"], amt, b.get("scope"),
+                              SourceEntry(stat=b["stat_key"], amount=amt, source_type="empower",
+                                          label=b["name"], text=b["text"], points=1, source_name=b["name"]))
+                granted.append({
+                    "stat": b["stat_key"], "base": base, "amount": amt, "text": b["phrase"],
+                    "per_stack": b["per_stack"], "is_empower_effect": b["is_empower_effect"],
+                })
+
+            summaries.append({
+                "skill_id": sid, "name": m["name"], "level": m["level"], "empower_effect_inc": factor - 1.0,
+                "granted": granted, "nyi": m["nyi"], "review": m.get("review") or [],
+                "stack_condition": m["stack_condition"], "max_stacks": m["max_stacks"],
+            })
+    finally:
+        source._recording = prev_rec
+
+    return summaries
+
+
 # ── Mana / Life sealing & reservation ───────────────────────────────────────────────
 _PCT = lambda s: float(str(s).rstrip("%")) / 100.0   # noqa: E731 — "110.0%" -> 1.10, "50%" -> 0.5
 # Lunar Eclipse's damage-per-Mana-sealed cap: "... up to +(57-60) % additional damage" (Noble rank range).

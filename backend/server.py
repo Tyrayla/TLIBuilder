@@ -18,12 +18,51 @@ from persistence import tree_config_manager
 from persistence import season_manager
 import build_code as _build_code
 from engine.skill_scope import detect_skill_scope
+# Authoritative modifier-text → stat parser (moved to the engine layer so support_mapper can share it; see
+# engine/mod_parser.py). server keeps using these exact names; they are no longer defined here.
+from engine.mod_parser import (
+    _parse_custom_mod_text, _parse_custom_mod_text_base, _resolve_gear_stat, _norm_expr,
+    _gear_normalize, _get_gear_candidates, _normalize_for_custom_resolve,
+    _EXPRESSION_STAT_OVERRIDES, _POOL_QUALIFIERS, _POOL_QUALIFIER_WORDS,
+    _GEAR_COND_RE, _GEAR_SUFFIX_RE,
+)
 
 _DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', 'data'))
 _TREES_META_PATH = os.path.join(_DATA_ROOT, 'trees_meta.json')
-with open(_TREES_META_PATH) as _f:
+with open(_TREES_META_PATH, encoding="utf-8") as _f:
     TREES: dict[str, dict] = json.load(_f)
+
+# Named-buff glossary (lower-cased name → description). A "Gains <NamedBuff>" affix carries no stat of its
+# own; its real modifier lines live only in the glossary, so we expand it before parsing (never silently drop).
+_GLOSSARY_BY_NAME: dict[str, str] = {}
+try:
+    with open(os.path.join(_DATA_ROOT, 'master_glossary.json'), encoding="utf-8") as _gf:
+        for _term in (json.load(_gf).get("terms") or []):
+            _n, _d = _term.get("name"), _term.get("description")
+            if _n and _d:
+                _GLOSSARY_BY_NAME[_n.strip().lower()] = _d.strip()
+except (OSError, ValueError):
+    pass
+
+
+def _split_clauses(text: str) -> list[str]:
+    """Split a compound affix into clauses on sentence boundaries (". " NOT inside a decimal like 1.2s)."""
+    return [c.strip() for c in re.split(r'(?<!\d)\.\s+', text or "") if c and c.strip()]
+
+
+def _expand_named_buffs(text: str) -> list[str]:
+    """Expand each "Gains <NamedBuff>" clause to the glossary description's clauses (recursively split), so the
+    authoritative parser can resolve the real lines. Non-"Gains" clauses pass through unchanged."""
+    out: list[str] = []
+    for clause in _split_clauses(text):
+        m = re.match(r'gains\s+(.+)$', clause, re.I)
+        desc = _GLOSSARY_BY_NAME.get(m.group(1).strip().lower()) if m else None
+        if desc:
+            out.extend(_split_clauses(desc))
+        else:
+            out.append(clause)
+    return out
 
 # Set in __main__ so the lifespan handler can print it after uvicorn is ready
 _SERVER_PORT = 8765
@@ -39,7 +78,7 @@ _PHRASE_OVERRIDES: dict[str, object] = {}
 def _load_phrase_overrides() -> None:
     global _PHRASE_OVERRIDES
     try:
-        with open(_PHRASE_OVERRIDES_PATH) as f:
+        with open(_PHRASE_OVERRIDES_PATH, encoding="utf-8") as f:
             _PHRASE_OVERRIDES = json.load(f)
     except FileNotFoundError:
         _PHRASE_OVERRIDES = {}
@@ -317,6 +356,12 @@ class AllocateRequest(BaseModel):
     node_states: dict[str, int]
     node_id: str
     action: str  # "allocate" or "deallocate"
+    # Node ids whose prerequisite chain is broken by an installed Prism (anchor + reflected-box cells).
+    prereq_satisfied: list[str] = []
+    # Node id → raised max-point cap (an Ethereal Prism's over-allocation affix).
+    max_overrides: dict[str, int] = {}
+    # Column index → extra points from an Inverse Image's reflected box (virtual cells; count toward unlocks).
+    extra_column_points: dict[int, int] = {}
 
 
 @app.post("/api/validate-allocate")
@@ -324,25 +369,22 @@ def validate_allocate(req: AllocateRequest):
     if req.tree_name not in TREES:
         raise HTTPException(status_code=404, detail="Tree not found")
     tree = _build_tree(req.tree_name)
+    tree.extra_column_points = {int(c): p for c, p in (req.extra_column_points or {}).items()}
+    _broken = set(req.prereq_satisfied)
     for node_id, pts in req.node_states.items():
         if node_id in tree.nodes:
             tree.nodes[node_id].current_points = pts
 
-    if req.action == "allocate":
+    if req.action in ("allocate", "deallocate"):
         try:
-            tree.allocate(req.node_id)
+            if req.action == "allocate":
+                tree.allocate(req.node_id, _broken, req.max_overrides)
+            else:
+                tree.deallocate(req.node_id, _broken)
             return {"allowed": True,
                     "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
-        except ValueError:
-            return {"allowed": False,
-                    "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
-    elif req.action == "deallocate":
-        try:
-            tree.deallocate(req.node_id)
-            return {"allowed": True,
-                    "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
-        except ValueError:
-            return {"allowed": False,
+        except ValueError as e:
+            return {"allowed": False, "reason": str(e),
                     "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
     raise HTTPException(status_code=400, detail="action must be allocate or deallocate")
 
@@ -574,6 +616,7 @@ class EnemyConfigRequest(BaseModel):
 class EngineComputeRequest(BaseModel):
     slots:      list[SlotData | None]
     slates:     list[dict] = []
+    prisms:     list[dict] = []
     skill:      SkillConfigRequest
     enemy:      EnemyConfigRequest = EnemyConfigRequest()
     conditions: list[str] = []
@@ -608,9 +651,21 @@ class SkillSlotInput(BaseModel):
     enabled:  bool = True   # disabled skills (and their supports + sourced buffs/debuffs) drop out of the calc
 
 
+class TargetConfigRequest(BaseModel):
+    # Editable calc-target ("training dummy") stats as PERCENTAGES (may be negative → amplification). The engine
+    # converts to fractions and applies them in offense mitigation. Defaults = the historical Lv85 dummy.
+    level:        int = 85
+    armor:        float = 50.0
+    fireRes:      float = 30.0
+    coldRes:      float = 30.0
+    lightningRes: float = 30.0
+    erosionRes:   float = 30.0
+
+
 class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
+    prisms:          list[dict] = []
     condition_state: dict[str, float | bool] = {}
     gear:            list[dict] = []
     character:       list[dict] = []
@@ -623,6 +678,13 @@ class EngineStatsRequest(BaseModel):
     custom_mods:     list[str] = []
     attached_supports: list[dict] = []                 # main skill's supports: {item_id, skill_type, rank, level}
     characterLevel:  int | None = None                 # player level — seeds the `level` condition (per-level scaling, e.g. Brutality)
+    # Hero trait — same {text, source} shape as memory/spirit effects (for non-bespoke traits + the status surface).
+    trait_effects:   list[str | dict] = []
+    trait_id:        str | None = None
+    trait_slot_levels: list[int] = []                  # [base, lv45, lv60, lv75], each 1-5
+    advanced_trait_selections: list[str] = []
+    uptime_mode:     str = "max"                        # "max" (default, assume-max) | "real" (compute ramp)
+    target_config:   TargetConfigRequest | None = None  # editable calc-target stats; None → Lv85 dummy defaults
 
 
 @app.post("/api/engine/stats")
@@ -652,6 +714,9 @@ def engine_stats(req: EngineStatsRequest):
                 m = re.match(r"^(.+)_c\d+_r\d+$", node_id)
                 if m:
                     needed_slugs.add(m.group(1))
+    for prism in (req.prisms or []):                       # a Prism reflects nodes of its own tree
+        if prism.get("treeName"):
+            needed_slugs.add(_slug(prism["treeName"]))
 
     season_trees: dict[str, dict] = {}
     for slug in needed_slugs:
@@ -669,6 +734,10 @@ def engine_stats(req: EngineStatsRequest):
     needs_skills = bool(req.main_skill or req.skills or req.attached_supports)
     if needs_skills:
         skills_by_id = _get_skills_data(active_season)
+        # Inject the synthetic Rosa Holy Domain trait skill (not in crawler data) so its slot-10 supports resolve.
+        from engine.skill_resolver import ROSA_HOLY_DOMAIN_ID, ROSA_HOLY_DOMAIN_SKILL
+        if ROSA_HOLY_DOMAIN_ID not in skills_by_id:
+            skills_by_id = {**skills_by_id, ROSA_HOLY_DOMAIN_ID: ROSA_HOLY_DOMAIN_SKILL}
 
     if req.main_skill:
         main_skill = SkillRef(skill_id=req.main_skill.skill_id, level=req.main_skill.level)
@@ -740,6 +809,20 @@ def engine_stats(req: EngineStatsRequest):
     spirit_contributions, spirit_mod_statuses = _resolve_effect_list(req.spirit_effects, is_memory=False)
     memory_contributions, memory_mod_statuses = _resolve_effect_list(req.memory_effects, is_memory=True)
 
+    # Hero trait. A bespoke engine.hero_traits module OWNS its resolution (it recomputes contributions each
+    # loop pass for the uptime/MS coupling) — so skip the generic resolver and surface the module's per-line
+    # statuses. A non-bespoke trait pre-resolves its trait_effects here like spirits/memories.
+    from engine import hero_traits
+    if hero_traits.has_module(req.trait_id):
+        # Pass the main skill's tags/name so a module can warn when a state makes it contribute nothing
+        # (e.g. Selena's Bard converts non-Channeled/Instant/Mobility skills to Bard Song). Modules ignore via **_.
+        trait_contributions, trait_mod_statuses = [], hero_traits.status_lines(
+            req.trait_id, slot_levels=req.trait_slot_levels, advanced_picks=req.advanced_trait_selections,
+            main_skill_tags=(skill_data or {}).get("skill_tags"),
+            main_skill_name=(skill_data or {}).get("name"))
+    else:
+        trait_contributions, trait_mod_statuses = _resolve_effect_list(req.trait_effects, is_memory=False)
+
     # Resolve the main skill's attached supports into stat contributions (additional-damage lines)
     # plus behavioral effects (shotgun falloff / chains-per-jump).
     support_contributions: list[dict] = []
@@ -748,6 +831,19 @@ def engine_stats(req: EngineStatsRequest):
     # Default enabled=True and absent slot → kept, so today's payloads resolve the identical set.
     enabled_supports = [s for s in req.attached_supports
                         if s.get("enabled", True) and s.get("slot", 1) not in _disabled_slots]
+    # Hero traits may grant the main skill a free support that consumes no UI slot (e.g. Wind Stalker's Have Fun →
+    # Lv10 Multistrike). Resolve the main skill's slot and fold the trait's virtual supports in BEFORE the resolver
+    # so they produce slot-local contributions even when no real support is equipped. Generic — dispatched by trait_id.
+    from engine import hero_traits as _hero_traits
+    _main_slot = 1
+    if req.main_skill:
+        for _sk in req.skills:
+            if _sk.skill_id == req.main_skill.skill_id:
+                _main_slot = _sk.slot
+                break
+    enabled_supports = enabled_supports + _hero_traits.virtual_supports(
+        req.trait_id, slot_levels=req.trait_slot_levels,
+        advanced_picks=req.advanced_trait_selections, main_slot=_main_slot)
     if enabled_supports:
         from engine.support_resolver import resolve_support_contributions, resolve_support_behavior
         support_contributions = resolve_support_contributions(enabled_supports, skills_by_id, _translate_condition_expr)
@@ -758,18 +854,43 @@ def engine_stats(req: EngineStatsRequest):
     # so the aggregator's blessing/Numbed override loops pick them up. (roadmap #4)
     from engine.core_talent_resolver import resolve_core_talents
     belt_blends_data = season_manager.load_belt_blends(active_season) or {}
+
+    # Ethereal Prism Core-Talent replace/add (Plan B). Resolve FIRST so we know which trees a pure REPLACE prism
+    # supersedes, then drop those trees' native Core Talent before resolving the rest.
+    prism_core_contribs: list[dict] = []
+    prism_set_conditions: dict = {}
+    prism_core_statuses: list[dict] = []
+    _replaced_trees: set[str] = set()
+    if any((p or {}).get("kind") == "ethereal_prism" for p in (req.prisms or [])):
+        from engine.prism_core_talents import resolve_prism_core_talents
+        from tools.prism_catalog import categorize_prism_catalog
+        _eth_cat = categorize_prism_catalog(season_manager.load_ethereal_prism(active_season) or {})
+        _eth_desc = {it.get("short_name", ""): it.get("replace_description", "") for it in _eth_cat.get("items", [])}
+        prism_core_contribs, prism_set_conditions, prism_core_statuses, _replaced_trees = resolve_prism_core_talents(
+            req.prisms, slots, _eth_desc, _parse_custom_mod_text, _translate_condition_expr,
+        )
+    slots_for_core = slots
+    if _replaced_trees:
+        slots_for_core = [
+            ({**s, "coreTalentSelections": {}} if s and _slug(s.get("treeName", "")) in _replaced_trees else s)
+            for s in slots
+        ]
+
     core_contributions, core_flags, core_talent_statuses = resolve_core_talents(
-        slots, slates, req.gear, season_trees, belt_blends_data,
+        slots_for_core, slates, req.gear, season_trees, belt_blends_data,
         _parse_custom_mod_text, _translate_condition_expr,
     )
+    core_contributions = core_contributions + prism_core_contribs
+    core_talent_statuses = core_talent_statuses + prism_core_statuses
     # Resolve allocated talent-tree NODES + SLATE slots through the SAME unified resolver (replaces the
     # filter-builder recipes). Amounts pre-scaled by points; conditionals gated in the aggregator.
     from engine.node_resolver import resolve_nodes
     from engine.consumable_universe import consumable_universe
     node_contributions, _node_statuses = resolve_nodes(
         slots, slates, season_trees, _parse_custom_mod_text, _translate_condition_expr,
+        prisms=req.prisms,
     )
-    core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}}
+    core_condition_state = {**req.condition_state, **{flag: True for flag in core_flags}, **prism_set_conditions}
     # Seed player level (for per-level scaling like Brutality) unless the user set it explicitly.
     if req.characterLevel is not None and "level" not in req.condition_state:
         core_condition_state["level"] = float(req.characterLevel)
@@ -780,6 +901,7 @@ def engine_stats(req: EngineStatsRequest):
     from engine.core_talent_resolver import _split_condition
     gear_resolved: list[dict] = []
     gear_mod_statuses: list[dict] = []
+    affix_curses: list[dict] = []   # curses inflicted by gear affixes (craft bases / legendaries) → curse resolver
     for gi in req.gear:
         texts = gi.get("unresolved_texts") or []
         if not texts:
@@ -788,26 +910,44 @@ def engine_stats(req: EngineStatsRequest):
         gi = dict(gi)
         contribs = list(gi.get("contributions") or [])
         for t in texts:
-            # Split off a leading ("If recently moved, +X%") or trailing ("+X% if Ignited") gate so the
-            # stat clause resolves; the gate is translated and rides on the contribution's `condition`
-            # (gated in the aggregator). A gate we can't translate makes the line UNRESOLVED (honest NYI),
-            # never applied always-on — silently dropping the condition would be worse than a red badge.
-            stat_part, cond_part = _split_condition(t)
-            parsed = _parse_custom_mod_text(stat_part)
-            cond_expr = None
-            if parsed and cond_part is not None:
-                cond_expr = _translate_condition_expr(t) or _translate_condition_expr(cond_part)
-                if cond_expr is None:
-                    parsed = []
-            if parsed:
-                for e in parsed:
-                    contribs.append({"stat": e["stat_key"], "display_value": e["amount"], "unit": "",
-                                     "item_name": gi.get("item_name") or "Gear", "text": t,
-                                     "slot": None, "condition": cond_expr, "scope": e.get("scope")})
-                names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
-                gear_mod_statuses.append({"text": t, "resolved": True, "stat_display": names})
-            else:
-                gear_mod_statuses.append({"text": t, "resolved": False, "stat_display": None})
+            # Curse-applying affix? Record it (counts toward the curse limit; magnitude comes from the curse
+            # skill at the affix level) and mark resolved — it has no stat contribution of its own.
+            ac = _extract_affix_curse(t)
+            if ac:
+                affix_curses.append({**ac, "source_label": gi.get("item_name") or "Gear"})
+                gear_mod_statuses.append({"text": t, "resolved": True,
+                                          "stat_display": f"Inflicts {ac['curse_name']} (Lv {ac['level']})"})
+                continue
+            # Expand any "Gains <NamedBuff>" clause via the glossary (so its real lines parse), and split a
+            # compound affix into its clauses. Each clause is resolved independently and reported on its own —
+            # so e.g. "Seals 10% Max Mana. Gains Insatiable Greed" surfaces both the seal and the expanded
+            # "150% of Attack Speed → Spell Burst Charge Speed". Cardinal rule: never silently drop.
+            for clause in _expand_named_buffs(t):
+                # Self-contained special lines encode their own gate/value in the text (e.g. Solid River's
+                # "When Burst Charge Recovery Speed is at least N% …" → the auto-trigger threshold stat), so try
+                # the WHOLE clause first; the threshold rides in the stat value, gated downstream in offense.
+                cond_expr = None
+                parsed = _parse_custom_mod_text(clause)
+                if not parsed:
+                    # Otherwise split off a leading ("If recently moved, +X%") or trailing ("+X% if Ignited") gate
+                    # so the stat clause resolves; the gate is translated onto the contribution's `condition`
+                    # (gated in the aggregator). A gate we can't translate makes the line UNRESOLVED (honest NYI),
+                    # never applied always-on — silently dropping the condition would be worse than a red badge.
+                    stat_part, cond_part = _split_condition(clause)
+                    parsed = _parse_custom_mod_text(stat_part)
+                    if parsed and cond_part is not None:
+                        cond_expr = _translate_condition_expr(clause) or _translate_condition_expr(cond_part)
+                        if cond_expr is None:
+                            parsed = []
+                if parsed:
+                    for e in parsed:
+                        contribs.append({"stat": e["stat_key"], "display_value": e["amount"], "unit": "",
+                                         "item_name": gi.get("item_name") or "Gear", "text": clause,
+                                         "slot": None, "condition": cond_expr, "scope": e.get("scope")})
+                    names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
+                    gear_mod_statuses.append({"text": clause, "resolved": True, "stat_display": names})
+                else:
+                    gear_mod_statuses.append({"text": clause, "resolved": False, "stat_display": None})
         gi["contributions"] = contribs
         gear_resolved.append(gi)
 
@@ -818,6 +958,59 @@ def engine_stats(req: EngineStatsRequest):
     aura_buffs, aura_statuses, aura_stack_conditions, aura_meta = resolve_auras(
         skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr)
 
+    # ── Empower (Euphoria) buffs ─────────────────────────────────────────────
+    # Server parses the buff lines into unscaled contributions; the engine (utility.apply_empower_buffs, inside
+    # compute) scales them by Empower Skill Effect and builds the summaries.
+    from engine.empower_resolver import resolve_empowers
+    empower_buffs, empower_statuses, empower_stack_conditions, empower_meta = resolve_empowers(
+        skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr)
+
+    # ── Curses ───────────────────────────────────────────────────────────────
+    # Gather active curses from slotted curse skills + curse-applying affixes; the engine (curse_resolver, inside
+    # compute) scales by Curse Effect, enforces the curse limit, and bakes the enemy damage-taken pools. Any active
+    # curse means the enemy IS cursed → auto-set enemy_cursed so "+% damage against Cursed enemies" / Grudge work
+    # (the limit conflict only gates the damage-taken amplification, not the enemy being cursed).
+    from engine.curse_resolver import resolve_curses
+    active_curses, curse_statuses, curse_meta = resolve_curses(skills_input, affix_curses, skills_by_id)
+
+    # ── Generalized "inflicts Numbed" detection (talents / gear / custom mods — not just supports) ──
+    # Numbed stacks stay user-set; these lines only enable the enemy_numbed gate + auto-floor a baseline
+    # stack (max-rule, gated by hit damage type in compute). Supports keep their own map_autoderive_line path.
+    from engine.ailment_inflict import scan_numbed_inflict, scan_frostbite_inflict
+    # Use the status lists (they already cover custom mods, gear, talents, core, spirit, memory) — one entry
+    # per source line, so C "additional stacks" counts once per source (not doubled by req.custom_mods).
+    _inflict_texts: list[str] = []
+    for _sl in (custom_mod_statuses, gear_mod_statuses, core_talent_statuses, _node_statuses,
+                spirit_mod_statuses, memory_mod_statuses):
+        _inflict_texts += [s.get("text", "") for s in (_sl or [])]
+    _numbed_inflict = scan_numbed_inflict(_inflict_texts)
+    _frostbite_inflict = scan_frostbite_inflict(_inflict_texts)
+    # Flip recognized inflict lines from NYI -> working so they don't badge red (never-silently-drop).
+    if _numbed_inflict.active:
+        for _sl in (custom_mod_statuses, gear_mod_statuses, core_talent_statuses, _node_statuses):
+            for _st in (_sl or []):
+                if not _st.get("resolved") and _numbed_inflict.matches(_st.get("text", "")):
+                    _st["resolved"] = True
+                    _st["stat_display"] = "Inflicts Numbed"
+    if _frostbite_inflict.active:
+        for _sl in (custom_mod_statuses, gear_mod_statuses, core_talent_statuses, _node_statuses):
+            for _st in (_sl or []):
+                if not _st.get("resolved") and _frostbite_inflict.matches(_st.get("text", "")):
+                    _st["resolved"] = True
+                    _st["stat_display"] = "Inflicts Frostbite"
+    if active_curses and not core_condition_state.get("enemy_cursed"):
+        core_condition_state = {**core_condition_state, "enemy_cursed": True}
+
+    # Editable calc-target stats → fractions for the offense mitigation (None keeps the engine's Lv85 defaults).
+    _tc = req.target_config
+    target_config = None if _tc is None else {
+        "level": _tc.level,
+        "armor": _tc.armor / 100.0,
+        "fire_res": _tc.fireRes / 100.0,
+        "cold_res": _tc.coldRes / 100.0,
+        "lightning_res": _tc.lightningRes / 100.0,
+        "erosion_res": _tc.erosionRes / 100.0,
+    }
     build = BuildInput(
         slots=slots, slates=slates, season=active_season,
         condition_state=core_condition_state,
@@ -832,6 +1025,18 @@ def engine_stats(req: EngineStatsRequest):
         node_contributions=node_contributions,
         aura_buffs=aura_buffs,
         aura_meta=aura_meta,
+        curses=active_curses,
+        curse_meta=curse_meta,
+        empower_buffs=empower_buffs,
+        empower_meta=empower_meta,
+        trait_id=req.trait_id,
+        trait_slot_levels=req.trait_slot_levels,
+        advanced_trait_selections=req.advanced_trait_selections,
+        trait_contributions=trait_contributions,
+        uptime_mode=req.uptime_mode,
+        target_config=target_config,
+        inflict_cond_effects=_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects(),
+        numbed_blocked=_numbed_inflict.blocked,
     )
     result = compute(
         build, season_trees, filter_data,
@@ -843,6 +1048,8 @@ def engine_stats(req: EngineStatsRequest):
         "stats": result.stat_map,
         "condition_maximums": result.condition_maximums,
         "clamp_report": result.clamp_report,
+        # Condition keys any build mod references (gate on/off) — the Config screen hides the rest by default.
+        "referenced_conditions": result.referenced_conditions,
         "offense": result.offense,
         "defense": result.defense,
         "custom_mod_statuses": custom_mod_statuses,
@@ -850,6 +1057,7 @@ def engine_stats(req: EngineStatsRequest):
         "gear_mod_statuses": gear_mod_statuses,
         "spirit_mod_statuses": spirit_mod_statuses,
         "memory_mod_statuses": memory_mod_statuses,
+        "trait_mod_statuses": trait_mod_statuses,
         "skill_slots": result.skill_slots,
         # Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Additive —
         # the renderer doesn't consume it yet.
@@ -860,12 +1068,26 @@ def engine_stats(req: EngineStatsRequest):
         "consumable_universe": sorted(consumable_universe()),
         # Calc-target armor/resist (base + effective after penetration) + active enemy debuffs.
         "target_stats": result.target_stats,
+        "numbed": result.numbed,
         # Per-blessing summary (stacks/max/effects) for the Blessings panel.
         "blessings": result.blessings,
         # Per-aura summary (granted buff lines + applied Aura Effect + NYI lines) for the Skill panel —
         # computed engine-side (engine.utility) so the Aura Effect total is the true post-aggregation value.
         "auras": result.aura_summaries,
         "aura_statuses": aura_statuses,
+        # Per-empower summary (Empower Effect + granted buffs + NYI) for the Skill panel, statuses, and the
+        # settable per-empower buff-stack conditions (sliders).
+        "empowers": result.empower_summaries,
+        "empower_statuses": empower_statuses,
+        "empower_stack_conditions": empower_stack_conditions,
+        # Per-curse summary (Curse Effect, limit, debuff value + applied flag), per-curse meta (base stats + NYI
+        # lines) for the Skill panel, NYI statuses, and the over-limit conflict (drives the resolution dropdown).
+        "curses": result.curse_summaries,
+        "curse_meta": curse_meta,
+        "curse_statuses": curse_statuses,
+        "curse_conflict": result.curse_conflict,
+        # General build warnings/diagnostics (e.g. a curse that amplifies a damage type the build doesn't deal).
+        "warnings": result.warnings,
         # Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
         "reservation": result.reservation,
         # Settable per-aura stack conditions ({key,label,max}) for the stack sliders.
@@ -885,6 +1107,7 @@ def get_conditions():
             "key": c.key,
             "label": c.label,
             "value_type": c.value_type,
+            "category": c.category,   # frontend gates visibility on this (always-show categories, Skill, etc.)
         }
         if c.value_type == "numeric":
             entry["numeric_min"] = c.numeric_min
@@ -893,10 +1116,12 @@ def get_conditions():
             entry["default_value"] = c.default_value   # was omitted → frontend saw undefined → 0 defaults
         else:
             entry["default_bool"] = c.default_bool
-        if c.key in derived_keys:
+        if c.key in derived_keys or c.source == "derived":
             entry["is_derived"] = True
         if not c.visible:
             entry["visible"] = False
+        if c.trait_id:
+            entry["trait_id"] = c.trait_id
         result.setdefault(c.category, []).append(entry)
     return result
 
@@ -1405,8 +1630,9 @@ def get_skills():
             out["tooltip"] = {
                 "gate_text": None, "level_kind": "level",
                 "default_level": s.get("max_level") or 1, "available_levels": [s.get("max_level") or 1],
-                "lines": [{"kind": "flavor", "badge_text": d, "text": d, "values_by_level": None}
+                "lines": [{"kind": "flavor", "badge_text": d, "text": d, "values_by_level": None, "coverage": None}
                           for d in (s.get("description_lines") or [])],
+                "modeled_rolls": [],
             }
         skills.append(out)
     return {"season": active, "skills": skills}
@@ -1493,148 +1719,6 @@ def get_hero_traits():
 
 # ── Gear affix stat resolver ───────────────────────────────────────────────────
 
-_GEAR_STOP_WORDS = {"of", "the", "a", "an", "to", "by", "from", "with", "and", "or", "in", "on", "per", "second", "dealt"}
-_GEAR_NORMALIZE_MAP = {
-    "regenerates": "regeneration",
-    "regenerate":  "regeneration",
-    "reduces":     "reduction",
-    "reduce":      "reduction",
-    "splits":      "split",
-}
-_GEAR_COND_RE = re.compile(
-    r"\s+(?:while\b|when\b|if\b|against\b|recently\b|on\s+hit\b|upon\b|"
-    r"for\s+every\b|for\s+each\b)",
-    re.I,
-)
-
-_EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
-    # Hero-memory alias: in-game wording "for Combo Finishers" isn't a skill-type scope, so it stays in the
-    # phrase; map it to the combo-finisher crit-damage stat (ported from the old _MEMORY_ALIAS_LOOKUP).
-    "+(#) % critical strike damage for combo finishers": "combo_finisher_crit_dmg_inc",
-    # Abbreviated penetration wording used by spirit/memory effects ("Fire Penetration" vs gear's "Fire
-    # Resistance Penetration"). Pin to the PLAYER pen stat — without this, fuzzy matching ties "Fire
-    # Penetration" with "Minion Fire Penetration" and mis-resolves to the minion variant.
-    "+(#) % fire penetration":      "fire_pen",
-    "+(#) % cold penetration":      "cold_pen",
-    "+(#) % lightning penetration": "lightning_pen",
-    "+(#) % erosion penetration":   "erosion_pen",
-    "+(#) % elemental penetration": "elemental_pen",
-    # Flat-count core-talent lines whose in-game wording differs from the stat's gear display name
-    # (reached value-stripped via the trailing-count handler in _parse_custom_mod_text).
-    "max sentry quantity":  "max_sentry_quantity_flat",
-    "min channeled stacks": "min_channeled_stacks_flat",
-    "+(#) gear armor":   "armor_gear_flat",
-    "+(#) % gear armor": "armor_gear_inc",
-    "+(#) gear evasion":   "evasion_gear_flat",
-    "+(#) % gear evasion": "evasion_gear_inc",
-    # Damage conversion — physical
-    "adds (#) % of physical damage as lightning damage": "physical_as_lightning",
-    "adds (#) % of physical damage to cold damage":      "physical_as_cold",
-    "adds (#) % of physical damage as cold damage":      "physical_as_cold",
-    # Channeled-scoped speed (after the "Attack and Cast Speed" shared-stat split)
-    "+(#) % attack speed for channeled skills": "channeled_attack_speed_inc",
-    "+(#) % cast speed for channeled skills":   "channeled_cast_speed_inc",
-    "adds (#) % of physical damage as fire damage":      "physical_as_fire",
-    "adds (#) % of physical damage as erosion damage":   "physical_as_erosion",
-    # Damage conversion — elemental to erosion
-    "adds (#) % of lightning damage as erosion damage":  "lightning_as_erosion",
-    "adds (#) % of cold damage as erosion damage":       "cold_as_erosion",
-    "adds (#) % of fire damage as erosion damage":       "fire_as_erosion",
-    # Damage conversion — adds-as gaps (up-chain: lightning→cold/fire, cold→fire)
-    "adds (#) % of lightning damage as cold damage":     "lightning_as_cold",
-    "adds (#) % of lightning damage as fire damage":     "lightning_as_fire",
-    "adds (#) % of cold damage as fire damage":          "cold_as_fire",
-    # Damage conversion — convert (reduces source). "converts (#)% of A damage to B damage".
-    "converts (#) % of physical damage to lightning damage": "physical_convert_to_lightning",
-    "converts (#) % of physical damage to cold damage":      "physical_convert_to_cold",
-    "converts (#) % of physical damage to fire damage":      "physical_convert_to_fire",
-    "converts (#) % of physical damage to erosion damage":   "physical_convert_to_erosion",
-    "converts (#) % of lightning damage to cold damage":     "lightning_convert_to_cold",
-    "converts (#) % of lightning damage to fire damage":     "lightning_convert_to_fire",
-    "converts (#) % of lightning damage to erosion damage":  "lightning_convert_to_erosion",
-    "converts (#) % of cold damage to fire damage":          "cold_convert_to_fire",
-    "converts (#) % of cold damage to erosion damage":       "cold_convert_to_erosion",
-    "converts (#) % of fire damage to erosion damage":       "fire_convert_to_erosion",
-    # Damage taken conversion
-    "converts (#) % of physical damage taken to lightning damage": "physical_taken_as_lightning_inc",
-    "converts (#) % of physical damage taken to cold damage":      "physical_taken_as_cold_inc",
-    "converts (#) % of physical damage taken to fire damage":      "physical_taken_as_fire_inc",
-    "converts (#) % of erosion damage taken to lightning damage":  "erosion_taken_as_lightning_inc",
-    "converts (#) % of erosion damage taken to cold damage":       "erosion_taken_as_cold_inc",
-    "converts (#) % of erosion damage taken to fire damage":       "erosion_taken_as_fire_inc",
-    # Mana/life
-    "(#) % of damage is taken from mana before life":    "mana_before_life_inc",
-    # Attack / ranged
-    "+(#) % ranged damage":                              "ranged_dmg_inc",
-    # Skill levels
-    "+(#) main skill level":                             "main_skill_level",
-    # Channeled
-    "min channeled stacks +(#)":                         "min_channeled_stacks_flat",
-    # Terra
-    "max terra charge stacks +(#)":                      "max_terra_charge_stacks_flat",
-    "+(#) % terra charge recovery speed":                "terra_charge_recovery_speed_inc",
-    "max terra quantity +(#)":                           "max_terra_quantity_flat",
-    # Warcry
-    "+(#) max warcry skill charges":                     "max_warcry_skill_charges_flat",
-    # Shadow
-    "shadow quantity +(#)":                              "max_shadow_quantity_flat",
-    # Ignite
-    "+(#) ignite limit":                                 "max_ignite_flat",
-    # Ailment durations
-    "+(#) % ailment duration":                           "ailment_duration_inc",
-    "+(#) % ignite duration":                            "ignite_duration_inc",
-    # Spirit magi
-    "+(#) initial growth for spirit magi":               "spirit_magi_initial_growth_flat",
-    # Elixir
-    "elixir skills gain (#) charging progress every second":    "elixir_charging_progress_flat",
-    "elixir skills gain (#) of charging progress every second": "elixir_charging_progress_flat",
-    # Minion
-    "minion damage penetrates (#) % elemental resistance": "minion_elemental_pen",
-    "+(#) % minion elemental damage":                    "minion_elemental_dmg_inc",
-    # Hit/taunt — "on hit" is stripped by _GEAR_COND_RE before dict lookup
-    "+(#) % chance for attacks to inflict taunt on enemies": "attack_taunt_on_hit_chance",
-    "+(#) % chance for attacks to taunt":                   "attack_taunt_on_hit_chance",
-    # Curse
-    "-(#)-(#) % curse effect against you":               "curse_effect_against_inc",
-    # Damage to life
-    "(#) % additional damage applied to life":           "dmg_to_life_additional",
-    # Defense additional
-    "+(#) % additional armor":                           "armor_additional",
-    "+(#) % additional evasion":                         "evasion_additional",
-    "+(#) % additional max life":                        "max_life_additional",
-    "+(#) % additional armor while moving":              "armor_additional",
-    "+(#) % armor effective rate for non-physical damage": "armor_effective_rate_non_physical_inc",
-    # Ailment additional
-    "+(#) % additional trauma damage":                   "trauma_dmg_additional",
-    "+(#) % additional wilt damage":                     "wilt_dmg_additional",
-    "+(#) % additional ignite damage":                   "ignite_dmg_additional",
-    # Affliction
-    "+(#) affliction inflicted per second":              "affliction_per_second_flat",
-    # Sentry
-    "max sentry quantity +(#)":                          "max_sentry_quantity_flat",
-    # Barrage
-    "barrage skills +(#) % damage increase per wave":    "barrage_dmg_per_wave_inc",
-    # Warcry (text variant with prefix "Warcry is cast immediately")
-    "warcry is cast immediately +(#) max warcry skill charges": "max_warcry_skill_charges_flat",
-    # Defense
-    "+(#) % additional defense gained from shield":      "shield_defense_additional",
-    # Tangle (single value)
-    "+(#) % tangle damage enhancement":                  "tangle_dmg_inc",
-    # Shadow damage
-    "+(#) % additional shadow damage":                   "shadow_dmg_additional",
-    # Spell burst hit damage (single value)
-    "+(#) % additional hit damage for skills cast by spell burst": "spell_burst_hit_dmg_additional",
-    # Critical Strike Rating — gear-specific % (scales gear flat only) and main-hand weapon
-    "+(#) % attack critical strike rating for this gear":          "attack_crit_rating_gear",
-    "+(#) % critical strike rating for the main-hand weapon":      "attack_crit_rating_mh",
-    # Flat defense — "maximum X" fuzzy-matches the derived stat key; override to the raw flat input stat
-    "+(#) maximum life":             "max_life_flat",
-    "+(#) to maximum life":          "max_life_flat",
-    "+(#) maximum mana":             "max_mana_flat",
-    "+(#) to maximum mana":          "max_mana_flat",
-    "+(#) maximum energy shield":    "energy_shield_gear_flat",
-    "+(#) to maximum energy shield": "energy_shield_gear_flat",
-}
 
 _MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
     "+(#) % attack and cast speed": ["attack_speed_inc", "cast_speed_inc"],
@@ -1709,7 +1793,7 @@ _DUAL_MULTI_STAT_OVERRIDES: dict[str, tuple[list[str], list[str]]] = {
     "+(#) jumps +(#) % additional damage for every jump (multiplies)":
         (["extra_jumps_flat"], ["jump_dmg_for_every_additional"]),
     "you can cast (#) additional curses +(#) % curse effect":
-        (["max_curse_flat"], ["curse_effect_inc"]),
+        (["max_curses_flat"], ["curse_effect_inc"]),
     "+(#) % max mana +(#) skill cost":
         (["max_mana_inc"], ["skill_cost_flat"]),
     "+(#) % evasion +(#) max life":
@@ -1832,63 +1916,12 @@ _RANGE_MULTI_STAT_OVERRIDES: dict[str, dict] = {
         {"min_keys": ["erosion_dmg_gear_flat_min"], "max_keys": ["erosion_dmg_gear_flat_max"]},
 }
 
-_GEAR_SUFFIX_RE = re.compile(r"\s+(?:(?:for|to)\s+this\s+gear|to\s+the\s+gear)\s*$", re.I)
-
-_gear_candidates: list | None = None
 
 
-def _gear_normalize(text: str) -> set[str]:
-    text = _GEAR_SUFFIX_RE.sub("", text)
-    clean = re.sub(r"[^a-z\s]", " ", text.lower())
-    return {_GEAR_NORMALIZE_MAP.get(w, w) for w in clean.split()
-            if w not in _GEAR_STOP_WORDS and not re.fullmatch(r"\d+", w)}
 
 
-def _get_gear_candidates() -> list:
-    global _gear_candidates
-    if _gear_candidates is None:
-        from models.stat_meta import STAT_META
-        _gear_candidates = []
-        for stat, meta in STAT_META.items():
-            # Derived stats (Strength/Armor/Max Life totals, …) are computed OUTPUTS, never a resolution
-            # target — excluding them means "+N Strength" can only ever resolve to strength_flat, removing
-            # the display-name collision with the derived stat at the source (not just via a tie-break).
-            if meta.modifier_type == "derived":
-                continue
-            # Drop pool-qualifier words from the candidate's display words too, so a name like
-            # "Additional Minion Damage" matches on {minion, damage} and the pool is decided solely by
-            # modifier_type (kept separately) — never by the word "additional" appearing in the name.
-            words = _gear_normalize(meta.display_name) - _POOL_QUALIFIER_WORDS
-            if words:
-                _gear_candidates.append((stat.value, meta.display_name, words, meta.unit, meta.modifier_type))
-    return _gear_candidates
 
 
-# Words that appear in both singular and plural forms in raw affix text.
-# All override dict keys use the singular canonical form.
-# Add new pairs here as they're discovered from raw game data.
-_EXPR_WORD_CANON: dict[str, str] = {
-    "splits":    "split",
-    "tangle(s)": "tangle",
-    "stack(s)":  "stack",
-}
-
-
-def _norm_expr(text: str) -> str:
-    """Normalize an affix expression for dict lookup."""
-    # Normalize unicode dashes (en dash U+2013, em dash U+2014) to regular hyphen first
-    s = text.replace("–", "-").replace("—", "-")
-    s = s.replace(",", " ")  # remove commas (e.g., "Life, Mana, and Energy Shield")
-    s = re.sub(r"\d+(?:\.\d+)?", "#", s.lower()).strip()
-    s = re.sub(r"\(#-#\)", "(#)", s)        # collapse ranged value "(#-#)" → "(#)"
-    s = re.sub(r"(?<!\()#(?!\))", "(#)", s) # wrap bare # not already in parens → "(#)"
-    s = re.sub(r"\s*%\s*", " % ", s)        # normalize spaces around %
-    s = re.sub(r"\s+-\s+", "-", s)          # collapse spaced dashes: "(#) - (#)" → "(#)-(#)"
-    s = re.sub(r"\s+", " ", s).strip()
-    # normalize plural/singular word variants
-    words = s.split(" ")
-    s = " ".join(_EXPR_WORD_CANON.get(w, w) for w in words)
-    return s
 
 
 _BLESSING_COND_RE = re.compile(
@@ -1906,47 +1939,36 @@ _WEAPON_PHYS_DMG_RE = re.compile(r"^([\d.]+)\s*-\s*([\d.]+)\s+Physical Damage$")
 _WEAPON_ATK_SPD_RE  = re.compile(r"^([\d.]+)\s+Attack Speed$")
 _WEAPON_CSR_RE      = re.compile(r"^([\d.]+)\s+Critical Strike Rating$")
 
-# Custom mod text parsing — freeform modifier text → stat contributions
-_CUSTOM_RANGE_RE  = re.compile(r'^\s*([+-]?\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s+(.*)', re.IGNORECASE)
-_CUSTOM_SINGLE_RE = re.compile(r'^\s*([+-]?\d+(?:\.\d+)?)\s*(%?)\s+(.*)', re.IGNORECASE)
-# "Adds N-N <Type> Damage to <Attacks|Spells|Attacks and Spells>" → flat <type>_<dest>_dmg_flat_min/max.
-# (The leading word "Adds" means the generic number-first patterns above don't match.)
-_CUSTOM_ADDS_RE = re.compile(
-    r'^\s*adds\s+([\d.]+)\s*[-–]\s*([\d.]+)\s+(physical|fire|cold|lightning|erosion)\s+damage\s+to\s+'
-    r'(attacks and spells|attacks|spells)\b', re.IGNORECASE)
-# Modifier verbs that appear in game text but not in stat display names — strip before fuzzy match
-_CUSTOM_VERB_RE   = re.compile(r'\b(increased|reduced|more|less)\b', re.IGNORECASE)
 
 
-def _normalize_for_custom_resolve(text: str) -> str:
-    """Strip gaming modifier verbs so the fuzzy matcher aligns with stat display names."""
-    return re.sub(r'\s+', ' ', _CUSTOM_VERB_RE.sub('', text)).strip()
 
 
-def _parse_custom_mod_text(text: str) -> list[dict]:
-    """Resolve freeform modifier text to {stat_key, amount, text, scope?} dicts. Thin wrapper that peels a
-    skill-type scope qualifier ('… for Attack Skills') off first (shared engine.skill_scope helper),
-    resolves the RESIDUAL via the unchanged base resolver, then tags the results with the scope and restores
-    the ORIGINAL full text (incl. scope words) so the additional pool's affix-identity keeps scoped mods as
-    distinct multiplicative factors."""
-    residual, scope = detect_skill_scope(text.strip())
-    results = _parse_custom_mod_text_base(residual)
-    if not results:
-        # Fallback: an INLINE skill-type qualifier the suffix detector + base resolver miss ("Melee Skill
-        # Damage", "Melee Attack Speed"). Peel it and retry; only adopt the scope if the residual resolves,
-        # so working typed-stat phrasings (resolved on the first try above) are never disturbed.
-        from engine.skill_scope import detect_inline_skill_scope
-        inline_residual, inline_scope = detect_inline_skill_scope(residual)
-        if inline_scope and inline_residual != residual:
-            retry = _parse_custom_mod_text_base(inline_residual)
-            if retry:
-                results, scope = retry, inline_scope
-    if scope and results:
-        original = text.strip()
-        for d in results:
-            d["scope"] = scope
-            d["text"] = original
-    return results
+# Curse-applying affixes name a specific curse + level: "Triggers Lv. 20 Scorch Curse upon inflicting damage" /
+# "Nearby enemies within 15 m are cursed by Lv. 20 Ominous". These don't map to a stat — they ADD a curse to the
+# build (counts toward the limit; magnitude comes from that curse skill's line at the level), so they're collected
+# into affix_curses and handed to the curse resolver.
+_CURSE_NAMES = {n.lower(): n for n in (
+    "Vulnerability", "Scorch", "Biting Cold", "Electrocute", "Corruption", "Timid",
+    "Entangled Pain", "Dazzled", "Ominous")}
+_AFFIX_CURSE_LV_RE = re.compile(r'(?:triggers|cursed by)\s+lv\.?\s*\(?\s*(?:[\d.]+\s*[-–]\s*)?([\d.]+)', re.I)
+
+
+def _extract_affix_curse(text: str) -> dict | None:
+    """{curse_name, level} if `text` inflicts a named curse (else None). Uses the high end of any level range."""
+    low = (text or "").lower()
+    if "curse" not in low and "cursed by" not in low:
+        return None
+    m = _AFFIX_CURSE_LV_RE.search(text or "")
+    if not m:
+        return None
+    level = int(float(m.group(1)))
+    tail = (text or "")[m.end():].lower()
+    for ln, proper in sorted(_CURSE_NAMES.items(), key=lambda kv: -len(kv[0])):
+        if ln in tail:
+            return {"curse_name": proper, "level": level}
+    return None
+
+
 
 
 # Leading "+N [%] <stat>" form used by pact-spirit / hero-memory effect strings (ported from the old
@@ -2035,231 +2057,6 @@ def resolve_effect_stat_keys(effect: str, *, is_memory: bool) -> list[str]:
     return [d["stat_key"] for d in _resolve_effect_modifiers(effect, is_memory=is_memory)]
 
 
-def _parse_custom_mod_text_base(text: str) -> list[dict]:
-    """Resolve freeform modifier text to a list of {stat_key, amount, text} dicts.
-
-    Routes through the existing gear stat resolver so all supported modifier text
-    forms work, including percentage-based mods, flat adds, and ranges.
-    Returns an empty list if the text cannot be resolved.
-
-    Scale is determined by whether the user explicitly typed '%' — not by the stat's
-    metadata unit — so that raw flat stats (CSR, flat damage) are not accidentally
-    divided by 100.
-    """
-    t = text.strip()
-
-    # Collapse a LEADING paren value-range to its midpoint so range-template text resolves like a single
-    # value: "+(20-25) % X" → "+22.5 % X", "+(44–54) % Elemental Damage" → "+49 % …". Start-anchored, so it
-    # never touches "Adds (A-B) - (C-D)" gear-flat lines (those start with "Adds", handled elsewhere).
-    t = re.sub(r'^(\s*[+\-]?)\(\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*\)',
-               lambda m: f"{m.group(1)}{(float(m.group(2)) + float(m.group(3))) / 2:g}", t)
-
-    # Some core-talent lines prefix the stat with its subsystem before the value ("Spirit Magi +30% …").
-    # Drop that leading subsystem label so the value is start-anchored for the matchers below; the stat's
-    # display name still carries the subsystem, so resolution is unaffected.
-    t = re.sub(r'^\s*Spirit Mag(?:i|us)\s+(?=[+\-]?\d)', '', t, flags=re.I)
-
-    # Leading qualifier/scope word before the value ("Additional -30% X", "Enemies +20% X"): move it after
-    # the value so the start-anchored matchers see the number first; the word stays for pool/scope matching.
-    t = re.sub(r'^(Additional|Enemies)\s+([+\-]?[\d.]+\s*%?)', r'\2 \1', t, flags=re.I)
-
-    # "You can cast N additional Curses" → Max Curses (a flat count; "additional" here means +N, not the
-    # damage pool, so the generic matchers would mishandle it).
-    m = re.match(r'(?:you can cast\s+)?([\d.]+)\s+additional\s+curses?\b', t, re.I)
-    if m:
-        return [{"stat_key": "max_curses_flat", "amount": float(m.group(1)), "text": t}]
-
-    # "Damage Penetrates N% <type> Resistance" (pact-spirit pen nodes) — value sits mid-phrase, so the
-    # start-anchored matchers below miss it. Maps to the player {type}_pen stat (elemental → elemental_pen).
-    m = re.match(r'damage\s+penetrates\s+([\d.]+)\s*%\s*'
-                 r'(elemental|fire|cold|lightning|erosion)\s+resistance', t, re.I)
-    if m:
-        typ = m.group(2).lower()
-        stat = "elemental_pen" if typ == "elemental" else f"{typ}_pen"
-        return [{"stat_key": stat, "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # Outgoing damage-type conversion: "Adds/Converts N% [of] <A> Damage as/to <B> Damage" (the value sits
-    # after the verb, so the start-anchored matchers below would miss it). "Adds"/"as" → adds-as key;
-    # "Converts"/"to" → convert key. Only valid up the priority chain (phys→light→cold→fire→erosion).
-    m = re.match(r'(adds|converts)\s+([\d.]+)\s*%\s*(?:of\s+)?'
-                 r'(physical|lightning|cold|fire|erosion)\s+damage\s+(?:as|to)\s+'
-                 r'(physical|lightning|cold|fire|erosion)\s+damage', t, re.I)
-    if m:
-        verb, val, src, dst = m.group(1).lower(), float(m.group(2)), m.group(3).lower(), m.group(4).lower()
-        order = ["physical", "lightning", "cold", "fire", "erosion"]
-        if order.index(dst) > order.index(src):           # up-chain only
-            key = f"{src}_convert_to_{dst}" if verb == "converts" else f"{src}_as_{dst}"
-            return [{"stat_key": key, "amount": val / 100.0, "text": t}]
-        return []
-
-    # Arcane: "Converts N% of Mana Cost to Life Cost" — active-skill cost paid as life (cost mechanic,
-    # tracked; needs skill-cost modeling to do anything).
-    m = re.match(r'converts\s+([\d.]+)\s*%\s*of\s+mana\s+cost\s+to\s+life\s+cost', t, re.I)
-    if m:
-        return [{"stat_key": "mana_cost_to_life_cost", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # Ward: "Adds N% of Sealed Mana/Life as Energy Shield" — flat Max ES = coeff × raw sealed pool (needs
-    # sealed mana/life modeling).
-    m = re.match(r'adds\s+([\d.]+)\s*%\s*of\s+sealed\s+(mana|life)\s+as\s+energy\s+shield', t, re.I)
-    if m:
-        return [{"stat_key": f"energy_shield_per_sealed_{m.group(2).lower()}", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # Joined Force: "Adds N% of the damage of the Off-Hand Weapon to the final damage of the Main-Hand Weapon"
-    # — off-hand becomes a stat-stick; N% of its fully-scaled damage adds to main-hand FINAL (needs separate
-    # main/off-hand weapon damage modeling).
-    m = re.match(r'adds\s+([\d.]+)\s*%\s*of\s+the\s+damage\s+of\s+the\s+off-?hand\s+weapon', t, re.I)
-    if m:
-        return [{"stat_key": "joined_force_offhand_dmg", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # Defensive damage-taken conversion: "Converts N% of <A> Damage taken to <B> Damage" (the "taken" is what
-    # distinguishes it from outgoing). Needs the incoming-damage/EHP model to do anything (tracked for now).
-    m = re.match(r'converts\s+([\d.]+)\s*%\s*of\s+(physical|lightning|cold|fire|erosion)\s+damage\s+taken\s+to\s+'
-                 r'(physical|lightning|cold|fire|erosion)\s+damage', t, re.I)
-    if m:
-        return [{"stat_key": f"{m.group(2).lower()}_taken_as_{m.group(3).lower()}_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # Rebirth: "Converts N% of <Life|Energy Shield> Regain to Restoration Over Time" — needs Regain. The
-    # shared-stat splitter separates "Life Regain and Energy Shield Regain", so match each pool segment.
-    m = re.match(r'converts\s+([\d.]+)\s*%\s*of\s+(life|energy\s+shield)\s+regain\s+to\s+restoration', t, re.I)
-    if m:
-        pool = "es" if m.group(2).lower().startswith("energy") else "life"
-        return [{"stat_key": f"{pool}_regain_to_restoration", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # Co-resonance: share Attack/Cast Speed (inc + additional) onto Sentry Cast Frequency — needs Sentry impl.
-    m = re.match(r'(attack|cast)\s+speed\s+bonus\s+and\s+.*additional\s+bonus\s+are\s+also\s+applied\s+to', t, re.I)
-    if m:
-        which = m.group(1).lower()
-        key = "attack_speed_to_attack_sentry_cast_freq" if which == "attack" else "cast_speed_to_spell_sentry_cast_freq"
-        return [{"stat_key": key, "amount": 1.0, "text": t}]
-
-    # Play Safe: "N% of the bonuses and additional bonuses to Cast Speed is also applied to Spell Burst Charge
-    # Speed" — flag (1.0 = full share); the aggregator propagates cast-speed inc + each additional.
-    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+bonuses\s+and\s+additional\s+bonuses\s+to\s+cast\s+speed\s+is\s+also\s+applied\s+to\s+spell\s+burst', t, re.I)
-    if m:
-        return [{"stat_key": "cast_speed_to_spell_burst_charge", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # Gale: "N% of the Projectile Speed bonus is also applied to the additional bonus for Projectile Damage"
-    # — coefficient on increased projectile speed → additional projectile damage (own factor; aggregator).
-    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+projectile\s+speed\s+bonus\s+is\s+also\s+applied\s+to\s+the\s+additional\s+bonus\s+for\s+projectile\s+damage', t, re.I)
-    if m:
-        return [{"stat_key": "proj_speed_to_proj_dmg", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # True Flame: "N% of the additional bonus to Damage Over Time taken from Affliction is also applied to your
-    # Fire Hit Damage" (lead "When an enemy is Ignited" splits off as the gate). Inert until Affliction modeled.
-    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+additional\s+bonus\s+to\s+damage\s+over\s+time\s+taken\s+from\s+affliction\s+is\s+also\s+applied\s+to\s+your\s+fire\s+hit\s+damage', t, re.I)
-    if m:
-        return [{"stat_key": "affliction_dot_to_fire_hit", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # United Stand (2nd line): "N% of the Life and Energy Shield Regain Effect of Synthetic Troop Minions is
-    # also applied to you" — fraction of minion regain shared to the player. Needs Regain + testing.
-    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+life\s+and\s+energy\s+shield\s+regain\s+effect\s+of\s+synthetic\s+troop\s+minions\s+is\s+also\s+applied\s+to\s+you', t, re.I)
-    if m:
-        return [{"stat_key": "minion_regain_shared_to_player", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # "Adds N-N Base <Ignite|Wilt|Trauma|Ailment> Damage [to Minions]" → that ailment's flat base damage pool.
-    m = re.match(r'adds\s+([\d.]+)\s*-\s*([\d.]+)\s+base\s+(ignite|wilt|trauma|ailment)\s+damage', t, re.I)
-    if m:
-        lo, hi, kind = float(m.group(1)), float(m.group(2)), m.group(3).lower()
-        return [{"stat_key": f"{kind}_dmg_flat_min", "amount": lo, "text": t},
-                {"stat_key": f"{kind}_dmg_flat_max", "amount": hi, "text": t}]
-
-    # "Multistrikes deal N% increasing damage" → ramping multistrike damage (tracked; ramp NYI in offense).
-    m = re.match(r'(?:minions\'?\s+)?multistrikes?\s+deal\s+([\d.]+)\s*%\s*increasing\s+damage', t, re.I)
-    if m:
-        return [{"stat_key": "multistrike_increasing_dmg_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # "+N% additional Base Damage for Two-Handed Weapons" → tracked (deferred additional pool).
-    m = re.match(r'([\d.]+)\s*%\s*additional\s+base\s+damage\s+for\s+two-?handed\s+weapons', t, re.I)
-    if m:
-        return [{"stat_key": "two_handed_base_dmg_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # "+N Command per second" → flat Command/sec (tracked; Command subsystem NYI).
-    m = re.match(r'\+?\s*([\d.]+)\s+command\s+per\s+second', t, re.I)
-    if m:
-        return [{"stat_key": "command_per_second_flat", "amount": float(m.group(1)), "text": t}]
-
-    # "+N Affliction inflicted per second by Minions" → flat (tracked; minion subsystem NYI).
-    m = re.match(r'\+?\s*([\d.]+)\s+affliction\s+inflicted\s+per\s+second\s+by\s+minions', t, re.I)
-    if m:
-        return [{"stat_key": "minion_affliction_per_second_flat", "amount": float(m.group(1)), "text": t}]
-
-    # "N% of the bonuses for Movement Speed is also applied to <Attack/Cast Speed | Cooldown Recovery Speed>"
-    # — coefficient; aggregator propagates movement_speed_inc × coeff onto the target.
-    m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+bonuses?\s+for\s+movement\s+speed\s+is\s+also\s+applied\s+to\s+(?:the\s+)?(attack\s+speed|cast\s+speed|cooldown\s+recovery\s+speed)', t, re.I)
-    if m:
-        tgt = {"attack speed": "attack_speed", "cast speed": "cast_speed",
-               "cooldown recovery speed": "cdr"}[re.sub(r'\s+', ' ', m.group(2).lower())]
-        return [{"stat_key": f"movement_bonus_to_{tgt}", "amount": float(m.group(1)) / 100.0, "text": t}]
-
-    # Probabilistic damage ("…N% chance for that cast to deal +M% additional damage") → expected value.
-    # Emit one dmg_additional = (N/100)×(M/100) with a SHARED text so a talent's mutually-exclusive tiers
-    # pool ADDITIVELY into one factor (offense sums same-identity positives), never multiply.
-    m = re.search(r'(\d+(?:\.\d+)?)\s*%\s*chance\b.*?\bdeal\s*\+?(\d+(?:\.\d+)?)\s*%\s*additional\s+damage', t, re.I)
-    if m:
-        ev = (float(m.group(1)) / 100.0) * (float(m.group(2)) / 100.0)
-        return [{"stat_key": "dmg_additional", "amount": ev,
-                 "text": "probabilistic additional damage (expected value)"}]
-
-    # "You can apply N additional Tangle(s) to enemies" → flat +N Tangles applied (mirrors the curses form).
-    m = re.match(r'(?:you can\s+)?apply\s+([\d.]+)\s+additional\s+tangles?\b', t, re.I)
-    if m:
-        return [{"stat_key": "extra_tangle_applied_flat", "amount": float(m.group(1)), "text": t}]
-
-    # Trailing flat count: "<Stat Name> +N" (Max Sentry Quantity +1, Min Channeled Stacks +1). Resolve the
-    # value-stripped name; accept ONLY a *_flat stat so a stray "+N" can never land in a % pool.
-    m = re.match(r'^(.+?)\s+([+\-]\d+(?:\.\d+)?)\s*$', t)
-    if m and '%' not in t:
-        stat_key, _u = _resolve_gear_stat(m.group(1).strip())
-        if stat_key and stat_key.endswith('_flat'):
-            return [{"stat_key": stat_key, "amount": float(m.group(2)), "text": t}]
-
-    # "Adds N-N <Type> Damage to Attacks/Spells/Attacks and Spells" → flat added damage min+max.
-    m = _CUSTOM_ADDS_RE.match(t)
-    if m:
-        lo, hi, dtype, dest = float(m.group(1)), float(m.group(2)), m.group(3).lower(), m.group(4).lower()
-        dests = ["attack", "spell"] if dest == "attacks and spells" else (["attack"] if dest == "attacks" else ["spell"])
-        out: list[dict] = []
-        for d in dests:
-            out.append({"stat_key": f"{dtype}_{d}_dmg_flat_min", "amount": lo, "text": t})
-            out.append({"stat_key": f"{dtype}_{d}_dmg_flat_max", "amount": hi, "text": t})
-        return out
-
-    # Range: "50-80 fire attack damage"
-    m = _CUSTOM_RANGE_RE.match(t)
-    if m:
-        val_min = float(m.group(1))
-        val_max = float(m.group(2))
-        desc = _normalize_for_custom_resolve(m.group(3).strip())
-        stat_key, _unit = _resolve_gear_stat(desc)
-        if stat_key:
-            if stat_key.endswith("_min"):
-                base = stat_key[:-4]
-                return [
-                    {"stat_key": base + "_min", "amount": val_min, "text": t},
-                    {"stat_key": base + "_max", "amount": val_max, "text": t},
-                ]
-            if stat_key.endswith("_max"):
-                base = stat_key[:-4]
-                return [
-                    {"stat_key": base + "_min", "amount": val_min, "text": t},
-                    {"stat_key": base + "_max", "amount": val_max, "text": t},
-                ]
-            avg = (val_min + val_max) / 2.0
-            return [{"stat_key": stat_key, "amount": avg, "text": t}]
-        return []
-
-    # Single value: "10% additional attack damage" or "500 attack crit rating flat"
-    m = _CUSTOM_SINGLE_RE.match(t)
-    if m:
-        val = float(m.group(1))
-        is_pct = bool(m.group(2))
-        normalized = _normalize_for_custom_resolve(t)
-        stat_key, _unit = _resolve_gear_stat(normalized)
-        if stat_key:
-            amount = val / 100.0 if is_pct else val
-            return [{"stat_key": stat_key, "amount": amount, "text": t}]
-
-    return []
 
 
 def _get_stat_display_name(stat_key: str) -> str | None:
@@ -2313,6 +2110,7 @@ _COND_PATTERNS: list[tuple] = [
     # Blur is active. NOTE: "for N s after Blur ends" is a distinct post-Blur window we don't model yet
     # (deferred to full Blur modeling); for now it grants its bonus while Blur is active.
     (re.compile(r"blur\s+is\s+active|after\s+blur\s+ends", re.I), "blur_active"),
+    (re.compile(r"having\s+squidnova|have\s+squidnova", re.I), "has_squidnova"),
     (re.compile(r"taken\s+damage\s+in\s+the\s+last|recently\s+taken\s+damage", re.I), "recently_taken_damage"),
     (re.compile(r"used\s+a\s+mobility\s+skill", re.I), "recently_used_mobility"),
     # "Critical Strike or Reaped" → either condition satisfies it.
@@ -2444,57 +2242,8 @@ def _translate_condition_expr(text: str | None) -> dict | str | None:
 
 # TLI's "additional" (independent multiplicative) and "increased"/"reduced" (one additive pool) are
 # DIFFERENT pools and must never be cross-matched — display names don't encode the qualifier, so the
-# fuzzy matcher would otherwise map "additional X" onto an "increased X" stat. Map the qualifier word
-# in the text to the stat modifier_type it is allowed to match.
-_POOL_QUALIFIERS = {"additional": "additional", "increased": "increased", "reduced": "increased"}
-_POOL_QUALIFIER_WORDS = frozenset(_POOL_QUALIFIERS)
 
 
-def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
-    """Return (stat_key, unit) for a gear affix, or (None, '') if unresolved.
-
-    Pool-strict: an "additional" modifier only matches an `additional` stat, and
-    "increased"/"reduced" only an `increased` stat. If the text carries a pool qualifier but no
-    same-pool stat matches, the affix is left UNRESOLVED rather than silently placed in the wrong pool.
-    """
-    text = _GEAR_COND_RE.sub("", raw_text)
-    norm_expr = _norm_expr(text)
-    if norm_expr in _EXPRESSION_STAT_OVERRIDES:
-        stat_key = _EXPRESSION_STAT_OVERRIDES[norm_expr]
-        unit = "%" if "%" in raw_text else ""
-        return stat_key, unit
-    query = _gear_normalize(text)
-    if not query:
-        return None, ""
-    # Detect the pool qualifier, then drop it from the query so it neither pollutes the word overlap
-    # nor is required to appear in the (qualifier-free) display name.
-    want_pool = next((_POOL_QUALIFIERS[w] for w in query if w in _POOL_QUALIFIERS), None)
-    query = {w for w in query if w not in _POOL_QUALIFIERS}
-    if not query:
-        return None, ""
-    is_pct = "%" in raw_text
-    scores = []
-    for stat_val, dn, dn_words, unit, mtype in _get_gear_candidates():
-        if want_pool is not None and mtype != want_pool:
-            continue   # pool-strict: never cross "additional" with "increased"
-        overlap = len(query & dn_words)
-        if not overlap:
-            continue
-        scores.append((overlap / len(query | dn_words), stat_val, dn, unit))
-    if not scores:
-        return None, ""
-    scores.sort(key=lambda x: x[0], reverse=True)
-    best_score, best_stat, best_dn, best_unit = scores[0]
-    extra = query - _gear_normalize(best_dn)
-    if best_score < (0.7 if extra else 0.5):
-        return None, ""
-    tied = [s for s in scores if s[0] == best_score]
-    if len(tied) == 1:
-        return best_stat, best_unit
-    # Break ties within the matched pool (additional → _additional; else _inc for %, _flat otherwise).
-    suffix = "_additional" if want_pool == "additional" else ("_inc" if is_pct else "_flat")
-    pref = [s for s in tied if s[1].endswith(suffix)]
-    return (pref[0][1], pref[0][3]) if len(pref) == 1 else (None, "")
 
 
 @app.get("/api/legendary-gear-index")
@@ -2840,11 +2589,26 @@ def _resolve_skill_line_keys(text: str) -> list[str]:
     from engine.support_lines import SupportLine, _template
     from engine.support_mapper import map_line, _ADDED_FLAT_RE
     from engine.node_resolver import resolve_effect_text_keys
+    from engine import skill_effects
+    # Bespoke canvas-support lines (Howling Gale, Berserking Blade, …) are handled in engine.skill_effects, so
+    # the generic mapper below deliberately skips them — without this they'd badge NYI despite being consumed.
+    # A non-empty list = a stat line (badge classifies it); [] = a recognized behavioral line whose badge the
+    # tooltip already suppresses (so it won't be queried here); None = not bespoke → fall through.
+    bespoke = skill_effects.resolve_line_keys(text)
+    if bespoke:
+        return bespoke
     # Buff-grant lines ("Buffs grant +X% … to this skill") describe a granted buff the engine applies as a
     # normal supported-skill modifier (e.g. Electric Overload's on-crit +15% Lightning). Normalize the wording
     # so the line resolves like the direct "+X% … for the supported skill" form instead of badging NYI.
     text = re.sub(r'^\s*buffs?\s+grants?\s+', '', text, flags=re.I)
     text = re.sub(r'\bto (?:this|the supported) skill\b', 'for the supported skill', text, flags=re.I)
+    # A skill's OWN line uses "for this skill" where the support mapper expects "for the supported skill"
+    # (e.g. Chain Lightning "+2 Jumps for this skill"). Normalize so the same stat resolves either way.
+    text = re.sub(r'\bfor this skill\b', 'for the supported skill', text, flags=re.I)
+    # Strip a "(the) (supported) skill's" possessive that sits between a parser keyword and its operand
+    # (e.g. "Converts 50% of the supported skill's Lightning Damage to Cold Damage" → "… of Lightning Damage
+    # to Cold Damage"), so conversion/added-flat lines resolve to their stat instead of badging NYI.
+    text = re.sub(r"\b(?:the\s+)?(?:supported\s+)?skill['’]s\s+", '', text, flags=re.I)
     tmpl = _template(text)
     # "adds X-Y <type> Damage" added-flat line → per-cat flat stats. Return BOTH cats so the badge
     # matches whichever the supported skill uses (classifyKeys checks .some()).
@@ -2860,7 +2624,13 @@ def _resolve_skill_line_keys(text: str) -> list[str]:
     keys = [c.stat_key for c in map_line(line, 20, None, permissive)]   # cat=None: skip added-flat (handled above)
     if keys:
         return keys
-    return resolve_effect_text_keys(text, _parse_custom_mod_text, _translate_condition_expr)
+    # Fallback: the unified node resolver maps the stat phrasing itself via stat_meta (which already honors the
+    # increased-vs-additional pool and the damage type). It doesn't understand the "for/of the (supported) skill"
+    # support-target phrase, so strip it (prefix or suffix) first. This recovers minion/penetration/etc. lines
+    # map_line doesn't cover, with NO per-stat table — the parser decides the exact stat from the bare phrasing.
+    bare = re.sub(r'^\s*the supported skill\s+', '', text, flags=re.I)
+    bare = re.sub(r'\s+(?:for|of)\s+(?:the supported|this) skill\b.*$', '', bare, flags=re.I).strip()
+    return resolve_effect_text_keys(bare, _parse_custom_mod_text, _translate_condition_expr)
 
 
 @app.post("/api/map-modifiers")
@@ -3022,7 +2792,8 @@ def get_destiny():
     data = season_manager.load_destiny(active)
     if not data:
         return {"season": active, "items": []}
-    return {"season": active, "items": data.get("items", [])}
+    from tools.destiny_catalog import categorize_destiny
+    return {"season": active, "items": data.get("items", []), "catalog": categorize_destiny(data)}
 
 
 @app.post("/api/dev/import-ethereal-prism")
@@ -3032,18 +2803,26 @@ def import_ethereal_prism_endpoint(req: ImportSingletonRequest):
         raise HTTPException(400, "season_name must not be empty")
     parsed = import_ethereal_prism(req.data, req.season_name)
     season_manager.save_ethereal_prism(req.season_name, parsed)
-    return {"ok": True, "count": parsed["modifier_count"]}
+    return {"ok": True, "count": parsed["item_count"]}
 
 
 @app.get("/api/ethereal-prism")
 def get_ethereal_prism():
     active = season_manager.get_active_season()
+    empty = {"items": [], "base_affixes": [], "random_affixes": []}
     if not active:
-        return {"season": None, "modifiers": []}
+        return {"season": None, **empty}
     data = season_manager.load_ethereal_prism(active)
     if not data:
-        return {"season": active, "modifiers": []}
-    return {"season": active, "modifiers": data.get("modifiers", [])}
+        return {"season": active, **empty}
+    from tools.prism_catalog import categorize_prism_catalog
+    return {
+        "season": active,
+        "items": data.get("items", []),
+        "base_affixes": data.get("base_affixes", []),
+        "random_affixes": data.get("random_affixes", []),
+        "catalog": categorize_prism_catalog(data),
+    }
 
 
 @app.post("/api/dev/import-hero-memories")

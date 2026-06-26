@@ -16,6 +16,9 @@ class PassiveTree:
         self.nodes: Dict[str, PassiveNode] = {}
         self.connections: list[tuple[str, str]] = []
         self.core_talent_slots: list[CoreTalentSlot] = []
+        # Extra points per column index from an installed Inverse Image's reflected box (those cells are virtual —
+        # not real nodes — but they cost points and count toward the budget + column-unlock thresholds in-game).
+        self.extra_column_points: Dict[int, int] = {}
 
     def add_node(self, node: PassiveNode):
         self.nodes[node.id] = node
@@ -33,11 +36,13 @@ class PassiveTree:
         )
 
     def points_in_column(self, col: int) -> int:
-        return sum(n.current_points for n in self.nodes.values() if n.column == col)
+        return (sum(n.current_points for n in self.nodes.values() if n.column == col)
+                + self.extra_column_points.get(col, 0))
 
     def points_before_column(self, col: int) -> int:
         """Points spent in columns strictly to the LEFT of `col` (the unlock currency)."""
-        return sum(n.current_points for n in self.nodes.values() if n.column < col)
+        return (sum(n.current_points for n in self.nodes.values() if n.column < col)
+                + sum(p for c, p in self.extra_column_points.items() if c < col))
 
     def is_column_unlocked(self, col: int) -> bool:
         # Column 0 is always open; column N needs N*3 points spent in columns to its left
@@ -47,9 +52,16 @@ class PassiveTree:
         return self.points_before_column(col) >= col * 3
 
     def total_points(self) -> int:
-        return sum(n.current_points for n in self.nodes.values())
+        return sum(n.current_points for n in self.nodes.values()) + sum(self.extra_column_points.values())
 
-    def allocate(self, node_id: str):
+    def allocate(self, node_id: str, prereq_satisfied: set[str] | None = None,
+                 max_overrides: dict[str, int] | None = None):
+        # `prereq_satisfied` = node ids whose OUTGOING connection prerequisites are treated as met regardless of
+        # their points (a Prism's overridden anchor + its reflected-box cells break the prereq chain there).
+        # `max_overrides` = node id → raised max-point cap (an Ethereal Prism's over-allocation affix). Only the
+        # headroom for extra points grows; the prereq threshold (_prereq_threshold) is untouched.
+        prereq_satisfied = prereq_satisfied or set()
+        max_overrides = max_overrides or {}
         node = self.nodes.get(node_id)
         if node is None:
             raise ValueError(f"Node '{node_id}' not found.")
@@ -60,14 +72,17 @@ class PassiveTree:
                 f"Column {node.column_label} is locked. "
                 f"Need {needed} points in earlier columns, have {have}."
             )
-        if node.is_full:
+        eff_max = max_overrides.get(node_id, node.max_points)
+        if node.current_points >= eff_max:
             raise ValueError(
-                f"'{node.node_type.value}' is already at max ({node.max_points}/{node.max_points}).")
+                f"'{node.node_type.value}' is already at max ({node.current_points}/{eff_max}).")
 
         # Connection prerequisite: every source node pointing to this node must
         # meet its threshold before this node can receive any points.
         for id1, id2 in self.connections:
             if id2 == node_id:
+                if id1 in prereq_satisfied:
+                    continue                 # prereq chain broken here by a Prism
                 prereq = self.nodes.get(id1)
                 if prereq is not None:
                     needed = _prereq_threshold(prereq)
@@ -80,7 +95,8 @@ class PassiveTree:
 
         node.current_points += 1
 
-    def deallocate(self, node_id: str):
+    def deallocate(self, node_id: str, prereq_satisfied: set[str] | None = None):
+        prereq_satisfied = prereq_satisfied or set()
         node = self.nodes.get(node_id)
         if node is None:
             raise ValueError(f"Node '{node_id}' not found.")
@@ -100,7 +116,7 @@ class PassiveTree:
         # Connection prerequisite check: removing a point from this node must not
         # drop it below the threshold required by any node it feeds into.
         needed = _prereq_threshold(node)
-        if node.current_points - 1 < needed:
+        if node.current_points - 1 < needed and node_id not in prereq_satisfied:
             for id1, id2 in self.connections:
                 if id1 == node_id:
                     dep = self.nodes.get(id2)

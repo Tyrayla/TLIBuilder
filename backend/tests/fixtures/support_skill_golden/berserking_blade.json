@@ -31,6 +31,7 @@
     "attack_speed_inc",
     "attack_speed_mh",
     "block_ratio_inc",
+    "block_ratio_upper_limit_flat",
     "cold_as_erosion",
     "cold_as_fire",
     "cold_attack_dmg_flat_max",
@@ -81,11 +82,13 @@
     "evasion_gear_flat",
     "evasion_gear_inc",
     "evasion_inc",
+    "extra_tangle_applied_flat",
     "ferv",
     "fire_as_erosion",
     "fire_attack_dmg_flat_max",
     "fire_attack_dmg_flat_min",
     "fire_convert_to_erosion",
+    "fire_curse_taken",
     "fire_dmg_additional",
     "fire_dmg_gear_flat_max",
     "fire_dmg_gear_flat_min",
@@ -95,10 +98,12 @@
     "fire_pen",
     "fire_resistance",
     "fire_resistance_max_inc",
+    "hit_curse_taken",
     "hit_dmg_additional",
     "intelligence_additional",
     "intelligence_flat",
     "intelligence_inc",
+    "knockback_dmg_taken",
     "lightning_as_cold",
     "lightning_as_erosion",
     "lightning_as_fire",
@@ -107,6 +112,7 @@
     "lightning_convert_to_cold",
     "lightning_convert_to_erosion",
     "lightning_convert_to_fire",
+    "lightning_curse_taken",
     "lightning_dmg_additional",
     "lightning_dmg_gear_flat_max",
     "lightning_dmg_gear_flat_min",
@@ -121,11 +127,13 @@
     "lucky_physical",
     "main_skill_level",
     "max_agility_blessing_stacks_flat",
+    "max_electrify_stacks_flat",
     "max_energy_shield",
     "max_energy_shield_additional",
     "max_energy_shield_flat",
     "max_energy_shield_inc",
     "max_focus_blessing_stacks_flat",
+    "max_frostbite_rating_flat",
     "max_ignite_flat",
     "max_life",
     "max_life_additional",
@@ -135,10 +143,12 @@
     "max_mana_additional",
     "max_mana_flat",
     "max_mana_inc",
+    "max_spell_burst_flat",
     "max_tenacity_blessing_stacks_flat",
     "melee_dmg_additional",
     "melee_dmg_inc",
     "melee_skill_level",
+    "no_guard_dmg_taken",
     "numbed_lightning_taken",
     "paralysis_dmg_taken",
     "physical_as_cold",
@@ -153,6 +163,7 @@
     "physical_convert_to_fire",
     "physical_convert_to_lightning",
     "physical_crit_dmg_inc",
+    "physical_curse_taken",
     "physical_dmg_additional",
     "physical_dmg_gear_flat_max",
     "physical_dmg_gear_flat_min",
@@ -173,6 +184,7 @@
     "strength_additional",
     "strength_flat",
     "strength_inc",
+    "tide_dmg_taken",
     "triple_dmg_chance",
     "weapon_attack_speed",
     "weapon_crit_rating_flat"
@@ -185,9 +197,21 @@
     "base_dmg_max": {},
     "base_dmg_min": {},
     "cast_multiplier": 1.0,
+    "channeled_attack_frequency": 0.0,
+    "channeled_behavior": "",
+    "channeled_burst_rate": 0.0,
+    "channeled_max_stacks": 0,
+    "channeled_min_stacks": 0,
+    "channeled_rounds_per_cycle": 0.0,
+    "channeled_stacks": 0.0,
     "crit_chance": 0.396,
     "crit_multiplier": 1.5,
     "effective_level": 20,
+    "enemy_mult_by_type": {
+      "fire": 0.48999999999999994,
+      "lightning": 0.7349999999999999,
+      "physical": 0.5
+    },
     "flat_dmg_max": {
       "fire": 135.0,
       "lightning": 198.0,
@@ -204,6 +228,8 @@
       {
         "avg_hit_pre_crit": 8350.069244284548,
         "avg_hit_with_crit": 10003.382954652889,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
           "fire": 797.2085094285311,
           "lightning": 1581.4623805788483,
@@ -212,6 +238,7 @@
         "dps_contribution": 24507.487968263213,
         "dps_vs_target": 12183.929894557179,
         "effectiveness_pct": 210.0,
+        "fires_per_sec": 2.4499200000000005,
         "form_type": "exclusive",
         "hit_max_by_type": {
           "fire": 1034.8379689697279,
@@ -223,12 +250,17 @@
           "lightning": 152.06369044027386,
           "physical": 4430.639600477797
         },
+        "hits_per_fire": 1,
         "name": "Sweep Slash",
-        "proc_chance": 0.8
+        "proc_chance": 0.8,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       },
       {
         "avg_hit_pre_crit": 22572.082134981778,
         "avg_hit_with_crit": 27041.354397708168,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
           "fire": 2155.030746103593,
           "lightning": 4275.042242583002,
@@ -237,6 +269,7 @@
         "dps_contribution": 16562.288741508306,
         "dps_vs_target": 8233.963643326904,
         "effectiveness_pct": 421.0,
+        "fires_per_sec": 0.6124800000000001,
         "form_type": "exclusive",
         "hit_max_by_type": {
           "fire": 2797.395680038318,
@@ -248,15 +281,32 @@
           "lightning": 411.0617540945195,
           "physical": 11976.997800460354
         },
+        "hits_per_fire": 1,
         "name": "Steep Strike",
-        "proc_chance": 0.2
+        "proc_chance": 0.2,
+        "shotgun_falloff": 0.0,
+        "shotgun_mult": 1.0
       }
     ],
+    "jumps": 0,
+    "jumps_base": 0,
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
       "strength",
       "dexterity"
     ],
+    "mana_cost": 5.0,
+    "mercury_baptism_dps": 0.0,
+    "mercury_baptism_fraction": 0.0,
+    "multistrike_avg_count": 0.0,
+    "multistrike_chain": [],
+    "multistrike_chance": 0.0,
+    "multistrike_increment": 0.0,
+    "multistrike_max_count": 0,
+    "multistrike_mult": 1.0,
+    "multistrike_repeat_aps": 0.0,
+    "non_spell_burst_dps": 0.0,
+    "non_spell_burst_dps_vs_target": 0.0,
     "nyi": [
       "Support skill flat damage adds",
       "Elemental conversion",
@@ -267,9 +317,9 @@
       "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
       "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
-      "spell_burst_hit_dmg_additional \u2014 Spell burst mechanic \u2014 unique per-burst hit scaling, deferred",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
     ],
+    "projectile_count": -1,
     "shotgun_hits": 1,
     "skill_area_inc": 1.0,
     "skill_name": "Berserking Blade",
@@ -281,8 +331,32 @@
       "Slash-Strike",
       "Persistent"
     ],
+    "spell_burst_auto": false,
+    "spell_burst_auto_source": "",
+    "spell_burst_cast_to_next_inc": 0.0,
+    "spell_burst_casts_per_burst": 0,
+    "spell_burst_charge_factor": 1.0,
+    "spell_burst_charge_inc": 0.0,
+    "spell_burst_charge_ticks": 0,
+    "spell_burst_charge_time": 0.0,
+    "spell_burst_charge_to_next_inc": 0.0,
+    "spell_burst_count": 0,
+    "spell_burst_dps": 0.0,
+    "spell_burst_dps_vs_target": 0.0,
+    "spell_burst_mult": 1.0,
+    "spell_burst_next_breakpoint_ticks": 0,
+    "spell_burst_rate": 0.0,
+    "spell_ripple_dps": 0.0,
+    "spell_ripple_fraction": 0.0,
     "steep_strike_chance": 0.2,
     "supported": true,
+    "tangle_attach_range": 0.0,
+    "tangle_count": 0,
+    "tangle_duration": 0.0,
+    "tangle_enhancement": 1.0,
+    "tangle_inactivated": 0,
+    "tangle_mult": 1.0,
+    "tangle_placeable": 0,
     "total_dps": 41069.77670977152,
     "total_dps_vs_target": 20417.893537884083,
     "type_add": {
@@ -311,9 +385,21 @@
       "base_dmg_max": {},
       "base_dmg_min": {},
       "cast_multiplier": 1.0,
+      "channeled_attack_frequency": 0.0,
+      "channeled_behavior": "",
+      "channeled_burst_rate": 0.0,
+      "channeled_max_stacks": 0,
+      "channeled_min_stacks": 0,
+      "channeled_rounds_per_cycle": 0.0,
+      "channeled_stacks": 0.0,
       "crit_chance": 0.396,
       "crit_multiplier": 1.5,
       "effective_level": 20,
+      "enemy_mult_by_type": {
+        "fire": 0.48999999999999994,
+        "lightning": 0.7349999999999999,
+        "physical": 0.5
+      },
       "flat_dmg_max": {
         "fire": 135.0,
         "lightning": 198.0,
@@ -330,6 +416,8 @@
         {
           "avg_hit_pre_crit": 8350.069244284548,
           "avg_hit_with_crit": 10003.382954652889,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
             "fire": 797.2085094285311,
             "lightning": 1581.4623805788483,
@@ -338,6 +426,7 @@
           "dps_contribution": 24507.487968263213,
           "dps_vs_target": 12183.929894557179,
           "effectiveness_pct": 210.0,
+          "fires_per_sec": 2.4499200000000005,
           "form_type": "exclusive",
           "hit_max_by_type": {
             "fire": 1034.8379689697279,
@@ -349,12 +438,17 @@
             "lightning": 152.06369044027386,
             "physical": 4430.639600477797
           },
+          "hits_per_fire": 1,
           "name": "Sweep Slash",
-          "proc_chance": 0.8
+          "proc_chance": 0.8,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         },
         {
           "avg_hit_pre_crit": 22572.082134981778,
           "avg_hit_with_crit": 27041.354397708168,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
             "fire": 2155.030746103593,
             "lightning": 4275.042242583002,
@@ -363,6 +457,7 @@
           "dps_contribution": 16562.288741508306,
           "dps_vs_target": 8233.963643326904,
           "effectiveness_pct": 421.0,
+          "fires_per_sec": 0.6124800000000001,
           "form_type": "exclusive",
           "hit_max_by_type": {
             "fire": 2797.395680038318,
@@ -374,15 +469,32 @@
             "lightning": 411.0617540945195,
             "physical": 11976.997800460354
           },
+          "hits_per_fire": 1,
           "name": "Steep Strike",
-          "proc_chance": 0.2
+          "proc_chance": 0.2,
+          "shotgun_falloff": 0.0,
+          "shotgun_mult": 1.0
         }
       ],
+      "jumps": 0,
+      "jumps_base": 0,
       "main_stat_damage_bonus": 0.0,
       "main_stats": [
         "strength",
         "dexterity"
       ],
+      "mana_cost": 5.0,
+      "mercury_baptism_dps": 0.0,
+      "mercury_baptism_fraction": 0.0,
+      "multistrike_avg_count": 0.0,
+      "multistrike_chain": [],
+      "multistrike_chance": 0.0,
+      "multistrike_increment": 0.0,
+      "multistrike_max_count": 0,
+      "multistrike_mult": 1.0,
+      "multistrike_repeat_aps": 0.0,
+      "non_spell_burst_dps": 0.0,
+      "non_spell_burst_dps_vs_target": 0.0,
       "nyi": [
         "Support skill flat damage adds",
         "Elemental conversion",
@@ -393,9 +505,9 @@
         "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
         "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
         "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
-        "spell_burst_hit_dmg_additional \u2014 Spell burst mechanic \u2014 unique per-burst hit scaling, deferred",
         "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
       ],
+      "projectile_count": -1,
       "shotgun_hits": 1,
       "skill_area_inc": 1.0,
       "skill_name": "Berserking Blade",
@@ -407,8 +519,32 @@
         "Slash-Strike",
         "Persistent"
       ],
+      "spell_burst_auto": false,
+      "spell_burst_auto_source": "",
+      "spell_burst_cast_to_next_inc": 0.0,
+      "spell_burst_casts_per_burst": 0,
+      "spell_burst_charge_factor": 1.0,
+      "spell_burst_charge_inc": 0.0,
+      "spell_burst_charge_ticks": 0,
+      "spell_burst_charge_time": 0.0,
+      "spell_burst_charge_to_next_inc": 0.0,
+      "spell_burst_count": 0,
+      "spell_burst_dps": 0.0,
+      "spell_burst_dps_vs_target": 0.0,
+      "spell_burst_mult": 1.0,
+      "spell_burst_next_breakpoint_ticks": 0,
+      "spell_burst_rate": 0.0,
+      "spell_ripple_dps": 0.0,
+      "spell_ripple_fraction": 0.0,
       "steep_strike_chance": 0.2,
       "supported": true,
+      "tangle_attach_range": 0.0,
+      "tangle_count": 0,
+      "tangle_duration": 0.0,
+      "tangle_enhancement": 1.0,
+      "tangle_inactivated": 0,
+      "tangle_mult": 1.0,
+      "tangle_placeable": 0,
       "total_dps": 41069.77670977152,
       "total_dps_vs_target": 20417.893537884083,
       "type_add": {
@@ -925,6 +1061,63 @@
       ],
       "total": 500.0,
       "unit": ""
+    },
+    "skill_area_additional": {
+      "category": "Utility",
+      "display_name": "Additional Skill Area",
+      "slot_sources": [
+        {
+          "amount": 0.17,
+          "label": "Berserking Blade: Sweep",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "+0.43% additional Skill Area per buff \u00d740 |bb|sweep"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "skill_area_inc": {
+      "category": "Utility",
+      "display_name": "Skill Area",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Berserking Blade Buff",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "skill",
+          "text": "+2.5% Skill Area per buff stack \u00d740 |bb|buff"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "steep_strike_additional_dmg": {
+      "category": "Steep Strike",
+      "display_name": "Steep Strike Additional Damage",
+      "slot_sources": [
+        {
+          "amount": 0.3484,
+          "label": "Berserking Blade: Rampage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Skill Area bonus \u2192 +34.8% additional Steep Strike Damage |bb|rampage"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
     },
     "weapon_attack_speed": {
       "category": "Gear",

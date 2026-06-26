@@ -21,7 +21,9 @@ data/builds/*
 
 # OpenWolf and Claude Code — local AI tooling, not for version control
 .wolf/
-.claude/
+.claude/*
+# …except the shared engine-authoring skills (committed so the team/repo gets them)
+!.claude/skills/
 CLAUDE.md
 
 # docs: keep durable references tracked; handoffs / plans / audit snapshots stay local only
@@ -32,3 +34,10 @@ docs/engine-plan.md
 docs/stat-audit*.md
 docs/stat-*-review.md
 docs/stat-meta-review.csv
+
+# Generated static reference data for the web build (regenerate via backend/tools/export_web_data.py)
+web-data/
+
+# Web build output + generated backend bundle (regenerate via npm run build:web)
+dist-web/
+src/renderer/public/backend-py.zip

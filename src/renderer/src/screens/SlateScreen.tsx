@@ -568,6 +568,16 @@ function toTemplate(s: PlacedSlate): SlateTemplate {
   }
 }
 
+// Build an inventory template straight from the creator (for "Add to Inventory" — saving without placing).
+function creatorToTemplate(c: CreatorState, id: string): SlateTemplate {
+  return {
+    id,
+    kind: c.kind, orientationIndex: c.orientationIndex, shapeIndex: c.shapeIndex,
+    slots: c.slots.map(sl => ({ ...sl })),
+    treeType: c.treeType ?? undefined, mothDirection: c.mothDirection ?? undefined,
+  }
+}
+
 // ── Prairie / Moth helpers ────────────────────────────────────────────────────
 
 function getPrairieModifiers(prairie: PlacedSlate, placed: PlacedSlate[]): string[] {
@@ -1360,7 +1370,10 @@ export default function SlateScreen({ treeColors }: Props) {
   }
 
   async function loadTreePool(tree: PrimaryTree) {
-    updateCreator({ treeType: tree, poolLoading: true, pool: null })
+    // Changing the tree swaps the entire modifier pool, so any modifiers already picked from the old
+    // tree are now invalid — reset the slots to avoid impossible cross-tree combos. (Call site only
+    // fires this when the tree actually changes, so this never wipes a same-tree re-click.)
+    updateCreator({ treeType: tree, poolLoading: true, pool: null, slots: initSlots(creator?.kind ?? 'base') })
     try { updateCreator({ pool: await api.getSlatePool(tree), poolLoading: false }) }
     catch { updateCreator({ poolLoading: false }) }
   }
@@ -1480,6 +1493,17 @@ export default function SlateScreen({ treeColors }: Props) {
     if (editingSlateId === id) setMode({ type: 'idle' })
   }
 
+  // Save the in-progress slate to the inventory WITHOUT placing it on the board (upsert by templateId), then
+  // return to the inventory view. Placed slates are auto-saved separately; this covers "build it for later".
+  function handleAddToInventory() {
+    if (!creator) return
+    const id = creator.templateId ?? `${Date.now()}-${Math.random()}`
+    const byId = new Map(useBuildStore.getState().slateInventory.map(t => [t.id, t]))
+    byId.set(id, creatorToTemplate(creator, id))
+    setSlateInventory([...byId.values()])
+    setMode({ type: 'idle' })
+  }
+
   // Save: edits are already applied live, so just close the editor.
   function handleSaveEdit() {
     editSnapshot.current = null
@@ -1508,17 +1532,31 @@ export default function SlateScreen({ treeColors }: Props) {
       : LEGENDARY_META[kind as LegendaryKind].color
     const sections = getSections(kind)
     const showDividers = kind === 'base'
+    // "Add to Inventory" is available while CREATING once the slate is meaningfully configured (≥1 modifier slot
+    // filled, or a copy-type slate which has no slots). Editing slates are already auto-saved to the inventory.
+    const canSaveToInventory = slots.some(s => s.selectedNodeId || s.selectedCoreKey)
+      || SLOT_CONFIG[kind]?.poolScope === 'none'
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }} onClick={e => e.stopPropagation()}>
 
-        {/* Save / Cancel / Remove header (editing shows all three; creating shows Cancel + a place hint) */}
+        {/* Save / Cancel / Remove header (editing shows all three; creating shows Add-to-Inventory + Cancel + a place hint) */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexShrink: 0 }}>
           {mode.type === 'editing' && (
             <button onClick={handleSaveEdit} style={{
               flex: 1, padding: '10px 12px', fontSize: 14, fontWeight: 700,
               background: '#1a4a1a', color: '#5fdf5f', border: '1px solid #2d8a2d', borderRadius: 7, cursor: 'pointer',
             }}>✓ Save</button>
+          )}
+          {mode.type === 'creating' && (
+            <button onClick={handleAddToInventory} disabled={!canSaveToInventory}
+              title={canSaveToInventory ? 'Save this slate to your inventory without placing it' : 'Configure a modifier first'}
+              style={{
+                flex: 1, padding: '10px 12px', fontSize: 14, fontWeight: 600,
+                background: canSaveToInventory ? '#1e2a4a' : '#15151f', color: canSaveToInventory ? '#9db4e8' : '#444',
+                border: `1px solid ${canSaveToInventory ? '#2d4a7a' : '#23233a'}`, borderRadius: 7,
+                cursor: canSaveToInventory ? 'pointer' : 'default',
+              }}>+ Add to Inventory</button>
           )}
           <button onClick={handleCancelEdit} style={{
             flex: mode.type === 'editing' ? '0 0 auto' : 1, padding: '10px 12px', fontSize: 14, fontWeight: 600,
@@ -1696,7 +1734,7 @@ export default function SlateScreen({ treeColors }: Props) {
         {slateInventory.length > 0 ? (
           <>
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#555', marginBottom: 8 }}>
-              Saved Slates <span style={{ color: '#3a3a5a' }}>(click to place)</span>
+              Saved Slates <span style={{ color: '#3a3a5a' }}>(click to place · right-click to delete)</span>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {slateInventory.map(t => {
@@ -1713,7 +1751,7 @@ export default function SlateScreen({ treeColors }: Props) {
         ) : (
           <div style={{ fontSize: 13, color: '#333', lineHeight: 1.8 }}>
             No saved slates yet. Click <b style={{ color: '#888' }}>Create Slate</b> to build one.<br />
-            Drag placed slates to move, click to edit.
+            Drag placed slates to move, click to edit, right-click to remove.
           </div>
         )}
       </div>
@@ -1867,6 +1905,10 @@ export default function SlateScreen({ treeColors }: Props) {
                   <div key={key}
                     onClick={() => handleCellClick(row, col)}
                     onPointerDown={() => handleCellPointerDown(row, col)}
+                    onContextMenu={e => {
+                      // Right-click a placed slate to remove it from the board (not while placing a new one).
+                      if (slateId && mode.type !== 'creating') { e.preventDefault(); handleRemoveSlate(slateId) }
+                    }}
                     onMouseEnter={() => {
                       // During placing/dragging the grid's pointer-move (with hysteresis) owns `hover`; here we
                       // only track which slate is hovered for the idle detail tooltip.

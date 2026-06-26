@@ -15,6 +15,35 @@ log = logging.getLogger(__name__)
 
 _MAX_ITERS = 10
 
+# Support ids that turn a Spell into a Tangle (the skill is then cast by attached tangles, not the player).
+# Manifold Entanglement is NOT here — it's a normal damage support that spawns all tangles at once.
+_TANGLE_ACTIVATORS = frozenset({"spell_tangle", "activation_medium_tangle"})
+
+# ── Spell Burst ────────────────────────────────────────────────────────────────
+# Supports that GRANT Spell Burst eligibility to a skill that wouldn't burst on its own (e.g. an Attack or a
+# channeled skill): "The supported skill can activate Spell Burst". An eligible Spell bursts inherently once
+# Max Spell Burst ≥ 1, so it needs no enabler.
+_SPELL_BURST_ENABLERS = frozenset({
+    "lightning_storm_raging_storm_noble",   # Raging Storm — "The supported skill can activate Spell Burst"
+    "moon_strike_wax_and_wane_noble",       # Wax and Wane — same, + a flat burst-damage bonus
+    "psychic_burst",                        # supports Spell Skills / skills that can activate Spell Burst
+})
+# Auto-trigger is stat-driven (the mod lines parse to spell_burst_auto_trigger_flag / _auto_charge_threshold and
+# offense finalizes it against charge_factor) plus the manual spell_burst_auto_trigger condition toggle.
+# Tags that make a Spell INELIGIBLE for inherent Spell Burst (still burstable via an enabler support if stated).
+_SPELL_BURST_DISALLOWED_TAGS = frozenset({
+    "channeled", "sentry", "combo", "trigger", "triggered", "persistent", "aura", "passive", "mark",
+})
+# Per-support Spell-Burst damage bonuses that SCALE with stacks/activations (the generic parser maps only the
+# FLAT "for skills cast by Spell Burst" lines; these ramped lines are hand-modeled here — owner §7). Each adds
+# to spell_burst_hit_dmg_additional in burst mode. "per_stack" scales by min(M, cap) (stacks consumed = M);
+# "per_activation" assumes sustained DPS at the cap (×cap). pct values are mid-roll — flagged for in-game
+# verification (SPELLBURST-01). Cap from the line ("Stacks up to N").
+_SPELL_BURST_BONUS_SUPPORTS = {
+    "fire_burst_heart_of_flame_magnificent": {"mode": "per_stack",      "pct": 0.105, "cap": 6},
+    "fire_burst_prairie_fire_noble":         {"mode": "per_activation", "pct": 0.18,  "cap": 6},
+}
+
 
 # "Gain on hit" automax flag → the numeric condition pinned to its derived max (full-uptime approximation).
 _AUTOMAX_TARGETS = [
@@ -140,10 +169,14 @@ def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys) -> N
     respecting manually-set values (never lower / never override). Gated by the supported skill's
     damage types (requires_dtype) and any precondition (requires_cond, e.g. enemy_cursed for Paralyze)."""
     dtypes = {d.lower() for d in (main_dtypes or [])}
+    _ELEMENTAL = {"fire", "cold", "lightning", "erosion"}
     for e in effects or []:
         if e.condition_key in manual_keys:
             continue
-        if e.requires_dtype and e.requires_dtype not in dtypes:
+        if e.requires_dtype == "elemental":
+            if not (dtypes & _ELEMENTAL):
+                continue
+        elif e.requires_dtype and e.requires_dtype not in dtypes:
             continue
         if e.requires_cond and not condition_state.get(e.requires_cond):
             continue
@@ -187,10 +220,12 @@ def compute(
         if c.get("set_value") and c.get("stat_key")
     }
 
-    # Resolve the main skill once for standard-support gating: category (spell|attack) + damage types.
+    # Resolve the main skill once for standard-support gating + the inflicts-Numbed damage-type gate:
+    # category (spell|attack) + damage types. Computed whenever a main skill exists (not only with
+    # supports) so the inflict_cond_effects lightning/elemental gate works on a support-less build too.
     main_cat: str | None = None
     main_dtypes: list[str] = []
-    if skill_data and build_input.attached_supports:
+    if skill_data:
         from engine.skill_resolver import resolve_skill
         _rm = resolve_skill(skill_data)
         if _rm.supported:
@@ -202,12 +237,21 @@ def compute(
     # support on a non-main slot (e.g. an attack skill in slot 2) must resolve as that skill's category,
     # else its added-flat lands in the wrong pool / is gated out and contributes nothing.
     slot_cats: dict[int, str | None] = {}
+    curse_slots: set[int] = set()     # slots whose host skill is a Curse (for the curse-only support gate)
+    empower_slots: set[int] = set()   # slots whose host skill is an Empower (for the empower-only support gate)
+    slot_skill: dict[int, str] = {}   # slot -> skill_id (lets a support find its host skill, e.g. Mass Effect charges)
     if build_input.attached_supports and skills_input and skills_by_id is not None:
         from engine.skill_resolver import resolve_skill as _resolve_skill
         for _sk in skills_input:
+            slot_skill[_sk["slot"]] = _sk["skill_id"]
             _sd = skills_by_id.get(_sk["skill_id"])
             if not _sd:
                 continue
+            _sd_tags = _sd.get("skill_tags") or []
+            if "Curse" in _sd_tags:
+                curse_slots.add(_sk["slot"])
+            if "Empower" in _sd_tags:
+                empower_slots.add(_sk["slot"])
             _rs = _resolve_skill(_sd)
             if not _rs.supported:
                 continue
@@ -244,9 +288,57 @@ def compute(
                               condition_state=condition_state,
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
 
+    # ── Hero traits (Erika Lightning Shadow, …) ───────────────────────────────
+    # A bespoke trait module owns its resolution: each loop pass it (re)computes build_input.trait_contributions
+    # (folded by aggregate) and, in real uptime mode, the converged Numbed steady-state. The Numbed application
+    # rate is driven by the lightning skill actually hitting — resolved by who/what hits, NEVER slot-by-index.
+    from engine import hero_traits
+    from engine import uptime as _uptime
+    from engine.offense import compute_skill_rates
+    from engine.skill_resolver import resolve_skill as _resolve_skill_for_trait
+    _trait_id = build_input.trait_id
+    _trait_active = hero_traits.has_module(_trait_id)
+    _uptime_real = _uptime.is_real(build_input.uptime_mode)
+    _ls_state: dict = {}
+    _inflict_resolved = None
+    if _trait_active and _uptime_real:
+        def _deals_lightning(sd):
+            rs = _resolve_skill_for_trait(sd)
+            return rs.supported and "lightning" in [d.lower() for d in rs.damage_types]
+        if skill_data and _deals_lightning(skill_data):
+            _inflict_resolved = _resolve_skill_for_trait(skill_data)          # main skill (slot may be non-1)
+        elif skills_input and skills_by_id:
+            for _sk in skills_input:
+                _sd = skills_by_id.get(_sk["skill_id"])
+                if _sd and _sk["slot"] != main_slot and _sk.get("enabled", True) and _deals_lightning(_sd):
+                    _inflict_resolved = _resolve_skill_for_trait(_sd)          # lightning skill in a non-main slot
+                    break
+
     aura_summaries: list[dict] = []
+    empower_summaries: list[dict] = []
+    curse_summaries: list[dict] = []
+    curse_conflict: dict | None = None
     reservation: dict | None = None
+    _converged_iters = _MAX_ITERS
     for iteration in range(_MAX_ITERS):
+        # Loop-top: the trait module recomputes its contributions + Numbed override from the prior pass's
+        # converged scalars (in _ls_state), so MS↔Numbed coupling settles like auras.
+        if _trait_active:
+            _tr = hero_traits.apply(
+                _trait_id, build_input=build_input, condition_state=condition_state, ls_state=_ls_state,
+                uptime_mode=build_input.uptime_mode, slot_levels=build_input.trait_slot_levels,
+                advanced_picks=build_input.advanced_trait_selections)
+            build_input.trait_contributions = _tr.get("contributions") or []
+            _numbed_override = _tr.get("numbed_stacks")
+            if _numbed_override is not None:
+                # Engine-owned in real mode: mark manual so _apply_cond_effects' support max-rule won't clobber it.
+                condition_state["numbed_stacks"] = _numbed_override
+                manual_cond_keys.add("numbed_stacks")
+            # Engine-owned conditions a trait sets each pass (e.g. Rosa sets the dominant infiltration so the
+            # aggregator applies it). Written before _derive_views so the same pass picks them up; marked manual.
+            for _ck, _cv in (_tr.get("set_conditions") or {}).items():
+                condition_state[_ck] = _cv
+                manual_cond_keys.add(_ck)
         active_booleans, numeric_vals = _derive_views(condition_state)
 
         source = aggregate(
@@ -256,12 +348,13 @@ def compute(
             active_booleans=active_booleans,
             numeric_vals=numeric_vals,
         )
+        source.target_config = build_input.target_config   # editable dummy stats → offense mitigation
 
         # Standard support_skill / activation_medium contributions, resolved against the CURRENT
         # condition_state so conditional lines see converged values and inflicted debuffs feed back.
         std_contribs, cond_effects = resolve_standard_supports(
             build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state, slot_cats,
-            source=source)
+            source=source, curse_slots=curse_slots, empower_slots=empower_slots, slot_skill=slot_skill)
         for c in std_contribs:
             _se = SourceEntry(
                 stat=c["stat_key"], amount=c["amount"], source_type="support",
@@ -280,9 +373,20 @@ def compute(
         # Aura / Focus buffs: scale by the now-fully-aggregated Aura Effect (gear + talents + custom +
         # standard supports + the auras' own) and fold into the source BEFORE derive (so life-regen/resist
         # auras feed derived stats too). Runs each pass so the self-feedback converges with the loop.
-        from engine.utility import apply_aura_buffs
+        from engine.utility import apply_aura_buffs, apply_empower_buffs
         aura_summaries = apply_aura_buffs(
             source, build_input.aura_buffs, build_input.aura_meta, active_booleans, numeric_vals)
+
+        # Empower (Euphoria) buffs: scale by the now-aggregated Empower Skill Effect (global + slot-local from
+        # the skill + its empower supports) and fold in player-wide. Runs each pass like the auras.
+        empower_summaries = apply_empower_buffs(
+            source, build_input.empower_buffs, build_input.empower_meta, active_booleans, numeric_vals)
+
+        # Curses: scale each applied curse by the now-aggregated Curse Effect and bake the per-final-type
+        # *_curse_taken enemy-vulnerability pools (consumed by offense). Runs each pass like the auras so curse
+        # effect / curse limit converge. enemy_cursed is auto-set server-side from curse presence (see server.py).
+        from engine.curse_resolver import apply_curses
+        curse_summaries, curse_conflict = apply_curses(source, build_input.curses, condition_state)
 
         # Compute derived stats (strength, armor, max_life, etc.) and inject
         # back into source so the pipeline and condition system can read them.
@@ -293,12 +397,26 @@ def compute(
         derive_stats(source, _set_value_overrides)
         source._recording = False
 
+        # Loop-bottom: capture the converged scalars the trait module's next pass needs (MS total,
+        # ailment duration, and the inflicting skill's APS — computed only in real mode so max-mode pays nothing).
+        if _trait_active:
+            _inflict_aps = (compute_skill_rates(source, _inflict_resolved)["aps"]
+                            if (_uptime_real and _inflict_resolved is not None) else None)
+            hero_traits.stash(_trait_id, source=source, ls_state=_ls_state, inflict_aps=_inflict_aps)
+
         # Mana / Life sealing & reservation — after derive (Max Mana/Life final). Computes Sealed/Unsealed
         # pools from each sealing skill's base seal × support Mana Multipliers ÷ (1 + Compensation); emits Ward
         # ES + Lunar Eclipse damage into the source (converges with the loop). Runs each pass.
         from engine.utility import apply_reservation
         reservation = apply_reservation(
             source, skills_input, skills_by_id, build_input.attached_supports, active_booleans, numeric_vals)
+
+        # Stash converged Max/Unsealed Mana for the next pass's hero-trait apply() (Rosa Realm scaling tracks the
+        # unsealed fraction). Runs after reservation each pass; converges with the loop. stash() (above) runs before
+        # reservation, so this is the only place the trait can read accurate unsealed mana.
+        if _trait_active:
+            _ls_state["max_mana"] = reservation["max_mana"]
+            _ls_state["unsealed_mana"] = reservation["unsealed_mana"]
 
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS
@@ -326,9 +444,21 @@ def compute(
             condition_state["at_full_life"] = _clp >= 100.0
             condition_state["life_lost_pct"] = max(0.0, 100.0 - _clp)
 
+        # Squidnova (Squiddle pact spirit): auto-enable "having Squidnova" when Squiddle is equipped (its source
+        # line emits has_squidnova_flag), since bursting reliably grants it — sustained-uptime approximation. The
+        # gated "when having Squidnova" lines (+Spell Damage, rank-6 +1 Max Spell Burst) then apply.
+        if source.total("has_squidnova_flag") > 0:
+            condition_state["has_squidnova"] = True
+
         # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
-        # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values.
-        _apply_cond_effects(condition_state, cond_effects, main_dtypes, manual_cond_keys)
+        # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values. Non-support
+        # "inflicts Numbed" sources (talents/gear/custom mods) ride the same path via inflict_cond_effects.
+        _apply_cond_effects(condition_state, list(cond_effects) + list(build_input.inflict_cond_effects),
+                            main_dtypes, manual_cond_keys)
+        # H — "cannot inflict Numbed" overrides everything (even a user-set value): no Numbed at all.
+        if build_input.numbed_blocked:
+            condition_state["enemy_numbed"] = False
+            condition_state["numbed_stacks"] = 0.0
 
         maxes = derive_condition_maximums(source)
         mins = derive_condition_minimums(source)
@@ -346,10 +476,29 @@ def compute(
             if _key in maxes:
                 condition_state[_key] = maxes[_key]
 
+        # Unmatched Valor (Ethereal Prism): grants Have Fervor + pins Fervor Rating to a FIXED 130, set after
+        # user input + automax so nothing can lower it (cap is already 130 in conditions.json).
+        if condition_state.get("unmatched_valor"):
+            condition_state["fervor"] = True
+            condition_state["fervor_rating"] = 130.0
+
+        # Frostbite Rating (auto-derived, NOT user-set): 10 base + Max Frostbite Rating sources, only while
+        # the enemy is Frostbitten. Capped at 120 normally; Condensed Frost lifts the cap to 200 (its over-120
+        # bonus is applied in the aggregator's enemy-vuln bake). Freeze: rating > 100 auto-sets enemy_frozen.
+        if condition_state.get("enemy_frostbitten"):
+            _raw = 10.0 + source.total("max_frostbite_rating_flat")
+            _cap = 200.0 if condition_state.get("condensed_frost") else 120.0
+            condition_state["frostbite_rating"] = min(_raw, _cap)
+        else:
+            condition_state["frostbite_rating"] = 0.0
+        if "enemy_frozen" not in manual_cond_keys:
+            condition_state["enemy_frozen"] = condition_state["frostbite_rating"] > 100.0
+
         new_state = _clamp_and_rederive(condition_state, maxes, mins)
         snapshot = _state_snapshot(new_state)
 
         if snapshot == prev_snapshot:
+            _converged_iters = iteration + 1
             break
         prev_snapshot = snapshot
         condition_state = new_state
@@ -359,6 +508,10 @@ def compute(
             "Returning last computed state. Check for circular/contradictory mechanics.",
             _MAX_ITERS,
         )
+
+    if _trait_active:
+        log.debug("hero trait %s (uptime=%s) converged in %d passes",
+                  _trait_id, build_input.uptime_mode, _converged_iters)
 
     # The numeric-condition cap/floor reads (max_*_blessing_stacks_flat, max_fervor_rating, …) happen in
     # the fixed-point loop above with recording OFF, so a node that ONLY raises a cap would false-badge
@@ -398,30 +551,9 @@ def compute(
             "points": entry.points,
         })
 
-    # Slot-local contributions (supports / skill self-buffs) live in slot_log, NOT source_log, so they're
-    # absent from `total`/`sources` above. Surface them in a parallel `slot_sources` list per stat so the
-    # source breakdown can show them under a "Skill-specific (slot N)" group — without breaking the
-    # total == sum(sources) invariant. Only attached when non-empty, so unaffected builds stay byte-identical.
-    for entry in source.slot_log:
-        if entry.stat not in stat_map:
-            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
-            stat_map[entry.stat] = {
-                "display_name": meta.display_name if meta else entry.stat,
-                "category": meta.category if meta else "Other",
-                "unit": meta.unit if meta else "",
-                "total": 0.0,
-                "sources": [],
-            }
-        stat_map[entry.stat].setdefault("slot_sources", []).append({
-            "source_type": entry.source_type,
-            "label": entry.label,
-            "text": entry.text,
-            "source_name": entry.source_name,
-            "amount": entry.amount,
-            "points": entry.points,
-            "slot": entry.slot,
-            "scope": entry.scope,
-        })
+    # (Slot-local contributions are merged into stat_map AFTER the offense pass below — apply_slot_effects emits
+    # some of them during offense, so they aren't all in source.slot_log yet here. See the slot_log merge near
+    # the return.)
 
     # Add derived effective stats as the "Character" section of the stat sheet
     from engine.derive import ALL_DERIVED_STATS as _DERIVED
@@ -463,6 +595,7 @@ def compute(
     from engine.defense import calculate_defense
     from engine.offense import calculate_offense, skill_effective_level
     from engine.skill_resolver import resolve_skill
+    from engine import skill_charges
 
     # Record stat consumption across the offense + defense passes (defensive stats always read;
     # offense reads only what the active/modeled skill's pipeline touches — an unmodeled skill
@@ -475,7 +608,7 @@ def compute(
     _behavior = build_input.support_behavior or {}
     _behavior_by_slot = _behavior if all(isinstance(k, int) for k in _behavior) else {1: _behavior}
 
-    def _offense_for_slot(resolved, level, slot, is_main):
+    def _offense_for_slot(resolved, level, slot, is_main, skill_dict=None):
         """Compute one slot's offense, folding only that slot's slot-local contributions. The skill's
         skill_effects module (if any) emits its slot-local effects first — Berserking Blade's intrinsic
         buff + Sweep/Rampage, Focused Slash's Behead/Tranquility, Moon Strike's Rainbow/Lunar Ring — and
@@ -490,16 +623,68 @@ def compute(
         # Intrinsic additionals read the slot-EFFECTIVE source so a slot-local amplifier (e.g. Tranquility's
         # fervor_effect_additional) scopes to the skill's bonus without touching the global Fervor→crit.
         extra = _eval_intrinsic_additional(resolved, eff, new_state)
+        # ── Tangle mode ── the slot is "tangled" if an activator support (Spell Tangle / Activation Medium:
+        # Tangle) is enabled on a Spell skill: the spell is cast by N attached tangles, not the player.
+        tangle = None
+        if resolved.is_spell and any(
+                s.get("item_id") in _TANGLE_ACTIVATORS and s.get("enabled", True)
+                for s in (build_input.attached_supports or []) if s.get("slot", 1) == slot):
+            placeable = 2 + int(eff.total("max_tangle_quantity_flat"))
+            attach_cap = max(0, min(1 + int(eff.total("extra_tangle_applied_flat")), placeable))
+            user = new_state.get("active_tangles")
+            active = min(int(user), attach_cap) if (user and float(user) > 0) else attach_cap
+            inactivated = max(0, placeable - active)
+            # Dormant Entanglement: +40% additional Tangle Damage per INACTIVATED tangle. Enabled by the user
+            # condition OR a granting source flag (Acquaintance core talent / gear). One pooled additional factor
+            # (1 + 0.40·n), applied via the tangle tag in calculate_offense.
+            has_dormant = new_state.get("has_dormant_entanglement") or eff.total("has_dormant_entanglement_flag") > 0
+            if has_dormant and inactivated > 0:
+                eff.add("tangle_dmg_additional", 0.40 * inactivated)
+            tangle = {"count": active, "placeable": placeable, "inactivated": inactivated}
+        # ── Spell Burst mode ── M ≥ 1 (Max Spell Burst) makes an eligible Spell burst inherently; an enabler
+        # support (Raging Storm / Wax and Wane / Psychic Burst) grants it to otherwise-ineligible skills.
+        # Tangle and Spell Burst are mutually exclusive (a tangled spell is cast by the tangles, not bursting).
+        spell_burst = None
+        if tangle is None:
+            M = int(eff.total("max_spell_burst_flat"))
+            slot_supports = [s for s in (build_input.attached_supports or [])
+                             if s.get("slot", 1) == slot and s.get("enabled", True)]
+            slot_support_ids = {s.get("item_id") for s in slot_supports}
+            enabler = bool(slot_support_ids & _SPELL_BURST_ENABLERS)
+            tags_lower = {t.lower() for t in resolved.tags}
+            cooldown = skill_charges.skill_cooldown(skill_dict) if skill_dict else None
+            inherent = (resolved.is_spell
+                        and resolved.channeled is None   # a channeled spell ramps stacks, it doesn't burst
+                        and not (tags_lower & _SPELL_BURST_DISALLOWED_TAGS)
+                        and not cooldown)
+            able = M >= 1 and (inherent or enabler)
+            active_cond = new_state.get("spell_burst_active", True)
+            if able and active_cond:
+                # Auto-trigger: the manual toggle here; gear/support sources (Burst Activation flag, Solid River /
+                # Vorax conditional threshold) are stat-driven and finalized in offense (it needs charge_factor).
+                auto_source = ""
+                if new_state.get("spell_burst_auto_trigger"):
+                    auto_source = "Auto-Trigger (toggled on)"
+                auto = bool(auto_source)
+                # Ramped per-support burst-damage bonuses (Heart of Flame / Prairie Fire — owner §7).
+                for sid in slot_support_ids:
+                    spec = _SPELL_BURST_BONUS_SUPPORTS.get(sid)
+                    if not spec:
+                        continue
+                    n = min(M, spec["cap"]) if spec["mode"] == "per_stack" else spec["cap"]
+                    if n > 0:
+                        eff.add("spell_burst_hit_dmg_additional", spec["pct"] * n)
+                spell_burst = {"count": M, "auto": auto, "auto_source": auto_source}
         return asdict(calculate_offense(
             eff, resolved, level, is_main_skill=is_main, extra_additional=extra,
             support_behavior=_behavior_by_slot.get(slot, {}),
-            remove_mod_tags=overrides.get("remove_mod_tags")))
+            remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst))
 
     result_offense = None
     slot_offense: dict[int, dict] = {}
     if skill_data and build_input.main_skill and main_enabled:
         result_offense = _offense_for_slot(
-            resolve_skill(skill_data), build_input.main_skill.level, main_slot, True)
+            resolve_skill(skill_data), build_input.main_skill.level, main_slot, True, skill_dict=skill_data)
         slot_offense[main_slot] = result_offense
 
     # Secondary active skill slots — each computed independently, folding only ITS slot's supports (no
@@ -515,8 +700,30 @@ def compute(
             resolved_sk = resolve_skill(sd)
             if not resolved_sk.supported:
                 continue
-            slot_offense[sk["slot"]] = _offense_for_slot(resolved_sk, sk["level"], sk["slot"], False)
+            slot_offense[sk["slot"]] = _offense_for_slot(resolved_sk, sk["level"], sk["slot"], False, skill_dict=sd)
     source._recording = False
+
+    # ── General build warnings (player diagnostics; extensible) ───────────────
+    # Ineffective curse: an applied curse amplifies a damage type the build doesn't actually deal (e.g. an
+    # Electrocute Lightning curse when 100% of the lightning is converted to cold) → it contributes nothing.
+    warnings: list[dict] = []
+    dealt_types: set[str] = set()
+    for _off in [result_offense, *slot_offense.values()]:
+        for _t, _v in ((_off or {}).get("damage_by_type") or {}).items():
+            if _v and _v > 0:
+                dealt_types.add(_t)
+    if dealt_types:   # only when the build actually computes damage (else we can't judge effectiveness)
+        for c in curse_summaries:
+            sk = c.get("stat_key")
+            if not (c.get("applied") and c.get("modeled") and sk) or sk == "hit_curse_taken":
+                continue
+            ctype = sk.replace("_curse_taken", "")
+            if ctype not in dealt_types:
+                warnings.append({
+                    "kind": "ineffective_curse",
+                    "text": f"{c['curse_name']} amplifies {ctype.capitalize()} Damage taken, but this build deals "
+                            f"no {ctype.capitalize()} damage (converted away?) — this curse contributes nothing.",
+                })
 
     # Skill slot summaries — effective level for every equipped skill
     result_skill_slots: list[dict] | None = None
@@ -571,8 +778,62 @@ def compute(
                                "taken_inc": source.total("numbed_lightning_taken")})
     target_stats = {**target_profile(source), "debuffs": _debuffs, "debuff_details": debuff_details}
 
+    # ── Numbed ailment box (player-stats display) ─────────────────────────────
+    # Base +5% Lightning Damage taken per stack (11% if Conductive), scaled by the increased + additional
+    # Numbed Effect pools. Duration is the per-stack lifetime (base 2s × Ailment Duration). In real uptime
+    # mode the trait module also exposes the Feline Figure application rate + the (possibly doubled) FF
+    # Numbed duration that produced the steady-state stacks.
+    _ail_dur = source.total("ailment_duration_inc")
+    _conductive = "core_conductive" in (active_booleans or frozenset())
+    from engine.offense import additional_total_product
+    numbed = {
+        "base_per_stack": 0.11 if _conductive else 0.05,
+        "conductive": _conductive,
+        "duration": 2.0 * (1.0 + _ail_dur),
+        "stacks": _numbed,
+        "max_stacks": 10.0,
+        "effect_inc": source.total("numbed_effect_inc"),
+        # Effective additional = Π(1+each) − 1 (distinct sources multiply, same-text sum) — matches the calc,
+        # NOT the raw sum. So the box's ×(1+effect_additional) shows the real multiplier the engine applies.
+        "effect_additional": additional_total_product(source, "numbed_effect_additional") - 1.0,
+        "lightning_taken": source.total("numbed_lightning_taken"),
+        "uptime_mode": build_input.uptime_mode,
+    }
+    if _trait_active and _uptime_real:
+        _ff_dur = 2.0 * (1.0 + _ail_dur)
+        if "Electroplated Motif" in (build_input.advanced_trait_selections or []):
+            _ff_dur *= 2.0
+        numbed["ff_duration"] = _ff_dur
+        numbed["application_rate"] = min(float(_ls_state.get("inflict_aps", 0.0) or 0.0), 1.0)
+
     from engine.aggregator import blessings_summary
     blessings = blessings_summary(active_booleans, numeric_vals, source)
+
+    # Slot-local contributions (supports / skill self-buffs) live in slot_log, NOT source_log, so they're absent
+    # from `total`/`sources`. Surface them in a parallel `slot_sources` list per stat so the breakdown can show
+    # them under a "Skill-specific (slot N)" group. Done HERE (after the offense pass) because apply_slot_effects
+    # emits some slot-local stats during offense (e.g. Furious Sweep's Gale-frequency-additional) — building this
+    # earlier would miss them. Display-only; never touches `total`/`sources`, so totals stay byte-identical.
+    for entry in source.slot_log:
+        if entry.stat not in stat_map:
+            meta = next((m for s, m in STAT_META.items() if s.value == entry.stat), None)
+            stat_map[entry.stat] = {
+                "display_name": meta.display_name if meta else entry.stat,
+                "category": meta.category if meta else "Other",
+                "unit": meta.unit if meta else "",
+                "total": 0.0,
+                "sources": [],
+            }
+        stat_map[entry.stat].setdefault("slot_sources", []).append({
+            "source_type": entry.source_type,
+            "label": entry.label,
+            "text": entry.text,
+            "source_name": entry.source_name,
+            "amount": entry.amount,
+            "points": entry.points,
+            "slot": entry.slot,
+            "scope": entry.scope,
+        })
 
     return StatResult(
         stat_map=stat_map,
@@ -586,5 +847,11 @@ def compute(
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,
         blessings=blessings,
         aura_summaries=aura_summaries,
+        empower_summaries=empower_summaries,
+        curse_summaries=curse_summaries,
+        curse_conflict=curse_conflict,
+        warnings=warnings,
         reservation=reservation,
+        numbed=numbed,
+        referenced_conditions=sorted(source.referenced_conditions),
     )

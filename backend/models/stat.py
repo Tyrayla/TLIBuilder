@@ -48,6 +48,9 @@ class Stat(Enum):
     # ── Attack ───────────────────────────────────────────────────────────────
     ATTACK_DMG_INC = "attack_dmg_inc"
     ATTACK_DMG_ADDITIONAL = "attack_dmg_additional"
+    # Additional damage scoped to the MAIN-HAND weapon's share of an attack hit (e.g. Rosa Born to Cleanse).
+    # A standard additional multiplier, applied only to the weapon1 base portion (offense injects it into the flat).
+    MAIN_HAND_DMG_ADDITIONAL = "main_hand_dmg_additional"
     ATTACK_DOUBLE_DMG_CHANCE = "attack_double_dmg_chance"
     ATTACK_SKILL_LEVEL = "attack_skill_level"
     TWO_HANDED_BASE_DMG_ADDITIONAL = "two_handed_base_dmg_additional"
@@ -57,12 +60,28 @@ class Stat(Enum):
     # ── Spell ────────────────────────────────────────────────────────────────
     SPELL_DMG_INC = "spell_dmg_inc"
     SPELL_DMG_ADDITIONAL = "spell_dmg_additional"
+    # Flag (Rosa Unsullied Blade): when >0, Spell DAMAGE pools (spell_dmg_inc/additional + per-element spell damage)
+    # ALSO apply to attack skills — offense augments the damage-pool tag set with "spell" for attacks.
+    SPELL_DMG_TO_ATTACK = "spell_dmg_to_attack"
     SPELL_DOUBLE_DMG_CHANCE = "spell_double_dmg_chance"
     SPELL_SKILL_LEVEL = "spell_skill_level"
     SPELL_BURST_CHARGE_SPEED_INC = "spell_burst_charge_speed_inc"
     SPELL_BURST_CHARGE_SPEED_ADDITIONAL = "spell_burst_charge_speed_additional"
     SPELL_BURST_CHANCE_GAIN_STACKS_FLAT = "spell_burst_chance_gain_stacks_flat"
     SPELL_BURST_HIT_DMG_ADDITIONAL = "spell_burst_hit_dmg_additional"
+    # Auto-trigger sources (stat-driven so the mod lines badge Consumed). _FLAG = unconditional (Burst Activation);
+    # _CHARGE_THRESHOLD = conditional charge-factor threshold (Solid River: auto only when charge speed ≥ N×base).
+    SPELL_BURST_AUTO_TRIGGER_FLAG = "spell_burst_auto_trigger_flag"
+    SPELL_BURST_AUTO_CHARGE_THRESHOLD = "spell_burst_auto_charge_threshold"
+    # Coefficient: N% of Attack Speed bonuses also apply to Spell Burst Charge Speed (Insatiable Greed, 1.5).
+    ATTACK_SPEED_TO_SPELL_BURST_CHARGE = "attack_speed_to_spell_burst_charge"
+    # Solid River: "For every +X% Spell Burst Charge Speed, +Y% burst hit damage, up to +Z%" (stepwise, capped).
+    CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG = "charge_speed_to_spell_burst_hit_dmg"
+    CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG_PER = "charge_speed_to_spell_burst_hit_dmg_per"
+    CHARGE_SPEED_TO_SPELL_BURST_HIT_DMG_CAP = "charge_speed_to_spell_burst_hit_dmg_cap"
+    # Squiddle / Squidnova (pact spirit): bursting grants Squidnova → conditional buff; Effect scales it.
+    SQUIDNOVA_EFFECT_INC = "squidnova_effect_inc"
+    HAS_SQUIDNOVA_FLAG = "has_squidnova_flag"
 
     # ── Melee ────────────────────────────────────────────────────────────────
     MELEE_DMG_INC = "melee_dmg_inc"
@@ -105,6 +124,7 @@ class Stat(Enum):
     MINION_CAST_SPEED_INC = "minion_cast_speed_inc"
     MINION_LIFE_REGEN_SPEED_INC = "minion_life_regen_speed_inc"
     MINION_MULTISTRIKE_CHANCE = "minion_multistrike_chance"
+    MINION_MULTISTRIKE_INCREASING_DMG_INC = "minion_multistrike_increasing_dmg_inc"
     MINION_IGNITE_CHANCE = "minion_ignite_chance"
     MINION_AFFLICTION_EFFECT_INC = "minion_affliction_effect_inc"
     MINION_AFFLICTION_PER_SECOND_FLAT = "minion_affliction_per_second_flat"
@@ -328,6 +348,8 @@ class Stat(Enum):
     WILT_DMG_FLAT_MIN = "wilt_dmg_flat_min"
     WILT_DMG_FLAT_MAX = "wilt_dmg_flat_max"
     WILT_CHANCE = "wilt_chance"
+    # Chance to inflict an ADDITIONAL stack of Wilt (distinct mechanic from WILT_CHANCE = chance to inflict at all).
+    WILT_ADDITIONAL_STACK_CHANCE = "wilt_additional_stack_chance"
     WILT_DURATION_INC = "wilt_duration_inc"
 
     # ── Tangle ───────────────────────────────────────────────────────────────
@@ -335,7 +357,11 @@ class Stat(Enum):
     TANGLE_DURATION_INC = "tangle_duration_inc"
     TANGLE_DURATION_ADDITIONAL = "tangle_duration_additional"
     MAX_TANGLE_QUANTITY_FLAT = "max_tangle_quantity_flat"
-    EXTRA_TANGLE_APPLIED_FLAT = "extra_tangle_applied_flat"  # +N Tangles applied per application
+    EXTRA_TANGLE_APPLIED_FLAT = "extra_tangle_applied_flat"  # +N Tangles attachable per enemy
+    TANGLE_DMG_ADDITIONAL = "tangle_dmg_additional"          # additional pool (multiplicative); Dormant Entanglement
+    TANGLE_DMG_ENHANCEMENT_ADDITIONAL = "tangle_dmg_enhancement_additional"  # SEPARATE multiplier, additive within itself (matches *_enhancement_additional convention)
+    TANGLE_CRIT_RATING_FLAT = "tangle_crit_rating_flat"      # added to the tangled skill's crit rating
+    TANGLE_ATTACH_RANGE_INC = "tangle_attach_range_inc"      # display/tracked (base 8m); not a DPS factor
 
     # ── Trauma ───────────────────────────────────────────────────────────────
     TRAUMA_DMG_INC = "trauma_dmg_inc"
@@ -368,6 +394,12 @@ class Stat(Enum):
 
     # ── Status Effects ───────────────────────────────────────────────────────
     NUMBED_EFFECT_INC = "numbed_effect_inc"
+    # "additional Numbed Effect" — a separate MULTIPLICATIVE pool from numbed_effect_inc (e.g. Erika
+    # Lightning Shadow). per_stack = base × (1+Σ inc) × (1+Σ additional). See aggregator Numbed block.
+    NUMBED_EFFECT_ADDITIONAL = "numbed_effect_additional"
+    # Raises the Electrify stack cap (Erika Lightning Shadow — Dazzling Lightning). Feeds the
+    # electrify_stacks condition's max_from_stat.
+    MAX_ELECTRIFY_STACKS_FLAT = "max_electrify_stacks_flat"
     NUMBED_THRESHOLD_INC = "numbed_threshold_inc"
     # Enemy-vulnerability: additional Lightning Damage the target takes from Numbed stacks.
     # Engine-injected by the aggregator (not a gear/talent affix); consumed by offense's
@@ -385,10 +417,54 @@ class Stat(Enum):
     FIRE_INFILTRATION_TAKEN = "fire_infiltration_taken"
     COLD_INFILTRATION_TAKEN = "cold_infiltration_taken"
     LIGHTNING_INFILTRATION_TAKEN = "lightning_infiltration_taken"
+    # Curse enemy-vulnerability pools — "+X% additional <type> Damage taken" baked from an applied curse skill,
+    # scaled by Curse Effect, consumed per FINAL damage type by offense's enemy-vulnerability stage (so they're
+    # conversion-correct). Per-type for the elemental/physical/erosion curses; hit_curse_taken (Timid) is all hit.
+    PHYSICAL_CURSE_TAKEN = "physical_curse_taken"
+    FIRE_CURSE_TAKEN = "fire_curse_taken"
+    COLD_CURSE_TAKEN = "cold_curse_taken"
+    LIGHTNING_CURSE_TAKEN = "lightning_curse_taken"
+    EROSION_CURSE_TAKEN = "erosion_curse_taken"
+    HIT_CURSE_TAKEN = "hit_curse_taken"
     SLOW_CHANCE = "slow_chance"
     SLOW_EFFECT_RECEIVED_INC = "slow_effect_received_inc"
     BLIND_CHANCE = "blind_chance"
     PARALYSIS_EFFECT_2H_INC = "paralysis_effect_2h_inc"
+    # No Guard (Rosa High Court Chariot — Desperation): a GLOBAL enemy-vulnerability debuff inflicted on the
+    # at-max channeled dump. no_guard_dmg_taken is engine-computed by the trait module (base 10% × (1+stacks-lost)
+    # × (1+Block-Ratio effect)) and consumed by offense's enemy-vulnerability stage like paralysis_dmg_taken.
+    # no_guard_self_dmg_taken is the PLAYER self-debuff (No Guard hits you too) — emitted but NOT yet consumed by
+    # defense (NYI; lands with the conditional-defense path), so it surfaces with an NYI badge.
+    NO_GUARD_DMG_TAKEN = "no_guard_dmg_taken"
+    NO_GUARD_SELF_DMG_TAKEN = "no_guard_self_dmg_taken"
+    # Tide (Selena — Sing with the Tide): a GLOBAL enemy-vulnerability debuff while the enemy stands on a Tide
+    # (base +5-20% by trait level, × Tide Effect). Engine-computed by the trait module, consumed by offense's
+    # enemy-vulnerability stage like no_guard_dmg_taken.
+    TIDE_DMG_TAKEN = "tide_dmg_taken"
+    # Tide Effect (Selena): the effect-scalar that amplifies the Tide's damage bonuses (your on-Tide +15%, Wave
+    # Aria, Idyll, and the enemy Tide damage-taken). Standard effect pooling: tide_mult = (1 + Σ inc) ×
+    # Π(1 + additional). Only the Selena trait emits these today (no gear/parser source).
+    TIDE_EFFECT_INC = "tide_effect_inc"
+    TIDE_EFFECT_ADDITIONAL = "tide_effect_additional"
+    # Mercury Baptism (Rosa — Unsullied Blade): recorded fraction (0.12-0.44) of non-channeled attack ELEMENTAL hit
+    # damage, re-dealt as TRUE damage. Read by the offense Mercury Baptism stage.
+    MERCURY_BAPTISM_FRACTION = "mercury_baptism_fraction"
+    # Spell Ripple (Ethereal Prism): fraction (0.75 = 50% chance × 150%) of spell hit damage re-dealt as TRUE
+    # damage. Read by the offense Spell Ripple stage.
+    SPELL_RIPPLE_FRACTION = "spell_ripple_fraction"
+    # Mercury Points resource (Rosa). max_mercury_points = flat × (1 + inc); feeds Utmost Devotion's per-point ele.
+    MAX_MERCURY_POINTS_FLAT = "max_mercury_points_flat"
+    MAX_MERCURY_POINTS_INC = "max_mercury_points_inc"
+    # Flag (Rosa): the base trait overrides/prevents all non-Mystic-Mercury mana consumption; Utmost Devotion clears
+    # it. Mana-system stat — no DPS consumer yet (mapped for a future mana-cost hookup).
+    MANA_COST_OVERRIDE = "mana_cost_override"
+    # NOTE for the future skill-cost model: there are two DISTINCT cost mechanics, do not conflate them.
+    #   • "Skills no longer cost Mana" (core talent Frozen Lotus; support flag skill_no_mana_cost above) SETS the
+    #     skill's BASE cost to 0 — so any cost increases/multipliers still resolve to 0, and cost-derived effects
+    #     ("per N Mana spent") see 0. It is NOT a cost OVERRIDE/cap on the final value.
+    #   • A cost override/cap (e.g. mana_cost_override) replaces the FINAL paid value.
+    # Today neither is consumed (the engine has no skill mana-cost computation); Frozen Lotus resolves to an
+    # unresolved/NYI status. When skill cost is modeled, Frozen Lotus must zero the BASE cost.
 
     # ── Channeled / Triggered / Combo Mechanics ──────────────────────────────
     CHANNELED_DMG_INC = "channeled_dmg_inc"
@@ -405,8 +481,23 @@ class Stat(Enum):
     BARRAGE_DMG_PER_WAVE_INC = "barrage_dmg_per_wave_inc"
     MULTISTRIKE_CHANCE = "multistrike_chance"
     INITIAL_MULTISTRIKE_COUNT_FLAT = "initial_multistrike_count_flat"
+    # Multiplies the base Multistrike Damage Increment: effective increment = base × (1 + Σ this). Read by the
+    # offense multistrike stage, NOT a damage pool.
+    MULTISTRIKE_INCREASING_DMG_ADDITIONAL = "multistrike_increasing_dmg_additional"
+    # Cat Dive (Wind Stalker): per-attack chance during multistrike to be counted at the Max Multistrike Count
+    # for increment purposes. Read by the offense multistrike stage.
+    MULTISTRIKE_MAX_COUNT_PROC_CHANCE = "multistrike_max_count_proc_chance"
     MAX_CHANNELED_STACKS_FLAT = "max_channeled_stacks_flat"
     MIN_CHANNELED_STACKS_FLAT = "min_channeled_stacks_flat"
+    # Additional strike rate for a channeled persistent entity (Howling Gale's Gale), e.g. Furious Sweep's
+    # "+X% Gale Attack Frequency per channeled stack". offense multiplies the Gale rate by (1 + Σ this).
+    CHANNELED_ATTACK_FREQUENCY_ADDITIONAL = "channeled_attack_frequency_additional"
+    # Icebound Beam canvas supports. Chilling Spike disables the RESET continuous-suppression (beam stays full)
+    # and adds extra penetrating Icy Blades (net single-target blade-equivalents, no shotgun). Ring Blade's
+    # Frozen proc adds full Icy Blade bursts per second while the enemy is Frozen. All engine-read in offense.
+    CONTINUOUS_SUPPRESSION_DISABLE = "continuous_suppression_disable"
+    ICY_BLADE_EXTRA_BLADE_EQUIV = "icy_blade_extra_blade_equiv"
+    ICY_BLADE_FROZEN_BURST_RATE = "icy_blade_frozen_burst_rate"
     JUMP_DMG_FOR_EVERY_ADDITIONAL = "jump_dmg_for_every_additional"  # revisit stacking behavior
 
     # ── Steep Strike ─────────────────────────────────────────────────────────
@@ -417,6 +508,7 @@ class Stat(Enum):
     # ── Cast Speed ───────────────────────────────────────────────────────────
     CAST_SPEED_INC = "cast_speed_inc"
     CAST_SPEED_ADDITIONAL = "cast_speed_additional"
+    WARCRY_CAST_SPEED_INC = "warcry_cast_speed_inc"   # "Warcry Cast Speed" (warcry-scoped; e.g. Lion's Roars)
 
     # ── Attack Speed ─────────────────────────────────────────────────────────
     ATTACK_SPEED_GEAR = "attack_speed_gear"
@@ -458,6 +550,9 @@ class Stat(Enum):
     KNOCKBACK_CHANCE = "knockback_chance"
     KNOCKBACK_DISTANCE_INC = "knockback_distance_inc"
     KNOCKBACK_DISTANCE_ADDITIONAL = "knockback_distance_additional"
+    # Howling Gale — Headwind: GLOBAL enemy-vulnerability (engine-computed by the support, gated on the
+    # enemy_knocked_back condition). Read in offense._enemy_vuln_mult.
+    KNOCKBACK_DMG_TAKEN = "knockback_dmg_taken"
 
     # ── Life ─────────────────────────────────────────────────────────────────
     MAX_LIFE_FLAT = "max_life_flat"
@@ -531,6 +626,9 @@ class Stat(Enum):
     ATTACK_BLOCK_CHANCE_INC = "attack_block_chance_inc"
     SPELL_BLOCK_CHANCE_INC = "spell_block_chance_inc"
     BLOCK_RATIO_INC = "block_ratio_inc"
+    # Raises the Block Ratio Upper Limit (base 60%, max 80%) — Rosa Invulnerability. Block Ratio (base 30%) is
+    # clamped to this limit in defense.py.
+    BLOCK_RATIO_UPPER_LIMIT_FLAT = "block_ratio_upper_limit_flat"
     INTIMIDATING_EFFECT_INC = "intimidating_effect_inc"
     SHIELD_ENERGY_SHIELD_INC = "shield_energy_shield_inc"
     CHEST_DEFENSE_INC = "chest_defense_inc"
@@ -574,7 +672,8 @@ class Stat(Enum):
     REAPING_RECOVERY_SPEED_INC = "reaping_recovery_speed_inc"
 
     # ── Buff / Aura Effects ───────────────────────────────────────────────────
-    MAX_CURSE_FLAT = "max_curse_flat"
+    # (Curse limit lives in CURSE_LIMIT_CAP_FLAT / MAX_CURSES_FLAT below; the old duplicate `max_curse_flat`
+    #  was consolidated into `max_curses_flat`.)
     CURSE_EFFECT_AGAINST_INC = "curse_effect_against_inc"
     TAUNT_ON_HIT_CHANCE = "taunt_on_hit_chance"
     ATTACK_TAUNT_ON_HIT_CHANCE = "attack_taunt_on_hit_chance"
@@ -595,9 +694,16 @@ class Stat(Enum):
     ELIXIR_DURATION_ADDITIONAL = "elixir_duration_additional"
     AURA_EFFECT_INC = "aura_effect_inc"
     AURA_EFFECT_ADDITIONAL = "aura_effect_additional"
+    # Empower Skill Effect — scales the Euphoria buff an empower skill grants (global gear/talents + slot-local from
+    # the skill's own line + its empower supports). Increased sums, additional multiplies (like Aura Effect).
+    EMPOWER_EFFECT_INC = "empower_effect_inc"
+    EMPOWER_EFFECT_ADDITIONAL = "empower_effect_additional"
+    MAX_CHARGE_FLAT = "max_charge_flat"   # "+N Max Charge(s)" — skill charges (cooldown skills only; e.g. Mass Effect)
     CURSE_EFFECT_INC = "curse_effect_inc"
+    CURSE_EFFECT_ADDITIONAL = "curse_effect_additional"   # "+X% additional Curse Effect" (multiplies; e.g. Defile)
     CURSE_SKILL_AREA_INC = "curse_skill_area_inc"
-    MAX_CURSES_FLAT = "max_curses_flat"
+    MAX_CURSES_FLAT = "max_curses_flat"                   # "You can cast N additional Curses" (curse limit +N)
+    CURSE_LIMIT_CAP_FLAT = "curse_limit_cap_flat"         # "You can only cast N Curses" (Hekate's Vision — caps limit)
     FOCUS_SKILL_DMG_ADDITIONAL = "focus_skill_dmg_additional"
     FOCUS_SKILL_SEALED_MANA_COMP_INC = "focus_skill_sealed_mana_comp_inc"
     MARK_EFFECT_INC = "mark_effect_inc"

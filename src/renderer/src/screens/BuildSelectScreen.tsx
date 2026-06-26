@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, Build } from '../api/client'
+import { api, Build, IS_WEB } from '../api/client'
 import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
 import SettingsOverlay from '../components/SettingsOverlay'
 import logoSrc from '../assets/logo.png'
@@ -27,6 +27,13 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
 
   const [aboutOpen, setAboutOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // Open an external link on either platform: desktop routes through the IPC openExternal (system browser),
+  // web falls back to window.open (where window.api doesn't exist).
+  const openExternal = (url: string) => {
+    if (window.api?.openExternal) window.api.openExternal(url)
+    else window.open(url, '_blank', 'noopener,noreferrer')
+  }
   const [importOpen, setImportOpen] = useState(false)
   const [importCode, setImportCode] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
@@ -49,6 +56,9 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   useEffect(() => { loadBuilds() }, [])
 
   useEffect(() => {
+    // Desktop reads the version via IPC; the web build has no IPC, so it uses the version baked in at build
+    // time (vite `define` __APP_VERSION__). `typeof` guard keeps the desktop bundle safe where it's undefined.
+    if (typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__) setVersion(__APP_VERSION__)
     window.api?.getAppVersion?.().then(v => setVersion(v)).catch(() => {})
     window.api?.onUpdateNotAvailable?.(() => setCheckStatus('up-to-date'))
     window.api?.onUpdateAvailable?.(() => setCheckStatus('available'))
@@ -67,7 +77,8 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   }, [importOpen])
 
   const KNOWN_BUILD_KEYS = new Set([
-    'name', 'id', 'slots', 'slates', 'conditions', 'conditionValues', 'conditionState',
+    'name', 'id', 'slots', 'slates', 'slateInventory', 'prisms', 'prismInventory',
+    'conditions', 'conditionValues', 'conditionState',
     'gear', 'skills', 'characterLevel', 'hasPrism', 'traitId',
     'traitLevel', 'traitSlotLevels', 'advancedTraitSelections',
     'heroMemories', 'pactSpirits', 'notes', 'customMods',
@@ -137,7 +148,15 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   return (
     <div className="screen build-select">
       <div className="build-select-top">
-        <div className="build-select-spacer" />
+        <div className="build-select-spacer">
+          <button
+            className="btn btn-sm"
+            onClick={() => openExternal('https://discord.gg/7hEySM4WYx')}
+            style={{ color: '#c7d0ff', borderColor: '#3a3f8a', background: '#1a1c3a' }}
+          >
+            💬 Join the Discord to share feedback or bugs you find!
+          </button>
+        </div>
         <img src={logoSrc} className="build-select-logo" alt="TLI Builder" />
         <div className="build-select-actions">
           {devMode && (
@@ -163,7 +182,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
           <p>Click <strong style={{ color: '#e0e0e0' }}>+ New Build</strong> to get started.</p>
         </div>
       ) : (
-        <div className="build-list">
+        <div className="build-list dark-scroll">
           {builds.map(build => (
             <div key={build.id} className="build-card" onClick={() => onOpenBuild(build)}>
               <div className="build-card-info">
@@ -183,9 +202,11 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
       )}
 
       <div className="build-select-footer">
-        {version && <span className="build-select-version">v{version}</span>}
+        {/* Row 1: version + Check for Update, stacked above Settings/About. */}
         <div className="build-select-footer-actions">
-          <button
+          {version && <span className="build-select-version">v{version}</span>}
+          {/* Auto-update is desktop-only; the web app updates by redeploy + refresh. */}
+          {!IS_WEB && <button
             className="btn btn-sm btn-secondary"
             onClick={handleCheckForUpdate}
             disabled={checkStatus === 'checking'}
@@ -196,7 +217,10 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               : checkStatus === 'available' ? 'Update available'
               : checkStatus === 'error' ? `Check failed`
               : 'Check for Update'}
-          </button>
+          </button>}
+        </div>
+        {/* Row 2: Settings + About. */}
+        <div className="build-select-footer-actions">
           <button
             className="btn btn-sm btn-secondary"
             onClick={() => setSettingsOpen(true)}
@@ -220,6 +244,12 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
             <div className="modal-accent" />
             <h3 className="modal-title">About TLI Builder{version ? ` · v${version}` : ''}</h3>
             <div className="about-modal-body">
+              <h4 className="about-section-title">Guides &amp; Info</h4>
+              <p>
+                Visit the TLI Builder website for guides, FAQs, and more about the project:{' '}
+                <button className="about-link-inline" onClick={() => openExternal('https://about.tlibuilder.com')}>about.tlibuilder.com</button>
+              </p>
+
               <h4 className="about-section-title">Disclaimer</h4>
               <p>
                 <strong>TLI Builder is an unofficial, non-commercial fan-made project.</strong> It is not
@@ -250,8 +280,9 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
                 Discord: <span>tyrayla</span>
               </p>
               <p className="about-links">
-                <button className="about-link-btn" onClick={() => window.api?.openExternal?.('https://tlidb.com')}>TLIDB</button>
-                <button className="about-link-btn" onClick={() => window.api?.openExternal?.('https://github.com/Tyrayla/TLIBuilder')}>GitHub</button>
+                <button className="about-link-btn" onClick={() => openExternal('https://about.tlibuilder.com')}>Website</button>
+                <button className="about-link-btn" onClick={() => openExternal('https://tlidb.com')}>TLIDB</button>
+                <button className="about-link-btn" onClick={() => openExternal('https://github.com/Tyrayla/TLIBuilder')}>GitHub</button>
               </p>
             </div>
             <div className="modal-actions">
