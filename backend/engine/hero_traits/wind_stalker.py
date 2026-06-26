@@ -17,6 +17,9 @@ Owner-confirmed modeling (2026-06-22):
   its "+1 Max Stalker" raises the Stalker cap (3 → up to 6). Tiers are signed (L1 is −4%).
 - Stalker stacks are a user-set `stalker_stacks` condition defaulting to the effective max (3 base, 6 w/ Cat's Vision).
 - Artificial Moon's enemy Mark is a damage-taken debuff — NYI (surfaced, not computed).
+- Cat's Punches (L75, pick-one with Cat Dive; owner-confirmed 2026-06-26): +1 Initial Multistrike Count per 3
+  Stalker stacks (hard steps of 3 → floor(stacks/3)) + a per-rank flat additional-damage bonus that is ALWAYS
+  active (not multistrike-gated). Its "generates a Stalker stack at max count" clause is flavor — no cap change.
 """
 from __future__ import annotations
 
@@ -37,6 +40,7 @@ _HAVE_FUN_AS_ADDITIONAL = [0.02, 0.06, 0.12, 0.18, 0.24]  # general additional A
 _CATS_VISION_DMG = [-0.04, 0.02, 0.08, 0.14, 0.20]        # flat additional damage (signed) while picked
 _CATS_SCRATCH_INC_ADDITIONAL = [0.27, 0.34, 0.41, 0.48, 0.55]  # additional Multistrike Damage Increment (max-count)
 _CAT_DIVE_PER_MS = [0.0024, 0.0027, 0.003, 0.0033, 0.0036]     # proc chance per +1% Movement Speed
+_CATS_PUNCHES_DMG = [-0.18, -0.12, -0.06, 0.0, 0.06]          # flat additional damage (signed, ALWAYS active)
 
 # Node → slot_levels index. trait_slot_levels = [base, lv45, lv60, lv75].
 _SLOT_BASE, _SLOT_45, _SLOT_60, _SLOT_75 = 0, 1, 2, 3
@@ -128,6 +132,22 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
                                  f"Cat's Scratch: +{_CATS_SCRATCH_INC_ADDITIONAL[t] * 100:.0f}% additional Multistrike damage increment",
                                  "Cat's Scratch"))
 
+    # ── Cat's Punches (75, pick-one with Cat Dive): +1 Initial Multistrike Count per 3 Stalker stacks (hard steps
+    #    of 3 → floor(stacks/3); pre-stacks the multistrike increment, adds no attacks) + a flat additional-damage
+    #    bonus that is ALWAYS active (the line is not gated on multistriking). The "generates a Stalker stack at max
+    #    count" clause is flavor — it does NOT raise the Stalker cap (owner-confirmed). ──
+    if "Cat's Punches" in picks and _enabled(slot_levels, _SLOT_75):
+        t = _tier(slot_levels, _SLOT_75)
+        init = int(stalker_stacks // 3)
+        if init > 0:
+            contribs.append(_contrib("initial_multistrike_count_flat", float(init),
+                                     f"Cat's Punches: +{init} Initial Multistrike Count "
+                                     f"(1 per 3 Stalker stacks × {stalker_stacks:.0f})", "Cat's Punches"))
+        dmg = _CATS_PUNCHES_DMG[t]
+        if dmg != 0:
+            contribs.append(_contrib("dmg_additional", dmg,
+                                     f"Cat's Punches: {dmg * 100:+.0f}% additional damage", "Cat's Punches"))
+
     # ── Cat Dive (75): per-attack chance to count at the chain's max count = rate × Movement-Speed% ──
     if "Cat Dive" in picks and _enabled(slot_levels, _SLOT_75):
         t = _tier(slot_levels, _SLOT_75)
@@ -184,6 +204,8 @@ def status_lines(*, slot_levels, advanced_picks, **_):
         working("Cat's Vision: +1 Max Stalker at max count (up to +3) + flat additional damage", "Cat's Vision")
     if "Cat's Scratch" in picks:
         working("Cat's Scratch: +additional Multistrike damage increment when the max count is reached", "Cat's Scratch")
+    if "Cat's Punches" in picks:
+        working("Cat's Punches: +1 Initial Multistrike Count per 3 Stalker stacks + flat additional damage (always active)", "Cat's Punches")
     if "Cat Dive" in picks:
         working("Cat Dive: chance per attack to deal damage as the chain's max Multistrike count (scales with Movement Speed)", "Cat Dive")
     return out

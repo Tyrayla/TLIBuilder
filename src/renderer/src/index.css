@@ -3562,6 +3562,38 @@ span.gear-affix-label {
 
 .hero-trait-variant-label { font-size: 12px; color: #666688; }
 
+/* Custom hero-trait dropdown (replaces the native <select> so the community slang label can be lavender). */
+.ht-dd { position: relative; min-width: 240px; }
+.ht-dd-trigger {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: #0e0e2a; border: 1px solid #3a3a6a; border-radius: 4px;
+  color: #c0c0e0; font-size: 13px; font-family: inherit; padding: 5px 10px; cursor: pointer;
+}
+.ht-dd-trigger:hover { border-color: #5a4ea0; background: #15153a; }
+.ht-dd-trigger-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-dd-caret { color: #9a9ac8; font-size: 9px; margin-left: auto; flex-shrink: 0; }
+/* The community slang ("Thea 1") — small, light lavender. */
+.ht-dd-slang { font-size: 11px; font-weight: 400; color: #b8a8e8; flex-shrink: 0; }
+.ht-dd-backdrop { position: fixed; inset: 0; z-index: 300; }
+.ht-dd-menu {
+  position: absolute; top: calc(100% + 3px); left: 0; min-width: 260px; z-index: 301;
+  background: #0d0d20; border: 1px solid #3a3a6a; border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6); padding: 4px; max-height: 70vh; overflow-y: auto;
+}
+.ht-dd-group-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #7a7aa8;
+  font-weight: 700; padding: 6px 8px 2px;
+}
+.ht-dd-item {
+  width: 100%; display: flex; align-items: baseline; gap: 8px;
+  background: none; border: none; color: #d2d4ee; font-size: 12px; text-align: left;
+  padding: 5px 10px; border-radius: 4px; cursor: pointer;
+}
+.ht-dd-item:hover { background: #221a44; color: #ffffff; }
+.ht-dd-item.active { color: #ffffff; font-weight: 600; background: #1a1040; }
+.ht-dd-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-dd-item .ht-dd-slang { margin-left: auto; }
+
 .hero-trait-body {
   flex: 1;
   overflow-y: auto;
@@ -3599,10 +3631,10 @@ span.gear-affix-label {
   min-height: 60px;
 }
 
-/* Tier columns — fill remaining width */
+/* Tier columns — fill remaining width, with breathing room between levels */
 .trait-tiers-row {
   display: flex;
-  gap: 0;
+  gap: 28px;
   align-items: flex-start;
   flex: 1;
 }
@@ -3637,6 +3669,49 @@ span.gear-affix-label {
   width: 100%;
 }
 .trait-tier-sub-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #553333; font-weight: 700; text-align: center; }
+
+/* Node groups (guaranteed + pick groups). The top border is the consistent connector line across every level —
+   it sits at the same y in all tier columns (the rows above it are fixed height), so single-option levels no
+   longer float higher than pick levels. */
+.ht-groups {
+  display: flex; flex-direction: column; align-items: center; gap: 22px; width: 100%;
+  margin-top: 8px; padding-top: 16px; border-top: 1px solid #2a2a4a;
+}
+.ht-group { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.ht-group-label {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #6a6a90; font-weight: 700; text-align: center;
+}
+/* Pick-one group: a split circle (vertical slices, one per option) that expands on click. */
+.ht-pick { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ht-pick-circle {
+  position: relative; width: 80px; height: 80px; border-radius: 50%; overflow: hidden;
+  border: 2px solid #2a2a4a; background: #0e0e1e; cursor: pointer;
+}
+.ht-pick-circle.selected { border-color: #7a6cc8; }
+.ht-pick-circle.locked { opacity: 0.35; cursor: default; }
+.ht-pick-slices { position: absolute; inset: 0; display: flex; }
+.ht-pick-slice { flex: 1; background-size: cover; background-position: center; border-right: 1px solid rgba(0,0,0,0.45); }
+.ht-pick-slice:last-child { border-right: none; }
+.ht-pick-slice.dim { opacity: 0.4; filter: grayscale(0.5); }
+.ht-pick-count {
+  position: absolute; bottom: 2px; right: 3px; font-size: 9px; color: #d0d0ee;
+  background: rgba(0,0,0,0.55); border-radius: 3px; padding: 0 3px; pointer-events: none;
+}
+.ht-pick-caption { font-size: 11px; color: #9a9ac8; text-align: center; max-width: 120px; line-height: 1.2; }
+/* Expanded options fan out horizontally as a floating popover centered on the split circle (overlays neighbors
+   rather than pushing the layout down). */
+.ht-pick-backdrop { position: fixed; inset: 0; z-index: 40; }
+.ht-pick-options {
+  position: absolute; top: 92px; left: 50%; transform: translateX(-50%); z-index: 41;
+  display: flex; flex-direction: row; align-items: flex-start; gap: 14px;
+  padding: 12px 14px; background: rgba(12,12,26,0.96); border: 1px solid #34345e; border-radius: 12px;
+  box-shadow: 0 10px 34px rgba(0,0,0,0.6);
+}
+/* Little pointer connecting the fan back to the split circle. */
+.ht-pick-options::before {
+  content: ''; position: absolute; top: -7px; left: 50%; transform: translateX(-50%) rotate(45deg);
+  width: 12px; height: 12px; background: rgba(12,12,26,0.96); border-left: 1px solid #34345e; border-top: 1px solid #34345e;
+}
 
 /* Per-slot level selector */
 .trait-slot-level-row { display: flex; gap: 3px; justify-content: center; }

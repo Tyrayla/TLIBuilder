@@ -77,6 +77,34 @@ def test_cat_dive_proc_scales_with_movement_speed():
                 "multistrike_max_count_proc_chance") == 0.0              # not picked → nothing
 
 
+def test_cats_punches_initial_count_and_flat_dmg():
+    # Default stalker stacks = cap 3 → floor(3/3) = +1 Initial Multistrike Count. Per-rank dmg: lv75 tier0 = -0.18.
+    c = _apply([5, 1, 1, 1], picks=["Cat's Punches"])
+    assert _amt(c, "initial_multistrike_count_flat") == pytest.approx(1.0)
+    # additional damage line is ALWAYS active (not multistrike-gated) — Cat's Punches contributes -0.18 on top of Stalker.
+    assert _amt(c, "dmg_additional") == pytest.approx(0.39 - 0.18)
+
+
+def test_cats_punches_initial_count_steps_by_three():
+    # +1 per 3 stacks (hard steps). Stalker is clamped to its cap (3 base, 6 with Cat's Vision), so:
+    #   3 stacks → +1; 6 stacks (Cat's Vision raises the cap) → +2; below 3 → +0.
+    assert _amt(_apply([5, 1, 1, 1], picks=["Cat's Punches"]),
+                "initial_multistrike_count_flat") == pytest.approx(1.0)   # default cap 3
+    assert _amt(_apply([5, 1, 1, 1], picks=["Cat's Vision", "Cat's Punches"]),
+                "initial_multistrike_count_flat") == pytest.approx(2.0)   # cap 6 → 6 stacks
+    assert _amt(_apply([5, 1, 1, 1], picks=["Cat's Punches"], conds={"stalker_stacks": 2}),
+                "initial_multistrike_count_flat") == 0.0                  # 2 stacks → floor(2/3) = 0
+
+
+def test_cats_punches_dmg_always_active_not_multistrike_gated():
+    # Even with performing_multistrike off (Stalker contributes 0), Cat's Punches' additional damage still applies.
+    c = _apply([5, 1, 1, 1], picks=["Cat's Punches"], conds={"performing_multistrike": False})
+    assert _amt(c, "dmg_additional") == pytest.approx(-0.18)
+    # rank 5 (lv75 level 5) = +0.06
+    c5 = _apply([5, 1, 1, 5], picks=["Cat's Punches"], conds={"performing_multistrike": False})
+    assert _amt(c5, "dmg_additional") == pytest.approx(0.06)
+
+
 def test_virtual_support_only_with_have_fun():
     assert ws.virtual_supports(slot_levels=[1, 1, 1, 1], advanced_picks=[], main_slot=1) == []
     v = ws.virtual_supports(slot_levels=[1, 1, 1, 1], advanced_picks=["Have Fun"], main_slot=2)
@@ -113,3 +141,10 @@ def test_cats_scratch_raises_increment_through_engine():
     scratch = _off(picks=["Have Fun", "Cat's Scratch"])
     assert scratch["multistrike_increment"] == pytest.approx(hf["multistrike_increment"] * 1.27, rel=0.01)
     assert scratch["multistrike_mult"] > hf["multistrike_mult"]
+
+
+def test_cats_punches_raises_dps_through_engine():
+    # rank 5 (lv75 level 5): +6% additional damage + Initial Multistrike Count (pre-stacks the increment) → more DPS.
+    hf = _off(picks=["Have Fun"])
+    punches = _off(picks=["Have Fun", "Cat's Punches"], levels=[5, 1, 1, 5])
+    assert punches["total_dps_vs_target"] > hf["total_dps_vs_target"]

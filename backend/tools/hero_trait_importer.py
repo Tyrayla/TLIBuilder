@@ -106,15 +106,70 @@ _HERO_RE = _re.compile(r"HeroTraits/([^/]+)/")
 _AM_RE = _re.compile(r"Artificial Moon:\s*.+", _re.I)
 
 
+def _collapse_tiers(descs: list[str]) -> list[str]:
+    """Collapse a node's per-level descriptions into ONE rank-accurate line using `(a/b/c/d/e)` tier syntax that the
+    resolvers already understand (resolveLevel in the UI, _expandTraitTier in the engine), so a per-rank node shows
+    only its selected tier instead of dumping every tier. Single/empty -> as-is."""
+    descs = [d.strip() for d in descs if d and d.strip()]
+    if len(descs) <= 1:
+        return descs
+    toks = [d.split() for d in descs]            # whitespace-normalized tokens
+    if len({len(t) for t in toks}) == 1:
+        # Same token count across tiers: merge per column, grouping only the columns that differ.
+        merged = [col[0] if all(c == col[0] for c in col) else "(" + "/".join(col) + ")" for col in zip(*toks)]
+        return [" ".join(merged)]
+    # Tiers differ in length (e.g. the 0% tier drops a clause): keep the common prefix/suffix and wrap the differing
+    # middle of each tier in one slash-group (an empty middle, e.g. the 0% tier, becomes an empty slot).
+    minlen = min(len(t) for t in toks)
+    p = 0
+    while p < minlen and all(t[p] == toks[0][p] for t in toks):
+        p += 1
+    s = 0
+    while s < minlen - p and all(t[len(t) - 1 - s] == toks[0][-1 - s] for t in toks):
+        s += 1
+    prefix = toks[0][:p]
+    suffix = toks[0][len(toks[0]) - s:] if s else []
+    group = "(" + "/".join(" ".join(t[p:len(t) - s]) for t in toks) + ")"
+    return [" ".join(prefix + [group] + suffix)]
+
+
+# Hand-authored advanced-node grouping for traits whose in-game layout the count-based inference can't express —
+# a GUARANTEED node and/or MULTIPLE pick groups at one level. Only Creative Genius needs this. Maps node name ->
+# (group_role, group_id within its level, ordered top->bottom). Every other trait derives its grouping: a lone node
+# at a level is "guaranteed"; 2+ nodes form a single "pick" group (group_id 0).
+_TRAIT_STRUCTURE: dict[str, dict[str, tuple[str, int]]] = {
+    "creative_genius": {
+        "Inspiration Overflow": ("guaranteed", 0),                 # L45 top (always granted)
+        "Super Sonic Protocol": ("pick", 1), "Over-Shield Module": ("pick", 1),   # L45 pick-of-2
+        "Mind Domain": ("pick", 0), "Trouble Maker": ("pick", 0),                 # L60 top pick-of-2
+        "Law of Ingenuity": ("pick", 1), "Ingenious Chaos Principle": ("pick", 1),
+        "Auto-Ingenuity Program": ("pick", 1),                                    # L60 bottom pick-of-3
+        "Brainstorm": ("pick", 0), "Flash of Brilliance": ("pick", 0),            # L75 top pick-of-2
+        "Multi-Coupling Equation": ("pick", 1), "Hyper-Resonance Hypothesis": ("pick", 1),
+        "Contingency Inspiration Delivery": ("pick", 1),                          # L75 bottom pick-of-3
+    },
+}
+
+
+def _node_group(trait_id: str, name: str, level_count: int) -> tuple[str, int]:
+    """(group_role, group_id) for an advanced node — hand-authored override if present, else derived."""
+    override = _TRAIT_STRUCTURE.get(trait_id, {}).get(name)
+    if override:
+        return override
+    return ("pick", 0) if level_count > 1 else ("guaranteed", 0)
+
+
 def import_crawler_hero_trait(data: dict) -> dict:
     """Import a single crawler hero trait file (one JSON file per trait variant)."""
     name = data.get("name", "")
     trait_id = _re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
     traits = data.get("traits") or []
 
-    # Base trait = first entry with levels; advanced = entries without levels
-    base = next((t for t in traits if t.get("levels")), {})
-    advanced_raw = [t for t in traits if not t.get("levels")]
+    # Base trait = the required_level==1 entry; advanced = every level-45/60/75 node.
+    # NOTE: some ADVANCED nodes also carry a per-level `levels` array (their tier scaling), so the base must be
+    # detected by required_level, NOT by "has a levels field" — otherwise those advanced nodes get dropped.
+    base = next((t for t in traits if t.get("required_level", 1) == 1), {})
+    advanced_raw = [t for t in traits if t.get("required_level", 1) != 1]
 
     # Extract hero from base trait icon_url
     icon_url = base.get("icon_url", "")
@@ -136,18 +191,32 @@ def import_crawler_hero_trait(data: dict) -> dict:
             "unlock_level": 1,
         })
 
-    # Determine is_pick_one_from_two by counting traits per required_level
+    # Advanced-node effects: nodes with a per-level `levels` array carry their text there (their top-level
+    # `description` is null); others use `description`. Per-level descriptions are COLLAPSED into a single line
+    # using the `(a/b/c/d/e)` tier syntax the resolvers already understand (resolveLevel in the UI,
+    # _expandTraitTier in the engine), so the tooltip/engine pick the selected rank instead of listing all tiers.
+    def _adv_effects(t: dict) -> list[str]:
+        lv = t.get("levels")
+        if lv:
+            return _collapse_tiers([e.get("description", "") for e in lv if e.get("description")])
+        return [t["description"]] if t.get("description") else []
+
+    # Count nodes per unlock level (drives is_pick_one_from_two + the derived grouping).
     level_counts = _Counter(t.get("required_level", 0) for t in advanced_raw)
-    advanced_traits = [
-        {
-            "name": t.get("name", ""),
-            "unlock_level": t.get("required_level", 0),
-            "is_pick_one_from_two": level_counts[t.get("required_level", 0)] > 1,
-            "effects": [t["description"]] if t.get("description") else [],
+    advanced_traits = []
+    for t in advanced_raw:
+        nm = t.get("name", "")
+        ul = t.get("required_level", 0)
+        role, gid = _node_group(trait_id, nm, level_counts[ul])
+        advanced_traits.append({
+            "name": nm,
+            "unlock_level": ul,
+            "is_pick_one_from_two": level_counts[ul] > 1,
+            "group_role": role,   # "guaranteed" (always granted) | "pick" (choose 1 of the group)
+            "group_id": gid,      # group within the level, top->bottom (0,1,…)
+            "effects": _adv_effects(t),
             "icon_url": t.get("icon_url", ""),
-        }
-        for t in advanced_raw
-    ]
+        })
 
     glossary = {
         g["term_id"]: {"name": g.get("name", ""), "description": g.get("description", "")}

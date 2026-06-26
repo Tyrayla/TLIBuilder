@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.4] - 2026-06-26
+
+### Hero traits
+- **Fixed missing nodes** — several hero-trait nodes weren't showing up at all (e.g. Wind Stalker's Cat's Punches, Incarnation of the Gods' Incarnation, Frostbitten Heart's Glacial Night, Zealot of War's Ceasefire/Extreme Heat/Eternal Flames, Creative Genius's Auto-Ingenuity Program & Multi-Coupling Equation, and more). All recovered.
+- **Cleaner node layout** — levels now line up consistently (a single-option level no longer floats higher than the others), guaranteed/always-granted nodes are shown on top, and per-rank nodes show only the **selected rank** in their tooltip instead of every rank at once.
+- **Creative Genius** now displays its real structure: a guaranteed node plus separate pick groups per level, shown as combined "pick one" bubbles that fan out to the options when clicked (with the chosen option's tooltip on hover).
+- **Community trait names** — the hero-trait dropdown now shows each trait's community shorthand (e.g. "Thea 1", "Bing 2") and is **sorted by release order**.
+- **Cat's Punches** (Wind Stalker) is now calculated — its Initial Multistrike Count scaling and additional damage are modeled.
+
 ## [0.5.3] - 2026-06-26
 
 ### New damage mechanics

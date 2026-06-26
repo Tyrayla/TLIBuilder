@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
-import { HeroTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl,
+import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl,
   SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
@@ -10,6 +10,7 @@ import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { ModifierBadge, useTextModifierStatuses, useTextModifierStatus } from '../components/ModifierBadge'
 import { dec } from '../utils/num'
+import { traitSlang, traitOrder } from '../utils/heroTraitOrder'
 
 interface Props {
   onBack: () => void
@@ -186,6 +187,57 @@ function groupByHero(traits: HeroTrait[]): Record<string, HeroTrait[]> {
   return out
 }
 
+// Custom hero-trait dropdown — a native <select> can't style the per-substring lavender slang label, so this small
+// floating menu (mirrors the loadout dropdown) shows each trait's name + its community slang ("Thea 1") and sorts by
+// release order (heroes in release order; ascending within a hero).
+function HeroTraitSelect({ traits, value, onChange }: {
+  traits: HeroTrait[]; value: string | null; onChange: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const groups = useMemo(() => {
+    const by = groupByHero(traits)
+    return Object.entries(by)
+      .map(([hero, variants]) => ({
+        hero,
+        variants: [...variants].sort((a, b) => traitOrder(a.trait_id) - traitOrder(b.trait_id)),
+        order: Math.min(...variants.map(v => traitOrder(v.trait_id))),
+      }))
+      .sort((a, b) => a.order - b.order)
+  }, [traits])
+  const current = traits.find(t => t.trait_id === value) ?? null
+  return (
+    <div className="ht-dd">
+      <button className="ht-dd-trigger" onClick={() => setOpen(o => !o)} title="Select hero trait">
+        <span className="ht-dd-trigger-name">{current?.variant_name ?? 'Select trait'}</span>
+        {current && traitSlang(current.trait_id) && (
+          <span className="ht-dd-slang">{traitSlang(current.trait_id)}</span>
+        )}
+        <span className="ht-dd-caret">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <>
+          <div className="ht-dd-backdrop" onClick={() => setOpen(false)} />
+          <div className="ht-dd-menu">
+            {groups.map(g => (
+              <div key={g.hero} className="ht-dd-group">
+                <div className="ht-dd-group-label">{g.hero}</div>
+                {g.variants.map(v => (
+                  <button key={v.trait_id}
+                    className={`ht-dd-item${v.trait_id === value ? ' active' : ''}`}
+                    onClick={() => { onChange(v.trait_id); setOpen(false) }}>
+                    <span className="ht-dd-item-name">{v.variant_name}</span>
+                    {traitSlang(v.trait_id) && <span className="ht-dd-slang">{traitSlang(v.trait_id)}</span>}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function resolveLevel(text: string, level: number): string {
   return text.replace(/\(([^)]+)\)/g, (_, inner) => {
     if (!inner.includes('/')) return `(${inner})`
@@ -261,6 +313,81 @@ function TraitCircle({ className, name, icon, checked, locked, disabled, tipName
             <TraitTooltipBody name={tipName} slotLevel={slotLevel} effects={effects} moonEffects={moonEffects} />
           </div>
         </FloatingPortal>
+      )}
+    </div>
+  )
+}
+
+// Group a level's advanced nodes by group_id. A group is "guaranteed" (always granted) or "pick" (choose one).
+// Falls back to is_pick_one_from_two for older data. Groups order top->bottom by id (guaranteed first on a tie).
+interface NodeGroup { id: number; role: 'guaranteed' | 'pick'; nodes: HeroAdvancedTrait[] }
+function buildGroups(nodes: HeroAdvancedTrait[]): NodeGroup[] {
+  const map = new Map<string, NodeGroup>()
+  for (const n of nodes) {
+    const role: 'guaranteed' | 'pick' = n.group_role ?? (n.is_pick_one_from_two ? 'pick' : 'guaranteed')
+    const id = n.group_id ?? 0
+    const key = `${role}:${id}`
+    if (!map.has(key)) map.set(key, { id, role, nodes: [] })
+    map.get(key)!.nodes.push(n)
+  }
+  return [...map.values()].sort((a, b) => a.id - b.id || (a.role === 'guaranteed' ? -1 : 1))
+}
+
+// A "pick one" group rendered as a single split circle (vertical slices, one per option — matching the in-game
+// merged look) that expands on click to the individual nodes for selection. The chosen slice is highlighted.
+function PickGroup({ nodes, slotLevel, locked, tierDisabled, selectedNames, onSelect, onDisable }: {
+  nodes: HeroAdvancedTrait[]; slotLevel: number; locked: boolean; tierDisabled: boolean
+  selectedNames: string[]; onSelect: (name: string) => void; onDisable: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const chosen = nodes.find(n => selectedNames.includes(n.name)) ?? null
+  // When a node is chosen, hovering the collapsed split circle shows that node's full tooltip.
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
+  return (
+    <div className="ht-pick">
+      <div
+        {...(chosen ? tip.triggerProps : {})}
+        className={`ht-pick-circle${locked ? ' locked' : ''}${chosen && !tierDisabled ? ' selected' : ''}`}
+        onClick={() => !locked && setOpen(o => !o)}
+        onContextMenu={e => { e.preventDefault(); if (chosen && !locked) onDisable() }}
+        title={chosen ? undefined : `Pick 1 of ${nodes.length}`}
+      >
+        <div className="ht-pick-slices">
+          {nodes.map(n => {
+            const icon = iconUrl('hero_trait', n.icon_url)
+            const cls = chosen ? (chosen.name === n.name ? ' chosen' : ' dim') : ''
+            return <div key={n.name} className={`ht-pick-slice${cls}`}
+              style={icon ? { backgroundImage: `url(${icon})` } : undefined} />
+          })}
+        </div>
+        {chosen && !tierDisabled && <span className="trait-circle-check">✓</span>}
+        <span className="ht-pick-count">{open ? '▴' : `1/${nodes.length}`}</span>
+      </div>
+      <span className="ht-pick-caption">{chosen ? chosen.name : `Pick 1 of ${nodes.length}`}</span>
+      {/* Hover tooltip for the chosen node (hidden while the fan is open — the options show their own). */}
+      {chosen && !open && tip.open && (
+        <FloatingPortal>
+          <div className="trait-info-card" {...tip.floatingProps}>
+            <TraitTooltipBody name={chosen.name} slotLevel={slotLevel} effects={chosen.effects ?? []} />
+          </div>
+        </FloatingPortal>
+      )}
+      {open && !locked && (
+        <>
+          {/* Click-catcher so clicking away closes the fan. */}
+          <div className="ht-pick-backdrop" onClick={() => setOpen(false)} />
+          {/* Options fan out horizontally as a floating popover (doesn't push the columns). */}
+          <div className="ht-pick-options">
+            {nodes.map(n => {
+              const sel = selectedNames.includes(n.name)
+              return <TraitCircle key={n.name}
+                className={`trait-circle${sel ? ' selected' : ''}`}
+                name={n.name} icon={iconUrl('hero_trait', n.icon_url)} checked={sel}
+                disabled={sel && tierDisabled} tipName={n.name} slotLevel={slotLevel} effects={n.effects ?? []}
+                onSelect={() => { onSelect(n.name); setOpen(false) }} />
+            })}
+          </div>
+        </>
       )}
     </div>
   )
@@ -530,7 +657,6 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   }, [loading, traitId, allTraits])
 
   const selectedTrait = allTraits.find(t => t.trait_id === traitId) ?? null
-  const byHero = groupByHero(allTraits)
 
   const safeSlotLevels = (
     Array.isArray(traitSlotLevels) && traitSlotLevels.length === 4
@@ -560,24 +686,18 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     return n
   }
 
-  function selectPrimary(name: string, threshold: number) {
-    if (!traitId || !selectedTrait) return
-    const falseNames = selectedTrait.advanced_traits
-      .filter(t => t.unlock_level === threshold && !t.is_pick_one_from_two)
-      .map(t => t.name)
-    const next = advancedTraitSelections.filter(n => !falseNames.includes(n))
+  // Pick a node within its group: clear the group's other selections, add this one, and (re)enable the tier.
+  function selectInGroup(name: string, threshold: number, groupNames: string[]) {
+    if (!traitId) return
+    const next = advancedTraitSelections.filter(n => !groupNames.includes(n))
     next.push(name)
-    setTraitData(traitId, withEnabled(SLOT_IDX[threshold]), next)   // picking also (re)enables the tier
+    setTraitData(traitId, withEnabled(SLOT_IDX[threshold]), next)
   }
 
-  function selectSub(name: string, threshold: number) {
-    if (!traitId || !selectedTrait) return
-    const trueNames = selectedTrait.advanced_traits
-      .filter(t => t.unlock_level === threshold && t.is_pick_one_from_two)
-      .map(t => t.name)
-    const next = advancedTraitSelections.filter(n => !trueNames.includes(n))
-    next.push(name)
-    setTraitData(traitId, withEnabled(SLOT_IDX[threshold]), next)   // picking also (re)enables the tier
+  // Enable a tier (left-clicking a guaranteed node, which has no choice, just (re)enables its tier).
+  function enableTier(threshold: number) {
+    if (!traitId) return
+    setTraitData(traitId, withEnabled(SLOT_IDX[threshold]), advancedTraitSelections)
   }
 
   function switchTrait(newTraitId: string) {
@@ -719,19 +839,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     <div className="hero-trait-screen">
       {/* Header */}
       <div className="hero-trait-header">
-        <select
-          className="hero-trait-select"
-          value={traitId ?? ''}
-          onChange={e => switchTrait(e.target.value)}
-        >
-          {Object.entries(byHero).map(([hero, variants]) => (
-            <optgroup key={hero} label={hero}>
-              {variants.map(v => (
-                <option key={v.trait_id} value={v.trait_id}>{v.variant_name}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <HeroTraitSelect traits={allTraits} value={traitId} onChange={switchTrait} />
         {selectedTrait && (
           <span className="hero-trait-variant-label">
             {selectedTrait.hero} · {selectedTrait.variant_name}
@@ -794,8 +902,10 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                 const tierDisabled = nodeDisabled(slotIdx)
                 const slotLevel = nodeLevel(slotIdx)
                 const locked = characterLevel < threshold
-                const primaries = group.filter(t => !t.is_pick_one_from_two)
-                const subs = group.filter(t => t.is_pick_one_from_two)
+                const groups = buildGroups(group)
+                // Split-circle bubbles are ONLY for levels with multiple groups (i.e. Creative Genius) — they save
+                // the vertical space two groups would need. Every other trait keeps its standard stacked options.
+                const multiGroup = groups.length > 1
                 const memSlotIdx = THRESHOLD_TO_MEMORY_SLOT[threshold]
                 const memory = heroMemories[memSlotIdx] ?? null
                 const rarityColor = memory ? MEMORY_RARITY_COLORS[memory.rarity] : undefined
@@ -823,52 +933,69 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                       ))}
                     </div>
 
-                    <div className="trait-tier-primaries">
-                      {primaries.map(t => {
-                        const selected = advancedTraitSelections.includes(t.name)
-                        return (
-                          <TraitCircle
-                            key={t.name}
-                            className={`trait-circle${selected ? ' selected' : ''}${locked ? ' locked' : ''}`}
-                            name={t.name}
-                            icon={iconUrl('hero_trait', t.icon_url)}
-                            checked={selected}
-                            locked={locked}
-                            disabled={selected && tierDisabled}
-                            tipName={t.name}
-                            slotLevel={slotLevel}
-                            effects={t.effects ?? []}
-                            onSelect={() => selectPrimary(t.name, threshold)}
-                            onContextMenu={selected && !locked ? () => disableNode(slotIdx) : undefined}
-                          />
-                        )
-                      })}
-                    </div>
-
-                    {subs.length > 0 && (
-                      <div className="trait-tier-subs">
-                        <div className="trait-tier-sub-label">Pick One</div>
-                        {subs.map(t => {
-                          const selected = advancedTraitSelections.includes(t.name)
-                          return (
+                    {/* Node groups: a consistent divider line sits above them across every level (so single-option
+                        levels no longer float up). Guaranteed nodes render as a single circle; pick groups render
+                        as a split circle that expands on click. */}
+                    <div className="ht-groups">
+                      {groups.map(g => g.role === 'guaranteed' ? (
+                        <div className="ht-group" key={`g${g.id}`}>
+                          <div className="ht-group-label">Granted</div>
+                          {g.nodes.map(t => (
                             <TraitCircle
                               key={t.name}
-                              className={`trait-circle${selected ? ' selected' : ''}${locked ? ' locked' : ''}`}
+                              className={`trait-circle selected${locked ? ' locked' : ''}`}
                               name={t.name}
                               icon={iconUrl('hero_trait', t.icon_url)}
-                              checked={selected}
+                              checked={!tierDisabled}
                               locked={locked}
-                              disabled={selected && tierDisabled}
+                              disabled={tierDisabled}
                               tipName={t.name}
                               slotLevel={slotLevel}
                               effects={t.effects ?? []}
-                              onSelect={() => selectSub(t.name, threshold)}
-                              onContextMenu={selected && !locked ? () => disableNode(slotIdx) : undefined}
+                              onSelect={() => !locked && enableTier(threshold)}
+                              onContextMenu={!tierDisabled && !locked ? () => disableNode(slotIdx) : undefined}
                             />
-                          )
-                        })}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="ht-group" key={`p${g.id}`}>
+                          <div className="ht-group-label">Pick One</div>
+                          {multiGroup ? (
+                            // Creative Genius (multiple groups per level): combined split-circle that fans out.
+                            <PickGroup
+                              nodes={g.nodes}
+                              slotLevel={slotLevel}
+                              locked={locked}
+                              tierDisabled={tierDisabled}
+                              selectedNames={advancedTraitSelections}
+                              onSelect={name => selectInGroup(name, threshold, g.nodes.map(n => n.name))}
+                              onDisable={() => disableNode(slotIdx)}
+                            />
+                          ) : (
+                            // Standard layout: the options stacked as individual circles.
+                            g.nodes.map(t => {
+                              const sel = advancedTraitSelections.includes(t.name)
+                              return (
+                                <TraitCircle
+                                  key={t.name}
+                                  className={`trait-circle${sel ? ' selected' : ''}${locked ? ' locked' : ''}`}
+                                  name={t.name}
+                                  icon={iconUrl('hero_trait', t.icon_url)}
+                                  checked={sel}
+                                  locked={locked}
+                                  disabled={sel && tierDisabled}
+                                  tipName={t.name}
+                                  slotLevel={slotLevel}
+                                  effects={t.effects ?? []}
+                                  onSelect={() => selectInGroup(t.name, threshold, g.nodes.map(n => n.name))}
+                                  onContextMenu={sel && !locked ? () => disableNode(slotIdx) : undefined}
+                                />
+                              )
+                            })
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )
               })}
