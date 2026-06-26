@@ -800,6 +800,9 @@ export interface OffenseResult {
   channeled_behavior: string            // "reset" | "refresh" | "" (not channeled)
   channeled_attack_frequency: number    // persistent-entity strike rate (Howling Gale's Gale); 0 = N/A
   projectile_count: number              // projectiles of the projectile-scaling form (Icy Blade); 0 = N/A
+  // Compulsory-conversion per-element detail (Chromatic Shot): {element: {hit_min, hit_max, avg_pre_crit,
+  // avg_with_crit, mitigation}}. total_dps is the EXPECTED average; this drives the per-element (C+D) display.
+  compulsory_breakdown?: Record<string, { hit_min: number; hit_max: number; avg_pre_crit: number; avg_with_crit: number; mitigation: number }>
   // Combined per-type ENEMY damage multiplier on outgoing damage: (1−armor)(1−resist) × enemy vulnerability
   // (Paralysis/Numbed/Frostbite/curses/…). Only types this skill deals are present. 1.0 = neutral.
   enemy_mult_by_type?: Record<string, number>
@@ -924,6 +927,10 @@ export interface StatSheetResponse {
   clamp_report: Record<string, { requested: number; applied: number }>
   // Condition keys any build mod references (gate on/off) — the Config screen hides the rest unless Show all.
   referenced_conditions?: string[]
+  // Engine-activated (not user-set) conditions → {value, source}. Config shows these checked + locked with
+  // an "auto" badge that names the source (e.g. Splendor inflicting Numbed/Frostbite/Ignite).
+  auto_conditions?: Record<string, { value: number | boolean; source: string }>
+
   offense?: OffenseResult | null
   defense?: DefenseResult | null
   custom_mod_statuses?: CustomModStatus[]

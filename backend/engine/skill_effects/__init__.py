@@ -14,9 +14,9 @@ Each module may expose:
 The registry below aggregates these so the engine dispatches generically (no per-skill hardcoding).
 """
 from engine.skill_effects import berserking_blade as _bb, focused_slash as _fs, moon_strike as _ms
-from engine.skill_effects import howling_gale as _hg, icebound_beam as _ib
+from engine.skill_effects import howling_gale as _hg, icebound_beam as _ib, chromatic_shot as _cs
 
-_MODULES = (_bb, _fs, _ms, _hg, _ib)
+_MODULES = (_bb, _fs, _ms, _hg, _ib, _cs)
 
 # Support ids handled bespoke/deferred — their specific line is skipped by the generic resolver (the
 # universal +20% rank line still applies).
@@ -68,10 +68,15 @@ def modeled_rolls(item_id: str, data: dict) -> list[dict]:
             m = spec["range_re"].search(line)
             if not m:
                 continue
-            lo, hi = sorted((float(m.group(1)), float(m.group(2))))
-            neg = "(-" in m.group(0) or "(−" in m.group(0)
-            sign = -1.0 if neg else 1.0
-            lo, hi = sorted((sign * lo / 100.0, sign * hi / 100.0))
+            g1, g2 = m.group(1), m.group(2)
+            lo_raw, hi_raw = float(g1), float(g2)
+            # If the pattern already captured the sign (e.g. Lightchaser "(-6–-4)"), use it directly. Only the
+            # legacy unsigned patterns fall back to the "(-…" heuristic (both bounds negative) — avoids a
+            # double sign-flip on the signed patterns.
+            if not (g1.lstrip().startswith(("-", "−")) or g2.lstrip().startswith(("-", "−"))):
+                if "(-" in m.group(0) or "(−" in m.group(0):
+                    lo_raw, hi_raw = -lo_raw, -hi_raw
+            lo, hi = sorted((lo_raw / 100.0, hi_raw / 100.0))
             ranges[entry.get("level")] = {"min": lo, "max": hi, "mid": (lo + hi) / 2.0}
             identity = identity or affix_identity(line)
         if ranges and identity:

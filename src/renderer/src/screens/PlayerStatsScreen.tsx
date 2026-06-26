@@ -637,7 +637,9 @@ function typeIncKeys(dtype: string): string[] {
 }
 
 function genericAddKeys(offense: OffenseResult): string[] {
-  const keys = ['dmg_additional']
+  // 'hit_dmg_additional' is generic (untagged) hit-only additional — e.g. Splendor's "+additional Hit Damage".
+  // It folds into generic_add in offense, so it belongs in the All-Types breakdown alongside dmg_additional.
+  const keys = ['dmg_additional', 'hit_dmg_additional']
   if (hasTag(offense,'attack'))     keys.push('attack_dmg_additional')
   if (hasTag(offense,'spell'))      keys.push('spell_dmg_additional')
   if (hasTag(offense,'melee'))      keys.push('melee_dmg_additional')
@@ -1513,6 +1515,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             </GridBox>
           )
         })()}
+
+        {/* Per-element split for Chromatic Shot's compulsory conversion is shown inline in the Skill Hit Damage table
+            (each element's contribution + % of total), so no standalone box is needed here. */}
 
       {(offense.tangle_count ?? 0) > 0 && (
         <GridBox><StatPanel title="Tangle" accent={AMBER}

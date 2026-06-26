@@ -22,6 +22,8 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
   const setCollapsiblePanels = useUiPrefs(s => s.setCollapsiblePanels)
   const showModifierBadges = useUiPrefs(s => s.showModifierBadges)
   const toggleModifierBadges = useUiPrefs(s => s.toggleModifierBadges)
+  const lockAutoConditions = useUiPrefs(s => s.lockAutoConditions)
+  const setLockAutoConditions = useUiPrefs(s => s.setLockAutoConditions)
   const uiScale = useUiPrefs(s => s.uiScale)
   const setUiScale = useUiPrefs(s => s.setUiScale)
 
@@ -120,6 +122,22 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
                 <button
                   className={`settings-seg-btn${collapsiblePanels ? ' active' : ''}`}
                   onClick={() => setCollapsiblePanels(true)}
+                >On</button>
+              </div>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <span>Lock auto-inflicted conditions</span>
+                <span className="settings-row-hint">Conditions your build guarantees (e.g. Splendor inflicting Numbed/Frostbite/Ignite) show checked with an "auto" badge. Off lets you override them.</span>
+              </div>
+              <div className="settings-segmented">
+                <button
+                  className={`settings-seg-btn${!lockAutoConditions ? ' active' : ''}`}
+                  onClick={() => setLockAutoConditions(false)}
+                >Off</button>
+                <button
+                  className={`settings-seg-btn${lockAutoConditions ? ' active' : ''}`}
+                  onClick={() => setLockAutoConditions(true)}
                 >On</button>
               </div>
             </div>

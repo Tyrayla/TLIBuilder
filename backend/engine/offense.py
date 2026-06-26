@@ -640,6 +640,9 @@ class OffenseResult:
     channeled_behavior: str = ""           # "reset" | "refresh" | "" (not channeled)
     channeled_attack_frequency: float = 0.0  # persistent-entity strike rate (Howling Gale's Gale); 0 = N/A
     projectile_count: int = -1             # projectiles of the projectile-scaling form (Icy Blade); -1 = N/A (no such form)
+    # Compulsory-conversion per-element detail (Chromatic Shot). {element: {hit_min, hit_max, avg_pre_crit,
+    # avg_with_crit, mitigation}}. The headline total_dps is the EXPECTED average; this is the C+D per-element box.
+    compulsory_breakdown: dict = field(default_factory=dict)
     # Combined per-type ENEMY damage multiplier on OUTGOING damage = target armor/resist mitigation
     # (1−armor)(1−resist) × enemy vulnerability (Paralysis / Numbed / Frostbite / Infiltration / curses / …).
     # 1.0 = neutral; <1 = net-mitigated, >1 = net-amplified. Surfaced so the damage area can show one
@@ -903,6 +906,10 @@ def calculate_offense(
     # Folded into BOTH type_add and generic_add below so the per-type breakdown ratio cancels it cleanly
     # (it's a uniform multiplier, not a type-specific one) and "Total Additional" still reflects it.
     main_stat_bonus = sum(source.total(a) for a in skill.main_stat) * _MAIN_STAT_DAMAGE_PER_POINT
+    # Lightchaser (Chromatic Shot) raises the main-attribute damage ratio by a % (0.5%/pt → 0.625%/pt). Presence-
+    # gated so builds without it consume nothing and stay golden-identical.
+    _ms_inc = source.total("main_stat_dmg_bonus_inc") if "main_stat_dmg_bonus_inc" in source.all_stats() else 0.0
+    main_stat_bonus *= (1.0 + _ms_inc)   # Lightchaser etc. — report + apply the BOOSTED ratio (×1 when absent)
     main_stat_factor = 1.0 + main_stat_bonus
     intrinsic_add = (1.0 + extra_additional) * main_stat_factor
 
@@ -912,6 +919,11 @@ def calculate_offense(
     convert_fracs, adds_fracs = _conversion_fracs(source)
     has_conversion = any(convert_fracs.values()) or any(adds_fracs.values())
     calc_types = list(DAMAGE_TYPES) if has_conversion else list(flat_dmg.keys())
+    # Compulsory conversion (Chromatic Shot): the skill deals each of these elements, so compute their per-type
+    # increased/additional too — surfaced in the Skill Hit Damage breakdown so the per-element columns match the
+    # actual per-element damage (e.g. +Fire Damage shows in the Fire column).
+    if skill.compulsory_elements:
+        calc_types = list(dict.fromkeys(calc_types + list(skill.compulsory_elements)))
     # "You can only deal <Type> Damage" (Extreme Coldness): any FINAL (post-conversion) damage that isn't an
     # allowed type deals zero. Read only when the flag is present (all_stats avoids consuming it on every build,
     # keeping consumed_stats/goldens stable). Empty = no restriction.
@@ -1037,6 +1049,7 @@ def calculate_offense(
     hit_forms: list[HitFormResult] = []
     # Pre-scan the projectile-scaling (reset burst) form's count, BEFORE the loop, so the continuous form
     # (processed first) knows whether the burst fires — and thus whether it's suppressed. -1 = no such form.
+    compulsory_breakdown: dict[str, dict] = {}   # Chromatic Shot: per-element {hit_min,hit_max,avg_pre_crit,avg_with_crit,mitigation}
     projectile_count = -1
     for _f in skill.hit_forms_by_level.get(lookup_level, []):
         if _f.scales_with_projectiles:
@@ -1080,32 +1093,69 @@ def calculate_offense(
         if form.base_dmg is not None:
             form_eff = form.added_eff if form.added_eff is not None else skill.added_dmg_effectiveness
             form_flat, form_base = _spell_flat(source, form.base_dmg, form_eff)
-        # Conversion stage: apply this form's effectiveness to the flat, then cascade through the
-        # conversion chain. _apply_conversion returns each FINAL type's (min,max) already scaled by
-        # (1 + path increases) × (path additionals) × generic; per-final-type factors (enemy vuln,
-        # above-max, augmentation) and Lucky apply below. No conversion → final == native per-type result.
-        eff_flat = {t: (mn * (eff / 100.0), mx * (eff / 100.0)) for t, (mn, mx) in form_flat.items()}
-        converted = _apply_conversion(eff_flat, _path_spec_inc, _path_spec_add, generic_inc, generic_add,
-                                      convert_fracs, adds_fracs)
-        for dtype, (smin, smax) in converted.items():
-            # "You can only deal <Type>" — a FINAL packet left as a non-allowed type deals zero (applied AFTER
-            # conversion, so damage that converted INTO an allowed type still counts).
-            if only_deal_types and dtype not in only_deal_types:
-                continue
-            # Enemy-vulnerability (Numbed etc.) and Augmentation are per-FINAL-type / global multipliers.
-            vuln = _enemy_vuln_mult(source, dtype, is_spell)
-            type_min = smin * above_mult * vuln * aug_factor * form_add_mult
-            type_max = smax * above_mult * vuln * aug_factor * form_add_mult
-            avg = (type_min + type_max) / 2.0
-            # Lucky keys off the FINAL type (tested): EV uplift from the spread, applied to the average.
-            if (lucky_damage or source.total(f"lucky_{dtype}") > 0.0) and type_max > type_min:
-                R = type_max - type_min
-                avg *= (type_min + (2.0 / 3.0) * R) / (type_min + 0.5 * R)
-            damage_by_type[dtype] = avg
-            hit_min_by_type[dtype] = type_min
-            hit_max_by_type[dtype] = type_max
-            avg_pre += avg
-            avg_pre_vs_target += avg * _target_mitigation(source, dtype)
+        if skill.compulsory_elements and form.base_dmg is None:
+            # COMPULSORY conversion (Chromatic Shot): fold the type-agnostic base + ALL added spell flat (every
+            # type, ×eff) into one pool, then deal it as EACH element FULLY (only that element's increased/additional
+            # — _apply_conversion with no conversion fracs reproduces the native (1+type_inc)×type_add for one type).
+            # The headline is the EXPECTED average across the elements (random/rotated 1/3 each); per-element detail
+            # is stashed in compulsory_breakdown for the C+D display.
+            b_min, b_max = skill.base_flat_by_level.get(lookup_level, (0.0, 0.0))
+            em = skill.added_dmg_effectiveness
+            add_min = sum(source.total(f"{t}_spell_dmg_flat_min") for t in DAMAGE_TYPES)
+            add_max = sum(source.total(f"{t}_spell_dmg_flat_max") for t in DAMAGE_TYPES)
+            tot = (b_min + add_min * em, b_max + add_max * em)
+            elems = skill.compulsory_elements
+            for e in elems:
+                conv_e = _apply_conversion({e: tot}, _path_spec_inc, _path_spec_add, generic_inc, generic_add, {}, {})
+                smin, smax = conv_e.get(e, (0.0, 0.0))
+                vuln = _enemy_vuln_mult(source, e, is_spell)
+                e_min = smin * above_mult * vuln * aug_factor * form_add_mult
+                e_max = smax * above_mult * vuln * aug_factor * form_add_mult
+                e_avg = (e_min + e_max) / 2.0
+                if (lucky_damage or source.total(f"lucky_{e}") > 0.0) and e_max > e_min:
+                    R = e_max - e_min
+                    e_avg *= (e_min + (2.0 / 3.0) * R) / (e_min + 0.5 * R)
+                e_mit = _target_mitigation(source, e)
+                compulsory_breakdown[e] = {
+                    "hit_min": e_min, "hit_max": e_max, "avg_pre_crit": e_avg,
+                    "avg_with_crit": e_avg * crit_factor * double_dmg_factor, "mitigation": e_mit,
+                }
+                avg_pre += e_avg
+                avg_pre_vs_target += e_avg * e_mit
+            n = float(len(elems) or 1)
+            avg_pre /= n
+            avg_pre_vs_target /= n
+            # Headline form damage_by_type = each element's 1/n share (so it sums to the expected average).
+            damage_by_type = {e: compulsory_breakdown[e]["avg_pre_crit"] / n for e in elems}
+            hit_min_by_type = {e: compulsory_breakdown[e]["hit_min"] for e in elems}
+            hit_max_by_type = {e: compulsory_breakdown[e]["hit_max"] for e in elems}
+        else:
+            # Conversion stage: apply this form's effectiveness to the flat, then cascade through the
+            # conversion chain. _apply_conversion returns each FINAL type's (min,max) already scaled by
+            # (1 + path increases) × (path additionals) × generic; per-final-type factors (enemy vuln,
+            # above-max, augmentation) and Lucky apply below. No conversion → final == native per-type result.
+            eff_flat = {t: (mn * (eff / 100.0), mx * (eff / 100.0)) for t, (mn, mx) in form_flat.items()}
+            converted = _apply_conversion(eff_flat, _path_spec_inc, _path_spec_add, generic_inc, generic_add,
+                                          convert_fracs, adds_fracs)
+            for dtype, (smin, smax) in converted.items():
+                # "You can only deal <Type>" — a FINAL packet left as a non-allowed type deals zero (applied AFTER
+                # conversion, so damage that converted INTO an allowed type still counts).
+                if only_deal_types and dtype not in only_deal_types:
+                    continue
+                # Enemy-vulnerability (Numbed etc.) and Augmentation are per-FINAL-type / global multipliers.
+                vuln = _enemy_vuln_mult(source, dtype, is_spell)
+                type_min = smin * above_mult * vuln * aug_factor * form_add_mult
+                type_max = smax * above_mult * vuln * aug_factor * form_add_mult
+                avg = (type_min + type_max) / 2.0
+                # Lucky keys off the FINAL type (tested): EV uplift from the spread, applied to the average.
+                if (lucky_damage or source.total(f"lucky_{dtype}") > 0.0) and type_max > type_min:
+                    R = type_max - type_min
+                    avg *= (type_min + (2.0 / 3.0) * R) / (type_min + 0.5 * R)
+                damage_by_type[dtype] = avg
+                hit_min_by_type[dtype] = type_min
+                hit_max_by_type[dtype] = type_max
+                avg_pre += avg
+                avg_pre_vs_target += avg * _target_mitigation(source, dtype)
 
         # Crit (expected-value) and double-damage (expected-value) both uplift the average, not per-hit.
         avg_post = avg_pre * crit_factor * double_dmg_factor
@@ -1134,6 +1184,14 @@ def calculate_offense(
             n_proj = max(0, form.hit_count + int(source.total("projectile_quantity_flat")))
         else:
             n_proj = max(1, form.hit_count)
+        # Compulsory skills (Chromatic Shot): only the projectiles that LAND on the target shotgun. Cap the hit
+        # count at "shots on target" (a user input the chromatic_shot module emits — full count under Lightchaser/
+        # tangle; default 7 otherwise). Presence-gated so non-chromatic skills are unaffected.
+        if skill.compulsory_elements:
+            shots = (int(source.total("chromatic_shots_on_target_flat"))
+                     if "chromatic_shots_on_target_flat" in source.all_stats() else 7)
+            if shots >= 1:
+                n_proj = min(n_proj, shots)
         form_shotgun = (1.0 + (n_proj - 1) * (1.0 - form.shotgun_falloff)) if n_proj >= 1 else 0.0
 
         # Icebound Beam canvas supports add extra Icy Blade damage onto the projectile-scaling (burst) form:
@@ -1548,6 +1606,7 @@ def calculate_offense(
         channeled_behavior=ch_behavior,
         channeled_attack_frequency=ch_attack_frequency,
         projectile_count=projectile_count,
+        compulsory_breakdown=compulsory_breakdown,
         # Only for types this skill actually deals — those stats were already read (consumed) in the per-type
         # loop above, so re-reading is golden-neutral; reading types the skill doesn't deal would wrongly mark
         # their enemy-vuln stats "Consumed".

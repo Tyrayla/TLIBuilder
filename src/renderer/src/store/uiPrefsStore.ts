@@ -30,6 +30,11 @@ interface UiPrefsStore {
   // a spell, Ignite on a non-hitting skill). Default OFF — boxes are skill-gated; the toggle reveals all.
   statsShowAllBoxes: boolean
   setStatsShowAllBoxes: (on: boolean) => void
+  // Lock conditions the engine auto-inflicts (e.g. Splendor → Numbed/Frostbite/Ignite). Default ON — auto-set
+  // conditions show checked with an "auto" badge and can't be toggled (the source guarantees them). Off lets the
+  // user override them like normal checkboxes.
+  lockAutoConditions: boolean
+  setLockAutoConditions: (on: boolean) => void
   // Global UI zoom (1 = 100%). Applied as CSS zoom on the document root so the whole interface scales uniformly
   // (fonts + spacing + icons), like browser zoom. Persisted across sessions.
   uiScale: number
@@ -60,6 +65,8 @@ export const useUiPrefs = create<UiPrefsStore>()(
       setCollapsiblePanels: (collapsiblePanels) => set({ collapsiblePanels }),
       statsShowAllBoxes: false,
       setStatsShowAllBoxes: (statsShowAllBoxes) => set({ statsShowAllBoxes }),
+      lockAutoConditions: true,
+      setLockAutoConditions: (lockAutoConditions) => set({ lockAutoConditions }),
       uiScale: 1,
       setUiScale: (uiScale) => set({ uiScale }),
       sidebarWidth: 155,

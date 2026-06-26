@@ -484,6 +484,11 @@ class Stat(Enum):
     # Multiplies the base Multistrike Damage Increment: effective increment = base × (1 + Σ this). Read by the
     # offense multistrike stage, NOT a damage pool.
     MULTISTRIKE_INCREASING_DMG_ADDITIONAL = "multistrike_increasing_dmg_additional"
+    # Chromatic Shot. main_stat_dmg_bonus_inc: raises the main-attribute damage ratio (Lightchaser +25% → 0.5%/pt
+    # becomes 0.625%/pt). chromatic_shots_on_target_flat: how many fired projectiles land on the target (the shotgun
+    # hit count); the chromatic_shot module emits it (full under Lightchaser/tangle, else the user input).
+    MAIN_STAT_DMG_BONUS_INC = "main_stat_dmg_bonus_inc"
+    CHROMATIC_SHOTS_ON_TARGET_FLAT = "chromatic_shots_on_target_flat"
     # Cat Dive (Wind Stalker): per-attack chance during multistrike to be counted at the Max Multistrike Count
     # for increment purposes. Read by the offense multistrike stage.
     MULTISTRIKE_MAX_COUNT_PROC_CHANCE = "multistrike_max_count_proc_chance"

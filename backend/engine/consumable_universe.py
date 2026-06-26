@@ -204,6 +204,10 @@ def consumable_universe() -> frozenset[str]:
                  "max_mercury_points_flat", "max_mercury_points_inc", "mana_cost_override",
                  "spell_ripple_fraction"}
 
+    # Chromatic Shot: Lightchaser's main-attribute ratio boost + the shots-on-target shotgun count, both read in
+    # offense (presence-gated) outside the synthetic passes — whitelist so they never false-yellow.
+    consumed |= {"main_stat_dmg_bonus_inc", "chromatic_shots_on_target_flat"}
+
     missing = _SANITY_FLOOR - consumed
     if missing:
         raise RuntimeError(

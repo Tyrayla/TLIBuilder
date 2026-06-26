@@ -24,15 +24,20 @@
     "block_ratio_upper_limit_flat",
     "cast_speed_additional",
     "cast_speed_inc",
-    "channeled_attack_frequency_additional",
-    "channeled_dmg_additional",
-    "channeled_dmg_inc",
+    "chromatic_shots_on_target_flat",
     "cold_as_erosion",
     "cold_as_fire",
     "cold_convert_to_erosion",
     "cold_convert_to_fire",
+    "cold_crit_dmg_inc",
+    "cold_curse_taken",
+    "cold_dmg_additional",
+    "cold_dmg_inc",
+    "cold_infiltration_taken",
+    "cold_pen",
     "cold_resistance",
     "cold_resistance_max_inc",
+    "cold_skill_level",
     "cold_spell_dmg_flat_max",
     "cold_spell_dmg_flat_min",
     "crit_dmg_additional",
@@ -40,6 +45,7 @@
     "crit_rating_additional",
     "crit_rating_inc",
     "defense_inc",
+    "dexterity",
     "dexterity_additional",
     "dexterity_flat",
     "dexterity_inc",
@@ -71,6 +77,7 @@
     "ferv",
     "fire_as_erosion",
     "fire_convert_to_erosion",
+    "fire_crit_dmg_inc",
     "fire_curse_taken",
     "fire_dmg_additional",
     "fire_dmg_inc",
@@ -78,11 +85,15 @@
     "fire_pen",
     "fire_resistance",
     "fire_resistance_max_inc",
+    "fire_skill_level",
     "fire_spell_dmg_flat_max",
     "fire_spell_dmg_flat_min",
     "frail_spell_taken",
+    "frostbite_cold_taken",
     "hit_curse_taken",
     "hit_dmg_additional",
+    "icy_blade_extra_blade_equiv",
+    "icy_blade_frozen_burst_rate",
     "intelligence",
     "intelligence_additional",
     "intelligence_flat",
@@ -94,6 +105,7 @@
     "lightning_convert_to_cold",
     "lightning_convert_to_erosion",
     "lightning_convert_to_fire",
+    "lightning_crit_dmg_inc",
     "lightning_curse_taken",
     "lightning_dmg_additional",
     "lightning_dmg_inc",
@@ -101,14 +113,15 @@
     "lightning_pen",
     "lightning_resistance",
     "lightning_resistance_max_inc",
+    "lightning_skill_level",
     "lightning_spell_dmg_flat_max",
     "lightning_spell_dmg_flat_min",
+    "lucky_cold",
     "lucky_fire",
     "lucky_lightning",
-    "lucky_physical",
     "main_skill_level",
+    "main_stat_dmg_bonus_inc",
     "max_agility_blessing_stacks_flat",
-    "max_channeled_stacks_flat",
     "max_electrify_stacks_flat",
     "max_energy_shield",
     "max_energy_shield_additional",
@@ -127,7 +140,6 @@
     "max_mana_inc",
     "max_spell_burst_flat",
     "max_tenacity_blessing_stacks_flat",
-    "min_channeled_stacks_flat",
     "no_guard_dmg_taken",
     "numbed_lightning_taken",
     "paralysis_dmg_taken",
@@ -140,15 +152,18 @@
     "physical_convert_to_erosion",
     "physical_convert_to_fire",
     "physical_convert_to_lightning",
-    "physical_crit_dmg_inc",
-    "physical_curse_taken",
     "physical_dmg_additional",
     "physical_dmg_inc",
     "physical_dmg_max_additional",
     "physical_dmg_min_additional",
-    "physical_skill_level",
     "physical_spell_dmg_flat_max",
     "physical_spell_dmg_flat_min",
+    "projectile_crit_dmg_inc",
+    "projectile_crit_rating_inc",
+    "projectile_dmg_additional",
+    "projectile_dmg_inc",
+    "projectile_quantity_flat",
+    "projectile_skill_level",
     "quadruple_dmg_chance",
     "sealed_mana_compensation_additional",
     "sealed_mana_compensation_inc",
@@ -162,6 +177,7 @@
     "spell_double_dmg_chance",
     "spell_skill_level",
     "steep_strike_chance",
+    "strength",
     "strength_additional",
     "strength_flat",
     "strength_inc",
@@ -172,85 +188,101 @@
   ],
   "offense": {
     "above_max_mult": 1.0,
-    "attacks_per_second": 4.215015015015014,
-    "base_cast_time": 0.333,
+    "attacks_per_second": 1.7846153846153843,
+    "base_cast_time": 0.65,
     "base_csr": 500.0,
-    "base_dmg_max": {
-      "physical": 913.0
-    },
-    "base_dmg_min": {
-      "physical": 548.0
-    },
+    "base_dmg_max": {},
+    "base_dmg_min": {},
     "cast_multiplier": 1.0,
-    "channeled_attack_frequency": 2.8843979999999996,
-    "channeled_behavior": "refresh",
-    "channeled_burst_rate": 0.8430030030030029,
-    "channeled_max_stacks": 5,
+    "channeled_attack_frequency": 0.0,
+    "channeled_behavior": "",
+    "channeled_burst_rate": 0.0,
+    "channeled_max_stacks": 0,
     "channeled_min_stacks": 0,
-    "channeled_rounds_per_cycle": 5.0,
-    "channeled_stacks": 5.0,
-    "compulsory_breakdown": {},
+    "channeled_rounds_per_cycle": 0.0,
+    "channeled_stacks": 0.0,
+    "compulsory_breakdown": {
+      "cold": {
+        "avg_pre_crit": 4335.180240971813,
+        "avg_with_crit": 4660.318759044699,
+        "hit_max": 5928.841877795107,
+        "hit_min": 2741.5186041485194,
+        "mitigation": 0.48999999999999994
+      },
+      "fire": {
+        "avg_pre_crit": 3941.072946338012,
+        "avg_with_crit": 4236.653417313363,
+        "hit_max": 5389.856252541006,
+        "hit_min": 2492.2896401350176,
+        "mitigation": 0.48999999999999994
+      },
+      "lightning": {
+        "avg_pre_crit": 7818.10345729803,
+        "avg_with_crit": 8404.461216595382,
+        "hit_max": 10692.127340978219,
+        "hit_min": 4944.07957361784,
+        "mitigation": 0.48999999999999994
+      }
+    },
     "crit_chance": 0.15,
     "crit_multiplier": 1.5,
     "effective_level": 20,
     "enemy_mult_by_type": {
-      "fire": 0.6026999999999999,
-      "lightning": 0.9040499999999999,
-      "physical": 0.615
+      "cold": 0.5389999999999999,
+      "fire": 0.48999999999999994,
+      "lightning": 0.7349999999999999
     },
     "flat_dmg_max": {
-      "fire": 182.25,
-      "lightning": 267.3,
-      "physical": 1088.5
+      "fire": 211.95000000000002,
+      "lightning": 310.86,
+      "physical": 204.1
     },
     "flat_dmg_min": {
-      "fire": 98.55000000000001,
-      "lightning": 13.5,
-      "physical": 653.3
+      "fire": 114.61,
+      "lightning": 15.700000000000001,
+      "physical": 122.46000000000001
     },
-    "generic_add": 4.553507235594239,
+    "generic_add": 2.95025822429184,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 7224.0333829945685,
-        "avg_hit_with_crit": 7765.835886719161,
-        "base_max_by_type": {
-          "physical": 913.0
-        },
-        "base_min_by_type": {
-          "physical": 548.0
-        },
+        "avg_hit_pre_crit": 5364.785548202618,
+        "avg_hit_with_crit": 5767.144464317814,
+        "base_max_by_type": {},
+        "base_min_by_type": {},
         "damage_by_type": {
-          "fire": 786.3542715292403,
-          "lightning": 1559.9302861461306,
-          "physical": 4877.748825319198
+          "cold": 1445.0600803239377,
+          "fire": 1313.6909821126708,
+          "lightning": 2606.0344857660098
         },
-        "dps_contribution": 22399.76149998097,
-        "dps_vs_target": 11127.128851270396,
+        "dps_contribution": 16467.415578113632,
+        "dps_vs_target": 8069.03363327568,
         "effectiveness_pct": 100.0,
-        "fires_per_sec": 2.8843979999999996,
+        "fires_per_sec": 1.7846153846153843,
         "form_type": "additive",
         "hit_max_by_type": {
-          "fire": 1020.7483332350715,
-          "lightning": 2969.867275547441,
-          "physical": 6096.485929911525
+          "cold": 5928.841877795107,
+          "fire": 5389.856252541006,
+          "lightning": 10692.127340978219
         },
         "hit_min_by_type": {
-          "fire": 551.9602098234092,
-          "lightning": 149.9932967448202,
-          "physical": 3659.011720726871
+          "cold": 2741.5186041485194,
+          "fire": 2492.2896401350176,
+          "lightning": 4944.07957361784
         },
-        "hits_per_fire": 1,
-        "name": "Howling Gale",
+        "hits_per_fire": 3,
+        "name": "Chromatic Shot",
         "proc_chance": 1.0,
-        "shotgun_falloff": 0.0,
-        "shotgun_mult": 1.0
+        "shotgun_falloff": 0.7,
+        "shotgun_mult": 1.6
       }
     ],
     "jumps": 0,
     "jumps_base": 0,
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
+      "strength",
+      "dexterity",
       "intelligence"
     ],
     "mana_cost": 8.0,
@@ -277,16 +309,18 @@
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
     ],
-    "projectile_count": -1,
+    "projectile_count": 3,
     "shotgun_hits": 1,
     "skill_area_inc": 0,
-    "skill_name": "Howling Gale",
+    "skill_name": "Chromatic Shot",
     "skill_tags": [
       "Spell",
-      "Channeled",
-      "Physical",
+      "Projectile",
       "Area",
-      "Persistent"
+      "Cold",
+      "Fire",
+      "Lightning",
+      "Horizontal"
     ],
     "spell_burst_auto": false,
     "spell_burst_auto_source": "",
@@ -314,14 +348,16 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
-    "total_dps": 22399.76149998097,
-    "total_dps_vs_target": 11127.128851270396,
+    "total_dps": 16467.415578113632,
+    "total_dps_vs_target": 8069.03363327568,
     "type_add": {
-      "fire": 4.553507235594239,
-      "lightning": 6.022013319073381,
-      "physical": 4.553507235594239
+      "cold": 2.95025822429184,
+      "fire": 2.95025822429184,
+      "lightning": 3.9017165016259576,
+      "physical": 2.95025822429184
     },
     "type_inc": {
+      "cold": 0,
       "fire": 0,
       "lightning": 0,
       "physical": 0
@@ -336,85 +372,101 @@
   "slot_offense": {
     "1": {
       "above_max_mult": 1.0,
-      "attacks_per_second": 4.215015015015014,
-      "base_cast_time": 0.333,
+      "attacks_per_second": 1.7846153846153843,
+      "base_cast_time": 0.65,
       "base_csr": 500.0,
-      "base_dmg_max": {
-        "physical": 913.0
-      },
-      "base_dmg_min": {
-        "physical": 548.0
-      },
+      "base_dmg_max": {},
+      "base_dmg_min": {},
       "cast_multiplier": 1.0,
-      "channeled_attack_frequency": 2.8843979999999996,
-      "channeled_behavior": "refresh",
-      "channeled_burst_rate": 0.8430030030030029,
-      "channeled_max_stacks": 5,
+      "channeled_attack_frequency": 0.0,
+      "channeled_behavior": "",
+      "channeled_burst_rate": 0.0,
+      "channeled_max_stacks": 0,
       "channeled_min_stacks": 0,
-      "channeled_rounds_per_cycle": 5.0,
-      "channeled_stacks": 5.0,
-      "compulsory_breakdown": {},
+      "channeled_rounds_per_cycle": 0.0,
+      "channeled_stacks": 0.0,
+      "compulsory_breakdown": {
+        "cold": {
+          "avg_pre_crit": 4335.180240971813,
+          "avg_with_crit": 4660.318759044699,
+          "hit_max": 5928.841877795107,
+          "hit_min": 2741.5186041485194,
+          "mitigation": 0.48999999999999994
+        },
+        "fire": {
+          "avg_pre_crit": 3941.072946338012,
+          "avg_with_crit": 4236.653417313363,
+          "hit_max": 5389.856252541006,
+          "hit_min": 2492.2896401350176,
+          "mitigation": 0.48999999999999994
+        },
+        "lightning": {
+          "avg_pre_crit": 7818.10345729803,
+          "avg_with_crit": 8404.461216595382,
+          "hit_max": 10692.127340978219,
+          "hit_min": 4944.07957361784,
+          "mitigation": 0.48999999999999994
+        }
+      },
       "crit_chance": 0.15,
       "crit_multiplier": 1.5,
       "effective_level": 20,
       "enemy_mult_by_type": {
-        "fire": 0.6026999999999999,
-        "lightning": 0.9040499999999999,
-        "physical": 0.615
+        "cold": 0.5389999999999999,
+        "fire": 0.48999999999999994,
+        "lightning": 0.7349999999999999
       },
       "flat_dmg_max": {
-        "fire": 182.25,
-        "lightning": 267.3,
-        "physical": 1088.5
+        "fire": 211.95000000000002,
+        "lightning": 310.86,
+        "physical": 204.1
       },
       "flat_dmg_min": {
-        "fire": 98.55000000000001,
-        "lightning": 13.5,
-        "physical": 653.3
+        "fire": 114.61,
+        "lightning": 15.700000000000001,
+        "physical": 122.46000000000001
       },
-      "generic_add": 4.553507235594239,
+      "generic_add": 2.95025822429184,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 7224.0333829945685,
-          "avg_hit_with_crit": 7765.835886719161,
-          "base_max_by_type": {
-            "physical": 913.0
-          },
-          "base_min_by_type": {
-            "physical": 548.0
-          },
+          "avg_hit_pre_crit": 5364.785548202618,
+          "avg_hit_with_crit": 5767.144464317814,
+          "base_max_by_type": {},
+          "base_min_by_type": {},
           "damage_by_type": {
-            "fire": 786.3542715292403,
-            "lightning": 1559.9302861461306,
-            "physical": 4877.748825319198
+            "cold": 1445.0600803239377,
+            "fire": 1313.6909821126708,
+            "lightning": 2606.0344857660098
           },
-          "dps_contribution": 22399.76149998097,
-          "dps_vs_target": 11127.128851270396,
+          "dps_contribution": 16467.415578113632,
+          "dps_vs_target": 8069.03363327568,
           "effectiveness_pct": 100.0,
-          "fires_per_sec": 2.8843979999999996,
+          "fires_per_sec": 1.7846153846153843,
           "form_type": "additive",
           "hit_max_by_type": {
-            "fire": 1020.7483332350715,
-            "lightning": 2969.867275547441,
-            "physical": 6096.485929911525
+            "cold": 5928.841877795107,
+            "fire": 5389.856252541006,
+            "lightning": 10692.127340978219
           },
           "hit_min_by_type": {
-            "fire": 551.9602098234092,
-            "lightning": 149.9932967448202,
-            "physical": 3659.011720726871
+            "cold": 2741.5186041485194,
+            "fire": 2492.2896401350176,
+            "lightning": 4944.07957361784
           },
-          "hits_per_fire": 1,
-          "name": "Howling Gale",
+          "hits_per_fire": 3,
+          "name": "Chromatic Shot",
           "proc_chance": 1.0,
-          "shotgun_falloff": 0.0,
-          "shotgun_mult": 1.0
+          "shotgun_falloff": 0.7,
+          "shotgun_mult": 1.6
         }
       ],
       "jumps": 0,
       "jumps_base": 0,
       "main_stat_damage_bonus": 0.0,
       "main_stats": [
+        "strength",
+        "dexterity",
         "intelligence"
       ],
       "mana_cost": 8.0,
@@ -441,16 +493,18 @@
         "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
         "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
       ],
-      "projectile_count": -1,
+      "projectile_count": 3,
       "shotgun_hits": 1,
       "skill_area_inc": 0,
-      "skill_name": "Howling Gale",
+      "skill_name": "Chromatic Shot",
       "skill_tags": [
         "Spell",
-        "Channeled",
-        "Physical",
+        "Projectile",
         "Area",
-        "Persistent"
+        "Cold",
+        "Fire",
+        "Lightning",
+        "Horizontal"
       ],
       "spell_burst_auto": false,
       "spell_burst_auto_source": "",
@@ -478,14 +532,16 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
-      "total_dps": 22399.76149998097,
-      "total_dps_vs_target": 11127.128851270396,
+      "total_dps": 16467.415578113632,
+      "total_dps_vs_target": 8069.03363327568,
       "type_add": {
-        "fire": 4.553507235594239,
-        "lightning": 6.022013319073381,
-        "physical": 4.553507235594239
+        "cold": 2.95025822429184,
+        "fire": 2.95025822429184,
+        "lightning": 3.9017165016259576,
+        "physical": 2.95025822429184
       },
       "type_inc": {
+        "cold": 0,
         "fire": 0,
         "lightning": 0,
         "physical": 0
@@ -563,25 +619,6 @@
       "total": 0.16,
       "unit": "%"
     },
-    "channeled_attack_frequency_additional": {
-      "category": "Cast Speed",
-      "display_name": "Additional Gale Attack Frequency",
-      "slot_sources": [
-        {
-          "amount": 0.37000000000000005,
-          "label": "Howling Gale: Furious Sweep",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Howling Gale: Furious Sweep (Noble)",
-          "source_type": "support",
-          "text": "+7.40% additional Gale Attack Frequency per channeled stack \u00d75 |howling_gale_furious_sweep_noble|furious"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": "%"
-    },
     "crit_rating_inc": {
       "category": "Critical Strike",
       "display_name": "Critical Strike Rating",
@@ -604,53 +641,33 @@
       "slot_sources": [
         {
           "amount": 0.2,
-          "label": "Howling Gale: Eye of the Gale (Noble) (Rank 5)",
+          "label": "Chromatic Shot: Lightchaser (Magnificent) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Howling Gale: Eye of the Gale (Noble)",
+          "source_name": "Chromatic Shot: Lightchaser (Magnificent)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |howling_gale_eye_of_the_gale_noble|universal"
+          "text": "additional damage for the supported skill |chromatic_shot_lightchaser_magnificent|universal"
+        },
+        {
+          "amount": -0.02,
+          "label": "Chromatic Shot: Lightchaser (Magnificent)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chromatic Shot: Lightchaser (Magnificent)",
+          "source_type": "support",
+          "text": "+-2.00% additional damage |chromatic_shot_lightchaser_magnificent|lightchaser_roll"
         },
         {
           "amount": 0.2,
-          "label": "Howling Gale: Furious Sweep (Noble) (Rank 5)",
+          "label": "Chromatic Shot: Splendor (Noble) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Howling Gale: Furious Sweep (Noble)",
+          "source_name": "Chromatic Shot: Splendor (Noble)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |howling_gale_furious_sweep_noble|universal"
-        },
-        {
-          "amount": 0.2,
-          "label": "Howling Gale: Headwind (Magnificent) (Rank 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Howling Gale: Headwind (Magnificent)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |howling_gale_headwind_magnificent|universal"
-        },
-        {
-          "amount": 0.2,
-          "label": "Howling Gale: Rapid Sweep (Magnificent) (Rank 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Howling Gale: Rapid Sweep (Magnificent)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |howling_gale_rapid_sweep_magnificent|universal"
-        },
-        {
-          "amount": 0.355,
-          "label": "Howling Gale: Rapid Sweep (Magnificent)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Howling Gale: Rapid Sweep (Magnificent)",
-          "source_type": "support",
-          "text": "+3.55% additional damage per 1 s the Gale lasts (cap 10) |howling_gale_rapid_sweep_magnificent|rapid_sweep"
+          "text": "additional damage for the supported skill |chromatic_shot_splendor_noble|universal"
         },
         {
           "amount": 0.16,
@@ -766,6 +783,41 @@
       "sources": [],
       "total": 0.0,
       "unit": ""
+    },
+    "frostbite_cold_taken": {
+      "category": "Other",
+      "display_name": "frostbite_cold_taken",
+      "sources": [
+        {
+          "amount": 0.1,
+          "label": "Frostbite Rating",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+10.0% Cold Damage taken (Frostbite Rating 10)"
+        }
+      ],
+      "total": 0.1,
+      "unit": ""
+    },
+    "hit_dmg_additional": {
+      "category": "Generic",
+      "display_name": "Additional Hit Damage",
+      "slot_sources": [
+        {
+          "amount": 0.29,
+          "label": "Chromatic Shot: Splendor (Noble)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Chromatic Shot: Splendor (Noble)",
+          "source_type": "support",
+          "text": "+29.00% additional Hit Damage vs enemies with Frostbite + Numbed + Ignite |chromatic_shot_splendor_noble|splendor_roll"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
     },
     "lightning_dmg_additional": {
       "category": "Lightning",

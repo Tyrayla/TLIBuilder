@@ -164,10 +164,11 @@ def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict
     return total
 
 
-def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys) -> None:
+def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys, auto_sources=None) -> None:
     """Apply auto-derived support condition effects (from map_autoderive_line) to condition_state,
     respecting manually-set values (never lower / never override). Gated by the supported skill's
-    damage types (requires_dtype) and any precondition (requires_cond, e.g. enemy_cursed for Paralyze)."""
+    damage types (requires_dtype) and any precondition (requires_cond, e.g. enemy_cursed for Paralyze).
+    Records what set each condition into auto_sources (for the Config "auto" badge)."""
     dtypes = {d.lower() for d in (main_dtypes or [])}
     _ELEMENTAL = {"fire", "cold", "lightning", "erosion"}
     for e in effects or []:
@@ -186,6 +187,8 @@ def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys) -> N
             cur = condition_state.get(e.condition_key, 0.0)
             cur = (1.0 if cur else 0.0) if isinstance(cur, bool) else float(cur or 0.0)
             condition_state[e.condition_key] = max(cur, e.value)
+        if auto_sources is not None:
+            auto_sources[e.condition_key] = e.source or "Auto-inflicted by your build"
 
 
 def compute(
@@ -210,6 +213,10 @@ def compute(
     condition_state: dict[str, float | bool] = dict(build_input.condition_state)
     manual_cond_keys = set(build_input.condition_state.keys())
     prev_snapshot = None
+    # Conditions the ENGINE turns on that the user didn't manually set (e.g. Splendor inflicting Numbed/
+    # Frostbite/Ignite, auto-derived Frostbite Rating). {condition_key: source label} — surfaced to the
+    # Config UI as a locked "auto" badge so the user can see what activated them without hunting.
+    auto_sources: dict[str, str] = {}
 
     # Core-talent set-value overrides ("Max Life is set to 100"): force a derived stat to a fixed final
     # value in derive_stats (these ride in core_talent_contributions tagged set_value, skipped by the
@@ -280,12 +287,12 @@ def compute(
         if _sk["skill_id"] == _main_id:
             _main_covered = True
         skill_effects.preseed(_sk["skill_id"], slot=_sk["slot"],
-                              condition_state=condition_state,
+                              condition_state=condition_state, auto_sources=auto_sources,
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
     # Fallback: a main skill provided without a matching slot entry (legacy payloads) still preseeds.
     if _main_id and not _main_covered:
         skill_effects.preseed(_main_id, slot=main_slot,
-                              condition_state=condition_state,
+                              condition_state=condition_state, auto_sources=auto_sources,
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
 
     # ── Hero traits (Erika Lightning Shadow, …) ───────────────────────────────
@@ -454,7 +461,7 @@ def compute(
         # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values. Non-support
         # "inflicts Numbed" sources (talents/gear/custom mods) ride the same path via inflict_cond_effects.
         _apply_cond_effects(condition_state, list(cond_effects) + list(build_input.inflict_cond_effects),
-                            main_dtypes, manual_cond_keys)
+                            main_dtypes, manual_cond_keys, auto_sources)
         # H — "cannot inflict Numbed" overrides everything (even a user-set value): no Numbed at all.
         if build_input.numbed_blocked:
             condition_state["enemy_numbed"] = False
@@ -489,8 +496,13 @@ def compute(
             _raw = 10.0 + source.total("max_frostbite_rating_flat")
             _cap = 200.0 if condition_state.get("condensed_frost") else 120.0
             condition_state["frostbite_rating"] = min(_raw, _cap)
+            # Frostbite Rating is always engine-derived (never user-set) — surface it as auto, attributed to
+            # whatever inflicted Frostbite when that was itself auto (e.g. Splendor), else a generic label.
+            if "frostbite_rating" not in manual_cond_keys:
+                auto_sources["frostbite_rating"] = auto_sources.get("enemy_frostbitten", "Frostbite Rating (auto-derived)")
         else:
             condition_state["frostbite_rating"] = 0.0
+            auto_sources.pop("frostbite_rating", None)
         if "enemy_frozen" not in manual_cond_keys:
             condition_state["enemy_frozen"] = condition_state["frostbite_rating"] > 100.0
 
@@ -686,6 +698,10 @@ def compute(
         result_offense = _offense_for_slot(
             resolve_skill(skill_data), build_input.main_skill.level, main_slot, True, skill_dict=skill_data)
         slot_offense[main_slot] = result_offense
+        # Projectile Hits (Chromatic Shot): the shotgun-hit cap IS the build's projectile count (3 by default,
+        # up to ~40 with quantity mods) — not an artificial constant. Report it as the condition's max.
+        if result_offense.get("compulsory_breakdown") and result_offense.get("projectile_count"):
+            maxes["chromatic_shots_on_target"] = float(result_offense["projectile_count"])
 
     # Secondary active skill slots — each computed independently, folding only ITS slot's supports (no
     # cross-contamination between setups). Today's payloads carry only the main skill, so this is empty and
@@ -835,9 +851,20 @@ def compute(
             "scope": entry.scope,
         })
 
+    # Auto-set conditions to surface in the Config UI: engine-activated keys the user didn't set manually,
+    # whose final value is active (truthy bool / nonzero numeric), each tagged with its source label.
+    def _is_active(v) -> bool:
+        return bool(v) if isinstance(v, bool) else float(v or 0.0) != 0.0
+    auto_conditions = {
+        k: {"value": condition_state.get(k), "source": src}
+        for k, src in auto_sources.items()
+        if k not in manual_cond_keys and _is_active(condition_state.get(k))
+    }
+
     return StatResult(
         stat_map=stat_map,
         condition_maximums=maxes,
+        auto_conditions=auto_conditions,
         clamp_report=clamp_report,
         offense=result_offense,
         defense=result_defense,

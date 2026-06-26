@@ -1050,6 +1050,8 @@ def engine_stats(req: EngineStatsRequest):
         "clamp_report": result.clamp_report,
         # Condition keys any build mod references (gate on/off) — the Config screen hides the rest by default.
         "referenced_conditions": result.referenced_conditions,
+        # Engine-activated (not user-set) conditions → {value, source} for the Config "auto" badge.
+        "auto_conditions": result.auto_conditions,
         "offense": result.offense,
         "defense": result.defense,
         "custom_mod_statuses": custom_mod_statuses,
