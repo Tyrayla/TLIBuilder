@@ -10,6 +10,7 @@ import { useDamageDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
 import { ModifierBadge, useTextModifierStatuses, useTextModifierStatus } from '../components/ModifierBadge'
 import { dec } from '../utils/num'
+import { traitSlang, traitOrder } from '../utils/heroTraitOrder'
 
 interface Props {
   onBack: () => void
@@ -184,6 +185,57 @@ function groupByHero(traits: HeroTrait[]): Record<string, HeroTrait[]> {
     out[t.hero].push(t)
   }
   return out
+}
+
+// Custom hero-trait dropdown — a native <select> can't style the per-substring lavender slang label, so this small
+// floating menu (mirrors the loadout dropdown) shows each trait's name + its community slang ("Thea 1") and sorts by
+// release order (heroes in release order; ascending within a hero).
+function HeroTraitSelect({ traits, value, onChange }: {
+  traits: HeroTrait[]; value: string | null; onChange: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const groups = useMemo(() => {
+    const by = groupByHero(traits)
+    return Object.entries(by)
+      .map(([hero, variants]) => ({
+        hero,
+        variants: [...variants].sort((a, b) => traitOrder(a.trait_id) - traitOrder(b.trait_id)),
+        order: Math.min(...variants.map(v => traitOrder(v.trait_id))),
+      }))
+      .sort((a, b) => a.order - b.order)
+  }, [traits])
+  const current = traits.find(t => t.trait_id === value) ?? null
+  return (
+    <div className="ht-dd">
+      <button className="ht-dd-trigger" onClick={() => setOpen(o => !o)} title="Select hero trait">
+        <span className="ht-dd-trigger-name">{current?.variant_name ?? 'Select trait'}</span>
+        {current && traitSlang(current.trait_id) && (
+          <span className="ht-dd-slang">{traitSlang(current.trait_id)}</span>
+        )}
+        <span className="ht-dd-caret">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <>
+          <div className="ht-dd-backdrop" onClick={() => setOpen(false)} />
+          <div className="ht-dd-menu">
+            {groups.map(g => (
+              <div key={g.hero} className="ht-dd-group">
+                <div className="ht-dd-group-label">{g.hero}</div>
+                {g.variants.map(v => (
+                  <button key={v.trait_id}
+                    className={`ht-dd-item${v.trait_id === value ? ' active' : ''}`}
+                    onClick={() => { onChange(v.trait_id); setOpen(false) }}>
+                    <span className="ht-dd-item-name">{v.variant_name}</span>
+                    {traitSlang(v.trait_id) && <span className="ht-dd-slang">{traitSlang(v.trait_id)}</span>}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 function resolveLevel(text: string, level: number): string {
@@ -530,7 +582,6 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   }, [loading, traitId, allTraits])
 
   const selectedTrait = allTraits.find(t => t.trait_id === traitId) ?? null
-  const byHero = groupByHero(allTraits)
 
   const safeSlotLevels = (
     Array.isArray(traitSlotLevels) && traitSlotLevels.length === 4
@@ -719,19 +770,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
     <div className="hero-trait-screen">
       {/* Header */}
       <div className="hero-trait-header">
-        <select
-          className="hero-trait-select"
-          value={traitId ?? ''}
-          onChange={e => switchTrait(e.target.value)}
-        >
-          {Object.entries(byHero).map(([hero, variants]) => (
-            <optgroup key={hero} label={hero}>
-              {variants.map(v => (
-                <option key={v.trait_id} value={v.trait_id}>{v.variant_name}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <HeroTraitSelect traits={allTraits} value={traitId} onChange={switchTrait} />
         {selectedTrait && (
           <span className="hero-trait-variant-label">
             {selectedTrait.hero} · {selectedTrait.variant_name}

@@ -132,3 +132,43 @@ def test_import_crawler_hero_traits_filters_nameless():
     result = import_crawler_hero_traits(items)
     assert len(result) == 1
     assert result[0]["trait_id"] == "anger"
+
+
+# Regression: an ADVANCED node can also carry a per-level `levels` array (its tier scaling, with description=None).
+# The old importer detected the base by "has levels" and dropped these. They must survive and take effects from
+# levels[*].description. (Matches real data: Wind Stalker / Cat's Punches, Zealot of War / Ceasefire, etc.)
+_LEVELED_ADV = {
+    "name": "Wind Stalker",
+    "max_level": 8,
+    "traits": [
+        {"name": "Wind Stalker", "required_level": 1,
+         "levels": [{"level": 1, "description": "+26 % Movement Speed"}], "description": None,
+         "icon_url": "https://cdn.tlidb.com/UI/Textures/Common/Icon/Skill/HeroTraits/Erika/x.webp"},
+        {"name": "Cat Dive", "required_level": 75, "levels": [],
+         "description": "Proc chance to deal max Multistrike", "icon_url": ""},
+        {"name": "Cat's Punches", "required_level": 75, "description": None,
+         "levels": [{"level": 1, "description": "punch L1"}, {"level": 2, "description": "punch L2"}],
+         "icon_url": ""},
+    ],
+    "glossary": [],
+}
+
+
+def test_leveled_advanced_node_not_dropped():
+    r = import_crawler_hero_trait(_LEVELED_ADV)
+    names = [t["name"] for t in r["advanced_traits"]]
+    assert "Cat's Punches" in names and "Cat Dive" in names
+    assert len(r["advanced_traits"]) == 2
+
+
+def test_leveled_advanced_node_effects_from_levels():
+    r = import_crawler_hero_trait(_LEVELED_ADV)
+    punches = next(t for t in r["advanced_traits"] if t["name"] == "Cat's Punches")
+    assert punches["effects"] == ["punch L1", "punch L2"]
+    assert punches["unlock_level"] == 75
+
+
+def test_leveled_advanced_base_and_hero_still_correct():
+    r = import_crawler_hero_trait(_LEVELED_ADV)
+    assert r["hero"] == "Erika"
+    assert len(r["levels"]) == 1  # the required_level==1 base, not the advanced nodes

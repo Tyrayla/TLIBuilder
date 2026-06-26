@@ -3562,6 +3562,38 @@ span.gear-affix-label {
 
 .hero-trait-variant-label { font-size: 12px; color: #666688; }
 
+/* Custom hero-trait dropdown (replaces the native <select> so the community slang label can be lavender). */
+.ht-dd { position: relative; min-width: 240px; }
+.ht-dd-trigger {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: #0e0e2a; border: 1px solid #3a3a6a; border-radius: 4px;
+  color: #c0c0e0; font-size: 13px; font-family: inherit; padding: 5px 10px; cursor: pointer;
+}
+.ht-dd-trigger:hover { border-color: #5a4ea0; background: #15153a; }
+.ht-dd-trigger-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-dd-caret { color: #9a9ac8; font-size: 9px; margin-left: auto; flex-shrink: 0; }
+/* The community slang ("Thea 1") — small, light lavender. */
+.ht-dd-slang { font-size: 11px; font-weight: 400; color: #b8a8e8; flex-shrink: 0; }
+.ht-dd-backdrop { position: fixed; inset: 0; z-index: 300; }
+.ht-dd-menu {
+  position: absolute; top: calc(100% + 3px); left: 0; min-width: 260px; z-index: 301;
+  background: #0d0d20; border: 1px solid #3a3a6a; border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6); padding: 4px; max-height: 70vh; overflow-y: auto;
+}
+.ht-dd-group-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #7a7aa8;
+  font-weight: 700; padding: 6px 8px 2px;
+}
+.ht-dd-item {
+  width: 100%; display: flex; align-items: baseline; gap: 8px;
+  background: none; border: none; color: #d2d4ee; font-size: 12px; text-align: left;
+  padding: 5px 10px; border-radius: 4px; cursor: pointer;
+}
+.ht-dd-item:hover { background: #221a44; color: #ffffff; }
+.ht-dd-item.active { color: #ffffff; font-weight: 600; background: #1a1040; }
+.ht-dd-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-dd-item .ht-dd-slang { margin-left: auto; }
+
 .hero-trait-body {
   flex: 1;
   overflow-y: auto;

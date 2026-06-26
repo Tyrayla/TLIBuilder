@@ -112,9 +112,11 @@ def import_crawler_hero_trait(data: dict) -> dict:
     trait_id = _re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
     traits = data.get("traits") or []
 
-    # Base trait = first entry with levels; advanced = entries without levels
-    base = next((t for t in traits if t.get("levels")), {})
-    advanced_raw = [t for t in traits if not t.get("levels")]
+    # Base trait = the required_level==1 entry; advanced = every level-45/60/75 node.
+    # NOTE: some ADVANCED nodes also carry a per-level `levels` array (their tier scaling), so the base must be
+    # detected by required_level, NOT by "has a levels field" — otherwise those advanced nodes get dropped.
+    base = next((t for t in traits if t.get("required_level", 1) == 1), {})
+    advanced_raw = [t for t in traits if t.get("required_level", 1) != 1]
 
     # Extract hero from base trait icon_url
     icon_url = base.get("icon_url", "")
@@ -136,6 +138,14 @@ def import_crawler_hero_trait(data: dict) -> dict:
             "unlock_level": 1,
         })
 
+    # Advanced-node effects: nodes with a per-level `levels` array carry their text there (their top-level
+    # `description` is null); others use `description`.
+    def _adv_effects(t: dict) -> list[str]:
+        lv = t.get("levels")
+        if lv:
+            return [e.get("description", "") for e in lv if e.get("description")]
+        return [t["description"]] if t.get("description") else []
+
     # Determine is_pick_one_from_two by counting traits per required_level
     level_counts = _Counter(t.get("required_level", 0) for t in advanced_raw)
     advanced_traits = [
@@ -143,7 +153,7 @@ def import_crawler_hero_trait(data: dict) -> dict:
             "name": t.get("name", ""),
             "unlock_level": t.get("required_level", 0),
             "is_pick_one_from_two": level_counts[t.get("required_level", 0)] > 1,
-            "effects": [t["description"]] if t.get("description") else [],
+            "effects": _adv_effects(t),
             "icon_url": t.get("icon_url", ""),
         }
         for t in advanced_raw
