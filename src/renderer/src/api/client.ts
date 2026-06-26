@@ -1178,6 +1178,11 @@ export interface HeroAdvancedTrait {
   name: string
   unlock_level: number          // 45 | 60 | 75
   is_pick_one_from_two: boolean
+  // Per-level grouping: "guaranteed" nodes are always granted; "pick" nodes choose one within their group_id.
+  // A level can have a guaranteed node and/or one+ pick groups (only Creative Genius has multiple). group_id orders
+  // groups top->bottom within the level. (Older data may omit these; fall back to is_pick_one_from_two.)
+  group_role?: 'guaranteed' | 'pick'
+  group_id?: number
   effects: string[]
   icon_url?: string | null      // render via iconUrl('hero_trait', icon_url) → bundled webp
 }
@@ -1488,6 +1493,29 @@ function _expandTraitTier(text: string, tierIndex: number): string {
     const parts = inner.split('/').map(p => p.trim())
     return parts[Math.min(Math.max(tierIndex, 0), parts.length - 1)] ?? parts[parts.length - 1]
   })
+}
+
+// The advanced-node picks to SEND to the engine: the user's chosen nodes PLUS every GUARANTEED node whose tier is
+// enabled. Guaranteed nodes are always granted (the player never explicitly selects them), so they're auto-applied
+// here at payload time rather than persisted into the saved selections. Both the bespoke trait modules and the
+// generic resolver key off this list. A disabled tier (negative slot level) contributes nothing.
+export function withGuaranteedPicks(
+  traitId: string | null,
+  traitSlotLevels: number[],
+  advancedTraitSelections: string[],
+  allTraits: HeroTrait[],
+): string[] {
+  const out = new Set(advancedTraitSelections ?? [])
+  if (!traitId) return [...out]
+  const trait = allTraits.find(t => t.trait_id === traitId)
+  if (!trait) return [...out]
+  for (const adv of trait.advanced_traits ?? []) {
+    const role = adv.group_role ?? (adv.is_pick_one_from_two ? 'pick' : 'guaranteed')
+    if (role !== 'guaranteed') continue
+    const idx = adv.unlock_level >= 75 ? 3 : adv.unlock_level >= 60 ? 2 : 1
+    if ((traitSlotLevels?.[idx] ?? 1) >= 1) out.add(adv.name)  // tier enabled
+  }
+  return [...out]
 }
 
 // Build the engine `trait_effects` list from the selected hero trait. The base trait emits its chosen

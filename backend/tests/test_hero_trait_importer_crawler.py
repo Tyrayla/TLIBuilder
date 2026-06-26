@@ -161,10 +161,11 @@ def test_leveled_advanced_node_not_dropped():
     assert len(r["advanced_traits"]) == 2
 
 
-def test_leveled_advanced_node_effects_from_levels():
+def test_leveled_advanced_node_effects_collapsed_to_tier_syntax():
+    # Per-level descriptions collapse to ONE line with (a/b/...) tier syntax (the differing token only).
     r = import_crawler_hero_trait(_LEVELED_ADV)
     punches = next(t for t in r["advanced_traits"] if t["name"] == "Cat's Punches")
-    assert punches["effects"] == ["punch L1", "punch L2"]
+    assert punches["effects"] == ["punch (L1/L2)"]
     assert punches["unlock_level"] == 75
 
 

@@ -1,7 +1,7 @@
 import {
   EquippedGearItem, GearSlot, GearEngineItem, GearAffixContribution, CraftBaseItemGroup,
   LegendaryAffix, CustomizedAffix, EffectInput,
-  buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects,
+  buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects, withGuaranteedPicks,
   traitGrantsSkillSlot, TRAIT_SKILL_SLOT, TRAIT_SKILL_ID,
 } from '../api/client'
 import { itemHasSlot } from './gearItem'
@@ -12,6 +12,12 @@ import type { useBuildStore } from '../store/buildStore'
 export { buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects }
 
 export type BuildState = ReturnType<typeof useBuildStore.getState>
+
+// Effective hero-trait picks for the engine payload = user picks + always-granted guaranteed nodes (enabled tiers).
+function _effTraitPicks(s: BuildState): string[] {
+  return withGuaranteedPicks(s.traitId, s.traitSlotLevels, s.advancedTraitSelections,
+    useReferenceStore.getState().heroTraits ?? [])
+}
 
 // Dual wielding = both weapon slots hold a WEAPON (not a shield, and not a 2H which only fills
 // weapon1). Drives the auto-set `dual_wielding` condition (the engine grants its base effects).
@@ -116,8 +122,10 @@ export function buildEngineStatsPayload(s: BuildState) {
     // surface + generic (non-bespoke) traits. uptime_mode (Max|Real) selects assume-max vs computed ramp.
     trait_id: s.traitId,
     trait_slot_levels: s.traitSlotLevels,
-    advanced_trait_selections: s.advancedTraitSelections,
-    trait_effects: buildTraitEffects(s.traitId, s.traitSlotLevels, s.advancedTraitSelections,
+    // Effective picks = user choices + always-granted guaranteed nodes (enabled tiers). Sent so both bespoke
+    // modules and the generic resolver apply guaranteed nodes without persisting them into the saved selections.
+    advanced_trait_selections: _effTraitPicks(s),
+    trait_effects: buildTraitEffects(s.traitId, s.traitSlotLevels, _effTraitPicks(s),
       useReferenceStore.getState().heroTraits ?? []),
     uptime_mode: s.uptimeMode,
     main_skill: s.mainSkill ?? null,
