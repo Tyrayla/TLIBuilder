@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.5.3] - 2026-06-26
+
+### New damage mechanics
+- **Spell Burst** — eligible Spells charge up and auto-recast in a burst, modeled on the game's 30-per-second server tick, with manual vs. auto-trigger handling and per-support burst-damage bonuses.
+- **Tangles** — the Spell Tangle skill type: your spell is cast by attached tangles, with Tangle Damage, Tangle Damage Enhancement, attached count, and Dormant Entanglement.
+- **Curses** — curse application from skills and gear, per-type damage-taken amplification scaled by Curse Effect, a curse limit with an over-limit resolver, and per-curse breakdowns.
+- **Empower skills** — Euphoria buffs from slotted Empower skills scaled by Empower Skill Effect, including Well-Fought Battle and Mass Effect.
+- **Channeled skills** — a channeled-DPS framework (stack ramp and refresh) plus two new modeled skills, **Icebound Beam** and **Howling Gale**, and their canvas supports.
+- **Multistrike** — full attack-speed and chain model.
+
+### Hero traits
+- **Erika** — Lightning Shadow (Numbed).
+- **Rosa** — High Court Chariot (No Guard, Block Ratio, Holy Domain).
+
+### Build management
+- **Web version** — TLI Builder now runs in the browser at **tlibuilder.com**; your builds save locally in the browser.
+
+### Config screen (was Conditionals + Calcs)
+- Renamed **Stats → Calcs** and **Conditionals → Config**, with the old Calcs page folded in.
+- Conditions now **auto-hide** unless your build actually uses them — toggle **Show all** to see every option.
+- **Editable enemy / target stats** per loadout: pick a level dummy or customize armor and per-type resistances.
+- A free-form **Custom Modifiers** editor — type one modifier per line, each line color-coded by whether it's recognized, with a hover tooltip.
+
+### Calcs / Player Stats
+- New boxes for **Numbed**, ailments, and crowd control; a **channeled** panel; and per-skill **Skill Effects** (projectile speed, penetration, jumps, and base mana cost).
+- **Enemy Multiplier** and effective-resistance display, plus an enemy-type lever for enemy-count weighting.
+
+### Quality of life
+- **Global UI scale** slider and a **draggable sidebar** width.
+- **Roll-tier badges** (T1/T2/…) on gear and hero-memory tooltips.
+- **Share Feedback** button (Discord) on the main menu.
+- Slate inventory: add-to-inventory and right-click remove/delete.
+
+### Experimental (new — still being verified; please report any issues)
+- **Loadouts** — multiple full-build variants inside one build, each able to inherit from a shared base, swappable from a sidebar dropdown.
+- **Notes inline links** — type `@` in build notes to link an item, talent node, skill, hero trait, pact spirit, memory, or condition; shown as a colored chip with its tooltip on hover.
+- **Pact Fates, Kismets, Dual Kismets, and Undetermined Fates** — install onto spirit nodes to replace their effects, with global limits and expansion slots.
+- **Ethereal Prisms (24)** and the **Inverse Image** prism — craftable passive-tree items, including reflected-copy damage.
+- **Hero traits:** Erika **Wind Stalker**, Rosa **Unsullied Blade** (spell-to-attack, Mercury Baptism), and Selena **Sing with the Tide** (Tide effects, Bard).
+
+### Fixes
+- Skill and support tooltips no longer wrongly mark modeled mechanics as "not implemented."
+- Fixed craft base types failing to load.
+- Removed the deprecated Debug Stats page.
+
+---
+
 ## [0.5.2] - 2026-06-16
 
 ### Mana / Life sealing & reservation
