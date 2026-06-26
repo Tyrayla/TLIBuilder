@@ -246,10 +246,13 @@
         "shotgun_mult": 1.0
       }
     ],
+    "jumps": 0,
+    "jumps_base": 0,
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
       "intelligence"
     ],
+    "mana_cost": 8.0,
     "mercury_baptism_dps": 0.0,
     "mercury_baptism_fraction": 0.0,
     "multistrike_avg_count": 0.0,
@@ -406,10 +409,13 @@
           "shotgun_mult": 1.0
         }
       ],
+      "jumps": 0,
+      "jumps_base": 0,
       "main_stat_damage_bonus": 0.0,
       "main_stats": [
         "intelligence"
       ],
+      "mana_cost": 8.0,
       "mercury_baptism_dps": 0.0,
       "mercury_baptism_fraction": 0.0,
       "multistrike_avg_count": 0.0,

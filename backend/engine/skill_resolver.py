@@ -99,7 +99,8 @@ class ResolvedSkill:
     base_cast_time: float = 0.0                 # seconds per cast (e.g. 0.65)
     added_dmg_effectiveness: float = 1.0        # 136% → 1.36; applied to ADDED flat only, NOT base
     damage_types: list[str] = field(default_factory=list)  # e.g. ["lightning"]
-    jumps_base: int = 0                         # base Jumps (Phase 4; unused for hit damage today)
+    jumps_base: int = 0                         # base Jumps (e.g. Chain Lightning +2); displayed in Skill Effects
+    mana_cost: float = 0.0                       # base per-cast Mana Cost (display only — reductions/conversions NYI)
     # Main attribute(s) for this skill, lowercased (e.g. ["dexterity", "intelligence"]). Each point of
     # a main-stat attribute grants +0.5% damage to this skill; multi-main-stat skills SUM the attribute
     # totals before applying. Source: TLI Help DB (Strength/Dexterity/Intelligence). Parsed in
@@ -275,6 +276,13 @@ def _parse_cast_time(cast_speed: str) -> float:
     """Parse '0.65 s' → 0.65. Returns 0.0 if unparseable (offense guards against div-by-zero)."""
     m = re.search(r"([\d.]+)", str(cast_speed))
     return float(m.group(1)) if m else 0.0
+
+
+def _parse_mana_cost(raw: object) -> float:
+    """Parse the skill's base per-cast Mana Cost ('8' → 8.0). 0.0 if absent/unparseable. Display-only — cost
+    reductions/conversions and 'Skills no longer cost Mana' are not modeled by the engine yet."""
+    m = re.search(r"[\d.]+", str(raw or ""))
+    return float(m.group(0)) if m else 0.0
 
 
 def _parse_pct(raw: object, default: float = 1.0) -> float:
@@ -499,4 +507,5 @@ def resolve_skill(skill_data: dict) -> ResolvedSkill:
         )
     resolved = handler(skill_data)
     resolved.main_stat = _parse_main_stats(skill_data.get("main_stat"))
+    resolved.mana_cost = _parse_mana_cost(skill_data.get("mana_cost"))
     return resolved

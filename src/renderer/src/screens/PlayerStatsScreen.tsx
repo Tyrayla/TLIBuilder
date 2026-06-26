@@ -1429,7 +1429,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         {(() => {
           const projSpeedInc = statForSlot('projectile_speed_inc')
           const penetrations = statForSlot('horizontal_projectile_penetration_flat')
+          const baseJumps = offense.jumps_base ?? 0
           const extraJumps = statForSlot('extra_jumps_flat')
+          const totalJumps = offense.jumps ?? (baseJumps + extraJumps)
+          const manaCost = offense.mana_cost ?? 0
           return (
             <GridBox>
               <StatPanel title="Skill Effects" accent={AMBER}>
@@ -1458,18 +1461,21 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                     total: penetrations, totalUnit: '', formula: 'Σ +Horizontal Projectile Penetration',
                   }}>{penetrations}</Row>
                 )}
-                {/* Jumps / Chains: only when the build has extra jumps. */}
-                {extraJumps > 0 && (
+                {/* Jumps / Chains: shown for jump skills (e.g. Chain Lightning's +2) = skill base + support extras. */}
+                {totalJumps > 0 && (
                   <Row label="Jumps" breakdown={{
-                    title: 'Extra Jumps', keys: ['extra_jumps_flat'],
-                    total: extraJumps, totalUnit: '', formula: 'Σ +Extra Jumps',
-                  }}>{extraJumps}</Row>
+                    title: 'Jumps', keys: ['extra_jumps_flat'],
+                    total: totalJumps, totalUnit: '',
+                    formula: `skill base ${baseJumps}${extraJumps ? ` + ${extraJumps} extra (supports)` : ''}`,
+                  }}>{totalJumps}</Row>
                 )}
-                {/* Skill Cost — the resolved per-cast cost after cost multipliers/conversions (Mana, or Life when
-                    converted), with its source breakdown. Not wired yet; scaffolded here (Show-all reveals it) so
-                    it's a one-line swap to the real value once the engine exposes the resolved cost. */}
-                {showAll && (
-                  <Row label="Mana Cost" labelColor="#555">— NYI</Row>
+                {/* Mana Cost — the skill's BASE per-cast cost. Cost reductions/conversions and "Skills no longer cost
+                    Mana" aren't modeled yet, so this is the unmodified base (reservation/sealing is its own panel). */}
+                {manaCost > 0 && (
+                  <Row label="Mana Cost" breakdown={{
+                    title: 'Mana Cost', keys: [], total: manaCost, totalUnit: '',
+                    formula: 'Skill base per-cast cost. Cost reductions / conversions and "Skills no longer cost Mana" are not modeled yet.',
+                  }}>{dec(manaCost)}</Row>
                 )}
               </StatPanel>
             </GridBox>

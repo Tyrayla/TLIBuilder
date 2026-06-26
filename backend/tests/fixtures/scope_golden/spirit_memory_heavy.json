@@ -94,6 +94,7 @@
     "evasion_gear_flat",
     "evasion_gear_inc",
     "evasion_inc",
+    "extra_jumps_flat",
     "extra_tangle_applied_flat",
     "ferv",
     "fire_as_erosion",
@@ -299,11 +300,14 @@
         "shotgun_mult": 1.0
       }
     ],
+    "jumps": 2,
+    "jumps_base": 2,
     "main_stat_damage_bonus": 0.5,
     "main_stats": [
       "dexterity",
       "intelligence"
     ],
+    "mana_cost": 8.0,
     "mercury_baptism_dps": 0.0,
     "mercury_baptism_fraction": 0.0,
     "multistrike_avg_count": 0.0,

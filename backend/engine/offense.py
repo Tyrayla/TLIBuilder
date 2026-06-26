@@ -590,6 +590,12 @@ class OffenseResult:
     # DPS totals (NOT the per-hit-form damage — mirrors the in-game tooltip vs Recount split).
     cast_multiplier: float = 1.0
     shotgun_hits: int = 1        # same-target hits per cast (1 = no shotgun)
+    # Jumps / Chains (Chain Lightning etc.): total = skill base jumps + Σ extra_jumps_flat (support-granted).
+    # jumps_base is the skill's intrinsic count (0 for non-jump skills, so the Skill Effects row stays hidden).
+    jumps: int = 0
+    jumps_base: int = 0
+    # Base per-cast Mana Cost (display only — cost reductions/conversions / "Skills no longer cost Mana" NYI).
+    mana_cost: float = 0.0
     # Tangle mode (the skill is cast by N tangles, not the player). tangle_count = attached tangles on the target
     # (each a full caster), tangle_enhancement = the ×(1 + Σ Tangle Damage Enhancement) multiplier. Both fold into
     # the DPS totals like cast_multiplier (NOT the per-hit-form damage). 0 / 1.0 when the skill is not tangled.
@@ -1505,6 +1511,11 @@ def calculate_offense(
         skill_area_inc=source.total("skill_area_inc") if "area" in skill_tags_lower else 0.0,
         cast_multiplier=cast_multiplier,
         shotgun_hits=shotgun_hits,
+        # Only jump skills consume extra_jumps_flat (reading source.total marks it consumed) — guard on jumps_base
+        # so a non-jump skill doesn't falsely consume a build's +Jumps source.
+        jumps=skill.jumps_base + (int(source.total("extra_jumps_flat")) if skill.jumps_base else 0),
+        jumps_base=skill.jumps_base,
+        mana_cost=skill.mana_cost,
         tangle_count=tangle_count,
         tangle_enhancement=tangle_enhancement,
         tangle_mult=tangle_mult,
