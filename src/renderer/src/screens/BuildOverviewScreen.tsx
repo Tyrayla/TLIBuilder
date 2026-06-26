@@ -223,8 +223,13 @@ export default function BuildOverviewScreen() {
       {visibleItems.map(cond => {
         const isComputed = cond.source === 'computed_stat'
         // Engine auto-activated this condition (e.g. Splendor inflicting Frostbite → Frostbite Rating 10).
+        // `auto.value` is the engine's intent; it's reported even when the user has overridden it, so a cleared
+        // field can fall back to it. A manual value (in conditionState) always wins over the auto value, and
+        // overriding releases the lock — so the auto badge/lock only apply while the user hasn't set it.
         const auto = autoConditions[cond.key]
-        const autoLocked = !!auto && lockAutoConditions
+        const isOverridden = conditionState[cond.key] !== undefined
+        const autoGoverns = !!auto && !isOverridden
+        const autoLocked = autoGoverns && lockAutoConditions
         if (cond.value_type === 'numeric') {
           if (isComputed) {
             const val = (conditionState[cond.key] as number) ?? 0
@@ -249,9 +254,9 @@ export default function BuildOverviewScreen() {
           return <NumericConditionRow
             key={cond.key}
             cond={cond}
-            // Unset → engine auto value (if any), else the condition's own default (e.g. Character Level 90).
+            // User value wins; otherwise the engine auto value; otherwise the catalog default.
             value={(conditionState[cond.key] as number) ?? (auto ? Number(auto.value) : undefined) ?? cond.default_value ?? 0}
-            // Clearing the field falls back to the auto value when one exists (so an editable auto-set
+            // Clearing the field falls back to the auto value when one exists (so an overridden auto-set
             // condition returns to its engine default, not the catalog default of 0).
             defaultOverride={auto ? Number(auto.value) : undefined}
             max={getNumericMax(cond)}
@@ -270,9 +275,12 @@ export default function BuildOverviewScreen() {
             </div>
           )
         }
-        const boolChecked = auto ? auto.value === true : (conditionState[cond.key] ?? cond.default_bool ?? false) === true
+        // Manual value wins; otherwise the engine auto value; otherwise the catalog default.
+        const boolChecked = isOverridden
+          ? conditionState[cond.key] === true
+          : (autoGoverns ? auto.value === true : (cond.default_bool ?? false) === true)
         return (
-          <label key={cond.key} className="cond-item" title={auto ? `Set automatically by ${auto.source}` : undefined}>
+          <label key={cond.key} className="cond-item" title={autoGoverns ? `Set automatically by ${auto.source}` : undefined}>
             <input
               type="checkbox"
               className="cond-check"
@@ -281,7 +289,7 @@ export default function BuildOverviewScreen() {
               onChange={e => { if (!autoLocked) setBoolean(cond.key, e.target.checked) }}
             />
             <span className="cond-label">{cond.label}</span>
-            {auto && <AutoBadge source={auto.source} />}
+            {autoGoverns && <AutoBadge source={auto.source} />}
           </label>
         )
       })}

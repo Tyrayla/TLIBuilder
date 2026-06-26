@@ -115,19 +115,34 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
 
 
 # ── Type-C preseed: Splendor auto-inflicts the three Elemental Ailments ──
-def preseed(*, slot, condition_state, attached_supports, skills_by_id, auto_sources=None, **_) -> None:
-    if SPLENDOR in _slot_support_ids(attached_supports, slot):
-        for a in _AILMENTS:
-            if a not in condition_state:           # don't override a manually-set value
-                condition_state[a] = True
-                if auto_sources is not None:
-                    auto_sources[a] = "Chromatic Shot: Splendor"
-        # Inflicting Numbed applies at least 1 stack (floor — a higher user/other-source value wins; cap unchanged).
-        _ns = float(condition_state.get("numbed_stacks") or 0.0)
-        if _ns < 1.0:
-            condition_state["numbed_stacks"] = 1.0
-            if auto_sources is not None:
-                auto_sources["numbed_stacks"] = "Chromatic Shot: Splendor"
+_SRC = "Chromatic Shot: Splendor"
+
+
+def preseed(*, slot, condition_state, attached_supports, skills_by_id,
+            auto_sources=None, auto_values=None, manual_keys=None, **_) -> None:
+    if SPLENDOR not in _slot_support_ids(attached_supports, slot):
+        return
+    manual = manual_keys or set()
+
+    def _record(key, value):
+        if auto_sources is not None:
+            auto_sources[key] = _SRC
+        if auto_values is not None:
+            auto_values[key] = value
+
+    # Numbed: inflicting it applies ≥1 stack — UNLESS the user explicitly set the stack count (0 = opt out of
+    # Numbed entirely). The auto intent (1) is recorded regardless so the Config field can fall back to it.
+    if "numbed_stacks" not in manual and float(condition_state.get("numbed_stacks") or 0.0) < 1.0:
+        condition_state["numbed_stacks"] = 1.0
+    _record("numbed_stacks", 1.0)
+    numbed_on = float(condition_state.get("numbed_stacks") or 0.0) >= 1.0
+
+    # Frostbite + Ignite are always inflicted; Numbed only when there's ≥1 stack (so a user-set 0 turns it off,
+    # which then drops Splendor's all-three-ailment Hit Damage gate).
+    for a, on in (("enemy_frostbitten", True), ("enemy_ignited", True), ("enemy_numbed", numbed_on)):
+        _record(a, on)
+        if a not in manual:
+            condition_state[a] = bool(on)
 
 
 # ── Coverage badges + roll sliders ──

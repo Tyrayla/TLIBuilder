@@ -30,9 +30,9 @@ interface UiPrefsStore {
   // a spell, Ignite on a non-hitting skill). Default OFF — boxes are skill-gated; the toggle reveals all.
   statsShowAllBoxes: boolean
   setStatsShowAllBoxes: (on: boolean) => void
-  // Lock conditions the engine auto-inflicts (e.g. Splendor → Numbed/Frostbite/Ignite). Default ON — auto-set
-  // conditions show checked with an "auto" badge and can't be toggled (the source guarantees them). Off lets the
-  // user override them like normal checkboxes.
+  // Lock conditions the engine auto-inflicts (e.g. Splendor → Numbed/Frostbite/Ignite). Default OFF — auto-set
+  // conditions show checked with an "auto" badge but stay editable so the user can override them. Turning it ON
+  // locks them (the source guarantees them). Persisted across sessions.
   lockAutoConditions: boolean
   setLockAutoConditions: (on: boolean) => void
   // Global UI zoom (1 = 100%). Applied as CSS zoom on the document root so the whole interface scales uniformly
@@ -65,13 +65,24 @@ export const useUiPrefs = create<UiPrefsStore>()(
       setCollapsiblePanels: (collapsiblePanels) => set({ collapsiblePanels }),
       statsShowAllBoxes: false,
       setStatsShowAllBoxes: (statsShowAllBoxes) => set({ statsShowAllBoxes }),
-      lockAutoConditions: true,
+      lockAutoConditions: false,
       setLockAutoConditions: (lockAutoConditions) => set({ lockAutoConditions }),
       uiScale: 1,
       setUiScale: (uiScale) => set({ uiScale }),
       sidebarWidth: 155,
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
     }),
-    { name: 'tli-ui-prefs' },
+    {
+      name: 'tli-ui-prefs',
+      // v1: lockAutoConditions' default flipped true→false. It was briefly persisted under the old default, so
+      // drop any stored value once — the off-default then applies and the user's later choice persists normally.
+      version: 1,
+      migrate: (persisted, version) => {
+        if (version < 1 && persisted && typeof persisted === 'object') {
+          delete (persisted as { lockAutoConditions?: boolean }).lockAutoConditions
+        }
+        return persisted as UiPrefsStore
+      },
+    },
   ),
 )

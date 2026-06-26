@@ -154,6 +154,16 @@ def test_splendor_surfaces_auto_conditions_with_source():
     assert auto["numbed_stacks"]["value"] == pytest.approx(1.0)   # inflicting Numbed applies ≥1 stack
 
 
+def test_numbed_stacks_zero_opts_out_of_numbed():
+    """A user-set numbed_stacks=0 overrides Splendor's inflict: Numbed turns off (dropping the all-three-ailment
+    Hit Damage gate → lower DPS), but the auto intent (1) is still reported so the cleared field can restore it."""
+    base = _resp(supports=_sup(SP))
+    off = _resp(supports=_sup(SP), conds={"numbed_stacks": 0})
+    assert "enemy_numbed" not in off["auto_conditions"]            # opted out → not auto-active
+    assert off["auto_conditions"]["numbed_stacks"]["value"] == pytest.approx(1.0)  # intent still reported
+    assert off["offense"]["total_dps"] < base["offense"]["total_dps"]              # Splendor gate dropped
+
+
 def test_splendor_auto_inflicts_three_ailments_and_adds_hit_damage():
     base = _off()
     sp = _off(supports=_sup(SP))
