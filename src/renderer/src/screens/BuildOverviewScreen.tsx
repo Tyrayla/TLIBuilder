@@ -74,25 +74,23 @@ function EnemyNum({ label, value, onChange, hint }: {
   )
 }
 
-// Always-present calc-target editor. Picking a dummy level loads the preset; the 5 fields are then editable
-// (negatives allowed). Armor-vs-Non-Phys (armor×0.6) + Armor-vs-DoT (0%) are derived/fixed, shown as a hint.
-function EnemyTargetBox() {
+// Always-present calc-target editor — rendered at the TOP of the Enemy condition panel (merged in), so the target
+// settings sit above the enemy conditions and are always visible. Picking a dummy level loads the preset; the 5
+// fields are then editable (negatives allowed). Armor-vs-Non-Phys (armor×0.6) + Armor-vs-DoT (0%) are derived/fixed.
+function EnemyTargetFields() {
   const tc = useBuildStore(s => s.targetConfig)
   const setTargetConfig = useBuildStore(s => s.setTargetConfig)
   const setField = (k: keyof typeof tc, v: number) => setTargetConfig({ ...tc, [k]: v })
   return (
-    <div className="enemy-box">
-      <div className="enemy-box-head">
-        <span className="enemy-box-title">Enemy / Target</span>
-        <select className="enemy-target-select" value={tc.level}
-          onChange={e => setTargetConfig(presetTargetConfig(Number(e.target.value) as TargetLevel))}>
-          {TARGET_LEVELS.map(l => <option key={l} value={l}>Training Dummy — Lv {l}</option>)}
-        </select>
-        <span className="enemy-box-note">All boss. Picking a level loads its defaults; edit any field (negatives allowed).</span>
-      </div>
-      <div className="enemy-fields">
-        <EnemyNum label="Armor" value={tc.armor} onChange={v => setField('armor', v)}
-          hint={`vs Non-Phys ${Math.round(tc.armor * NONPHYS_ARMOR_FACTOR)}% · vs DoT 0%`} />
+    <div className="enemy-fields">
+      <select className="enemy-target-select" value={tc.level}
+        onChange={e => setTargetConfig(presetTargetConfig(Number(e.target.value) as TargetLevel))}>
+        {TARGET_LEVELS.map(l => <option key={l} value={l}>Training Dummy — Lv {l}</option>)}
+      </select>
+      <span className="enemy-box-note">All boss. Picking a level loads its defaults; edit any field (negatives allowed).</span>
+      <EnemyNum label="Armor" value={tc.armor} onChange={v => setField('armor', v)}
+        hint={`vs Non-Phys ${Math.round(tc.armor * NONPHYS_ARMOR_FACTOR)}% · vs DoT 0%`} />
+      <div className="enemy-res-grid">
         <EnemyNum label="Fire Res" value={tc.fireRes} onChange={v => setField('fireRes', v)} />
         <EnemyNum label="Cold Res" value={tc.coldRes} onChange={v => setField('coldRes', v)} />
         <EnemyNum label="Lightning Res" value={tc.lightningRes} onChange={v => setField('lightningRes', v)} />
@@ -166,15 +164,18 @@ export default function BuildOverviewScreen() {
   //  - Show all → everything.
   //  - Equipment → only when that weapon/offhand is actually worn.
   //  - Hero-trait conditions (trait_id) → ONLY when THAT trait is selected.
+  //  - Skill conditions → ONLY when a build mod / equipped skill's effect references them (the skill is in the
+  //    build). Strict: a stale persisted value in conditionState must NOT keep an unrelated skill's condition
+  //    visible (e.g. an imported build carrying berserking_blade_stacks on a Chain Lightning setup).
   //  - Always-show categories (Blessings/Enemy/Resources/…) → shown, except consumption keys.
-  //  - Referenced → a build mod (incl. equipped skills' effects) references it → e.g. Skill conditions show only
-  //    when their skill is in the build.
+  //  - Referenced → any other build mod references it.
   //  - Otherwise, keep showing anything the user explicitly toggled on.
   const isCondVisible = (c: ConditionDef): boolean => {
     if (c.visible === false) return false
     if (showAll) return true
     if (c.key in EQUIPMENT_GATE) return worn[EQUIPMENT_GATE[c.key]]
     if (c.trait_id) return c.trait_id === traitId
+    if (c.category === 'Skill') return referenced.has(c.key)
     if (c.category && ALWAYS_SHOW_CATEGORIES.has(c.category) && !REFERENCE_GATED_KEYS.has(c.key)) return true
     if (referenced.has(c.key)) return true
     return isCondUserSet(c)
@@ -206,8 +207,112 @@ export default function BuildOverviewScreen() {
     }
   }
 
+  // Enemy first — the Enemy/Target editor is merged into the top of the Enemy panel, so it stays pinned at the top.
   const condCategories = conditionsData ? Object.entries(conditionsData) : []
   const loading = !referenceResolved && !conditionsData
+
+  // One category card. Extracted so the column-balancer can place it explicitly (vs. CSS multi-column auto-flow).
+  const renderCategoryPanel = (cat: string, visibleItems: ConditionDef[], isEnemy: boolean) => (
+    <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
+      {isEnemy && <EnemyTargetFields />}
+      {visibleItems.map(cond => {
+        const isComputed = cond.source === 'computed_stat'
+        if (cond.value_type === 'numeric') {
+          if (isComputed) {
+            const val = (conditionState[cond.key] as number) ?? 0
+            return (
+              <div key={cond.key} className="cond-item cond-item--derived">
+                <span className="cond-label cond-label--derived">{cond.label}</span>
+                <span className="cond-derived-hint">{val}{cond.unit ? ` ${cond.unit}` : ''}</span>
+              </div>
+            )
+          }
+          return <NumericConditionRow
+            key={cond.key}
+            cond={cond}
+            // Unset → the condition's own default (e.g. Character Level 90), not a bare 0.
+            value={(conditionState[cond.key] as number) ?? cond.default_value ?? 0}
+            max={getNumericMax(cond)}
+            clamp={clampReport[cond.key]}
+            onChange={v => setNumeric(cond.key, v)}
+          />
+        }
+        if (cond.is_derived) {
+          const stackKey = cond.key.replace('_active', '_stacks')
+          const isActive = ((conditionState[stackKey] as number) ?? 0) > 0
+          return (
+            <div key={cond.key} className="cond-item cond-item--derived">
+              <span className={`cond-derived-dot ${isActive ? 'cond-derived-dot--on' : ''}`} />
+              <span className="cond-label cond-label--derived">{cond.label}</span>
+              <span className="cond-derived-hint">{isActive ? 'active' : 'inactive'}</span>
+            </div>
+          )
+        }
+        return (
+          <label key={cond.key} className="cond-item">
+            <input
+              type="checkbox"
+              className="cond-check"
+              checked={(conditionState[cond.key] ?? cond.default_bool ?? false) === true}
+              onChange={e => setBoolean(cond.key, e.target.checked)}
+            />
+            <span className="cond-label">{cond.label}</span>
+          </label>
+        )
+      })}
+    </ConfigPanel>
+  )
+
+  // Distribute panels across 3 balanced columns: Character pinned to the TOP-MIDDLE, curse-conflict (if any) to
+  // the top-left, then the rest greedily — heaviest remaining card into the currently-shortest column. Weight ≈
+  // visible row count (+ header; Enemy adds the merged target editor). Within a column, keep a stable order.
+  type ColPanel = { node: React.ReactNode; weight: number; order: number }
+  const cols: ColPanel[][] = [[], [], []]
+  const colH = [0, 0, 0]
+  const place = (p: ColPanel, col: number) => { cols[col].push(p); colH[col] += p.weight }
+
+  if (curseConflict) {
+    place({ order: -2, weight: curseConflict.limit + 2, node: (
+      <ConfigPanel key="curse" title="⚠ Curse Conflict" accent="#c0392b" headerColor="#e07a6e">
+        <div style={{ fontSize: 10.5, color: '#cf7d72', lineHeight: 1.45, marginBottom: 8 }}>
+          Limit {curseConflict.limit}. Select which {curseConflict.limit === 1 ? 'curse applies' : `${curseConflict.limit} curses apply`} (rest suppressed):
+        </div>
+        {Array.from({ length: curseConflict.limit }).map((_, i) => (
+          <select key={i} className="cond-stack-input" style={{ width: '100%', marginBottom: 6 }}
+            value={curseSelected[i] ?? ''} onChange={e => chooseCurseAt(i, e.target.value)}>
+            <option value="">— None —</option>
+            {curseConflict.active
+              .filter(a => a.sel_key === curseSelected[i] || !curseSelected.includes(a.sel_key))
+              .map(a => <option key={a.sel_key} value={a.sel_key}>{a.name} ({a.source})</option>)}
+          </select>
+        ))}
+      </ConfigPanel>
+    ) }, 0)
+  }
+
+  // Per-category keys pinned to the top of their panel (the rest keep their natural order).
+  const PIN_FIRST: Record<string, string[]> = { Resources: ['current_life_pct'] }
+
+  const restPanels: ColPanel[] = []
+  condCategories.forEach(([cat, items], idx) => {
+    let visibleItems = items.filter(isCondVisible)
+    const pin = PIN_FIRST[cat]
+    if (pin) {
+      const pinned = pin.map(k => visibleItems.find(c => c.key === k)).filter(Boolean) as ConditionDef[]
+      visibleItems = [...pinned, ...visibleItems.filter(c => !pin.includes(c.key))]
+    }
+    const isEnemy = cat === 'Enemy'
+    if (cat === 'Character') {
+      place({ order: -1, weight: visibleItems.length + 1, node: renderCategoryPanel(cat, visibleItems, false) }, 1)
+      return
+    }
+    if (visibleItems.length === 0 && !isEnemy) return
+    restPanels.push({ order: idx, weight: visibleItems.length + 1 + (isEnemy ? 5 : 0),
+      node: renderCategoryPanel(cat, visibleItems, isEnemy) })
+  })
+  restPanels.sort((a, b) => b.weight - a.weight)
+  for (const p of restPanels) place(p, colH.indexOf(Math.min(...colH)))
+  cols.forEach(c => c.sort((a, b) => a.order - b.order))
 
   return (
     <div className="screen build-overview">
@@ -253,91 +358,14 @@ export default function BuildOverviewScreen() {
 
       {!loading && !conditionsFailed && (
         <div className="cond-grid">
-          <div className="cond-masonry">
-          {curseConflict && (
-            <ConfigPanel title="⚠ Curse Conflict" accent="#c0392b" headerColor="#e07a6e">
-              <div style={{ fontSize: 10.5, color: '#cf7d72', lineHeight: 1.45, marginBottom: 8 }}>
-                Limit {curseConflict.limit}. Select which {curseConflict.limit === 1 ? 'curse applies' : `${curseConflict.limit} curses apply`} (rest suppressed):
-              </div>
-              {Array.from({ length: curseConflict.limit }).map((_, i) => (
-                <select
-                  key={i}
-                  className="cond-stack-input"
-                  style={{ width: '100%', marginBottom: 6 }}
-                  value={curseSelected[i] ?? ''}
-                  onChange={e => chooseCurseAt(i, e.target.value)}
-                >
-                  <option value="">— None —</option>
-                  {curseConflict.active
-                    .filter(a => a.sel_key === curseSelected[i] || !curseSelected.includes(a.sel_key))
-                    .map(a => <option key={a.sel_key} value={a.sel_key}>{a.name} ({a.source})</option>)}
-                </select>
-              ))}
-            </ConfigPanel>
-          )}
-          {condCategories.map(([cat, items]) => {
-            const visibleItems = items.filter(isCondVisible)
-            if (visibleItems.length === 0) return null
-            return (
-              <ConfigPanel key={cat} title={cat} accent={accentFor(cat)}>
-                  {visibleItems.map(cond => {
-                    const isComputed = cond.source === 'computed_stat'
-                    if (cond.value_type === 'numeric') {
-                      if (isComputed) {
-                        const val = (conditionState[cond.key] as number) ?? 0
-                        return (
-                          <div key={cond.key} className="cond-item cond-item--derived">
-                            <span className="cond-label cond-label--derived">{cond.label}</span>
-                            <span className="cond-derived-hint">{val}{cond.unit ? ` ${cond.unit}` : ''}</span>
-                          </div>
-                        )
-                      }
-                      return <NumericConditionRow
-                        key={cond.key}
-                        cond={cond}
-                        // Unset → the condition's own default (e.g. Character Level 90), not a bare 0.
-                        value={(conditionState[cond.key] as number) ?? cond.default_value ?? 0}
-                        max={getNumericMax(cond)}
-                        clamp={clampReport[cond.key]}
-                        onChange={v => setNumeric(cond.key, v)}
-                      />
-                    }
-                    if (cond.is_derived) {
-                      // Auto-derived from corresponding stacks condition — read-only indicator
-                      const stackKey = cond.key.replace('_active', '_stacks')
-                      const isActive = ((conditionState[stackKey] as number) ?? 0) > 0
-                      return (
-                        <div key={cond.key} className="cond-item cond-item--derived">
-                          <span className={`cond-derived-dot ${isActive ? 'cond-derived-dot--on' : ''}`} />
-                          <span className="cond-label cond-label--derived">{cond.label}</span>
-                          <span className="cond-derived-hint">{isActive ? 'active' : 'inactive'}</span>
-                        </div>
-                      )
-                    }
-                    // Regular boolean — user-togglable checkbox
-                    return (
-                      <label key={cond.key} className="cond-item">
-                        <input
-                          type="checkbox"
-                          className="cond-check"
-                          // Unset → the condition's own default (e.g. inside_holy_domain defaults ON), mirroring
-                          // the numeric fields' default_value fallback, so a default-ON toggle shows checked.
-                          checked={(conditionState[cond.key] ?? cond.default_bool ?? false) === true}
-                          onChange={e => setBoolean(cond.key, e.target.checked)}
-                        />
-                        <span className="cond-label">{cond.label}</span>
-                      </label>
-                    )
-                  })}
-              </ConfigPanel>
-            )
-          })}
+          <div className="cond-columns">
+            {cols.map((col, i) => (
+              <div className="cond-col" key={i}>{col.map(p => p.node)}</div>
+            ))}
           </div>
         </div>
       )}
         </div>
-
-        <EnemyTargetBox />
 
         <aside className="config-custommods">
           <div className="config-custommods-title">Custom Modifiers</div>

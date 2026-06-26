@@ -1107,6 +1107,7 @@ def get_conditions():
             "key": c.key,
             "label": c.label,
             "value_type": c.value_type,
+            "category": c.category,   # frontend gates visibility on this (always-show categories, Skill, etc.)
         }
         if c.value_type == "numeric":
             entry["numeric_min"] = c.numeric_min

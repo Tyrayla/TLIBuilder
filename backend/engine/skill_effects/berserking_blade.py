@@ -177,6 +177,10 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
                        skills_by_id, **_) -> dict:
     """Slot-local emissions for a Berserking Blade slot: the intrinsic Skill-Area buff (always), Sweep's
     additional Skill Area, and Rampage's skill-area→Steep-Strike share. No offense overrides."""
+    # The buff-stack count is baked into the emitted amounts (not expressed as a condition_expr), so register
+    # it here as a referenced condition — it's the only signal that scopes its Config visibility to builds that
+    # actually run Berserking Blade (this handler is dispatched only for equipped Berserking Blade slots).
+    source.referenced_conditions.add("berserking_blade_stacks")
     cfg = extract_config(attached_supports, skills_by_id).get(slot, {})
     n = stacks(condition_state, "sweep_per_stack" in cfg)
     emit_self_buff(source, slot, n, cfg.get("sweep_per_stack", 0.0))

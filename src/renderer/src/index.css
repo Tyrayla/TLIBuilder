@@ -1453,10 +1453,10 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 *::-webkit-scrollbar-thumb:hover { background: #3a3a5a; background-clip: padding-box; }
 * { scrollbar-width: thin; scrollbar-color: #2a2a4a transparent; }
 
-.cond-masonry {
-  columns: 230px;
-  column-gap: 10px;
-}
+/* Explicit 3-column layout (replaces CSS multi-column) so panels can be placed deterministically — Character
+   pinned top-middle, the rest balanced by the column-balancer in BuildOverviewScreen. */
+.cond-columns { display: flex; gap: 12px; align-items: flex-start; }
+.cond-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 /* Config panels — match the Stats screen's StatPanel look: accent LEFT border (color set inline per category) +
    cool-charcoal uppercase header. */
@@ -4852,20 +4852,19 @@ span.gear-affix-label {
 .cmods-tip-ok { color: #9ee89e; }
 .cmods-tip-bad { color: #ff9b9b; }
 
-/* Enemy / Target editor (Config) — a fixed-width side panel anchored left of Custom Modifiers. */
-.enemy-box {
-  width: 220px; flex-shrink: 0; align-self: flex-start;
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 8px 12px; border-radius: 4px;
-  background: rgba(255,255,255,0.03); border: 1px solid #2a2a4a;
-}
-.enemy-box-head { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.enemy-box-title { font-size: 11px; font-weight: 700; color: #e0726a; text-transform: uppercase; letter-spacing: 0.06em; }
+/* Enemy / Target editor (Config) — rendered as a regular .cond-card panel in the masonry; these style only its
+   inner body (the level select, note, and the 5 editable fields). */
 .enemy-target-select {
   background: #0d0d1e; color: #ddd; border: 1px solid #3a3a5a; border-radius: 4px; padding: 3px 6px; font-size: 11px; width: 100%;
 }
 .enemy-box-note { color: #777; font-size: 10.5px; line-height: 1.35; }
-.enemy-fields { display: flex; flex-direction: column; gap: 8px; }
+/* Merged into the top of the Enemy panel — divider separates the target fields from the enemy conditions below. */
+.enemy-fields {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 2px 0 8px; margin-bottom: 6px; border-bottom: 1px solid #1a1a32;
+}
+/* The 4 resists laid out 2-up so the merged Enemy panel stays compact (better masonry balance). */
+.enemy-res-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
 .enemy-field { display: flex; flex-direction: column; gap: 3px; }
 .enemy-field-label { font-size: 10px; color: #9aa; text-transform: uppercase; letter-spacing: 0.04em; }
 .enemy-field-input { display: flex; align-items: center; gap: 3px; }
