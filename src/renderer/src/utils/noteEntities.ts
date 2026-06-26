@@ -3,7 +3,7 @@
 // own entities, falling back to the generic catalogs. Returns a uniform shape so one EntityChip/tooltip renders all.
 import type {
   EquippedGearItem, EquippedSkill, SelectedPactSpirit, CreatedHeroMemory, PactSpirit,
-  SkillItem, LegendaryGearIndexItem, ConditionDef, HeroTrait,
+  SkillItem, LegendaryGearIndexItem, LegendaryGearItem, ConditionDef, HeroTrait,
 } from '../api/client'
 import { gearQualityColor } from './gearItem'
 import { sourceKindColor } from './sourceKind'
@@ -36,6 +36,7 @@ export interface NoteResolveCtx {
     skillsById: Record<string, SkillItem> | null
     skillsByName: Record<string, SkillItem> | null
     legendaryIndex: LegendaryGearIndexItem[] | null
+    legendaryCatalog: LegendaryGearItem[] | null
     conditions: Record<string, ConditionDef[]> | null
     heroTraits: HeroTrait[] | null
   }
@@ -80,6 +81,13 @@ export function resolveNoteEntity(type: NoteEntityType, key: string, ctx: NoteRe
       const g = ctx.gear.find(i => i.item_id === key)
       if (g) return { ...base, name: g.name, color: gearQualityColor(g), source: 'build',
         lines: [g.base_type ?? '', ...g.affixes.map(a => a.raw_text).filter(Boolean).slice(0, 10)].filter(Boolean) }
+      // Catalog: the FULL legendary catalog carries the affixes (variants); the lightweight index has only base_type.
+      const cat = ctx.reference.legendaryCatalog?.find(i => i.item_id === key || i.name === key)
+      if (cat) {
+        const variant = Object.values(cat.variants)[0]
+        const affixes = variant ? [...variant.implicits, ...variant.explicits].map(a => a.raw_text).filter(Boolean) : []
+        return { ...base, name: cat.name, color: '#c8a050', source: 'catalog', lines: [cat.base_type, ...affixes].filter(Boolean).slice(0, 12) }
+      }
       const li = ctx.reference.legendaryIndex?.find(i => i.item_id === key || i.name === key)
       if (li) return { ...base, name: li.name, color: '#c8a050', source: 'catalog', lines: [li.base_type].filter(Boolean) }
       return null

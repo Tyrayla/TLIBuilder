@@ -20,6 +20,7 @@ export default function NotesScreen() {
   const skillsById = useReferenceStore(s => s.skillsById)
   const skillsByName = useReferenceStore(s => s.skillsByName)
   const legendaryIndex = useReferenceStore(s => s.legendaryIndex)
+  const legendaryCatalog = useReferenceStore(s => s.legendaryCatalog)
   const conditions = useReferenceStore(s => s.conditions)
   const heroTraits = useReferenceStore(s => s.heroTraits)
 
@@ -50,9 +51,9 @@ export default function NotesScreen() {
 
   const ctx: NoteResolveCtx = useMemo(() => ({
     gear, skills, pactSpirits, heroMemories, traitId, allSpirits, nodes,
-    reference: { skillsById, skillsByName, legendaryIndex, conditions, heroTraits },
+    reference: { skillsById, skillsByName, legendaryIndex, legendaryCatalog, conditions, heroTraits },
   }), [gear, skills, pactSpirits, heroMemories, traitId, allSpirits, nodes,
-      skillsById, skillsByName, legendaryIndex, conditions, heroTraits])
+      skillsById, skillsByName, legendaryIndex, legendaryCatalog, conditions, heroTraits])
 
   return (
     <div className="notes-screen">
