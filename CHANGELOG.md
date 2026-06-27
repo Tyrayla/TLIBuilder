@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.5] - 2026-06-26
+
+### New skill
+- **Chromatic Shot** with its canvas supports **Lightchaser** (Magnificent) and **Splendor** (Noble) — compulsory damage-type conversion (a random element each cast, modeled as the expected average across Fire/Cold/Lightning), shotgunning projectiles with a per-element damage breakdown. Validated to within ~0.5% of in-game.
+
+### Cast-speed breakpoints
+- **Tangles** now follow the game's whole-tick **cast-speed breakpoints** (30 ticks/sec): the Tangle panel shows ticks-per-cast and tells you exactly how much **Increased or Additional** cast speed reaches the next breakpoint.
+- **Spell Burst** breakpoint helper now shows both the Increased and Additional speed needed (charge speed, or cast speed with Play Safe), combining the labels when both reach the same breakpoint.
+
+### Config
+- **Auto-inflicted conditions** your build guarantees (e.g. Splendor inflicting Numbed/Frostbite/Ignite, and the derived Frostbite Rating) now appear in Config automatically, tagged with their source. A new Settings toggle locks them or leaves them editable.
+- Cleaner numeric inputs — no more clunky "/ max"; the cap shows on hover. "Shots on Target" is now **Projectile Hits** and tracks your projectile count.
+
+### Performance
+- **Much snappier** stat updates: disabling an aura, or opening a skill/support catalog, no longer lags — the headline DPS updates immediately and the catalog's per-item comparisons are batched into one request. Season data is now cached, making bulk computes ~3.6× faster. (Big win on the web version too.)
+
+### Fixes
+- Running the dev and installed app at the same time no longer cross-wires their saved builds (separate backend ports).
+- Importing a current build no longer shows a bogus "older version" warning.
+- **Erosion is no longer treated as Elemental** for "on Elemental hit" effects — Elemental is Fire/Cold/Lightning only.
+
 ## [0.5.4] - 2026-06-26
 
 ### Hero traits

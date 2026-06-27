@@ -112,6 +112,10 @@ export default function BuildOverviewScreen() {
   const gear = useBuildStore(s => s.gear)
   // Condition keys any build mod references (stable ref — only changes when stats recompute, so no render loop).
   const referencedConditions = useBuildStore(s => s.computedStats.referenced_conditions)
+  // Conditions the engine auto-activated (e.g. Splendor → Numbed/Frostbite/Ignite) → {value, source}.
+  const autoConditions = useBuildStore(
+    s => (s.computedStats as { auto_conditions?: Record<string, { value: number | boolean; source: string }> }).auto_conditions) ?? {}
+  const lockAutoConditions = useUiPrefs(s => s.lockAutoConditions)
   // Show-all reveals every conditional (skill-gated + hero-trait for other/unselected traits). Defaults OFF
   // so the screen stays focused on what's relevant; computed/auto-derived (visible:false) stay hidden always.
   const [showAll, setShowAll] = useState(false)
@@ -173,6 +177,7 @@ export default function BuildOverviewScreen() {
   const isCondVisible = (c: ConditionDef): boolean => {
     if (c.visible === false) return false
     if (showAll) return true
+    if (c.key in autoConditions) return true   // engine auto-activated it → always surface so the user sees it
     if (c.key in EQUIPMENT_GATE) return worn[EQUIPMENT_GATE[c.key]]
     if (c.trait_id) return c.trait_id === traitId
     if (c.category === 'Skill') return referenced.has(c.key)
@@ -217,6 +222,14 @@ export default function BuildOverviewScreen() {
       {isEnemy && <EnemyTargetFields />}
       {visibleItems.map(cond => {
         const isComputed = cond.source === 'computed_stat'
+        // Engine auto-activated this condition (e.g. Splendor inflicting Frostbite → Frostbite Rating 10).
+        // `auto.value` is the engine's intent; it's reported even when the user has overridden it, so a cleared
+        // field can fall back to it. A manual value (in conditionState) always wins over the auto value, and
+        // overriding releases the lock — so the auto badge/lock only apply while the user hasn't set it.
+        const auto = autoConditions[cond.key]
+        const isOverridden = conditionState[cond.key] !== undefined
+        const autoGoverns = !!auto && !isOverridden
+        const autoLocked = autoGoverns && lockAutoConditions
         if (cond.value_type === 'numeric') {
           if (isComputed) {
             const val = (conditionState[cond.key] as number) ?? 0
@@ -227,11 +240,25 @@ export default function BuildOverviewScreen() {
               </div>
             )
           }
+          if (autoLocked) {
+            const mx = getNumericMax(cond)
+            const t = `Set automatically by ${auto.source}` + (mx != null ? ` · Max ${mx}${cond.unit ? ` ${cond.unit}` : ''}` : '')
+            return (
+              <div key={cond.key} className="cond-item cond-item--derived" title={t}>
+                <span className="cond-label">{cond.label}</span>
+                <span className="cond-derived-hint">{Number(auto.value)}{cond.unit ? ` ${cond.unit}` : ''}</span>
+                <AutoBadge source={auto.source} />
+              </div>
+            )
+          }
           return <NumericConditionRow
             key={cond.key}
             cond={cond}
-            // Unset → the condition's own default (e.g. Character Level 90), not a bare 0.
-            value={(conditionState[cond.key] as number) ?? cond.default_value ?? 0}
+            // User value wins; otherwise the engine auto value; otherwise the catalog default.
+            value={(conditionState[cond.key] as number) ?? (auto ? Number(auto.value) : undefined) ?? cond.default_value ?? 0}
+            // Clearing the field falls back to the auto value when one exists (so an overridden auto-set
+            // condition returns to its engine default, not the catalog default of 0).
+            defaultOverride={auto ? Number(auto.value) : undefined}
             max={getNumericMax(cond)}
             clamp={clampReport[cond.key]}
             onChange={v => setNumeric(cond.key, v)}
@@ -248,15 +275,21 @@ export default function BuildOverviewScreen() {
             </div>
           )
         }
+        // Manual value wins; otherwise the engine auto value; otherwise the catalog default.
+        const boolChecked = isOverridden
+          ? conditionState[cond.key] === true
+          : (autoGoverns ? auto.value === true : (cond.default_bool ?? false) === true)
         return (
-          <label key={cond.key} className="cond-item">
+          <label key={cond.key} className="cond-item" title={autoGoverns ? `Set automatically by ${auto.source}` : undefined}>
             <input
               type="checkbox"
               className="cond-check"
-              checked={(conditionState[cond.key] ?? cond.default_bool ?? false) === true}
-              onChange={e => setBoolean(cond.key, e.target.checked)}
+              checked={boolChecked}
+              disabled={autoLocked}
+              onChange={e => { if (!autoLocked) setBoolean(cond.key, e.target.checked) }}
             />
             <span className="cond-label">{cond.label}</span>
+            {autoGoverns && <AutoBadge source={auto.source} />}
           </label>
         )
       })}
@@ -376,18 +409,35 @@ export default function BuildOverviewScreen() {
   )
 }
 
+// Small "auto" pill shown next to a condition the engine activated on its own (source named in the tooltip),
+// so the user can see what turned it on without hunting through their build.
+function AutoBadge({ source }: { source: string }) {
+  return (
+    <span
+      title={`Set automatically by ${source}`}
+      style={{
+        marginLeft: 'auto', fontSize: 8.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase',
+        color: '#1a1a2a', background: '#f0c070', borderRadius: 4, padding: '1px 4px', cursor: 'help', flexShrink: 0,
+      }}
+    >auto</span>
+  )
+}
+
 interface NumericRowProps {
   cond: ConditionDef
   value: number
   max: number | null
   clamp: { requested: number; applied: number } | undefined
   onChange: (v: number) => void
+  // When set, an emptied field falls back to THIS (e.g. an engine auto value) instead of the catalog default.
+  defaultOverride?: number
 }
 
-function NumericConditionRow({ cond, value, max, clamp, onChange }: NumericRowProps) {
+function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride }: NumericRowProps) {
   const min = cond.numeric_min ?? 0
-  // The value an emptied field falls back to: the condition's own default (not a hardcoded 0).
-  const def = cond.default_value ?? min
+  // The value an emptied field falls back to: the engine auto value if one applies, else the condition's own
+  // default (never a hardcoded 0).
+  const def = defaultOverride ?? cond.default_value ?? min
   const [raw, setRaw] = useState(String(value))
 
   useEffect(() => { setRaw(String(value)) }, [value])
@@ -402,8 +452,14 @@ function NumericConditionRow({ cond, value, max, clamp, onChange }: NumericRowPr
     setRaw(String(clamped))
   }
 
+  // The max isn't shown inline (that "/ N" read clunky) — the input just clamps to it, and the cap is surfaced
+  // on hover instead. Min is only worth mentioning when it's a real floor (> 0).
+  const maxHint = max !== null ? `Max ${max}${cond.unit ? ` ${cond.unit}` : ''}` : ''
+  const minHint = min > 0 ? `Min ${min}${cond.unit ? ` ${cond.unit}` : ''}` : ''
+  const rowTitle = [minHint, maxHint].filter(Boolean).join(' · ') || undefined
+
   return (
-    <div className="cond-stack-row">
+    <div className="cond-stack-row" title={rowTitle}>
       <span className="cond-stack-label">{cond.label}</span>
       <div className="cond-stack-controls">
         <input
@@ -416,7 +472,6 @@ function NumericConditionRow({ cond, value, max, clamp, onChange }: NumericRowPr
           onBlur={e => commit(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }}
         />
-        {max !== null && <span className="cond-stack-max">/ {max}</span>}
         {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
       </div>
       {clamp && (

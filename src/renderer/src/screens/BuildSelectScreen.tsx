@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { api, Build, IS_WEB } from '../api/client'
 import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
+import { checkBuildCompatibility } from '../utils/buildCompat'
 import SettingsOverlay from '../components/SettingsOverlay'
 import logoSrc from '../assets/logo.png'
 
@@ -75,30 +76,6 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   useEffect(() => {
     if (importOpen) setTimeout(() => importRef.current?.focus(), 50)
   }, [importOpen])
-
-  const KNOWN_BUILD_KEYS = new Set([
-    'name', 'id', 'slots', 'slates', 'slateInventory', 'prisms', 'prismInventory',
-    'conditions', 'conditionValues', 'conditionState',
-    'gear', 'skills', 'characterLevel', 'hasPrism', 'traitId',
-    'traitLevel', 'traitSlotLevels', 'advancedTraitSelections',
-    'heroMemories', 'pactSpirits', 'notes', 'customMods',
-  ])
-
-  function checkBuildCompatibility(build: Record<string, unknown>): string[] {
-    const issues: string[] = []
-    if (!Array.isArray(build.slots)) issues.push('Slots data is missing or unreadable.')
-    else if ((build.slots as unknown[]).every(s => !s)) issues.push('Build has no tree slots selected.')
-    if (Array.isArray(build.gear)) {
-      const unmatched = (build.gear as Record<string, unknown>[]).filter(g => !Array.isArray(g.affixes))
-      if (unmatched.length) {
-        const names = unmatched.map(g => g.name ?? g.item_id ?? 'Unknown').join(', ')
-        issues.push(`${unmatched.length} gear item(s) not found in current season data and will contribute no stats: ${names}`)
-      }
-    }
-    const unknown = Object.keys(build).filter(k => !KNOWN_BUILD_KEYS.has(k))
-    if (unknown.length) issues.push(`Unrecognized fields (older format): ${unknown.join(', ')}`)
-    return issues
-  }
 
   const openImport = () => {
     setImportCode('')

@@ -416,15 +416,20 @@ export default function SkillsScreen(_props: Props) {
   // Only for passive slots: a passive/aura buffs the whole build, so we measure each candidate's effect on
   // the MAIN skill's DPS (measureSlot omitted → headline offense), at the level you'd assign by default (20).
   // Baseline is the same frozen-on-open signature the supports use, so it refreshes via the same button.
+  // A passive/aura buffs the whole build regardless of WHICH passive slot holds it, so the swap-in delta depends
+  // only on the slot's current occupant (the skill being replaced, or "empty"), not the slot index. Keying by
+  // occupant lets all empty passive slots (1-4) share one cached result set instead of recomputing all 75 deltas
+  // each time you focus a different empty slot. (Support deltas stay slot-keyed — a support is skill-specific.)
+  const passiveOccupant = focusedEquipped?.item_id ?? 'empty'
   const passivePickReqs = useMemo<DeltaRequest[]>(() =>
     (focusedSlot !== null && isPassiveSlot(focusedSlot))
       ? skillCatalogItems.map(item => ({
-          key: `passive-pick:${focusedSlot}:${item.item_id}:${pickBaseSig}`,
+          key: `passive-pick:${passiveOccupant}:${item.item_id}:${pickBaseSig}`,
           step: (s) => withSkill(s, focusedSlot, item, 20),
           stable: true,
         }))
       : [],
-    [skillCatalogItems, focusedSlot, pickBaseSig])
+    [skillCatalogItems, focusedSlot, passiveOccupant, pickBaseSig])
   const passivePickDeltas = useDamageDeltaList(passivePickReqs.length ? passivePickReqs : null, passivePickReqs.length > 0)
   const passiveDeltaById = useMemo(() => {
     const m: Record<string, DamageDelta> = {}

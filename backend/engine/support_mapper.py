@@ -230,6 +230,7 @@ class ConditionEffect:
     mode: str                          # "set_true" | "max"
     requires_dtype: str | None = None  # only when the supported skill deals this damage type
     requires_cond: str | None = None   # precondition that must already hold (e.g. enemy_cursed)
+    source: str | None = None          # human label of what inflicts this (for the Config "auto" badge)
 
 
 def map_autoderive_line(line: SupportLine) -> list[ConditionEffect]:

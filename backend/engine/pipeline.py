@@ -8,8 +8,11 @@ within a key), which is KNOWN-DIVERGENT from the per-affix model now implemented
 """
 from __future__ import annotations
 from engine.models import BuildSource, SkillConfig, EnemyConfig, ComputedResult
+from engine.constants import ELEMENTAL
 
-_ELEMENTAL_TYPES = frozenset({"fire", "cold", "lightning", "erosion"})
+# DEPRECATED legacy path (/api/engine/compute; no renderer caller — the live path is engine/offense.py).
+# Elemental = Fire/Cold/Lightning ONLY (Erosion is NOT elemental); Erosion is mitigated separately below.
+_ELEMENTAL_TYPES = ELEMENTAL
 
 # Armor mitigation constant. Tune this to match in-game values.
 # Formula: reduction = armor / (armor + ARMOR_K)
@@ -150,6 +153,12 @@ def run_pipeline(
             eff_armor = max(0.0, eff_armor)
             reduction = eff_armor / (eff_armor + ARMOR_K)
             mitigation_factor *= (1.0 - reduction)
+        elif dt == "erosion":
+            # Erosion is NOT elemental — it gets its own penetration only (no elemental_pen).
+            pen = source.total("erosion_pen")
+            enemy_res = getattr(enemy, "erosion_resistance", 0.0)
+            eff_res   = enemy_res - pen + source.total("all_resistance_reduction")
+            mitigation_factor *= (1.0 - eff_res)
         elif dt in _ELEMENTAL_TYPES:
             pen = source.total(f"{dt}_pen") + source.total("elemental_pen")
             enemy_res = getattr(enemy, f"{dt}_resistance", 0.0)

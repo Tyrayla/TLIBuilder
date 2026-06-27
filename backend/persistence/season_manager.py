@@ -55,12 +55,23 @@ def load_all_season_trees(season: str) -> dict[str, dict]:
     return result
 
 
+# Parsed season-tree cache, keyed by (season, slug). Tree JSON is season-static and reparsed on every
+# engine_stats call (and N times in /engine/stats-batch), so cache it like _legendary_gear_cache. Invalidated
+# in save_season_tree; a data re-import for the same season needs a backend relaunch to be seen (dev workflow).
+_season_trees_cache: dict[tuple[str, str], dict] = {}
+
+
 def load_season_tree(season: str, tree_slug: str) -> dict | None:
+    cached = _season_trees_cache.get((season, tree_slug))
+    if cached is not None:
+        return cached
     path = os.path.join(_season_dir(season), f"{tree_slug}.json")
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    _season_trees_cache[(season, tree_slug)] = data
+    return data
 
 
 def save_season_tree(season: str, tree_name: str, tree_slug: str, data: dict) -> None:
@@ -69,6 +80,7 @@ def save_season_tree(season: str, tree_name: str, tree_slug: str, data: dict) ->
     path = os.path.join(d, f"{tree_slug}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+    _season_trees_cache[(season, tree_slug)] = data  # keep cache fresh after a write
 
 
 def delete_season(name: str) -> None:

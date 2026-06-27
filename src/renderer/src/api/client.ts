@@ -766,6 +766,9 @@ export interface OffenseResult {
   tangle_inactivated: number
   tangle_duration: number
   tangle_attach_range: number
+  tangle_cast_ticks?: number   // whole server ticks per tangle cast (cast-speed breakpoint); 0/undefined if untangled
+  tangle_cast_to_next_increased?: number  // +Increased Cast Speed needed for the next faster tick breakpoint
+  tangle_cast_to_next_additional?: number  // +Additional Cast Speed needed for the next faster tick breakpoint
   // Spell Burst mode (an eligible Spell cast at full charge consumes M stacks and auto-recasts the spell M
   // times; the triggering cast also counts → casts_per_burst = M + 1). The charge is a server-timed whole-tick
   // countdown (hard-rounded breakpoints), so charge speed only helps at integer-tick crossings. spell_burst_mult
@@ -777,7 +780,10 @@ export interface OffenseResult {
   spell_burst_charge_factor: number    // total Spell Burst Charge Speed multiplier ((1+Σinc)×Π(1+add))
   spell_burst_charge_inc: number       // Σ Spell Burst Charge Speed INCREASED only (matches in-game; Solid River gate)
   spell_burst_charge_to_next_inc: number   // charge-speed Increased % for the next bursts/sec breakpoint (0 = none found)
+  spell_burst_charge_to_next_add?: number  // charge-speed Additional % for the same breakpoint
   spell_burst_cast_to_next_inc: number     // cast-speed Increased % for the next bursts/sec breakpoint, manual (0 = none/charge-limited)
+  spell_burst_cast_to_next_add?: number    // cast-speed Additional % for the same breakpoint
+  spell_burst_play_safe?: boolean          // Play Safe in build → cast speed couples into charge (a second lever)
   spell_burst_next_breakpoint_ticks: number // charge-tick count of the next charge-speed breakpoint (0 = none)
   spell_burst_rate: number             // bursts per second (≤ 30)
   spell_burst_mult: number             // total damage multiplier from bursting (folded into total_dps)
@@ -800,6 +806,10 @@ export interface OffenseResult {
   channeled_behavior: string            // "reset" | "refresh" | "" (not channeled)
   channeled_attack_frequency: number    // persistent-entity strike rate (Howling Gale's Gale); 0 = N/A
   projectile_count: number              // projectiles of the projectile-scaling form (Icy Blade); 0 = N/A
+  projectile_base_count?: number        // the skill's own projectiles before +Quantity mods (for the breakdown)
+  // Compulsory-conversion per-element detail (Chromatic Shot): {element: {hit_min, hit_max, avg_pre_crit,
+  // avg_with_crit, mitigation}}. total_dps is the EXPECTED average; this drives the per-element (C+D) display.
+  compulsory_breakdown?: Record<string, { hit_min: number; hit_max: number; avg_pre_crit: number; avg_with_crit: number; mitigation: number }>
   // Combined per-type ENEMY damage multiplier on outgoing damage: (1−armor)(1−resist) × enemy vulnerability
   // (Paralysis/Numbed/Frostbite/curses/…). Only types this skill deals are present. 1.0 = neutral.
   enemy_mult_by_type?: Record<string, number>
@@ -924,6 +934,10 @@ export interface StatSheetResponse {
   clamp_report: Record<string, { requested: number; applied: number }>
   // Condition keys any build mod references (gate on/off) — the Config screen hides the rest unless Show all.
   referenced_conditions?: string[]
+  // Engine-activated (not user-set) conditions → {value, source}. Config shows these checked + locked with
+  // an "auto" badge that names the source (e.g. Splendor inflicting Numbed/Frostbite/Ignite).
+  auto_conditions?: Record<string, { value: number | boolean; source: string }>
+
   offense?: OffenseResult | null
   defense?: DefenseResult | null
   custom_mod_statuses?: CustomModStatus[]
@@ -2292,6 +2306,11 @@ export const api = {
     custom_mods?: string[]
     attached_supports?: AttachedSupportInput[]
   }): Promise<StatSheetResponse> => post<StatSheetResponse>('/engine/stats', payload),
+
+  // Compute many builds in ONE round trip — used by the catalog damage-delta tooltips, which otherwise fire one
+  // call per item (dozens) and flood the single backend / Pyodide worker. Returns results in request order.
+  engineStatsBatch: (payloads: Record<string, unknown>[]): Promise<{ results: StatSheetResponse[] }> =>
+    post<{ results: StatSheetResponse[] }>('/engine/stats-batch', { requests: payloads }),
 
   resolveMod: (text: string) =>
     post<ResolveModResponse>('/resolve-mod', { text }),

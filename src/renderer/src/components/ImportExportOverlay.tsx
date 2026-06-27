@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { api, Build } from '../api/client'
 import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
+import { checkBuildCompatibility } from '../utils/buildCompat'
 
 interface Props {
   isDirty: boolean
@@ -11,31 +12,6 @@ interface Props {
   onSaveFirst: (name: string) => Promise<void>
   onClose: () => void
   asScreen?: boolean
-}
-
-const KNOWN_BUILD_KEYS = new Set([
-  'name', 'id', 'slots', 'slates', 'conditionState',
-  // Legacy keys — present on builds saved before conditionState unification
-  'conditions', 'conditionValues',
-  'gear', 'skills', 'characterLevel', 'hasPrism', 'traitId',
-  'traitLevel', 'traitSlotLevels', 'advancedTraitSelections',
-  'heroMemories', 'pactSpirits', 'notes', 'customMods',
-])
-
-function checkBuildCompatibility(build: Record<string, unknown>): string[] {
-  const issues: string[] = []
-  if (!Array.isArray(build.slots)) issues.push('Slots data is missing or unreadable.')
-  else if ((build.slots as unknown[]).every(s => !s)) issues.push('Build has no tree slots selected.')
-  if (Array.isArray(build.gear)) {
-    const unmatched = (build.gear as Record<string, unknown>[]).filter(g => !Array.isArray(g.affixes))
-    if (unmatched.length) {
-      const names = unmatched.map(g => (g.name ?? g.item_id ?? 'Unknown') as string).join(', ')
-      issues.push(`${unmatched.length} gear item(s) not found in current season data: ${names}`)
-    }
-  }
-  const unknown = Object.keys(build).filter(k => !KNOWN_BUILD_KEYS.has(k))
-  if (unknown.length) issues.push(`Unrecognized fields (older format): ${unknown.join(', ')}`)
-  return issues
 }
 
 export default function ImportExportOverlay({ isDirty, buildId, buildName, getBuildPayload, onImport, onSaveFirst, onClose, asScreen = false }: Props) {

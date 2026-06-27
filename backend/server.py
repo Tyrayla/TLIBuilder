@@ -687,15 +687,28 @@ class EngineStatsRequest(BaseModel):
     target_config:   TargetConfigRequest | None = None  # editable calc-target stats; None → Lv85 dummy defaults
 
 
+# node_type_filter.json is ~520 KB and season-static, but was reparsed on EVERY engine_stats call (and N times
+# in /engine/stats-batch). Cache the parsed dict per season; invalidated by rebuild_node_type_filter. A data
+# re-import for the same season needs a backend relaunch to be seen (already true of the dev workflow).
+_filter_cache: dict[str, dict] = {}
+
+
+def _cached_filter() -> dict:
+    season = season_manager.get_active_season() or ""
+    if season not in _filter_cache:
+        from tools.node_type_filter_builder import load_filter
+        _filter_cache[season] = load_filter() or {}
+    return _filter_cache[season]
+
+
 @app.post("/api/engine/stats")
 def engine_stats(req: EngineStatsRequest):
     import re
     from engine.compute import compute
     from engine.models import BuildInput
-    from tools.node_type_filter_builder import load_filter
 
     active_season = season_manager.get_active_season() or ""
-    filter_data = load_filter() or {}
+    filter_data = _cached_filter()
 
     slots = [s.model_dump() if s else None for s in req.slots]
     slates = req.slates
@@ -1050,6 +1063,8 @@ def engine_stats(req: EngineStatsRequest):
         "clamp_report": result.clamp_report,
         # Condition keys any build mod references (gate on/off) — the Config screen hides the rest by default.
         "referenced_conditions": result.referenced_conditions,
+        # Engine-activated (not user-set) conditions → {value, source} for the Config "auto" badge.
+        "auto_conditions": result.auto_conditions,
         "offense": result.offense,
         "defense": result.defense,
         "custom_mod_statuses": custom_mod_statuses,
@@ -1093,6 +1108,20 @@ def engine_stats(req: EngineStatsRequest):
         # Settable per-aura stack conditions ({key,label,max}) for the stack sliders.
         "aura_stack_conditions": aura_stack_conditions,
     }
+
+
+class EngineStatsBatchRequest(BaseModel):
+    requests: list[EngineStatsRequest]
+
+
+@app.post("/api/engine/stats-batch")
+def engine_stats_batch(req: EngineStatsBatchRequest):
+    """Compute many builds in ONE round trip. The damage-delta tooltips price a hypothetical change per catalog
+    item (one build each), which on the catalog screens can be dozens–100+. Sending them individually floods the
+    single backend (and the Pyodide worker on web) so the headline recalc and saves queue behind the whole storm.
+    Batching collapses that to a single request — the per-call HTTP/IPC (and web worker) overhead is paid once.
+    Each result is a full StatSheet (same shape as /engine/stats) so the caller diffs them exactly as before."""
+    return {"results": [engine_stats(r) for r in req.requests]}
 
 
 # ── Conditions ─────────────────────────────────────────────────────────────────
@@ -1220,6 +1249,7 @@ def rebuild_node_type_filter():
         result["node_recipes"] = build_node_recipes(season_trees)
 
     save_filter(result)
+    _filter_cache.clear()   # invalidate the cached filter so the next compute reparses the rebuilt file
     return {
         "_meta": result["_meta"],
         "stats": result["stats"],

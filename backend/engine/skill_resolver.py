@@ -106,6 +106,11 @@ class ResolvedSkill:
     # totals before applying. Source: TLI Help DB (Strength/Dexterity/Intelligence). Parsed in
     # resolve_skill from the skill's `main_stat` field; consumed by calculate_offense.
     main_stat: list[str] = field(default_factory=list)
+    # Compulsory (random/rotated) elemental conversion (Chromatic Shot): each cast deals ONE of these elements,
+    # bypassing normal conversion — ALL added flat (any type) folds into base first, then only the final element's
+    # increased/additional apply. offense computes each element fully and reports the expected average. Empty = off.
+    compulsory_elements: list[str] = field(default_factory=list)
+    base_flat_by_level: dict[int, tuple[float, float]] = field(default_factory=dict)  # type-agnostic base for compulsory
 
 
 _REGISTRY: dict[str, Callable[[dict], ResolvedSkill]] = {}
@@ -269,6 +274,52 @@ def _resolve_chain_lightning(skill_data: dict) -> ResolvedSkill:
         added_dmg_effectiveness=effectiveness,
         damage_types=damage_types,
         jumps_base=jumps_base,
+    )
+
+
+# Lenient base-damage line (the element word is optional — Chromatic Shot prints "Spell Damage" or "Spell Fire damage").
+_CHROMA_BASE_RE = re.compile(r"Deals\s+([\d.,]+)\s*-\s*([\d.,]+)\s+Spell(?:\s+[A-Za-z]+)?\s+[Dd]amage", re.I)
+_CHROMATIC_ELEMENTS = ["fire", "cold", "lightning"]
+
+
+@_register("chromatic_shot")
+def _resolve_chromatic_shot(skill_data: dict) -> ResolvedSkill:
+    """Chromatic Shot — a Spell whose damage is COMPULSORILY converted to one random/rotated element per cast (see
+    ResolvedSkill.compulsory_elements). Base damage is type-agnostic; the per-element split + expected average happen
+    in offense. Fires 1 + Projectile Quantity projectiles that shotgun one target (falloff 0.70)."""
+    max_level = skill_data.get("max_level", 20)
+    base_flat: dict[int, tuple[float, float]] = {}
+    effectiveness = 1.0
+    for entry in skill_data.get("progression", []):
+        lvl = entry.get("level")
+        values = entry.get("values") or {}
+        m = _CHROMA_BASE_RE.search(" ".join(str(v) for v in values.values()))
+        if m:
+            base_flat[lvl] = (float(m.group(1).replace(",", "")), float(m.group(2).replace(",", "")))
+        eff_val = values.get("Effectiveness of added damage")
+        if eff_val:
+            em = re.search(r"(\d+(?:\.\d+)?)", str(eff_val))
+            if em:
+                effectiveness = float(em.group(1)) / 100.0
+    # Base 3 projectiles (1 + intrinsic "Projectile Quantity +2"); gear/passive +Projectile Quantity adds on top.
+    forms = {
+        lvl: [SkillHitForm("Chromatic Shot", 100.0, "additive",
+                           hit_count=3, shotgun_falloff=0.70, scales_with_projectiles=True)]
+        for lvl in base_flat
+    }
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms,
+        supported=True,
+        is_spell=True,
+        base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
+        added_dmg_effectiveness=effectiveness,
+        damage_types=list(_CHROMATIC_ELEMENTS),
+        compulsory_elements=list(_CHROMATIC_ELEMENTS),
+        base_flat_by_level=base_flat,
     )
 
 

@@ -15,6 +15,7 @@ import { MiniTree } from '../components/MiniTree'
 import { gearQualityColor } from '../utils/gearItem'
 import { sourceKindLabel, sourceKindColor } from '../utils/sourceKind'
 import { dec } from '../utils/num'
+import { DAMAGE_TYPES } from '../utils/damageTypes'
 
 // ── Source breakdown ────────────────────────────────────────────────────────────
 // Hover a stat/cell to open its breakdown; click to pin; click-off / Escape closes (the existing
@@ -588,7 +589,7 @@ function SkillSelectionBar({
 
 // ── Damage breakdown table ────────────────────────────────────────────────────
 
-const ALL_DTYPES = ['physical', 'fire', 'cold', 'lightning', 'erosion']
+const ALL_DTYPES = DAMAGE_TYPES   // shared constant (utils/damageTypes) — single source of truth
 
 const DTYPE_LABEL: Record<string, string> = {
   physical:  'Physical',
@@ -637,7 +638,9 @@ function typeIncKeys(dtype: string): string[] {
 }
 
 function genericAddKeys(offense: OffenseResult): string[] {
-  const keys = ['dmg_additional']
+  // 'hit_dmg_additional' is generic (untagged) hit-only additional — e.g. Splendor's "+additional Hit Damage".
+  // It folds into generic_add in offense, so it belongs in the All-Types breakdown alongside dmg_additional.
+  const keys = ['dmg_additional', 'hit_dmg_additional']
   if (hasTag(offense,'attack'))     keys.push('attack_dmg_additional')
   if (hasTag(offense,'spell'))      keys.push('spell_dmg_additional')
   if (hasTag(offense,'melee'))      keys.push('melee_dmg_additional')
@@ -1443,7 +1446,13 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                   (offense.projectile_count ?? -1) >= 0
                     ? <Row label="Projectile Count" breakdown={{
                         title: 'Projectile Count', keys: ['projectile_quantity_flat'], total: offense.projectile_count, totalUnit: '',
-                        formula: 'skill base projectiles + Σ +Projectile Quantity (all home onto one target and shotgun); 0 = the projectile form does not fire',
+                        formula: '1 base projectile + skill-granted projectiles + Σ +Projectile Quantity (all home onto one target and shotgun); 0 = the projectile form does not fire',
+                        extra: [
+                          { value: '1', stat: 'Base projectile', source: 'Baseline', sourceName: offense.skill_name },
+                          ...(((offense.projectile_base_count ?? 1) - 1) > 0
+                            ? [{ value: `+${(offense.projectile_base_count ?? 1) - 1}`, stat: 'Additional projectiles', source: 'Skill', sourceName: offense.skill_name }]
+                            : []),
+                        ],
                       }}>{offense.projectile_count}</Row>
                     : <Row label="Projectile Count" labelColor="#555">— NYI</Row>
                 )}
@@ -1514,14 +1523,47 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           )
         })()}
 
+        {/* Per-element split for Chromatic Shot's compulsory conversion is shown inline in the Skill Hit Damage table
+            (each element's contribution + % of total), so no standalone box is needed here. */}
+
       {(offense.tangle_count ?? 0) > 0 && (
         <GridBox><StatPanel title="Tangle" accent={AMBER}
-          info="Cast by attached Tangles (each a full caster) — Tangle DPS = per-cast × attached count. Tangle Damage / Enhancement / Crit feed the normal damage pools above.">
+          info="Cast by attached Tangles (each a full caster) — Tangle DPS = per-cast × attached count. A Tangle is a server-scheduled proxy-player, so its cast rate hard-rounds to whole server ticks (cast-speed breakpoints): ticks = ceil(cast time × 30), casts/sec = 30 ÷ ticks — extra cast speed only helps when it crosses a tick boundary. Tangle Damage / Enhancement / Crit feed the normal damage pools above.">
           <Row label="Attached (casting)" breakdown={{
             title: 'Attached Tangles', keys: ['extra_tangle_applied_flat'], total: offense.tangle_count, totalUnit: '',
             extra: [{ value: '1', stat: 'Base', source: 'Baseline', sourceName: 'Base attach per enemy' }],
             formula: 'min(1 base + Additional Tangles Applied, Max Placeable)',
           }}>{offense.tangle_count}</Row>
+          {(offense.tangle_cast_ticks ?? 0) > 0 && (
+            <Row label="Cast Rate (per tangle)" breakdown={{
+              title: 'Cast Rate (per tangle)', keys: ['cast_speed_inc', 'cast_speed_additional'],
+              total: offense.attacks_per_second, totalUnit: ' /s',
+              extra: [{ value: `${dec(1 / (offense.base_cast_time || 1))} /s`, stat: 'Base', source: 'Baseline', sourceName: `1 ÷ ${dec(offense.base_cast_time)}s base cast time` }],
+              formula: '(1 ÷ base cast time) × (1 + Increased) × Π(1 + Additional), snapped down to the 30 ÷ ticks breakpoint',
+            }}>{dec(offense.attacks_per_second)} /s</Row>
+          )}
+          {(offense.tangle_cast_ticks ?? 0) > 0 && (() => {
+            const incNeed = offense.tangle_cast_to_next_increased ?? 0
+            const addNeed = offense.tangle_cast_to_next_additional ?? 0
+            const nextTicks = (offense.tangle_cast_ticks ?? 0) - 1
+            const reachable = nextTicks >= 1 && (incNeed > 0 || addNeed > 0)
+            const nextRate = nextTicks >= 1 ? dec(30 / nextTicks) : ''
+            return (
+              <Row label="Cast Ticks" labelColor="#9ab" breakdown={{
+                title: 'Cast Ticks → next casts/sec breakpoint', keys: [], total: offense.tangle_cast_ticks, totalUnit: ' ticks',
+                formula: 'Cast Ticks = ceil(30 × cast time) — a Tangle is server-scheduled, so its cast rounds UP to a '
+                  + 'whole tick; casts/sec = 30 ÷ ticks. Extra cast speed only helps when it crosses a tick boundary. '
+                  + 'Either lever below reaches the next breakpoint on its own (Increased dilutes against your existing '
+                  + 'increased pool, so it needs more than Additional).',
+                extra: reachable
+                  ? [
+                      { value: `+${dec(incNeed * 100)}%`, stat: `Increased Cast Speed → ${nextTicks} ticks`, source: '', sourceName: `reaches ${nextRate} casts/s` },
+                      { value: `+${dec(addNeed * 100)}%`, stat: `Additional Cast Speed → ${nextTicks} ticks`, source: '', sourceName: `reaches ${nextRate} casts/s` },
+                    ]
+                  : [{ value: '—', stat: 'Cast Speed', source: '', sourceName: (offense.tangle_cast_ticks ?? 0) <= 1 ? 'already at 1 tick (30 casts/s)' : 'no reachable breakpoint' }],
+              }}>{offense.tangle_cast_ticks}</Row>
+            )
+          })()}
           <Row label="Max Placeable" breakdown={{
             title: 'Max Tangle Quantity', keys: ['max_tangle_quantity_flat'], total: offense.tangle_placeable, totalUnit: '',
             extra: [{ value: '2', stat: 'Base', source: 'Baseline', sourceName: 'Base Max Tangle Quantity' }],
@@ -1541,9 +1583,6 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             extra: [{ value: '8 m', stat: 'Base', source: 'Baseline', sourceName: 'Base Attach Range' }],
             formula: '8 m × (1 + Increased)',
           }}>{dec(offense.tangle_attach_range)} m</Row>
-          <Row label="Tangle Damage Multiplier" labelColor="#d8b878">
-            <span style={{ color: '#f0c070' }}>×{dec((offense.tangle_mult ?? offense.tangle_count))}</span>
-          </Row>
         </StatPanel></GridBox>
       )}
 
@@ -1573,28 +1612,38 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               + 'increased total against its threshold, before additional.',
           }}>+{dec((offense.spell_burst_charge_inc * 100))}%</Row>
           {(() => {
-            const chg = offense.spell_burst_charge_to_next_inc, cast = offense.spell_burst_cast_to_next_inc
-            const chgPct = `+${dec((chg * 100))}%`, castPct = `+${dec((cast * 100))}%`
+            const ci = offense.spell_burst_charge_to_next_inc ?? 0     // increased charge
+            const ca = offense.spell_burst_charge_to_next_add ?? 0     // additional charge
+            const ki = offense.spell_burst_cast_to_next_inc ?? 0       // increased cast (Play Safe / manual)
+            const ka = offense.spell_burst_cast_to_next_add ?? 0       // additional cast
+            const ps = !!offense.spell_burst_play_safe
+            const tickTag = offense.spell_burst_next_breakpoint_ticks > 0 ? ` (${offense.spell_burst_next_breakpoint_ticks} ticks)` : ''
+            const eq = (a: number, b: number) => Math.abs(a - b) < 0.005
+            // One pool (Increased / Additional): with Play Safe the cast lever also reaches the breakpoint — if it
+            // matches the charge amount, one combined line; if it differs, separate lines. Without Play Safe the
+            // recommendation is charge speed only.
+            const poolRows = (pool: string, charge: number, cast: number): ExtraRow[] => {
+              const castOn = ps && cast > 0, chargeOn = charge > 0
+              if (castOn && chargeOn && eq(cast, charge))
+                return [{ value: `+${dec(cast * 100)}%`, stat: `${pool} Cast / Charge Speed → next breakpoint${tickTag}`, source: '', sourceName: 'raises bursts/sec' }]
+              const rows: ExtraRow[] = []
+              if (castOn) rows.push({ value: `+${dec(cast * 100)}%`, stat: `${pool} Cast Speed → next breakpoint${tickTag}`, source: '', sourceName: 'raises bursts/sec (feeds charge via Play Safe)' })
+              if (chargeOn) rows.push({ value: `+${dec(charge * 100)}%`, stat: `${pool} Charge Speed → next breakpoint${tickTag}`, source: '', sourceName: 'raises bursts/sec' })
+              return rows
+            }
+            const extra: ExtraRow[] = [...poolRows('Increased', ci, ki), ...poolRows('Additional', ca, ka)]
+            if (extra.length === 0)
+              extra.push({ value: '—', stat: 'Charge Speed', source: '', sourceName: offense.spell_burst_charge_ticks <= 1 ? 'already at 1 tick (30 bursts/s)' : 'no reachable breakpoint' })
             return (
               <Row label="Charge Ticks" labelColor="#9ab" breakdown={{
                 title: 'Charge Ticks → next bursts/sec breakpoint', keys: [], total: offense.spell_burst_charge_ticks, totalUnit: ' ticks',
                 formula: 'Charge Ticks = ceil(30 × Charge Time) — server-timed, rounds UP to a whole tick. '
                   + (offense.spell_burst_auto
                     ? 'Auto: bursts/sec = 30 ÷ ticks, so every whole tick is a real gain (only sub-tick rounding is wasted).'
-                    : 'Manual: bursts/sec = 30 ÷ (ceil(charge ÷ cast)·cast), gated by BOTH charge speed AND cast speed — '
-                      + 'so many intermediate charge ticks add nothing, and cast speed can be the closer breakpoint. '
-                      + 'Both levers are scanned (incl. Play Safe cast→charge) for the next that actually raises bursts/sec.')
+                    : 'Manual: bursts/sec = 30 ÷ (ceil(charge ÷ cast)·cast). Increased dilutes against your existing '
+                      + 'pool, so it needs more than Additional; with Play Safe cast speed reaches the same breakpoint.')
                   + ' (Surging, if it is the limiter, masks this.)',
-                extra: [
-                  ...(chg > 0
-                    ? [{ value: chgPct, stat: `Charge Speed → next breakpoint${offense.spell_burst_next_breakpoint_ticks > 0 ? ` (${offense.spell_burst_next_breakpoint_ticks} ticks)` : ''}`, source: '', sourceName: 'more Spell Burst Charge Speed → higher bursts/sec' }]
-                    : [{ value: '—', stat: 'Charge Speed', source: '', sourceName: offense.spell_burst_charge_ticks <= 1 ? 'already at 1 tick (30 bursts/s)' : 'no reachable breakpoint' }]),
-                  ...(!offense.spell_burst_auto
-                    ? [cast > 0
-                        ? { value: castPct, stat: 'Cast Speed → next breakpoint', source: '', sourceName: 'raises bursts/sec (and feeds charge via Play Safe)' }
-                        : { value: '—', stat: 'Cast Speed', source: '', sourceName: 'charge-limited — cast speed cannot raise bursts/sec here' }]
-                    : []),
-                ],
+                extra,
               }}>
                 {offense.spell_burst_charge_ticks}
               </Row>

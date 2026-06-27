@@ -183,6 +183,19 @@ function peekCache(key: string, version: number): DamageDelta | null {
   return resultCache.get(key) ?? null
 }
 
+// Derive a DamageDelta from a hovered (step) vs alternative (base) raw stats response.
+function deriveDelta(stepRaw: StatSheetResponse, baseRaw: StatSheetResponse, measureSlot?: number): DamageDelta {
+  const step = toStats(stepRaw, measureSlot)
+  const base = toStats(baseRaw, measureSlot)
+  if (!step.supported || step.dps == null || !base.supported || base.dps == null) return SKILL_NYI
+  const absolute = step.dps - base.dps
+  if (Math.abs(absolute) < EPS) {
+    return changedTouchesDamage(base.stats, step.stats) ? NOT_MODELED : NO_CHANGE
+  }
+  const percent = base.dps > 0 ? (absolute / base.dps) * 100 : 0
+  return { state: 'value', absolute, percent, direction: absolute > 0 ? 'gain' : 'loss' }
+}
+
 // Compute (and cache) one request's delta. Both sides resolve through sideStats, which dedupes
 // the shared identity recompute across every request at a given version.
 async function computeDelta(req: DeltaRequest, s: BuildState, version: number): Promise<DamageDelta> {
@@ -194,25 +207,53 @@ async function computeDelta(req: DeltaRequest, s: BuildState, version: number): 
     sideStats(req.step, s, version),
     sideStats(req.base, s, version),
   ])
-  const step = toStats(stepRaw, req.measureSlot)
-  const base = toStats(baseRaw, req.measureSlot)
-  let result: DamageDelta
-  if (!step.supported || step.dps == null || !base.supported || base.dps == null) {
-    result = SKILL_NYI
-  } else {
-    const absolute = step.dps - base.dps
-    if (Math.abs(absolute) < EPS) {
-      result = changedTouchesDamage(base.stats, step.stats) ? NOT_MODELED : NO_CHANGE
-    } else {
-      const percent = base.dps > 0 ? (absolute / base.dps) * 100 : 0
-      result = { state: 'value', absolute, percent, direction: absolute > 0 ? 'gain' : 'loss' }
-    }
-  }
+  const result = deriveDelta(stepRaw, baseRaw, req.measureSlot)
   cache.set(req.key, result)
   if (req.stable && stableCache.size > STABLE_CACHE_CAP) {
     stableCache.delete(stableCache.keys().next().value as string)
   }
   return result
+}
+
+// Batched list compute: prices every uncached request in ONE backend round trip per chunk instead of one call
+// per item. A focused catalog can be 75+ items; firing them individually floods the single backend / Pyodide
+// worker (≈40s on web) and blocks saves. We collect each request's step/base payloads (the shared identity is
+// computed once), send them to /engine/stats-batch in CHUNKS (so the first rows fill progressively and a save
+// can interleave between chunks), then derive + cache each delta.
+const BATCH_CHUNK = 24
+async function computeDeltaListBatched(reqs: DeltaRequest[], s: BuildState, version: number): Promise<DamageDelta[]> {
+  if (resultCacheVersion !== version) { resultCache.clear(); resultCacheVersion = version }
+  const out: (DamageDelta | null)[] = reqs.map(r => (r.stable ? stableCache.get(r.key) : resultCache.get(r.key)) ?? null)
+  const todo = reqs.map((r, i) => ({ r, i })).filter(x => out[x.i] === null)
+  if (todo.length === 0) return out as DamageDelta[]
+
+  // Build the unique payload list (the identity side — current build — is shared, so compute it once).
+  const payloads: Record<string, unknown>[] = []
+  let identityIdx = -1
+  const ensureIdentity = () => {
+    if (identityIdx < 0) { identityIdx = payloads.length; payloads.push(buildEngineStatsPayload(s) as Record<string, unknown>) }
+    return identityIdx
+  }
+  const sideIdx = todo.map(({ r }) => ({
+    step: r.step ? payloads.push(buildEngineStatsPayload(r.step(s)) as Record<string, unknown>) - 1 : ensureIdentity(),
+    base: r.base ? payloads.push(buildEngineStatsPayload(r.base(s)) as Record<string, unknown>) - 1 : ensureIdentity(),
+  }))
+
+  // Compute in chunks (round-trip amortized; saves can land between chunks).
+  const results: StatSheetResponse[] = []
+  for (let i = 0; i < payloads.length; i += BATCH_CHUNK) {
+    const { results: chunk } = await api.engineStatsBatch(payloads.slice(i, i + BATCH_CHUNK))
+    results.push(...chunk)
+  }
+
+  todo.forEach(({ r, i }, ti) => {
+    const result = deriveDelta(results[sideIdx[ti].step], results[sideIdx[ti].base], r.measureSlot)
+    const cache = r.stable ? stableCache : resultCache
+    cache.set(r.key, result)
+    if (r.stable && stableCache.size > STABLE_CACHE_CAP) stableCache.delete(stableCache.keys().next().value as string)
+    out[i] = result
+  })
+  return out as DamageDelta[]
 }
 
 export function useDamageDelta(req: DeltaRequest | null, enabled = false): DamageDelta {
@@ -250,6 +291,11 @@ export function useDamageDelta(req: DeltaRequest | null, enabled = false): Damag
 // is computed once across all of them. Used when a single hovered item maps to more than one slot.
 export function useDamageDeltaList(reqs: DeltaRequest[] | null, enabled = false): DamageDelta[] {
   const buildVersion = useBuildStore(s => s.buildVersion)
+  // Gate the catalog delta-storm behind the HEADLINE recalc: a focused catalog can fire one engine call per
+  // item (dozens+), which all share the single backend. If they run before the headline recompute, the DPS the
+  // user is watching queues behind the whole storm (seconds on desktop, ~40s on web's serial worker). So we wait
+  // until the store's computedVersion has caught up to buildVersion — the headline lands first, deltas fill after.
+  const computedVersion = useBuildStore(s => s.computedVersion)
   const [deltas, setDeltas] = useState<DamageDelta[]>([])
 
   const keysJoined = (reqs ?? []).map(r => r.key).join('|')
@@ -260,12 +306,14 @@ export function useDamageDeltaList(reqs: DeltaRequest[] | null, enabled = false)
     const initial = reqs.map(r => peekCache(r.key, buildVersion) ?? ({ state: 'loading' } as DamageDelta))
     setDeltas(initial)
     if (initial.every(d => d.state !== 'loading')) return // all cached → no recompute
+    // Headline isn't up to date yet → wait. This effect re-runs when computedVersion catches up.
+    if (computedVersion < buildVersion) return
 
     let cancelled = false
     const s = useBuildStore.getState()
     const timer = setTimeout(async () => {
       try {
-        const results = await Promise.all(reqs.map(r => computeDelta(r, s, buildVersion)))
+        const results = await computeDeltaListBatched(reqs, s, buildVersion)
         if (!cancelled) setDeltas(results)
       } catch {
         if (!cancelled) setDeltas(reqs.map(() => ({ state: 'error', message: 'Failed to compute damage delta' })))
@@ -273,7 +321,7 @@ export function useDamageDeltaList(reqs: DeltaRequest[] | null, enabled = false)
     }, 120)
 
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [enabled, keysJoined, buildVersion])
+  }, [enabled, keysJoined, buildVersion, computedVersion])
 
   return deltas
 }

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { debounce } from 'lodash-es'
+import { debounce } from '../utils/fn'
 import { useBuildStore } from './buildStore'
 import { api } from '../api/client'
 import { buildEngineStatsPayload } from '../utils/statsPayload'
