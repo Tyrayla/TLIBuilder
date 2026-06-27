@@ -167,7 +167,12 @@ function bootstrapDataDir(): string {
 function startPython(): Promise<number> {
   return new Promise<number>((resolve) => {
     log('startPython — begin')
-    killPortProcess(8765)
+    // Dev and the installed (packaged) app must use DIFFERENT ports. They both spawn a Python backend and kill
+    // whatever holds their port on startup; sharing one port meant running both made each kill the other's
+    // backend and both frontends ended up talking to a single backend (e.g. the dev app showing the installed
+    // app's saved builds). Give dev its own port so they coexist cleanly.
+    PYTHON_PORT = app.isPackaged ? 8765 : 8766
+    killPortProcess(PYTHON_PORT)
 
     const dataDir = bootstrapDataDir()
     const pythonArgs = ['--port', String(PYTHON_PORT)]
