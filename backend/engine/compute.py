@@ -706,9 +706,15 @@ def compute(
             resolve_skill(skill_data), build_input.main_skill.level, main_slot, True, skill_dict=skill_data)
         slot_offense[main_slot] = result_offense
         # Projectile Hits (Chromatic Shot): the shotgun-hit cap IS the build's projectile count (3 by default,
-        # up to ~40 with quantity mods) — not an artificial constant. Report it as the condition's max.
+        # up to ~40 with quantity mods) — not an artificial constant. Report it as the condition's max AND as the
+        # auto default (all projectiles land), so the field tracks the count and the user can override downward.
         if result_offense.get("compulsory_breakdown") and result_offense.get("projectile_count"):
-            maxes["chromatic_shots_on_target"] = float(result_offense["projectile_count"])
+            _pc = float(result_offense["projectile_count"])
+            maxes["chromatic_shots_on_target"] = _pc
+            # Always report the count as the auto value (even when the user has overridden it), so the field's
+            # clear-to-default restores the build's projectile count rather than the catalog default.
+            auto_sources["chromatic_shots_on_target"] = "Chromatic Shot (all projectiles land)"
+            auto_values["chromatic_shots_on_target"] = _pc
 
     # Secondary active skill slots — each computed independently, folding only ITS slot's supports (no
     # cross-contamination between setups). Today's payloads carry only the main skill, so this is empty and

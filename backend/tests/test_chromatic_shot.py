@@ -88,9 +88,18 @@ def test_shotgun_default_three_projectiles():
     assert f["hits_per_fire"] == 3 and f["shotgun_mult"] == pytest.approx(1.6)
 
 
-def test_shots_on_target_caps_the_shotgun():
-    """+6 Projectile Quantity → 9 fired, but only 'shots on target' (default 7) land → 1 + 6×0.30 = 2.8."""
+def test_shots_on_target_default_is_all_projectiles():
+    """By default ALL fired projectiles land (the field tracks the projectile count): +6 Quantity → 9 fired,
+    9 land → 1 + 8×0.30 = 3.4. The auto value + condition max both equal the projectile count."""
     off = _off(gear=[_flat_item("R", [("projectile_quantity_flat", 6)])])
+    f = off["hit_forms"][0]
+    assert off["projectile_count"] == 9 and f["hits_per_fire"] == 9
+    assert f["shotgun_mult"] == pytest.approx(1.0 + 8 * 0.30)
+
+
+def test_shots_on_target_override_caps_the_shotgun():
+    """A user-set Projectile Hits below the count caps the shotgun: 9 fired, override 7 land → 1 + 6×0.30."""
+    off = _off(gear=[_flat_item("R", [("projectile_quantity_flat", 6)])], conds={"chromatic_shots_on_target": 7})
     f = off["hit_forms"][0]
     assert off["projectile_count"] == 9 and f["hits_per_fire"] == 7
     assert f["shotgun_mult"] == pytest.approx(1.0 + 6 * 0.30)
@@ -101,10 +110,12 @@ def _sup(item_id, rank=5):
     return [{"item_id": item_id, "slot": 1, "level": 20, "rank": rank, "enabled": True}]
 
 
-def test_lightchaser_raises_dps_and_all_projectiles_land():
-    base = _off(gear=[_flat_item("R", [("projectile_quantity_flat", 6)])])               # 9 fired, 7 land
-    lc = _off(gear=[_flat_item("R", [("projectile_quantity_flat", 6)])], supports=_sup(LC))  # homing → all 9 land
-    assert lc["hit_forms"][0]["hits_per_fire"] == 9
+def test_lightchaser_raises_dps_and_forces_all_projectiles():
+    # User estimates only 4 of 9 land; Lightchaser's homing overrides that → all 9 land, plus its damage bonuses.
+    base = _off(gear=[_flat_item("R", [("projectile_quantity_flat", 6)])], conds={"chromatic_shots_on_target": 4})
+    lc = _off(gear=[_flat_item("R", [("projectile_quantity_flat", 6)])], conds={"chromatic_shots_on_target": 4}, supports=_sup(LC))
+    assert base["hit_forms"][0]["hits_per_fire"] == 4      # user-capped
+    assert lc["hit_forms"][0]["hits_per_fire"] == 9        # homing forces all to land
     assert lc["total_dps"] > base["total_dps"]
 
 
@@ -131,6 +142,34 @@ def test_per_type_increased_shows_in_breakdown():
     assert off["type_inc"]["cold"] == pytest.approx(0.0) == off["type_inc"]["lightning"]
 
 
+# ── Tangle cast-speed breakpoints ───────────────────────────────────────────────
+def _tangled(cs_inc):
+    """Chromatic Shot tangled (Spell Tangle activator) with a given increased-cast-speed gear roll."""
+    sup = [{"item_id": "spell_tangle", "slot": 1, "level": 1, "rank": 1, "enabled": True}]
+    return _off(supports=sup, gear=[_flat_item("C", [("cast_speed_inc", cs_inc)])])
+
+
+def test_tangle_cast_rate_hard_rounds_to_tick_breakpoints():
+    """A tangle's per-cast rate snaps to whole server ticks: two different cast speeds that land on the same tick
+    count produce the SAME effective rate (owner-verified 6.04 & 7.44 casts/s → 5 ticks → 6.0/s)."""
+    base = 1.0 / 0.65   # chromatic base cast time 0.65s → ~1.538 casts/s before cast speed
+    a = _tangled(6.04 / base - 1.0)
+    b = _tangled(7.44 / base - 1.0)
+    assert a["tangle_cast_ticks"] == 5 and b["tangle_cast_ticks"] == 5
+    assert a["attacks_per_second"] == pytest.approx(6.0) == b["attacks_per_second"]
+    # One tick faster requires crossing the boundary: just under 6.0/s sits at 6 ticks → 5.0/s.
+    slow = _tangled(5.99 / base - 1.0)
+    assert slow["tangle_cast_ticks"] == 6 and slow["attacks_per_second"] == pytest.approx(5.0)
+
+
+def test_untangled_cast_rate_stays_smooth():
+    """Without a Tangle activator the cast rate is the smooth (non-breakpoint) value and no tick count is set."""
+    base = 1.0 / 0.65
+    off = _off(gear=[_flat_item("C", [("cast_speed_inc", 6.04 / base - 1.0)])])
+    assert off["tangle_cast_ticks"] == 0
+    assert off["attacks_per_second"] == pytest.approx(6.04, abs=1e-3)   # smooth, not snapped to 6.0
+
+
 # ── Splendor ──────────────────────────────────────────────────────────────────
 def test_projectile_hits_max_tracks_projectile_count():
     """Projectile Hits (shots-on-target) caps at the build's projectile count — 3 by default, more with
@@ -144,11 +183,13 @@ def test_projectile_hits_max_tracks_projectile_count():
 def test_splendor_surfaces_auto_conditions_with_source():
     """Splendor's auto-inflicted ailments come back as auto_conditions (so the Config UI can show them
     checked + locked with the source named), including the engine-derived Frostbite Rating of 10."""
+    # Without an inflict source the only auto condition is the all-projectiles-land Projectile Hits default.
     none = _resp().get("auto_conditions") or {}
-    assert not none                                              # no auto conditions without an inflict source
+    assert set(none) == {"chromatic_shots_on_target"}
     auto = _resp(supports=_sup(SP))["auto_conditions"]
-    assert set(auto) == {"enemy_numbed", "enemy_frostbitten", "enemy_ignited", "frostbite_rating", "numbed_stacks"}
-    assert all(auto[k]["source"] == "Chromatic Shot: Splendor" for k in auto)
+    ailments = {"enemy_numbed", "enemy_frostbitten", "enemy_ignited", "frostbite_rating", "numbed_stacks"}
+    assert ailments <= set(auto)
+    assert all(auto[k]["source"] == "Chromatic Shot: Splendor" for k in ailments)
     assert auto["enemy_numbed"]["value"] is True
     assert auto["frostbite_rating"]["value"] == pytest.approx(10.0)
     assert auto["numbed_stacks"]["value"] == pytest.approx(1.0)   # inflicting Numbed applies ≥1 stack

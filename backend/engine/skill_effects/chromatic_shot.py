@@ -85,11 +85,12 @@ def _slot_support_ids(attached_supports, slot) -> set:
 # ── Type-B slot-local emissions (proj speed / main-stat ratio / shots-on-target) ──
 def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, attached_supports, skills_by_id, **_) -> dict:
     ids = _slot_support_ids(attached_supports, slot)
-    # Shots on target (the shotgun hit count offense uses): surface the condition; emit its value. Lightchaser
-    # homing → all fired projectiles land (large value → offense caps it at the actual projectile count).
+    # Shots on target (the shotgun hit count offense uses): surface the condition; emit its value. By default ALL
+    # fired projectiles land (large value → offense caps it at the actual projectile count); the user can override
+    # downward. Lightchaser homing always forces all to land.
     source.referenced_conditions.add("chromatic_shots_on_target")
     raw = condition_state.get("chromatic_shots_on_target")
-    shots = float(raw) if raw is not None else 7.0
+    shots = float(raw) if raw is not None else float(_ALL_HIT)
     if LIGHTCHASER in ids:
         shots = float(_ALL_HIT)
     source.add_with_source("chromatic_shots_on_target_flat", shots, SourceEntry(

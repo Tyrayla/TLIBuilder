@@ -606,6 +606,9 @@ class OffenseResult:
     tangle_inactivated: int = 0        # placeable − active (feeds Dormant Entanglement)
     tangle_duration: float = 0.0       # seconds (base 8 × duration mods) — display only
     tangle_attach_range: float = 0.0   # metres (base 8 × attach-range mods) — display only
+    tangle_cast_ticks: int = 0         # whole server ticks per tangle cast (cast-speed breakpoint); 0 if untangled
+    tangle_cast_to_next_increased: float = 0.0  # +Increased Cast Speed needed for the next faster tick breakpoint
+    tangle_cast_to_next_additional: float = 0.0  # +Additional Cast Speed needed for the next faster tick breakpoint
     # Spell Burst mode (an eligible Spell cast at full charge consumes all M stacks and auto-recasts the spell
     # M times — the triggering cast also counts, so casts_per_burst = M + 1). The charge is a server-timed,
     # whole-tick countdown (hard-rounded breakpoints — see engine/tick.py), so charge speed only helps at
@@ -617,8 +620,11 @@ class OffenseResult:
     spell_burst_charge_time: float = 0.0   # seconds to full charge (T_eff, after Surging) — display
     spell_burst_charge_factor: float = 1.0 # total Spell Burst Charge Speed multiplier ((1+Σinc)×Π(1+add)) — display
     spell_burst_charge_inc: float = 0.0    # Σ Spell Burst Charge Speed INCREASED only (matches in-game; Solid River's gate)
-    spell_burst_charge_to_next_inc: float = 0.0   # charge-speed Increased % needed for the next DPS-relevant breakpoint
-    spell_burst_cast_to_next_inc: float = 0.0     # cast-speed Increased % to the next bursts/sec breakpoint (manual only)
+    spell_burst_charge_to_next_inc: float = 0.0   # +Increased Charge Speed for the next DPS-relevant breakpoint
+    spell_burst_charge_to_next_add: float = 0.0   # +Additional Charge Speed for the same breakpoint
+    spell_burst_cast_to_next_inc: float = 0.0     # +Increased Cast Speed to the next breakpoint (manual / Play Safe)
+    spell_burst_cast_to_next_add: float = 0.0     # +Additional Cast Speed to the same breakpoint (manual / Play Safe)
+    spell_burst_play_safe: bool = False           # Play Safe in build → cast speed couples into charge (a second lever)
     spell_burst_next_breakpoint_ticks: int = 0    # charge-tick count of the next breakpoint that raises bursts/sec (0 = none)
     spell_burst_rate: float = 0.0          # bursts per second (≤ 30)
     spell_burst_mult: float = 1.0          # total damage multiplier from bursting (folded into total_dps)
@@ -640,6 +646,7 @@ class OffenseResult:
     channeled_behavior: str = ""           # "reset" | "refresh" | "" (not channeled)
     channeled_attack_frequency: float = 0.0  # persistent-entity strike rate (Howling Gale's Gale); 0 = N/A
     projectile_count: int = -1             # projectiles of the projectile-scaling form (Icy Blade); -1 = N/A (no such form)
+    projectile_base_count: int = 0         # the skill's OWN projectiles before +Quantity mods (for the count breakdown)
     # Compulsory-conversion per-element detail (Chromatic Shot). {element: {hit_min, hit_max, avg_pre_crit,
     # avg_with_crit, mitigation}}. The headline total_dps is the EXPECTED average; this is the C+D per-element box.
     compulsory_breakdown: dict = field(default_factory=dict)
@@ -998,6 +1005,29 @@ def calculate_offense(
     aps = _rates["aps"]
     base_cast_time = _rates["base_cast_time"]
 
+    # ── Tangle cast-speed breakpoints ── A Tangle is a server-scheduled proxy-player, so its per-tangle cast rate
+    # hard-rounds to whole server ticks (cast-speed BREAKPOINTS) instead of the player's smooth, continuously-
+    # scaling rate: ticks = ceil(cast_time × TICK_RATE), effective casts/sec = TICK_RATE / ticks. So extra cast
+    # speed only helps when it crosses an integer-tick boundary (flat dead zones between breakpoints — e.g. 6.04
+    # and 7.44 casts/s both land on 5 ticks → 6.0/s, owner-verified). Quantizing aps here flows the breakpoint
+    # rate into every hit form's DPS and the displayed casts/sec; the attached-tangle count multiplies it after.
+    # The 30 Hz per-caster cap still holds via period_ticks' 1-tick floor. See engine/tick.py (opt-in regime).
+    tangle_cast_ticks = 0
+    # MORE cast speed needed to reach the next (faster) tick breakpoint, in BOTH forms (each independently gets
+    # you there). Additional = a new ×(1+x) factor → x = target/current − 1. Increased adds into the shared
+    # increased pool, so it dilutes against the existing total → ΔI = (1 + current increased) × x.
+    tangle_cast_to_next_increased = 0.0
+    tangle_cast_to_next_additional = 0.0
+    if tangle and aps > 0.0:
+        _aps_raw = aps                                   # smooth cast speed before tick-rounding
+        tangle_cast_ticks = period_ticks(1.0 / _aps_raw)
+        aps = rate_from_ticks(tangle_cast_ticks)
+        if tangle_cast_ticks > 1:
+            _next_cs = rate_from_ticks(tangle_cast_ticks - 1)   # cast speed needed for (ticks − 1)
+            _x = max(0.0, _next_cs / _aps_raw - 1.0)
+            tangle_cast_to_next_additional = _x
+            tangle_cast_to_next_increased = (1.0 + source.total("cast_speed_inc")) * _x
+
     # ── Channeled cadence ── 1 stack per use; a RESET skill ramps 0→max over `rounds_per_cycle` uses then
     # dumps + fires its burst form once per cycle. Min Channeled Stacks shortens the ramp (first round gains
     # 1+Min). The continuous form fires every use (aps); the burst form fires at aps / rounds_per_cycle.
@@ -1051,10 +1081,12 @@ def calculate_offense(
     # (processed first) knows whether the burst fires — and thus whether it's suppressed. -1 = no such form.
     compulsory_breakdown: dict[str, dict] = {}   # Chromatic Shot: per-element {hit_min,hit_max,avg_pre_crit,avg_with_crit,mitigation}
     projectile_count = -1
+    projectile_base_count = 0   # the skill's OWN projectiles (before +Projectile Quantity mods) — for the breakdown
     for _f in skill.hit_forms_by_level.get(lookup_level, []):
         if _f.scales_with_projectiles:
             _n = max(0, _f.hit_count + int(source.total("projectile_quantity_flat")))
             projectile_count = _n if projectile_count < 0 else max(projectile_count, _n)
+            projectile_base_count = max(projectile_base_count, _f.hit_count)
     # The reset burst fires when its projectile count ≥ 1 → the continuous form is then suppressed.
     burst_active = projectile_count >= 1
     for form in skill.hit_forms_by_level.get(lookup_level, []):
@@ -1308,7 +1340,10 @@ def calculate_offense(
     spell_burst_charge_factor = 1.0
     spell_burst_charge_inc = 0.0
     spell_burst_charge_to_next_inc = 0.0
+    spell_burst_charge_to_next_add = 0.0
     spell_burst_cast_to_next_inc = 0.0
+    spell_burst_cast_to_next_add = 0.0
+    spell_burst_play_safe = False   # Play Safe couples cast speed → charge speed (so cast speed is also a lever)
     spell_burst_next_breakpoint_ticks = 0
     spell_burst_rate = 0.0
     spell_burst_mult = 1.0
@@ -1329,6 +1364,7 @@ def calculate_offense(
         charge_factor = max(1e-6, (1.0 + charge_inc) * charge_add_product)
         spell_burst_charge_factor = charge_factor
         spell_burst_charge_inc = charge_inc
+        spell_burst_play_safe = source.total("cast_speed_to_spell_burst_charge") > 0.0
         T = 2.0 / charge_factor
         # Surging Inspiration: each cast has a chance to immediately gain Spell Burst Charge stacks; the
         # expected stacks/cast (spell_burst_chance_gain_stacks_flat) over the (capped) cast rate is an
@@ -1380,9 +1416,14 @@ def calculate_offense(
             if spell_burst_auto:
                 if charge_ticks > 1:
                     spell_burst_next_breakpoint_ticks = charge_ticks - 1
+                    # Increased dilutes against the existing increased pool; Additional is a fresh ×(1+x) factor.
                     spell_burst_charge_to_next_inc = max(
                         0.0, (60.0 / ((charge_ticks - 1) * charge_add_product) - 1.0) - charge_inc)
+                    spell_burst_charge_to_next_add = max(
+                        0.0, 60.0 / ((charge_ticks - 1) * charge_factor) - 1.0)
             else:
+                # Charge speed — Increased (adds into pool) then Additional (new ×factor); each scanned to the
+                # first step that actually raises bursts/sec (the tick math is non-monotonic, so we scan).
                 dc = 0.0
                 while dc < 5.0:
                     dc += 0.01
@@ -1391,6 +1432,15 @@ def calculate_offense(
                         spell_burst_charge_to_next_inc = dc
                         spell_burst_next_breakpoint_ticks = ct2
                         break
+                dca = 0.0
+                while dca < 5.0:
+                    dca += 0.01
+                    ct2 = period_ticks(2.0 / max((1.0 + charge_inc) * charge_add_product * (1.0 + dca), 1e-6))
+                    if _bursts(aps, ct2) > bursts_per_sec + 1e-9:
+                        spell_burst_charge_to_next_add = dca
+                        break
+                # Cast speed (manual) — raises the bursts numerator; with Play Safe (ps_coeff>0) the coupled share
+                # also shortens the charge. Modeled for both Increased and Additional cast speed.
                 cast_inc = source.total("cast_speed_inc")
                 ps_coeff = source.total("cast_speed_to_spell_burst_charge")  # Play Safe: cast→charge share (0 if none)
                 base_k = aps / (1.0 + cast_inc) if (1.0 + cast_inc) > 0 else aps   # aps = base_k × (1+cast_inc)
@@ -1401,6 +1451,14 @@ def calculate_offense(
                     ct2 = period_ticks(2.0 / max((1.0 + charge_inc + ps_coeff * d) * charge_add_product, 1e-6))
                     if _bursts(aps2, ct2) > bursts_per_sec + 1e-9:
                         spell_burst_cast_to_next_inc = d
+                        break
+                da = 0.0
+                while da < 5.0:
+                    da += 0.01
+                    aps2 = min(aps * (1.0 + da), float(TICK_RATE))
+                    ct2 = period_ticks(2.0 / max((1.0 + charge_inc + ps_coeff * da) * charge_add_product, 1e-6))
+                    if _bursts(aps2, ct2) > bursts_per_sec + 1e-9:
+                        spell_burst_cast_to_next_add = da
                         break
         # Cast accounting (per second). Each burst's triggering cast IS one of the player's casts and is counted
         # as a burst cast (M+1 total per proc, all boosted by the spell_burst pool). The remaining player casts
@@ -1581,6 +1639,9 @@ def calculate_offense(
         tangle_inactivated=tangle_inactivated,
         tangle_duration=tangle_duration,
         tangle_attach_range=tangle_attach_range,
+        tangle_cast_ticks=tangle_cast_ticks,
+        tangle_cast_to_next_increased=tangle_cast_to_next_increased,
+        tangle_cast_to_next_additional=tangle_cast_to_next_additional,
         spell_burst_count=spell_burst_count,
         spell_burst_casts_per_burst=spell_burst_casts_per_burst,
         spell_burst_charge_ticks=spell_burst_charge_ticks,
@@ -1588,7 +1649,10 @@ def calculate_offense(
         spell_burst_charge_factor=spell_burst_charge_factor,
         spell_burst_charge_inc=spell_burst_charge_inc,
         spell_burst_charge_to_next_inc=spell_burst_charge_to_next_inc,
+        spell_burst_charge_to_next_add=spell_burst_charge_to_next_add,
         spell_burst_cast_to_next_inc=spell_burst_cast_to_next_inc,
+        spell_burst_cast_to_next_add=spell_burst_cast_to_next_add,
+        spell_burst_play_safe=spell_burst_play_safe,
         spell_burst_next_breakpoint_ticks=spell_burst_next_breakpoint_ticks,
         spell_burst_rate=spell_burst_rate,
         spell_burst_mult=spell_burst_mult,
@@ -1606,6 +1670,7 @@ def calculate_offense(
         channeled_behavior=ch_behavior,
         channeled_attack_frequency=ch_attack_frequency,
         projectile_count=projectile_count,
+        projectile_base_count=projectile_base_count,
         compulsory_breakdown=compulsory_breakdown,
         # Only for types this skill actually deals — those stats were already read (consumed) in the per-type
         # loop above, so re-reading is golden-neutral; reading types the skill doesn't deal would wrongly mark
