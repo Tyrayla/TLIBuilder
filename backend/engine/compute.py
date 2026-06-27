@@ -10,6 +10,7 @@ server.py is a thin HTTP wrapper; all calculation logic lives here.
 from __future__ import annotations
 import logging
 from engine.models import BuildInput, BuildSource, StatResult
+from engine.constants import NON_PHYSICAL
 
 log = logging.getLogger(__name__)
 
@@ -170,7 +171,7 @@ def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys, auto
     damage types (requires_dtype) and any precondition (requires_cond, e.g. enemy_cursed for Paralyze).
     Records what set each condition into auto_sources (for the Config "auto" badge)."""
     dtypes = {d.lower() for d in (main_dtypes or [])}
-    _ELEMENTAL = {"fire", "cold", "lightning", "erosion"}
+    _ELEMENTAL = NON_PHYSICAL   # fire/cold/lightning/erosion (all non-physical) — value unchanged
     for e in effects or []:
         if e.condition_key in manual_keys:
             continue

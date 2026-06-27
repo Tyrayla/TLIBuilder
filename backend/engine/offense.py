@@ -9,6 +9,7 @@ from engine.models import BuildSource
 from engine.affix_identity import affix_identity
 from engine.skill_resolver import ResolvedSkill
 from engine.tick import TICK_RATE, cap_rate, period_ticks, rate_from_ticks
+from engine.constants import DAMAGE_TYPES as _DAMAGE_TYPES, ELEMENTAL
 from models.stat_meta import STAT_META
 
 # ── Module-level stat lookups built from STAT_META ────────────────────────────
@@ -134,10 +135,10 @@ _SKILL_LEVEL_STATS: list[tuple[str, frozenset]] = [
 ]
 
 
-DAMAGE_TYPES = ["physical", "fire", "cold", "lightning", "erosion"]
+DAMAGE_TYPES = _DAMAGE_TYPES   # shared (engine.constants); re-exported for callers that import it from here
 # "Elemental" = Fire/Cold/Lightning only (Erosion and Physical are NOT elemental). An "elemental"-tagged
 # damage stat (e.g. elemental_dmg_inc) applies to exactly these three via the per-type tag match below.
-_ELEMENTAL_DMG_TYPES = frozenset({"fire", "cold", "lightning"})
+_ELEMENTAL_DMG_TYPES = ELEMENTAL
 # Tags that mark a damage stat as TYPE-SPECIFIC (excluded from the generic/"All" pool). Includes the
 # pseudo-tag "elemental" so elemental_dmg_inc/additional are treated per-type, not as a uniform multiplier.
 _DTYPE_TAG_SET = frozenset(DAMAGE_TYPES) | {"elemental"}

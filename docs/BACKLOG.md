@@ -8,6 +8,38 @@ Grouped by area. Pruned 2026-06-16 after the 0.5.2 release and the web launch.
 2. **Hero Traits** (after the release) — implement **one ENTIRE hero trait at a time (all its nodes)**, not piecemeal.
    (Ingenuity Overload / Creative Genius = Bing2 hero trait — its Spell Burst spike mechanic lands here.)
 
+## Optimization options (audit 2026-06-26)
+Perf pain was orchestration, not the engine (a single compute is ~0.03s). Catalog damage-delta storm already
+fixed (defer-behind-headline + `/api/engine/stats-batch`, commit 7c1fd09). Tiers below from a read-only audit.
+
+**Tier A — quick wins (DONE 2026-06-26):**
+- ✅ Backend per-request caching — `load_filter()` (520 KB, reparsed every compute) + season trees now cached per
+  season (`server.py _cached_filter`, `season_manager._season_trees_cache`). Batch of 30 builds 1.18s → 0.33s (3.6×).
+- ✅ Dedup damage-type constants — FE `src/renderer/src/utils/damageTypes.ts`, BE `backend/engine/constants.py`
+  (`DAMAGE_TYPES`, `ELEMENTAL`=fcl, `NON_PHYSICAL`=fcle). Behavior-neutral.
+- ✅ Dropped lodash-es (inline `deepEqual`/`debounce` in `src/renderer/src/utils/fn.ts`).
+- ⏸ STRETCH (deferred): cache `resolve_nodes` by `(slots,slates,prisms)` hash — re-resolved identically across a
+  delta batch. Marginal for typical small trees; revisit if big-tree delta batches feel slow.
+- ⚠ FLAG to owner: several engine sites name a `{fire,cold,lightning,erosion}` set "elemental" (now `NON_PHYSICAL`).
+  TLI "Elemental" excludes Erosion — confirm whether those erosion-inclusive uses are intentional or a latent bug.
+
+**Tier B — web responsiveness (NEXT):**
+- Visible-only catalog deltas — compute only on-screen catalog rows (passive/support **and** gear/spirit), more on
+  scroll. Attacks the web compute-floor (75 Pyodide builds). Needs viewport tracking on the catalog lists.
+- Lean `/engine/stats-batch` response — offense + a damage fingerprint instead of full stat maps (`sources` ×75 is
+  the big worker-transfer cost on web). Pairs with visible-only.
+- Catalog virtualization — active-skill catalog renders up to ~700 DOM rows (no windowing); gear catalog similar.
+
+**Tier C — big web projects (LATER):**
+- Cache Pyodide runtime + engine-data bundle in IndexedDB — web cold-load is ~2-5s every visit → near-instant.
+- Port build-code encode (`backend/build_code.py`) to TypeScript — skip the backend round-trip on export/save.
+
+**Tier D — polish (LATER):**
+- Lazy-load heavy screens (React.lazy) + keep any dev-only screen out of the prod bundle.
+- Debounce IndexedDB persist writes (web) — smoother rapid edits.
+- Minor render memoization (BreakdownCtx value object, `TreeNode` `React.memo`, MasonryGrid measure deps) — low
+  priority (Calcs breakdowns are already lazy/hover-only).
+
 ## Tooling / release — "What's New" changelog modal (low priority)
 The update "What's New in <version>" modal has two issues (seen on 0.5.3-nightly.3; not urgent):
 1. **Raw HTML shown as text** — the body renders `<p>…</p>` / `<br />` literally instead of as formatted lines

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { isEqual } from 'lodash-es'
+import { deepEqual as isEqual } from '../utils/fn'
 import type {
   TreeSlot, SavedSlate, SlateTemplate, PlacedPrism, CraftedPrism, EquippedGearItem, EquippedSkill, EquippedSupportSkill,
   CreatedHeroMemory, SelectedPactSpirit, StatSheetResponse, PactSpirit, SkillEngineInput, InstalledFate, UndeterminedFate,

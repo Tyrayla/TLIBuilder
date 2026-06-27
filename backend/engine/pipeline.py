@@ -8,8 +8,9 @@ within a key), which is KNOWN-DIVERGENT from the per-affix model now implemented
 """
 from __future__ import annotations
 from engine.models import BuildSource, SkillConfig, EnemyConfig, ComputedResult
+from engine.constants import NON_PHYSICAL
 
-_ELEMENTAL_TYPES = frozenset({"fire", "cold", "lightning", "erosion"})
+_ELEMENTAL_TYPES = NON_PHYSICAL   # fire/cold/lightning/erosion (all non-physical) — value unchanged
 
 # Armor mitigation constant. Tune this to match in-game values.
 # Formula: reduction = armor / (armor + ARMOR_K)

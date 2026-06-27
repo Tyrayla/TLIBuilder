@@ -6,6 +6,7 @@ import {
 } from '../api/client'
 import { itemHasSlot } from './gearItem'
 import { characterLevelFrom } from './conditions'
+import { DAMAGE_TYPES } from './damageTypes'
 import { useReferenceStore } from '../store/referenceStore'
 import type { useBuildStore } from '../store/buildStore'
 
@@ -357,7 +358,7 @@ function _isWeaponSpecificStat(stat: string): boolean {
 // Damage types that can appear as per-weapon flat stats on a weapon item.
 // "elemental" is included because elemental_dmg_gear_flat_min/max can appear on weapons
 // (currently unprocessed by the offense engine but averaged here for future correctness).
-const _WEAPON_DAMAGE_TYPES = ['physical', 'fire', 'cold', 'lightning', 'erosion', 'elemental'] as const
+const _WEAPON_DAMAGE_TYPES = [...DAMAGE_TYPES, 'elemental'] as const
 
 // Build per-weapon-effective contributions for two different weapons in weapon1 + weapon2.
 // Per the alternating-attack mechanic, attacks alternate between weapons. This means:

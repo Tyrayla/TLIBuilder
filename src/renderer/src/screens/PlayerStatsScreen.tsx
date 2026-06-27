@@ -15,6 +15,7 @@ import { MiniTree } from '../components/MiniTree'
 import { gearQualityColor } from '../utils/gearItem'
 import { sourceKindLabel, sourceKindColor } from '../utils/sourceKind'
 import { dec } from '../utils/num'
+import { DAMAGE_TYPES } from '../utils/damageTypes'
 
 // ── Source breakdown ────────────────────────────────────────────────────────────
 // Hover a stat/cell to open its breakdown; click to pin; click-off / Escape closes (the existing
@@ -588,7 +589,7 @@ function SkillSelectionBar({
 
 // ── Damage breakdown table ────────────────────────────────────────────────────
 
-const ALL_DTYPES = ['physical', 'fire', 'cold', 'lightning', 'erosion']
+const ALL_DTYPES = DAMAGE_TYPES   // shared constant (utils/damageTypes) — single source of truth
 
 const DTYPE_LABEL: Record<string, string> = {
   physical:  'Physical',
