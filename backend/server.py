@@ -978,6 +978,14 @@ def engine_stats(req: EngineStatsRequest):
     empower_buffs, empower_statuses, empower_stack_conditions, empower_meta = resolve_empowers(
         skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr)
 
+    # ── Elixir buffs ─────────────────────────────────────────────────────────
+    # Server parses each enabled elixir skill's buff lines into unscaled contributions (+ folds its support gems'
+    # timing); the engine (utility.apply_elixir_buffs, inside compute) scales them by Elixir Effect and builds the
+    # summaries. Full uptime assumed while enabled.
+    from engine.elixir_resolver import resolve_elixirs
+    elixir_buffs, elixir_statuses, elixir_stack_conditions, elixir_meta = resolve_elixirs(
+        skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr, enabled_supports)
+
     # ── Curses ───────────────────────────────────────────────────────────────
     # Gather active curses from slotted curse skills + curse-applying affixes; the engine (curse_resolver, inside
     # compute) scales by Curse Effect, enforces the curse limit, and bakes the enemy damage-taken pools. Any active
@@ -1011,7 +1019,8 @@ def engine_stats(req: EngineStatsRequest):
                 if not _st.get("resolved") and _frostbite_inflict.matches(_st.get("text", "")):
                     _st["resolved"] = True
                     _st["stat_display"] = "Inflicts Frostbite"
-    if active_curses and not core_condition_state.get("enemy_cursed"):
+    # Only ENABLED curses make the enemy cursed (disabled curses are surfaced in the panel but apply nothing).
+    if any(c.get("enabled", True) for c in active_curses) and not core_condition_state.get("enemy_cursed"):
         core_condition_state = {**core_condition_state, "enemy_cursed": True}
 
     # Editable calc-target stats → fractions for the offense mitigation (None keeps the engine's Lv85 defaults).
@@ -1042,6 +1051,8 @@ def engine_stats(req: EngineStatsRequest):
         curse_meta=curse_meta,
         empower_buffs=empower_buffs,
         empower_meta=empower_meta,
+        elixir_buffs=elixir_buffs,
+        elixir_meta=elixir_meta,
         trait_id=req.trait_id,
         trait_slot_levels=req.trait_slot_levels,
         advanced_trait_selections=req.advanced_trait_selections,
@@ -1095,6 +1106,9 @@ def engine_stats(req: EngineStatsRequest):
         "empowers": result.empower_summaries,
         "empower_statuses": empower_statuses,
         "empower_stack_conditions": empower_stack_conditions,
+        # Per-elixir summary (Elixir Effect + granted buffs + timing + NYI) for the Skill panel, plus statuses.
+        "elixirs": result.elixir_summaries,
+        "elixir_statuses": elixir_statuses,
         # Per-curse summary (Curse Effect, limit, debuff value + applied flag), per-curse meta (base stats + NYI
         # lines) for the Skill panel, NYI statuses, and the over-limit conflict (drives the resolution dropdown).
         "curses": result.curse_summaries,
@@ -2216,6 +2230,10 @@ _COND_PATTERNS: list[tuple] = [
     (re.compile(r"used\s+a\s+warcry\s+skill\s+(?:in\s+the\s+last|recently)|warcry\s+.*recently", re.I), "recently_warcry"),
     # Recent self-state windows
     (re.compile(r"blocked\s+recently|have\s+blocked\s+in\s+the\s+last|if\s+you\s+have\s+blocked", re.I), "recently_blocked"),
+    # "when equipped with no more than N Elixir Skill(s)" (Tailored Remedy) → elixir_skill_count threshold. Must
+    # precede the generic elixir_active pattern so it isn't swallowed.
+    (re.compile(r"no\s+more\s+than\s+(\d+)\s+elixir\s+skill", re.I),
+     lambda m: {"key": "elixir_skill_count", "op": "<=", "value": int(m.group(1))}),
     (re.compile(r"elixir\s+skill\s+is\s+active|while\s+an?\s+elixir", re.I), "elixir_active"),
     (re.compile(r"defeated\s+an?\s+enemy\s+recently|have\s+defeated\s+an?\s+enemy", re.I), "enemy_defeated_recently"),
     (re.compile(r"(?:while\s+)?having\s+fervor\b|while\s+you\s+have\s+fervor", re.I), "fervor_active"),

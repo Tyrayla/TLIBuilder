@@ -59,7 +59,10 @@ def _elem_resist(source: BuildSource, key: str, max_key: str) -> tuple[float, fl
     Returns (capped, raw) both in display-unit percentage points.
     """
     raw  = (source.total(key) + source.total("elemental_resistance")) * 100.0
-    cap  = min(_BASE_RESIST_CAP + source.total(max_key) * 100.0, _ABSOLUTE_RESIST_CAP)
+    # Max cap = 60% base + this element's own max-inc + the aggregate Max Elemental Resistance (Fire/Cold/Lightning
+    # only — Tenacity Dew; Erosion has its own cap and is excluded), clamped to the absolute ceiling.
+    cap  = min(_BASE_RESIST_CAP + (source.total(max_key)
+                                   + source.total("max_elemental_resistance_inc")) * 100.0, _ABSOLUTE_RESIST_CAP)
     return min(raw, cap), raw, cap
 
 

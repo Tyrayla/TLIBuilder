@@ -89,21 +89,22 @@ def resolve_curses(skills_input, affix_curses, skills_by_id):
     """
     raw: list[dict] = []
     for s in skills_input or []:
-        if not s.get("enabled", True):
-            continue
         sid = s.get("skill_id")
         skill = skills_by_id.get(sid) or {}
         tags = skill.get("skill_tags") or []
         if "Curse" not in tags or skill.get("skill_type") != "active_skill":
             continue
+        # DISABLED curses are still resolved (Skill panel shows them marked "Disabled") but don't count toward the
+        # limit or bake any debuff — apply_curses filters on `enabled`.
         raw.append({"name": skill.get("name", sid), "skill_id": sid, "level": int(s.get("level") or 1),
-                    "skill": skill, "source_label": f"{skill.get('name', sid)} (slot {s.get('slot')})"})
+                    "skill": skill, "source_label": f"{skill.get('name', sid)} (slot {s.get('slot')})",
+                    "enabled": bool(s.get("enabled", True))})
     for a in affix_curses or []:
         name = a.get("curse_name")
         skill = _skill_by_name(skills_by_id, name)
         raw.append({"name": name, "skill_id": skill.get("item_id") or (name or "").strip().lower().replace(" ", "_"),
                     "level": int(a.get("level") or 1), "skill": skill,
-                    "source_label": a.get("source_label") or "Gear"})
+                    "source_label": a.get("source_label") or "Gear", "enabled": True})
 
     # Dedup by curse name — keep only the highest-level instance (same curse doesn't stack; highest level applies).
     best: dict[str, dict] = {}
@@ -111,7 +112,8 @@ def resolve_curses(skills_input, affix_curses, skills_by_id):
         key = (r["name"] or "").strip().lower()
         if not key:
             continue
-        if key not in best or r["level"] > best[key]["level"]:
+        # Prefer an ENABLED instance, then the highest level (a disabled copy must never shadow an enabled one).
+        if key not in best or (r.get("enabled", True), r["level"]) > (best[key].get("enabled", True), best[key]["level"]):
             best[key] = r
 
     active: list[dict] = []
@@ -137,7 +139,7 @@ def resolve_curses(skills_input, affix_curses, skills_by_id):
 
         active.append({
             "curse_name": name, "skill_id": sid, "stat_key": stat_key, "base_amount": base, "level": level,
-            "source_label": r["source_label"], "modeled": modeled, "enabled": True,
+            "source_label": r["source_label"], "modeled": modeled, "enabled": r.get("enabled", True),
         })
         for t in sorted(set(nyi)):
             statuses.append({"skill_id": sid, "text": t, "resolved": False, "kind": "nyi"})
@@ -224,7 +226,7 @@ def apply_curses(source, active_curses, condition_state):
                 "base_amount": c["base_amount"],
                 "scaled_amount": c["base_amount"] * factor if c.get("modeled") else 0.0,
                 "curse_effect_inc": inc, "curse_effect_additional": add_mult - 1.0,
-                "limit": limit, "n_active": n_active,
+                "limit": limit, "n_active": n_active, "enabled": c.get("enabled", True),
                 "applied": id(c) in applied_ids and bool(c.get("modeled")),
             })
         return summaries, conflict

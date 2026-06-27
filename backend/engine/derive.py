@@ -110,6 +110,11 @@ def derive_stats(source: BuildSource, overrides: dict[str, float] | None = None)
             value = max(0.0, float(overrides[d.key]))
         else:
             flat_total = d.base + sum(source.total(k) for k in d.flat_keys)
+            # Tortoise Shell: a % of FINAL Max Life is added as flat Energy Shield BEFORE ES inc/additional scale
+            # it. max_life is derived earlier in this same pass (it precedes max_energy_shield), so read the just-
+            # computed value from `results`. Done inline (not source.add) so it can't accumulate across passes.
+            if d.key == "max_energy_shield":
+                flat_total += results.get("max_life", 0.0) * source.total("max_life_as_es_pct")
             inc_total  = sum(source.total(k) for k in d.inc_keys)
             value      = flat_total * (1.0 + inc_total)
             for pool in d.add_pools:

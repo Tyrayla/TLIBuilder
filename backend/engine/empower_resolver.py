@@ -94,13 +94,14 @@ def resolve_empowers(skills_input, skills_by_id, parse_mod, translate_cond=None)
         })
 
     for a in skills_input or []:
-        if not a.get("enabled", True):
-            continue
         sid = a.get("skill_id")
         skill = skills_by_id.get(sid) or {}
         tags = skill.get("skill_tags") or []
         if "Empower" not in tags or skill.get("skill_type") != "active_skill":
             continue
+        # DISABLED empowers are still resolved (Skill panel shows their stats marked "Disabled") but their buffs are
+        # NOT folded into the engine — apply_empower_buffs skips emission when meta.enabled is False.
+        enabled = bool(a.get("enabled", True))
 
         level = int(a.get("level") or 1)
         name = skill.get("name", sid)
@@ -113,7 +114,7 @@ def resolve_empowers(skills_input, skills_by_id, parse_mod, translate_cond=None)
             for u in detail_lines:
                 statuses.append({"skill_id": sid, "text": u, "resolved": False, "kind": "nyi"})
             meta[sid] = {"name": name, "level": level, "nyi": detail_lines, "review": [], "slot": a.get("slot"),
-                         "stack_condition": None, "max_stacks": None}
+                         "enabled": enabled, "stack_condition": None, "max_stacks": None}
             continue
 
         detailed, nyi_d = _prep(raw_detailed)
@@ -192,6 +193,6 @@ def resolve_empowers(skills_input, skills_by_id, parse_mod, translate_cond=None)
         for r in review:
             statuses.append({"skill_id": sid, "text": r, "resolved": True, "kind": "review"})
         meta[sid] = {"name": name, "level": level, "nyi": nyi, "review": review, "slot": a.get("slot"),
-                     "stack_condition": cond_key, "max_stacks": max_stacks or None}
+                     "enabled": enabled, "stack_condition": cond_key, "max_stacks": max_stacks or None}
 
     return buffs, statuses, stack_conditions, meta

@@ -628,6 +628,9 @@ class Stat(Enum):
     COLD_RESISTANCE_MAX_INC = "cold_resistance_max_inc"
     LIGHTNING_RESISTANCE_MAX_INC = "lightning_resistance_max_inc"
     EROSION_RESISTANCE_MAX_INC = "erosion_resistance_max_inc"
+    # Aggregate max-resistance for Elemental (Fire/Cold/Lightning ONLY — Erosion is NOT elemental). Adds to each
+    # of the three per-type caps in defense._elem_resist. (Tenacity Dew, scaled by Elixir Effect.)
+    MAX_ELEMENTAL_RESISTANCE_INC = "max_elemental_resistance_inc"
     ATTACK_BLOCK_CHANCE_INC = "attack_block_chance_inc"
     SPELL_BLOCK_CHANCE_INC = "spell_block_chance_inc"
     BLOCK_RATIO_INC = "block_ratio_inc"
@@ -789,6 +792,12 @@ class Stat(Enum):
     CANNOT_INFLICT_NUMBED = "cannot_inflict_numbed"
     CANNOT_INFLICT_WILT = "cannot_inflict_wilt"
     ES_UNINTERRUPTIBLE = "es_uninterruptible"
+    # % of Max Life added as flat Energy Shield (Tortoise Shell). Applied in derive.py AFTER Max Life is computed,
+    # folded into the ES flat pool BEFORE max_energy_shield scales by ES inc/additional.
+    MAX_LIFE_AS_ES_PCT = "max_life_as_es_pct"
+    # % of damage taken that bypasses Energy Shield (Tortoise Shell). FLAG only today — surfaced, not yet applied
+    # (waiting on the defensive damage-taken pass). Stored so it is never silently dropped.
+    ES_BYPASS_PCT = "es_bypass_pct"
     IGNITE_STACKS_INFLICTED_FLAT = "ignite_stacks_inflicted_flat"   # +N stacks inflicted (≠ max)
     WILT_STACKS_INFLICTED_FLAT = "wilt_stacks_inflicted_flat"
     EXTRA_MAX_MINIONS_FLAT = "extra_max_minions_flat"

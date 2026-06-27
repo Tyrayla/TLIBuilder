@@ -303,6 +303,26 @@ def compute(
                               auto_values=auto_values, manual_keys=manual_cond_keys,
                               attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
 
+    # ── Elixir auto-conditions ─────────────────────────────────────────────────────────────────────────────
+    # elixir_meta holds the ENABLED elixirs (resolver-built). When ≥1 is present: elixir_active=True,
+    # elixir_skill_count=the count (drives Tailored Remedy's "no more than N" gate), and blur_active=True when any
+    # grants Blur (Putrid Toad). Recorded in auto_sources/auto_values (Config "auto" badge + clear-to-default),
+    # and written into condition_state unless the user set them manually.
+    # Count only ENABLED elixirs — disabled ones are in elixir_meta for display but grant nothing.
+    _enabled_elixirs = {sid: m for sid, m in (build_input.elixir_meta or {}).items() if m.get("enabled", True)}
+    if _enabled_elixirs:
+        def _auto_set(key, value, label):
+            auto_sources[key] = label
+            auto_values[key] = value
+            if key not in manual_cond_keys:
+                condition_state[key] = value
+        _auto_set("elixir_active", True, "Elixir Skill active")
+        _auto_set("elixir_skill_count", float(len(_enabled_elixirs)),
+                  f"{len(_enabled_elixirs)} Elixir Skill(s) equipped")
+        _blur = next((m["name"] for m in _enabled_elixirs.values() if m.get("has_blur")), None)
+        if _blur:
+            _auto_set("blur_active", True, f"Blur from {_blur}")
+
     # ── Hero traits (Erika Lightning Shadow, …) ───────────────────────────────
     # A bespoke trait module owns its resolution: each loop pass it (re)computes build_input.trait_contributions
     # (folded by aggregate) and, in real uptime mode, the converged Numbed steady-state. The Numbed application
@@ -331,6 +351,7 @@ def compute(
 
     aura_summaries: list[dict] = []
     empower_summaries: list[dict] = []
+    elixir_summaries: list[dict] = []
     curse_summaries: list[dict] = []
     curse_conflict: dict | None = None
     reservation: dict | None = None
@@ -388,7 +409,7 @@ def compute(
         # Aura / Focus buffs: scale by the now-fully-aggregated Aura Effect (gear + talents + custom +
         # standard supports + the auras' own) and fold into the source BEFORE derive (so life-regen/resist
         # auras feed derived stats too). Runs each pass so the self-feedback converges with the loop.
-        from engine.utility import apply_aura_buffs, apply_empower_buffs
+        from engine.utility import apply_aura_buffs, apply_empower_buffs, apply_elixir_buffs
         aura_summaries = apply_aura_buffs(
             source, build_input.aura_buffs, build_input.aura_meta, active_booleans, numeric_vals)
 
@@ -396,6 +417,11 @@ def compute(
         # the skill + its empower supports) and fold in player-wide. Runs each pass like the auras.
         empower_summaries = apply_empower_buffs(
             source, build_input.empower_buffs, build_input.empower_meta, active_booleans, numeric_vals)
+
+        # Elixir buffs: scale by the now-aggregated Elixir Effect (global gear/talents + Tailored Remedy) and fold
+        # in player-wide. Full uptime assumed while enabled. Runs each pass like the auras.
+        elixir_summaries = apply_elixir_buffs(
+            source, build_input.elixir_buffs, build_input.elixir_meta, active_booleans, numeric_vals)
 
         # Curses: scale each applied curse by the now-aggregated Curse Effect and bake the per-final-type
         # *_curse_taken enemy-vulnerability pools (consumed by offense). Runs each pass like the auras so curse
@@ -893,6 +919,7 @@ def compute(
         blessings=blessings,
         aura_summaries=aura_summaries,
         empower_summaries=empower_summaries,
+        elixir_summaries=elixir_summaries,
         curse_summaries=curse_summaries,
         curse_conflict=curse_conflict,
         warnings=warnings,

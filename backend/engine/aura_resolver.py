@@ -97,13 +97,14 @@ def resolve_auras(auras, skills_by_id, parse_mod, translate_cond):
         })
 
     for a in auras or []:
-        if not a.get("enabled", True):
-            continue
         sid = a.get("skill_id")
         skill = skills_by_id.get(sid) or {}
         tags = skill.get("skill_tags") or []
         if not any(t in tags for t in ("Aura", "Focus")):
             continue   # only buff-passives by TAG (skips the active-variant pollution in passive_skill)
+        # DISABLED auras are still resolved (so the Skill panel shows their stats marked "Disabled") but their
+        # buffs are NOT folded into the engine — apply_aura_buffs skips emission when meta.enabled is False.
+        enabled = bool(a.get("enabled", True))
 
         level = int(a.get("level") or 1)
         simple = _buff_lines(skill.get("simple_description"))
@@ -178,6 +179,6 @@ def resolve_auras(auras, skills_by_id, parse_mod, translate_cond):
         for r in review:
             statuses.append({"skill_id": sid, "text": r, "resolved": True, "kind": "review"})
         meta[sid] = {"name": name, "level": level, "nyi": nyi, "review": review, "slot": a.get("slot"),
-                     "stack_condition": cond_key, "max_stacks": max_stacks or None}
+                     "enabled": enabled, "stack_condition": cond_key, "max_stacks": max_stacks or None}
 
     return buffs, statuses, stack_conditions, meta

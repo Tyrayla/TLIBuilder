@@ -365,6 +365,51 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": "curse_effect_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
 
+    # ── Elixir / dew phrasings (Sage Chromatic Shot build) — phrasings the generic resolver can't map ──
+    # "+N% Elemental and Erosion Resistance" (Resistance Dew) → split the compound name into both pools.
+    # ("Elemental" = Fire/Cold/Lightning, carried by elemental_resistance; erosion_resistance is separate.)
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*elemental\s+and\s+erosion\s+resistance\b', t, re.I)
+    if m:
+        v = float(m.group(1)) / 100.0
+        return [{"stat_key": "elemental_resistance", "amount": v, "text": t},
+                {"stat_key": "erosion_resistance", "amount": v, "text": t}]
+
+    # "+N% Movement Speed, up to +M%" (Swiftness / Scorpion Stinger) → movement_speed_inc. The "up to +M%" is a
+    # soft per-source cap; we model the base bonus (full uptime) and drop the cap clause.
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*movement\s+speed\s*,?\s*up\s+to\b', t, re.I)
+    if m:
+        return [{"stat_key": "movement_speed_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "Adds N% of Max Life to Energy Shield" (Tortoise Shell) → max_life_as_es_pct (derive.py folds it into the ES
+    # flat pool after Max Life is computed, so it then scales with ES inc/additional).
+    m = re.match(r'adds\s+([\d.]+)\s*%\s*of\s+max\s+life\s+to\s+energy\s+shield\b', t, re.I)
+    if m:
+        return [{"stat_key": "max_life_as_es_pct", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "Half of the damage taken bypasses Energy Shield" (Tortoise Shell) → es_bypass_pct FLAG. Surfaced now; the
+    # actual bypass awaits the defensive damage-taken pass. "Half" = 50% when no explicit number is present.
+    if re.search(r'damage\s+taken\s+bypasses\s+energy\s+shield', t, re.I):
+        m2 = re.search(r'([\d.]+)\s*%', t)
+        return [{"stat_key": "es_bypass_pct", "amount": float(m2.group(1)) if m2 else 50.0, "text": t}]
+
+    # "-N% Cursed Effect" bare form (Putrid Toad, Blur-gated) → curse_effect_against_inc (effect of curses on YOU;
+    # negative = less effective). Require the "d" in "Cursed" — "Curse Effect" (no d) is your OWN curse
+    # effectiveness (curse_effect_inc) and must NOT be caught here. The "…against you" phrasing maps via the dict.
+    m = re.match(r'\s*([+\-]?[\d.]+)\s*%\s*cursed\s+effect\b', t, re.I)
+    if m:
+        return [{"stat_key": "curse_effect_against_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "Energy Shield Charge … cannot be interrupted by damage" (White Rhino) → es_uninterruptible flag (surfaced;
+    # no numeric effect until ES-recharge timing is modeled — stops reading as NYI).
+    if re.search(r'energy\s+shield\s+charge\b.*\bcannot\s+be\s+interrupted', t, re.I):
+        return [{"stat_key": "es_uninterruptible", "amount": 1.0, "text": t}]
+
+    # "Damage triggers Lucky" (Thunder Wood) → lucky on every damage type (offense rolls each type's range twice
+    # and takes the higher). All five lucky_<type> stats exist; offense applies them per type.
+    if re.search(r'\bdamage\s+triggers\s+lucky\b', t, re.I):
+        return [{"stat_key": f"lucky_{ty}", "amount": 1.0, "text": t}
+                for ty in ("physical", "fire", "cold", "lightning", "erosion")]
+
     # "N% [additional] Attack and Cast Speed" → BOTH attack & cast speed (same pool). Explicit because the
     # generic single-stat resolver only catches "Cast Speed" and silently drops the Attack half (Quick Decision /
     # Quick Mobility). Excludes scoped forms ("Minion …", "Warcry …") by anchoring at the value.

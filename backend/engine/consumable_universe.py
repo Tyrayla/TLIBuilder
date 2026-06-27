@@ -138,6 +138,12 @@ def consumable_universe() -> frozenset[str]:
     # engine.utility.apply_empower_buffs reads Empower Skill Effect (and Mass Effect reads max_charge_flat) to
     # scale the Euphoria buffs — outside the synthetic passes.
     consumed |= {"empower_effect_inc", "empower_effect_additional", "max_charge_flat"}
+    # engine.utility.apply_elixir_buffs reads Elixir Skill Effect to scale elixir buffs, plus the timing pools for
+    # the per-elixir display: Skill Effect Duration (inc + additional) and Elixir Duration scale duration, Cooldown
+    # Recovery Speed scales cooldown, Charging Progress + Max Charge feed charges — all outside the synthetic passes.
+    consumed |= {"elixir_effect_inc", "elixir_effect_additional",
+                 "elixir_duration_additional", "elixir_charging_progress_flat",
+                 "skill_effect_duration_inc", "skill_effect_duration_additional", "cdr_speed_inc"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
     consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",

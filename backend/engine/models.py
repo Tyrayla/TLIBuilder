@@ -219,6 +219,10 @@ class BuildInput:
     # them by Empower Skill Effect inside the compute loop and folds them in (source_type "empower").
     empower_buffs: list[dict] = field(default_factory=list)
     empower_meta: dict = field(default_factory=dict)
+    # Parsed-but-UNSCALED elixir buffs + per-elixir meta. engine.utility.apply_elixir_buffs scales them by Elixir
+    # Effect inside the compute loop and folds them in player-wide (source_type "elixir"). Full uptime assumed.
+    elixir_buffs: list[dict] = field(default_factory=list)
+    elixir_meta: dict = field(default_factory=dict)
     # Hero trait (Erika Lightning Shadow, …). For traits with a bespoke engine.hero_traits module the
     # module owns resolution; trait_contributions is (re)computed each loop pass by the module and folded
     # by aggregate() like spirit/memory contributions. For non-bespoke traits the server pre-resolves
@@ -251,6 +255,7 @@ class StatResult:
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
     aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
     empower_summaries:   list | None = None        # per-empower display summary (Empower Effect, granted buffs, NYI)
+    elixir_summaries:    list | None = None        # per-elixir display summary (Elixir Effect, granted buffs, timing, NYI)
     curse_summaries:     list | None = None        # per-curse display summary (Curse Effect, limit, debuff value)
     curse_conflict:      dict | None = None         # set when active curses exceed the limit (needs resolution)
     warnings:            list | None = None         # general build diagnostics (e.g. an ineffective/dead curse)

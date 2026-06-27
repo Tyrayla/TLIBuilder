@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, HeroTrait } from '../api/client'
+import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from './HeroTraitScreen'
@@ -1011,11 +1011,15 @@ function _curseDebuffLabel(statKey: string | null): string {
   return `${t.charAt(0).toUpperCase()}${t.slice(1)} Damage taken`
 }
 
-function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta, empower }: { slot: number; skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null }) {
+function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta, empower, elixir }: { slot: number; skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null }) {
   const ctx = useContext(BreakdownCtx)
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
   const isPassive = skill.slot >= 6
+  // A disabled buff skill (aura/empower/elixir/curse) is still shown — its stats render greyed with a "Disabled"
+  // banner so the user sees what it WOULD grant — but the engine applies nothing (handled backend-side).
+  const disabled = (aura?.enabled === false) || (empower?.enabled === false)
+    || (elixir?.enabled === false) || (curse?.enabled === false)
   const rows = (isPassive
     ? ['Reservation (Sealing)', 'Aura / Magus / Focus Effect', 'Area of Effect']
     : ['Empower Effect', 'Skill Duration', 'Cooldown', 'Area of Effect']
@@ -1024,13 +1028,19 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
   const fmtGrant = (stat: string, amt: number) =>
     /_flat$/.test(stat) ? fmtNum(amt) : fmtPct(amt)
   return (
-    <StatPanel title={`${slotLabel(slot)} — ${skill.name} (Level ${skill.level})`} accent={AMBER}>
+    <StatPanel title={`${slotLabel(slot)} — ${skill.name} (Level ${skill.level})`} accent={disabled ? '#777' : AMBER}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
         {skill.skill_tags?.map(t => <span key={t} style={{ fontSize: 9, color: '#888', background: '#1a1a2e', borderRadius: 3, padding: '1px 5px' }}>{t}</span>)}
       </div>
+      {disabled && (
+        <div style={{ fontSize: 11, color: '#d09a4a', background: 'rgba(208,154,74,0.12)', border: '1px solid rgba(208,154,74,0.35)', borderRadius: 4, padding: '4px 8px', marginBottom: 6 }}>
+          ⊘ Disabled — stats shown for reference; not applied to your build.
+        </div>
+      )}
       <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
         {isPassive ? 'This skill contributes build-wide (no hit DPS of its own).' : 'Buff / utility skill (no hit DPS of its own).'}
       </div>
+      <div style={{ opacity: disabled ? 0.5 : 1 }}>
       {reservation && (() => {
         const baseSeal = reservation.base_fraction * reservation.pool_max
         const poolLabel = reservation.pool === 'life' ? 'Max Life' : 'Max Mana'
@@ -1229,14 +1239,103 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
             </>
           )}
         </>
+      ) : elixir ? (
+        <>
+          <Row label="Total Elixir Effect" breakdown={{
+            title: 'Total Elixir Effect', keys: ['elixir_effect_inc', 'elixir_effect_additional'],
+            total: elixir.elixir_effect_inc, totalUnit: '%',
+            formula: '(1 + Σ increased) × (1 + Σ additional) − 1',
+          }}>{floorPct(elixir.elixir_effect_inc)}</Row>
+          {/* Timing — display-only (full uptime assumed while enabled). Each carries a source breakdown. */}
+          {elixir.duration != null && (() => {
+            const base = elixir.base_duration ?? elixir.duration!
+            const extra = [{ value: `${dec(base)}s`, stat: 'Base Duration', source: 'Skill', sourceName: elixir.name }]
+            return (
+              <Row label="Duration" breakdown={{
+                title: 'Duration',
+                keys: ['skill_effect_duration_inc', 'skill_effect_duration_additional', 'elixir_duration_additional'],
+                total: elixir.duration!, totalUnit: 's',
+                formula: 'Base × (1 + Skill Duration) × (1 + Additional Duration) × (1 + Elixir Duration)', extra,
+              }}>{dec(elixir.duration!)}s</Row>
+            )
+          })()}
+          {elixir.cooldown != null && (
+            <Row label="Cooldown" breakdown={{
+              title: 'Cooldown', keys: ['cdr_speed_inc'], total: elixir.cooldown, totalUnit: 's',
+              formula: 'Base ÷ (1 + Cooldown Recovery Speed)',
+              extra: [{ value: `${dec(elixir.base_cooldown ?? elixir.cooldown)}s`, stat: 'Base Cooldown', source: 'Skill', sourceName: elixir.name }],
+            }}>{dec(elixir.cooldown)}s</Row>
+          )}
+          {(elixir.charge_per_second ?? 0) > 0 && (() => {
+            const supExtra = (elixir.support_sources ?? [])
+              .filter(s => s.kind === 'charge_per_second' && s.value)
+              .map(s => ({ value: `+${dec(s.value)}`, stat: 'Charging Progress / s', source: 'Support', sourceName: s.name }))
+            return (
+              <Row label="Charge / sec" breakdown={{
+                title: 'Charging Progress / second', keys: ['elixir_charging_progress_flat'],
+                total: elixir.charge_per_second!, totalUnit: '', formula: 'Support gems + global charging pool',
+                extra: supExtra,
+              }}>{dec(elixir.charge_per_second!)}</Row>
+            )
+          })()}
+          {(elixir.max_charges ?? 0) > 0 && (() => {
+            const extra = [{ value: dec(elixir.base_charges ?? elixir.max_charges!), stat: 'Base Charges', source: 'Skill', sourceName: elixir.name },
+              ...(elixir.support_sources ?? [])
+                .filter(s => s.kind === 'max_charge' && s.value)
+                .map(s => ({ value: `+${dec(s.value)}`, stat: 'Max Charges', source: 'Support', sourceName: s.name }))]
+            return (
+              <Row label="Max Charges" breakdown={{
+                title: 'Max Charges', keys: ['max_charge_flat'], total: elixir.max_charges!, totalUnit: '',
+                formula: 'Base + global Max Charge + support gems', extra,
+              }}>{dec(elixir.max_charges!)}</Row>
+            )
+          })()}
+          {elixir.has_blur && <Row label="Blur" labelColor="#7aa0c0">Active</Row>}
+          <div style={{ fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Grants (full uptime)</div>
+          {elixir.granted.length === 0 && <div style={{ fontSize: 11, color: '#555' }}>No modeled buff lines.</div>}
+          {elixir.granted.map((g, i) => {
+            // Final = Base × (1 + Elixir Effect) for scaled buffs; flag stats (Lucky, ES-uninterruptible, ES
+            // bypass) carry no_scale and show their base value unchanged. Every grant gets a source breakdown:
+            // its Base comes from the elixir skill, plus the Elixir Effect multiplier step when scaled.
+            const scaled = !g.no_scale && !g.is_elixir_effect && elixir.elixir_effect_inc !== 0
+            const flag = g.no_scale
+            const extra = [
+              { value: flag ? '✓' : fmtGrant(g.stat, g.base), stat: 'Base', source: 'Elixir', sourceName: elixir.name },
+              ...(scaled ? [{ value: `×${dec((1 + elixir.elixir_effect_inc))}`, stat: 'Elixir Effect', source: '', sourceName: `+${Math.round(elixir.elixir_effect_inc * 100)}%` }] : []),
+            ]
+            // Row value is floored (against the player) so it never overstates what the engine uses (e.g. 2.3
+            // projectiles → 2). The breakdown Total shows the TRUE value to 2 decimals (2.3) so the user can see
+            // how far they are from the next breakpoint.
+            return (
+              <Row key={i} label={statMapName(g.stat)} breakdown={{
+                title: statMapName(g.stat), keys: [], total: flag ? undefined : g.amount,
+                totalUnit: /_flat$/.test(g.stat) ? '' : '%',
+                formula: flag ? 'Flag (not scaled by Elixir Effect)' : 'Base × (1 + Elixir Effect)', extra,
+              }}>{flag ? '✓' : fmtGrantFloor(g.stat, g.amount)}</Row>
+            )
+          })}
+          {elixir.nyi.length > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: '#a05a5a', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Not yet modeled</div>
+              {elixir.nyi.map((t, i) => <div key={i} style={{ fontSize: 10, color: '#7a5a5a', lineHeight: 1.4 }}>{t}</div>)}
+            </>
+          )}
+          {(elixir.review?.length ?? 0) > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: '#b08a4a', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Needs manual review (scaling unverified)</div>
+              {elixir.review!.map((t, i) => <div key={i} style={{ fontSize: 10, color: '#8a7550', lineHeight: 1.4 }}>{t}</div>)}
+            </>
+          )}
+        </>
       ) : (
         rows.map(label => <Row key={label} label={label} labelColor="#555">— NYI</Row>)
       )}
+      </div>
     </StatPanel>
   )
 }
 
-function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null }) {
+function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower, elixir }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null }) {
   // Character-wide stats the Skill Effects box surfaces (projectile speed / penetration / jumps). Per-skill
   // scoping is Phase-2 engine work; for now we show the build-wide totals with their source breakdowns.
   const bdCtx = useContext(BreakdownCtx)
@@ -1248,13 +1347,13 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
     // No computed offense for this slot. If a skill IS equipped here (passive/buff/curse/empower), show its
     // foundation panel; otherwise the slot is empty.
     return skill
-      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} />
+      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
       : <StatPanel title={slotLabel(slot)} accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
   if (!offense.supported) {
     return skill
-      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} />
+      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
       : (
         <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name}`} accent={AMBER}>
           <div style={{ fontSize: 12, color: '#ff6b6b' }}>Skill calculation not yet supported.</div>
@@ -1440,7 +1539,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             <GridBox>
               <StatPanel title="Skill Effects" accent={AMBER}>
                 {hasTag(offense, 'area') && (
-                  <Row label="Area of Effect">{offense.skill_area_inc !== 0 ? `+${(offense.skill_area_inc * 100).toFixed(0)}%` : '+0%'}</Row>
+                  <Row label="Area of Effect" breakdown={{
+                    title: 'Area of Effect', keys: ['skill_area_inc'],
+                    total: offense.skill_area_inc, totalUnit: '%', formula: 'Σ Increased Skill Area',
+                  }}>{offense.skill_area_inc !== 0 ? `+${(offense.skill_area_inc * 100).toFixed(0)}%` : '+0%'}</Row>
                 )}
                 {hasTag(offense, 'projectile') && (
                   (offense.projectile_count ?? -1) >= 0
@@ -1484,6 +1586,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                   <Row label="Mana Cost" breakdown={{
                     title: 'Mana Cost', keys: [], total: manaCost, totalUnit: '',
                     formula: 'Skill base per-cast cost. Cost reductions / conversions and "Skills no longer cost Mana" are not modeled yet.',
+                    extra: [{ value: dec(manaCost), stat: 'Base', source: 'Skill', sourceName: offense.skill_name }],
                   }}>{dec(manaCost)}</Row>
                 )}
               </StatPanel>
@@ -1900,6 +2003,12 @@ function SubRow({ label, children, breakdown }: { label: string; children: React
 
 function fmtPct(v: number): string { return `${(v * 100).toFixed(0)}%` }
 function fmtPct2(v: number): string { return `${dec((v * 100))}%` }
+// Display "rounded against the player" (floored) — used in the elixir tab so a shown value never overstates what
+// the engine actually uses (e.g. 1.59 projectiles → 1, 206.7% → 206%), and the row matches its breakdown total.
+function floorPct(v: number): string { return `${Math.floor(v * 100)}%` }
+function fmtGrantFloor(stat: string, amt: number): string {
+  return /_flat$/.test(stat) ? `${Math.floor(amt)}` : floorPct(amt)
+}
 function fmtSignedPct(v: number): string { return `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%` }
 function fmtMult(v: number): string { return `×${dec((1 + v))}` }
 
@@ -2294,12 +2403,14 @@ export default function PlayerStatsScreen() {
   const curses = ((computedStats as { curses?: CurseSummary[] | null }).curses) ?? null
   const curseMeta = ((computedStats as { curse_meta?: Record<string, CurseMeta> | null }).curse_meta) ?? null
   const empowers = ((computedStats as { empowers?: EmpowerSummary[] | null }).empowers) ?? null
+  const elixirs = ((computedStats as { elixirs?: ElixirSummary[] | null }).elixirs) ?? null
   const reservation = ((computedStats as { reservation?: ReservationResult | null }).reservation) ?? null
   const selectedSkill = skills.find(sk => sk.slot === selectedSlot)
   const selectedAura = auras?.find(a => a.skill_id === selectedSkill?.item_id) ?? null
   const selectedCurse = curses?.find(c => c.skill_id === selectedSkill?.item_id) ?? null
   const selectedCurseMeta = (curseMeta && selectedSkill?.item_id) ? curseMeta[selectedSkill.item_id] ?? null : null
   const selectedEmpower = empowers?.find(e => e.skill_id === selectedSkill?.item_id) ?? null
+  const selectedElixir = elixirs?.find(e => e.skill_id === selectedSkill?.item_id) ?? null
   const selectedReservation = reservation?.per_skill?.find(
     p => p.skill_id === selectedSkill?.item_id && p.slot === selectedSlot) ?? null
 
@@ -2312,7 +2423,7 @@ export default function PlayerStatsScreen() {
             skills={skills} selected={selectedSlot} onSelect={setSelectedSlot}
             forms={formNames} selectedForm={selectedForm} onSelectForm={setSelectedForm}
             calcMode={calcMode} onCalcMode={setCalcMode} />
-          <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} />
+          <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} />
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility. (Condition-setting controls like Numbed

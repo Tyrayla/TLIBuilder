@@ -2458,6 +2458,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="defense",            stacking_rule="additive",
         ui_priority=37,                source_types=_T,
     ),
+    Stat.MAX_ELEMENTAL_RESISTANCE_INC: StatMeta(
+        "Max Elemental Resistance", "Defense", "increased", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=37,                source_types=_T,
+    ),
     Stat.ATTACK_BLOCK_CHANCE_INC: StatMeta(
         "Attack Block Chance", "Defense", "increased", "%",
         subgroup="defense",            stacking_rule="additive",
@@ -3469,6 +3474,16 @@ STAT_META: dict[Stat, StatMeta] = {
         "Energy Shield Uninterruptible by Damage", "Defense", "flag",
         subgroup="defense",            stacking_rule="additive",
         ui_priority=80,                source_types=_T,
+    ),
+    Stat.MAX_LIFE_AS_ES_PCT: StatMeta(
+        "Max Life Added as Energy Shield", "Energy Shield", "added_flat", "%",
+        subgroup="energy_shield",      stacking_rule="additive",
+        ui_priority=31,                source_types=_T,
+    ),
+    Stat.ES_BYPASS_PCT: StatMeta(
+        "Damage Bypasses Energy Shield", "Defense", "added_flat", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=81,                source_types=_T,
     ),
     Stat.IGNITE_STACKS_INFLICTED_FLAT: StatMeta(
         "Additional Ignite Stacks Inflicted", "Ailments", "added_flat",

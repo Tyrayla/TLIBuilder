@@ -977,6 +977,10 @@ export interface StatSheetResponse {
   empowers?: EmpowerSummary[]
   empower_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
   empower_stack_conditions?: { key: string; label: string; max: number }[]
+  // Per enabled elixir skill: the buff lines it grants (scaled by Elixir Effect, full uptime) + the applied
+  // Elixir Effect + timing (duration/cooldown/charges) + NYI lines; statuses.
+  elixirs?: ElixirSummary[]
+  elixir_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
   // Per active curse: Curse Effect / limit / debuff value (scaled) + applied flag; per-curse meta (base stats +
   // NYI lines) keyed by skill_id; NYI statuses; and the over-limit conflict that drives the resolution dropdown.
   curses?: CurseSummary[]
@@ -1025,6 +1029,7 @@ export interface AuraSummary {
   granted: AuraGrant[]
   nyi: string[]
   review?: string[]   // modifiers applied but whose per-level scaling couldn't be verified vs the Lv1 anchor
+  enabled?: boolean   // false → shown in the panel but NOT applied to the build
   stack_condition?: string | null   // settable numeric condition key for this aura's buff stacks
   max_stacks?: number | null
 }
@@ -1038,8 +1043,36 @@ export interface EmpowerSummary {
   granted: EmpowerGrant[]
   nyi: string[]
   review?: string[]
+  enabled?: boolean   // false → shown in the panel but NOT applied to the build
   stack_condition?: string | null
   max_stacks?: number | null
+}
+
+export interface ElixirGrant { stat: string; base: number; amount: number; text: string; no_scale?: boolean; is_elixir_effect?: boolean }
+export interface ElixirSupportSource { name: string; kind: string; value: number }   // kind: 'charge_per_second' | 'max_charge'
+export interface ElixirSummary {
+  skill_id: string
+  name: string
+  level: number
+  elixir_effect_inc: number         // applied Elixir Skill Effect ((1+inc)×(1+additional) − 1)
+  granted: ElixirGrant[]
+  nyi: string[]
+  review?: string[]
+  has_blur?: boolean
+  enabled?: boolean                 // false → shown in the panel but NOT applied to the build
+  duration?: number | null          // base × (1 + Skill Duration) × (1 + Additional Skill Duration) × (1 + Elixir Duration)
+  base_duration?: number | null     // pre-scaling base (for the breakdown)
+  duration_inc?: number             // Σ Skill Effect Duration (fraction)
+  duration_additional?: number      // Skill Effect Duration additional + Elixir Duration (fraction)
+  cooldown?: number | null          // base ÷ (1 + Cooldown Recovery Speed)
+  base_cooldown?: number | null
+  cdr?: number                      // Σ Cooldown Recovery Speed (fraction)
+  charge_per_second?: number        // support gems + global charging-progress pool
+  global_charge_per_second?: number // the global "Elixir Skills gain N charging progress/s" pool
+  base_charges?: number             // skill base charge count (for the breakdown)
+  global_max_charge?: number        // global "+N Max Charge" pool
+  max_charges?: number
+  support_sources?: ElixirSupportSource[]   // per support-gem timing contributions
 }
 
 export interface CurseSummary {
@@ -1055,6 +1088,7 @@ export interface CurseSummary {
   curse_effect_additional: number
   limit: number
   n_active: number
+  enabled?: boolean           // false → shown in the panel but NOT applied to the build
   applied: boolean            // false when suppressed by an unresolved over-limit conflict
 }
 export interface CurseMeta {

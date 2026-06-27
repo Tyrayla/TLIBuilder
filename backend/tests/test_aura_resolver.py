@@ -28,9 +28,12 @@ def test_cruelty_interpolates_attack_damage_linearly():
     assert round(_attack_base("cruelty", 16) * 100, 1) == 17.0
 
 
-def test_disabled_aura_emits_nothing():
-    buffs, *_ = resolve_auras([{"skill_id": "cruelty", "level": 20, "enabled": False}], _BY_ID, P, T)
-    assert buffs == []
+def test_disabled_aura_resolved_but_marked_disabled():
+    # Disabled auras are STILL resolved (so the Skill panel shows their stats marked "Disabled"); the engine-side
+    # apply_aura_buffs is what skips folding them into the source (see test_utility). meta.enabled flags the state.
+    buffs, _st, _sc, meta = resolve_auras([{"skill_id": "cruelty", "level": 20, "enabled": False}], _BY_ID, P, T)
+    assert buffs != []
+    assert meta["cruelty"]["enabled"] is False
 
 
 def test_non_aura_skill_ignored():
