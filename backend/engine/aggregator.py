@@ -2,7 +2,6 @@ from __future__ import annotations
 import math
 import re
 from engine.models import BuildInput, BuildSource, SourceEntry
-from engine.constants import NON_PHYSICAL
 
 
 def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entry: SourceEntry,
@@ -23,7 +22,6 @@ def _emit(source: BuildSource, stat: str, amount: float, scope: str | None, entr
 # pool-strict path). The aggregator now only APPLIES the pre-resolved contributions (see
 # _apply_effect_contribs); the old _MEMORY_STAT_LOOKUP / alias / multi tables were retired.
 
-_ELEMENTAL_TYPES = NON_PHYSICAL   # fire/cold/lightning/erosion (all non-physical) — value unchanged
 
 # Base effects granted per point of Fervor Rating, each multiplied by Fervor Effect
 # (fervor_effect_inc). Today just generic Critical Strike Rating; extend as items add more.

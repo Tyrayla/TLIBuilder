@@ -10,7 +10,7 @@ server.py is a thin HTTP wrapper; all calculation logic lives here.
 from __future__ import annotations
 import logging
 from engine.models import BuildInput, BuildSource, StatResult
-from engine.constants import NON_PHYSICAL
+from engine.constants import ELEMENTAL
 
 log = logging.getLogger(__name__)
 
@@ -171,12 +171,13 @@ def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys, auto
     damage types (requires_dtype) and any precondition (requires_cond, e.g. enemy_cursed for Paralyze).
     Records what set each condition into auto_sources (for the Config "auto" badge)."""
     dtypes = {d.lower() for d in (main_dtypes or [])}
-    _ELEMENTAL = NON_PHYSICAL   # fire/cold/lightning/erosion (all non-physical) — value unchanged
     for e in effects or []:
         if e.condition_key in manual_keys:
             continue
         if e.requires_dtype == "elemental":
-            if not (dtypes & _ELEMENTAL):
+            # Elemental = Fire/Cold/Lightning ONLY (Erosion is NOT elemental), so an Erosion-only skill does not
+            # satisfy an "on Elemental hit" inflict (e.g. Inflicts Numbed on Elemental hit).
+            if not (dtypes & ELEMENTAL):
                 continue
         elif e.requires_dtype and e.requires_dtype not in dtypes:
             continue
