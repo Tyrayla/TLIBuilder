@@ -2307,6 +2307,11 @@ export const api = {
     attached_supports?: AttachedSupportInput[]
   }): Promise<StatSheetResponse> => post<StatSheetResponse>('/engine/stats', payload),
 
+  // Compute many builds in ONE round trip — used by the catalog damage-delta tooltips, which otherwise fire one
+  // call per item (dozens) and flood the single backend / Pyodide worker. Returns results in request order.
+  engineStatsBatch: (payloads: Record<string, unknown>[]): Promise<{ results: StatSheetResponse[] }> =>
+    post<{ results: StatSheetResponse[] }>('/engine/stats-batch', { requests: payloads }),
+
   resolveMod: (text: string) =>
     post<ResolveModResponse>('/resolve-mod', { text }),
 

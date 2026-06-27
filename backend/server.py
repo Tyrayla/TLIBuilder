@@ -1097,6 +1097,20 @@ def engine_stats(req: EngineStatsRequest):
     }
 
 
+class EngineStatsBatchRequest(BaseModel):
+    requests: list[EngineStatsRequest]
+
+
+@app.post("/api/engine/stats-batch")
+def engine_stats_batch(req: EngineStatsBatchRequest):
+    """Compute many builds in ONE round trip. The damage-delta tooltips price a hypothetical change per catalog
+    item (one build each), which on the catalog screens can be dozens–100+. Sending them individually floods the
+    single backend (and the Pyodide worker on web) so the headline recalc and saves queue behind the whole storm.
+    Batching collapses that to a single request — the per-call HTTP/IPC (and web worker) overhead is paid once.
+    Each result is a full StatSheet (same shape as /engine/stats) so the caller diffs them exactly as before."""
+    return {"results": [engine_stats(r) for r in req.requests]}
+
+
 # ── Conditions ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/conditions")
