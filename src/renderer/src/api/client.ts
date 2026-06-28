@@ -945,6 +945,9 @@ export interface RecoveryResult {
   mana_sustainable: boolean
   life_time_to_empty: number | null
   mana_time_to_empty: number | null
+  // Steady-state ("stable") Life: the solved Life % you settle at (100 when nothing consumes) + that as a flat pool
+  steady_life_pct: number
+  steady_life: number
   // Effective HP (steady-state Life pool + Temporary Life vs the calc target's average mitigation)
   ehp_life: number
   nyi: string[]

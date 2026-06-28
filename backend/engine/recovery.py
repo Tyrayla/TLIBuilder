@@ -72,6 +72,10 @@ class RecoveryResult:
     mana_sustainable: bool = True
     life_time_to_empty: float | None = None
     mana_time_to_empty: float | None = None
+    # Steady-state ("stable") Life: the Life % you settle at (solved for consume builds, 100 otherwise) and that as a
+    # flat pool. = Max Life when nothing consumes.
+    steady_life_pct: float = 100.0
+    steady_life: float = 0.0
     # Effective HP (Life + Temporary Life vs the calc target's average mitigation)
     ehp_life: float = 0.0
     nyi: list = field(default_factory=lambda: ["Net sustain excludes skill Life/Mana cost (no skill-cost model yet)"])
@@ -250,5 +254,6 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         net_life_per_sec=net_life, net_mana_per_sec=net_mana,
         life_sustainable=life_sustainable, mana_sustainable=mana_sustainable,
         life_time_to_empty=life_tte, mana_time_to_empty=mana_tte,
+        steady_life_pct=life_pct, steady_life=life_pct / 100.0 * max_life,
         ehp_life=ehp_life,
     )

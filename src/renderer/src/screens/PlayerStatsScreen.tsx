@@ -2186,6 +2186,18 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         {defense.life_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Life — Flat Added', keys: ['max_life_flat'] }}>{fmtNum(defense.life_flat)}</SubRow>}
         {defense.life_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Life — Increased', keys: ['max_life_inc'] }}>{fmtPct(defense.life_inc)}</SubRow>}
         {defense.life_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Life — Additional', keys: ['max_life_additional'] }}>{fmtMult(defense.life_additional)}</SubRow>}
+        {/* Stable Life: the steady-state Life pool a consume build settles at (where recovery == consumption).
+            Shown only when it differs from Max Life (i.e. the build self-consumes). */}
+        {recovery && recovery.steady_life_pct < 99.5 && (
+          <Row label="Stable Life" labelColor="#d8a050" breakdown={{
+            title: 'Stable Life', keys: [], total: recovery.steady_life, totalUnit: '',
+            formula: 'Steady-state Life pool where recovery == consumption (the % your Life settles at × Max Life).',
+            extra: [
+              { value: fmtNum(defense.max_life), stat: 'Max Life', source: 'Base', sourceName: 'full pool' },
+              { value: `${dec(recovery.steady_life_pct)}%`, stat: 'Stable Life %', source: 'Consumption', sourceName: 'steady state' },
+            ],
+          }}>{fmtNum(recovery.steady_life)} ({dec(recovery.steady_life_pct)}%)</Row>
+        )}
         {(defense.sealed_life ?? 0) > 0 && (
           <>
             <Row label="Sealed Life" labelColor={defense.insufficient_life ? '#e05050' : '#c87820'} breakdown={sealedBreakdown('life', defense.sealed_life!)}>{fmtNum(sealedDisp(defense.max_life, defense.unsealed_life ?? defense.max_life))}</Row>

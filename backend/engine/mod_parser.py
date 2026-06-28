@@ -373,7 +373,19 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
             val = (float(amt) / 100.0) if pct else float(amt)
             basis_key = ("pct_current" if (basis or "").lower() == "current"
                          else "pct_max") if pct else "flat"
-            cadence = "cast" if re.search(r'on\s+(?:skill\s+use|use|cast)|when\s+casting|per\s+cast', rest, re.I) else "sec"
+            # Per-event (per-use/cast) vs per-second, and the skill-type SCOPE. "when you use/cast/attack", "on
+            # use/cast/attack", "per cast" → per-event (× a use/cast rate). An "Attack(s)/Attack Skills" scope →
+            # the ATTACK-skill use rate (counts only attack uses); otherwise generic per-use (any skill). Else
+            # per-second / interval. (use-vs-cast nuance is a flagged follow-up; per-event ≈ per-use for now.)
+            _per_event = bool(re.search(
+                r'\b(?:on\s+(?:skill\s+)?use|on\s+cast|on\s+attack|per\s+cast'
+                r'|when\s+(?:you\s+)?(?:use|using|cast|casting|attack|attacking))\b', rest, re.I))
+            if _per_event and re.search(r'\battack', rest, re.I):
+                cadence = "attack_use"
+            elif _per_event:
+                cadence = "cast"
+            else:
+                cadence = "sec"
             iv = re.search(r'(?:interval\s*:?\s*|every\s+)([\d.]+)\s*s', rest, re.I)
             if cadence == "sec" and iv and float(iv.group(1)) > 0:
                 val /= float(iv.group(1))

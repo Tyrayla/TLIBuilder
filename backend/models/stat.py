@@ -620,6 +620,15 @@ class Stat(Enum):
     ENERGY_SHIELD_CONSUMED_PCT_CURRENT_PER_SEC = "energy_shield_consumed_pct_current_per_sec"
     ENERGY_SHIELD_CONSUMED_PCT_MAX_PER_SEC = "energy_shield_consumed_pct_max_per_sec"
     ENERGY_SHIELD_CONSUMED_FLAT_PER_SEC = "energy_shield_consumed_flat_per_sec"
+    # Skill-type-SCOPED per-USE consume ("Consumes X% … when you use Attack Skills"): multiplied by the build's
+    # ATTACK-skill use rate (not the generic cast rate), and counts only attack-skill uses. (per_cast above is the
+    # unscoped "on skill use".)
+    LIFE_CONSUMED_PCT_CURRENT_PER_ATTACK_USE = "life_consumed_pct_current_per_attack_use"
+    LIFE_CONSUMED_PCT_MAX_PER_ATTACK_USE = "life_consumed_pct_max_per_attack_use"
+    LIFE_CONSUMED_FLAT_PER_ATTACK_USE = "life_consumed_flat_per_attack_use"
+    MANA_CONSUMED_PCT_CURRENT_PER_ATTACK_USE = "mana_consumed_pct_current_per_attack_use"
+    MANA_CONSUMED_PCT_MAX_PER_ATTACK_USE = "mana_consumed_pct_max_per_attack_use"
+    MANA_CONSUMED_FLAT_PER_ATTACK_USE = "mana_consumed_flat_per_attack_use"
     # Derived (written back by the consumption stage so offense / conditions can read the rolling "consumed recently"
     # total = consumed_per_sec × the "recently" window).
     CONSUMED_RECENTLY_LIFE = "consumed_recently_life"

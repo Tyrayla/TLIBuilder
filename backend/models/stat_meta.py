@@ -2706,6 +2706,24 @@ STAT_META: dict[Stat, StatMeta] = {
     Stat.ENERGY_SHIELD_CONSUMED_FLAT_PER_SEC: StatMeta(
         "Energy Shield Consumed (flat / sec)", "Utility", "added_flat",
         subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_PCT_CURRENT_PER_ATTACK_USE: StatMeta(
+        "Life Consumed (% Current / attack use)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_PCT_MAX_PER_ATTACK_USE: StatMeta(
+        "Life Consumed (% Max / attack use)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_FLAT_PER_ATTACK_USE: StatMeta(
+        "Life Consumed (flat / attack use)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_CURRENT_PER_ATTACK_USE: StatMeta(
+        "Mana Consumed (% Current / attack use)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_MAX_PER_ATTACK_USE: StatMeta(
+        "Mana Consumed (% Max / attack use)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_FLAT_PER_ATTACK_USE: StatMeta(
+        "Mana Consumed (flat / attack use)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
     Stat.CONSUMED_RECENTLY_LIFE: StatMeta(
         "Life Consumed Recently", "Utility", "added_flat",
         subgroup="consumption",        stacking_rule="additive", ui_priority=71, source_types=_T),

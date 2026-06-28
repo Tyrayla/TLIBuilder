@@ -160,6 +160,8 @@ def consumable_universe() -> frozenset[str]:
                  for p in ("life", "mana", "energy_shield")
                  for b in ("pct_current", "pct_max", "flat")
                  for c in ("sec", "cast")}
+    consumed |= {f"{p}_consumed_{b}_per_attack_use"
+                 for p in ("life", "mana") for b in ("pct_current", "pct_max", "flat")}
     consumed |= {"consumed_recently_life", "consumed_recently_mana", "consumed_recently_energy_shield"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.

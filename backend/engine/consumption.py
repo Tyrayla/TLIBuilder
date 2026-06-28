@@ -30,6 +30,9 @@ CONSUME_SOURCE_KEYS = [f"{p}_consumed_{b}_per_{c}"
                        for p in ("life", "mana", "energy_shield")
                        for b in ("pct_current", "pct_max", "flat")
                        for c in ("sec", "cast")]
+CONSUME_SOURCE_KEYS += [f"{p}_consumed_{b}_per_attack_use"
+                        for p in ("life", "mana")
+                        for b in ("pct_current", "pct_max", "flat")]
 
 # USE vs CAST (owner-flagged, FOLLOW-UP): most LIFE-consume mods say "on skill USE" while most MANA-consume mods say
 # "on cast". They differ because spells are typically not "used" — they're cast/triggered by Tangle, Spell Burst, etc.
@@ -54,21 +57,24 @@ class ConsumptionResult:
         return (self.life_per_sec > 1e-9 or self.mana_per_sec > 1e-9 or self.energy_shield_per_sec > 1e-9)
 
 
-def _pool_per_sec(source: BuildSource, pool: str, current: float, pool_max: float, casts_per_sec: float) -> float:
-    """consumed/sec for one pool from its typed consume-rate stats."""
-    per_sec = (source.total(f"{pool}_consumed_pct_current_per_sec") * current
-               + source.total(f"{pool}_consumed_pct_max_per_sec") * pool_max
-               + source.total(f"{pool}_consumed_flat_per_sec"))
-    per_cast = (source.total(f"{pool}_consumed_pct_current_per_cast") * current
-                + source.total(f"{pool}_consumed_pct_max_per_cast") * pool_max
-                + source.total(f"{pool}_consumed_flat_per_cast"))
-    return per_sec + per_cast * max(0.0, casts_per_sec)
+def _pool_per_sec(source: BuildSource, pool: str, current: float, pool_max: float, rates: dict) -> float:
+    """consumed/sec for one pool from its typed consume-rate stats. `rates` = {"any": generic use/cast rate,
+    "attack": attack-skill use rate}. (Use-vs-cast precision + which-skill-rate is refined in Stage C.)"""
+    def _amt(suffix):
+        return (source.total(f"{pool}_consumed_pct_current_per_{suffix}") * current
+                + source.total(f"{pool}_consumed_pct_max_per_{suffix}") * pool_max
+                + source.total(f"{pool}_consumed_flat_per_{suffix}"))
+    per_sec = _amt("sec")
+    per_cast = _amt("cast") * max(0.0, rates.get("any", 0.0))            # unscoped "on skill use" → generic rate
+    per_attack = _amt("attack_use") * max(0.0, rates.get("attack", 0.0))  # "Attack Skills" scope → attack-use rate
+    return per_sec + per_cast + per_attack
 
 
 def calculate_consumption(source: BuildSource, *, condition_state: dict | None = None,
-                          defense: dict | None = None, casts_per_sec: float = 0.0) -> ConsumptionResult:
+                          defense: dict | None = None, rates: dict | None = None) -> ConsumptionResult:
     cs = condition_state or {}
     d = defense or {}
+    rates = rates or {}
     max_life = float(d.get("max_life", source.total("max_life")) or 0.0)
     max_mana = float(d.get("max_mana", source.total("max_mana")) or 0.0)
     max_es = float(d.get("max_energy_shield", source.total("max_energy_shield")) or 0.0)
@@ -76,18 +82,20 @@ def calculate_consumption(source: BuildSource, *, condition_state: dict | None =
     mana_pct = float(cs.get("current_mana_pct", 100.0) or 0.0)
     es_pct = float(cs.get("current_es_pct", 100.0) or 0.0)
 
-    life_ps = _pool_per_sec(source, "life", life_pct / 100.0 * max_life, max_life, casts_per_sec)
-    mana_ps = _pool_per_sec(source, "mana", mana_pct / 100.0 * max_mana, max_mana, casts_per_sec)
+    life_ps = _pool_per_sec(source, "life", life_pct / 100.0 * max_life, max_life, rates)
+    mana_ps = _pool_per_sec(source, "mana", mana_pct / 100.0 * max_mana, max_mana, rates)
     # Energy Shield: per-sec bases only (no per-cast ES consume seen). Reuse the per-cast=0 path.
     es_ps = (source.total("energy_shield_consumed_pct_current_per_sec") * (es_pct / 100.0 * max_es)
              + source.total("energy_shield_consumed_pct_max_per_sec") * max_es
              + source.total("energy_shield_consumed_flat_per_sec"))
 
-    # Flag the use-vs-cast approximation whenever any per-cast/use consume contributes (so triggered builds know the
-    # per-use life consume may be over-counted).
+    # Flag the use-vs-cast approximation whenever any per-use/cast consume contributes (so triggered builds know the
+    # per-use consume rate is the cast-rate approximation pending the Stage-C use-rate model).
     flags = []
-    if casts_per_sec > 0 and any(source.total(f"{p}_consumed_{b}_per_cast")
-                                 for p in ("life", "mana") for b in ("pct_current", "pct_max", "flat")):
+    _any_rate = max(0.0, rates.get("any", 0.0)) + max(0.0, rates.get("attack", 0.0))
+    if _any_rate > 0 and any(source.total(f"{p}_consumed_{b}_per_{c}")
+                             for p in ("life", "mana") for b in ("pct_current", "pct_max", "flat")
+                             for c in ("cast", "attack_use")):
         flags.append(_USE_VS_CAST_FLAG)
 
     w = RECENTLY_WINDOW_S

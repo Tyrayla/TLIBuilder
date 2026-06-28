@@ -455,19 +455,25 @@ def compute(
         # net curve), so it settles in one extra pass; Life % is quantized so the snapshot can converge.
         from engine.consumption import CONSUME_SOURCE_KEYS, calculate_consumption
         if any(source.total(_k) for _k in CONSUME_SOURCE_KEYS):
-            _cons_casts = (compute_skill_rates(source, _resolve_skill_for_trait(skill_data)).get("aps", 0.0)
-                           if (skill_data and build_input.main_skill and main_enabled) else 0.0)
+            # Consume rates: the build's active/used skill's use rate ("any"), and the attack-use rate (that skill's
+            # rate when it is an attack — a character uses one skill at a time; proxies + the precise primary-attack /
+            # use-vs-cast model land in Stage C). This is the SELECTED skill (slot-agnostic), not the slot-1 concept.
+            _active_skill = (_resolve_skill_for_trait(skill_data)
+                             if (skill_data and build_input.main_skill and main_enabled) else None)
+            _use_rate = compute_skill_rates(source, _active_skill).get("aps", 0.0) if _active_skill else 0.0
+            _attack_rate = _use_rate if (_active_skill is not None and not _active_skill.is_spell) else 0.0
+            _cons_rates = {"any": _use_rate, "attack": _attack_rate}
             # Solve the steady-state Life % UNLESS the user pinned current_life_pct (a what-if override is respected).
             if "current_life_pct" not in manual_cond_keys:
                 from engine.sustain_solve import solve_steady_life_pct
                 _cri = [r for _es in (elixir_summaries or []) for r in (_es.get("restoration") or [])]
-                _solved_life = solve_steady_life_pct(source, condition_state, _cri, _cons_casts)
+                _solved_life = solve_steady_life_pct(source, condition_state, _cri, _cons_rates)
                 condition_state["current_life_pct"] = _solved_life
                 auto_sources["current_life_pct"] = "Consumption steady state"
                 auto_values["current_life_pct"] = _solved_life
             # Threshold-gate inputs (Crimson King / Awakening Skull "consumed > X% Max Life / > N Life recently"),
             # at whatever Life % is now in effect (solved or pinned).
-            _cons_now = calculate_consumption(source, condition_state=condition_state, casts_per_sec=_cons_casts)
+            _cons_now = calculate_consumption(source, condition_state=condition_state, rates=_cons_rates)
             _ml = source.total("max_life") or 1.0
             condition_state["life_consumed_recently_pct_max"] = _cons_now.consumed_recently_life / _ml * 100.0
             condition_state["life_consumed_recently_flat"] = _cons_now.consumed_recently_life
@@ -692,13 +698,14 @@ def compute(
     _restoration_inputs = []
     for _es in (elixir_summaries or []):
         _restoration_inputs.extend(_es.get("restoration") or [])
-    # Self-consume drains (Mana Boil / life-consume affixes). Per-cast consume needs the main skill's casts/sec, so
-    # run the cheap rates stage on the main skill (the heavy damage calc stays post-loop below).
-    _cons_casts_ps = 0.0
-    if skill_data and build_input.main_skill and main_enabled:
-        _cons_casts_ps = compute_skill_rates(source, resolve_skill(skill_data)).get("aps", 0.0)
+    # Self-consume drains (Mana Boil / life-consume affixes). Per-use consume needs the active skill's use rate +
+    # the attack-use rate (its rate when it is an attack); the heavy damage calc stays post-loop below.
+    _cons_active = resolve_skill(skill_data) if (skill_data and build_input.main_skill and main_enabled) else None
+    _cons_use_rate = compute_skill_rates(source, _cons_active).get("aps", 0.0) if _cons_active else 0.0
+    _cons_rates_final = {"any": _cons_use_rate,
+                         "attack": _cons_use_rate if (_cons_active is not None and not _cons_active.is_spell) else 0.0}
     result_consumption = asdict(calculate_consumption(
-        source, condition_state=condition_state, defense=result_defense, casts_per_sec=_cons_casts_ps))
+        source, condition_state=condition_state, defense=result_defense, rates=_cons_rates_final))
     result_recovery = asdict(calculate_recovery(
         source, condition_state=condition_state, restoration_inputs=_restoration_inputs,
         reservation=reservation, defense=result_defense, uptime_mode=build_input.uptime_mode,

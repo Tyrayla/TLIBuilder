@@ -165,6 +165,13 @@ def _classify_effect(effect: str, parse_mod, translate_cond) -> dict:
             return {"kind": "override", "flag": flag}
         return {"kind": "deferred"}
 
+    # Self-consume lines ("Consumes X% … when you use Attack Skills") carry their cadence + skill-type scope INLINE;
+    # the condition split would strip that and the gate is untranslatable → whole line wrongly unresolved. Parse the
+    # FULL text first: if it yields consume stats (scope/cadence baked into the stat key), take it as-is (no gate).
+    full = parse_mod(text)
+    if full and any("_consumed_" in (c.get("stat_key") or "") for c in full):
+        return {"kind": "stat", "contribs": full, "condition_expr": None}
+
     stat_part, cond_part = _split_condition(text)
     contribs = parse_mod(stat_part)
     if not contribs:

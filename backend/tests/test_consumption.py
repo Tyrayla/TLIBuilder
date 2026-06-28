@@ -74,6 +74,8 @@ def test_consume_source_affix_parsing():
         return {(r["stat_key"], round(r["amount"], 4)) for r in (P(text) or [])}
     # Blade-dancer's Fingers: % current Life on skill use → per-cast.
     assert one("Consumes (5-10) % of current Life on skill use") == {("life_consumed_pct_current_per_cast", 0.075)}
+    # Talent node: "when you use Attack Skills" is per-USE and ATTACK-scoped (not per-second, not generic).
+    assert one("Consumes 2 % of current Life when you use Attack Skills") == {("life_consumed_pct_current_per_attack_use", 0.02)}
     # Ghost Slaughter: % current Life AND Energy Shield per second → both pools, per-second.
     assert one("Consumes (10-12) % of current Life and Energy Shield per second while Fervor is active") == {
         ("life_consumed_pct_current_per_sec", 0.11), ("energy_shield_consumed_pct_current_per_sec", 0.11)}
@@ -139,6 +141,37 @@ def test_no_consumption_leaves_life_pct_untouched():
     # Builds without any consume source never engage the solver (current_life_pct stays the default/user value).
     r = _resp([("max_life_flat", 100)])
     assert (r.get("auto_conditions") or {}).get("current_life_pct", {}).get("source") != "Consumption steady state"
+
+
+def test_attack_scoped_node_resolves_and_scopes():
+    # The warrior node "Consumes 2% of current Life when you use Attack Skills" must RESOLVE (was NYI) — the
+    # condition split + untranslatable gate previously dropped it — and route to the attack-USE-scoped stat.
+    from engine.mod_parser import _parse_custom_mod_text as P
+    from engine.core_talent_resolver import _classify_effect
+    from server import _translate_condition_expr
+    txt = "Consumes 2 % of current Life when you use Attack Skills"
+    assert P(txt) == [{"stat_key": "life_consumed_pct_current_per_attack_use", "amount": 0.02, "text": txt}]
+    cls = _classify_effect(txt, P, _translate_condition_expr)
+    assert cls["kind"] == "stat"   # resolved, not unresolved
+    assert cls["contribs"][0]["stat_key"] == "life_consumed_pct_current_per_attack_use"
+
+
+def test_attack_scoped_consume_only_fires_for_attacks():
+    # Attack-USE-scoped consume uses the attack skill's use rate and only fires when the active skill is an attack.
+    from tests.mock_build import DUAL_WEAPONS
+    g = DUAL_WEAPONS + [{"item_name": "T", "contributions": [
+        {"stat": "life_consumed_pct_current_per_attack_use", "display_value": 0.02, "unit": "", "slot": "ring1",
+         "item_name": "T", "text": "T"}]}]
+
+    def run(skill):
+        req = make_request(skill, 20, gear=g, extra_conditions={"current_life_pct": 100, "dual_wielding": True})
+        r = engine_stats(EngineStatsRequest(**req))
+        return r if isinstance(r, dict) else r.model_dump()
+    atk = run("berserking_blade")                  # attack → consume fires at aps × 2% current
+    aps = atk["offense"]["attacks_per_second"]
+    assert atk["consumption"]["life_per_sec"] == pytest.approx(0.02 * atk["defense"]["max_life"] * aps, rel=1e-2)
+    spell = run("chromatic_shot")                  # spell → no attack use → no attack-scoped consume
+    assert spell["consumption"]["life_per_sec"] == pytest.approx(0.0, abs=1e-6)
 
 
 def test_mana_consume_independent_pool():
