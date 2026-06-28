@@ -2193,14 +2193,26 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
             {defense.insufficient_life && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Life — sealed exceeds Max Life by {fmtNum((defense.sealed_life ?? 0) - defense.max_life)} ({dec((((defense.sealed_life ?? 0) / defense.max_life - 1) * 100))}%)</div>}
           </>
         )}
-        {recovery && recovery.temporary_life > 0 && (
+        {recovery && recovery.temporary_life > 0 && (<>
           <Row label="Temporary Life" labelColor="#d08a5a" breakdown={{
-            title: 'Temporary Life', keys: [], total: recovery.temporary_life, totalUnit: '',
-            formula: 'Separate used-first barrier (spent before Base Life; not part of Max Life). Adds to Effective HP.',
-            extra: [{ value: fmtNum(recovery.total_max_life - recovery.temporary_life), stat: 'Base Max Life', source: 'Base', sourceName: 'Total pool' },
-              { value: `+${fmtNum(recovery.temporary_life)}`, stat: 'Temporary Life', source: 'Recovery', sourceName: 'used-first barrier' }],
-          }}>{fmtNum(recovery.total_max_life - recovery.temporary_life)} + {fmtNum(recovery.temporary_life)}</Row>
-        )}
+            // keys pull the granting effect(s) (e.g. Elixir of Immortality) from the stat map; the row shows ONLY
+            // the temporary amount, with Base / Total context in the breakdown.
+            title: 'Temporary Life', keys: ['temporary_life_flat', 'temporary_life_pct'], total: recovery.temporary_life, totalUnit: '',
+            formula: 'A separate pool consumed before Base Life — not counted in Max Life.',
+            extra: [
+              { value: fmtNum(recovery.total_max_life - recovery.temporary_life), stat: 'Base Max Life', source: 'Base', sourceName: 'Total pool' },
+              { value: fmtNum(recovery.total_max_life), stat: 'Total Life', source: 'Base + Temporary', sourceName: 'consumed before Base Life' },
+            ],
+          }}>{fmtNum(recovery.temporary_life)}</Row>
+          <Row label="Total Life" breakdown={{
+            title: 'Total Life', keys: [], total: recovery.total_max_life, totalUnit: '',
+            formula: 'Base Max Life + Temporary Life (consumed before Base Life).',
+            extra: [
+              { value: fmtNum(recovery.total_max_life - recovery.temporary_life), stat: 'Base Max Life', source: 'Base', sourceName: '' },
+              { value: `+${fmtNum(recovery.temporary_life)}`, stat: 'Temporary Life', source: 'Recovery', sourceName: 'consumed before Base Life' },
+            ],
+          }}>{fmtNum(recovery.total_max_life)}</Row>
+        </>)}
         {recovery && recovery.restoration_life_per_sec > 0 && (
           <Row label="Life Restoration" labelColor="#5fae79" breakdown={{
             title: 'Life Restoration', keys: [], total: recovery.restoration_life_per_sec, totalUnit: '',
@@ -2208,12 +2220,9 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
             extra: restoreSources('life'),
           }}>{rate(recovery.restoration_life_per_sec)}</Row>
         )}
-        {recovery && recovery.excess_life_restoration > 0 && (
-          <SubRow label="Excess (→ Temp / ES)" breakdown={{
-            title: 'Excess Life Restoration', keys: [], total: recovery.excess_life_restoration, totalUnit: '',
-            formula: 'Restoration beyond the assumed deficit (Current Life %, set on Config) — overflows to Temporary Life / ES.',
-          }}>{fmtNum(recovery.excess_life_restoration)}</SubRow>
-        )}
+        {/* No "Excess" row: at the assumed Current Life % the overflow rate just mirrors the restoration part of
+            Net Life Sustain, and what it produces (Temporary Life / ES Restoration) is already shown directly.
+            excess_life_restoration is still computed backend-side to feed Immortality / Pixie Tear. */}
         {recovery && recovery.life_regain_per_sec > 0 && (
           <Row label="Life Regain" labelColor="#5fae79" breakdown={{
             title: 'Life Regain', keys: ['life_regain_inc', 'life_regain_interval_additional', 'regain_interval_additional'],
@@ -2232,12 +2241,6 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
             formula: 'Restoration + Regain + Regen (excludes skill Life cost — no skill-cost model yet)',
           }}>{rate(recovery.net_life_per_sec)}</Row>
         )}
-        {recovery && recovery.ehp_life > 0 && (
-          <Row label="Effective HP" breakdown={{
-            title: 'Effective HP (Life)', keys: [], total: recovery.ehp_life, totalUnit: '',
-            formula: '(Base Max Life + Temporary Life) ÷ (1 − average armour mitigation vs the target)',
-          }}>{fmtNum(recovery.ehp_life)}</Row>
-        )}
       </StatPanel>
 
       <StatPanel title="Mana" accent="#3060c0">
@@ -2255,7 +2258,7 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         {recovery && recovery.temporary_mana > 0 && (
           <Row label="Temporary Mana" labelColor="#7090d0" breakdown={{
             title: 'Temporary Mana', keys: [], total: recovery.temporary_mana, totalUnit: '',
-            formula: 'Separate used-first barrier (spent before Base Mana; not part of Max Mana).',
+            formula: 'A separate pool consumed before Base Mana — not counted in Max Mana.',
           }}>{fmtNum(recovery.temporary_mana)}</Row>
         )}
         {recovery && recovery.restoration_mana_per_sec > 0 && (
