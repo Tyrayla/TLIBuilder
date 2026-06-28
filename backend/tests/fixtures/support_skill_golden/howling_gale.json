@@ -46,6 +46,7 @@
     "dmg_additional",
     "dmg_additional_on_crit",
     "dmg_additional_per_400_es",
+    "dmg_additional_per_life_consumed",
     "dmg_avoid_chance",
     "dmg_inc",
     "dmg_max_additional",

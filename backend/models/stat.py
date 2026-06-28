@@ -626,6 +626,16 @@ class Stat(Enum):
     CONSUMED_RECENTLY_MANA = "consumed_recently_mana"
     CONSUMED_RECENTLY_ENERGY_SHIELD = "consumed_recently_energy_shield"
 
+    # Per-N-consumed CONSUMER scalings, NORMALIZED to "per 1 unit consumed recently" at parse time (a "+X% per N
+    # consumed" affix → X/100/N). The consumption loop multiplies by consumed_recently and caps, emitting the result
+    # into the live pools (so they converge). Cap is the affix's "up to Y%" (fraction); 0 = uncapped.
+    DMG_ADDITIONAL_PER_LIFE_CONSUMED = "dmg_additional_per_life_consumed"
+    DMG_ADDITIONAL_PER_LIFE_CONSUMED_CAP = "dmg_additional_per_life_consumed_cap"
+    ATTACK_SPEED_INC_PER_LIFE_CONSUMED = "attack_speed_inc_per_life_consumed"
+    ATTACK_SPEED_INC_PER_LIFE_CONSUMED_CAP = "attack_speed_inc_per_life_consumed_cap"
+    SPELL_DMG_INC_PER_MANA_CONSUMED = "spell_dmg_inc_per_mana_consumed"
+    SPELL_DMG_INC_PER_MANA_CONSUMED_CAP = "spell_dmg_inc_per_mana_consumed_cap"
+
     # ── Energy Shield ─────────────────────────────────────────────────────────
     MAX_ENERGY_SHIELD_FLAT = "max_energy_shield_flat"
     MAX_ENERGY_SHIELD_INC = "max_energy_shield_inc"

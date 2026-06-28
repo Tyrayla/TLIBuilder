@@ -19,8 +19,10 @@ def _resp(stats, conds=None):
     return r if isinstance(r, dict) else r.model_dump()
 
 
+# Pin current_life_pct so these exercise the rate math at a fixed % (otherwise C solves the steady state, which
+# moves life% and is covered separately in the steady-state tests).
 def test_per_second_pct_current_consume():
-    r = _resp([("life_consumed_pct_current_per_sec", 0.10)])
+    r = _resp([("life_consumed_pct_current_per_sec", 0.10)], conds={"current_life_pct": 100})
     ml = r["defense"]["max_life"]
     c = r["consumption"]
     assert c["life_per_sec"] == pytest.approx(0.10 * ml, rel=1e-3)          # 10% of current (=max at 100%)
@@ -28,7 +30,7 @@ def test_per_second_pct_current_consume():
 
 
 def test_per_cast_consume_scales_with_aps():
-    r = _resp([("life_consumed_pct_current_per_cast", 0.05)])
+    r = _resp([("life_consumed_pct_current_per_cast", 0.05)], conds={"current_life_pct": 100})
     ml = r["defense"]["max_life"]
     aps = r["offense"]["attacks_per_second"]
     assert r["consumption"]["life_per_sec"] == pytest.approx(0.05 * ml * aps, rel=1e-3)
@@ -44,7 +46,8 @@ def test_pct_max_vs_current_at_low_life():
 
 
 def test_net_and_verdict_unsustainable():
-    r = _resp([("life_consumed_pct_current_per_sec", 0.10)])
+    # Pin at full life: with no recovery the drain is net-negative and unsustainable at that assumed %.
+    r = _resp([("life_consumed_pct_current_per_sec", 0.10)], conds={"current_life_pct": 100})
     rec = r["consumption"]; rv = r["recovery"]
     assert rv["net_life_per_sec"] == pytest.approx(-rec["life_per_sec"], rel=1e-3)   # no recovery here
     assert rv["life_sustainable"] is False
@@ -79,8 +82,63 @@ def test_consume_source_affix_parsing():
         "Consumes 20 % of Max Life and inflicts 50 Affliction to nearby enemies when at Full Life. Interval: 1s")
     # Mana Boil-style flat mana per second.
     assert one("Consumes 16 Mana every second") == {("mana_consumed_flat_per_sec", 16.0)}
-    # Consumer line ("for every N consumed") must NOT be mistaken for a source.
-    assert not P("+(3-5) % damage for every 4000 Life consumed recently")
+
+
+def test_per_n_consumed_consumer_parsing():
+    from engine.mod_parser import _parse_custom_mod_text as P
+    def kv(text):
+        return {r["stat_key"]: round(r["amount"], 8) for r in (P(text) or [])}
+    # Tide of the Styx: +(3-5)% damage per 4000 Life consumed → midpoint 4% normalized to per-1-life (no cap).
+    assert kv("+(3-5) % damage for every 4000 Life consumed recently") == {
+        "dmg_additional_per_life_consumed": round(0.04 / 4000.0, 8)}
+    # Tide: +1% Attack Speed per 5000 Life consumed.
+    assert kv("+1 % Attack Speed for every 5000 Life consumed recently") == {
+        "attack_speed_inc_per_life_consumed": round(0.01 / 5000.0, 8)}
+    # Compensatory Life: +(3-6)% Spell Damage per 100 Mana consumed, up to 216% → cap captured.
+    out = kv("+(3-6) % Spell Damage for every 100 Mana consumed recently, up to 216 %")
+    assert out["spell_dmg_inc_per_mana_consumed"] == round(0.045 / 100.0, 8)
+    assert out["spell_dmg_inc_per_mana_consumed_cap"] == 2.16
+
+
+def test_steady_state_life_solves_to_equilibrium():
+    # 50% current-Life/sec drain + 300/s regen → settles where recovery == consumption (net ≈ 0), sustainable.
+    r = _resp([("life_consumed_pct_current_per_sec", 0.50), ("life_regen_flat", 300)])
+    ac = r.get("auto_conditions") or {}
+    solved = ac["current_life_pct"]["value"]
+    assert ac["current_life_pct"]["source"] == "Consumption steady state"
+    assert 40 < solved < 60                              # ~49.5% (300 = 0.5 × L × maxlife)
+    assert r["recovery"]["net_life_per_sec"] == pytest.approx(0.0, abs=5.0)
+    assert r["recovery"]["life_sustainable"] is True
+    # EHP rides the steady pool (≈ solved% × max), not max life.
+    assert r["recovery"]["ehp_life"] == pytest.approx(solved / 100.0 * r["defense"]["max_life"], rel=0.05)
+
+
+def test_steady_state_death_spiral_clamps_to_zero():
+    # Heavy drain, no recovery → no equilibrium → life% clamps to 0 (steady pool/EHP ≈ 0), unsustainable.
+    r = _resp([("life_consumed_pct_current_per_sec", 0.50)])
+    assert r["recovery"]["ehp_life"] == pytest.approx(0.0, abs=1.0)
+    assert r["recovery"]["life_sustainable"] is False
+
+
+def test_manual_life_pct_overrides_solve():
+    # A user-pinned current_life_pct is respected (what-if override) — the solver does NOT move it.
+    r = _resp([("life_consumed_pct_current_per_sec", 0.50), ("life_regen_flat", 300)],
+              conds={"current_life_pct": 80})
+    ac = r.get("auto_conditions") or {}
+    assert ac.get("current_life_pct", {}).get("source") != "Consumption steady state"
+
+
+def test_damage_per_life_consumed_raises_dps():
+    base = _resp([("life_consumed_pct_current_per_sec", 0.50), ("life_regen_flat", 300)])
+    tide = _resp([("life_consumed_pct_current_per_sec", 0.50), ("life_regen_flat", 300),
+                  ("dmg_additional_per_life_consumed", 0.05 / 4000.0)])  # Tide: +5% per 4000 Life
+    assert tide["offense"]["total_dps"] > base["offense"]["total_dps"]
+
+
+def test_no_consumption_leaves_life_pct_untouched():
+    # Builds without any consume source never engage the solver (current_life_pct stays the default/user value).
+    r = _resp([("max_life_flat", 100)])
+    assert (r.get("auto_conditions") or {}).get("current_life_pct", {}).get("source") != "Consumption steady state"
 
 
 def test_mana_consume_independent_pool():

@@ -386,6 +386,26 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
             if out:
                 return out
 
+    # Per-N-consumed CONSUMER scalings: "+X% <benefit> for every N <Life|Mana> consumed recently[, up to Y%]"
+    # (Tide of the Styx, Compensatory Life, …). NORMALIZE to per-1-unit (X/100 ÷ N) so the consumption loop just
+    # multiplies by consumed_recently and caps. Must precede the generic resolver, which would otherwise fuzzy-match
+    # the stat's display name and drop the ÷N divisor + cap (silent-wrong). Unhandled benefits (crit, flat phys) have
+    # no stat yet → fall through to surface as unresolved (deferred), never mis-resolved.
+    m = re.search(r'([\d.]+)\s*%\s*(.+?)\s+for\s+every\s+([\d.]+)\s+(life|mana)\s+consumed\s+recently'
+                  r'(?:\s*,?\s*up\s+to\s*([\d.]+)\s*%)?', t, re.I)
+    if m:
+        _pct, _benefit, _per_n, _pool, _cap = m.groups()
+        _b, _p = _benefit.strip().lower(), _pool.lower()
+        _stat = ("dmg_additional_per_life_consumed" if (_p == "life" and _b == "damage")
+                 else "attack_speed_inc_per_life_consumed" if (_p == "life" and "attack speed" in _b)
+                 else "spell_dmg_inc_per_mana_consumed" if (_p == "mana" and "spell damage" in _b)
+                 else None)
+        if _stat and float(_per_n) > 0:
+            out = [{"stat_key": _stat, "amount": (float(_pct) / 100.0) / float(_per_n), "text": t}]
+            if _cap:
+                out.append({"stat_key": _stat + "_cap", "amount": float(_cap) / 100.0, "text": t})
+            return out
+
     # "+N% additional Curse Effect" → multiplicative Curse Effect pool (e.g. Defile). Must come before the
     # generic Curse Effect matcher so plain "+N% Curse Effect" still maps to the increased pool.
     m = re.search(r'([\d.]+)\s*%\s*additional\s+curse\s+effect', t, re.I)

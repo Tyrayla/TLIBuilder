@@ -25,6 +25,12 @@ _USE_VS_CAST_FLAG = ("Per-use consume is approximated by the cast rate (aps); tr
 # "Recently" window = 4 s (owner-confirmed). Single source of truth.
 RECENTLY_WINDOW_S = 4.0
 
+# Every typed consume-rate source stat (used to detect "does this build consume?" and to whitelist reads).
+CONSUME_SOURCE_KEYS = [f"{p}_consumed_{b}_per_{c}"
+                       for p in ("life", "mana", "energy_shield")
+                       for b in ("pct_current", "pct_max", "flat")
+                       for c in ("sec", "cast")]
+
 # USE vs CAST (owner-flagged, FOLLOW-UP): most LIFE-consume mods say "on skill USE" while most MANA-consume mods say
 # "on cast". They differ because spells are typically not "used" — they're cast/triggered by Tangle, Spell Burst, etc.
 # A triggered/repeated cast counts as a CAST but not a USE. We don't yet model a separate USE rate, so the per-cast

@@ -220,14 +220,21 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     # steady-state pool %, net AT that % is the honest verdict; a clamp-to-0 equilibrium = unsustainable.)
     cur_life = life_pct / 100.0 * max_life
     cur_mana = mana_pct / 100.0 * max_mana
-    life_sustainable = net_life >= -1e-9
-    mana_sustainable = net_mana >= -1e-9
-    life_tte = (cur_life / -net_life) if (not life_sustainable and net_life < 0) else None
-    mana_tte = (cur_mana / -net_mana) if (not mana_sustainable and net_mana < 0) else None
+    # A clamped-to-0 steady state is a death spiral: net is ~0 there (nothing left to consume), but the pool is
+    # empty, so it's unsustainable. Treat life%/mana% ≤ 0 as unsustainable even when net ≈ 0.
+    life_sustainable = net_life >= -1e-9 and life_pct > 1e-9
+    mana_sustainable = net_mana >= -1e-9 and mana_pct > 1e-9
+    life_tte = 0.0 if (life_pct <= 1e-9 and cons_life > 0) else (
+        (cur_life / -net_life) if (not life_sustainable and net_life < 0) else None)
+    mana_tte = 0.0 if (mana_pct <= 1e-9 and cons_mana > 0) else (
+        (cur_mana / -net_mana) if (not mana_sustainable and net_mana < 0) else None)
 
-    # EHP: (Base Max Life + Temporary Life) vs the calc target's average armour mitigation.
+    # Effective hit pool: the STEADY-STATE current Life pool (life_pct × Max Life, solved for consume builds; = Max
+    # Life at 100% for everyone else) + Temporary Life, vs the calc target's average armour mitigation. Using the
+    # steady pool (not Max Life) is the honest base for a consume build — it never sits at full Life.
+    steady_life = life_pct / 100.0 * max_life + temp_life
     avg_mit = 0.5 * (float(d.get("armor_phys_mitigation", 0.0)) + float(d.get("armor_nonphys_mitigation", 0.0)))
-    ehp_life = (max_life + temp_life) / (1.0 - avg_mit) if avg_mit < 1.0 else (max_life + temp_life)
+    ehp_life = steady_life / (1.0 - avg_mit) if avg_mit < 1.0 else steady_life
 
     return RecoveryResult(
         restoration_life_per_sec=life_ps, restoration_mana_per_sec=mana_ps,

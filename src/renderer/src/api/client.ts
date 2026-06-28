@@ -933,12 +933,32 @@ export interface RecoveryResult {
   temporary_mana: number
   total_max_life: number             // Base Max Life + Temporary Life (display / EHP barrier)
   total_max_mana: number
-  // Net sustain (recovery − consumption; skill life-cost NYI)
+  // Consumption (self-consume drains) per second
+  consumption_life_per_sec: number
+  consumption_mana_per_sec: number
+  consumption_es_per_sec: number
+  // Net sustain (recovery − consumption; skill life/mana cost NYI)
   net_life_per_sec: number
   net_mana_per_sec: number
-  // Effective HP (Life + Temporary Life vs the calc target's average mitigation)
+  // Sustainability verdict per pool + time-to-empty (seconds) when unsustainable (null when sustainable)
+  life_sustainable: boolean
+  mana_sustainable: boolean
+  life_time_to_empty: number | null
+  mana_time_to_empty: number | null
+  // Effective HP (steady-state Life pool + Temporary Life vs the calc target's average mitigation)
   ehp_life: number
   nyi: string[]
+}
+
+export interface ConsumptionResult {
+  life_per_sec: number
+  mana_per_sec: number
+  energy_shield_per_sec: number
+  consumed_recently_life: number     // rolling 4s total (drives per-N-consumed affixes + threshold gates)
+  consumed_recently_mana: number
+  consumed_recently_energy_shield: number
+  window: number                     // "recently" window (4s)
+  flags: string[]                    // surfaced approximations (e.g. use-vs-cast)
 }
 
 export interface BlessingEffect { stat: string; per_stack: number; total: number; text: string }
@@ -982,6 +1002,7 @@ export interface StatSheetResponse {
   offense?: OffenseResult | null
   defense?: DefenseResult | null
   recovery?: RecoveryResult | null
+  consumption?: ConsumptionResult | null
   custom_mod_statuses?: CustomModStatus[]
   // Gear affix/implicit texts the frontend couldn't resolve, resolved (or reported) backend-side so
   // nothing is silently dropped. resolved:false → still unmodeled (surface it, don't hide it).

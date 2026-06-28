@@ -2235,11 +2235,22 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
             total: recovery.life_regen_per_sec, totalUnit: '', formula: '(Flat + % of Max Life) × (1 + Regen Speed)',
           }}>{rate(recovery.life_regen_per_sec)}</Row>
         )}
-        {recovery && recovery.net_life_per_sec > 0 && (
-          <Row label="Net Life Sustain" labelColor={recovery.net_life_per_sec >= 0 ? '#6ddb6d' : '#e05050'} breakdown={{
+        {recovery && recovery.consumption_life_per_sec > 0 && (
+          <Row label="Life Consumed" labelColor="#d06868" breakdown={{
+            title: 'Life Consumed', keys: [], total: recovery.consumption_life_per_sec, totalUnit: '',
+            formula: 'Self-consume drains per second, at the steady-state Life %. Excludes the skill’s own Life cost (NYI).',
+          }}>{rate(recovery.consumption_life_per_sec)}</Row>
+        )}
+        {recovery && (recovery.net_life_per_sec > 0 || recovery.consumption_life_per_sec > 0) && (
+          <Row label="Net Life Sustain" labelColor={recovery.life_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
             title: 'Net Life Sustain', keys: [], total: recovery.net_life_per_sec, totalUnit: '',
-            formula: 'Restoration + Regain + Regen (excludes skill Life cost — no skill-cost model yet)',
+            formula: 'Restoration + Regain + Regen − Consumption (excludes skill Life cost — no skill-cost model yet)',
           }}>{rate(recovery.net_life_per_sec)}</Row>
+        )}
+        {recovery && recovery.consumption_life_per_sec > 0 && !recovery.life_sustainable && (
+          <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>
+            Unsustainable{recovery.life_time_to_empty != null ? ` — empties in ${dec(recovery.life_time_to_empty)}s` : ''}
+          </div>
         )}
       </StatPanel>
 
@@ -2273,6 +2284,23 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
             title: 'Mana Regen', keys: ['mana_regen_flat', 'mana_regen_pct', 'mana_regen_inc'],
             total: recovery.mana_regen_per_sec, totalUnit: '', formula: 'Flat + % of Max Mana',
           }}>{rate(recovery.mana_regen_per_sec)}</Row>
+        )}
+        {recovery && recovery.consumption_mana_per_sec > 0 && (
+          <Row label="Mana Consumed" labelColor="#d06868" breakdown={{
+            title: 'Mana Consumed', keys: [], total: recovery.consumption_mana_per_sec, totalUnit: '',
+            formula: 'Self-consume drains per second. Excludes the skill’s own Mana cost (NYI).',
+          }}>{rate(recovery.consumption_mana_per_sec)}</Row>
+        )}
+        {recovery && (recovery.net_mana_per_sec > 0 || recovery.consumption_mana_per_sec > 0) && (
+          <Row label="Net Mana Sustain" labelColor={recovery.mana_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
+            title: 'Net Mana Sustain', keys: [], total: recovery.net_mana_per_sec, totalUnit: '',
+            formula: 'Restoration + Regen − Consumption',
+          }}>{rate(recovery.net_mana_per_sec)}</Row>
+        )}
+        {recovery && recovery.consumption_mana_per_sec > 0 && !recovery.mana_sustainable && (
+          <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>
+            Unsustainable{recovery.mana_time_to_empty != null ? ` — empties in ${dec(recovery.mana_time_to_empty)}s` : ''}
+          </div>
         )}
       </StatPanel>
 

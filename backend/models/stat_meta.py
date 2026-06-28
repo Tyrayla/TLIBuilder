@@ -2715,6 +2715,24 @@ STAT_META: dict[Stat, StatMeta] = {
     Stat.CONSUMED_RECENTLY_ENERGY_SHIELD: StatMeta(
         "Energy Shield Consumed Recently", "Utility", "added_flat",
         subgroup="consumption",        stacking_rule="additive", ui_priority=71, source_types=_T),
+    Stat.DMG_ADDITIONAL_PER_LIFE_CONSUMED: StatMeta(
+        "Additional Damage per Life Consumed", "Generic", "additional", "%",
+        subgroup="additional",         affects=_HIT, stacking_rule="additive", ui_priority=12, source_types=_T),
+    Stat.DMG_ADDITIONAL_PER_LIFE_CONSUMED_CAP: StatMeta(
+        "Additional Damage per Life Consumed (cap)", "Generic", "additional", "%",
+        subgroup="additional",         affects=_HIT, stacking_rule="max", ui_priority=12, source_types=_T),
+    Stat.ATTACK_SPEED_INC_PER_LIFE_CONSUMED: StatMeta(
+        "Attack Speed per Life Consumed", "Utility", "increased", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=72, source_types=_T),
+    Stat.ATTACK_SPEED_INC_PER_LIFE_CONSUMED_CAP: StatMeta(
+        "Attack Speed per Life Consumed (cap)", "Utility", "increased", "%",
+        subgroup="consumption",        stacking_rule="max", ui_priority=72, source_types=_T),
+    Stat.SPELL_DMG_INC_PER_MANA_CONSUMED: StatMeta(
+        "Spell Damage per Mana Consumed", "Spell", "increased", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=72, source_types=_T),
+    Stat.SPELL_DMG_INC_PER_MANA_CONSUMED_CAP: StatMeta(
+        "Spell Damage per Mana Consumed (cap)", "Spell", "increased", "%",
+        subgroup="consumption",        stacking_rule="max", ui_priority=72, source_types=_T),
 
     # ── Reaping ───────────────────────────────────────────────────────────────
     Stat.REAPING_DURATION_INC: StatMeta(

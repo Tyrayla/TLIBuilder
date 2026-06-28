@@ -448,6 +448,30 @@ def compute(
             _ls_state["excess_life_restoration"] = _xl
             _ls_state["excess_mana_restoration"] = _xm
 
+        # ── Consumption steady-state (Stage C) ── If the build self-consumes, solve the Life % where recovery ==
+        # consumption and feed it back, so regain / low-life DPS / "consumed recently" converge at the Life % you
+        # actually live at (NOT full Life — that overstates per-consumed damage). Always on when consumption exists;
+        # not tied to the uptime toggle. The solve is exact + independent of the prior pass (bisection on a monotone
+        # net curve), so it settles in one extra pass; Life % is quantized so the snapshot can converge.
+        from engine.consumption import CONSUME_SOURCE_KEYS, calculate_consumption
+        if any(source.total(_k) for _k in CONSUME_SOURCE_KEYS):
+            _cons_casts = (compute_skill_rates(source, _resolve_skill_for_trait(skill_data)).get("aps", 0.0)
+                           if (skill_data and build_input.main_skill and main_enabled) else 0.0)
+            # Solve the steady-state Life % UNLESS the user pinned current_life_pct (a what-if override is respected).
+            if "current_life_pct" not in manual_cond_keys:
+                from engine.sustain_solve import solve_steady_life_pct
+                _cri = [r for _es in (elixir_summaries or []) for r in (_es.get("restoration") or [])]
+                _solved_life = solve_steady_life_pct(source, condition_state, _cri, _cons_casts)
+                condition_state["current_life_pct"] = _solved_life
+                auto_sources["current_life_pct"] = "Consumption steady state"
+                auto_values["current_life_pct"] = _solved_life
+            # Threshold-gate inputs (Crimson King / Awakening Skull "consumed > X% Max Life / > N Life recently"),
+            # at whatever Life % is now in effect (solved or pinned).
+            _cons_now = calculate_consumption(source, condition_state=condition_state, casts_per_sec=_cons_casts)
+            _ml = source.total("max_life") or 1.0
+            condition_state["life_consumed_recently_pct_max"] = _cons_now.consumed_recently_life / _ml * 100.0
+            condition_state["life_consumed_recently_flat"] = _cons_now.consumed_recently_life
+
         # Loop-bottom: capture the converged scalars the trait module's next pass needs (MS total,
         # ailment duration, and the inflicting skill's APS — computed only in real mode so max-mode pays nothing).
         if _trait_active:
@@ -679,6 +703,9 @@ def compute(
         source, condition_state=condition_state, restoration_inputs=_restoration_inputs,
         reservation=reservation, defense=result_defense, uptime_mode=build_input.uptime_mode,
         consumption=result_consumption))
+    # Expose the rolling "consumed recently" totals on source so the per-N-consumed offense folds read them.
+    for _crk in ("life", "mana", "energy_shield"):
+        source.add(f"consumed_recently_{_crk}", float(result_consumption.get(f"consumed_recently_{_crk}", 0.0) or 0.0))
 
     # Per-slot support_behavior ({slot: {...}}) — the headline reads its own slot's behavior. Tolerate a
     # legacy flat dict (no per-slot keys) by treating it as slot 1's behavior.
