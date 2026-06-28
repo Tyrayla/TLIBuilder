@@ -42,10 +42,37 @@ _NOISE_RE = re.compile(
 _NYI_RE = re.compile(
     r"\brestor(?:es|ation)\b|\bminions?\b|\btrue\s+damage\b|replaced\s+with\s+scorch"
     r"|transferred\s+to\s+a\s+random", re.I)
-# Restoration tonic lines → structured restoration entries fed to the recovery stage (NOT NYI). Matches
-# "Restores 39 % Max Life within 2 s" (pct) and "Restores 47 Mana in 2 s" (flat).
+# Restoration tonic lines → structured restoration entries fed to the recovery stage (NOT NYI). A line is
+# "Restores <body> within/in N s" and the body may carry MULTIPLE pool parts (Compound Tonic: "39% Max Life and
+# 47 Mana") — every part is captured so nothing is silently dropped.
 _RESTORE_RE = re.compile(
     r"restores?\s+([\d.]+)\s*(%?)\s*(?:max\s+)?(life|mana)\b.*?(?:within|in)\s+([\d.]+)\s*s", re.I)
+_RESTORE_LINE_RE = re.compile(r"restores?\b(.*?)(?:within|in)\s+([\d.]+)\s*s", re.I)
+_RESTORE_PART_RE = re.compile(r"([\d.]+)\s*(%?)\s*(?:max\s+)?(life|mana)\b", re.I)
+# Per-level anchors on a restoration line, e.g. "(Lv1:41) (Lv21:61) (Lv41:71)" — the % value scales with the
+# elixir's level (the base text number is only the Lv1 value). Interpolated to the equipped level.
+_LV_ANCHOR_RE = re.compile(r"\(\s*lv\.?\s*(\d+)\s*:\s*([\d.]+)\s*\)", re.I)
+
+
+def _level_anchors(raw_line: str) -> list[tuple[int, float]]:
+    return sorted({(int(m.group(1)), float(m.group(2))) for m in _LV_ANCHOR_RE.finditer(raw_line or "")})
+
+
+def _interp_level_anchors(anchors: list[tuple[int, float]], level: int) -> float | None:
+    """Piecewise-linear value at `level` from (lvl, value) anchors; extrapolates past the last segment (matches
+    how auras/supports extend scaling beyond their last anchor)."""
+    if not anchors:
+        return None
+    if level <= anchors[0][0]:
+        if len(anchors) >= 2 and level < anchors[0][0]:
+            (l0, v0), (l1, v1) = anchors[0], anchors[1]
+            return v0 + (v1 - v0) * (level - l0) / (l1 - l0)
+        return anchors[0][1]
+    for (l0, v0), (l1, v1) in zip(anchors, anchors[1:]):
+        if l0 <= level <= l1:
+            return v0 + (v1 - v0) * (level - l0) / (l1 - l0)
+    (l0, v0), (l1, v1) = anchors[-2], anchors[-1]
+    return v1 + (v1 - v0) * (level - l1) / (l1 - l0)
 # "At 15 Charging Progress, gains 1 Charge" → the charging needed per charge (drives the charge-limited recast).
 _CHARGE_THRESHOLD_RE = re.compile(r"at\s+([\d.]+)\s+charging\s+progress\s*,?\s*gains?\s+\d*\s*charge", re.I)
 _BLUR_RE = re.compile(r"\bhas\s+blur\b", re.I)
@@ -62,6 +89,14 @@ _INGREDIENT_CUT_RE = re.compile(
     r"|\.\s*(?:stacks up to|lasts for|interval).*$"
     r"|\s*\(not affected by.*$", re.I)
 _INGREDIENT_DROP_RE = re.compile(r"\s+for you and your minions?\b", re.I)
+# Pixie Tear (Special Ingredient): two effects the generic parser can't take —
+#   (a) "X% of excess Life restoration is also applied to Energy Shield restoration" → excess_restoration_to_es_pct
+#   (b) "For every 400 Max Energy Shield, +X% additional damage … up to +Y%" → dmg_additional_per_400_es (+ cap)
+# Both are "not affected by the effects of Elixir Skills" → no_scale.
+_PIXIE_ES_RESTORE_RE = re.compile(
+    r"([\d.]+)\s*%\s*of\s+excess\s+life\s+restoration\s+is\s+also\s+applied\s+to\s+energy\s+shield", re.I)
+_PIXIE_PER_400_ES_RE = re.compile(
+    r"every\s+400\s+max\s+energy\s+shield\s*,?\s*\+?([\d.]+)\s*%\s*additional\s+damage.*?up\s+to\s*\+?([\d.]+)\s*%", re.I)
 
 
 def _ingredient_stat_text(line: str) -> str:
@@ -191,25 +226,57 @@ def resolve_elixirs(skills_input, skills_by_id, parse_mod, translate_cond=None, 
         # ── Restoration tonics: pull "Restores N% Max Life/Mana within Ns" out of NYI into structured entries the
         # recovery stage consumes (scaled by Elixir Effect/Duration in apply_elixir_buffs, then Restoration
         # Effect/Duration in recovery). pct = fraction of max pool; flat = absolute. ──
+        # Parse from the RAW description (anchors intact) so the % scales to the equipped level. Every pool part in
+        # a "Restores … within N s" line is captured (Compound Tonic = % Life + flat Mana) — none dropped.
         restoration: list[dict] = []
-        _kept_nyi = []
-        for u in nyi:
-            m = _RESTORE_RE.search(u)
-            if m:
-                amt, pct, pool, window = m.groups()
+        _handled: set[str] = set()
+        for rawline in raw:
+            stripped = _LV_ANNOT_RE.sub("", rawline or "").strip(" .")
+            lm = _RESTORE_LINE_RE.search(stripped)
+            if not lm:
+                continue
+            body, window = lm.group(1), lm.group(2)
+            parts = list(_RESTORE_PART_RE.finditer(body))
+            if not parts:
+                continue
+            anchors = _level_anchors(rawline or "")
+            pct_parts = sum(1 for p in parts if p.group(2))
+            for p in parts:
+                amt, pct, pool = p.group(1), p.group(2), p.group(3)
+                # Anchors scale the single % part (the leveled value); literal parts (flat, or a 2nd %) stay as-is.
+                lvl_val = _interp_level_anchors(anchors, level) if (pct and pct_parts == 1 and anchors) else None
+                value = lvl_val if lvl_val is not None else float(amt)
                 restoration.append({
                     "pool": pool.lower(), "mode": "pct" if pct else "flat",
-                    "base_amount": (float(amt) / 100.0) if pct else float(amt),
-                    "base_window": float(window), "slot": slot, "text": u.strip(), "name": name,
+                    "base_amount": (value / 100.0) if pct else value,
+                    "base_window": float(window), "slot": slot, "text": stripped, "name": name,
                 })
-            else:
-                _kept_nyi.append(u)
-        nyi = _kept_nyi
+            _handled.add(stripped)
+        nyi = [u for u in nyi if u not in _handled]
 
         # ── Licorice Note Ingredients: fold this scent-bottle elixir's equipped ingredient effects in as buffs ──
         # (already tier-expanded + prefix-stripped server-side). "(not affected by … Elixir Skills)" → no_scale.
         for line in ingredient_lines_by_slot.get(slot, []) or []:
             no_scale = bool(re.search(r"not\s+affected\s+by[^.]*elixir", line, re.I))
+            # Pixie Tear: explicit two-part handling (excess→ES restoration + per-400-ES capped damage), both
+            # no_scale. Handled here rather than via parse_mod (the generic parser can't take either clause).
+            _px_es = _PIXIE_ES_RESTORE_RE.search(line)
+            _px_dmg = _PIXIE_PER_400_ES_RE.search(line)
+            if _px_es or _px_dmg:
+                if _px_es:
+                    k = _canon_key("excess_restoration_to_es_pct", None)
+                    if k not in seen:
+                        seen[k] = True
+                        _emit(sid, name, "excess_restoration_to_es_pct", float(_px_es.group(1)) / 100.0,
+                              None, None, True, f"{line} (Ingredient)")
+                if _px_dmg:
+                    if _canon_key("dmg_additional_per_400_es", None) not in seen:
+                        seen[_canon_key("dmg_additional_per_400_es", None)] = True
+                        _emit(sid, name, "dmg_additional_per_400_es", float(_px_dmg.group(1)) / 100.0,
+                              None, None, True, f"{line} (Ingredient)")
+                        _emit(sid, name, "dmg_additional_per_400_es_cap", float(_px_dmg.group(2)) / 100.0,
+                              None, None, True, f"{line} (Ingredient cap)")
+                continue
             # "when you land a Critical Strike" → crit-weighted additional damage (offense weights by crit chance).
             is_crit = bool(re.search(r"critical\s+strike", line, re.I))
             # "Stacks up to N times" → assume max stacks under full uptime (Scattered Spore = ×2).

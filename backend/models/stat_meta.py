@@ -2096,6 +2096,16 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="additional",         affects=_HIT,
         stacking_rule="additive",      ui_priority=12, source_types=_T,
     ),
+    Stat.DMG_ADDITIONAL_PER_400_ES: StatMeta(
+        "Additional Damage per 400 Max Energy Shield", "Generic", "additional", "%",
+        subgroup="additional",         affects=_HIT,
+        stacking_rule="additive",      ui_priority=12, source_types=_T,
+    ),
+    Stat.DMG_ADDITIONAL_PER_400_ES_CAP: StatMeta(
+        "Additional Damage per 400 Max ES (cap)", "Generic", "additional", "%",
+        subgroup="additional",         affects=_HIT,
+        stacking_rule="max",           ui_priority=12, source_types=_T,
+    ),
     Stat.CRIT_DMG_INC: StatMeta(
         "Critical Strike Damage", "Critical Strike", "crit_damage", "%",
         subgroup="crit_damage",        pipeline_stage="crit_damage",

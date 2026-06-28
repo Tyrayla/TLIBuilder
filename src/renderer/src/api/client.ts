@@ -902,6 +902,45 @@ export interface DefenseResult {
   nyi: string[]
 }
 
+export interface RecoverySource {
+  pool: string                 // 'life' | 'mana' | 'energy_shield'
+  source: string
+  total: number                // total restored per cast (0 for steady-rate sources like Rebirth)
+  duration: number
+  recast?: number              // charge/cooldown cadence (seconds); 0 = no cadence
+  divisor?: number             // what per-sec divides by (= duration in Full Uptime, max(duration, recast) in Effective)
+  per_sec: number
+}
+export interface RecoveryResult {
+  // Restoration (heal-over-time), split by pool
+  restoration_life_per_sec: number
+  restoration_mana_per_sec: number
+  restoration_life_total: number
+  restoration_mana_total: number
+  restoration_es_per_sec: number     // ES restoration from excess Life (Pixie Tear)
+  restoration_es_total: number
+  excess_life_restoration: number    // overflow → Temporary Life / ES (assumed Current Life %)
+  excess_mana_restoration: number
+  restoration_sources: RecoverySource[]
+  // Regain (on-hit, missing-based)
+  life_regain_per_sec: number
+  shield_regain_per_sec: number
+  // Regen (over time)
+  life_regen_per_sec: number
+  mana_regen_per_sec: number
+  // Temporary pools (separate used-first barrier) + totals
+  temporary_life: number
+  temporary_mana: number
+  total_max_life: number             // Base Max Life + Temporary Life (display / EHP barrier)
+  total_max_mana: number
+  // Net sustain (recovery − consumption; skill life-cost NYI)
+  net_life_per_sec: number
+  net_mana_per_sec: number
+  // Effective HP (Life + Temporary Life vs the calc target's average mitigation)
+  ehp_life: number
+  nyi: string[]
+}
+
 export interface BlessingEffect { stat: string; per_stack: number; total: number; text: string }
 export interface BlessingSummary {
   type: string
@@ -942,6 +981,7 @@ export interface StatSheetResponse {
 
   offense?: OffenseResult | null
   defense?: DefenseResult | null
+  recovery?: RecoveryResult | null
   custom_mod_statuses?: CustomModStatus[]
   // Gear affix/implicit texts the frontend couldn't resolve, resolved (or reported) backend-side so
   // nothing is silently dropped. resolved:false → still unmodeled (surface it, don't hide it).
@@ -1075,6 +1115,19 @@ export interface ElixirSummary {
   global_max_charge?: number        // global "+N Max Charge" pool
   max_charges?: number
   support_sources?: ElixirSupportSource[]   // per support-gem timing contributions
+  restoration?: ElixirRestoration[]         // restoration tonics: heal-over-time grants (modeled in recovery)
+  charge_threshold?: number | null          // charging progress needed per charge (drives the charge-limited recast)
+  charge_regen?: number | null              // charge time = threshold ÷ charge/sec (seconds; null = no charge cost)
+  recast?: number | null                    // restoration recast cadence = max(cooldown, charge time) (Effective uptime)
+}
+
+export interface ElixirRestoration {
+  pool: string                      // 'life' | 'mana'
+  mode: string                      // 'pct' (fraction of max pool) | 'flat'
+  base_amount: number               // amount × Elixir Effect (pct as a fraction of max, flat as absolute)
+  window: number                    // restoration window in seconds (× Elixir Duration)
+  recast: number                    // recast cadence (max of cooldown, charge-regen time)
+  source: string
 }
 
 export interface CurseSummary {

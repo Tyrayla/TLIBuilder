@@ -284,6 +284,11 @@ def apply_elixir_buffs(source, elixir_buffs, elixir_meta, active_booleans, numer
                 "base_charges": charges, "global_max_charge": global_max_charge,
                 "max_charges": charges + global_max_charge + support_max_charge,
                 "support_sources": t.get("support_sources") or [],
+                # Recast cadence for restoration tonics (Effective uptime): the time to refill, = max(cooldown,
+                # charge time). charge time = charge threshold ÷ charge/sec (or unsustainable with no charge gen).
+                "charge_threshold": charge_threshold,
+                "charge_regen": charge_regen if charge_threshold else None,
+                "recast": recast if (m.get("restoration") or []) else None,
             })
     finally:
         source._recording = prev_rec

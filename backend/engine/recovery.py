@@ -43,6 +43,8 @@ class RecoveryResult:
     restoration_mana_per_sec: float = 0.0
     restoration_life_total: float = 0.0          # total restored per cast (all sources summed)
     restoration_mana_total: float = 0.0
+    restoration_es_per_sec: float = 0.0          # ES restoration from excess Life (Pixie Tear: excess→ES)
+    restoration_es_total: float = 0.0
     excess_life_restoration: float = 0.0         # excess (overflow) restoration amount → Temporary Life / ES
     excess_mana_restoration: float = 0.0
     restoration_sources: list = field(default_factory=list)   # [{pool, source, total, duration, per_sec}]
@@ -65,10 +67,14 @@ class RecoveryResult:
     nyi: list = field(default_factory=lambda: ["Net sustain excludes skill Life cost (no skill-cost model yet)"])
 
 
-def _pool_recovery(inputs, pool, pool_max, restoration_factor, duration_factor, missing, at_full):
+def _pool_recovery(inputs, pool, pool_max, restoration_factor, duration_factor, missing, at_full, ignore_recast=False):
     """(total, per_sec, excess, sources[]) for one pool ('life'|'mana') from the restoration inputs. Each input is
     {pool, mode: pct|flat, base_amount (× Elixir Effect), window (× Elixir Duration), recast, source}; pct resolves
-    against the pool's max, then × Restoration Effect; per-sec = total ÷ max(duration, recast)."""
+    against the pool's max, then × Restoration Effect.
+
+    per-sec = total ÷ max(duration, recast) in Effective (real) uptime — the recast cadence (charge/cooldown) gaps
+    the heal so you can't sustain faster than you can recast. In Full Uptime (`ignore_recast`) it's total ÷ duration:
+    100% uptime regardless of realistic charge/cooldown constraints."""
     total = 0.0
     per_sec = 0.0
     sources = []
@@ -79,19 +85,45 @@ def _pool_recovery(inputs, pool, pool_max, restoration_factor, duration_factor, 
         t = amount * restoration_factor
         dur = max(float(r.get("window", 0.0)) * duration_factor, 1e-9)
         recast = float(r.get("recast", 0.0) or 0.0)
-        ps = t / max(dur, recast) if max(dur, recast) > 0 else 0.0
+        eff_recast = 0.0 if ignore_recast else recast
+        divisor = max(dur, eff_recast)
+        ps = t / divisor if divisor > 0 else 0.0
         total += t
         per_sec += ps
-        sources.append({"pool": pool, "source": r.get("source", ""), "total": t, "duration": dur, "per_sec": ps})
+        # `recast` = the (un-suppressed) charge/cooldown cadence; `divisor` = what per-sec actually divides by
+        # (= duration in Full Uptime, = max(duration, recast) in Effective) — both surfaced so the UI can show
+        # "X over Ws, recast every Rs → P/s".
+        sources.append({"pool": pool, "source": r.get("source", ""), "total": t, "duration": dur,
+                        "recast": recast, "divisor": divisor, "per_sec": ps})
     # Excess (overflow → Temporary pools / ES): at full Life/Mana ALL restoration is excess; below full it refills
     # the assumed deficit first (effective) — a planner-input convention, not a combat sim.
     excess = total if at_full else max(0.0, total - missing)
     return total, per_sec, excess, sources
 
 
+def restoration_excess(source: BuildSource, restoration_inputs: list | None, condition_state: dict | None = None):
+    """(life_excess, mana_excess) restoration amounts — the IN-LOOP input to Temporary Life/Mana (Elixir of
+    Immortality). Same effective/excess split calculate_recovery uses; exposed so compute.py can stash it for the
+    next pass's hero-trait apply() (which converts excess → Temporary pools → damage)."""
+    cs = condition_state or {}
+    max_life = source.total("max_life")
+    max_mana = source.total("max_mana")
+    life_pct = float(cs.get("current_life_pct", 100.0) or 0.0)
+    mana_pct = float(cs.get("current_mana_pct", 100.0) or 0.0)
+    rf = _restoration_effect_factor(source)
+    df = _restoration_duration_factor(source)
+    _, _, life_excess, _ = _pool_recovery(restoration_inputs, "life", max_life, rf, df,
+                                          max(0.0, (1.0 - life_pct / 100.0) * max_life), life_pct >= 100.0)
+    _, _, mana_excess, _ = _pool_recovery(restoration_inputs, "mana", max_mana, rf, df,
+                                          max(0.0, (1.0 - mana_pct / 100.0) * max_mana), mana_pct >= 100.0)
+    return life_excess, mana_excess
+
+
 def calculate_recovery(source: BuildSource, *, condition_state: dict | None = None,
                        restoration_inputs: list | None = None, reservation: dict | None = None,
-                       defense: dict | None = None) -> RecoveryResult:
+                       defense: dict | None = None, uptime_mode=None) -> RecoveryResult:
+    from engine.uptime import is_real
+    ignore_recast = not is_real(uptime_mode)   # Full Uptime (max) ignores recast cadence; Effective (real) honors it
     cs = condition_state or {}
     d = defense or {}
     max_life = source.total("max_life")
@@ -107,9 +139,19 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     dur_factor = _restoration_duration_factor(source)
 
     life_total, life_ps, life_excess, life_src = _pool_recovery(
-        restoration_inputs, "life", max_life, r_factor, dur_factor, missing_life, life_pct >= 100.0)
+        restoration_inputs, "life", max_life, r_factor, dur_factor, missing_life, life_pct >= 100.0, ignore_recast)
     mana_total, mana_ps, mana_excess, mana_src = _pool_recovery(
-        restoration_inputs, "mana", max_mana, r_factor, dur_factor, missing_mana, mana_pct >= 100.0)
+        restoration_inputs, "mana", max_mana, r_factor, dur_factor, missing_mana, mana_pct >= 100.0, ignore_recast)
+
+    # Pixie Tear: a portion of EXCESS Life restoration is also applied to ES restoration ("unable to Charge or
+    # Regain Energy Shield" — a separate restoration line). Total = excess Life × pct; rate follows the Life
+    # restoration cadence scaled by the excess fraction.
+    es_conv = source.total("excess_restoration_to_es_pct")
+    es_restore_total = life_excess * es_conv if es_conv > 0 else 0.0
+    es_restore_ps = (life_ps * (life_excess / life_total) * es_conv) if (es_conv > 0 and life_total > 1e-9) else 0.0
+    if es_restore_total > 1e-9:
+        life_src.append({"pool": "energy_shield", "source": "Pixie Tear (excess Life → ES)",
+                         "total": es_restore_total, "duration": 0.0, "per_sec": es_restore_ps})
 
     # Regain (on-hit, missing-based): per-tick = min(missing × Σregain_inc, 30% of missing); per-sec / interval.
     life_regain_interval = _REGAIN_BASE_INTERVAL * (1.0 + source.total("regain_interval_additional")
@@ -120,6 +162,24 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     es_regain_tick = min(missing_es * source.total("energy_shield_regain_inc"), _REGAIN_CAP * missing_es)
     life_regain_ps = life_regain_tick / life_regain_interval if life_regain_interval > 0 else 0.0
     shield_regain_ps = es_regain_tick / es_regain_interval if es_regain_interval > 0 else 0.0
+
+    # Rebirth: "Converts N% of Life/ES Regain to Restoration Over Time". The converted fraction LEAVES the Regain
+    # line (it's no longer missing-pool recovery) and becomes a steady Restoration rate (already reflects the
+    # -N% additional Regain Interval applied above). Surfaced as its own restoration source.
+    conv_life = source.total("life_regain_to_restoration")
+    conv_es = source.total("es_regain_to_restoration")
+    if conv_life > 0 and life_regain_ps > 0:
+        moved = life_regain_ps * conv_life
+        life_regain_ps -= moved
+        life_ps += moved
+        life_src.append({"pool": "life", "source": "Rebirth (converted Regain)", "total": 0.0,
+                         "duration": 0.0, "per_sec": moved})
+    if conv_es > 0 and shield_regain_ps > 0:
+        moved = shield_regain_ps * conv_es
+        shield_regain_ps -= moved
+        es_restore_ps += moved
+        life_src.append({"pool": "energy_shield", "source": "Rebirth (converted Regain)", "total": 0.0,
+                         "duration": 0.0, "per_sec": moved})
 
     # Regen (over time): flat + %-of-max, × speed.
     life_regen_ps = (source.total("life_regen_flat") + source.total("life_regen_inc") * max_life) * (1.0 + source.total("life_regen_speed_inc"))
@@ -149,6 +209,7 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     return RecoveryResult(
         restoration_life_per_sec=life_ps, restoration_mana_per_sec=mana_ps,
         restoration_life_total=life_total, restoration_mana_total=mana_total,
+        restoration_es_per_sec=es_restore_ps, restoration_es_total=es_restore_total,
         excess_life_restoration=life_excess, excess_mana_restoration=mana_excess,
         restoration_sources=life_src + mana_src,
         life_regain_per_sec=life_regain_ps, shield_regain_per_sec=shield_regain_ps,

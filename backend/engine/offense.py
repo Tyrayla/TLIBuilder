@@ -915,6 +915,18 @@ def calculate_offense(
     if _on_crit_add:
         add_factors = add_factors + [(_on_crit_add * crit_chance, frozenset(), "dmg_additional_on_crit")]
 
+    # "For every 400 Max Energy Shield, +X% additional damage, up to +Y%" (Licorice Note's Pixie Tear ingredient):
+    # min(max_es/400 × per_unit, cap), folded as a generic additional factor. Not scaled by Elixir Effect (handled
+    # at emit). Read unconditionally for the consumable-universe run; nothing when absent.
+    _per_400_es = source.total("dmg_additional_per_400_es")
+    if _per_400_es:
+        _es_amt = source.total("max_energy_shield") / 400.0 * _per_400_es
+        _es_cap = source.total("dmg_additional_per_400_es_cap")
+        if _es_cap:
+            _es_amt = min(_es_amt, _es_cap)
+        if _es_amt:
+            add_factors = add_factors + [(_es_amt, frozenset(), "dmg_additional_per_400_es")]
+
     # Generic intrinsic additional multiplier — applies uniformly to EVERY damage type (not per-affix):
     #   • extra_additional: skill-intrinsic pool (e.g. Fervor / Moon Strike's mana bonus), evaluated by caller.
     #   • main_stat_factor: 1 + (Σ the skill's main-stat attribute totals) × 0.5% — the "Damage Bonus" the

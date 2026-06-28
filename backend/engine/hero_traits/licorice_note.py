@@ -19,8 +19,7 @@ Owner-confirmed modeling (2026-06-27):
   the trait → no bonus — a common pitfall).
 - Temporal effects carry an uptime multiplier (`_FULL_UPTIME = 1.0` now; the hook for future real-uptime modes).
 
-NYI (surfaced, not dropped): Elixir of Immortality (restoration), the restoration "cannot be removed" line, and all
-Ingredient effects (Phase 2).
+NYI (surfaced, not dropped): the restoration "cannot be removed" line, and Twinspine Flower (reaping, pending).
 """
 from __future__ import annotations
 
@@ -39,6 +38,13 @@ _NECTAR_CAP = [0.60, 0.70, 0.80, 0.90, 1.00]
 _PUNGENT_RATIO = [2.0, 2.3, 2.6, 2.9, 3.2]
 _PUNGENT_EMPOWER_CAP = [0.70, 1.00, 1.30, 1.60, 1.90]
 _PUNGENT_CURSE_CAP = [0.50, 0.70, 0.90, 1.10, 1.30]
+# Elixir of Immortality: excess Life/Mana Restoration → Temporary Life/Mana (every 3 excess → 2 temp, capped at
+# IMMORTALITY_TEMP_CAP % of Base Max Life/Mana); +damage per Temporary Life = 5% of Base Max Life OR Temporary
+# Mana = Base Max Mana, up to the cap.
+_IMMORTALITY_TEMP_CAP = [0.20, 0.25, 0.30, 0.40, 0.50]   # % of Base Max Life/Mana
+_IMMORTALITY_DMG_PER_UNIT = [0.01, 0.015, 0.02, 0.025, 0.03]
+_IMMORTALITY_DMG_CAP = [0.10, 0.15, 0.20, 0.25, 0.30]
+_IMMORTALITY_LIFE_UNIT = 0.05    # 1 unit = 5% of Base Max Life
 
 
 def _tier(slot_levels, idx):
@@ -115,6 +121,30 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
         add("elixir_duration_additional", _SCENT_OF_AMBITION_DURATION,
             "Scent of Ambition: -30% additional Elixir Skill Effect Duration", "Scent of Ambition")
 
+    # ── Elixir of Immortality (L60 pick): excess Restoration → Temporary Life/Mana (capped) → +additional damage.
+    # Excess restoration is stashed in-loop (compute.py). Temporary pools are a separate used-first barrier emitted
+    # as temporary_life/mana_flat (the recovery stage displays them); damage scales per Temp Life=5% Base Max Life
+    # (or Temp Mana = Base Max Mana). ──
+    if "Elixir of Immortality" in picks and _enabled(slot_levels, _SLOT_60):
+        t = _tier(slot_levels, _SLOT_60)
+        base_life = float(ls_state.get("base_max_life", 0.0))
+        base_mana = float(ls_state.get("base_max_mana", 0.0))
+        excess_life = float(ls_state.get("excess_life_restoration", 0.0))
+        excess_mana = float(ls_state.get("excess_mana_restoration", 0.0))
+        temp_life = min(excess_life * 2.0 / 3.0, _IMMORTALITY_TEMP_CAP[t] * base_life)
+        temp_mana = min(excess_mana * 2.0 / 3.0, _IMMORTALITY_TEMP_CAP[t] * base_mana)
+        if temp_life > 1e-9:
+            add("temporary_life_flat", temp_life, f"Elixir of Immortality: {temp_life:.0f} Temporary Life "
+                f"(excess Life Restoration, cap {_IMMORTALITY_TEMP_CAP[t] * 100:.0f}% Base Max Life)", "Elixir of Immortality")
+        if temp_mana > 1e-9:
+            add("temporary_mana_flat", temp_mana, f"Elixir of Immortality: {temp_mana:.0f} Temporary Mana", "Elixir of Immortality")
+        units = (temp_life / (_IMMORTALITY_LIFE_UNIT * base_life) if base_life > 0 else 0.0) \
+            + (temp_mana / base_mana if base_mana > 0 else 0.0)
+        dmg = min(units * _IMMORTALITY_DMG_PER_UNIT[t], _IMMORTALITY_DMG_CAP[t])
+        if dmg > 1e-9:
+            add("dmg_additional", dmg, f"Elixir of Immortality: +{dmg * 100:.0f}% additional damage "
+                f"({units:.0f} Temporary units, cap {_IMMORTALITY_DMG_CAP[t] * 100:.0f}%)", "Elixir of Immortality")
+
     # ── Everlasting Nectar (L75 pick): INCREASED Elixir Effect from increased Life/Mana (capped) ──
     if "Everlasting Nectar" in picks and _enabled(slot_levels, _SLOT_75):
         t = _tier(slot_levels, _SLOT_75)
@@ -151,6 +181,11 @@ def stash(*, source, ls_state, inflict_aps=None, **_):
     highest increased Life/Mana bonus (Everlasting Nectar). Both are INCREASED pools per the wording rule."""
     ls_state["sb_elixir_effect"] = source.materialize_for_skill(set(), slot=_BASIC_SCENT_SLOT).total("elixir_effect_inc")
     ls_state["life_mana_bonus"] = max(source.total("max_life_inc"), source.total("max_mana_inc"))
+    # Base Max pools for Elixir of Immortality (Temporary pool caps + damage units read these next pass) and Max ES
+    # for Pixie Tear.
+    ls_state["base_max_life"] = source.total("max_life")
+    ls_state["base_max_mana"] = source.total("max_mana")
+    ls_state["max_energy_shield"] = source.total("max_energy_shield")
 
 
 # Supports that "prepare"/trigger their host skill (so Pungent doesn't prepare it → no cross-apply): any Activation
@@ -224,8 +259,8 @@ def status_lines(*, slot_levels, advanced_picks, attached_supports=None, skills_
         row(f"Scent of Ambition: +{_SCENT_OF_AMBITION[t] * 100:.0f}% additional Elixir Skill Effect (after casting "
             f"elixirs) − 30% additional Elixir Skill Effect Duration.", "Scent of Ambition", "working")
     if "Elixir of Immortality" in picks and _enabled(slot_levels, _SLOT_60):
-        row("Elixir of Immortality: excess Restoration → Temporary Life/Mana → +damage — restoration subsystem NYI.",
-            "Elixir of Immortality", "nyi")
+        row("Elixir of Immortality: excess Restoration → Temporary Life/Mana (used-first barrier) → +additional "
+            "damage per Temporary unit (capped).", "Elixir of Immortality", "working")
 
     if "Everlasting Nectar" in picks and _enabled(slot_levels, _SLOT_75):
         row("Everlasting Nectar: a portion of your increased Max Life/Mana also applies to (increased) Elixir Skill "

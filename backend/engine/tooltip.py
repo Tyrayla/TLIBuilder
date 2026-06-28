@@ -29,6 +29,9 @@ _PASSIVE_TYPES = {"passive_skill"}
 # ── text cleaning ──────────────────────────────────────────────────────────────
 _SKILLSTONE = re.compile(r"#\s*skillstone[^#]*#", re.I)     # "#skillstone, 1894, affix#" data artifact
 _LV_ANNOT = re.compile(r"\(\s*Lv\.?\s*\d+\s*:[^)]*\)")       # "(Lv1:2)" per-level annotations
+# Elixir tonic lines the engine models (recovery stage): restoration amounts + charging-progress / charge cadence.
+_ELIXIR_MODELED_RE = re.compile(
+    r"restores?\s+\d|charging\s+progress|gains?\s+\d+\s*charge|restoration\s+effect|affected\s+by[^.]*elixir", re.I)
 _UNIVERSAL = "additional damage for the supported skill"     # rank line — resolved generically, keep its badge
 _INSTALL_RE = re.compile(r"can only be installed", re.I)     # install-restriction meta (not an effect)
 _GATE_RE = re.compile(r"^\s*Supports\b", re.I)              # "Supports X Skills." support-target line
@@ -323,8 +326,13 @@ def _lines_active(skill_data: dict) -> list[dict]:
 
     out.extend(_templated_lines(by_lvl, levels))   # support-style {template: value} keys (Blink, summons)
 
-    # Mechanic/special clauses — from the clean per-clause detailed_description (NOT the run-on Descript).
+    # Mechanic/special clauses — from the clean per-clause detailed_description (NOT the run-on Descript). Skip any
+    # clause that duplicates a line already emitted above (e.g. a templated/scaling "Restores N% Max Life" line) so
+    # the flat detail copy doesn't show alongside the level-scaled one.
+    _emitted = [(ln.get("badge_text") or next(iter((ln.get("values_by_level") or {}).values()), "")) for ln in out]
     for c in _active_clauses(skill_data, next(iter(dmg.values()), "")):
+        if any(b and _is_dup(c, b) for b in _emitted):
+            continue
         out.append(_line(_kind_for(c), c, text=c))
     return out
 
@@ -469,6 +477,17 @@ def build_tooltip(skill_data: dict) -> dict:
         for ln in lines:
             bt = ln.get("badge_text") or ""
             if bt and classify_intrinsic_line(bt, resolved) == "modeled":
+                ln["coverage"] = "modeled"
+                ln["badge_text"] = ""
+
+    # Elixir restoration tonics: the restoration + charging-progress lines ARE modeled (recovery stage parses the
+    # "Restores N% Max Life within N s" amount + level-scaling, and the charge threshold drives the recast cadence),
+    # so mark them green instead of leaving them to badge NYI.
+    tags = skill_data.get("skill_tags") or []
+    if "Elixir" in tags or "elixir" in tags:
+        for ln in lines:
+            base = ln.get("badge_text") or next(iter((ln.get("values_by_level") or {}).values()), "") or ln.get("text") or ""
+            if _ELIXIR_MODELED_RE.search(base):
                 ln["coverage"] = "modeled"
                 ln["badge_text"] = ""
 

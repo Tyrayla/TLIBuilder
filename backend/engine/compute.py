@@ -438,6 +438,16 @@ def compute(
         derive_stats(source, _set_value_overrides)
         source._recording = False
 
+        # Restoration excess → Temporary Life/Mana (Elixir of Immortality). Computed in-loop from the elixir tonic
+        # restoration + converged Max Life/Mana + assumed Current %, stashed so the next pass's hero-trait apply()
+        # converts it to Temporary pools (a separate used-first barrier) + damage.
+        if _trait_active:
+            from engine.recovery import restoration_excess
+            _ri = [r for _es in (elixir_summaries or []) for r in (_es.get("restoration") or [])]
+            _xl, _xm = restoration_excess(source, _ri, condition_state)
+            _ls_state["excess_life_restoration"] = _xl
+            _ls_state["excess_mana_restoration"] = _xm
+
         # Loop-bottom: capture the converged scalars the trait module's next pass needs (MS total,
         # ailment duration, and the inflicting skill's APS — computed only in real mode so max-mode pays nothing).
         if _trait_active:
@@ -658,7 +668,7 @@ def compute(
         _restoration_inputs.extend(_es.get("restoration") or [])
     result_recovery = asdict(calculate_recovery(
         source, condition_state=condition_state, restoration_inputs=_restoration_inputs,
-        reservation=reservation, defense=result_defense))
+        reservation=reservation, defense=result_defense, uptime_mode=build_input.uptime_mode))
 
     # Per-slot support_behavior ({slot: {...}}) — the headline reads its own slot's behavior. Tolerate a
     # legacy flat dict (no per-slot keys) by treating it as slot 1's behavior.

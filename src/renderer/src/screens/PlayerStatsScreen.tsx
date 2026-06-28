@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait } from '../api/client'
+import type { OffenseResult, DefenseResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from './HeroTraitScreen'
@@ -485,9 +485,12 @@ const ENEMY_TYPES: { label: string; weight: number }[] = [
   { label: 'Normal', weight: 1 },
 ]
 
+// Calc mode ↔ engine uptime_mode: Full Uptime = 'max' (assume-max / 100% uptime), Effective = 'real' (compute the
+// steady state from the build's actual rates: ailment ramp, restoration charge-weighted recast, …). Mapping/Boss
+// are future scenario presets (not yet wired).
 const CALC_MODES: { key: string; label: string; enabled: boolean }[] = [
   { key: 'full_uptime', label: 'Full Uptime', enabled: true },
-  { key: 'effective', label: 'Effective', enabled: false },
+  { key: 'effective', label: 'Effective', enabled: true },
   { key: 'mapping', label: 'Mapping', enabled: false },
   { key: 'boss', label: 'Boss', enabled: false },
 ]
@@ -1290,9 +1293,48 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
               }}>{dec(elixir.max_charges!)}</Row>
             )
           })()}
+          {/* Restoration recast cadence (Effective uptime): how long to refill before it can be recast. Charge time
+              = charging progress threshold ÷ charge/sec; ∞ when there's no charge generation. */}
+          {(elixir.restoration?.length ?? 0) > 0 && (elixir.charge_threshold ?? 0) > 0 && (() => {
+            const cps = elixir.charge_per_second ?? 0
+            const chargeTime = elixir.charge_regen ?? null
+            const sustainable = cps > 0 && chargeTime != null && chargeTime < 1e8
+            const recast = elixir.recast ?? null
+            return (
+              <Row label="Recast (charge time)" labelColor={sustainable ? undefined : '#e0a050'} breakdown={{
+                title: 'Recast Cadence', keys: [], total: recast ?? undefined, totalUnit: '',
+                formula: 'max(Cooldown, charge time). Charge time = Charge Threshold ÷ Charge/sec. Effective uptime divides Restoration by this.',
+                extra: [
+                  { value: `${dec(elixir.charge_threshold!)}`, stat: 'Charge Threshold', source: 'Skill', sourceName: 'progress per charge' },
+                  { value: cps > 0 ? `÷ ${dec(cps)}/s` : 'no charge gen', stat: 'Charge / sec', source: 'Charging', sourceName: cps > 0 ? `= ${dec(chargeTime!)}s` : 'unsustainable' },
+                  { value: `${dec(elixir.cooldown ?? 0)}s`, stat: 'Cooldown', source: 'Skill', sourceName: 'floor' },
+                ],
+              }}>{sustainable ? `${dec(recast ?? chargeTime!)}s` : '∞ (no charge gen)'}</Row>
+            )
+          })()}
           {elixir.has_blur && <Row label="Blur" labelColor="#7aa0c0">Active</Row>}
           <div style={{ fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Grants (full uptime)</div>
-          {elixir.granted.length === 0 && <div style={{ fontSize: 11, color: '#555' }}>No modeled buff lines.</div>}
+          {elixir.granted.length === 0 && (elixir.restoration?.length ?? 0) === 0 && <div style={{ fontSize: 11, color: '#555' }}>No modeled buff lines.</div>}
+          {(elixir.restoration ?? []).map((rst, i) => {
+            // Restoration tonics grant heal-over-time (modeled in the recovery stage → shown on the Life/Mana
+            // panels). base_amount already × Elixir Effect; pct = fraction of Max pool, flat = absolute. Show the
+            // PER-SECOND rate over the window by default (people read per-second); the full per-cast value is in
+            // the breakdown.
+            const poolLabel = rst.pool === 'mana' ? 'Mana' : rst.pool === 'life' ? 'Life' : rst.pool
+            const win = rst.window || 1
+            const perSec = rst.mode === 'pct' ? `${dec(rst.base_amount * 100 / win)}% Max/s` : `${fmtNum(rst.base_amount / win)}/s`
+            const full = rst.mode === 'pct' ? `${dec(rst.base_amount * 100)}% Max` : fmtNum(rst.base_amount)
+            return (
+              <Row key={`rst${i}`} label={`Restores ${poolLabel}`} labelColor="#5fae79" breakdown={{
+                title: `Restores ${poolLabel}`, keys: [], total: rst.base_amount, totalUnit: rst.mode === 'pct' ? '%' : '',
+                formula: `${full} over ${dec(win)}s (× Elixir Effect) = ${perSec} during the heal. Sustained recovery (recast-limited in Effective) on the ${poolLabel} panel.`,
+                extra: [
+                  { value: full, stat: 'Per cast', source: 'Restoration', sourceName: `over ${dec(win)}s` },
+                  { value: `${dec(win)}s`, stat: 'Window', source: 'Restoration', sourceName: rst.source },
+                ],
+              }}>{perSec}</Row>
+            )
+          })}
           {elixir.granted.map((g, i) => {
             // Final = Base × (1 + Elixir Effect) for scaled buffs; flag stats (Lucky, ES-uninterruptible, ES
             // bypass) carry no_scale and show their base value unchanged. Every grant gets a source breakdown:
@@ -2094,10 +2136,24 @@ const maxResSection = (typeLabel: string, maxKey: string, maxVal: number): Break
   extra: [{ value: '60%', stat: `Max ${typeLabel} Resistance`, source: 'Baseline', sourceName: 'Default' }],
 })
 
-function DefensePanels({ defense, reservation }: { defense: DefenseResult | null; reservation: ReservationResult | null }) {
+function DefensePanels({ defense, reservation, recovery }: { defense: DefenseResult | null; reservation: ReservationResult | null; recovery: RecoveryResult | null }) {
   if (!defense) {
     return <StatPanel title="Life" accent="#c03030"><div style={{ fontSize: 12, color: '#555' }}>No data.</div></StatPanel>
   }
+  // Sustain rows are folded into the Life / Mana / Energy Shield panels (no separate Sustain area). Each restoration
+  // row's breakdown lists its per-source contributions (per-second = total ÷ max(duration, recast)).
+  const rate = (n: number) => `${fmtNum(n)}/s`
+  const restoreSources = (pool: string) => (recovery?.restoration_sources ?? [])
+    .filter(s => s.pool === pool)
+    .map(s => {
+      const div = s.divisor ?? s.duration
+      // Show exactly what per-sec divides by: the window (≤ recast, or Full Uptime) vs the recast/charge cadence.
+      const how = s.total <= 0 ? 'converted rate'
+        : (s.recast && div >= s.recast && s.recast > s.duration)
+          ? `${fmtNum(s.total)} ÷ ${dec(s.recast)}s recast`
+          : `${fmtNum(s.total)} ÷ ${dec(div)}s window`
+      return { value: rate(s.per_sec), stat: s.source, source: 'Restoration', sourceName: how }
+    })
   // Per-pool seal breakdowns (Σ of each sealing skill's whole-number reservation), reused by the Sealed and
   // Unsealed rows so both surface the same Max − Σ-reservations math on hover/click.
   const sealRows = (pool: 'life' | 'mana') => (reservation?.per_skill ?? [])
@@ -2137,6 +2193,51 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
             {defense.insufficient_life && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Life — sealed exceeds Max Life by {fmtNum((defense.sealed_life ?? 0) - defense.max_life)} ({dec((((defense.sealed_life ?? 0) / defense.max_life - 1) * 100))}%)</div>}
           </>
         )}
+        {recovery && recovery.temporary_life > 0 && (
+          <Row label="Temporary Life" labelColor="#d08a5a" breakdown={{
+            title: 'Temporary Life', keys: [], total: recovery.temporary_life, totalUnit: '',
+            formula: 'Separate used-first barrier (spent before Base Life; not part of Max Life). Adds to Effective HP.',
+            extra: [{ value: fmtNum(recovery.total_max_life - recovery.temporary_life), stat: 'Base Max Life', source: 'Base', sourceName: 'Total pool' },
+              { value: `+${fmtNum(recovery.temporary_life)}`, stat: 'Temporary Life', source: 'Recovery', sourceName: 'used-first barrier' }],
+          }}>{fmtNum(recovery.total_max_life - recovery.temporary_life)} + {fmtNum(recovery.temporary_life)}</Row>
+        )}
+        {recovery && recovery.restoration_life_per_sec > 0 && (
+          <Row label="Life Restoration" labelColor="#5fae79" breakdown={{
+            title: 'Life Restoration', keys: [], total: recovery.restoration_life_per_sec, totalUnit: '',
+            formula: 'Σ per-source heal rate (total/cast × Restoration Effect ÷ max(duration, recast)). Full Uptime ignores recast.',
+            extra: restoreSources('life'),
+          }}>{rate(recovery.restoration_life_per_sec)}</Row>
+        )}
+        {recovery && recovery.excess_life_restoration > 0 && (
+          <SubRow label="Excess (→ Temp / ES)" breakdown={{
+            title: 'Excess Life Restoration', keys: [], total: recovery.excess_life_restoration, totalUnit: '',
+            formula: 'Restoration beyond the assumed deficit (Current Life %, set on Config) — overflows to Temporary Life / ES.',
+          }}>{fmtNum(recovery.excess_life_restoration)}</SubRow>
+        )}
+        {recovery && recovery.life_regain_per_sec > 0 && (
+          <Row label="Life Regain" labelColor="#5fae79" breakdown={{
+            title: 'Life Regain', keys: ['life_regain_inc', 'life_regain_interval_additional', 'regain_interval_additional'],
+            total: recovery.life_regain_per_sec, totalUnit: '', formula: 'min(missing × Regain, 30% missing) ÷ interval (0.5s base)',
+          }}>{rate(recovery.life_regain_per_sec)}</Row>
+        )}
+        {recovery && recovery.life_regen_per_sec > 0 && (
+          <Row label="Life Regen" labelColor="#5fae79" breakdown={{
+            title: 'Life Regen', keys: ['life_regen_flat', 'life_regen_inc', 'life_regen_speed_inc'],
+            total: recovery.life_regen_per_sec, totalUnit: '', formula: '(Flat + % of Max Life) × (1 + Regen Speed)',
+          }}>{rate(recovery.life_regen_per_sec)}</Row>
+        )}
+        {recovery && recovery.net_life_per_sec > 0 && (
+          <Row label="Net Life Sustain" labelColor={recovery.net_life_per_sec >= 0 ? '#6ddb6d' : '#e05050'} breakdown={{
+            title: 'Net Life Sustain', keys: [], total: recovery.net_life_per_sec, totalUnit: '',
+            formula: 'Restoration + Regain + Regen (excludes skill Life cost — no skill-cost model yet)',
+          }}>{rate(recovery.net_life_per_sec)}</Row>
+        )}
+        {recovery && recovery.ehp_life > 0 && (
+          <Row label="Effective HP" breakdown={{
+            title: 'Effective HP (Life)', keys: [], total: recovery.ehp_life, totalUnit: '',
+            formula: '(Base Max Life + Temporary Life) ÷ (1 − average armour mitigation vs the target)',
+          }}>{fmtNum(recovery.ehp_life)}</Row>
+        )}
       </StatPanel>
 
       <StatPanel title="Mana" accent="#3060c0">
@@ -2151,6 +2252,25 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
             {defense.insufficient_mana && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Mana — reserved exceeds Max Mana by {fmtNum((defense.sealed_mana ?? 0) - defense.max_mana)} ({dec((((defense.sealed_mana ?? 0) / defense.max_mana - 1) * 100))}%)</div>}
           </>
         )}
+        {recovery && recovery.temporary_mana > 0 && (
+          <Row label="Temporary Mana" labelColor="#7090d0" breakdown={{
+            title: 'Temporary Mana', keys: [], total: recovery.temporary_mana, totalUnit: '',
+            formula: 'Separate used-first barrier (spent before Base Mana; not part of Max Mana).',
+          }}>{fmtNum(recovery.temporary_mana)}</Row>
+        )}
+        {recovery && recovery.restoration_mana_per_sec > 0 && (
+          <Row label="Mana Restoration" labelColor="#5fae79" breakdown={{
+            title: 'Mana Restoration', keys: [], total: recovery.restoration_mana_per_sec, totalUnit: '',
+            formula: 'Σ per-source heal rate (total/cast × Restoration Effect ÷ max(duration, recast)). Full Uptime ignores recast.',
+            extra: restoreSources('mana'),
+          }}>{rate(recovery.restoration_mana_per_sec)}</Row>
+        )}
+        {recovery && recovery.mana_regen_per_sec > 0 && (
+          <Row label="Mana Regen" labelColor="#5fae79" breakdown={{
+            title: 'Mana Regen', keys: ['mana_regen_flat', 'mana_regen_pct', 'mana_regen_inc'],
+            total: recovery.mana_regen_per_sec, totalUnit: '', formula: 'Flat + % of Max Mana',
+          }}>{rate(recovery.mana_regen_per_sec)}</Row>
+        )}
       </StatPanel>
 
       <StatPanel title="Energy Shield" accent="#5aa0d0">
@@ -2159,6 +2279,19 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
         {defense.es_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Energy Shield — Flat Added', keys: ['max_energy_shield_flat', 'energy_shield_gear_flat'] }}>{fmtNum(defense.es_flat)}</SubRow>}
         {defense.es_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Energy Shield — Increased', keys: ['max_energy_shield_inc', 'energy_shield_gear_inc'] }}>{fmtPct(defense.es_inc)}</SubRow>}
         {defense.es_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Energy Shield — Additional', keys: ['max_energy_shield_additional'] }}>{fmtMult(defense.es_additional)}</SubRow>}
+        {recovery && recovery.restoration_es_per_sec > 0 && (
+          <Row label="ES Restoration" labelColor="#5fae79" breakdown={{
+            title: 'Energy Shield Restoration', keys: [], total: recovery.restoration_es_per_sec, totalUnit: '',
+            formula: 'Excess Life restoration applied to ES (Pixie Tear) — cannot Charge or Regain ES.',
+            extra: restoreSources('energy_shield'),
+          }}>{rate(recovery.restoration_es_per_sec)}</Row>
+        )}
+        {recovery && recovery.shield_regain_per_sec > 0 && (
+          <Row label="Shield Regain" labelColor="#5fae79" breakdown={{
+            title: 'Shield Regain', keys: ['energy_shield_regain_inc', 'energy_shield_regain_interval_additional', 'regain_interval_additional'],
+            total: recovery.shield_regain_per_sec, totalUnit: '', formula: 'min(missing × Regain, 30% missing) ÷ interval (0.5s base)',
+          }}>{rate(recovery.shield_regain_per_sec)}</Row>
+        )}
       </StatPanel>
 
       <StatPanel title="Resistances" accent="#7030b0">
@@ -2285,7 +2418,12 @@ export default function PlayerStatsScreen() {
   // the first populated slot via the effect below).
   const selectedSlot = useUiPrefs(s => s.statsSelectedSlot)
   const setSelectedSlot = useUiPrefs(s => s.setStatsSelectedSlot)
-  const [calcMode, setCalcMode] = useState('full_uptime')   // stub; only full_uptime is wired (Phase 2)
+  // Calc mode is the global engine uptime_mode (store-backed, persists across builds): Full Uptime = 'max',
+  // Effective = 'real'. Changing it bumps buildVersion → recompute.
+  const uptimeMode = useBuildStore(s => s.uptimeMode)
+  const setUptimeMode = useBuildStore(s => s.setUptimeMode)
+  const calcMode = uptimeMode === 'real' ? 'effective' : 'full_uptime'
+  const setCalcMode = (mode: string) => setUptimeMode(mode === 'effective' ? 'real' : 'max')
   const [selectedForm, setSelectedForm] = useState<string | null>(null)   // null = all forms combined
   // Reset the form filter whenever the selected skill changes (forms differ per skill).
   useEffect(() => { setSelectedForm(null) }, [selectedSlot])
@@ -2372,6 +2510,7 @@ export default function PlayerStatsScreen() {
 
   const offense = (computedStats.offense ?? null) as OffenseResult | null
   const defense = (computedStats.defense ?? null) as DefenseResult | null
+  const recovery = ((computedStats as { recovery?: RecoveryResult | null }).recovery) ?? null
   const statMap = (computedStats.stats ?? {}) as Record<string, StatEntry>
   const slotOffense = ((computedStats as { slot_offense?: Record<string, OffenseResult> | null }).slot_offense) ?? null
 
@@ -2437,7 +2576,7 @@ export default function PlayerStatsScreen() {
 
         {/* Right — defensive pools (trimmed to give the offense table room) */}
         <div style={{ flex: '23', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
-          <DefensePanels defense={defense} reservation={reservation} />
+          <DefensePanels defense={defense} reservation={reservation} recovery={recovery} />
         </div>
       </div>
     </BreakdownCtx.Provider>

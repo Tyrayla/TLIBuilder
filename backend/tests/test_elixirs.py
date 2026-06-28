@@ -70,20 +70,31 @@ def test_summary_present_with_timing():
 
 
 def test_restoration_tonic_resolved_to_recovery():
-    # Life Tonic restores 41% Max Life within 2s — now modeled (recovery stage), not NYI. Total is independent of
-    # charge gen; per-second needs fast charge gen so the recast is cooldown/duration-limited (= total / 2s window).
-    fast_charge = _gear([("elixir_charging_progress_flat", 40)])
-    r = _resp(elixirs=["life_tonic"], gear=fast_charge)
+    # Life Tonic restores 60% Max Life within 2s at Lv20 (41% base, level-interpolated via the (Lv1:41)(Lv21:61)
+    # anchors) — modeled in the recovery stage, not NYI. In Full Uptime (default) per-second = total / 2s window,
+    # independent of charge gen.
+    r = _resp(elixirs=["life_tonic"])
     rec = r.get("recovery") or {}
     ml = r["defense"]["max_life"]
-    assert rec.get("restoration_life_total") == pytest.approx(0.41 * ml, rel=0.02)
+    assert rec.get("restoration_life_total") == pytest.approx(0.60 * ml, rel=0.02)
     assert rec.get("restoration_life_per_sec") == pytest.approx(rec["restoration_life_total"] / 2.0, rel=0.05)
 
 
 def test_restoration_unsustainable_without_charge_gen():
-    # No charge generation → the tonic can't be recast → ~0 sustained recovery (charge-limited model).
+    # In EFFECTIVE (real) uptime, no charge generation → the tonic can't be recast → ~0 sustained recovery.
+    req = make_request("chromatic_shot", 20)
+    req["uptime_mode"] = "real"
+    req["skills"].append({"slot": 2, "skill_id": "life_tonic", "level": 20})
+    rr = engine_stats(EngineStatsRequest(**req))
+    rr = rr if isinstance(rr, dict) else rr.model_dump()
+    assert (rr.get("recovery") or {}).get("restoration_life_per_sec") == pytest.approx(0.0, abs=1.0)
+
+
+def test_restoration_full_uptime_ignores_charge():
+    # Full Uptime (default) → 100% uptime regardless of charge gen: per-second = total / 2s window.
     r = _resp(elixirs=["life_tonic"])
-    assert (r.get("recovery") or {}).get("restoration_life_per_sec") == pytest.approx(0.0, abs=1.0)
+    rec = r.get("recovery") or {}
+    assert rec.get("restoration_life_per_sec") == pytest.approx(rec["restoration_life_total"] / 2.0, rel=0.05)
 
 
 # ── Elixir Effect scaling ────────────────────────────────────────────────────

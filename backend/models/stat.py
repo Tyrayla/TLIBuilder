@@ -546,6 +546,11 @@ class Stat(Enum):
     # FINALIZED crit chance (effective = X × crit_chance), folded into the additional product in offense. Used by
     # the Critical Strike Damage Increase support + Licorice Note's Razor Leaf ingredient.
     DMG_ADDITIONAL_ON_CRIT = "dmg_additional_on_crit"
+    # "For every 400 Max Energy Shield, +X% additional damage, up to +Y%" (Licorice Note's Pixie Tear ingredient).
+    # Per-unit (per 400 ES) and cap are separate stats; offense folds min(max_es/400 × per_unit, cap) into the
+    # additional product. Not scaled by Elixir Effect.
+    DMG_ADDITIONAL_PER_400_ES = "dmg_additional_per_400_es"
+    DMG_ADDITIONAL_PER_400_ES_CAP = "dmg_additional_per_400_es_cap"
     ATTACK_CRIT_DMG_INC = "attack_crit_dmg_inc"
     SPELL_CRIT_DMG_INC = "spell_crit_dmg_inc"
     MINION_CRIT_DMG_INC = "minion_crit_dmg_inc"
