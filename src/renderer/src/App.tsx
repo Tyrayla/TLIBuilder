@@ -145,7 +145,7 @@ function App() {
       useBuildStore.getState().flushActiveLoadout()
       const s = useBuildStore.getState()
       if (s.buildId) {
-        const build = { id: s.buildId, name: s.buildName, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
+        const build = { id: s.buildId, name: s.buildName, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, licoricePreparedSkill: s.licoricePreparedSkill, elixirIngredients: s.elixirIngredients, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
         api.postBuild(build)
           .then(saved => {
             useBuildStore.getState().setBuildId(saved.id ?? null)
@@ -247,7 +247,7 @@ function App() {
       buildId: null, buildName: '', activeSlot: 0,
       slots: [null, null, null, null] as (TreeSlot | null)[], slates: [], slateInventory: [], prisms: [], prismInventory: [], conditionState: {},
       gear: [], skills: [], characterLevel: 100,
-      traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitSkillSupports: [],
+      traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitSkillSupports: [], licoricePreparedSkill: null, elixirIngredients: {},
       heroMemories: [null, null, null] as [null, null, null], pactSpirits: [null, null, null] as [null, null, null], fates: {}, undetermined: [null, null, null],
       notes: '', customMods: [], targetConfig: DEFAULT_TARGET_CONFIG,
     }
@@ -387,6 +387,8 @@ function App() {
       traitSlotLevels: build.traitSlotLevels ?? [build.traitLevel ?? 1, 1, 1, 1],
       advancedTraitSelections: build.advancedTraitSelections ?? [],
       traitSkillSupports: build.traitSkillSupports ?? [],
+      licoricePreparedSkill: build.licoricePreparedSkill ?? null,
+      elixirIngredients: build.elixirIngredients ?? {},
       heroMemories: [
         sanitizeHeroMemory((build.heroMemories ?? [])[0]),
         sanitizeHeroMemory((build.heroMemories ?? [])[1]),
@@ -522,7 +524,7 @@ function App() {
   const saveBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
-    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
+    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, licoricePreparedSkill: s.licoricePreparedSkill, elixirIngredients: s.elixirIngredients, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
@@ -533,7 +535,7 @@ function App() {
   const saveAsBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
-    const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
+    const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, licoricePreparedSkill: s.licoricePreparedSkill, elixirIngredients: s.elixirIngredients, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
@@ -590,6 +592,8 @@ function App() {
       traitSlotLevels: s.traitSlotLevels,
       advancedTraitSelections: s.advancedTraitSelections,
       traitSkillSupports: s.traitSkillSupports,
+      licoricePreparedSkill: s.licoricePreparedSkill,
+      elixirIngredients: s.elixirIngredients,
       heroMemories: s.heroMemories,
       pactSpirits: s.pactSpirits,
       fates: s.fates,

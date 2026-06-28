@@ -638,6 +638,14 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   const setHeroMemories = useBuildStore(s => s.setHeroMemories)
   const traitSkillSupports = useBuildStore(s => s.traitSkillSupports)
   const setTraitSkillSupports = useBuildStore(s => s.setTraitSkillSupports)
+  // Licorice Note (Sage) — the Empower/Curse the trait "prepares" (Pungent cross-apply target).
+  const skills = useBuildStore(s => s.skills)
+  const licoricePreparedSkill = useBuildStore(s => s.licoricePreparedSkill)
+  const setLicoricePreparedSkill = useBuildStore(s => s.setLicoricePreparedSkill)
+  const elixirIngredients = useBuildStore(s => s.elixirIngredients)
+  const setElixirIngredients = useBuildStore(s => s.setElixirIngredients)
+  const traitWarnings = (useBuildStore(s => (s.computedStats as { warnings?: { kind: string; text: string }[] | null }).warnings) ?? [])
+    .filter(w => w.kind === 'trait')
   const allSkills = useReferenceStore(s => s.skills) ?? []
   const allTraits = useReferenceStore(s => s.heroTraits) ?? []
   const memoryData = useReferenceStore(s => s.heroMemories)
@@ -1013,6 +1021,99 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
               </div>
             </div>
           )}
+
+          {/* Licorice Note — Pungent prepares ONE Empower/Curse; user designates it when >1 eligible. */}
+          {traitId === 'licorice_note' && (traitSlotLevels[1] ?? 0) >= 1 && (() => {
+            const eligible = (skills || []).filter(sk => sk.slot >= 1 && sk.slot <= 5 && (sk.enabled ?? true)
+              && sk.skill_tags?.some(t => t === 'Empower' || t === 'Curse'))
+            return (
+              <div className="trait-moon-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+                <div className="trait-moon-label">⚗ Pungent — Prepared Empower / Curse</div>
+                {eligible.length === 0 ? (
+                  <span className="trait-moon-effect" style={{ color: '#888' }}>
+                    No Empower or Curse equipped — Pungent has nothing to prepare.
+                  </span>
+                ) : eligible.length === 1 ? (
+                  <span className="trait-moon-effect" style={{ color: '#9ad' }}>
+                    Auto: <b>{eligible[0].name}</b> (only eligible skill) receives the cross-applied Elixir Effect.
+                  </span>
+                ) : (
+                  <>
+                    <select
+                      value={eligible.some(e => e.item_id === licoricePreparedSkill) ? (licoricePreparedSkill ?? '') : ''}
+                      onChange={e => setLicoricePreparedSkill(e.target.value || null)}
+                      style={{ background: '#1a1a2e', color: '#ddd', border: '1px solid #444', borderRadius: 4, padding: '3px 6px', fontSize: 12 }}
+                    >
+                      <option value="">— Select prepared skill —</option>
+                      {eligible.map(e => (
+                        <option key={e.item_id} value={e.item_id}>
+                          {e.name} ({e.skill_tags.includes('Empower') ? 'Empower' : 'Curse'}, slot {e.slot})
+                        </option>
+                      ))}
+                    </select>
+                    {!eligible.some(e => e.item_id === licoricePreparedSkill) && (
+                      <span className="trait-moon-effect" style={{ color: '#d09a4a' }}>
+                        Select which skill the trait prepares — no cross-apply bonus applies until one is chosen.
+                      </span>
+                    )}
+                  </>
+                )}
+                {traitWarnings.map((w, i) => (
+                  <span key={i} className="trait-moon-effect" style={{ color: '#d09a4a' }}>⚠ {w.text}</span>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* Licorice Note — Ingredients: category-locked picker per Scent Bottle (Basic = slot 2, Special = slot 3). */}
+          {traitId === 'licorice_note' && (() => {
+            const catalog = selectedTrait.ingredients ?? []
+            const itemsFor = (group: string, cat: string) =>
+              catalog.find(g => g.trait_name === group)?.categories.find(c => c.category === cat)?.items ?? []
+            const pungent = (traitSlotLevels[1] ?? 0) >= 1
+            const special = advancedTraitSelections.includes('Licorice Tincture Blend') && (traitSlotLevels[3] ?? 0) >= 1
+            // Each Scent Bottle slot → the category slots it offers (category label → available items).
+            const bottles: { slot: number; label: string; cats: { cat: string; items: { name: string; effect: string }[] }[] }[] = [
+              { slot: 2, label: 'Basic Scent Bottle (slot 2)', cats: [
+                { cat: 'Damage Ingredient', items: itemsFor('Licorice Note', 'Damage Ingredient') },
+                { cat: 'Defense Ingredient', items: itemsFor('Licorice Note', 'Defense Ingredient') },
+                ...(pungent ? [{ cat: 'Functional Ingredient', items: itemsFor('Pungent Stimulant Salt', 'Functional Ingredient') }] : []),
+              ] },
+              ...(special ? [{ slot: 3, label: 'Special Scent Bottle (slot 3)', cats: [
+                { cat: 'Special Ingredient', items: itemsFor('Licorice Tincture Blend', 'Special Ingredient') },
+                ...(pungent ? [{ cat: 'Functional Ingredient', items: itemsFor('Pungent Stimulant Salt', 'Functional Ingredient') }] : []),
+              ] }] : []),
+            ]
+            const pick = (slot: number, cat: string, name: string) => {
+              const next = { ...elixirIngredients, [slot]: { ...(elixirIngredients[slot] ?? {}) } }
+              if (name) next[slot][cat] = name
+              else delete next[slot][cat]
+              setElixirIngredients(next)
+            }
+            if (!catalog.length) return null
+            return (
+              <div className="trait-moon-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+                <div className="trait-moon-label">🧪 Scent Bottle Ingredients</div>
+                {bottles.map(b => (
+                  <div key={b.slot} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: '#9ad', minWidth: 150 }}>{b.label}</span>
+                    {b.cats.map(c => (
+                      <select key={c.cat} value={elixirIngredients[b.slot]?.[c.cat] ?? ''}
+                        onChange={e => pick(b.slot, c.cat, e.target.value)}
+                        title={c.cat}
+                        style={{ background: '#1a1a2e', color: '#ddd', border: '1px solid #444', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}>
+                        <option value="">— {c.cat.replace(' Ingredient', '')} —</option>
+                        {c.items.map(it => <option key={it.name} value={it.name}>{it.name}</option>)}
+                      </select>
+                    ))}
+                  </div>
+                ))}
+                <span className="trait-moon-effect" style={{ color: '#777', fontSize: 10 }}>
+                  Ingredients add their base effect to that Scent Bottle's elixir (scaled by Elixir Effect). Defensive / restoration / charge effects are surfaced but not yet modeled.
+                </span>
+              </div>
+            )
+          })()}
         </div>
       ) : (
         <div className="hero-trait-body">

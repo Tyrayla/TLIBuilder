@@ -48,6 +48,20 @@ _BLUR_SUFFIX_RE = re.compile(r"\s+while\s+blur\s+is\s+active\b.*$", re.I)
 # Strip any (LvN:…) per-level annotation defensively.
 _LV_ANNOT_RE = re.compile(r"\s*\(lv\d+:[^)]*\)", re.I)
 
+# Ingredient lines carry trailing condition/spatial/duration/minion clauses the stat parser can't take. Under the
+# full-uptime model we assume the condition is satisfied and parse the core stat (e.g. Razor Leaf's "+X% additional
+# damage when you land a Critical Strike" → +X% additional damage). Unmapped remainders still surface NYI.
+_INGREDIENT_CUT_RE = re.compile(
+    r"\s+(?:when|while|within|for every|every|upon|after)\b.*$"
+    r"|\.\s*(?:stacks up to|lasts for|interval).*$"
+    r"|\s*\(not affected by.*$", re.I)
+_INGREDIENT_DROP_RE = re.compile(r"\s+for you and your minions?\b", re.I)
+
+
+def _ingredient_stat_text(line: str) -> str:
+    """Reduce an ingredient effect line to its core stat clause for parsing (full-uptime: conditions assumed met)."""
+    return _INGREDIENT_DROP_RE.sub("", _INGREDIENT_CUT_RE.sub("", line)).strip(" .")
+
 # Elixir support gems (item_id) → how they affect timing. Charge/sec and max-charge are display-only today.
 _SUPPORT_GEMS = {
     "hyper_metabolism": "charge_per_second",   # "+0.5 Charging Progress every second"
@@ -79,11 +93,15 @@ def _prep(lines, has_blur: bool):
     return keep, nyi
 
 
-def resolve_elixirs(skills_input, skills_by_id, parse_mod, translate_cond=None, attached_supports=None):
+def resolve_elixirs(skills_input, skills_by_id, parse_mod, translate_cond=None, attached_supports=None,
+                    ingredient_lines_by_slot=None):
     """skills_input: [{slot, skill_id, level, enabled}]; attached_supports: [{item_id, slot, level, enabled}].
-    Returns (buffs, statuses, stack_conditions, meta) — same shape as resolve_empowers. Buffs are UNSCALED;
-    apply_elixir_buffs scales them by Elixir Effect in the engine."""
+    ingredient_lines_by_slot: {slot: [effect_text]} — Licorice Note Ingredient "additional base effect" lines
+    (already tier-expanded + prefix-stripped server-side), folded into that scent-bottle elixir's buffs like its
+    own lines. Returns (buffs, statuses, stack_conditions, meta) — same shape as resolve_empowers. Buffs are
+    UNSCALED; apply_elixir_buffs scales them by Elixir Effect in the engine."""
     buffs, statuses, stack_conditions, meta = [], [], [], {}
+    ingredient_lines_by_slot = ingredient_lines_by_slot or {}
 
     # Map enabled elixir support gems by host slot → {kind: total_value}.
     supports_by_slot: dict = {}
@@ -158,6 +176,31 @@ def resolve_elixirs(skills_input, skills_by_id, parse_mod, translate_cond=None, 
                 cond = "blur_active" if has_blur else None
                 _emit(sid, name, e["stat_key"], float(e["amount"]), e.get("scope"), cond,
                       e["stat_key"] in _NO_SCALE_KEYS, line)
+
+        # ── Licorice Note Ingredients: fold this scent-bottle elixir's equipped ingredient effects in as buffs ──
+        # (already tier-expanded + prefix-stripped server-side). "(not affected by … Elixir Skills)" → no_scale.
+        for line in ingredient_lines_by_slot.get(slot, []) or []:
+            no_scale = bool(re.search(r"not\s+affected\s+by[^.]*elixir", line, re.I))
+            # "when you land a Critical Strike" → crit-weighted additional damage (offense weights by crit chance).
+            is_crit = bool(re.search(r"critical\s+strike", line, re.I))
+            # "Stacks up to N times" → assume max stacks under full uptime (Scattered Spore = ×2).
+            sm = re.search(r"stacks?\s+up\s+to\s+(\d+)", line, re.I)
+            stacks = int(sm.group(1)) if sm else 1
+            res = parse_mod(_ingredient_stat_text(line)) or []
+            if not res:
+                if re.search(r"\d", line) and len(line) > 3:
+                    nyi.append(f"{line} (Ingredient)")
+                continue
+            for e in res:
+                stat_key = e["stat_key"]
+                if is_crit and stat_key == "dmg_additional":   # route to the crit-weighted pool
+                    stat_key = "dmg_additional_on_crit"
+                key = _canon_key(stat_key, e.get("scope"))
+                if key in seen:
+                    continue
+                seen[key] = True
+                _emit(sid, name, stat_key, float(e["amount"]) * stacks, e.get("scope"), None,
+                      no_scale or stat_key in _NO_SCALE_KEYS, f"{line} (Ingredient)")
 
         nyi = sorted(set(nyi))
         for u in nyi:

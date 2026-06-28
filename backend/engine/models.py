@@ -231,6 +231,8 @@ class BuildInput:
     trait_slot_levels: list[int] = field(default_factory=list)       # [base, lv45, lv60, lv75], each 1-5
     advanced_trait_selections: list[str] = field(default_factory=list)
     trait_contributions: list[dict] = field(default_factory=list)
+    # Licorice Note (Sage): skill_id of the Empower/Curse the trait prepares (Pungent cross-apply target).
+    licorice_prepared_skill: str | None = None
     # Uptime calc mode: "max" (default; assume-max/legacy behavior) | "real" (compute ramp via engine.uptime).
     uptime_mode: str = "max"
     # Generalized "inflicts Numbed" effects from non-support sources (talents/gear/slates/custom mods),

@@ -683,6 +683,12 @@ class EngineStatsRequest(BaseModel):
     trait_id:        str | None = None
     trait_slot_levels: list[int] = []                  # [base, lv45, lv60, lv75], each 1-5
     advanced_trait_selections: list[str] = []
+    # Licorice Note (Sage): the skill_id of the Empower/Curse the trait "prepares" (Pungent cross-apply target).
+    # Auto-resolved to the only eligible skill when exactly one exists; user-picked when >1.
+    licorice_prepared_skill: str | None = None
+    # Licorice Note: equipped Ingredient names per scent-bottle active-skill slot — {slot: [ingredient_name]}.
+    # The server looks each up in the trait's ingredient catalog, tier-expands, and folds it into that elixir.
+    elixir_ingredients: dict[str, list[str]] = {}
     uptime_mode:     str = "max"                        # "max" (default, assume-max) | "real" (compute ramp)
     target_config:   TargetConfigRequest | None = None  # editable calc-target stats; None → Lv85 dummy defaults
 
@@ -832,7 +838,9 @@ def engine_stats(req: EngineStatsRequest):
         trait_contributions, trait_mod_statuses = [], hero_traits.status_lines(
             req.trait_id, slot_levels=req.trait_slot_levels, advanced_picks=req.advanced_trait_selections,
             main_skill_tags=(skill_data or {}).get("skill_tags"),
-            main_skill_name=(skill_data or {}).get("name"))
+            main_skill_name=(skill_data or {}).get("name"),
+            attached_supports=req.attached_supports, skills_input=skills_input, skills_by_id=skills_by_id,
+            prepared_skill=req.licorice_prepared_skill)
     else:
         trait_contributions, trait_mod_statuses = _resolve_effect_list(req.trait_effects, is_memory=False)
 
@@ -982,9 +990,13 @@ def engine_stats(req: EngineStatsRequest):
     # Server parses each enabled elixir skill's buff lines into unscaled contributions (+ folds its support gems'
     # timing); the engine (utility.apply_elixir_buffs, inside compute) scales them by Elixir Effect and builds the
     # summaries. Full uptime assumed while enabled.
+    # Licorice Note Ingredients → per-scent-bottle-elixir buff lines (looked up from the trait catalog + tier-expanded).
+    _ingredient_lines = (_build_licorice_ingredient_lines(req.elixir_ingredients, req.trait_slot_levels, active_season)
+                         if req.trait_id == "licorice_note" and req.elixir_ingredients else {})
     from engine.elixir_resolver import resolve_elixirs
     elixir_buffs, elixir_statuses, elixir_stack_conditions, elixir_meta = resolve_elixirs(
-        skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr, enabled_supports)
+        skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr, enabled_supports,
+        ingredient_lines_by_slot=_ingredient_lines)
 
     # ── Curses ───────────────────────────────────────────────────────────────
     # Gather active curses from slotted curse skills + curse-applying affixes; the engine (curse_resolver, inside
@@ -1056,6 +1068,7 @@ def engine_stats(req: EngineStatsRequest):
         trait_id=req.trait_id,
         trait_slot_levels=req.trait_slot_levels,
         advanced_trait_selections=req.advanced_trait_selections,
+        licorice_prepared_skill=req.licorice_prepared_skill,
         trait_contributions=trait_contributions,
         uptime_mode=req.uptime_mode,
         target_config=target_config,
@@ -1116,7 +1129,11 @@ def engine_stats(req: EngineStatsRequest):
         "curse_statuses": curse_statuses,
         "curse_conflict": result.curse_conflict,
         # General build warnings/diagnostics (e.g. a curse that amplifies a damage type the build doesn't deal).
-        "warnings": result.warnings,
+        # Bespoke-trait status lines flagged "warning" (e.g. Licorice Note's activation-medium pitfall) are merged
+        # here so they surface on the Config screen's warnings banner (trait_mod_statuses itself isn't shown).
+        "warnings": (list(result.warnings or [])
+                     + [{"kind": "trait", "text": s["text"]} for s in trait_mod_statuses
+                        if s.get("status") == "warning"]) or None,
         # Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
         "reservation": result.reservation,
         # Settable per-aura stack conditions ({key,label,max}) for the stack sliders.
@@ -2245,6 +2262,59 @@ _COND_PATTERNS: list[tuple] = [
     (re.compile(r"per\s+(\d+)\s+fervor\s+rating", re.I), lambda m: {"key": "fervor_rating", "op": "per", "divisor": int(m.group(1))}),
     (re.compile(r"per\s+fervor\s+rating", re.I), {"key": "fervor_rating", "op": "per", "divisor": 1}),
 ]
+
+
+_INGREDIENT_PREFIX_RE = re.compile(r"^\s*this skill gains(?:\s+an additional base effect)?\s*:?\s*", re.I)
+_INGREDIENT_TIER_RE = re.compile(r"\(([^()]*\/[^()]*)\)")
+# granting trait → which trait_slot_levels index drives its ingredient tier (base/L45/L75).
+_INGREDIENT_TIER_SLOT = {"Licorice Note": 0, "Pungent Stimulant Salt": 1, "Licorice Tincture Blend": 3}
+
+
+def _expand_ingredient_tier(text: str, tier_idx: int) -> str:
+    """Pick the tier value from a '(a/b/c/d/e)' group at tier_idx (0-based, clamped)."""
+    def repl(m):
+        parts = [p.strip() for p in m.group(1).split("/")]
+        return parts[min(max(tier_idx, 0), len(parts) - 1)]
+    return _INGREDIENT_TIER_RE.sub(repl, text)
+
+
+def _build_licorice_ingredient_lines(selections: dict, trait_slot_levels: list, season: str) -> dict:
+    """{scent_bottle_slot:int → [expanded, prefix-stripped ingredient effect lines]} from equipped ingredient names.
+    Each ingredient's tier is driven by its granting trait's slot level (Damage/Defense→base, Functional→L45,
+    Special→L75)."""
+    data = season_manager.load_hero_traits(season) or {}
+    trait = next((t for t in data.get("traits", []) if t.get("trait_id") == "licorice_note"), None)
+    if not trait:
+        return {}
+    catalog: dict[str, tuple[str, int]] = {}      # name → (effect_text, tier_slot_idx)
+    for grp in trait.get("ingredients", []):
+        slot_idx = _INGREDIENT_TIER_SLOT.get(grp.get("trait_name"), 0)
+        for cat in grp.get("categories", []):
+            for it in cat.get("items", []):
+                if it.get("name"):
+                    catalog[it["name"]] = (it.get("effect", ""), slot_idx)
+
+    def _tier(slot_idx: int) -> int:
+        lvl = trait_slot_levels[slot_idx] if slot_idx < len(trait_slot_levels) else 1
+        return max(0, min(4, abs(int(lvl)) - 1))
+
+    out: dict[int, list[str]] = {}
+    for slot_key, names in (selections or {}).items():
+        try:
+            slot = int(slot_key)
+        except (TypeError, ValueError):
+            continue
+        lines = []
+        for nm in (names or []):
+            if nm not in catalog:
+                continue
+            effect, tslot = catalog[nm]
+            txt = _INGREDIENT_PREFIX_RE.sub("", _expand_ingredient_tier(effect, _tier(tslot))).strip()
+            if txt:
+                lines.append(txt)
+        if lines:
+            out[slot] = lines
+    return out
 
 
 def _translate_condition_expr(text: str | None) -> dict | str | None:

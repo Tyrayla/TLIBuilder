@@ -225,8 +225,10 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.ENEMY_NEARBY_DMG_TAKEN_ADDITIONAL: StatMeta(
         "Additional Damage Taken by Nearby Enemies", "Generic", "additional", "%",
-        subgroup="generic_damage",    pipeline_stage="additional",
-        affects=_HIT_DOT,             stacking_rule="additive",
+        # ENEMY-vulnerability multiplier (applied in offense._enemy_vuln_mult, assume in range) — NOT a player
+        # additional pool, so it must stay out of _HIT_ADDITIONAL_STATS (pipeline_stage != "additional").
+        subgroup="generic_damage",    pipeline_stage="enemy_vulnerability",
+        affects=_HIT,                 stacking_rule="additive",
         ui_priority=4,                source_types=_T,
     ),
 
@@ -2088,6 +2090,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="crit_damage",        pipeline_stage="crit_damage",
         affects=_HIT,                  stacking_rule="additive",
         ui_priority=12,                source_types=_T,
+    ),
+    Stat.DMG_ADDITIONAL_ON_CRIT: StatMeta(
+        "Additional Damage on Critical Strike", "Generic", "additional", "%",
+        subgroup="additional",         affects=_HIT,
+        stacking_rule="additive",      ui_priority=12, source_types=_T,
     ),
     Stat.CRIT_DMG_INC: StatMeta(
         "Critical Strike Damage", "Critical Strike", "crit_damage", "%",

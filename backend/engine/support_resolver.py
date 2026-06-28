@@ -264,6 +264,23 @@ def resolve_support_contributions(
         entry = _progression_for_tier(data.get("progression"), tier)
         if entry:
             line = str((entry.get("values") or {}).get("name", ""))
+            # "+X% additional damage for the supported skill when it lands a Critical Strike" (Critical Strike
+            # Damage Increase) → the crit-weighted additional-damage pool (offense scales it by the finalized crit
+            # chance), NOT a plain always-on additional. Its progression is keyed by the LINE TEXT (no "name"
+            # key), so detect it among the values keys + read the level-scaled value. Handled before the generic
+            # condition-split (which would drop the untranslatable crit gate). Matches Razor Leaf's crit weighting.
+            _crit_key = next((k for k in ((entry.get("values") or {}))
+                              if _UNIVERSAL_PHRASE in k.lower() and re.search(r"lands?\s+a\s+critical\s+strike", k, re.I)),
+                             None)
+            if _crit_key:
+                v = _progression_value_for_line(entry, _crit_key)
+                if v:
+                    out.append({
+                        "stat_key": "dmg_additional_on_crit", "amount": v / 100.0,
+                        "text": f"{_UNIVERSAL_PHRASE} on Critical Strike |{item_id}|specific",
+                        "label": f"{name} (Tier {tier})", "source_name": name, "slot": sup.get("slot", 1),
+                    })
+                continue
             # Split off & translate a condition ("…when only 1 enemy nearby") so the line is GATED, not
             # applied always-on. Untranslatable gate → drop the line (don't inflate DPS ungated).
             stat_clause, cond_part = _split_condition(line)

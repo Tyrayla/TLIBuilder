@@ -159,6 +159,41 @@ def _node_group(trait_id: str, name: str, level_count: int) -> tuple[str, int]:
     return ("pick", 0) if level_count > 1 else ("guaranteed", 0)
 
 
+def _clean_ingredients(data: dict) -> list[dict]:
+    """Carry the crawler's `ingredients[]` (Licorice Note) into the season trait. Each entry is keyed by the granting
+    `trait_name`; per-level entries (Basic/Special, which scale with a trait level) collapse each item's effect
+    across levels into `(a/b/c/d/e)` tier syntax (like advanced nodes); inline-tier entries (Pungent) pass through.
+    Output: [{trait_name, categories: [{category, items: [{name, effect}]}]}]."""
+    out: list[dict] = []
+    for ing in (data.get("ingredients") or []):
+        tname = ing.get("trait_name", "")
+        levels = ing.get("levels") or []
+        if levels:
+            # Per-level categories → gather each item's effect per level (in level order), then collapse to tiers.
+            order: list[str] = []
+            by_cat: dict[str, dict[str, list[str]]] = {}
+            for lv in levels:
+                for cat in (lv.get("categories") or []):
+                    cname = cat.get("category", "")
+                    if cname not in by_cat:
+                        by_cat[cname] = {}
+                        order.append(cname)
+                    for it in (cat.get("items") or []):
+                        by_cat[cname].setdefault(it.get("name", ""), []).append(it.get("effect", ""))
+            categories = [{
+                "category": cname,
+                "items": [{"name": nm, "effect": (_collapse_tiers(effs) or [effs[-1] if effs else ""])[0]}
+                          for nm, effs in by_cat[cname].items()],
+            } for cname in order]
+        else:
+            categories = [{
+                "category": c.get("category", ""),
+                "items": [{"name": it.get("name", ""), "effect": it.get("effect", "")} for it in (c.get("items") or [])],
+            } for c in (ing.get("categories") or [])]
+        out.append({"trait_name": tname, "categories": categories})
+    return out
+
+
 def import_crawler_hero_trait(data: dict) -> dict:
     """Import a single crawler hero trait file (one JSON file per trait variant)."""
     name = data.get("name", "")
@@ -233,6 +268,7 @@ def import_crawler_hero_trait(data: dict) -> dict:
         "levels": levels,
         "artificial_moon": {"description": "", "effects": am_effects},
         "advanced_traits": advanced_traits,
+        "ingredients": _clean_ingredients(data),
         "max_level": data.get("max_level"),
         "glossary": glossary,
     }

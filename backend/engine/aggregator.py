@@ -276,7 +276,9 @@ def _apply_effect_contribs(source, contribs, source_type, label, active_booleans
         entry = SourceEntry(stat=stat, amount=amount, source_type=source_type, label=label,
                             text=contrib.get("text", ""), points=1,
                             source_name=contrib.get("source"))
-        _emit(source, stat, amount, contrib.get("scope"), entry)
+        # slot-local contributions (e.g. Licorice Note's per-scent-bottle Elixir Effect) route to add_slotted;
+        # default None → unchanged global/scoped behavior for every existing trait/spirit/memory contribution.
+        _emit(source, stat, amount, contrib.get("scope"), entry, slot=contrib.get("slot"))
 
 
 def aggregate(

@@ -41,6 +41,7 @@
     "dexterity_flat",
     "dexterity_inc",
     "dmg_additional",
+    "dmg_additional_on_crit",
     "dmg_avoid_chance",
     "dmg_inc",
     "dmg_max_additional",
@@ -202,7 +203,6 @@
       "Ailment DPS",
       "barrage_dmg_per_wave_inc \u2014 Barrage mechanic \u2014 scales per wave fired, not a flat multiplier",
       "combo_finisher_additional \u2014 Combo finisher only \u2014 applies to finisher hits, not all hits; combo damage model NYI",
-      "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
       "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
@@ -325,7 +325,6 @@
         "Ailment DPS",
         "barrage_dmg_per_wave_inc \u2014 Barrage mechanic \u2014 scales per wave fired, not a flat multiplier",
         "combo_finisher_additional \u2014 Combo finisher only \u2014 applies to finisher hits, not all hits; combo damage model NYI",
-        "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
         "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
         "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
         "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"

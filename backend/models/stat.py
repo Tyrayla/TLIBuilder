@@ -542,6 +542,10 @@ class Stat(Enum):
     # ── Critical Strike — Damage ─────────────────────────────────────────────
     CRIT_DMG_INC = "crit_dmg_inc"
     CRIT_DMG_ADDITIONAL = "crit_dmg_additional"
+    # "+X% additional damage when you land a Critical Strike" — an additional-damage pool weighted by the build's
+    # FINALIZED crit chance (effective = X × crit_chance), folded into the additional product in offense. Used by
+    # the Critical Strike Damage Increase support + Licorice Note's Razor Leaf ingredient.
+    DMG_ADDITIONAL_ON_CRIT = "dmg_additional_on_crit"
     ATTACK_CRIT_DMG_INC = "attack_crit_dmg_inc"
     SPELL_CRIT_DMG_INC = "spell_crit_dmg_inc"
     MINION_CRIT_DMG_INC = "minion_crit_dmg_inc"

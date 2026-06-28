@@ -33,6 +33,8 @@ export interface LoadedBuild {
   traitSlotLevels: number[]
   advancedTraitSelections: string[]
   traitSkillSupports: EquippedSupportSkill[]
+  licoricePreparedSkill: string | null   // Licorice Note: skill_id of the Empower/Curse the trait prepares
+  elixirIngredients: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: ingredient name}
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   fates: Record<string, InstalledFate>
@@ -64,10 +66,14 @@ interface BuildStore {
   traitSlotLevels: number[]
   advancedTraitSelections: string[]
   traitSkillSupports: EquippedSupportSkill[]   // supports socketed into the trait skill slot (Holy Domain)
+  licoricePreparedSkill: string | null         // Licorice Note: Empower/Curse the trait prepares (Pungent target)
+  elixirIngredients: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: name}
   setTraitId: (id: string | null) => void
   setTraitSlotLevels: (levels: number[]) => void
   setAdvancedTraitSelections: (sels: string[]) => void
   setTraitSkillSupports: (supports: EquippedSupportSkill[]) => void
+  setLicoricePreparedSkill: (id: string | null) => void
+  setElixirIngredients: (v: Record<number, Record<string, string>>) => void
 
   // Notes
   notes: string
@@ -186,6 +192,8 @@ const DEFAULT_BUILD: LoadedBuild = {
   traitSlotLevels: [1, 1, 1, 1],
   advancedTraitSelections: [],
   traitSkillSupports: [],
+  licoricePreparedSkill: null,
+  elixirIngredients: {},
   heroMemories: [null, null, null],
   pactSpirits: [null, null, null],
   fates: {},
@@ -240,6 +248,10 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
     set((s) => ({ advancedTraitSelections, buildVersion: s.buildVersion + 1 })),
   setTraitSkillSupports: (traitSkillSupports) =>
     set((s) => ({ traitSkillSupports, buildVersion: s.buildVersion + 1 })),
+  setLicoricePreparedSkill: (licoricePreparedSkill) =>
+    set((s) => ({ licoricePreparedSkill, buildVersion: s.buildVersion + 1 })),
+  setElixirIngredients: (elixirIngredients) =>
+    set((s) => ({ elixirIngredients, buildVersion: s.buildVersion + 1 })),
 
   // ── Notes ───────────────────────────────────────────────────────────────────
   // Bump buildVersion so notes edits flag the build dirty. They don't affect DPS, so useBuildCalculation

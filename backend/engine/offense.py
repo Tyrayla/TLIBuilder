@@ -76,7 +76,6 @@ _QUAD_DMG_STATS: list[tuple[str, frozenset]] = [
 _DEFERRED_ADDITIONAL: dict[str, str] = {
     "barrage_dmg_per_wave_inc":      "Barrage mechanic — scales per wave fired, not a flat multiplier",
     "combo_finisher_additional":     "Combo finisher only — applies to finisher hits, not all hits; combo damage model NYI",
-    "enemy_nearby_dmg_taken_additional": "Requires 'nearby enemy' condition boolean (not yet wired)",
     "multistrike_increasing_dmg_inc":"Multistrike mechanic — stacks per successive hit in a multistrike chain, not a flat multiplier",
     "post_mobility_dmg_additional":  "Requires 'mobility skill cast recently' condition boolean (not yet created)",
     "two_handed_base_dmg_additional":"May apply to base damage before inc/additional; stacking position unconfirmed — deferred",
@@ -439,6 +438,7 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
     mult *= 1.0 + source.total("no_guard_dmg_taken")        # global (Rosa Desperation — No Guard)
     mult *= 1.0 + source.total("knockback_dmg_taken")       # global (Howling Gale — Headwind; gated by hook on enemy_knocked_back)
     mult *= 1.0 + source.total("tide_dmg_taken")            # global (Selena Sing with the Tide; gated on enemy_on_tide, × Tide Effect)
+    mult *= 1.0 + source.total("enemy_nearby_dmg_taken_additional")  # "additional damage taken by enemies within Nm" (Licorice Note Scattered Spore; assume in range)
     if dtype == "cold":
         mult *= 1.0 + source.total("frostbite_cold_taken")  # Frostbite (+Condensed Frost) — baked in aggregator
     if dtype == "lightning":
@@ -906,6 +906,14 @@ def calculate_offense(
     # tag-scope predicates the increased pools use. Each distinct affix multiplies; same-affix
     # positives sum; each negative is its own factor. See docs/ADDITIONAL_DAMAGE_POOLING.md.
     add_factors = _build_additional_factors(source)
+
+    # "+X% additional damage when you land a Critical Strike" (Critical Strike Damage Increase support, Razor Leaf
+    # ingredient): an additional-damage factor WEIGHTED by the build's finalized crit chance — effective = X ×
+    # crit_chance — folded in as a generic (all-type) additional factor. Read unconditionally so the synthetic
+    # consumable-universe run consumes it; contributes nothing when absent.
+    _on_crit_add = source.total("dmg_additional_on_crit")
+    if _on_crit_add:
+        add_factors = add_factors + [(_on_crit_add * crit_chance, frozenset(), "dmg_additional_on_crit")]
 
     # Generic intrinsic additional multiplier — applies uniformly to EVERY damage type (not per-affix):
     #   • extra_additional: skill-intrinsic pool (e.g. Fervor / Moon Strike's mana bonus), evaluated by caller.

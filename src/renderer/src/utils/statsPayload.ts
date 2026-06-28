@@ -128,6 +128,11 @@ export function buildEngineStatsPayload(s: BuildState) {
     advanced_trait_selections: _effTraitPicks(s),
     trait_effects: buildTraitEffects(s.traitId, s.traitSlotLevels, _effTraitPicks(s),
       useReferenceStore.getState().heroTraits ?? []),
+    // Licorice Note: the Empower/Curse the trait prepares (Pungent cross-apply target). null → auto/none.
+    licorice_prepared_skill: s.licoricePreparedSkill ?? null,
+    // Licorice Note Ingredients: scent-bottle slot → [equipped ingredient names] (flattened from {category: name}).
+    elixir_ingredients: Object.fromEntries(
+      Object.entries(s.elixirIngredients ?? {}).map(([slot, byCat]) => [slot, Object.values(byCat).filter(Boolean)])),
     uptime_mode: s.uptimeMode,
     main_skill: s.mainSkill ?? null,
     // The trait skill slot (Holy Domain) is injected as a synthetic slot-10 skill ONLY when the trait grants it

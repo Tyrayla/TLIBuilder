@@ -452,6 +452,8 @@ export interface Build {
   traitSlotLevels?: number[]   // [base, lv45, lv60, lv75], each 1–5
   advancedTraitSelections?: string[]
   traitSkillSupports?: EquippedSupportSkill[]   // supports socketed into the Holy Domain trait skill slot
+  licoricePreparedSkill?: string | null         // Licorice Note: Empower/Curse the trait prepares
+  elixirIngredients?: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: name}
   heroMemories?: (unknown | null)[]
   pactSpirits?: (unknown | null)[]
   fates?: Record<string, InstalledFate>           // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
@@ -1244,6 +1246,8 @@ export interface HeroTrait {
   levels: HeroTraitLevel[]
   artificial_moon: { description: string; effects: string[] }
   advanced_traits: HeroAdvancedTrait[]
+  // Licorice Note (Sage) only: Ingredient catalog grouped by the granting trait → categories → items.
+  ingredients?: { trait_name: string; categories: { category: string; items: { name: string; effect: string }[] }[] }[]
   max_level?: number | null
   glossary?: Record<string, { name: string; description: string }>
 }
