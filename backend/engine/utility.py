@@ -177,8 +177,8 @@ def apply_elixir_buffs(source, elixir_buffs, elixir_meta, active_booleans, numer
     (lucky_<type>, es_uninterruptible, es_bypass) carry no_scale and are emitted at base. Full uptime → buffs
     apply at full value; timing (duration/cooldown/charges) is display-only. Recording on so the Elixir-Effect
     reads register as consumed (elixir-effect mods badge working)."""
-    if not elixir_buffs:
-        return []
+    if not elixir_buffs and not elixir_meta:
+        return []   # nothing equipped. (A pure-restoration tonic has meta + restoration but no buffs → still process.)
 
     by_skill: dict[str, list[dict]] = {}
     for b in elixir_buffs:
@@ -249,7 +249,27 @@ def apply_elixir_buffs(source, elixir_buffs, elixir_meta, active_booleans, numer
             global_charge_ps = source.total("elixir_charging_progress_flat")
             support_charge_ps = t.get("support_charge_per_second") or 0.0
             support_max_charge = t.get("support_max_charge") or 0.0
+            # Restoration tonics: amount × Elixir Effect, window × Elixir Duration. Recast cadence = max(cooldown,
+            # charge-regen time) — sustained recast is usually CHARGE-limited (charge_threshold ÷ charge/sec from
+            # Hyper Metabolism / Steel Vanguard / Omni-elixir belt; on-defeat charge excluded for single-target),
+            # falling back to cooldown when charge gen is fast. No charge gen → not sustainable (recast → huge → ~0
+            # recovery). The general Restoration Effect/Duration + pct→max-pool resolution happen in engine.recovery.
+            elixir_dur_factor = (1.0 + dur_inc) * (1.0 + dur_add_general) * (1.0 + dur_add_elixir)
+            charge_ps = support_charge_ps + global_charge_ps
+            charge_threshold = t.get("charge_threshold")
+            if charge_threshold and charge_ps > 0:
+                charge_regen = charge_threshold / charge_ps
+            elif charge_threshold:
+                charge_regen = 1.0e9   # has a charge cost but no charge generation → unsustainable
+            else:
+                charge_regen = 0.0     # no charge gating → cooldown-limited
+            recast = max(cooldown or 0.0, charge_regen)
+            restoration_out = [] if not enabled else [{
+                "pool": r["pool"], "mode": r["mode"], "base_amount": r["base_amount"] * factor,
+                "window": r["base_window"] * elixir_dur_factor, "recast": recast, "source": m["name"],
+            } for r in (m.get("restoration") or [])]
             summaries.append({
+                "restoration": restoration_out,
                 "skill_id": sid, "name": m["name"], "level": m["level"], "elixir_effect_inc": factor - 1.0,
                 "granted": granted, "nyi": m["nyi"], "review": m.get("review") or [], "has_blur": m.get("has_blur"),
                 "enabled": enabled,

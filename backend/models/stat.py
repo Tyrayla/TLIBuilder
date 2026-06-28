@@ -677,6 +677,20 @@ class Stat(Enum):
     SKILL_EFFECT_DURATION_INC = "skill_effect_duration_inc"
     SKILL_EFFECT_DURATION_ADDITIONAL = "skill_effect_duration_additional"
     RESTORATION_EFFECT_INC = "restoration_effect_inc"
+    # ── Restoration / Recovery (heal-over-time; see engine/recovery.py) ────────
+    # Restoration total = base × (1 + Σ restoration_effect_inc) × Π(1 + restoration_effect_additional). Duration =
+    # base window × (1 + Σ restoration_duration_inc) × Π(1 + restoration_duration_additional). recovery/sec = total
+    # ÷ max(duration, recast). Temporary Life/Mana = a separate used-first barrier (NOT folded into max_life).
+    RESTORATION_EFFECT_ADDITIONAL = "restoration_effect_additional"
+    RESTORATION_DURATION_INC = "restoration_duration_inc"
+    RESTORATION_DURATION_ADDITIONAL = "restoration_duration_additional"
+    TEMPORARY_LIFE_FLAT = "temporary_life_flat"
+    TEMPORARY_LIFE_PCT = "temporary_life_pct"            # % of Base Max Life granted as Temporary Life
+    TEMPORARY_MANA_FLAT = "temporary_mana_flat"
+    TEMPORARY_MANA_PCT = "temporary_mana_pct"            # % of Base Max Mana granted as Temporary Mana
+    MAX_TEMPORARY_LIFE_PCT = "max_temporary_life_pct"    # cap on Temporary Life (% of Base Max Life)
+    MAX_TEMPORARY_MANA_PCT = "max_temporary_mana_pct"
+    EXCESS_RESTORATION_TO_ES_PCT = "excess_restoration_to_es_pct"   # Pixie Tear: % of excess Life restoration → ES
 
     # ── Reaping ───────────────────────────────────────────────────────────────
     REAPING_DURATION_INC = "reaping_duration_inc"

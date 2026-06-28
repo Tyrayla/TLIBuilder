@@ -250,6 +250,7 @@ class StatResult:
     clamp_report:        dict[str, dict]         # {key: {"requested": v, "applied": v}}
     offense:             dict | None = None      # OffenseResult as dict, or None if no skill
     defense:             dict | None = None      # DefenseResult as dict
+    recovery:            dict | None = None      # RecoveryResult as dict (restoration/regain/regen/temp/EHP)
     skill_slots:         list[dict] | None = None  # per-slot summary: slot, skill_id, skill_name, level, effective_level, supported
     consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs

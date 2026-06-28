@@ -42,6 +42,12 @@ _NOISE_RE = re.compile(
 _NYI_RE = re.compile(
     r"\brestor(?:es|ation)\b|\bminions?\b|\btrue\s+damage\b|replaced\s+with\s+scorch"
     r"|transferred\s+to\s+a\s+random", re.I)
+# Restoration tonic lines → structured restoration entries fed to the recovery stage (NOT NYI). Matches
+# "Restores 39 % Max Life within 2 s" (pct) and "Restores 47 Mana in 2 s" (flat).
+_RESTORE_RE = re.compile(
+    r"restores?\s+([\d.]+)\s*(%?)\s*(?:max\s+)?(life|mana)\b.*?(?:within|in)\s+([\d.]+)\s*s", re.I)
+# "At 15 Charging Progress, gains 1 Charge" → the charging needed per charge (drives the charge-limited recast).
+_CHARGE_THRESHOLD_RE = re.compile(r"at\s+([\d.]+)\s+charging\s+progress\s*,?\s*gains?\s+\d*\s*charge", re.I)
 _BLUR_RE = re.compile(r"\bhas\s+blur\b", re.I)
 # Trailing "while Blur is active" qualifier — strip before parse_mod (the gate is applied via condition_expr).
 _BLUR_SUFFIX_RE = re.compile(r"\s+while\s+blur\s+is\s+active\b.*$", re.I)
@@ -158,6 +164,11 @@ def resolve_elixirs(skills_input, skills_by_id, parse_mod, translate_cond=None, 
         name = skill.get("name", sid)
         raw = skill.get("detailed_description") or skill.get("simple_description") or []
         has_blur = any(_BLUR_RE.search(l or "") for l in raw)
+        _ct = None
+        for _l in raw:
+            _m = _CHARGE_THRESHOLD_RE.search(_l or "")
+            if _m:
+                _ct = float(_m.group(1)); break
 
         keep, nyi = _prep(raw, has_blur)
         seen: dict = {}
@@ -176,6 +187,24 @@ def resolve_elixirs(skills_input, skills_by_id, parse_mod, translate_cond=None, 
                 cond = "blur_active" if has_blur else None
                 _emit(sid, name, e["stat_key"], float(e["amount"]), e.get("scope"), cond,
                       e["stat_key"] in _NO_SCALE_KEYS, line)
+
+        # ── Restoration tonics: pull "Restores N% Max Life/Mana within Ns" out of NYI into structured entries the
+        # recovery stage consumes (scaled by Elixir Effect/Duration in apply_elixir_buffs, then Restoration
+        # Effect/Duration in recovery). pct = fraction of max pool; flat = absolute. ──
+        restoration: list[dict] = []
+        _kept_nyi = []
+        for u in nyi:
+            m = _RESTORE_RE.search(u)
+            if m:
+                amt, pct, pool, window = m.groups()
+                restoration.append({
+                    "pool": pool.lower(), "mode": "pct" if pct else "flat",
+                    "base_amount": (float(amt) / 100.0) if pct else float(amt),
+                    "base_window": float(window), "slot": slot, "text": u.strip(), "name": name,
+                })
+            else:
+                _kept_nyi.append(u)
+        nyi = _kept_nyi
 
         # ── Licorice Note Ingredients: fold this scent-bottle elixir's equipped ingredient effects in as buffs ──
         # (already tier-expanded + prefix-stripped server-side). "(not affected by … Elixir Skills)" → no_scale.
@@ -214,10 +243,12 @@ def resolve_elixirs(skills_input, skills_by_id, parse_mod, translate_cond=None, 
         meta[sid] = {
             "name": name, "level": level, "slot": slot, "nyi": nyi, "review": review,
             "has_blur": has_blur, "enabled": enabled, "stack_condition": None, "max_stacks": None,
+            "restoration": restoration,
             "timing": {
                 "cooldown": _num(skill.get("cooldown")),
                 "base_duration": _num(skill.get("duration")),
                 "charges": _num(skill.get("charges")),
+                "charge_threshold": _ct,
                 "support_charge_per_second": sup.get("charge_per_second", 0.0),
                 "support_max_charge": sup.get("max_charge", 0.0),
                 "support_sources": sup.get("sources", []),

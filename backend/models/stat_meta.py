@@ -2599,6 +2599,56 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="skill_mechanics",    stacking_rule="additive",
         ui_priority=66,                source_types=_TB,
     ),
+    Stat.RESTORATION_EFFECT_ADDITIONAL: StatMeta(
+        "Additional Restoration Effect", "Utility", "additional", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=66,                source_types=_T,
+    ),
+    Stat.RESTORATION_DURATION_INC: StatMeta(
+        "Restoration Duration", "Utility", "increased", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=67,                source_types=_T,
+    ),
+    Stat.RESTORATION_DURATION_ADDITIONAL: StatMeta(
+        "Additional Restoration Duration", "Utility", "additional", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=67,                source_types=_T,
+    ),
+    Stat.TEMPORARY_LIFE_FLAT: StatMeta(
+        "Temporary Life", "Utility", "added_flat",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=68,                source_types=_T,
+    ),
+    Stat.TEMPORARY_LIFE_PCT: StatMeta(
+        "Temporary Life (% of Base Max Life)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=68,                source_types=_T,
+    ),
+    Stat.TEMPORARY_MANA_FLAT: StatMeta(
+        "Temporary Mana", "Utility", "added_flat",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=68,                source_types=_T,
+    ),
+    Stat.TEMPORARY_MANA_PCT: StatMeta(
+        "Temporary Mana (% of Base Max Mana)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=68,                source_types=_T,
+    ),
+    Stat.MAX_TEMPORARY_LIFE_PCT: StatMeta(
+        "Max Temporary Life (% of Base Max Life)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=69,                source_types=_T,
+    ),
+    Stat.MAX_TEMPORARY_MANA_PCT: StatMeta(
+        "Max Temporary Mana (% of Base Max Mana)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=69,                source_types=_T,
+    ),
+    Stat.EXCESS_RESTORATION_TO_ES_PCT: StatMeta(
+        "Excess Life Restoration Applied to Energy Shield", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=69,                source_types=_T,
+    ),
 
     # ── Reaping ───────────────────────────────────────────────────────────────
     Stat.REAPING_DURATION_INC: StatMeta(

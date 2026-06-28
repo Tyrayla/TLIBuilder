@@ -650,6 +650,16 @@ def compute(
     source._recording = True
     result_defense = asdict(calculate_defense(source, reservation))
 
+    # Recovery / sustain (Restoration, Regain, Regen, Temporary pools, EHP) — post-loop derived display, mirrors
+    # defense. Restoration inputs (Elixir-scaled tonics + Rebirth-converted regain) come from the elixir summaries.
+    from engine.recovery import calculate_recovery
+    _restoration_inputs = []
+    for _es in (elixir_summaries or []):
+        _restoration_inputs.extend(_es.get("restoration") or [])
+    result_recovery = asdict(calculate_recovery(
+        source, condition_state=condition_state, restoration_inputs=_restoration_inputs,
+        reservation=reservation, defense=result_defense))
+
     # Per-slot support_behavior ({slot: {...}}) — the headline reads its own slot's behavior. Tolerate a
     # legacy flat dict (no per-slot keys) by treating it as slot 1's behavior.
     _behavior = build_input.support_behavior or {}
@@ -912,6 +922,7 @@ def compute(
         clamp_report=clamp_report,
         offense=result_offense,
         defense=result_defense,
+        recovery=result_recovery,
         skill_slots=result_skill_slots,
         consumed_stats=sorted(source.consumed_stats),
         target_stats=target_stats,

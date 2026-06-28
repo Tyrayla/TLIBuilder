@@ -144,6 +144,17 @@ def consumable_universe() -> frozenset[str]:
     consumed |= {"elixir_effect_inc", "elixir_effect_additional",
                  "elixir_duration_additional", "elixir_charging_progress_flat",
                  "skill_effect_duration_inc", "skill_effect_duration_additional", "cdr_speed_inc"}
+    # engine.recovery (post-loop sustain stage) reads the Restoration / Regain / Regen / Temporary-pool stats —
+    # outside the synthetic offense/defense/derive passes, so whitelist them.
+    consumed |= {"restoration_effect_inc", "restoration_effect_additional",
+                 "restoration_duration_inc", "restoration_duration_additional",
+                 "life_regain_inc", "energy_shield_regain_inc", "regain_interval_additional",
+                 "life_regain_interval_additional", "energy_shield_regain_interval_additional",
+                 "life_regen_flat", "life_regen_inc", "life_regen_speed_inc",
+                 "mana_regen_flat", "mana_regen_inc", "mana_regen_pct",
+                 "temporary_life_flat", "temporary_life_pct", "temporary_mana_flat", "temporary_mana_pct",
+                 "max_temporary_life_pct", "max_temporary_mana_pct", "excess_restoration_to_es_pct",
+                 "life_regain_to_restoration", "es_regain_to_restoration"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
     consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",

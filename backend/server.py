@@ -1091,6 +1091,7 @@ def engine_stats(req: EngineStatsRequest):
         "auto_conditions": result.auto_conditions,
         "offense": result.offense,
         "defense": result.defense,
+        "recovery": result.recovery,
         "custom_mod_statuses": custom_mod_statuses,
         "core_talent_statuses": core_talent_statuses,
         "gear_mod_statuses": gear_mod_statuses,

@@ -69,10 +69,21 @@ def test_summary_present_with_timing():
     assert "movement_speed_inc" in stats
 
 
-def test_restoration_surfaced_nyi():
+def test_restoration_tonic_resolved_to_recovery():
+    # Life Tonic restores 41% Max Life within 2s — now modeled (recovery stage), not NYI. Total is independent of
+    # charge gen; per-second needs fast charge gen so the recast is cooldown/duration-limited (= total / 2s window).
+    fast_charge = _gear([("elixir_charging_progress_flat", 40)])
+    r = _resp(elixirs=["life_tonic"], gear=fast_charge)
+    rec = r.get("recovery") or {}
+    ml = r["defense"]["max_life"]
+    assert rec.get("restoration_life_total") == pytest.approx(0.41 * ml, rel=0.02)
+    assert rec.get("restoration_life_per_sec") == pytest.approx(rec["restoration_life_total"] / 2.0, rel=0.05)
+
+
+def test_restoration_unsustainable_without_charge_gen():
+    # No charge generation → the tonic can't be recast → ~0 sustained recovery (charge-limited model).
     r = _resp(elixirs=["life_tonic"])
-    texts = " ".join(x["text"] for x in (r.get("elixir_statuses") or []))
-    assert "Restores" in texts
+    assert (r.get("recovery") or {}).get("restoration_life_per_sec") == pytest.approx(0.0, abs=1.0)
 
 
 # ── Elixir Effect scaling ────────────────────────────────────────────────────
