@@ -155,6 +155,12 @@ def consumable_universe() -> frozenset[str]:
                  "temporary_life_flat", "temporary_life_pct", "temporary_mana_flat", "temporary_mana_pct",
                  "max_temporary_life_pct", "max_temporary_mana_pct", "excess_restoration_to_es_pct",
                  "life_regain_to_restoration", "es_regain_to_restoration"}
+    # engine.consumption (self-consume drains) reads the typed consume-rate stats outside the offense/defense passes.
+    consumed |= {f"{p}_consumed_{b}_per_{c}"
+                 for p in ("life", "mana", "energy_shield")
+                 for b in ("pct_current", "pct_max", "flat")
+                 for c in ("sec", "cast")}
+    consumed |= {"consumed_recently_life", "consumed_recently_mana", "consumed_recently_energy_shield"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
     consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",

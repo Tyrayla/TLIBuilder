@@ -359,6 +359,33 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": f"can_only_deal_{m.group(1).lower()}", "amount": 1.0, "text": t}]
 
+    # Self-consume drains → typed consume-rate stats (engine.consumption turns these into life/mana/ES per second).
+    # Anchored on a LEADING "Consumes" so it never matches consumer lines ("… for every N Life CONSUMED recently").
+    # Handles: pct vs flat, current vs Max, Life/Mana/Energy Shield (+ "and <pool>" compound), per-second vs
+    # on-skill-use cadence, and "Interval: N s"/"every N s" (per-sec amount = value ÷ N). A "(a-b)" range → midpoint.
+    if re.match(r'\s*consumes\s', t, re.I):
+        ct = re.sub(r'\(\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*\)',
+                    lambda m: f"{(float(m.group(1)) + float(m.group(2))) / 2:g}", t)
+        cm = re.match(r'\s*consumes\s+([\d.]+)\s*(%?)\s*(?:of\s+)?(current|max)?\s*'
+                      r'(life|mana|energy\s+shield)(?:\s+and\s+(life|mana|energy\s+shield))?(.*)', ct, re.I)
+        if cm:
+            amt, pct, basis, pool1, pool2, rest = cm.groups()
+            val = (float(amt) / 100.0) if pct else float(amt)
+            basis_key = ("pct_current" if (basis or "").lower() == "current"
+                         else "pct_max") if pct else "flat"
+            cadence = "cast" if re.search(r'on\s+(?:skill\s+use|use|cast)|when\s+casting|per\s+cast', rest, re.I) else "sec"
+            iv = re.search(r'(?:interval\s*:?\s*|every\s+)([\d.]+)\s*s', rest, re.I)
+            if cadence == "sec" and iv and float(iv.group(1)) > 0:
+                val /= float(iv.group(1))
+            out = []
+            for p in (pool1, pool2):
+                if not p:
+                    continue
+                pk = "energy_shield" if "energy" in p.lower() else p.lower()
+                out.append({"stat_key": f"{pk}_consumed_{basis_key}_per_{cadence}", "amount": val, "text": t})
+            if out:
+                return out
+
     # "+N% additional Curse Effect" → multiplicative Curse Effect pool (e.g. Defile). Must come before the
     # generic Curse Effect matcher so plain "+N% Curse Effect" still maps to the increased pool.
     m = re.search(r'([\d.]+)\s*%\s*additional\s+curse\s+effect', t, re.I)

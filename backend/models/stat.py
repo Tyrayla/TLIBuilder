@@ -600,6 +600,32 @@ class Stat(Enum):
     SEALED_MANA_COMPENSATION_INC = "sealed_mana_compensation_inc"
     SEALED_MANA_COMPENSATION_ADDITIONAL = "sealed_mana_compensation_additional"
 
+    # ── Consumption (self-consume drains: Mana Boil, life-consume affixes) ─────
+    # Per-event consume rate by pool × basis × cadence. The consumption stage turns these into life/mana/ES drained
+    # per second (pct_current × current pool, pct_max × max pool, flat as-is; per_cast × casts/sec). Gated affixes
+    # (while Fervor / at Full Life) ride the normal condition-gating of their contribution. NOT the skill's intrinsic
+    # mana cost — that (Arcane / Frozen Lotus) stays a separate future gap.
+    LIFE_CONSUMED_PCT_CURRENT_PER_SEC = "life_consumed_pct_current_per_sec"
+    LIFE_CONSUMED_PCT_MAX_PER_SEC = "life_consumed_pct_max_per_sec"
+    LIFE_CONSUMED_FLAT_PER_SEC = "life_consumed_flat_per_sec"
+    LIFE_CONSUMED_PCT_CURRENT_PER_CAST = "life_consumed_pct_current_per_cast"
+    LIFE_CONSUMED_PCT_MAX_PER_CAST = "life_consumed_pct_max_per_cast"
+    LIFE_CONSUMED_FLAT_PER_CAST = "life_consumed_flat_per_cast"
+    MANA_CONSUMED_PCT_CURRENT_PER_SEC = "mana_consumed_pct_current_per_sec"
+    MANA_CONSUMED_PCT_MAX_PER_SEC = "mana_consumed_pct_max_per_sec"
+    MANA_CONSUMED_FLAT_PER_SEC = "mana_consumed_flat_per_sec"
+    MANA_CONSUMED_PCT_CURRENT_PER_CAST = "mana_consumed_pct_current_per_cast"
+    MANA_CONSUMED_PCT_MAX_PER_CAST = "mana_consumed_pct_max_per_cast"
+    MANA_CONSUMED_FLAT_PER_CAST = "mana_consumed_flat_per_cast"
+    ENERGY_SHIELD_CONSUMED_PCT_CURRENT_PER_SEC = "energy_shield_consumed_pct_current_per_sec"
+    ENERGY_SHIELD_CONSUMED_PCT_MAX_PER_SEC = "energy_shield_consumed_pct_max_per_sec"
+    ENERGY_SHIELD_CONSUMED_FLAT_PER_SEC = "energy_shield_consumed_flat_per_sec"
+    # Derived (written back by the consumption stage so offense / conditions can read the rolling "consumed recently"
+    # total = consumed_per_sec × the "recently" window).
+    CONSUMED_RECENTLY_LIFE = "consumed_recently_life"
+    CONSUMED_RECENTLY_MANA = "consumed_recently_mana"
+    CONSUMED_RECENTLY_ENERGY_SHIELD = "consumed_recently_energy_shield"
+
     # ── Energy Shield ─────────────────────────────────────────────────────────
     MAX_ENERGY_SHIELD_FLAT = "max_energy_shield_flat"
     MAX_ENERGY_SHIELD_INC = "max_energy_shield_inc"

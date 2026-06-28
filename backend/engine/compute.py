@@ -663,12 +663,22 @@ def compute(
     # Recovery / sustain (Restoration, Regain, Regen, Temporary pools, EHP) — post-loop derived display, mirrors
     # defense. Restoration inputs (Elixir-scaled tonics + Rebirth-converted regain) come from the elixir summaries.
     from engine.recovery import calculate_recovery
+    from engine.consumption import calculate_consumption
+    from engine.offense import compute_skill_rates
     _restoration_inputs = []
     for _es in (elixir_summaries or []):
         _restoration_inputs.extend(_es.get("restoration") or [])
+    # Self-consume drains (Mana Boil / life-consume affixes). Per-cast consume needs the main skill's casts/sec, so
+    # run the cheap rates stage on the main skill (the heavy damage calc stays post-loop below).
+    _cons_casts_ps = 0.0
+    if skill_data and build_input.main_skill and main_enabled:
+        _cons_casts_ps = compute_skill_rates(source, resolve_skill(skill_data)).get("aps", 0.0)
+    result_consumption = asdict(calculate_consumption(
+        source, condition_state=condition_state, defense=result_defense, casts_per_sec=_cons_casts_ps))
     result_recovery = asdict(calculate_recovery(
         source, condition_state=condition_state, restoration_inputs=_restoration_inputs,
-        reservation=reservation, defense=result_defense, uptime_mode=build_input.uptime_mode))
+        reservation=reservation, defense=result_defense, uptime_mode=build_input.uptime_mode,
+        consumption=result_consumption))
 
     # Per-slot support_behavior ({slot: {...}}) — the headline reads its own slot's behavior. Tolerate a
     # legacy flat dict (no per-slot keys) by treating it as slot 1's behavior.
@@ -933,6 +943,7 @@ def compute(
         offense=result_offense,
         defense=result_defense,
         recovery=result_recovery,
+        consumption=result_consumption,
         skill_slots=result_skill_slots,
         consumed_stats=sorted(source.consumed_stats),
         target_stats=target_stats,

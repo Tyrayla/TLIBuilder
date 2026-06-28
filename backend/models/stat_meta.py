@@ -2660,6 +2660,62 @@ STAT_META: dict[Stat, StatMeta] = {
         ui_priority=69,                source_types=_T,
     ),
 
+    # ── Consumption (self-consume drains) ──────────────────────────────────────
+    Stat.LIFE_CONSUMED_PCT_CURRENT_PER_SEC: StatMeta(
+        "Life Consumed (% Current / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_PCT_MAX_PER_SEC: StatMeta(
+        "Life Consumed (% Max / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_FLAT_PER_SEC: StatMeta(
+        "Life Consumed (flat / sec)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_PCT_CURRENT_PER_CAST: StatMeta(
+        "Life Consumed (% Current / cast)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_PCT_MAX_PER_CAST: StatMeta(
+        "Life Consumed (% Max / cast)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_FLAT_PER_CAST: StatMeta(
+        "Life Consumed (flat / cast)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_CURRENT_PER_SEC: StatMeta(
+        "Mana Consumed (% Current / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_MAX_PER_SEC: StatMeta(
+        "Mana Consumed (% Max / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_FLAT_PER_SEC: StatMeta(
+        "Mana Consumed (flat / sec)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_CURRENT_PER_CAST: StatMeta(
+        "Mana Consumed (% Current / cast)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_MAX_PER_CAST: StatMeta(
+        "Mana Consumed (% Max / cast)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_FLAT_PER_CAST: StatMeta(
+        "Mana Consumed (flat / cast)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.ENERGY_SHIELD_CONSUMED_PCT_CURRENT_PER_SEC: StatMeta(
+        "Energy Shield Consumed (% Current / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.ENERGY_SHIELD_CONSUMED_PCT_MAX_PER_SEC: StatMeta(
+        "Energy Shield Consumed (% Max / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.ENERGY_SHIELD_CONSUMED_FLAT_PER_SEC: StatMeta(
+        "Energy Shield Consumed (flat / sec)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.CONSUMED_RECENTLY_LIFE: StatMeta(
+        "Life Consumed Recently", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=71, source_types=_T),
+    Stat.CONSUMED_RECENTLY_MANA: StatMeta(
+        "Mana Consumed Recently", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=71, source_types=_T),
+    Stat.CONSUMED_RECENTLY_ENERGY_SHIELD: StatMeta(
+        "Energy Shield Consumed Recently", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=71, source_types=_T),
+
     # ── Reaping ───────────────────────────────────────────────────────────────
     Stat.REAPING_DURATION_INC: StatMeta(
         "Reaping Duration", "Utility", "increased", "%",

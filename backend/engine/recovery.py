@@ -59,12 +59,22 @@ class RecoveryResult:
     temporary_mana: float = 0.0
     total_max_life: float = 0.0                  # Base Max Life + Temporary Life (display / EHP barrier)
     total_max_mana: float = 0.0
-    # Net sustain (recovery − consumption); consumption from skill life-cost is NYI (reservation only for now)
+    # Consumption (self-consume drains: Mana Boil, life-consume affixes) per second
+    consumption_life_per_sec: float = 0.0
+    consumption_mana_per_sec: float = 0.0
+    consumption_es_per_sec: float = 0.0
+    # Net sustain (recovery − consumption). Still excludes the skill's intrinsic Life/Mana COST (no skill-cost model)
     net_life_per_sec: float = 0.0
     net_mana_per_sec: float = 0.0
+    # Sustainability verdict (per pool): can recovery keep up at the assumed/solved pool %? time_to_empty in seconds
+    # from the current pool when net is negative (None when sustainable).
+    life_sustainable: bool = True
+    mana_sustainable: bool = True
+    life_time_to_empty: float | None = None
+    mana_time_to_empty: float | None = None
     # Effective HP (Life + Temporary Life vs the calc target's average mitigation)
     ehp_life: float = 0.0
-    nyi: list = field(default_factory=lambda: ["Net sustain excludes skill Life cost (no skill-cost model yet)"])
+    nyi: list = field(default_factory=lambda: ["Net sustain excludes skill Life/Mana cost (no skill-cost model yet)"])
 
 
 def _pool_recovery(inputs, pool, pool_max, restoration_factor, duration_factor, missing, at_full, ignore_recast=False):
@@ -121,7 +131,7 @@ def restoration_excess(source: BuildSource, restoration_inputs: list | None, con
 
 def calculate_recovery(source: BuildSource, *, condition_state: dict | None = None,
                        restoration_inputs: list | None = None, reservation: dict | None = None,
-                       defense: dict | None = None, uptime_mode=None) -> RecoveryResult:
+                       defense: dict | None = None, uptime_mode=None, consumption: dict | None = None) -> RecoveryResult:
     from engine.uptime import is_real
     ignore_recast = not is_real(uptime_mode)   # Full Uptime (max) ignores recast cadence; Effective (real) honors it
     cs = condition_state or {}
@@ -197,10 +207,23 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     if cap_mana > 0:
         temp_mana = min(temp_mana, cap_mana)
 
-    # Net sustain (recovery − consumption). Consumption: reservation drains the usable pool (sealed); skill
-    # life-cost is NYI. Net here = recovery rate (positive); sealed pools shrink the pool, not the rate.
-    net_life = life_ps + life_regain_ps + life_regen_ps
-    net_mana = mana_ps + mana_regen_ps
+    # Net sustain (recovery − consumption). Self-consume drains (consumption arg) are subtracted; the skill's
+    # intrinsic Life/Mana cost is still NYI. Sealed pools shrink the pool, not the rate.
+    cons = consumption or {}
+    cons_life = float(cons.get("life_per_sec", 0.0) or 0.0)
+    cons_mana = float(cons.get("mana_per_sec", 0.0) or 0.0)
+    cons_es = float(cons.get("energy_shield_per_sec", 0.0) or 0.0)
+    net_life = life_ps + life_regain_ps + life_regen_ps - cons_life
+    net_mana = mana_ps + mana_regen_ps - cons_mana
+
+    # Sustainability verdict: net ≥ 0 → sustainable; else time-to-empty from the current pool. (Once C solves the
+    # steady-state pool %, net AT that % is the honest verdict; a clamp-to-0 equilibrium = unsustainable.)
+    cur_life = life_pct / 100.0 * max_life
+    cur_mana = mana_pct / 100.0 * max_mana
+    life_sustainable = net_life >= -1e-9
+    mana_sustainable = net_mana >= -1e-9
+    life_tte = (cur_life / -net_life) if (not life_sustainable and net_life < 0) else None
+    mana_tte = (cur_mana / -net_mana) if (not mana_sustainable and net_mana < 0) else None
 
     # EHP: (Base Max Life + Temporary Life) vs the calc target's average armour mitigation.
     avg_mit = 0.5 * (float(d.get("armor_phys_mitigation", 0.0)) + float(d.get("armor_nonphys_mitigation", 0.0)))
@@ -216,6 +239,9 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         life_regen_per_sec=life_regen_ps, mana_regen_per_sec=mana_regen_ps,
         temporary_life=temp_life, temporary_mana=temp_mana,
         total_max_life=max_life + temp_life, total_max_mana=max_mana + temp_mana,
+        consumption_life_per_sec=cons_life, consumption_mana_per_sec=cons_mana, consumption_es_per_sec=cons_es,
         net_life_per_sec=net_life, net_mana_per_sec=net_mana,
+        life_sustainable=life_sustainable, mana_sustainable=mana_sustainable,
+        life_time_to_empty=life_tte, mana_time_to_empty=mana_tte,
         ehp_life=ehp_life,
     )
