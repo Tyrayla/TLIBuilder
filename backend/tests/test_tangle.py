@@ -102,6 +102,38 @@ class TestDormantEntanglement:
         assert no["tangle_enhancement"] == pytest.approx(1.0)
 
 
+class TestCastSpeedBreakpoints:
+    """Tangle cast rate hard-rounds to whole server ticks: ticks = ceil(cast_time × 30), rate = 30 / ticks.
+    Owner in-game validation: 6.04 and 7.44 casts/s gave IDENTICAL DPS — both fall in the 5-tick bucket
+    (effective 6.0/s); the next breakpoint is exactly 7.5/s (4 ticks). This locks that formula in."""
+    def test_owner_validated_6_04_and_7_44_same_bucket(self):
+        from engine.tick import period_ticks, rate_from_ticks, TICK_RATE
+        assert TICK_RATE == 30
+        # Both raw rates round UP to 5 whole ticks → identical 6.0/s effective (the observed equal-DPS pair).
+        assert period_ticks(1.0 / 6.04) == 5
+        assert period_ticks(1.0 / 7.44) == 5
+        assert rate_from_ticks(5) == pytest.approx(6.0)
+
+    def test_next_breakpoint_is_7_5(self):
+        from engine.tick import period_ticks, rate_from_ticks
+        assert period_ticks(1.0 / 7.49) == 5          # just below → still 5 ticks
+        assert period_ticks(1.0 / 7.5) == 4           # exactly 7.5/s crosses to 4 ticks
+        assert rate_from_ticks(4) == pytest.approx(7.5)
+
+    def test_within_bucket_identical_dps_across_breakpoint_increases(self):
+        # End-to-end: two different (small) cast-speed boosts that stay inside the same tick bucket give the
+        # SAME tangle DPS + cast ticks; a large boost that crosses a breakpoint raises DPS.
+        base = _offense(supports=_ACTIVATOR)
+        small_a = _offense(supports=_ACTIVATOR, gear=_gear_with(cast_speed_inc=0.01))
+        small_b = _offense(supports=_ACTIVATOR, gear=_gear_with(cast_speed_inc=0.02))
+        assert small_a["tangle_cast_ticks"] == base["tangle_cast_ticks"]
+        assert small_b["tangle_cast_ticks"] == base["tangle_cast_ticks"]
+        assert small_a["total_dps_vs_target"] == pytest.approx(small_b["total_dps_vs_target"])
+        big = _offense(supports=_ACTIVATOR, gear=_gear_with(cast_speed_inc=5.0))
+        assert big["tangle_cast_ticks"] < base["tangle_cast_ticks"]
+        assert big["total_dps_vs_target"] > base["total_dps_vs_target"]
+
+
 class TestParserRegression:
     def test_enhancement_maps_to_enhancement_not_inc(self):
         assert mp._parse_custom_mod_text("140 % Tangle Damage Enhancement")[0]["stat_key"] == "tangle_dmg_enhancement_additional"
