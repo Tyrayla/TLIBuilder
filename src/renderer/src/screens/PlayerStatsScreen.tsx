@@ -106,7 +106,7 @@ function fmtTotalVal(v: number, unit: string): string {
 }
 
 // The title + Total header shared by the main breakdown and each section, so they look identical.
-function BreakdownHeader({ title, total, totalUnit, formula }: { title: string; total?: number; totalUnit?: string; formula?: string }) {
+function BreakdownHeader({ title, total, totalUnit, formula, totalSuffix }: { title: string; total?: number; totalUnit?: string; formula?: string; totalSuffix?: string }) {
   return (
     <>
       <div style={{ marginBottom: 3 }}>
@@ -116,7 +116,10 @@ function BreakdownHeader({ title, total, totalUnit, formula }: { title: string; 
       {total !== undefined && (
         <div style={{ marginBottom: 6, display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <span style={{ fontSize: 10, color: '#888' }}>Total</span>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8f4', fontVariantNumeric: 'tabular-nums' }}>{fmtTotalVal(total, totalUnit ?? '')}</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8f4', fontVariantNumeric: 'tabular-nums' }}>
+            {fmtTotalVal(total, totalUnit ?? '')}
+            {totalSuffix && <span style={{ fontSize: 12, fontWeight: 400, color: '#9a93c0', marginLeft: 6 }}>{totalSuffix}</span>}
+          </span>
         </div>
       )}
     </>
@@ -262,7 +265,7 @@ function ExtraRowView({ e }: { e: ExtraRow }) {
   )
 }
 
-function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, formula, sections }: { title: string; keys: string[]; ctx: BreakdownCtxValue; totalOverride?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[] }) {
+function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, formula, sections, totalSuffix }: { title: string; keys: string[]; ctx: BreakdownCtxValue; totalOverride?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string }) {
   const { main, slot } = collectSources(keys, ctx.statMap)
   // When a row passes its already-derived value (e.g. Max Energy Shield = flat × (1+increased)), show THAT
   // as the header — summing mixed flat/increased/additional keys is meaningless (it printed "0.27" for a 0
@@ -280,7 +283,7 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
   const empty = groupedMain.length === 0 && slotGroups.size === 0 && !(extra && extra.length) && !(sections && sections.length)
   return (
     <div style={{ minWidth: 340, maxWidth: 520, fontSize: 11 }}>
-      <BreakdownHeader title={title} total={headerVal} totalUnit={headerUnit} formula={formula} />
+      <BreakdownHeader title={title} total={headerVal} totalUnit={headerUnit} formula={formula} totalSuffix={totalSuffix} />
       {empty ? <div style={{ color: '#555' }}>No sources found</div> : (
         // ONE grid so every column sizes to the widest entry across ALL rows (header + extras + sources);
         // each row is a subgrid spanning all columns so it keeps its own box (hover/outline) while its
@@ -380,7 +383,7 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
   label: string; children: React.ReactNode; labelColor?: string;
   onClick?: (e: React.MouseEvent) => void;
   expandable?: boolean; expanded?: boolean;
-  breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[] };
+  breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string };
 }) {
   const ctx = useContext(BreakdownCtx)
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
@@ -401,7 +404,7 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
       {bd && tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--breakdown" {...tip.floatingProps}>
-            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} formula={breakdown!.formula} sections={breakdown!.sections} />
+            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
           </div>
         </FloatingPortal>
       )}
@@ -2021,7 +2024,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
 // ── Defense panels ────────────────────────────────────────────────────────────
 
-function SubRow({ label, children, breakdown }: { label: string; children: React.ReactNode; breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[] } }) {
+function SubRow({ label, children, breakdown }: { label: string; children: React.ReactNode; breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string } }) {
   const ctx = useContext(BreakdownCtx)
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
   const bd = !!breakdown && !!ctx
@@ -2035,7 +2038,7 @@ function SubRow({ label, children, breakdown }: { label: string; children: React
       {bd && tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--breakdown" {...tip.floatingProps}>
-            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} formula={breakdown!.formula} sections={breakdown!.sections} />
+            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
           </div>
         </FloatingPortal>
       )}
@@ -2191,12 +2194,14 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         {recovery && recovery.steady_life_pct < 99.5 && (
           <Row label="Stable Life" labelColor="#d8a050" breakdown={{
             title: 'Stable Life', keys: [], total: recovery.steady_life, totalUnit: '',
+            totalSuffix: `(${dec(recovery.steady_life_pct)}% of Max Life)`,
             formula: 'Steady-state Life pool where recovery == consumption (the % your Life settles at × Max Life).',
             extra: [
               { value: fmtNum(defense.max_life), stat: 'Max Life', source: 'Base', sourceName: 'full pool' },
-              { value: `${dec(recovery.steady_life_pct)}%`, stat: 'Stable Life %', source: 'Consumption', sourceName: 'steady state' },
             ],
-          }}>{fmtNum(recovery.steady_life)} ({dec(recovery.steady_life_pct)}%)</Row>
+            // Row shows only the FLOORED pool (rounds against the player); the breakdown Total keeps the true value
+            // and carries the % to its right.
+          }}>{fmtNum(Math.floor(recovery.steady_life))}</Row>
         )}
         {(defense.sealed_life ?? 0) > 0 && (
           <>
