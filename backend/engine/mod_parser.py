@@ -417,6 +417,11 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
             if _cap:
                 out.append({"stat_key": _stat + "_cap", "amount": float(_cap) / 100.0, "text": t})
             return out
+    # Any OTHER "for every N <Life|Mana|ES> consumed recently" consumer (flat "Adds … Damage", crit, etc.) is NOT
+    # modeled yet (Stage G). Short-circuit to unresolved (honest NYI) so the generic resolver below can't fuzzy-match
+    # the flat/crit value and apply it ALWAYS — dropping the ÷N divisor + cap (silent-wrong).
+    if re.search(r"for\s+every\s+[\d.]+\s+(?:life|mana|energy\s+shield)\s+consumed\s+recently", t, re.I):
+        return []
 
     # "+N% additional Curse Effect" → multiplicative Curse Effect pool (e.g. Defile). Must come before the
     # generic Curse Effect matcher so plain "+N% Curse Effect" still maps to the increased pool.

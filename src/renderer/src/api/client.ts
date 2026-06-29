@@ -937,6 +937,10 @@ export interface RecoveryResult {
   consumption_life_per_sec: number
   consumption_mana_per_sec: number
   consumption_es_per_sec: number
+  // Rolling "consumed recently" totals (per-sec × 4s) — drives per-N-consumed affixes + threshold gates
+  consumed_recently_life: number
+  consumed_recently_mana: number
+  consumed_recently_energy_shield: number
   // Net sustain (recovery − consumption; skill life/mana cost NYI)
   net_life_per_sec: number
   net_mana_per_sec: number

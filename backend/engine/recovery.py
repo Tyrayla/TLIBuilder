@@ -63,6 +63,10 @@ class RecoveryResult:
     consumption_life_per_sec: float = 0.0
     consumption_mana_per_sec: float = 0.0
     consumption_es_per_sec: float = 0.0
+    # Rolling "consumed recently" totals (per-sec × 4s window) — what per-N-consumed affixes + threshold gates read
+    consumed_recently_life: float = 0.0
+    consumed_recently_mana: float = 0.0
+    consumed_recently_energy_shield: float = 0.0
     # Net sustain (recovery − consumption). Still excludes the skill's intrinsic Life/Mana COST (no skill-cost model)
     net_life_per_sec: float = 0.0
     net_mana_per_sec: float = 0.0
@@ -217,6 +221,9 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     cons_life = float(cons.get("life_per_sec", 0.0) or 0.0)
     cons_mana = float(cons.get("mana_per_sec", 0.0) or 0.0)
     cons_es = float(cons.get("energy_shield_per_sec", 0.0) or 0.0)
+    cr_life = float(cons.get("consumed_recently_life", 0.0) or 0.0)
+    cr_mana = float(cons.get("consumed_recently_mana", 0.0) or 0.0)
+    cr_es = float(cons.get("consumed_recently_energy_shield", 0.0) or 0.0)
     net_life = life_ps + life_regain_ps + life_regen_ps - cons_life
     net_mana = mana_ps + mana_regen_ps - cons_mana
 
@@ -254,6 +261,7 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         temporary_life=temp_life, temporary_mana=temp_mana,
         total_max_life=max_life + temp_life, total_max_mana=max_mana + temp_mana,
         consumption_life_per_sec=cons_life, consumption_mana_per_sec=cons_mana, consumption_es_per_sec=cons_es,
+        consumed_recently_life=cr_life, consumed_recently_mana=cr_mana, consumed_recently_energy_shield=cr_es,
         net_life_per_sec=net_life, net_mana_per_sec=net_mana,
         life_sustainable=life_sustainable, mana_sustainable=mana_sustainable,
         life_time_to_empty=life_tte, mana_time_to_empty=mana_tte,

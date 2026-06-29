@@ -2139,6 +2139,12 @@ const maxResSection = (typeLabel: string, maxKey: string, maxVal: number): Break
   extra: [{ value: '60%', stat: `Max ${typeLabel} Resistance`, source: 'Baseline', sourceName: 'Default' }],
 })
 
+// Consume-source stat keys per pool — fed as breakdown `keys` so the Consumed rows show which affixes contribute.
+const _CONSUME_BASES = ['pct_current', 'pct_max', 'flat']
+const LIFE_CONSUME_KEYS = [..._CONSUME_BASES.flatMap(b => [`life_consumed_${b}_per_sec`, `life_consumed_${b}_per_cast`, `life_consumed_${b}_per_attack_use`])]
+const MANA_CONSUME_KEYS = [..._CONSUME_BASES.flatMap(b => [`mana_consumed_${b}_per_sec`, `mana_consumed_${b}_per_cast`, `mana_consumed_${b}_per_attack_use`])]
+const ES_CONSUME_KEYS = _CONSUME_BASES.map(b => `energy_shield_consumed_${b}_per_sec`)
+
 function DefensePanels({ defense, reservation, recovery }: { defense: DefenseResult | null; reservation: ReservationResult | null; recovery: RecoveryResult | null }) {
   if (!defense) {
     return <StatPanel title="Life" accent="#c03030"><div style={{ fontSize: 12, color: '#555' }}>No data.</div></StatPanel>
@@ -2254,8 +2260,10 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         )}
         {recovery && recovery.consumption_life_per_sec > 0 && (
           <Row label="Life Consumed" labelColor="#d06868" breakdown={{
-            title: 'Life Consumed', keys: [], total: recovery.consumption_life_per_sec, totalUnit: '',
-            formula: 'Self-consume drains per second, at the steady-state Life %. Excludes the skill’s own Life cost (NYI).',
+            title: 'Life Consumed', keys: LIFE_CONSUME_KEYS, total: recovery.consumption_life_per_sec, totalUnit: '',
+            formula: 'Self-consume drains per second, at the steady-state (unreserved) Life %. % current × current Life + % max × Max + flat, per-cast/use × the use rate. Excludes the skill’s own Life cost (NYI).',
+            extra: recovery.consumed_recently_life > 0 ? [{ value: fmtNum(Math.floor(recovery.consumed_recently_life)),
+              stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes + gates' }] : undefined,
           }}>{rate(recovery.consumption_life_per_sec)}</Row>
         )}
         {recovery && (recovery.net_life_per_sec > 0 || recovery.consumption_life_per_sec > 0) && (
@@ -2304,8 +2312,10 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         )}
         {recovery && recovery.consumption_mana_per_sec > 0 && (
           <Row label="Mana Consumed" labelColor="#d06868" breakdown={{
-            title: 'Mana Consumed', keys: [], total: recovery.consumption_mana_per_sec, totalUnit: '',
-            formula: 'Self-consume drains per second. Excludes the skill’s own Mana cost (NYI).',
+            title: 'Mana Consumed', keys: MANA_CONSUME_KEYS, total: recovery.consumption_mana_per_sec, totalUnit: '',
+            formula: 'Self-consume drains per second (unreserved current Mana for % current). Excludes the skill’s own Mana cost (NYI).',
+            extra: recovery.consumed_recently_mana > 0 ? [{ value: fmtNum(Math.floor(recovery.consumed_recently_mana)),
+              stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes (Glacier/Compensatory/Tyrant)' }] : undefined,
           }}>{rate(recovery.consumption_mana_per_sec)}</Row>
         )}
         {recovery && (recovery.net_mana_per_sec > 0 || recovery.consumption_mana_per_sec > 0) && (
@@ -2339,6 +2349,14 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
             title: 'Shield Regain', keys: ['energy_shield_regain_inc', 'energy_shield_regain_interval_additional', 'regain_interval_additional'],
             total: recovery.shield_regain_per_sec, totalUnit: '', formula: 'min(missing × Regain, 30% missing) ÷ interval (0.5s base)',
           }}>{rate(recovery.shield_regain_per_sec)}</Row>
+        )}
+        {recovery && recovery.consumption_es_per_sec > 0 && (
+          <Row label="ES Consumed" labelColor="#d06868" breakdown={{
+            title: 'Energy Shield Consumed', keys: ES_CONSUME_KEYS, total: recovery.consumption_es_per_sec, totalUnit: '',
+            formula: 'Self-consume drains per second (e.g. Ghost Slaughter consumes Life + ES).',
+            extra: recovery.consumed_recently_energy_shield > 0 ? [{ value: fmtNum(Math.floor(recovery.consumed_recently_energy_shield)),
+              stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes' }] : undefined,
+          }}>{rate(recovery.consumption_es_per_sec)}</Row>
         )}
       </StatPanel>
 

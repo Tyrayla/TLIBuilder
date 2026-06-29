@@ -2176,6 +2176,12 @@ _COND_PATTERNS: list[tuple] = [
     (re.compile(r"having\s+squidnova|have\s+squidnova", re.I), "has_squidnova"),
     (re.compile(r"taken\s+damage\s+in\s+the\s+last|recently\s+taken\s+damage", re.I), "recently_taken_damage"),
     (re.compile(r"used\s+a\s+mobility\s+skill", re.I), "recently_used_mobility"),
+    # Consumed-recently threshold gates (Crimson King / Awakening Skull). Driven by the engine's consumed_recently
+    # total: "% (Max) Life consumed recently" → % of Max; flat "N Life consumed recently" → flat amount.
+    (re.compile(r"consumed\s+more\s+than\s+\+?([\d.]+)\s*%\s*(?:of\s+)?(?:max\s+)?life\s+recently", re.I),
+     lambda m: {"key": "life_consumed_recently_pct_max", "op": ">", "value": float(m.group(1))}),
+    (re.compile(r"more\s+than\s+([\d.]+)\s+life\s+(?:has\s+been\s+)?consumed\s+recently", re.I),
+     lambda m: {"key": "life_consumed_recently_flat", "op": ">", "value": float(m.group(1))}),
     # "Critical Strike or Reaped" → either condition satisfies it.
     (re.compile(r"landed\s+a\s+critical\s+strike\s+or\s+reaped", re.I), {"or": ["recently_crit", "recently_reaped"]}),
     (re.compile(r"landed\s+a\s+critical\s+strike|critical\s+strike\b.*\brecently\b", re.I), "recently_crit"),

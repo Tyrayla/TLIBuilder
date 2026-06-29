@@ -189,6 +189,52 @@ def test_current_consume_uses_unreserved_max_uses_raw():
                                  reservation={"sealed_life": 300}).life_per_sec == pytest.approx(80.0)   # raw Max
 
 
+def test_consumed_recently_threshold_gate_translation():
+    # Crimson King / Awakening Skull gate text → the registered numeric conditions.
+    from server import _translate_condition_expr as T
+    assert T("if you have consumed more than +100 % of Max Life recently") == {
+        "key": "life_consumed_recently_pct_max", "op": ">", "value": 100.0}
+    assert T("if you have consumed more than 120 % of Max Life recently")["value"] == 120.0
+    assert T("if you have consumed more than 100 % Life recently")["key"] == "life_consumed_recently_pct_max"
+    assert T("if more than 15000 Life has been consumed recently") == {
+        "key": "life_consumed_recently_flat", "op": ">", "value": 15000.0}
+
+
+def test_consumed_recently_gate_fires_above_threshold():
+    # A "consumed > 100% Max Life recently" gated bonus fires once consumed-recently crosses that, and not below.
+    # 40%/s × 4s window = 160% of Max consumed recently (above the 100% gate); 10%/s = 40% (below).
+    def run(consume_pct, mod):
+        req = make_request("chromatic_shot", 20, gear=_gear([("life_consumed_pct_max_per_sec", consume_pct)]))
+        if mod:
+            req["custom_mods"] = mod
+        r = engine_stats(EngineStatsRequest(**req))
+        return (r if isinstance(r, dict) else r.model_dump())["offense"]["total_dps"]
+    mod = ["+50 % damage if you have consumed more than 100 % of Max Life recently"]
+    base = run(0.40, None)
+    gated_hi = run(0.40, mod)                 # 160% recently → gate fires
+    gated_lo = run(0.10, mod)                 # 40% recently → below threshold, no fire
+    assert gated_hi > base * 1.4              # ~+50%
+    assert gated_lo == pytest.approx(run(0.10, None), rel=1e-3)   # unchanged below threshold
+
+
+def test_attack_speed_per_consumed_feedback_converges():
+    # Tide of the Styx: +Attack Speed per Life consumed recently is a feedback loop (AS → more attack uses → more
+    # Life consumed → more AS). It must converge (damped + quantized) and raise aps/DPS for an attack build.
+    from tests.mock_build import DUAL_WEAPONS
+    conds = {"current_life_pct": 100, "dual_wielding": True}
+
+    def run(extra):
+        g = DUAL_WEAPONS + [{"item_name": "T", "contributions": [
+            {"stat": k, "display_value": v, "unit": "", "slot": "ring1", "item_name": "T", "text": "T"}
+            for k, v in ([("life_consumed_pct_current_per_attack_use", 0.05)] + extra)]}]
+        r = engine_stats(EngineStatsRequest(**make_request("berserking_blade", 20, gear=g, extra_conditions=conds)))
+        return r if isinstance(r, dict) else r.model_dump()
+    base = run([])
+    tide = run([("attack_speed_inc_per_life_consumed", 0.01 / 500)])     # 1% AS per 500 Life consumed
+    assert tide["offense"]["attacks_per_second"] > base["offense"]["attacks_per_second"]   # feedback raised aps
+    assert tide["offense"]["total_dps"] > base["offense"]["total_dps"]
+
+
 def test_mana_consume_independent_pool():
     r = _resp([("mana_consumed_flat_per_sec", 50)])
     assert r["consumption"]["mana_per_sec"] == pytest.approx(50.0, rel=1e-3)

@@ -355,6 +355,7 @@ def compute(
     curse_summaries: list[dict] = []
     curse_conflict: dict | None = None
     reservation: dict | None = None
+    _prev_consumed_recently_life = 0.0   # carries consumed-recently across passes for the AS-per-consumed feedback
     _converged_iters = _MAX_ITERS
     for iteration in range(_MAX_ITERS):
         # Loop-top: the trait module recomputes its contributions + Numbed override from the prior pass's
@@ -405,6 +406,21 @@ def compute(
                 source.add_slotted(c["stat_key"], c["amount"], _slot, None, _se)
             else:
                 source.add_with_source(c["stat_key"], c["amount"], _se)
+
+        # Attack-Speed-per-Life-Consumed (Tide of the Styx) — a feedback loop: more attack speed → more attack uses →
+        # more Life consumed recently → more attack speed. Inject it here (into the aggregated source, before derive
+        # + the consume block read aps) from the PRIOR pass's consumed-recently so it converges with the loop. (Only
+        # this consumer feeds back; the damage-per-consumed fold is one-directional and stays post-loop.)
+        _as_per = source.total("attack_speed_inc_per_life_consumed")
+        if _as_per and _prev_consumed_recently_life > 0.0:
+            _as_amt = _prev_consumed_recently_life * _as_per
+            _as_cap = source.total("attack_speed_inc_per_life_consumed_cap")
+            if _as_cap:
+                _as_amt = min(_as_amt, _as_cap)
+            if _as_amt:
+                source.add_with_source("attack_speed_inc", _as_amt, SourceEntry(
+                    stat="attack_speed_inc", amount=_as_amt, source_type="gear", label="Attack Speed per Life Consumed",
+                    text="Attack Speed per Life consumed recently", points=1, source_name="Life Consumed"))
 
         # Aura / Focus buffs: scale by the now-fully-aggregated Aura Effect (gear + talents + custom +
         # standard supports + the auras' own) and fold into the source BEFORE derive (so life-regen/resist
@@ -497,8 +513,15 @@ def compute(
             _cons_now = calculate_consumption(source, condition_state=condition_state, rates=_cons_rates,
                                               reservation=reservation)
             _ml = source.total("max_life") or 1.0
-            condition_state["life_consumed_recently_pct_max"] = _cons_now.consumed_recently_life / _ml * 100.0
-            condition_state["life_consumed_recently_flat"] = _cons_now.consumed_recently_life
+            # Quantize the consumed-recently conditions before they enter condition_state (the loop's convergence
+            # snapshot) — otherwise these continuous floats drift every pass (esp. with the AS-per-consumed feedback)
+            # and the snapshot never matches. Granularity is far finer than any gate threshold.
+            condition_state["life_consumed_recently_pct_max"] = round(_cons_now.consumed_recently_life / _ml * 100.0 / 0.5) * 0.5
+            condition_state["life_consumed_recently_flat"] = round(_cons_now.consumed_recently_life)
+            # Under-relax the value that feeds the AS-per-consumed loop (α=0.5) so the feedback converges regardless of
+            # gain; at the fixed point it equals the true consumed-recently. (Only the feedback is damped — the
+            # condition/offense reads above use the true value.)
+            _prev_consumed_recently_life = 0.5 * _cons_now.consumed_recently_life + 0.5 * _prev_consumed_recently_life
 
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS
