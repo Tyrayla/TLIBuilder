@@ -145,6 +145,42 @@ def test_manual_life_pct_overrides_solve():
     assert ac.get("current_life_pct", {}).get("source") != "Consumption steady state"
 
 
+def test_steady_state_mana_solves_and_verdict():
+    # Stage F: a mana-consume build solves the steady-state Mana % independently of Life.
+    # 40%/s current-Mana drain, no recovery → death spiral → mana% clamps to 0, unsustainable.
+    # (steady=0 is filtered out of auto_conditions by _is_active, so assert the steady/verdict fields directly.)
+    r = _resp([("mana_consumed_pct_current_per_sec", 0.40)])
+    assert r["recovery"]["steady_mana_pct"] == pytest.approx(0.0, abs=1.0)
+    assert r["recovery"]["mana_sustainable"] is False
+    # With enough flat Mana regen it settles sustainably (here regen beats max drain → stays ~full).
+    r2 = _resp([("mana_consumed_pct_current_per_sec", 0.20), ("mana_regen_flat", 100000)])
+    assert r2["recovery"]["mana_sustainable"] is True
+    assert r2["recovery"]["net_es_per_sec"] == pytest.approx(0.0, abs=1e-6)   # ES untouched (no ES consume)
+
+
+def test_steady_state_es_solves_to_equilibrium():
+    # Stage F: ES self-consume + missing-based Shield Regain settles ES below full (net ≈ 0).
+    # 20%/s current-ES drain, 1000 Max ES, strong Shield Regain → equilibrium at ~75% (regain fills the gap).
+    r = _resp([("energy_shield_consumed_pct_current_per_sec", 0.20),
+               ("max_energy_shield_flat", 1000), ("energy_shield_regain_inc", 2.0)])
+    ac = r.get("auto_conditions") or {}
+    solved = ac["current_es_pct"]["value"]
+    assert ac["current_es_pct"]["source"] == "Consumption steady state"
+    assert 60 < solved < 90
+    assert r["recovery"]["net_es_per_sec"] == pytest.approx(0.0, abs=5.0)
+    assert r["recovery"]["es_sustainable"] is True
+    assert r["recovery"]["steady_es"] == pytest.approx(solved / 100.0 * 1000.0, rel=0.05)
+
+
+def test_consume_pool_solve_is_independent():
+    # A life-only consume build never engages the Mana/ES solver (their % stays default).
+    r = _resp([("life_consumed_pct_current_per_sec", 0.50), ("life_regen_flat", 300)])
+    ac = r.get("auto_conditions") or {}
+    assert ac["current_life_pct"]["source"] == "Consumption steady state"
+    assert ac.get("current_mana_pct", {}).get("source") != "Consumption steady state"
+    assert ac.get("current_es_pct", {}).get("source") != "Consumption steady state"
+
+
 def test_damage_per_life_consumed_raises_dps():
     base = _resp([("life_consumed_pct_current_per_sec", 0.50), ("life_regen_flat", 300)])
     tide = _resp([("life_consumed_pct_current_per_sec", 0.50), ("life_regen_flat", 300),

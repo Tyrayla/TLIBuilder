@@ -18,32 +18,51 @@ from engine.consumption import calculate_consumption
 LIFE_PCT_QUANTUM = 0.5   # resolution + the snapshot-quantization granularity (keeps the fixed-point loop terminating)
 
 
-def _net_life_at(source, condition_state, life_pct, restoration_inputs, rates, reservation, uptime_mode) -> float:
+# pool → (the condition_state % key it solves, the RecoveryResult net field to drive to zero).
+_POOL_SPEC = {
+    "life":          ("current_life_pct", "net_life_per_sec"),
+    "mana":          ("current_mana_pct", "net_mana_per_sec"),
+    "energy_shield": ("current_es_pct",   "net_es_per_sec"),
+}
+
+
+def _net_at(source, condition_state, pool, pct, restoration_inputs, rates, reservation, uptime_mode) -> float:
+    pct_key, net_field = _POOL_SPEC[pool]
     cs = dict(condition_state)
-    cs["current_life_pct"] = life_pct
+    cs[pct_key] = pct
     cons = calculate_consumption(source, condition_state=cs, rates=rates, reservation=reservation)
-    rec = calculate_recovery(source, condition_state=cs, restoration_inputs=restoration_inputs,
-                             consumption={"life_per_sec": cons.life_per_sec}, uptime_mode=uptime_mode)
-    return rec.net_life_per_sec
+    rec = calculate_recovery(
+        source, condition_state=cs, restoration_inputs=restoration_inputs, reservation=reservation,
+        consumption={"life_per_sec": cons.life_per_sec, "mana_per_sec": cons.mana_per_sec,
+                     "energy_shield_per_sec": cons.energy_shield_per_sec},
+        uptime_mode=uptime_mode)
+    return getattr(rec, net_field)
+
+
+def solve_steady_pool_pct(source, condition_state, pool, restoration_inputs, rates, reservation=None,
+                          uptime_mode=None) -> float:
+    """Bisect the `pool` % where its net = 0; quantized to LIFE_PCT_QUANTUM in [0, 100]. `pool` ∈
+    {'life','mana','energy_shield'}. Net is monotone-decreasing in the pool % (recovery falls — missing-based
+    regain/restoration share shrink as the pool fills; %-current consumption rises), so there is a unique root,
+    found by bisection (cannot oscillate). uptime_mode is threaded so the equilibrium uses the SAME restoration
+    cadence the display reads (else the solved % and the displayed net disagree in Effective mode)."""
+    f = lambda pct: _net_at(source, condition_state, pool, pct, restoration_inputs, rates, reservation, uptime_mode)
+    if f(100.0) >= 0.0:
+        return 100.0   # recovery beats consumption even at full → stays full
+    if f(0.0) <= 0.0:
+        return 0.0     # consumption beats recovery even near-empty → death spiral
+    lo, hi = 0.0, 100.0   # f(lo) > 0 (recovering), f(hi) < 0 (draining)
+    for _ in range(9):    # 100 / 2^9 ≈ 0.2 % precision
+        mid = 0.5 * (lo + hi)
+        if f(mid) >= 0.0:
+            lo = mid
+        else:
+            hi = mid
+    return round((0.5 * (lo + hi)) / LIFE_PCT_QUANTUM) * LIFE_PCT_QUANTUM
 
 
 def solve_steady_life_pct(source, condition_state, restoration_inputs, rates, reservation=None,
                           uptime_mode=None) -> float:
-    """Bisect the Life % where net_life = 0; quantized to LIFE_PCT_QUANTUM in [0, 100].
-
-    uptime_mode is threaded through so the equilibrium uses the SAME restoration cadence the display reads
-    (Effective honors recast/charge gaps, Full Uptime ignores them) — otherwise the solved % and the
-    displayed net would disagree in Effective mode."""
-    if _net_life_at(source, condition_state, 100.0, restoration_inputs, rates, reservation, uptime_mode) >= 0.0:
-        return 100.0
-    if _net_life_at(source, condition_state, 0.0, restoration_inputs, rates, reservation, uptime_mode) <= 0.0:
-        return 0.0
-    lo, hi = 0.0, 100.0   # f(lo) > 0 (recovering), f(hi) < 0 (draining)
-    for _ in range(9):    # 100 / 2^9 ≈ 0.2 % precision
-        mid = 0.5 * (lo + hi)
-        if _net_life_at(source, condition_state, mid, restoration_inputs, rates, reservation, uptime_mode) >= 0.0:
-            lo = mid
-        else:
-            hi = mid
-    mid = 0.5 * (lo + hi)
-    return round(mid / LIFE_PCT_QUANTUM) * LIFE_PCT_QUANTUM
+    """Back-compat wrapper — solves the Life pool (see solve_steady_pool_pct)."""
+    return solve_steady_pool_pct(source, condition_state, "life", restoration_inputs, rates,
+                                 reservation, uptime_mode)

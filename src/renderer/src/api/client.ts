@@ -948,14 +948,21 @@ export interface RecoveryResult {
   // Net sustain (recovery − consumption; skill life/mana cost NYI)
   net_life_per_sec: number
   net_mana_per_sec: number
+  net_es_per_sec: number
   // Sustainability verdict per pool + time-to-empty (seconds) when unsustainable (null when sustainable)
   life_sustainable: boolean
   mana_sustainable: boolean
+  es_sustainable: boolean
   life_time_to_empty: number | null
   mana_time_to_empty: number | null
-  // Steady-state ("stable") Life: the solved Life % you settle at (100 when nothing consumes) + that as a flat pool
+  es_time_to_empty: number | null
+  // Steady-state ("stable") pool: the solved % you settle at (100 when nothing consumes that pool) + that flat pool
   steady_life_pct: number
   steady_life: number
+  steady_mana_pct: number
+  steady_mana: number
+  steady_es_pct: number
+  steady_es: number
   // Effective HP (steady-state Life pool + Temporary Life vs the calc target's average mitigation)
   ehp_life: number
   nyi: string[]

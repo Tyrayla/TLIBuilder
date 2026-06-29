@@ -500,22 +500,27 @@ def compute(
             _use_rate = compute_skill_rates(source, _active_skill).get("aps", 0.0) if _active_skill else 0.0
             _attack_rate = _use_rate if (_active_skill is not None and not _active_skill.is_spell) else 0.0
             _cons_rates = {"any": _use_rate, "attack": _attack_rate}
-            # Solve the steady-state Life % UNLESS the user pinned a real (sub-full) what-if override. A default /
-            # seeded current_life_pct of 100 is NOT a meaningful pin for a consume build (which never sits at full
-            # Life), so the solve still runs and finds the real steady state — without this, the frontend's
-            # default-seeded current_life_pct=100 silently disables the solve on every consume build (regain then
-            # reads as 0 because nothing is "missing", so the build always looks unsustainable at full Life).
-            _pinned_clp = condition_state.get("current_life_pct")
-            _user_pinned_life = ("current_life_pct" in manual_cond_keys
-                                 and _pinned_clp is not None and float(_pinned_clp) < 100.0 - 1e-9)
-            if not _user_pinned_life:
-                from engine.sustain_solve import solve_steady_life_pct
-                _cri = [r for _es in (elixir_summaries or []) for r in (_es.get("restoration") or [])]
-                _solved_life = solve_steady_life_pct(source, condition_state, _cri, _cons_rates, reservation,
-                                                     uptime_mode=build_input.uptime_mode)
-                condition_state["current_life_pct"] = _solved_life
-                auto_sources["current_life_pct"] = "Consumption steady state"
-                auto_values["current_life_pct"] = _solved_life
+            # Solve the steady-state pool % for EACH pool the build self-consumes (Stage C = Life, Stage F = Mana/ES),
+            # UNLESS the user pinned a real (sub-full) what-if override. A default / seeded current_*_pct of 100 is NOT
+            # a meaningful pin for a consume build (which never sits at full), so the solve still runs and finds the
+            # real steady state — without this, the frontend's default-seeded current_*_pct=100 silently disables the
+            # solve on every consume build (missing-based regain then reads as 0, so it always looks unsustainable).
+            from engine.sustain_solve import solve_steady_pool_pct
+            _cri = [r for _es in (elixir_summaries or []) for r in (_es.get("restoration") or [])]
+            _POOL_PCT_KEY = {"life": "current_life_pct", "mana": "current_mana_pct", "energy_shield": "current_es_pct"}
+            for _pool, _pct_key in _POOL_PCT_KEY.items():
+                if not any(source.total(_k) for _k in CONSUME_SOURCE_KEYS if _k.startswith(_pool + "_")):
+                    continue   # this pool isn't self-consumed → leave its % at the default/user value
+                _pinned = condition_state.get(_pct_key)
+                _user_pinned = (_pct_key in manual_cond_keys
+                                and _pinned is not None and float(_pinned) < 100.0 - 1e-9)
+                if _user_pinned:
+                    continue
+                _solved = solve_steady_pool_pct(source, condition_state, _pool, _cri, _cons_rates, reservation,
+                                                uptime_mode=build_input.uptime_mode)
+                condition_state[_pct_key] = _solved
+                auto_sources[_pct_key] = "Consumption steady state"
+                auto_values[_pct_key] = _solved
             # Threshold-gate inputs (Crimson King / Awakening Skull "consumed > X% Max Life / > N Life recently"),
             # at whatever Life % is now in effect (solved or pinned).
             _cons_now = calculate_consumption(source, condition_state=condition_state, rates=_cons_rates,

@@ -70,16 +70,23 @@ class RecoveryResult:
     # Net sustain (recovery − consumption). Still excludes the skill's intrinsic Life/Mana COST (no skill-cost model)
     net_life_per_sec: float = 0.0
     net_mana_per_sec: float = 0.0
+    net_es_per_sec: float = 0.0
     # Sustainability verdict (per pool): can recovery keep up at the assumed/solved pool %? time_to_empty in seconds
     # from the current pool when net is negative (None when sustainable).
     life_sustainable: bool = True
     mana_sustainable: bool = True
+    es_sustainable: bool = True
     life_time_to_empty: float | None = None
     mana_time_to_empty: float | None = None
-    # Steady-state ("stable") Life: the Life % you settle at (solved for consume builds, 100 otherwise) and that as a
-    # flat pool. = Max Life when nothing consumes.
+    es_time_to_empty: float | None = None
+    # Steady-state ("stable") pool: the % you settle at (solved for consume builds, 100 otherwise) and that as a
+    # flat pool. = the (unreserved) max when nothing consumes that pool.
     steady_life_pct: float = 100.0
     steady_life: float = 0.0
+    steady_mana_pct: float = 100.0
+    steady_mana: float = 0.0
+    steady_es_pct: float = 100.0
+    steady_es: float = 0.0
     # Effective HP (Life + Temporary Life vs the calc target's average mitigation)
     ehp_life: float = 0.0
     nyi: list = field(default_factory=lambda: ["Net sustain excludes skill Life/Mana cost (no skill-cost model yet)"])
@@ -226,27 +233,37 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     cr_es = float(cons.get("consumed_recently_energy_shield", 0.0) or 0.0)
     net_life = life_ps + life_regain_ps + life_regen_ps - cons_life
     net_mana = mana_ps + mana_regen_ps - cons_mana
+    # ES recovery = restoration (Pixie excess→ES + Rebirth-converted) + missing-based Shield Regain. No ES regen modeled.
+    net_es = es_restore_ps + shield_regain_ps - cons_es
 
-    # Sustainability verdict: net ≥ 0 → sustainable; else time-to-empty from the current pool. (Once C solves the
+    # Sustainability verdict: net ≥ 0 → sustainable; else time-to-empty from the current pool. (Once C/F solve the
     # steady-state pool %, net AT that % is the honest verdict; a clamp-to-0 equilibrium = unsustainable.)
+    max_es = source.total("max_energy_shield")
     cur_life = life_pct / 100.0 * max_life
     cur_mana = mana_pct / 100.0 * max_mana
+    cur_es = es_pct / 100.0 * max_es
     # A clamped-to-0 steady state is a death spiral: net is ~0 there (nothing left to consume), but the pool is
-    # empty, so it's unsustainable. Treat life%/mana% ≤ 0 as unsustainable even when net ≈ 0.
+    # empty, so it's unsustainable. Treat pool% ≤ 0 as unsustainable even when net ≈ 0.
     life_sustainable = net_life >= -1e-9 and life_pct > 1e-9
     mana_sustainable = net_mana >= -1e-9 and mana_pct > 1e-9
+    es_sustainable = net_es >= -1e-9 and es_pct > 1e-9
     life_tte = 0.0 if (life_pct <= 1e-9 and cons_life > 0) else (
         (cur_life / -net_life) if (not life_sustainable and net_life < 0) else None)
     mana_tte = 0.0 if (mana_pct <= 1e-9 and cons_mana > 0) else (
         (cur_mana / -net_mana) if (not mana_sustainable and net_mana < 0) else None)
+    es_tte = 0.0 if (es_pct <= 1e-9 and cons_es > 0) else (
+        (cur_es / -net_es) if (not es_sustainable and net_es < 0) else None)
 
     # Effective hit pool: the STEADY-STATE current Life pool = life_pct × UNRESERVED Life (Max − Sealed; solved for
     # consume builds, = unreserved Max at 100% otherwise) + Temporary Life, vs the calc target's average armour
     # mitigation. "Current Life" is the unreserved pool — the honest base for a consume build (never at full Life).
     rsv = reservation or {}
     unres_life = max(0.0, max_life - float(rsv.get("sealed_life", 0.0) or 0.0))
+    unres_mana = max(0.0, max_mana - float(rsv.get("sealed_mana", 0.0) or 0.0))
     steady_life_base = life_pct / 100.0 * unres_life
     steady_life = steady_life_base + temp_life
+    steady_mana_base = mana_pct / 100.0 * unres_mana
+    steady_es_base = es_pct / 100.0 * max_es
     avg_mit = 0.5 * (float(d.get("armor_phys_mitigation", 0.0)) + float(d.get("armor_nonphys_mitigation", 0.0)))
     ehp_life = steady_life / (1.0 - avg_mit) if avg_mit < 1.0 else steady_life
 
@@ -262,9 +279,11 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         total_max_life=max_life + temp_life, total_max_mana=max_mana + temp_mana,
         consumption_life_per_sec=cons_life, consumption_mana_per_sec=cons_mana, consumption_es_per_sec=cons_es,
         consumed_recently_life=cr_life, consumed_recently_mana=cr_mana, consumed_recently_energy_shield=cr_es,
-        net_life_per_sec=net_life, net_mana_per_sec=net_mana,
-        life_sustainable=life_sustainable, mana_sustainable=mana_sustainable,
-        life_time_to_empty=life_tte, mana_time_to_empty=mana_tte,
+        net_life_per_sec=net_life, net_mana_per_sec=net_mana, net_es_per_sec=net_es,
+        life_sustainable=life_sustainable, mana_sustainable=mana_sustainable, es_sustainable=es_sustainable,
+        life_time_to_empty=life_tte, mana_time_to_empty=mana_tte, es_time_to_empty=es_tte,
         steady_life_pct=life_pct, steady_life=steady_life_base,
+        steady_mana_pct=mana_pct, steady_mana=steady_mana_base,
+        steady_es_pct=es_pct, steady_es=steady_es_base,
         ehp_life=ehp_life,
     )

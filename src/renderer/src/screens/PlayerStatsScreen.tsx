@@ -2301,6 +2301,15 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         {defense.mana_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Mana — Flat Added', keys: ['max_mana_flat'] }}>{fmtNum(defense.mana_flat)}</SubRow>}
         {defense.mana_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Mana — Increased', keys: ['max_mana_inc'] }}>{fmtPct(defense.mana_inc)}</SubRow>}
         {defense.mana_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Mana — Additional', keys: ['max_mana_additional'] }}>{fmtMult(defense.mana_additional)}</SubRow>}
+        {/* Stable Mana: the steady-state Mana pool a mana-consume build settles at (recovery == consumption). */}
+        {recovery && recovery.steady_mana_pct < 99.5 && (
+          <Row label="Stable Mana" labelColor="#7090d0" breakdown={{
+            title: 'Stable Mana', keys: [], total: recovery.steady_mana, totalUnit: '',
+            totalSuffix: `(${dec(recovery.steady_mana_pct)}% of Max Mana)`,
+            formula: 'Steady-state Mana pool where recovery == consumption (the % your Mana settles at × Max Mana).',
+            extra: [{ value: fmtNum(defense.max_mana), stat: 'Max Mana', source: 'Base', sourceName: 'full pool' }],
+          }}>{fmtNum(Math.floor(recovery.steady_mana))}</Row>
+        )}
         {(defense.sealed_mana ?? 0) > 0 && (
           <>
             <Row label="Sealed (Reserved) Mana" labelColor={defense.insufficient_mana ? '#e05050' : '#c87820'} breakdown={sealedBreakdown('mana', defense.sealed_mana!)}>{fmtNum(sealedDisp(defense.max_mana, defense.unsealed_mana ?? defense.max_mana))}</Row>
@@ -2354,6 +2363,15 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         {defense.es_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Energy Shield — Flat Added', keys: ['max_energy_shield_flat', 'energy_shield_gear_flat'] }}>{fmtNum(defense.es_flat)}</SubRow>}
         {defense.es_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Energy Shield — Increased', keys: ['max_energy_shield_inc', 'energy_shield_gear_inc'] }}>{fmtPct(defense.es_inc)}</SubRow>}
         {defense.es_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Energy Shield — Additional', keys: ['max_energy_shield_additional'] }}>{fmtMult(defense.es_additional)}</SubRow>}
+        {/* Stable ES: the steady-state ES pool an ES-consume build settles at (recovery == consumption). */}
+        {recovery && recovery.steady_es_pct < 99.5 && (
+          <Row label="Stable Energy Shield" labelColor="#5aa0d0" breakdown={{
+            title: 'Stable Energy Shield', keys: [], total: recovery.steady_es, totalUnit: '',
+            totalSuffix: `(${dec(recovery.steady_es_pct)}% of Max ES)`,
+            formula: 'Steady-state ES pool where recovery == consumption (the % your ES settles at × Max ES).',
+            extra: [{ value: fmtNum(Math.floor(defense.max_energy_shield)), stat: 'Max Energy Shield', source: 'Base', sourceName: 'full pool' }],
+          }}>{fmtNum(Math.floor(recovery.steady_es))}</Row>
+        )}
         {recovery && recovery.restoration_es_per_sec > 0 && (
           <Row label="ES Restoration" labelColor="#5fae79" breakdown={{
             title: 'Energy Shield Restoration', keys: [], total: recovery.restoration_es_per_sec, totalUnit: '',
@@ -2374,6 +2392,17 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
             extra: recovery.consumed_recently_energy_shield > 0 ? [{ value: fmtNum(Math.floor(recovery.consumed_recently_energy_shield)),
               stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes' }] : undefined,
           }}>{rate(recovery.consumption_es_per_sec)}</Row>
+        )}
+        {recovery && (recovery.net_es_per_sec !== 0 || recovery.consumption_es_per_sec > 0) && (recovery.restoration_es_per_sec > 0 || recovery.shield_regain_per_sec > 0 || recovery.consumption_es_per_sec > 0) && (
+          <Row label="Net ES Sustain" labelColor={recovery.es_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
+            title: 'Net Energy Shield Sustain', keys: [], total: recovery.net_es_per_sec, totalUnit: '',
+            formula: 'ES Restoration + Shield Regain − Consumption',
+          }}>{rate(recovery.net_es_per_sec)}</Row>
+        )}
+        {recovery && recovery.consumption_es_per_sec > 0 && !recovery.es_sustainable && (
+          <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>
+            Unsustainable{recovery.es_time_to_empty != null ? ` — empties in ${dec(recovery.es_time_to_empty)}s` : ''}
+          </div>
         )}
       </StatPanel>
 
