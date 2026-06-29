@@ -26,6 +26,10 @@ from engine.offense import additional_total_product
 
 _REGAIN_BASE_INTERVAL = 0.5      # s (Help DB)
 _REGAIN_CAP = 0.30               # 30% of missing per tick (Life Regain / Shield Regain)
+# Baseline Mana Regeneration every character has (Help DB / Battle Mechanics/Base Mechanics/Others/Mana.md):
+# "Players regenerate 7 Mana every second by default" + "Players regenerate 1.75% Mana every second by default".
+_BASE_MANA_REGEN_FLAT = 7.0
+_BASE_MANA_REGEN_PCT = 0.0175    # of Max Mana / sec (scales per level via Max Mana)
 
 
 def _restoration_effect_factor(source: BuildSource) -> float:
@@ -54,6 +58,7 @@ class RecoveryResult:
     # Regen (over time)
     life_regen_per_sec: float = 0.0
     mana_regen_per_sec: float = 0.0
+    base_mana_regen_per_sec: float = 0.0   # the always-on baseline (7/s + 1.75% Max Mana/s) portion of mana_regen
     # Temporary pools (separate used-first barrier) + totals
     temporary_life: float = 0.0
     temporary_mana: float = 0.0
@@ -208,7 +213,11 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
 
     # Regen (over time): flat + %-of-max, × speed.
     life_regen_ps = (source.total("life_regen_flat") + source.total("life_regen_inc") * max_life) * (1.0 + source.total("life_regen_speed_inc"))
-    mana_regen_ps = source.total("mana_regen_flat") + source.total("mana_regen_pct") * max_mana + source.total("mana_regen_inc") * max_mana
+    # Baseline Mana Regen every character has (Help DB / Mana.md): 7 Mana/sec flat + 1.75% of Max Mana/sec. The %
+    # component scales per level via Max Mana (which grows +5/level). Added on top of gear/talent regen sources.
+    base_mana_regen = _BASE_MANA_REGEN_FLAT + _BASE_MANA_REGEN_PCT * max_mana
+    mana_regen_ps = (base_mana_regen + source.total("mana_regen_flat")
+                     + source.total("mana_regen_pct") * max_mana + source.total("mana_regen_inc") * max_mana)
 
     # Temporary pools (computed in-loop, emitted as temporary_life_flat/pct + capped; re-read here for display).
     base_max_life = max_life      # max_life is Base (temp is a separate barrier, never folded in)
@@ -275,6 +284,7 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         restoration_sources=life_src + mana_src,
         life_regain_per_sec=life_regain_ps, shield_regain_per_sec=shield_regain_ps,
         life_regen_per_sec=life_regen_ps, mana_regen_per_sec=mana_regen_ps,
+        base_mana_regen_per_sec=base_mana_regen,
         temporary_life=temp_life, temporary_mana=temp_mana,
         total_max_life=max_life + temp_life, total_max_mana=max_mana + temp_mana,
         consumption_life_per_sec=cons_life, consumption_mana_per_sec=cons_mana, consumption_es_per_sec=cons_es,

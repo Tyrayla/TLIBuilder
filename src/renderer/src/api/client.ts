@@ -946,6 +946,7 @@ export interface RecoveryResult {
   consumed_recently_mana: number
   consumed_recently_energy_shield: number
   // Net sustain (recovery − consumption; skill life/mana cost NYI)
+  base_mana_regen_per_sec: number   // baseline 7/s + 1.75% Max Mana/s portion of mana regen
   net_life_per_sec: number
   net_mana_per_sec: number
   net_es_per_sec: number

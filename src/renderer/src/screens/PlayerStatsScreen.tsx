@@ -2283,10 +2283,16 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
               stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes + gates' }] : undefined,
           }}>{rate(recovery.consumption_life_per_sec)}</Row>
         )}
-        {recovery && (recovery.net_life_per_sec > 0 || recovery.consumption_life_per_sec > 0) && (
-          <Row label="Net Life Sustain" labelColor={recovery.life_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
-            title: 'Net Life Sustain', keys: [], total: recovery.net_life_per_sec, totalUnit: '',
+        {recovery && (recovery.restoration_life_per_sec > 0 || recovery.life_regain_per_sec > 0 || recovery.life_regen_per_sec > 0) && (
+          <Row label="Net Life Recovery" labelColor={recovery.life_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
+            title: 'Net Life Recovery', keys: [], total: recovery.net_life_per_sec, totalUnit: '',
             formula: 'Restoration + Regain + Regen − Consumption (excludes skill Life cost — no skill-cost model yet)',
+            extra: [
+              ...(recovery.restoration_life_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_life_per_sec)}`, stat: 'Life Restoration', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.life_regain_per_sec > 0 ? [{ value: `+${rate(recovery.life_regain_per_sec)}`, stat: 'Life Regain', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.life_regen_per_sec > 0 ? [{ value: `+${rate(recovery.life_regen_per_sec)}`, stat: 'Life Regen', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.consumption_life_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_life_per_sec)}`, stat: 'Life Consumed', source: 'Consumption', sourceName: '' }] : []),
+            ],
           }}>{rate(recovery.net_life_per_sec)}</Row>
         )}
         {recovery && recovery.consumption_life_per_sec > 0 && !recovery.life_sustainable && (
@@ -2333,7 +2339,8 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         {recovery && recovery.mana_regen_per_sec > 0 && (
           <Row label="Mana Regen" labelColor="#5fae79" breakdown={{
             title: 'Mana Regen', keys: ['mana_regen_flat', 'mana_regen_pct', 'mana_regen_inc'],
-            total: recovery.mana_regen_per_sec, totalUnit: '', formula: 'Flat + % of Max Mana',
+            total: recovery.mana_regen_per_sec, totalUnit: '', formula: 'Baseline (7/s + 1.75% Max Mana/s) + gear/talent Flat + % of Max Mana',
+            extra: [{ value: `+${rate(recovery.base_mana_regen_per_sec)}`, stat: 'Base Mana Regen', source: 'Baseline', sourceName: '7/s + 1.75% Max Mana/s' }],
           }}>{rate(recovery.mana_regen_per_sec)}</Row>
         )}
         {recovery && recovery.consumption_mana_per_sec > 0 && (
@@ -2344,10 +2351,15 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
               stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes (Glacier/Compensatory/Tyrant)' }] : undefined,
           }}>{rate(recovery.consumption_mana_per_sec)}</Row>
         )}
-        {recovery && (recovery.net_mana_per_sec > 0 || recovery.consumption_mana_per_sec > 0) && (
-          <Row label="Net Mana Sustain" labelColor={recovery.mana_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
-            title: 'Net Mana Sustain', keys: [], total: recovery.net_mana_per_sec, totalUnit: '',
+        {recovery && (recovery.restoration_mana_per_sec > 0 || recovery.mana_regen_per_sec > 0) && (
+          <Row label="Net Mana Recovery" labelColor={recovery.mana_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
+            title: 'Net Mana Recovery', keys: [], total: recovery.net_mana_per_sec, totalUnit: '',
             formula: 'Restoration + Regen − Consumption',
+            extra: [
+              ...(recovery.restoration_mana_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_mana_per_sec)}`, stat: 'Mana Restoration', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.mana_regen_per_sec > 0 ? [{ value: `+${rate(recovery.mana_regen_per_sec)}`, stat: 'Mana Regen', source: 'Recovery', sourceName: 'incl. baseline' }] : []),
+              ...(recovery.consumption_mana_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_mana_per_sec)}`, stat: 'Mana Consumed', source: 'Consumption', sourceName: '' }] : []),
+            ],
           }}>{rate(recovery.net_mana_per_sec)}</Row>
         )}
         {recovery && recovery.consumption_mana_per_sec > 0 && !recovery.mana_sustainable && (
@@ -2393,10 +2405,15 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
               stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes' }] : undefined,
           }}>{rate(recovery.consumption_es_per_sec)}</Row>
         )}
-        {recovery && (recovery.net_es_per_sec !== 0 || recovery.consumption_es_per_sec > 0) && (recovery.restoration_es_per_sec > 0 || recovery.shield_regain_per_sec > 0 || recovery.consumption_es_per_sec > 0) && (
-          <Row label="Net ES Sustain" labelColor={recovery.es_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
-            title: 'Net Energy Shield Sustain', keys: [], total: recovery.net_es_per_sec, totalUnit: '',
+        {recovery && (recovery.restoration_es_per_sec > 0 || recovery.shield_regain_per_sec > 0) && (
+          <Row label="Net ES Recovery" labelColor={recovery.es_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
+            title: 'Net Energy Shield Recovery', keys: [], total: recovery.net_es_per_sec, totalUnit: '',
             formula: 'ES Restoration + Shield Regain − Consumption',
+            extra: [
+              ...(recovery.restoration_es_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_es_per_sec)}`, stat: 'ES Restoration', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.shield_regain_per_sec > 0 ? [{ value: `+${rate(recovery.shield_regain_per_sec)}`, stat: 'Shield Regain', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.consumption_es_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_es_per_sec)}`, stat: 'ES Consumed', source: 'Consumption', sourceName: '' }] : []),
+            ],
           }}>{rate(recovery.net_es_per_sec)}</Row>
         )}
         {recovery && recovery.consumption_es_per_sec > 0 && !recovery.es_sustainable && (

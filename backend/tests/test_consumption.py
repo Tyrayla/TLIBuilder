@@ -200,11 +200,20 @@ def test_manual_life_pct_overrides_solve():
     assert ac.get("current_life_pct", {}).get("source") != "Consumption steady state"
 
 
+def test_base_mana_regen_present():
+    # Every character has baseline Mana Regen (Help DB): 7/s + 1.75% Max Mana/s. Present on all builds.
+    r = _resp([("max_life_flat", 100)])
+    ml = r["defense"]["max_mana"]
+    assert r["recovery"]["base_mana_regen_per_sec"] == pytest.approx(7.0 + 0.0175 * ml, rel=1e-6)
+    assert r["recovery"]["mana_regen_per_sec"] >= r["recovery"]["base_mana_regen_per_sec"]
+
+
 def test_steady_state_mana_solves_and_verdict():
     # Stage F: a mana-consume build solves the steady-state Mana % independently of Life.
-    # 40%/s current-Mana drain, no recovery → death spiral → mana% clamps to 0, unsustainable.
+    # A huge FLAT Mana drain (>> base regen) → death spiral → mana% clamps to 0, unsustainable. (A %-current drain
+    # no longer reaches 0: as Mana falls the drain shrinks below the always-on base regen, so it settles >0.)
     # (steady=0 is filtered out of auto_conditions by _is_active, so assert the steady/verdict fields directly.)
-    r = _resp([("mana_consumed_pct_current_per_sec", 0.40)])
+    r = _resp([("mana_consumed_flat_per_sec", 100000)])
     assert r["recovery"]["steady_mana_pct"] == pytest.approx(0.0, abs=1.0)
     assert r["recovery"]["mana_sustainable"] is False
     # With enough flat Mana regen it settles sustainably (here regen beats max drain → stays ~full).
