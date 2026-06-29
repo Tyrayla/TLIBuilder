@@ -866,6 +866,19 @@ def compute(
     # Ineffective curse: an applied curse amplifies a damage type the build doesn't actually deal (e.g. an
     # Electrocute Lightning curse when 100% of the lightning is converted to cold) → it contributes nothing.
     warnings: list[dict] = []
+
+    # Mana-gated empower deactivation (Mana Boil's Euphoria turns off at 0 Mana). We DON'T auto-disable the buff —
+    # we WARN when Mana is unsustainable (drains to 0 at steady state), so the user sees that their costs/consumes
+    # would turn the buff off in play. (Skill cost is still NYI; once it's modeled this also catches cost-driven
+    # spirals.) Fires only for an ENABLED empower carrying the "loses … when Mana drops to 0" clause.
+    if not result_recovery.get("mana_sustainable", True):
+        for _sid, _m in (build_input.empower_meta or {}).items():
+            if _m.get("enabled", True) and _m.get("deactivates_at_zero_mana"):
+                warnings.append({
+                    "kind": "mana_deactivation",
+                    "text": f"{_m.get('name', _sid)} loses its Euphoria effect when Mana reaches 0 — this build's "
+                            f"Mana is unsustainable (drains to 0), so the buff would deactivate in play.",
+                })
     dealt_types: set[str] = set()
     for _off in [result_offense, *slot_offense.values()]:
         for _t, _v in ((_off or {}).get("damage_by_type") or {}).items():

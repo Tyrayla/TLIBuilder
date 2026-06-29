@@ -1140,7 +1140,8 @@ def engine_stats(req: EngineStatsRequest):
         # here so they surface on the Config screen's warnings banner (trait_mod_statuses itself isn't shown).
         "warnings": (list(result.warnings or [])
                      + [{"kind": "trait", "text": s["text"]} for s in trait_mod_statuses
-                        if s.get("status") == "warning"]) or None,
+                        if s.get("status") == "warning"]
+                     + [{"kind": "data", "text": t} for t in (_skills_override_reviews or [])]) or None,
         # Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
         "reservation": result.reservation,
         # Settable per-aura stack conditions ({key,label,max}) for the stack sliders.
@@ -2599,6 +2600,7 @@ _craft_bases_cache_season: str | None = None
 
 _skills_cache: dict[str, dict] | None = None  # item_id → skill dict
 _skills_cache_season: str | None = None
+_skills_override_reviews: list[str] = []      # manual-review warnings from skill-data overrides (current season)
 
 
 def _get_skills_data(season: str) -> dict[str, dict]:
@@ -2611,6 +2613,10 @@ def _get_skills_data(season: str) -> dict[str, dict]:
         _skills_cache_season = season
         return _skills_cache
     _skills_cache = {item["item_id"]: item for item in raw.get("skills", []) if "item_id" in item}
+    # Patch crawler-mangled skill text (e.g. Mana Boil) and remember any manual-review warnings for this season.
+    from engine.skill_overrides import apply_skill_overrides
+    global _skills_override_reviews
+    _skills_override_reviews = apply_skill_overrides(_skills_cache, season)
     _skills_cache_season = season
     return _skills_cache
 

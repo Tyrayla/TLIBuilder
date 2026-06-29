@@ -23,6 +23,9 @@ _EMPOWER_EFFECT_KEYS = {"empower_effect_inc", "empower_effect_additional"}
 _INTRO_STRIP_RE = re.compile(r"^.*?\beuphoria\b[^:]*:\s*", re.I)
 # Lines that buff non-player entities → NYI (no minion/sentry/spirit-magi engine).
 _NYI_RE = re.compile(r"minion|sentry|spirit\s*mag|summon|nearby all|to allies|\bcommand\b", re.I)
+# A skill whose buff DEACTIVATES when Mana hits 0 (Mana Boil's Euphoria). We don't auto-disable it; we record the
+# flag so compute can WARN when Mana is unsustainable (the buff would turn off in play once costs outrun recovery).
+_MANA_ZERO_DEACTIVATE_RE = re.compile(r"\bloses?\b[^.\n]*\beffect\b[^.\n]*\bmana\b[^.\n]*\bdrops?\s+to\s+0", re.I)
 # Whole-skill gate: the Euphoria RECIPIENT is non-player (e.g. "Sentries grant Euphoria to Nearby allies:",
 # "Allies will gain Euphoria …", "Minions … Euphoria"). The recipient sits on the intro line we'd otherwise strip,
 # so the buff lines look player-applicable — detect it skill-wide and NYI-gate the whole skill.
@@ -41,8 +44,12 @@ def _ally_targeted(lines) -> bool:
 # (Focus Blessings caps well below 8), so it isn't separately enforced (flagged).
 _PER_NAMED_RE = re.compile(r"^(.*?)\s+for (?:every|each) stack of (.+?)(?:\s+you have\b|\s+owned\b|[.,]|$)", re.I)
 _NAMED_COND = {"focus blessing": "focus_blessings"}
-# Pure noise (no stat): bare durations, life-cost swaps, mana drain, channel movement notes.
-_NOISE_RE = re.compile(r"^\s*lasts?\s+[\d.]+\s*s|costs?\s+life instead|consumes?\b[^.]*\bmana|"
+# Pure noise (no stat): bare durations, life-cost swaps, deactivation conditions, channel movement notes.
+# NOTE: "Consumes N% Mana every second" is NOT noise — it routes through parse_mod into a consume stat
+# (mana_consumed_pct_max_per_sec) and is emitted as a buff so apply_empower_buffs scales it by Empower Effect
+# (Mana Boil: the consume scales with Empower Effect just like the Spell Damage buff).
+_NOISE_RE = re.compile(r"^\s*lasts?\s+[\d.]+\s*s|costs?\s+life instead|"
+                       r"loses?\b[^.]*\beffect\b[^.]*\bdrops?\s+to\b|"
                        r"movement is not restricted", re.I)
 # Trailing duration/qualifier clauses that break the stat parser ("+15% additional Spell Damage while the skill
 # lasts" / "… for 6 s"). Stripped before parse_mod; the stat clause is what matters.
@@ -107,6 +114,9 @@ def resolve_empowers(skills_input, skills_by_id, parse_mod, translate_cond=None)
         name = skill.get("name", sid)
         raw_detailed = skill.get("detailed_description") or []
         raw_simple = skill.get("simple_description") or []
+        # Does this empower's buff turn off at 0 Mana (Mana Boil)? Recorded for the compute-side warning.
+        deactivates_at_zero_mana = any(_MANA_ZERO_DEACTIVATE_RE.search(l or "")
+                                       for l in list(raw_detailed) + list(raw_simple))
 
         # Skill-wide gate: if the Euphoria goes to minions/sentries/allies (not the player), NYI the whole skill.
         if _ally_targeted(list(raw_detailed) + list(raw_simple)):
@@ -114,7 +124,8 @@ def resolve_empowers(skills_input, skills_by_id, parse_mod, translate_cond=None)
             for u in detail_lines:
                 statuses.append({"skill_id": sid, "text": u, "resolved": False, "kind": "nyi"})
             meta[sid] = {"name": name, "level": level, "nyi": detail_lines, "review": [], "slot": a.get("slot"),
-                         "enabled": enabled, "stack_condition": None, "max_stacks": None}
+                         "enabled": enabled, "stack_condition": None, "max_stacks": None,
+                         "deactivates_at_zero_mana": deactivates_at_zero_mana}
             continue
 
         detailed, nyi_d = _prep(raw_detailed)
@@ -193,6 +204,7 @@ def resolve_empowers(skills_input, skills_by_id, parse_mod, translate_cond=None)
         for r in review:
             statuses.append({"skill_id": sid, "text": r, "resolved": True, "kind": "review"})
         meta[sid] = {"name": name, "level": level, "nyi": nyi, "review": review, "slot": a.get("slot"),
-                     "enabled": enabled, "stack_condition": cond_key, "max_stacks": max_stacks or None}
+                     "enabled": enabled, "stack_condition": cond_key, "max_stacks": max_stacks or None,
+                     "deactivates_at_zero_mana": deactivates_at_zero_mana}
 
     return buffs, statuses, stack_conditions, meta

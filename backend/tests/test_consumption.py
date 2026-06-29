@@ -366,6 +366,70 @@ def test_custom_mod_consume_resolves():
     assert r["consumption"]["life_per_sec"] > 0
 
 
+def test_mana_boil_override_and_empower_scaling():
+    # Mana Boil's crawler-mangled data is overridden: consume = 3% Max Mana/s (all ranks), Euphoria = +16.65%
+    # additional Spell Damage at Lv20. BOTH scale with Empower Effect. The consume routes into the consumption
+    # subsystem (no longer dropped as empower 'noise'); no line is left Unrecognized.
+    def run(emp_eff):
+        gear = ([{"item_name": "T", "contributions": [{"stat": "empower_effect_inc", "display_value": emp_eff,
+                  "unit": "", "slot": "ring1", "item_name": "T", "text": "ee"}]}] if emp_eff else [])
+        req = make_request("chromatic_shot", 20, gear=gear)
+        req["skills"] = list(req["skills"]) + [{"slot": 2, "skill_id": "mana_boil", "level": 20, "enabled": True}]
+        r = engine_stats(EngineStatsRequest(**req))
+        return r if isinstance(r, dict) else r.model_dump()
+    r = run(0)
+    e = next(x for x in r["empowers"] if x["name"] == "Mana Boil")
+    assert e["nyi"] == []                                       # all lines resolved (was 3x Unrecognized)
+    gr = {x["stat"]: x["amount"] for x in e["granted"]}
+    assert gr["spell_dmg_additional"] == pytest.approx(0.1665)
+    assert gr["mana_consumed_pct_max_per_sec"] == pytest.approx(0.03)
+    assert r["consumption"]["mana_per_sec"] == pytest.approx(0.03 * r["defense"]["max_mana"])   # 3% Max Mana/s
+    # Both effects scale with Empower Effect (+50% → ×1.5).
+    e50 = next(x for x in run(0.5)["empowers"] if x["name"] == "Mana Boil")
+    gr50 = {x["stat"]: x["amount"] for x in e50["granted"]}
+    assert gr50["spell_dmg_additional"] == pytest.approx(0.1665 * 1.5)
+    assert gr50["mana_consumed_pct_max_per_sec"] == pytest.approx(0.045)
+
+
+def test_mana_boil_warns_not_disables_when_mana_unsustainable():
+    # We DON'T auto-disable Mana Boil's Euphoria at 0 Mana — we WARN when Mana is unsustainable so the user sees the
+    # buff would turn off in play (e.g. once skill costs spiral Mana down). Buff stays applied; warning surfaces.
+    def run(extra_drain):
+        g = ([{"item_name": "T", "contributions": [{"stat": "mana_consumed_flat_per_sec", "display_value": extra_drain,
+               "unit": "", "slot": "ring1", "item_name": "T", "text": "d"}]}] if extra_drain else [])
+        req = make_request("chromatic_shot", 20, gear=g)
+        req["skills"] = list(req["skills"]) + [{"slot": 2, "skill_id": "mana_boil", "level": 20, "enabled": True}]
+        r = engine_stats(EngineStatsRequest(**req))
+        return r if isinstance(r, dict) else r.model_dump()
+    def warns(r): return [w for w in (r.get("warnings") or []) if w.get("kind") == "mana_deactivation"]
+    sus = run(0)
+    assert sus["recovery"]["mana_sustainable"] is True
+    assert warns(sus) == []                                          # sustainable → no warning
+    uns = run(100000)                                                # huge Mana drain → unsustainable
+    assert uns["recovery"]["mana_sustainable"] is False
+    w = warns(uns)
+    assert len(w) == 1 and "Mana Boil" in w[0]["text"]              # warned, not disabled
+    # The Euphoria buff is still applied (not auto-removed).
+    e = next(x for x in uns["empowers"] if x["name"] == "Mana Boil")
+    assert any(g["stat"] == "spell_dmg_additional" for g in e["granted"])
+
+
+def test_mana_boil_override_staleness_flags():
+    from engine.skill_overrides import apply_skill_overrides
+    _corrupt = "Consumes 16.65 % additional Spell Damage while the skill lasts Mana every second."
+    def mk():
+        return {"mana_boil": {"item_id": "mana_boil", "detailed_description": [_corrupt],
+                              "raw_text": _corrupt, "simple_description": []}}
+    s = mk()
+    assert apply_skill_overrides(s, "SS12") == []                                  # authored season, snippet present
+    assert "Consumes 3 % of Max Mana every second" in s["mana_boil"]["detailed_description"]
+    assert any("re-validate" in r for r in apply_skill_overrides(mk(), "SS13"))     # new season → flag, still applied
+    # Source changed (corrupted snippet gone) → override SKIPPED + flagged (don't re-break corrected data).
+    s3 = {"mana_boil": {"item_id": "mana_boil", "detailed_description": ["Consumes 3 % of Max Mana every second"],
+                        "raw_text": "Consumes 3 % of Max Mana every second", "simple_description": []}}
+    assert any("manual review" in r for r in apply_skill_overrides(s3, "SS12"))
+
+
 def test_mana_consume_independent_pool():
     r = _resp([("mana_consumed_flat_per_sec", 50)])
     assert r["consumption"]["mana_per_sec"] == pytest.approx(50.0, rel=1e-3)
