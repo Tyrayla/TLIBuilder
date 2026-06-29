@@ -103,6 +103,61 @@ def test_per_n_consumed_consumer_parsing():
     assert out["spell_dmg_inc_per_mana_consumed_cap"] == 2.16
 
 
+def test_g_flat_phys_per_consumed_parsing():
+    # Stage G: flat PHYSICAL damage per N consumed. Normalized per-1-unit (flat/N); the "Stacks up to Z" cap is a
+    # CONSUMED-AMOUNT cap (Z × N) shared by min+max. Scope kept honest (attack-only vs attack+spell).
+    from engine.mod_parser import _parse_custom_mod_text as P
+    def kv(t): return {r["stat_key"]: round(r["amount"], 8) for r in (P(t) or [])}
+    # Blade-dancer's Fingers: midpoints 19.5/25.5 per 3300 Life → Attacks only, cap 170×3300.
+    blade = kv("Adds (18-21) - (24-27) Physical Damage to Attacks for every 3300 Life consumed recently. Stacks up to 170 time(s)")
+    assert blade == {
+        "physical_attack_dmg_flat_min_per_life_consumed": round(19.5 / 3300.0, 8),
+        "physical_attack_dmg_flat_max_per_life_consumed": round(25.5 / 3300.0, 8),
+        "physical_dmg_flat_per_life_consumed_cap": 170.0 * 3300.0}
+    # Glacier Caster Shield: midpoints 14/24.5 per ~1025 Mana → Attacks AND Spells, cap 200×1025.
+    glac = kv("Adds (13-15) - (23-26) Physical Damage to Attacks and Spells for every (1000-1050) Mana consumed recently. Stacks up to 200 time(s)")
+    assert glac["physical_attack_dmg_flat_min_per_mana_consumed"] == round(14.0 / 1025.0, 8)
+    assert glac["physical_spell_dmg_flat_max_per_mana_consumed"] == round(24.5 / 1025.0, 8)
+    assert glac["physical_dmg_flat_per_mana_consumed_cap"] == 200.0 * 1025.0
+
+
+def test_g_crit_and_compound_parsing():
+    from engine.mod_parser import _parse_custom_mod_text as P
+    def kv(t): return {r["stat_key"]: round(r["amount"], 8) for r in (P(t) or [])}
+    # Tyrant's Iron Fist: +5% Crit Rating AND Crit Damage per ~890 Mana → both pools, per-1-mana, no cap.
+    tyrant = kv("+5 % Critical Strike Rating and Critical Strike Damage for every (880-900) Mana consumed recently")
+    assert tyrant == {"crit_rating_inc_per_mana_consumed": round(0.05 / 890.0, 8),
+                      "crit_dmg_inc_per_mana_consumed": round(0.05 / 890.0, 8)}
+    # Crimson King compound (threshold gate split off upstream): flat +50% to BOTH increased Crit Rating + Crit Damage.
+    assert kv("+50 % Critical Strike Rating and Critical Strike Damage") == {
+        "crit_rating_inc": 0.5, "crit_dmg_inc": 0.5}
+    # Crimson King defensive (gate split off): negative additional damage taken → tracked in the dmg_taken_additional
+    # pool (NOT wired into defense yet — tracking only).
+    assert kv("(-50–-40) % additional damage taken") == {"dmg_taken_additional": -0.45}
+    # An unhandled per-N benefit (Compensatory Mana Regen per consumed) stays honest-NYI (empty), not mis-resolved.
+    assert kv("+(3-4) % Mana Regeneration Speed for every 100 Mana consumed recently, up to 360 %") == {}
+
+
+def test_g_flat_phys_raises_dps_and_crit_per_consumed_raises_crit():
+    from tests.mock_build import DUAL_WEAPONS
+    def run(mods):
+        g = DUAL_WEAPONS + [{"item_name": "T", "contributions": [
+            {"stat": "life_consumed_pct_max_per_sec", "display_value": 0.30, "unit": "", "slot": "helmet", "item_name": "T", "text": "d"},
+            {"stat": "mana_consumed_flat_per_sec", "display_value": 200, "unit": "", "slot": "helmet", "item_name": "T", "text": "m"},
+            {"stat": "mana_regen_flat", "display_value": 99999, "unit": "", "slot": "helmet", "item_name": "T", "text": "r"}]}]
+        req = make_request("berserking_blade", 20, gear=g, extra_conditions={"dual_wielding": True})
+        req["custom_mods"] = mods
+        r = engine_stats(EngineStatsRequest(**req))
+        return r if isinstance(r, dict) else r.model_dump()
+    base = run([])
+    blade = run(["Adds (18-21) - (24-27) Physical Damage to Attacks for every 3300 Life consumed recently. Stacks up to 170 time(s)"])
+    tyrant = run(["+5 % Critical Strike Rating and Critical Strike Damage for every (880-900) Mana consumed recently"])
+    assert base["recovery"]["consumed_recently_life"] > 0 and base["recovery"]["consumed_recently_mana"] > 0
+    assert blade["offense"]["total_dps"] > base["offense"]["total_dps"]          # flat phys per Life consumed
+    assert tyrant["offense"]["crit_chance"] > base["offense"]["crit_chance"]      # +Crit Rating per Mana consumed
+    assert tyrant["offense"]["crit_multiplier"] > base["offense"]["crit_multiplier"]  # +Crit Damage per Mana consumed
+
+
 def test_steady_state_life_solves_to_equilibrium():
     # 50% current-Life/sec drain + 300/s regen → settles where recovery == consumption (net ≈ 0), sustainable.
     r = _resp([("life_consumed_pct_current_per_sec", 0.50), ("life_regen_flat", 300)])

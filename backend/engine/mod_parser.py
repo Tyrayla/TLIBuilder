@@ -417,11 +417,77 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
             if _cap:
                 out.append({"stat_key": _stat + "_cap", "amount": float(_cap) / 100.0, "text": t})
             return out
-    # Any OTHER "for every N <Life|Mana|ES> consumed recently" consumer (flat "Adds … Damage", crit, etc.) is NOT
-    # modeled yet (Stage G). Short-circuit to unresolved (honest NYI) so the generic resolver below can't fuzzy-match
-    # the flat/crit value and apply it ALWAYS — dropping the ÷N divisor + cap (silent-wrong).
-    if re.search(r"for\s+every\s+[\d.]+\s+(?:life|mana|energy\s+shield)\s+consumed\s+recently", t, re.I):
+    # Range-collapsed copy for the per-N matchers that carry "(a-b)" ranges in the AMOUNT or the divisor N
+    # (Glacier "(13-15)-(23-26) … per (1000-1050) Mana"; Tyrant "per (880-900) Mana"; Crimson "(-50–-40)%"). Each
+    # paren numeric range → its midpoint (signed, so negative defensive ranges collapse correctly).
+    _tc = re.sub(r'\(\s*([+\-]?\d+(?:\.\d+)?)\s*[-–]\s*([+\-]?\d+(?:\.\d+)?)\s*\)',
+                 lambda mm: f"{(float(mm.group(1)) + float(mm.group(2))) / 2:g}", t)
+
+    # Flat PHYSICAL damage per N consumed (Blade-dancer's Fingers = Life→Attacks; Glacier Caster Shield =
+    # Mana→Attacks+Spells). "Adds A - B Physical Damage to <Attacks|Spells|Attacks and Spells> for every N
+    # <Life|Mana> consumed recently. Stacks up to Z." Normalize per-1-unit (flat/N); the "Stacks up to Z" cap is
+    # stored as a CONSUMED-AMOUNT cap (Z × N) so one cap clamps min AND max proportionally. Only declared
+    # (scope, pool) combos are emitted (attack-life, attack-mana, spell-mana); an undeclared combo → [] (honest NYI).
+    m = re.search(r'adds\s+([\d.]+)\s*[-–]\s*([\d.]+)\s+physical\s+damage\s+to\s+'
+                  r'(attacks?\s+and\s+spells?|attacks?|spells?)\s+for\s+every\s+([\d.]+)\s+'
+                  r'(life|mana)\s+consumed\s+recently(?:\.?\s*stacks?\s+up\s+to\s+([\d.]+))?', _tc, re.I)
+    if m:
+        _mn, _mx, _scope, _n, _pool, _cap_stacks = m.groups()
+        _n = float(_n)
+        _pool = _pool.lower()
+        if _n > 0:
+            _scope = _scope.lower()
+            _classes = (["attack", "spell"] if "and" in _scope
+                        else ["attack"] if "attack" in _scope else ["spell"])
+            _DECLARED = {("attack", "life"), ("attack", "mana"), ("spell", "mana")}
+            if all((c, _pool) in _DECLARED for c in _classes):
+                out = []
+                for c in _classes:
+                    out.append({"stat_key": f"physical_{c}_dmg_flat_min_per_{_pool}_consumed",
+                                "amount": float(_mn) / _n, "text": t})
+                    out.append({"stat_key": f"physical_{c}_dmg_flat_max_per_{_pool}_consumed",
+                                "amount": float(_mx) / _n, "text": t})
+                if _cap_stacks:
+                    out.append({"stat_key": f"physical_dmg_flat_per_{_pool}_consumed_cap",
+                                "amount": float(_cap_stacks) * _n, "text": t})
+                return out
+            return []   # undeclared (scope, pool) combo → honest NYI (don't emit a dead key)
+
+    # Crit per N consumed (Tyrant's Iron Fist): "+X% Critical Strike Rating and Critical Strike Damage for every N
+    # Mana consumed recently" → increased Crit Rating + additive Crit Damage, normalized per-1-unit (uncapped).
+    m = re.search(r'([\d.]+)\s*%\s*critical\s+strike\s+rating\s+and\s+critical\s+strike\s+damage\s+'
+                  r'for\s+every\s+([\d.]+)\s+(life|mana)\s+consumed\s+recently', _tc, re.I)
+    if m:
+        _pct, _n, _pool = float(m.group(1)), float(m.group(2)), m.group(3).lower()
+        if _n > 0 and _pool == "mana":          # only the mana variant is declared (Tyrant)
+            _u = (_pct / 100.0) / _n
+            return [{"stat_key": "crit_rating_inc_per_mana_consumed", "amount": _u, "text": t},
+                    {"stat_key": "crit_dmg_inc_per_mana_consumed", "amount": _u, "text": t}]
+        return []                                # undeclared pool → honest NYI
+
+    # Any OTHER "for every N <Life|Mana|ES> consumed recently" consumer (e.g. Compensatory's Mana-Regen-per-consumed)
+    # is NOT modeled yet (Stage G). Short-circuit to unresolved (honest NYI) so the generic resolver below can't
+    # fuzzy-match the value and apply it ALWAYS — dropping the ÷N divisor + cap (silent-wrong). Uses the range-
+    # collapsed copy so a ranged divisor ("for every (880-900) …") is still caught.
+    if re.search(r"for\s+every\s+[\d.]+\s+(?:life|mana|energy\s+shield)\s+consumed\s+recently", _tc, re.I):
         return []
+
+    # Compound "+N% Critical Strike Rating and Critical Strike Damage" (Crimson King's gated line; the threshold gate
+    # is split off upstream) → BOTH the increased Crit Rating and additive Crit Damage pools. Precedes the generic
+    # resolver (which would fuzzy-match only one side). The per-N crit form above already returned if "for every".
+    m = re.search(r'([\d.]+)\s*%\s*critical\s+strike\s+rating\s+and\s+critical\s+strike\s+damage', t, re.I)
+    if m:
+        _v = float(m.group(1)) / 100.0
+        return [{"stat_key": "crit_rating_inc", "amount": _v, "text": t},
+                {"stat_key": "crit_dmg_inc", "amount": _v, "text": t}]
+
+    # "(-X – -Y)% additional damage taken" (Crimson King's gated defensive line; gate split off upstream). Negative =
+    # the WEARER takes less. TRACKED ONLY — folds into the existing dmg_taken_additional pool (like Tenacity
+    # blessings) but is NOT wired into any defensive/EHP calc yet (owner: stat tracking only). Skip enemy-vuln phrasings.
+    if "enem" not in t.lower():
+        m = re.search(r'(-?[\d.]+)\s*%\s*additional\s+damage\s+taken', _tc, re.I)
+        if m:
+            return [{"stat_key": "dmg_taken_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
 
     # "+N% additional Curse Effect" → multiplicative Curse Effect pool (e.g. Defile). Must come before the
     # generic Curse Effect matcher so plain "+N% Curse Effect" still maps to the increased pool.

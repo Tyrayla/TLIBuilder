@@ -165,6 +165,13 @@ def consumable_universe() -> frozenset[str]:
     consumed |= {"consumed_recently_life", "consumed_recently_mana", "consumed_recently_energy_shield"}
     # AS-per-consumed (Tide) is read in the compute loop's feedback injection, outside the synthetic offense run.
     consumed |= {"attack_speed_inc_per_life_consumed", "attack_speed_inc_per_life_consumed_cap"}
+    # Per-N-consumed CONSUMERS read in offense only when present (guarded), so the synthetic run wouldn't see them:
+    # flat-phys (Blade-dancer/Glacier) + crit (Tyrant). Whitelist so they badge Consumed (green) when active.
+    consumed |= {f"physical_{c}_dmg_flat_{mm}_per_{p}_consumed"
+                 for (c, p) in (("attack", "life"), ("attack", "mana"), ("spell", "mana"))
+                 for mm in ("min", "max")}
+    consumed |= {"physical_dmg_flat_per_life_consumed_cap", "physical_dmg_flat_per_mana_consumed_cap",
+                 "crit_rating_inc_per_mana_consumed", "crit_dmg_inc_per_mana_consumed"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
     consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",

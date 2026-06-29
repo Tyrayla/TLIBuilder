@@ -644,6 +644,22 @@ class Stat(Enum):
     ATTACK_SPEED_INC_PER_LIFE_CONSUMED_CAP = "attack_speed_inc_per_life_consumed_cap"
     SPELL_DMG_INC_PER_MANA_CONSUMED = "spell_dmg_inc_per_mana_consumed"
     SPELL_DMG_INC_PER_MANA_CONSUMED_CAP = "spell_dmg_inc_per_mana_consumed_cap"
+    # Flat PHYSICAL damage added per N consumed recently (Blade-dancer's Fingers = Life→Attacks; Glacier Caster
+    # Shield = Mana→Attacks+Spells). min/max are separate keys; attack/spell scope kept separate (honest scoping).
+    # The "Stacks up to Z time(s)" cap is stored as a CONSUMED-AMOUNT cap (Z × N) so one cap clamps min AND max
+    # proportionally. offense folds: capped = min(consumed_recently, cap); flat += capped × per_unit.
+    PHYSICAL_ATTACK_DMG_FLAT_MIN_PER_LIFE_CONSUMED = "physical_attack_dmg_flat_min_per_life_consumed"
+    PHYSICAL_ATTACK_DMG_FLAT_MAX_PER_LIFE_CONSUMED = "physical_attack_dmg_flat_max_per_life_consumed"
+    PHYSICAL_ATTACK_DMG_FLAT_MIN_PER_MANA_CONSUMED = "physical_attack_dmg_flat_min_per_mana_consumed"
+    PHYSICAL_ATTACK_DMG_FLAT_MAX_PER_MANA_CONSUMED = "physical_attack_dmg_flat_max_per_mana_consumed"
+    PHYSICAL_SPELL_DMG_FLAT_MIN_PER_MANA_CONSUMED = "physical_spell_dmg_flat_min_per_mana_consumed"
+    PHYSICAL_SPELL_DMG_FLAT_MAX_PER_MANA_CONSUMED = "physical_spell_dmg_flat_max_per_mana_consumed"
+    PHYSICAL_DMG_FLAT_PER_LIFE_CONSUMED_CAP = "physical_dmg_flat_per_life_consumed_cap"
+    PHYSICAL_DMG_FLAT_PER_MANA_CONSUMED_CAP = "physical_dmg_flat_per_mana_consumed_cap"
+    # Crit per N consumed (Tyrant's Iron Fist = +5% INCREASED Crit Rating + ADDITIVE Crit Damage per ~890 Mana,
+    # uncapped). Fold into crit_rating_inc and crit_dmg_inc (× consumed_recently_mana) in the offense crit stage.
+    CRIT_RATING_INC_PER_MANA_CONSUMED = "crit_rating_inc_per_mana_consumed"
+    CRIT_DMG_INC_PER_MANA_CONSUMED = "crit_dmg_inc_per_mana_consumed"
 
     # ── Energy Shield ─────────────────────────────────────────────────────────
     MAX_ENERGY_SHIELD_FLAT = "max_energy_shield_flat"
