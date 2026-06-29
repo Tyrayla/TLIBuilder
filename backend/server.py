@@ -937,47 +937,30 @@ def engine_stats(req: EngineStatsRequest):
             continue
         gi = dict(gi)
         contribs = list(gi.get("contributions") or [])
+        # _resolve_gear_affix_clauses is the shared resolver (also used by the /api/map-modifiers badge endpoint)
+        # so a line the engine applies here can never badge NYI. It handles curse extraction, named-buff expansion
+        # ("Gains <NamedBuff>"), and the compound-clause + condition split (gate translated onto `condition`; an
+        # untranslatable gate → unresolved/honest-NYI, never applied always-on). Cardinal rule: never silently drop.
         for t in texts:
-            # Curse-applying affix? Record it (counts toward the curse limit; magnitude comes from the curse
-            # skill at the affix level) and mark resolved — it has no stat contribution of its own.
-            ac = _extract_affix_curse(t)
-            if ac:
-                affix_curses.append({**ac, "source_label": gi.get("item_name") or "Gear"})
-                gear_mod_statuses.append({"text": t, "resolved": True,
-                                          "stat_display": f"Inflicts {ac['curse_name']} (Lv {ac['level']})"})
-                continue
-            # Expand any "Gains <NamedBuff>" clause via the glossary (so its real lines parse), and split a
-            # compound affix into its clauses. Each clause is resolved independently and reported on its own —
-            # so e.g. "Seals 10% Max Mana. Gains Insatiable Greed" surfaces both the seal and the expanded
-            # "150% of Attack Speed → Spell Burst Charge Speed". Cardinal rule: never silently drop.
-            for clause in _expand_named_buffs(t):
-                # Self-contained special lines encode their own gate/value in the text (e.g. Solid River's
-                # "When Burst Charge Recovery Speed is at least N% …" → the auto-trigger threshold stat), so try
-                # the WHOLE clause first; the threshold rides in the stat value, gated downstream in offense.
-                cond_expr = None
-                parsed = _parse_custom_mod_text(clause)
-                if not parsed:
-                    # Otherwise split off a leading ("If recently moved, +X%") or trailing ("+X% if Ignited") gate
-                    # so the stat clause resolves; the gate is translated onto the contribution's `condition`
-                    # (gated in the aggregator). A gate we can't translate makes the line UNRESOLVED (honest NYI),
-                    # never applied always-on — silently dropping the condition would be worse than a red badge.
-                    stat_part, cond_part = _split_condition(clause)
-                    parsed = _parse_custom_mod_text(stat_part)
-                    if parsed and cond_part is not None:
-                        cond_expr = _translate_condition_expr(clause) or _translate_condition_expr(cond_part)
-                        if cond_expr is None:
-                            parsed = []
+            for cl in _resolve_gear_affix_clauses(t):
+                if cl.get("curse"):
+                    ac = cl["curse"]
+                    affix_curses.append({**ac, "source_label": gi.get("item_name") or "Gear"})
+                    gear_mod_statuses.append({"text": cl["clause"], "resolved": True,
+                                              "stat_display": f"Inflicts {ac['curse_name']} (Lv {ac['level']})"})
+                    continue
+                parsed = cl["parsed"]
                 if parsed:
                     for e in parsed:
                         contribs.append({"stat": e["stat_key"], "display_value": e["amount"], "unit": "",
-                                         "item_name": gi.get("item_name") or "Gear", "text": clause,
+                                         "item_name": gi.get("item_name") or "Gear", "text": cl["clause"],
                                          # Item-level slot (when sent) so the breakdown Source column names the real
                                          # slot ("Off-Hand"/"Ring 1") instead of a generic "Item"; None → "Item".
-                                         "slot": gi.get("slot"), "condition": cond_expr, "scope": e.get("scope")})
+                                         "slot": gi.get("slot"), "condition": cl["cond_expr"], "scope": e.get("scope")})
                     names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
-                    gear_mod_statuses.append({"text": clause, "resolved": True, "stat_display": names})
+                    gear_mod_statuses.append({"text": cl["clause"], "resolved": True, "stat_display": names})
                 else:
-                    gear_mod_statuses.append({"text": clause, "resolved": False, "stat_display": None})
+                    gear_mod_statuses.append({"text": cl["clause"], "resolved": False, "stat_display": None})
         gi["contributions"] = contribs
         gear_resolved.append(gi)
 
@@ -2393,6 +2376,36 @@ def get_legendary_gear_index():
     return {"season": active, "items": data.get("items", [])}
 
 
+def _resolve_gear_affix_clauses(text: str) -> list[dict]:
+    """SINGLE source of truth for resolving a raw gear affix TEXT — used by BOTH the engine's gear loop (to build
+    contributions + statuses) and the /api/map-modifiers badge endpoint (source='gear'). Because both call this,
+    a line the engine applies can never badge NYI (the drift that previously hid consume / per-N-consumed / gated
+    gear lines behind a red badge while the engine resolved them fine).
+
+    Mirrors the gear loop exactly: curse extraction first, then named-buff expansion, then per-clause resolution
+    via _parse_custom_mod_text (falling back to a stat-part + translated-condition split). Returns one dict per
+    clause: {clause, parsed:[{stat_key,amount,scope,...}], cond_expr, resolved, curse}.
+    """
+    from engine.core_talent_resolver import _split_condition
+    ac = _extract_affix_curse(text)
+    if ac:
+        return [{"clause": text, "parsed": [], "cond_expr": None, "resolved": True, "curse": ac}]
+    out: list[dict] = []
+    for clause in _expand_named_buffs(text):
+        cond_expr = None
+        parsed = _parse_custom_mod_text(clause)
+        if not parsed:
+            stat_part, cond_part = _split_condition(clause)
+            parsed = _parse_custom_mod_text(stat_part)
+            if parsed and cond_part is not None:
+                cond_expr = _translate_condition_expr(clause) or _translate_condition_expr(cond_part)
+                if cond_expr is None:
+                    parsed = []
+        out.append({"clause": clause, "parsed": parsed or [], "cond_expr": cond_expr,
+                    "resolved": bool(parsed), "curse": None})
+    return out
+
+
 def _resolve_affix(affix: dict) -> dict:
     """Resolve a gear affix dict to include stat_key/stat_keys/unit/condition_expr fields."""
     condition_expr = _translate_condition_expr(affix.get("condition"))
@@ -2800,6 +2813,12 @@ def map_modifiers(req: MapModifiersRequest):
             keys = _resolve_skill_line_keys(it.text)
         elif it.source == "gear":
             keys = _affix_stat_keys(_resolve_affix({"raw_text": it.text, "affix_kind": "numeric"}))
+            if not keys:
+                # Catalog resolver found nothing → fall back to the SAME resolver the engine's gear loop uses, so
+                # consume / per-N-consumed / gated lines (which _parse_custom_mod_text handles but the fuzzy
+                # catalog resolver doesn't) badge by what the engine actually applies instead of red NYI.
+                clauses = _resolve_gear_affix_clauses(it.text)
+                keys = [e["stat_key"] for cl in clauses for e in cl["parsed"]]
         else:
             keys = []
         results[it.key] = {"stat_keys": keys}
