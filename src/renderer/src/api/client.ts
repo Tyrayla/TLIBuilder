@@ -744,6 +744,10 @@ export interface OffenseResult {
   hit_forms: HitFormResult[]
   crit_chance: number
   crit_multiplier: number
+  double_dmg_chance?: number       // double-damage chance (tag-filtered, capped 100%)
+  triple_dmg_chance?: number
+  quad_dmg_chance?: number
+  double_dmg_factor?: number       // expected-value damage multiplier folded into DPS (1.0 = none)
   steep_strike_chance: number
   attacks_per_second: number
   base_cast_time: number
@@ -1207,6 +1211,10 @@ export interface TargetStats {
   // Raw penetration totals (fractions; reduction deltas).
   pen?: { armor: number; all_resistance_reduction: number; elemental: number;
           fire: number; cold: number; lightning: number; erosion: number }
+  // Per-stat penetration source breakdown (incl. skill-scoped pens absent from the global stat_map), keyed by
+  // the pen stat (e.g. "armor_pen"). amount is a fraction (0.225 = 22.5% pen from that source).
+  pen_sources?: Record<string, { source_type: string; label: string; text?: string;
+                                  source_name?: string; amount: number }[]>
 }
 
 export interface NumbedInfo {

@@ -277,6 +277,8 @@
     },
     "crit_chance": 0.15,
     "crit_multiplier": 1.5,
+    "double_dmg_chance": 0,
+    "double_dmg_factor": 1,
     "effective_level": 20,
     "enemy_mult_by_type": {
       "cold": 0.5389999999999999,
@@ -361,6 +363,7 @@
     ],
     "projectile_base_count": 3,
     "projectile_count": 3,
+    "quad_dmg_chance": 0,
     "shotgun_hits": 1,
     "skill_area_inc": 0,
     "skill_name": "Chromatic Shot",
@@ -407,6 +410,7 @@
     "tangle_placeable": 0,
     "total_dps": 16467.415578113632,
     "total_dps_vs_target": 8069.03363327568,
+    "triple_dmg_chance": 0,
     "type_add": {
       "cold": 2.95025822429184,
       "fire": 2.95025822429184,
@@ -467,6 +471,8 @@
       },
       "crit_chance": 0.15,
       "crit_multiplier": 1.5,
+      "double_dmg_chance": 0,
+      "double_dmg_factor": 1,
       "effective_level": 20,
       "enemy_mult_by_type": {
         "cold": 0.5389999999999999,
@@ -551,6 +557,7 @@
       ],
       "projectile_base_count": 3,
       "projectile_count": 3,
+      "quad_dmg_chance": 0,
       "shotgun_hits": 1,
       "skill_area_inc": 0,
       "skill_name": "Chromatic Shot",
@@ -597,6 +604,7 @@
       "tangle_placeable": 0,
       "total_dps": 16467.415578113632,
       "total_dps_vs_target": 8069.03363327568,
+      "triple_dmg_chance": 0,
       "type_add": {
         "cold": 2.95025822429184,
         "fire": 2.95025822429184,

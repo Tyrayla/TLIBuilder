@@ -234,6 +234,8 @@
     "compulsory_breakdown": {},
     "crit_chance": 0.15,
     "crit_multiplier": 1.5,
+    "double_dmg_chance": 0,
+    "double_dmg_factor": 1,
     "effective_level": 14,
     "enemy_mult_by_type": {
       "fire": 0.48999999999999994,
@@ -321,6 +323,7 @@
     ],
     "projectile_base_count": 0,
     "projectile_count": -1,
+    "quad_dmg_chance": 0,
     "shotgun_hits": 5,
     "skill_area_inc": 0.0,
     "skill_name": "Chain Lightning",
@@ -363,6 +366,7 @@
     "tangle_placeable": 0,
     "total_dps": 14774.233589609743,
     "total_dps_vs_target": 7260.611773915888,
+    "triple_dmg_chance": 0,
     "type_add": {
       "fire": 3.2154347706307695,
       "lightning": 4.252412484159192,
@@ -403,6 +407,8 @@
       "compulsory_breakdown": {},
       "crit_chance": 0.15,
       "crit_multiplier": 1.5,
+      "double_dmg_chance": 0,
+      "double_dmg_factor": 1,
       "effective_level": 14,
       "enemy_mult_by_type": {
         "fire": 0.48999999999999994,
@@ -490,6 +496,7 @@
       ],
       "projectile_base_count": 0,
       "projectile_count": -1,
+      "quad_dmg_chance": 0,
       "shotgun_hits": 5,
       "skill_area_inc": 0.0,
       "skill_name": "Chain Lightning",
@@ -532,6 +539,7 @@
       "tangle_placeable": 0,
       "total_dps": 14774.233589609743,
       "total_dps_vs_target": 7260.611773915888,
+      "triple_dmg_chance": 0,
       "type_add": {
         "fire": 3.2154347706307695,
         "lightning": 4.252412484159192,

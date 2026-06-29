@@ -1567,6 +1567,23 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               formula: '150% + Σ Crit Damage',
               extra: [{ value: '150%', stat: 'Crit Multiplier', source: 'Baseline', sourceName: 'Base ×1.5' }],
             }}>{(offense.crit_multiplier * 100).toFixed(0)}%</Row>
+            {(offense.double_dmg_chance ?? 0) > 0 && (
+              <Row label="Double Damage Chance" breakdown={{
+                title: 'Double Damage Chance', totalUnit: '%', total: offense.double_dmg_chance!,
+                keys: ['double_dmg_chance', 'attack_double_dmg_chance', 'spell_double_dmg_chance', 'minion_double_dmg_chance', 'synth_double_dmg_chance'],
+                formula: 'Σ Double Damage chance (tag-filtered), capped at 100%. Lifts average DPS like crit.',
+              }}>{dec((offense.double_dmg_chance! * 100))}%</Row>
+            )}
+            {(offense.triple_dmg_chance ?? 0) > 0 && (
+              <Row label="Triple Damage Chance" breakdown={{
+                title: 'Triple Damage Chance', totalUnit: '%', total: offense.triple_dmg_chance, keys: ['triple_dmg_chance'],
+              }}>{dec((offense.triple_dmg_chance! * 100))}%</Row>
+            )}
+            {(offense.quad_dmg_chance ?? 0) > 0 && (
+              <Row label="Quadruple Damage Chance" breakdown={{
+                title: 'Quadruple Damage Chance', totalUnit: '%', total: offense.quad_dmg_chance, keys: ['quadruple_dmg_chance'],
+              }}>{dec((offense.quad_dmg_chance! * 100))}%</Row>
+            )}
           </StatPanel>
         </GridBox>
 
@@ -2442,9 +2459,18 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
         const amplified = r.effective < 0
         const extra: ExtraRow[] = [{ value: pct(r.base), stat: r.baseStat, source: 'Base', sourceName: src }]
         if (Math.abs(r.reduction) > 1e-9) extra.push({ value: spct(r.reduction), stat: 'Resistance Reduction', source: 'Debuff', sourceName: 'lowers enemy resistance' })
+        // Penetration sources for this row — pulled from target.pen_sources (which carries skill-SCOPED pens that
+        // never reach the global stat_map, so the stat_map `keys` lookup misses them). Shown as a deduction.
+        for (const key of r.penKeys) {
+          for (const s of (target.pen_sources?.[key] ?? [])) {
+            if (Math.abs(s.amount) < 1e-9) continue
+            extra.push({ value: `−${Math.round(s.amount * 100)}%`, stat: `${r.baseStat} Penetration`,
+              source: s.label || s.source_type, sourceName: s.source_name || s.text || '' })
+          }
+        }
         return (
           <Row key={r.label} label={r.label} labelColor={r.color}
-            breakdown={{ title: r.label, keys: r.penKeys, total: r.effective, totalUnit: '%', extra,
+            breakdown={{ title: r.label, keys: [], total: r.effective, totalUnit: '%', extra,
               formula: 'Base − Penetration (penetration is ignored at the hit, it is not a resistance reduction)' }}>
             <span style={{ color: amplified ? '#ff8c6b' : undefined }}>{pct(r.effective)}</span>
           </Row>

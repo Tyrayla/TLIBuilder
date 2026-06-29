@@ -257,6 +257,8 @@
     "compulsory_breakdown": {},
     "crit_chance": 0.396,
     "crit_multiplier": 1.5,
+    "double_dmg_chance": 0,
+    "double_dmg_factor": 1,
     "effective_level": 20,
     "enemy_mult_by_type": {
       "fire": 0.48999999999999994,
@@ -371,6 +373,7 @@
     ],
     "projectile_base_count": 0,
     "projectile_count": -1,
+    "quad_dmg_chance": 0,
     "shotgun_hits": 1,
     "skill_area_inc": 0.0,
     "skill_name": "Focused Slash",
@@ -415,6 +418,7 @@
     "tangle_placeable": 0,
     "total_dps": 149346.60981083868,
     "total_dps_vs_target": 74247.86360321517,
+    "triple_dmg_chance": 0,
     "type_add": {
       "fire": 7.420901555257343,
       "lightning": 9.814142306827835,
@@ -451,6 +455,8 @@
       "compulsory_breakdown": {},
       "crit_chance": 0.396,
       "crit_multiplier": 1.5,
+      "double_dmg_chance": 0,
+      "double_dmg_factor": 1,
       "effective_level": 20,
       "enemy_mult_by_type": {
         "fire": 0.48999999999999994,
@@ -565,6 +571,7 @@
       ],
       "projectile_base_count": 0,
       "projectile_count": -1,
+      "quad_dmg_chance": 0,
       "shotgun_hits": 1,
       "skill_area_inc": 0.0,
       "skill_name": "Focused Slash",
@@ -609,6 +616,7 @@
       "tangle_placeable": 0,
       "total_dps": 149346.60981083868,
       "total_dps_vs_target": 74247.86360321517,
+      "triple_dmg_chance": 0,
       "type_add": {
         "fire": 7.420901555257343,
         "lightning": 9.814142306827835,

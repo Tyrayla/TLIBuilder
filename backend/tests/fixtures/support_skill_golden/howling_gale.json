@@ -243,6 +243,8 @@
     "compulsory_breakdown": {},
     "crit_chance": 0.15,
     "crit_multiplier": 1.5,
+    "double_dmg_chance": 0,
+    "double_dmg_factor": 1,
     "effective_level": 20,
     "enemy_mult_by_type": {
       "fire": 0.6026999999999999,
@@ -329,6 +331,7 @@
     ],
     "projectile_base_count": 0,
     "projectile_count": -1,
+    "quad_dmg_chance": 0,
     "shotgun_hits": 1,
     "skill_area_inc": 0,
     "skill_name": "Howling Gale",
@@ -373,6 +376,7 @@
     "tangle_placeable": 0,
     "total_dps": 22399.76149998097,
     "total_dps_vs_target": 11127.128851270396,
+    "triple_dmg_chance": 0,
     "type_add": {
       "fire": 4.553507235594239,
       "lightning": 6.022013319073381,
@@ -413,6 +417,8 @@
       "compulsory_breakdown": {},
       "crit_chance": 0.15,
       "crit_multiplier": 1.5,
+      "double_dmg_chance": 0,
+      "double_dmg_factor": 1,
       "effective_level": 20,
       "enemy_mult_by_type": {
         "fire": 0.6026999999999999,
@@ -499,6 +505,7 @@
       ],
       "projectile_base_count": 0,
       "projectile_count": -1,
+      "quad_dmg_chance": 0,
       "shotgun_hits": 1,
       "skill_area_inc": 0,
       "skill_name": "Howling Gale",
@@ -543,6 +550,7 @@
       "tangle_placeable": 0,
       "total_dps": 22399.76149998097,
       "total_dps_vs_target": 11127.128851270396,
+      "triple_dmg_chance": 0,
       "type_add": {
         "fire": 4.553507235594239,
         "lightning": 6.022013319073381,

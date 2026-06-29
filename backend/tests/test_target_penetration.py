@@ -67,6 +67,40 @@ class TestResistancePen:
         assert _target_mitigation(_src(all_resistance_reduction=-0.10), "erosion") == pytest.approx(0.56)
 
 
+class TestScopedPenSurfacesOnTargetPanel:
+    """REGRESSION: skill-scoped penetration (e.g. Awakening Skull's "Armor DMG Mitigation Penetration for Attack
+    Skills") lives only in the active skill's MATERIALIZED source, so the target panel — which used the raw global
+    source — showed 0 pen even while the displayed DPS applied it. target_stats now materializes the headline
+    skill's source, so attack-scoped pen surfaces for an attack and stays 0 for a spell."""
+
+    def _run(self, skill, dual=False):
+        from server import engine_stats, EngineStatsRequest
+        from tests.mock_build import make_request, DUAL_WEAPONS
+        gear = DUAL_WEAPONS + [{"item_name": "Skull", "contributions": [
+            {"stat": "life_consumed_pct_max_per_sec", "display_value": 0.40, "unit": "",
+             "slot": "helmet", "item_name": "Skull", "text": "drain"}]}]
+        conds = {"dual_wielding": True} if dual else {}
+        req = make_request(skill, 20, gear=gear, extra_conditions=conds)
+        req["custom_mods"] = ["+(20-25) % Armor DMG Mitigation Penetration for Attack Skills "
+                              "if you have consumed more than 120 % of Max Life recently"]
+        r = engine_stats(EngineStatsRequest(**req))
+        return r if isinstance(r, dict) else r.model_dump()
+
+    def test_attack_scoped_pen_shows_for_attack(self):
+        ts = self._run("berserking_blade", dual=True)["target_stats"]
+        a = ts["armor"]
+        assert a["pen"] == pytest.approx(0.225)           # 20-25% midpoint, attack-scoped, gate met (160% recently)
+        assert a["effective_phys"] == pytest.approx(0.275)  # 0.50 base - 0.225 pen
+        # The scoped pen must also appear in the per-stat SOURCE breakdown (it's absent from the global stat_map,
+        # so the panel reads it from target_stats.pen_sources). Without this the tooltip showed only the base.
+        srcs = (ts.get("pen_sources") or {}).get("armor_pen") or []
+        assert any(abs(s["amount"] - 0.225) < 1e-6 for s in srcs)
+
+    def test_attack_scoped_pen_hidden_for_spell(self):
+        a = self._run("chromatic_shot")["target_stats"]["armor"]
+        assert a["pen"] == pytest.approx(0.0)             # attack-scoped pen does not apply to a spell
+
+
 class TestConsumption:
     """Pen + cap stats are now actually READ, so they badge Consumed (green), not yellow/Inactive."""
     def test_pen_stats_in_universe(self):

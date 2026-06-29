@@ -398,6 +398,20 @@ def target_profile(source: BuildSource) -> dict:
         resist = base + all_red          # enemy's actual resistance (after reductions; multipliers go here)
         return {"base": base, "reduction": all_red, "pen": pen, "resist": resist, "effective": resist - pen}
 
+    # Per-stat penetration SOURCES for the panel breakdown. Penetration is often skill-SCOPED (e.g. Awakening
+    # Skull's attack-only Armor Pen), and scoped contributions never enter the global stat_map — so the breakdown's
+    # stat_map lookup finds nothing. We read them straight off this (already skill-materialized) source's
+    # source_log, which carries base PLUS the matching scoped entries, so every source that produced the displayed
+    # pen shows up. Keyed by the stat the panel rows ask for via penKeys.
+    _PEN_KEYS = ("armor_pen", "elemental_pen", "fire_pen", "cold_pen", "lightning_pen", "erosion_pen")
+    pen_sources: dict[str, list] = {}
+    for e in source.source_log:
+        if e.stat in _PEN_KEYS:
+            pen_sources.setdefault(e.stat, []).append({
+                "source_type": e.source_type, "label": e.label, "text": e.text,
+                "source_name": e.source_name, "amount": e.amount,
+            })
+
     return {
         "source": f"Lvl {level} Dummy",
         "armor": {
@@ -418,6 +432,8 @@ def target_profile(source: BuildSource) -> dict:
             "lightning": source.total("lightning_pen"),
             "erosion": source.total("erosion_pen"),
         },
+        # Per-stat source breakdown for the pen rows (incl. skill-scoped pens absent from the global stat_map).
+        "pen_sources": pen_sources,
     }
 
 
@@ -550,6 +566,12 @@ class OffenseResult:
     hit_forms: list[HitFormResult] = field(default_factory=list)
     crit_chance: float = 0.0
     crit_multiplier: float = 1.5
+    # Double / Triple / Quadruple damage CHANCE (tag-filtered, summed pool, capped 100%) + the expected-value
+    # multiplier folded into the average DPS (highest tier per hit). double_dmg_factor=1.0 → no double damage.
+    double_dmg_chance: float = 0.0
+    triple_dmg_chance: float = 0.0
+    quad_dmg_chance: float = 0.0
+    double_dmg_factor: float = 1.0
     steep_strike_chance: float = 0.0
     attacks_per_second: float = 0.0
     base_cast_time: float = 0.0        # spell base cast time (seconds); 0 for attacks (weapon-APS driven)
@@ -1632,6 +1654,7 @@ def calculate_offense(
         hit_forms=hit_forms,
         crit_chance=crit_chance,
         crit_multiplier=crit_mult,
+        double_dmg_chance=q2, triple_dmg_chance=q3, quad_dmg_chance=q4, double_dmg_factor=double_dmg_factor,
         steep_strike_chance=steep_chance,
         attacks_per_second=aps,
         base_cast_time=base_cast_time,

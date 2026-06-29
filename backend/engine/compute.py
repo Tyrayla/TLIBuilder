@@ -902,7 +902,17 @@ def compute(
 
     # Calculation-target (dummy) profile for the enemy-stats panel: base + effective armor/resist after
     # this build's penetration, plus the active enemy debuffs (user-set / auto-derived conditions).
+    # Penetration is often SKILL-SCOPED (e.g. Awakening Skull's "Armor DMG Mitigation Penetration for Attack
+    # Skills"), so it lives only in the active skill's MATERIALIZED source — reading the raw global source would
+    # show 0 pen even while the displayed DPS correctly applies it. Materialize for the headline skill's mod tags
+    # (recording is already off here, so these reads stay golden-neutral) so the panel matches the damage calc.
     from engine.offense import target_profile
+    _tp_source = source
+    if skill_data and build_input.main_skill and main_enabled:
+        _tp_resolved = resolve_skill(skill_data)
+        _tp_tags = ({t.lower() for t in _tp_resolved.tags}
+                    | {t.lower() for t in getattr(_tp_resolved, "extra_damage_mod_tags", [])})
+        _tp_source = source.materialize_for_skill(_tp_tags, main_slot)
     _DEBUFF_LABELS = {
         "enemy_paralyzed": "Paralysis",
         "enemy_affected_by_frail": "Frail",
@@ -930,7 +940,7 @@ def compute(
     if _numbed > 0:
         debuff_details.append({"name": "Numbed", "scope": "Lightning damage", "stacks": _numbed,
                                "taken_inc": source.total("numbed_lightning_taken")})
-    target_stats = {**target_profile(source), "debuffs": _debuffs, "debuff_details": debuff_details}
+    target_stats = {**target_profile(_tp_source), "debuffs": _debuffs, "debuff_details": debuff_details}
 
     # ── Numbed ailment box (player-stats display) ─────────────────────────────
     # Base +5% Lightning Damage taken per stack (11% if Conductive), scaled by the increased + additional

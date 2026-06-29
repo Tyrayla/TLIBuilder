@@ -255,6 +255,8 @@
     "compulsory_breakdown": {},
     "crit_chance": 0.15,
     "crit_multiplier": 1.5,
+    "double_dmg_chance": 0,
+    "double_dmg_factor": 1,
     "effective_level": 20,
     "enemy_mult_by_type": {
       "cold": 0.48999999999999994,
@@ -423,6 +425,7 @@
     ],
     "projectile_base_count": 2,
     "projectile_count": 3,
+    "quad_dmg_chance": 0,
     "shotgun_hits": 1,
     "skill_area_inc": 0.0,
     "skill_name": "Icebound Beam",
@@ -468,6 +471,7 @@
     "tangle_placeable": 0,
     "total_dps": 13827.993169472851,
     "total_dps_vs_target": 6790.827579708597,
+    "triple_dmg_chance": 0,
     "type_add": {
       "cold": 4.004907068841542,
       "fire": 4.004907068841542,
@@ -510,6 +514,8 @@
       "compulsory_breakdown": {},
       "crit_chance": 0.15,
       "crit_multiplier": 1.5,
+      "double_dmg_chance": 0,
+      "double_dmg_factor": 1,
       "effective_level": 20,
       "enemy_mult_by_type": {
         "cold": 0.48999999999999994,
@@ -678,6 +684,7 @@
       ],
       "projectile_base_count": 2,
       "projectile_count": 3,
+      "quad_dmg_chance": 0,
       "shotgun_hits": 1,
       "skill_area_inc": 0.0,
       "skill_name": "Icebound Beam",
@@ -723,6 +730,7 @@
       "tangle_placeable": 0,
       "total_dps": 13827.993169472851,
       "total_dps_vs_target": 6790.827579708597,
+      "triple_dmg_chance": 0,
       "type_add": {
         "cold": 4.004907068841542,
         "fire": 4.004907068841542,
