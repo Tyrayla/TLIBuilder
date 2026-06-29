@@ -27,7 +27,7 @@ def _has(res, k):
 def test_base_bridge_and_spell_damage_levels():
     r = _ap(levels=[5, 1, 1, 1])
     assert _amt(r, "spell_dmg_to_attack") == 1.0
-    assert _amt(r, "mana_cost_override") == 1.0
+    assert _amt(r, "mana_consume_external_blocked") == 1.0   # "Mana can only be consumed by Mystic Mercury" lock
     assert _amt(r, "max_mercury_points_flat") == 100.0
     assert _amt(r, "spell_dmg_additional") == pytest.approx(0.20)        # base L5 → +20%
 
@@ -75,7 +75,7 @@ def test_boundless_sanctuary_per_enemy_cap():
 def test_utmost_devotion_lifts_override_and_scales_on_mercury():
     r = _ap(picks=["Utmost Devotion"], levels=[5, 1, 1, 5], ls={"max_mana": 3000.0, "unsealed_mana": 3000.0,
             "max_mercury_points_flat": 100.0, "max_mercury_points_inc": 0.0})
-    assert not _has(r, "mana_cost_override")                             # Utmost lifts the override
+    assert not _has(r, "mana_consume_external_blocked")                  # Utmost lifts the consume lock
     assert _amt(r, "max_mercury_points_inc") == pytest.approx(0.30)      # 0.10/1000 × 3000
     # current mercury = 100 × (1+0) × 100% = 100; tier4 ele = 0.001 × 100 = 0.10
     assert _amt(r, "elemental_dmg_additional") == pytest.approx(0.20 + 0.001 * 100)
@@ -88,6 +88,24 @@ def test_born_to_cleanse_mystic_vs_realm_retain():
     mystic = _ap(picks=["Born to Cleanse"], levels=[5, 1, 1, 5], conds={"realm_of_mercury": False})
     assert _amt(mystic, "elemental_dmg_additional") == pytest.approx(0.25)                # mystic: full
     assert _amt(mystic, "main_hand_dmg_additional") == pytest.approx(0.48)
+
+
+def test_mystic_phase_consumes_realm_phase_restores():
+    # Mystic Mercury (build-up) consumes 10% unsealed Max Mana/attack and turns OFF the Realm bonuses.
+    m = _ap(levels=[5, 1, 1, 1], ls={"max_mana": 2000.0, "unsealed_mana": 2000.0}, conds={"mystic_mercury": True})
+    assert _amt(m, "mana_consumed_pct_current_per_attack_use_mystic") == pytest.approx(0.10)
+    assert not _has(m, "mana_restored_pct_current_per_attack_use")       # no restore in Mystic
+    assert not _has(m, "attack_speed_additional")                        # Mystic overrides Realm bonuses
+    # Default (Realm) phase restores 15%/attack and does NOT consume.
+    rlm = _ap(levels=[5, 1, 1, 1], ls={"max_mana": 2000.0, "unsealed_mana": 2000.0})
+    assert _amt(rlm, "mana_restored_pct_current_per_attack_use") == pytest.approx(0.15)
+    assert not _has(rlm, "mana_consumed_pct_current_per_attack_use_mystic")
+
+
+def test_born_to_cleanse_reduces_realm_restore():
+    # −30% additional Mana restoration for Realm → 15% × (1 − 0.30) = 10.5%.
+    r = _ap(picks=["Born to Cleanse"], levels=[5, 1, 1, 5], ls={"max_mana": 1000.0, "unsealed_mana": 1000.0})
+    assert _amt(r, "mana_restored_pct_current_per_attack_use") == pytest.approx(0.15 * 0.70)
 
 
 def test_disabled_base_node_emits_nothing():
@@ -143,3 +161,33 @@ def test_trait_none_unchanged():
     o = _off(WEAPON, trait=None)
     assert o["mercury_baptism_dps"] == 0.0
     assert o["mercury_baptism_fraction"] == 0.0
+
+
+# ── Mana cycle (consume / restore / lock) integration ─────────────────────────────────
+def _full(gear, trait="unsullied_blade", picks=None, levels=None, conds=None, skill="berserking_blade"):
+    kw = dict(gear=gear, advanced_trait_selections=picks or [], trait_slot_levels=levels or [5, 1, 1, 1],
+              condition_state=conds or {})
+    if trait:
+        kw["trait_id"] = trait
+    r = engine_stats(EngineStatsRequest(**make_request(skill, 16, **kw)))
+    return r if isinstance(r, dict) else r.model_dump()
+
+
+def test_consume_lock_blocks_external_mana_consume_until_utmost():
+    drain = _gear(mana_consumed_flat_per_sec=50.0)
+    # Lock ON (base node, no Utmost) → the external 50/s mana consume is zeroed.
+    assert _full(WEAPON + drain)["consumption"]["mana_per_sec"] == pytest.approx(0.0, abs=1e-6)
+    # Utmost Devotion lifts the lock → the external 50/s consume counts again.
+    lifted = _full(WEAPON + drain, picks=["Utmost Devotion"], levels=[5, 1, 1, 5])
+    assert lifted["consumption"]["mana_per_sec"] == pytest.approx(50.0, rel=1e-3)
+
+
+def test_mystic_consume_counts_and_realm_restore_feeds_recovery():
+    # Mystic phase: the trait's own consume counts even with the lock on (it bypasses it).
+    mystic = _full(WEAPON, conds={"mystic_mercury": True})
+    assert mystic["consumption"]["mana_per_sec"] > 0.0
+    assert mystic["recovery"]["restoration_mana_per_sec"] == pytest.approx(0.0, abs=1e-6)   # no restore in Mystic
+    # Realm phase (default): restores mana on attack, no consume.
+    realm = _full(WEAPON)
+    assert realm["recovery"]["restoration_mana_per_sec"] > 0.0
+    assert realm["consumption"]["mana_per_sec"] == pytest.approx(0.0, abs=1e-6)

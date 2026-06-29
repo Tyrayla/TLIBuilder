@@ -49,6 +49,9 @@ CONSUME_SOURCE_KEYS = [f"{p}_consumed_{b}_per_{c}"
 CONSUME_SOURCE_KEYS += [f"{p}_consumed_{b}_per_attack_use"
                         for p in ("life", "mana")
                         for b in ("pct_current", "pct_max", "flat")]
+# Unsullied Blade's Mystic-Mercury consume is its own (lock-bypassing) source — list it so a pure-Unsullied build
+# (no other consume affix) still triggers the consumption stage.
+CONSUME_SOURCE_KEYS += ["mana_consumed_pct_current_per_attack_use_mystic"]
 
 # USE vs CAST (owner-flagged, FOLLOW-UP): most LIFE-consume mods say "on skill USE" while most MANA-consume mods say
 # "on cast". They differ because spells are typically not "used" — they're cast/triggered by Tangle, Spell Burst, etc.
@@ -105,7 +108,18 @@ def calculate_consumption(source: BuildSource, *, condition_state: dict | None =
     es_pct = float(cs.get("current_es_pct", 100.0) or 0.0)
 
     life_ps = _pool_per_sec(source, "life", life_pct / 100.0 * unres_life, max_life, rates)
-    mana_ps = _pool_per_sec(source, "mana", mana_pct / 100.0 * unres_mana, max_mana, rates)
+    cur_mana = mana_pct / 100.0 * unres_mana
+    mana_ps = _pool_per_sec(source, "mana", cur_mana, max_mana, rates)
+    # Unsullied Blade (Rosa #2) — "Mana can only be consumed by Mystic Mercury": when the lock flag is set (base
+    # node active, no Utmost Devotion) every OTHER mana-consume source is blocked. Utmost Devotion clears the flag so
+    # external consumers work again. The flag is emitted only by the Unsullied Blade module, so it can't affect other
+    # builds.
+    if source.total("mana_consume_external_blocked"):
+        mana_ps = 0.0
+    # Mystic Mercury's own consume BYPASSES the lock (it's the permitted consumer): 10% of unsealed Max Mana per
+    # non-channeled attack use → % of current unreserved mana × the attack-use rate (exact at full mana).
+    mana_ps += (source.total("mana_consumed_pct_current_per_attack_use_mystic") * cur_mana
+                * max(0.0, rates.get("attack", 0.0)))
     # Energy Shield: per-sec bases only (no per-cast ES consume seen). Reuse the per-cast=0 path.
     es_ps = (source.total("energy_shield_consumed_pct_current_per_sec") * (es_pct / 100.0 * max_es)
              + source.total("energy_shield_consumed_pct_max_per_sec") * max_es

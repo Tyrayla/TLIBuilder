@@ -163,6 +163,10 @@ def consumable_universe() -> frozenset[str]:
     consumed |= {f"{p}_consumed_{b}_per_attack_use"
                  for p in ("life", "mana") for b in ("pct_current", "pct_max", "flat")}
     consumed |= {"consumed_recently_life", "consumed_recently_mana", "consumed_recently_energy_shield"}
+    # Unsullied Blade (Rosa #2): Mystic-Mercury consume (lock-bypassing), the "only Mystic consumes" lock flag, and
+    # the Realm restore — read in engine.consumption / engine.recovery, outside the synthetic passes.
+    consumed |= {"mana_consumed_pct_current_per_attack_use_mystic", "mana_consume_external_blocked",
+                 "mana_restored_pct_current_per_attack_use"}
     # AS-per-consumed (Tide) is read in the compute loop's feedback injection, outside the synthetic offense run.
     consumed |= {"attack_speed_inc_per_life_consumed", "attack_speed_inc_per_life_consumed_cap"}
     # Per-N-consumed CONSUMERS read in offense only when present (guarded), so the synthetic run wouldn't see them:

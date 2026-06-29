@@ -629,6 +629,14 @@ class Stat(Enum):
     MANA_CONSUMED_PCT_CURRENT_PER_ATTACK_USE = "mana_consumed_pct_current_per_attack_use"
     MANA_CONSUMED_PCT_MAX_PER_ATTACK_USE = "mana_consumed_pct_max_per_attack_use"
     MANA_CONSUMED_FLAT_PER_ATTACK_USE = "mana_consumed_flat_per_attack_use"
+    # Unsullied Blade (Rosa #2) mana cycle. Mystic Mercury consume BYPASSES the "Mana can only be consumed by
+    # Mystic Mercury" lock (so the lock can zero every OTHER mana-consume source while this one still counts);
+    # the lock itself is a flag emitted only by Unsullied Blade's base node (off when Utmost Devotion is picked).
+    MANA_CONSUMED_PCT_CURRENT_PER_ATTACK_USE_MYSTIC = "mana_consumed_pct_current_per_attack_use_mystic"
+    MANA_CONSUME_EXTERNAL_BLOCKED = "mana_consume_external_blocked"
+    # Mana RESTORATION per non-channeled attack use (Realm of Mercury restores 15% of unsealed Max Mana/attack;
+    # Born to Cleanse's −30% additional mana restoration applies via the trait before this is emitted).
+    MANA_RESTORED_PCT_CURRENT_PER_ATTACK_USE = "mana_restored_pct_current_per_attack_use"
     # Derived (written back by the consumption stage so offense / conditions can read the rolling "consumed recently"
     # total = consumed_per_sec × the "recently" window).
     CONSUMED_RECENTLY_LIFE = "consumed_recently_life"

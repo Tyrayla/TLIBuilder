@@ -72,7 +72,11 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
         return {"contributions": []}
 
     base_lvl = slot_levels[0] if slot_levels else 1
-    realm = _flag(condition_state, "realm_of_mercury", True)
+    # Two mutually-exclusive phases. Mystic Mercury (build-up) consumes Mana; Realm of Mercury (DPS state, default)
+    # restores Mana and grants the damage bonuses. `mystic` overrides → `realm` (used as "in Realm" by every bonus
+    # gate below) is true only when realm is toggled on AND we're not in the Mystic build-up phase.
+    mystic = _flag(condition_state, "mystic_mercury", False)
+    realm = _flag(condition_state, "realm_of_mercury", True) and not mystic
     enemies = _num(condition_state, "enemies_in_realm", 1.0, 0.0, 50.0)
     mercury_pct = _num(condition_state, "mercury_points", 100.0, 0.0, 100.0) / 100.0
 
@@ -99,8 +103,10 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     # ── Base trait ──
     add("spell_dmg_to_attack", 1.0, "Spell Damage bonuses also apply to Attack Damage", "Unsullied Blade")
     add("max_mercury_points_flat", _BASE_MAX_MERCURY, "Base Max Mercury Points: 100", "Unsullied Blade")
-    if not utmost:                                           # Utmost Devotion lifts the Mystic-Mercury-only override
-        add("mana_cost_override", 1.0, "Mana can only be consumed by Mystic Mercury", "Mystic Mercury")
+    if not utmost:    # Utmost Devotion lifts the "only Mystic Mercury consumes Mana" lock → other consumers work again
+        # NOT skill cost — a CONSUME lock: while set, the consumption stage zeroes every other mana-consume source
+        # (Unsullied's own Mystic consume bypasses it). Emitted only here, so it can't affect any non-Rosa-2 build.
+        add("mana_consume_external_blocked", 1.0, "Mana can only be consumed by Mystic Mercury", "Mystic Mercury")
     sd = _SPELL_DMG_ADD[_tier([base_lvl], 0)]
     if sd > 0:
         add("spell_dmg_additional", sd, f"+{sd * 100:.0f}% additional Spell Damage (applies to attacks)", "Unsullied Blade")
@@ -110,6 +116,21 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
         if amt > 0:
             add("attack_speed_additional", amt, f"Realm of Mercury: +{amt * 100:.0f}% additional Attack Speed ({incs}×10% unsealed mana)", "Realm of Mercury")
             add("elemental_dmg_additional", amt, f"Realm of Mercury: +{amt * 100:.0f}% additional Elemental Damage ({incs}×10% unsealed mana)", "Realm of Mercury")
+
+    # ── Mana cycle (per non-Channeled attack USE) — flows through the consumption / recovery subsystems ──
+    # Mystic phase CONSUMES, Realm phase RESTORES (the two never overlap). Both are % of unsealed Max Mana; the engine
+    # uses % of current unreserved mana × the attack-use rate (exact at full mana).
+    if mystic:
+        # 10% of unsealed Max Mana consumed per non-Channeled attack use (the "1% if insufficient" fallback is not
+        # modelled). Routed through the lock-bypass stat so the "only Mystic consumes" lock keeps this one.
+        add("mana_consumed_pct_current_per_attack_use_mystic", 0.10,
+            "Mystic Mercury: consumes 10% of unsealed Max Mana per non-Channeled Attack use", "Mystic Mercury")
+    if realm:
+        born = "Born to Cleanse" in picks and _enabled(slot_levels, _SLOT_75)
+        restore = 0.15 * (1.0 + (-0.30 if born else 0.0))   # Born to Cleanse: −30% additional Mana restoration (Realm)
+        add("mana_restored_pct_current_per_attack_use", restore,
+            f"Realm of Mercury: restores {restore * 100:.1f}% of unsealed Max Mana per non-Channeled Attack use"
+            + (" (Born to Cleanse −30% additional)" if born else ""), "Realm of Mercury")
 
     # ── Baptism of Purity (L45 slot — the only L45 node) ──
     if _enabled(slot_levels, _SLOT_45):
@@ -186,7 +207,9 @@ def status_lines(*, slot_levels, advanced_picks, **_):
     working("Spell Damage bonus + additional also apply to Attack Damage", "Unsullied Blade")
     working("Per base level: +5/10/15/20% additional Spell Damage", "Unsullied Blade")
     working("Realm of Mercury: +2% additional Attack Speed + Elemental Damage per 10% unsealed Max Mana (cap +20%)", "Realm of Mercury")
-    info("Mystic Mercury ↔ Realm of Mercury cycle (attack to build Mercury Points; Realm drains 30/s); mana consumption/restoration is state-gated — resource sim NYI", "Unsullied Blade")
+    working("Mana cycle (per non-Channeled Attack use): Mystic Mercury consumes 10% of unsealed Max Mana; Realm of Mercury restores 15%. Toggle the Mystic Mercury phase to model build-up (default = Realm)", "Unsullied Blade")
+    working("Mana can only be consumed by Mystic Mercury — other mana consumers are blocked (Utmost Devotion lifts this)", "Mystic Mercury")
+    info("Realm of Mercury consumes 30 Mercury Points/s (Mercury-point economy not simulated)", "Unsullied Blade")
     info("Artificial Moon: +Attack Speed per Mercury Baptism — not yet modelled (pending in-game verification)", "Artificial Moon")
     if _enabled(slot_levels, _SLOT_45):
         working("Baptism of Purity: +20% additional Max Mana; Mercury Baptism deals true damage from your elemental attack damage; inflicts the dominant element's Infiltration", "Baptism of Purity")
@@ -199,5 +222,5 @@ def status_lines(*, slot_levels, advanced_picks, **_):
         working("Utmost Devotion: +additional Elemental Damage per Mercury Point (Max Mercury Points scale with Max Mana); lifts the Mystic-Mercury mana-consumption override", "Utmost Devotion")
     if "Born to Cleanse" in picks:
         working("Born to Cleanse: Mystic +25% additional Elemental Damage + additional Main-Hand Weapon damage (40% retained in Realm)", "Born to Cleanse")
-        info("Born to Cleanse: −30% additional Mana restoration for Realm (resource)", "Born to Cleanse")
+        working("Born to Cleanse: −30% additional Mana restoration for Realm of Mercury (folded into the per-use restore)", "Born to Cleanse")
     return out

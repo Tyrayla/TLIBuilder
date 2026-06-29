@@ -781,7 +781,7 @@ def compute(
     result_recovery = asdict(calculate_recovery(
         source, condition_state=condition_state, restoration_inputs=_restoration_inputs,
         reservation=reservation, defense=result_defense, uptime_mode=build_input.uptime_mode,
-        consumption=result_consumption))
+        consumption=result_consumption, rates=_cons_rates_final))
     # Expose the rolling "consumed recently" totals on source so the per-N-consumed offense folds read them.
     for _crk in ("life", "mana", "energy_shield"):
         source.add(f"consumed_recently_{_crk}", float(result_consumption.get(f"consumed_recently_{_crk}", 0.0) or 0.0))

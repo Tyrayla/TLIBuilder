@@ -151,7 +151,8 @@ def restoration_excess(source: BuildSource, restoration_inputs: list | None, con
 
 def calculate_recovery(source: BuildSource, *, condition_state: dict | None = None,
                        restoration_inputs: list | None = None, reservation: dict | None = None,
-                       defense: dict | None = None, uptime_mode=None, consumption: dict | None = None) -> RecoveryResult:
+                       defense: dict | None = None, uptime_mode=None, consumption: dict | None = None,
+                       rates: dict | None = None) -> RecoveryResult:
     from engine.uptime import is_real
     ignore_recast = not is_real(uptime_mode)   # Full Uptime (max) ignores recast cadence; Effective (real) honors it
     cs = condition_state or {}
@@ -172,6 +173,19 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         restoration_inputs, "life", max_life, r_factor, dur_factor, missing_life, life_pct >= 100.0, ignore_recast)
     mana_total, mana_ps, mana_excess, mana_src = _pool_recovery(
         restoration_inputs, "mana", max_mana, r_factor, dur_factor, missing_mana, mana_pct >= 100.0, ignore_recast)
+
+    # Realm of Mercury (Unsullied Blade, Rosa #2): restores 15% of unsealed Max Mana per non-channeled attack use
+    # (Born to Cleanse's −30% additional restoration is already folded into the emitted fraction by the trait). % of
+    # current unreserved mana × the attack-use rate (exact at full mana) → a steady mana restoration feeding Net Mana
+    # Recovery. The stat is emitted only in the Realm phase, so it's 0 in Mystic / for any other build.
+    _rates = rates or {}
+    _unres_mana = max(0.0, max_mana - float((reservation or {}).get("sealed_mana", 0.0) or 0.0))
+    realm_restore_ps = (source.total("mana_restored_pct_current_per_attack_use")
+                        * (mana_pct / 100.0 * _unres_mana) * max(0.0, float(_rates.get("attack", 0.0))))
+    if realm_restore_ps > 1e-9:
+        mana_ps += realm_restore_ps
+        mana_src.append({"pool": "mana", "source": "Realm of Mercury (restore on attack)",
+                         "total": 0.0, "duration": 0.0, "per_sec": realm_restore_ps})
 
     # Pixie Tear: a portion of EXCESS Life restoration is also applied to ES restoration ("unable to Charge or
     # Regain Energy Shield" — a separate restoration line). Total = excess Life × pct; rate follows the Life
