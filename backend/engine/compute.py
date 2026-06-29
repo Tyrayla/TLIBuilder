@@ -413,7 +413,9 @@ def compute(
         # this consumer feeds back; the damage-per-consumed fold is one-directional and stays post-loop.)
         _as_per = source.total("attack_speed_inc_per_life_consumed")
         if _as_per and _prev_consumed_recently_life > 0.0:
-            _as_amt = _prev_consumed_recently_life * _as_per
+            from engine.consumption import floored_consumed as _floored
+            _as_amt = _floored(_prev_consumed_recently_life,
+                               source.total("attack_speed_inc_per_life_consumed_unit")) * _as_per
             _as_cap = source.total("attack_speed_inc_per_life_consumed_cap")
             if _as_cap:
                 _as_amt = min(_as_amt, _as_cap)
@@ -535,6 +537,31 @@ def compute(
             # gain; at the fixed point it equals the true consumed-recently. (Only the feedback is damped — the
             # condition/offense reads above use the true value.)
             _prev_consumed_recently_life = 0.5 * _cons_now.consumed_recently_life + 0.5 * _prev_consumed_recently_life
+
+            # Flat PHYSICAL damage per N consumed (Blade-dancer = Life→Attacks; Glacier = Mana→Attacks+Spells): fold
+            # the per-unit stats × consumed-recently into the REAL physical_{attack,spell}_dmg_flat source stats here,
+            # in-loop, so they (a) appear in stat_map with a source for the breakdown, and (b) flow through the full
+            # flat→inc→additional→per-form offense pipeline (incl. multi-form spells like Chromatic Shot). One-
+            # directional (flat damage doesn't feed consumption), so the current pass's consumed-recently is used.
+            from engine.consumption import floored_consumed as _floored
+            for _cls, _pool in (("attack", "life"), ("attack", "mana"), ("spell", "mana")):
+                _pu_min = source.total(f"physical_{_cls}_dmg_flat_min_per_{_pool}_consumed")
+                _pu_max = source.total(f"physical_{_cls}_dmg_flat_max_per_{_pool}_consumed")
+                if not (_pu_min or _pu_max):
+                    continue
+                # Discrete "for every N" stacks: floor consumed-recently to whole N-chunks before × per-unit.
+                _cr = _floored(getattr(_cons_now, f"consumed_recently_{_pool}"),
+                               source.total(f"physical_dmg_flat_per_{_pool}_consumed_unit"))
+                _cap = source.total(f"physical_dmg_flat_per_{_pool}_consumed_cap")
+                if _cap:
+                    _cr = min(_cr, _cap)
+                for _mm, _pu in (("min", _pu_min), ("max", _pu_max)):
+                    _amt = _cr * _pu
+                    if _amt:
+                        source.add_with_source(f"physical_{_cls}_dmg_flat_{_mm}", _amt, SourceEntry(
+                            stat=f"physical_{_cls}_dmg_flat_{_mm}", amount=_amt, source_type="gear",
+                            label=f"Physical per {_pool.title()} Consumed", points=1,
+                            text=f"Adds Physical Damage per {_pool} consumed recently", source_name=f"{_pool.title()} Consumed"))
 
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS

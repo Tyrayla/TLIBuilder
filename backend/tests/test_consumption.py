@@ -91,16 +91,19 @@ def test_per_n_consumed_consumer_parsing():
     from engine.mod_parser import _parse_custom_mod_text as P
     def kv(text):
         return {r["stat_key"]: round(r["amount"], 8) for r in (P(text) or [])}
-    # Tide of the Styx: +(3-5)% damage per 4000 Life consumed → midpoint 4% normalized to per-1-life (no cap).
+    # Tide of the Styx: +(3-5)% damage per 4000 Life consumed → midpoint 4% normalized to per-1-life + the divisor N.
     assert kv("+(3-5) % damage for every 4000 Life consumed recently") == {
-        "dmg_additional_per_life_consumed": round(0.04 / 4000.0, 8)}
+        "dmg_additional_per_life_consumed": round(0.04 / 4000.0, 8),
+        "dmg_additional_per_life_consumed_unit": 4000}
     # Tide: +1% Attack Speed per 5000 Life consumed.
     assert kv("+1 % Attack Speed for every 5000 Life consumed recently") == {
-        "attack_speed_inc_per_life_consumed": round(0.01 / 5000.0, 8)}
-    # Compensatory Life: +(3-6)% Spell Damage per 100 Mana consumed, up to 216% → cap captured.
+        "attack_speed_inc_per_life_consumed": round(0.01 / 5000.0, 8),
+        "attack_speed_inc_per_life_consumed_unit": 5000}
+    # Compensatory Life: +(3-6)% Spell Damage per 100 Mana consumed, up to 216% → cap + divisor captured.
     out = kv("+(3-6) % Spell Damage for every 100 Mana consumed recently, up to 216 %")
     assert out["spell_dmg_inc_per_mana_consumed"] == round(0.045 / 100.0, 8)
     assert out["spell_dmg_inc_per_mana_consumed_cap"] == 2.16
+    assert out["spell_dmg_inc_per_mana_consumed_unit"] == 100
 
 
 def test_g_flat_phys_per_consumed_parsing():
@@ -113,11 +116,13 @@ def test_g_flat_phys_per_consumed_parsing():
     assert blade == {
         "physical_attack_dmg_flat_min_per_life_consumed": round(19.5 / 3300.0, 8),
         "physical_attack_dmg_flat_max_per_life_consumed": round(25.5 / 3300.0, 8),
+        "physical_dmg_flat_per_life_consumed_unit": 3300.0,
         "physical_dmg_flat_per_life_consumed_cap": 170.0 * 3300.0}
-    # Glacier Caster Shield: midpoints 14/24.5 per ~1025 Mana → Attacks AND Spells, cap 200×1025.
+    # Glacier Caster Shield: midpoints 14/24.5 per ~1025 Mana → Attacks AND Spells, divisor 1025, cap 200×1025.
     glac = kv("Adds (13-15) - (23-26) Physical Damage to Attacks and Spells for every (1000-1050) Mana consumed recently. Stacks up to 200 time(s)")
     assert glac["physical_attack_dmg_flat_min_per_mana_consumed"] == round(14.0 / 1025.0, 8)
     assert glac["physical_spell_dmg_flat_max_per_mana_consumed"] == round(24.5 / 1025.0, 8)
+    assert glac["physical_dmg_flat_per_mana_consumed_unit"] == 1025.0
     assert glac["physical_dmg_flat_per_mana_consumed_cap"] == 200.0 * 1025.0
 
 
@@ -127,7 +132,9 @@ def test_g_crit_and_compound_parsing():
     # Tyrant's Iron Fist: +5% Crit Rating AND Crit Damage per ~890 Mana → both pools, per-1-mana, no cap.
     tyrant = kv("+5 % Critical Strike Rating and Critical Strike Damage for every (880-900) Mana consumed recently")
     assert tyrant == {"crit_rating_inc_per_mana_consumed": round(0.05 / 890.0, 8),
-                      "crit_dmg_inc_per_mana_consumed": round(0.05 / 890.0, 8)}
+                      "crit_dmg_inc_per_mana_consumed": round(0.05 / 890.0, 8),
+                      "crit_rating_inc_per_mana_consumed_unit": 890.0,
+                      "crit_dmg_inc_per_mana_consumed_unit": 890.0}
     # Crimson King compound (threshold gate split off upstream): flat +50% to BOTH increased Crit Rating + Crit Damage.
     assert kv("+50 % Critical Strike Rating and Critical Strike Damage") == {
         "crit_rating_inc": 0.5, "crit_dmg_inc": 0.5}
@@ -138,12 +145,30 @@ def test_g_crit_and_compound_parsing():
     assert kv("+(3-4) % Mana Regeneration Speed for every 100 Mana consumed recently, up to 360 %") == {}
 
 
+def test_per_n_affix_keeps_stacks_cap_as_one_clause():
+    # REGRESSION: "… for every N … recently. Stacks up to M time(s)" must resolve as ONE gear clause WITH the cap,
+    # not split on the period into a resolved "Adds…" + a separate "Stacks up to M" NYI line (which also broke the
+    # item badge and dropped the cap). Glacier Caster Shield.
+    req = make_request("chromatic_shot", 20)
+    req["gear"] = [{"item_name": "Glacier", "contributions": [], "unresolved_texts": [
+        "Adds 14 - 25 Physical Damage to Attacks and Spells for every 1025 Mana consumed recently. Stacks up to 200 time(s)"]}]
+    r = engine_stats(EngineStatsRequest(**req))
+    r = r if isinstance(r, dict) else r.model_dump()
+    gm = [s for s in r["gear_mod_statuses"] if "Physical Damage" in s["text"] or "Stacks up to" in s["text"]]
+    assert len(gm) == 1                                  # one status, not split
+    assert gm[0]["resolved"] is True
+    assert "Stacks up to 200" in gm[0]["text"]           # cap stays in the same clause
+    assert "physical_dmg_flat_per_mana_consumed_cap" in gm[0]["stat_display"]   # cap captured
+
+
 def test_g_flat_phys_raises_dps_and_crit_per_consumed_raises_crit():
     from tests.mock_build import DUAL_WEAPONS
     def run(mods):
+        # Consume rates chosen so consumed-recently clears the per-N divisors (≥1 discrete stack): life 2000/s × 4s =
+        # 8000 ≥ 3300 (Blade → 2 stacks); mana 300/s × 4s = 1200 ≥ 890 (Tyrant → 1 stack).
         g = DUAL_WEAPONS + [{"item_name": "T", "contributions": [
-            {"stat": "life_consumed_pct_max_per_sec", "display_value": 0.30, "unit": "", "slot": "helmet", "item_name": "T", "text": "d"},
-            {"stat": "mana_consumed_flat_per_sec", "display_value": 200, "unit": "", "slot": "helmet", "item_name": "T", "text": "m"},
+            {"stat": "life_consumed_flat_per_sec", "display_value": 2000, "unit": "", "slot": "helmet", "item_name": "T", "text": "d"},
+            {"stat": "mana_consumed_flat_per_sec", "display_value": 300, "unit": "", "slot": "helmet", "item_name": "T", "text": "m"},
             {"stat": "mana_regen_flat", "display_value": 99999, "unit": "", "slot": "helmet", "item_name": "T", "text": "r"}]}]
         req = make_request("berserking_blade", 20, gear=g, extra_conditions={"dual_wielding": True})
         req["custom_mods"] = mods
@@ -154,8 +179,33 @@ def test_g_flat_phys_raises_dps_and_crit_per_consumed_raises_crit():
     tyrant = run(["+5 % Critical Strike Rating and Critical Strike Damage for every (880-900) Mana consumed recently"])
     assert base["recovery"]["consumed_recently_life"] > 0 and base["recovery"]["consumed_recently_mana"] > 0
     assert blade["offense"]["total_dps"] > base["offense"]["total_dps"]          # flat phys per Life consumed
+    # REGRESSION (bug-221): the flat must land in the REAL physical_attack_dmg_flat source stat (folds into damage +
+    # shows a source in the breakdown), not a display-only local var (which raised Added Min/Max but not DPS, 0 sources).
+    _pf = blade["stats"].get("physical_attack_dmg_flat_min")
+    assert _pf and _pf["total"] > 0 and len(_pf["sources"]) >= 1
+    # Discrete "for every N" stacks (not fractional): 8000 Life recently / 3300 = floor 2 stacks × 19.5 min = 39.
+    assert _pf["total"] == pytest.approx(2 * 19.5)
     assert tyrant["offense"]["crit_chance"] > base["offense"]["crit_chance"]      # +Crit Rating per Mana consumed
     assert tyrant["offense"]["crit_multiplier"] > base["offense"]["crit_multiplier"]  # +Crit Damage per Mana consumed
+
+
+def test_per_n_consumed_is_discrete_floored():
+    # "For every N consumed recently" procs in whole stacks (floor), not fractionally. Below 1 full N → no benefit.
+    from tests.mock_build import DUAL_WEAPONS
+    def run(consume_per_sec):
+        g = DUAL_WEAPONS + [{"item_name": "T", "contributions": [
+            {"stat": "mana_consumed_flat_per_sec", "display_value": consume_per_sec, "unit": "", "slot": "helmet", "item_name": "T", "text": "m"},
+            {"stat": "mana_regen_flat", "display_value": 99999, "unit": "", "slot": "helmet", "item_name": "T", "text": "r"}]}]
+        req = make_request("chromatic_shot", 20, gear=g)
+        req["gear"] = list(req["gear"]) + [{"item_name": "Glacier", "contributions": [], "unresolved_texts": [
+            "Adds 23 - 28 Physical Damage to Attacks and Spells for every 1004 Mana consumed recently. Stacks up to 200 time(s)"]}]
+        r = engine_stats(EngineStatsRequest(**req))
+        return r if isinstance(r, dict) else r.model_dump()
+    # 250/s × 4s = 1000 recently < 1004 → 0 stacks → no flat; 600/s × 4s = 2400 → floor 2 stacks × 23 = 46.
+    below = run(250)["stats"].get("physical_spell_dmg_flat_min")
+    assert (below is None) or below["total"] == pytest.approx(0.0)
+    two = run(600)["stats"]["physical_spell_dmg_flat_min"]
+    assert two["total"] == pytest.approx(2 * 23)
 
 
 def test_steady_state_life_solves_to_equilibrium():

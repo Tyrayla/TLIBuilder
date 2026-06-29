@@ -47,8 +47,10 @@ except (OSError, ValueError):
 
 
 def _split_clauses(text: str) -> list[str]:
-    """Split a compound affix into clauses on sentence boundaries (". " NOT inside a decimal like 1.2s)."""
-    return [c.strip() for c in re.split(r'(?<!\d)\.\s+', text or "") if c and c.strip()]
+    """Split a compound affix into clauses on sentence boundaries (". " NOT inside a decimal like 1.2s). A trailing
+    "Stacks up to N time(s)" is the CAP continuation of the preceding per-N affix (Blade-dancer/Glacier flat-phys),
+    NOT a separate clause — keep it attached so the parser captures the cap (and it doesn't badge NYI on its own)."""
+    return [c.strip() for c in re.split(r'(?<!\d)\.\s+(?![Ss]tacks?\s+up\s+to\b)', text or "") if c and c.strip()]
 
 
 def _expand_named_buffs(text: str) -> list[str]:

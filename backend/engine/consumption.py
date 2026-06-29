@@ -32,6 +32,15 @@ _PROXY_USE_FLAG = ("Proxy skill uses (e.g. Seething Spirit) add use events that 
 # "Recently" window = 4 s (owner-confirmed). Single source of truth.
 RECENTLY_WINDOW_S = 4.0
 
+
+def floored_consumed(consumed: float, unit: float) -> float:
+    """Quantize a 'consumed recently' total DOWN to a whole multiple of `unit`. "For every N consumed recently"
+    procs in discrete stacks (owner-confirmed): a partial Nth chunk grants nothing — floor(consumed/N) stacks ×
+    the per-stack benefit. unit <= 0 (no divisor known) → return consumed unchanged (continuous fallback)."""
+    if unit and unit > 0:
+        return int(consumed // unit) * unit
+    return consumed
+
 # Every typed consume-rate source stat (used to detect "does this build consume?" and to whitelist reads).
 CONSUME_SOURCE_KEYS = [f"{p}_consumed_{b}_per_{c}"
                        for p in ("life", "mana", "energy_shield")

@@ -644,6 +644,11 @@ class Stat(Enum):
     ATTACK_SPEED_INC_PER_LIFE_CONSUMED_CAP = "attack_speed_inc_per_life_consumed_cap"
     SPELL_DMG_INC_PER_MANA_CONSUMED = "spell_dmg_inc_per_mana_consumed"
     SPELL_DMG_INC_PER_MANA_CONSUMED_CAP = "spell_dmg_inc_per_mana_consumed_cap"
+    # Per-N-consumed DIVISORS (the "N" in "for every N consumed"). consumed-recently is quantized DOWN to a whole
+    # multiple of N before applying the per-unit benefit — "for every N" procs in discrete stacks, not fractionally.
+    DMG_ADDITIONAL_PER_LIFE_CONSUMED_UNIT = "dmg_additional_per_life_consumed_unit"
+    ATTACK_SPEED_INC_PER_LIFE_CONSUMED_UNIT = "attack_speed_inc_per_life_consumed_unit"
+    SPELL_DMG_INC_PER_MANA_CONSUMED_UNIT = "spell_dmg_inc_per_mana_consumed_unit"
     # Flat PHYSICAL damage added per N consumed recently (Blade-dancer's Fingers = Life→Attacks; Glacier Caster
     # Shield = Mana→Attacks+Spells). min/max are separate keys; attack/spell scope kept separate (honest scoping).
     # The "Stacks up to Z time(s)" cap is stored as a CONSUMED-AMOUNT cap (Z × N) so one cap clamps min AND max
@@ -660,6 +665,10 @@ class Stat(Enum):
     # uncapped). Fold into crit_rating_inc and crit_dmg_inc (× consumed_recently_mana) in the offense crit stage.
     CRIT_RATING_INC_PER_MANA_CONSUMED = "crit_rating_inc_per_mana_consumed"
     CRIT_DMG_INC_PER_MANA_CONSUMED = "crit_dmg_inc_per_mana_consumed"
+    CRIT_RATING_INC_PER_MANA_CONSUMED_UNIT = "crit_rating_inc_per_mana_consumed_unit"
+    CRIT_DMG_INC_PER_MANA_CONSUMED_UNIT = "crit_dmg_inc_per_mana_consumed_unit"
+    PHYSICAL_DMG_FLAT_PER_LIFE_CONSUMED_UNIT = "physical_dmg_flat_per_life_consumed_unit"
+    PHYSICAL_DMG_FLAT_PER_MANA_CONSUMED_UNIT = "physical_dmg_flat_per_mana_consumed_unit"
 
     # ── Energy Shield ─────────────────────────────────────────────────────────
     MAX_ENERGY_SHIELD_FLAT = "max_energy_shield_flat"

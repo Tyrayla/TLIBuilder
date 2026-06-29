@@ -172,6 +172,11 @@ def consumable_universe() -> frozenset[str]:
                  for mm in ("min", "max")}
     consumed |= {"physical_dmg_flat_per_life_consumed_cap", "physical_dmg_flat_per_mana_consumed_cap",
                  "crit_rating_inc_per_mana_consumed", "crit_dmg_inc_per_mana_consumed"}
+    # Per-N divisors (the "N") — read alongside each consumer to floor consumed-recently into discrete stacks.
+    consumed |= {"dmg_additional_per_life_consumed_unit", "attack_speed_inc_per_life_consumed_unit",
+                 "spell_dmg_inc_per_mana_consumed_unit", "crit_rating_inc_per_mana_consumed_unit",
+                 "crit_dmg_inc_per_mana_consumed_unit", "physical_dmg_flat_per_life_consumed_unit",
+                 "physical_dmg_flat_per_mana_consumed_unit"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
     consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",

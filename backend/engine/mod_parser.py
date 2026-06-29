@@ -413,7 +413,8 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
                  else "spell_dmg_inc_per_mana_consumed" if (_p == "mana" and "spell damage" in _b)
                  else None)
         if _stat and float(_per_n) > 0:
-            out = [{"stat_key": _stat, "amount": (float(_pct) / 100.0) / float(_per_n), "text": t}]
+            out = [{"stat_key": _stat, "amount": (float(_pct) / 100.0) / float(_per_n), "text": t},
+                   {"stat_key": _stat + "_unit", "amount": float(_per_n), "text": t}]
             if _cap:
                 out.append({"stat_key": _stat + "_cap", "amount": float(_cap) / 100.0, "text": t})
             return out
@@ -447,6 +448,7 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
                                 "amount": float(_mn) / _n, "text": t})
                     out.append({"stat_key": f"physical_{c}_dmg_flat_max_per_{_pool}_consumed",
                                 "amount": float(_mx) / _n, "text": t})
+                out.append({"stat_key": f"physical_dmg_flat_per_{_pool}_consumed_unit", "amount": _n, "text": t})
                 if _cap_stacks:
                     out.append({"stat_key": f"physical_dmg_flat_per_{_pool}_consumed_cap",
                                 "amount": float(_cap_stacks) * _n, "text": t})
@@ -462,7 +464,9 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         if _n > 0 and _pool == "mana":          # only the mana variant is declared (Tyrant)
             _u = (_pct / 100.0) / _n
             return [{"stat_key": "crit_rating_inc_per_mana_consumed", "amount": _u, "text": t},
-                    {"stat_key": "crit_dmg_inc_per_mana_consumed", "amount": _u, "text": t}]
+                    {"stat_key": "crit_dmg_inc_per_mana_consumed", "amount": _u, "text": t},
+                    {"stat_key": "crit_rating_inc_per_mana_consumed_unit", "amount": _n, "text": t},
+                    {"stat_key": "crit_dmg_inc_per_mana_consumed_unit", "amount": _n, "text": t}]
         return []                                # undeclared pool → honest NYI
 
     # Any OTHER "for every N <Life|Mana|ES> consumed recently" consumer (e.g. Compensatory's Mana-Regen-per-consumed)

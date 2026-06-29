@@ -6,6 +6,7 @@ from typing import Callable, Literal
 
 from engine import uptime
 from engine.models import BuildSource
+from engine.consumption import floored_consumed
 from engine.affix_identity import affix_identity
 from engine.skill_resolver import ResolvedSkill
 from engine.tick import TICK_RATE, cap_rate, period_ticks, rate_from_ticks
@@ -847,7 +848,8 @@ def calculate_offense(
     # consumed_recently_mana (set on source post-loop). One-directional, so folded here, not in the loop.
     _crr_per = source.total("crit_rating_inc_per_mana_consumed")
     if _crr_per:
-        crit_rating_inc += source.total("consumed_recently_mana") * _crr_per
+        crit_rating_inc += floored_consumed(source.total("consumed_recently_mana"),
+                                            source.total("crit_rating_inc_per_mana_consumed_unit")) * _crr_per
     raw_csr = (base_csr + weapon_csr + other_csr) * (1.0 + crit_rating_inc)
     # 100 CSR = 1% crit chance; divide by 10000 to convert to 0–1 float
     crit_chance = min(raw_csr / 10000.0, 1.0)
@@ -859,7 +861,8 @@ def calculate_offense(
     # Crit Damage per Mana consumed recently (Tyrant's Iron Fist) — additive Crit Damage scaled by consumed_recently.
     _crd_per = source.total("crit_dmg_inc_per_mana_consumed")
     if _crd_per:
-        crit_damage += source.total("consumed_recently_mana") * _crd_per
+        crit_damage += floored_consumed(source.total("consumed_recently_mana"),
+                                        source.total("crit_dmg_inc_per_mana_consumed_unit")) * _crd_per
     crit_mult = 1.5 + crit_damage
     crit_factor = 1.0 + crit_chance * (crit_mult - 1.0)
 
@@ -928,32 +931,9 @@ def calculate_offense(
                 existing = flat_dmg.get(dtype, (0.0, 0.0))
                 flat_dmg[dtype] = (existing[0] + scaled_elem_min, existing[1] + scaled_elem_max)
 
-    # Flat PHYSICAL damage per N consumed recently (Blade-dancer's Fingers = Life→Attacks; Glacier Caster Shield =
-    # Mana→Attacks+Spells). Folded into the flat pool here so it rides the normal flat→inc→additional pipeline.
-    # consumed_recently_* are set on source post-loop; the cap is a consumed-amount cap (one cap clamps min+max
-    # proportionally). Attack/spell scope is honored by reading the *_attack_*/*_spell_* key matching the skill.
-    _cls = "attack" if is_attack else ("spell" if is_spell else None)
-    if _cls:
-        _pc_min = _pc_max = 0.0
-        # Only the declared (class, pool) combos exist (attack-life, attack-mana, spell-mana) — reading an
-        # undeclared one (spell-life) would just pollute consumed_stats with a phantom key.
-        _DECLARED_FLAT = {("attack", "life"), ("attack", "mana"), ("spell", "mana")}
-        for _pool in ("life", "mana"):
-            if (_cls, _pool) not in _DECLARED_FLAT:
-                continue
-            _pu_min = source.total(f"physical_{_cls}_dmg_flat_min_per_{_pool}_consumed")
-            _pu_max = source.total(f"physical_{_cls}_dmg_flat_max_per_{_pool}_consumed")
-            if not (_pu_min or _pu_max):
-                continue
-            _cr = source.total(f"consumed_recently_{_pool}")
-            _cap = source.total(f"physical_dmg_flat_per_{_pool}_consumed_cap")
-            if _cap:
-                _cr = min(_cr, _cap)
-            _pc_min += _cr * _pu_min
-            _pc_max += _cr * _pu_max
-        if _pc_min or _pc_max:
-            _ex = flat_dmg.get("physical", (0.0, 0.0))
-            flat_dmg["physical"] = (_ex[0] + _pc_min, _ex[1] + _pc_max)
+    # (Flat PHYSICAL damage per N consumed — Blade-dancer/Glacier — is folded into the REAL physical_{attack,spell}_
+    # dmg_flat source stats IN the compute loop, so it flows through the full flat→inc→additional pipeline incl.
+    # multi-form spells and shows a source in the breakdown. See engine/compute.py consume block.)
 
     # 3. Per-type inc and additional — precomputed outside the hit form loop.
     #    Inc: skill-tag-filtered incs PLUS the type-specific inc for that dtype.
@@ -985,11 +965,12 @@ def calculate_offense(
         if _es_amt:
             add_factors = add_factors + [(_es_amt, frozenset(), "dmg_additional_per_400_es")]
 
-    # "+X% damage per N Life consumed recently, up to Y%" (Tide of the Styx, etc.). The per-unit stat is normalized
-    # to per-1-life at parse time; offense multiplies by the rolling consumed_recently_life (set post-loop) and caps.
+    # "+X% damage per N Life consumed recently, up to Y%" (Tide of the Styx, etc.). per-unit normalized to per-1-life
+    # at parse; consumed-recently is floored to whole N-chunks (discrete "for every N" procs) then × per-unit, capped.
     _per_life_cons = source.total("dmg_additional_per_life_consumed")
     if _per_life_cons:
-        _lc_amt = source.total("consumed_recently_life") * _per_life_cons
+        _lc_amt = floored_consumed(source.total("consumed_recently_life"),
+                                   source.total("dmg_additional_per_life_consumed_unit")) * _per_life_cons
         _lc_cap = source.total("dmg_additional_per_life_consumed_cap")
         if _lc_cap:
             _lc_amt = min(_lc_amt, _lc_cap)
