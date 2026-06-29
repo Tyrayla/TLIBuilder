@@ -60,12 +60,11 @@ def test_no_consumption_no_drain_full_life():
     assert r["recovery"]["life_sustainable"] is True
 
 
-def test_use_vs_cast_flag_surfaced():
-    # Any per-cast/use consume + a cast rate → the use-vs-cast approximation is flagged (not silent).
+def test_per_use_consume_not_flagged_as_overcounted():
+    # Per the Help DB, per-USE consume uses the active skill's base USE rate (correct, one skill at a time) — so a
+    # normal per-use consume build is NOT flagged (the old "triggered casts over-count" flag was wrong).
     r = _resp([("life_consumed_pct_current_per_cast", 0.05)])
-    assert any("use-vs-cast" in f for f in (r["consumption"].get("flags") or []))
-    r2 = _resp([("life_consumed_pct_current_per_sec", 0.10)])   # per-second only → no flag
-    assert not (r2["consumption"].get("flags") or [])
+    assert not (r["consumption"].get("flags") or [])
 
 
 def test_consume_source_affix_parsing():

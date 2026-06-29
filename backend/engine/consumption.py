@@ -19,8 +19,15 @@ from dataclasses import dataclass, field
 
 from engine.models import BuildSource
 
-_USE_VS_CAST_FLAG = ("Per-use consume is approximated by the cast rate (aps); triggered/repeated casts "
-                     "(Tangle, Spell Burst) over-count it — use-vs-cast modeling is a follow-up.")
+# Per the Help DB: Cast = Use (player button press) + Trigger (automatic). Only USE counts for "when you use a skill"
+# mods; triggered/repeated casts (Tangle, Spell Burst, Activation Mediums) do NOT. The engine's per-event consume
+# already multiplies by the active skill's BASE use rate (compute_skill_rates aps) — the Tangle/Spell-Burst inflation
+# happens later in offense, so it is NOT counted here. So per-USE consume is correct (one skill at a time). Remaining
+# gaps, surfaced via ConsumptionResult.flags only when relevant: PROXY use events (Seething Spirit USES skills →
+# extra use events, currently uncounted) and "on cast" mana consume that should scale with the full CAST rate
+# (tied to the skill-cost model).
+_PROXY_USE_FLAG = ("Proxy skill uses (e.g. Seething Spirit) add use events that aren't counted yet — "
+                   "per-use consume may be under-counted for proxy builds.")
 
 # "Recently" window = 4 s (owner-confirmed). Single source of truth.
 RECENTLY_WINDOW_S = 4.0
@@ -95,14 +102,12 @@ def calculate_consumption(source: BuildSource, *, condition_state: dict | None =
              + source.total("energy_shield_consumed_pct_max_per_sec") * max_es
              + source.total("energy_shield_consumed_flat_per_sec"))
 
-    # Flag the use-vs-cast approximation whenever any per-use/cast consume contributes (so triggered builds know the
-    # per-use consume rate is the cast-rate approximation pending the Stage-C use-rate model).
+    # Per-USE consume uses the active skill's base USE rate (correct, one skill at a time — see note above). The only
+    # surfaced caveat is PROXY use events (Seething Spirit), which add uses we don't count yet — flag when a proxy
+    # use-source is present. (rates["proxy"] is reserved for when proxy use rates are modeled; 0 today.)
     flags = []
-    _any_rate = max(0.0, rates.get("any", 0.0)) + max(0.0, rates.get("attack", 0.0))
-    if _any_rate > 0 and any(source.total(f"{p}_consumed_{b}_per_{c}")
-                             for p in ("life", "mana") for b in ("pct_current", "pct_max", "flat")
-                             for c in ("cast", "attack_use")):
-        flags.append(_USE_VS_CAST_FLAG)
+    if rates.get("proxy_present"):
+        flags.append(_PROXY_USE_FLAG)
 
     w = RECENTLY_WINDOW_S
     return ConsumptionResult(
