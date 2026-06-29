@@ -2724,11 +2724,15 @@ export default function GearScreen(_props: Props) {
     return (bt?.corrosion_base_affixes ?? []) as Array<LegendaryAffix & { modifier_text: string }>
   }, [legendaryCatalogItem, craftBases])
 
+  // Corrosion edits STAGE locally (like the slider customizations) and only commit in handleSaveBuildItem.
+  // The live preview re-derives the edited item from this staged state via `previewItem`/makeCatalogItem, so
+  // editing an equipped item's corruption no longer mutates the live build until "Save Changes" (bug-223).
+  // `updatedAffixes` is recomputed at preview/commit time, so it's intentionally unused here.
   const handleCorrosionChange = (
     type: 'none' | 'desecration' | 'mutation',
     indices: number[],
     mutationText: string | null,
-    updatedAffixes: LegendaryAffix[] | null,
+    _updatedAffixes: LegendaryAffix[] | null,
     clearRandomAffixIndices?: number[]
   ) => {
     setCorrosionType(type)
@@ -2741,34 +2745,11 @@ export default function GearScreen(_props: Props) {
         return next
       })
     }
-    const mutationResolvedAffix = type === 'mutation' && mutationText
-      ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationText) ?? null)
-      : null
-    if (editingBuildIdx !== null) {
-      const next = [...gear]
-      next[editingBuildIdx] = {
-        ...next[editingBuildIdx],
-        ...(updatedAffixes !== null ? { affixes: updatedAffixes } : {}),
-        corrosion_type: type,
-        corroded_explicit_indices: indices,
-        mutation_affix_text: mutationText,
-        mutation_resolved_affix: mutationResolvedAffix,
-        selected_random_affixes: clearRandomAffixIndices?.length
-          ? Object.fromEntries(Object.entries(selectedRandomAffixes).filter(([k]) => !clearRandomAffixIndices.includes(Number(k))))
-          : selectedRandomAffixes,
-      }
-      setGear(next)
-    }
   }
 
-  const handleRandomAffixChange = (explicitIndex: number, modifierId: string, updatedAffixes: LegendaryAffix[]) => {
-    const next = { ...selectedRandomAffixes, [explicitIndex]: modifierId }
-    setSelectedRandomAffixes(next)
-    if (editingBuildIdx !== null) {
-      const items = [...gear]
-      items[editingBuildIdx] = { ...items[editingBuildIdx], affixes: updatedAffixes, selected_random_affixes: next }
-      setGear(items)
-    }
+  // Random-affix selection also stages only (re-derived at preview/commit). `_updatedAffixes` unused for the same reason.
+  const handleRandomAffixChange = (explicitIndex: number, modifierId: string, _updatedAffixes: LegendaryAffix[]) => {
+    setSelectedRandomAffixes({ ...selectedRandomAffixes, [explicitIndex]: modifierId })
   }
 
   const handleSelectCatalogItem = (indexItem: LegendaryGearIndexItem) => {
@@ -2852,9 +2833,14 @@ export default function GearScreen(_props: Props) {
 
   const handleSaveBuildItem = () => {
     if (editingBuildIdx === null) return
-    const next = [...gear]
-    next[editingBuildIdx] = { ...next[editingBuildIdx], customizations, beltBlend }
-    setGear(next)
+    const orig = gear[editingBuildIdx]
+    // Commit exactly the staged draft the live preview showed: committed affixes + staged corrosion + slider
+    // customizations (previewItem), preserving the item's slot and the staged belt blend (bug-223). Falls back
+    // to the slider-only merge if there's no preview draft (non-legendary build item without catalog backing).
+    const edited = previewItem
+      ? { ...previewItem, slot: orig.slot, beltBlend }
+      : { ...orig, customizations, beltBlend }
+    setGear(gear.map((g, i) => i === editingBuildIdx ? edited : g))
     setEditingBuildIdx(null)
     setCustomizations([])
     resetCorrosion()
@@ -3059,12 +3045,21 @@ export default function GearScreen(_props: Props) {
     if (craftOpen && selectedGraft) return null // vorax: handled in VoraxEditorPanel
     if (craftOpen) return makeCraftedItem(craftSlots, craftBaseType, craftBaseItem, craftCorrosionType, baseItemImplicits)
     if (customizeItem) {
-      return isLegendaryGearItem(customizeItem)
-        ? makeCatalogItem(customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText)
-        : { ...customizeItem, customizations } // editing a build item → apply pending slider rolls
+      if (isLegendaryGearItem(customizeItem)) {
+        return makeCatalogItem(customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText)
+      }
+      // Editing a build item: re-derive from its catalog legendary so STAGED corrosion / random-affix /
+      // slider edits all show in the live preview WITHOUT mutating the live build (bug-223). Keep the item's
+      // existing slot so this draft is exactly what handleSaveBuildItem will commit. A non-legendary build
+      // item (unresolvable crafted) has no catalog backing → just apply pending slider rolls.
+      if (legendaryCatalogItem) {
+        const derived = makeCatalogItem(legendaryCatalogItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText)
+        return { ...derived, slot: customizeItem.slot ?? null }
+      }
+      return { ...customizeItem, customizations } // editing a build item → apply pending slider rolls
     }
     return null
-  }, [craftOpen, selectedGraft, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, baseItemImplicits, customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText])
+  }, [craftOpen, selectedGraft, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, baseItemImplicits, customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText, legendaryCatalogItem])
 
   // The damage-delta request(s) for the live preview:
   //   - Editing an item already PLACED in the build (incl. multi-slot like a dual-equipped ring or
