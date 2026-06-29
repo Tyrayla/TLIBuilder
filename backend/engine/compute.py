@@ -555,13 +555,20 @@ def compute(
                 _cap = source.total(f"physical_dmg_flat_per_{_pool}_consumed_cap")
                 if _cap:
                     _cr = min(_cr, _cap)
+                # Carry the ORIGINATING source (the gear item, e.g. "Glacier Caster Shield") from the per-unit stat's
+                # log entry, so the injected flat's breakdown names the item — not a generic "Mana Consumed".
+                _orig = next((e for e in source.source_log
+                              if e.stat in (f"physical_{_cls}_dmg_flat_min_per_{_pool}_consumed",
+                                            f"physical_{_cls}_dmg_flat_max_per_{_pool}_consumed")), None)
                 for _mm, _pu in (("min", _pu_min), ("max", _pu_max)):
                     _amt = _cr * _pu
                     if _amt:
                         source.add_with_source(f"physical_{_cls}_dmg_flat_{_mm}", _amt, SourceEntry(
-                            stat=f"physical_{_cls}_dmg_flat_{_mm}", amount=_amt, source_type="gear",
-                            label=f"Physical per {_pool.title()} Consumed", points=1,
-                            text=f"Adds Physical Damage per {_pool} consumed recently", source_name=f"{_pool.title()} Consumed"))
+                            stat=f"physical_{_cls}_dmg_flat_{_mm}", amount=_amt,
+                            source_type=(_orig.source_type if _orig else "gear"),
+                            label=(_orig.label if _orig else "Gear · Item"), points=1,
+                            text=(_orig.text if _orig else f"Adds Physical Damage per {_pool} consumed recently"),
+                            source_name=(_orig.source_name if _orig else f"{_pool.title()} Consumed")))
 
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS
