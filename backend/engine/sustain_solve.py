@@ -18,25 +18,30 @@ from engine.consumption import calculate_consumption
 LIFE_PCT_QUANTUM = 0.5   # resolution + the snapshot-quantization granularity (keeps the fixed-point loop terminating)
 
 
-def _net_life_at(source, condition_state, life_pct, restoration_inputs, rates, reservation) -> float:
+def _net_life_at(source, condition_state, life_pct, restoration_inputs, rates, reservation, uptime_mode) -> float:
     cs = dict(condition_state)
     cs["current_life_pct"] = life_pct
     cons = calculate_consumption(source, condition_state=cs, rates=rates, reservation=reservation)
     rec = calculate_recovery(source, condition_state=cs, restoration_inputs=restoration_inputs,
-                             consumption={"life_per_sec": cons.life_per_sec})
+                             consumption={"life_per_sec": cons.life_per_sec}, uptime_mode=uptime_mode)
     return rec.net_life_per_sec
 
 
-def solve_steady_life_pct(source, condition_state, restoration_inputs, rates, reservation=None) -> float:
-    """Bisect the Life % where net_life = 0; quantized to LIFE_PCT_QUANTUM in [0, 100]."""
-    if _net_life_at(source, condition_state, 100.0, restoration_inputs, rates, reservation) >= 0.0:
+def solve_steady_life_pct(source, condition_state, restoration_inputs, rates, reservation=None,
+                          uptime_mode=None) -> float:
+    """Bisect the Life % where net_life = 0; quantized to LIFE_PCT_QUANTUM in [0, 100].
+
+    uptime_mode is threaded through so the equilibrium uses the SAME restoration cadence the display reads
+    (Effective honors recast/charge gaps, Full Uptime ignores them) — otherwise the solved % and the
+    displayed net would disagree in Effective mode."""
+    if _net_life_at(source, condition_state, 100.0, restoration_inputs, rates, reservation, uptime_mode) >= 0.0:
         return 100.0
-    if _net_life_at(source, condition_state, 0.0, restoration_inputs, rates, reservation) <= 0.0:
+    if _net_life_at(source, condition_state, 0.0, restoration_inputs, rates, reservation, uptime_mode) <= 0.0:
         return 0.0
     lo, hi = 0.0, 100.0   # f(lo) > 0 (recovering), f(hi) < 0 (draining)
     for _ in range(9):    # 100 / 2^9 ≈ 0.2 % precision
         mid = 0.5 * (lo + hi)
-        if _net_life_at(source, condition_state, mid, restoration_inputs, rates, reservation) >= 0.0:
+        if _net_life_at(source, condition_state, mid, restoration_inputs, rates, reservation, uptime_mode) >= 0.0:
             lo = mid
         else:
             hi = mid

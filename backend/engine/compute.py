@@ -500,11 +500,19 @@ def compute(
             _use_rate = compute_skill_rates(source, _active_skill).get("aps", 0.0) if _active_skill else 0.0
             _attack_rate = _use_rate if (_active_skill is not None and not _active_skill.is_spell) else 0.0
             _cons_rates = {"any": _use_rate, "attack": _attack_rate}
-            # Solve the steady-state Life % UNLESS the user pinned current_life_pct (a what-if override is respected).
-            if "current_life_pct" not in manual_cond_keys:
+            # Solve the steady-state Life % UNLESS the user pinned a real (sub-full) what-if override. A default /
+            # seeded current_life_pct of 100 is NOT a meaningful pin for a consume build (which never sits at full
+            # Life), so the solve still runs and finds the real steady state — without this, the frontend's
+            # default-seeded current_life_pct=100 silently disables the solve on every consume build (regain then
+            # reads as 0 because nothing is "missing", so the build always looks unsustainable at full Life).
+            _pinned_clp = condition_state.get("current_life_pct")
+            _user_pinned_life = ("current_life_pct" in manual_cond_keys
+                                 and _pinned_clp is not None and float(_pinned_clp) < 100.0 - 1e-9)
+            if not _user_pinned_life:
                 from engine.sustain_solve import solve_steady_life_pct
                 _cri = [r for _es in (elixir_summaries or []) for r in (_es.get("restoration") or [])]
-                _solved_life = solve_steady_life_pct(source, condition_state, _cri, _cons_rates, reservation)
+                _solved_life = solve_steady_life_pct(source, condition_state, _cri, _cons_rates, reservation,
+                                                     uptime_mode=build_input.uptime_mode)
                 condition_state["current_life_pct"] = _solved_life
                 auto_sources["current_life_pct"] = "Consumption steady state"
                 auto_values["current_life_pct"] = _solved_life
