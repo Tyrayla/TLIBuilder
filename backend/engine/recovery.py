@@ -233,10 +233,13 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     mana_tte = 0.0 if (mana_pct <= 1e-9 and cons_mana > 0) else (
         (cur_mana / -net_mana) if (not mana_sustainable and net_mana < 0) else None)
 
-    # Effective hit pool: the STEADY-STATE current Life pool (life_pct × Max Life, solved for consume builds; = Max
-    # Life at 100% for everyone else) + Temporary Life, vs the calc target's average armour mitigation. Using the
-    # steady pool (not Max Life) is the honest base for a consume build — it never sits at full Life.
-    steady_life = life_pct / 100.0 * max_life + temp_life
+    # Effective hit pool: the STEADY-STATE current Life pool = life_pct × UNRESERVED Life (Max − Sealed; solved for
+    # consume builds, = unreserved Max at 100% otherwise) + Temporary Life, vs the calc target's average armour
+    # mitigation. "Current Life" is the unreserved pool — the honest base for a consume build (never at full Life).
+    rsv = reservation or {}
+    unres_life = max(0.0, max_life - float(rsv.get("sealed_life", 0.0) or 0.0))
+    steady_life_base = life_pct / 100.0 * unres_life
+    steady_life = steady_life_base + temp_life
     avg_mit = 0.5 * (float(d.get("armor_phys_mitigation", 0.0)) + float(d.get("armor_nonphys_mitigation", 0.0)))
     ehp_life = steady_life / (1.0 - avg_mit) if avg_mit < 1.0 else steady_life
 
@@ -254,6 +257,6 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         net_life_per_sec=net_life, net_mana_per_sec=net_mana,
         life_sustainable=life_sustainable, mana_sustainable=mana_sustainable,
         life_time_to_empty=life_tte, mana_time_to_empty=mana_tte,
-        steady_life_pct=life_pct, steady_life=life_pct / 100.0 * max_life,
+        steady_life_pct=life_pct, steady_life=steady_life_base,
         ehp_life=ehp_life,
     )

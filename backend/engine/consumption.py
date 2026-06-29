@@ -71,19 +71,25 @@ def _pool_per_sec(source: BuildSource, pool: str, current: float, pool_max: floa
 
 
 def calculate_consumption(source: BuildSource, *, condition_state: dict | None = None,
-                          defense: dict | None = None, rates: dict | None = None) -> ConsumptionResult:
+                          defense: dict | None = None, rates: dict | None = None,
+                          reservation: dict | None = None) -> ConsumptionResult:
     cs = condition_state or {}
     d = defense or {}
     rates = rates or {}
+    rsv = reservation or {}
     max_life = float(d.get("max_life", source.total("max_life")) or 0.0)
     max_mana = float(d.get("max_mana", source.total("max_mana")) or 0.0)
     max_es = float(d.get("max_energy_shield", source.total("max_energy_shield")) or 0.0)
+    # "Current Life/Mana" is the UNRESERVED pool (Max − Reserved) — % of current consume is taken against that, to
+    # avoid over-counting when a build seals Life/Mana. "% of Max" bases still use raw Max (per owner).
+    unres_life = max(0.0, max_life - float(rsv.get("sealed_life", 0.0) or 0.0))
+    unres_mana = max(0.0, max_mana - float(rsv.get("sealed_mana", 0.0) or 0.0))
     life_pct = float(cs.get("current_life_pct", 100.0) or 0.0)
     mana_pct = float(cs.get("current_mana_pct", 100.0) or 0.0)
     es_pct = float(cs.get("current_es_pct", 100.0) or 0.0)
 
-    life_ps = _pool_per_sec(source, "life", life_pct / 100.0 * max_life, max_life, rates)
-    mana_ps = _pool_per_sec(source, "mana", mana_pct / 100.0 * max_mana, max_mana, rates)
+    life_ps = _pool_per_sec(source, "life", life_pct / 100.0 * unres_life, max_life, rates)
+    mana_ps = _pool_per_sec(source, "mana", mana_pct / 100.0 * unres_mana, max_mana, rates)
     # Energy Shield: per-sec bases only (no per-cast ES consume seen). Reuse the per-cast=0 path.
     es_ps = (source.total("energy_shield_consumed_pct_current_per_sec") * (es_pct / 100.0 * max_es)
              + source.total("energy_shield_consumed_pct_max_per_sec") * max_es

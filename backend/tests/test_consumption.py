@@ -174,6 +174,22 @@ def test_attack_scoped_consume_only_fires_for_attacks():
     assert spell["consumption"]["life_per_sec"] == pytest.approx(0.0, abs=1e-6)
 
 
+def test_current_consume_uses_unreserved_max_uses_raw():
+    # "% of current" consume is taken against UNRESERVED Life (Max − Sealed); "% of Max" still uses raw Max.
+    from engine.consumption import calculate_consumption
+
+    class _Src:
+        def __init__(self, vals): self.v = vals
+        def total(self, k): return self.v.get(k, 0.0)
+    cur = _Src({"max_life": 1000.0, "life_consumed_pct_current_per_sec": 0.08})
+    assert calculate_consumption(cur, condition_state={"current_life_pct": 100},
+                                 reservation={"sealed_life": 300}).life_per_sec == pytest.approx(56.0)   # 8% of 700
+    assert calculate_consumption(cur, condition_state={"current_life_pct": 100}).life_per_sec == pytest.approx(80.0)
+    mx = _Src({"max_life": 1000.0, "life_consumed_pct_max_per_sec": 0.08})
+    assert calculate_consumption(mx, condition_state={"current_life_pct": 100},
+                                 reservation={"sealed_life": 300}).life_per_sec == pytest.approx(80.0)   # raw Max
+
+
 def test_mana_consume_independent_pool():
     r = _resp([("mana_consumed_flat_per_sec", 50)])
     assert r["consumption"]["mana_per_sec"] == pytest.approx(50.0, rel=1e-3)
