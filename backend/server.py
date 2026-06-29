@@ -776,13 +776,18 @@ def engine_stats(req: EngineStatsRequest):
     custom_contributions: list[dict] = []
     custom_mod_statuses: list[dict] = []
     for mod_text in req.custom_mods:
-        stat_part, cond_part = _split_condition(mod_text)
-        parsed = _parse_custom_mod_text(stat_part)
         cond_expr = None
-        if parsed and cond_part is not None:
-            cond_expr = _translate_condition_expr(mod_text) or _translate_condition_expr(cond_part)
-            if cond_expr is None:
-                parsed = []
+        # Try the FULL text first (mirrors the gear + talent-node paths): self-consume lines carry their cadence/scope
+        # inline ("… when you use Attack Skills") and must NOT have that split off as an untranslatable gate. Genuinely
+        # gated mods ("+X% damage if at full life") don't resolve whole → they fall through to the split path below.
+        parsed = _parse_custom_mod_text(mod_text)
+        if not parsed:
+            stat_part, cond_part = _split_condition(mod_text)
+            parsed = _parse_custom_mod_text(stat_part)
+            if parsed and cond_part is not None:
+                cond_expr = _translate_condition_expr(mod_text) or _translate_condition_expr(cond_part)
+                if cond_expr is None:
+                    parsed = []
         if parsed:
             # Each parsed entry becomes a contribution; all share the same original text + gate.
             for entry in parsed:
