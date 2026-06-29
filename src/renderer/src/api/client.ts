@@ -2177,6 +2177,9 @@ export interface GearEngineItem {
   // Item-level name for attributing unresolved_texts (e.g. a dual-wield weapon's name). Per-contribution
   // item_name covers typed contributions; this covers the unresolved-text channel.
   item_name?: string
+  // Item-level slot for attributing unresolved_texts to a real slot ("Off-Hand"/"Ring 1") in the breakdown
+  // Source column, instead of a generic "Item". Per-contribution slot covers typed contributions.
+  slot?: string | null
 }
 
 export interface SeasonDiffNode {

@@ -971,7 +971,9 @@ def engine_stats(req: EngineStatsRequest):
                     for e in parsed:
                         contribs.append({"stat": e["stat_key"], "display_value": e["amount"], "unit": "",
                                          "item_name": gi.get("item_name") or "Gear", "text": clause,
-                                         "slot": None, "condition": cond_expr, "scope": e.get("scope")})
+                                         # Item-level slot (when sent) so the breakdown Source column names the real
+                                         # slot ("Off-Hand"/"Ring 1") instead of a generic "Item"; None → "Item".
+                                         "slot": gi.get("slot"), "condition": cond_expr, "scope": e.get("scope")})
                     names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
                     gear_mod_statuses.append({"text": clause, "resolved": True, "stat_display": names})
                 else:

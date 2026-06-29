@@ -560,7 +560,10 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     // First slot: emit all contributions (+ any core-talent grants this item carries).
     const unresolved: string[] = []
     const gi = withCoreTalentGrants({ contributions: _buildItemContributions(item, slots[0], unresolved) }, item)
-    result.push(unresolved.length ? { ...gi, unresolved_texts: unresolved } : gi)
+    // Carry item_name + slot on the unresolved push so backend-resolved affixes (e.g. per-consumed flat
+    // damage) attribute to the actual item in the breakdown's Source Name (+ gear tooltip) and to its real
+    // slot in the Source column — not a generic "Gear" / "Item".
+    result.push(unresolved.length ? { ...gi, item_name: item.name, slot: slots[0] ?? null, unresolved_texts: unresolved } : gi)
 
     // Additional slots (same-item dual wield): emit ONLY global affixes.
     // Per the dual-wield mechanic, attacks alternate — weapon base stats (APS, base damage,
@@ -588,7 +591,8 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     for (const item of singleWeaponItems) {
       const unresolved: string[] = []
       const gi = withCoreTalentGrants({ contributions: _buildItemContributions(item, item.slot as GearSlot, unresolved) }, item)
-      result.push(unresolved.length ? { ...gi, unresolved_texts: unresolved } : gi)
+      // Carry item_name + slot (see note above) so single-weapon unresolved affixes attribute to the item/slot.
+      result.push(unresolved.length ? { ...gi, item_name: item.name, slot: (Array.isArray(item.slot) ? item.slot[0] : item.slot) ?? null, unresolved_texts: unresolved } : gi)
     }
   }
 
