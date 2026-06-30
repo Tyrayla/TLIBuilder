@@ -74,18 +74,29 @@ def compute_skill_cost(resolved_skill, source: BuildSource, attached_supports, s
     if resolved_skill is None:
         return res
     res.skill_name = getattr(resolved_skill, "name", "") or ""
-
-    # Base cost. Percentage base ("1%"/"15%") = % of Max Mana per use.
     res.base_is_percent = bool(getattr(resolved_skill, "mana_cost_is_percent", False))
-    base = float(getattr(resolved_skill, "mana_cost", 0.0) or 0.0)
-    if res.base_is_percent:
-        base = (base / 100.0) * (source.total("max_mana") or 0.0)
+    _base_pct_or_flat = float(getattr(resolved_skill, "mana_cost", 0.0) or 0.0)
+    no_cost = bool(cs.get("skill_no_mana_cost")) or source.total("skill_no_mana_cost") > 0   # Frozen Lotus → base 0
 
-    # Frozen Lotus / "Skills no longer cost Mana" → zero the BASE only (flat + multipliers still resolve to 0×base).
-    no_cost = bool(cs.get("skill_no_mana_cost")) or source.total("skill_no_mana_cost") > 0
-    if no_cost:
-        base = 0.0
-    res.base_cost = base
+    # Arcane fraction f = the global "Mana Cost → Life Cost" stat + the skill's OWN intrinsic conversion (Bull's Rage),
+    # capped at 1. The conversion is applied BEFORE the %-base resolves against a pool (owner-confirmed), so the life
+    # portion of a "%" base resolves against Max LIFE and the mana portion against Max Mana.
+    f = min(max(source.total("mana_cost_to_life_cost") + float(getattr(resolved_skill, "intrinsic_mana_to_life", 0.0)), 0.0), 1.0)
+    res.arcane_fraction = f
+    max_mana = source.total("max_mana") or 0.0
+    max_life = source.total("max_life") or 0.0
+
+    def _base_portion(frac, pool_max):
+        """The base cost going to one pool: a % base resolves against THAT pool's max (post-conversion); a flat base
+        is pool-agnostic. 0 under Frozen Lotus."""
+        if no_cost:
+            return 0.0
+        b = (_base_pct_or_flat / 100.0) * pool_max if res.base_is_percent else _base_pct_or_flat
+        return frac * b
+
+    base_mana = _base_portion(1.0 - f, max_mana)
+    base_life = _base_portion(f, max_life)
+    res.base_cost = base_mana + base_life   # total pre-scale base (for the display breakdown)
 
     # Cost-modifier pools.
     res.inc = source.total("skill_cost_inc")
@@ -94,21 +105,18 @@ def compute_skill_cost(resolved_skill, source: BuildSource, attached_supports, s
     res.flat = source.total("skill_cost_flat") + source.total(
         "attack_skill_cost_flat" if is_attack else "spell_skill_cost_flat")
     res.support_mult, res.support_breakdown = _supports_mult(attached_supports, skills_by_id, slot, otbt)
+    _scale = res.support_mult * (1.0 + res.inc + res.additional - res.reduction)
 
-    # Flat joins base, then everything scales (owner best-guess — VERIFY IN-GAME).
-    cost = max(0.0, (base + res.flat) * res.support_mult * (1.0 + res.inc + res.additional - res.reduction))
+    # Flat additions join the base (pool-agnostic, split by f), then everything scales (owner best-guess — VERIFY IN-GAME).
+    res.mana_cost = max(0.0, (base_mana + (1.0 - f) * res.flat) * _scale)
+    res.life_cost = max(0.0, (base_life + f * res.flat) * _scale)
 
-    # Override: a support that SETS the final cost (rare; never falsy-0 here — "set to 0" uses skill_no_mana_cost).
+    # Override: a support that SETS the final cost (rare; "set to 0" uses skill_no_mana_cost). Splits by f.
     _override = source.total("mana_cost_override")
     if _override:
-        cost = max(0.0, _override)
+        res.mana_cost = max(0.0, _override) * (1.0 - f)
+        res.life_cost = max(0.0, _override) * f
         res.flags.append("mana_cost_override applied (final cost replaced)")
-
-    # Arcane: pay a fraction of the cost as Life instead of Mana.
-    f = min(max(source.total("mana_cost_to_life_cost"), 0.0), 1.0)
-    res.arcane_fraction = f
-    res.life_cost = cost * f
-    res.mana_cost = cost * (1.0 - f)
 
     # Record reads so the consumable-universe scan + badges stay in sync.
     if getattr(source, "_recording", False):
@@ -116,4 +124,5 @@ def compute_skill_cost(resolved_skill, source: BuildSource, attached_supports, s
             source.consumed_stats.add(k)
         if res.base_is_percent:
             source.consumed_stats.add("max_mana")
+            source.consumed_stats.add("max_life")
     return res

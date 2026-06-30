@@ -102,6 +102,9 @@ class ResolvedSkill:
     jumps_base: int = 0                         # base Jumps (e.g. Chain Lightning +2); displayed in Skill Effects
     mana_cost: float = 0.0                       # base per-cast Mana Cost magnitude (e.g. 15, or 15 for "15%")
     mana_cost_is_percent: bool = False           # True when the base cost is a % of Max Mana (e.g. "15%" / channeled)
+    intrinsic_mana_to_life: float = 0.0          # skill-LOCAL Arcane (Bull's Rage: "All Mana costs … converted to Life
+                                                 # costs" → 1.0). The conversion happens BEFORE the %-base resolves, so
+                                                 # a "15%" base becomes 15% of Max LIFE (see engine.skill_cost).
     # Main attribute(s) for this skill, lowercased (e.g. ["dexterity", "intelligence"]). Each point of
     # a main-stat attribute grants +0.5% damage to this skill; multi-main-stat skills SUM the attribute
     # totals before applying. Source: TLI Help DB (Strength/Dexterity/Intelligence). Parsed in
@@ -550,16 +553,27 @@ def resolve_skill(skill_data: dict) -> ResolvedSkill:
     Never falls back to a partial or guessed calculation.
     """
     handler = _REGISTRY.get(skill_data.get("item_id", ""))
-    if handler is None:
-        return ResolvedSkill(
+    if handler is not None:
+        resolved = handler(skill_data)
+    else:
+        # Unregistered (damage NOT modelled) — but the per-cast COST is data-driven, so still carry the cost fields
+        # + the rate primitives (is_spell / cast time) the cost stage needs. supported=False keeps damage at 0.
+        _tags = skill_data.get("skill_tags") or skill_data.get("tags") or []
+        resolved = ResolvedSkill(
             skill_id=skill_data.get("item_id", ""),
             name=skill_data.get("name", ""),
-            tags=[],
+            tags=list(_tags),
             max_level=0,
             hit_forms_by_level={},
             supported=False,
+            is_spell=any(str(t).lower() == "spell" for t in _tags),
+            base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
         )
-    resolved = handler(skill_data)
     resolved.main_stat = _parse_main_stats(skill_data.get("main_stat"))
     resolved.mana_cost, resolved.mana_cost_is_percent = _parse_mana_cost(skill_data.get("mana_cost"))
+    # Skill-local Arcane: "All Mana costs … converted to Life costs" (Bull's Rage). Detected from the skill's own
+    # text (generic) → a per-skill conversion that doesn't leak to other skills like the global Arcane stat would.
+    _desc = " ".join(skill_data.get("description_lines") or []) + " " + str(skill_data.get("detailed_description") or "")
+    if re.search(r"mana cost.*converted to life cost", _desc, re.I):
+        resolved.intrinsic_mana_to_life = 1.0
     return resolved

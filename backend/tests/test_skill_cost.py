@@ -75,6 +75,25 @@ def test_arcane_half_split():
     assert r.mana_cost == pytest.approx(50.0) and r.life_cost == pytest.approx(50.0)
 
 
+def test_bulls_rage_percent_base_converts_to_max_life():
+    # Bull's Rage: 15% base + intrinsic 100% mana→life. Conversion happens BEFORE the % resolves against a pool, so
+    # it's 15% of MAX LIFE paid as Life (NOT 15% of Max Mana moved to life).
+    rs = SimpleNamespace(name="Bull's Rage", mana_cost=15.0, mana_cost_is_percent=True,
+                         intrinsic_mana_to_life=1.0, is_spell=True)
+    r = compute_skill_cost(rs, _src(max_mana=2000.0, max_life=5000.0), [], {})
+    assert r.arcane_fraction == pytest.approx(1.0)
+    assert r.mana_cost == pytest.approx(0.0)
+    assert r.life_cost == pytest.approx(0.15 * 5000.0)      # 750 — uses Max LIFE, not Max Mana (2000)
+
+
+def test_bulls_rage_intrinsic_detected_from_skill_text():
+    from engine.skill_resolver import resolve_skill
+    rs = resolve_skill({"item_id": "bull_s_rage", "mana_cost": "15%",
+                        "description_lines": ["All Mana costs of the skill will be converted to Life costs."]})
+    assert rs.intrinsic_mana_to_life == pytest.approx(1.0)
+    assert rs.mana_cost_is_percent is True
+
+
 # ── Frozen Lotus / no-cost + override ──────────────────────────────────────────────
 def test_frozen_lotus_zeros_base_but_flat_survives():
     # skill_no_mana_cost zeros the BASE only; a "+80 Skill Cost" still costs (scaled). (0 + 80) × 1 = 80.
