@@ -570,6 +570,28 @@ def compute(
                             text=(_orig.text if _orig else f"Adds Physical Damage per {_pool} consumed recently"),
                             source_name=(_orig.source_name if _orig else f"{_pool.title()} Consumed")))
 
+            # Increased-stat per-Mana-consumed consumers (Compensatory Life): fold per-unit × consumed-recently-mana
+            # (discrete N-chunks, capped at the affix's "up to Y%") into the REAL increased stat in-loop, so it flows
+            # through the normal pipeline — spell_dmg_inc gets the correct spell-tag gating; mana_regen_speed_inc feeds the
+            # recovery mana-regen path — and shows a source in the breakdown. One-directional (doesn't feed consume).
+            for _tgt, _key in (("spell_dmg_inc", "spell_dmg_inc_per_mana_consumed"),
+                               ("mana_regen_speed_inc", "mana_regen_speed_inc_per_mana_consumed")):
+                _per = source.total(_key)
+                if not _per:
+                    continue
+                _amt = _floored(_cons_now.consumed_recently_mana, source.total(f"{_key}_unit")) * _per
+                _cap = source.total(f"{_key}_cap")
+                if _cap:
+                    _amt = min(_amt, _cap)
+                if _amt:
+                    _orig = next((e for e in source.source_log if e.stat == _key), None)
+                    source.add_with_source(_tgt, _amt, SourceEntry(
+                        stat=_tgt, amount=_amt,
+                        source_type=(_orig.source_type if _orig else "gear"),
+                        label=(_orig.label if _orig else "Gear · Item"), points=1,
+                        text=(_orig.text if _orig else "per Mana consumed recently"),
+                        source_name=(_orig.source_name if _orig else "Mana Consumed")))
+
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS
         for _c in ALL_CONDITIONS:

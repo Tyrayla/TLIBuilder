@@ -230,8 +230,12 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     # Baseline Mana Regen every character has (Help DB / Mana.md): 7 Mana/sec flat + 1.75% of Max Mana/sec. The %
     # component scales per level via Max Mana (which grows +5/level). Added on top of gear/talent regen sources.
     base_mana_regen = _BASE_MANA_REGEN_FLAT + _BASE_MANA_REGEN_PCT * max_mana
-    mana_regen_ps = (base_mana_regen + source.total("mana_regen_flat")
-                     + source.total("mana_regen_pct") * max_mana + source.total("mana_regen_inc") * max_mana)
+    # Mana Regeneration Speed (mana_regen_speed_inc) is a MULTIPLIER on the whole regen rate — mirrors Life's
+    # life_regen_speed_inc — NOT a flat %-of-max/sec addition. (Values reach the hundreds of % via Compensatory et al.,
+    # which only makes sense as a rate multiplier; in-game recount pending to confirm it also scales the innate base,
+    # the TLI "speed"-stat convention assumed here.)
+    mana_regen_ps = ((base_mana_regen + source.total("mana_regen_flat") + source.total("mana_regen_pct") * max_mana)
+                     * (1.0 + source.total("mana_regen_speed_inc")))
 
     # Temporary pools (computed in-loop, emitted as temporary_life_flat/pct + capped; re-read here for display).
     base_max_life = max_life      # max_life is Base (temp is a separate barrier, never folded in)

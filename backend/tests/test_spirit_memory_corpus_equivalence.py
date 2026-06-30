@@ -27,6 +27,9 @@ APPROVED_SHIFTS = {
     ("strength",):     ("strength_flat",),
     ("armor",):        ("armor_flat",),
     ("evasion",):      ("evasion_flat",),
+    # "Mana Regeneration Speed" stat renamed mana_regen_inc → mana_regen_speed_inc (now a true rate multiplier in
+    # recovery, mirroring life_regen_speed_inc — not a flat %-of-max/sec addition).
+    ("mana_regen_inc",): ("mana_regen_speed_inc",),
 }
 
 

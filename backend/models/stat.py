@@ -588,7 +588,7 @@ class Stat(Enum):
     MAX_MANA_INC = "max_mana_inc"
     MAX_MANA_ADDITIONAL = "max_mana_additional"
     MANA_REGEN_FLAT = "mana_regen_flat"
-    MANA_REGEN_INC = "mana_regen_inc"
+    MANA_REGEN_SPEED_INC = "mana_regen_speed_inc"
     MANA_REGEN_PCT = "mana_regen_pct"                # % of max mana per second
     MANA_BEFORE_LIFE_INC = "mana_before_life_inc"
     SKILL_COST_FLAT = "skill_cost_flat"              # flat addition to skill cost (negative = reduction)
@@ -652,11 +652,16 @@ class Stat(Enum):
     ATTACK_SPEED_INC_PER_LIFE_CONSUMED_CAP = "attack_speed_inc_per_life_consumed_cap"
     SPELL_DMG_INC_PER_MANA_CONSUMED = "spell_dmg_inc_per_mana_consumed"
     SPELL_DMG_INC_PER_MANA_CONSUMED_CAP = "spell_dmg_inc_per_mana_consumed_cap"
+    # Compensatory Life: "+X% Mana Regeneration Speed for every N Mana consumed". Folds into mana_regen_speed_inc (the same
+    # stat the flat "Mana Regeneration Speed" affix resolves to), so it flows through the recovery mana-regen path.
+    MANA_REGEN_SPEED_INC_PER_MANA_CONSUMED = "mana_regen_speed_inc_per_mana_consumed"
+    MANA_REGEN_SPEED_INC_PER_MANA_CONSUMED_CAP = "mana_regen_speed_inc_per_mana_consumed_cap"
     # Per-N-consumed DIVISORS (the "N" in "for every N consumed"). consumed-recently is quantized DOWN to a whole
     # multiple of N before applying the per-unit benefit — "for every N" procs in discrete stacks, not fractionally.
     DMG_ADDITIONAL_PER_LIFE_CONSUMED_UNIT = "dmg_additional_per_life_consumed_unit"
     ATTACK_SPEED_INC_PER_LIFE_CONSUMED_UNIT = "attack_speed_inc_per_life_consumed_unit"
     SPELL_DMG_INC_PER_MANA_CONSUMED_UNIT = "spell_dmg_inc_per_mana_consumed_unit"
+    MANA_REGEN_SPEED_INC_PER_MANA_CONSUMED_UNIT = "mana_regen_speed_inc_per_mana_consumed_unit"
     # Flat PHYSICAL damage added per N consumed recently (Blade-dancer's Fingers = Life→Attacks; Glacier Caster
     # Shield = Mana→Attacks+Spells). min/max are separate keys; attack/spell scope kept separate (honest scoping).
     # The "Stacks up to Z time(s)" cap is stored as a CONSUMED-AMOUNT cap (Z × N) so one cap clamps min AND max

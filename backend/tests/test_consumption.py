@@ -141,8 +141,11 @@ def test_g_crit_and_compound_parsing():
     # Crimson King defensive (gate split off): negative additional damage taken → tracked in the dmg_taken_additional
     # pool (NOT wired into defense yet — tracking only).
     assert kv("(-50–-40) % additional damage taken") == {"dmg_taken_additional": -0.45}
-    # An unhandled per-N benefit (Compensatory Mana Regen per consumed) stays honest-NYI (empty), not mis-resolved.
-    assert kv("+(3-4) % Mana Regeneration Speed for every 100 Mana consumed recently, up to 360 %") == {}
+    # Compensatory Life: Mana Regeneration Speed per N Mana consumed → folds into mana_regen_speed_inc (per-1-unit + N + cap).
+    assert kv("+(3-4) % Mana Regeneration Speed for every 100 Mana consumed recently, up to 360 %") == {
+        "mana_regen_speed_inc_per_mana_consumed": round(0.035 / 100.0, 8),
+        "mana_regen_speed_inc_per_mana_consumed_unit": 100,
+        "mana_regen_speed_inc_per_mana_consumed_cap": 3.6}
 
 
 def test_per_n_affix_keeps_stacks_cap_as_one_clause():
@@ -206,6 +209,40 @@ def test_per_n_consumed_is_discrete_floored():
     assert (below is None) or below["total"] == pytest.approx(0.0)
     two = run(600)["stats"]["physical_spell_dmg_flat_min"]
     assert two["total"] == pytest.approx(2 * 23)
+
+
+def test_compensatory_spell_dmg_per_mana_consumed_raises_spell_dps():
+    # Compensatory Life: increased Spell Damage per N Mana consumed folds into the REAL spell_dmg_inc (with a source)
+    # and raises a spell skill's DPS. Needs a mana consume source so consumed_recently_mana clears the divisor.
+    def run(mods):
+        g = [{"item_name": "T", "contributions": [
+            {"stat": "mana_consumed_flat_per_sec", "display_value": 600, "unit": "", "slot": "helmet", "item_name": "T", "text": "m"},
+            {"stat": "mana_regen_flat", "display_value": 99999, "unit": "", "slot": "helmet", "item_name": "T", "text": "r"}]}]
+        req = make_request("chromatic_shot", 20, gear=g)
+        req["custom_mods"] = mods
+        r = engine_stats(EngineStatsRequest(**req))
+        return r if isinstance(r, dict) else r.model_dump()
+    base = run([])
+    comp = run(["+5 % Spell Damage for every 100 Mana consumed recently, up to 216 %"])
+    assert base["recovery"]["consumed_recently_mana"] > 0
+    assert comp["offense"]["total_dps"] > base["offense"]["total_dps"]
+    sdi = comp["stats"].get("spell_dmg_inc")
+    assert sdi and sdi["total"] > 0 and len(sdi["sources"]) >= 1     # folded into the real stat, shows a source
+    # 600/s × 4s = 2400 consumed → floor 2400/100 = 24 stacks × 5% = 120% increased spell damage.
+    assert sdi["total"] == pytest.approx(1.20)
+
+
+def test_compensatory_mana_regen_per_mana_consumed_raises_regen():
+    def run(mods):
+        g = [{"item_name": "T", "contributions": [
+            {"stat": "mana_consumed_flat_per_sec", "display_value": 600, "unit": "", "slot": "helmet", "item_name": "T", "text": "m"}]}]
+        req = make_request("chromatic_shot", 20, gear=g)
+        req["custom_mods"] = mods
+        r = engine_stats(EngineStatsRequest(**req))
+        return r if isinstance(r, dict) else r.model_dump()
+    base = run([])
+    comp = run(["+5 % Mana Regeneration Speed for every 100 Mana consumed recently, up to 360 %"])
+    assert comp["recovery"]["mana_regen_per_sec"] > base["recovery"]["mana_regen_per_sec"]
 
 
 def test_steady_state_life_solves_to_equilibrium():

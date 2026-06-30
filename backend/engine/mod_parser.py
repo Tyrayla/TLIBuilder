@@ -411,6 +411,7 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         _stat = ("dmg_additional_per_life_consumed" if (_p == "life" and _b == "damage")
                  else "attack_speed_inc_per_life_consumed" if (_p == "life" and "attack speed" in _b)
                  else "spell_dmg_inc_per_mana_consumed" if (_p == "mana" and "spell damage" in _b)
+                 else "mana_regen_speed_inc_per_mana_consumed" if (_p == "mana" and "mana regeneration speed" in _b)
                  else None)
         if _stat and float(_per_n) > 0:
             out = [{"stat_key": _stat, "amount": (float(_pct) / 100.0) / float(_per_n), "text": t},

@@ -2274,7 +2274,7 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="mana",               stacking_rule="additive",
         ui_priority=33,                source_types=_TB,
     ),
-    Stat.MANA_REGEN_INC: StatMeta(
+    Stat.MANA_REGEN_SPEED_INC: StatMeta(
         "Mana Regeneration Speed", "Mana", "increased", "%",
         subgroup="mana",               stacking_rule="additive",
         ui_priority=34,                source_types=_T,

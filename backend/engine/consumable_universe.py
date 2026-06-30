@@ -151,7 +151,7 @@ def consumable_universe() -> frozenset[str]:
                  "life_regain_inc", "energy_shield_regain_inc", "regain_interval_additional",
                  "life_regain_interval_additional", "energy_shield_regain_interval_additional",
                  "life_regen_flat", "life_regen_inc", "life_regen_speed_inc",
-                 "mana_regen_flat", "mana_regen_inc", "mana_regen_pct",
+                 "mana_regen_flat", "mana_regen_speed_inc", "mana_regen_pct",
                  "temporary_life_flat", "temporary_life_pct", "temporary_mana_flat", "temporary_mana_pct",
                  "max_temporary_life_pct", "max_temporary_mana_pct", "excess_restoration_to_es_pct",
                  "life_regain_to_restoration", "es_regain_to_restoration"}
@@ -176,11 +176,15 @@ def consumable_universe() -> frozenset[str]:
                  for mm in ("min", "max")}
     consumed |= {"physical_dmg_flat_per_life_consumed_cap", "physical_dmg_flat_per_mana_consumed_cap",
                  "crit_rating_inc_per_mana_consumed", "crit_dmg_inc_per_mana_consumed"}
+    # Compensatory Life: increased Spell Damage + Mana Regeneration Speed per Mana consumed — folded in-loop into the
+    # REAL spell_dmg_inc / mana_regen_speed_inc stats (engine/compute), so whitelist the consumer + its cap to badge green.
+    consumed |= {"spell_dmg_inc_per_mana_consumed", "spell_dmg_inc_per_mana_consumed_cap",
+                 "mana_regen_speed_inc_per_mana_consumed", "mana_regen_speed_inc_per_mana_consumed_cap"}
     # Per-N divisors (the "N") — read alongside each consumer to floor consumed-recently into discrete stacks.
     consumed |= {"dmg_additional_per_life_consumed_unit", "attack_speed_inc_per_life_consumed_unit",
                  "spell_dmg_inc_per_mana_consumed_unit", "crit_rating_inc_per_mana_consumed_unit",
                  "crit_dmg_inc_per_mana_consumed_unit", "physical_dmg_flat_per_life_consumed_unit",
-                 "physical_dmg_flat_per_mana_consumed_unit"}
+                 "physical_dmg_flat_per_mana_consumed_unit", "mana_regen_speed_inc_per_mana_consumed_unit"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
     consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",

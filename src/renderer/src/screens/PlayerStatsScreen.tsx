@@ -2338,7 +2338,7 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         )}
         {recovery && recovery.mana_regen_per_sec > 0 && (
           <Row label="Mana Regen" labelColor="#5fae79" breakdown={{
-            title: 'Mana Regen', keys: ['mana_regen_flat', 'mana_regen_pct', 'mana_regen_inc'],
+            title: 'Mana Regen', keys: ['mana_regen_flat', 'mana_regen_pct', 'mana_regen_speed_inc'],
             total: recovery.mana_regen_per_sec, totalUnit: '', formula: 'Baseline (7/s + 1.75% Max Mana/s) + gear/talent Flat + % of Max Mana',
             extra: [{ value: `+${rate(recovery.base_mana_regen_per_sec)}`, stat: 'Base Mana Regen', source: 'Baseline', sourceName: '7/s + 1.75% Max Mana/s' }],
           }}>{rate(recovery.mana_regen_per_sec)}</Row>
