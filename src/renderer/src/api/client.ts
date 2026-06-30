@@ -1806,14 +1806,26 @@ export interface EquippedSkill {
 }
 
 const PASSIVE_TAGS = new Set(['Aura', 'Spirit Magus', 'Focus'])
+// Support gems are identified by skill_type (authoritative — every support carries one of these) AND the
+// 'Support' tag. They belong ONLY in support slots, never in active/passive skill slots. NOTE: 19 supports
+// also carry a PASSIVE tag (e.g. "Aura Amplification" [Support, Aura], "Focus Buff" [Support, Focus]) because
+// they buff aura/focus/spirit-magus skills — so passive classification MUST exclude supports first, or they
+// leak into passive slots (bug-226).
+const SUPPORT_SKILL_TYPES = new Set([
+  'support_skill', 'noble_support_skill', 'magnificent_support_skill', 'activation_medium_skill',
+])
+
+export function isSupportSkillItem(s: SkillItem): boolean {
+  return SUPPORT_SKILL_TYPES.has(s.skill_type ?? '') || s.skill_tags.includes('Support')
+}
 
 export function isPassiveSkillItem(s: SkillItem): boolean {
-  return s.skill_tags.some(t => PASSIVE_TAGS.has(t))
+  return !isSupportSkillItem(s) && s.skill_tags.some(t => PASSIVE_TAGS.has(t))
 }
 
 export function isActiveSkillItem(s: SkillItem): boolean {
-  return !isPassiveSkillItem(s) &&
-    !s.skill_tags.includes('Support') &&
+  return !isSupportSkillItem(s) &&
+    !isPassiveSkillItem(s) &&
     !s.description_lines[0]?.startsWith('Supports') &&
     !s.name.includes(':')
 }
