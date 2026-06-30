@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DefenseResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait } from '../api/client'
+import type { OffenseResult, DefenseResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from './HeroTraitScreen'
@@ -1380,7 +1380,7 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
   )
 }
 
-function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower, elixir }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null }) {
+function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower, elixir, skillCost }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null; skillCost?: SkillCost | null }) {
   // Character-wide stats the Skill Effects box surfaces (projectile speed / penetration / jumps). Per-skill
   // scoping is Phase-2 engine work; for now we show the build-wide totals with their source breakdowns.
   const bdCtx = useContext(BreakdownCtx)
@@ -1642,15 +1642,37 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                     formula: `skill base ${baseJumps}${extraJumps ? ` + ${extraJumps} extra (supports)` : ''}`,
                   }}>{totalJumps}</Row>
                 )}
-                {/* Mana Cost — the skill's BASE per-cast cost. Cost reductions/conversions and "Skills no longer cost
-                    Mana" aren't modeled yet, so this is the unmodified base (reservation/sealing is its own panel). */}
-                {manaCost > 0 && (
-                  <Row label="Mana Cost" breakdown={{
-                    title: 'Mana Cost', keys: [], total: manaCost, totalUnit: '',
-                    formula: 'Skill base per-cast cost. Cost reductions / conversions and "Skills no longer cost Mana" are not modeled yet.',
-                    extra: [{ value: dec(manaCost), stat: 'Base', source: 'Skill', sourceName: offense.skill_name }],
-                  }}>{dec(manaCost)}</Row>
-                )}
+                {/* Mana Cost — the active skill's per-cast cost. When the cost model is available (this is the active
+                    skill), show the COMPUTED cost: (base + flat) × support multipliers × (1 + inc − reduced), with
+                    Frozen Lotus zeroing the base and Arcane paying part as Life. Otherwise the unmodified base. The
+                    per-second drain (cost × cast/attack rate) feeds Net Mana Recovery on the Mana panel. */}
+                {(() => {
+                  const sc = skillCost?.per_skill?.find(s => s.skill_name === offense.skill_name)
+                  if (sc && (sc.mana_per_cast > 0 || sc.life_per_cast > 0)) {
+                    return (
+                      <Row label="Mana Cost" breakdown={{
+                        title: 'Skill Cost (per cast)', keys: [], total: sc.mana_per_cast, totalUnit: '',
+                        formula: 'Per-cast cost = (base + flat Skill Cost) × support multipliers × (1 + increased − reduced). '
+                          + '"Skills no longer cost Mana" zeroes the base; Arcane pays part as Life. The per-second drain '
+                          + '(× your cast/attack rate) feeds Net Mana Recovery — it is a COST, never counted as "consumed".',
+                        extra: [
+                          { value: dec(sc.base_cost), stat: sc.base_is_percent ? 'Base (% Max Mana)' : 'Base', source: 'Skill', sourceName: offense.skill_name },
+                          ...(sc.flat ? [{ value: `+${dec(sc.flat)}`, stat: 'Flat Skill Cost', source: 'Mods', sourceName: '' }] : []),
+                          ...(sc.support_mult !== 1 ? [{ value: `×${dec(sc.support_mult)}`, stat: 'Support multipliers', source: 'Supports', sourceName: '' }] : []),
+                          ...((sc.inc + sc.additional - sc.reduction) ? [{ value: `×${dec(1 + sc.inc + sc.additional - sc.reduction)}`, stat: 'Increased / Reduced', source: 'Mods', sourceName: '' }] : []),
+                          ...(sc.life_per_cast > 0 ? [{ value: `${dec(sc.life_per_cast)} Life`, stat: `Arcane (${dec(sc.arcane_fraction * 100)}% paid as Life)`, source: 'Arcane', sourceName: '' }] : []),
+                        ],
+                      }}>{sc.life_per_cast > 0 ? `${dec(sc.mana_per_cast)} + ${dec(sc.life_per_cast)} Life` : dec(sc.mana_per_cast)}</Row>
+                    )
+                  }
+                  return manaCost > 0 ? (
+                    <Row label="Mana Cost" breakdown={{
+                      title: 'Mana Cost', keys: [], total: manaCost, totalUnit: '',
+                      formula: 'Skill base per-cast cost.',
+                      extra: [{ value: dec(manaCost), stat: 'Base', source: 'Skill', sourceName: offense.skill_name }],
+                    }}>{dec(manaCost)}</Row>
+                  ) : null
+                })()}
               </StatPanel>
             </GridBox>
           )
@@ -2162,7 +2184,7 @@ const LIFE_CONSUME_KEYS = [..._CONSUME_BASES.flatMap(b => [`life_consumed_${b}_p
 const MANA_CONSUME_KEYS = [..._CONSUME_BASES.flatMap(b => [`mana_consumed_${b}_per_sec`, `mana_consumed_${b}_per_cast`, `mana_consumed_${b}_per_attack_use`])]
 const ES_CONSUME_KEYS = _CONSUME_BASES.map(b => `energy_shield_consumed_${b}_per_sec`)
 
-function DefensePanels({ defense, reservation, recovery }: { defense: DefenseResult | null; reservation: ReservationResult | null; recovery: RecoveryResult | null }) {
+function DefensePanels({ defense, reservation, recovery, skillCost }: { defense: DefenseResult | null; reservation: ReservationResult | null; recovery: RecoveryResult | null; skillCost: SkillCost | null }) {
   if (!defense) {
     return <StatPanel title="Life" accent="#c03030"><div style={{ fontSize: 12, color: '#555' }}>No data.</div></StatPanel>
   }
@@ -2278,24 +2300,33 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         {recovery && recovery.consumption_life_per_sec > 0 && (
           <Row label="Life Consumed" labelColor="#d06868" breakdown={{
             title: 'Life Consumed', keys: LIFE_CONSUME_KEYS, total: recovery.consumption_life_per_sec, totalUnit: '',
-            formula: 'Self-consume drains per second, at the steady-state (unreserved) Life %. % current × current Life + % max × Max + flat, per-cast/use × the use rate. Excludes the skill’s own Life cost (NYI).',
+            formula: 'Self-consume drains per second, at the steady-state (unreserved) Life %. % current × current Life + % max × Max + flat, per-cast/use × the use rate. The skill’s own Life COST is a separate line (cost ≠ consume).',
             extra: recovery.consumed_recently_life > 0 ? [{ value: fmtNum(Math.floor(recovery.consumed_recently_life)),
               stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes + gates' }] : undefined,
           }}>{rate(recovery.consumption_life_per_sec)}</Row>
         )}
+        {recovery && recovery.skill_cost_life_per_sec > 0 && (
+          <Row label="Life Cost" labelColor="#d0a060" breakdown={{
+            title: 'Life Cost (skills)', keys: [], total: recovery.skill_cost_life_per_sec, totalUnit: '',
+            formula: 'Every active skill’s per-cast Life cost (Arcane: Mana cost paid as Life) × its own cast/attack rate, summed. A COST, not consumption — reduces Net Life Recovery but is never counted as "consumed".',
+            extra: (skillCost?.per_skill ?? []).filter(s => s.life_per_sec > 0).map(s => ({
+              value: rate(s.life_per_sec), stat: s.skill_name, source: 'Skill Cost', sourceName: `${dec(s.life_per_cast)}/cast` })),
+          }}>{rate(recovery.skill_cost_life_per_sec)}</Row>
+        )}
         {recovery && (recovery.restoration_life_per_sec > 0 || recovery.life_regain_per_sec > 0 || recovery.life_regen_per_sec > 0) && (
           <Row label="Net Life Recovery" labelColor={recovery.life_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
             title: 'Net Life Recovery', keys: [], total: recovery.net_life_per_sec, totalUnit: '',
-            formula: 'Restoration + Regain + Regen − Consumption (excludes skill Life cost — no skill-cost model yet)',
+            formula: 'Restoration + Regain + Regen − Consumption − Skill Cost',
             extra: [
               ...(recovery.restoration_life_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_life_per_sec)}`, stat: 'Life Restoration', source: 'Recovery', sourceName: '' }] : []),
               ...(recovery.life_regain_per_sec > 0 ? [{ value: `+${rate(recovery.life_regain_per_sec)}`, stat: 'Life Regain', source: 'Recovery', sourceName: '' }] : []),
               ...(recovery.life_regen_per_sec > 0 ? [{ value: `+${rate(recovery.life_regen_per_sec)}`, stat: 'Life Regen', source: 'Recovery', sourceName: '' }] : []),
               ...(recovery.consumption_life_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_life_per_sec)}`, stat: 'Life Consumed', source: 'Consumption', sourceName: '' }] : []),
+              ...(recovery.skill_cost_life_per_sec > 0 ? [{ value: `−${rate(recovery.skill_cost_life_per_sec)}`, stat: 'Life Cost', source: 'Skill Cost', sourceName: '' }] : []),
             ],
           }}>{rate(recovery.net_life_per_sec)}</Row>
         )}
-        {recovery && recovery.consumption_life_per_sec > 0 && !recovery.life_sustainable && (
+        {recovery && (recovery.consumption_life_per_sec > 0 || recovery.skill_cost_life_per_sec > 0) && !recovery.life_sustainable && (
           <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>
             Unsustainable{recovery.life_time_to_empty != null ? ` — empties in ${dec(recovery.life_time_to_empty)}s` : ''}
           </div>
@@ -2346,23 +2377,32 @@ function DefensePanels({ defense, reservation, recovery }: { defense: DefenseRes
         {recovery && recovery.consumption_mana_per_sec > 0 && (
           <Row label="Mana Consumed" labelColor="#d06868" breakdown={{
             title: 'Mana Consumed', keys: MANA_CONSUME_KEYS, total: recovery.consumption_mana_per_sec, totalUnit: '',
-            formula: 'Self-consume drains per second (unreserved current Mana for % current). Excludes the skill’s own Mana cost (NYI).',
+            formula: 'Self-consume drains per second (unreserved current Mana for % current). The skill’s own Mana COST is a separate line (cost ≠ consume).',
             extra: recovery.consumed_recently_mana > 0 ? [{ value: fmtNum(Math.floor(recovery.consumed_recently_mana)),
               stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes (Glacier/Compensatory/Tyrant)' }] : undefined,
           }}>{rate(recovery.consumption_mana_per_sec)}</Row>
         )}
+        {recovery && recovery.skill_cost_mana_per_sec > 0 && (
+          <Row label="Mana Cost" labelColor="#d0a060" breakdown={{
+            title: 'Mana Cost (skills)', keys: [], total: recovery.skill_cost_mana_per_sec, totalUnit: '',
+            formula: 'Every active skill’s per-cast Mana cost × its own cast/attack rate, summed. A COST, not consumption — it reduces Net Mana Recovery but is never counted as "consumed". Triggered skills’ costs aren’t excluded yet (no trigger flag).',
+            extra: (skillCost?.per_skill ?? []).filter(s => s.mana_per_sec > 0).map(s => ({
+              value: rate(s.mana_per_sec), stat: s.skill_name, source: 'Skill Cost', sourceName: `${dec(s.mana_per_cast)}/cast` })),
+          }}>{rate(recovery.skill_cost_mana_per_sec)}</Row>
+        )}
         {recovery && (recovery.restoration_mana_per_sec > 0 || recovery.mana_regen_per_sec > 0) && (
           <Row label="Net Mana Recovery" labelColor={recovery.mana_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
             title: 'Net Mana Recovery', keys: [], total: recovery.net_mana_per_sec, totalUnit: '',
-            formula: 'Restoration + Regen − Consumption',
+            formula: 'Restoration + Regen − Consumption − Skill Cost',
             extra: [
               ...(recovery.restoration_mana_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_mana_per_sec)}`, stat: 'Mana Restoration', source: 'Recovery', sourceName: '' }] : []),
               ...(recovery.mana_regen_per_sec > 0 ? [{ value: `+${rate(recovery.mana_regen_per_sec)}`, stat: 'Mana Regen', source: 'Recovery', sourceName: 'incl. baseline' }] : []),
               ...(recovery.consumption_mana_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_mana_per_sec)}`, stat: 'Mana Consumed', source: 'Consumption', sourceName: '' }] : []),
+              ...(recovery.skill_cost_mana_per_sec > 0 ? [{ value: `−${rate(recovery.skill_cost_mana_per_sec)}`, stat: 'Mana Cost', source: 'Skill Cost', sourceName: '' }] : []),
             ],
           }}>{rate(recovery.net_mana_per_sec)}</Row>
         )}
-        {recovery && recovery.consumption_mana_per_sec > 0 && !recovery.mana_sustainable && (
+        {recovery && (recovery.consumption_mana_per_sec > 0 || recovery.skill_cost_mana_per_sec > 0) && !recovery.mana_sustainable && (
           <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>
             Unsustainable{recovery.mana_time_to_empty != null ? ` — empties in ${dec(recovery.mana_time_to_empty)}s` : ''}
           </div>
@@ -2649,6 +2689,7 @@ export default function PlayerStatsScreen() {
   const offense = (computedStats.offense ?? null) as OffenseResult | null
   const defense = (computedStats.defense ?? null) as DefenseResult | null
   const recovery = ((computedStats as { recovery?: RecoveryResult | null }).recovery) ?? null
+  const skillCost = ((computedStats as { skill_cost?: SkillCost | null }).skill_cost) ?? null
   const statMap = (computedStats.stats ?? {}) as Record<string, StatEntry>
   const slotOffense = ((computedStats as { slot_offense?: Record<string, OffenseResult> | null }).slot_offense) ?? null
 
@@ -2700,7 +2741,7 @@ export default function PlayerStatsScreen() {
             skills={skills} selected={selectedSlot} onSelect={setSelectedSlot}
             forms={formNames} selectedForm={selectedForm} onSelectForm={setSelectedForm}
             calcMode={calcMode} onCalcMode={setCalcMode} />
-          <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} />
+          <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} skillCost={skillCost} />
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility. (Condition-setting controls like Numbed
@@ -2714,7 +2755,7 @@ export default function PlayerStatsScreen() {
 
         {/* Right — defensive pools (trimmed to give the offense table room) */}
         <div style={{ flex: '23', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
-          <DefensePanels defense={defense} reservation={reservation} recovery={recovery} />
+          <DefensePanels defense={defense} reservation={reservation} recovery={recovery} skillCost={skillCost} />
         </div>
       </div>
     </BreakdownCtx.Provider>

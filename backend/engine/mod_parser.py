@@ -608,6 +608,21 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": "mana_cost_to_life_cost", "amount": float(m.group(1)) / 100.0, "text": t}]
 
+    # Skill / Mana Cost AMOUNT modifiers (the cost pools the skill-cost model reads). Deterministic — these MUST
+    # precede the fuzzy fallback, which otherwise mis-routes "increased Mana Cost" to mana_cost_to_life_cost (the
+    # Arcane conversion, matched strictly above). Range-collapsed copy so "+(400-500)% Skill Cost" → midpoint 450.
+    # ("Skills no longer cost Mana" is order-reversed ("cost mana") and handled as the skill_no_mana_cost flag.)
+    if "to life cost" not in _tc.lower():
+        m = re.search(r'([+\-]?[\d.]+)\s*%\s*(increased|reduced)?\s*\b(?:mana|skill)\s+cost\b', _tc, re.I)
+        if m:
+            amt = float(m.group(1)) / 100.0
+            if (m.group(2) or "").lower() == "reduced":
+                amt = -amt
+            return [{"stat_key": "skill_cost_inc", "amount": amt, "text": t}]
+        m = re.search(r'([+\-]?[\d.]+)\s+(?:to\s+)?\b(?:mana|skill)\s+cost\b', _tc, re.I)
+        if m:
+            return [{"stat_key": "skill_cost_flat", "amount": float(m.group(1)), "text": t}]
+
     # Ward: "Adds N% of Sealed Mana/Life as Energy Shield" — flat Max ES = coeff × raw sealed pool (needs
     # sealed mana/life modeling).
     m = re.match(r'adds\s+([\d.]+)\s*%\s*of\s+sealed\s+(mana|life)\s+as\s+energy\s+shield', t, re.I)

@@ -255,6 +255,11 @@ def consumable_universe() -> frozenset[str]:
     # offense (presence-gated) outside the synthetic passes — whitelist so they never false-yellow.
     consumed |= {"main_stat_dmg_bonus_inc", "chromatic_shots_on_target_flat"}
 
+    # Skill mana/life COST model (engine.skill_cost, read in the compute loop — outside the synthetic passes).
+    # Frozen Lotus's skill_no_mana_cost flag + the Arcane mana→life conversion + the cost amount pools.
+    consumed |= {"skill_cost_inc", "skill_cost_additional", "skill_cost_reduction", "skill_cost_flat",
+                 "attack_skill_cost_flat", "spell_skill_cost_flat", "mana_cost_to_life_cost", "skill_no_mana_cost"}
+
     missing = _SANITY_FLOOR - consumed
     if missing:
         raise RuntimeError(

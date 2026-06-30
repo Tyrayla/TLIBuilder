@@ -68,6 +68,10 @@ class ConsumptionResult:
     consumed_recently_life: float = 0.0
     consumed_recently_mana: float = 0.0
     consumed_recently_energy_shield: float = 0.0
+    # Skill COST per second, summed across all active skills (cost ≠ consume — a SEPARATE drain, never added to the
+    # consumption figures above; subtracted on its own in engine.recovery's net sustain).
+    skill_cost_mana_per_sec: float = 0.0
+    skill_cost_life_per_sec: float = 0.0
     window: float = RECENTLY_WINDOW_S
     flags: list = field(default_factory=list)    # surfaced approximations (e.g. the use-vs-cast follow-up)
 
@@ -91,7 +95,9 @@ def _pool_per_sec(source: BuildSource, pool: str, current: float, pool_max: floa
 
 def calculate_consumption(source: BuildSource, *, condition_state: dict | None = None,
                           defense: dict | None = None, rates: dict | None = None,
-                          reservation: dict | None = None) -> ConsumptionResult:
+                          reservation: dict | None = None,
+                          skill_cost_mana_per_sec: float = 0.0, skill_cost_life_per_sec: float = 0.0,
+                          skill_cost_flags: list | None = None) -> ConsumptionResult:
     cs = condition_state or {}
     d = defense or {}
     rates = rates or {}
@@ -132,9 +138,18 @@ def calculate_consumption(source: BuildSource, *, condition_state: dict | None =
     if rates.get("proxy_present"):
         flags.append(_PROXY_USE_FLAG)
 
+    # Skill COST is NOT consumption — cost ≠ consume (owner-confirmed). The per-second totals (summed across ALL
+    # active skills, each at its own use rate; triggers ignore cost) are computed upstream in engine.compute and
+    # passed in here only to be REPORTED + subtracted SEPARATELY in engine.recovery's net sustain. They are NEVER
+    # added to mana/life_per_sec ("Mana/Life Consumed") nor to consumed_recently (per-N affixes + threshold gates).
+    flags.extend(skill_cost_flags or [])
+
     w = RECENTLY_WINDOW_S
     return ConsumptionResult(
         life_per_sec=life_ps, mana_per_sec=mana_ps, energy_shield_per_sec=es_ps,
         consumed_recently_life=life_ps * w, consumed_recently_mana=mana_ps * w,
-        consumed_recently_energy_shield=es_ps * w, window=w, flags=flags,
+        consumed_recently_energy_shield=es_ps * w,
+        skill_cost_mana_per_sec=max(0.0, skill_cost_mana_per_sec),
+        skill_cost_life_per_sec=max(0.0, skill_cost_life_per_sec),
+        window=w, flags=flags,
     )

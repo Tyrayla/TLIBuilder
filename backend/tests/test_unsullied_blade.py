@@ -173,21 +173,27 @@ def _full(gear, trait="unsullied_blade", picks=None, levels=None, conds=None, sk
     return r if isinstance(r, dict) else r.model_dump()
 
 
+def _consume_only(c):
+    """The consume drain governed by the 'only Mystic consumes' lock. mana_per_sec is already consume-only —
+    the skill's intrinsic cost is a SEPARATE field (skill_cost_mana_per_sec), never lumped into consumption."""
+    return c["mana_per_sec"]
+
+
 def test_consume_lock_blocks_external_mana_consume_until_utmost():
     drain = _gear(mana_consumed_flat_per_sec=50.0)
-    # Lock ON (base node, no Utmost) → the external 50/s mana consume is zeroed.
-    assert _full(WEAPON + drain)["consumption"]["mana_per_sec"] == pytest.approx(0.0, abs=1e-6)
+    # Lock ON (base node, no Utmost) → the external 50/s mana consume is zeroed (skill cost still applies separately).
+    assert _consume_only(_full(WEAPON + drain)["consumption"]) == pytest.approx(0.0, abs=1e-6)
     # Utmost Devotion lifts the lock → the external 50/s consume counts again.
     lifted = _full(WEAPON + drain, picks=["Utmost Devotion"], levels=[5, 1, 1, 5])
-    assert lifted["consumption"]["mana_per_sec"] == pytest.approx(50.0, rel=1e-3)
+    assert _consume_only(lifted["consumption"]) == pytest.approx(50.0, rel=1e-3)
 
 
 def test_mystic_consume_counts_and_realm_restore_feeds_recovery():
-    # Mystic phase: the trait's own consume counts even with the lock on (it bypasses it).
+    # Mystic phase: the trait's own consume counts even with the lock on (it bypasses it). Measured net of skill cost.
     mystic = _full(WEAPON, conds={"mystic_mercury": True})
-    assert mystic["consumption"]["mana_per_sec"] > 0.0
+    assert _consume_only(mystic["consumption"]) > 0.0
     assert mystic["recovery"]["restoration_mana_per_sec"] == pytest.approx(0.0, abs=1e-6)   # no restore in Mystic
-    # Realm phase (default): restores mana on attack, no consume.
+    # Realm phase (default): restores mana on attack, no consume (skill cost aside).
     realm = _full(WEAPON)
     assert realm["recovery"]["restoration_mana_per_sec"] > 0.0
-    assert realm["consumption"]["mana_per_sec"] == pytest.approx(0.0, abs=1e-6)
+    assert _consume_only(realm["consumption"]) == pytest.approx(0.0, abs=1e-6)

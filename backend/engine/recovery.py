@@ -68,6 +68,10 @@ class RecoveryResult:
     consumption_life_per_sec: float = 0.0
     consumption_mana_per_sec: float = 0.0
     consumption_es_per_sec: float = 0.0
+    # Active skill's intrinsic per-cast COST per second (cost ≠ consume — a SEPARATE drain that still reduces net
+    # recovery / sustain). Shown on its own line, never lumped into the consumption figures above.
+    skill_cost_mana_per_sec: float = 0.0
+    skill_cost_life_per_sec: float = 0.0
     # Rolling "consumed recently" totals (per-sec × 4s window) — what per-N-consumed affixes + threshold gates read
     consumed_recently_life: float = 0.0
     consumed_recently_mana: float = 0.0
@@ -94,7 +98,7 @@ class RecoveryResult:
     steady_es: float = 0.0
     # Effective HP (Life + Temporary Life vs the calc target's average mitigation)
     ehp_life: float = 0.0
-    nyi: list = field(default_factory=lambda: ["Net sustain excludes skill Life/Mana cost (no skill-cost model yet)"])
+    nyi: list = field(default_factory=list)   # skill Life/Mana cost now folded in via engine.skill_cost
 
 
 def _pool_recovery(inputs, pool, pool_max, restoration_factor, duration_factor, missing, at_full, ignore_recast=False):
@@ -249,17 +253,20 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     if cap_mana > 0:
         temp_mana = min(temp_mana, cap_mana)
 
-    # Net sustain (recovery − consumption). Self-consume drains (consumption arg) are subtracted; the skill's
-    # intrinsic Life/Mana cost is still NYI. Sealed pools shrink the pool, not the rate.
+    # Net sustain (recovery − consumption − skill cost). Self-consume drains AND the active skill's intrinsic per-cast
+    # cost are both subtracted, but kept SEPARATE (cost ≠ consume): consumption arg carries each independently. Sealed
+    # pools shrink the pool, not the rate.
     cons = consumption or {}
     cons_life = float(cons.get("life_per_sec", 0.0) or 0.0)
     cons_mana = float(cons.get("mana_per_sec", 0.0) or 0.0)
     cons_es = float(cons.get("energy_shield_per_sec", 0.0) or 0.0)
+    sc_mana = float(cons.get("skill_cost_mana_per_sec", 0.0) or 0.0)   # skill cost — separate drain, NOT consumption
+    sc_life = float(cons.get("skill_cost_life_per_sec", 0.0) or 0.0)
     cr_life = float(cons.get("consumed_recently_life", 0.0) or 0.0)
     cr_mana = float(cons.get("consumed_recently_mana", 0.0) or 0.0)
     cr_es = float(cons.get("consumed_recently_energy_shield", 0.0) or 0.0)
-    net_life = life_ps + life_regain_ps + life_regen_ps - cons_life
-    net_mana = mana_ps + mana_regen_ps - cons_mana
+    net_life = life_ps + life_regain_ps + life_regen_ps - cons_life - sc_life
+    net_mana = mana_ps + mana_regen_ps - cons_mana - sc_mana
     # ES recovery = restoration (Pixie excess→ES + Rebirth-converted) + missing-based Shield Regain. No ES regen modeled.
     net_es = es_restore_ps + shield_regain_ps - cons_es
 
@@ -306,6 +313,7 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         temporary_life=temp_life, temporary_mana=temp_mana,
         total_max_life=max_life + temp_life, total_max_mana=max_mana + temp_mana,
         consumption_life_per_sec=cons_life, consumption_mana_per_sec=cons_mana, consumption_es_per_sec=cons_es,
+        skill_cost_mana_per_sec=sc_mana, skill_cost_life_per_sec=sc_life,
         consumed_recently_life=cr_life, consumed_recently_mana=cr_mana, consumed_recently_energy_shield=cr_es,
         net_life_per_sec=net_life, net_mana_per_sec=net_mana, net_es_per_sec=net_es,
         life_sustainable=life_sustainable, mana_sustainable=mana_sustainable, es_sustainable=es_sustainable,

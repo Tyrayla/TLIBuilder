@@ -295,6 +295,35 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ---
 
+### SKILLCOST-01 — Skill mana/life cost model (multiple checks)
+- Status: ⬜ Unverified. The engine now models each skill's per-cast Mana (and Arcane→Life) cost and folds it into
+  **Net Mana/Life Recovery** as a SEPARATE drain (never "Consumed"). Formula assumed (owner best-guess), needs
+  confirming: `cost = (base + flat Skill Cost) × Π(support mana multipliers) × (1 + increased − reduced)`.
+- Sub-checks (each: note the skill's in-game Mana/Life cost per cast, your mods/rolls, cast/attack rate, screenshot):
+  1. **Base + cast rate**: a flat-cost skill (e.g. Chromatic Shot) alone — confirm per-cast cost and that cost/sec =
+     per-cast × your cast/attack rate (attacks→APS, casts & channeled→cast rate).
+  2. **Support multipliers**: add Noble/Magnificent/basic supports (each ~110% Mana Multiplier) — confirm they
+     **multiply** the cost (×1.10 each), not add.
+  3. **Formula order (KEY)**: a "+N Skill Cost" flat source + a big "+X% Skill Cost" — does the flat get scaled by the
+     % (engine assumes `(base+flat)×(1+inc)`) or added at the end? **Awakening Skull** is the marquee case: Arcane
+     (100% Mana Cost → Life Cost) + its inflated +(400-500)% / +(30-40) Skill Cost → confirm the **Life cost per cast**
+     (engine predicts ≈ (base+~35)×~5.5 paid as Life) and that it drives a life death-spiral verdict.
+  4. **Frozen Lotus** ("Skills no longer cost Mana"): confirm base cost → 0, BUT a separate "+N Skill Cost" still
+     costs (Frozen Lotus zeroes the BASE only, not the final value).
+  5. **Percentage-base skills**: **Moon Strike** ("1%") — confirm it's 1% of Max Mana per use (scaling with
+     multipliers); **Bull's Rage** ("15%") — confirm it's 15% of Max Mana paid as **Life** (intrinsic conversion; the
+     engine currently DEFERS this Bull's-Rage life-conversion — flag if it matters).
+  6. **Triggered skills**: confirm triggered skills (Tangle/Spell Burst/Activation Medium/Preparation) pay **no** mana
+     cost. (The engine currently can't detect per-slot trigger state — it counts every enabled active skill's cost, so
+     this is the gap to confirm/scope.)
+  7. **"Consumed recently"?**: confirm whether paying a skill's Mana/Life cost counts toward "X Mana/Life consumed
+     recently" for per-N-consumed affixes (Glacier/Compensatory) + threshold gates. The engine currently says **no**
+     (cost is excluded from consumed-recently) — verify.
+- RESULT: per sub-check — the in-game per-cast cost (Mana and/or Life), your supports/mods + rolls, cast/attack rate,
+  Max Mana, before/after Net Mana/Life Recovery, Screenshot.
+
+---
+
 ## How results are ingested
 Owner: for each returned RESULT, configure the same build in the app (matching the tester's exact
 rolls/level/rank/tier) and compare the engine DPS to the reported Recount **span average**. Mark

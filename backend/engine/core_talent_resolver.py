@@ -148,6 +148,11 @@ def _classify_effect(effect: str, parse_mod, translate_cond) -> dict:
     """
     text = _strip_max_div(effect)
 
+    # "Skills no longer cost Mana" (Frozen Lotus) → a flag the skill-cost model reads to zero the BASE cost
+    # (flat additions + multipliers still apply). NOT a final-value override (per stat.py MANA_COST_OVERRIDE note).
+    if re.search(r"skills?\s+no\s+longer\s+cost(?:s)?\s+mana", text, re.I):
+        return {"kind": "flag", "flag": "skill_no_mana_cost"}
+
     flag = _gain_on_hit_flag(text)
     if flag:
         return {"kind": "automax", "flag": flag}
@@ -256,6 +261,9 @@ def _resolve_talent(name: str, effects, parse_mod, translate_cond):
                         "condition_expr": cls["condition_expr"],
                     })
                 statuses.append({"name": name, "text": sub, "resolved": True, "kind": "stat"})
+            elif cls["kind"] == "flag":   # e.g. Frozen Lotus → skill_no_mana_cost (read by engine.skill_cost)
+                flags.add(cls["flag"])
+                statuses.append({"name": name, "text": sub, "resolved": True, "kind": "flag"})
             else:  # deferred | unresolved
                 statuses.append({"name": name, "text": sub, "resolved": False, "kind": cls["kind"]})
     return contribs, flags, statuses

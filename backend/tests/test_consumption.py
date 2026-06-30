@@ -470,7 +470,8 @@ def test_mana_boil_override_and_empower_scaling():
     gr = {x["stat"]: x["amount"] for x in e["granted"]}
     assert gr["spell_dmg_additional"] == pytest.approx(0.1665)
     assert gr["mana_consumed_pct_max_per_sec"] == pytest.approx(0.03)
-    assert r["consumption"]["mana_per_sec"] == pytest.approx(0.03 * r["defense"]["max_mana"])   # 3% Max Mana/s
+    # mana_per_sec is the CONSUME drain only (skill cost is a separate line, not consumption).
+    assert r["consumption"]["mana_per_sec"] == pytest.approx(0.03 * r["defense"]["max_mana"])
     # Both effects scale with Empower Effect (+50% → ×1.5).
     e50 = next(x for x in run(0.5)["empowers"] if x["name"] == "Mana Boil")
     gr50 = {x["stat"]: x["amount"] for x in e50["granted"]}
@@ -482,8 +483,13 @@ def test_mana_boil_warns_not_disables_when_mana_unsustainable():
     # We DON'T auto-disable Mana Boil's Euphoria at 0 Mana — we WARN when Mana is unsustainable so the user sees the
     # buff would turn off in play (e.g. once skill costs spiral Mana down). Buff stays applied; warning surfaces.
     def run(extra_drain):
-        g = ([{"item_name": "T", "contributions": [{"stat": "mana_consumed_flat_per_sec", "display_value": extra_drain,
-               "unit": "", "slot": "ring1", "item_name": "T", "text": "d"}]}] if extra_drain else [])
+        # Big baseline Mana Regen so run(0) is sustainable despite Mana Boil + the skill's own mana cost; the huge
+        # extra drain still overwhelms it (unsustainable). Isolates the warn-vs-sustainable contrast.
+        contribs = [{"stat": "mana_regen_flat", "display_value": 500, "unit": "", "slot": "ring1", "item_name": "T", "text": "r"}]
+        if extra_drain:
+            contribs.append({"stat": "mana_consumed_flat_per_sec", "display_value": extra_drain,
+                             "unit": "", "slot": "ring1", "item_name": "T", "text": "d"})
+        g = [{"item_name": "T", "contributions": contribs}]
         req = make_request("chromatic_shot", 20, gear=g)
         req["skills"] = list(req["skills"]) + [{"slot": 2, "skill_id": "mana_boil", "level": 20, "enabled": True}]
         r = engine_stats(EngineStatsRequest(**req))
@@ -519,6 +525,8 @@ def test_mana_boil_override_staleness_flags():
 
 def test_mana_consume_independent_pool():
     r = _resp([("mana_consumed_flat_per_sec", 50)])
-    assert r["consumption"]["mana_per_sec"] == pytest.approx(50.0, rel=1e-3)
-    assert r["consumption"]["life_per_sec"] == pytest.approx(0.0, abs=1e-6)
+    c = r["consumption"]
+    # mana_per_sec is the 50/s affix consume only (skill cost is a separate, non-consumption drain).
+    assert c["mana_per_sec"] == pytest.approx(50.0, rel=1e-3)
+    assert c["life_per_sec"] == pytest.approx(0.0, abs=1e-6)
     assert r["recovery"]["mana_sustainable"] is False

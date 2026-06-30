@@ -1085,6 +1085,7 @@ def engine_stats(req: EngineStatsRequest):
         "defense": result.defense,
         "recovery": result.recovery,
         "consumption": result.consumption,
+        "skill_cost": result.skill_cost,
         "custom_mod_statuses": custom_mod_statuses,
         "core_talent_statuses": core_talent_statuses,
         "gear_mod_statuses": gear_mod_statuses,

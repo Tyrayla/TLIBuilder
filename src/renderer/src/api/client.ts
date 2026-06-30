@@ -941,6 +941,9 @@ export interface RecoveryResult {
   consumption_life_per_sec: number
   consumption_mana_per_sec: number
   consumption_es_per_sec: number
+  // Active skill's intrinsic per-cast COST per second (cost ≠ consume — a SEPARATE drain that reduces net recovery)
+  skill_cost_mana_per_sec: number
+  skill_cost_life_per_sec: number
   // Rolling "consumed recently" totals (per-sec × 4s) — drives per-N-consumed affixes + threshold gates
   consumed_recently_life: number
   consumed_recently_mana: number
@@ -976,8 +979,38 @@ export interface ConsumptionResult {
   consumed_recently_life: number     // rolling 4s total (drives per-N-consumed affixes + threshold gates)
   consumed_recently_mana: number
   consumed_recently_energy_shield: number
+  // Active skill's intrinsic per-cast COST (cost ≠ consume — kept separate from the consumed figures above)
+  skill_cost_mana_per_cast: number
+  skill_cost_life_per_cast: number
+  skill_cost_mana_per_sec: number
+  skill_cost_life_per_sec: number
   window: number                     // "recently" window (4s)
   flags: string[]                    // surfaced approximations (e.g. use-vs-cast)
+}
+
+// One active skill's per-cast Mana/Life cost (engine.skill_cost). Cost ≠ consume.
+export interface SkillCostEntry {
+  skill_name: string
+  slot: number
+  mana_per_cast: number              // final per-cast Mana cost (after the Arcane split)
+  life_per_cast: number              // final per-cast Life cost (Arcane-converted)
+  mana_per_sec: number               // mana_per_cast × this skill's cast/attack rate
+  life_per_sec: number
+  base_cost: number
+  support_mult: number               // Π of attached supports' mana multipliers (110% → ×1.10)
+  inc: number                        // skill_cost_inc (+ % Skill/Mana Cost)
+  additional: number
+  reduction: number
+  flat: number
+  arcane_fraction: number            // mana_cost_to_life_cost (0..1)
+  base_is_percent: boolean
+}
+// Skill cost summed across ALL active skills (each at its own use rate). Cost ≠ consume.
+export interface SkillCost {
+  per_skill: SkillCostEntry[]
+  total_mana_per_sec: number
+  total_life_per_sec: number
+  flags: string[]
 }
 
 export interface BlessingEffect { stat: string; per_stack: number; total: number; text: string }
@@ -1022,6 +1055,7 @@ export interface StatSheetResponse {
   defense?: DefenseResult | null
   recovery?: RecoveryResult | null
   consumption?: ConsumptionResult | null
+  skill_cost?: SkillCost | null
   custom_mod_statuses?: CustomModStatus[]
   // Gear affix/implicit texts the frontend couldn't resolve, resolved (or reported) backend-side so
   // nothing is silently dropped. resolved:false → still unmodeled (surface it, don't hide it).

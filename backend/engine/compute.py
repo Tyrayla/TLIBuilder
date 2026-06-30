@@ -195,6 +195,45 @@ def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys, auto
             auto_values[e.condition_key] = condition_state[e.condition_key]
 
 
+def _active_skill_costs(skills_input, skills_by_id, attached_supports, source, condition_state, otbt):
+    """Per-cast COST of EVERY enabled active skill (slots 1-5), each summed at its OWN cast/attack rate (cost ≠
+    consume; no rotation assumption — each skill's per-cast cost × its use rate). Returns
+    (per_skill: list[dict], total_mana_per_sec, total_life_per_sec).
+
+    NOTE: triggered skills' costs being disabled (no mana cost when cast by a trigger) is NOT modelled — the engine
+    has no per-slot trigger flag, so every ENABLED active skill contributes. Flagged as a follow-up.
+    """
+    from engine.skill_resolver import resolve_skill
+    from engine.offense import compute_skill_rates
+    from engine.skill_cost import compute_skill_cost
+    per_skill: list[dict] = []
+    tot_mana = tot_life = 0.0
+    for sk in (skills_input or []):
+        slot = sk.get("slot", 99)
+        if slot > 5 or not sk.get("enabled", True):
+            continue
+        sd = (skills_by_id or {}).get(sk.get("skill_id"))
+        if not sd:
+            continue
+        rs = resolve_skill(sd)
+        sc = compute_skill_cost(rs, source, attached_supports, skills_by_id, slot=slot,
+                                is_attack=not rs.is_spell, otbt=otbt, condition_state=condition_state)
+        if sc.mana_cost <= 1e-9 and sc.life_cost <= 1e-9:
+            continue
+        rate = compute_skill_rates(source, rs).get("aps", 0.0)
+        m_ps, l_ps = sc.mana_cost * rate, sc.life_cost * rate
+        tot_mana += m_ps
+        tot_life += l_ps
+        per_skill.append({"skill_name": sc.skill_name, "slot": slot,
+                          "mana_per_cast": sc.mana_cost, "life_per_cast": sc.life_cost,
+                          "mana_per_sec": m_ps, "life_per_sec": l_ps,
+                          "base_cost": sc.base_cost, "support_mult": sc.support_mult,
+                          "inc": sc.inc, "additional": sc.additional, "reduction": sc.reduction,
+                          "flat": sc.flat, "arcane_fraction": sc.arcane_fraction,
+                          "base_is_percent": sc.base_is_percent, "flags": sc.flags})
+    return per_skill, tot_mana, tot_life
+
+
 def compute(
     build_input: BuildInput,
     season_trees: dict[str, dict],
@@ -493,15 +532,19 @@ def compute(
         # not tied to the uptime toggle. Runs after reservation so "current Life" = UNRESERVED (Max − Sealed). The
         # solve is a bisection on a monotone net curve; Life % is quantized so the snapshot can converge.
         from engine.consumption import CONSUME_SOURCE_KEYS, calculate_consumption
-        if any(source.total(_k) for _k in CONSUME_SOURCE_KEYS):
-            # Consume rates: the build's active/used skill's use rate ("any"), and the attack-use rate (that skill's
-            # rate when it is an attack — a character uses one skill at a time; proxies + the precise primary-attack /
-            # use-vs-cast model land in Stage C). This is the SELECTED skill (slot-agnostic), not the slot-1 concept.
-            _active_skill = (_resolve_skill_for_trait(skill_data)
-                             if (skill_data and build_input.main_skill and main_enabled) else None)
-            _use_rate = compute_skill_rates(source, _active_skill).get("aps", 0.0) if _active_skill else 0.0
-            _attack_rate = _use_rate if (_active_skill is not None and not _active_skill.is_spell) else 0.0
-            _cons_rates = {"any": _use_rate, "attack": _attack_rate}
+        # Consume rates: the build's active/used skill's use rate ("any") + attack-use rate (for "Attack Skills"-scoped
+        # consume affixes). Separate from skill COST, which sums EVERY active skill at its own rate (below).
+        _active_skill = (_resolve_skill_for_trait(skill_data)
+                         if (skill_data and build_input.main_skill and main_enabled) else None)
+        _use_rate = compute_skill_rates(source, _active_skill).get("aps", 0.0) if _active_skill else 0.0
+        _attack_rate = _use_rate if (_active_skill is not None and not _active_skill.is_spell) else 0.0
+        _cons_rates = {"any": _use_rate, "attack": _attack_rate}
+        # Skill COST: sum of every enabled active skill's per-cast cost × its own use rate (cost ≠ consume). Computed
+        # BEFORE the gate so a COST-ONLY build (no consume affix) still enters the stage; drains the UNRESERVED pool.
+        _, _sc_mana_ps, _sc_life_ps = _active_skill_costs(
+            skills_input, skills_by_id, build_input.attached_supports, source, condition_state,
+            "core_support_mana_mult_95" in active_booleans)
+        if any(source.total(_k) for _k in CONSUME_SOURCE_KEYS) or _sc_mana_ps > 1e-9 or _sc_life_ps > 1e-9:
             # Solve the steady-state pool % for EACH pool the build self-consumes (Stage C = Life, Stage F = Mana/ES),
             # UNLESS the user pinned a real (sub-full) what-if override. A default / seeded current_*_pct of 100 is NOT
             # a meaningful pin for a consume build (which never sits at full), so the solve still runs and finds the
@@ -511,22 +554,32 @@ def compute(
             _cri = [r for _es in (elixir_summaries or []) for r in (_es.get("restoration") or [])]
             _POOL_PCT_KEY = {"life": "current_life_pct", "mana": "current_mana_pct", "energy_shield": "current_es_pct"}
             for _pool, _pct_key in _POOL_PCT_KEY.items():
-                if not any(source.total(_k) for _k in CONSUME_SOURCE_KEYS if _k.startswith(_pool + "_")):
-                    continue   # this pool isn't self-consumed → leave its % at the default/user value
+                _self_consumed = any(source.total(_k) for _k in CONSUME_SOURCE_KEYS if _k.startswith(_pool + "_"))
+                _cost_drains = ((_pool == "mana" and _sc_mana_ps > 1e-9)
+                                or (_pool == "life" and _sc_life_ps > 1e-9))
+                if not _self_consumed and not _cost_drains:
+                    continue   # neither self-consumed nor cost-drained → leave its % at the default/user value
                 _pinned = condition_state.get(_pct_key)
                 _user_pinned = (_pct_key in manual_cond_keys
                                 and _pinned is not None and float(_pinned) < 100.0 - 1e-9)
                 if _user_pinned:
                     continue
                 _solved = solve_steady_pool_pct(source, condition_state, _pool, _cri, _cons_rates, reservation,
-                                                uptime_mode=build_input.uptime_mode)
-                condition_state[_pct_key] = _solved
-                auto_sources[_pct_key] = "Consumption steady state"
-                auto_values[_pct_key] = _solved
+                                                uptime_mode=build_input.uptime_mode,
+                                                skill_cost_mana_per_sec=_sc_mana_ps, skill_cost_life_per_sec=_sc_life_ps)
+                # Only record the solve when the pool actually settles BELOW full. A pool that stays at 100% (recovery
+                # covers the drain — e.g. a small skill mana cost regen easily absorbs) isn't meaningfully "at steady
+                # state", so don't pin it or surface a noise auto-condition. Keeps per-pool solving independent (a
+                # life-only consume build doesn't get its Mana labelled just because skills cost a little mana).
+                if _solved < 100.0 - 1e-9:
+                    condition_state[_pct_key] = _solved
+                    auto_sources[_pct_key] = "Consumption steady state"
+                    auto_values[_pct_key] = _solved
             # Threshold-gate inputs (Crimson King / Awakening Skull "consumed > X% Max Life / > N Life recently"),
             # at whatever Life % is now in effect (solved or pinned).
             _cons_now = calculate_consumption(source, condition_state=condition_state, rates=_cons_rates,
-                                              reservation=reservation)
+                                              reservation=reservation,
+                                              skill_cost_mana_per_sec=_sc_mana_ps, skill_cost_life_per_sec=_sc_life_ps)
             _ml = source.total("max_life") or 1.0
             # Quantize the consumed-recently conditions before they enter condition_state (the loop's convergence
             # snapshot) — otherwise these continuous floats drift every pass (esp. with the AS-per-consumed feedback)
@@ -797,9 +850,18 @@ def compute(
     _cons_use_rate = compute_skill_rates(source, _cons_active).get("aps", 0.0) if _cons_active else 0.0
     _cons_rates_final = {"any": _cons_use_rate,
                          "attack": _cons_use_rate if (_cons_active is not None and not _cons_active.is_spell) else 0.0}
+    # Skill COST: sum of EVERY enabled active skill's per-cast cost × its own use rate (cost ≠ consume). Feeds net
+    # recovery + the sustain verdict + the mana-deactivation warning (subtracted separately in recovery).
+    _cost_per_skill, _cost_mana_ps, _cost_life_ps = _active_skill_costs(
+        skills_input, skills_by_id, build_input.attached_supports, source, condition_state,
+        "core_support_mana_mult_95" in active_booleans)
+    result_skill_cost = {"per_skill": _cost_per_skill,
+                         "total_mana_per_sec": _cost_mana_ps, "total_life_per_sec": _cost_life_ps,
+                         "flags": sorted({f for s in _cost_per_skill for f in (s.get("flags") or [])})}
     result_consumption = asdict(calculate_consumption(
         source, condition_state=condition_state, defense=result_defense, rates=_cons_rates_final,
-        reservation=reservation))
+        reservation=reservation, skill_cost_mana_per_sec=_cost_mana_ps, skill_cost_life_per_sec=_cost_life_ps,
+        skill_cost_flags=result_skill_cost["flags"]))
     result_recovery = asdict(calculate_recovery(
         source, condition_state=condition_state, restoration_inputs=_restoration_inputs,
         reservation=reservation, defense=result_defense, uptime_mode=build_input.uptime_mode,
@@ -925,8 +987,8 @@ def compute(
 
     # Mana-gated empower deactivation (Mana Boil's Euphoria turns off at 0 Mana). We DON'T auto-disable the buff —
     # we WARN when Mana is unsustainable (drains to 0 at steady state), so the user sees that their costs/consumes
-    # would turn the buff off in play. (Skill cost is still NYI; once it's modeled this also catches cost-driven
-    # spirals.) Fires only for an ENABLED empower carrying the "loses … when Mana drops to 0" clause.
+    # would turn the buff off in play. (Now includes the skill's intrinsic per-cast Mana cost via engine.skill_cost,
+    # so cost-driven spirals are caught too.) Fires only for an ENABLED empower carrying the "loses … at 0 Mana" clause.
     if not result_recovery.get("mana_sustainable", True):
         for _sid, _m in (build_input.empower_meta or {}).items():
             if _m.get("enabled", True) and _m.get("deactivates_at_zero_mana"):
@@ -1095,6 +1157,7 @@ def compute(
         defense=result_defense,
         recovery=result_recovery,
         consumption=result_consumption,
+        skill_cost=result_skill_cost,
         skill_slots=result_skill_slots,
         consumed_stats=sorted(source.consumed_stats),
         target_stats=target_stats,
