@@ -484,6 +484,19 @@ class TestDestinyKismets:
         up = _offense_spirit(["+2 to Spell Burst Upper Limit"], max_burst=3)   # Upper Limit == Max Spell Burst cap
         assert base["spell_burst_count"] == 3 and up["spell_burst_count"] == 5
 
+    def test_perched_river_runon_maps_both_clauses(self):
+        from server import _resolve_effect_modifiers as R
+        keys = [d["stat_key"] for d in R("+2 to Spell Burst Upper Limit Critical Strikes have the Unlucky effect", is_memory=False)]
+        assert keys == ["max_spell_burst_flat", "unlucky_crit"]
+
+    def test_unlucky_crit_lowers_dps(self):
+        # On a crit the damage roll takes the lower of two → lower crit damage → lower DPS (needs crit chance + a
+        # damage spread, both present on chain_lightning).
+        base = _offense()
+        unlucky = _offense(extra_gear={"unlucky_crit": 1})
+        assert unlucky["total_dps_vs_target"] < base["total_dps_vs_target"] - 1e-6
+        assert unlucky["crit_chance"] == pytest.approx(base["crit_chance"])   # crit CHANCE unchanged; only the roll
+
     def test_halve_upper_limit_floors(self):
         base = _offense(max_burst=6)
         halved = _offense(max_burst=6, extra_gear={"max_spell_burst_halve_flag": 1})

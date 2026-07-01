@@ -222,7 +222,7 @@ def consumable_universe() -> frozenset[str]:
                  # recovery, keyed off burst rate), and Destiny kismet burst lines (halve M + AS/CS-per-burst-recently).
                  "spell_burst_area_additional", "spell_burst_area_additional_per",
                  "mana_lost_pct_current_per_burst", "life_restored_pct_lost_per_burst",
-                 "energy_shield_restored_pct_lost_per_burst", "max_spell_burst_halve_flag"}
+                 "energy_shield_restored_pct_lost_per_burst", "max_spell_burst_halve_flag", "unlucky_crit"}
 
     # Channeled mode (offense.calculate_offense) reads the stack-cap pools to set the RESET cadence; they only
     # fire for a channeled skill (Icebound Beam), outside the synthetic passes. projectile_quantity_flat scales

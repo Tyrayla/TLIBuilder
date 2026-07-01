@@ -95,6 +95,9 @@ class Stat(Enum):
     # triggered recently, up to Y%" resolves as a per-scaling of the generic Attack/Cast Speed additional on the
     # derived spell_burst_stacks_recently condition — no dedicated stat.)
     MAX_SPELL_BURST_HALVE_FLAG = "max_spell_burst_halve_flag"
+    # Destiny kismet Perched River: "Critical Strikes have the Unlucky effect" → crit hits roll damage twice, keep the
+    # LOWER (inverse of Lucky). Read in offense; only the crit portion is affected.
+    UNLUCKY_CRIT = "unlucky_crit"
 
     # ── Melee ────────────────────────────────────────────────────────────────
     MELEE_DMG_INC = "melee_dmg_inc"

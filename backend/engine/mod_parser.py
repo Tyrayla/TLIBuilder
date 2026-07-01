@@ -766,6 +766,9 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     # "Halves Spell Burst Upper Limit" (Flash Flood) → flag; compute halves M (floor).
     if re.search(r'halves\s+spell\s+burst\s+upper\s+limit', t, re.I):
         return [{"stat_key": "max_spell_burst_halve_flag", "amount": 1.0, "text": t}]
+    # "Critical Strikes have the Unlucky effect" (Perched River) → crit rolls take the LOWER (inverse of Lucky).
+    if re.search(r'critical\s+strikes?\s+have\s+the\s+unlucky\s+effect', t, re.I):
+        return [{"stat_key": "unlucky_crit", "amount": 1.0, "text": t}]
     # (Flash Flood's "+X% additional Attack and Cast Speed for every Spell Burst triggered recently, up to Y%" resolves
     # via the generic Attack-and-Cast-Speed matcher above + the "for every Spell Burst triggered recently" per-scaling
     # condition (server._COND_PATTERNS → spell_burst_stacks_recently), so no dedicated matcher is needed here.)

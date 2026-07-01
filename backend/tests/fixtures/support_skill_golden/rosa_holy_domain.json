@@ -209,6 +209,7 @@
     "temporary_mana_flat",
     "temporary_mana_pct",
     "triple_dmg_chance",
+    "unlucky_crit",
     "weapon_attack_speed",
     "weapon_crit_rating_flat"
   ],

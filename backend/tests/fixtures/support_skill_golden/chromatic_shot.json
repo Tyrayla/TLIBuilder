@@ -252,6 +252,7 @@
     "temporary_mana_pct",
     "tide_dmg_taken",
     "triple_dmg_chance",
+    "unlucky_crit",
     "weapon_attack_speed",
     "weapon_crit_rating_flat"
   ],

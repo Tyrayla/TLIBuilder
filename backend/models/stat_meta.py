@@ -3206,6 +3206,12 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="mechanics",          stacking_rule="additive",
         ui_priority=60,                source_types=_T,
     ),
+    # Destiny kismet Perched River: Critical Strikes have the Unlucky effect (crit rolls take the lower).
+    Stat.UNLUCKY_CRIT: StatMeta(
+        "Unlucky Critical Strikes (source)", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
 
     # ── Minion (new) ──────────────────────────────────────────────────────────
     Stat.MINION_ELEMENTAL_DMG_INC: StatMeta(
