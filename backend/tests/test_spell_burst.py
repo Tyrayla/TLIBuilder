@@ -396,12 +396,19 @@ class TestSquidnova:
     ]
 
     def test_squidnova_auto_enables_and_grants_buffs(self):
-        none = _offense(max_burst=3)
-        sq = _offense_spirit(self._R6, max_burst=3)
-        assert sq["spell_burst_count"] == 4               # +1 Max Spell Burst from Squidnova (auto-enabled)
+        # The grant needs "at least 6 stack(s) of Max Spell Burst" → base must be ≥ 6 for Squidnova to apply.
+        none = _offense(max_burst=6)
+        sq = _offense_spirit(self._R6, max_burst=6)
+        assert sq["spell_burst_count"] == 7               # 6 + the rank-6 "+1 Max Spell Burst when having Squidnova"
         # Squidnova buff base = +16% additional Spell Burst Hit Damage, scaled by +50% Squidnova Effect → +24%;
         # PLUS the SEPARATE +8% additional Spell Damage (Effect does NOT scale it). Both multiply.
         assert _hit(sq) == pytest.approx((1 + 0.16 * 1.5) * 1.08 * _hit(none), rel=1e-3)
+
+    def test_squidnova_not_granted_below_threshold(self):
+        # Max Spell Burst 4 < 6 → the grant is inactive → NO Squidnova buff (regression for the always-on bug).
+        none = _offense(max_burst=4)
+        sq = _offense_spirit([self._R6[0], "+50 % Squidnova Effect"], max_burst=4)   # grant + effect, base M=4
+        assert _hit(sq) == pytest.approx(_hit(none), rel=1e-3)                        # no +16% buff at M<6
 
 
 # ── Loose ends: Squidnova base buff scaling, skill-area-per-burst, sustain, Destiny kismets ──────────

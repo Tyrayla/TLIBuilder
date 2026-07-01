@@ -76,6 +76,10 @@ class RecoveryResult:
     consumed_recently_life: float = 0.0
     consumed_recently_mana: float = 0.0
     consumed_recently_energy_shield: float = 0.0
+    # Burst-activation sustain (per burst trigger × burst rate) — surfaced so the UI can show + gate on it.
+    burst_mana_lost_per_sec: float = 0.0
+    burst_life_restore_per_sec: float = 0.0
+    burst_es_restore_per_sec: float = 0.0
     # Net sustain (recovery − consumption). Still excludes the skill's intrinsic Life/Mana COST (no skill-cost model)
     net_life_per_sec: float = 0.0
     net_mana_per_sec: float = 0.0
@@ -335,6 +339,8 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         consumption_life_per_sec=cons_life, consumption_mana_per_sec=cons_mana, consumption_es_per_sec=cons_es,
         skill_cost_mana_per_sec=sc_mana, skill_cost_life_per_sec=sc_life,
         consumed_recently_life=cr_life, consumed_recently_mana=cr_mana, consumed_recently_energy_shield=cr_es,
+        burst_mana_lost_per_sec=burst_mana_lost_ps, burst_life_restore_per_sec=burst_life_restore_ps,
+        burst_es_restore_per_sec=burst_es_restore_ps,
         net_life_per_sec=net_life, net_mana_per_sec=net_mana, net_es_per_sec=net_es,
         life_sustainable=life_sustainable, mana_sustainable=mana_sustainable, es_sustainable=es_sustainable,
         life_time_to_empty=life_tte, mana_time_to_empty=mana_tte, es_time_to_empty=es_tte,

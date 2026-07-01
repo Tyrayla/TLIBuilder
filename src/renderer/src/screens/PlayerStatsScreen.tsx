@@ -2313,14 +2313,15 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
               value: rate(s.life_per_sec), stat: s.skill_name, source: 'Skill Cost', sourceName: `${dec(s.life_per_cast)}/cast` })),
           }}>{rate(recovery.skill_cost_life_per_sec)}</Row>
         )}
-        {recovery && (recovery.restoration_life_per_sec > 0 || recovery.life_regain_per_sec > 0 || recovery.life_regen_per_sec > 0) && (
+        {recovery && (recovery.restoration_life_per_sec > 0 || recovery.life_regain_per_sec > 0 || recovery.life_regen_per_sec > 0 || recovery.burst_life_restore_per_sec > 0) && (
           <Row label="Net Life Recovery" labelColor={recovery.life_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
             title: 'Net Life Recovery', keys: [], total: recovery.net_life_per_sec, totalUnit: '',
-            formula: 'Restoration + Regain + Regen − Consumption − Skill Cost',
+            formula: 'Restoration + Regain + Regen + Spell Burst restore − Consumption − Skill Cost',
             extra: [
               ...(recovery.restoration_life_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_life_per_sec)}`, stat: 'Life Restoration', source: 'Recovery', sourceName: '' }] : []),
               ...(recovery.life_regain_per_sec > 0 ? [{ value: `+${rate(recovery.life_regain_per_sec)}`, stat: 'Life Regain', source: 'Recovery', sourceName: '' }] : []),
               ...(recovery.life_regen_per_sec > 0 ? [{ value: `+${rate(recovery.life_regen_per_sec)}`, stat: 'Life Regen', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.burst_life_restore_per_sec > 0 ? [{ value: `+${rate(recovery.burst_life_restore_per_sec)}`, stat: 'Spell Burst restore', source: 'Recovery', sourceName: 'per burst trigger × burst rate' }] : []),
               ...(recovery.consumption_life_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_life_per_sec)}`, stat: 'Life Consumed', source: 'Consumption', sourceName: '' }] : []),
               ...(recovery.skill_cost_life_per_sec > 0 ? [{ value: `−${rate(recovery.skill_cost_life_per_sec)}`, stat: 'Life Cost', source: 'Skill Cost', sourceName: '' }] : []),
             ],
@@ -2393,12 +2394,13 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
         {recovery && (recovery.restoration_mana_per_sec > 0 || recovery.mana_regen_per_sec > 0) && (
           <Row label="Net Mana Recovery" labelColor={recovery.mana_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
             title: 'Net Mana Recovery', keys: [], total: recovery.net_mana_per_sec, totalUnit: '',
-            formula: 'Restoration + Regen − Consumption − Skill Cost',
+            formula: 'Restoration + Regen − Consumption − Skill Cost − Spell Burst cost',
             extra: [
               ...(recovery.restoration_mana_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_mana_per_sec)}`, stat: 'Mana Restoration', source: 'Recovery', sourceName: '' }] : []),
               ...(recovery.mana_regen_per_sec > 0 ? [{ value: `+${rate(recovery.mana_regen_per_sec)}`, stat: 'Mana Regen', source: 'Recovery', sourceName: 'incl. baseline' }] : []),
               ...(recovery.consumption_mana_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_mana_per_sec)}`, stat: 'Mana Consumed', source: 'Consumption', sourceName: '' }] : []),
               ...(recovery.skill_cost_mana_per_sec > 0 ? [{ value: `−${rate(recovery.skill_cost_mana_per_sec)}`, stat: 'Mana Cost', source: 'Skill Cost', sourceName: '' }] : []),
+              ...(recovery.burst_mana_lost_per_sec > 0 ? [{ value: `−${rate(recovery.burst_mana_lost_per_sec)}`, stat: 'Spell Burst cost', source: 'Recovery', sourceName: 'per burst trigger × burst rate' }] : []),
             ],
           }}>{rate(recovery.net_mana_per_sec)}</Row>
         )}
@@ -2445,13 +2447,14 @@ function DefensePanels({ defense, reservation, recovery, skillCost }: { defense:
               stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes' }] : undefined,
           }}>{rate(recovery.consumption_es_per_sec)}</Row>
         )}
-        {recovery && (recovery.restoration_es_per_sec > 0 || recovery.shield_regain_per_sec > 0) && (
+        {recovery && (recovery.restoration_es_per_sec > 0 || recovery.shield_regain_per_sec > 0 || recovery.burst_es_restore_per_sec > 0) && (
           <Row label="Net ES Recovery" labelColor={recovery.es_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
             title: 'Net Energy Shield Recovery', keys: [], total: recovery.net_es_per_sec, totalUnit: '',
-            formula: 'ES Restoration + Shield Regain − Consumption',
+            formula: 'ES Restoration + Shield Regain + Spell Burst restore − Consumption',
             extra: [
               ...(recovery.restoration_es_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_es_per_sec)}`, stat: 'ES Restoration', source: 'Recovery', sourceName: '' }] : []),
               ...(recovery.shield_regain_per_sec > 0 ? [{ value: `+${rate(recovery.shield_regain_per_sec)}`, stat: 'Shield Regain', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.burst_es_restore_per_sec > 0 ? [{ value: `+${rate(recovery.burst_es_restore_per_sec)}`, stat: 'Spell Burst restore', source: 'Recovery', sourceName: 'per burst trigger × burst rate' }] : []),
               ...(recovery.consumption_es_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_es_per_sec)}`, stat: 'ES Consumed', source: 'Consumption', sourceName: '' }] : []),
             ],
           }}>{rate(recovery.net_es_per_sec)}</Row>

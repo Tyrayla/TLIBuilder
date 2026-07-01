@@ -740,11 +740,16 @@ def compute(
             condition_state["at_full_life"] = _clp >= 100.0
             condition_state["life_lost_pct"] = max(0.0, 100.0 - _clp)
 
-        # Squidnova (Squiddle pact spirit): auto-enable "having Squidnova" when Squiddle is equipped (its source
-        # line emits has_squidnova_flag), since bursting reliably grants it — sustained-uptime approximation. The
-        # gated "when having Squidnova" lines (+Spell Damage, rank-6 +1 Max Spell Burst) then apply.
-        if source.total("has_squidnova_flag") > 0:
-            condition_state["has_squidnova"] = True
+        # Squidnova (Squiddle pact spirit): the grant requires "at least N stack(s) of Max Spell Burst" — the flag's
+        # value carries that threshold N. Auto-enable "having Squidnova" ONLY when the build's effective Max Spell Burst
+        # ≥ N (sustained-uptime approximation once eligible). Below N the buff never applies (fixes it firing at any M).
+        _sq_threshold = source.total("has_squidnova_flag")
+        if _sq_threshold > 0:
+            _sq_eff_max_burst = int(source.total("max_spell_burst_flat"))
+            if source.total("max_spell_burst_halve_flag") > 0:
+                _sq_eff_max_burst //= 2
+            if _sq_eff_max_burst >= _sq_threshold:
+                condition_state["has_squidnova"] = True
         # Squidnova BUFF base effect (master glossary): "+16% additional Hit Damage for skills cast by Spell Burst".
         # The "grants Squidnova" line only sets the flag, so the buff itself is modeled here — scaled by Squidnova
         # Effect (squidnova_effect_inc), the ONLY thing Squidnova Effect scales (NOT the separate "+% Spell Damage

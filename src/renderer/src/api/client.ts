@@ -948,6 +948,10 @@ export interface RecoveryResult {
   consumed_recently_life: number
   consumed_recently_mana: number
   consumed_recently_energy_shield: number
+  // Burst-activation sustain (per burst trigger × burst rate), folded into net below
+  burst_mana_lost_per_sec: number
+  burst_life_restore_per_sec: number
+  burst_es_restore_per_sec: number
   // Net sustain (recovery − consumption; skill life/mana cost NYI)
   base_mana_regen_per_sec: number   // baseline 7/s + 1.75% Max Mana/s portion of mana regen
   net_life_per_sec: number

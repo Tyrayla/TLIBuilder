@@ -740,10 +740,11 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         return [{"stat_key": "squidnova_effect_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
 
     # Squiddle source line: "Activating Spell Burst with at least N stack(s) of Max Spell Burst grants … Squidnova"
-    # → marker flag so compute can auto-enable the has_squidnova condition when Squiddle is equipped.
-    m = re.match(r'activating\s+spell\s+burst\s+with\s+at\s+least\s+[\d.]+\s+stack\(?s?\)?\s+of\s+max\s+spell\s+burst\s+grants.*squidnova', t, re.I)
+    # → marker flag carrying the Max-Spell-Burst THRESHOLD (N) as its value, so compute only auto-enables has_squidnova
+    # when the build's Max Spell Burst ≥ N (the grant requires ≥N stacks; without this the buff wrongly applied at any M).
+    m = re.match(r'activating\s+spell\s+burst\s+with\s+at\s+least\s+([\d.]+)\s+stack\(?s?\)?\s+of\s+max\s+spell\s+burst\s+grants.*squidnova', t, re.I)
     if m:
-        return [{"stat_key": "has_squidnova_flag", "amount": 1.0, "text": t}]
+        return [{"stat_key": "has_squidnova_flag", "amount": float(m.group(1)), "text": t}]
 
     # ── Burst-activation sustain (fire once per burst trigger; folded into net recovery at the burst rate) ──
     # "Loses N% current Mana when Spell Burst is activated" (Surging Inspiration).
