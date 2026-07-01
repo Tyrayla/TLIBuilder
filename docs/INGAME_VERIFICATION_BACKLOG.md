@@ -249,6 +249,28 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ---
 
+### TANGLE-02 — Per-Tangle modifier scaling + Magister generate nodes
+- Status: ⬜ Pending — verify the newly-wired "per (in)activated Tangle" scaling and the Magister generate-Tangle
+  nodes against the live game.
+- Setup: a Spell + **Spell Tangle** vs the standard dummy. Then:
+  1. **Per activated Tangle.** Equip a line like *Dormant Entanglement gains an additional effect: +(100–120) Spell
+     Crit Rating and +(12–15)% additional damage on Critical Strike **for each activated Tangle***. Confirm the bonus
+     scales by the number of **attached** tangles (×count) — raise the attach count (+apply-additional-Tangle) and
+     confirm the bonus grows proportionally. The engine reads the derived effective count (default = the attach cap;
+     the "Active Tangles" Config field lowers it).
+  2. **Per inactivated Tangle.** With Max Tangle Quantity > attached (≥1 inactivated), confirm a "+X per inactivated
+     Tangle" line scales by (placeable − attached).
+  3. **Active Tangles field.** Confirm the Config "Active Tangles on Target" field left blank/0 uses the full attach
+     cap (shown as the greyed placeholder), and that typing a lower number scales both DPS and the per-tangle bonuses
+     down.
+  4. **Magister Focus-Blessing node** ("Gains 1 stack of Focus Blessing when activating Spell Burst or generating
+     Tangle"): confirm Focus Blessing sits at max on a tangle/spell-burst build (engine models it as full uptime).
+  5. **Magister ES-charge node** ("immediately starts Charging Energy Shield on generate"): currently **recognized
+     but NYI** (no ES-recharge model) — badges Unconsumed. Note the in-game ES behaviour for when that model lands.
+- RESULT (per sub-test): Recount Avg DPS (span) + Duration, before/after; the mod + its roll; count; Screenshot.
+
+---
+
 ### SPELLBURST-01 — Spell Burst DPS model + 30/s tick behaviour (multiple checks)
 - Status: 🔶 Partially verified — **combined total DPS matched in-game to within 1.2% over a 4-min test** with matching
   gear (manual triggering, at the **39-charge-tick** breakpoint). Remaining checks below (M-vs-M+1 count, the

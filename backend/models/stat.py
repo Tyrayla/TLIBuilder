@@ -362,6 +362,14 @@ class Stat(Enum):
     TANGLE_DMG_ENHANCEMENT_ADDITIONAL = "tangle_dmg_enhancement_additional"  # SEPARATE multiplier, additive within itself (matches *_enhancement_additional convention)
     TANGLE_CRIT_RATING_FLAT = "tangle_crit_rating_flat"      # added to the tangled skill's crit rating
     TANGLE_ATTACH_RANGE_INC = "tangle_attach_range_inc"      # display/tracked (base 8m); not a DPS factor
+    # Magister "gain 1 stack of <Blessing> when generating Tangle / activating Spell Burst" nodes → full-uptime
+    # flag the compute loop reads to pin that blessing to its max while the build generates tangles/bursts.
+    FOCUS_BLESSING_FULL_UPTIME_FLAG = "focus_blessing_full_uptime_flag"
+    AGILITY_BLESSING_FULL_UPTIME_FLAG = "agility_blessing_full_uptime_flag"
+    TENACITY_BLESSING_FULL_UPTIME_FLAG = "tenacity_blessing_full_uptime_flag"
+    # Magister "immediately starts Charging Energy Shield on generate" → recognized but NYI (needs an ES-recharge
+    # timing model); emitted so the line surfaces (Unconsumed) instead of silently dropping.
+    ES_CHARGE_ON_GENERATE_FLAG = "es_charge_on_generate_flag"
 
     # ── Trauma ───────────────────────────────────────────────────────────────
     TRAUMA_DMG_INC = "trauma_dmg_inc"

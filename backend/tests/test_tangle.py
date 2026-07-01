@@ -134,6 +134,93 @@ class TestCastSpeedBreakpoints:
         assert big["total_dps_vs_target"] > base["total_dps_vs_target"]
 
 
+def _resp(supports=None, gear=None, conds=None):
+    r = engine_stats(EngineStatsRequest(**make_request(
+        _SPELL, 20, attached_supports=supports, gear=gear, extra_conditions=conds)))
+    return r.model_dump() if hasattr(r, "model_dump") else r
+
+
+def _gear_per_activated(stat, value, extra=0):
+    """DUAL_WEAPONS + an item whose `stat` contribution is gated 'for each activated Tangle' (scales by the
+    derived active-tangle count), optionally with +extra to the attach cap."""
+    contribs = [{"stat": stat, "display_value": value, "unit": "%", "slot": "ring", "item_name": "PerTangle",
+                 "text": f"+{value}% {stat} for each activated Tangle",
+                 "condition": {"key": "active_tangle_count", "op": "per", "divisor": 1}}]
+    if extra:
+        contribs.append({"stat": "extra_tangle_applied_flat", "display_value": extra, "unit": "", "slot": "ring",
+                         "item_name": "PerTangle", "text": f"+{extra} tangle"})
+    return DUAL_WEAPONS + [{"item_name": "PerTangle", "contributions": contribs}]
+
+
+class TestDerivedCounts:
+    def test_active_tangle_count_injected(self):
+        assert _resp(supports=_ACTIVATOR)["auto_conditions"]["active_tangle_count"]["value"] == pytest.approx(1)
+        d2 = _resp(supports=_ACTIVATOR, gear=_gear_with(extra_tangle_applied_flat=1))
+        assert d2["auto_conditions"]["active_tangle_count"]["value"] == pytest.approx(2)
+
+    def test_inactivated_tangle_count_injected(self):
+        # placeable 2, active pinned to 1 → 1 inactivated.
+        d = _resp(supports=_ACTIVATOR, gear=_gear_with(extra_tangle_applied_flat=1), conds={"active_tangles": 1})
+        assert d["auto_conditions"]["inactivated_tangle_count"]["value"] == pytest.approx(1)
+
+    def test_no_counts_on_non_tangle_build(self):
+        assert "active_tangle_count" not in _resp()["auto_conditions"]
+
+
+class TestPerTangleScaling:
+    def test_per_activated_line_scales_with_count(self):
+        # spell_dmg_inc "for each activated Tangle". The base tangle count multiplies every build equally, so the
+        # WITH/WITHOUT ratio isolates the per-tangle bonus — and that ratio must grow with the count.
+        no = _gear_with(extra_tangle_applied_flat=1)                        # cap 2, no per-tangle bonus
+        yes = _gear_per_activated("spell_dmg_inc", 50, extra=1)             # cap 2, +50% spell dmg / activated tangle
+        base1 = _offense(supports=_ACTIVATOR, gear=no,  conds={"active_tangles": 1})
+        base2 = _offense(supports=_ACTIVATOR, gear=no,  conds={"active_tangles": 2})
+        with1 = _offense(supports=_ACTIVATOR, gear=yes, conds={"active_tangles": 1})
+        with2 = _offense(supports=_ACTIVATOR, gear=yes, conds={"active_tangles": 2})
+        r1 = with1["total_dps_vs_target"] / base1["total_dps_vs_target"]
+        r2 = with2["total_dps_vs_target"] / base2["total_dps_vs_target"]
+        assert r1 > 1.0            # bonus applied at 1 activated tangle
+        assert r2 > r1 + 1e-6      # scales up — 2× the spell damage at 2 activated tangles
+
+    def test_per_tangle_line_inert_without_activator(self):
+        # No activator → active_tangle_count is 0/absent → floor(0)=0 → the conditional contribution is skipped.
+        none = _offense(gear=DUAL_WEAPONS)
+        withg = _offense(gear=_gear_per_activated("spell_dmg_inc", 50))
+        assert withg["total_dps_vs_target"] == pytest.approx(none["total_dps_vs_target"])
+
+
+class TestPerTangleTranslation:
+    def test_translate_condition_texts(self):
+        from server import _translate_condition_expr as T
+        assert T("for each activated Tangle") == {"key": "active_tangle_count", "op": "per", "divisor": 1}
+        assert T("per activated Tangle") == {"key": "active_tangle_count", "op": "per", "divisor": 1}
+        assert T("for every Tangle") == {"key": "active_tangle_count", "op": "per", "divisor": 1}
+        assert T("for each inactivated Tangle") == {"key": "inactivated_tangle_count", "op": "per", "divisor": 1}
+        assert T("per dormant Tangle") == {"key": "inactivated_tangle_count", "op": "per", "divisor": 1}
+
+
+class TestMagisterGenerateNodes:
+    _FOCUS = "Gains 1 stack(s) of Focus Blessing when activating Spell Burst or generating Tangle (Max Divinity Effect: 1)"
+    _ESCHG = "When activating Spell Burst or generating Tangle, immediately starts Charging Energy Shield. Interval: 2 s (Max Divinity Effect: 1)"
+
+    def test_focus_blessing_node_parses_to_flag(self):
+        assert mp._parse_custom_mod_text(self._FOCUS)[0]["stat_key"] == "focus_blessing_full_uptime_flag"
+
+    def test_es_charge_node_recognized_not_dropped(self):
+        # Recognized-but-NYI: emits a flag (surfaces) rather than silently dropping.
+        assert mp._parse_custom_mod_text(self._ESCHG)[0]["stat_key"] == "es_charge_on_generate_flag"
+
+    def test_focus_blessing_forced_to_max_when_generating_tangle(self):
+        d = _resp(supports=_ACTIVATOR, gear=_gear_with(focus_blessing_full_uptime_flag=1))
+        fb = d["auto_conditions"].get("focus_blessings")
+        assert fb and fb["value"] > 0
+
+    def test_focus_blessing_not_forced_without_generate(self):
+        # Flag present but the build neither generates tangles nor bursts → the blessing is NOT pinned.
+        d = _resp(gear=_gear_with(focus_blessing_full_uptime_flag=1))
+        assert "focus_blessings" not in d["auto_conditions"]
+
+
 class TestParserRegression:
     def test_enhancement_maps_to_enhancement_not_inc(self):
         assert mp._parse_custom_mod_text("140 % Tangle Damage Enhancement")[0]["stat_key"] == "tangle_dmg_enhancement_additional"

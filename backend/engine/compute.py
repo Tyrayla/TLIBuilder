@@ -54,6 +54,30 @@ _AUTOMAX_TARGETS = [
     ("automax_fervor",             "fervor_rating"),
 ]
 
+# Magister "gain 1 stack of <Blessing> when generating Tangle / activating Spell Burst" nodes → a full-uptime
+# flag stat the compute loop reads to pin that blessing to its derived max (owner: treat on-generate as full
+# uptime). Gated on the build actually generating tangles / bursting so it can't force blessings for free.
+_BLESSING_FULL_UPTIME_TARGETS = [
+    ("focus_blessing_full_uptime_flag",    "focus_blessings"),
+    ("agility_blessing_full_uptime_flag",  "agility_blessings"),
+    ("tenacity_blessing_full_uptime_flag", "tenacity_blessings"),
+]
+
+
+def _tangle_counts(src, condition_state):
+    """Effective Tangle counts (placeable, active, inactivated) for a Tangle setup.
+
+    `placeable` = 2 + Max Tangle Quantity (tangles laid on the ground); `active` = how many attach to the enemy
+    and deal damage — the attach cap (1 + Extra-Tangle, floored at placeable) unless the user pins a lower
+    `active_tangles` (its default 0/unset means "use the cap"). `inactivated` = placeable − active (feeds Dormant
+    Entanglement). Shared by the offense DPS multiplier and the derived per-tangle condition counts."""
+    placeable = 2 + int(src.total("max_tangle_quantity_flat"))
+    attach_cap = max(0, min(1 + int(src.total("extra_tangle_applied_flat")), placeable))
+    user = condition_state.get("active_tangles")
+    active = min(int(user), attach_cap) if (user and float(user) > 0) else attach_cap
+    inactivated = max(0, placeable - active)
+    return placeable, active, inactivated
+
 
 def derive_condition_maximums(source: BuildSource) -> dict[str, float]:
     """Return {condition_key: max_value} for all numeric conditions that have a defined max."""
@@ -321,6 +345,22 @@ def compute(
                 main_slot = _sk["slot"]
                 main_enabled = _sk.get("enabled", True)
                 break
+
+    # Which slot (if any) runs a Tangle setup — a Tangle activator support enabled on a Spell slot. Prefer the
+    # main slot. Used to inject the build-wide effective tangle counts each loop pass so "per activated/inactivated
+    # Tangle" modifier lines scale by the real count. Computed once (activator presence + slot category are stable
+    # across passes).
+    _tangle_slot = None
+    for _s in (build_input.attached_supports or []):
+        if _s.get("item_id") in _TANGLE_ACTIVATORS and _s.get("enabled", True):
+            _sl = _s.get("slot", 1)
+            _is_spell = slot_cats.get(_sl) == "spell" or (_sl == main_slot and main_cat == "spell")
+            if _is_spell:
+                if _sl == main_slot:
+                    _tangle_slot = _sl
+                    break
+                if _tangle_slot is None:
+                    _tangle_slot = _sl
     # Type-C preseed before aggregation (e.g. Berserking Blade Decimate forcing enemy_low_life when the
     # enemy is below the rolled threshold) — dispatched for EVERY equipped skill, scoped by its slot, so a
     # skill's preseed mechanic runs no matter which slot it's in (and per-slot for two-of-the-same-skill).
@@ -651,6 +691,17 @@ def compute(
             if _c.source == "computed_stat":
                 condition_state[_c.key] = source.total(_c.key)
 
+        # Effective Tangle counts (build-wide) → derived conditions the "per activated/inactivated Tangle" modifier
+        # lines scale by. Only when the build runs a Tangle setup (activator on a Spell slot). One-directional (the
+        # scaled crit/damage lines don't feed the counts back), so it converges with the loop in ≤2 passes.
+        if _tangle_slot is not None:
+            _tp, _ta, _ti = _tangle_counts(source, condition_state)
+            for _tk, _tv, _tlabel in (("active_tangle_count", _ta, "Attached Tangles (derived)"),
+                                      ("inactivated_tangle_count", _ti, "Inactivated Tangles (derived)")):
+                condition_state[_tk] = float(_tv)
+                auto_sources[_tk] = _tlabel
+                auto_values[_tk] = float(_tv)
+
         # Attribute-comparison conditions (Tradeoff core talent) — derived from STR vs DEX each pass
         # so the gated contributions converge with the rest of the fixed-point loop.
         _str_t, _dex_t = source.total("strength"), source.total("dexterity")
@@ -702,6 +753,20 @@ def compute(
                 continue
             if _key in maxes:
                 condition_state[_key] = maxes[_key]
+
+        # Magister "gain <Blessing> when generating Tangle / activating Spell Burst" nodes → pin that blessing to
+        # its derived max (full-uptime approximation, owner-approved), but ONLY when the build actually generates
+        # tangles or bursts (so the flag can't grant blessings for free). Emits a source flag stat (mod_parser),
+        # read here after aggregate. Recorded into consumed_stats so the node badges Consumed (green) when active.
+        _generates_burst_or_tangle = (_tangle_slot is not None) or source.total("max_spell_burst_flat") >= 1
+        for _flag, _key in _BLESSING_FULL_UPTIME_TARGETS:
+            if source.total(_flag) <= 0 or not _generates_burst_or_tangle:
+                continue
+            if _key in maxes:
+                condition_state[_key] = maxes[_key]
+                auto_sources[_key] = "Blessing generated on Tangle/Spell Burst (full uptime)"
+                auto_values[_key] = maxes[_key]
+                source.consumed_stats.add(_flag)
 
         # Unmatched Valor (Ethereal Prism): grants Have Fervor + pins Fervor Rating to a FIXED 130, set after
         # user input + automax so nothing can lower it (cap is already 130 in conditions.json).
@@ -896,11 +961,7 @@ def compute(
         if resolved.is_spell and any(
                 s.get("item_id") in _TANGLE_ACTIVATORS and s.get("enabled", True)
                 for s in (build_input.attached_supports or []) if s.get("slot", 1) == slot):
-            placeable = 2 + int(eff.total("max_tangle_quantity_flat"))
-            attach_cap = max(0, min(1 + int(eff.total("extra_tangle_applied_flat")), placeable))
-            user = new_state.get("active_tangles")
-            active = min(int(user), attach_cap) if (user and float(user) > 0) else attach_cap
-            inactivated = max(0, placeable - active)
+            placeable, active, inactivated = _tangle_counts(eff, new_state)
             # Dormant Entanglement: +40% additional Tangle Damage per INACTIVATED tangle. Enabled by the user
             # condition OR a granting source flag (Acquaintance core talent / gear). One pooled additional factor
             # (1 + 0.40·n), applied via the tangle tag in calculate_offense.

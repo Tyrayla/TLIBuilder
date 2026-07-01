@@ -262,6 +262,9 @@ export default function BuildOverviewScreen() {
             max={getNumericMax(cond)}
             clamp={clampReport[cond.key]}
             onChange={v => setNumeric(cond.key, v)}
+            // Active Tangles is a "0 = max" sentinel: blank/0 means "use the full attachable count" (the engine
+            // auto-tracks it off gear). Show the resolved cap so the field never reads as a bare confusing 0.
+            zeroMeansMax={cond.key === 'active_tangles'}
           />
         }
         if (cond.is_derived) {
@@ -431,25 +434,30 @@ interface NumericRowProps {
   onChange: (v: number) => void
   // When set, an emptied field falls back to THIS (e.g. an engine auto value) instead of the catalog default.
   defaultOverride?: number
+  // "0 = max" sentinel field (Active Tangles): 0/blank means "use the full attachable count" (= max). Show the
+  // resolved cap as a placeholder/hint instead of a bare confusing 0.
+  zeroMeansMax?: boolean
 }
 
-function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride }: NumericRowProps) {
+function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverride, zeroMeansMax }: NumericRowProps) {
   const min = cond.numeric_min ?? 0
   // The value an emptied field falls back to: the engine auto value if one applies, else the condition's own
   // default (never a hardcoded 0).
   const def = defaultOverride ?? cond.default_value ?? min
-  const [raw, setRaw] = useState(String(value))
+  // A "0 = max" sentinel shows blank when at 0, so the resolved cap (placeholder) reads instead of a bare 0.
+  const blankForSentinel = (v: number) => (zeroMeansMax && v === 0 ? '' : String(v))
+  const [raw, setRaw] = useState(blankForSentinel(value))
 
-  useEffect(() => { setRaw(String(value)) }, [value])
+  useEffect(() => { setRaw(blankForSentinel(value)) }, [value, zeroMeansMax])
 
   const commit = (str: string) => {
     // Cleared input → reset to the condition's default value, not the previous value or a hardcoded 0.
-    if (str.trim() === '') { onChange(def); setRaw(String(def)); return }
+    if (str.trim() === '') { onChange(def); setRaw(blankForSentinel(def)); return }
     const n = parseFloat(str)
-    if (isNaN(n)) { setRaw(String(value)); return }
+    if (isNaN(n)) { setRaw(blankForSentinel(value)); return }
     const clamped = max !== null ? Math.min(Math.max(n, min), max) : Math.max(n, min)
     onChange(clamped)
-    setRaw(String(clamped))
+    setRaw(blankForSentinel(clamped))
   }
 
   // The max isn't shown inline (that "/ N" read clunky) — the input just clamps to it, and the cap is surfaced
@@ -457,6 +465,8 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
   const maxHint = max !== null ? `Max ${max}${cond.unit ? ` ${cond.unit}` : ''}` : ''
   const minHint = min > 0 ? `Min ${min}${cond.unit ? ` ${cond.unit}` : ''}` : ''
   const rowTitle = [minHint, maxHint].filter(Boolean).join(' · ') || undefined
+  // Sentinel field at 0/blank: show the resolved effective count so it's never a bare confusing 0.
+  const showSentinelHint = zeroMeansMax && raw.trim() === '' && max != null
 
   return (
     <div className="cond-stack-row" title={rowTitle}>
@@ -468,10 +478,16 @@ function NumericConditionRow({ cond, value, max, clamp, onChange, defaultOverrid
           value={raw}
           min={min}
           max={max ?? undefined}
+          placeholder={zeroMeansMax && max != null ? String(max) : undefined}
           onChange={e => setRaw(e.target.value)}
           onBlur={e => commit(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value) }}
         />
+        {showSentinelHint && (
+          <span style={{ fontSize: 10, color: '#555577', marginLeft: 4 }} title="0 or blank uses the full attachable count">
+            all {max} attached
+          </span>
+        )}
         {cond.unit && <span style={{ fontSize: 10, color: '#555577', marginLeft: 2 }}>{cond.unit}</span>}
       </div>
       {clamp && (

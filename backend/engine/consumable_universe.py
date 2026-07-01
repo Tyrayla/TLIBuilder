@@ -202,6 +202,11 @@ def consumable_universe() -> frozenset[str]:
                  "has_dormant_entanglement_flag",
                  # display-only tangle mechanic reads (duration/attach range) in calculate_offense's tangle mode
                  "tangle_duration_inc", "tangle_duration_additional", "tangle_attach_range_inc"}
+    # Magister "gain <Blessing> when generating Tangle / activating Spell Burst" full-uptime flags → read in the
+    # compute loop to pin the blessing to max. (es_charge_on_generate_flag is intentionally NOT whitelisted — it's
+    # recognized-but-unmodeled, so it badges Unconsumed until an ES-recharge model exists.)
+    consumed |= {"focus_blessing_full_uptime_flag", "agility_blessing_full_uptime_flag",
+                 "tenacity_blessing_full_uptime_flag"}
     # Spell Burst mode (offense.calculate_offense / compute._offense_for_slot) reads these outside the synthetic
     # passes: Max Spell Burst (count), the charge-speed pools, and Surging's stacks-per-cast. The burst hit-damage
     # additional pool is already covered — the synthetic skill carries the "spell_burst" tag in _ALL_TAGS.

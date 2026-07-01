@@ -560,6 +560,18 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if re.search(r'\bhas\s+dormant\s+entanglement\b', t, re.I):
         return [{"stat_key": "has_dormant_entanglement_flag", "amount": 1.0, "text": t}]
 
+    # Magister "Gains N stack(s) of <Blessing> when activating Spell Burst or generating Tangle" → full-uptime
+    # flag the compute loop reads to pin that blessing to its max while the build generates tangles/bursts.
+    m = re.search(r'gains?\s+\d+\s+stack(?:s|\(s\))?\s+of\s+(focus|agility|tenacity)\s+blessing\b.*'
+                  r'(?:generating\s+tangle|activating\s+spell\s+burst|spell\s+burst\s+or\s+generating)', t, re.I)
+    if m:
+        return [{"stat_key": f"{m.group(1).lower()}_blessing_full_uptime_flag", "amount": 1.0, "text": t}]
+
+    # Magister "When activating Spell Burst or generating Tangle, immediately starts Charging Energy Shield" →
+    # recognized but NYI (no ES-recharge timing model yet). Emit a flag so it surfaces instead of silently dropping.
+    if re.search(r'(?:generating\s+tangle|activating\s+spell\s+burst).*immediately\s+starts?\s+charging\s+energy\s+shield', t, re.I):
+        return [{"stat_key": "es_charge_on_generate_flag", "amount": 1.0, "text": t}]
+
     # "N% chance … to inflict M additional stack(s) of Wilt" → distinct stat from plain Wilt chance (chance for
     # an EXTRA stack, a separate mechanic — owner-confirmed). Must precede any generic Wilt-chance match.
     m = re.search(r'([\d.]+)\s*%\s*chance\b.*?\binflict\s+\d+\s+additional\s+stacks?\s+of\s+wilt', t, re.I)

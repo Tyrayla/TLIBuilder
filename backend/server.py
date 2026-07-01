@@ -2211,6 +2211,13 @@ _COND_PATTERNS: list[tuple] = [
     (re.compile(r"for\s+each\s+unique\s+type\s+of\s+weapon", re.I), {"key": "unique_weapon_types", "op": "per", "divisor": 1}),
     (re.compile(r"for\s+each\s+time\s+you\s+have\s+regained", re.I), {"key": "regain_stacks", "op": "per", "divisor": 1}),
     (re.compile(r"for\s+each\s+type\s+of\s+(?:elemental\s+)?ailment", re.I), {"key": "ailment_type_count", "op": "per", "divisor": 1}),
+    # Per-Tangle scaling: "+X … for each activated Tangle" / "… per inactivated (dormant) Tangle" → ×the derived
+    # effective count (compute injects active_tangle_count / inactivated_tangle_count each pass). The inactivated /
+    # dormant form MUST precede the generic "tangle" form so it isn't shadowed.
+    (re.compile(r"(?:per|for\s+each|for\s+every)\s+(?:inactivated|dormant)\s+tangle", re.I),
+     {"key": "inactivated_tangle_count", "op": "per", "divisor": 1}),
+    (re.compile(r"(?:per|for\s+each|for\s+every)\s+(?:activated\s+)?tangle", re.I),
+     {"key": "active_tangle_count", "op": "per", "divisor": 1}),
     # "against enemies with Max Affliction" → existing enemy_has_max_affliction condition.
     (re.compile(r"with\s+max\s+affliction|enem(?:y|ies)\s+(?:with|has|have)\s+max\s+affliction", re.I), "enemy_has_max_affliction"),
     (re.compile(r"not\s+wielding\s+a\s+wand\s+or\s+tin\s+staff", re.I), {"not": "wielding_wand_or_tin_staff"}),
