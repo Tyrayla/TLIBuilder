@@ -156,7 +156,7 @@ def restoration_excess(source: BuildSource, restoration_inputs: list | None, con
 def calculate_recovery(source: BuildSource, *, condition_state: dict | None = None,
                        restoration_inputs: list | None = None, reservation: dict | None = None,
                        defense: dict | None = None, uptime_mode=None, consumption: dict | None = None,
-                       rates: dict | None = None) -> RecoveryResult:
+                       rates: dict | None = None, burst_rate: float = 0.0) -> RecoveryResult:
     from engine.uptime import is_real
     ignore_recast = not is_real(uptime_mode)   # Full Uptime (max) ignores recast cadence; Effective (real) honors it
     cs = condition_state or {}
@@ -265,10 +265,30 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
     cr_life = float(cons.get("consumed_recently_life", 0.0) or 0.0)
     cr_mana = float(cons.get("consumed_recently_mana", 0.0) or 0.0)
     cr_es = float(cons.get("consumed_recently_energy_shield", 0.0) or 0.0)
-    net_life = life_ps + life_regain_ps + life_regen_ps - cons_life - sc_life
-    net_mana = mana_ps + mana_regen_ps - cons_mana - sc_mana
+    # Burst-activation sustain (Surging Inspiration / Solid River kismet gear): these fire ONCE per burst TRIGGER (a
+    # whole burst sequence), so per-second = per-burst × the burst-trigger rate (bursts/sec). Folded straight into Net
+    # (no separate panel) with descriptive sources so the effect is visible. Mana lost = % of CURRENT mana; Life/ES
+    # restored = % of LOST (missing) pool.
+    _br = float(burst_rate or 0.0)
+    _cur_mana_now = mana_pct / 100.0 * max_mana
+    burst_mana_lost_ps = source.total("mana_lost_pct_current_per_burst") * _cur_mana_now * _br
+    burst_life_restore_ps = source.total("life_restored_pct_lost_per_burst") * missing_life * _br
+    burst_es_restore_ps = source.total("energy_shield_restored_pct_lost_per_burst") * missing_es * _br
+    burst_src = []
+    if burst_mana_lost_ps:
+        burst_src.append({"pool": "mana", "source": "Spell Burst activation cost", "total": 0.0,
+                          "duration": 0.0, "per_sec": -burst_mana_lost_ps})
+    if burst_life_restore_ps:
+        burst_src.append({"pool": "life", "source": "Spell Burst activation restore", "total": 0.0,
+                          "duration": 0.0, "per_sec": burst_life_restore_ps})
+    if burst_es_restore_ps:
+        burst_src.append({"pool": "energy_shield", "source": "Spell Burst activation restore", "total": 0.0,
+                          "duration": 0.0, "per_sec": burst_es_restore_ps})
+
+    net_life = life_ps + life_regain_ps + life_regen_ps - cons_life - sc_life + burst_life_restore_ps
+    net_mana = mana_ps + mana_regen_ps - cons_mana - sc_mana - burst_mana_lost_ps
     # ES recovery = restoration (Pixie excess→ES + Rebirth-converted) + missing-based Shield Regain. No ES regen modeled.
-    net_es = es_restore_ps + shield_regain_ps - cons_es
+    net_es = es_restore_ps + shield_regain_ps - cons_es + burst_es_restore_ps
 
     # Sustainability verdict: net ≥ 0 → sustainable; else time-to-empty from the current pool. (Once C/F solve the
     # steady-state pool %, net AT that % is the honest verdict; a clamp-to-0 equilibrium = unsustainable.)
@@ -306,7 +326,7 @@ def calculate_recovery(source: BuildSource, *, condition_state: dict | None = No
         restoration_life_total=life_total, restoration_mana_total=mana_total,
         restoration_es_per_sec=es_restore_ps, restoration_es_total=es_restore_total,
         excess_life_restoration=life_excess, excess_mana_restoration=mana_excess,
-        restoration_sources=life_src + mana_src,
+        restoration_sources=life_src + mana_src + burst_src,
         life_regain_per_sec=life_regain_ps, shield_regain_per_sec=shield_regain_ps,
         life_regen_per_sec=life_regen_ps, mana_regen_per_sec=mana_regen_ps,
         base_mana_regen_per_sec=base_mana_regen,

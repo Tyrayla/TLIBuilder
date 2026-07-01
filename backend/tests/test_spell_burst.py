@@ -399,4 +399,114 @@ class TestSquidnova:
         none = _offense(max_burst=3)
         sq = _offense_spirit(self._R6, max_burst=3)
         assert sq["spell_burst_count"] == 4               # +1 Max Spell Burst from Squidnova (auto-enabled)
-        assert _hit(sq) == pytest.approx(1.08 * _hit(none), rel=1e-3)   # +8% additional Spell Damage
+        # Squidnova buff base = +16% additional Spell Burst Hit Damage, scaled by +50% Squidnova Effect → +24%;
+        # PLUS the SEPARATE +8% additional Spell Damage (Effect does NOT scale it). Both multiply.
+        assert _hit(sq) == pytest.approx((1 + 0.16 * 1.5) * 1.08 * _hit(none), rel=1e-3)
+
+
+# ── Loose ends: Squidnova base buff scaling, skill-area-per-burst, sustain, Destiny kismets ──────────
+def _full(max_burst=0, conds=None, extra_gear=None, spirit=None, skill=_SPELL, level=20):
+    gear = DUAL_WEAPONS
+    stats = dict(extra_gear or {})
+    if max_burst:
+        stats["max_spell_burst_flat"] = max_burst
+    if stats:
+        gear = _gear_with(**stats)
+    req = make_request(skill, level, gear=gear, extra_conditions=conds)
+    if spirit:
+        req["spirit_effects"] = spirit
+    r = engine_stats(EngineStatsRequest(**req))
+    return r.model_dump() if hasattr(r, "model_dump") else r
+
+
+class TestSquidnovaBaseBuff:
+    _GRANT = "Activating Spell Burst with at least 6 stack(s) of Max Spell Burst grants 1 stack of Squidnova"
+
+    def test_base_buff_is_16pct_burst_hit_damage(self):
+        none = _offense(max_burst=6)
+        sq = _offense_spirit([self._GRANT], max_burst=6)          # grant only → +16% base buff, 0 Effect
+        assert _hit(sq) == pytest.approx(1.16 * _hit(none), rel=1e-3)
+
+    def test_effect_scales_base_buff(self):
+        none = _offense(max_burst=6)
+        sq = _offense_spirit([self._GRANT, "+50 % Squidnova Effect"], max_burst=6)   # +16% × 1.5 = +24%
+        assert _hit(sq) == pytest.approx((1 + 0.16 * 1.5) * _hit(none), rel=1e-3)
+
+    def test_effect_does_not_scale_spell_damage_line(self):
+        # +8% additional Spell Damage is unaffected by Effect (Effect scales ONLY the +16% burst buff): the ratio of
+        # (with Effect) to (without) is purely the burst-buff move 1.24/1.16 — the ×1.08 spell-damage factor cancels.
+        base = _offense_spirit([self._GRANT, "+8 % additional Spell Damage when having Squidnova"], max_burst=6)
+        eff = _offense_spirit([self._GRANT, "+50 % Squidnova Effect",
+                               "+8 % additional Spell Damage when having Squidnova"], max_burst=6)
+        assert _hit(eff) / _hit(base) == pytest.approx(1.24 / 1.16, rel=1e-3)
+
+
+class TestSkillAreaPerBurst:
+    def test_area_folds_into_display_not_dps(self):
+        # chromatic_shot is a Spell + Area skill that bursts → it has a skill_area_inc display.
+        base = _full(max_burst=6, skill="chromatic_shot")
+        area = _full(max_burst=6, skill="chromatic_shot", extra_gear={"spell_burst_area_additional_per": 0.10})
+        bo, ao = base["offense"], area["offense"]
+        assert bo["spell_burst_count"] == 6                                        # confirm it's bursting
+        assert ao["skill_area_inc"] == pytest.approx(bo["skill_area_inc"] + 6 * 0.10, rel=1e-3)   # +M×per (display)
+        assert ao["total_dps_vs_target"] == pytest.approx(bo["total_dps_vs_target"], rel=1e-3)     # DPS untouched
+
+
+class TestBurstSustain:
+    def test_mana_lost_lowers_net_mana(self):
+        base = _full(max_burst=6)
+        drain = _full(max_burst=6, extra_gear={"mana_lost_pct_current_per_burst": 0.50})
+        assert drain["recovery"]["net_mana_per_sec"] < base["recovery"]["net_mana_per_sec"] - 1e-6
+
+    def test_life_restore_raises_net_life_at_sub_full(self):
+        base = _full(max_burst=6, conds={"current_life_pct": 50})
+        rest = _full(max_burst=6, conds={"current_life_pct": 50},
+                     extra_gear={"life_restored_pct_lost_per_burst": 0.10})
+        assert rest["recovery"]["net_life_per_sec"] > base["recovery"]["net_life_per_sec"] + 1e-6
+
+    def test_no_burst_no_sustain(self):
+        # No Max Spell Burst → not bursting → burst rate 0 → the drain is inert (keys off the burst TRIGGER).
+        base = _full()
+        drain = _full(extra_gear={"mana_lost_pct_current_per_burst": 0.50})
+        assert drain["recovery"]["net_mana_per_sec"] == pytest.approx(base["recovery"]["net_mana_per_sec"], rel=1e-3)
+
+
+class TestDestinyKismets:
+    def test_upper_limit_line_raises_max_burst(self):
+        base = _offense(max_burst=3)
+        up = _offense_spirit(["+2 to Spell Burst Upper Limit"], max_burst=3)   # Upper Limit == Max Spell Burst cap
+        assert base["spell_burst_count"] == 3 and up["spell_burst_count"] == 5
+
+    def test_halve_upper_limit_floors(self):
+        base = _offense(max_burst=6)
+        halved = _offense(max_burst=6, extra_gear={"max_spell_burst_halve_flag": 1})
+        assert base["spell_burst_count"] == 6 and halved["spell_burst_count"] == 3   # floor(6/2)
+
+    def test_flash_flood_runon_splits_and_feeds_back(self):
+        ff = ("Halves Spell Burst Upper Limit +8% additional Attack and Cast Speed for every "
+              "Spell Burst triggered recently, up to 40%")
+        d = _full(max_burst=6, spirit=[ff])
+        assert d["offense"]["spell_burst_count"] == 3           # halved (6 → 3) — the run-on's first clause resolved
+        # the AS/CS-per-burst-recently clause derives a stack count from the burst rate (feedback), surfaced as auto
+        auto = d.get("auto_conditions") or {}
+        assert auto.get("spell_burst_stacks_recently", {}).get("value", 0) > 0
+
+
+class TestLooseEndsParser:
+    def test_new_matchers(self):
+        m = lambda t: {r["stat_key"]: round(r["amount"], 4) for r in (mp._parse_custom_mod_text(t) or [])}
+        assert m("Loses 50 % current Mana when Spell Burst is activated") == {"mana_lost_pct_current_per_burst": 0.5}
+        assert m("Restores 10 % of Lost Life and Energy Shield when activating Spell Burst") == {
+            "life_restored_pct_lost_per_burst": 0.1, "energy_shield_restored_pct_lost_per_burst": 0.1}
+        assert m("+2 to Spell Burst Upper Limit") == {"max_spell_burst_flat": 2.0}
+        assert m("Halves Spell Burst Upper Limit") == {"max_spell_burst_halve_flag": 1.0}
+
+    def test_runon_split_drops_nothing_mappable(self):
+        from server import _resolve_effect_modifiers as R
+        # Mouth of the Spring: charge speed resolves; the "-5% damage taken" clause is recognized-NYI (no key).
+        mos = R("+13.5 % Spell Burst Charge Speed -5 % additional damage taken when Spell Burst Charge is activated",
+                is_memory=False)
+        assert [d["stat_key"] for d in mos] == ["spell_burst_charge_speed_inc"]
+        # normal dual-stat line is untouched by the run-on pre-split.
+        both = R("+10 % Fire Damage +5 % Cold Damage", is_memory=False)
+        assert {d["stat_key"] for d in both} == {"fire_dmg_inc", "cold_dmg_inc"}

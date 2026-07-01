@@ -3178,6 +3178,34 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=25,
         source_types=_T,
     ),
+    # Skill Area for skills cast by Spell Burst — DISPLAY-only (no tags/affects/pipeline → never enters a damage pool;
+    # hand-folded into the displayed skill_area_inc in burst mode). _PER is the per-burst-stack (×M) variant (Ripple).
+    Stat.SPELL_BURST_AREA_ADDITIONAL: StatMeta(
+        "Spell Burst Skill Area", "Spell", "additional", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    Stat.SPELL_BURST_AREA_ADDITIONAL_PER: StatMeta(
+        "Spell Burst Skill Area (per burst)", "Spell", "additional", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    # Burst-activation sustain (per burst trigger; folded into net recovery at the burst rate).
+    Stat.MANA_LOST_PCT_CURRENT_PER_BURST: StatMeta(
+        "Mana Lost on Spell Burst (% Current)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_RESTORED_PCT_LOST_PER_BURST: StatMeta(
+        "Life Restored on Spell Burst (% Lost)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.ENERGY_SHIELD_RESTORED_PCT_LOST_PER_BURST: StatMeta(
+        "Energy Shield Restored on Spell Burst (% Lost)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive", ui_priority=70, source_types=_T),
+    # Destiny kismet Flash Flood: halve Max Spell Burst.
+    Stat.MAX_SPELL_BURST_HALVE_FLAG: StatMeta(
+        "Halves Max Spell Burst (source)", "Spell", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
 
     # ── Minion (new) ──────────────────────────────────────────────────────────
     Stat.MINION_ELEMENTAL_DMG_INC: StatMeta(

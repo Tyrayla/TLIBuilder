@@ -745,6 +745,35 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": "has_squidnova_flag", "amount": 1.0, "text": t}]
 
+    # ── Burst-activation sustain (fire once per burst trigger; folded into net recovery at the burst rate) ──
+    # "Loses N% current Mana when Spell Burst is activated" (Surging Inspiration).
+    m = re.search(r'loses\s+([\d.]+)\s*%\s*current\s+mana\s+when\s+spell\s+burst\s+is\s+activated', t, re.I)
+    if m:
+        return [{"stat_key": "mana_lost_pct_current_per_burst", "amount": float(m.group(1)) / 100.0, "text": t}]
+    # "Restores N% of Lost Life and Energy Shield when activating Spell Burst" (Solid River) → both pools.
+    m = re.search(r'restores\s+([\d.]+)\s*%\s*of\s+lost\s+life\s+and\s+energy\s+shield\s+when\s+activating\s+spell\s+burst', t, re.I)
+    if m:
+        v = float(m.group(1)) / 100.0
+        return [{"stat_key": "life_restored_pct_lost_per_burst", "amount": v, "text": t},
+                {"stat_key": "energy_shield_restored_pct_lost_per_burst", "amount": v, "text": t}]
+
+    # ── Destiny kismet Spell Burst lines ──────────────────────────────────────────────────────────────────
+    # "+N to Spell Burst Upper Limit" (Perched River) — Upper Limit == the Max Spell Burst cap.
+    m = re.search(r'\+?\s*([\d.]+)\s+to\s+spell\s+burst\s+upper\s+limit', t, re.I)
+    if m:
+        return [{"stat_key": "max_spell_burst_flat", "amount": float(m.group(1)), "text": t}]
+    # "Halves Spell Burst Upper Limit" (Flash Flood) → flag; compute halves M (floor).
+    if re.search(r'halves\s+spell\s+burst\s+upper\s+limit', t, re.I):
+        return [{"stat_key": "max_spell_burst_halve_flag", "amount": 1.0, "text": t}]
+    # (Flash Flood's "+X% additional Attack and Cast Speed for every Spell Burst triggered recently, up to Y%" resolves
+    # via the generic Attack-and-Cast-Speed matcher above + the "for every Spell Burst triggered recently" per-scaling
+    # condition (server._COND_PATTERNS → spell_burst_stacks_recently), so no dedicated matcher is needed here.)
+    # "+X% Skill Area for each time Spell Burst is activated" (Kismet Ripple) — DISPLAY-only per-burst area (×M in
+    # offense). The lead "When activating Spell Burst," is peeled as the gate (translated in server _COND_PATTERNS).
+    m = re.search(r'([\d.]+)\s*%\s*skill\s+area\s+for\s+each\s+time\s+spell\s+burst\s+is\s+activated', t, re.I)
+    if m:
+        return [{"stat_key": "spell_burst_area_additional_per", "amount": float(m.group(1)) / 100.0, "text": t}]
+
     # Gale: "N% of the Projectile Speed bonus is also applied to the additional bonus for Projectile Damage"
     # — coefficient on increased projectile speed → additional projectile damage (own factor; aggregator).
     m = re.match(r'([\d.]+)\s*%\s*of\s+the\s+projectile\s+speed\s+bonus\s+is\s+also\s+applied\s+to\s+the\s+additional\s+bonus\s+for\s+projectile\s+damage', t, re.I)

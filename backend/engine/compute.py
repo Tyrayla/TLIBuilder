@@ -44,6 +44,11 @@ _SPELL_BURST_BONUS_SUPPORTS = {
     "fire_burst_heart_of_flame_magnificent": {"mode": "per_stack",      "pct": 0.105, "cap": 6},
     "fire_burst_prairie_fire_noble":         {"mode": "per_activation", "pct": 0.18,  "cap": 6},
 }
+# Per-support ramped Skill AREA bonuses for skills cast by Spell Burst (Prairie Fire's "+20% Skill Area … stacks up to
+# 10"). DISPLAY-only (Skill Area isn't a DPS lever) — scales by min(M, cap), folded into the shown skill_area_inc.
+_SPELL_BURST_AREA_SUPPORTS = {
+    "fire_burst_prairie_fire_noble": {"per": 0.20, "cap": 10},
+}
 
 
 # "Gain on hit" automax flag → the numeric condition pinned to its derived max (full-uptime approximation).
@@ -435,6 +440,7 @@ def compute(
     curse_conflict: dict | None = None
     reservation: dict | None = None
     _prev_consumed_recently_life = 0.0   # carries consumed-recently across passes for the AS-per-consumed feedback
+    _prev_burst_rate = 0.0               # carries the burst-trigger rate across passes for the Flash Flood AS/CS feedback
     _converged_iters = _MAX_ITERS
     for iteration in range(_MAX_ITERS):
         # Loop-top: the trait module recomputes its contributions + Numbed override from the prior pass's
@@ -502,6 +508,18 @@ def compute(
                 source.add_with_source("attack_speed_inc", _as_amt, SourceEntry(
                     stat="attack_speed_inc", amount=_as_amt, source_type="gear", label="Attack Speed per Life Consumed",
                     text="Attack Speed per Life consumed recently", points=1, source_name="Life Consumed"))
+
+        # Flash Flood kismet: "+X% additional Attack & Cast Speed for every Spell Burst triggered recently (4s), up to
+        # cap" — resolved as a per-scaling of the generic Attack/Cast Speed additional on the DERIVED
+        # spell_burst_stacks_recently count. That count is a feedback loop (AS/CS → aps/charge → burst rate → count),
+        # so inject it here from the PRIOR pass's damped burst rate; being an integer condition it enters the snapshot
+        # so the loop waits for it to settle (see docs/ENGINE_FEEDBACK_LOOPS.md). The aggregator scales + caps the
+        # bonus. Gated on the affix referencing the count → no cost / no convergence change for other builds.
+        if "spell_burst_stacks_recently" in source.referenced_conditions:
+            _ff_stacks = max(0, int(_prev_burst_rate * 4.0))   # bursts recently = rate × 4s (floored)
+            condition_state["spell_burst_stacks_recently"] = float(_ff_stacks)
+            auto_sources["spell_burst_stacks_recently"] = "Spell Bursts triggered recently (derived)"
+            auto_values["spell_burst_stacks_recently"] = float(_ff_stacks)
 
         # Aura / Focus buffs: scale by the now-fully-aggregated Aura Effect (gear + talents + custom +
         # standard supports + the auras' own) and fold into the source BEFORE derive (so life-regen/resist
@@ -727,6 +745,20 @@ def compute(
         # gated "when having Squidnova" lines (+Spell Damage, rank-6 +1 Max Spell Burst) then apply.
         if source.total("has_squidnova_flag") > 0:
             condition_state["has_squidnova"] = True
+        # Squidnova BUFF base effect (master glossary): "+16% additional Hit Damage for skills cast by Spell Burst".
+        # The "grants Squidnova" line only sets the flag, so the buff itself is modeled here — scaled by Squidnova
+        # Effect (squidnova_effect_inc), the ONLY thing Squidnova Effect scales (NOT the separate "+% Spell Damage
+        # when having Squidnova" rank line). One pooled additional factor into spell_burst_hit_dmg_additional (offense
+        # applies it in burst mode via the spell_burst tag). source is rebuilt each pass → non-cumulative.
+        if condition_state.get("has_squidnova"):
+            _sq_eff = source.total("squidnova_effect_inc")
+            _sq_amt = 0.16 * (1.0 + _sq_eff)
+            source.add_with_source("spell_burst_hit_dmg_additional", _sq_amt, SourceEntry(
+                stat="spell_burst_hit_dmg_additional", amount=_sq_amt, source_type="pact_spirit",
+                label="Squidnova", points=1,
+                text=f"+16% additional Spell Burst Hit Damage × (1 + {_sq_eff:.0%} Squidnova Effect)",
+                source_name="Squidnova"))
+            source.consumed_stats.add("squidnova_effect_inc")   # now has a real reader → badges Consumed
 
         # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
         # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values. Non-support
@@ -791,6 +823,19 @@ def compute(
             auto_values.pop("frostbite_rating", None)
         if "enemy_frozen" not in manual_cond_keys:
             condition_state["enemy_frozen"] = condition_state["frostbite_rating"] > 100.0
+
+        # Update the burst-trigger rate for the NEXT pass's Flash Flood AS/CS feedback (damped 0.5 for convergence —
+        # see docs/ENGINE_FEEDBACK_LOOPS.md). Only when the affix references the count, so normal builds are untouched.
+        if "spell_burst_stacks_recently" in source.referenced_conditions:
+            _bm = int(source.total("max_spell_burst_flat"))
+            if source.total("max_spell_burst_halve_flag") > 0:
+                _bm //= 2
+            _cur_burst_rate = 0.0
+            if _bm >= 1 and main_cat == "spell" and condition_state.get("spell_burst_active", True) and skill_data:
+                from engine.offense import compute_skill_rates as _csr, compute_spell_burst_rate as _csbr
+                _bm_aps = _csr(source, _resolve_skill_for_trait(skill_data)).get("aps", 0.0)
+                _cur_burst_rate = _csbr(source, _bm_aps, _bm, bool(condition_state.get("spell_burst_auto_trigger")))
+            _prev_burst_rate = 0.5 * _cur_burst_rate + 0.5 * _prev_burst_rate
 
         new_state = _clamp_and_rederive(condition_state, maxes, mins)
         snapshot = _state_snapshot(new_state)
@@ -927,10 +972,20 @@ def compute(
         source, condition_state=condition_state, defense=result_defense, rates=_cons_rates_final,
         reservation=reservation, skill_cost_mana_per_sec=_cost_mana_ps, skill_cost_life_per_sec=_cost_life_ps,
         skill_cost_flags=result_skill_cost["flags"]))
+    # Burst-activation sustain (mana lost / life+ES restored per burst trigger) folds into Net recovery at the burst
+    # rate (bursts/sec). Compute the main skill's burst rate here (post-loop, converged source) for that fold.
+    from engine.offense import compute_spell_burst_rate
+    _burst_M = int(source.total("max_spell_burst_flat"))
+    if source.total("max_spell_burst_halve_flag") > 0:
+        _burst_M //= 2
+    _burst_rate_final = (compute_spell_burst_rate(
+        source, _cons_use_rate, _burst_M, bool(condition_state.get("spell_burst_auto_trigger")))
+        if (_cons_active is not None and _cons_active.is_spell and _burst_M >= 1
+            and condition_state.get("spell_burst_active", True)) else 0.0)
     result_recovery = asdict(calculate_recovery(
         source, condition_state=condition_state, restoration_inputs=_restoration_inputs,
         reservation=reservation, defense=result_defense, uptime_mode=build_input.uptime_mode,
-        consumption=result_consumption, rates=_cons_rates_final))
+        consumption=result_consumption, rates=_cons_rates_final, burst_rate=_burst_rate_final))
     # Expose the rolling "consumed recently" totals on source so the per-N-consumed offense folds read them.
     for _crk in ("life", "mana", "energy_shield"):
         source.add(f"consumed_recently_{_crk}", float(result_consumption.get(f"consumed_recently_{_crk}", 0.0) or 0.0))
@@ -975,6 +1030,9 @@ def compute(
         spell_burst = None
         if tangle is None:
             M = int(eff.total("max_spell_burst_flat"))
+            # Flash Flood kismet: "Halves Spell Burst Upper Limit" → halve Max Spell Burst (floor).
+            if eff.total("max_spell_burst_halve_flag") > 0:
+                M = M // 2
             slot_supports = [s for s in (build_input.attached_supports or [])
                              if s.get("slot", 1) == slot and s.get("enabled", True)]
             slot_support_ids = {s.get("item_id") for s in slot_supports}
@@ -1002,6 +1060,14 @@ def compute(
                     n = min(M, spec["cap"]) if spec["mode"] == "per_stack" else spec["cap"]
                     if n > 0:
                         eff.add("spell_burst_hit_dmg_additional", spec["pct"] * n)
+                # Ramped per-support Skill AREA bonuses (Prairie Fire) — DISPLAY only; scales by min(M, cap). Folded
+                # into spell_burst_area_additional here; offense adds it to the displayed skill_area_inc in burst mode.
+                for sid in slot_support_ids:
+                    spec = _SPELL_BURST_AREA_SUPPORTS.get(sid)
+                    if spec:
+                        n = min(M, spec["cap"])
+                        if n > 0:
+                            eff.add("spell_burst_area_additional", spec["per"] * n)
                 spell_burst = {"count": M, "auto": auto, "auto_source": auto_source}
         return asdict(calculate_offense(
             eff, resolved, level, is_main_skill=is_main, extra_additional=extra,

@@ -311,9 +311,32 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
      it). Confirm the exact threshold. Also its **charge→burst-damage**: "+Y% per +X% charge speed, up to +Z%" steps at
      each +X% and caps at Z. And its Vorax'd copy (same line on another item) behaves identically.
   3. **Insatiable Greed** (currently via custom mod): 150% of Attack Speed bonuses shorten the Spell Burst charge.
-  4. **Squiddle/Squidnova**: equipping Squiddle auto-grants the buff → +Spell Damage and (rank 6) +1 Max Spell Burst;
-     confirm whether **Squidnova Effect** (+25/50%) scales the Spell Damage bonus (currently parsed but not scaled).
+  4. **Squiddle/Squidnova**: now modeled (base +16% burst hit damage buff + Effect scaling) — moved to SPELLBURST-03.
 - RESULT: Recount Avg DPS (span) before/after each; the mod + roll; charge & cast speed; Max Spell Burst; Screenshot.
+
+---
+
+### SPELLBURST-03 — Spell Burst loose ends (Squidnova buff, skill area, sustain, Destiny kismets)
+- Status: ⬜ Unverified. Newly modeled this pass; each item below carries an approximation to confirm in-game.
+  1. **Squidnova base buff**: the buff itself = **+16% additional Hit Damage for skills cast by Spell Burst** (glossary),
+     now modeled (was unmodeled — only the flag + the rank +Spell Damage line existed). **Squidnova Effect (+25/50%)
+     scales ONLY this +16%** (→ +20%/+24%); confirm it does NOT also scale the separate "+% Spell Damage when having
+     Squidnova" rank line (engine assumes it does not). Confirm the +1 Max Spell Burst (rank 6) is a flat +1 (unscaled).
+  2. **Skill-Area-per-Burst** (Prairie Fire "+20% Skill Area … up to 10", Kismet Ripple "+X% per activation"): modeled
+     as DISPLAY-only Skill Area (scales by Max Spell Burst M, capped) — it does NOT change DPS in the engine. Confirm
+     Skill Area isn't expected to move single-target DPS (if it does via more shotgun overlap, that's a separate model).
+  3. **Burst-activation sustain**: "Loses 50% current Mana on Spell Burst" (Surging Inspiration) / "Restores 10% Lost
+     Life+ES on Spell Burst" (Solid River) — modeled as **per burst TRIGGER × the burst rate** (once per sequence, NOT
+     per burst cast), folded into Net Mana/Life Recovery. Confirm it keys off the trigger and the magnitude tracks the
+     burst rate. (Known limitation: the mana drain doesn't yet feed the in-loop steady-state Mana% solve — Net shows it
+     at the current Mana%.)
+  4. **Destiny "Spell Burst Upper Limit"**: "+N to Upper Limit" → +N Max Spell Burst; "Halves Upper Limit" → floor(M/2).
+     Confirm Upper Limit == Max Spell Burst and the halving floors.
+  5. **Flash Flood "+8% AS/CS per Spell Burst triggered recently, up to 40%"**: modeled from the burst rate
+     (bursts recently = rate × 4s, floored, capped at 5 stacks → +40%), converged as a feedback loop. Confirm the "4s
+     recently" window and that it caps at +40%. Recognized-but-NYI on these kismets: "-5% additional damage taken on
+     Spell Burst Charge" (no EHP model) and "Critical Strikes have the Unlucky effect" (no unlucky-crit model).
+- RESULT (per sub-item): Recount Avg DPS / Net Recovery before-after; the mod + roll; Max Spell Burst; burst rate; Screenshot.
 
 ---
 

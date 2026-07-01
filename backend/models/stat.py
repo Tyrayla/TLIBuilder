@@ -82,6 +82,19 @@ class Stat(Enum):
     # Squiddle / Squidnova (pact spirit): bursting grants Squidnova → conditional buff; Effect scales it.
     SQUIDNOVA_EFFECT_INC = "squidnova_effect_inc"
     HAS_SQUIDNOVA_FLAG = "has_squidnova_flag"
+    # Skill Area for skills cast by Spell Burst (Prairie Fire / Kismet Ripple) — DISPLAY-only (Skill Area isn't a DPS
+    # lever). Scales by Max Spell Burst M: the support pool is pre-scaled ×min(M,cap) in compute; the _PER pool is
+    # per-burst-stack, scaled ×M in offense. Folded into the displayed skill_area_inc in burst mode.
+    SPELL_BURST_AREA_ADDITIONAL = "spell_burst_area_additional"
+    SPELL_BURST_AREA_ADDITIONAL_PER = "spell_burst_area_additional_per"
+    # Burst-activation sustain (fire ONCE per burst trigger, folded into net recovery at the burst rate).
+    MANA_LOST_PCT_CURRENT_PER_BURST = "mana_lost_pct_current_per_burst"          # Surging Inspiration
+    LIFE_RESTORED_PCT_LOST_PER_BURST = "life_restored_pct_lost_per_burst"        # Solid River
+    ENERGY_SHIELD_RESTORED_PCT_LOST_PER_BURST = "energy_shield_restored_pct_lost_per_burst"
+    # Destiny kismet Flash Flood: "Halves Spell Burst Upper Limit" → halve M. (Its "+X% AS/CS per Spell Burst
+    # triggered recently, up to Y%" resolves as a per-scaling of the generic Attack/Cast Speed additional on the
+    # derived spell_burst_stacks_recently condition — no dedicated stat.)
+    MAX_SPELL_BURST_HALVE_FLAG = "max_spell_burst_halve_flag"
 
     # ── Melee ────────────────────────────────────────────────────────────────
     MELEE_DMG_INC = "melee_dmg_inc"

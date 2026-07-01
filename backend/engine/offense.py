@@ -321,6 +321,38 @@ def additional_total_product(source: BuildSource, key: str) -> float:
         p *= (1.0 + amt)
     return p
 
+
+def compute_spell_burst_rate(source: BuildSource, aps: float, M: int, auto: bool) -> float:
+    """Bursts-per-second (the burst TRIGGER rate — how often a burst sequence fires, NOT the M+1 casts within one).
+
+    Standalone mirror of the rate math inside calculate_offense's Spell Burst block — KEEP IN SYNC with it. Used by
+    engine.compute to key burst-activation sustain (mana lost / life restored per trigger) and the per-recent-burst
+    AS/CS feedback off the burst rate, both of which must run BEFORE offense. Returns 0.0 when the skill isn't
+    bursting (M < 1)."""
+    if M < 1:
+        return 0.0
+    charge_inc = source.total("spell_burst_charge_speed_inc")
+    charge_factor = max(1e-6, (1.0 + charge_inc) * additional_total_product(source, "spell_burst_charge_speed_additional"))
+    T = 2.0 / charge_factor
+    surging_rate = aps * source.total("spell_burst_chance_gain_stacks_flat")
+    T_eff = min(T, M / surging_rate) if (surging_rate > 0.0 and M > 0) else T
+    charge_ticks = period_ticks(T_eff)
+    if not auto:
+        if source.total("spell_burst_auto_trigger_flag") > 0:
+            auto = True
+        else:
+            _thr = source.total("spell_burst_auto_charge_threshold")
+            if _thr > 0 and (1.0 + charge_inc) >= _thr:
+                auto = True
+    if auto:
+        rate = rate_from_ticks(charge_ticks)
+    elif aps <= 0.0:
+        return 0.0
+    else:
+        ct = max(1, round(TICK_RATE / aps))
+        rate = TICK_RATE / (math.ceil(charge_ticks / ct) * ct)
+    return min(rate, float(TICK_RATE))
+
 # ── Calculation-target defense (the "dummy") ──────────────────────────────────
 # Baseline mitigation the DPS-vs-target number is computed against. Named (not magic numbers) and
 # centralized so they can be exposed as tweakable target settings later. Per the training dummy:
@@ -1422,12 +1454,17 @@ def calculate_offense(
     spell_burst_dps_vs_target = 0.0
     non_spell_burst_dps = 0.0
     non_spell_burst_dps_vs_target = 0.0
+    spell_burst_area_display = 0.0   # DISPLAY-only: Skill Area for skills cast by Spell Burst (Prairie Fire / Ripple)
     spell_burst_auto = bool(spell_burst.get("auto")) if spell_burst else False
     spell_burst_auto_source = spell_burst.get("auto_source", "") if spell_burst else ""
     if spell_burst:
         M = max(0, int(spell_burst["count"]))
         spell_burst_count = M
         spell_burst_casts_per_burst = M + 1
+        # Skill-Area-per-Burst (DISPLAY only): support pool is pre-scaled ×min(M,cap) in compute; the _per pool is
+        # per-burst-stack (×M, Kismet Ripple). Added to the shown skill_area_inc below — never touches DPS.
+        spell_burst_area_display = (source.total("spell_burst_area_additional")
+                                    + M * source.total("spell_burst_area_additional_per"))
         # Base charge time 2s, sped by Spell Burst Charge Speed: (1 + Σ inc) additive × Π(1 + add_i) per-source.
         # Play Safe feeds cast-speed bonuses into these pools (aggregator). Higher chargeFactor → shorter charge.
         charge_inc = source.total("spell_burst_charge_speed_inc")
@@ -1696,7 +1733,7 @@ def calculate_offense(
         main_stat_damage_bonus=main_stat_bonus,
         main_stats=list(skill.main_stat),
         skill_tags=skill.tags,
-        skill_area_inc=source.total("skill_area_inc") if "area" in skill_tags_lower else 0.0,
+        skill_area_inc=(source.total("skill_area_inc") + spell_burst_area_display) if "area" in skill_tags_lower else 0.0,
         cast_multiplier=cast_multiplier,
         shotgun_hits=shotgun_hits,
         # Only jump skills consume extra_jumps_flat (reading source.total marks it consumed) — guard on jumps_base

@@ -2058,6 +2058,26 @@ def _resolve_stacking_pen(text: str) -> list[dict] | None:
     }]
 
 
+# Curated boundaries for the run-on Destiny kismet Spell Burst lines (clauses concatenated with no '+' separator,
+# which the '+digit' splitter misses): a leading "-digit" clause (Mouth of the Spring's "-5% additional damage
+# taken") and bare-word clauses ("Critical Strikes have the Unlucky effect"). ONLY these known shapes — a normal
+# single/dual-stat line has no match and is returned unchanged.
+_RUNON_BOUNDARIES = (
+    re.compile(r'(?=\bCritical Strikes have the Unlucky effect\b)', re.I),
+    re.compile(r'(?= -\d)'),
+    re.compile(r'(?<=Upper Limit) (?=\+)', re.I),   # Flash Flood: "Halves … Upper Limit" | "+8% Attack and Cast Speed…"
+)
+
+
+def _presplit_runon(clause: str) -> list[str]:
+    """Split the known run-on Destiny kismet shapes so each concatenated clause resolves independently. Curated to
+    the boundaries in _RUNON_BOUNDARIES; generic lines pass through unchanged (single-element list)."""
+    parts = [clause]
+    for pat in _RUNON_BOUNDARIES:
+        parts = [s.strip() for p in parts for s in pat.split(p) if s and s.strip()]
+    return parts
+
+
 def _resolve_effect_modifiers(text: str, *, is_memory: bool) -> list[dict]:
     """Resolve a pact-spirit / hero-memory effect string into contributions [{stat_key, amount, text, scope}]
     — the SAME shape as custom_contributions. This is the unified, pool-strict replacement for the old
@@ -2084,26 +2104,31 @@ def _resolve_effect_modifiers(text: str, *, is_memory: bool) -> list[dict]:
     if stacking is not None:
         return [{**d, "text": original} for d in stacking]
     residual, scope = detect_skill_scope(original)
-    stat_clause, cond_part = _split_condition(residual)
-    cond_expr = None
-    if cond_part is not None:
-        # A gate we can't translate must NOT be applied always-on — leave the whole effect unresolved (NYI).
-        cond_expr = _translate_condition_expr(residual) or _translate_condition_expr(cond_part)
-        if cond_expr is None:
-            return []
     out: list[dict] = []
-    for part in re.split(r' (?=\+\d)', stat_clause, maxsplit=1):
-        ne = _norm_expr(part)
-        multi = _MULTI_STAT_OVERRIDES.get(ne)
-        m = _EFFECT_VALUE_RE.match(part)
-        if multi and m:
-            amount = float(m.group(1)) / 100.0 if m.group(2) else float(m.group(1))
-            for sk in multi:
-                out.append({"stat_key": sk, "amount": amount, "text": original, "scope": scope, "condition": cond_expr})
-            continue
-        # Pool-strict single resolver (scope already peeled from `part`; it re-peels harmlessly/idempotently).
-        for d in _parse_custom_mod_text(part):
-            out.append({**d, "text": original, "scope": scope, "condition": cond_expr})
+    # Pre-split the known run-on Destiny kismet shapes into independent segments FIRST, then per segment peel its own
+    # gate + apply the normal +digit dual-stat split. A generic line yields ONE segment → identical to prior behavior
+    # (its trailing gate is still shared across its +digit parts); a run-on's gate binds only to its own clause.
+    for segment in _presplit_runon(residual):
+        stat_clause, cond_part = _split_condition(segment)
+        cond_expr = None
+        if cond_part is not None:
+            # A gate we can't translate must NOT be applied always-on — skip THIS clause (unresolved/NYI), which for a
+            # normal single-segment line leaves the whole effect unresolved exactly as before.
+            cond_expr = _translate_condition_expr(segment) or _translate_condition_expr(cond_part)
+            if cond_expr is None:
+                continue
+        for part in re.split(r' (?=\+\d)', stat_clause, maxsplit=1):
+            ne = _norm_expr(part)
+            multi = _MULTI_STAT_OVERRIDES.get(ne)
+            m = _EFFECT_VALUE_RE.match(part)
+            if multi and m:
+                amount = float(m.group(1)) / 100.0 if m.group(2) else float(m.group(1))
+                for sk in multi:
+                    out.append({"stat_key": sk, "amount": amount, "text": original, "scope": scope, "condition": cond_expr})
+                continue
+            # Pool-strict single resolver (scope already peeled from `part`; it re-peels harmlessly/idempotently).
+            for d in _parse_custom_mod_text(part):
+                out.append({**d, "text": original, "scope": scope, "condition": cond_expr})
     return out
 
 
@@ -2197,6 +2222,14 @@ _COND_PATTERNS: list[tuple] = [
      lambda m: {"key": "enemies_nearby", "op": ">=", "value": int(m.group(1))}),
     # Benign cast-timing clauses that describe WHEN, not a gate — always-on (the chance/EV is the mechanic).
     (re.compile(r"when\s+casting\s+a\s+skill|when\s+you\s+cast|on\s+cast\b", re.I), {"const": True}),
+    # "for every Spell Burst triggered recently[, up to Y%]" (Flash Flood kismet) → per-scaling on the derived
+    # spell_burst_stacks_recently count (compute injects it from the burst rate: bursts recently = rate × 4s). The
+    # optional "up to Y%" becomes the contribution cap. MUST precede the generic "activating spell burst" pattern.
+    (re.compile(r"for\s+every\s+spell\s+burst\s+triggered\s+recently(?:\s*,?\s*up\s+to\s+([\d.]+)\s*%)?", re.I),
+     lambda m: {"key": "spell_burst_stacks_recently", "op": "per", "divisor": 1,
+                **({"cap": float(m.group(1)) / 100.0} if m.group(1) else {})}),
+    # "when activating Spell Burst" (Kismet Ripple's Skill-Area line) → the build's Spell Burst state (default on).
+    (re.compile(r"(?:when\s+)?activating\s+spell\s+burst", re.I), "spell_burst_active"),
     # Per-"stack owned" scaling → multiply the contribution by the stack count (floor(val/1)).
     (re.compile(r"(?:per|for\s+every|for\s+each)\s+stack(?:\(s\))?\s+of\s+(focus|agility|tenacity)\s+blessing", re.I),
      lambda m: {"key": f"{m.group(1).lower()}_blessings", "op": "per", "divisor": 1}),
