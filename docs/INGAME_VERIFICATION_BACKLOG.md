@@ -335,10 +335,12 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   5. **Flash Flood "+8% AS/CS per Spell Burst triggered recently, up to 40%"**: modeled from the burst rate
      (bursts recently = rate × 4s, floored, capped at 5 stacks → +40%), converged as a feedback loop. Confirm the "4s
      recently" window and that it caps at +40%.
-  6. **Perched River "Critical Strikes have the Unlucky effect"**: modeled — on a crit the damage roll takes the LOWER
-     of two (inverse of Lucky: crit portion uses min + 1/3·range instead of the midpoint); crit CHANCE is unchanged,
-     only the crit damage roll. Confirm the magnitude (esp. wide-spread skills) and that it's crit-only. Recognized-but
-     -NYI: "-5% additional damage taken on Spell Burst Charge" (no EHP/damage-taken model).
+  6. **Perched River "Critical Strikes have the Unlucky effect"**: modeled as a crit-CHANCE effect — the crit chance is
+     rolled twice and the WORSE kept → effective chance = p² (Lucky variant = 1−(1−p)²). The displayed Crit Chance shows
+     the effective value with the Kismet as a source. Confirm it's chance (not crit-damage) and the p² magnitude.
+     Also generalized: per-type Unlucky DAMAGE (roll twice keep lower, mirrors Lucky) is wired for all 5 types +
+     "Damage triggers Unlucky" / "<Type> Damage is Unlucky", in case such lines appear. Recognized-but-NYI:
+     "-5% additional damage taken on Spell Burst Charge" (no EHP/damage-taken model).
 - RESULT (per sub-item): Recount Avg DPS / Net Recovery before-after; the mod + roll; Max Spell Burst; burst rate; Screenshot.
 
 ---

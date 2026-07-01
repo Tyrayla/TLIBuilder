@@ -489,13 +489,21 @@ class TestDestinyKismets:
         keys = [d["stat_key"] for d in R("+2 to Spell Burst Upper Limit Critical Strikes have the Unlucky effect", is_memory=False)]
         assert keys == ["max_spell_burst_flat", "unlucky_crit"]
 
-    def test_unlucky_crit_lowers_dps(self):
-        # On a crit the damage roll takes the lower of two → lower crit damage → lower DPS (needs crit chance + a
-        # damage spread, both present on chain_lightning).
+    def test_unlucky_crit_is_effective_chance(self):
+        # "Critical Strikes have the Unlucky effect" rolls the crit CHANCE twice, keeps the worse → effective p².
         base = _offense()
         unlucky = _offense(extra_gear={"unlucky_crit": 1})
+        assert unlucky["crit_chance"] == pytest.approx(base["crit_chance"] ** 2, rel=1e-6)
+        assert unlucky["crit_luck_effect"] == "unlucky"
         assert unlucky["total_dps_vs_target"] < base["total_dps_vs_target"] - 1e-6
-        assert unlucky["crit_chance"] == pytest.approx(base["crit_chance"])   # crit CHANCE unchanged; only the roll
+
+    def test_lucky_crit_is_effective_chance(self):
+        base = _offense()
+        lucky = _offense(extra_gear={"lucky_crit": 1})
+        p = base["crit_chance"]
+        assert lucky["crit_chance"] == pytest.approx(1 - (1 - p) ** 2, rel=1e-6)
+        assert lucky["crit_luck_effect"] == "lucky"
+        assert lucky["total_dps_vs_target"] > base["total_dps_vs_target"] + 1e-6
 
     def test_halve_upper_limit_floors(self):
         base = _offense(max_burst=6)
@@ -530,3 +538,23 @@ class TestLooseEndsParser:
         # normal dual-stat line is untouched by the run-on pre-split.
         both = R("+10 % Fire Damage +5 % Cold Damage", is_memory=False)
         assert {d["stat_key"] for d in both} == {"fire_dmg_inc", "cold_dmg_inc"}
+
+
+class TestUnlucky:
+    """Per-type Unlucky DAMAGE (roll twice, keep the lower) mirrors Lucky; Lucky + Unlucky on a type cancel."""
+    def test_unlucky_type_lowers_dps(self):
+        base = _offense()
+        un = _offense(extra_gear={"unlucky_lightning": 1})   # chain_lightning deals lightning with a spread
+        assert un["total_dps_vs_target"] < base["total_dps_vs_target"] - 1e-6
+
+    def test_lucky_and_unlucky_cancel(self):
+        base = _offense()
+        both = _offense(extra_gear={"lucky_lightning": 1, "unlucky_lightning": 1})
+        assert both["total_dps_vs_target"] == pytest.approx(base["total_dps_vs_target"], rel=1e-4)
+
+    def test_parser(self):
+        m = lambda t: {r["stat_key"] for r in (mp._parse_custom_mod_text(t) or [])}
+        assert m("Damage triggers Unlucky") == {f"unlucky_{ty}" for ty in ("physical", "fire", "cold", "lightning", "erosion")}
+        assert m("Lightning Damage is Unlucky") == {"unlucky_lightning"}
+        assert m("Fire Damage has Luck") == {"lucky_fire"}
+        assert m("Critical Strikes have the Lucky effect") == {"lucky_crit"}

@@ -246,6 +246,14 @@ class Stat(Enum):
     LUCKY_COLD = "lucky_cold"
     LUCKY_FIRE = "lucky_fire"
     LUCKY_EROSION = "lucky_erosion"
+    # Unlucky = the inverse (roll twice, keep the LOWER). Per FINAL damage type, mirrors the Lucky pool; Lucky and
+    # Unlucky on the same type cancel. Plus the crit-CHANCE variants ("Critical Strikes have the Lucky/Unlucky effect").
+    UNLUCKY_PHYSICAL = "unlucky_physical"
+    UNLUCKY_LIGHTNING = "unlucky_lightning"
+    UNLUCKY_COLD = "unlucky_cold"
+    UNLUCKY_FIRE = "unlucky_fire"
+    UNLUCKY_EROSION = "unlucky_erosion"
+    LUCKY_CRIT = "lucky_crit"
     # ── Core-talent "conversion" lines that need other subsystems (tracked, inert until built) ──────────
     # Arcane: active-skill mana cost paid as life instead (cost mechanic; zero DPS impact; needs skill-cost
     #   modeling). NOT consumption, NOT the mana-before-life pool.

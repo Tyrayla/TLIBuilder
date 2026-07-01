@@ -161,6 +161,7 @@
     "lightning_skill_level",
     "lightning_spell_dmg_flat_max",
     "lightning_spell_dmg_flat_min",
+    "lucky_crit",
     "main_skill_level",
     "mana_consume_external_blocked",
     "mana_consumed_flat_per_attack_use",
@@ -251,6 +252,7 @@
     "tide_dmg_taken",
     "triple_dmg_chance",
     "unlucky_crit",
+    "unlucky_lightning",
     "weapon_attack_speed",
     "weapon_crit_rating_flat"
   ],
@@ -328,6 +330,7 @@
     "channeled_stacks": 0.0,
     "compulsory_breakdown": {},
     "crit_chance": 0.05,
+    "crit_luck_effect": "",
     "crit_multiplier": 1.5,
     "double_dmg_chance": 0,
     "double_dmg_factor": 1,

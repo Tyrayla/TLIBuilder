@@ -148,6 +148,7 @@
     "lightning_spell_dmg_flat_max",
     "lightning_spell_dmg_flat_min",
     "lucky_cold",
+    "lucky_crit",
     "lucky_fire",
     "lucky_lightning",
     "main_skill_level",
@@ -252,7 +253,10 @@
     "temporary_mana_pct",
     "tide_dmg_taken",
     "triple_dmg_chance",
+    "unlucky_cold",
     "unlucky_crit",
+    "unlucky_fire",
+    "unlucky_lightning",
     "weapon_attack_speed",
     "weapon_crit_rating_flat"
   ],
@@ -295,6 +299,7 @@
       }
     },
     "crit_chance": 0.15,
+    "crit_luck_effect": "",
     "crit_multiplier": 1.5,
     "double_dmg_chance": 0,
     "double_dmg_factor": 1,
@@ -489,6 +494,7 @@
         }
       },
       "crit_chance": 0.15,
+      "crit_luck_effect": "",
       "crit_multiplier": 1.5,
       "double_dmg_chance": 0,
       "double_dmg_factor": 1,

@@ -982,6 +982,31 @@ STAT_META: dict[Stat, StatMeta] = {
         "Erosion Damage Lucky", "Erosion", "added_flat",
         subgroup="mechanics", tags=("erosion",), ui_priority=85, source_types=_TB,
     ),
+    # Unlucky = inverse of Lucky (roll twice, keep the lower). Mirror the Lucky pool per type + the crit-chance variant.
+    Stat.UNLUCKY_PHYSICAL: StatMeta(
+        "Physical Damage Unlucky", "Physical", "added_flat",
+        subgroup="mechanics", tags=("physical",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.UNLUCKY_LIGHTNING: StatMeta(
+        "Lightning Damage Unlucky", "Lightning", "added_flat",
+        subgroup="mechanics", tags=("lightning",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.UNLUCKY_COLD: StatMeta(
+        "Cold Damage Unlucky", "Cold", "added_flat",
+        subgroup="mechanics", tags=("cold",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.UNLUCKY_FIRE: StatMeta(
+        "Fire Damage Unlucky", "Fire", "added_flat",
+        subgroup="mechanics", tags=("fire",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.UNLUCKY_EROSION: StatMeta(
+        "Erosion Damage Unlucky", "Erosion", "added_flat",
+        subgroup="mechanics", tags=("erosion",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.LUCKY_CRIT: StatMeta(
+        "Lucky Critical Strikes (source)", "Generic", "added_flat",
+        subgroup="mechanics", stacking_rule="additive", ui_priority=60, source_types=_T,
+    ),
     # Core-talent "conversion" lines blocked on other subsystems (tracked → Inactive until those exist).
     Stat.MANA_COST_TO_LIFE_COST: StatMeta(
         "Mana Cost Converted to Life Cost", "Mana", "conversion", "%",

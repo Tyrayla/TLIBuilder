@@ -597,7 +597,8 @@ class OffenseResult:
     supported: bool             # False = NYI; when False no numeric fields are meaningful
     effective_level: int = 0
     hit_forms: list[HitFormResult] = field(default_factory=list)
-    crit_chance: float = 0.0
+    crit_chance: float = 0.0            # EFFECTIVE crit chance (post Lucky/Unlucky crit)
+    crit_luck_effect: str = ""          # "", "lucky", or "unlucky" — Critical Strikes have the Lucky/Unlucky effect
     crit_multiplier: float = 1.5
     # Double / Triple / Quadruple damage CHANCE (tag-filtered, summed pool, capped 100%) + the expected-value
     # multiplier folded into the average DPS (highest tier per hit). double_dmg_factor=1.0 → no double damage.
@@ -885,6 +886,18 @@ def calculate_offense(
     raw_csr = (base_csr + weapon_csr + other_csr) * (1.0 + crit_rating_inc)
     # 100 CSR = 1% crit chance; divide by 10000 to convert to 0–1 float
     crit_chance = min(raw_csr / 10000.0, 1.0)
+    # "Critical Strikes have the Lucky / Unlucky effect" (Perched River kismet): the crit-CHANCE roll is made twice —
+    # Lucky keeps the better outcome (crit if EITHER roll succeeds → 1−(1−p)²), Unlucky the worse (crit only if BOTH →
+    # p²). This EFFECTIVE chance drives crit_factor AND the displayed Crit Chance. Lucky+Unlucky cancel (→ unchanged).
+    _lucky_crit = source.total("lucky_crit") > 0.0
+    _unlucky_crit = source.total("unlucky_crit") > 0.0
+    crit_luck_effect = ""   # "", "lucky", or "unlucky" — surfaced so the UI can show the effective-chance source
+    if _lucky_crit and not _unlucky_crit:
+        crit_chance = 1.0 - (1.0 - crit_chance) ** 2
+        crit_luck_effect = "lucky"
+    elif _unlucky_crit and not _lucky_crit:
+        crit_chance = crit_chance * crit_chance
+        crit_luck_effect = "unlucky"
 
     # 1. Effective level — sum all applicable skill level bonuses from gear/talents/memories
 
@@ -897,17 +910,17 @@ def calculate_offense(
                                         source.total("crit_dmg_inc_per_mana_consumed_unit")) * _crd_per
     crit_mult = 1.5 + crit_damage
     crit_factor = 1.0 + crit_chance * (crit_mult - 1.0)
-    # "Critical Strikes have the Unlucky effect" (Perched River kismet): on a CRIT the damage roll is Unlucky — rolled
-    # twice, the LOWER kept (the inverse of Lucky's higher). Only the crit PORTION is affected; non-crit rolls unchanged.
-    unlucky_crit = source.total("unlucky_crit") > 0.0
 
-    def _crit_applied(a_normal: float, a_unlucky: float) -> float:
-        """Fold crit into the average. Normally avg × crit_factor; with Unlucky crit the crit portion uses the
-        LOWER-rolled average (a_unlucky) while the non-crit portion stays normal. Reduces to avg × crit_factor
-        exactly when unlucky_crit is off (a_normal path), so non-Unlucky builds are byte-identical."""
-        if unlucky_crit:
-            return (1.0 - crit_chance) * a_normal + crit_chance * crit_mult * a_unlucky
-        return a_normal * crit_factor
+    def _luck_ratio(mn: float, mx: float, level: int) -> float:
+        """EV-of-the-damage-roll ÷ the midpoint EV, for a given luck level: +1 Lucky (roll twice, keep HIGHER →
+        min + 2/3·range), −1 Unlucky (keep LOWER → min + 1/3·range), 0 normal (midpoint → 1.0). Lucky and Unlucky
+        on the same type cancel to 0. Returns exactly 1.0 at level 0 / zero spread → Lucky-only & no-luck builds
+        stay byte-identical."""
+        if level == 0 or mx <= mn:
+            return 1.0
+        frac = (2.0 / 3.0) if level > 0 else (1.0 / 3.0)
+        R = mx - mn
+        return (mn + frac * R) / (mn + 0.5 * R)
 
     # Double-damage chance — each hit has Σchance probability to deal 2×. Expected-value multiplier on the
     # average (lifts DPS, not the displayed per-hit), tag-filtered like crit. Chance capped at 100% (→ ≤2×).
@@ -1231,8 +1244,6 @@ def calculate_offense(
         hit_max_by_type: dict[str, float] = {}
         avg_pre = 0.0
         avg_pre_vs_target = 0.0
-        avg_pre_unlucky = 0.0            # crit-portion roll under Unlucky crit (== avg_pre when unlucky_crit off)
-        avg_pre_unlucky_vs_target = 0.0
         # Multi-form SPELL base: a form with its own base_dmg (e.g. Icebound Beam's Cold Beam / Icy Blade)
         # recomputes its flat from THAT base + the shared added flat scaled by THIS form's effectiveness
         # (added_eff). Other forms use the skill-wide flat_dmg built above. base stays unscaled either way.
@@ -1259,25 +1270,17 @@ def calculate_offense(
                 vuln = _enemy_vuln_mult(source, e, is_spell)
                 e_min = smin * above_mult * vuln * aug_factor * form_add_mult
                 e_max = smax * above_mult * vuln * aug_factor * form_add_mult
-                _lucky_e = (lucky_damage or source.total(f"lucky_{e}") > 0.0)
-                e_avg = (e_min + e_max) / 2.0
-                if _lucky_e and e_max > e_min:
-                    R = e_max - e_min
-                    e_avg *= (e_min + (2.0 / 3.0) * R) / (e_min + 0.5 * R)
-                # Unlucky-on-crit: crit portion takes the LOWER roll (min + 1/3 R). Cancels with Lucky → skip if Lucky.
-                e_avg_unlucky = e_avg
-                if unlucky_crit and not _lucky_e and e_max > e_min:
-                    R = e_max - e_min
-                    e_avg_unlucky = e_avg * (e_min + R / 3.0) / (e_min + 0.5 * R)
+                # Lucky (+1) / Unlucky (−1) DAMAGE roll for this type — roll twice keep higher/lower; they cancel.
+                _lvl_e = (1 if (lucky_damage or source.total(f"lucky_{e}") > 0.0) else 0) \
+                    - (1 if source.total(f"unlucky_{e}") > 0.0 else 0)
+                e_avg = ((e_min + e_max) / 2.0) * _luck_ratio(e_min, e_max, _lvl_e)
                 e_mit = _target_mitigation(source, e)
                 compulsory_breakdown[e] = {
                     "hit_min": e_min, "hit_max": e_max, "avg_pre_crit": e_avg,
-                    "avg_with_crit": _crit_applied(e_avg, e_avg_unlucky) * double_dmg_factor, "mitigation": e_mit,
+                    "avg_with_crit": e_avg * crit_factor * double_dmg_factor, "mitigation": e_mit,
                 }
                 avg_pre += e_avg
                 avg_pre_vs_target += e_avg * e_mit
-                avg_pre_unlucky += e_avg_unlucky
-                avg_pre_unlucky_vs_target += e_avg_unlucky * e_mit
             n = float(len(elems) or 1)
             avg_pre /= n
             avg_pre_vs_target /= n
@@ -1302,30 +1305,21 @@ def calculate_offense(
                 vuln = _enemy_vuln_mult(source, dtype, is_spell)
                 type_min = smin * above_mult * vuln * aug_factor * form_add_mult
                 type_max = smax * above_mult * vuln * aug_factor * form_add_mult
-                _lucky_t = (lucky_damage or source.total(f"lucky_{dtype}") > 0.0)
-                avg = (type_min + type_max) / 2.0
-                # Lucky keys off the FINAL type (tested): EV uplift from the spread, applied to the average.
-                if _lucky_t and type_max > type_min:
-                    R = type_max - type_min
-                    avg *= (type_min + (2.0 / 3.0) * R) / (type_min + 0.5 * R)
-                # Unlucky-on-crit: crit portion takes the LOWER roll (min + 1/3 R). Cancels with Lucky → skip if Lucky.
-                avg_unlucky = avg
-                if unlucky_crit and not _lucky_t and type_max > type_min:
-                    R = type_max - type_min
-                    avg_unlucky = avg * (type_min + R / 3.0) / (type_min + 0.5 * R)
-                _mit = _target_mitigation(source, dtype)
+                # Lucky (+1) / Unlucky (−1) DAMAGE roll, keyed off the FINAL type (Lucky tested in-game): EV uplift/
+                # downlift from the spread, applied to the average. Lucky + Unlucky on the same type cancel.
+                _lvl_t = (1 if (lucky_damage or source.total(f"lucky_{dtype}") > 0.0) else 0) \
+                    - (1 if source.total(f"unlucky_{dtype}") > 0.0 else 0)
+                avg = ((type_min + type_max) / 2.0) * _luck_ratio(type_min, type_max, _lvl_t)
                 damage_by_type[dtype] = avg
                 hit_min_by_type[dtype] = type_min
                 hit_max_by_type[dtype] = type_max
                 avg_pre += avg
-                avg_pre_vs_target += avg * _mit
-                avg_pre_unlucky += avg_unlucky
-                avg_pre_unlucky_vs_target += avg_unlucky * _mit
+                avg_pre_vs_target += avg * _target_mitigation(source, dtype)
 
-        # Crit (expected-value) and double-damage (expected-value) both uplift the average, not per-hit. With Unlucky
-        # crit, _crit_applied uses the lower-rolled average for the crit portion (else it's avg × crit_factor exactly).
-        avg_post = _crit_applied(avg_pre, avg_pre_unlucky) * double_dmg_factor
-        avg_post_vs_target = _crit_applied(avg_pre_vs_target, avg_pre_unlucky_vs_target) * double_dmg_factor
+        # Crit (expected-value) and double-damage (expected-value) both uplift the average, not per-hit. crit_factor
+        # already reflects the effective crit chance (post Lucky/Unlucky crit).
+        avg_post = avg_pre * crit_factor * double_dmg_factor
+        avg_post_vs_target = avg_pre_vs_target * crit_factor * double_dmg_factor
 
         # Per-form firing rate. Default = aps (every use). Channeled: a "burst" form fires once per RESET
         # cycle (aps / rounds_per_cycle); a "continuous" form fires every use, except when the dump use
@@ -1738,6 +1732,7 @@ def calculate_offense(
         effective_level=effective_level,
         hit_forms=hit_forms,
         crit_chance=crit_chance,
+        crit_luck_effect=crit_luck_effect,
         crit_multiplier=crit_mult,
         double_dmg_chance=q2, triple_dmg_chance=q3, quad_dmg_chance=q4, double_dmg_factor=double_dmg_factor,
         steep_strike_chance=steep_chance,
