@@ -359,6 +359,9 @@ const ATTR_COLOR: Record<string, string> = {
 }
 
 function fmtNum(n: number): string {
+  // Displayed stat values FLOOR (match in-game — never round a pool up). The precise value is kept for the
+  // source-breakdown total and all downstream math; only the shown integer floors.
+  n = Math.floor(n)
   if (n >= 1_000_000_000_000_000) return `${dec((n / 1_000_000_000_000_000))}Q`
   if (n >= 1_000_000_000_000)     return `${dec((n / 1_000_000_000_000))}T`
   if (n >= 1_000_000_000)         return `${dec((n / 1_000_000_000))}B`
