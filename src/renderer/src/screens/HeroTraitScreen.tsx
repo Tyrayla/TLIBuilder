@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl,
   SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT } from '../api/client'
@@ -452,6 +452,45 @@ function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
   )
 }
 
+// A searchable combobox for the memory affix rows (matches the searchable-dropdown pattern used elsewhere).
+function SearchableAffixSelect({ value, options, onChange }: {
+  value: string; options: string[]; onChange: (v: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+  const q = query.trim().toLowerCase()
+  const filtered = q ? options.filter(o => o.toLowerCase().includes(q)) : options
+  return (
+    <div className="memory-affix-combo" ref={ref}>
+      <div className={`memory-affix-combo-trigger${open ? ' open' : ''}`} onClick={() => { setQuery(''); setOpen(o => !o) }}>
+        <span className={value ? '' : 'memory-affix-combo-placeholder'}>{value || '— None —'}</span>
+        <span className="memory-affix-combo-caret">▾</span>
+      </div>
+      {open && (
+        <div className="memory-affix-combo-menu">
+          <input autoFocus className="memory-affix-combo-search" placeholder="Search…" value={query}
+            onChange={e => setQuery(e.target.value)} />
+          <div className="memory-affix-combo-list dark-scroll">
+            <div className="memory-affix-combo-opt" onClick={() => { onChange(''); setOpen(false) }}>— None —</div>
+            {filtered.map(o => (
+              <div key={o} className={`memory-affix-combo-opt${o === value ? ' selected' : ''}`}
+                onClick={() => { onChange(o); setOpen(false) }}>{o}</div>
+            ))}
+            {filtered.length === 0 && <div className="memory-affix-combo-empty">No matches</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // One unified-slider affix row in the memory creator + its hover tooltip (resolved text).
 function AffixRow({ label, pool, source, current, excludeNames, onChange }: {
   label: string
@@ -516,14 +555,7 @@ function AffixRow({ label, pool, source, current, excludeNames, onChange }: {
       <div className="memory-affix-row" {...(resolvedText ? tip.triggerProps : {})}>
         <span className="memory-affix-label">{label}<ModifierBadge status={modStatus} /></span>
         <div className="memory-affix-controls">
-          <select
-            className="memory-affix-select"
-            value={selectedName}
-            onChange={e => handleNameChange(e.target.value)}
-          >
-            <option value="">— None —</option>
-            {names.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+          <SearchableAffixSelect value={selectedName} options={names} onChange={handleNameChange} />
 
           {selectedName && tierRanges.length > 0 && currentTierInfo && (
             <div className="memory-tier-slider-wrapper">

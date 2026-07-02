@@ -4272,6 +4272,31 @@ span.gear-affix-label {
 }
 .memory-affix-select:focus { outline: 1px solid #4040aa; }
 
+/* Searchable affix combobox (replaces the plain <select> in the memory creator). */
+.memory-affix-combo { position: relative; width: 100%; }
+.memory-affix-combo-trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  background: #0d0d1e; border: 1px solid #2a2a4a; color: var(--fg); border-radius: 4px;
+  padding: 4px 8px; font-size: 12px; cursor: pointer;
+}
+.memory-affix-combo-trigger.open, .memory-affix-combo-trigger:hover { border-color: #4040aa; }
+.memory-affix-combo-placeholder { color: #666; }
+.memory-affix-combo-caret { color: #777; font-size: 10px; }
+.memory-affix-combo-menu {
+  position: absolute; z-index: 60; top: calc(100% + 2px); left: 0; right: 0;
+  background: #0d0d1e; border: 1px solid #4040aa; border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+.memory-affix-combo-search {
+  width: 100%; box-sizing: border-box; background: #0a0a18; border: none; border-bottom: 1px solid #2a2a4a;
+  color: var(--fg); font-size: 12px; padding: 6px 8px; outline: none;
+}
+.memory-affix-combo-list { max-height: 220px; overflow-y: auto; }
+.memory-affix-combo-opt { padding: 5px 9px; font-size: 12px; color: #c8c8e0; cursor: pointer; }
+.memory-affix-combo-opt:hover { background: #1a1a38; }
+.memory-affix-combo-opt.selected { background: #20204a; color: #e0e0f4; }
+.memory-affix-combo-empty { padding: 6px 9px; font-size: 12px; color: #666; }
+
 /* Unified tier slider */
 .memory-tier-slider-wrapper {
   display: flex;
