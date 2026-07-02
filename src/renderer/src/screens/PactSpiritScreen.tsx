@@ -3,7 +3,7 @@ import { FloatingPortal } from '@floating-ui/react'
 import {
   api, PactSpirit, PactSpiritSlot, iconUrl,
   FateCatalog, FateCatalogItem, InstalledFate, UndeterminedFate,
-  FATE_MICRO_LIMIT, FATE_MEDIUM_LIMIT, fateMidEffect,
+  FATE_MICRO_LIMIT, FATE_MEDIUM_LIMIT,
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
@@ -137,7 +137,7 @@ function FatePicker({ tier, pool, installed, microCount, medCount, dualCounts, i
                     <span style={{ color: dn ? '#e0a050' : f.kind === 'kismet' ? '#9fc0ff' : '#cfd3ee', fontWeight: 600, fontSize: 12.5 }}>{f.short_name}</span>
                     {dn && <span style={{ fontSize: 9.5, color: paired ? '#6bcb77' : '#ff8a8a' }}>{paired ? 'Paired' : 'Needs 2'}</span>}
                   </div>
-                  <div style={{ fontSize: 11.5, color: '#9aa', lineHeight: 1.35 }}>{fateMidEffect(f.effect_text)}</div>
+                  <div style={{ fontSize: 11.5, color: '#9aa', lineHeight: 1.35 }}>{f.effect_text}</div>
                 </div>
               )
             })}
@@ -325,7 +325,7 @@ export default function PactSpiritScreen(_props: Props) {
             const installed = o ? (fates[key] ?? null) : null
             const dualUnpaired = !!installed && installed.kind === 'dual_kismet' && (dualCounts[installed.shortName] || 0) < 2
             const lines = installed
-              ? [fateMidEffect(installed.effectText)]
+              ? [installed.effectText]
               : slot ? (slot.ring === 'outer' && rankData ? rankData.modifiers : slot.effect) : []
             return (
               <div key={`node-${slotIdx}-${col}`} className={`pact-node-cell${slot ? ` has-node node-ring-${slot.ring}` : ''}`}
@@ -361,7 +361,7 @@ export default function PactSpiritScreen(_props: Props) {
                     className={`pact-node-cell has-node node-ring-${isMicro ? 'inner' : 'mid'}${k === total - 1 ? ' pact-branch-first' : ''}`}
                     style={{ gridColumn: col, gridRow: 2 }}>
                     <PactNode ring={isMicro ? 'inner' : 'mid'} spiritSlot={slotIdx} fateable icon={undDefaultIcon}
-                      lines={f ? [fateMidEffect(f.effectText)] : ['+6 % Damage', '+6 % Minion Damage']}
+                      lines={f ? [f.effectText] : ['+6 % Damage', '+6 % Minion Damage']}
                       installedFate={f} dualUnpaired={dualUnpaired}
                       onClick={() => setPicker({ spiritSlot: slotIdx, key: String(k), tier: isMicro ? 'micro' : 'medium', extra: true })} />
                   </div>
