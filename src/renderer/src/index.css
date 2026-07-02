@@ -4949,7 +4949,8 @@ span.gear-affix-label {
 
 /* ── Verification Database screen ──────────────────────────────────────────── */
 .verif-screen { display: flex; flex-direction: column; height: 100%; padding: 16px 20px; box-sizing: border-box; gap: 12px; }
-.verif-header { display: flex; align-items: baseline; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+.verif-header { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.verif-header-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .verif-title { margin: 0; font-size: 20px; color: var(--fg); }
 .verif-subtitle { font-size: 12px; color: #6a6a88; }
 
@@ -5009,11 +5010,30 @@ span.gear-affix-label {
 .verif-sources { margin: 0; padding-left: 18px; font-size: 12px; color: #9a9ac0; line-height: 1.5; }
 .verif-sources li { margin: 2px 0; }
 
-/* Glossary term links + hover popover + Help-DB article slide-over */
+/* Term links (color-coded by target) + hover popover + Help-DB article slide-over.
+   NOTE: double-class selectors (.glossary-term.glossary-term--x) so these beat `.verif-prose a` — which
+   otherwise wins on specificity and paints every term link the same blue. */
 .verif-prose-body { display: contents; }
-.glossary-term { color: #c9a6ff; border-bottom: 1px dotted #7a5fb0; cursor: help; text-decoration: none; }
-.glossary-term[data-article] { cursor: pointer; }
-.glossary-term:hover { color: #e0c8ff; border-bottom-color: #c9a6ff; }
+.glossary-term { border-bottom: 1px dotted; text-decoration: none; }
+/* glossary-only: hover def, no click */
+.glossary-term.glossary-term--glossary { color: #c9a6ff; border-bottom-color: #7a5fb0; cursor: help; }
+.glossary-term.glossary-term--glossary:hover { color: #e0c8ff; border-bottom-color: #c9a6ff; }
+/* Help-DB article: click opens the deep-dive */
+.glossary-term.glossary-term--article { color: #62d996; border-bottom-color: #2f7a55; cursor: pointer; }
+.glossary-term.glossary-term--article:hover { color: #8ee9b6; border-bottom-color: #62d996; }
+/* verification entry: click navigates in-app */
+.glossary-term.glossary-term--entry { color: #6cb6ff; border-bottom-color: #3a6ea5; cursor: pointer; }
+.glossary-term.glossary-term--entry:hover { color: #a6d5ff; border-bottom-color: #6cb6ff; }
+
+/* Header legend explaining the three link colors. */
+.verif-legend { display: inline-flex; gap: 8px; margin-left: auto; align-items: center; }
+.verif-legend-label { font-size: 12px; color: #8a8aa8; }
+.verif-legend-item {
+  font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 11px; border: 1px solid; line-height: 1.5;
+}
+.verif-legend-entry { color: #6cb6ff; border-color: #3a6ea5; background: #0d2233; }
+.verif-legend-article { color: #62d996; border-color: #2f7a55; background: #0e2a1b; }
+.verif-legend-glossary { color: #c9a6ff; border-color: #6a4fa0; background: #1c1030; }
 
 .verif-glossary-pop {
   position: fixed; z-index: 1000; max-width: 320px; pointer-events: none;
@@ -5024,15 +5044,35 @@ span.gear-affix-label {
 .verif-glossary-desc { font-size: 12px; color: #cfcfe4; line-height: 1.45; }
 .verif-glossary-more { font-size: 11px; color: #79c0ff; margin-top: 6px; }
 
-.verif-article-backdrop {
-  position: fixed; inset: 0; z-index: 1100; background: rgba(0,0,0,0.5); display: flex; justify-content: flex-end;
+/* Mode tabs (Verification / Help / Glossary) in the header. */
+.verif-tabs { display: inline-flex; gap: 4px; }
+.verif-tab {
+  background: #14142a; border: 1px solid #2a2a4a; border-radius: 5px; color: #9a9ac0;
+  font-size: 12px; padding: 5px 12px; cursor: pointer; white-space: nowrap;
 }
-.verif-article-panel {
-  width: 560px; max-width: 92vw; height: 100%; overflow-y: auto; background: #0c0c1a;
-  border-left: 1px solid #2a2a4a; padding: 18px 22px; box-shadow: -8px 0 24px rgba(0,0,0,0.5);
-}
-.verif-article-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.verif-article-crumb { font-size: 11px; color: #6a6a88; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px; }
-.verif-article-title { margin: 0; font-size: 18px; color: var(--fg); }
-.verif-article-body { font-size: 13px; }
-.verif-article-foot { margin-top: 18px; padding-top: 12px; border-top: 1px solid #22223c; font-size: 11px; color: #6a6a88; }
+.verif-tab:hover { border-color: #4a4a7a; color: #c8c8e6; }
+.verif-tab.active { background: #20204a; color: #e0e0f4; border-color: #5555aa; }
+
+/* Help-article list-row breadcrumb + column detail header. */
+.verif-row-crumb { font-size: 10px; color: #6a6a88; margin-top: 3px; }
+.verif-detail-head--col { flex-direction: column; align-items: flex-start; gap: 3px; }
+.verif-article-crumb { font-size: 10px; color: #6a6a88; text-transform: uppercase; letter-spacing: 0.03em; }
+.verif-openhelp { margin-top: 14px; }
+
+/* Help-article deep-dive modal (opened by clicking a help-linked term). Reuses .modal-backdrop/.modal-card. */
+.verif-article-modal { width: 600px; max-width: 90vw; max-height: 80vh; display: flex; flex-direction: column; border: 1px solid #2a2a4a; }
+.verif-article-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 20px 10px; }
+.verif-article-heading { min-width: 0; }
+.verif-article-title { margin: 0; font-size: 16px; color: var(--fg); }
+.verif-article-close { background: none; border: none; color: #888; font-size: 15px; cursor: pointer; padding: 2px 6px; line-height: 1; }
+.verif-article-close:hover { color: #ddd; }
+.verif-article-modal-body { flex: 1; overflow-y: auto; padding: 4px 20px 6px; }
+.verif-article-modal .verif-article-foot { margin-top: 0; padding: 9px 20px 14px; }
+
+/* Condensed Help-article prose (blank-line-separated → default <p> gaps read as sparse; tighten them). */
+.verif-article-body { font-size: 12.5px; line-height: 1.5; }
+.verif-article-body p { margin: 0 0 5px; }
+.verif-article-body ul, .verif-article-body ol { margin: 3px 0 6px; padding-left: 18px; }
+.verif-article-body li { margin: 1px 0; }
+.verif-article-body h1, .verif-article-body h2, .verif-article-body h3, .verif-article-body h4 { margin: 11px 0 4px; font-size: 13px; color: #c7c7e6; }
+.verif-article-foot { margin-top: 16px; padding-top: 10px; border-top: 1px solid #22223c; font-size: 11px; color: #6a6a88; }

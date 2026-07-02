@@ -132,7 +132,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
             onClick={() => openExternal('https://discord.gg/7hEySM4WYx')}
             style={{ color: '#c7d0ff', borderColor: '#3a3f8a', background: '#1a1c3a' }}
           >
-            💬 Join the Discord to share feedback or bugs you find!
+            Join the Discord to share feedback or bugs you find!
           </button>
         </div>
         <img src={logoSrc} className="build-select-logo" alt="TLI Builder" />
@@ -218,7 +218,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
             className="btn btn-sm btn-secondary"
             onClick={onOpenVerification}
           >
-            📋 Verification Database
+            Reference &amp; Verification
           </button>
         </div>}
       </div>
