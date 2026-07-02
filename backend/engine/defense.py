@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from engine.models import BuildSource
+from engine.derive import _additional_pool_factor
 
 
 _BASE_RESIST_CAP     = 60.0
@@ -188,17 +189,19 @@ def calculate_defense(source: BuildSource, reservation: dict | None = None) -> D
         erosion_resist_max=erosion_m,
         life_flat=source.total("max_life_flat"),
         life_inc=source.total("max_life_inc"),
-        life_additional=source.total("max_life_additional"),
+        # Additional pools multiply per source (see derive._additional_pool_factor); report as the net additional
+        # amount (product − 1) so the display's ×(1 + amount) shows the true Π(1+x), not the sum.
+        life_additional=_additional_pool_factor(source, ["max_life_additional"]) - 1.0,
         mana_flat=source.total("max_mana_flat"),
         mana_inc=source.total("max_mana_inc"),
-        mana_additional=source.total("max_mana_additional"),
+        mana_additional=_additional_pool_factor(source, ["max_mana_additional"]) - 1.0,
         es_flat=source.total("max_energy_shield_flat") + source.total("energy_shield_gear_flat"),
         es_inc=source.total("max_energy_shield_inc") + source.total("energy_shield_gear_inc"),
-        es_additional=source.total("max_energy_shield_additional"),
+        es_additional=_additional_pool_factor(source, ["max_energy_shield_additional"]) - 1.0,
         armor_flat=source.total("armor_flat") + source.total("armor_gear_flat"),
         armor_inc=source.total("armor_inc") + source.total("armor_gear_inc") + source.total("defense_inc"),
-        armor_additional=source.total("armor_additional"),
+        armor_additional=_additional_pool_factor(source, ["armor_additional"]) - 1.0,
         evasion_flat=source.total("evasion_flat") + source.total("evasion_gear_flat"),
         evasion_inc=source.total("evasion_inc") + source.total("evasion_gear_inc") + source.total("defense_inc"),
-        evasion_additional=source.total("evasion_additional"),
+        evasion_additional=_additional_pool_factor(source, ["evasion_additional"]) - 1.0,
     )
