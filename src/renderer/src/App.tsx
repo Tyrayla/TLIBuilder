@@ -327,12 +327,13 @@ function App() {
       selected_random_affixes: g.selected_random_affixes ?? {},
     }))
 
-    // Re-resolve stat fields for crafted items — saved values can become stale
-    // when override entries are added or the resolver improves.
-    const craftedItems = gear.filter(g => g.is_crafted)
-    if (craftedItems.length > 0) {
+    // Re-resolve stat fields for ALL gear (crafted, legendary, graft) — saved values can become stale
+    // when override entries are added or the resolver improves (e.g. a dual-pool combo like
+    // "Max Life and Max Energy Shield" that previously resolved to only one stat). Keyed purely on
+    // raw_text, which maps deterministically through the same resolver the catalog serve uses.
+    if (gear.length > 0) {
       const texts = [...new Set(
-        craftedItems.flatMap(g => g.affixes
+        gear.flatMap(g => g.affixes
           .filter(a => a.affix_kind === 'numeric')
           .map(a => a.raw_text)
         )
@@ -340,7 +341,6 @@ function App() {
       try {
         const { results } = await api.resolveGearAffixes(texts)
         gear = gear.map(item => {
-          if (!item.is_crafted) return item
           return {
             ...item,
             affixes: item.affixes.map(aff => {

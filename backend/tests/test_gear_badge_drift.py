@@ -12,7 +12,7 @@ import json
 import os
 import pytest
 from server import (engine_stats, EngineStatsRequest, map_modifiers, MapModifiersRequest,
-                    _resolve_gear_affix_clauses)
+                    _resolve_gear_affix_clauses, _resolve_affix)
 
 _SEASON_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons", "SS12")
 
@@ -37,6 +37,19 @@ def _engine_keys(text: str) -> list[str]:
 def test_reported_lines_badge_not_nyi(text):
     assert _engine_keys(text), f"engine should resolve: {text!r}"
     assert _badge_keys(text), f"engine resolves but badge is NYI (drift): {text!r}"
+
+
+# Dual-pool combos ("X and Y") must fan a single value out to BOTH pools. Regression: Heart of the Storm's
+# "+% Max Life and Max Energy Shield" resolved to only max_energy_shield_inc, silently dropping the Max Life half.
+@pytest.mark.parametrize("raw_text,expected", [
+    ("+(20-24) % Max Life and Max Energy Shield", {"max_life_inc", "max_energy_shield_inc"}),
+    ("+(20-24) Max Life and Max Energy Shield", {"max_life_flat", "max_energy_shield_flat"}),
+    ("+(25-30) % Max Life and Max Mana", {"max_life_inc", "max_mana_inc"}),
+])
+def test_dual_pool_combo_resolves_to_both(raw_text, expected):
+    r = _resolve_affix({"raw_text": raw_text, "affix_kind": "numeric"})
+    assert r.get("stat_key") is None, f"combo must NOT collapse to a single stat_key: {raw_text!r}"
+    assert set(r.get("stat_keys") or []) == expected, f"{raw_text!r} -> {r.get('stat_keys')}"
 
 
 def _all_legendary_affix_texts() -> set[str]:

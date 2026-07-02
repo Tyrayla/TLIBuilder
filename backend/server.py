@@ -1900,6 +1900,10 @@ _MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
     "+(#) armor and evasion":                    ["armor_flat", "evasion_flat"],
     # Life / Mana combos
     "+(#) % max life and max mana":              ["max_life_inc", "max_mana_inc"],
+    # Life / Energy Shield combos (e.g. Heart of the Storm) — single value fans out to BOTH pools. Without this
+    # the fuzzy single-stat resolver grabs only "Energy Shield" and silently drops the Max Life half.
+    "+(#) % max life and max energy shield":     ["max_life_inc", "max_energy_shield_inc"],
+    "+(#) max life and max energy shield":       ["max_life_flat", "max_energy_shield_flat"],
     "+(#) % additional max life max mana and max energy shield": ["max_life_additional", "max_mana_additional", "max_energy_shield_additional"],
 }
 
