@@ -1525,6 +1525,8 @@ export interface InstalledFate {
   nodeTier: 'micro' | 'medium'
   effectText: string
   iconUrl?: string | null
+  // Chosen roll for each "(lo–hi)" range in effectText, in order. Unset/null entries fall back to the midpoint.
+  rolledValues?: (number | null)[]
 }
 // An Undetermined Fate installed below a spirit's outer node: grants extra micro/medium fate slots (right-to-left).
 export interface UndeterminedFate {
@@ -1535,11 +1537,29 @@ export interface UndeterminedFate {
 export const FATE_MICRO_LIMIT = 9
 export const FATE_MEDIUM_LIMIT = 4
 
-// Substitute each "(lo–hi)" roll range with its midpoint (the default-roll convention).
-export function fateMidEffect(effectText: string): string {
-  return (effectText || '').replace(/\((\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)\)/g, (_m, a, b) => {
-    const mid = (parseFloat(a) + parseFloat(b)) / 2
-    return String(Number.isInteger(mid) ? mid : Math.round(mid * 100) / 100)
+// The "(lo–hi)" roll-range pattern shared by the fate helpers below.
+const FATE_RANGE_RE = /\((\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)\)/g
+
+// Each "(lo–hi)" roll range in a fate effect, in order, with the decimal precision of its bounds.
+export function fateRanges(effectText: string): { lo: number; hi: number; dp: number }[] {
+  const out: { lo: number; hi: number; dp: number }[] = []
+  const re = new RegExp(FATE_RANGE_RE.source, 'g')
+  let m: RegExpExecArray | null
+  while ((m = re.exec(effectText || ''))) {
+    const dp = Math.max((m[1].split('.')[1] || '').length, (m[2].split('.')[1] || '').length)
+    out.push({ lo: parseFloat(m[1]), hi: parseFloat(m[2]), dp })
+  }
+  return out
+}
+
+// Substitute each "(lo–hi)" roll range with the chosen roll (rolledValues[i], in order) or the MAX (hi)
+// default when that entry is unset/null — fates/kismets default to their best roll.
+export function fateEffectWithValues(effectText: string, rolledValues?: (number | null)[]): string {
+  let i = 0
+  return (effectText || '').replace(FATE_RANGE_RE, (_m, _lo, b) => {
+    const chosen = rolledValues?.[i++]
+    const val = (chosen === null || chosen === undefined) ? parseFloat(b) : chosen
+    return String(Number.isInteger(val) ? val : Math.round(val * 100) / 100)
   })
 }
 
@@ -1563,7 +1583,7 @@ export function buildSpiritEffects(
 
   const emitFate = (f: InstalledFate) => {
     if (f.kind === 'dual_kismet' && (dualCount[f.shortName] || 0) < 2) return  // unpaired → no effect
-    effects.push({ text: fateMidEffect(f.effectText), source: `Fate: ${f.shortName}` })
+    effects.push({ text: fateEffectWithValues(f.effectText, f.rolledValues), source: `Fate: ${f.shortName}` })
   }
 
   selected.forEach((sel, si) => {

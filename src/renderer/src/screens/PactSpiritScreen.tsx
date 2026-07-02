@@ -3,9 +3,10 @@ import { FloatingPortal } from '@floating-ui/react'
 import {
   api, PactSpirit, PactSpiritSlot, iconUrl,
   FateCatalog, FateCatalogItem, InstalledFate, UndeterminedFate,
-  FATE_MICRO_LIMIT, FATE_MEDIUM_LIMIT,
+  FATE_MICRO_LIMIT, FATE_MEDIUM_LIMIT, fateRanges,
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
+import EditableRollValue from '../components/EditableRollValue'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDeltaList } from '../components/tooltip/useDamageDelta'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
@@ -17,6 +18,9 @@ interface Props {
 
 // A reordered slot carrying its ORIGINAL index in spirit.slots (the stable fate key — inner slots share names).
 interface OrderedSlot { slot: PactSpiritSlot; idx: number }
+
+// Which node the fate picker is open for: a spirit's inner/mid node, or an Undetermined extra slot (`extra`).
+type PickerState = { spiritSlot: number; key: string; tier: 'micro' | 'medium'; extra?: boolean }
 
 const NODE_COLS = 10
 const fateKey = (spiritSlot: number, dataIdx: number) => `${spiritSlot}:${dataIdx}`
@@ -91,10 +95,11 @@ function PactNode({ ring, lines, spiritSlot, icon, fateable, installedFate, dual
 }
 
 // Overlay to pick a fate for a node (filtered to the node's tier). Searchable; shows the global limit + dual pairing.
-function FatePicker({ tier, pool, installed, microCount, medCount, dualCounts, ignoreLimit, onPick, onRemove, onClose }: {
+function FatePicker({ tier, pool, installed, microCount, medCount, dualCounts, ignoreLimit, onPick, onRemove, onSetRolls, onClose }: {
   tier: 'micro' | 'medium'; pool: FateCatalogItem[]; installed: InstalledFate | null
   microCount: number; medCount: number; dualCounts: Record<string, number>; ignoreLimit: boolean
-  onPick: (f: FateCatalogItem) => void; onRemove: () => void; onClose: () => void
+  onPick: (f: FateCatalogItem) => void; onRemove: () => void
+  onSetRolls: (vals: (number | null)[]) => void; onClose: () => void
 }) {
   const [q, setQ] = useState('')
   const words = q.toLowerCase().split(/\s+/).filter(Boolean)
@@ -120,6 +125,43 @@ function FatePicker({ tier, pool, installed, microCount, medCount, dualCounts, i
           </div>
         </div>
         <div style={{ padding: 12 }}>
+          {installed && (() => {
+            const ranges = fateRanges(installed.effectText)
+            if (ranges.length === 0) return null
+            const vals = installed.rolledValues ?? []
+            const re = /\((\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)\)/g
+            const parts: React.ReactNode[] = []
+            let last = 0, i = 0, m: RegExpExecArray | null
+            while ((m = re.exec(installed.effectText))) {
+              parts.push(<span key={`t${i}`}>{installed.effectText.slice(last, m.index)}</span>)
+              const idx = i
+              const r = ranges[idx]
+              const cur = vals[idx]
+              const shown = (cur === null || cur === undefined) ? r.hi : cur
+              parts.push(
+                <EditableRollValue key={`v${idx}`} value={shown} dp={r.dp} range={[r.lo, r.hi]}
+                  title={`Set roll (${r.lo}–${r.hi}); default = max`}
+                  onCommit={v => {
+                    const nv: (number | null)[] = [...vals]
+                    while (nv.length < ranges.length) nv.push(null)
+                    nv[idx] = v
+                    onSetRolls(nv)
+                  }} />
+              )
+              last = m.index + m[0].length
+              i++
+            }
+            parts.push(<span key="tend">{installed.effectText.slice(last)}</span>)
+            return (
+              <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 6, border: '1px solid #7a4ea0',
+                background: '#1a1230' }}>
+                <div style={{ fontSize: 10.5, color: '#b79ad6', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>
+                  Installed: {installed.shortName} · click a value to set the roll
+                </div>
+                <div style={{ fontSize: 12.5, color: '#dfe3ff', lineHeight: 1.5 }}>{parts}</div>
+              </div>
+            )
+          })()}
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search fates…" autoFocus
             style={{ width: '100%', background: '#0d0f18', color: '#dfe3ff', border: '1px solid #333', borderRadius: 4, padding: '6px 8px', fontSize: 12.5, marginBottom: 8 }} />
           {atCap && !installed && <div style={{ color: '#ff6b6b', fontSize: 12, marginBottom: 6 }}>{tier === 'micro' ? 'Micro' : 'Medium'} fate limit reached — remove one first.</div>}
@@ -162,7 +204,7 @@ export default function PactSpiritScreen(_props: Props) {
   const [affinityFilter, setAffinityFilter] = useState<string | null>(null)
   const [fateCat, setFateCat] = useState<FateCatalog | null>(null)
   // Open fate picker for a specific node. `extra` = an undetermined bonus slot (ignores the limit).
-  const [picker, setPicker] = useState<{ spiritSlot: number; key: string; tier: 'micro' | 'medium'; extra?: boolean } | null>(null)
+  const [picker, setPicker] = useState<PickerState | null>(null)
   const [undetOverlay, setUndetOverlay] = useState<number | null>(null)   // spirit slot whose Undetermined craft is open
 
   useEffect(() => { api.getDestiny().then(r => setFateCat(r.catalog ?? null)).catch(() => {}) }, [])
@@ -244,6 +286,19 @@ export default function PactSpiritScreen(_props: Props) {
     if (!u) return
     u.slots[slotIdx] = f ? toInstalled(f) : null
     setUndetermined(next)
+  }
+  // Set the chosen per-range rolls on the currently-open picker's installed fate (node or extra slot).
+  const setFateRollsFor = (p: PickerState, vals: (number | null)[]) => {
+    if (p.extra) {
+      const next = undetermined.map(u => u ? { ...u, slots: [...u.slots] } : u)
+      const u = next[p.spiritSlot]; if (!u) return
+      const cur = u.slots[Number(p.key)]; if (!cur) return
+      u.slots[Number(p.key)] = { ...cur, rolledValues: vals }
+      setUndetermined(next)
+    } else {
+      const cur = fates[p.key]; if (!cur) return
+      setFates({ ...fates, [p.key]: { ...cur, rolledValues: vals } })
+    }
   }
 
   // ── Undetermined craft ───────────────────────────────────────────────────────
@@ -457,6 +512,7 @@ export default function PactSpiritScreen(_props: Props) {
             else removeFateOnNode(picker.key)
             setPicker(null)
           }}
+          onSetRolls={vals => setFateRollsFor(picker, vals)}
           onClose={() => setPicker(null)}
         />
       )}
