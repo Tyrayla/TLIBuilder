@@ -258,7 +258,7 @@ def _active_skill_costs(skills_input, skills_by_id, attached_supports, source, c
                                 is_attack=not rs.is_spell, otbt=otbt, condition_state=condition_state)
         if sc.mana_cost <= 1e-9 and sc.life_cost <= 1e-9:
             continue
-        rate = compute_skill_rates(source, rs).get("aps", 0.0)
+        rate = compute_skill_rates(source, rs).get("sps", 0.0)
         m_ps, l_ps = sc.mana_cost * rate, sc.life_cost * rate
         tot_mana += m_ps
         tot_life += l_ps
@@ -503,7 +503,7 @@ def compute(
 
         # Attack-Speed-per-Life-Consumed (Tide of the Styx) — a feedback loop: more attack speed → more attack uses →
         # more Life consumed recently → more attack speed. Inject it here (into the aggregated source, before derive
-        # + the consume block read aps) from the PRIOR pass's consumed-recently so it converges with the loop. (Only
+        # + the consume block read sps) from the PRIOR pass's consumed-recently so it converges with the loop. (Only
         # this consumer feeds back; the damage-per-consumed fold is one-directional and stays post-loop.)
         _as_per = source.total("attack_speed_inc_per_life_consumed")
         if _as_per and _prev_consumed_recently_life > 0.0:
@@ -520,7 +520,7 @@ def compute(
 
         # Flash Flood kismet: "+X% additional Attack & Cast Speed for every Spell Burst triggered recently (4s), up to
         # cap" — resolved as a per-scaling of the generic Attack/Cast Speed additional on the DERIVED
-        # spell_burst_stacks_recently count. That count is a feedback loop (AS/CS → aps/charge → burst rate → count),
+        # spell_burst_stacks_recently count. That count is a feedback loop (AS/CS → sps/charge → burst rate → count),
         # so inject it here from the PRIOR pass's damped burst rate; being an integer condition it enters the snapshot
         # so the loop waits for it to settle (see docs/ENGINE_FEEDBACK_LOOPS.md). The aggregator scales + caps the
         # bonus. Gated on the affix referencing the count → no cost / no convergence change for other builds.
@@ -575,7 +575,7 @@ def compute(
         # Loop-bottom: capture the converged scalars the trait module's next pass needs (MS total,
         # ailment duration, and the inflicting skill's APS — computed only in real mode so max-mode pays nothing).
         if _trait_active:
-            _inflict_aps = (compute_skill_rates(source, _inflict_resolved)["aps"]
+            _inflict_aps = (compute_skill_rates(source, _inflict_resolved)["sps"]
                             if (_uptime_real and _inflict_resolved is not None) else None)
             hero_traits.stash(_trait_id, source=source, ls_state=_ls_state, inflict_aps=_inflict_aps)
 
@@ -603,7 +603,7 @@ def compute(
         # consume affixes). Separate from skill COST, which sums EVERY active skill at its own rate (below).
         _active_skill = (_resolve_skill_for_trait(skill_data)
                          if (skill_data and build_input.main_skill and main_enabled) else None)
-        _use_rate = compute_skill_rates(source, _active_skill).get("aps", 0.0) if _active_skill else 0.0
+        _use_rate = compute_skill_rates(source, _active_skill).get("sps", 0.0) if _active_skill else 0.0
         _attack_rate = _use_rate if (_active_skill is not None and not _active_skill.is_spell) else 0.0
         _cons_rates = {"any": _use_rate, "attack": _attack_rate}
         # Skill COST: sum of every enabled active skill's per-cast cost × its own use rate (cost ≠ consume). Computed
@@ -847,7 +847,7 @@ def compute(
             _cur_burst_rate = 0.0
             if _bm >= 1 and main_cat == "spell" and condition_state.get("spell_burst_active", True) and skill_data:
                 from engine.offense import compute_skill_rates as _csr, compute_spell_burst_rate as _csbr
-                _bm_aps = _csr(source, _resolve_skill_for_trait(skill_data)).get("aps", 0.0)
+                _bm_aps = _csr(source, _resolve_skill_for_trait(skill_data)).get("sps", 0.0)
                 _cur_burst_rate = _csbr(source, _bm_aps, _bm, bool(condition_state.get("spell_burst_auto_trigger")))
             _prev_burst_rate = 0.5 * _cur_burst_rate + 0.5 * _prev_burst_rate
 
@@ -971,7 +971,7 @@ def compute(
     # Self-consume drains (Mana Boil / life-consume affixes). Per-use consume needs the active skill's use rate +
     # the attack-use rate (its rate when it is an attack); the heavy damage calc stays post-loop below.
     _cons_active = resolve_skill(skill_data) if (skill_data and build_input.main_skill and main_enabled) else None
-    _cons_use_rate = compute_skill_rates(source, _cons_active).get("aps", 0.0) if _cons_active else 0.0
+    _cons_use_rate = compute_skill_rates(source, _cons_active).get("sps", 0.0) if _cons_active else 0.0
     _cons_rates_final = {"any": _cons_use_rate,
                          "attack": _cons_use_rate if (_cons_active is not None and not _cons_active.is_spell) else 0.0}
     # Skill COST: sum of EVERY enabled active skill's per-cast cost × its own use rate (cost ≠ consume). Feeds net
@@ -1092,7 +1092,7 @@ def compute(
         add_mod_tags = None
         if getattr(resolved, "demolisher_base_restore", 0.0) > 0 and "demolisher" in {t.lower() for t in resolved.tags}:
             from engine.offense import compute_skill_rates as _csr, compute_demolisher_rate as _cdr
-            cast_rate = _csr(eff, resolved)["aps"]      # already reflects any trigger-medium override
+            cast_rate = _csr(eff, resolved)["sps"]      # already reflects any trigger-medium override
             triggered = eff.total("trigger_interval") > 0 or eff.total("wind_rhythm_base_cooldown") > 0
             demolisher = _cdr(eff, cast_rate, resolved.demolisher_base_restore,
                               mode="rhythm" if triggered else "manual")

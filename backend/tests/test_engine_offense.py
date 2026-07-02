@@ -85,19 +85,19 @@ class TestCrit:
 
 class TestAttackSpeed:
     def test_base_aps(self):
-        assert calculate_offense(_source(weapon_attack_speed=2.0), _skill(), 1).attacks_per_second == pytest.approx(2.0)
+        assert calculate_offense(_source(weapon_attack_speed=2.0), _skill(), 1).skills_per_second == pytest.approx(2.0)
 
     def test_gear_and_mh_are_additive(self):
         r = calculate_offense(_source(weapon_attack_speed=2.0, attack_speed_gear=0.3, attack_speed_mh=0.2), _skill(), 1)
-        assert r.attacks_per_second == pytest.approx(2.0 * 1.5)
+        assert r.skills_per_second == pytest.approx(2.0 * 1.5)
 
     def test_inc_multiplies(self):
         r = calculate_offense(_source(weapon_attack_speed=2.0, attack_speed_inc=0.5), _skill(), 1)
-        assert r.attacks_per_second == pytest.approx(3.0)
+        assert r.skills_per_second == pytest.approx(3.0)
 
     def test_additional_pool_is_independent(self):
         r = calculate_offense(_source(weapon_attack_speed=2.0, attack_speed_additional=0.25), _skill(), 1)
-        assert r.attacks_per_second == pytest.approx(2.5)
+        assert r.skills_per_second == pytest.approx(2.5)
 
     def test_combined(self):
         # 2 * (1+0.5) * (1+0.5) * (1+0.2) = 5.4
@@ -105,7 +105,7 @@ class TestAttackSpeed:
             _source(weapon_attack_speed=2.0, attack_speed_gear=0.5, attack_speed_inc=0.5, attack_speed_additional=0.2),
             _skill(), 1,
         )
-        assert r.attacks_per_second == pytest.approx(5.4)
+        assert r.skills_per_second == pytest.approx(5.4)
 
 
 class TestDpsAndMitigation:
@@ -271,12 +271,12 @@ class TestSpellPathway:
     def test_cast_hit_rate_inc(self):
         # casts/sec = (1 / 0.65) × (1 + 0.20) = 1.84615
         r = calculate_offense(_source(cast_speed_inc=0.20), _spell(), 16)
-        assert r.attacks_per_second == pytest.approx((1.0 / 0.65) * 1.20)
+        assert r.skills_per_second == pytest.approx((1.0 / 0.65) * 1.20)
 
     def test_cast_hit_rate_additional(self):
         # spell-tagged cast_speed_additional applies: (1 / 0.65) × 1.10
         r = calculate_offense(_source(cast_speed_additional=0.10), _spell(), 16)
-        assert r.attacks_per_second == pytest.approx((1.0 / 0.65) * 1.10)
+        assert r.skills_per_second == pytest.approx((1.0 / 0.65) * 1.10)
 
     def test_end_to_end_dps(self):
         # avg (25+482)/2 = 253.5, cast 0.65 → 1/0.65 casts/s, base 5% spell crit → ×1.025.
@@ -445,9 +445,9 @@ class TestSpeedAdditionalPooling:
     def test_distinct_sources_multiply(self):
         # 10% (Dual Wield) + 22.5% (Quick Decision) on a 1.0/s base → ×1.10×1.225, NOT ×1.325
         r = calculate_offense(self._src((0.10, "Dual Wield"), (0.225, "Quick Decision")), _skill(tags=("attack",)), 1)
-        assert r.attacks_per_second == pytest.approx(1.0 * 1.10 * 1.225)
+        assert r.skills_per_second == pytest.approx(1.0 * 1.10 * 1.225)
 
     def test_same_identity_sums(self):
         # identical mod text from two sources sums into one factor (×1.20), like the damage pool
         r = calculate_offense(self._src((0.10, "Same Mod"), (0.10, "Same Mod")), _skill(tags=("attack",)), 1)
-        assert r.attacks_per_second == pytest.approx(1.20)
+        assert r.skills_per_second == pytest.approx(1.20)

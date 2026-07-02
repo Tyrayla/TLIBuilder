@@ -185,5 +185,5 @@ def test_wrathful_vault_movement_to_attack_speed_capped():
             "groundshaker", 20, attached_supports=sups, gear=gear))).get("offense") or {}
     base = run([_sup(WRATHFUL)], DUAL_WEAPONS)
     boosted = run([_sup(WRATHFUL)], DUAL_WEAPONS + ms)
-    assert boosted["attacks_per_second"] == pytest.approx(base["attacks_per_second"] * 1.60, rel=1e-6)
-    assert run([], DUAL_WEAPONS + ms)["attacks_per_second"] == pytest.approx(base["attacks_per_second"], rel=1e-6)
+    assert boosted["skills_per_second"] == pytest.approx(base["skills_per_second"] * 1.60, rel=1e-6)
+    assert run([], DUAL_WEAPONS + ms)["skills_per_second"] == pytest.approx(base["skills_per_second"], rel=1e-6)

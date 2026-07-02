@@ -2,7 +2,7 @@
 
 Model (owner-validated vs in-game: base 352 → 618 over a 5-min dummy test = ×1.755, plus a throughput test of
 ~1.92 attacks/sec = the multistrike rate 1.935, confirming the +20% buff persists across all attacks):
-  multiplier = E[chain damage] / (chain time × aps) = s × E[f(L)] / (1 + chance)
+  multiplier = E[chain damage] / (chain time × sps) = s × E[f(L)] / (1 + chance)
 where f(L) = L + inc·(init·L + L(L-1)/2) (+ Cat-Dive boost), inc = base × (1 + additional), and s = the +20%
 INCREASED attack-speed factor applied to every attack. Worked example (1.16 chance, 0.82 increment, no other
 AS → s=1.20): ×1.8013.
@@ -11,7 +11,7 @@ import pytest
 from server import engine_stats, EngineStatsRequest
 from tests.mock_build import make_request, weapon
 
-WEAPON = [weapon("weapon1", "Blade", 350, 350, 1.5, 500)]   # 350-350 phys, 1.5 aps, 5% crit
+WEAPON = [weapon("weapon1", "Blade", 350, 350, 1.5, 500)]   # 350-350 phys, 1.5 sps, 5% crit
 MS_SUP = [{"item_id": "multistrike", "slot": 1, "level": 16, "rank": 1, "enabled": True}]
 
 

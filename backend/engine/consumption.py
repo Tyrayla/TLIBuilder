@@ -21,7 +21,7 @@ from engine.models import BuildSource
 
 # Per the Help DB: Cast = Use (player button press) + Trigger (automatic). Only USE counts for "when you use a skill"
 # mods; triggered/repeated casts (Tangle, Spell Burst, Activation Mediums) do NOT. The engine's per-event consume
-# already multiplies by the active skill's BASE use rate (compute_skill_rates aps) — the Tangle/Spell-Burst inflation
+# already multiplies by the active skill's BASE use rate (compute_skill_rates sps) — the Tangle/Spell-Burst inflation
 # happens later in offense, so it is NOT counted here. So per-USE consume is correct (one skill at a time). Remaining
 # gaps, surfaced via ConsumptionResult.flags only when relevant: PROXY use events (Seething Spirit USES skills →
 # extra use events, currently uncounted) and "on cast" mana consume that should scale with the full CAST rate
@@ -56,7 +56,7 @@ CONSUME_SOURCE_KEYS += ["mana_consumed_pct_current_per_attack_use_mystic"]
 # USE vs CAST (owner-flagged, FOLLOW-UP): most LIFE-consume mods say "on skill USE" while most MANA-consume mods say
 # "on cast". They differ because spells are typically not "used" — they're cast/triggered by Tangle, Spell Burst, etc.
 # A triggered/repeated cast counts as a CAST but not a USE. We don't yet model a separate USE rate, so the per-cast
-# consume here is multiplied by the cast rate (aps) for BOTH — which OVER-counts "per use" life consume on
+# consume here is multiplied by the cast rate (sps) for BOTH — which OVER-counts "per use" life consume on
 # triggered/repeating builds. Surfaced via ConsumptionResult.flags. Real use-vs-cast modeling is a deferred follow-up.
 
 

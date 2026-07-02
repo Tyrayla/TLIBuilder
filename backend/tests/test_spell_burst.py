@@ -97,9 +97,9 @@ class TestDamageScaling:
     def test_dps_equals_per_cast_times_casts_per_burst_times_rate(self):
         base = _offense(max_burst=0)
         o = _offense(max_burst=3, conds={"spell_burst_auto_trigger": True})
-        per_cast_dps = base["total_dps_vs_target"]      # = per_cast × aps
-        aps = base["attacks_per_second"]
-        expected = per_cast_dps / aps * o["spell_burst_casts_per_burst"] * o["spell_burst_rate"]
+        per_cast_dps = base["total_dps_vs_target"]      # = per_cast × sps
+        sps = base["skills_per_second"]
+        expected = per_cast_dps / sps * o["spell_burst_casts_per_burst"] * o["spell_burst_rate"]
         assert o["total_dps_vs_target"] == pytest.approx(expected)
 
     def test_max_spell_burst_scales_linearly_no_cap(self):
@@ -226,9 +226,9 @@ class TestRampedBonuses:
 # ── Global 30/s cap ──────────────────────────────────────────────────────────────
 class TestGlobalCap:
     def test_aps_capped_at_30(self):
-        # A huge cast-speed bonus would push aps far past 30; the per-caster cap holds it at 30.
+        # A huge cast-speed bonus would push sps far past 30; the per-caster cap holds it at 30.
         o = _offense(max_burst=0, extra_gear={"cast_speed_inc": 50.0})
-        assert o["attacks_per_second"] == pytest.approx(30.0)
+        assert o["skills_per_second"] == pytest.approx(30.0)
 
 
 # ── Parser regression ────────────────────────────────────────────────────────────

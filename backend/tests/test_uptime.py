@@ -22,13 +22,13 @@ def test_effective_stacks_per_apply():
 
 
 def test_effective_stacks_cooldown_caps_trigger_rate_not_total():
-    # aps 5 but 1s cooldown → ≤1 trigger/sec; 3 per trigger × 2s = 6 (NOT min(15,1)=1).
+    # sps 5 but 1s cooldown → ≤1 trigger/sec; 3 per trigger × 2s = 6 (NOT min(15,1)=1).
     got = uptime.effective_stacks(5.0, 2.0, cap=10, per_apply=3.0, cooldown=1.0)
     assert got == pytest.approx(6.0)
 
 
 def test_effective_stacks_cooldown_only_caps_when_faster():
-    # aps 0.5 < 1/cooldown(1.0) → trigger rate stays 0.5; 0.5 × 1 × 2 = 1.0.
+    # sps 0.5 < 1/cooldown(1.0) → trigger rate stays 0.5; 0.5 × 1 × 2 = 1.0.
     assert uptime.effective_stacks(0.5, 2.0, cap=10, cooldown=1.0) == pytest.approx(1.0)
 
 

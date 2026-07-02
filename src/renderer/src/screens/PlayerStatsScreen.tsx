@@ -1535,18 +1535,18 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             ) : (
               <Row label={(offense.trigger_interval ?? 0) > 0 ? 'Triggers per Second' : rateLabel} breakdown={{
                 title: (offense.trigger_interval ?? 0) > 0 ? 'Triggers per Second' : rateLabel, keys: rateKeys,
-                total: offense.attacks_per_second, totalUnit: '',
+                total: offense.skills_per_second, totalUnit: '',
                 formula: (offense.trigger_interval ?? 0) > 0
                   ? (offense.wind_rhythm_active
                       ? 'Wind Rhythm trigger rate (tick-quantized — see the Wind Rhythm panel). The skill fires at the medium\'s cadence, not your cast rate.'
-                      : `Triggered by an Activation Medium every ${dec(offense.trigger_interval ?? 0)} s → ${dec(offense.attacks_per_second)}/s (overrides your cast rate).`)
+                      : `Triggered by an Activation Medium every ${dec(offense.trigger_interval ?? 0)} s → ${dec(offense.skills_per_second)}/s (overrides your cast rate).`)
                   : (isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional'),
                 extra: (offense.trigger_interval ?? 0) > 0
                   ? [{ value: `${dec(offense.trigger_interval ?? 0)} s`, stat: 'Trigger interval', source: 'Medium', sourceName: 'cadence' }]
                   : (isSpell && offense.base_cast_time > 0
                     ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
                     : undefined),
-              }}>{dec(offense.attacks_per_second)}</Row>
+              }}>{dec(offense.skills_per_second)}</Row>
             )}
           </StatPanel>
         </GridBox>
@@ -1741,10 +1741,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           {(offense.tangle_cast_ticks ?? 0) > 0 && (
             <Row label="Cast Rate (per tangle)" breakdown={{
               title: 'Cast Rate (per tangle)', keys: ['cast_speed_inc', 'cast_speed_additional'],
-              total: offense.attacks_per_second, totalUnit: ' /s',
+              total: offense.skills_per_second, totalUnit: ' /s',
               extra: [{ value: `${dec(1 / (offense.base_cast_time || 1))} /s`, stat: 'Base', source: 'Baseline', sourceName: `1 ÷ ${dec(offense.base_cast_time)}s base cast time` }],
               formula: '(1 ÷ base cast time) × (1 + Increased) × Π(1 + Additional), snapped down to the 30 ÷ ticks breakpoint',
-            }}>{dec(offense.attacks_per_second)} /s</Row>
+            }}>{dec(offense.skills_per_second)} /s</Row>
           )}
           {(offense.tangle_cast_ticks ?? 0) > 0 && (() => {
             const incNeed = offense.tangle_cast_to_next_increased ?? 0
@@ -1861,7 +1861,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             extra: [
               { value: `${offense.spell_burst_charge_ticks} ticks`, stat: 'Charge Ticks', source: 'Tick', sourceName: 'ceil(30 × Charge Time)' },
               { value: offense.spell_burst_auto ? 'Auto' : 'Manual', stat: 'Trigger', source: '', sourceName: offense.spell_burst_auto ? 'instant at full charge' : 'gated by cast rate' },
-              ...(offense.spell_burst_auto ? [] : [{ value: `${dec(offense.attacks_per_second)} /s`, stat: 'Cast Rate', source: '', sourceName: 'player casts/sec (30-capped)' }]),
+              ...(offense.spell_burst_auto ? [] : [{ value: `${dec(offense.skills_per_second)} /s`, stat: 'Cast Rate', source: '', sourceName: 'player casts/sec (30-capped)' }]),
             ],
           }}>{dec(offense.spell_burst_rate)}</Row>
           <Row label="Effective casts / sec" breakdown={{
@@ -1891,7 +1891,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               formula: 'Casts made BETWEEN bursts (manual only) — normal casts that do NOT get the Spell Burst Hit '
                 + 'Damage pool. = per-normal-cast × (cast rate − bursts/sec). Auto-trigger has none (you do not cast manually).',
               extra: [
-                { value: `${dec(Math.max(0, offense.attacks_per_second - offense.spell_burst_rate))} /s`, stat: 'Normal casts / sec', source: '', sourceName: 'cast rate − bursts/sec' },
+                { value: `${dec(Math.max(0, offense.skills_per_second - offense.spell_burst_rate))} /s`, stat: 'Normal casts / sec', source: '', sourceName: 'cast rate − bursts/sec' },
               ],
             }}>{fmtNum(offense.non_spell_burst_dps_vs_target)}</Row>
           )}
@@ -2064,9 +2064,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             <>
               <Row label="Channel Rate" breakdown={{
                 title: 'Channel Rate', keys: ['cast_speed_inc', 'cast_speed_additional', 'channeled_cast_speed_inc'],
-                total: offense.attacks_per_second, totalUnit: ' /s',
+                total: offense.skills_per_second, totalUnit: ' /s',
                 formula: '1 ÷ Cast Time × (1 + Increased) × Additional — how fast channeled stacks build (0 → Max)',
-              }}>{dec(offense.attacks_per_second)} /s</Row>
+              }}>{dec(offense.skills_per_second)} /s</Row>
               <Row label="Gale Attack Frequency" breakdown={{
                 title: 'Gale Attack Frequency', keys: ['cast_speed_inc', 'cast_speed_additional', 'channeled_attack_frequency_additional'],
                 total: offense.channeled_attack_frequency, totalUnit: ' /s',
@@ -2089,7 +2089,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                 title: 'Reset Burst Rate', keys: [], total: offense.channeled_burst_rate, totalUnit: ' /s',
                 formula: 'Cast Rate ÷ Uses per Cycle — how often the dump/burst form fires',
                 extra: [
-                  { value: `${dec(offense.attacks_per_second)} /s`, stat: 'Cast Rate', source: '', sourceName: 'uses/sec' },
+                  { value: `${dec(offense.skills_per_second)} /s`, stat: 'Cast Rate', source: '', sourceName: 'uses/sec' },
                   { value: `${dec(offense.channeled_rounds_per_cycle)}`, stat: 'Uses / Cycle', source: '', sourceName: 'max(1, Max − Min)' },
                 ],
               }}>{dec(offense.channeled_burst_rate)} /s</Row>
@@ -2175,7 +2175,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           <Row label="Repeat Attack Speed" breakdown={{
             title: 'Repeat Attack Speed', keys: [], total: offense.multistrike_repeat_aps ?? 0, totalUnit: ' /s',
             formula: 'Base Attack Rate × (1 + Increased AS + 0.20) ÷ (1 + Increased AS) — repeats gain +20% INCREASED attack speed; the first hit of a chain does not.',
-            extra: [{ value: `${dec(offense.attacks_per_second)} /s`, stat: 'Base Attack Rate', source: 'Rate', sourceName: 'first hit / no multistrike' }],
+            extra: [{ value: `${dec(offense.skills_per_second)} /s`, stat: 'Base Attack Rate', source: 'Rate', sourceName: 'first hit / no multistrike' }],
           }}>{dec(offense.multistrike_repeat_aps ?? 0)} /s</Row>
           <Row label="Avg Count">{dec(offense.multistrike_avg_count ?? 0)}</Row>
           <Row label="Max Count">{offense.multistrike_max_count ?? 0}</Row>

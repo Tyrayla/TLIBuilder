@@ -33,8 +33,8 @@ def test_per_second_pct_current_consume():
 def test_per_cast_consume_scales_with_aps():
     r = _resp([("life_consumed_pct_current_per_cast", 0.05)], conds={"current_life_pct": 50})
     ml = r["defense"]["max_life"]
-    aps = r["offense"]["attacks_per_second"]
-    assert r["consumption"]["life_per_sec"] == pytest.approx(0.05 * 0.50 * ml * aps, rel=1e-3)
+    sps = r["offense"]["skills_per_second"]
+    assert r["consumption"]["life_per_sec"] == pytest.approx(0.05 * 0.50 * ml * sps, rel=1e-3)
 
 
 def test_pct_max_vs_current_at_low_life():
@@ -370,9 +370,9 @@ def test_attack_scoped_consume_only_fires_for_attacks():
         req = make_request(skill, 20, gear=g, extra_conditions={"current_life_pct": 50, "dual_wielding": True})
         r = engine_stats(EngineStatsRequest(**req))
         return r if isinstance(r, dict) else r.model_dump()
-    atk = run("berserking_blade")                  # attack → consume fires at aps × 2% current
-    aps = atk["offense"]["attacks_per_second"]
-    assert atk["consumption"]["life_per_sec"] == pytest.approx(0.02 * 0.50 * atk["defense"]["max_life"] * aps, rel=1e-2)
+    atk = run("berserking_blade")                  # attack → consume fires at sps × 2% current
+    sps = atk["offense"]["skills_per_second"]
+    assert atk["consumption"]["life_per_sec"] == pytest.approx(0.02 * 0.50 * atk["defense"]["max_life"] * sps, rel=1e-2)
     spell = run("chromatic_shot")                  # spell → no attack use → no attack-scoped consume
     assert spell["consumption"]["life_per_sec"] == pytest.approx(0.0, abs=1e-6)
 
@@ -423,7 +423,7 @@ def test_consumed_recently_gate_fires_above_threshold():
 
 def test_attack_speed_per_consumed_feedback_converges():
     # Tide of the Styx: +Attack Speed per Life consumed recently is a feedback loop (AS → more attack uses → more
-    # Life consumed → more AS). It must converge (damped + quantized) and raise aps/DPS for an attack build.
+    # Life consumed → more AS). It must converge (damped + quantized) and raise sps/DPS for an attack build.
     from tests.mock_build import DUAL_WEAPONS
     conds = {"current_life_pct": 50, "dual_wielding": True}   # pinned sub-full so the rate is fixed for the feedback
 
@@ -435,7 +435,7 @@ def test_attack_speed_per_consumed_feedback_converges():
         return r if isinstance(r, dict) else r.model_dump()
     base = run([])
     tide = run([("attack_speed_inc_per_life_consumed", 0.01 / 500)])     # 1% AS per 500 Life consumed
-    assert tide["offense"]["attacks_per_second"] > base["offense"]["attacks_per_second"]   # feedback raised aps
+    assert tide["offense"]["skills_per_second"] > base["offense"]["skills_per_second"]   # feedback raised sps
     assert tide["offense"]["total_dps"] > base["offense"]["total_dps"]
 
 

@@ -129,7 +129,7 @@ def _eff_frozen_rate(cast_speed_inc=0.0):
 
 
 def test_frozen_proc_hit_aligned_to_channel_rate():
-    # The proc fires on the first beam hit after its 1s cooldown; the beam hits at the channel rate (aps).
+    # The proc fires on the first beam hit after its 1s cooldown; the beam hits at the channel rate (sps).
     # Base ~3/s → lands ~1 proc/s (full). +27% cast speed (~3.8/s) → the cooldown expires between hits, so it
     # waits for the next hit → effective rate drops below 1.0 (matches the owner's in-game ~3-4% shortfall).
     assert _eff_frozen_rate(0.0) == pytest.approx(1.0, abs=0.02)

@@ -71,7 +71,7 @@ def test_trigger_interval_overrides_cast_rate_generically():
     o = _off("chain_lightning", [_sup("activation_medium_rhythm",
                                       specific_rolls={"trigger_interval": 0.5},
                                       specific_roll_tiers={"trigger_interval": 1})], level=14)
-    assert o["attacks_per_second"] == pytest.approx(2.0, abs=1e-6)
+    assert o["skills_per_second"] == pytest.approx(2.0, abs=1e-6)
 
 
 def _emit(medium_id, **sup_kw):
@@ -147,7 +147,7 @@ def test_wind_rhythm_drives_cast_rate_end_to_end():
              specific_rolls={"wind_cast_to_cdr": 0.40}, specific_roll_tiers={"wind_cast_to_cdr": 0})], level=14)
     assert o["wind_rhythm_active"] is True
     assert o["wind_rhythm_base_cooldown"] == pytest.approx(0.5)   # tier-0 base cooldown
-    assert o["attacks_per_second"] == pytest.approx(o["wind_rhythm_rate"], abs=1e-6)
+    assert o["skills_per_second"] == pytest.approx(o["wind_rhythm_rate"], abs=1e-6)
     o2 = _off("chain_lightning", [_sup("activation_medium_wind_rhythm", level=3,
               specific_rolls={"wind_cast_to_cdr": 0.40}, specific_roll_tiers={"wind_cast_to_cdr": 0})], level=14)
     assert o2["wind_rhythm_base_cooldown"] == pytest.approx(0.8)   # tier-3 base cooldown

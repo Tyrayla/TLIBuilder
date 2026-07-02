@@ -6,8 +6,8 @@ round from 0 gains 1 + Min). Validated in-game (owner): for Icebound Beam (Max 5
 detonation rate; Min 4→5 does nothing.
 
 Icebound Beam has two damage FORMS at different cadences, both Cold Spell:
-  • Cold Beam (continuous): fires every use (aps), base 171-257 at L20, added-dmg effectiveness 40%.
-  • Icy Blade (reset burst): once per cycle (aps / rounds_per_cycle), base 513-770, effectiveness 119%,
+  • Cold Beam (continuous): fires every use (sps), base 171-257 at L20, added-dmg effectiveness 40%.
+  • Icy Blade (reset burst): once per cycle (sps / rounds_per_cycle), base 513-770, effectiveness 119%,
     2 blades on one target (1st full + 2nd ×(1-0.65)=35% shotgun → ×1.35).
 
 Base damage is per-level and UNSCALED by effectiveness (no double-dip); effectiveness scales added flat only.
@@ -73,7 +73,7 @@ class TestIceboundBeam:
         assert o["channeled_min_stacks"] == 0
         assert o["channeled_behavior"] == "reset"
         assert o["channeled_rounds_per_cycle"] == 5
-        assert o["channeled_burst_rate"] == pytest.approx(o["attacks_per_second"] / 5.0)
+        assert o["channeled_burst_rate"] == pytest.approx(o["skills_per_second"] / 5.0)
 
     def test_base_damage_unscaled_by_effectiveness(self):
         # At 0 projectiles the beam is unsuppressed → each form's pre-crit average is exactly the level-20 base
@@ -107,16 +107,16 @@ class TestIceboundBeam:
 
     def test_continuous_fires_every_use_burst_once_per_cycle(self):
         o = _offense()
-        aps = o["attacks_per_second"]
+        sps = o["skills_per_second"]
         beam, blade = _form(o, "Cold Beam"), _form(o, "Icy Blade")
-        assert beam["fires_per_sec"] == pytest.approx(aps)
-        assert blade["fires_per_sec"] == pytest.approx(aps / 5.0)
+        assert beam["fires_per_sec"] == pytest.approx(sps)
+        assert blade["fires_per_sec"] == pytest.approx(sps / 5.0)
         assert blade["hits_per_fire"] == 2
 
     def test_per_form_dps_and_total(self):
         o = _offense()
         beam, blade = _form(o, "Cold Beam"), _form(o, "Icy Blade")
-        # Cold Beam: avg × aps (single hit). Icy Blade: avg × (aps/5) × 1.35 (2-blade shotgun, 1+0.35).
+        # Cold Beam: avg × sps (single hit). Icy Blade: avg × (sps/5) × 1.35 (2-blade shotgun, 1+0.35).
         assert beam["dps_contribution"] == pytest.approx(beam["avg_hit_with_crit"] * beam["fires_per_sec"])
         assert blade["dps_contribution"] == pytest.approx(
             blade["avg_hit_with_crit"] * blade["fires_per_sec"] * 1.35)
@@ -126,7 +126,7 @@ class TestIceboundBeam:
         base = _offense()
         m1 = _offense(gear=_gear_with(min_channeled_stacks_flat=1))
         assert m1["channeled_rounds_per_cycle"] == 4
-        assert m1["channeled_burst_rate"] == pytest.approx(base["attacks_per_second"] / 4.0)
+        assert m1["channeled_burst_rate"] == pytest.approx(base["skills_per_second"] / 4.0)
         # Beam (continuous) is unchanged; Blade (burst) and total rise with the faster cadence.
         assert _form(m1, "Cold Beam")["dps_contribution"] == pytest.approx(
             _form(base, "Cold Beam")["dps_contribution"])
@@ -194,7 +194,7 @@ class TestNonChanneledUnaffected:
         assert o["channeled_max_stacks"] == 0
         assert o["channeled_behavior"] == ""
         assert o["projectile_count"] == -1   # no projectile-scaling form → N/A
-        # single form fires at aps with no shotgun (hits_per_fire defaults to 1)
+        # single form fires at sps with no shotgun (hits_per_fire defaults to 1)
         f = o["hit_forms"][0]
         assert f["hits_per_fire"] == 1
-        assert f["dps_contribution"] == pytest.approx(f["avg_hit_with_crit"] * o["attacks_per_second"])
+        assert f["dps_contribution"] == pytest.approx(f["avg_hit_with_crit"] * o["skills_per_second"])

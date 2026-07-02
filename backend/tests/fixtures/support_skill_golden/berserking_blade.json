@@ -266,7 +266,6 @@
   ],
   "offense": {
     "above_max_mult": 1.0,
-    "attacks_per_second": 3.0624000000000007,
     "base_cast_time": 0.0,
     "base_csr": 0.0,
     "base_dmg_max": {},
@@ -428,6 +427,7 @@
       "Slash-Strike",
       "Persistent"
     ],
+    "skills_per_second": 3.0624000000000007,
     "spell_burst_auto": false,
     "spell_burst_auto_source": "",
     "spell_burst_cast_to_next_add": 0.0,
@@ -493,7 +493,6 @@
   "slot_offense": {
     "1": {
       "above_max_mult": 1.0,
-      "attacks_per_second": 3.0624000000000007,
       "base_cast_time": 0.0,
       "base_csr": 0.0,
       "base_dmg_max": {},
@@ -655,6 +654,7 @@
         "Slash-Strike",
         "Persistent"
       ],
+      "skills_per_second": 3.0624000000000007,
       "spell_burst_auto": false,
       "spell_burst_auto_source": "",
       "spell_burst_cast_to_next_add": 0.0,

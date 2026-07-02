@@ -128,9 +128,9 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
             numbed_duration = _NUMBED_BASE_DURATION * (1.0 + ailment_dur_inc)
             if "Electroplated Motif" in picks:
                 numbed_duration *= 2.0          # Motif doubles FF-inflicted Numbed duration
-            aps = float(ls_state.get("inflict_aps", 0.0))
+            sps = float(ls_state.get("inflict_aps", 0.0))
             numbed_override = uptime.effective_stacks(
-                aps, numbed_duration, cap=_MAX_NUMBED, per_apply=electrify, cooldown=_FF_COOLDOWN)
+                sps, numbed_duration, cap=_MAX_NUMBED, per_apply=electrify, cooldown=_FF_COOLDOWN)
         # else: FF gives no sustained single-target Numbed → leave numbed_stacks as user/support-driven.
 
     return {"contributions": contribs, "numbed_stacks": numbed_override}

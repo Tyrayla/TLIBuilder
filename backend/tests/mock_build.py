@@ -37,12 +37,12 @@ def _wc(slot: str, name: str, stat: str, val: float) -> dict:
     return {"stat": stat, "display_value": val, "unit": "", "slot": slot, "item_name": name, "text": f"{name}:{stat}"}
 
 
-def weapon(slot: str, name: str, dmg_min: float, dmg_max: float, aps: float, csr: float) -> dict:
+def weapon(slot: str, name: str, dmg_min: float, dmg_max: float, sps: float, csr: float) -> dict:
     """A weapon gear item in the engine contribution format buildGearPayload emits."""
     return {"item_name": name, "contributions": [
         _wc(slot, name, "physical_dmg_gear_flat_min", dmg_min),
         _wc(slot, name, "physical_dmg_gear_flat_max", dmg_max),
-        _wc(slot, name, "weapon_attack_speed", aps),
+        _wc(slot, name, "weapon_attack_speed", sps),
         _wc(slot, name, "weapon_crit_rating_flat", csr),
     ]}
 

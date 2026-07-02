@@ -322,7 +322,7 @@ def additional_total_product(source: BuildSource, key: str) -> float:
     return p
 
 
-def compute_spell_burst_rate(source: BuildSource, aps: float, M: int, auto: bool) -> float:
+def compute_spell_burst_rate(source: BuildSource, sps: float, M: int, auto: bool) -> float:
     """Bursts-per-second (the burst TRIGGER rate — how often a burst sequence fires, NOT the M+1 casts within one).
 
     Standalone mirror of the rate math inside calculate_offense's Spell Burst block — KEEP IN SYNC with it. Used by
@@ -334,7 +334,7 @@ def compute_spell_burst_rate(source: BuildSource, aps: float, M: int, auto: bool
     charge_inc = source.total("spell_burst_charge_speed_inc")
     charge_factor = max(1e-6, (1.0 + charge_inc) * additional_total_product(source, "spell_burst_charge_speed_additional"))
     T = 2.0 / charge_factor
-    surging_rate = aps * source.total("spell_burst_chance_gain_stacks_flat")
+    surging_rate = sps * source.total("spell_burst_chance_gain_stacks_flat")
     T_eff = min(T, M / surging_rate) if (surging_rate > 0.0 and M > 0) else T
     charge_ticks = period_ticks(T_eff)
     if not auto:
@@ -346,10 +346,10 @@ def compute_spell_burst_rate(source: BuildSource, aps: float, M: int, auto: bool
                 auto = True
     if auto:
         rate = rate_from_ticks(charge_ticks)
-    elif aps <= 0.0:
+    elif sps <= 0.0:
         return 0.0
     else:
-        ct = max(1, round(TICK_RATE / aps))
+        ct = max(1, round(TICK_RATE / sps))
         rate = TICK_RATE / (math.ceil(charge_ticks / ct) * ct)
     return min(rate, float(TICK_RATE))
 
@@ -698,7 +698,7 @@ class OffenseResult:
     quad_dmg_chance: float = 0.0
     double_dmg_factor: float = 1.0
     steep_strike_chance: float = 0.0
-    attacks_per_second: float = 0.0
+    skills_per_second: float = 0.0
     base_cast_time: float = 0.0        # spell base cast time (seconds); 0 for attacks (weapon-APS driven)
     total_dps: float = 0.0
     total_dps_vs_target: float = 0.0   # total DPS after target dummy mitigation
@@ -761,7 +761,7 @@ class OffenseResult:
     # M times — the triggering cast also counts, so casts_per_burst = M + 1). The charge is a server-timed,
     # whole-tick countdown (hard-rounded breakpoints — see engine/tick.py), so charge speed only helps at
     # integer-tick crossings. spell_burst_mult is the TOTAL delivery multiplier folded into total_dps
-    # ( = casts_per_burst × bursts/sec ÷ aps); the per-hit-form damage already carries the spell_burst pools.
+    # ( = casts_per_burst × bursts/sec ÷ sps); the per-hit-form damage already carries the spell_burst pools.
     spell_burst_count: int = 0             # Max Spell Burst (M); 0 = not bursting
     spell_burst_casts_per_burst: int = 0   # M + 1 (the M recasts + the triggering cast)
     spell_burst_charge_ticks: int = 0      # whole-tick charge period (ceil(30 × T_eff))
@@ -790,7 +790,7 @@ class OffenseResult:
     channeled_min_stacks: int = 0          # Min Channeled Stacks (first round from 0 gains 1 + this)
     channeled_stacks: float = 0.0          # display steady-state stacks (= cap for a sustained channel)
     channeled_rounds_per_cycle: float = 0.0  # uses per RESET cycle = max(1, max − min)
-    channeled_burst_rate: float = 0.0      # reset-burst occurrences/sec (= aps / rounds_per_cycle)
+    channeled_burst_rate: float = 0.0      # reset-burst occurrences/sec (= sps / rounds_per_cycle)
     channeled_behavior: str = ""           # "reset" | "refresh" | "" (not channeled)
     channeled_attack_frequency: float = 0.0  # persistent-entity strike rate (Howling Gale's Gale); 0 = N/A
     projectile_count: int = -1             # projectiles of the projectile-scaling form (Icy Blade); -1 = N/A (no such form)
@@ -810,7 +810,7 @@ class OffenseResult:
     multistrike_increment: float = 0.0        # effective per-stack increment = base × (1 + additional)
     multistrike_max_count: int = 0            # K = longest possible chain (Max Multistrike Count)
     multistrike_mult: float = 1.0             # delivery multiplier folded into total_dps
-    multistrike_repeat_aps: float = 0.0       # attack rate during repeats = aps × (1 + as_inc + 0.20)/(1 + as_inc)
+    multistrike_repeat_aps: float = 0.0       # attack rate during repeats = sps × (1 + as_inc + 0.20)/(1 + as_inc)
     multistrike_chain: list = field(default_factory=list)  # [{count, prob}] chain-length distribution
     # Mercury Baptism (Rosa Unsullied Blade): recorded fraction of elemental hit damage re-dealt as TRUE damage,
     # and the resulting unmitigated DPS (vs target), folded into total_dps_vs_target.
@@ -901,7 +901,7 @@ def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags
     the damage calc stays one-shot post-loop; calculate_offense calls this too, so the APS math has one
     source of truth. Slot-agnostic: computes rates for whatever skill it is given (no main-slot assumption).
 
-    Returns {"aps": float, "base_cast_time": float}.
+    Returns {"sps": float, "base_cast_time": float}.
     """
     if skill_tags_lower is None:
         skill_tags_lower = {t.lower() for t in skill.tags}
@@ -910,13 +910,13 @@ def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags
         # Spell: casts/sec = (1 / cast time) × (1 + cast speed inc) × Π(1 + cast speed additional).
         cast_time = skill.base_cast_time or 1.0
         base_cast_time = cast_time
-        aps = (1.0 / cast_time) * (1.0 + source.total("cast_speed_inc"))
-        aps *= _speed_additional_product(source, _CAST_ADDITIONAL_STATS, skill_tags_lower)
+        sps = (1.0 / cast_time) * (1.0 + source.total("cast_speed_inc"))
+        sps *= _speed_additional_product(source, _CAST_ADDITIONAL_STATS, skill_tags_lower)
     else:
         # APS: base × (1 + per-weapon gear multipliers) × (1 + inc) × additional pools.
         weapon_aps_mult = 1.0 + source.total("attack_speed_gear") + source.total("attack_speed_mh")
-        aps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
-        aps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
+        sps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
+        sps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
         # Movement Speed → additional Attack Speed (Wrathful Vault: "75% of the bonuses for Movement Speed is
         # also applied to the additional Attack Speed, up to +60%"). movement_bonus_to_attack_speed is the share
         # (0.75); the optional _cap stat bounds the converted bonus. Presence-gated (non-consuming all_stats check)
@@ -927,18 +927,18 @@ def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags
             cap = source.total("movement_bonus_to_attack_speed_cap")
             if cap > 0.0:
                 conv = min(conv, cap)
-            aps *= (1.0 + conv)
+            sps *= (1.0 + conv)
     # Activation-medium trigger cadence OVERRIDE (Rhythm/Track/Instruction/Preparation/Wind Rhythm): a triggered
     # skill fires at the medium's cadence, not the player's cast/attack rate. Presence-gated (non-consuming) so
     # non-triggered skills stay identical. Wind Rhythm is tick-quantized; the "every X s" mediums are exact 1/interval.
     _present_rate = source.all_stats()
     if "wind_rhythm_base_cooldown" in _present_rate and source.total("wind_rhythm_base_cooldown") > 0.0:
-        aps = compute_wind_rhythm_rate(source, source.total("wind_rhythm_base_cooldown"),
+        sps = compute_wind_rhythm_rate(source, source.total("wind_rhythm_base_cooldown"),
                                        source.total("wind_rhythm_share"))["rate"]
     elif "trigger_interval" in _present_rate and source.total("trigger_interval") > 0.0:
-        aps = 1.0 / source.total("trigger_interval")
+        sps = 1.0 / source.total("trigger_interval")
     # Global 30 Hz cap: a single caster acts at most once per server tick.
-    return {"aps": cap_rate(aps), "base_cast_time": base_cast_time}
+    return {"sps": cap_rate(sps), "base_cast_time": base_cast_time}
 
 
 def _spell_flat(source: BuildSource, base_map: dict, eff_mult: float):
@@ -1282,7 +1282,7 @@ def calculate_offense(
     # uptime models also call in-loop so the APS math has one source of truth. The 30 Hz per-caster cap
     # (engine/tick.py) is applied inside it; Tangle's N casters / Spell Burst recasts multiply it later.
     _rates = compute_skill_rates(source, skill, skill_tags_lower=skill_tags_lower)
-    aps = _rates["aps"]
+    sps = _rates["sps"]
     base_cast_time = _rates["base_cast_time"]
 
     # Wind Rhythm trigger panel (server-tick breakpoints) — populated when the skill is triggered by Wind Rhythm.
@@ -1295,7 +1295,7 @@ def calculate_offense(
     # hard-rounds to whole server ticks (cast-speed BREAKPOINTS) instead of the player's smooth, continuously-
     # scaling rate: ticks = ceil(cast_time × TICK_RATE), effective casts/sec = TICK_RATE / ticks. So extra cast
     # speed only helps when it crosses an integer-tick boundary (flat dead zones between breakpoints — e.g. 6.04
-    # and 7.44 casts/s both land on 5 ticks → 6.0/s, owner-verified). Quantizing aps here flows the breakpoint
+    # and 7.44 casts/s both land on 5 ticks → 6.0/s, owner-verified). Quantizing sps here flows the breakpoint
     # rate into every hit form's DPS and the displayed casts/sec; the attached-tangle count multiplies it after.
     # The 30 Hz per-caster cap still holds via period_ticks' 1-tick floor. See engine/tick.py (opt-in regime).
     tangle_cast_ticks = 0
@@ -1304,21 +1304,21 @@ def calculate_offense(
     # increased pool, so it dilutes against the existing total → ΔI = (1 + current increased) × x.
     tangle_cast_to_next_increased = 0.0
     tangle_cast_to_next_additional = 0.0
-    if tangle and aps > 0.0:
-        _aps_raw = aps                                   # smooth cast speed before tick-rounding
-        tangle_cast_ticks = period_ticks(1.0 / _aps_raw)
-        aps = rate_from_ticks(tangle_cast_ticks)
+    if tangle and sps > 0.0:
+        _sps_raw = sps                                   # smooth cast speed before tick-rounding
+        tangle_cast_ticks = period_ticks(1.0 / _sps_raw)
+        sps = rate_from_ticks(tangle_cast_ticks)
         if tangle_cast_ticks > 1:
             _next_cs = rate_from_ticks(tangle_cast_ticks - 1)   # cast speed needed for (ticks − 1)
-            _x = max(0.0, _next_cs / _aps_raw - 1.0)
+            _x = max(0.0, _next_cs / _sps_raw - 1.0)
             tangle_cast_to_next_additional = _x
             tangle_cast_to_next_increased = (1.0 + source.total("cast_speed_inc")) * _x
 
     # ── Channeled cadence ── 1 stack per use; a RESET skill ramps 0→max over `rounds_per_cycle` uses then
     # dumps + fires its burst form once per cycle. Min Channeled Stacks shortens the ramp (first round gains
-    # 1+Min). The continuous form fires every use (aps); the burst form fires at aps / rounds_per_cycle.
+    # 1+Min). The continuous form fires every use (sps); the burst form fires at sps / rounds_per_cycle.
     # cycle_time is constant here (Icebound never sits AT max → any not-at-max cast speed applies every round),
-    # so both forms anchor to the same aps — see the channeled framework plan. 0 / 1.0 when not channeled.
+    # so both forms anchor to the same sps — see the channeled framework plan. 0 / 1.0 when not channeled.
     ch_max_stacks = 0
     ch_min_stacks = 0
     ch_rounds_per_cycle = 0.0
@@ -1331,17 +1331,17 @@ def calculate_offense(
         ch_max_stacks = max(1, ch_max_stacks)
         ch_min_stacks = max(0, min(ch_min_stacks, ch_max_stacks))
         ch_rounds_per_cycle = uptime.channeled_rounds_per_cycle(ch_max_stacks, ch_min_stacks)
-        ch_burst_rate = aps / ch_rounds_per_cycle if ch_rounds_per_cycle else aps
+        ch_burst_rate = sps / ch_rounds_per_cycle if ch_rounds_per_cycle else sps
         ch_behavior = skill.channeled.behavior
-        # Persistent entity (Gale): its strike rate = attack_frequency × the cast-speed multiplier. aps already =
-        # (1/base_cast_time) × cast-speed product, so cast_speed_mult = aps × base_cast_time and the Gale rate =
-        # attack_frequency × cast_speed_mult. aps stays the channel build rate (shown separately).
+        # Persistent entity (Gale): its strike rate = attack_frequency × the cast-speed multiplier. sps already =
+        # (1/base_cast_time) × cast-speed product, so cast_speed_mult = sps × base_cast_time and the Gale rate =
+        # attack_frequency × cast_speed_mult. sps stays the channel build rate (shown separately).
         if skill.channeled.attack_frequency:
-            cs_mult = aps * base_cast_time if base_cast_time else 1.0
+            cs_mult = sps * base_cast_time if base_cast_time else 1.0
             ch_attack_frequency = skill.channeled.attack_frequency * cs_mult
             # Furious Sweep: +X% additional Gale Attack Frequency per channeled stack. The hook bakes the total
             # (per-stack × current stacks) into channeled_attack_frequency_additional; we apply it as an additional
-            # multiplier on the Gale rate (does NOT touch the channel build rate / aps).
+            # multiplier on the Gale rate (does NOT touch the channel build rate / sps).
             freq_add = source.total("channeled_attack_frequency_additional")
             if freq_add:
                 ch_attack_frequency *= 1.0 + freq_add
@@ -1480,11 +1480,11 @@ def calculate_offense(
         avg_post = avg_pre * crit_factor * double_dmg_factor
         avg_post_vs_target = avg_pre_vs_target * crit_factor * double_dmg_factor
 
-        # Per-form firing rate. Default = aps (every use). Channeled: a "burst" form fires once per RESET
-        # cycle (aps / rounds_per_cycle); a "continuous" form fires every use, except when the dump use
+        # Per-form firing rate. Default = sps (every use). Channeled: a "burst" form fires once per RESET
+        # cycle (sps / rounds_per_cycle); a "continuous" form fires every use, except when the dump use
         # REPLACES the continuous hit (burst_replaces_continuous) → it fires (rounds−1)/rounds of the time.
-        # Icebound Beam is additive (beam fires every round, owner-confirmed) so the beam stays at aps.
-        form_rate = aps
+        # Icebound Beam is additive (beam fires every round, owner-confirmed) so the beam stays at sps.
+        form_rate = sps
         if skill.channeled and form.channel_role == "burst":
             form_rate = ch_burst_rate
         elif skill.channeled and form.channel_role == "continuous" and ch_attack_frequency:
@@ -1493,7 +1493,7 @@ def calculate_offense(
             form_rate = ch_attack_frequency
         elif (skill.channeled and form.channel_role == "continuous"
               and skill.channeled.burst_replaces_continuous and ch_rounds_per_cycle > 1):
-            form_rate = aps * (ch_rounds_per_cycle - 1.0) / ch_rounds_per_cycle
+            form_rate = sps * (ch_rounds_per_cycle - 1.0) / ch_rounds_per_cycle
         # Projectile count for this form. Projectile-scaling forms (Icy Blade) add +Projectile Quantity to
         # the base count; all projectiles home onto one target and shotgun (1st full + each subsequent
         # ×(1−falloff), linear — every subsequent deals (1−falloff) of the first). Such a form can drop to
@@ -1518,7 +1518,7 @@ def calculate_offense(
         #     blade-equivalent count (icy_blade_extra_blade_equiv) fired at the burst rate.
         #   - Ring Blade (Frozen proc): a full extra Icy Blade burst per its cooldown (icy_blade_frozen_burst_rate
         #     = 1/cooldown), gated on enemy_frozen by the support. The proc fires on the FIRST beam hit AFTER each
-        #     cooldown, and the beam hits at the channel rate (aps) — so the EFFECTIVE rate is aps/ceil(aps×cooldown),
+        #     cooldown, and the beam hits at the channel rate (sps) — so the EFFECTIVE rate is sps/ceil(sps×cooldown),
         #     capped at the 1/cooldown ceiling. Higher cast speed pushes it toward the ceiling (owner-validated;
         #     the small ε absorbs the 0.333s parse so a clean 3/s lands exactly 1 proc/s, not the 4th hit).
         # Ring Blade's Frozen burst stays on Icy Blade (it IS an extra Icy Blade burst); Chilling Spike's extra
@@ -1530,10 +1530,10 @@ def calculate_offense(
         if form.scales_with_projectiles:
             frozen_rate = source.total("icy_blade_frozen_burst_rate")
             eff_frozen = 0.0
-            if frozen_rate > 0.0 and aps > 0.0:
+            if frozen_rate > 0.0 and sps > 0.0:
                 cooldown = 1.0 / frozen_rate
-                hits_per_cd = max(1, math.ceil(aps * cooldown - 0.05))
-                eff_frozen = min(frozen_rate, aps / hits_per_cd)
+                hits_per_cd = max(1, math.ceil(sps * cooldown - 0.05))
+                eff_frozen = min(frozen_rate, sps / hits_per_cd)
             chilling_equiv = source.total("icy_blade_extra_blade_equiv")
             chilling_extra = chilling_equiv * form_rate
             form_extra_mult = eff_frozen * form_shotgun   # Frozen burst only — Chilling Spike is its own form
@@ -1662,7 +1662,7 @@ def calculate_offense(
         # expected stacks/cast (spell_burst_chance_gain_stacks_flat) over the (capped) cast rate is an
         # alternative fill that can reach max faster than the base charge. T_eff = min(T, M / surging_rate).
         # Shape flagged for in-game verification (SPELLBURST-01).
-        surging_rate = aps * source.total("spell_burst_chance_gain_stacks_flat")  # stacks/sec (aps already 30-capped)
+        surging_rate = sps * source.total("spell_burst_chance_gain_stacks_flat")  # stacks/sec (sps already 30-capped)
         T_eff = T
         if surging_rate > 0.0 and M > 0:
             T_eff = min(T, M / surging_rate)
@@ -1697,14 +1697,14 @@ def calculate_offense(
                 return 0.0
             ct = max(1, round(TICK_RATE / aps_v))
             return TICK_RATE / (math.ceil(ticks_v / ct) * ct)
-        bursts_per_sec = min(_bursts(aps, charge_ticks), float(TICK_RATE))
+        bursts_per_sec = min(_bursts(sps, charge_ticks), float(TICK_RATE))
         spell_burst_rate = bursts_per_sec
         # Breakpoint helper — the next investment that ACTUALLY raises bursts/sec (and thus DPS); steps that change
         # nothing are skipped. Two levers, scanned so the Play Safe cast→charge coupling is handled exactly:
-        #   • Charge Speed — shortens the charge, dropping ceil(aps·T) at integer crossings → stepped gains.
-        #   • Cast Speed (MANUAL only) — raises aps (the bursts numerator) and, with Play Safe, also feeds charge.
+        #   • Charge Speed — shortens the charge, dropping ceil(sps·T) at integer crossings → stepped gains.
+        #   • Cast Speed (MANUAL only) — raises sps (the bursts numerator) and, with Play Safe, also feeds charge.
         # Auto ignores cast speed (no manual casting); for auto every whole charge tick is a real gain.
-        if charge_add_product > 0 and aps > 0.0:
+        if charge_add_product > 0 and sps > 0.0:
             if spell_burst_auto:
                 if charge_ticks > 1:
                     spell_burst_next_breakpoint_ticks = charge_ticks - 1
@@ -1720,7 +1720,7 @@ def calculate_offense(
                 while dc < 5.0:
                     dc += 0.01
                     ct2 = period_ticks(2.0 / max((1.0 + charge_inc + dc) * charge_add_product, 1e-6))
-                    if _bursts(aps, ct2) > bursts_per_sec + 1e-9:
+                    if _bursts(sps, ct2) > bursts_per_sec + 1e-9:
                         spell_burst_charge_to_next_inc = dc
                         spell_burst_next_breakpoint_ticks = ct2
                         break
@@ -1728,28 +1728,28 @@ def calculate_offense(
                 while dca < 5.0:
                     dca += 0.01
                     ct2 = period_ticks(2.0 / max((1.0 + charge_inc) * charge_add_product * (1.0 + dca), 1e-6))
-                    if _bursts(aps, ct2) > bursts_per_sec + 1e-9:
+                    if _bursts(sps, ct2) > bursts_per_sec + 1e-9:
                         spell_burst_charge_to_next_add = dca
                         break
                 # Cast speed (manual) — raises the bursts numerator; with Play Safe (ps_coeff>0) the coupled share
                 # also shortens the charge. Modeled for both Increased and Additional cast speed.
                 cast_inc = source.total("cast_speed_inc")
                 ps_coeff = source.total("cast_speed_to_spell_burst_charge")  # Play Safe: cast→charge share (0 if none)
-                base_k = aps / (1.0 + cast_inc) if (1.0 + cast_inc) > 0 else aps   # aps = base_k × (1+cast_inc)
+                base_k = sps / (1.0 + cast_inc) if (1.0 + cast_inc) > 0 else sps   # sps = base_k × (1+cast_inc)
                 d = 0.0
                 while d < 5.0:
                     d += 0.01
-                    aps2 = min(base_k * (1.0 + cast_inc + d), float(TICK_RATE))
+                    sps2 = min(base_k * (1.0 + cast_inc + d), float(TICK_RATE))
                     ct2 = period_ticks(2.0 / max((1.0 + charge_inc + ps_coeff * d) * charge_add_product, 1e-6))
-                    if _bursts(aps2, ct2) > bursts_per_sec + 1e-9:
+                    if _bursts(sps2, ct2) > bursts_per_sec + 1e-9:
                         spell_burst_cast_to_next_inc = d
                         break
                 da = 0.0
                 while da < 5.0:
                     da += 0.01
-                    aps2 = min(aps * (1.0 + da), float(TICK_RATE))
+                    sps2 = min(sps * (1.0 + da), float(TICK_RATE))
                     ct2 = period_ticks(2.0 / max((1.0 + charge_inc + ps_coeff * da) * charge_add_product, 1e-6))
-                    if _bursts(aps2, ct2) > bursts_per_sec + 1e-9:
+                    if _bursts(sps2, ct2) > bursts_per_sec + 1e-9:
                         spell_burst_cast_to_next_add = da
                         break
         # Cast accounting (per second). Each burst's triggering cast IS one of the player's casts and is counted
@@ -1759,7 +1759,7 @@ def calculate_offense(
         if spell_burst_auto:
             normal_casts_per_sec = 0.0
         else:
-            normal_casts_per_sec = max(0.0, aps - bursts_per_sec)   # subtract the triggering casts (now burst casts)
+            normal_casts_per_sec = max(0.0, sps - bursts_per_sec)   # subtract the triggering casts (now burst casts)
         # Normal casts deal LESS than burst casts by exactly the spell_burst additional pool (the only per-cast
         # difference between a burst and a normal cast). sb_pool_factor = per_cast_burst / per_cast_normal.
         sb_pool_factor = 1.0
@@ -1768,11 +1768,11 @@ def calculate_offense(
                 sb_pool_factor *= (1.0 + amt)
         sb_pool_factor = max(sb_pool_factor, 1e-9)
         # Fold everything into ONE multiplier on the (burst-damage) per-cast totals so the breakdown table still
-        # reconciles with a single scalar: spell_burst_mult = (burst casts + normal casts ÷ pool) ÷ aps. Auto →
-        # normal term is 0 → mult = (M+1)·bursts/sec ÷ aps (pure burst). The burst/normal split is reported too.
-        if aps > 0.0:
-            burst_share = burst_casts_per_sec / aps
-            normal_share = (normal_casts_per_sec / sb_pool_factor) / aps
+        # reconciles with a single scalar: spell_burst_mult = (burst casts + normal casts ÷ pool) ÷ sps. Auto →
+        # normal term is 0 → mult = (M+1)·bursts/sec ÷ sps (pure burst). The burst/normal split is reported too.
+        if sps > 0.0:
+            burst_share = burst_casts_per_sec / sps
+            normal_share = (normal_casts_per_sec / sb_pool_factor) / sps
             spell_burst_mult = burst_share + normal_share
             base_dps = sum(f.dps_contribution for f in hit_forms)
             base_dps_vt = sum(f.dps_vs_target for f in hit_forms)
@@ -1789,10 +1789,10 @@ def calculate_offense(
     # to the WHOLE chain (first hit included — it is "during multistrike" for attack speed) the moment a swing becomes
     # a chain (owner-verified by throughput: 116% chance / 1.5 base → measured ~1.92 attacks/sec = the multistrike rate
     # 1.935, not the 1.78 a "first hit slow, repeats fast" model predicts). When chance ≥ 100% every swing is a chain,
-    # so every attack runs at aps×s. When chance < 100% (rare) the swings that DON'T multistrike are lone base-speed
+    # so every attack runs at sps×s. When chance < 100% (rare) the swings that DON'T multistrike are lone base-speed
     # attacks and get NO +20% — handled per-outcome below. Damage is time-weighted with increasing damage (the n-th
     # attack of a chain gets (n−1) increment stacks; Initial Multistrike Count pre-stacks the count without adding
-    # attacks). multiplier = E[chain damage] ÷ (E[chain time] × aps); for chance ≥ 100% this is s × E[f(L)] ÷ (1 + c).
+    # attacks). multiplier = E[chain damage] ÷ (E[chain time] × sps); for chance ≥ 100% this is s × E[f(L)] ÷ (1 + c).
     # Gated to attack skills (not spell/channeled/mobility/sentry) with chance > 0; reads are presence-gated
     # (mirror enemy_mult / only_deal_cold) so non-multistrike builds stay golden-identical. Plan: docs.
     multistrike_mult = 1.0
@@ -1830,11 +1830,11 @@ def calculate_offense(
 
         e_chain = (1.0 - p) * _chain_dmg(1 + G) + p * _chain_dmg(2 + G)
         # Attack-speed application: the roll happens up front. A swing that becomes a multistrike chain (length ≥ 2)
-        # runs the WHOLE chain at the multistrike rate aps×s — the first hit included (it is "during multistrike" for
+        # runs the WHOLE chain at the multistrike rate sps×s — the first hit included (it is "during multistrike" for
         # attack speed, though it still gets 0 increment stacks). A swing that does NOT multistrike — only possible
         # when chance < 100% (G == 0 and the leftover roll fails → a lone length-1 attack) — runs at BASE speed with
         # NO +20%. For chance ≥ 100% every swing is a chain, so this reduces to s × E[f] / (1 + chance).
-        def _chain_time(L: int) -> float:                        # chain duration × aps (normalized)
+        def _chain_time(L: int) -> float:                        # chain duration × sps (normalized)
             return 1.0 if L <= 1 else L / s
         denom = (1.0 - p) * _chain_time(1 + G) + p * _chain_time(2 + G)
         multistrike_mult = e_chain / denom if denom > 0.0 else e_chain
@@ -1842,7 +1842,7 @@ def calculate_offense(
         multistrike_avg_count = 1.0 + c
         multistrike_increment = inc
         multistrike_max_count = K
-        multistrike_repeat_aps = aps * s
+        multistrike_repeat_aps = sps * s
         multistrike_chain = ([{"count": 1 + G, "prob": 1.0}] if p <= 1e-9
                              else [{"count": 1 + G, "prob": 1.0 - p}, {"count": 2 + G, "prob": p}])
 
@@ -1850,7 +1850,7 @@ def calculate_offense(
     # The skill is driven by a cast cadence (Rhythm interval, or APS when manual), NOT by attack-speed repeats.
     # The PRIMARY fissure lands on every cast (cast_rate); the SECONDARY explosion only on a CHARGED cast
     # (charged_rate — a charge must be held, regained every `restoration` s). We rebuild the two forms' DPS from
-    # those rates (replacing the per-form aps default) and layer the demolisher damage modifiers:
+    # those rates (replacing the per-form sps default) and layer the demolisher damage modifiers:
     #   • demolisher_consume_dmg_additional (Cripple +44-46%) — the consuming cast only → charged-cast SHARE.
     #   • Cripple −90% "while the fissure spreads" — a separate multiplicative additional factor on the PRIMARY
     #     (and, with Frequent Quake, the fissure ticks). The secondary EXPLOSION is EXEMPT (fires at max spread).
@@ -1923,7 +1923,7 @@ def calculate_offense(
         secondary = next((f for f in hit_forms if f.name == "Secondary Explosion"), None)
 
         def _per_fire(form: HitFormResult) -> tuple[float, float]:
-            # Per-cast damage of one form (pre-mit, vs-target), stripped of its aps-based rate.
+            # Per-cast damage of one form (pre-mit, vs-target), stripped of its sps-based rate.
             if form is None or form.fires_per_sec <= 0:
                 return 0.0, 0.0
             return (form.dps_contribution / form.fires_per_sec,
@@ -2023,7 +2023,7 @@ def calculate_offense(
         crit_multiplier=crit_mult,
         double_dmg_chance=q2, triple_dmg_chance=q3, quad_dmg_chance=q4, double_dmg_factor=double_dmg_factor,
         steep_strike_chance=steep_chance,
-        attacks_per_second=aps,
+        skills_per_second=sps,
         base_cast_time=base_cast_time,
         total_dps=total_dps,
         total_dps_vs_target=total_dps_vs_target,
@@ -2131,7 +2131,7 @@ def calculate_offense(
         demolisher_area_mode=demolisher_area_mode,
         demolisher_primary_dps=_demo_prim_vt * _delivery,
         demolisher_secondary_dps=_demo_sec_vt * _delivery,
-        trigger_interval=(1.0 / aps if (_wind is not None and aps > 0)
+        trigger_interval=(1.0 / sps if (_wind is not None and sps > 0)
                           else (source.total("trigger_interval") if "trigger_interval" in _present else 0.0)),
         wind_rhythm_active=_wind is not None,
         wind_rhythm_rate=(_wind or {}).get("rate", 0.0),

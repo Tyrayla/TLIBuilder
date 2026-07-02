@@ -72,7 +72,7 @@ class ChanneledSpec:
     continuous_suppression_when_bursting: float = 1.0
     # Persistent-entity strike rate (e.g. Howling Gale's "Base Attack Frequency 1.5"). When set, the CONTINUOUS
     # form fires at `attack_frequency × cast-speed multiplier` (the spawned entity's rate), NOT the channel cast
-    # rate (aps); aps stays the stack-build rate, shown separately. None → the form fires at aps (Icebound).
+    # rate (sps); sps stays the stack-build rate, shown separately. None → the form fires at sps (Icebound).
     attack_frequency: float | None = None
 
 

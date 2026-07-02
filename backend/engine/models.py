@@ -157,7 +157,7 @@ class ComputedResult:
     max_hit:           float = 0.0
     crit_chance:       float = 0.0
     crit_multiplier:   float = 1.5
-    effective_dps:     float = 0.0   # avg_hit × attacks_per_second (placeholder)
+    effective_dps:     float = 0.0   # avg_hit × skills_per_second (placeholder)
     breakdown:         dict  = field(default_factory=dict)
 
 

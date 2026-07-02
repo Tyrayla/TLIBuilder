@@ -312,7 +312,6 @@
   },
   "offense": {
     "above_max_mult": 1.0,
-    "attacks_per_second": 1.5384615384615383,
     "base_cast_time": 0.65,
     "base_csr": 500.0,
     "base_dmg_max": {
@@ -436,6 +435,7 @@
       "Lightning",
       "Chain"
     ],
+    "skills_per_second": 1.5384615384615383,
     "spell_burst_auto": false,
     "spell_burst_auto_source": "",
     "spell_burst_cast_to_next_add": 0.0,

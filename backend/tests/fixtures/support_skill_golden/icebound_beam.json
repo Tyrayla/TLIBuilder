@@ -260,7 +260,6 @@
   ],
   "offense": {
     "above_max_mult": 1.0,
-    "attacks_per_second": 3.483483483483483,
     "base_cast_time": 0.333,
     "base_csr": 500.0,
     "base_dmg_max": {
@@ -480,6 +479,7 @@
       "Horizontal",
       "Beam"
     ],
+    "skills_per_second": 3.483483483483483,
     "spell_burst_auto": false,
     "spell_burst_auto_source": "",
     "spell_burst_cast_to_next_add": 0.0,
@@ -547,7 +547,6 @@
   "slot_offense": {
     "1": {
       "above_max_mult": 1.0,
-      "attacks_per_second": 3.483483483483483,
       "base_cast_time": 0.333,
       "base_csr": 500.0,
       "base_dmg_max": {
@@ -767,6 +766,7 @@
         "Horizontal",
         "Beam"
       ],
+      "skills_per_second": 3.483483483483483,
       "spell_burst_auto": false,
       "spell_burst_auto_source": "",
       "spell_burst_cast_to_next_add": 0.0,

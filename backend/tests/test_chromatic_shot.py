@@ -156,10 +156,10 @@ def test_tangle_cast_rate_hard_rounds_to_tick_breakpoints():
     a = _tangled(6.04 / base - 1.0)
     b = _tangled(7.44 / base - 1.0)
     assert a["tangle_cast_ticks"] == 5 and b["tangle_cast_ticks"] == 5
-    assert a["attacks_per_second"] == pytest.approx(6.0) == b["attacks_per_second"]
+    assert a["skills_per_second"] == pytest.approx(6.0) == b["skills_per_second"]
     # One tick faster requires crossing the boundary: just under 6.0/s sits at 6 ticks → 5.0/s.
     slow = _tangled(5.99 / base - 1.0)
-    assert slow["tangle_cast_ticks"] == 6 and slow["attacks_per_second"] == pytest.approx(5.0)
+    assert slow["tangle_cast_ticks"] == 6 and slow["skills_per_second"] == pytest.approx(5.0)
 
 
 def test_untangled_cast_rate_stays_smooth():
@@ -167,7 +167,7 @@ def test_untangled_cast_rate_stays_smooth():
     base = 1.0 / 0.65
     off = _off(gear=[_flat_item("C", [("cast_speed_inc", 6.04 / base - 1.0)])])
     assert off["tangle_cast_ticks"] == 0
-    assert off["attacks_per_second"] == pytest.approx(6.04, abs=1e-3)   # smooth, not snapped to 6.0
+    assert off["skills_per_second"] == pytest.approx(6.04, abs=1e-3)   # smooth, not snapped to 6.0
 
 
 # ── Splendor ──────────────────────────────────────────────────────────────────

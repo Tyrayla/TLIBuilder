@@ -752,7 +752,7 @@ export interface OffenseResult {
   quad_dmg_chance?: number
   double_dmg_factor?: number       // expected-value damage multiplier folded into DPS (1.0 = none)
   steep_strike_chance: number
-  attacks_per_second: number
+  skills_per_second: number
   base_cast_time: number
   total_dps: number
   total_dps_vs_target: number
