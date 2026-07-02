@@ -60,7 +60,7 @@ _DOUBLE_DMG_STATS: list[tuple[str, frozenset]] = [
     if meta.pipeline_stage == "double_damage" and "hit" in meta.affects
 ]
 # Triple / Quadruple damage chance — tag-filtered like double. Per-hit you can only get the HIGHEST tier
-# that procs (check quad → triple → double); expected-value multiplier folds all three (owner model).
+# that procs (check quad → triple → double); expected-value multiplier folds all three (Tyra model).
 _TRIPLE_DMG_STATS: list[tuple[str, frozenset]] = [
     (stat.value, frozenset(meta.tags))
     for stat, meta in STAT_META.items()
@@ -175,7 +175,7 @@ def _applies_to_dtype(tags: frozenset, dtype_tag: frozenset, mod_tags: set) -> b
     dmg = tags & _DTYPE_TAG_SET
     return ((not dmg) or bool(dmg & dtype_tag)) and _skill_gate(tags, mod_tags)
 
-# Innate base Critical Strike Rating for spells (500 CSR = 5% base crit at 0 gear). Owner-confirmed.
+# Innate base Critical Strike Rating for spells (500 CSR = 5% base crit at 0 gear). Tyra-confirmed.
 _BASE_SPELL_CRIT_RATING = 500.0
 
 # Main-stat Damage Bonus: each point of a skill's main-stat attribute grants +0.5% damage. Multi-main-
@@ -309,7 +309,7 @@ def _speed_additional_product(source: BuildSource, keys, skill_tags_lower: set[s
 def additional_total_product(source: BuildSource, key: str) -> float:
     """Π(1 + amount) over DISTINCT affix sources of one additional-pool stat (same-identity positives sum),
     with a total() fallback for untracked contributions (tests add() with no source_log text). Used for Spell
-    Burst Charge Speed additional, which combines per-source like the speed pools (owner: 2 / (1+inc) / Π(1+add_i))."""
+    Burst Charge Speed additional, which combines per-source like the speed pools (Tyra: 2 / (1+inc) / Π(1+add_i))."""
     entries = [e for e in source.source_log if e.stat == key]
     if not entries:
         return 1.0 + source.total(key)
@@ -402,7 +402,7 @@ def compute_wind_rhythm_rate(source: BuildSource, base_cooldown: float, wind_bon
     """Wind Rhythm trigger rate — a server-tick breakpoint mechanic (reuses tick.py, like Spell Burst / Tangle).
 
     The medium triggers off a per-tier base cooldown, sped by Cooldown Recovery + a share (`wind_bonus`) of the
-    supported skill's Cast Speed (owner-confirmed via the wrc-six calculator):
+    supported skill's Cast Speed (Tyra-confirmed via the wrc-six calculator):
       final_cast = cast_speed_inc × (1 + cast_speed_additional)     # additional cast speed MULTIPLIES the increased
       raw = base_cooldown / (1 + cdr_speed_inc + wind_bonus × final_cast) / (1 + cdr_speed_additional)
       server = ceil(raw × 30) / 30   → rate = 30 / ceil(raw × 30)
@@ -1295,7 +1295,7 @@ def calculate_offense(
     # hard-rounds to whole server ticks (cast-speed BREAKPOINTS) instead of the player's smooth, continuously-
     # scaling rate: ticks = ceil(cast_time × TICK_RATE), effective casts/sec = TICK_RATE / ticks. So extra cast
     # speed only helps when it crosses an integer-tick boundary (flat dead zones between breakpoints — e.g. 6.04
-    # and 7.44 casts/s both land on 5 ticks → 6.0/s, owner-verified). Quantizing sps here flows the breakpoint
+    # and 7.44 casts/s both land on 5 ticks → 6.0/s, Tyra-verified). Quantizing sps here flows the breakpoint
     # rate into every hit form's DPS and the displayed casts/sec; the attached-tangle count multiplies it after.
     # The 30 Hz per-caster cap still holds via period_ticks' 1-tick floor. See engine/tick.py (opt-in regime).
     tangle_cast_ticks = 0
@@ -1395,7 +1395,7 @@ def calculate_offense(
                 and form.channel_role == "continuous" and burst_active
                 and not source.total("continuous_suppression_disable")):
             # Chilling Spike (Icebound) sets continuous_suppression_disable → the Cold Beam runs at FULL
-            # damage even while the Icy Blades fire (owner-validated: beam 30-40 vs the normal 9-12).
+            # damage even while the Icy Blades fire (Tyra-validated: beam 30-40 vs the normal 9-12).
             form_add_mult *= skill.channeled.continuous_suppression_when_bursting
 
         damage_by_type: dict[str, float] = {}
@@ -1483,7 +1483,7 @@ def calculate_offense(
         # Per-form firing rate. Default = sps (every use). Channeled: a "burst" form fires once per RESET
         # cycle (sps / rounds_per_cycle); a "continuous" form fires every use, except when the dump use
         # REPLACES the continuous hit (burst_replaces_continuous) → it fires (rounds−1)/rounds of the time.
-        # Icebound Beam is additive (beam fires every round, owner-confirmed) so the beam stays at sps.
+        # Icebound Beam is additive (beam fires every round, Tyra-confirmed) so the beam stays at sps.
         form_rate = sps
         if skill.channeled and form.channel_role == "burst":
             form_rate = ch_burst_rate
@@ -1519,7 +1519,7 @@ def calculate_offense(
         #   - Ring Blade (Frozen proc): a full extra Icy Blade burst per its cooldown (icy_blade_frozen_burst_rate
         #     = 1/cooldown), gated on enemy_frozen by the support. The proc fires on the FIRST beam hit AFTER each
         #     cooldown, and the beam hits at the channel rate (sps) — so the EFFECTIVE rate is sps/ceil(sps×cooldown),
-        #     capped at the 1/cooldown ceiling. Higher cast speed pushes it toward the ceiling (owner-validated;
+        #     capped at the 1/cooldown ceiling. Higher cast speed pushes it toward the ceiling (Tyra-validated;
         #     the small ε absorbs the 0.333s parse so a clean 3/s lands exactly 1 proc/s, not the 4th hit).
         # Ring Blade's Frozen burst stays on Icy Blade (it IS an extra Icy Blade burst); Chilling Spike's extra
         # penetrating blades are split into their OWN form below (chilling_extra), so the total is unchanged but
@@ -1787,7 +1787,7 @@ def calculate_offense(
     # ── Multistrike (attack skills) ──────────────────────────────────────────────────────────────────────
     # Using an attack skill has a chance to auto-repeat it; the +20% INCREASED attack speed during multistrike applies
     # to the WHOLE chain (first hit included — it is "during multistrike" for attack speed) the moment a swing becomes
-    # a chain (owner-verified by throughput: 116% chance / 1.5 base → measured ~1.92 attacks/sec = the multistrike rate
+    # a chain (Tyra-verified by throughput: 116% chance / 1.5 base → measured ~1.92 attacks/sec = the multistrike rate
     # 1.935, not the 1.78 a "first hit slow, repeats fast" model predicts). When chance ≥ 100% every swing is a chain,
     # so every attack runs at sps×s. When chance < 100% (rare) the swings that DON'T multistrike are lone base-speed
     # attacks and get NO +20% — handled per-outcome below. Damage is time-weighted with increasing damage (the n-th
@@ -1810,7 +1810,7 @@ def calculate_offense(
         init = source.total("initial_multistrike_count_flat")   # pre-stacks the count (adds NO attacks)
         q = source.total("multistrike_max_count_proc_chance")    # Cat Dive: chance to count an attack at Max Count
         # +20% Attack Speed during multistrike is INCREASED — it adds into the increased AS pool for the REPEAT
-        # attacks (owner-verified: at +9% increased AS, 1.5 → 1.935 = 1.5×(1+0.09+0.20), NOT 1.635×1.20). So the
+        # attacks (Tyra-verified: at +9% increased AS, 1.5 → 1.935 = 1.5×(1+0.09+0.20), NOT 1.635×1.20). So the
         # repeat AS factor dilutes against existing increased AS, like every increased source.
         as_inc = source.total("attack_speed_inc")
         s = (1.0 + as_inc + 0.20) / (1.0 + as_inc)
@@ -1822,7 +1822,7 @@ def calculate_offense(
             # Σ n=1..L of (1 + inc·(init + n − 1)) = L + inc·(init·L + L(L−1)/2)
             base = L + inc * (init * L + L * (L - 1) / 2.0)
             if q > 0.0:
-                # Cat Dive (owner): with prob q, an attack deals damage as the FINAL attack of THIS chain (realized
+                # Cat Dive (Tyra): with prob q, an attack deals damage as the FINAL attack of THIS chain (realized
                 # length L), gaining inc·(L−n) stacks. Σ n=1..L of (L−n) = L(L−1)/2 (final attack & a lone length-1
                 # swing add 0). Independent of init (it cancels). NOT the theoretical max K.
                 base += q * inc * (L * (L - 1) / 2.0)
@@ -1899,7 +1899,7 @@ def calculate_offense(
 
         # Collapse: a step function of overlapping still-alive fissures. Needs Frequent-Quake persistence
         # (fissure lifetime ~1.6s) AND auto/rhythm casting (manual/spaced = no overlap). Amps individual
-        # fissure ticks by floor(1.6/R)·0.5·roll (owner-verified across the rhythm table). At the exact floor
+        # fissure ticks by floor(1.6/R)·0.5·roll (Tyra-verified across the rhythm table). At the exact floor
         # boundaries R=0.8 (=1.6/2) and R=0.4 (=1.6/4) the game time-averages between the two floors, so we use
         # the midpoint there (approximate — flagged). collapse_roll is a fraction (e.g. 0.62 for a +62% roll).
         collapse_roll = demolisher.get("collapse_roll", 0.0)

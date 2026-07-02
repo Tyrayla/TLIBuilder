@@ -4,7 +4,7 @@ Single source of truth for cost. engine.compute computes it once per pass (after
 folds the result into the per-second drain at the skill's USE rate. Distinct from self-consume affixes
 (engine.consumption) and from reservation/sealing (engine.utility.apply_reservation).
 
-Formula (owner best-guess — flat-joins-base then scaled; VERIFY IN-GAME):
+Formula (Tyra best-guess — flat-joins-base then scaled; VERIFY IN-GAME):
     cost = max(0, (base + flat) × Π(support mana multipliers)
                   × (1 + skill_cost_inc + skill_cost_additional − skill_cost_reduction))
   • base = ResolvedSkill.mana_cost, or pct × Max Mana when mana_cost_is_percent (e.g. Moon Strike "1%").
@@ -13,7 +13,7 @@ Formula (owner best-guess — flat-joins-base then scaled; VERIFY IN-GAME):
   • mana_cost_override (a support that SETS the final cost) ⇒ replaces the final value.
   • Arcane (mana_cost_to_life_cost f) ⇒ life_cost = cost×f, mana_cost = cost×(1−f). Awakening Skull = f 1.0 + a
     big skill_cost_inc/flat ⇒ large life cost per cast (life death spiral).
-Triggered/repeated casts (Tangle, Spell Burst, Preparation, Activation Medium) IGNORE the cost (owner-confirmed),
+Triggered/repeated casts (Tangle, Spell Burst, Preparation, Activation Medium) IGNORE the cost (Tyra-confirmed),
 so consumption multiplies the per-cast cost by the base USE rate only.
 """
 from __future__ import annotations
@@ -52,7 +52,7 @@ def has_skill_cost(sc: "SkillCostResult | None") -> bool:
 
 def _supports_mult(attached_supports, skills_by_id, slot, otbt) -> tuple[float, list]:
     """Π of the active skill's attached supports' Mana Multipliers (their `mana_cost` %, e.g. 110% → ×1.10),
-    multiplicative (owner-confirmed). Off the Beaten Track forces 95% (handled in _mana_multiplier)."""
+    multiplicative (Tyra-confirmed). Off the Beaten Track forces 95% (handled in _mana_multiplier)."""
     mult = 1.0
     breakdown: list[dict] = []
     for s in (attached_supports or []):
@@ -79,7 +79,7 @@ def compute_skill_cost(resolved_skill, source: BuildSource, attached_supports, s
     no_cost = bool(cs.get("skill_no_mana_cost")) or source.total("skill_no_mana_cost") > 0   # Frozen Lotus → base 0
 
     # Arcane fraction f = the global "Mana Cost → Life Cost" stat + the skill's OWN intrinsic conversion (Bull's Rage),
-    # capped at 1. The conversion is applied BEFORE the %-base resolves against a pool (owner-confirmed), so the life
+    # capped at 1. The conversion is applied BEFORE the %-base resolves against a pool (Tyra-confirmed), so the life
     # portion of a "%" base resolves against Max LIFE and the mana portion against Max Mana.
     f = min(max(source.total("mana_cost_to_life_cost") + float(getattr(resolved_skill, "intrinsic_mana_to_life", 0.0)), 0.0), 1.0)
     res.arcane_fraction = f
@@ -107,7 +107,7 @@ def compute_skill_cost(resolved_skill, source: BuildSource, attached_supports, s
     res.support_mult, res.support_breakdown = _supports_mult(attached_supports, skills_by_id, slot, otbt)
     _scale = res.support_mult * (1.0 + res.inc + res.additional - res.reduction)
 
-    # Flat additions join the base (pool-agnostic, split by f), then everything scales (owner best-guess — VERIFY IN-GAME).
+    # Flat additions join the base (pool-agnostic, split by f), then everything scales (Tyra best-guess — VERIFY IN-GAME).
     res.mana_cost = max(0.0, (base_mana + (1.0 - f) * res.flat) * _scale)
     res.life_cost = max(0.0, (base_life + f * res.flat) * _scale)
 

@@ -9,7 +9,7 @@
 Mechanics the **TLI Builder** engine models that need confirming against the live game. Each entry is
 self-contained so a helper can run it without knowing the codebase. **You configure the build, run a
 timed Damage Recount, and report the number + your support rolls + a screenshot — you do not need to
-do any math.** The owner verifies against the engine.
+do any math.** Tyra verifies against the engine.
 
 ---
 
@@ -44,7 +44,7 @@ so it's robust even if your rolls or attributes differ from the engine's.
 **How to report.** Fill the test's RESULT block: the Recount **Average DPS (span)** value(s) and the
 **Duration** of each parse, your support's exact **rolls + rank + tier** (from the support detail panel,
 e.g. "Augmentation +5.7% per Jump, rank 5, tier 1"), the skill level, and a screenshot of the Recount
-panel. Paste it back to the owner.
+panel. Paste it back to Tyra.
 
 ---
 
@@ -72,7 +72,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 ## Tests
 
 ### WIND-RHYTHM-01 — Wind Rhythm cast rate + server breakpoints
-- Status: 🔶 Modeled from the owner's wrc-six calculator; confirm against the live game.
+- Status: 🔶 Modeled from Tyra's wrc-six calculator; confirm against the live game.
 - Model: Wind Rhythm triggers off a per-tier **base cooldown** (L0 0.5 / L1 0.6 / L2 0.7 / L3 0.8 s), sped by CDR +
   a share of Cast Speed. `final_cast = cast_speed_inc × (1 + cast_speed_additional)`;
   `raw = base / (1 + cdr_speed_inc + wind_bonus × final_cast) / (1 + cdr_speed_additional)`; tick-quantized
@@ -83,20 +83,20 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   2. **Cast-speed → CDR conversion** — the wind bonus % of your cast-speed bonus feeds CDR: e.g. base 0.5, wind 40%,
      +100% increased cast → raw 0.5/(1+0.4×1.0)=0.357 → 11 ticks → 0.367 s. Confirm cast speed speeds the trigger.
   3. **Additional cast speed is multiplicative** — +X% additional cast multiplies the increased before the wind
-     conversion (owner: +10% additional shifted the cast breakpoint 350→318 = ÷1.1). Confirm in-game.
+     conversion (Tyra: +10% additional shifted the cast breakpoint 350→318 = ÷1.1). Confirm in-game.
   4. **Server breakpoints** — the rate only steps at whole-tick crossings; confirm the CDR% / cast-speed% /
      wind-bonus% to the next faster tick match the app's Wind Rhythm panel (mirrors wrc-six.vercel.app).
 - RESULT (per check): Recount Avg DPS (span) + Duration; the wind-bonus roll + tier; CDR%/cast%; Screenshot.
 
 ### CL-BASE-01 — Baseline Chain Lightning DPS
-- Status: ✅ Verified (owner, within ~1%)
+- Status: ✅ Verified (Tyra, within ~1%)
 - Setup: Chain Lightning only, standard isolation build. Note the skill level.
 - Run: one ≥60s parse.
 - Expected: matches the app's DPS for the same level (the app shows the engine number directly).
 - RESULT: confirmed (L14 + 1 support read 160 span-avg vs engine 158).
 
 ### CL-POOL-01 — Support additional-damage lines multiply
-- Status: ✅ Verified (owner; re-confirm via Recount when convenient)
+- Status: ✅ Verified (Tyra; re-confirm via Recount when convenient)
 - Setup: Chain Lightning + one Magnificent + one Noble support, both carrying "+% additional damage for
   the supported skill". Vary their **ranks** (e.g. both rank 1 vs both rank 5).
 - Run: a ≥60s parse at each rank config.
@@ -127,7 +127,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   - Sustained Numbed stacks observed: ____   Skill level: ____   Screenshot: ____   Notes: ____
 
 ### CL-SHOTGUN-01 — Merge + Web shotgun
-- Status: 🔶 Partial (owner saw ~3 hits visually; numeric DPS not yet confirmed)
+- Status: 🔶 Partial (Tyra saw ~3 hits visually; numeric DPS not yet confirmed)
 - Setup: Chain Lightning + **Web (Magnificent)** + **Merge (Noble)**. Compare to the same build with
   **Merge removed** (Web only).
 - Run: ≥60s parse Web-only, then ≥60s parse Web+Merge. Also count the bolts hitting the dummy per cast.
@@ -206,7 +206,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   - Blessing tested + stack count: ____   Skill level: ____   Screenshot: ____   Notes: ____
 
 ### STDSUP-01 — Standard support skills (Chain Lightning L16, no gear/talents)
-- Status: ✅ Verified (owner, 2026-06-10) — all within ±5% of the in-game average (most within ±2%)
+- Status: ✅ Verified (Tyra, 2026-06-10) — all within ±5% of the in-game average (most within ±2%)
 - Setup: Chain Lightning L16 only; dummy 50% armor / 30% elemental resist. Each support at Lv16.
 - Method: compare the engine `total_dps_vs_target` to the Recount span-average (the in-game *Total Spell
   Damage* range is post-mitigation = engine pre-mit × dummy mitigation, lightning/cold ×0.49, physical ×0.50).
@@ -218,7 +218,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   - Note: 60s parses for the two crit/added-cold cases read ~+10% high (variance); 2–4 min parses converged.
 
 ### SPEED-01 — Additional attack/cast speed stacks multiplicatively
-- Status: ✅ Verified (owner, 2026-06-10) → engine fixed
+- Status: ✅ Verified (Tyra, 2026-06-10) → engine fixed
 - Test: 1.5/s base weapon + 10% additional Attack Speed (Dual Wield) + 22.5% additional (Quick Decision)
   → **2.02/s** in-game = ×1.10×1.225 (multiplicative), not ×1.325 (additive).
 - Fix: additional attack/cast speed now pools PER-AFFIX (distinct sources multiply); `_speed_additional_product`.
@@ -296,7 +296,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ### DEMOLISHER-01 — Demolisher Charge (Groundshaker) model (multiple checks)
 - Status: 🔶 Partially modeled — the subsystem is shipped (uncommitted); several assumptions need a live confirm.
-  Owner has already pinned the Collapse step function in prior testing (see below); the rest is unverified.
+  Tyra has already pinned the Collapse step function in prior testing (see below); the rest is unverified.
 - Setup: **Groundshaker** vs the standard dummy. Note skill level, weapon, and every socketed support + its tier/rank.
   Model recap (what the engine now does):
   - Restoration = **base 3 s ÷ (1 + Σ Demolisher Charge Speed increased)** — INCREASED pool only, smooth real-time.
@@ -317,9 +317,9 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
      each = a primary-fissure hit — so the FQ secondary total ≈ the single 1135% explosion (5 × 227%), before Collapse.
      Confirm FQ's **+(66–68)% additional Hit Damage** applies to the fissure hits.
   5. **Cripple scope.** Confirm the **−90% additional damage while the fissure spreads** hits the **primary fissure**
-     (and, with FQ, the fissure ticks) but **NOT the secondary explosion** (owner-observed 46 vs 319 on the primary:
+     (and, with FQ, the fissure ticks) but **NOT the secondary explosion** (Tyra-observed 46 vs 319 on the primary:
      319 × 0.10 × 1.45 ≈ 46). Confirm the **+(44–46)% consume** bonus applies to the whole charged cast.
-  6. **Collapse step function.** Already owner-pinned: **Collapse% = floor(1.6/R) × 0.5 × roll**, needs FQ persistence
+  6. **Collapse step function.** Already Tyra-pinned: **Collapse% = floor(1.6/R) × 0.5 × roll**, needs FQ persistence
      + auto/rhythm overlap; boundaries at R = 1.6/n (0.8 and 0.4 time-average between floors). Re-confirm opportunistically.
   7. **Wrathful Vault movement→AS.** The stat is surfaced but its APPLICATION is a follow-up (movement→AS not wired).
      Note the in-game jump-cast cadence + how much Movement Speed → Attack Speed for when that model lands.
@@ -360,7 +360,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 ---
 
 ### SPELLBURST-02 — Auto-trigger + charge sources (second pass)
-- Status: 🔶 Partially verified — a **Solid River spell-burst build matched in-game within 2%** (owner, 2026-06-18),
+- Status: 🔶 Partially verified — a **Solid River spell-burst build matched in-game within 2%** (Tyra, 2026-06-18),
   confirming the auto-trigger + charge model. Remaining sub-checks below still ⬜.
   1. **Burst Activation** support → auto-trigger (instant; headline = burst-only, no between-burst casts).
   2. **Solid River** → auto-trigger ONLY when Burst Charge Recovery Speed ≥ ~230–250% of base (drops to manual below
@@ -403,7 +403,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ### SKILLCOST-01 — Skill mana/life cost model (multiple checks)
 - Status: ⬜ Unverified. The engine now models each skill's per-cast Mana (and Arcane→Life) cost and folds it into
-  **Net Mana/Life Recovery** as a SEPARATE drain (never "Consumed"). Formula assumed (owner best-guess), needs
+  **Net Mana/Life Recovery** as a SEPARATE drain (never "Consumed"). Formula assumed (Tyra best-guess), needs
   confirming: `cost = (base + flat Skill Cost) × Π(support mana multipliers) × (1 + increased − reduced)`.
 - Sub-checks (each: note the skill's in-game Mana/Life cost per cast, your mods/rolls, cast/attack rate, screenshot):
   1. **Base + cast rate**: a flat-cost skill (e.g. Chromatic Shot) alone — confirm per-cast cost and that cost/sec =
@@ -431,7 +431,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 ---
 
 ## How results are ingested
-Owner: for each returned RESULT, configure the same build in the app (matching the tester's exact
+Tyra: for each returned RESULT, configure the same build in the app (matching the tester's exact
 rolls/level/rank/tier) and compare the engine DPS to the reported Recount **span average**. Mark
 ✅/❌/🔶; on ❌ note the engine fix. The explicit-roll feature has landed (per-support roll sliders), so
 the app can now match a tester's exact rolls — enter them to compare absolute numbers; otherwise the app

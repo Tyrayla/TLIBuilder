@@ -27,7 +27,7 @@ def _engine_keys(text: str) -> list[str]:
     return [e["stat_key"] for cl in _resolve_gear_affix_clauses(text) for e in cl["parsed"]]
 
 
-# The three lines the owner reported badging NYI despite working (regression cases).
+# The three lines Tyra reported badging NYI despite working (regression cases).
 @pytest.mark.parametrize("text", [
     "+(20-25) % Armor DMG Mitigation Penetration for Attack Skills if you have consumed more than 120 % of Max Life recently",
     "Adds (18-21) - (24-27) Physical Damage to Attacks for every 3300 Life consumed recently. Stacks up to 170 time(s)",

@@ -5,7 +5,7 @@ doesn't feed derive_stats). The Temporary Life/Mana pools + excess restoration a
 (see compute.py / engine.recovery.temporary_pools) because Elixir of Immortality's damage reads them; this module
 re-reads the converged values for the display result.
 
-Model (Help DB + owner-confirmed quirks):
+Model (Help DB + Tyra-confirmed quirks):
 - Restoration total per cast is FIXED: `base × (1 + Σ restoration_effect_inc) × Π(1 + restoration_effect_additional)`
   (Bonus = increased / Additional Bonus = additional). For elixir tonics the input `total` is ALSO already
   × Elixir Effect (applied upstream in apply_elixir_buffs).

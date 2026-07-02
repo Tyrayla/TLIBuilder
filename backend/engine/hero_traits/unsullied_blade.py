@@ -4,7 +4,7 @@ A mana-scaling, state-cycling ATTACK trait. Two engine-new mechanics live in off
 via `spell_dmg_to_attack`, and the Mercury Baptism true-damage stage via `mercury_baptism_fraction`); this module
 emits the trait's stat contributions and the dominant-element Infiltration.
 
-Owner-confirmed (2026-06-23):
+Tyra-confirmed (2026-06-23):
 - Spell DAMAGE bonuses also apply to attacks (base flag).
 - Realm of Mercury (default ON, full uptime) gives +2% additional Attack Speed + +2% additional Elemental Damage per
   10% UNSEALED Max Mana, capped +20%/+20% (drops as you reserve mana — `unsealed_mana` plumbed from compute.py).

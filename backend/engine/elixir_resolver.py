@@ -2,7 +2,7 @@
 
 Elixir skills (active_skill + "elixir" tag) are slotted in active skill slots and enabled via the skill enabler.
 Each grants a temporary buff to the PLAYER, scaled engine-side by ELIXIR SKILL EFFECT (apply_elixir_buffs).
-Owner-confirmed model: assume FULL UPTIME while enabled — real cooldown/charge-based uptime is a later pass, but
+Tyra-confirmed model: assume FULL UPTIME while enabled — real cooldown/charge-based uptime is a later pass, but
 we TRACK the timing now (cooldown, duration, additional duration, charges, charge/sec) for the Skill panel.
 
 Modeled like auras/empowers: buff values parse from the detailed_description through the shared text->stat

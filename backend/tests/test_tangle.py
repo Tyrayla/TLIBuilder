@@ -2,7 +2,7 @@
 the player. Tangle DPS = single-cast offense × attached_count × (1 + Σ Tangle Damage Enhancement), with the
 tangle damage / additional / crit pools applying via the "tangle" tag. See the approved plan.
 
-Model (owner-confirmed): each tangle is a full caster; attached_count = min(1 + extra_tangle_applied_flat,
+Model (Tyra-confirmed): each tangle is a full caster; attached_count = min(1 + extra_tangle_applied_flat,
 2 + max_tangle_quantity_flat) (default 1); active_tangles condition can lower it (never raise); Tangle Damage
 Enhancement is its OWN multiplier that stacks additively with itself; Dormant Entanglement = +40% additional
 Tangle Damage per inactivated tangle (placeable − active), gated on has_dormant_entanglement.
@@ -104,7 +104,7 @@ class TestDormantEntanglement:
 
 class TestCastSpeedBreakpoints:
     """Tangle cast rate hard-rounds to whole server ticks: ticks = ceil(cast_time × 30), rate = 30 / ticks.
-    Owner in-game validation: 6.04 and 7.44 casts/s gave IDENTICAL DPS — both fall in the 5-tick bucket
+    Tyra in-game validation: 6.04 and 7.44 casts/s gave IDENTICAL DPS — both fall in the 5-tick bucket
     (effective 6.0/s); the next breakpoint is exactly 7.5/s (4 ticks). This locks that formula in."""
     def test_owner_validated_6_04_and_7_44_same_bucket(self):
         from engine.tick import period_ticks, rate_from_ticks, TICK_RATE

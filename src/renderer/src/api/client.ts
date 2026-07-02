@@ -29,6 +29,8 @@ const STATIC_CATALOGS: Record<string, string> = {
   '/conditions': 'conditions',
   '/pact-spirits': 'pact_spirits',
   '/verification-db': 'verification_db',
+  '/glossary': 'glossary',
+  '/help-db': 'help_db',
 }
 function staticCatalogUrl(path: string): string | null {
   if (!STATIC_DATA_BASE || !staticSeason) return null
@@ -686,6 +688,27 @@ export interface VerificationDbResponse {
   tags: string[]
   skills: string[]
   statuses: VerificationStatus[]
+}
+
+// ── Glossary + Help DB (term-linking references) ─────────────────────────────
+export interface GlossaryTerm {
+  id: string | null
+  name: string
+  description: string
+  sources: string[]
+}
+export interface GlossaryResponse {
+  season: string | null
+  terms: GlossaryTerm[]
+}
+export interface HelpDbEntry {
+  id: string
+  title: string
+  breadcrumb: string
+  markdown: string
+}
+export interface HelpDbResponse {
+  entries: HelpDbEntry[]
 }
 
 export interface StatSource {
@@ -1566,7 +1589,7 @@ export function buildSpiritEffects(
       effects.push({ text: '+6 % Minion Damage', source: 'Pact: Undetermined' })
     } else {
       // Every empty extra slot grants the same generic +6% Damage / +6% Minion Damage regardless of micro/medium
-      // (tier only governs size + what can be socketed, per owner).
+      // (tier only governs size + what can be socketed, per Tyra).
       u.slots.forEach(f => {
         if (f) emitFate(f)
         else {
@@ -2584,6 +2607,9 @@ export const api = {
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),
 
   getVerificationDatabase: () => get<VerificationDbResponse>('/verification-db'),
+
+  getGlossary: () => get<GlossaryResponse>('/glossary'),
+  getHelpDb: () => get<HelpDbResponse>('/help-db'),
 
   // ── Dev: condition manager ─────────────────────────────────────────────────
   devGetStatKeys: () =>

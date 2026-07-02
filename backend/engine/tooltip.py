@@ -4,7 +4,7 @@ Single source of truth for tooltip TEXT: this parses the same data the engine co
 (``description_lines`` + ``progression``) into per-line, per-level display strings, so the
 renderer just picks the current level/tier and attaches a status badge per line.
 
-Value-display rule (owner-confirmed, detectable by parentheses alone):
+Value-display rule (Tyra-confirmed, detectable by parentheses alone):
   * bare ``X-Y`` range      -> a damage-add spread, shown as the FULL range at the level.
   * parenthesised ``(a-b)%`` -> roll-variance within a stat (tiered supports only),
     shown as the MIDPOINT (matches what the engine computes).

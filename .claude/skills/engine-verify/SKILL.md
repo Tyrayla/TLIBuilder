@@ -5,7 +5,7 @@ description: Run the TLI Builder engine verification suite after changing engine
 
 # engine-verify
 
-Runs the full verification gate for engine changes. **Never commits** — report results and let the owner decide.
+Runs the full verification gate for engine changes. **Never commits** — report results and let Tyra decide.
 See `docs/ENGINE_AUTHORING.md` for the gotchas this enforces.
 
 ## 1. Typecheck (only if frontend/TS changed)
@@ -56,7 +56,7 @@ for sid in ["chain_lightning","moon_strike","berserking_blade"]:
     print(sid, "value changes:", diffs if diffs else "NONE (additive only)")
 PY
 ```
-- If any spot-checked skill shows a real value change, **stop** — that's a behavior change to review with the owner,
+- If any spot-checked skill shows a real value change, **stop** — that's a behavior change to review with Tyra,
   not a mechanical re-capture.
 - If additive-only, re-capture: delete the changed fixtures and run twice (first captures + skips, second asserts):
 ```
@@ -100,4 +100,4 @@ entry via its `skills:["Groundshaker"]`) already counts as covered — don't for
 ## 6. Report
 Summarize: tsc error count, pytest pass count, consumable-universe status, whether goldens were re-captured
 (and that the diff was additive-only), and any verification-entry drift. Do **not** commit. Surface anything
-unexpected to the owner.
+unexpected to Tyra.

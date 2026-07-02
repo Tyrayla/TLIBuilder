@@ -6,7 +6,7 @@ description: Add a new user condition/toggle to the TLI Builder engine — a con
 # add-condition
 
 Scaffolds a new condition and gives the exact edit checklist. **Approval-gated** — propose the exact ConditionDef
-(and pattern, if any) and wait for the owner's OK. See `docs/ENGINE_AUTHORING.md` (Add a condition).
+(and pattern, if any) and wait for Tyra's OK. See `docs/ENGINE_AUTHORING.md` (Add a condition).
 
 ## 1. Gather
 - **key** + **label** + **category** ("Hero Trait" for trait-gated, else the relevant group).

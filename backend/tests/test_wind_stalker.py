@@ -1,7 +1,7 @@
 """Erika — Wind Stalker (trait_id "wind_stalker"). Base + advanced picks layered on the Phase-1 Multistrike system.
 
 Unit-tests the module's contributions directly (exact amounts) and integration-tests Have Fun's free Lv10 Multistrike
-support + gating through the full engine. Owner-confirmed model (2026-06-22): "max count" = the chain's final attack;
+support + gating through the full engine. Tyra-confirmed model (2026-06-22): "max count" = the chain's final attack;
 Cat's Vision damage is a flat bonus; Stalker stacks default to the effective max (3 base / 6 w/ Cat's Vision).
 """
 import pytest

@@ -488,7 +488,7 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
 
     # "(-X – -Y)% additional damage taken" (Crimson King's gated defensive line; gate split off upstream). Negative =
     # the WEARER takes less. TRACKED ONLY — folds into the existing dmg_taken_additional pool (like Tenacity
-    # blessings) but is NOT wired into any defensive/EHP calc yet (owner: stat tracking only). Skip enemy-vuln phrasings.
+    # blessings) but is NOT wired into any defensive/EHP calc yet (Tyra: stat tracking only). Skip enemy-vuln phrasings.
     if "enem" not in t.lower():
         m = re.search(r'(-?[\d.]+)\s*%\s*additional\s+damage\s+taken', _tc, re.I)
         if m:
@@ -581,7 +581,7 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         return [{"stat_key": "es_charge_on_generate_flag", "amount": 1.0, "text": t}]
 
     # "N% chance … to inflict M additional stack(s) of Wilt" → distinct stat from plain Wilt chance (chance for
-    # an EXTRA stack, a separate mechanic — owner-confirmed). Must precede any generic Wilt-chance match.
+    # an EXTRA stack, a separate mechanic — Tyra-confirmed). Must precede any generic Wilt-chance match.
     m = re.search(r'([\d.]+)\s*%\s*chance\b.*?\binflict\s+\d+\s+additional\s+stacks?\s+of\s+wilt', t, re.I)
     if m:
         return [{"stat_key": "wilt_additional_stack_chance", "amount": float(m.group(1)) / 100.0, "text": t}]

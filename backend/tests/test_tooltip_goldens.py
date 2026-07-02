@@ -2,7 +2,7 @@
 
 Snapshots one representative skill of EACH type so a change in how any type's tooltip is split / valued /
 deduped shows up as a diff. Re-capture deliberately by deleting the fixture. Plus two focused asserts that
-lock the owner-confirmed value rule: a standard-support added-flat line shows a RANGE at level 20, and a
+lock Tyra-confirmed value rule: a standard-support added-flat line shows a RANGE at level 20, and a
 tiered (noble/magnificent) roll line shows the MIDPOINT.
 
 Tooltips don't touch the engine, so these are fast (no engine_stats run).

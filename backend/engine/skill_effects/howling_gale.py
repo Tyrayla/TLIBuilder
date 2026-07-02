@@ -4,7 +4,7 @@ Four bound supports, all carrying the universal "+20% additional damage for the 
 (handled generically by support_resolver's rank table — NOT here). Their SPECIFIC lines are bespoke:
 
   - Eye of the Gale (Noble, 5th):  GLOBAL +(20-22)% additional Attack & Cast Speed + 20% Projectile Speed
-        while within the Gale. Owner-confirmed these buff the WHOLE character (not just the Gale), so they are
+        while within the Gale. Tyra-confirmed these buff the WHOLE character (not just the Gale), so they are
         emitted globally (add_with_source), gated on the `within_gale` condition (default ON). Cast Speed also
         feeds the Gale's strike rate (offense's channeled attack_frequency × cast-speed mult). Gale-follows is
         informational. NOTE: a global emit from one slot's hook reaches the Gale's own slot (it materializes

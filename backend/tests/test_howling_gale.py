@@ -2,7 +2,7 @@
 
 The Gale strikes at its own Base Attack Frequency 1.5/s (× cast speed), separate from the 3/s channel build rate
 (both surfaced). Spell base (548-913 physical @ L20) is unscaled by effectiveness. "+21.5% additional damage per
-ADDITIONAL Max Channeled Stack" (beyond base 5) scales off max_channeled_stacks_flat (owner read — verify in-game).
+ADDITIONAL Max Channeled Stack" (beyond base 5) scales off max_channeled_stacks_flat (Tyra read — verify in-game).
 """
 import pytest
 from server import engine_stats, EngineStatsRequest

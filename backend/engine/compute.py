@@ -36,7 +36,7 @@ _SPELL_BURST_DISALLOWED_TAGS = frozenset({
     "channeled", "sentry", "combo", "trigger", "triggered", "persistent", "aura", "passive", "mark",
 })
 # Per-support Spell-Burst damage bonuses that SCALE with stacks/activations (the generic parser maps only the
-# FLAT "for skills cast by Spell Burst" lines; these ramped lines are hand-modeled here — owner §7). Each adds
+# FLAT "for skills cast by Spell Burst" lines; these ramped lines are hand-modeled here — Tyra §7). Each adds
 # to spell_burst_hit_dmg_additional in burst mode. "per_stack" scales by min(M, cap) (stacks consumed = M);
 # "per_activation" assumes sustained DPS at the cap (×cap). pct values are mid-roll — flagged for in-game
 # verification (SPELLBURST-01). Cap from the line ("Stacks up to N").
@@ -69,7 +69,7 @@ _AUTOMAX_TARGETS = [
 ]
 
 # Magister "gain 1 stack of <Blessing> when generating Tangle / activating Spell Burst" nodes → a full-uptime
-# flag stat the compute loop reads to pin that blessing to its derived max (owner: treat on-generate as full
+# flag stat the compute loop reads to pin that blessing to its derived max (Tyra: treat on-generate as full
 # uptime). Gated on the build actually generating tangles / bursting so it can't force blessings for free.
 _BLESSING_FULL_UPTIME_TARGETS = [
     ("focus_blessing_full_uptime_flag",    "focus_blessings"),
@@ -801,7 +801,7 @@ def compute(
                 condition_state[_key] = maxes[_key]
 
         # Magister "gain <Blessing> when generating Tangle / activating Spell Burst" nodes → pin that blessing to
-        # its derived max (full-uptime approximation, owner-approved), but ONLY when the build actually generates
+        # its derived max (full-uptime approximation, Tyra-approved), but ONLY when the build actually generates
         # tangles or bursts (so the flag can't grant blessings for free). Emits a source flag stat (mod_parser),
         # read here after aggregate. Recorded into consumed_stats so the node badges Consumed (green) when active.
         _generates_burst_or_tangle = (_tangle_slot is not None) or source.total("max_spell_burst_flat") >= 1
@@ -1066,7 +1066,7 @@ def compute(
                 if new_state.get("spell_burst_auto_trigger"):
                     auto_source = "Auto-Trigger (toggled on)"
                 auto = bool(auto_source)
-                # Ramped per-support burst-damage bonuses (Heart of Flame / Prairie Fire — owner §7).
+                # Ramped per-support burst-damage bonuses (Heart of Flame / Prairie Fire — Tyra §7).
                 for sid in slot_support_ids:
                     spec = _SPELL_BURST_BONUS_SUPPORTS.get(sid)
                     if not spec:

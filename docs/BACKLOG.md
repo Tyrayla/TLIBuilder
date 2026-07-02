@@ -7,7 +7,7 @@ Grouped by area. Pruned 2026-06-16 after the 0.5.2 release and the web launch.
 > via the main-menu **Verification Database** button. The pending test *queue* stays in
 > `docs/INGAME_VERIFICATION_BACKLOG.md`. Add/update entries with the `/add-verification` skill.
 
-## ★ NEXT (owner, 2026-06-18)
+## ★ NEXT (Tyra, 2026-06-18)
 1. **Release TONIGHT** with all the Spell Burst + Tangle + craft-fix work. **Main-menu / landing-page update** so the
    **Discord link** (feedback sharing) is easy to find — do this as part of the release.
 2. **Hero Traits** (after the release) — implement **one ENTIRE hero trait at a time (all its nodes)**, not piecemeal.
@@ -25,7 +25,7 @@ fixed (defer-behind-headline + `/api/engine/stats-batch`, commit 7c1fd09). Tiers
 - ✅ Dropped lodash-es (inline `deepEqual`/`debounce` in `src/renderer/src/utils/fn.ts`).
 - ⏸ STRETCH (deferred): cache `resolve_nodes` by `(slots,slates,prisms)` hash — re-resolved identically across a
   delta batch. Marginal for typical small trees; revisit if big-tree delta batches feel slow.
-- ⚠ FLAG to owner: several engine sites name a `{fire,cold,lightning,erosion}` set "elemental" (now `NON_PHYSICAL`).
+- ⚠ FLAG to Tyra: several engine sites name a `{fire,cold,lightning,erosion}` set "elemental" (now `NON_PHYSICAL`).
   TLI "Elemental" excludes Erosion — confirm whether those erosion-inclusive uses are intentional or a latent bug.
 
 **Tier B — web responsiveness (NEXT):**
@@ -82,14 +82,14 @@ cap, every stack is a full cast). Folded into `total_dps` as the final `spell_bu
 `spell_burst_hit_dmg_additional` applies only to burst casts); `compute._offense_for_slot` detects eligibility + sizes
 M. Conditions: `spell_burst_active` (default on — off → normal-cast DPS) and `spell_burst_auto_trigger` (instant at
 full charge vs cast-gated — this IS the burst/combined toggle).
-- **Combined manual model (owner 2026-06-18).** **Manual** triggering = the player keeps casting between bursts →
+- **Combined manual model (Tyra 2026-06-18).** **Manual** triggering = the player keeps casting between bursts →
   `total = burst casts (M+1 per proc, with the spell_burst pool) + the normal casts in between (no pool)`. The two are
   surfaced distinctly (`spell_burst_dps` / `non_spell_burst_dps`, both vs-target too) and shown under the DPS total as
   "Spell Burst: X / Non Spell Burst: Y". **Auto-trigger** (Solid River / Burst Activation) = burst-only (no manual
   casting → `non_spell_burst_dps = 0`); turning auto on is the toggle that drops the between-burst casts.
   `spell_burst_mult = (burst casts + normal casts ÷ sb_pool_factor) ÷ aps`, so the breakdown table still reconciles
   with a single scalar. (Auto pure-burst = `(M+1)·bursts/sec ÷ aps`.)
-- **Tick model — `engine/tick.py` (30 Hz, owner-confirmed cap, NOT 31).** Two regimes: (1) **smooth + hard cap** —
+- **Tick model — `engine/tick.py` (30 Hz, Tyra-confirmed cap, NOT 31).** Two regimes: (1) **smooth + hard cap** —
   the default for player rates; `cap_rate(raw)=min(raw,30)` is applied per-caster to `aps` in offense (rarely binds).
   (2) **hard-rounded breakpoints** — `period_ticks(s)=ceil(s×30)` + `rate_from_ticks(n)=30/n`, an **explicit,
   manually-approved per-mechanism opt-in**. Spell Burst charge is the FIRST opted-in user (its charge is a server-timed
@@ -99,7 +99,7 @@ full charge vs cast-gated — this IS the burst/combined toggle).
   where `surging_rate = aps × spell_burst_chance_gain_stacks_flat` (expected stacks/cast) — **shape flagged for in-game
   verify**. Auto bursts/sec = `30 / charge_ticks`; manual waits for the next cast at/after the charge tick (cast-cadence
   aligned, the Scenario-C ~50% trap when cast≈charge).
-- **Per-support ramped burst-damage bonuses (owner §7, mid-roll constants — VERIFY):** Heart of Flame (+10.5%/stack
+- **Per-support ramped burst-damage bonuses (Tyra §7, mid-roll constants — VERIFY):** Heart of Flame (+10.5%/stack
   consumed, ×min(M,6)) and Prairie Fire (+18%/activation, assumed at-cap ×6) are hand-modeled in a registry in
   `compute._offense_for_slot` (`_SPELL_BURST_BONUS_SUPPORTS`); the flat "for skills cast by Spell Burst" lines map via
   `mod_parser`. **Confirm the per-stack/per-activation percentages and whether casts/burst is M or M+1 in-game.**
@@ -125,7 +125,7 @@ full charge vs cast-gated — this IS the burst/combined toggle).
   - **Ingenuity Overload** = the Bing **Creative Genius** hero trait (resource/spike: +200% one-shot Max Spell Burst +
     Ingenuity Essence, and a "+15% charge speed for 10s" buff) → lands with the **hero-trait** work, not here.
   - **minion Spell Burst** — needs the minion engine.
-- **More breakpoint mechanisms reuse `tick.period_ticks` (each MANUALLY opted-in — owner approval per mechanism):**
+- **More breakpoint mechanisms reuse `tick.period_ticks` (each MANUALLY opted-in — Tyra approval per mechanism):**
   **minions** (attack-time-in-ticks; Iris2 merged Magus +40% DPS at 7→5 ticks; **Rock Magus Ultimate 6-tick bug** —
   5 & 7 ok, 6 not), **Reap** (server-timed; **900 CDR → 10 Reaps/s** cap), **Wind Rhythm** / auto-triggers
   (ticks-per-proc), **Split Shot — Rapid Advance Canvas ONLY** (channeled-transform; raw APS 15→29 stays flat/worse,
@@ -195,7 +195,7 @@ Engine: `empower_resolver.py`, `utility.apply_empower_buffs`. Buffs assumed 100%
 - See docs/INGAME_VERIFICATION_BACKLOG.md (EMPOWER-01) for verification items.
 
 ## 0b. RESOLVED — False "Unrecognized (NYI)" / "Inactive" on tooltips & badges
-**RESOLVED (owner confirmed 2026-06-26).** The tooltip line classifier / badge resolver no longer falsely flags
+**RESOLVED (Tyra confirmed 2026-06-26).** The tooltip line classifier / badge resolver no longer falsely flags
 modeled mechanics (jumps, conversions, etc.) as NYI/Inactive. Kept below for history.
 
 Skill/support tooltips (and possibly other mod badges) flag lines as
@@ -309,7 +309,7 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
 - **Landing/main screen — add a Discord feedback link**: revisit the app's main screen/landing page (BuildSelectScreen)
   so it contains a direct, visible link to the community Discord for feedback/bug reports/sharing. Pairs with the
   existing About modal's about.tlibuilder.com link; consider a small footer/header social row (Discord + site).
-- **BUG (open): skill-slot search menus unresponsive** — owner reports the skill-slot search/picker stops responding
+- **BUG (open): skill-slot search menus unresponsive** — Tyra reports the skill-slot search/picker stops responding
   entirely, possibly after deleting a build (trigger unconfirmed). Investigate stale state / dangling overlay or
   unreset picker state on build delete. See `.wolf/buglog.json` (bug-skill-slot-search-unresponsive).
 - **Per-slot/Berserking frontend toggle UI** (backend done; enable/disable primitive exists).
@@ -325,7 +325,7 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
 
 ## 6. Stats engine v2 (open items)
 - Source coloring (crafted gear by rarity #mods, talents by tree branch); hero-memory base values by rarity
-  (owner has hand-gathered data); per-weapon dual-wield crit/damage display; verify Numbed×Grudge/Infiltration
+  (Tyra has hand-gathered data); per-weapon dual-wield crit/damage display; verify Numbed×Grudge/Infiltration
   stacking; offense/hit revamp (skill-specific section, projectiles).
 - **Stats-screen offense rework — separate the "delivery multiplier" breakdowns.** The Skill Hit Damage area folds
   the same-target shotgun (`cast_multiplier`) and the Tangle attached-count into the DPS as flat multipliers shown

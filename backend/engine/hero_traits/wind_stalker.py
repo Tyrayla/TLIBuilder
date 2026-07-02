@@ -9,7 +9,7 @@ main-skill-specific piece is Have Fun's free Lv10 Multistrike support, which is 
 Values are the SS12 `_hero_traits.json` constants, indexed by node tier (level 1-5 → index 0-4). Advanced "pick"
 traits apply only when selected (their name is in `advanced_picks`) and their node is enabled.
 
-Owner-confirmed modeling (2026-06-22):
+Tyra-confirmed modeling (2026-06-22):
 - "Max Multistrike Count reached" = the final attack of the CURRENT chain (every chain reaches it), so the
   "at max count" picks (Cat's Scratch increment, Cat's Vision +Max Stalker) are effectively always-on in sustained
   multistrike → modeled as active. Cat Dive feeds the realized-L hook in offense (`multistrike_max_count_proc_chance`).
@@ -17,7 +17,7 @@ Owner-confirmed modeling (2026-06-22):
   its "+1 Max Stalker" raises the Stalker cap (3 → up to 6). Tiers are signed (L1 is −4%).
 - Stalker stacks are a user-set `stalker_stacks` condition defaulting to the effective max (3 base, 6 w/ Cat's Vision).
 - Artificial Moon's enemy Mark is a damage-taken debuff — NYI (surfaced, not computed).
-- Cat's Punches (L75, pick-one with Cat Dive; owner-confirmed 2026-06-26): +1 Initial Multistrike Count per 3
+- Cat's Punches (L75, pick-one with Cat Dive; Tyra-confirmed 2026-06-26): +1 Initial Multistrike Count per 3
   Stalker stacks (hard steps of 3 → floor(stacks/3)) + a per-rank flat additional-damage bonus that is ALWAYS
   active (not multistrike-gated). Its "generates a Stalker stack at max count" clause is flavor — no cap change.
 """
@@ -135,7 +135,7 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     # ── Cat's Punches (75, pick-one with Cat Dive): +1 Initial Multistrike Count per 3 Stalker stacks (hard steps
     #    of 3 → floor(stacks/3); pre-stacks the multistrike increment, adds no attacks) + a flat additional-damage
     #    bonus that is ALWAYS active (the line is not gated on multistriking). The "generates a Stalker stack at max
-    #    count" clause is flavor — it does NOT raise the Stalker cap (owner-confirmed). ──
+    #    count" clause is flavor — it does NOT raise the Stalker cap (Tyra-confirmed). ──
     if "Cat's Punches" in picks and _enabled(slot_levels, _SLOT_75):
         t = _tier(slot_levels, _SLOT_75)
         init = int(stalker_stacks // 3)

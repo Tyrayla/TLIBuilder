@@ -8,7 +8,7 @@ raise it. The floor is applied via the existing max-rule (engine.support_mapper.
 through compute._apply_cond_effects, which respects a manually-set value and gates on the build's hit
 damage types.
 
-Functional spec (owner-confirmed):
+Functional spec (Tyra-confirmed):
   A  "Inflicts Numbed when dealing Hit Lightning Damage"        -> enable + floor 1 (Lightning hit)
   B  "% chance to inflict 1 stack of Numbed ... on hit"          -> enable + floor 1 (can ramp; user raises)
   C  "Inflicts N additional stack(s) of Numbed"                  -> raises the floor to 1 + N (needs A/B)

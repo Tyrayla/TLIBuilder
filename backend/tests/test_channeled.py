@@ -2,7 +2,7 @@
 
 A channeled skill gains 1 stack per skill USE; a RESET skill ramps 0→Max over `rounds_per_cycle` uses then
 dumps ALL stacks and fires its burst form once per cycle. Min Channeled Stacks shortens the ramp (the first
-round from 0 gains 1 + Min). Validated in-game (owner): for Icebound Beam (Max 5) Min 3→4 doubles the
+round from 0 gains 1 + Min). Validated in-game (Tyra): for Icebound Beam (Max 5) Min 3→4 doubles the
 detonation rate; Min 4→5 does nothing.
 
 Icebound Beam has two damage FORMS at different cadences, both Cold Spell:

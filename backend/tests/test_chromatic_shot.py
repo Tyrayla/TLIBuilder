@@ -2,7 +2,7 @@
 rotated element; ALL added flat folds into base BEFORE conversion; only the final element's increased/additional
 apply) fired as 3 shotgunning projectiles. Plus its canvas supports Lightchaser + Splendor.
 
-Owner-confirmed model: headline = expected average across Fire/Cold/Lightning; shotgun first 100% + each subsequent
+Tyra-confirmed model: headline = expected average across Fire/Cold/Lightning; shotgun first 100% + each subsequent
 30% (falloff 0.70) capped at "shots on target" (default 7, all under Lightchaser/tangle); added flat of EVERY type
 folds in equally.
 """
@@ -151,7 +151,7 @@ def _tangled(cs_inc):
 
 def test_tangle_cast_rate_hard_rounds_to_tick_breakpoints():
     """A tangle's per-cast rate snaps to whole server ticks: two different cast speeds that land on the same tick
-    count produce the SAME effective rate (owner-verified 6.04 & 7.44 casts/s → 5 ticks → 6.0/s)."""
+    count produce the SAME effective rate (Tyra-verified 6.04 & 7.44 casts/s → 5 ticks → 6.0/s)."""
     base = 1.0 / 0.65   # chromatic base cast time 0.65s → ~1.538 casts/s before cast speed
     a = _tangled(6.04 / base - 1.0)
     b = _tangled(7.44 / base - 1.0)

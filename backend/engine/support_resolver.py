@@ -103,7 +103,7 @@ def _explicit_roll(sup: dict, line: str) -> float | None:
 
 
 # Universal "+% additional damage for the supported skill" by support RANK (1–5). Frame behaviour on
-# Noble/Magnificent supports; rank is a per-support build input (not in the game data). Owner-verified.
+# Noble/Magnificent supports; rank is a per-support build input (not in the game data). Tyra-verified.
 _RANK_TABLE: dict[int, float] = {1: 0.0, 2: 0.04, 3: 0.08, 4: 0.14, 5: 0.20}
 
 _RANKED_TYPES = {"magnificent_support_skill", "noble_support_skill"}

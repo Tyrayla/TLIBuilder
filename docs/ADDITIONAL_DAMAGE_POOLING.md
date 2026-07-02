@@ -2,7 +2,7 @@
 
 Status: **design confirmed (verbally), Option A implementation greenlit.** Captures the decisions
 from the 2026-06-08 discussion. The core rule — distinct additional affixes **multiply** — is
-owner-confirmed verbally; an in-game DPS spot-check (§7.1) is still queued for when servers return,
+Tyra-confirmed verbally; an in-game DPS spot-check (§7.1) is still queued for when servers return,
 but implementation proceeds now. The immunity tripwire (§6) is the only part shipped so far.
 
 ## 1. Source of truth (TLI Help Database, authoritative)
@@ -22,9 +22,9 @@ adds, different affixes multiply**; a per-stack affix marked **"(multiplies)"** 
 `damage = base × (1 + Σ increased) × Π[ additional factors ]`, where additional factors are:
 
 - **One `(1 + Σ positive)` factor per affix identity**, tag-scoped. Identical affixes (by
-  normalized text) from any sources **add** into that one factor. *(Owner-confirmed: Gravel +
+  normalized text) from any sources **add** into that one factor. *(Tyra-confirmed: Gravel +
   Sun-shooter Long Bow, both `+X% additional Projectile Damage`, ADD.)*
-- **Negatives are a separate concern from positives** (owner-confirmed). A bounded negative affix
+- **Negatives are a separate concern from positives** (Tyra-confirmed). A bounded negative affix
   with a shared stack cap accumulates **additively within its own factor** (e.g. compass
   `−2%/stack, up to 30` → one `×0.40` factor), and that factor then **multiplies** against other
   distinct negative/positive factors. **Distinct or unbounded negatives multiply** (this is what
@@ -97,7 +97,7 @@ zeroing damage. No current build trips it. (`taken_as` conversions are excluded.
 
 ## 7. Verification status (in-game checks queued; implementation not blocked)
 
-1. **Positives multiply across distinct affixes.** ✅ **Verbally confirmed (owner, 2026-06-08).**
+1. **Positives multiply across distinct affixes.** ✅ **Verbally confirmed (Tyra, 2026-06-08).**
    In-game DPS spot-check still queued for when servers return: dummy DPS `D0`; add one big distinct
    additional (`+50%`) → expect `×1.50`; add a second differently-worded additional of the same type
    → `×2.00` (add) vs `×2.25` (multiply). 25% gap is unmistakable.
@@ -108,7 +108,7 @@ zeroing damage. No current build trips it. (`taken_as` conversions are excluded.
 
 ## 8. Out of scope (for now)
 
-Compass / map modifiers (owner wants these modelled eventually, not now). The per-affix math above
+Compass / map modifiers (Tyra wants these modelled eventually, not now). The per-affix math above
 still applies to on-character negatives (legendary drawbacks, talent `−X%`), which are almost always
 single-instance.
 

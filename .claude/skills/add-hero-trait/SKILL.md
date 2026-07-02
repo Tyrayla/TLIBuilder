@@ -6,7 +6,7 @@ description: Add a Torchlight Infinite hero trait to the TLI Builder DPS engine 
 # add-hero-trait
 
 Scaffolds a bespoke hero-trait module + the exact wiring checklist. **Approval-gated** — map every line and
-propose the exact code + per-tier values, then wait for the owner's OK before writing. Read
+propose the exact code + per-tier values, then wait for Tyra's OK before writing. Read
 `docs/ENGINE_AUTHORING.md` (Add a hero trait, gotchas) first. Reference: `backend/engine/hero_traits/
 high_court_chariot.py` and `lightning_shadow.py` (+ their `README.md`).
 
@@ -16,7 +16,7 @@ high_court_chariot.py` and `lightning_shadow.py` (+ their `README.md`).
   pick-one-from-two) with its per-tier numbers.
 - For EACH line decide handling: a modelled contribution (which stat + how it scales), a user-set condition, or
   **informational** (spatial/regen/utility → `status_lines`). Per the never-silently-drop rule, nothing is omitted.
-- List uncertainties to confirm with the owner (formulas, pooling increased-vs-additional, interactions,
+- List uncertainties to confirm with Tyra (formulas, pooling increased-vs-additional, interactions,
   per-tier values, what's a buff vs an always-on). **Surface these — do not guess.**
 
 ## 2. New pools/inputs
@@ -33,7 +33,7 @@ Fill `templates/module.py` (in this skill folder) with the real `TRAIT_ID`, tier
   aggregated value; the loop converges over ~3 passes. Omit if unused.
 - `status_lines()` returns one row per line (`working` | `informational`).
 - Return `{"contributions":[...], "numbed_stacks": float|None}` (the override is only for ailment-uptime traits).
-Show the owner the filled module + the per-line mapping table for sign-off.
+Show Tyra the filled module + the per-line mapping table for sign-off.
 
 ## 4. Apply (after approval)
 - [ ] Create `backend/engine/hero_traits/<trait_id>.py` from the approved module.
@@ -45,7 +45,7 @@ Show the owner the filled module + the per-line mapping table for sign-off.
 
 ## 5. Verify
 Run `/engine-verify` (the new trait test + full suite + consumable-universe + goldens). New always-read
-stats/conditions → additive golden re-capture. Do not commit. Then offer in-app/RECOUNT validation to the owner.
+stats/conditions → additive golden re-capture. Do not commit. Then offer in-app/RECOUNT validation to Tyra.
 
 ## 6. Verification entry (anti-drift)
 Run `/add-verification` so the new trait gets a Verification Database entry (status `unverified` unless Tyra

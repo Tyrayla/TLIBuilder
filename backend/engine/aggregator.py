@@ -549,7 +549,7 @@ def aggregate(
     # above 120 is IGNORED here); Frostbite Effect scales the magnitude. Condensed Frost adds a SEPARATE
     # +0.35%/point for the rating OVER 120 (cap +28%), NOT scaled by Frostbite Effect. frostbite_rating is the
     # auto-derived numeric condition (compute loop). Baked into a cold-tagged stat read by offense's
-    # enemy-vulnerability stage. Both pieces are "additional Cold taken" → one additive pool (owner-confirmed).
+    # enemy-vulnerability stage. Both pieces are "additional Cold taken" → one additive pool (Tyra-confirmed).
     if "enemy_frostbitten" in (active_booleans or frozenset()):
         rating = float((numeric_vals or {}).get("frostbite_rating", 0.0) or 0.0)
         if rating > 0:
@@ -569,7 +569,7 @@ def aggregate(
 
     # ── Bonus propagation: Play Safe (Cast Speed → Spell Burst Charge Speed) ──────
     # When granted (flag stat present), the player's cast-speed INCREASED total and EACH cast-speed
-    # ADDITIONAL affix are ALSO applied to Spell Burst Charge Speed (owner: charge restoration time =
+    # ADDITIONAL affix are ALSO applied to Spell Burst Charge Speed (Tyra: charge restoration time =
     # 2 / (1 + chargeSpeed_inc) / Π(1 + chargeSpeed_additional_i)). Spell Burst charge speed isn't consumed
     # by the engine yet, so this populates the stats ready for when it is, without affecting DPS today.
     if source.total("cast_speed_to_spell_burst_charge") > 0:

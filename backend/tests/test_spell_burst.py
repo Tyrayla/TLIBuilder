@@ -3,7 +3,7 @@ the spell M times; the triggering cast also counts (casts_per_burst = M + 1, no 
 server-timed whole-tick countdown (hard-rounded breakpoints, 30 Hz — engine/tick.py), so charge speed only helps
 at integer-tick crossings; the player's cast rate stays smooth (and 30-capped). See the approved plan.
 
-Model (owner-confirmed): tickrate 30 cap on everything; no damage cap (every stack is a full cast); recasts are
+Model (Tyra-confirmed): tickrate 30 cap on everything; no damage cap (every stack is a full cast); recasts are
 instant on trigger (only the burst RATE is tick-limited); auto-trigger fires the tick it's charged, manual waits
 for the next player cast at/after the charge tick. Spell-burst-only damage pools (spell_burst_hit_dmg_additional)
 apply to burst casts via the "spell_burst" tag; per-stack-consumed (Heart of Flame) and per-activation (Prairie
@@ -201,7 +201,7 @@ class TestBurstDamagePool:
         assert _hit(off_boost) == pytest.approx(_hit(off_plain))
 
 
-# ── Per-support ramped bonuses (owner §7) ────────────────────────────────────────
+# ── Per-support ramped bonuses (Tyra §7) ────────────────────────────────────────
 class TestRampedBonuses:
     _HOF = [{"slot": 1, "item_id": "fire_burst_heart_of_flame_magnificent", "level": 20, "enabled": True}]
     _PF = [{"slot": 1, "item_id": "fire_burst_prairie_fire_noble", "level": 20, "enabled": True}]

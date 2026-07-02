@@ -8,7 +8,7 @@ ONE concatenated progression line per tier. This module:
   2. `apply_slot_effects(...)` — emit the WIRED stats for an equipped medium from the user's selected rolls/tiers/
      group choice (values in `specific_rolls`, tiers in `specific_roll_tiers`, choice in `roll_group_choice`).
 
-Owner-confirmed conventions:
+Tyra-confirmed conventions:
   - `"every (X) s"` = real trigger cadence → `trigger_interval` (overrides cast rate, any skill). `"Interval: (X) s"`
     = a rate-limit (CAN occur) → recorded, not wired.
   - Wind Rhythm converts Cast Speed → CDR against a per-tier base cooldown; handled by the Wind Rhythm rate helper.
@@ -23,7 +23,7 @@ from engine.models import SourceEntry
 RHYTHM = "activation_medium_rhythm"
 WIND_RHYTHM = "activation_medium_wind_rhythm"
 
-# Wind Rhythm per-tier base cooldown (seconds) — L0 0.5 / L1 0.6 / L2 0.7 / L3 0.8 (owner + calculator).
+# Wind Rhythm per-tier base cooldown (seconds) — L0 0.5 / L1 0.6 / L2 0.7 / L3 0.8 (Tyra + calculator).
 WIND_RHYTHM_BASE_COOLDOWN = {0: 0.5, 1: 0.6, 2: 0.7, 3: 0.8}
 
 # One range: optional sign, (lo – hi), optional trailing unit (%, s, m). s/m guarded so "skill"/"m"-words don't match.

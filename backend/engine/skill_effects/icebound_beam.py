@@ -1,7 +1,7 @@
 """Icebound Beam canvas-support mechanics.
 
 Three bound supports, all carrying the universal "+20% additional damage for the supported skill" rank line
-(handled generically by support_resolver's rank table — NOT here). All mechanics below are owner-validated in-game
+(handled generically by support_resolver's rank table — NOT here). All mechanics below are Tyra-validated in-game
 (level 16 / dummy). Their SPECIFIC lines are bespoke:
 
   - Chilling Spike (Noble, 5th): (1) DISABLES the Cold Beam 1/3 suppression — the beam runs full even while the
@@ -35,7 +35,7 @@ FROSTBITTEN = "icebound_beam_frostbitten_magnificent"
 RING_BLADE = "icebound_beam_ring_blade_noble"
 IB_SUPPORT_IDS = frozenset({CHILLING, FROSTBITTEN, RING_BLADE})
 
-# Tuned constants (owner-validated; one knob each, easy to re-fit against the recounts).
+# Tuned constants (Tyra-validated; one knob each, easy to re-fit against the recounts).
 CHILLING_BLADE_EQUIV = 0.69   # net single-target blade-equivalents from CS's 4 penetrating blades (no shotgun)
 FROZEN_BURST_RATE = 1.0       # Ring Blade Frozen proc: full Icy Blade bursts per second (flat, CDR-independent)
 

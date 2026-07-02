@@ -22,7 +22,7 @@ def _attack_base(skill_id, level):
 
 
 def test_cruelty_interpolates_attack_damage_linearly():
-    # Lv1 9.5%, Lv20 19% → Lv16 ~17% (matches the owner's hand-collected Lv16 value). Base values, unscaled.
+    # Lv1 9.5%, Lv20 19% → Lv16 ~17% (matches Tyra's hand-collected Lv16 value). Base values, unscaled.
     assert round(_attack_base("cruelty", 1) * 100, 1) == 9.5
     assert round(_attack_base("cruelty", 20) * 100, 1) == 19.0
     assert round(_attack_base("cruelty", 16) * 100, 1) == 17.0

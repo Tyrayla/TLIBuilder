@@ -63,7 +63,7 @@ class ChanneledSpec:
     behavior: Literal["reset", "refresh"] = "reset"
     max_from_data: bool = False
     # RESET only: does the use that reaches max ALSO fire the continuous form, or replace it with the burst?
-    # Icebound Beam: ADDITIVE (owner-confirmed — the Icy Blades fire while the beam is still going).
+    # Icebound Beam: ADDITIVE (Tyra-confirmed — the Icy Blades fire while the beam is still going).
     burst_replaces_continuous: bool = False
     # RESET only: when the burst form actually fires (projectile_count ≥ 1), the CONTINUOUS form's damage is
     # suppressed to this fraction (the channel "redistributes" beam damage into the blades). 1.0 = no
@@ -459,7 +459,7 @@ def _resolve_icebound_beam(skill_data: dict) -> ResolvedSkill:
 # Max Channeled Stack" (beyond the base 5) → an intrinsic additional scaling off max_channeled_stacks_flat (gear).
 # Per-channeled-stack Duration/Area/Movement Speed are non-DPS (informational) for a sustained single-target calc.
 _HOWLING_GALE_FREQUENCY = 1.5
-_HOWLING_GALE_PER_ADDITIONAL_MAX_STACK = 0.215   # owner: counts stacks ABOVE base 5; flag — verify in-game
+_HOWLING_GALE_PER_ADDITIONAL_MAX_STACK = 0.215   # Tyra: counts stacks ABOVE base 5; flag — verify in-game
 
 
 @_register("howling_gale")

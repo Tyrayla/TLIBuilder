@@ -1,5 +1,5 @@
 """Icebound Beam canvas supports (Chilling Spike, Frostbitten, Ring Blade) — engine behavior validated against
-the owner's in-game dummy tests (ratios; absolute numbers depend on the test build's buffs)."""
+Tyra's in-game dummy tests (ratios; absolute numbers depend on the test build's buffs)."""
 import pytest
 from server import engine_stats, EngineStatsRequest
 from tests.mock_build import make_request
@@ -131,6 +131,6 @@ def _eff_frozen_rate(cast_speed_inc=0.0):
 def test_frozen_proc_hit_aligned_to_channel_rate():
     # The proc fires on the first beam hit after its 1s cooldown; the beam hits at the channel rate (sps).
     # Base ~3/s → lands ~1 proc/s (full). +27% cast speed (~3.8/s) → the cooldown expires between hits, so it
-    # waits for the next hit → effective rate drops below 1.0 (matches the owner's in-game ~3-4% shortfall).
+    # waits for the next hit → effective rate drops below 1.0 (matches Tyra's in-game ~3-4% shortfall).
     assert _eff_frozen_rate(0.0) == pytest.approx(1.0, abs=0.02)
     assert _eff_frozen_rate(0.27) < 0.97

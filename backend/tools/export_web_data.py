@@ -35,6 +35,8 @@ CATALOGS = {
     "grafts": server.get_grafts,
     "hero_memories": server.get_hero_memories,
     "verification_db": server.get_verification_db,
+    "glossary": server.get_glossary,
+    "help_db": server.get_help_db,
 }
 
 

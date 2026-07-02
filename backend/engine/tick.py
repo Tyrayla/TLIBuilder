@@ -1,6 +1,6 @@
 """Server tickrate model — TLI processes actions on a fixed 30 Hz clock.
 
-Owner-confirmed: the server clock is **30 ticks/second** (the occasionally-cited 30.97/31
+Tyra-confirmed: the server clock is **30 ticks/second** (the occasionally-cited 30.97/31
 figure is a single flimsy datamined source and is dropped — see docs). Everything the server
 schedules is bound by this one clock, including damage-over-time.
 
@@ -12,7 +12,7 @@ Two regimes share the clock:
    Tangle's N casters and Spell Burst's instant recasts multiply the capped single-caster rate,
    so the aggregate can exceed 30/s.
 
-2. **Hard-rounded breakpoints** — an EXPLICIT, per-mechanism opt-in (NEVER automatic; the owner
+2. **Hard-rounded breakpoints** — an EXPLICIT, per-mechanism opt-in (NEVER automatic; Tyra
    approves each one). Server-timed countdowns measured in *whole* ticks: the period rounds UP to
    an integer number of ticks, so the effective rate only changes when a speed increase crosses an
    integer-tick boundary (flat "dead zones" in between). Use ``period_ticks`` + ``rate_from_ticks``.
@@ -24,7 +24,7 @@ Two regimes share the clock:
 
 import math
 
-TICK_RATE = 30  # Hz — server clock; owner-confirmed hard cap (not 31).
+TICK_RATE = 30  # Hz — server clock; Tyra-confirmed hard cap (not 31).
 
 
 def cap_rate(raw: float, tickrate: int = TICK_RATE) -> float:

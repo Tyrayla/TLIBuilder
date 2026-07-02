@@ -1,6 +1,6 @@
 """Multistrike system (attack skills) — the offense DPS multiplier from auto-repeats with increasing damage.
 
-Model (owner-validated vs in-game: base 352 → 618 over a 5-min dummy test = ×1.755, plus a throughput test of
+Model (Tyra-validated vs in-game: base 352 → 618 over a 5-min dummy test = ×1.755, plus a throughput test of
 ~1.92 attacks/sec = the multistrike rate 1.935, confirming the +20% buff persists across all attacks):
   multiplier = E[chain damage] / (chain time × sps) = s × E[f(L)] / (1 + chance)
 where f(L) = L + inc·(init·L + L(L-1)/2) (+ Cat-Dive boost), inc = base × (1 + additional), and s = the +20%

@@ -3044,7 +3044,7 @@ STAT_META: dict[Stat, StatMeta] = {
         ui_priority=32,                source_types=_G,
     ),
     Stat.WEAPON_DMG_ADDITIONAL: StatMeta(
-        # Confirmed weapon-LOCAL (owner): scales the weapon's own damage, which then contributes up (like
+        # Confirmed weapon-LOCAL (Tyra): scales the weapon's own damage, which then contributes up (like
         # foldLocalGearDefense). Inert for now (no pipeline_stage) — wire when weapon-damage modeling exists.
         "Additional Damage for Weapons", "Gear", "additional", "%",
         subgroup="gear_base",          stacking_rule="additive",

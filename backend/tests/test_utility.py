@@ -53,7 +53,7 @@ def test_self_per_stack_aura_effect_feeds_back_into_own_buffs():
 
 
 def test_full_cruelty_stacks_with_increased_is_multiplicative():
-    # The owner's worked example: 40 stacks (+100% additional) with +30% increased → 19 × 1.3 × 2.0 = 49.4%.
+    # Tyra's worked example: 40 stacks (+100% additional) with +30% increased → 19 × 1.3 × 2.0 = 49.4%.
     buffs, _st, _sc, meta = _cruelty()
     src = _src_with_aura_effect(0.30)
     apply_aura_buffs(src, buffs, meta, frozenset(), {"cruelty_stacks": 40})

@@ -6,7 +6,7 @@ description: Model a support gem in the TLI Builder DPS engine. Most supports ne
 # add-support
 
 Decides generic-vs-bespoke and scaffolds the bespoke path only when needed. **Approval-gated** — confirm the
-approach + exact code with the owner before writing. Read `docs/ENGINE_AUTHORING.md` (Add a support gem). Live
+approach + exact code with Tyra before writing. Read `docs/ENGINE_AUTHORING.md` (Add a support gem). Live
 reference: `backend/engine/skill_effects/berserking_blade.py` (+ `skill_effects/README.md`).
 
 ## 1. Generic-path check FIRST (most supports need no code)
@@ -28,7 +28,7 @@ Create `backend/engine/skill_effects/<skill_id>.py` exposing the hooks it needs:
 - `preseed(*, slot, condition_state, ...) -> None` — type-C seed an enemy/build condition before aggregation
   (MUST work per-slot, including off the main slot — test that).
 Additional pools multiply per distinct source; form-scoped lines gate on the form's `proc_stat_key`. Show the
-owner the exact module + which lines are guarded for sign-off.
+Tyra the exact module + which lines are guarded for sign-off.
 
 ## 3. Apply (after approval)
 - [ ] Create `backend/engine/skill_effects/<skill_id>.py`.

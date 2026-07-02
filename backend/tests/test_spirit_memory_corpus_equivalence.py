@@ -2,7 +2,7 @@
 
 For EVERY real SS12 pact-spirit / hero-memory effect string, the unified server._resolve_effect_modifiers
 must resolve to the SAME stat_key(s) the old _MEMORY_STAT_LOOKUP resolver did — except a small, explicit
-allowlist of owner-approved improvements (the derived→_flat attribute/defense scaling fix). No old-resolved
+allowlist of Tyra-approved improvements (the derived→_flat attribute/defense scaling fix). No old-resolved
 effect may silently change category or become NYI. Category is derived from the resolved stat_key's
 StatMeta, so identical stat_keys ⇒ identical category.
 
@@ -18,7 +18,7 @@ from server import _resolve_effect_modifiers
 
 _BASELINE = os.path.join(os.path.dirname(__file__), "fixtures", "spirit_memory_baseline.json")
 
-# Owner-approved intentional shifts: the old resolver mapped flat attributes/defense to the DERIVED stat
+# Tyra-approved intentional shifts: the old resolver mapped flat attributes/defense to the DERIVED stat
 # (bypassing % increased scaling — a bug); the unified path routes them to the _flat stat that scales
 # correctly, matching how gear/custom already resolve the same text. Same category, corrected scaling.
 APPROVED_SHIFTS = {

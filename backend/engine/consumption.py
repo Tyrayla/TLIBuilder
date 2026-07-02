@@ -29,13 +29,13 @@ from engine.models import BuildSource
 _PROXY_USE_FLAG = ("Proxy skill uses (e.g. Seething Spirit) add use events that aren't counted yet — "
                    "per-use consume may be under-counted for proxy builds.")
 
-# "Recently" window = 4 s (owner-confirmed). Single source of truth.
+# "Recently" window = 4 s (Tyra-confirmed). Single source of truth.
 RECENTLY_WINDOW_S = 4.0
 
 
 def floored_consumed(consumed: float, unit: float) -> float:
     """Quantize a 'consumed recently' total DOWN to a whole multiple of `unit`. "For every N consumed recently"
-    procs in discrete stacks (owner-confirmed): a partial Nth chunk grants nothing — floor(consumed/N) stacks ×
+    procs in discrete stacks (Tyra-confirmed): a partial Nth chunk grants nothing — floor(consumed/N) stacks ×
     the per-stack benefit. unit <= 0 (no divisor known) → return consumed unchanged (continuous fallback)."""
     if unit and unit > 0:
         return int(consumed // unit) * unit
@@ -53,7 +53,7 @@ CONSUME_SOURCE_KEYS += [f"{p}_consumed_{b}_per_attack_use"
 # (no other consume affix) still triggers the consumption stage.
 CONSUME_SOURCE_KEYS += ["mana_consumed_pct_current_per_attack_use_mystic"]
 
-# USE vs CAST (owner-flagged, FOLLOW-UP): most LIFE-consume mods say "on skill USE" while most MANA-consume mods say
+# USE vs CAST (Tyra-flagged, FOLLOW-UP): most LIFE-consume mods say "on skill USE" while most MANA-consume mods say
 # "on cast". They differ because spells are typically not "used" — they're cast/triggered by Tangle, Spell Burst, etc.
 # A triggered/repeated cast counts as a CAST but not a USE. We don't yet model a separate USE rate, so the per-cast
 # consume here is multiplied by the cast rate (sps) for BOTH — which OVER-counts "per use" life consume on
@@ -106,7 +106,7 @@ def calculate_consumption(source: BuildSource, *, condition_state: dict | None =
     max_mana = float(d.get("max_mana", source.total("max_mana")) or 0.0)
     max_es = float(d.get("max_energy_shield", source.total("max_energy_shield")) or 0.0)
     # "Current Life/Mana" is the UNRESERVED pool (Max − Reserved) — % of current consume is taken against that, to
-    # avoid over-counting when a build seals Life/Mana. "% of Max" bases still use raw Max (per owner).
+    # avoid over-counting when a build seals Life/Mana. "% of Max" bases still use raw Max (per Tyra).
     unres_life = max(0.0, max_life - float(rsv.get("sealed_life", 0.0) or 0.0))
     unres_mana = max(0.0, max_mana - float(rsv.get("sealed_mana", 0.0) or 0.0))
     life_pct = float(cs.get("current_life_pct", 100.0) or 0.0)
@@ -138,7 +138,7 @@ def calculate_consumption(source: BuildSource, *, condition_state: dict | None =
     if rates.get("proxy_present"):
         flags.append(_PROXY_USE_FLAG)
 
-    # Skill COST is NOT consumption — cost ≠ consume (owner-confirmed). The per-second totals (summed across ALL
+    # Skill COST is NOT consumption — cost ≠ consume (Tyra-confirmed). The per-second totals (summed across ALL
     # active skills, each at its own use rate; triggers ignore cost) are computed upstream in engine.compute and
     # passed in here only to be REPORTED + subtracted SEPARATELY in engine.recovery's net sustain. They are NEVER
     # added to mana/life_per_sec ("Mana/Life Consumed") nor to consumed_recently (per-N affixes + threshold gates).

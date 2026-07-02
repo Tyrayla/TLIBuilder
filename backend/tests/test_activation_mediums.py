@@ -133,7 +133,7 @@ def test_wind_rhythm_cdr_is_separate_factor():
 
 
 def test_wind_rhythm_additional_cast_is_multiplicative():
-    # +10% additional cast shifts the cast breakpoint by ÷1.1 (owner-observed 350→318). Check via raw: with
+    # +10% additional cast shifts the cast breakpoint by ÷1.1 (Tyra-observed 350→318). Check via raw: with
     # cast_inc=1.0, add'l 0 vs add'l 0.1 → final_cast 1.0 vs 1.1 → raw drops by the 1.1 factor in the wind term.
     a = compute_wind_rhythm_rate(_WSrc(cast_inc=1.0, cast_add=0.0), 0.5, 0.40)["raw_cast_time"]
     b = compute_wind_rhythm_rate(_WSrc(cast_inc=1.0, cast_add=0.1), 0.5, 0.40)["raw_cast_time"]

@@ -5,7 +5,7 @@ bonuses (slot-specific to the Scent Bottles) plus a **cross-apply** that grants 
 Bottle's *increased* Elixir Effect to ONE prepared Empower/Curse skill. Built on the shipped elixir system; all
 effects flow through the existing elixir/empower/curse pipelines via slot-scoped stat contributions.
 
-Owner-confirmed modeling (2026-06-27):
+Tyra-confirmed modeling (2026-06-27):
 - Scent-bottle bonuses are SLOT-SPECIFIC: Basic Scent Bottle = active slot 2; Special Scent Bottle = active slot 3
   (only when "Licorice Tincture Blend" is picked at L75). Bonuses that say "for Elixir Skills from a Scent Bottle"
   are emitted slot-scoped to those slots; bonuses that just say "Elixir Skill Effect" are global.
