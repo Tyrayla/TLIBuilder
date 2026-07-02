@@ -11,6 +11,7 @@ import { TooltipContributions } from '../components/tooltip/TooltipContributions
 import { ModifierBadge, useTextModifierStatuses, useTextModifierStatus } from '../components/ModifierBadge'
 import { dec } from '../utils/num'
 import { traitSlang, traitOrder } from '../utils/heroTraitOrder'
+import EditableRollValue from '../components/EditableRollValue'
 
 interface Props {
   onBack: () => void
@@ -493,6 +494,22 @@ function AffixRow({ label, pool, source, current, excludeNames, onChange }: {
     onChange({ modifier, tier, rolledValue: hasRange(modifier) ? value : null })
   }
 
+  // Click-to-edit an exact roll: pick the tier whose value range holds V (prefer the higher tier on overlap),
+  // then set that tier + value. Mirrors the gear editors' tier-match (hero memories have no Desecration).
+  const commitValue = (v: number) => {
+    if (tierRanges.length === 0) return
+    const containing = tierRanges.filter(r => v >= r.min - 1e-6 && v <= r.max + 1e-6)
+    const target = containing.length
+      ? containing.reduce((a, b) => (b.max >= a.max ? b : a))                     // higher tier on overlap
+      : tierRanges.reduce((a, b) => (Math.abs(b.max - v) < Math.abs(a.max - v) ? b : a))  // nearest
+    const clamped = Math.min(target.max, Math.max(target.min, v))
+    onChange({ modifier: target.modifier, tier: target.tier, rolledValue: hasRange(target.modifier) ? clamped : null })
+  }
+  const editDp = Math.max(0, ...tierRanges.flatMap(r => [r.min, r.max].map(n => (String(n).split('.')[1] || '').length)))
+  const editRange: [number, number] = tierRanges.length
+    ? [Math.min(...tierRanges.map(r => r.min)), Math.max(...tierRanges.map(r => r.max))]
+    : [0, 0]
+
   return (
     <>
       <div className="memory-affix-row" {...(resolvedText ? tip.triggerProps : {})}>
@@ -522,9 +539,14 @@ function AffixRow({ label, pool, source, current, excludeNames, onChange }: {
                     onChange={e => handleSliderChange(parseInt(e.target.value))}
                   />
                 )}
-                <span className="memory-affix-slider-val">
-                  {Number.isInteger(currentTierInfo.value) ? currentTierInfo.value : dec(currentTierInfo.value)}
-                </span>
+                {sliderMax > 0
+                  ? <EditableRollValue
+                      value={currentTierInfo.value} dp={editDp} range={editRange}
+                      onCommit={commitValue}
+                    />
+                  : <span className="memory-affix-slider-val">
+                      {Number.isInteger(currentTierInfo.value) ? currentTierInfo.value : dec(currentTierInfo.value)}
+                    </span>}
               </div>
             </div>
           )}
