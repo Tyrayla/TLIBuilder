@@ -60,16 +60,17 @@ const RARITY_LABELS: Record<MemoryRarity, string> = {
 // ── Affix / tier helper functions ─────────────────────────────────────────────
 
 function getAffixName(modifier: string): string {
-  // Strip leading optional + and numeric prefix (integer, decimal, or range notation)
-  let name = modifier
-    .replace(/^\+?(?:\d+(?:\.\d+)?|\([^)]+\))\s*%?\s*/, '')
+  // Group all tiers of a modifier under one name (this is the grouping key + dropdown label, NOT the resolved
+  // value). Strip the leading value AND any EMBEDDED values — combo mods carry a second value that scales
+  // across tiers (e.g. "+14% Attack and Cast Speed +14% Minion Attack and Cast Speed"), which would otherwise
+  // fragment each tier into its own "modifier". Embedded fixed values require a leading '+' so incidental
+  // numbers (e.g. "within 8m") aren't stripped.
+  const name = modifier
+    .replace(/^\+?(?:\d+(?:\.\d+)?|\([^)]+\))\s*%?\s*/, '')                 // leading value
+    .replace(/\+?\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)\s*%?\s*/g, '')          // embedded ranges
+    .replace(/\+\d+(?:\.\d+)?\s*%?\s*/g, '')                                // embedded fixed "+N%" values
+    .replace(/\s+/g, ' ')
     .trim()
-  // If nothing was stripped (modifier starts with text), normalize any embedded ranges
-  // to a stable placeholder so all tiers of the same affix group correctly
-  if (name === modifier.trim()) {
-    name = modifier.replace(/\+?\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, '#').trim()
-  }
-  // Capitalize first letter to fix lowercase data entries
   return name ? name[0].toUpperCase() + name.slice(1) : name
 }
 
@@ -828,26 +829,28 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
           {(() => {
             // A memory can't carry the same modifier twice — build each row's exclude set from the
             // affix names chosen in the OTHER rows (fixed/random pools share affixes like Minion Crit Dmg).
-            const all = [draft.baseStat, draft.fixedAffixes[0], draft.fixedAffixes[1], draft.randomAffixes[0], draft.randomAffixes[1]]
-            const excludeFor = (self: MemorySlotSelection | null) => new Set(
-              all.filter(s => s !== self).map(s => s ? getAffixName(s.modifier) : null).filter((n): n is string => !!n)
+            // Lockouts are PER slot-type pool — base / fixed / random each have their own pool, so a modifier
+            // chosen in a Fixed slot must NOT block the same modifier in a Random slot. Only prevent repeats
+            // within the same group (the two Fixed slots share a pool; the two Random slots share a pool).
+            const excludeIn = (group: (MemorySlotSelection | null)[], self: MemorySlotSelection | null) => new Set(
+              group.filter(s => s !== self).map(s => s ? getAffixName(s.modifier) : null).filter((n): n is string => !!n)
             )
             return (
               <>
                 <AffixRow label="Base Stat" pool={memoryData.base_stats} source={MEMORY_SOURCES[creatorSlot]}
-                  current={draft.baseStat} excludeNames={excludeFor(draft.baseStat)}
+                  current={draft.baseStat} excludeNames={excludeIn([draft.baseStat], draft.baseStat)}
                   onChange={sel => setDraft({ ...draft, baseStat: sel })} />
                 <AffixRow label="Fixed 1" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
-                  current={draft.fixedAffixes[0]} excludeNames={excludeFor(draft.fixedAffixes[0])}
+                  current={draft.fixedAffixes[0]} excludeNames={excludeIn(draft.fixedAffixes, draft.fixedAffixes[0])}
                   onChange={sel => setDraft({ ...draft, fixedAffixes: [sel, draft.fixedAffixes[1]] })} />
                 <AffixRow label="Fixed 2" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
-                  current={draft.fixedAffixes[1]} excludeNames={excludeFor(draft.fixedAffixes[1])}
+                  current={draft.fixedAffixes[1]} excludeNames={excludeIn(draft.fixedAffixes, draft.fixedAffixes[1])}
                   onChange={sel => setDraft({ ...draft, fixedAffixes: [draft.fixedAffixes[0], sel] })} />
                 <AffixRow label="Random 1" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
-                  current={draft.randomAffixes[0]} excludeNames={excludeFor(draft.randomAffixes[0])}
+                  current={draft.randomAffixes[0]} excludeNames={excludeIn(draft.randomAffixes, draft.randomAffixes[0])}
                   onChange={sel => setDraft({ ...draft, randomAffixes: [sel, draft.randomAffixes[1]] })} />
                 <AffixRow label="Random 2" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
-                  current={draft.randomAffixes[1]} excludeNames={excludeFor(draft.randomAffixes[1])}
+                  current={draft.randomAffixes[1]} excludeNames={excludeIn(draft.randomAffixes, draft.randomAffixes[1])}
                   onChange={sel => setDraft({ ...draft, randomAffixes: [draft.randomAffixes[0], sel] })} />
               </>
             )
