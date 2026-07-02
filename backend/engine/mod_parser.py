@@ -563,6 +563,15 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         return [{"stat_key": f"attack_speed_{pool}", "amount": amt, "text": t},
                 {"stat_key": f"cast_speed_{pool}", "amount": amt, "text": t}]
 
+    # "N% Max Life and (Max) Energy Shield" → BOTH increased pools. Explicit because the generic single-stat
+    # resolver only catches the trailing "Max Energy Shield" and silently drops the Max Life half (Heart of the
+    # Storm). Anchored at the value so scoped/other forms don't false-match.
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*max life and (?:max )?energy shield\b', t, re.I)
+    if m:
+        amt = float(m.group(1)) / 100.0
+        return [{"stat_key": "max_life_inc", "amount": amt, "text": t},
+                {"stat_key": "max_energy_shield_inc", "amount": amt, "text": t}]
+
     # "Has Dormant Entanglement" (Acquaintance core talent / gear) → flag enabling Dormant Entanglement's
     # per-inactivated-tangle bonus (read in compute._offense_for_slot). No value in the text → amount 1.0.
     if re.search(r'\bhas\s+dormant\s+entanglement\b', t, re.I):
