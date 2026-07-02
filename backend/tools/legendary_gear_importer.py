@@ -6,7 +6,9 @@ _COND_RE = re.compile(
     re.I,
 )
 _NUMERIC_RE = re.compile(
-    r'([+-]?)\((\d+(?:\.\d+)?)[–\-](\d+(?:\.\d+)?)\)'
+    # Range: (LO–HI) with an optional outer sign and optional inner signs on EACH bound, so negative ranges
+    # like "(-50–-40)" parse as one range (min −50, max −40) instead of two separate fixed values.
+    r'([+-]?)\(([+-]?\d+(?:\.\d+)?)\s*[–\-]\s*([+-]?\d+(?:\.\d+)?)\)'
     r'|([+-])(\d+(?:\.\d+)?)'
 )
 
