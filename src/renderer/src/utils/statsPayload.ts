@@ -46,6 +46,26 @@ function weaponClassMap(): Map<string, string> {
   return map
 }
 
+// Base-item implicits the legendary catalog often omits (e.g. a belt base's "+110 Max Life"). Weapon base
+// stats (damage/APS/CSR) are excluded — those are granted via the weapon path, not injected here.
+const _WEAPON_IMPLICIT_RE = /(Physical Damage|Attack Speed|Critical Strike Rating)\s*$/i
+let _baseImplCache: { groups: CraftBaseItemGroup[]; map: Map<string, string[]> } | null = null
+function _baseItemImplicits(baseType: string | undefined | null): string[] {
+  if (!baseType) return []
+  const groups = useReferenceStore.getState().craftBaseItems ?? []
+  if (!_baseImplCache || _baseImplCache.groups !== groups) {
+    const map = new Map<string, string[]>()
+    for (const g of groups) {
+      for (const bi of g.base_items) {
+        const impls = (bi.implicits ?? []).filter(t => t && !_WEAPON_IMPLICIT_RE.test(t))
+        if (impls.length) map.set(bi.name, impls)
+      }
+    }
+    _baseImplCache = { groups, map }
+  }
+  return _baseImplCache.map.get(baseType) ?? []
+}
+
 // Count of distinct weapon classes across equipped weapon slots — drives the auto-set
 // `unique_weapon_types` condition (e.g. Bladerunner's "+X% per unique type of weapon equipped").
 // Resolves each weapon's base_type name to its class via the catalog; an unknown base counts as
@@ -199,8 +219,20 @@ function _buildItemContributions(
   item: EquippedGearItem, slot: GearSlot | null, unresolved?: string[],
 ): GearAffixContribution[] {
   const mutationAffix = item.corrosion_type === 'mutation' ? (item.mutation_resolved_affix ?? null) : null
-  const affixesToProcess = mutationAffix ? [mutationAffix, ...item.affixes] : item.affixes
+  let affixesToProcess = mutationAffix ? [mutationAffix, ...item.affixes] : item.affixes
   const affixOffset = mutationAffix ? 1 : 0
+  // Inject the base ITEM implicit (e.g. a belt base's "+110 Max Life") when the item carries none — the
+  // legendary catalog often omits it, so it'd be silently missing. Appended (indices for customizations stay
+  // put); only when the item has NO implicit affix already (armour bases keep their "+N gear X" implicit).
+  if (!affixesToProcess.some(a => a.affix_kind === 'implicit')) {
+    const baseImpls = _baseItemImplicits(item.base_type)
+    if (baseImpls.length) {
+      affixesToProcess = [...affixesToProcess, ...baseImpls.map(text => ({
+        raw_text: text, modifier_id: null, expression: text, condition: null,
+        affix_kind: 'implicit' as const, numeric_values: [], affix_type: 'Implicit',
+      }))]
+    }
+  }
   const contributions: GearAffixContribution[] = []
   // Cardinal rule: never silently drop. Any affix the frontend can't turn into a contribution gets
   // its raw text collected here so the backend can resolve it (and report what it still can't).
