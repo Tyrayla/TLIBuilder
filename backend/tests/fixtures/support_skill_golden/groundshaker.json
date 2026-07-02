@@ -52,7 +52,8 @@
     "crit_rating_inc",
     "crit_rating_inc_per_mana_consumed",
     "defense_inc",
-    "dexterity",
+    "demolisher_charge_speed_inc",
+    "demolisher_consume_dmg_additional",
     "dexterity_additional",
     "dexterity_flat",
     "dexterity_inc",
@@ -204,6 +205,9 @@
     "melee_dmg_additional",
     "melee_dmg_inc",
     "melee_skill_level",
+    "movement_bonus_to_attack_speed",
+    "movement_bonus_to_attack_speed_cap",
+    "movement_speed_inc",
     "no_guard_dmg_taken",
     "numbed_lightning_taken",
     "paralysis_dmg_taken",
@@ -245,7 +249,6 @@
     "skill_no_mana_cost",
     "spell_block_chance_inc",
     "spell_skill_cost_flat",
-    "steep_strike_additional_dmg",
     "steep_strike_chance",
     "strength",
     "strength_additional",
@@ -256,13 +259,15 @@
     "temporary_mana_flat",
     "temporary_mana_pct",
     "tide_dmg_taken",
+    "trigger_interval",
     "triple_dmg_chance",
     "unlucky_crit",
     "unlucky_fire",
     "unlucky_lightning",
     "unlucky_physical",
     "weapon_attack_speed",
-    "weapon_crit_rating_flat"
+    "weapon_crit_rating_flat",
+    "wind_rhythm_base_cooldown"
   ],
   "offense": {
     "above_max_mult": 1.0,
@@ -284,22 +289,22 @@
     "crit_luck_effect": "",
     "crit_multiplier": 1.5,
     "demolisher_area_mode": "both",
-    "demolisher_base_restore": 0.0,
-    "demolisher_cast_rate": 0.0,
+    "demolisher_base_restore": 3.0,
+    "demolisher_cast_rate": 3.0624000000000007,
     "demolisher_cdr_droppable": 0.0,
-    "demolisher_charge_speed_inc": 0.0,
-    "demolisher_charged_rate": 0.0,
+    "demolisher_charge_speed_inc": 0,
+    "demolisher_charged_rate": 0.3333333333333333,
     "demolisher_collapse_pct": 0.0,
-    "demolisher_frequent_quake": false,
-    "demolisher_mismatch": false,
-    "demolisher_mode": "",
+    "demolisher_frequent_quake": true,
+    "demolisher_mismatch": true,
+    "demolisher_mode": "manual",
     "demolisher_over_breakpoint": false,
-    "demolisher_primary_dps": 0.0,
-    "demolisher_restoration_time": 0.0,
-    "demolisher_restore_to_sustain": 0.0,
+    "demolisher_primary_dps": 8206.846835194227,
+    "demolisher_restoration_time": 3.0,
+    "demolisher_restore_to_sustain": 8.187200000000002,
     "demolisher_rhythm_interval": 0.0,
-    "demolisher_secondary_dps": 0.0,
-    "demolisher_under_breakpoint": false,
+    "demolisher_secondary_dps": 6173.955044531412,
+    "demolisher_under_breakpoint": true,
     "double_dmg_chance": 0,
     "double_dmg_factor": 1,
     "effective_level": 20,
@@ -318,68 +323,68 @@
       "lightning": 10.0,
       "physical": 578.0
     },
-    "generic_add": 3.6502221127679992,
+    "generic_add": 17.34698296047972,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 8350.069244284548,
-        "avg_hit_with_crit": 10003.382954652889,
+        "avg_hit_pre_crit": 42894.46935970397,
+        "avg_hit_with_crit": 51387.57429292536,
         "base_max_by_type": {},
         "base_min_by_type": {},
         "damage_by_type": {
-          "fire": 797.2085094285311,
-          "lightning": 1581.4623805788483,
-          "physical": 5971.398354277169
+          "fire": 4095.275737310052,
+          "lightning": 8124.003243888815,
+          "physical": 30675.190378505104
         },
-        "dps_contribution": 24507.487968263213,
-        "dps_vs_target": 12183.929894557179,
-        "effectiveness_pct": 210.0,
-        "fires_per_sec": 2.4499200000000005,
-        "form_type": "exclusive",
+        "dps_contribution": 16507.744365859347,
+        "dps_vs_target": 8206.846835194227,
+        "effectiveness_pct": 227.0,
+        "fires_per_sec": 3.0624000000000007,
+        "form_type": "additive",
         "hit_max_by_type": {
-          "fire": 1034.8379689697279,
-          "lightning": 3010.8610707174225,
-          "physical": 7512.1571080765425
+          "fire": 5315.98292823901,
+          "lightning": 15466.852329711397,
+          "physical": 38590.09829388319
         },
         "hit_min_by_type": {
-          "fire": 559.5790498873343,
-          "lightning": 152.06369044027386,
-          "physical": 4430.639600477797
+          "fire": 2874.5685463810946,
+          "lightning": 781.1541580662322,
+          "physical": 22760.282463127023
         },
         "hits_per_fire": 1,
-        "name": "Sweep Slash",
-        "proc_chance": 0.8,
+        "name": "Primary Fissure",
+        "proc_chance": 1.0,
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       },
       {
-        "avg_hit_pre_crit": 22572.082134981778,
-        "avg_hit_with_crit": 27041.354397708168,
+        "avg_hit_pre_crit": 42894.46935970397,
+        "avg_hit_with_crit": 51387.57429292536,
         "base_max_by_type": {},
         "base_min_by_type": {},
         "damage_by_type": {
-          "fire": 2155.030746103593,
-          "lightning": 4275.042242583002,
-          "physical": 16142.009146295184
+          "fire": 4095.275737310052,
+          "lightning": 8124.003243888815,
+          "physical": 30675.190378505104
         },
-        "dps_contribution": 16562.288741508306,
-        "dps_vs_target": 8233.963643326904,
-        "effectiveness_pct": 421.0,
-        "fires_per_sec": 0.6124800000000001,
-        "form_type": "exclusive",
+        "dps_contribution": 12418.663787456959,
+        "dps_vs_target": 6173.955044531412,
+        "effectiveness_pct": 227.0,
+        "fires_per_sec": 1.6666666666666665,
+        "form_type": "additive",
         "hit_max_by_type": {
-          "fire": 2797.395680038318,
-          "lightning": 8139.0227310714845,
-          "physical": 20307.020492130014
+          "fire": 5315.98292823901,
+          "lightning": 15466.852329711397,
+          "physical": 38590.09829388319
         },
         "hit_min_by_type": {
-          "fire": 1512.6658121688681,
-          "lightning": 411.0617540945195,
-          "physical": 11976.997800460354
+          "fire": 2874.5685463810946,
+          "lightning": 781.1541580662322,
+          "physical": 22760.282463127023
         },
         "hits_per_fire": 1,
-        "name": "Steep Strike",
-        "proc_chance": 0.2,
+        "name": "Fissure Ticks (Frequent Quake)",
+        "proc_chance": 1.0,
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       }
@@ -388,8 +393,7 @@
     "jumps_base": 0,
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
-      "strength",
-      "dexterity"
+      "strength"
     ],
     "mana_cost": 5.0,
     "mercury_baptism_dps": 0.0,
@@ -418,15 +422,15 @@
     "projectile_count": -1,
     "quad_dmg_chance": 0,
     "shotgun_hits": 1,
-    "skill_area_inc": 1.0,
-    "skill_name": "Berserking Blade",
+    "skill_area_inc": 0.0,
+    "skill_name": "Groundshaker",
     "skill_tags": [
       "Attack",
       "Melee",
       "Area",
       "Physical",
-      "Slash-Strike",
-      "Persistent"
+      "Demolisher",
+      "mobility"
     ],
     "spell_burst_auto": false,
     "spell_burst_auto_source": "",
@@ -448,7 +452,7 @@
     "spell_burst_rate": 0.0,
     "spell_ripple_dps": 0.0,
     "spell_ripple_fraction": 0.0,
-    "steep_strike_chance": 0.2,
+    "steep_strike_chance": 0.0,
     "supported": true,
     "tangle_attach_range": 0.0,
     "tangle_cast_ticks": 0,
@@ -460,14 +464,14 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
-    "total_dps": 41069.77670977152,
-    "total_dps_vs_target": 20417.893537884083,
+    "total_dps": 28926.408153316304,
+    "total_dps_vs_target": 14380.801879725637,
     "trigger_interval": 0.0,
     "triple_dmg_chance": 0,
     "type_add": {
-      "fire": 3.6502221127679992,
-      "lightning": 4.827418744135679,
-      "physical": 3.6502221127679992
+      "fire": 17.34698296047972,
+      "lightning": 22.941384965234434,
+      "physical": 17.34698296047972
     },
     "type_inc": {
       "fire": 0,
@@ -511,22 +515,22 @@
       "crit_luck_effect": "",
       "crit_multiplier": 1.5,
       "demolisher_area_mode": "both",
-      "demolisher_base_restore": 0.0,
-      "demolisher_cast_rate": 0.0,
+      "demolisher_base_restore": 3.0,
+      "demolisher_cast_rate": 3.0624000000000007,
       "demolisher_cdr_droppable": 0.0,
-      "demolisher_charge_speed_inc": 0.0,
-      "demolisher_charged_rate": 0.0,
+      "demolisher_charge_speed_inc": 0,
+      "demolisher_charged_rate": 0.3333333333333333,
       "demolisher_collapse_pct": 0.0,
-      "demolisher_frequent_quake": false,
-      "demolisher_mismatch": false,
-      "demolisher_mode": "",
+      "demolisher_frequent_quake": true,
+      "demolisher_mismatch": true,
+      "demolisher_mode": "manual",
       "demolisher_over_breakpoint": false,
-      "demolisher_primary_dps": 0.0,
-      "demolisher_restoration_time": 0.0,
-      "demolisher_restore_to_sustain": 0.0,
+      "demolisher_primary_dps": 8206.846835194227,
+      "demolisher_restoration_time": 3.0,
+      "demolisher_restore_to_sustain": 8.187200000000002,
       "demolisher_rhythm_interval": 0.0,
-      "demolisher_secondary_dps": 0.0,
-      "demolisher_under_breakpoint": false,
+      "demolisher_secondary_dps": 6173.955044531412,
+      "demolisher_under_breakpoint": true,
       "double_dmg_chance": 0,
       "double_dmg_factor": 1,
       "effective_level": 20,
@@ -545,68 +549,68 @@
         "lightning": 10.0,
         "physical": 578.0
       },
-      "generic_add": 3.6502221127679992,
+      "generic_add": 17.34698296047972,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 8350.069244284548,
-          "avg_hit_with_crit": 10003.382954652889,
+          "avg_hit_pre_crit": 42894.46935970397,
+          "avg_hit_with_crit": 51387.57429292536,
           "base_max_by_type": {},
           "base_min_by_type": {},
           "damage_by_type": {
-            "fire": 797.2085094285311,
-            "lightning": 1581.4623805788483,
-            "physical": 5971.398354277169
+            "fire": 4095.275737310052,
+            "lightning": 8124.003243888815,
+            "physical": 30675.190378505104
           },
-          "dps_contribution": 24507.487968263213,
-          "dps_vs_target": 12183.929894557179,
-          "effectiveness_pct": 210.0,
-          "fires_per_sec": 2.4499200000000005,
-          "form_type": "exclusive",
+          "dps_contribution": 16507.744365859347,
+          "dps_vs_target": 8206.846835194227,
+          "effectiveness_pct": 227.0,
+          "fires_per_sec": 3.0624000000000007,
+          "form_type": "additive",
           "hit_max_by_type": {
-            "fire": 1034.8379689697279,
-            "lightning": 3010.8610707174225,
-            "physical": 7512.1571080765425
+            "fire": 5315.98292823901,
+            "lightning": 15466.852329711397,
+            "physical": 38590.09829388319
           },
           "hit_min_by_type": {
-            "fire": 559.5790498873343,
-            "lightning": 152.06369044027386,
-            "physical": 4430.639600477797
+            "fire": 2874.5685463810946,
+            "lightning": 781.1541580662322,
+            "physical": 22760.282463127023
           },
           "hits_per_fire": 1,
-          "name": "Sweep Slash",
-          "proc_chance": 0.8,
+          "name": "Primary Fissure",
+          "proc_chance": 1.0,
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         },
         {
-          "avg_hit_pre_crit": 22572.082134981778,
-          "avg_hit_with_crit": 27041.354397708168,
+          "avg_hit_pre_crit": 42894.46935970397,
+          "avg_hit_with_crit": 51387.57429292536,
           "base_max_by_type": {},
           "base_min_by_type": {},
           "damage_by_type": {
-            "fire": 2155.030746103593,
-            "lightning": 4275.042242583002,
-            "physical": 16142.009146295184
+            "fire": 4095.275737310052,
+            "lightning": 8124.003243888815,
+            "physical": 30675.190378505104
           },
-          "dps_contribution": 16562.288741508306,
-          "dps_vs_target": 8233.963643326904,
-          "effectiveness_pct": 421.0,
-          "fires_per_sec": 0.6124800000000001,
-          "form_type": "exclusive",
+          "dps_contribution": 12418.663787456959,
+          "dps_vs_target": 6173.955044531412,
+          "effectiveness_pct": 227.0,
+          "fires_per_sec": 1.6666666666666665,
+          "form_type": "additive",
           "hit_max_by_type": {
-            "fire": 2797.395680038318,
-            "lightning": 8139.0227310714845,
-            "physical": 20307.020492130014
+            "fire": 5315.98292823901,
+            "lightning": 15466.852329711397,
+            "physical": 38590.09829388319
           },
           "hit_min_by_type": {
-            "fire": 1512.6658121688681,
-            "lightning": 411.0617540945195,
-            "physical": 11976.997800460354
+            "fire": 2874.5685463810946,
+            "lightning": 781.1541580662322,
+            "physical": 22760.282463127023
           },
           "hits_per_fire": 1,
-          "name": "Steep Strike",
-          "proc_chance": 0.2,
+          "name": "Fissure Ticks (Frequent Quake)",
+          "proc_chance": 1.0,
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         }
@@ -615,8 +619,7 @@
       "jumps_base": 0,
       "main_stat_damage_bonus": 0.0,
       "main_stats": [
-        "strength",
-        "dexterity"
+        "strength"
       ],
       "mana_cost": 5.0,
       "mercury_baptism_dps": 0.0,
@@ -645,15 +648,15 @@
       "projectile_count": -1,
       "quad_dmg_chance": 0,
       "shotgun_hits": 1,
-      "skill_area_inc": 1.0,
-      "skill_name": "Berserking Blade",
+      "skill_area_inc": 0.0,
+      "skill_name": "Groundshaker",
       "skill_tags": [
         "Attack",
         "Melee",
         "Area",
         "Physical",
-        "Slash-Strike",
-        "Persistent"
+        "Demolisher",
+        "mobility"
       ],
       "spell_burst_auto": false,
       "spell_burst_auto_source": "",
@@ -675,7 +678,7 @@
       "spell_burst_rate": 0.0,
       "spell_ripple_dps": 0.0,
       "spell_ripple_fraction": 0.0,
-      "steep_strike_chance": 0.2,
+      "steep_strike_chance": 0.0,
       "supported": true,
       "tangle_attach_range": 0.0,
       "tangle_cast_ticks": 0,
@@ -687,14 +690,14 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
-      "total_dps": 41069.77670977152,
-      "total_dps_vs_target": 20417.893537884083,
+      "total_dps": 28926.408153316304,
+      "total_dps_vs_target": 14380.801879725637,
       "trigger_interval": 0.0,
       "triple_dmg_chance": 0,
       "type_add": {
-        "fire": 3.6502221127679992,
-        "lightning": 4.827418744135679,
-        "physical": 3.6502221127679992
+        "fire": 17.34698296047972,
+        "lightning": 22.941384965234434,
+        "physical": 17.34698296047972
       },
       "type_inc": {
         "fire": 0,
@@ -719,6 +722,25 @@
     }
   },
   "stats": {
+    "at_center_dmg_additional": {
+      "category": "Generic",
+      "display_name": "Damage at Center",
+      "slot_sources": [
+        {
+          "amount": 0.32,
+          "label": "Groundshaker: Epicenter",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "+32% additional damage at the Center |epicenter"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "attack_block_chance_inc": {
       "category": "Defense",
       "display_name": "Attack Block Chance",
@@ -811,49 +833,88 @@
       "total": 2.0,
       "unit": "%"
     },
+    "demolisher_consume_dmg_additional": {
+      "category": "Generic",
+      "display_name": "Demolisher Consume Damage",
+      "slot_sources": [
+        {
+          "amount": 0.45,
+          "label": "Groundshaker: Cripple",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "+45% additional damage on the consuming cast |cripple"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "dmg_additional": {
       "category": "Generic",
       "display_name": "Additional Damage",
       "slot_sources": [
         {
           "amount": 0.2,
-          "label": "Berserking Blade: Decimate (Noble) (Rank 5)",
+          "label": "Groundshaker: Collapse (Noble) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Berserking Blade: Decimate (Noble)",
+          "source_name": "Groundshaker: Collapse (Noble)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |berserking_blade_decimate_noble|universal"
+          "text": "additional damage for the supported skill |groundshaker_collapse_noble|universal"
         },
         {
           "amount": 0.2,
-          "label": "Berserking Blade: Desperation (Magnificent) (Rank 5)",
+          "label": "Groundshaker: Cripple (Noble) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Berserking Blade: Desperation (Magnificent)",
+          "source_name": "Groundshaker: Cripple (Noble)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |berserking_blade_desperation_magnificent|universal"
+          "text": "additional damage for the supported skill |groundshaker_cripple_noble|universal"
         },
         {
           "amount": 0.2,
-          "label": "Berserking Blade: Rampage (Noble) (Rank 5)",
+          "label": "Groundshaker: Epicenter (Magnificent) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Berserking Blade: Rampage (Noble)",
+          "source_name": "Groundshaker: Epicenter (Magnificent)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |berserking_blade_rampage_noble|universal"
+          "text": "additional damage for the supported skill |groundshaker_epicenter_magnificent|universal"
         },
         {
           "amount": 0.2,
-          "label": "Berserking Blade: Sweep (Magnificent) (Rank 5)",
+          "label": "Groundshaker: Frequent Quake (Magnificent) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Berserking Blade: Sweep (Magnificent)",
+          "source_name": "Groundshaker: Frequent Quake (Magnificent)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |berserking_blade_sweep_magnificent|universal"
+          "text": "additional damage for the supported skill |groundshaker_frequent_quake_magnificent|universal"
+        },
+        {
+          "amount": 0.2,
+          "label": "Groundshaker: Wrathful Vault (Noble) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Groundshaker: Wrathful Vault (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |groundshaker_wrathful_vault_noble|universal"
+        },
+        {
+          "amount": 0.21,
+          "label": "Groundshaker: Wrathful Vault (Noble) (Tier 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Groundshaker: Wrathful Vault (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |groundshaker_wrathful_vault_noble|specific"
         },
         {
           "amount": 0.078,
@@ -969,6 +1030,25 @@
       "sources": [],
       "total": 0.0,
       "unit": ""
+    },
+    "hit_dmg_additional": {
+      "category": "Generic",
+      "display_name": "Additional Hit Damage",
+      "slot_sources": [
+        {
+          "amount": 0.71,
+          "label": "Groundshaker: Frequent Quake (Magnificent) (Tier 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Groundshaker: Frequent Quake (Magnificent)",
+          "source_type": "support",
+          "text": "additional Hit Damage for the supported skill |groundshaker_frequent_quake_magnificent|specific"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
     },
     "lightning_attack_dmg_flat_max": {
       "category": "Lightning",
@@ -1106,6 +1186,44 @@
       "total": 485.0,
       "unit": ""
     },
+    "movement_bonus_to_attack_speed": {
+      "category": "Attack Speed",
+      "display_name": "Movement Speed Bonus Applied to Attack Speed",
+      "slot_sources": [
+        {
+          "amount": 0.75,
+          "label": "Groundshaker: Wrathful Vault",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "75% of Movement Speed \u2192 additional Attack Speed (cap +60%) |wrathful_vault"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "movement_bonus_to_attack_speed_cap": {
+      "category": "Attack Speed",
+      "display_name": "Movement\u2192Attack Speed Cap",
+      "slot_sources": [
+        {
+          "amount": 0.6,
+          "label": "Groundshaker: Wrathful Vault",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": null,
+          "source_type": "support",
+          "text": "Movement\u2192Attack Speed capped at +60% |wrathful_vault"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
     "movement_speed": {
       "category": "Character",
       "display_name": "Movement Speed",
@@ -1214,63 +1332,6 @@
       ],
       "total": 500.0,
       "unit": ""
-    },
-    "skill_area_additional": {
-      "category": "Utility",
-      "display_name": "Additional Skill Area",
-      "slot_sources": [
-        {
-          "amount": 0.17,
-          "label": "Berserking Blade: Sweep",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": null,
-          "source_type": "support",
-          "text": "+0.43% additional Skill Area per buff \u00d740 |bb|sweep"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": "%"
-    },
-    "skill_area_inc": {
-      "category": "Utility",
-      "display_name": "Skill Area",
-      "slot_sources": [
-        {
-          "amount": 1.0,
-          "label": "Berserking Blade Buff",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": null,
-          "source_type": "skill",
-          "text": "+2.5% Skill Area per buff stack \u00d740 |bb|buff"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": "%"
-    },
-    "steep_strike_additional_dmg": {
-      "category": "Steep Strike",
-      "display_name": "Steep Strike Additional Damage",
-      "slot_sources": [
-        {
-          "amount": 0.3484,
-          "label": "Berserking Blade: Rampage",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": null,
-          "source_type": "support",
-          "text": "Skill Area bonus \u2192 +34.8% additional Steep Strike Damage |bb|rampage"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": "%"
     },
     "weapon_attack_speed": {
       "category": "Gear",

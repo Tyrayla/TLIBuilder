@@ -439,7 +439,7 @@ export interface Build {
   slateInventory?: SlateTemplate[]
   prisms?: PlacedPrism[]
   prismInventory?: CraftedPrism[]
-  conditionState?: Record<string, number | boolean>
+  conditionState?: Record<string, number | boolean | string>
   // Legacy fields — present on builds saved before the conditionState unification.
   // Read-only: never written by the current client; migrated to conditionState on load.
   conditions?: string[]
@@ -631,7 +631,9 @@ export interface ConditionDef {
   key: string
   label: string
   category?: string
-  value_type: 'boolean' | 'numeric'
+  value_type: 'boolean' | 'numeric' | 'enum'
+  enum_values?: string[]        // value_type === 'enum': the selectable options (a dropdown)
+  default_enum?: string         // value_type === 'enum': default selected option
   numeric_min?: number
   numeric_max?: number | null
   min_base?: number
@@ -829,6 +831,38 @@ export interface OffenseResult {
   multistrike_mult?: number            // delivery multiplier folded into total_dps
   multistrike_repeat_aps?: number      // attack rate during repeats (base aps × the +20%-increased factor)
   multistrike_chain?: { count: number; prob: number }[]   // chain-length distribution
+  // Demolisher Charge mode (Groundshaker etc.): the skill regains a single charge over time and consumes it on
+  // cast to add the secondary explosion. Primary fissure fires at demolisher_cast_rate, secondary at
+  // demolisher_charged_rate. The breakpoint fields drive the restoration-vs-cadence helper. "" / 0 when not a
+  // Demolisher skill.
+  demolisher_mode?: string                    // 'rhythm' | 'manual' | '' (not a demolisher skill)
+  demolisher_restoration_time?: number        // seconds to regain 1 charge = base / (1 + Σ charge-speed increased)
+  demolisher_base_restore?: number            // skill's base restoration (Groundshaker 3s)
+  demolisher_charge_speed_inc?: number        // Σ Demolisher Charge Speed INCREASED (the only pool that applies)
+  demolisher_cast_rate?: number               // casts/sec (primary fissure rate)
+  demolisher_charged_rate?: number            // charged casts/sec (secondary explosion rate) ≤ cast_rate
+  demolisher_rhythm_interval?: number         // Rhythm cast interval R (0 = manual/APS)
+  demolisher_mismatch?: boolean               // restoration slower than the cadence → not every cast is charged
+  demolisher_restore_to_sustain?: number      // +Increased Charge Speed needed for every-cast-charged
+  demolisher_cdr_droppable?: number           // Increased Charge Speed droppable while still sustaining
+  demolisher_under_breakpoint?: boolean       // below the every-cast-charged breakpoint
+  demolisher_over_breakpoint?: boolean        // above it (has headroom to drop charge speed)
+  demolisher_collapse_pct?: number            // Collapse tick amplification (fraction) folded into the fissure ticks
+  demolisher_frequent_quake?: boolean         // explosion replaced by 5 primary-fissure hits
+  demolisher_area_mode?: string               // 'both' | 'primary' | 'secondary' (the fissure ENUM)
+  demolisher_primary_dps?: number             // primary-fissure DPS vs target (after delivery)
+  demolisher_secondary_dps?: number           // secondary-explosion / FQ-tick DPS vs target (after delivery)
+  // Activation-medium trigger cadence + Wind Rhythm server-tick panel. trigger_interval 0 = not triggered.
+  trigger_interval?: number
+  wind_rhythm_active?: boolean
+  wind_rhythm_rate?: number
+  wind_rhythm_ticks?: number
+  wind_rhythm_cast_time?: number
+  wind_rhythm_base_cooldown?: number
+  wind_rhythm_bonus?: number
+  wind_rhythm_cdr_to_next?: number
+  wind_rhythm_cast_to_next?: number
+  wind_rhythm_wind_to_next?: number
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number
@@ -1777,6 +1811,12 @@ export interface SkillModeledRoll {
   identity: string
   stat_keys: string[]
   ranges_by_tier: Record<number, { min: number; max: number; mid: number }>
+  unit?: string    // display unit ('%' default, 's' for a seconds roll like the Rhythm interval)
+  scale?: number   // stored↔display scale (100 for %, 1 for seconds); display value = stored × scale
+  label?: string   // short panel name (e.g. "Interval", "Cast→CDR")
+  desc?: string    // fuller phrase for hover (e.g. "% of Cast Speed applied to Cooldown Recovery Speed")
+  group?: string | null   // mutually-exclusive selector group (e.g. 'cdr_or_duration'); null = standalone
+  wired?: boolean  // false = recorded/surfaced but not yet applied to the calc
 }
 
 export interface SkillTooltipSpec {
@@ -1786,6 +1826,7 @@ export interface SkillTooltipSpec {
   available_levels: number[]
   lines: SkillTooltipLine[]
   modeled_rolls?: SkillModeledRoll[]   // bespoke canvas-support roll lines (Howling Gale, Berserking Blade, …)
+  is_activation_medium?: boolean       // AM lines: substitute selected roll values into the bands sequentially
 }
 
 export interface SkillItem {
@@ -1818,9 +1859,14 @@ export interface EquippedSupportSkill {
   // Rank (1-5) — Noble/Magnificent supports only. Scales the support's universal
   // "+% additional damage for the supported skill" line (R1 0% → R5 20%).
   rank?: number
-  // Explicit per-line rolls (signed fraction) keyed by the line's affix identity. Overrides the
-  // engine's tier-midpoint default for that line. See utils/supportRolls.ts + utils/affixIdentity.ts.
+  // Explicit per-line rolls (signed fraction, or seconds for a time roll) keyed by the roll identity.
+  // Overrides the engine's tier-midpoint default. See utils/supportRolls.ts + utils/affixIdentity.ts.
   specific_rolls?: Record<string, number>
+  // Per-roll tier (activation mediums drop with independent per-roll tiers, e.g. tier-0 move cap + tier-2
+  // interval). Keyed by roll identity → tier. Absent → the support `level` (clamped to that roll's tiers).
+  specific_roll_tiers?: Record<string, number>
+  // Mutually-exclusive selector choice per group (e.g. {'cdr_or_duration': 'duration_additional'}).
+  roll_group_choice?: Record<string, string>
   skill_tags: string[]
   description_lines: string[]
   // Whether this support contributes. Default true; false drops its contributions from the calc.
@@ -2286,7 +2332,7 @@ export const api = {
   getTree: (name: string) => get<TreeData>(`/tree/${encodeURIComponent(name)}`),
 
   getBuilds: () => get<Build[]>('/builds'),
-  postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[]; slates?: SavedSlate[]; conditionState?: Record<string, number | boolean> }) =>
+  postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[]; slates?: SavedSlate[]; conditionState?: Record<string, number | boolean | string> }) =>
     post<Build>('/builds', build),
   deleteBuild: (id: string) => del<{ ok: boolean }>(`/builds/${id}`),
 
@@ -2485,7 +2531,7 @@ export const api = {
   engineStats: (payload: {
     slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
     slates?: SavedSlate[]
-    condition_state?: Record<string, number | boolean>
+    condition_state?: Record<string, number | boolean | string>
     gear?: GearEngineItem[]
     character?: CharacterStatContribution[]
     memory_effects?: EffectInput[]

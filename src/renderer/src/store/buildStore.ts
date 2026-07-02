@@ -25,7 +25,7 @@ export interface LoadedBuild {
   slateInventory: SlateTemplate[]
   prisms: PlacedPrism[]
   prismInventory: CraftedPrism[]
-  conditionState: Record<string, number | boolean>
+  conditionState: Record<string, number | boolean | string>
   gear: EquippedGearItem[]
   skills: EquippedSkill[]
   characterLevel: number
@@ -88,7 +88,7 @@ interface BuildStore {
   slateInventory: SlateTemplate[]
   prisms: PlacedPrism[]
   prismInventory: CraftedPrism[]
-  conditionState: Record<string, number | boolean>
+  conditionState: Record<string, number | boolean | string>
   gear: EquippedGearItem[]
   characterLevel: number
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
@@ -105,7 +105,7 @@ interface BuildStore {
   setSlateInventory: (slateInventory: SlateTemplate[]) => void
   setPrisms: (prisms: PlacedPrism[]) => void
   setPrismInventory: (prismInventory: CraftedPrism[]) => void
-  setConditionState: (state: Record<string, number | boolean>) => void
+  setConditionState: (state: Record<string, number | boolean | string>) => void
   setGear: (gear: EquippedGearItem[]) => void
   setCharacterLevel: (level: number) => void
   // Calc-target ("training dummy") stats — per-loadout (a loadout area). Bumps buildVersion to recompute DPS-vs-target.

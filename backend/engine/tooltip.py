@@ -458,12 +458,15 @@ def build_tooltip(skill_data: dict) -> dict:
     from engine import skill_effects
     item_id = skill_data.get("item_id")
     modeled = []
-    if item_id in skill_effects.GENERIC_GUARD_IDS:
+    if skill_effects.is_guarded(item_id):
+        _is_am = skill_effects._am.is_activation_medium(item_id)
         for ln in lines:
             bt = ln.get("badge_text") or ""
             if not bt or _UNIVERSAL in bt.lower():
                 continue
-            if not skill_effects.resolve_line_keys(bt):   # None or [] → not a stat clause → no badge
+            # Activation mediums are fully handled by the roll parser + wiring hook → their behavioral lines are
+            # recognized (no NYI badge). Other guarded supports only suppress non-stat clauses.
+            if _is_am or not skill_effects.resolve_line_keys(bt):
                 ln["badge_text"] = ""
         modeled = skill_effects.modeled_rolls(item_id, skill_data)
 
@@ -492,4 +495,7 @@ def build_tooltip(skill_data: dict) -> dict:
                 ln["badge_text"] = ""
 
     return {"gate_text": gate, "level_kind": kind, "default_level": default,
-            "available_levels": avail, "lines": lines, "modeled_rolls": modeled}
+            "available_levels": avail, "lines": lines, "modeled_rolls": modeled,
+            # Activation-medium lines carry MANY rolls on one concatenated line keyed by synthetic identities;
+            # the tooltip substitutes the selected values into the bands sequentially (see StructuredSkillTooltipBody).
+            "is_activation_medium": skill_effects._am.is_activation_medium(item_id)}

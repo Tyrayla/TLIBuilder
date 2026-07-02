@@ -65,6 +65,23 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ## Tests
 
+### WIND-RHYTHM-01 — Wind Rhythm cast rate + server breakpoints
+- Status: 🔶 Modeled from the owner's wrc-six calculator; confirm against the live game.
+- Model: Wind Rhythm triggers off a per-tier **base cooldown** (L0 0.5 / L1 0.6 / L2 0.7 / L3 0.8 s), sped by CDR +
+  a share of Cast Speed. `final_cast = cast_speed_inc × (1 + cast_speed_additional)`;
+  `raw = base / (1 + cdr_speed_inc + wind_bonus × final_cast) / (1 + cdr_speed_additional)`; tick-quantized
+  `server = ceil(raw × 30) / 30` (30 Hz, like Tangle/Spell Burst). Additional cast speed is MULTIPLICATIVE.
+- Checks:
+  1. **Base cooldown per tier** — with 0 CDR / 0 cast speed, the trigger interval = the tier's base (0.5–0.8 s),
+     tick-rounded (e.g. 0.5 → 15 ticks → 0.5 s; 0.6 → 18 ticks).
+  2. **Cast-speed → CDR conversion** — the wind bonus % of your cast-speed bonus feeds CDR: e.g. base 0.5, wind 40%,
+     +100% increased cast → raw 0.5/(1+0.4×1.0)=0.357 → 11 ticks → 0.367 s. Confirm cast speed speeds the trigger.
+  3. **Additional cast speed is multiplicative** — +X% additional cast multiplies the increased before the wind
+     conversion (owner: +10% additional shifted the cast breakpoint 350→318 = ÷1.1). Confirm in-game.
+  4. **Server breakpoints** — the rate only steps at whole-tick crossings; confirm the CDR% / cast-speed% /
+     wind-bonus% to the next faster tick match the app's Wind Rhythm panel (mirrors wrc-six.vercel.app).
+- RESULT (per check): Recount Avg DPS (span) + Duration; the wind-bonus roll + tier; CDR%/cast%; Screenshot.
+
 ### CL-BASE-01 — Baseline Chain Lightning DPS
 - Status: ✅ Verified (owner, within ~1%)
 - Setup: Chain Lightning only, standard isolation build. Note the skill level.
@@ -268,6 +285,39 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   5. **Magister ES-charge node** ("immediately starts Charging Energy Shield on generate"): currently **recognized
      but NYI** (no ES-recharge model) — badges Unconsumed. Note the in-game ES behaviour for when that model lands.
 - RESULT (per sub-test): Recount Avg DPS (span) + Duration, before/after; the mod + its roll; count; Screenshot.
+
+---
+
+### DEMOLISHER-01 — Demolisher Charge (Groundshaker) model (multiple checks)
+- Status: 🔶 Partially modeled — the subsystem is shipped (uncommitted); several assumptions need a live confirm.
+  Owner has already pinned the Collapse step function in prior testing (see below); the rest is unverified.
+- Setup: **Groundshaker** vs the standard dummy. Note skill level, weapon, and every socketed support + its tier/rank.
+  Model recap (what the engine now does):
+  - Restoration = **base 3 s ÷ (1 + Σ Demolisher Charge Speed increased)** — INCREASED pool only, smooth real-time.
+  - Primary fissure (227% WAD) lands **every cast**; secondary explosion (1135% WAD) only on a **charged** cast
+    (charged_rate = min(cast_rate, 1/restoration)). Rhythm mode: cast_rate = 1/R. Manual: cast_rate = APS.
+  - Every-cast-charged breakpoint: (1 + increased) ≥ 3 ÷ cadence. The Demolisher panel surfaces "+X% to sustain" or
+    "-X% droppable".
+- Checks:
+  1. **Smooth vs tick-quantized restoration.** Confirm restoration is NOT hard-rounded to 30 Hz ticks (the model
+     assumes smooth real-time, unlike Spell Burst / Tangle). Vary Demolisher Charge Speed increased and confirm the
+     charged-cast rate scales smoothly (no tick plateaus).
+  2. **Increased-only restoration.** Confirm Demolisher Charge Speed **additional** (if any source exists) does NOT
+     speed restoration — only increased does.
+  3. **Rhythm breakpoint.** At a fixed Rhythm interval R, find the charge-speed increased at which the secondary fires
+     on every cast; expected at (1 + increased) = 3/R. Confirm dropping below re-introduces the mismatch (secondary
+     uptime = R ÷ restoration).
+  4. **Frequent Quake 5-hit.** Confirm the max-spread fissure, instead of exploding, deals **5 fissure hits** (1 + 4×0.4 s)
+     each = a primary-fissure hit — so the FQ secondary total ≈ the single 1135% explosion (5 × 227%), before Collapse.
+     Confirm FQ's **+(66–68)% additional Hit Damage** applies to the fissure hits.
+  5. **Cripple scope.** Confirm the **−90% additional damage while the fissure spreads** hits the **primary fissure**
+     (and, with FQ, the fissure ticks) but **NOT the secondary explosion** (owner-observed 46 vs 319 on the primary:
+     319 × 0.10 × 1.45 ≈ 46). Confirm the **+(44–46)% consume** bonus applies to the whole charged cast.
+  6. **Collapse step function.** Already owner-pinned: **Collapse% = floor(1.6/R) × 0.5 × roll**, needs FQ persistence
+     + auto/rhythm overlap; boundaries at R = 1.6/n (0.8 and 0.4 time-average between floors). Re-confirm opportunistically.
+  7. **Wrathful Vault movement→AS.** The stat is surfaced but its APPLICATION is a follow-up (movement→AS not wired).
+     Note the in-game jump-cast cadence + how much Movement Speed → Attack Speed for when that model lands.
+- RESULT (per check): Recount Avg DPS (span) + Duration, before/after; the mod + its roll; R / charge-speed; Screenshot.
 
 ---
 

@@ -14,7 +14,9 @@ class ConditionDef:
     key: str
     label: str
     category: str
-    value_type: Literal["boolean", "numeric"] = "boolean"
+    value_type: Literal["boolean", "numeric", "enum"] = "boolean"
+    enum_values: tuple[str, ...] = ()     # for value_type == "enum": the selectable options (a dropdown)
+    default_enum: str = ""                 # default selected option for an enum condition
     numeric_min: float = 0
     numeric_max: float | None = None
     min_base: float = 0
@@ -35,7 +37,8 @@ def _load() -> tuple[list[ConditionDef], dict[str, str], dict[str, list[str]]]:
             data = json.load(f)
     except FileNotFoundError:
         return [], {}, {}
-    conds = [ConditionDef(**c) for c in data.get("conditions", [])]
+    conds = [ConditionDef(**({**c, "enum_values": tuple(c["enum_values"])} if "enum_values" in c else c))
+             for c in data.get("conditions", [])]
     derived = data.get("derived_keys", {})
     # Derived NUMERICS: each key is the SUM of its listed source condition values (e.g. any_blessings =
     # focus + agility + tenacity). Re-derived each fixed-point iteration in compute._clamp_and_rederive.

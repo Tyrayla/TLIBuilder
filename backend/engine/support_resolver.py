@@ -248,11 +248,11 @@ def resolve_support_contributions(
                         "slot": sup.get("slot", 1),
                     })
 
-        # Bespoke/deferred canvas supports (per engine.skill_effects): their SPECIFIC line is handled by
-        # the skill's module — either a type-A support-path contribution (e.g. Desperation, Fervor) or a
-        # slot/compute-side effect / deferral. Skip the generic parser (it would misread these lines). The
-        # universal +20% above still applies.
-        if item_id in skill_effects.GENERIC_GUARD_IDS:
+        # Bespoke/deferred canvas supports + activation mediums (per engine.skill_effects): their SPECIFIC line is
+        # handled elsewhere — a skill module's type-A contribution, or (activation mediums) the AM roll parser +
+        # slot-level wiring hook. Skip the generic parser (it would misread / double-count these). Universal +20%
+        # above still applies where relevant.
+        if skill_effects.is_guarded(item_id):
             c = skill_effects.support_contribution(sup, data)
             if c:
                 c.setdefault("source_name", name)
@@ -292,6 +292,21 @@ def resolve_support_contributions(
             low = stat_clause.lower()
             if "(multiplies)" in low:
                 pass  # Augmentation's per-Jump compounding line → resolve_support_behavior
+            elif "additional hit damage for the supported skill" in low:
+                # Generic "+X% additional Hit Damage for the supported skill" → the hit-only additional pool.
+                # (The universal phrase below only matches "additional DAMAGE…"; this is the "…HIT DAMAGE…" variant.)
+                roll = _explicit_roll(sup, line)
+                frac = roll if roll is not None else _range_mid_fraction(stat_clause)
+                if frac is not None and frac != 0.0:
+                    out.append({
+                        "stat_key": "hit_dmg_additional",
+                        "amount": frac,
+                        "text": "additional Hit Damage for the supported skill |{}|specific".format(item_id),
+                        "label": f"{name} (Tier {tier})",
+                        "source_name": name,
+                        "condition": cond_expr,
+                        "slot": sup.get("slot", 1),
+                    })
             elif _UNIVERSAL_PHRASE in low:
                 roll = _explicit_roll(sup, line)
                 frac = roll if roll is not None else _range_mid_fraction(stat_clause)

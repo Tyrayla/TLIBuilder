@@ -1,21 +1,11 @@
 {
   "activation_medium_sentry": {
     "behavior": {},
-    "contribs": [
-      [
-        "dmg_additional",
-        0.175
-      ]
-    ]
+    "contribs": []
   },
   "activation_medium_tangle": {
     "behavior": {},
-    "contribs": [
-      [
-        "dmg_additional",
-        0.13
-      ]
-    ]
+    "contribs": []
   },
   "acuteness_focus_dull_pain_noble": {
     "behavior": {},
@@ -110,7 +100,7 @@
       ],
       [
         "dmg_additional",
-        0.05
+        0.028
       ]
     ]
   },
@@ -156,10 +146,6 @@
       [
         "dmg_additional",
         0.2
-      ],
-      [
-        "dmg_additional",
-        0.44
       ]
     ]
   },
@@ -217,6 +203,10 @@
       [
         "dmg_additional",
         0.2
+      ],
+      [
+        "hit_dmg_additional",
+        24.8
       ]
     ]
   },
@@ -405,6 +395,10 @@
       [
         "dmg_additional",
         0.2
+      ],
+      [
+        "hit_dmg_additional",
+        2.325
       ]
     ]
   },
@@ -440,6 +434,10 @@
       [
         "dmg_additional",
         0.2
+      ],
+      [
+        "hit_dmg_additional",
+        0.29
       ]
     ]
   },
@@ -826,10 +824,6 @@
       [
         "dmg_additional",
         0.2
-      ],
-      [
-        "dmg_additional",
-        0.385
       ]
     ]
   },
@@ -901,6 +895,10 @@
       [
         "dmg_additional",
         0.2
+      ],
+      [
+        "steep_strike_additional_dmg",
+        0.635
       ]
     ]
   },
@@ -1175,6 +1173,10 @@
       [
         "dmg_additional",
         0.2
+      ],
+      [
+        "hit_dmg_additional",
+        0.71
       ]
     ]
   },
@@ -1304,6 +1306,10 @@
       [
         "dmg_additional",
         0.2
+      ],
+      [
+        "dmg_additional",
+        0.0355
       ]
     ]
   },
@@ -1432,6 +1438,10 @@
       [
         "dmg_additional",
         0.2
+      ],
+      [
+        "dmg_additional",
+        0.0415
       ]
     ]
   },
@@ -1485,10 +1495,6 @@
       [
         "dmg_additional",
         0.2
-      ],
-      [
-        "dmg_additional",
-        0.28
       ]
     ]
   },
@@ -1498,10 +1504,6 @@
       [
         "dmg_additional",
         0.2
-      ],
-      [
-        "dmg_additional",
-        -0.045
       ]
     ]
   },
@@ -1563,10 +1565,6 @@
       [
         "dmg_additional",
         0.2
-      ],
-      [
-        "dmg_additional",
-        0.69
       ]
     ]
   },
@@ -1784,10 +1782,6 @@
       [
         "dmg_additional",
         0.2
-      ],
-      [
-        "dmg_additional",
-        0.1
       ]
     ]
   },
@@ -1833,10 +1827,6 @@
       [
         "dmg_additional",
         0.2
-      ],
-      [
-        "dmg_additional",
-        0.0825
       ]
     ]
   },
@@ -2017,10 +2007,6 @@
       [
         "dmg_additional",
         0.2
-      ],
-      [
-        "dmg_additional",
-        0.062
       ]
     ]
   },
@@ -2259,10 +2245,6 @@
       [
         "dmg_additional",
         0.2
-      ],
-      [
-        "dmg_additional",
-        0.043
       ]
     ]
   },
@@ -2285,10 +2267,6 @@
       [
         "dmg_additional",
         0.2
-      ],
-      [
-        "dmg_additional",
-        0.225
       ]
     ]
   },

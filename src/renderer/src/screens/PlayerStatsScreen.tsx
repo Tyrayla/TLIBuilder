@@ -1533,12 +1533,19 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                 }}>{dec(f.fires_per_sec)}/s</Row>
               ))
             ) : (
-              <Row label={rateLabel} breakdown={{
-                title: rateLabel, keys: rateKeys, total: offense.attacks_per_second, totalUnit: '',
-                formula: isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional',
-                extra: isSpell && offense.base_cast_time > 0
-                  ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
-                  : undefined,
+              <Row label={(offense.trigger_interval ?? 0) > 0 ? 'Triggers per Second' : rateLabel} breakdown={{
+                title: (offense.trigger_interval ?? 0) > 0 ? 'Triggers per Second' : rateLabel, keys: rateKeys,
+                total: offense.attacks_per_second, totalUnit: '',
+                formula: (offense.trigger_interval ?? 0) > 0
+                  ? (offense.wind_rhythm_active
+                      ? 'Wind Rhythm trigger rate (tick-quantized — see the Wind Rhythm panel). The skill fires at the medium\'s cadence, not your cast rate.'
+                      : `Triggered by an Activation Medium every ${dec(offense.trigger_interval ?? 0)} s → ${dec(offense.attacks_per_second)}/s (overrides your cast rate).`)
+                  : (isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional'),
+                extra: (offense.trigger_interval ?? 0) > 0
+                  ? [{ value: `${dec(offense.trigger_interval ?? 0)} s`, stat: 'Trigger interval', source: 'Medium', sourceName: 'cadence' }]
+                  : (isSpell && offense.base_cast_time > 0
+                    ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
+                    : undefined),
               }}>{dec(offense.attacks_per_second)}</Row>
             )}
           </StatPanel>
@@ -1900,6 +1907,139 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           }}>
             <span style={{ color: '#f0c070' }}>{fmtNum(offense.total_dps_vs_target)}</span>
           </Row>
+        </StatPanel></GridBox>
+      )}
+
+      {(offense.demolisher_mode ?? '') !== '' && (
+        <GridBox><StatPanel title="Demolisher" accent={AMBER}
+          info="A Demolisher skill holds at most one Demolisher Charge, regained over time (base every 3 s, sped by Demolisher Charge Speed increased). The primary fissure lands on every cast; a charged cast consumes the charge to add the secondary explosion. Restoration is smooth real-time. If restoration is slower than your cast cadence, only some casts are charged (a mismatch). Frequent Quake replaces the explosion with 5 fissure hits; Cripple penalises the spreading fissure but exempts the explosion; Collapse amps the fissure ticks.">
+          <Row label="Cast Mode" breakdown={{
+            title: 'Demolisher Cast Mode', keys: [],
+            formula: offense.demolisher_mode === 'rhythm'
+              ? 'Rhythm: an Activation Medium auto-triggers the skill at a fixed interval R (cast rate = 1/R).'
+              : 'Manual: cast rate = your attack rate (APS).',
+            extra: [{ value: offense.demolisher_mode === 'rhythm' ? 'Rhythm' : 'Manual', stat: 'Mode', source: '', sourceName: '' }],
+          }}>{offense.demolisher_mode === 'rhythm' ? 'Rhythm' : 'Manual'}</Row>
+          {(offense.demolisher_rhythm_interval ?? 0) > 0 && (
+            <Row label="Rhythm Interval (R)" breakdown={{
+              title: 'Rhythm Interval', keys: [], total: offense.demolisher_rhythm_interval, totalUnit: ' s',
+              formula: 'The Activation Medium: Rhythm trigger interval. Override via the Config “Rhythm Interval Override”.',
+            }}>{dec(offense.demolisher_rhythm_interval ?? 0)} s</Row>
+          )}
+          <Row label="Restoration Time" breakdown={{
+            title: 'Demolisher Charge Restoration', keys: ['demolisher_charge_speed_inc'],
+            total: offense.demolisher_restoration_time, totalUnit: ' s',
+            extra: [{ value: `${dec(offense.demolisher_base_restore ?? 0)} s`, stat: 'Base', source: 'Baseline', sourceName: 'Base restoration' }],
+            formula: 'Base ÷ (1 + Σ Demolisher Charge Speed Increased). Additional does NOT apply.',
+          }}>{dec(offense.demolisher_restoration_time ?? 0)} s</Row>
+          <Row label="Charge Speed (Increased)" breakdown={{
+            title: 'Demolisher Charge Speed — Increased', keys: ['demolisher_charge_speed_inc'],
+            total: offense.demolisher_charge_speed_inc, totalUnit: '%',
+            formula: 'Σ Demolisher Charge Speed Increased — the only pool that shortens restoration.',
+          }}>+{dec((offense.demolisher_charge_speed_inc ?? 0) * 100)}%</Row>
+          <Row label="Cast Rate" breakdown={{
+            title: 'Cast Rate (Primary Fissure)', keys: [], total: offense.demolisher_cast_rate, totalUnit: ' /s',
+            formula: offense.demolisher_mode === 'rhythm' ? '1 ÷ Rhythm Interval' : 'Attack rate (APS)',
+          }}>{dec(offense.demolisher_cast_rate ?? 0)} /s</Row>
+          <Row label="Charged Rate" breakdown={{
+            title: 'Charged Rate (Secondary Explosion)', keys: [], total: offense.demolisher_charged_rate, totalUnit: ' /s',
+            formula: 'min(Cast Rate, 1 ÷ Restoration Time) — a charge must be ready to consume.',
+            extra: [{ value: offense.demolisher_mismatch ? 'Mismatch' : 'Every cast', stat: 'Charged', source: '',
+              sourceName: offense.demolisher_mismatch ? 'restoration slower than cadence' : 'restoration keeps up' }],
+          }}>{dec(offense.demolisher_charged_rate ?? 0)} /s</Row>
+          {(() => {
+            const rts = offense.demolisher_restore_to_sustain ?? 0
+            const drop = offense.demolisher_cdr_droppable ?? 0
+            const under = !!offense.demolisher_under_breakpoint
+            const hint = under
+              ? `+${dec(rts * 100)}% more Increased Charge Speed → the secondary fires on EVERY cast`
+              : (drop > 0 ? `You can drop up to ${dec(drop * 100)}% Increased Charge Speed and still charge every cast`
+                          : 'Exactly at the breakpoint — every cast is charged')
+            return (
+              <Row label="Breakpoint" labelColor="#9ab" breakdown={{
+                title: 'Restoration ↔ Cadence Breakpoint', keys: [],
+                formula: 'Every cast is charged when Restoration Time ≤ the cast cadence, i.e. (1 + Increased) ≥ Base ÷ cadence. '
+                  + 'Below it, only some casts add the explosion; above it you have headroom to drop charge speed.',
+                extra: [{ value: under ? 'Under' : 'At/Over', stat: 'Status', source: '', sourceName: hint }],
+              }}>{under ? `+${dec(rts * 100)}% to sustain` : (drop > 0 ? `-${dec(drop * 100)}% droppable` : 'At breakpoint')}</Row>
+            )
+          })()}
+          {offense.demolisher_frequent_quake && (
+            <Row label="Frequent Quake" breakdown={{
+              title: 'Frequent Quake', keys: [],
+              formula: 'The max-spread fissure lasts 1.5 s and, instead of exploding, deals 5 fissure hits (1 + 4×0.4 s).',
+            }}>5 fissure hits</Row>
+          )}
+          {(offense.demolisher_collapse_pct ?? 0) > 0 && (
+            <Row label="Collapse" labelColor="#9ab" breakdown={{
+              title: 'Collapse', keys: [], total: offense.demolisher_collapse_pct, totalUnit: '%',
+              formula: 'Amps overlapping fissure ticks: floor(1.6 ÷ R) × 0.5 × roll. Needs Frequent-Quake persistence + '
+                + 'auto/rhythm casting. Approximate at the R = 0.8 / 0.4 floor boundaries (time-averaged).',
+              extra: [{ value: `+${dec((offense.demolisher_collapse_pct ?? 0) * 100)}%`, stat: 'Fissure tick amp', source: 'Collapse', sourceName: 'floor(1.6 ÷ R) × 0.5 × roll' }],
+            }}>+{dec((offense.demolisher_collapse_pct ?? 0) * 100)}%</Row>
+          )}
+          <Row label="Fissure Hits" breakdown={{
+            title: 'Fissure Hits (Config)', keys: [],
+            formula: 'The Config “Groundshaker Fissure Hits” selector — Both / Primary Fissure only / Secondary Explosion only.',
+          }}>{offense.demolisher_area_mode === 'primary' ? 'Primary only'
+              : offense.demolisher_area_mode === 'secondary' ? 'Secondary only' : 'Both'}</Row>
+          <Row label="Primary Fissure DPS" labelColor="#9ad">
+            <span style={{ color: '#f0c070' }}>{fmtNum(offense.demolisher_primary_dps ?? 0)}</span>
+          </Row>
+          <Row label={offense.demolisher_frequent_quake ? 'Fissure Ticks DPS' : 'Secondary Explosion DPS'} labelColor="#9ad">
+            <span style={{ color: '#f0c070' }}>{fmtNum(offense.demolisher_secondary_dps ?? 0)}</span>
+          </Row>
+          <Row label="Combined DPS" labelColor="#9ad" breakdown={{
+            title: 'Combined Skill DPS', keys: [], total: offense.total_dps_vs_target, totalUnit: '',
+            formula: 'Primary fissure (every cast) + secondary explosion / fissure ticks (charged casts).',
+            extra: [
+              { value: fmtNum(offense.demolisher_primary_dps ?? 0), stat: 'Primary', source: '', sourceName: `${dec(offense.demolisher_cast_rate ?? 0)}/s` },
+              { value: fmtNum(offense.demolisher_secondary_dps ?? 0), stat: offense.demolisher_frequent_quake ? 'Fissure Ticks' : 'Secondary', source: '', sourceName: `${dec(offense.demolisher_charged_rate ?? 0)}/s` },
+            ],
+          }}>
+            <span style={{ color: '#f0c070' }}>{fmtNum(offense.total_dps_vs_target)}</span>
+          </Row>
+        </StatPanel></GridBox>
+      )}
+
+      {offense.wind_rhythm_active && (
+        <GridBox><StatPanel title="Wind Rhythm" accent={SKYBLUE}
+          info="Wind Rhythm auto-triggers the supported skill off a per-tier base cooldown, sped by Cooldown Recovery plus a share of your Cast Speed. It is a server-timed countdown (30 Hz), so the trigger rate only steps at whole-tick crossings (like Spell Burst / Tangle) — extra CDR/cast speed only helps when it crosses a tick.">
+          <Row label="Base Cooldown" breakdown={{
+            title: 'Wind Rhythm Base Cooldown', keys: [], total: offense.wind_rhythm_base_cooldown, totalUnit: ' s',
+            formula: 'Per-tier base cooldown of the Wind Rhythm medium (L0 0.5 / L1 0.6 / L2 0.7 / L3 0.8 s).',
+            extra: [{ value: `${dec(offense.wind_rhythm_base_cooldown ?? 0)} s`, stat: 'Base Cooldown', source: 'Medium', sourceName: 'Activation Medium: Wind Rhythm (tier)' }],
+          }}>{dec(offense.wind_rhythm_base_cooldown ?? 0)} s</Row>
+          <Row label="Cast Speed → CDR share" breakdown={{
+            title: 'Cast Speed applied to Cooldown Recovery', keys: [], total: offense.wind_rhythm_bonus, totalUnit: '%',
+            formula: 'The medium applies this % of your Cast Speed (increased × (1 + additional)) to Cooldown Recovery Speed of the trigger.',
+            extra: [{ value: `${dec((offense.wind_rhythm_bonus ?? 0) * 100)}%`, stat: 'Cast Speed → CDR', source: 'Medium', sourceName: 'Wind Rhythm roll (per tier)' }],
+          }}>{dec((offense.wind_rhythm_bonus ?? 0) * 100)}%</Row>
+          <Row label="Trigger Rate" breakdown={{
+            title: 'Wind Rhythm Trigger Rate', keys: [], total: offense.wind_rhythm_rate, totalUnit: ' /s',
+            formula: 'raw = base ÷ (1 + CDR increased + share × cast-speed) ÷ (1 + CDR additional); server = ceil(raw × 30) ÷ 30 (tick-rounded).',
+            extra: [
+              { value: `${offense.wind_rhythm_ticks} ticks`, stat: 'Cadence', source: 'Tick', sourceName: 'ceil(raw × 30)' },
+              { value: `${dec(offense.wind_rhythm_cast_time ?? 0)} s`, stat: 'Server cast time', source: '', sourceName: 'ticks ÷ 30' },
+            ],
+          }}>{dec(offense.wind_rhythm_rate ?? 0)} /s</Row>
+          {(() => {
+            const cdr = offense.wind_rhythm_cdr_to_next ?? 0
+            const cast = offense.wind_rhythm_cast_to_next ?? 0
+            const wind = offense.wind_rhythm_wind_to_next ?? 0
+            const extra: ExtraRow[] = []
+            if (cdr > 0) extra.push({ value: `+${dec(cdr * 100)}%`, stat: 'Increased CDR → next tick', source: '', sourceName: 'raises trigger rate' })
+            if (cast > 0) extra.push({ value: `+${dec(cast * 100)}%`, stat: 'Increased Cast Speed → next tick', source: '', sourceName: 'via the CDR share' })
+            if (wind > 0) extra.push({ value: `+${dec(wind * 100)}%`, stat: 'Wind-bonus % → next tick', source: '', sourceName: 'raises the cast-speed share' })
+            if (!extra.length) extra.push({ value: '—', stat: 'Breakpoint', source: '', sourceName: (offense.wind_rhythm_ticks ?? 0) <= 1 ? 'already at 1 tick (30/s)' : 'no reachable breakpoint' })
+            return (
+              <Row label="Next breakpoint" labelColor="#9ab" breakdown={{
+                title: 'Next faster tick', keys: [], total: offense.wind_rhythm_ticks, totalUnit: ' ticks',
+                formula: 'The trigger rate is tick-quantized. Each lever below independently reaches the next faster tick.',
+                extra,
+              }}>{offense.wind_rhythm_ticks} ticks</Row>
+            )
+          })()}
         </StatPanel></GridBox>
       )}
 

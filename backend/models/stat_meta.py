@@ -1044,6 +1044,10 @@ STAT_META: dict[Stat, StatMeta] = {
         "Movement Speed Bonus Applied to Attack Speed", "Attack Speed", "conversion", "%",
         subgroup="speed", ui_priority=86, source_types=_T,
     ),
+    Stat.MOVEMENT_BONUS_TO_ATTACK_SPEED_CAP: StatMeta(
+        "Movement→Attack Speed Cap", "Attack Speed", "flat", "%",
+        subgroup="speed", ui_priority=86, source_types=_T,
+    ),
     Stat.MOVEMENT_BONUS_TO_CAST_SPEED: StatMeta(
         "Movement Speed Bonus Applied to Cast Speed", "Cast Speed", "conversion", "%",
         subgroup="speed", ui_priority=86, source_types=_T,
@@ -2592,6 +2596,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="utility",            stacking_rule="additive",
         ui_priority=62,                source_types=_T,
     ),
+    Stat.CDR_SPEED_ADDITIONAL: StatMeta(
+        "Cooldown Recovery Speed", "Utility", "additional", "%",
+        subgroup="utility",            stacking_rule="additive",
+        ui_priority=62,                source_types=_T,
+    ),
     Stat.WARCRY_CDR_SPEED_INC: StatMeta(
         "Warcry Cooldown Recovery Speed", "Utility", "increased", "%",
         subgroup="utility",            stacking_rule="additive",
@@ -2932,6 +2941,44 @@ STAT_META: dict[Stat, StatMeta] = {
         "Demolisher Charge Restoration Speed", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=72,                source_types=_T,
+    ),
+    # Cripple's "+X% additional damage for the consuming cast" — routed to the charged-cast share via the "demolisher"
+    # tag (hand-folded in the demolisher offense block, like spell_burst_hit_dmg_additional). Per-affix.
+    Stat.DEMOLISHER_CONSUME_DMG_ADDITIONAL: StatMeta(
+        "Demolisher Consume Damage", "Generic", "additional", "%",
+        subgroup="damage",             pipeline_stage="additional",
+        tags=("demolisher",),          affects=_HIT,
+        stacking_rule="additive",      ui_priority=25,
+        source_types=_T,
+    ),
+    # Generic "at the center" additional damage (Epicenter etc.) — full-uptime, applies to all hits via the normal pool.
+    Stat.AT_CENTER_DMG_ADDITIONAL: StatMeta(
+        "Damage at Center", "Generic", "additional", "%",
+        subgroup="damage",             pipeline_stage="additional",
+        affects=_HIT,                  stacking_rule="additive",
+        ui_priority=25,                source_types=_T,
+    ),
+    # Activation-medium trigger cadence — a seconds OVERRIDE of the cast/trigger rate (read in compute_skill_rates).
+    Stat.TRIGGER_INTERVAL: StatMeta(
+        "Trigger Interval", "Utility", "flat", "s",
+        subgroup="mechanics",          stacking_rule="overwrite",
+        ui_priority=61,                source_types=_T,
+    ),
+    Stat.WIND_RHYTHM_BASE_COOLDOWN: StatMeta(
+        "Wind Rhythm Base Cooldown", "Utility", "flat", "s",
+        subgroup="mechanics",          stacking_rule="overwrite",
+        ui_priority=61,                source_types=_T,
+    ),
+    Stat.WIND_RHYTHM_SHARE: StatMeta(
+        "Wind Rhythm Cast-Speed Share", "Utility", "flat", "%",
+        subgroup="mechanics",          stacking_rule="overwrite",
+        ui_priority=61,                source_types=_T,
+    ),
+    # Sentry Activation Medium — sentries deployed at a time (surfaced; not the max-quantity stat).
+    Stat.SENTRY_DEPLOYED_COUNT_FLAT: StatMeta(
+        "Sentries Deployed", "Utility", "flat", "",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=64,                source_types=_T,
     ),
     Stat.AGILITY_BLESSING_DURATION_INC: StatMeta(
         "Agility Blessing Duration", "Buffs", "increased", "%",

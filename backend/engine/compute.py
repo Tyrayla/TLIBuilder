@@ -50,6 +50,15 @@ _SPELL_BURST_AREA_SUPPORTS = {
     "fire_burst_prairie_fire_noble": {"per": 0.20, "cap": 10},
 }
 
+# ── Demolisher Charge / Activation mediums ─────────────────────────────────────────
+# Config "Skill area" enum → internal area mode. Trigger cadence (Rhythm/Track/Wind Rhythm) is now handled
+# generically via AM-emitted stats read in compute_skill_rates (see engine/skill_effects/activation_medium.py).
+_AREA_MODE_MAP = {
+    "Both": "both",
+    "Primary Fissure only": "primary",
+    "Secondary Explosion only": "secondary",
+}
+
 
 # "Gain on hit" automax flag → the numeric condition pinned to its derived max (full-uptime approximation).
 _AUTOMAX_TARGETS = [
@@ -1074,10 +1083,36 @@ def compute(
                         if n > 0:
                             eff.add("spell_burst_area_additional", spec["per"] * n)
                 spell_burst = {"count": M, "auto": auto, "auto_source": auto_source}
+        # ── Demolisher mode ── the skill regains a single Demolisher Charge over time and consumes it on cast to
+        # add the secondary explosion. Cadence is now GENERIC: compute_skill_rates already applied any activation-
+        # medium trigger override (Rhythm/Track/Wind Rhythm → cast rate) via the AM-emitted stats; Demolisher just
+        # CONSUMES that resolved cast rate. Rhythm's movement bonus + the AM's additive stats are emitted by the AM
+        # hook; Wrathful Vault's Mobility tag comes from the groundshaker flags.
+        demolisher = None
+        add_mod_tags = None
+        if getattr(resolved, "demolisher_base_restore", 0.0) > 0 and "demolisher" in {t.lower() for t in resolved.tags}:
+            from engine.offense import compute_skill_rates as _csr, compute_demolisher_rate as _cdr
+            cast_rate = _csr(eff, resolved)["aps"]      # already reflects any trigger-medium override
+            triggered = eff.total("trigger_interval") > 0 or eff.total("wind_rhythm_base_cooldown") > 0
+            demolisher = _cdr(eff, cast_rate, resolved.demolisher_base_restore,
+                              mode="rhythm" if triggered else "manual")
+            dflags = overrides.get("demolisher_flags", {}) or {}
+            demolisher.update({
+                "area_mode": _AREA_MODE_MAP.get(str(new_state.get("groundshaker_area_selector", "Both")), "both"),
+                "collapse_roll": dflags.get("collapse_roll", 0.0),
+                "frequent_quake": dflags.get("frequent_quake", False),
+                "fq_ticks": dflags.get("fq_ticks", 5),
+                "cripple_spread_penalty": dflags.get("cripple_spread_penalty", False),
+                "rhythm_interval": (1.0 / cast_rate) if triggered and cast_rate > 0 else 0.0,
+            })
+            # Wrathful Vault makes Groundshaker a Mobility skill (Mobility-scoped mods apply + it reads as one).
+            if dflags.get("wrathful_vault"):
+                add_mod_tags = (add_mod_tags or set()) | {"mobility"}
         return asdict(calculate_offense(
             eff, resolved, level, is_main_skill=is_main, extra_additional=extra,
             support_behavior=_behavior_by_slot.get(slot, {}),
-            remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst))
+            remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst,
+            demolisher=demolisher, add_mod_tags=add_mod_tags))
 
     result_offense = None
     slot_offense: dict[int, dict] = {}

@@ -39,7 +39,8 @@ _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
     "lightning_infiltration_effect_inc",
     "cast_speed_to_spell_burst_charge", "proj_speed_to_proj_dmg", "projectile_speed_inc",
     "movement_speed_inc", "movement_speed_additional",
-    "movement_bonus_to_attack_speed", "movement_bonus_to_cast_speed", "movement_bonus_to_cdr",
+    "movement_bonus_to_attack_speed", "movement_bonus_to_attack_speed_cap",
+    "movement_bonus_to_cast_speed", "movement_bonus_to_cdr",
 })
 
 _ALL_TAGS = [
@@ -223,6 +224,15 @@ def consumable_universe() -> frozenset[str]:
                  "spell_burst_area_additional", "spell_burst_area_additional_per",
                  "mana_lost_pct_current_per_burst", "life_restored_pct_lost_per_burst",
                  "energy_shield_restored_pct_lost_per_burst", "max_spell_burst_halve_flag", "unlucky_crit"}
+
+    # Demolisher Charge subsystem (Groundshaker): restoration speed read in compute's rate helper; the consume/at-center
+    # additional pools + Collapse roll are folded in the demolisher offense block, all outside the synthetic passes.
+    consumed |= {"demolisher_charge_speed_inc", "demolisher_consume_dmg_additional", "at_center_dmg_additional"}
+
+    # Activation-medium rolls: trigger_interval overrides cast rate (compute_skill_rates, presence-gated); cdr_speed_*
+    # drive the Wind Rhythm rate helper (outside the synthetic offense pass); sentry-deployed count is surfaced-only.
+    consumed |= {"trigger_interval", "cdr_speed_inc", "cdr_speed_additional", "sentry_deployed_count_flat",
+                 "wind_rhythm_base_cooldown", "wind_rhythm_share"}
 
     # Channeled mode (offense.calculate_offense) reads the stack-cap pools to set the RESET cadence; they only
     # fire for a channeled skill (Icebound Beam), outside the synthetic passes. projectile_quantity_flat scales

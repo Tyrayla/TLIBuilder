@@ -1,7 +1,7 @@
 from __future__ import annotations
 import math
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable, Literal
 
 from engine import uptime
@@ -352,6 +352,97 @@ def compute_spell_burst_rate(source: BuildSource, aps: float, M: int, auto: bool
         ct = max(1, round(TICK_RATE / aps))
         rate = TICK_RATE / (math.ceil(charge_ticks / ct) * ct)
     return min(rate, float(TICK_RATE))
+
+
+def compute_demolisher_rate(source: BuildSource, cast_rate: float, base_restore: float,
+                            mode: str = "manual", rhythm_interval: float = 0.0) -> dict:
+    """Demolisher Charge charged-rate + the bidirectional restoration-vs-cadence breakpoint.
+
+    Standalone mirror of the rate reasoning used inside calculate_offense's demolisher block — KEEP IN SYNC.
+    A Demolisher skill holds at most ONE charge, regained every `restoration` seconds (the timer runs only
+    while at 0). Casting while holding the charge CONSUMES it to add the secondary explosion (the primary
+    fissure lands on every cast regardless).
+
+    `cast_rate` is the skill's RESOLVED cast/trigger rate (from compute_skill_rates: manual APS, a trigger-medium
+    cadence, or the Wind Rhythm rate) — Demolisher is now a generic CONSUMER of it. The cadence = 1/cast_rate.
+      restoration = base_restore / (1 + Σ demolisher_charge_speed_inc)   [INCREASED pool ONLY].
+    Every cast is charged iff restoration ≤ cadence; else a charge is ready only every `restoration` s →
+    charged_rate = min(cast_rate, 1/restoration). Breakpoint (every-cast-charged) needs (1 + inc) ≥
+    base/cadence → `restore_to_sustain` / `cdr_droppable`. `mismatch` = the secondary can't fire every cast.
+    Returns 0-rates when base_restore ≤ 0 (skill isn't a Demolisher skill)."""
+    inc = source.total("demolisher_charge_speed_inc")
+    restoration_time = base_restore / (1.0 + inc) if base_restore > 0 else 0.0
+    if base_restore <= 0:
+        return {"mode": mode, "cast_rate": 0.0, "charged_rate": 0.0, "restoration_time": 0.0,
+                "rhythm_interval": rhythm_interval, "charge_speed_inc": inc, "base_restore": base_restore,
+                "mismatch": False, "restore_to_sustain": 0.0, "cdr_droppable": 0.0,
+                "under_breakpoint": False, "over_breakpoint": False}
+    cadence = (1.0 / cast_rate) if cast_rate > 0 else 0.0
+    charged_rate = min(cast_rate, 1.0 / restoration_time) if restoration_time > 0 else cast_rate
+    # Breakpoint in INCREASED charge-speed terms: sustain needs (1 + inc) ≥ base/cadence.
+    inc_needed = (base_restore / cadence - 1.0) if cadence > 0 else 0.0
+    mismatch = restoration_time > cadence + 1e-9
+    return {
+        "mode": mode,
+        "cast_rate": cast_rate,
+        "charged_rate": charged_rate,
+        "restoration_time": restoration_time,
+        "rhythm_interval": rhythm_interval,
+        "charge_speed_inc": inc,
+        "base_restore": base_restore,
+        "mismatch": mismatch,
+        "restore_to_sustain": max(0.0, inc_needed - inc),   # more INCREASED charge speed to reach every-cast-charged
+        "cdr_droppable": max(0.0, inc - inc_needed),         # INCREASED charge speed droppable while still sustaining
+        "under_breakpoint": inc < inc_needed - 1e-9,
+        "over_breakpoint": inc > inc_needed + 1e-9,
+    }
+
+
+def compute_wind_rhythm_rate(source: BuildSource, base_cooldown: float, wind_bonus: float) -> dict:
+    """Wind Rhythm trigger rate — a server-tick breakpoint mechanic (reuses tick.py, like Spell Burst / Tangle).
+
+    The medium triggers off a per-tier base cooldown, sped by Cooldown Recovery + a share (`wind_bonus`) of the
+    supported skill's Cast Speed (owner-confirmed via the wrc-six calculator):
+      final_cast = cast_speed_inc × (1 + cast_speed_additional)     # additional cast speed MULTIPLIES the increased
+      raw = base_cooldown / (1 + cdr_speed_inc + wind_bonus × final_cast) / (1 + cdr_speed_additional)
+      server = ceil(raw × 30) / 30   → rate = 30 / ceil(raw × 30)
+    Returns the rate + tick/cast-time detail + a breakpoint scan (CDR%, Cast-speed%, Wind-bonus% to the next
+    faster tick), for the helper panel. Returns 0 rate when base_cooldown ≤ 0 (not Wind Rhythm)."""
+    if base_cooldown <= 0:
+        return {"rate": 0.0, "ticks": 0, "raw_cast_time": 0.0, "server_cast_time": 0.0,
+                "base_cooldown": 0.0, "wind_bonus": 0.0, "cdr_to_next": 0.0, "cast_to_next": 0.0, "wind_to_next": 0.0}
+    cast_inc = source.total("cast_speed_inc")
+    cast_add = source.total("cast_speed_additional")
+    cdr_inc = source.total("cdr_speed_inc")
+    cdr_add = source.total("cdr_speed_additional")
+
+    def _raw(ci, ca, di, da, wb):
+        final_cast = ci * (1.0 + ca)
+        return base_cooldown / max(1.0 + di + wb * final_cast, 1e-6) / max(1.0 + da, 1e-6)
+
+    raw = _raw(cast_inc, cast_add, cdr_inc, cdr_add, wind_bonus)
+    ticks = period_ticks(raw)
+    rate = rate_from_ticks(ticks)
+
+    # Breakpoint scan: the increment of each lever that first drops to a faster (fewer-tick) period.
+    def _to_next(kind: str) -> float:
+        if ticks <= 1:
+            return 0.0
+        d = 0.0
+        while d < 5.0:
+            d += 0.01
+            r2 = (_raw(cast_inc + d, cast_add, cdr_inc, cdr_add, wind_bonus) if kind == "cast"
+                  else _raw(cast_inc, cast_add, cdr_inc + d, cdr_add, wind_bonus) if kind == "cdr"
+                  else _raw(cast_inc, cast_add, cdr_inc, cdr_add, wind_bonus + d))
+            if period_ticks(r2) < ticks:
+                return d
+        return 0.0
+
+    return {
+        "rate": rate, "ticks": ticks, "raw_cast_time": raw, "server_cast_time": ticks / float(TICK_RATE),
+        "base_cooldown": base_cooldown, "wind_bonus": wind_bonus,
+        "cdr_to_next": _to_next("cdr"), "cast_to_next": _to_next("cast"), "wind_to_next": _to_next("wind"),
+    }
 
 # ── Calculation-target defense (the "dummy") ──────────────────────────────────
 # Baseline mitigation the DPS-vs-target number is computed against. Named (not magic numbers) and
@@ -729,6 +820,40 @@ class OffenseResult:
     # (fraction = 0.5 chance × 1.5 = 0.75), folded in unmitigated.
     spell_ripple_fraction: float = 0.0
     spell_ripple_dps: float = 0.0
+    # Demolisher Charge mode (Groundshaker etc.). The skill is cast at a cadence (Rhythm interval / APS); the
+    # primary fissure lands every cast, the secondary explosion only on a CHARGED cast (a held charge, regained
+    # every restoration_time s). The breakpoint fields drive the bidirectional restoration-vs-cadence helper.
+    # All 0 / "" when the skill is not a Demolisher skill.
+    demolisher_mode: str = ""                    # "rhythm" | "manual" | "" (not a demolisher skill)
+    demolisher_restoration_time: float = 0.0     # seconds to regain 1 charge = base / (1 + Σ charge-speed increased)
+    demolisher_base_restore: float = 0.0         # skill's base restoration (Groundshaker 3s)
+    demolisher_charge_speed_inc: float = 0.0     # Σ Demolisher Charge Speed INCREASED (the only pool that applies)
+    demolisher_cast_rate: float = 0.0            # casts/sec (primary fissure rate)
+    demolisher_charged_rate: float = 0.0         # charged casts/sec (secondary explosion rate) ≤ cast_rate
+    demolisher_rhythm_interval: float = 0.0      # Rhythm cast interval R (0 = manual/APS)
+    demolisher_mismatch: bool = False            # restoration slower than the cadence → not every cast is charged
+    demolisher_restore_to_sustain: float = 0.0   # +Increased Charge Speed needed for every-cast-charged
+    demolisher_cdr_droppable: float = 0.0        # Increased Charge Speed droppable while still sustaining
+    demolisher_under_breakpoint: bool = False    # below the every-cast-charged breakpoint
+    demolisher_over_breakpoint: bool = False     # above it (has headroom to drop charge speed)
+    demolisher_collapse_pct: float = 0.0         # Collapse tick amplification (fraction) folded into the fissure ticks
+    demolisher_frequent_quake: bool = False      # explosion replaced by 5 primary-fissure hits
+    demolisher_area_mode: str = "both"           # "both" | "primary" | "secondary" (the fissure ENUM)
+    demolisher_primary_dps: float = 0.0          # primary-fissure DPS vs target (after delivery)
+    demolisher_secondary_dps: float = 0.0        # secondary-explosion / FQ-tick DPS vs target (after delivery)
+    # Activation-medium trigger cadence driving the cast rate (Rhythm/Track/Instruction/Wind Rhythm). 0 = the
+    # skill fires at its own cast/attack rate (no triggering medium). Surfaced so the Hit Rate row reads correctly.
+    trigger_interval: float = 0.0
+    # Wind Rhythm trigger (server-tick breakpoint mechanic). All 0 / False when Wind Rhythm isn't the trigger.
+    wind_rhythm_active: bool = False
+    wind_rhythm_rate: float = 0.0                 # triggers/sec (= cast rate) after tick rounding
+    wind_rhythm_ticks: int = 0                    # whole-tick cadence period (ceil(raw × 30))
+    wind_rhythm_cast_time: float = 0.0            # server cast time (ticks / 30)
+    wind_rhythm_base_cooldown: float = 0.0        # per-tier base cooldown (seconds)
+    wind_rhythm_bonus: float = 0.0               # roll: share of Cast Speed applied to CDR
+    wind_rhythm_cdr_to_next: float = 0.0          # +Increased CDR % to the next faster tick
+    wind_rhythm_cast_to_next: float = 0.0         # +Increased Cast Speed % to the next faster tick
+    wind_rhythm_wind_to_next: float = 0.0         # +Wind-bonus % to the next faster tick
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -792,6 +917,26 @@ def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags
         weapon_aps_mult = 1.0 + source.total("attack_speed_gear") + source.total("attack_speed_mh")
         aps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
         aps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
+        # Movement Speed → additional Attack Speed (Wrathful Vault: "75% of the bonuses for Movement Speed is
+        # also applied to the additional Attack Speed, up to +60%"). movement_bonus_to_attack_speed is the share
+        # (0.75); the optional _cap stat bounds the converted bonus. Presence-gated (non-consuming all_stats check)
+        # so non-source builds don't read/consume it → golden-identical.
+        mbtas = source.total("movement_bonus_to_attack_speed") if "movement_bonus_to_attack_speed" in source.all_stats() else 0.0
+        if mbtas > 0.0:
+            conv = mbtas * max(0.0, source.total("movement_speed_inc"))
+            cap = source.total("movement_bonus_to_attack_speed_cap")
+            if cap > 0.0:
+                conv = min(conv, cap)
+            aps *= (1.0 + conv)
+    # Activation-medium trigger cadence OVERRIDE (Rhythm/Track/Instruction/Preparation/Wind Rhythm): a triggered
+    # skill fires at the medium's cadence, not the player's cast/attack rate. Presence-gated (non-consuming) so
+    # non-triggered skills stay identical. Wind Rhythm is tick-quantized; the "every X s" mediums are exact 1/interval.
+    _present_rate = source.all_stats()
+    if "wind_rhythm_base_cooldown" in _present_rate and source.total("wind_rhythm_base_cooldown") > 0.0:
+        aps = compute_wind_rhythm_rate(source, source.total("wind_rhythm_base_cooldown"),
+                                       source.total("wind_rhythm_share"))["rate"]
+    elif "trigger_interval" in _present_rate and source.total("trigger_interval") > 0.0:
+        aps = 1.0 / source.total("trigger_interval")
     # Global 30 Hz cap: a single caster acts at most once per server tick.
     return {"aps": cap_rate(aps), "base_cast_time": base_cast_time}
 
@@ -826,6 +971,8 @@ def calculate_offense(
     remove_mod_tags: set[str] | None = None,
     tangle: dict | None = None,
     spell_burst: dict | None = None,
+    demolisher: dict | None = None,
+    add_mod_tags: set[str] | None = None,
 ) -> OffenseResult:
     # tangle: when set (the skill has a Tangle activator support), the skill is cast by N tangles instead of the
     # player. `tangle["count"]` = attached tangles on the target (each a full caster). Adds the "tangle" mod tag
@@ -858,6 +1005,12 @@ def calculate_offense(
     # into the DPS totals at the end (like cast_multiplier / tangle_mult).
     if spell_burst:
         mod_tags = mod_tags | {"spell_burst"}
+    # Skill-effect-granted tags (e.g. Wrathful Vault makes Groundshaker a Mobility skill) — so Mobility-scoped
+    # damage/crit mods apply. Added to both the damage-mod set and the reported skill_tags.
+    if add_mod_tags:
+        _extra_tags = {t.lower() for t in add_mod_tags}
+        skill_tags_lower = skill_tags_lower | _extra_tags
+        mod_tags = mod_tags | _extra_tags
 
     # 0. Crit — computed here in the offense layer, NOT in the fixed-point loop
     # Weapon CSR (from weapon gear piece) scaled by gear-specific and MH-specific % mods only — ATTACKS ONLY.
@@ -1131,6 +1284,12 @@ def calculate_offense(
     _rates = compute_skill_rates(source, skill, skill_tags_lower=skill_tags_lower)
     aps = _rates["aps"]
     base_cast_time = _rates["base_cast_time"]
+
+    # Wind Rhythm trigger panel (server-tick breakpoints) — populated when the skill is triggered by Wind Rhythm.
+    _wind = None
+    if "wind_rhythm_base_cooldown" in _present and source.total("wind_rhythm_base_cooldown") > 0.0:
+        _wind = compute_wind_rhythm_rate(source, source.total("wind_rhythm_base_cooldown"),
+                                         source.total("wind_rhythm_share"))
 
     # ── Tangle cast-speed breakpoints ── A Tangle is a server-scheduled proxy-player, so its per-tangle cast rate
     # hard-rounds to whole server ticks (cast-speed BREAKPOINTS) instead of the player's smooth, continuously-
@@ -1643,7 +1802,7 @@ def calculate_offense(
     multistrike_max_count = 0
     multistrike_repeat_aps = 0.0
     multistrike_chain: list = []
-    if (is_attack and not skill.channeled
+    if (is_attack and not skill.channeled and not demolisher
             and "mobility" not in skill_tags_lower and "sentry" not in skill_tags_lower
             and "multistrike_chance" in _present and source.total("multistrike_chance") > 0.0):
         c = source.total("multistrike_chance")
@@ -1686,6 +1845,134 @@ def calculate_offense(
         multistrike_repeat_aps = aps * s
         multistrike_chain = ([{"count": 1 + G, "prob": 1.0}] if p <= 1e-9
                              else [{"count": 1 + G, "prob": 1.0 - p}, {"count": 2 + G, "prob": p}])
+
+    # ── Demolisher Charge (Groundshaker etc.) ────────────────────────────────────────────────────────────
+    # The skill is driven by a cast cadence (Rhythm interval, or APS when manual), NOT by attack-speed repeats.
+    # The PRIMARY fissure lands on every cast (cast_rate); the SECONDARY explosion only on a CHARGED cast
+    # (charged_rate — a charge must be held, regained every `restoration` s). We rebuild the two forms' DPS from
+    # those rates (replacing the per-form aps default) and layer the demolisher damage modifiers:
+    #   • demolisher_consume_dmg_additional (Cripple +44-46%) — the consuming cast only → charged-cast SHARE.
+    #   • Cripple −90% "while the fissure spreads" — a separate multiplicative additional factor on the PRIMARY
+    #     (and, with Frequent Quake, the fissure ticks). The secondary EXPLOSION is EXEMPT (fires at max spread).
+    #   • Frequent Quake — the explosion is replaced by fq_ticks primary-fissure hits (1 + 4×0.4s).
+    #   • Collapse — amps the fissure ticks by floor(1.6/R)·0.5·roll (Frequent-Quake persistence + rhythm only).
+    #   • at_center_dmg_additional (Epicenter) is UNTAGGED → already folded into every hit's avg (full uptime).
+    # The fissure ENUM zeroes the non-selected form (kept listed). Non-demolisher path is untouched.
+    demolisher_mode = ""
+    demolisher_restoration_time = 0.0
+    demolisher_cast_rate = 0.0
+    demolisher_charged_rate = 0.0
+    demolisher_rhythm_interval = 0.0
+    demolisher_charge_speed_inc = 0.0
+    demolisher_base_restore = 0.0
+    demolisher_mismatch = False
+    demolisher_restore_to_sustain = 0.0
+    demolisher_cdr_droppable = 0.0
+    demolisher_under_breakpoint = False
+    demolisher_over_breakpoint = False
+    demolisher_collapse_pct = 0.0
+    demolisher_frequent_quake = False
+    demolisher_consume_add = 0.0
+    demolisher_cripple = False
+    demolisher_area_mode = "both"
+    _demo_prim_vt = 0.0
+    _demo_sec_vt = 0.0
+    if demolisher:
+        demolisher_mode = demolisher.get("mode", "manual")
+        demolisher_restoration_time = demolisher.get("restoration_time", 0.0)
+        demolisher_cast_rate = demolisher.get("cast_rate", 0.0)
+        demolisher_charged_rate = demolisher.get("charged_rate", 0.0)
+        demolisher_rhythm_interval = demolisher.get("rhythm_interval", 0.0)
+        demolisher_charge_speed_inc = demolisher.get("charge_speed_inc", 0.0)
+        demolisher_base_restore = demolisher.get("base_restore", 0.0)
+        demolisher_mismatch = bool(demolisher.get("mismatch", False))
+        demolisher_restore_to_sustain = demolisher.get("restore_to_sustain", 0.0)
+        demolisher_cdr_droppable = demolisher.get("cdr_droppable", 0.0)
+        demolisher_under_breakpoint = bool(demolisher.get("under_breakpoint", False))
+        demolisher_over_breakpoint = bool(demolisher.get("over_breakpoint", False))
+        demolisher_frequent_quake = bool(demolisher.get("frequent_quake", False))
+        demolisher_area_mode = demolisher.get("area_mode", "both")
+        demolisher_cripple = bool(demolisher.get("cripple_spread_penalty", False))
+        fq_ticks = int(demolisher.get("fq_ticks", 5))
+        cripple_factor = 0.10 if demolisher_cripple else 1.0
+        demolisher_consume_add = source.total("demolisher_consume_dmg_additional")
+
+        # Collapse: a step function of overlapping still-alive fissures. Needs Frequent-Quake persistence
+        # (fissure lifetime ~1.6s) AND auto/rhythm casting (manual/spaced = no overlap). Amps individual
+        # fissure ticks by floor(1.6/R)·0.5·roll (owner-verified across the rhythm table). At the exact floor
+        # boundaries R=0.8 (=1.6/2) and R=0.4 (=1.6/4) the game time-averages between the two floors, so we use
+        # the midpoint there (approximate — flagged). collapse_roll is a fraction (e.g. 0.62 for a +62% roll).
+        collapse_roll = demolisher.get("collapse_roll", 0.0)
+        R = demolisher_rhythm_interval
+        if collapse_roll > 0 and demolisher_frequent_quake and demolisher_mode == "rhythm" and R > 0:
+            n = 1.6 / R
+            nearest = round(n)
+            if nearest >= 1 and abs(n - nearest) < 1e-6:
+                eff_floor = nearest - 0.5            # on a floor boundary → time-averaged midpoint
+            else:
+                eff_floor = math.floor(n)
+            demolisher_collapse_pct = eff_floor * 0.5 * collapse_roll
+
+        cast_rate = demolisher_cast_rate
+        charged_rate = demolisher_charged_rate
+        charged_frac = (charged_rate / cast_rate) if cast_rate > 0 else 0.0
+        allow_primary = demolisher_area_mode != "secondary"
+        allow_secondary = demolisher_area_mode != "primary"
+
+        primary = next((f for f in hit_forms if f.name == "Primary Fissure"), None)
+        secondary = next((f for f in hit_forms if f.name == "Secondary Explosion"), None)
+
+        def _per_fire(form: HitFormResult) -> tuple[float, float]:
+            # Per-cast damage of one form (pre-mit, vs-target), stripped of its aps-based rate.
+            if form is None or form.fires_per_sec <= 0:
+                return 0.0, 0.0
+            return (form.dps_contribution / form.fires_per_sec,
+                    form.dps_vs_target / form.fires_per_sec)
+
+        prim_pm, prim_vt = _per_fire(primary)
+        sec_pm, sec_vt = _per_fire(secondary)
+
+        # Primary fissure — every cast. Cripple −90% on the whole term; consume on the charged share only.
+        prim_consume = 1.0 + charged_frac * demolisher_consume_add
+        p_pm = cast_rate * prim_pm * cripple_factor * prim_consume if allow_primary else 0.0
+        p_vt = cast_rate * prim_vt * cripple_factor * prim_consume if allow_primary else 0.0
+
+        # Secondary — charged casts only. Frequent Quake turns the single explosion into fq_ticks primary-fissure
+        # hits that DO eat Cripple −90% + Collapse; the plain explosion is EXEMPT from Cripple and gets no Collapse.
+        if demolisher_frequent_quake:
+            s_pm = (charged_rate * fq_ticks * prim_pm * cripple_factor
+                    * (1.0 + demolisher_consume_add) * (1.0 + demolisher_collapse_pct)) if allow_secondary else 0.0
+            s_vt = (charged_rate * fq_ticks * prim_vt * cripple_factor
+                    * (1.0 + demolisher_consume_add) * (1.0 + demolisher_collapse_pct)) if allow_secondary else 0.0
+            sec_fires = charged_rate * fq_ticks
+        else:
+            s_pm = charged_rate * sec_pm * (1.0 + demolisher_consume_add) if allow_secondary else 0.0
+            s_vt = charged_rate * sec_vt * (1.0 + demolisher_consume_add) if allow_secondary else 0.0
+            sec_fires = charged_rate
+
+        if primary is not None:
+            primary.dps_contribution = p_pm
+            primary.dps_vs_target = p_vt
+            primary.fires_per_sec = cast_rate if allow_primary else 0.0
+        if secondary is not None:
+            if demolisher_frequent_quake and primary is not None:
+                # Frequent Quake REPLACES the secondary explosion with fissure ticks (each = a primary-fissure
+                # hit). Rebuild the form from the primary's per-hit values so the Skill Hit Damage table shows a
+                # single fissure tick (not the stale 1135% explosion), relabeled, with the FQ tick DPS + rate.
+                idx = hit_forms.index(secondary)
+                hit_forms[idx] = replace(
+                    primary,
+                    name="Fissure Ticks (Frequent Quake)",
+                    dps_contribution=s_pm,
+                    dps_vs_target=s_vt,
+                    fires_per_sec=sec_fires if allow_secondary else 0.0,
+                )
+            else:
+                secondary.dps_contribution = s_pm
+                secondary.dps_vs_target = s_vt
+                secondary.fires_per_sec = sec_fires if allow_secondary else 0.0
+        _demo_prim_vt = p_vt
+        _demo_sec_vt = s_vt
 
     _delivery = cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult
     total_dps = sum(f.dps_contribution for f in hit_forms) * _delivery
@@ -1758,7 +2045,8 @@ def calculate_offense(
         generic_add=generic_add,
         main_stat_damage_bonus=main_stat_bonus,
         main_stats=list(skill.main_stat),
-        skill_tags=skill.tags,
+        skill_tags=(skill.tags + [t for t in (add_mod_tags or set())
+                                  if t.lower() not in {x.lower() for x in skill.tags}]),
         skill_area_inc=(source.total("skill_area_inc") + spell_burst_area_display) if "area" in skill_tags_lower else 0.0,
         cast_multiplier=cast_multiplier,
         shotgun_hits=shotgun_hits,
@@ -1826,6 +2114,34 @@ def calculate_offense(
         mercury_baptism_dps=mercury_baptism_dps,
         spell_ripple_fraction=spell_ripple_fraction,
         spell_ripple_dps=spell_ripple_dps,
+        demolisher_mode=demolisher_mode,
+        demolisher_restoration_time=demolisher_restoration_time,
+        demolisher_base_restore=demolisher_base_restore,
+        demolisher_charge_speed_inc=demolisher_charge_speed_inc,
+        demolisher_cast_rate=demolisher_cast_rate,
+        demolisher_charged_rate=demolisher_charged_rate,
+        demolisher_rhythm_interval=demolisher_rhythm_interval,
+        demolisher_mismatch=demolisher_mismatch,
+        demolisher_restore_to_sustain=demolisher_restore_to_sustain,
+        demolisher_cdr_droppable=demolisher_cdr_droppable,
+        demolisher_under_breakpoint=demolisher_under_breakpoint,
+        demolisher_over_breakpoint=demolisher_over_breakpoint,
+        demolisher_collapse_pct=demolisher_collapse_pct,
+        demolisher_frequent_quake=demolisher_frequent_quake,
+        demolisher_area_mode=demolisher_area_mode,
+        demolisher_primary_dps=_demo_prim_vt * _delivery,
+        demolisher_secondary_dps=_demo_sec_vt * _delivery,
+        trigger_interval=(1.0 / aps if (_wind is not None and aps > 0)
+                          else (source.total("trigger_interval") if "trigger_interval" in _present else 0.0)),
+        wind_rhythm_active=_wind is not None,
+        wind_rhythm_rate=(_wind or {}).get("rate", 0.0),
+        wind_rhythm_ticks=(_wind or {}).get("ticks", 0),
+        wind_rhythm_cast_time=(_wind or {}).get("server_cast_time", 0.0),
+        wind_rhythm_base_cooldown=(_wind or {}).get("base_cooldown", 0.0),
+        wind_rhythm_bonus=(_wind or {}).get("wind_bonus", 0.0),
+        wind_rhythm_cdr_to_next=(_wind or {}).get("cdr_to_next", 0.0),
+        wind_rhythm_cast_to_next=(_wind or {}).get("cast_to_next", 0.0),
+        wind_rhythm_wind_to_next=(_wind or {}).get("wind_to_next", 0.0),
         nyi=[
             "Support skill flat damage adds",
             "Elemental conversion",

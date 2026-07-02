@@ -105,6 +105,8 @@ class ResolvedSkill:
     intrinsic_mana_to_life: float = 0.0          # skill-LOCAL Arcane (Bull's Rage: "All Mana costs … converted to Life
                                                  # costs" → 1.0). The conversion happens BEFORE the %-base resolves, so
                                                  # a "15%" base becomes 15% of Max LIFE (see engine.skill_cost).
+    demolisher_base_restore: float = 0.0         # Demolisher skills: base seconds to restore 1 Demolisher Charge
+                                                 # (Groundshaker 3s). 0 = not a Demolisher skill. See engine.compute.
     # Main attribute(s) for this skill, lowercased (e.g. ["dexterity", "intelligence"]). Each point of
     # a main-stat attribute grants +0.5% damage to this skill; multi-main-stat skills SUM the attribute
     # totals before applying. Source: TLI Help DB (Strength/Dexterity/Intelligence). Parsed in
@@ -212,6 +214,45 @@ def _resolve_moon_strike(skill_data: dict) -> ResolvedSkill:
             per=0.01, rating_key="max_mana", rating_source="stat", per_n=100.0, cap=0.70,
         )],
         extra_damage_mod_tags=["spell"],
+    )
+
+
+# ── Groundshaker (Demolisher attack) ─────────────────────────────────────────────
+# Tags: Attack, Melee, Area, Physical, Demolisher. Two WAD-scaled hit forms per cast, both additive:
+#   Primary Fissure  (the pummel, "Fission: Deals N% Weapon Attack Damage") — lands EVERY cast.
+#   Secondary Explosion ("Fissure Secondary Damage: Deals M% Weapon Attack Damage") — only on a CHARGED
+#   (consume) cast. The charged-cast gating + rate + Frequent-Quake/Collapse/Cripple interactions are handled
+#   by the demolisher offense mode (engine.offense + engine.compute); the resolver only supplies the two hits
+#   + the base Demolisher-Charge restoration time.
+_GS_RESTORE_RE = re.compile(r"gains?\s+\d+\s+demolisher\s+charge\s+every\s+([\d.]+)\s*s", re.IGNORECASE)
+
+
+@_register("groundshaker")
+def _resolve_groundshaker(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    forms_by_level: dict[int, list[SkillHitForm]] = {}
+    for lvl, values in progression.items():
+        matches = _BB_FORM_RE.findall(values.get("Descript", ""))
+        if len(matches) != 2:
+            raise ValueError(
+                f"{skill_data.get('item_id', '?')}: expected 2 Groundshaker hit forms at level {lvl}, "
+                f"got {len(matches)}: {values.get('Descript', '')!r}")
+        # matches[0] = Fission (primary fissure), matches[1] = Fissure Secondary Damage (secondary explosion).
+        forms_by_level[lvl] = [
+            SkillHitForm("Primary Fissure", float(matches[0][1]), "additive"),
+            SkillHitForm("Secondary Explosion", float(matches[1][1]), "additive"),
+        ]
+    m = _GS_RESTORE_RE.search(skill_data.get("raw_text", "") or "")
+    base_restore = float(m.group(1)) if m else 3.0
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms_by_level,
+        supported=True,
+        demolisher_base_restore=base_restore,
     )
 
 
@@ -513,6 +554,8 @@ _SKILL_MODELED_PHRASES: dict[str, tuple[str, ...]] = {
     "icebound_beam": ("shotgun effect falloff", "projectile quantity", "beam reflection",
                       "fires 1 projectile", "hit the same enemy"),
     "berserking_blade": ("skill area for each stack of buff", "stacks up to"),
+    "groundshaker": ("demolisher charge", "fissure", "weapon attack damage",
+                     "restoration speed", "skill area when the skill consumes"),
 }
 
 

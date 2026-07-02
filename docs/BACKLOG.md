@@ -273,6 +273,22 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
 - **Master glossary expansion**: keep data/master_glossary.json in sync; expand Help DB glossary terms.
 - **Revisit ~22 unmapped support DPS lines** (ailment/DoT, Tendonslicer, Projectile Penetration) with
   conditions active + autoderive/canvas resolvers.
+- **Dropped ungated/conditional support damage lines (EXPLICIT — do not forget).** These supports carry a
+  conditional / per-stack / per-X "additional damage for the supported skill" line the resolver currently DROPS
+  (untranslatable gate → not applied ungated; surfaced as a tooltip badge but not in DPS). Pre-existing (predates
+  the AM work; the stale baseline just recorded them ungated). Model each as a gated/per-N contribution:
+  - `berserking_blade_desperation_magnificent` — "+2.7–2.9% per 5% Life lost, up to 38%" (per-life scaling)
+  - `blazing_bullet_ignition_point_noble` — "+43–45% when bonus+additional Skill Area ≥ 120%"
+  - `focused_shot_aspire_magnificent` — "+7.5–8% per use while 100 Fervor, stacks 6"
+  - `focused_slash_duel_magnificent` — "+65–70% when only 1 enemy nearby"
+  - `inexhaustible_barrage_fatal_pursuit_noble` — "+27–29% when using a gun"
+  - `inexhaustible_barrage_landslide_noble` — "−5–−4% when using a cannon"
+  - `lightning_shot_crossed_lightning_noble` — "+42–44% when ≥240 Dexterity" (+ per-Dex Chain qty)
+  - `moon_strike_lunar_eclipse_noble` — "+1% per 100 sealed Mana, up to 57–60%" (needs mana-seal model)
+  - `path_of_flames_raging_boil_noble` — "+8–8.5% per Elite passed while channeling, stacks 8"
+  - `scorching_beam_supercharge_magnificent` — "+6–6.4% per channeled stack"
+  - `split_shot_collaboration_noble` — "+4.2–4.4% per +1 Projectile Quantity"
+  - `split_shot_rapid_advance_noble` — "+22–23% per +1 Max Channeled Stack, stacks 15"
 
 ## 5. UI / screens
 - **★ Engine↔frontend display-fidelity audit (NEW initiative).** There are disconnects between how the engine

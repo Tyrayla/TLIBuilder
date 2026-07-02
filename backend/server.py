@@ -668,7 +668,7 @@ class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
     prisms:          list[dict] = []
-    condition_state: dict[str, float | bool] = {}
+    condition_state: dict[str, float | bool | str] = {}   # str: enum-valued conditions (e.g. groundshaker_area_selector)
     gear:            list[dict] = []
     character:       list[dict] = []
     # Each item is either a bare effect string (legacy) or {text, source} where `source` is the hero-memory /
@@ -1170,6 +1170,9 @@ def get_conditions():
             entry["numeric_max"] = c.numeric_max
             entry["unit"] = c.unit
             entry["default_value"] = c.default_value   # was omitted → frontend saw undefined → 0 defaults
+        elif c.value_type == "enum":
+            entry["enum_values"] = list(c.enum_values)
+            entry["default_enum"] = c.default_enum
         else:
             entry["default_bool"] = c.default_bool
         if c.key in derived_keys or c.source == "derived":

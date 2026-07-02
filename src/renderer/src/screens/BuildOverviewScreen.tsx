@@ -192,6 +192,9 @@ export default function BuildOverviewScreen() {
   const setNumeric = (key: string, value: number) =>
     setConditionState({ ...conditionState, [key]: value })
 
+  const setEnum = (key: string, value: string) =>
+    setConditionState({ ...conditionState, [key]: value })
+
   const getNumericMax = (cond: ConditionDef): number | null => {
     if (conditionMaximums[cond.key] !== undefined) return conditionMaximums[cond.key]
     if (cond.numeric_max != null) return cond.numeric_max
@@ -230,6 +233,19 @@ export default function BuildOverviewScreen() {
         const isOverridden = conditionState[cond.key] !== undefined
         const autoGoverns = !!auto && !isOverridden
         const autoLocked = autoGoverns && lockAutoConditions
+        if (cond.value_type === 'enum') {
+          const opts = cond.enum_values ?? []
+          const sel = (conditionState[cond.key] as string) ?? cond.default_enum ?? opts[0] ?? ''
+          return (
+            <div key={cond.key} className="cond-item">
+              <span className="cond-label">{cond.label}</span>
+              <select className="cond-stack-input" style={{ marginLeft: 'auto', maxWidth: '55%' }}
+                value={sel} onChange={e => setEnum(cond.key, e.target.value)}>
+                {opts.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          )
+        }
         if (cond.value_type === 'numeric') {
           if (isComputed) {
             const val = (conditionState[cond.key] as number) ?? 0

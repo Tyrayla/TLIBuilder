@@ -179,8 +179,8 @@ class BuildInput:
     # Editable calc-target ("dummy") stats as FRACTIONS: {level, armor, fire_res, cold_res, lightning_res,
     # erosion_res}. None → offense uses its historical Lv85 constants.
     target_config: dict | None = None
-    # Unified condition state: boolean conditions store True/False, numeric store float.
-    condition_state: dict[str, float | bool] = field(default_factory=dict)
+    # Unified condition state: boolean conditions store True/False, numeric store float, enum store str.
+    condition_state: dict[str, float | bool | str] = field(default_factory=dict)
     gear:            list[dict] = field(default_factory=list)  # GearEngineItem dicts
     character:       list[dict] = field(default_factory=list)  # CharacterStatContribution dicts
     memory_effects:  list[str]  = field(default_factory=list)  # DEPRECATED: now pre-resolved server-side

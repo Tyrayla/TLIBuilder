@@ -273,6 +273,7 @@ class Stat(Enum):
     CAST_SPEED_TO_SPELL_SENTRY_CAST_FREQ = "cast_speed_to_spell_sentry_cast_freq"
     # Movement-speed bonus shared (coeff) onto Attack/Cast Speed / Cooldown Recovery (aggregator propagation).
     MOVEMENT_BONUS_TO_ATTACK_SPEED = "movement_bonus_to_attack_speed"
+    MOVEMENT_BONUS_TO_ATTACK_SPEED_CAP = "movement_bonus_to_attack_speed_cap"  # upper bound on the converted AS bonus (Wrathful Vault +60%)
     MOVEMENT_BONUS_TO_CAST_SPEED = "movement_bonus_to_cast_speed"
     MOVEMENT_BONUS_TO_CDR = "movement_bonus_to_cdr"
     # Play Safe: flag (1.0) — propagate cast-speed inc + each cast-speed additional onto Spell Burst Charge
@@ -785,6 +786,7 @@ class Stat(Enum):
 
     # ── Cooldown Recovery ────────────────────────────────────────────────────
     CDR_SPEED_INC = "cdr_speed_inc"
+    CDR_SPEED_ADDITIONAL = "cdr_speed_additional"   # additional (multiplicative) CDR pool; pairs with CDR_SPEED_INC
     WARCRY_CDR_SPEED_INC = "warcry_cdr_speed_inc"
 
     # ── Skill Mechanics ───────────────────────────────────────────────────────
@@ -857,6 +859,18 @@ class Stat(Enum):
     CC_EFFECT_INC = "cc_effect_inc"
     ILL_OMEN_EFFICIENCY_INC = "ill_omen_efficiency_inc"
     DEMOLISHER_CHARGE_SPEED_INC = "demolisher_charge_speed_inc"
+    # Demolisher supports: Cripple's "+X% additional damage for that cast" (the whole consuming cast); a generic
+    # "at the center" additional-damage pool (Epicenter, reusable by future center-bonus sources).
+    DEMOLISHER_CONSUME_DMG_ADDITIONAL = "demolisher_consume_dmg_additional"
+    AT_CENTER_DMG_ADDITIONAL = "at_center_dmg_additional"
+    # Activation-medium trigger cadence: a seconds-valued OVERRIDE of the cast/trigger rate (cast rate = 1/interval)
+    # for any skill triggered by a medium with an "every X s" cadence (Rhythm/Track/Instruction/Preparation).
+    TRIGGER_INTERVAL = "trigger_interval"
+    # Wind Rhythm: a tick-quantized cadence off a per-tier base cooldown, sped by CDR + a share of Cast Speed.
+    WIND_RHYTHM_BASE_COOLDOWN = "wind_rhythm_base_cooldown"   # seconds (per-tier); presence = Wind Rhythm active
+    WIND_RHYTHM_SHARE = "wind_rhythm_share"                   # fraction of Cast Speed applied to CDR (the roll)
+    # Sentry Activation Medium: how many sentries are deployed at a time (surfaced; distinct from max quantity).
+    SENTRY_DEPLOYED_COUNT_FLAT = "sentry_deployed_count_flat"
     AGILITY_BLESSING_DURATION_INC = "agility_blessing_duration_inc"
     FOCUS_BLESSING_DURATION_INC = "focus_blessing_duration_inc"
     TENACITY_BLESSING_DURATION_INC = "tenacity_blessing_duration_inc"

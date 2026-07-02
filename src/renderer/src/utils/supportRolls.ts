@@ -1,8 +1,9 @@
-// Parse a support's engine-MODELED rolled line(s) from its progression, so the support panel can show
-// a roll slider per modeled line (bounded by the tier range) and key the value the same way the engine
-// does (by affix identity). Today the engine models one line per Noble/Magnificent support (the
-// `values.name` "additional damage for the supported skill" / "(multiplies)" line); the array shape is
-// multi-roll ready for when more support lines get modeled.
+// Parse a support's engine-MODELED rolled line(s) so the support panel can show a slider per roll (bounded by
+// the roll's tier), keyed the SAME way the engine reads it. Two sources:
+//   1. The generic "additional [Hit] damage for the supported skill" / "(multiplies)" line parsed client-side
+//      from `values.name` at the current tier (single-roll Noble/Magnificent supports).
+//   2. Backend `tooltip.modeled_rolls` — bespoke canvas supports AND activation mediums (many rolls per line,
+//      per-tier ranges, unit/scale, selector groups). The engine computes these so keys/ranges always match.
 
 import { affixIdentity } from './affixIdentity'
 import type { SkillItem } from '../api/client'
@@ -10,20 +11,26 @@ import type { SkillItem } from '../api/client'
 interface ProgEntry { level: number; values: Record<string, string> }
 
 export interface RolledLine {
-  identity: string   // affix-identity key (matches the engine's per-line roll key)
-  text: string       // raw line text (e.g. "+(16–18) % additional damage for the supported skill")
-  min: number        // signed fraction (e.g. 0.16, or -0.16 for negatives)
+  identity: string
+  text: string
+  min: number        // active-tier range (stored units: signed fraction for %, raw seconds for a time roll)
   max: number
   mid: number
+  unit?: string
+  scale?: number
+  label?: string
+  desc?: string
+  group?: string | null
+  wired?: boolean
+  rangesByTier?: Record<number, { min: number; max: number; mid: number }>  // for the per-roll tier selector
+  availableTiers?: number[]
 }
 
-// Match the backend's per-tier lookup (engine/support_resolver.py::_progression_for_tier).
 export function progressionEntry(skill: SkillItem | undefined, tier: number): ProgEntry | undefined {
   const prog = (skill?.progression as ProgEntry[] | undefined) ?? []
   return prog.find(p => p?.level === tier) ?? prog.find(p => p?.level === 1) ?? prog[0]
 }
 
-// Parse a "(16–18)" / "(-14.0–-12.0)" range into signed-fraction {min,max} (min ≤ max).
 function parseRange(text: string): { min: number; max: number } | null {
   const head = (text ?? '').split('%')[0]
   const nums = (head.match(/\d+(?:\.\d+)?/g) ?? []).map(Number)
@@ -33,31 +40,38 @@ function parseRange(text: string): { min: number; max: number } | null {
   return { min: Math.min(...vals), max: Math.max(...vals) }
 }
 
-// A line is engine-modeled iff it's an "additional damage for the supported skill" line or an
-// Augmentation-style "(multiplies)" per-jump line — mirroring engine/support_resolver.py.
+// A #1-path generic line is engine-modeled iff it's an "additional [Hit] damage for the supported skill" line
+// or an Augmentation "(multiplies)" per-jump line — mirroring engine/support_resolver.py.
 function isModeled(low: string): boolean {
-  return low.includes('additional damage for the supported skill') || low.includes('(multiplies)')
+  return low.includes('additional damage for the supported skill')
+    || low.includes('additional hit damage for the supported skill')
+    || low.includes('(multiplies)')
 }
 
 export function modeledRolledLines(skill: SkillItem | undefined, tier: number): RolledLine[] {
   const out: RolledLine[] = []
-  // 1) The generic "additional damage for the supported skill" / "(multiplies)" line (one per Noble/Mag),
-  //    parsed client-side from `values.name` — keyed by the engine's affix identity.
+  // 1) Generic single-roll line parsed client-side from values.name at this tier.
   const text = progressionEntry(skill, tier)?.values?.name
   if (text && isModeled(text.toLowerCase())) {
     const r = parseRange(text)
-    if (r) out.push({ identity: affixIdentity(text), text, min: r.min, max: r.max, mid: (r.min + r.max) / 2 })
+    if (r) out.push({
+      identity: affixIdentity(text), text, min: r.min, max: r.max, mid: (r.min + r.max) / 2,
+      unit: '%', scale: 100, label: 'Roll', group: null, wired: true,
+      rangesByTier: { [tier]: { min: r.min, max: r.max, mid: (r.min + r.max) / 2 } }, availableTiers: [tier],
+    })
   }
-  // 2) Bespoke canvas-support roll lines (Howling Gale, Berserking Blade, …) — the BACKEND computes the
-  //    correct range per line (engine.skill_effects.modeled_rolls), so multi-value lines like Headwind pick the
-  //    right roll, not a fixed leading value. Identity + ranges come straight from the engine → guaranteed to
-  //    match what it reads. Pick this tier's range (fall back to tier 1, then any).
+  // 2) Backend modeled_rolls (bespoke canvas supports + activation mediums) — authoritative ranges/units/groups.
   for (const mr of skill?.tooltip?.modeled_rolls ?? []) {
-    const ranges = mr.ranges_by_tier ?? {}
-    const range = ranges[tier] ?? ranges[1] ?? Object.values(ranges)[0]
+    const rbt = mr.ranges_by_tier ?? {}
+    const tiers = Object.keys(rbt).map(Number).sort((a, b) => a - b)
+    const range = rbt[tier] ?? rbt[1] ?? rbt[tiers[0]]
     if (!range) continue
-    if (out.some((o) => o.identity === mr.identity)) continue   // never double-count a line
-    out.push({ identity: mr.identity, text: '', min: range.min, max: range.max, mid: range.mid })
+    if (out.some((o) => o.identity === mr.identity)) continue
+    out.push({
+      identity: mr.identity, text: '', min: range.min, max: range.max, mid: range.mid,
+      unit: mr.unit, scale: mr.scale, label: mr.label, desc: mr.desc, group: mr.group ?? null, wired: mr.wired,
+      rangesByTier: rbt, availableTiers: tiers,
+    })
   }
   return out
 }

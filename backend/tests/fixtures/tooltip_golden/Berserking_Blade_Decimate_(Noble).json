@@ -6,6 +6,7 @@
   ],
   "default_level": 1,
   "gate_text": "Supports Berserking Blade.",
+  "is_activation_medium": false,
   "level_kind": "tier",
   "lines": [
     {
@@ -29,7 +30,9 @@
   ],
   "modeled_rolls": [
     {
+      "group": null,
       "identity": "when the supported skill hits a target that has less than life is considered to have low life",
+      "label": "Roll",
       "ranges_by_tier": {
         "0": {
           "max": 0.63,
@@ -47,7 +50,10 @@
           "min": 0.55
         }
       },
-      "stat_keys": []
+      "scale": 100.0,
+      "stat_keys": [],
+      "unit": "%",
+      "wired": false
     }
   ]
 }
