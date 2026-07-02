@@ -1185,6 +1185,60 @@ def get_conditions():
     return result
 
 
+# ── Verification knowledge base ──────────────────────────────────────────────────
+
+_VERIFICATION_DIR = os.path.join(_DATA_ROOT, "verification")
+# One JSON file per entry; the source of truth for both the in-app viewer and the generated docs index.
+# Kept as a whitelist so a stray/malformed key never leaks into the response.
+_VERIFICATION_STATUSES = ("confirmed", "partial", "pending", "unverified", "failed")
+_VERIFICATION_KEYS = (
+    "id", "title", "status", "skills", "tags", "lastVerified", "verifiedBy",
+    "backlogId", "setup", "dataPoints", "formula", "notes", "sources",
+)
+
+
+def _load_verification_entries() -> list[dict]:
+    """Read every data/verification/*.json entry (skipping unreadable/invalid ones, never silently — a bad
+    file is surfaced as an entry with status 'failed' so it can't hide). Returns entries sorted by title."""
+    entries: list[dict] = []
+    if not os.path.isdir(_VERIFICATION_DIR):
+        return entries
+    for fn in sorted(os.listdir(_VERIFICATION_DIR)):
+        if not fn.endswith(".json"):
+            continue
+        path = os.path.join(_VERIFICATION_DIR, fn)
+        try:
+            with open(path, encoding="utf-8") as f:
+                raw = json.load(f)
+        except (OSError, ValueError) as e:
+            entries.append({
+                "id": os.path.splitext(fn)[0], "title": fn, "status": "failed",
+                "skills": [], "tags": [], "notes": f"⚠ Could not load this entry: {e}", "sources": [],
+            })
+            continue
+        entry = {k: raw[k] for k in _VERIFICATION_KEYS if k in raw}
+        entry.setdefault("id", os.path.splitext(fn)[0])
+        entry.setdefault("title", entry["id"])
+        if entry.get("status") not in _VERIFICATION_STATUSES:
+            entry["status"] = "unverified"
+        entry.setdefault("skills", [])
+        entry.setdefault("tags", [])
+        entries.append(entry)
+    entries.sort(key=lambda e: (e.get("title") or "").lower())
+    return entries
+
+
+@app.get("/api/verification-db")
+def get_verification_db():
+    """The verification knowledge base: confirmed/partial/pending/unverified/failed mechanic entries plus
+    the facet lists (tags, skills, statuses present) the viewer uses to build its filter chips."""
+    entries = _load_verification_entries()
+    tags = sorted({t for e in entries for t in (e.get("tags") or [])}, key=str.lower)
+    skills = sorted({s for e in entries for s in (e.get("skills") or [])}, key=str.lower)
+    statuses = [s for s in _VERIFICATION_STATUSES if any(e.get("status") == s for e in entries)]
+    return {"entries": entries, "tags": tags, "skills": skills, "statuses": statuses}
+
+
 # ── Legacy single save ─────────────────────────────────────────────────────────
 
 class SaveRequest(BaseModel):

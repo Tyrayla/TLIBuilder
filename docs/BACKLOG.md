@@ -2,6 +2,11 @@
 
 Grouped by area. Pruned 2026-06-16 after the 0.5.2 release and the web launch.
 
+> **Verification Knowledge Base:** confirmed in-game behavior + modeled-but-untested coverage now lives in
+> `data/verification/*.json` (source of truth), rendered to `docs/verification/README.md` and viewable in-app
+> via the main-menu **Verification Database** button. The pending test *queue* stays in
+> `docs/INGAME_VERIFICATION_BACKLOG.md`. Add/update entries with the `/add-verification` skill.
+
 ## ★ NEXT (owner, 2026-06-18)
 1. **Release TONIGHT** with all the Spell Burst + Tangle + craft-fix work. **Main-menu / landing-page update** so the
    **Discord link** (feedback sharing) is easy to find — do this as part of the release.

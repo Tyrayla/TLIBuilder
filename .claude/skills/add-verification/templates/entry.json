@@ -1,0 +1,19 @@
+{
+  "id": "<kebab-id>",
+  "title": "<Mechanic / Skill name>",
+  "status": "unverified",
+  "skills": ["<Skill name>"],
+  "tags": ["<mechanic-tag>"],
+  "lastVerified": "",
+  "verifiedBy": "",
+  "backlogId": "",
+  "setup": "",
+  "dataPoints": "",
+  "formula": "",
+  "notes": "Shipped in the engine; not yet verified in-game. See sources to replicate.",
+  "sources": [
+    "backend/engine/<module>.py — <where it lives>",
+    "backend/tests/test_<x>.py",
+    "memory: project_<x>"
+  ]
+}

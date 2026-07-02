@@ -25,8 +25,9 @@ import SlateScreen from './screens/SlateScreen'
 import PlayerStatsScreen from './screens/PlayerStatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
+import VerificationDatabaseScreen from './screens/VerificationDatabaseScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
 
 interface CascadeModal {
   removingSlot: number
@@ -651,7 +652,16 @@ function App() {
           onOpenBuild={openBuild}
           devMode={devMode}
           onDevTools={() => setScreen('dev-tools')}
+          onOpenVerification={() => setScreen('verification')}
         />
+      </div>
+    )
+  }
+
+  if (screen === 'verification') {
+    return (
+      <div className="app-shell">
+        <VerificationDatabaseScreen onBack={() => setScreen('build-select')} />
       </div>
     )
   }

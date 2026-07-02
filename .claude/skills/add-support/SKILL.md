@@ -40,3 +40,7 @@ owner the exact module + which lines are guarded for sign-off.
 
 ## 4. Verify
 Run `/engine-verify` (support golden + full suite). Do not commit.
+
+## 5. Verification entry (anti-drift)
+If the support has a bespoke mechanic (not the generic path), run `/add-verification` so it gets a Verification
+Database entry (status `unverified` unless tested). Generic-path supports don't need one on their own.

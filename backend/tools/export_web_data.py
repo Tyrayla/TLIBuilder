@@ -34,6 +34,7 @@ CATALOGS = {
     "craft_base_items": server.get_craft_base_items,
     "grafts": server.get_grafts,
     "hero_memories": server.get_hero_memories,
+    "verification_db": server.get_verification_db,
 }
 
 

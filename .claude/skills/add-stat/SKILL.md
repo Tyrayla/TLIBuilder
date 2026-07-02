@@ -45,3 +45,7 @@ enemy-vulnerability pool, a `*_dmg_inc` for an increased pool). **Flag any field
 
 ## 4. Verify
 Run `/engine-verify` (at minimum `test_models_stat*.py` + the consumable-universe scan). Do not commit.
+
+## 5. Verification entry (anti-drift)
+If this stat is part of a mechanic that just shipped, run `/add-verification` so the mechanic gets a
+Verification Database entry (status `unverified` unless already tested). Keeps the engine and the KB in sync.

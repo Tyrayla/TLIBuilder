@@ -1,5 +1,11 @@
 # In-Game Verification Backlog
 
+> **This doc is the pending test *queue*.** Confirmed/partial results (and modeled-but-untested coverage)
+> live in the **Verification Knowledge Base**: `data/verification/*.json` → `docs/verification/README.md`,
+> viewable in-app via the main-menu **Verification Database** button. When a test here is confirmed, port its
+> RESULT into a KB entry (`/add-verification`) and update the entry's status. Backlog IDs (e.g. `DEMOLISHER-01`)
+> are cross-linked from the KB entries.
+
 Mechanics the **TLI Builder** engine models that need confirming against the live game. Each entry is
 self-contained so a helper can run it without knowing the codebase. **You configure the build, run a
 timed Damage Recount, and report the number + your support rolls + a screenshot — you do not need to

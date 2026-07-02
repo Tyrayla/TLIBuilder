@@ -10,6 +10,7 @@ interface Props {
   onOpenBuild: (build: Build) => void
   devMode?: boolean
   onDevTools?: () => void
+  onOpenVerification?: () => void
 }
 
 function slotSummary(build: Build): string {
@@ -22,7 +23,7 @@ function totalPoints(build: Build): number {
     sum + Object.values(s!.nodeStates).reduce((a, b) => a + b, 0), 0)
 }
 
-export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, onDevTools }: Props) {
+export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, onDevTools, onOpenVerification }: Props) {
   const [builds, setBuilds] = useState<Build[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -179,11 +180,11 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
       )}
 
       <div className="build-select-footer">
-        {/* Row 1: version + Check for Update, stacked above Settings/About. */}
-        <div className="build-select-footer-actions">
-          {version && <span className="build-select-version">v{version}</span>}
-          {/* Auto-update is desktop-only; the web app updates by redeploy + refresh. */}
-          {!IS_WEB && <button
+        {/* Row 1: version stacked ABOVE the Check-for-Update button (not inline beside it). */}
+        {version && <span className="build-select-version">v{version}</span>}
+        {/* Auto-update is desktop-only; the web app updates by redeploy + refresh. */}
+        {!IS_WEB && <div className="build-select-footer-actions">
+          <button
             className="btn btn-sm btn-secondary"
             onClick={handleCheckForUpdate}
             disabled={checkStatus === 'checking'}
@@ -194,8 +195,8 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
               : checkStatus === 'available' ? 'Update available'
               : checkStatus === 'error' ? `Check failed`
               : 'Check for Update'}
-          </button>}
-        </div>
+          </button>
+        </div>}
         {/* Row 2: Settings + About. */}
         <div className="build-select-footer-actions">
           <button
@@ -211,6 +212,15 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
             About
           </button>
         </div>
+        {/* Row 3: Verification Database (app-global, sits below Settings/About). */}
+        {onOpenVerification && <div className="build-select-footer-actions">
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={onOpenVerification}
+          >
+            📋 Verification Database
+          </button>
+        </div>}
       </div>
 
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}

@@ -28,6 +28,7 @@ const STATIC_CATALOGS: Record<string, string> = {
   '/hero-memories': 'hero_memories',
   '/conditions': 'conditions',
   '/pact-spirits': 'pact_spirits',
+  '/verification-db': 'verification_db',
 }
 function staticCatalogUrl(path: string): string | null {
   if (!STATIC_DATA_BASE || !staticSeason) return null
@@ -660,6 +661,30 @@ export interface ConditionSourceEntry {
 export interface ConditionDefsResponse {
   conditions: ConditionDef[]
   derived_keys: Record<string, string>
+}
+
+// ── Verification knowledge base ──────────────────────────────────────────────
+export type VerificationStatus = 'confirmed' | 'partial' | 'pending' | 'unverified' | 'failed'
+export interface VerificationEntry {
+  id: string
+  title: string
+  status: VerificationStatus
+  skills: string[]
+  tags: string[]
+  lastVerified?: string
+  verifiedBy?: string
+  backlogId?: string
+  setup?: string       // markdown
+  dataPoints?: string  // markdown
+  formula?: string     // markdown
+  notes?: string       // markdown
+  sources?: string[]
+}
+export interface VerificationDbResponse {
+  entries: VerificationEntry[]
+  tags: string[]
+  skills: string[]
+  statuses: VerificationStatus[]
 }
 
 export interface StatSource {
@@ -2556,6 +2581,8 @@ export const api = {
     post<ModifierMapResponse>('/map-modifiers', { items }),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),
+
+  getVerificationDatabase: () => get<VerificationDbResponse>('/verification-db'),
 
   // ── Dev: condition manager ─────────────────────────────────────────────────
   devGetStatKeys: () =>

@@ -39,3 +39,7 @@ Show the owner the filled resolver + the parsed per-level numbers for sign-off.
 ## 4. Verify
 Run `/engine-verify`. A newly `@_register`'d skill auto-captures `tests/fixtures/support_skill_golden/<id>.json`
 (run the golden test twice). Do not commit. Offer RECOUNT validation for channeled skills.
+
+## 5. Verification entry (anti-drift)
+Run `/add-verification` so the new skill gets a Verification Database entry (status `unverified` unless you
+have RECOUNT data). A newly registered skill lacking an entry is flagged by engine-verify's drift check.

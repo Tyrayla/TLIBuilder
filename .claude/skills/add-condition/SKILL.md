@@ -47,3 +47,7 @@ default value or bound you're unsure of.**
 ## 4. Verify
 Run `/engine-verify`. Confirm the condition appears in the Conditionals screen under the right category (and only
 for the selected trait, if gated). Do not commit.
+
+## 5. Verification entry (anti-drift)
+If this condition is part of a mechanic that just shipped, run `/add-verification` so the mechanic gets a
+Verification Database entry (status `unverified` unless already tested). Keeps the engine and the KB in sync.

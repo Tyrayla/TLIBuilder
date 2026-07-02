@@ -46,3 +46,7 @@ Show the owner the filled module + the per-line mapping table for sign-off.
 ## 5. Verify
 Run `/engine-verify` (the new trait test + full suite + consumable-universe + goldens). New always-read
 stats/conditions → additive golden re-capture. Do not commit. Then offer in-app/RECOUNT validation to the owner.
+
+## 6. Verification entry (anti-drift)
+Run `/add-verification` so the new trait gets a Verification Database entry (status `unverified` unless the
+owner ran a RECOUNT). Keeps the engine and the KB in sync so shipped-but-untested traits stay visible.

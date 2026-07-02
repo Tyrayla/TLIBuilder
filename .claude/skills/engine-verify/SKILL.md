@@ -67,6 +67,37 @@ python -m pytest tests/test_support_skill_goldens.py tests/test_skill_scope_noch
 ```
 (Only delete the goldens you expect to change. A new skill adds a brand-new `support_skill_golden/<id>.json`.)
 
-## 5. Report
-Summarize: tsc error count, pytest pass count, consumable-universe status, and whether goldens were re-captured
-(and that the diff was additive-only). Do **not** commit. Surface anything unexpected to the owner.
+## 5. Verification-entry drift check (KB ↔ engine)
+Every shipped mechanic should have a Verification Database entry (`data/verification/<id>.json`) — even an empty
+`unverified` one — so the KB never falls behind the engine. This step **warns** (does not fail) on registered
+skills / bespoke modules lacking an entry. From `backend`:
+```
+py -3.12 - <<'PY'
+import os, re, glob, json
+def norm(s): return s.lower().replace("_","-").replace(" ","-")
+entries = [json.load(open(p,encoding="utf-8")) for p in glob.glob(os.path.join("..","data","verification","*.json"))]
+# Coverage = every entry id + every skill name listed on an entry (so groundshaker→demolisher's
+# skills:["Groundshaker"], icebound_beam→channeled's skills:["Icebound Beam"], etc. all count).
+cover = set()
+for e in entries:
+    cover.add(norm(e.get("id","")))
+    for s in e.get("skills", []): cover.add(norm(s))
+def covered(i):
+    n = norm(i); return any(n == c or n in c or c in n for c in cover)
+ids = set(re.findall(r'@_register\("([^"]+)"\)', open("engine/skill_resolver.py",encoding="utf-8").read()))
+missing = sorted(i for i in ids if not covered(i))
+print("registered skills w/o a verification entry:", missing if missing else "none")
+# Bespoke subsystem modules (fuzzy — eyeball against entries if you added a new subsystem).
+mods = [os.path.splitext(f)[0] for d in ("engine/hero_traits","engine/skill_effects")
+        for f in os.listdir(d) if f.endswith(".py") and not f.startswith("_")]
+print("bespoke modules (cross-check manually):", sorted(mods))
+PY
+```
+Report anything under "w/o a verification entry" to the owner and offer to run `/add-verification`. The check
+normalizes `_`↔`-` and cross-references entry `skills`, so a fuzzy name (e.g. `groundshaker` → the `demolisher`
+entry via its `skills:["Groundshaker"]`) already counts as covered — don't force a 1:1 id match.
+
+## 6. Report
+Summarize: tsc error count, pytest pass count, consumable-universe status, whether goldens were re-captured
+(and that the diff was additive-only), and any verification-entry drift. Do **not** commit. Surface anything
+unexpected to the owner.
