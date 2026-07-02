@@ -674,10 +674,11 @@ export interface VerificationEntry {
   lastVerified?: string
   verifiedBy?: string
   backlogId?: string
-  setup?: string       // markdown
-  dataPoints?: string  // markdown
-  formula?: string     // markdown
-  notes?: string       // markdown
+  setup?: string          // markdown
+  dataPoints?: string     // markdown
+  formula?: string        // markdown
+  implementation?: string // markdown — how the engine actually models it
+  notes?: string          // markdown
   sources?: string[]
 }
 export interface VerificationDbResponse {

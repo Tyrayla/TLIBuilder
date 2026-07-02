@@ -20,6 +20,10 @@ Expected rank1→3 ×1.08, rank1→5 ×1.20, rank3→5 ×1.111 (table: R1 0 / R2
 
 Pending — confirm the rank table magnitude in-game.
 
+## Implementation (engine model)
+
+Hardcoded in `support_resolver.py::_RANK_TABLE` = `{1: 0.0, 2: 0.04, 3: 0.08, 4: 0.14, 5: 0.20}` (L107). Rank is a per-support build input (`sup["rank"]`), NOT in game data; `_clamp_rank` clamps to 1-5 and defaults to 1 (= 0%, conservative) when unset. In `resolve_support_contributions` the rank line is emitted only for `_RANKED_TYPES` (`magnificent_support_skill`/`noble_support_skill`) AND only when the support's `description_lines` contain `_UNIVERSAL_PHRASE` ("additional damage for the supported skill"); rank 1 (0%) emits nothing. Amount is added as a `dmg_additional` contribution tagged `|<id>|universal`. Verified by `test_support_resolver.py::test_rank_table` (rank1 → none, rank3 → 0.08, rank5 → 0.20). Table magnitudes are engine assumptions pending in-game confirmation.
+
 ## Sources
 
 - backend/engine/support_resolver.py (~L106 rank table)

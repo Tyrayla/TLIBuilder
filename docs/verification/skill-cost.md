@@ -19,6 +19,10 @@ Assumed: `cost = (base + flat Skill Cost) × Π(support mana multipliers) × (1 
 
 Pending — folded into Net Recovery as a separate drain (never "Consumed"). Open: formula order, triggered-skill exemption (engine counts all enabled actives), Frozen Lotus zeroes BASE only, Bull's Rage life-conversion deferred, whether cost counts as "consumed recently".
 
+## Implementation (engine model)
+
+`skill_cost.py::compute_skill_cost` (one per active skill, after reservation). `base` = `ResolvedSkill.mana_cost`, or `pct × Max Mana` when `mana_cost_is_percent`. Arcane fraction `f = clamp(mana_cost_to_life_cost + skill.intrinsic_mana_to_life, 0, 1)`; conversion is applied BEFORE the %-base resolves, so the life portion of a `%` base resolves vs Max LIFE and the mana portion vs Max Mana. `skill_no_mana_cost` (Frozen Lotus / support flag) zeroes the BASE only. `_scale = Π(support mana_cost mults) × (1 + skill_cost_inc + skill_cost_additional − skill_cost_reduction)`; flat (`skill_cost_flat` + `attack_/spell_skill_cost_flat`) joins base then scales: `mana_cost = max(0, (base_mana + (1−f)×flat)×_scale)`, `life_cost = max(0, (base_life + f×flat)×_scale)`. `mana_cost_override` replaces the final value (split by f). Support mults are multiplicative (`_supports_mult`, OtBT→0.95). Result folds into `consumption.py` at the base USE rate as a SEPARATE drain (never "Consumed", never `consumed_recently`). Order flat-joins-base-then-scales is an Tyra best-guess — VERIFY.
+
 ## Sources
 
 - backend/engine/skill_cost.py

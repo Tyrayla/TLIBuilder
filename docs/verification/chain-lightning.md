@@ -6,7 +6,7 @@
 - **Status:** ✅ Confirmed
 - **Skills affected:** Chain Lightning
 - **Mechanic tags:** baseline, damage-pool
-- **Last verified:** 2026-06-10 by owner
+- **Last verified:** 2026-06-10 by Tyra
 - **Backlog:** `CL-BASE-01` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
 
 ## Setup
@@ -24,6 +24,10 @@ The app shows the engine number directly; the Recount span-average should match 
 ## Notes / caveats / open questions
 
 Baseline confirmed. The support/shotgun/numbed/lucky sub-behaviours each have their own entry ([support-additional-damage-pooling](support-additional-damage-pooling.md), [numbed](numbed.md), [shotgun](shotgun.md), [augmentation](augmentation.md), [lucky-damage](lucky-damage.md)).
+
+## Implementation (engine model)
+
+`skill_resolver.py::_resolve_chain_lightning` builds a spell `ResolvedSkill`: per-level base from `_SPELL_BASE_DMG_RE` ("Deals X-Y Spell <type> Damage", base unscaled), `added_dmg_effectiveness` from "Effectiveness of added damage" (~136%, scales ADDED flat only), `jumps_base` from `_JUMPS_RE` (default 2), and one 100%-effectiveness additive `SkillHitForm` (the eff/100 multiply stays neutral because `_spell_flat` already applies added-effectiveness). `offense.py::calculate_offense` then takes that base+added flat through the type inc/additional and conversion pipeline at cast rate. Sub-behaviours (Numbed vuln, support additional pooling, shotgun, Augmentation, Lucky) layer on separately — see their entries. No skill-specific chain-count DPS modelling here beyond `jumps_base` feeding shotgun/Augmentation.
 
 ## Sources
 

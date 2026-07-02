@@ -6,16 +6,16 @@
 - **Status:** 🔶 Partial
 - **Skills affected:** Wind Rhythm
 - **Mechanic tags:** breakpoint, tick-rounding, trigger, cooldown
-- **Last verified:** 2026-07-02 by owner (calculator)
+- **Last verified:** 2026-07-02 by Tyra (vs external calculator)
 - **Backlog:** `WIND-RHYTHM-01` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
 
 ## Setup
 
-Wind Rhythm activation medium. Vary CDR / cast speed / additional cast speed and read the trigger interval off the app's Wind Rhythm panel (mirrors the owner's wrc-six calculator).
+Wind Rhythm activation medium. Vary CDR / cast speed / additional cast speed and read the trigger interval off the app's Wind Rhythm panel (mirrors **wrc-six**, a third-party community calculator we used as a rough baseline — not our own).
 
 ## Raw data points
 
-Probe: base 0.5, wind 40%, cdr 0, cast 100%, add'l 100% → **0.27778 s (9 ticks)**. Additional cast speed is MULTIPLICATIVE (owner: +10% add'l shifted the cast breakpoint 350→318 = ÷1.1).
+Probe: base 0.5, wind 40%, cdr 0, cast 100%, add'l 100% → **0.27778 s (9 ticks)**. Additional cast speed is MULTIPLICATIVE (Tyra: +10% add'l shifted the cast breakpoint 350→318 = ÷1.1).
 
 ## Derived / confirmed formula
 
@@ -26,7 +26,11 @@ tick-quantized `server = ceil(raw × 30) / 30`.
 
 ## Notes / caveats / open questions
 
-**Partial** — derived from the owner's calculator (https://wrc-six.vercel.app/), not yet confirmed against the live game. Confirm base-cooldown-per-tier, the cast→CDR conversion, the multiplicative additional cast, and the server breakpoints in-game.
+**Partial** — derived from a third-party community calculator we used as a rough baseline (wrc-six, https://wrc-six.vercel.app/ — not ours), not yet confirmed against the live game. Confirm base-cooldown-per-tier, the cast→CDR conversion, the multiplicative additional cast, and the server breakpoints in-game.
+
+## Implementation (engine model)
+
+`offense.py::compute_wind_rhythm_rate(source, base_cooldown, wind_bonus)`, called from `calculate_offense` (~L1290) when `wind_rhythm_base_cooldown > 0`. Reads `cast_speed_inc`, `cast_speed_additional`, `cdr_speed_inc`, `cdr_speed_additional`. Inner `_raw`: `final_cast = cast_speed_inc × (1+cast_speed_additional)` (additional MULTIPLIES increased); `raw = base_cooldown / max(1 + cdr_speed_inc + wind_bonus×final_cast, 1e-6) / max(1 + cdr_speed_additional, 1e-6)`. Quantized via `period_ticks(raw)` = `ceil(raw×30)`, `rate = 30/ticks` (`tick.py` opt-in regime). `base_cooldown` from `activation_medium.py::WIND_RHYTHM_BASE_COOLDOWN` per support tier ({0:0.5,1:0.6,2:0.7,3:0.8}), emitted as `wind_rhythm_base_cooldown`; `wind_bonus` = `wind_rhythm_share` (the Cast→CDR roll). Returns rate + tick/cast-time detail + a breakpoint scan (`cdr_to_next`/`cast_to_next`/`wind_to_next`) that increments each lever by 0.01 until `period_ticks` drops. Panel-only unless the skill is Wind-Rhythm-triggered.
 
 ## Sources
 

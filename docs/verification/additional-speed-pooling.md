@@ -5,7 +5,7 @@
 
 - **Status:** ✅ Confirmed
 - **Mechanic tags:** damage-pool, speed
-- **Last verified:** 2026-06-10 by owner
+- **Last verified:** 2026-06-10 by Tyra
 - **Backlog:** `SPEED-01` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
 
 ## Setup
@@ -23,6 +23,10 @@ Additional attack/cast speed pools **per-affix** — distinct sources multiply (
 ## Notes / caveats / open questions
 
 Engine was fixed to match (was additive before).
+
+## Implementation (engine model)
+
+`offense.py::_speed_additional_product` computes Π(1 + amount) over DISTINCT affix sources: it walks `source.source_log` for the additional-speed keys, groups by `(stat, affix_identity(text))`, sums same-identity positives, then multiplies the per-group factors. add()-only contributions (no source_log text, used by tests) are reconciled per key via a `raw − tracked` remainder factor. Applied to the skill rate in `calculate_offense`: `sps *= _speed_additional_product(source, _CAST_ADDITIONAL_STATS|_APS_ADDITIONAL_STATS, skill_tags_lower)` (L914/919) — cast pool for spells, attack pool for attacks, tag-filtered so it never cross-marks. It also calls `_record_applicable_keys` so these source_log-read pools enter `consumed_stats` (else they'd badge Inactive despite contributing). Distinct sources multiply (×1.10×1.225), NOT sum — matches the in-game 2.02/s.
 
 ## Sources
 

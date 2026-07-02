@@ -11,6 +11,10 @@
 
 Shipped in the engine; not yet verified in-game. Spell with compulsory damage-type conversion (each cast deals one type); Lightchaser + Splendor canvas supports.
 
+## Implementation (engine model)
+
+Compulsory-conversion spell: the resolver sets `ResolvedSkill.compulsory_elements` so each cast deals ONE listed element — all added flat (any type) folds into `base_flat_by_level` first, then only the chosen element's increased/additional apply; offense computes each element fully and reports the expected average. Shotgun hit count comes from `chromatic_shots_on_target_flat`, surfaced via the `chromatic_shots_on_target` condition (default = all fired projectiles land; capped at the projectile count). Canvas supports (`skill_effects/chromatic_shot.py`): Lightchaser emits `projectile_speed_additional=0.30` (ADDITIONAL — the projectile-speed→damage path reads increased only, so ignored), `main_stat_dmg_bonus_inc=0.25`, homing that forces all shots on target, and a SIGNED tier-dependent `dmg_additional` roll. Splendor emits a `hit_dmg_additional` roll gated on `and` of `enemy_frostbitten`/`enemy_numbed`/`enemy_ignited`; its `preseed` auto-inflicts Frostbite + Ignite (100%) and Numbed (≥1 stack, user can zero out) — the fixed Cold→Fire→Lightning rotation is informational (same average). The universal +20% rides `support_resolver`.
+
 ## Sources
 
 - backend/engine/skill_effects/chromatic_shot.py

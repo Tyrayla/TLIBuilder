@@ -6,7 +6,7 @@
 - **Status:** 🔶 Partial
 - **Skills affected:** Groundshaker
 - **Mechanic tags:** damage-pool, restoration, trigger
-- **Last verified:** 2026-07-01 by owner
+- **Last verified:** 2026-07-01 by Tyra
 - **Backlog:** `DEMOLISHER-01` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
 
 ## Setup
@@ -15,7 +15,7 @@
 
 ## Raw data points
 
-Cripple owner-observed: primary fissure **46 vs 319** → `319 × (1−0.90) × (1+0.45) ≈ 46`. Frequent Quake replaces the explosion with **5 primary-fissure hits** (1 + 4×0.4 s).
+Cripple Tyra-observed: primary fissure **46 vs 319** → `319 × (1−0.90) × (1+0.45) ≈ 46`. Frequent Quake replaces the explosion with **5 primary-fissure hits** (1 + 4×0.4 s).
 
 ## Derived / confirmed formula
 
@@ -23,7 +23,11 @@ Restoration = base 3 s ÷ (1 + Σ Demolisher Charge Speed **increased**), smooth
 
 ## Notes / caveats / open questions
 
-**Partial.** Cripple scope + FQ 5-hit owner-observed; [collapse](collapse.md) step function pinned. Still to confirm: smooth (not tick-quantized) restoration, increased-only restoration, the rhythm breakpoint (1+inc)=3/R, and Wrathful Vault movement→AS (surfaced, not wired).
+**Partial.** Cripple scope + FQ 5-hit Tyra-observed; [collapse](collapse.md) step function pinned. Still to confirm: smooth (not tick-quantized) restoration, increased-only restoration, the rhythm breakpoint (1+inc)=3/R, and Wrathful Vault movement→AS (surfaced, not wired).
+
+## Implementation (engine model)
+
+Rate/breakpoint: `offense.py::compute_demolisher_rate(source, cast_rate, base_restore, mode, rhythm_interval)`. `restoration_time = base_restore / (1 + Σ demolisher_charge_speed_inc)` — **increased pool ONLY**, smooth real-time (NOT tick-quantized). `cast_rate` is the resolved cast/trigger rate (manual APS / trigger medium / Wind Rhythm); `charged_rate = min(cast_rate, 1/restoration_time)`. Breakpoint: every cast charged iff `(1+inc) ≥ base_restore/cadence`; `restore_to_sustain`/`cdr_droppable`/`mismatch` reported. Damage folding (`calculate_offense` ~L1880): primary fissure fires every cast; `cripple_factor = 0.10` if `cripple_spread_penalty`; consume applied only to the charged share (`1 + charged_frac × demolisher_consume_dmg_additional`). Frequent Quake replaces the secondary explosion with `fq_ticks` (=5) primary-fissure hits at `charged_rate × 5`, which DO eat Cripple ×0.10 + Collapse; the plain explosion is Cripple-EXEMPT. Support flags emitted in `groundshaker.py::apply_slot_effects`. NYI: Wrathful Vault movement→AS (`movement_bonus_to_attack_speed` emitted, not aggregated); Paralysis/knockback.
 
 ## Sources
 

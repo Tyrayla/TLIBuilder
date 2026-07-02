@@ -6,9 +6,17 @@
 - **Status:** ⚠️ Unverified
 - **Mechanic tags:** conversion, damage-pool
 
+## Derived / confirmed formula
+
+"You can only deal Cold Damage" zeroes every FINAL (post-conversion) damage packet whose type is not Cold. Applied AFTER the conversion cascade, so damage that CONVERTS into Cold still counts fully; native/converted non-Cold slices deal zero.
+
 ## Notes / caveats / open questions
 
 Shipped in the engine; not yet verified in-game. "You can only deal Cold Damage" zeroes non-Cold FINAL damage (post-conversion; conversions to Cold count).
+
+## Implementation (engine model)
+
+In `offense.py::calculate_offense`: `only_deal_types = {t for t in DAMAGE_TYPES if can_only_deal_<t> present and > 0}`. Presence is checked via `source.all_stats()` (not `source.total`) so the flag isn't consumed on ordinary builds — keeps `consumed_stats`/goldens stable; empty set = no restriction. The gate runs INSIDE the per-hit-form loop, iterating `_apply_conversion`'s already-converted `{final_type:(min,max)}`: `if only_deal_types and dtype not in only_deal_types: continue` (packet contributes nothing). Because it acts on the FINAL post-conversion type, `lightning_convert_to_cold=1.0` with `can_only_deal_cold` yields full damage as Cold, whereas unconverted Lightning is dropped. The parser maps 'You can only deal Cold Damage' → `can_only_deal_cold=1.0` (`mod_parser._parse_custom_mod_text`). Generalizes per-type via `can_only_deal_<type>`.
 
 ## Sources
 

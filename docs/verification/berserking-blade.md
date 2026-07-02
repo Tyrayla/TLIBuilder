@@ -11,6 +11,10 @@
 
 Shipped in the engine; not yet verified in-game. Berserking Blade intrinsic buff + all 4 canvas supports (Desperation/Sweep/Decimate/Rampage), per-slot contributions.
 
+## Implementation (engine model)
+
+All effects are SLOT-LOCAL (`skill_effects/berserking_blade.py`), folded into the host slot via `source.add_slotted` / `materialize_for_skill`, so two Berserking setups never share supports. The intrinsic buff emits `skill_area_inc = 0.025 × stacks` (`emit_self_buff`); `stacks()` clamps to cap 20 (40 with Sweep) and defaults to the cap (`berserking_blade_stacks` condition, registered so Config shows only for BB builds). Supports: Sweep doubles the cap and adds `skill_area_additional` per stack; Desperation (`desperation_contribution`) is a `dmg_additional` per 5% `life_lost_pct` with the tier cap; Decimate (`preseed`) forces `enemy_low_life` when `enemy_life_pct` < its rolled threshold; Rampage (`emit_rampage`) shares `rampage_coeff` of the slot's total Skill-Area bonus into `steep_strike_additional_dmg`, combining pools as `(1+Σinc)·Π(1+add)−1`. Skill Area is otherwise DPS-inert (offense never multiplies by it) — it reaches DPS only through Rampage. Rolls honor an explicit user roll else the tier midpoint via `extract_config`.
+
 ## Sources
 
 - backend/engine/berserking_blade.py

@@ -14,7 +14,7 @@ Chain Lightning + **Web (Magnificent)** + **Merge (Noble)**; compare to Web-only
 
 ## Raw data points
 
-Owner saw **~3 hits** visually (= 1 + total_jumps at 2 jumps). Numeric DPS not yet confirmed.
+Tyra saw **~3 hits** visually (= 1 + total_jumps at 2 jumps). Numeric DPS not yet confirmed.
 
 ## Derived / confirmed formula
 
@@ -23,6 +23,10 @@ Adding Merge multiplies total DPS by `1 + total_jumps × 0.20` (×1.40 at 2 base
 ## Notes / caveats / open questions
 
 **Partial** — hit count seen, numeric DPS pending. Needs a "+N Jumps" source for the scaling test.
+
+## Implementation (engine model)
+
+`support_resolver.py::resolve_support_behavior` text-parses per slot: Merge's "…falloff coefficient…is 80%" → `same_target_shotgun=True` + `falloff_coefficient` (via `_FALLOFF_RE`); Web's "releases 1 additional Chain Lightning" → `chains_per_jump` (via `_RELEASE_CHAINS_RE`). `offense.py::calculate_offense` (~L1590-1598) then, when BOTH flags present, computes `total_jumps = skill.jumps_base + extra_jumps_flat`, `subsequent = total_jumps × chains_per_jump`, `cast_multiplier = 1 + subsequent × (1 − falloff_coefficient)`, `shotgun_hits = 1 + subsequent`. The multiplier scales TOTAL DPS only (`dps *= cast_multiplier`); per-hit damage is unchanged. With falloff 80% and 2 jumps: 1 + 2×0.20 = ×1.40, hit count 3 — matching the general (multi-form) shotgun formula `1 + (n−1)(1−falloff)`. Requires Merge (same-target) — Web alone gives no same-target shotgun.
 
 ## Sources
 

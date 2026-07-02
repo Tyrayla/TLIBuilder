@@ -6,7 +6,7 @@
 - **Status:** ✅ Confirmed
 - **Skills affected:** Icebound Beam
 - **Mechanic tags:** channeled, redistribution
-- **Last verified:** 2026-06-14 by owner
+- **Last verified:** 2026-06-14 by Tyra
 
 ## Setup
 
@@ -23,6 +23,10 @@ Cold Beam is **suppressed to 1/3** while Icy Blade is active (a redistribution, 
 ## Notes / caveats / open questions
 
 The suppression is the key gotcha for the channeled framework.
+
+## Implementation (engine model)
+
+Channeled skills declare a `ChanneledSpec` on their `ResolvedSkill` (`skill_resolver.py::ChanneledSpec`) with `max_stacks`/`min_stacks`, `behavior` (`"reset"` = ramp 0→max then dump the burst form; `"refresh"` = hold at max), `max_from_data`, `burst_replaces_continuous`, `continuous_suppression_when_bursting`, and optional persistent-entity `attack_frequency`. Icebound Beam resolves as `ChanneledSpec(max_stacks=5, min_stacks=0, behavior="reset", max_from_data=False, continuous_suppression_when_bursting=1.0/3.0)` (the "up to 5 stacks" cap is hardcoded — absent from the SS12 DB). `uptime.py::channeled_rounds_per_cycle` / `channeled_cycle_average_stacks` derive burst rate and per-stack scaling from a RESET ramp. When the Icy Blade burst actually fires (`projectile_count ≥ 1`) offense scales the continuous Cold Beam by `1/3`; Chilling Spike emits `continuous_suppression_disable=1.0` (`icebound_beam.py::apply_slot_effects`) to run the beam full. Build gear adds `max_channeled_stacks_flat` / `min_channeled_stacks_flat`.
 
 ## Sources
 

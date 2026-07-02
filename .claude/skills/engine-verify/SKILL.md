@@ -93,7 +93,7 @@ mods = [os.path.splitext(f)[0] for d in ("engine/hero_traits","engine/skill_effe
 print("bespoke modules (cross-check manually):", sorted(mods))
 PY
 ```
-Report anything under "w/o a verification entry" to the owner and offer to run `/add-verification`. The check
+Report anything under "w/o a verification entry" to Tyra and offer to run `/add-verification`. The check
 normalizes `_`↔`-` and cross-references entry `skills`, so a fuzzy name (e.g. `groundshaker` → the `demolisher`
 entry via its `skills:["Groundshaker"]`) already counts as covered — don't force a 1:1 id match.
 

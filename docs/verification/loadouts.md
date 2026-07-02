@@ -10,6 +10,10 @@
 
 Shipped in the engine; not yet verified in-game. In-build full-variant loadouts + per-loadout inheritance + per-loadout stats cache. Implemented, unverified in-app.
 
+## Implementation (engine model)
+
+Renderer-only (no backend). `utils/loadoutAreas.ts` defines `AREA_FIELDS`: 13 `AreaKey`s (talents, slates, prisms, gear, skills, trait, spirits, memories, conditions, level, customMods, notes, target), each mapping to the exact `buildStore` fields it owns. A `Loadout` stores a per-area deep-cloned snapshot (`data[area] = {field: value}`); `readArea`/`snapshotAllAreas` capture from store state, `DEFAULT_AREA_SNAPSHOT` seeds unset areas. Inheritance: `Loadout.inherit[area] = sourceId`; `TyraLoadout` walks the chain (cycle-guarded via `seen`) to the loadout actually holding the value, and `resolveAreaSnapshot` returns the Tyra's clone (or the default). `resolvedPatch` assembles the full store patch for a loadout. Stats cache keys off `ENGINE_AREAS` (all areas except display-only `notes`) plus global `uptimeMode` via `loadoutKeyFromResolved`/`loadoutKeyFromState`. `LoadoutOverlay.tsx` drives create/duplicate/delete/share and `switchLoadout`; deleting or sharing bakes inheritors' resolved values before dropping/redirecting the inherit map. Editing an inherited area writes through to the Tyra at flush time in `buildStore.switchLoadout`.
+
 ## Sources
 
 - src/renderer/src/utils/loadoutAreas.ts

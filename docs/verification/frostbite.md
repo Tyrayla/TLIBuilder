@@ -6,9 +6,17 @@
 - **Status:** ⚠️ Unverified
 - **Mechanic tags:** ailment, enemy-vulnerability
 
+## Derived / confirmed formula
+
+Frostbitten enemies take **+1% additional Cold Damage per Frostbite Rating**, base capped at rating 120 (rating above 120 is ignored). Frostbite Effect scales the base magnitude. Condensed Frost adds a SEPARATE +0.35%/point for rating OVER 120 (capped +28%), NOT scaled by Frostbite Effect. Both pieces are 'additional Cold taken' → one additive pool.
+
 ## Notes / caveats / open questions
 
 Shipped in the engine; not yet verified in-game. Frostbite Rating → additional Cold Damage taken (base capped at 120, scaled by Frostbite Effect).
+
+## Implementation (engine model)
+
+`aggregator.py::aggregate` (Frostbite block, gated on `enemy_frostbitten`): `base = min(rating,120) × 0.01 × (1 + frostbite_effect_inc)`; if `condensed_frost` and rating>120, `over = min((rating−120)×0.0035, 0.28)`. `amount = base + over` is emitted to `frostbite_cold_taken`. `frostbite_rating` is the auto-derived numeric condition (from Max Frostbite Rating sources such as `max_frostbite_rating_flat`); `enemy_frostbitten` auto-applies from 'Inflicts Frostbite' lines, and rating>100 auto-sets `enemy_frozen`. `offense.py::_enemy_vuln_mult` applies `frostbite_cold_taken` ONLY when `dtype == "cold"`, as a final multiplicative enemy-vulnerability factor (`× (1 + frostbite_cold_taken)`) on outgoing Cold hit damage. NYI/limit: base hard-ignores rating>120 unless Condensed Frost; increased-vs-additional split with other vuln sources is kept multiplicative (flagged).
 
 ## Sources
 

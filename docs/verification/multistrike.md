@@ -5,7 +5,7 @@
 
 - **Status:** ✅ Confirmed
 - **Mechanic tags:** speed, attack
-- **Last verified:** 2026-06-22 by owner
+- **Last verified:** 2026-06-22 by Tyra
 
 ## Setup
 
@@ -13,7 +13,7 @@ An attack skill with Multistrike, vs the standard dummy. Measure throughput (att
 
 ## Raw data points
 
-Owner throughput **~1.92/s at 116% multistrike chance / 1.5 base** (≈ +1.1% vs the naive estimate).
+Tyra throughput **~1.92/s at 116% multistrike chance / 1.5 base** (≈ +1.1% vs the naive estimate).
 
 ## Derived / confirmed formula
 
@@ -22,6 +22,10 @@ Owner throughput **~1.92/s at 116% multistrike chance / 1.5 base** (≈ +1.1% vs
 ## Notes / caveats / open questions
 
 Confirms Model B over the naive per-repeat model.
+
+## Implementation (engine model)
+
+Modeled in `offense.py` (~L1787-1847), gated to attack skills (not channeled/mobility/sentry/demolisher) with `multistrike_chance > 0`; reads are presence-gated so non-multistrike builds stay golden-identical. Reads `multistrike_chance` (c), `multistrike_increasing_dmg_inc` × (1 + `multistrike_increasing_dmg_additional`) (inc), `initial_multistrike_count_flat` (init, pre-stacks count, adds no attacks), `multistrike_max_count_proc_chance` (q, Cat Dive), `attack_speed_inc`. **Model B** repeat-speed factor `s = (1 + as_inc + 0.20)/(1 + as_inc)` (the +20% is INCREASED, dilutes against existing AS). Chain length split `G = floor(c)`, `p = c − G`, `K = 1 + G + (p>0)`. Per-chain damage `_chain_dmg(L) = L + inc·(init·L + L(L−1)/2) + q·inc·(L(L−1)/2)` (the last term = Cat Dive, independent of init). Per-chain normalized time `_chain_time(L) = 1 if L≤1 else L/s` (length-1 lone swings at chance<100% run at base speed, no +20%). `multistrike_mult = E[chain damage] / E[chain time]`, folded into `total_dps` via `_delivery`. Emits `multistrike_avg_count = 1 + c`, `multistrike_repeat_aps = sps × s`, `multistrike_max_count = K`, and a `multistrike_chain` distribution. Wind Stalker's Have Fun adds a virtual Lv10 Multistrike support (see wind-stalker entry).
 
 ## Sources
 

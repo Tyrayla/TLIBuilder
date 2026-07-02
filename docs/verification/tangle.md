@@ -6,7 +6,7 @@
 - **Status:** ✅ Confirmed
 - **Skills affected:** Spell Tangle
 - **Mechanic tags:** tick-rounding, breakpoint, trigger
-- **Last verified:** 2026-06-19 by owner
+- **Last verified:** 2026-06-19 by Tyra
 - **Backlog:** `TANGLE-01` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
 
 ## Setup
@@ -15,7 +15,7 @@ A Spell + **Spell Tangle** vs the standard dummy. (Player can't manually cast wh
 
 ## Raw data points
 
-Owner: **6.04 & 7.44 casts/s both land on 5 ticks → 6.0/s**; next breakpoint 7.5/s. Codified in `test_tangle.py`.
+Tyra: **6.04 & 7.44 casts/s both land on 5 ticks → 6.0/s**; next breakpoint 7.5/s. Codified in `test_tangle.py`.
 
 ## Derived / confirmed formula
 
@@ -24,6 +24,10 @@ Per-tangle cast rate hard-rounds to whole 30 Hz ticks: `ticks = ceil(cast_time �
 ## Notes / caveats / open questions
 
 Tick-rounding is DONE + validated. Still pending (see TANGLE-01/02): the multiplier checks — count ×2, Tangle Damage Enhancement (additive within itself), Additional Tangle Damage (separate factor), Dormant Entanglement +40% per inactivated, per-(in)activated-Tangle scaling, and the Magister generate-Tangle nodes.
+
+## Implementation (engine model)
+
+In `offense.py::calculate_offense` (~L1301, the Tangle block). When `tangle` is set, the smooth per-caster `sps` from `compute_skill_rates` is quantized: `tangle_cast_ticks = period_ticks(1.0 / sps)` = `ceil(cast_time×30)`, then `sps = rate_from_ticks(ticks)` = `30/ticks` (`tick.py` opt-in hard-rounded regime). The 30 Hz per-caster cap holds via `period_ticks`'s 1-tick floor. This quantized `sps` flows into every hit form's DPS and the displayed casts/sec; the attached-tangle **count** multiplies it afterward (aggregate can exceed 30/s — per-caster cap). Breakpoint helper emits `tangle_cast_to_next_additional` = `next_cs/sps − 1` and `tangle_cast_to_next_increased` = `(1+cast_speed_inc)×that`. NYI here: the Tangle damage multipliers (count ×2, Tangle Damage Enhancement, Additional Tangle Damage, Dormant Entanglement, per-(in)activated scaling) are not modeled in this block.
 
 ## Sources
 

@@ -10,6 +10,10 @@
 
 Shipped in the engine; not yet verified in-game. General parser for all 28 mediums (per-roll sliders + tiers + Duration/Cooldown selector), generic trigger_interval cast-rate override. (Wind Rhythm has its own entry.)
 
+## Implementation (engine model)
+
+`activation_medium.py`. `parse_am_rolls(data)` scans each tier's concatenated progression line for `(lo–hi)` ranges (`_RANGE` regex), classifying each by surrounding text via `_classify` into a canonical roll (stable identity, unit/scale, per-tier ranges, engine `stat_key` or None, and a selector `group`) — drives the dynamic support-panel sliders. `apply_slot_effects` emits the WIRED stats for the user's selected `specific_rolls` / `specific_roll_tiers` / `roll_group_choice` (Duration vs Cooldown are mutually exclusive, `group="cdr_or_duration"`, default Duration). Cadence handling: `"every (X) s"` → `trigger_interval` (overrides cast rate, read by `compute_skill_rates`); `"Interval: (X) s"` → recorded rate-limit only, not wired. Additive rolls (`hit_dmg_additional`, `dmg_additional`, `skill_effect_duration_additional`, `cdr_speed_additional`, `spell_burst_hit_dmg_additional`, etc.) via `source.add_slotted`. Special routes: `wind_share` → `wind_rhythm_share` + `wind_rhythm_base_cooldown`; `rhythm_move_cap` → `dmg_additional = min(0.03×meters, cap)`; `willpower_level` → deferred support injection. Every medium is prefix-guarded (`activation_medium_`) so the generic resolver skips it.
+
 ## Sources
 
 - backend/engine/skill_effects/activation_medium.py

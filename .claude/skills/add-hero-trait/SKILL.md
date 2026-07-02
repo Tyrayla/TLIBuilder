@@ -48,5 +48,5 @@ Run `/engine-verify` (the new trait test + full suite + consumable-universe + go
 stats/conditions → additive golden re-capture. Do not commit. Then offer in-app/RECOUNT validation to the owner.
 
 ## 6. Verification entry (anti-drift)
-Run `/add-verification` so the new trait gets a Verification Database entry (status `unverified` unless the
-owner ran a RECOUNT). Keeps the engine and the KB in sync so shipped-but-untested traits stay visible.
+Run `/add-verification` so the new trait gets a Verification Database entry (status `unverified` unless Tyra
+ran a RECOUNT). Keeps the engine and the KB in sync so shipped-but-untested traits stay visible.

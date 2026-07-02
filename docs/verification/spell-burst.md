@@ -6,7 +6,7 @@
 - **Status:** 🔶 Partial
 - **Skills affected:** Spell Burst
 - **Mechanic tags:** breakpoint, tick-rounding, trigger, damage-pool
-- **Last verified:** 2026-06-18 by owner
+- **Last verified:** 2026-06-18 by Tyra
 - **Backlog:** `SPELLBURST-01` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
 
 ## Setup
@@ -24,6 +24,10 @@ Server-timed **whole-tick charge countdown** (hard-rounded breakpoints, 30 Hz). 
 ## Notes / caveats / open questions
 
 **Partial.** Confirmed: total-DPS magnitude + auto-trigger. Still open (⬜): M-vs-M+1 count, the charge-speed breakpoint dead-zone shape, per-support burst-only pools (Heart of Flame / Prairie Fire), and the Squidnova/Perched River loose ends (SPELLBURST-03). Everything caps at 30/s incl. DoT (engine uses 30, not 31).
+
+## Implementation (engine model)
+
+Rate math: `offense.py::compute_spell_burst_rate` (mirrored inline in `calculate_offense`, ~L1644). Base charge `T = 2.0 / charge_factor` where `charge_factor = (1+Σ spell_burst_charge_speed_inc) × Π(1+spell_burst_charge_speed_additional_i)` — the additional pool multiplies per-source via `additional_total_product` (not summed). `charge_ticks = period_ticks(T)` = `ceil(T×30)` (opt-in hard-rounded regime, `tick.py`). Auto (`spell_burst_auto_trigger_flag`, or `spell_burst_auto_charge_threshold` reached) → `rate = 30/charge_ticks`; manual → `proc_ticks = ceil(charge_ticks/ct)·ct` with `ct = round(30/sps)`, non-monotonic so breakpoints are scanned. Surging Inspiration caps `T` at `M / (sps × spell_burst_chance_gain_stacks_flat)`. Casts/burst = `M+1` (`spell_burst_casts_per_burst`); rate capped at 30. Reads `spell_burst_hit_dmg_additional`, `spell_burst_area_additional[_per]`; `cast_speed_to_spell_burst_charge` (Play Safe) couples cast→charge.
 
 ## Sources
 

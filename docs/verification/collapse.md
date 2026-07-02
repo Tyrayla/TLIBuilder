@@ -6,7 +6,7 @@
 - **Status:** ✅ Confirmed
 - **Skills affected:** Groundshaker
 - **Mechanic tags:** breakpoint, step-function, rhythm, damage-pool
-- **Last verified:** 2026-07-01 by owner
+- **Last verified:** 2026-07-01 by Tyra
 - **Backlog:** `DEMOLISHER-01` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
 
 ## Setup
@@ -40,6 +40,10 @@ Rhythm sweep (roll ≈ 62%), observed Collapse bonus:
 ## Notes / caveats / open questions
 
 Gated on Frequent-Quake persistence + auto/rhythm overlap. The two boundary rhythms (0.8, 0.4) read as a time-average of the floors on either side. Re-confirm opportunistically alongside the rest of DEMOLISHER-01.
+
+## Implementation (engine model)
+
+`offense.py::calculate_offense` demolisher block (~L1905). Gated on `collapse_roll > 0 AND demolisher_frequent_quake AND demolisher_mode == "rhythm" AND rhythm_interval R > 0` (manual/spaced casting = no overlap → no Collapse). `n = 1.6 / R`; if `n` is within 1e-6 of a whole number ≥1 → `eff_floor = round(n) − 0.5` (time-averaged midpoint at boundaries R=0.8, R=0.4), else `eff_floor = floor(n)`. `demolisher_collapse_pct = eff_floor × 0.5 × collapse_roll`. Applied as `×(1 + demolisher_collapse_pct)` on the Frequent-Quake fissure ticks only (the plain explosion path gets no Collapse). `collapse_roll` (fraction, e.g. 0.62) surfaced by `groundshaker.py::apply_slot_effects` from `_COLLAPSE_RE` (COLLAPSE support, midpoint or explicit roll). Fissure lifetime 1.6 s is hardcoded. The boundary time-average is an approximation (flagged in code).
 
 ## Sources
 

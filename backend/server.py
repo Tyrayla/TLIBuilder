@@ -1193,7 +1193,7 @@ _VERIFICATION_DIR = os.path.join(_DATA_ROOT, "verification")
 _VERIFICATION_STATUSES = ("confirmed", "partial", "pending", "unverified", "failed")
 _VERIFICATION_KEYS = (
     "id", "title", "status", "skills", "tags", "lastVerified", "verifiedBy",
-    "backlogId", "setup", "dataPoints", "formula", "notes", "sources",
+    "backlogId", "setup", "dataPoints", "formula", "implementation", "notes", "sources",
 )
 
 

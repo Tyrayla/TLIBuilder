@@ -10,6 +10,10 @@
 
 Shipped in the engine; not yet verified in-game. Mana/Life sealing & reservation surfaced via the engine response. Skill-cost/reservation interplay stubbed.
 
+## Implementation (engine model)
+
+`utility.py::apply_reservation` runs each pass after `derive_stats`, over every enabled sealing skill (any slot). Per skill: `amount = base_seal_frac × pool_max × Π(support Mana Multiplier) ÷ denom`, where `base_seal_frac` = the skill's `sealed_mana` %, support mult = each support's `mana_cost` % (`_mana_multiplier`; Off the Beaten Track / `core_support_mana_mult_95` forces 0.95). `denom = (1+Σ sealed_mana_compensation_inc)×(1+Σ ...additional)` — increased and additional are SEPARATE multiplicative pools (verified in-game), summing global + slot-support (`seal-modifier` lines via `parse_support`/`map_line`) + class-scoped (`focus_skill_sealed_mana_comp_inc` / `spirit_magi_...`). `seal_to_life` routes the seal to `Sealed Life` off Max Life. Imparted seals (Lunar Eclipse `imparted_seal_mana_pct`) ignore support mults + per-support comp, scaling only by GLOBAL comp. Emits Ward ES (`energy_shield_per_sealed_mana/life`) and Lunar's `dmg_additional` (1% per 100 Mana sealed, capped). Returns sealed/unsealed totals + `insufficient_*` flags. Skill-cost interplay NYI.
+
 ## Sources
 
 - backend/engine/utility.py — apply_reservation

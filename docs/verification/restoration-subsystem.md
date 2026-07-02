@@ -10,6 +10,10 @@
 
 Shipped in the engine; not yet verified in-game. Sustain model: HoT/regain/regen/Temporary barrier/EHP reader + excess split. DPS hooks: Immortality/Pixie Tear/Rebirth.
 
+## Implementation (engine model)
+
+`recovery.py::calculate_recovery` is a post-loop reader. Restoration per cast (`_pool_recovery`): `total = base_amount × pool_max(if pct) × restoration_factor`, where `restoration_factor = (1+Σ restoration_effect_inc)×Π(1+restoration_effect_additional)` (`_restoration_effect_factor`); `per_sec = total ÷ max(duration, recast)` in Effective mode, `÷ duration` in Full-Uptime (`ignore_recast`), duration `= window × (1+inc)×Π(1+additional)`. Excess (overflow) = `total` at full pool, else `max(0, total−missing)`. Regain (`regain_inc`, cap `_REGAIN_CAP=0.30` of missing, interval `_REGAIN_BASE_INTERVAL=0.5s × (1+..._interval_additional)`). Regen: flat + `%×max`, × `(1+..._regen_speed_inc)`; Mana adds base `7/s + 1.75%×max_mana`. Temporary pools (`temporary_<pool>_flat/pct`, capped `max_temporary_<pool>_pct`) are a separate barrier. Net = restoration+regain+regen − consumption − skill_cost ± burst, feeding `<pool>_sustainable` / `time_to_empty`. Hooks: Pixie Tear (`excess_restoration_to_es_pct`), Rebirth (`life_regain_to_restoration`/`es_regain_to_restoration`), Realm of Mercury (`mana_restored_pct_current_per_attack_use`). EHP = steady_life ÷ (1−avg_mitigation).
+
 ## Sources
 
 - backend/engine/recovery.py

@@ -19,6 +19,10 @@ Each point of a main-stat attribute grants **+0.5% damage**; multi-main-stat ski
 
 Pending — engine now modelled, not game-verified. App's Player Stats → Damage Bonus row should equal this.
 
+## Implementation (engine model)
+
+In `offense.py::calculate_offense`: `main_stat_bonus = Σ source.total(a) for a in skill.main_stat × _MAIN_STAT_DAMAGE_PER_POINT` (`0.005` = 0.5%/pt). The attributes come from the skill's `main_stat` field (driven by the skill, NOT tags), so multi-main-stat skills sum their attribute totals. If present, `main_stat_dmg_bonus_inc` (Lightchaser) boosts the per-point ratio via `× (1 + _ms_inc)` (presence-gated through `all_stats()` so absent → ×1, goldens stable). Result forms `main_stat_factor = 1 + bonus`, folded into `intrinsic_add`, which multiplies BOTH `type_add` and `generic_add` — i.e. it lands in the ADDITIONAL (multiplicative) pool, uniform across all damage types. Surfaced on `OffenseResult` as `main_stat_damage_bonus` (fraction) and `main_stats` (attributes summed).
+
 ## Sources
 
 - backend/engine/offense.py — main_stat_dmg_bonus

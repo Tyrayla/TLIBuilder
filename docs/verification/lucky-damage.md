@@ -20,6 +20,10 @@ Lucky rolls damage twice and keeps the higher → raises actual DPS by `(min + �
 
 Pending — engine modelled, not game-verified; tooltip can't show this. (Per-type Unlucky damage mirrors this, keep-lower.)
 
+## Implementation (engine model)
+
+`support_resolver.py::resolve_support_behavior` sets `lucky_damage=True` when a support's text matches `_LUCKY_RE` ("deals Lucky Damage"). In `offense.py::calculate_offense`, the nested `_luck_ratio(mn, mx, level)` returns the EV-of-roll ÷ midpoint EV: +1 (Lucky) → (min + ⅔·R)/(min + ½·R), −1 (Unlucky) → (min + ⅓·R)/(min + ½·R), 0 → 1.0; returns 1.0 at zero spread (snapshot-safe). Per FINAL type, level = `(1 if lucky_damage or lucky_<type>>0 else 0) − (1 if unlucky_<type>>0 else 0)` — Lucky+Unlucky on the same type cancel. It's applied ONLY to the type average (`avg = ((min+max)/2) × _luck_ratio(...)`, L1435/1471), NOT to displayed min/max, and is distinct from crit. Support Lucky (`lucky_damage`) is global-per-type; there are also per-type `lucky_<type>` / `unlucky_<type>` stat keys. Verified in `test_triple_quad_damage.py` (double/triple/quad EV) — the `_luck_ratio` EV math itself is engine-modelled, not yet game-verified.
+
 ## Sources
 
 - backend/tests/test_triple_quad_damage.py

@@ -6,7 +6,7 @@
 - **Status:** ✅ Confirmed
 - **Skills affected:** Chain Lightning
 - **Mechanic tags:** supports, methodology
-- **Last verified:** 2026-06-10 by owner
+- **Last verified:** 2026-06-10 by Tyra
 - **Backlog:** `STDSUP-01` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
 
 ## Setup
@@ -32,6 +32,10 @@ All within ±5% of the in-game average (most within ±2%).
 ## Notes / caveats / open questions
 
 60s parses for the crit/added-cold cases read ~+10% high (variance); 2–4 min parses converged. Confirms the whole standard-support resolution path.
+
+## Implementation (engine model)
+
+Standard supports (`support_skill`/`activation_medium_skill`) route through `support_resolver.py::resolve_standard_supports`, run INSIDE the aggregator fixed-point loop so conditional lines see converging conditions. Each support is parsed by `support_lines.parse_support` then each line mapped by `support_mapper.map_line` (with tag-gate: spell-only/attack-only/curse-only/empower-only against the support's OWN host-slot category, and gem level = tier + `_support_level_bonus`). Emitted contributions get a unique pooling `text` (`|<id>|<template>`) so additional lines multiply like Noble/Mag. Noble/Magnificent supports are handled separately in `resolve_support_contributions`. Bespoke cases: Mass Effect / Well-Fought Battle → `_empower_support_contrib` (`empower_effect_inc`); Willpower → `_willpower_per_stack` compounding `dmg_additional` while `standing_still`. `map_autoderive_line` feeds auto-conditions (e.g. High Voltage auto-Numbed). Level-scaled values from `progression[level]`.
 
 ## Sources
 

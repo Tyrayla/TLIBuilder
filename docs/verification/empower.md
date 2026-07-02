@@ -19,6 +19,10 @@ Engine ASSUMES: Euphoria stacks across empower skills (no limit); Empower Skill 
 
 Pending — empower shipped 2026-06-17 with assumed rules; uptime/duration unmodeled.
 
+## Implementation (engine model)
+
+`empower_resolver.py::resolve_empowers` parses each enabled empower skill (`Empower` tag, `active_skill`) into UNSCALED buffs emitted as the SAME typed/scoped damage stats auras use (no special offense stage). Values come from `detailed_description` (Lv20 anchor) interpolated to the equipped level from `simple_description` (Lv1 anchor) via `frac=(level−1)/19`; `_flat_map` handles flat lines, `_per_stack_pairs` handles `N% X per stack … up to M` → a settable `<sid>_stacks` condition; `for every stack of <Named>` gates on an existing numeric condition (`focus_blessings`). `utility.py::apply_empower_buffs` scales each buff by Empower Effect `= (1+Σ empower_effect_inc)×(1+Σ empower_effect_additional)`; `empower_effect_*` buffs themselves are flagged so they compound. Scope-gated: a buff line like `additional Melee Skill Damage` only touches matching skills (conversion-correct). Ally/minion/sentry-targeted empowers are NYI (whole skill gated). Mana Boil's `Consumes N% Mana/sec` routes to `mana_consumed_pct_max_per_sec` (also × Empower Effect) and `deactivates_at_zero_mana` triggers a compute-side WARNING (buff not auto-disabled). Uptime assumed 100%; disabled empowers resolved but not folded.
+
 ## Sources
 
 - backend/engine/empower_resolver.py

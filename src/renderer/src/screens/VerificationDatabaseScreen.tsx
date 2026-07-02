@@ -75,6 +75,24 @@ export default function VerificationDatabaseScreen({ onBack }: Props) {
   const selected: VerificationEntry | null =
     filtered.find(e => e.id === selectedId) ?? filtered[0] ?? null
 
+  // Prose is injected HTML, so links can't carry React handlers. Delegate clicks on the detail pane:
+  // internal cross-links (`foo.md`) select that entry in-app; external `http(s)` links open the system
+  // browser. Without this, `<a href="collapse.md">` resolves against the app URL and opens localhost.
+  const handleProseClick = (e: React.MouseEvent) => {
+    const anchor = (e.target as HTMLElement).closest('a')
+    if (!anchor) return
+    const href = anchor.getAttribute('href') || ''
+    if (/^https?:\/\//i.test(href)) {
+      e.preventDefault()
+      if (window.api?.openExternal) window.api.openExternal(href)
+      else window.open(href, '_blank', 'noopener,noreferrer')
+    } else if (href.endsWith('.md')) {
+      e.preventDefault()
+      const id = href.replace(/^.*\//, '').replace(/\.md$/, '')
+      if (entries.some(en => en.id === id)) setSelectedId(id)
+    }
+  }
+
   // Per-status counts for the filter chips.
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: entries.length }
@@ -160,7 +178,7 @@ export default function VerificationDatabaseScreen({ onBack }: Props) {
           </div>
 
           {/* ── Right: detail ── */}
-          <div className="verif-detail-pane dark-scroll">
+          <div className="verif-detail-pane dark-scroll" onClick={handleProseClick}>
             {!selected ? (
               <div className="verif-empty">Select an entry to see its verification detail.</div>
             ) : (
@@ -192,10 +210,13 @@ export default function VerificationDatabaseScreen({ onBack }: Props) {
                   )}
                 </div>
 
+                {/* Consistent order; Implementation always sits last, just above Sources. Empty
+                    sections auto-hide, so entries stay consistent even when fields are missing. */}
                 <ProseSection title="Setup" md={selected.setup} />
                 <ProseSection title="Raw data points" md={selected.dataPoints} />
                 <ProseSection title="Derived / confirmed formula" md={selected.formula} />
                 <ProseSection title="Notes / caveats / open questions" md={selected.notes} />
+                <ProseSection title="Implementation (engine model)" md={selected.implementation} />
 
                 {selected.sources && selected.sources.length > 0 && (
                   <div className="verif-section">

@@ -20,6 +20,10 @@ Ratio = `(1 + rank_table[rank]) × (1 + per)^total_jumps`. At rank 5, tier-1 per
 
 Pending — engine modelled, not game-verified. At 2 jumps compounding vs additive are <0.5% apart; needs a large +Jumps source to prove compounding.
 
+## Implementation (engine model)
+
+The per-Jump `(multiplies)` line is skipped by `resolve_support_contributions` (`"(multiplies)" in low → pass`, deferred) and instead read by `support_resolver.py::resolve_support_behavior`: from `progression[tier]` it parses the "…per 1 Jump remaining…(multiplies)" range via `_range_mid_fraction` (or a `specific_rolls` override) → `augmentation_per_jump` (abs value, ~0.057 mid of 5.5-5.9%). `offense.py::calculate_offense` (~L1352-1355) computes `total_jumps = max(0, skill.jumps_base + extra_jumps_flat)` and `aug_factor = (1 + augmentation_per_jump)^total_jumps`, applied as a per-FINAL-type factor on each hit's min/max (L1430-1431 & L1465-1466) — so it COMPOUNDS, shows in per-hit damage, and stacks with the universal rank line (a separate `dmg_additional` factor). Augmentation excludes Web, so on a lone target there's no multi-hit chain — jumps remaining = total jumps. Verified in `test_support_behavior.py` / `test_support_resolver.py` (mid 0.057, explicit 0.059).
+
 ## Sources
 
 - backend/engine/support_resolver.py

@@ -19,6 +19,10 @@ Engine ASSUMES: over-limit = most-recent applies; same curse different levels = 
 
 Pending — curses shipped 2026-06-17 with assumed rules; each of the 5 checks needs confirming.
 
+## Implementation (engine model)
+
+`curse_resolver.py::resolve_curses` (server-side) gathers curses from slotted curse skills (`Curse` tag, `active_skill`) + affix records, dedups by curse NAME keeping the highest-level ENABLED instance (same curse doesn't stack). Magnitude = `+X% additional <type> Damage taken` from `detailed_description` (Lv20), interpolated from `simple_description` (Lv1) via `frac=(level−1)/19`; mapped by type to `<type>_curse_taken` (`Vulnerability→physical`, `Scorch→fire`, `Biting Cold→cold`, `Electrocute→lightning`, `Corruption→erosion`, `Timid→hit`). `apply_curses` (in-loop, parallels `apply_aura_buffs`) scales each by Curse Effect factor `(1+Σ curse_effect_inc) × Π(1+curse_effect_additional per source)` (additional multiplies PER SOURCE — `_curse_effect_factor`, slot-local) and bakes into the `*_curse_taken` pools that offense's enemy-vulnerability stage (`_enemy_vuln_mult`) consumes — so curses are conversion-correct (keyed on FINAL damage type; `hit_curse_taken` hits all types, distinct curses multiply). Limit `= 1 + max_curses_flat`, capped by `curse_limit_cap_flat`; over-limit bakes NOTHING until the user resolves via `curse_sel_<name>` booleans. Unmodeled curses (DoT/Dazzled/Ominous) count toward the limit but bake nothing (surfaced NYI). Cross-type multiplicative pooling flagged for in-game verification.
+
 ## Sources
 
 - backend/engine/curse_resolver.py

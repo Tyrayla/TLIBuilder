@@ -10,6 +10,10 @@
 
 Shipped in the engine; not yet verified in-game. Inverse Image point-reflection (c,r)→(6−c,4−r), boxAllocations, effect × (1 + roll/100). Shipped; 24 Ethereal Prisms follow.
 
+## Implementation (engine model)
+
+Inverse Image lives in `node_resolver.py::resolve_nodes` (NOT `prism_core_talents.py`). For each prism with `kind == 'inverse_image'`, every allocated reflected cell `"col,row"` in `boxAllocations` copies the point-reflected SOURCE node at grid `(6−col, 4−row)` (`by_pos` lookup). Its effect scales by `mult = 1 + roll/100`, where `roll` comes from `prism.rolls[tier]` keyed by the SOURCE node's tier via `_PRISM_TIER {Micro→micro, Medium→medium, Legendary Medium Talent→legendary}`; `roll ≤ −100` (mult ≤ 0) contributes nothing. The copy is resolved with a distinct pooling id `"<src.id>::refl::<pos_key>"` (so it never merges with the source's own allocation) and each contribution amount is `base × points × mult`. `prism_core_talents.py` handles the separate Ethereal-Prism core-talent replace/add path (24-pt gate, all-or-nothing, bespoke Unmatched Valor / Spell Ripple, else NYI). Verified via `test_prism_reflection.py`, `test_ethereal_prism_dps.py`.
+
 ## Sources
 
 - backend/engine/prism_core_talents.py

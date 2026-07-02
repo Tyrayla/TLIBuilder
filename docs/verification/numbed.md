@@ -20,6 +20,10 @@ Numbed adds **+5% lightning damage taken per stack** (×1.50 at 10). Recount sho
 
 Pending — tooltip can't show this (enemy debuff); stacks ramp/decay so use the sustained count.
 
+## Implementation (engine model)
+
+The per-stack value is modelled engine-side (like Fervor), not on the condition. `aggregator.py` (~L528-545) bakes `numbed_lightning_taken` = `base_per_stack × (1 + Σ numbed_effect_inc) × Π(1 + numbed_effect_additional_i) × numbed_stacks`, where `base_per_stack` = `_NUMBED_BASE_PER_STACK` = 0.05 (re-based to 0.11 when the `core_conductive` flag is set — Conductive core talent). Numbed Effect increased sums into one pool; additional follows the standard per-distinct-source multiplicative rule via `additional_total_product`. `offense.py::_enemy_vuln_mult` (L585) consumes it as a lightning-only final multiplier `mult *= 1 + numbed_lightning_taken`, applied post-conversion keyed on the FINAL type. So 10 stacks, no Numbed Effect → +0.50 → ×1.50 lightning. Verified in `test_numbed_mechanic.py` (0.05×stacks; inc/additional pooling) and `test_core_talents.py` (Conductive 0.11×10=1.10). NOTE (flagged in code): the in-game increased-vs-additional split for vulnerability is modelled as all-multiplicative — pending verification.
+
 ## Sources
 
 - backend/tests/test_numbed_mechanic.py

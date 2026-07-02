@@ -5,7 +5,7 @@
 
 - **Status:** ✅ Confirmed
 - **Mechanic tags:** mitigation, methodology, calc-target
-- **Last verified:** 2026-06-10 by owner
+- **Last verified:** 2026-06-10 by Tyra
 - **Backlog:** `STDSUP-01` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
 
 ## Setup
@@ -23,6 +23,10 @@ Non-physical taken = base × (1 − res) × (1 − armor_fraction). With 30% res
 ## Notes / caveats / open questions
 
 **Methodology, not a mechanic.** Always verify the app's "DPS vs Target" against the Recount **Average DPS in a span** (≥60–90 s, longer converges), NEVER the skill tooltip — the tooltip omits enemy debuffs (Numbed), multi-hit/shotgun, and Lucky's expected-value uplift. Use ratios where possible; they cancel the mitigation constant.
+
+## Implementation (engine model)
+
+The per-type multiplier is `offense.py::_target_mitigation` = `(1 − eff_armor) × (1 − eff_resist)`, with `eff_armor`/`eff_resist` from `_target_effective`. Constants: `TARGET_ARMOR_MITIGATION = 0.50`, `TARGET_NONPHYS_ARMOR_FACTOR = 0.60`, `TARGET_ELEMENTAL_RESIST = TARGET_EROSION_RESIST = 0.30`. Physical: `eff_armor = armor − armor_pen`, `eff_resist = 0`. Non-physical: `eff_armor = armor × 0.60 − armor_pen`; `eff_resist = base_res − <type>_pen (+ elemental_pen for fire/cold/lightning, excluded for erosion) + all_resistance_reduction`. Effective values may go negative → amplification (mult > 1). With zero pen this reproduces phys ×0.50 / non-phys ×0.49 exactly. The target is now editable per build: `EngineStatsRequest.target_config` (fractions) overrides the constants (`tc.get('armor'/'<t>_res'/'level')`); renderer presets live in `utils/targetPresets.ts` (`TARGET_PRESETS` for Lv40/60/75/85, Lv85 = default; `NONPHYS_ARMOR_FACTOR = 0.6`). Target is a Boss (enemy-count weight 5). Verified via `test_target_config.py`, `test_target_penetration.py`.
 
 ## Sources
 

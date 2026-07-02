@@ -64,9 +64,11 @@ def _entry_md(e: dict) -> str:
     if e.get("backlogId"):
         out.append(f"- **Backlog:** `{e['backlogId']}` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)")
     out.append("")
+    # Consistent section order; Implementation always last (just above Sources).
     for title, key in (("Setup", "setup"), ("Raw data points", "dataPoints"),
                        ("Derived / confirmed formula", "formula"),
-                       ("Notes / caveats / open questions", "notes")):
+                       ("Notes / caveats / open questions", "notes"),
+                       ("Implementation (engine model)", "implementation")):
         if (e.get(key) or "").strip():
             out.append(f"## {title}\n\n{e[key].strip()}\n")
     if e.get("sources"):

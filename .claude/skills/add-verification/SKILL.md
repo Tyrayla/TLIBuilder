@@ -28,7 +28,7 @@ Fill `templates/entry.json` (in this skill folder):
   replicable from the entry alone. This is the point of an unverified entry.
 - `backlogId` — cross-link if a backlog test exists.
 - Leave `setup`/`dataPoints`/`formula` empty for `unverified` (that's expected — do NOT invent numbers).
-Show the owner the filled JSON for sign-off.
+Show Tyra the filled JSON for sign-off.
 
 ## 3. Apply (after approval)
 - [ ] Write `data/verification/<id>.json`.
@@ -38,4 +38,4 @@ Show the owner the filled JSON for sign-off.
 ## 4. Verify
 - The `engine-verify` skill's drift-check step reports any registered skill / new subsystem lacking an entry —
   make sure this new entry clears it.
-- Do **not** commit. Surface anything uncertain to the owner ([[feedback_flag_uncertainties]]).
+- Do **not** commit. Surface anything uncertain to Tyra ([[feedback_flag_uncertainties]]).

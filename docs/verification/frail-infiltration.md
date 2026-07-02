@@ -6,9 +6,17 @@
 - **Status:** ⚠️ Unverified
 - **Mechanic tags:** enemy-vulnerability, ailment
 
+## Derived / confirmed formula
+
+**Frail**: 'Additionally increases Spell Damage taken by 15%' — Spell-FORM scoped (applies to all damage of a Spell skill; off for Attack skills). **Infiltration** (fire/cold/lightning): 'Additionally increases <type> Damage taken by 13%' — element-TYPE scoped (no Erosion Infiltration). Each scaled by its `*_effect_inc`.
+
 ## Notes / caveats / open questions
 
 Shipped in the engine; not yet verified in-game. Frail + Infiltration enemy-vulnerability debuffs (master-glossary values).
+
+## Implementation (engine model)
+
+`aggregator.py::aggregate` emits the debuffs from user-set booleans: `enemy_affected_by_frail` → `frail_spell_taken = 0.15 × (1 + frail_effect_inc)`; `enemy_affected_by_<elem>_infiltration` (fire/cold/lightning) → `<elem>_infiltration_taken = 0.13 × (1 + <elem>_infiltration_effect_inc)`. `offense.py::_enemy_vuln_mult` applies them as final multiplicative enemy-vulnerability factors: `frail_spell_taken` only when `is_spell` (so a Spell skill's whole hit is amplified; Attack skills gated off), and `<dtype>_infiltration_taken` only when `dtype in (fire,cold,lightning)` matches the packet's FINAL type. Distinct sources MULTIPLY (e.g. Frail × Lightning Infiltration = 1.15×1.13). Effect stats resolve via the mod parser (e.g. '+40% Frail Effect' → `frail_effect_inc`). NYI/limits: `enemy_affected_by_*` are user-set (auto-derive from 'Inflicts …' affixes is a follow-up); Vulnerability-curse Trauma chance stays NYI; increased-vs-additional pooling is kept multiplicative (flagged for in-game testing).
 
 ## Sources
 
