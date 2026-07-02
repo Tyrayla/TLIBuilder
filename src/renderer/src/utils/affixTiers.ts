@@ -37,8 +37,9 @@ export function tierForValue<T extends TierLike>(tiers: T[], valueIndex: number,
   return [...containing].sort((a, b) => parseTierNum(a.tier) - parseTierNum(b.tier))[0]
 }
 
-// The overall achievable [lo, hi] across all tiers at `valueIndex` (used to clamp typed input).
-export function overallRange<T extends TierLike>(tiers: T[], valueIndex: number): [number, number] | null {
+// The overall achievable [lo, hi] across all tiers at `valueIndex` (used to clamp typed input). Only needs
+// numeric_values, so it also accepts single-tier affixes without a `tier` field (e.g. legendary in Vorax).
+export function overallRange<T extends { numeric_values: LegendaryNumericValue[] }>(tiers: T[], valueIndex: number): [number, number] | null {
   let lo = Infinity, hi = -Infinity
   for (const t of tiers) {
     const nv = t.numeric_values[valueIndex]

@@ -2393,6 +2393,13 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   min-width: 28px;
   text-align: right;
 }
+.gear-affix-value--editable { cursor: pointer; border-bottom: 1px dotted #6a5a2a; min-width: 44px; text-align: center; }
+.gear-affix-value--editable:hover { color: #e0c070; border-bottom-color: #c8a050; }
+.gear-affix-value-input {
+  width: 52px; font-size: 12px; font-weight: 700; color: #e0c070; text-align: center;
+  background: #0a0a18; border: 1px solid #5a5a2a; border-radius: 3px; padding: 1px 4px; outline: none;
+}
+.gear-affix-value-input:focus { border-color: #c8a050; }
 
 .gear-placeholder-select {
   background: #0a0a1a;
