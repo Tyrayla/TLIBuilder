@@ -779,7 +779,15 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
           <tr>
             <td style={tdLbl}>Total Additional</td>
             <td style={td}><Breakdown title="Total Additional — All Types" keys={genericAddKeys(offense)} total={offense.generic_add} totalUnit="×" formula="Π (1 + Additional)"
-              extra={offense.main_stat_damage_bonus > 0 ? [{ value: `×${dec((1 + offense.main_stat_damage_bonus))}`, stat: 'Additional Damage', source: 'Main Stat', sourceName: `${offense.main_stats.join(' + ')} Damage Bonus (+${dec((offense.main_stat_damage_bonus * 100))}%)` }] : undefined}>×{dec(offense.generic_add)}</Breakdown></td>
+              extra={(() => {
+                const rows: Array<{ value: string; stat: string; source: string; sourceName: string }> = []
+                if (offense.main_stat_damage_bonus > 0) rows.push({ value: `×${dec(1 + offense.main_stat_damage_bonus)}`, stat: 'Additional Damage', source: 'Main Stat', sourceName: `${offense.main_stats.join(' + ')} Damage Bonus (+${dec(offense.main_stat_damage_bonus * 100)}%)` })
+                // Intrinsic 'additional damage' pool (Rapid Advance per-stack, Fervor …): sums into ONE (1+Σ) factor
+                // within generic_add — show a single ×(1+Σ) row labelled with its source(s).
+                const iaSum = (offense.intrinsic_additional_sources ?? []).reduce((s, e) => s + e.amount, 0)
+                if (iaSum > 0) rows.push({ value: `×${dec(1 + iaSum)}`, stat: 'Additional Damage', source: 'Skill', sourceName: (offense.intrinsic_additional_sources ?? []).map(e => e.label).join(' + ') })
+                return rows.length ? rows : undefined
+              })()}>×{dec(offense.generic_add)}</Breakdown></td>
             {ALL_DTYPES.map(d => {
               // Specific = type_add factored over the generic bucket. Types the skill doesn't deal have
               // no entry → ×1.00 (not 1/generic, which would show a phantom multiplier on empty types).

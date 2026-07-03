@@ -732,6 +732,10 @@ class OffenseResult:
     # main_stat_damage_bonus is the fraction (0.255 = +25.5%); main_stats lists the attributes summed.
     main_stat_damage_bonus: float = 0.0
     main_stats: list[str] = field(default_factory=list)
+    # Skill-intrinsic 'additional damage' pool entries ([{label, amount}]) — the extra_additional folded into
+    # intrinsic_add (e.g. Rapid Advance's per-Max-Channeled-Stack bonus, Focused Slash's Fervor). Populated by
+    # compute (which has the source + condition state); surfaced in the "Total Additional" breakdown panel.
+    intrinsic_additional_sources: list = field(default_factory=list)
     # Skill tags and tag-specific mechanics
     skill_tags: list[str] = field(default_factory=list)
     skill_area_inc: float = 0.0  # total increased area of effect (only when "area" in skill_tags)

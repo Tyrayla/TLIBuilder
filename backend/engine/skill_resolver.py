@@ -44,6 +44,8 @@ class IntrinsicAdditional:
     skill_effect_key: str | None = None  # optional SKILL-LOCAL increased % stat, added into the SAME
                                       # increased pool as effect_key (e.g. 'fervor_effect_skill_inc' for
                                       # Focused Slash: Tranquility) — scales the skill's bonus, not crit
+    label: str = ""                   # display label for the additional-damage breakdown line (e.g. Rapid
+                                      # Advance's per-Max-Channeled-Stack bonus); blank → generic "Skill Intrinsic"
 
 
 @dataclass

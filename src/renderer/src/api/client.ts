@@ -938,6 +938,9 @@ export interface OffenseResult {
   generic_add: number          // INCLUDES the main-stat Damage Bonus below
   main_stat_damage_bonus: number  // fraction (0.255 = +25.5%) from the skill's main-stat attributes
   main_stats: string[]            // attributes summed (e.g. ['dexterity','intelligence'])
+  // Skill-intrinsic 'additional damage' pool ({label, amount fraction}) folded into generic_add via
+  // intrinsic_add (e.g. Rapid Advance's per-Max-Channeled-Stack bonus). Shown in the Total Additional panel.
+  intrinsic_additional_sources?: Array<{ label: string; amount: number }>
   skill_tags: string[]
   skill_area_inc: number
 }

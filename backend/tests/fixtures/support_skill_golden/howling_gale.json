@@ -346,6 +346,7 @@
         "shotgun_mult": 1.0
       }
     ],
+    "intrinsic_additional_sources": [],
     "jumps": 0,
     "jumps_base": 0,
     "main_stat_damage_bonus": 0.0,
@@ -553,6 +554,7 @@
           "shotgun_mult": 1.0
         }
       ],
+      "intrinsic_additional_sources": [],
       "jumps": 0,
       "jumps_base": 0,
       "main_stat_damage_bonus": 0.0,

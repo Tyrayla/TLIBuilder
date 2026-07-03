@@ -164,7 +164,8 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
             per = _roll_frac(sups[RAPID_ADVANCE], data, _ADD_DMG_RE) or 0.225
             resolved.intrinsic_additional = list(resolved.intrinsic_additional) + [IntrinsicAdditional(
                 per=per, rating_key="max_channeled_stacks_flat", rating_source="stat", per_n=1.0,
-                cap=per * _PER_ADD_MAX_STACK_CAP_STACKS)]
+                cap=per * _PER_ADD_MAX_STACK_CAP_STACKS,
+                label=f"Rapid Advance: +{per:.1%} additional Damage per additional Max Channeled Stack")]
         _ra_name = (skills_by_id.get(RAPID_ADVANCE) or {}).get("name") or "Split Shot: Rapid Advance"
         source.add_slotted("attack_speed_additional", _CHANNEL_ATTACK_SPEED_ADDITIONAL, slot, None, SourceEntry(
             stat="attack_speed_additional", amount=_CHANNEL_ATTACK_SPEED_ADDITIONAL, source_type="support",

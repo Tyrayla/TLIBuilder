@@ -393,6 +393,12 @@
         "shotgun_mult": 1.0
       }
     ],
+    "intrinsic_additional_sources": [
+      {
+        "amount": 0.048499999999999995,
+        "label": "Skill Intrinsic"
+      }
+    ],
     "jumps": 0,
     "jumps_base": 0,
     "main_stat_damage_bonus": 0.0,
@@ -622,6 +628,12 @@
           "proc_chance": 0.24000000000000002,
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
+        }
+      ],
+      "intrinsic_additional_sources": [
+        {
+          "amount": 0.048499999999999995,
+          "label": "Skill Intrinsic"
         }
       ],
       "jumps": 0,

@@ -177,12 +177,13 @@ def _state_snapshot(condition_state: dict[str, float | bool]) -> frozenset:
     return frozenset((k, v) for k, v in condition_state.items())
 
 
-def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict[str, float | bool]) -> float:
-    """Sum a skill's intrinsic 'additional damage' bonuses. Each bonus is
-        min(per * (rating / per_n) * (1 + effect_value), cap)
-    where rating comes from a condition (Focused Slash's Fervor Rating) or an aggregated stat
-    (Moon Strike's Max Mana). Returns 0.0 for skills with none."""
-    total = 0.0
+def _intrinsic_additional_entries(skill, source: BuildSource, condition_state: dict[str, float | bool]) -> list[dict]:
+    """Per-entry breakdown of a skill's intrinsic 'additional damage' bonuses — [{label, amount fraction}].
+    Each bonus is min(per * (rating / per_n) * (1 + effect_value), cap); rating comes from a condition
+    (Focused Slash's Fervor Rating) or an aggregated stat (Moon Strike's Max Mana; Split Shot: Rapid Advance's
+    Max Channeled Stacks). These are applied as ONE extra multiplicative pool in offense (intrinsic_add) but
+    were previously invisible in the breakdown — the caller surfaces these entries on the OffenseResult."""
+    out: list[dict] = []
     for ia in getattr(skill, "intrinsic_additional", []):
         if getattr(ia, "rating_source", "condition") == "stat":
             rating = source.total(ia.rating_key)
@@ -199,8 +200,13 @@ def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict
         cap = getattr(ia, "cap", None)
         if cap is not None:
             amount = min(amount, cap)
-        total += amount
-    return total
+        out.append({"label": getattr(ia, "label", "") or "Skill Intrinsic", "amount": amount})
+    return out
+
+
+def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict[str, float | bool]) -> float:
+    """Sum of a skill's intrinsic 'additional damage' bonuses (see _intrinsic_additional_entries). 0.0 if none."""
+    return sum(e["amount"] for e in _intrinsic_additional_entries(skill, source, condition_state))
 
 
 def _main_skill_use_rate(source, skills_by_id, build_input, condition_state, main_slot, resolved) -> float:
@@ -1150,7 +1156,8 @@ def compute(
         eff = source.materialize_for_skill(_mt, slot)
         # Intrinsic additionals read the slot-EFFECTIVE source so a slot-local amplifier (e.g. Tranquility's
         # fervor_effect_additional) scopes to the skill's bonus without touching the global Fervor→crit.
-        extra = _eval_intrinsic_additional(resolved, eff, new_state)
+        _extra_entries = _intrinsic_additional_entries(resolved, eff, new_state)
+        extra = sum(e["amount"] for e in _extra_entries)
         # ── Tangle mode ── the slot is "tangled" if an activator support (Spell Tangle / Activation Medium:
         # Tangle) is enabled on a Spell skill: the spell is cast by N attached tangles, not the player.
         tangle = None
@@ -1239,11 +1246,16 @@ def compute(
         # Channeled-scoped mods apply and the skill reports as channeled).
         if overrides.get("add_mod_tags"):
             add_mod_tags = (add_mod_tags or set()) | set(overrides["add_mod_tags"])
-        return asdict(calculate_offense(
+        _res = asdict(calculate_offense(
             eff, resolved, level, is_main_skill=is_main, extra_additional=extra,
             support_behavior=_behavior_by_slot.get(slot, {}),
             remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst,
             demolisher=demolisher, add_mod_tags=add_mod_tags))
+        # Surface the intrinsic 'additional damage' pool (applied via offense.intrinsic_add, previously invisible
+        # in the breakdown — e.g. Split Shot: Rapid Advance's +% per additional Max Channeled Stack, Focused
+        # Slash's Fervor bonus) as labelled breakdown entries for the "Total Additional" panel.
+        _res["intrinsic_additional_sources"] = _extra_entries
+        return _res
 
     result_offense = None
     slot_offense: dict[int, dict] = {}
