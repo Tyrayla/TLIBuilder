@@ -94,6 +94,19 @@ class TestSaveLoadRoundTrip:
         assert loaded[0]["id"] == "my-slate"
         assert loaded[0]["kind"] == "circle"
 
+    def test_trait_skill_fields_round_trip(self):
+        """Licorice Note scent-bottle ingredients + prepared skill + Holy Domain supports must survive save/reload."""
+        b = _build("Sage")
+        b["elixirIngredients"] = {0: {"Herb": "Mint"}, 2: {"Spice": "Pepper"}}
+        b["licoricePreparedSkill"] = "some_empower"
+        b["traitSkillSupports"] = [{"item_id": "x", "slot": 1}]
+        save_build(b)
+        loaded = load()[0]
+        # int keys serialize to strings via JSON (fine for the JS consumer, which keys objects by string).
+        assert loaded["elixirIngredients"] == {"0": {"Herb": "Mint"}, "2": {"Spice": "Pepper"}}
+        assert loaded["licoricePreparedSkill"] == "some_empower"
+        assert loaded["traitSkillSupports"] == [{"item_id": "x", "slot": 1}]
+
     def test_save_without_slates_loads_empty_list(self):
         save_build(_build(slates=[]))
         builds = load()

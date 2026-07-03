@@ -92,6 +92,12 @@ def _read_file(build_id: str) -> dict:
     advanced_raw = data.get('advanced_trait_selections', '')
     advanced_trait_selections = json.loads(advanced_raw) if advanced_raw else []
 
+    tss_raw = data.get('trait_skill_supports', '')
+    trait_skill_supports = json.loads(tss_raw) if tss_raw else []
+    licorice_prepared_skill = data.get('licorice_prepared_skill', '') or None
+    elixir_ingredients_raw = data.get('elixir_ingredients', '')
+    elixir_ingredients = json.loads(elixir_ingredients_raw) if elixir_ingredients_raw else {}
+
     hero_memories_raw = data.get('hero_memories', '')
     hero_memories = json.loads(hero_memories_raw) if hero_memories_raw else [None, None, None]
 
@@ -138,6 +144,9 @@ def _read_file(build_id: str) -> dict:
         'traitLevel': trait_level,
         'traitSlotLevels': trait_slot_levels,
         'advancedTraitSelections': advanced_trait_selections,
+        'traitSkillSupports': trait_skill_supports,
+        'licoricePreparedSkill': licorice_prepared_skill,
+        'elixirIngredients': elixir_ingredients,
         'heroMemories': hero_memories,
         'pactSpirits': pact_spirits,
         'fates': fates,
@@ -192,6 +201,13 @@ def _write_file(build: dict) -> None:
         f.write(f"trait_slot_levels={json.dumps(slot_levels, separators=(',', ':'))}\n")
         advanced = build.get('advancedTraitSelections') or []
         f.write(f"advanced_trait_selections={json.dumps(advanced, separators=(',', ':'))}\n")
+        # Trait skill supports (Holy Domain), Licorice Note's prepared skill, and the scent-bottle Elixir
+        # ingredients — persisted so they survive save/reload (were previously dropped).
+        trait_skill_supports = build.get('traitSkillSupports') or []
+        f.write(f"trait_skill_supports={json.dumps(trait_skill_supports, separators=(',', ':'))}\n")
+        f.write(f"licorice_prepared_skill={build.get('licoricePreparedSkill') or ''}\n")
+        elixir_ingredients = build.get('elixirIngredients') or {}
+        f.write(f"elixir_ingredients={json.dumps(elixir_ingredients, separators=(',', ':'))}\n")
         hero_memories = build.get('heroMemories') or [None, None, None]
         f.write(f"hero_memories={json.dumps(hero_memories, separators=(',', ':'))}\n")
         pact_spirits = build.get('pactSpirits') or [None, None, None]
