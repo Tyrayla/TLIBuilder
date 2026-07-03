@@ -394,6 +394,12 @@ def compute(
                 main_enabled = _sk.get("enabled", True)
                 break
 
+    # Aim (Euphoria) can be SLOTTED as a buff skill (not only gear-triggered): an enabled "aim" skill self-grants
+    # Euphoria at its own level. Detected once (the skill list is stable across passes); folded into the aim
+    # derivation below alongside any "Triggers Lv. N Aim" gear flag (the higher level wins).
+    _slotted_aim_level = max((float(_sk.get("level", 1) or 1) for _sk in (skills_input or [])
+                              if _sk.get("skill_id") == "aim" and _sk.get("enabled", True)), default=0.0)
+
     # Which slot (if any) runs a Tangle setup — a Tangle activator support enabled on a Spell slot. Prefer the
     # main slot. Used to inject the build-wide effective tangle counts each loop pass so "per activated/inactivated
     # Tangle" modifier lines scale by the real count. Computed once (activator presence + slot category are stable
@@ -540,6 +546,7 @@ def compute(
         # + the consume block read sps) from the PRIOR pass's consumed-recently so it converges with the loop. (Only
         # this consumer feeds back; the damage-per-consumed fold is one-directional and stays post-loop.)
         _as_per = source.total("attack_speed_inc_per_life_consumed")
+        _as_unit = source.total("attack_speed_inc_per_life_consumed_unit") if _as_per else 0.0
         if _as_per:
             # This consumer is applied here (in the loop, outside the offense recording window), so it would badge
             # Inactive despite contributing — explicitly mark it (and its unit/cap) Consumed so the badge is honest
@@ -719,6 +726,14 @@ def compute(
                 _pu_max = source.total(f"physical_{_cls}_dmg_flat_max_per_{_pool}_consumed")
                 if not (_pu_min or _pu_max):
                     continue
+                # This fold IS the reader for the per-consumed source stats — mark them (+ unit/cap) Consumed so the
+                # gear line (Blade-dancer's Fingers / Glacier) badges Consumed, not Inactive. Mirrors the attack-
+                # speed-per-consumed marking above; recorded whenever present, matching how the damage folds badge.
+                source.consumed_stats.update({
+                    f"physical_{_cls}_dmg_flat_min_per_{_pool}_consumed",
+                    f"physical_{_cls}_dmg_flat_max_per_{_pool}_consumed",
+                    f"physical_dmg_flat_per_{_pool}_consumed_unit",
+                    f"physical_dmg_flat_per_{_pool}_consumed_cap"})
                 # Discrete "for every N" stacks: floor consumed-recently to whole N-chunks before × per-unit.
                 _cr = _floored(getattr(_cons_now, f"consumed_recently_{_pool}"),
                                source.total(f"physical_dmg_flat_per_{_pool}_consumed_unit"))
@@ -846,6 +861,35 @@ def compute(
                 source_name="Squidnova"))
             source.consumed_stats.add("squidnova_effect_inc")   # now has a real reader → badges Consumed
 
+        # Hasten (community name; game tooltip "Quickness", glossary 10000106) & Attack Aggression (glossary
+        # 10000100): keyword buffs granted by gear/grafts/talents ("Has Hasten" / "Gain Attack Aggression …"),
+        # which parse to marker flags. Auto-enable the buff condition so the aggregator applies the effects
+        # (+8% additional AS/CS/MS for Hasten; +5% additional AS & attack dmg + 10% Move Speed for Aggression).
+        # Recorded in auto_sources/auto_values (Config "auto" badge) unless the user pinned the condition.
+        if source.total("has_hasten_flag") > 0:
+            auto_sources["has_hasten"] = "Hasten (Has Hasten mod)"
+            auto_values["has_hasten"] = True
+            if "has_hasten" not in manual_cond_keys:
+                condition_state["has_hasten"] = True
+        if source.total("attack_aggression_flag") > 0:
+            auto_sources["attack_aggression"] = "Attack Aggression (on attack-skill cast)"
+            auto_values["attack_aggression"] = True
+            if "attack_aggression" not in manual_cond_keys:
+                condition_state["attack_aggression"] = True
+        # Aim (Euphoria): the trigger flag carries the Aim LEVEL. Auto-enable aim_active + set aim_level so the
+        # aggregator applies the Euphoria buff (level-scaled Ranged/Beam +additional (Ailment) Damage + global
+        # -16% Attack/Cast Speed). Full-uptime while toggled on; the user can turn it off.
+        _aim_lvl = max(source.total("aim_trigger_flag"), _slotted_aim_level)
+        if _aim_lvl > 0:
+            auto_sources["aim_active"] = f"Aim / Euphoria (Lv {int(_aim_lvl)})"
+            auto_values["aim_active"] = True
+            if "aim_active" not in manual_cond_keys:
+                condition_state["aim_active"] = True
+            if "aim_level" not in manual_cond_keys:
+                condition_state["aim_level"] = float(_aim_lvl)
+                auto_sources["aim_level"] = f"Aim Level {int(_aim_lvl)}"
+                auto_values["aim_level"] = float(_aim_lvl)
+
         # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
         # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values. Non-support
         # "inflicts Numbed" sources (talents/gear/custom mods) ride the same path via inflict_cond_effects.
@@ -925,6 +969,14 @@ def compute(
 
         new_state = _clamp_and_rederive(condition_state, maxes, mins)
         snapshot = _state_snapshot(new_state)
+        # The Tide-of-the-Styx attack-speed feedback (line ~552) reads the DAMPED _prev_consumed_recently_life,
+        # which is NOT in condition_state. Without it in the snapshot, the loop can declare convergence the moment
+        # the fire rate plateaus at a 30 Hz breakpoint (so consumed_recently — and the snapshot — stops changing)
+        # while _prev is still climbing toward it → Tide undercounts (e.g. +24% off a stale 120k instead of +37%
+        # off the true 186k). Fold the floored unit-count of _prev into the snapshot so the loop keeps iterating
+        # until the feedback settles. Guarded → no effect on builds without the Tide mod (byte-identical goldens).
+        if _as_per:
+            snapshot = snapshot | frozenset({("_as_feedback_units", int(_prev_consumed_recently_life // (_as_unit or 1)))})
 
         if snapshot == prev_snapshot:
             _converged_iters = iteration + 1
@@ -1199,6 +1251,15 @@ def compute(
         result_offense = _offense_for_slot(
             resolve_skill(skill_data), build_input.main_skill.level, main_slot, True, skill_dict=skill_data)
         slot_offense[main_slot] = result_offense
+        # Channeling: a boolean condition auto-on when the main skill resolves as channeled (inherent, e.g.
+        # Icebound Beam, or transformed, e.g. Split Shot + Rapid Advance). Forward-looking — no consumer yet;
+        # it just surfaces in Config (shown when a channeling skill exists) so future channel-gated mods can
+        # reference it. Reported via auto_sources/auto_values; the user can still toggle it off.
+        if result_offense.get("channeled_max_stacks", 0) > 0 or result_offense.get("channeled_behavior"):
+            auto_sources["channeling"] = "Channeling (main skill is channeled)"
+            auto_values["channeling"] = True
+            if "channeling" not in manual_cond_keys:
+                condition_state["channeling"] = True
         # Projectile Hits (Chromatic Shot): the shotgun-hit cap IS the build's projectile count (3 by default,
         # up to ~40 with quantity mods) — not an artificial constant. Report it as the condition's max AND as the
         # auto default (all projectiles land), so the field tracks the count and the user can override downward.
@@ -1379,6 +1440,35 @@ def compute(
             "points": entry.points,
             "slot": entry.slot,
             "scope": entry.scope,
+        })
+
+    # Tag-scoped contributions (add_scoped — e.g. Aim/Euphoria's Ranged/Beam +additional (Ailment) Damage, or a
+    # "Ranged Damage" gear line) live in scoped_log and apply only to skills carrying the tag. They're absent from
+    # `total`/`sources` AND from slot_log, so they never showed in the breakdown. Surface those whose scope matches
+    # the MAIN skill's tags (so the shown entries actually apply to it) in the same slot_sources list, with the
+    # scope noted. Display-only; totals stay byte-identical.
+    _main_tags = {t.lower() for t in (result_offense.get("skill_tags") or [])} if result_offense else set()
+    for (stat, _amount, scope), entry in zip(source.scoped_entries, source.scoped_log):
+        if scope is not None and scope.lower() not in _main_tags:
+            continue
+        if stat not in stat_map:
+            meta = next((m for s, m in STAT_META.items() if s.value == stat), None)
+            stat_map[stat] = {
+                "display_name": meta.display_name if meta else stat,
+                "category": meta.category if meta else "Other",
+                "unit": meta.unit if meta else "",
+                "total": 0.0,
+                "sources": [],
+            }
+        stat_map[stat].setdefault("slot_sources", []).append({
+            "source_type": entry.source_type,
+            "label": entry.label,
+            "text": entry.text,
+            "source_name": entry.source_name,
+            "amount": entry.amount,
+            "points": entry.points,
+            "slot": None,
+            "scope": scope,
         })
 
     # Auto-set conditions to surface in the Config UI: engine-activated keys with an ACTIVE auto value (truthy

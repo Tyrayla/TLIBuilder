@@ -341,6 +341,41 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     # the value so the start-anchored matchers see the number first; the word stays for pool/scope matching.
     t = re.sub(r'^(Additional|Enemies)\s+([+\-]?[\d.]+\s*%?)', r'\2 \1', t, flags=re.I)
 
+    # ── Hasten (community name; game tooltip "Quickness", glossary id 10000106) ───────────────────────────
+    # A keyword buff granting +8% ADDITIONAL Attack/Cast/Move Speed + Mobility-Skill CDR (applied in the
+    # aggregator off the auto-set 'has_hasten' condition). Gear/grafts/talents GRANT it via "Has Hasten".
+    # The graft form combines grant + payoff on one line ("Has Hasten +N% Attack Speed, Cast Speed, and
+    # Movement Speed when having Hasten") — the line self-grants Hasten, so the +N% (INCREASED pool) is
+    # always active. Emit the ungated flag PLUS the three increased-speed contributions (never dropped). Placed
+    # here (before the generic speed matchers) so the whole line resolves as one unit instead of a bare "+N% AS".
+    m = re.search(r'has\s+hasten\s*\+?\s*([\d.]+)\s*%\s*attack\s+speed\s*,?\s*cast\s+speed\s*,?\s*(?:and\s+)?movement\s+speed', t, re.I)
+    if m:
+        v = float(m.group(1)) / 100.0
+        return [{"stat_key": "has_hasten_flag", "amount": 1.0, "text": t},
+                {"stat_key": "attack_speed_inc", "amount": v, "text": t},
+                {"stat_key": "cast_speed_inc", "amount": v, "text": t},
+                {"stat_key": "movement_speed_inc", "amount": v, "text": t}]
+    # Plain grant with no inline payoff ("Has Hasten", "Has Hasten when reaching Max Agility Blessing stacks").
+    # Flag only — the +8% buff is applied in the aggregator. NOTE: a conditional grant's own gate (e.g. the
+    # Max-Agility-Blessing requirement) isn't modeled yet; auto-on approximates the full-uptime combat state.
+    if re.search(r'\bhas\s+hasten\b', t, re.I):
+        return [{"stat_key": "has_hasten_flag", "amount": 1.0, "text": t}]
+    # Attack Aggression (glossary id 10000100): +5% additional Attack Speed & Attack Damage, +10% Move Speed
+    # (applied in the aggregator off the auto-set 'attack_aggression' condition). Gained on attack-skill cast
+    # ("Gain Attack Aggression when casting an attack skill") → auto-on in the attacking/DPS state. Flag only.
+    if re.search(r'\bgains?\s+attack\s+aggression\b', t, re.I):
+        return [{"stat_key": "attack_aggression_flag", "amount": 1.0, "text": t}]
+    # Aim (Euphoria buff): "Triggers Lv. N Aim while standing still" (gear) grants the Aim skill's buff — the flag
+    # carries the Aim LEVEL N (compute auto-enables aim_active + aim_level; the aggregator applies Euphoria's
+    # Ranged/Beam +additional (Ailment) Damage and global -16% Attack/Cast Speed, scaled by level). The "while
+    # standing still / Interval" trigger is treated as full-uptime for now (partial-uptime modeling is a follow-up).
+    # Match either the whole line ("Triggers Lv. 8 Aim while standing still") OR the post-split fragment
+    # ("8 Aim while standing still") — the gear clause splitter breaks on the "Lv." period, so anchor on the
+    # distinctive "<level> Aim … standing still" instead of the "Triggers Lv." prefix.
+    m = re.search(r'([\d.]+)\s+aim\b[^.]*standing\s+still', t, re.I)
+    if m:
+        return [{"stat_key": "aim_trigger_flag", "amount": float(m.group(1)), "text": t}]
+
     # "You can cast N additional Curses" → Max Curses (a flat count; "additional" here means +N, not the
     # damage pool, so the generic matchers would mishandle it).
     m = re.match(r'(?:you can cast\s+)?([\d.]+)\s+additional\s+curses?\b', t, re.I)

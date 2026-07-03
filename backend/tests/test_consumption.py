@@ -458,9 +458,22 @@ def test_attack_speed_per_consumed_feedback_converges():
         r = engine_stats(EngineStatsRequest(**make_request("berserking_blade", 20, gear=g, extra_conditions=conds)))
         return r if isinstance(r, dict) else r.model_dump()
     base = run([])
-    tide = run([("attack_speed_inc_per_life_consumed", 0.01 / 500)])     # 1% AS per 500 Life consumed
+    # 1% AS per 100 Life consumed (real Tide carries the per-unit value AND its "_unit" divisor, like the mod parser emits).
+    tide = run([("attack_speed_inc_per_life_consumed", 0.01 / 100), ("attack_speed_inc_per_life_consumed_unit", 100)])
     assert tide["offense"]["skills_per_second"] > base["offense"]["skills_per_second"]   # feedback raised sps
     assert tide["offense"]["total_dps"] > base["offense"]["total_dps"]
+
+    # CONSISTENCY invariant (regression for the lagging-consumed bug): after convergence the Tide attack-speed
+    # contribution must match the FINAL consumed_recently, not a damped value that lags behind it when the fire
+    # rate jumps a breakpoint mid-loop (which used to under-relax the feedback and terminate the loop early —
+    # e.g. showing +24% off a stale 120k while consumed_recently was really 186k → should have been +37%). The
+    # ONLY attack_speed_inc difference between the two runs is the Tide feedback fold.
+    from engine.consumption import floored_consumed
+    _as_inc = lambda r: (r["stats"].get("attack_speed_inc") or {}).get("total", 0.0)
+    tide_term = _as_inc(tide) - _as_inc(base)                            # the only AS-inc difference = the fold
+    consumed = tide["consumption"]["life_per_sec"] * 4.0                 # "recently" = rate × 4s window
+    expected = floored_consumed(consumed, 100) * (0.01 / 100)            # floored to whole 100-Life chunks × per
+    assert tide_term == pytest.approx(expected, rel=0.03), (tide_term, expected, consumed)
 
 
 def test_custom_mod_consume_resolves():

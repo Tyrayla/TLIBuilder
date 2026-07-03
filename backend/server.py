@@ -2254,6 +2254,8 @@ _COND_PATTERNS: list[tuple] = [
     # (deferred to full Blur modeling); for now it grants its bonus while Blur is active.
     (re.compile(r"blur\s+is\s+active|after\s+blur\s+ends", re.I), "blur_active"),
     (re.compile(r"having\s+squidnova|have\s+squidnova", re.I), "has_squidnova"),
+    # "when having Hasten" payoff lines on items that don't self-grant Hasten gate on the auto-set condition.
+    (re.compile(r"having\s+hasten|have\s+hasten", re.I), "has_hasten"),
     (re.compile(r"taken\s+damage\s+in\s+the\s+last|recently\s+taken\s+damage", re.I), "recently_taken_damage"),
     (re.compile(r"used\s+a\s+mobility\s+skill", re.I), "recently_used_mobility"),
     # Consumed-recently threshold gates (Crimson King / Awakening Skull). Driven by the engine's consumed_recently

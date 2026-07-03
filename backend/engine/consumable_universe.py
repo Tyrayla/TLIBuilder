@@ -222,6 +222,10 @@ def consumable_universe() -> frozenset[str]:
                  "charge_speed_to_spell_burst_hit_dmg", "charge_speed_to_spell_burst_hit_dmg_per",
                  "charge_speed_to_spell_burst_hit_dmg_cap",
                  "squidnova_effect_inc", "has_squidnova_flag",
+                 # Hasten / Attack Aggression grant flags — compute reads source.total() to auto-enable the buff conditions.
+                 "has_hasten_flag", "attack_aggression_flag",
+                 # Aim (Euphoria) trigger flag — carries the Aim level; compute reads it to auto-enable aim_active + aim_level.
+                 "aim_trigger_flag",
                  # Skill-area-per-burst (display-only fold into skill_area_inc), burst-activation sustain (net
                  # recovery, keyed off burst rate), and Destiny kismet burst lines (halve M + AS/CS-per-burst-recently).
                  "spell_burst_area_additional", "spell_burst_area_additional_per",

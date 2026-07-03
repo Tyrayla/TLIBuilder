@@ -3,6 +3,7 @@
     "active_tangles": 1.0,
     "agility_blessings": 4.0,
     "ailment_type_count": 5.0,
+    "aim_level": 20.0,
     "berserking_blade_stacks": 40.0,
     "chantey_stacks": 2.0,
     "current_es_pct": 100.0,
@@ -627,6 +628,25 @@
         }
       ],
       "total": 0.2,
+      "unit": "%"
+    },
+    "elemental_dmg_additional": {
+      "category": "Elemental",
+      "display_name": "Additional Elemental Damage",
+      "slot_sources": [
+        {
+          "amount": 0.14,
+          "label": "Pact Spirit",
+          "points": 1,
+          "scope": "spell",
+          "slot": null,
+          "source_name": null,
+          "source_type": "pact_spirit",
+          "text": "+14 % additional Elemental Damage dealt by Spell Skills"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
       "unit": "%"
     },
     "intelligence": {

@@ -82,6 +82,15 @@ class Stat(Enum):
     # Squiddle / Squidnova (pact spirit): bursting grants Squidnova → conditional buff; Effect scales it.
     SQUIDNOVA_EFFECT_INC = "squidnova_effect_inc"
     HAS_SQUIDNOVA_FLAG = "has_squidnova_flag"
+    # Hasten (community name; in-game tooltip "Quickness", glossary id 10000106) + Attack Aggression
+    # (glossary id 10000100): keyword buffs GRANTED by gear/grafts/talents. The grant lines parse to these
+    # marker flags; compute auto-enables the matching condition, and the aggregator applies the buff effects.
+    HAS_HASTEN_FLAG = "has_hasten_flag"
+    ATTACK_AGGRESSION_FLAG = "attack_aggression_flag"
+    # Aim (Euphoria buff): granted by "Triggers Lv. N Aim while standing still" gear or the Aim skill. The flag
+    # carries the Aim LEVEL as its value (like has_squidnova_flag carries a threshold); compute auto-enables
+    # aim_active + aim_level, and the aggregator applies the Euphoria effects (Ranged/Beam scoped).
+    AIM_TRIGGER_FLAG = "aim_trigger_flag"
     # Skill Area for skills cast by Spell Burst (Prairie Fire / Kismet Ripple) — DISPLAY-only (Skill Area isn't a DPS
     # lever). Scales by Max Spell Burst M: the support pool is pre-scaled ×min(M,cap) in compute; the _PER pool is
     # per-burst-stack, scaled ×M in offense. Folded into the displayed skill_area_inc in burst mode.

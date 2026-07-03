@@ -132,6 +132,25 @@ _DUAL_WIELD_BASE_EFFECTS: list[tuple[str, float, str]] = [
     ("attack_speed_additional", 0.10, "+10% additional Attack Speed (Dual Wield)"),
 ]
 
+# Hasten (community name; game tooltip "Quickness", glossary id 10000106): a keyword buff granting +8%
+# ADDITIONAL Attack/Cast/Move Speed (+ Mobility-Skill CDR, a non-DPS sub-effect not separately modeled — no
+# stat key). Applied while the auto-set 'has_hasten' condition is on. The "+N% when having Hasten" gear
+# PAYOFF lines (increased pool) are separate contributions parsed off their own gear text — not here.
+_HASTEN_BASE_EFFECTS: list[tuple[str, float, str]] = [
+    ("attack_speed_additional",   0.08, "+8% additional Attack Speed (Hasten)"),
+    ("cast_speed_additional",     0.08, "+8% additional Cast Speed (Hasten)"),
+    ("movement_speed_additional", 0.08, "+8% additional Movement Speed (Hasten)"),
+]
+
+# Attack Aggression (glossary id 10000100): "Additionally increases Attack Speed and Attack Damage by 5%.
+# Increases Movement Speed by 10%." AS/attack-dmg are the ADDITIONAL pool; Move Speed is the increased pool.
+# Gained on attack-skill cast → applied while the auto-set 'attack_aggression' condition is on.
+_ATTACK_AGGRESSION_BASE_EFFECTS: list[tuple[str, float, str]] = [
+    ("attack_speed_additional", 0.05, "+5% additional Attack Speed (Attack Aggression)"),
+    ("attack_dmg_additional",   0.05, "+5% additional Attack Damage (Attack Aggression)"),
+    ("movement_speed_inc",      0.10, "+10% Movement Speed (Attack Aggression)"),
+]
+
 _NODE_TYPE_LABELS = {
     "micro": "Micro",
     "medium": "Medium",
@@ -686,6 +705,49 @@ def aggregate(
                 stat=stat_key, amount=amount, source_type="condition",
                 label="Dual Wielding", text=label_text, points=1,
             ))
+
+    # ── Hasten & Attack Aggression buff base effects ──────────────────────────
+    # Boolean keyword buffs, auto-set in compute when the build has a granting line ("Has Hasten" / "Gain
+    # Attack Aggression …"). Fixed additional-pool amounts (distinct source text → their own multiplicative
+    # factors in offense). The dual-wield block above is the template.
+    if "has_hasten" in (active_booleans or frozenset()):
+        for stat_key, amount, label_text in _HASTEN_BASE_EFFECTS:
+            source.add_with_source(stat_key, amount, SourceEntry(
+                stat=stat_key, amount=amount, source_type="condition",
+                label="Hasten", text=label_text, points=1,
+            ))
+    if "attack_aggression" in (active_booleans or frozenset()):
+        for stat_key, amount, label_text in _ATTACK_AGGRESSION_BASE_EFFECTS:
+            source.add_with_source(stat_key, amount, SourceEntry(
+                stat=stat_key, amount=amount, source_type="condition",
+                label="Attack Aggression", text=label_text, points=1,
+            ))
+
+    # ── Aim / Euphoria buff base effects ──────────────────────────────────────
+    # The Aim skill grants Euphoria: "Ranged and Beam Skills +N% additional damage AND +N% additional Ailment
+    # Damage, but -16% Attack and Cast Speed" for 6s (auto-set aim_active from a "Triggers Lv. K Aim …" line).
+    # N scales with the Aim LEVEL: +35% at Lv20, -1%/level below → (15 + level)%. The -16% AS/CS is GLOBAL and
+    # constant at all levels. Per the skill text, Euphoria is NOT affected by Empower — and aggregator base
+    # effects are fixed (never empower-scaled), so this is inherently correct. The +damage lines are Ranged/Beam
+    # scoped via add_scoped: dmg_additional (affects hit+ailment) for "+additional damage", plus ailment_dmg_
+    # additional (ailment-only) for the separate "+additional Ailment Damage" — each applied to both tags.
+    if "aim_active" in (active_booleans or frozenset()):
+        _aim_lvl = float((numeric_vals or {}).get("aim_level", 20.0) or 0.0)
+        _aim_pct = (15.0 + _aim_lvl) / 100.0
+        for stat_key in ("attack_speed_inc", "cast_speed_inc"):
+            source.add_with_source(stat_key, -0.16, SourceEntry(
+                stat=stat_key, amount=-0.16, source_type="condition",
+                label="Aim (Euphoria)", text="-16% Attack and Cast Speed (Aim)", points=1,
+            ))
+        for tag in ("ranged", "beam"):
+            source.add_scoped("dmg_additional", _aim_pct, tag, SourceEntry(
+                stat="dmg_additional", amount=_aim_pct, source_type="condition",
+                label="Aim (Euphoria)", points=1,
+                text=f"+{_aim_pct:.0%} additional Damage for {tag.title()} Skills (Aim Lv {int(_aim_lvl)})"))
+            source.add_scoped("ailment_dmg_additional", _aim_pct, tag, SourceEntry(
+                stat="ailment_dmg_additional", amount=_aim_pct, source_type="condition",
+                label="Aim (Euphoria)", points=1,
+                text=f"+{_aim_pct:.0%} additional Ailment Damage for {tag.title()} Skills (Aim Lv {int(_aim_lvl)})"))
 
     # ── Support-granted buff / debuff base effects (roadmap #2) ────────────────
     _booleans = active_booleans or frozenset()
