@@ -1536,22 +1536,34 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                     : undefined,
                 }}>{dec(f.fires_per_sec)}/s</Row>
               ))
-            ) : (
-              <Row label={(offense.trigger_interval ?? 0) > 0 ? 'Triggers per Second' : rateLabel} breakdown={{
-                title: (offense.trigger_interval ?? 0) > 0 ? 'Triggers per Second' : rateLabel, keys: rateKeys,
-                total: offense.skills_per_second, totalUnit: '',
-                formula: (offense.trigger_interval ?? 0) > 0
+            ) : (() => {
+              const isTrig = (offense.trigger_interval ?? 0) > 0
+              // Channeled attack (Split Shot: Rapid Advance): show the SMOOTH attack speed as the headline (like the
+              // in-game skill panel) even though the channel fires on whole 30 Hz ticks — the breakpoint fire rate
+              // (what the DPS uses) is noted in the extra row.
+              const isChan = (offense.channel_attack_smooth_sps ?? 0) > 0
+              const shownRate = isChan ? (offense.channel_attack_smooth_sps ?? 0) : offense.skills_per_second
+              return (
+              <Row label={isTrig ? 'Triggers per Second' : rateLabel} breakdown={{
+                title: isTrig ? 'Triggers per Second' : rateLabel, keys: rateKeys,
+                total: shownRate, totalUnit: '',
+                formula: isTrig
                   ? (offense.wind_rhythm_active
                       ? 'Wind Rhythm trigger rate (tick-quantized — see the Wind Rhythm panel). The skill fires at the medium\'s cadence, not your cast rate.'
                       : `Triggered by an Activation Medium every ${dec(offense.trigger_interval ?? 0)} s → ${dec(offense.skills_per_second)}/s (overrides your cast rate).`)
-                  : (isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional'),
-                extra: (offense.trigger_interval ?? 0) > 0
+                  : isChan
+                    ? 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional — the smooth attack speed. The channel is server-scheduled, so it FIRES on whole 30 Hz ticks (30 ÷ ticks); the DPS uses that fire rate.'
+                    : (isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional'),
+                extra: isTrig
                   ? [{ value: `${dec(offense.trigger_interval ?? 0)} s`, stat: 'Trigger interval', source: 'Medium', sourceName: 'cadence' }]
-                  : (isSpell && offense.base_cast_time > 0
-                    ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
-                    : undefined),
-              }}>{dec(offense.skills_per_second)}</Row>
-            )}
+                  : isChan
+                    ? [{ value: `${dec(offense.skills_per_second)}/s`, stat: 'Fires at (30 Hz breakpoint)', source: '', sourceName: `${offense.channel_attack_ticks} ticks — used for DPS` }]
+                    : (isSpell && offense.base_cast_time > 0
+                      ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
+                      : undefined),
+              }}>{dec(shownRate)}</Row>
+              )
+            })()}
           </StatPanel>
         </GridBox>
 

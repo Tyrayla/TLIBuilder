@@ -831,6 +831,7 @@ export interface OffenseResult {
   // Channeled-attack rate breakpoints (Split Shot: Rapid Advance) — the channel fires on whole 30 Hz ticks
   // (rate = 30 ÷ ticks). 0/undefined when not a channeled attack. Shown in the Channeled box.
   channel_attack_ticks?: number
+  channel_attack_smooth_sps?: number  // the smooth attack rate BEFORE the 30 Hz breakpoint (the true attack speed)
   channel_attack_to_next_increased?: number  // +Increased Attack Speed needed for the next faster breakpoint
   channel_attack_to_next_additional?: number  // +Additional Attack Speed needed for the next faster breakpoint
   // Spell Burst mode (an eligible Spell cast at full charge consumes M stacks and auto-recasts the spell M

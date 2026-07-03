@@ -761,6 +761,7 @@ class OffenseResult:
     # Channeled-attack rate breakpoints (Split Shot: Rapid Advance) — the channel fires on whole 30 Hz ticks
     # (rate = 30 ÷ ticks). 0 when not a channeled attack. Surfaced in the Channeled box.
     channel_attack_ticks: int = 0
+    channel_attack_smooth_sps: float = 0.0  # the smooth attack rate BEFORE the 30 Hz breakpoint (the true attack speed)
     channel_attack_to_next_increased: float = 0.0  # +Increased Attack Speed needed for the next faster breakpoint
     channel_attack_to_next_additional: float = 0.0  # +Additional Attack Speed needed for the next faster breakpoint
     # Spell Burst mode (an eligible Spell cast at full charge consumes all M stacks and auto-recasts the spell
@@ -1333,10 +1334,12 @@ def calculate_offense(
     # spells (Icebound/Howling) and normal attacks are untouched → golden-safe. Quantizes sps BEFORE the channel
     # cadence + hit-form rates below, so every downstream rate uses the breakpoint value.
     channel_attack_ticks = 0
+    channel_attack_smooth_sps = 0.0
     channel_attack_to_next_increased = 0.0
     channel_attack_to_next_additional = 0.0
     if skill.channeled and is_attack and sps > 0.0:
         _sps_raw = sps                                   # smooth attack rate before tick-rounding
+        channel_attack_smooth_sps = _sps_raw             # the true attack speed (surfaced despite the breakpoint)
         channel_attack_ticks = period_ticks(1.0 / _sps_raw)
         sps = rate_from_ticks(channel_attack_ticks)
         if channel_attack_ticks > 1:
@@ -2107,6 +2110,7 @@ def calculate_offense(
         tangle_cast_to_next_increased=tangle_cast_to_next_increased,
         tangle_cast_to_next_additional=tangle_cast_to_next_additional,
         channel_attack_ticks=channel_attack_ticks,
+        channel_attack_smooth_sps=channel_attack_smooth_sps,
         channel_attack_to_next_increased=channel_attack_to_next_increased,
         channel_attack_to_next_additional=channel_attack_to_next_additional,
         spell_burst_count=spell_burst_count,
