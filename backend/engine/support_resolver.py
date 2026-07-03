@@ -259,7 +259,12 @@ def resolve_support_contributions(
                 out.append(c)
             continue
 
-        # 2) Specific tier line(s) from progression[tier] — the support's own roll, NOT rank-scaled.
+        # 2) Specific tier line(s) from progression[tier] — the support's own roll, NOT rank-scaled. Noble/Mag
+        #    ONLY: a STANDARD support's damage lines are resolved by engine.support_resolver.resolve_standard_supports
+        #    (parser + mapper) in the compute loop, so parsing them here too double-counts them (e.g. Critical Strike
+        #    Damage Increase landed as BOTH dmg_additional_on_crit here AND dmg_additional there).
+        if skill_type not in _RANKED_TYPES:
+            continue
         tier = _tier_value(sup.get("level"))
         entry = _progression_for_tier(data.get("progression"), tier)
         if entry:

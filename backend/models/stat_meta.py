@@ -26,6 +26,7 @@ _G  = ("legendary_gear", "normal_gear")
 # ── Common affects tuples ──────────────────────────────────────────────────────
 _HIT      = ("hit",)
 _HIT_DOT  = ("hit", "dot")
+_DOT      = ("dot",)   # DoT / ailment damage ONLY (never hit) — e.g. "Additional Ailment Damage dealt by …"
 _ALL_DMGF = ("hit", "dot", "secondary", "reflect")
 
 
@@ -3679,18 +3680,19 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=60, source_types=_T,
     ),
     Stat.ATTACK_AILMENT_DMG_ADDITIONAL: StatMeta(
-        # ailment damage dealt specifically by attacks; inert until ailment DPS is modeled
+        # ailment damage dealt specifically by attacks; DoT-only (never the hit pool) → inert until ailment DPS
+        # is modeled. Was _HIT_DOT, which wrongly inflated HIT damage (e.g. God of Might's +30% boosted hits).
         "Additional Ailment Damage dealt by Attacks", "Ailments", "additional", "%",
         subgroup="ailment_damage",     pipeline_stage="additional",
-        tags=("attack",),              affects=_HIT_DOT,
+        tags=("attack",),              affects=_DOT,
         stacking_rule="additive",      ui_priority=21,
         source_types=_T,
     ),
     Stat.AILMENT_DMG_ADDITIONAL: StatMeta(
-        # inert until ailment DPS is modeled (no skill carries the 'ailment' tag yet)
+        # DoT-only (never the hit pool); inert until ailment DPS is modeled. Was _HIT_DOT (leaked into hits).
         "Additional Ailment Damage", "Ailments", "additional", "%",
         subgroup="ailment_damage",     pipeline_stage="additional",
-        tags=("ailment",),             affects=_HIT_DOT,
+        tags=("ailment",),             affects=_DOT,
         stacking_rule="additive",      ui_priority=12, source_types=_T,
     ),
     Stat.DOT_DMG_ADDITIONAL: StatMeta(

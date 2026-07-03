@@ -91,3 +91,19 @@ class TestEndToEnd:
 
     def test_enemy_nearby_autoderives_count(self):
         assert self._dps({"enemy_nearby": True}) == pytest.approx(self._dps({"enemies_nearby": 1}))
+
+
+def _skills():
+    from server import _get_skills_data
+    from persistence import season_manager
+    return _get_skills_data(season_manager.get_active_season())
+
+
+def test_standard_support_specific_line_not_double_resolved():
+    """A STANDARD support (support_skill) is resolved by resolve_standard_supports in the compute loop, so
+    resolve_support_contributions must NOT also parse its specific line — else it double-counts. Regression:
+    Critical Strike Damage Increase landed as BOTH dmg_additional_on_crit (here) and dmg_additional (there)."""
+    sk = _skills()
+    std = [{"item_id": "critical_strike_damage_increase", "skill_type": "support_skill",
+            "level": 20, "slot": 1, "enabled": True}]
+    assert resolve_support_contributions(std, sk, tc) == []
