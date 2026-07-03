@@ -32,6 +32,8 @@
     "attack_speed_mh",
     "block_ratio_inc",
     "block_ratio_upper_limit_flat",
+    "channeled_dmg_additional",
+    "channeled_dmg_inc",
     "cold_as_erosion",
     "cold_as_fire",
     "cold_attack_dmg_flat_max",
@@ -98,8 +100,6 @@
     "excess_restoration_to_es_pct",
     "extra_tangle_applied_flat",
     "ferv",
-    "fervor_effect_inc",
-    "fervor_effect_skill_inc",
     "fire_as_erosion",
     "fire_attack_dmg_flat_max",
     "fire_attack_dmg_flat_min",
@@ -116,6 +116,8 @@
     "fire_resistance_max_inc",
     "hit_curse_taken",
     "hit_dmg_additional",
+    "icy_blade_extra_blade_equiv",
+    "icy_blade_frozen_burst_rate",
     "intelligence_additional",
     "intelligence_flat",
     "intelligence_inc",
@@ -178,6 +180,7 @@
     "mana_regen_speed_inc",
     "mana_restored_pct_current_per_attack_use",
     "max_agility_blessing_stacks_flat",
+    "max_channeled_stacks_flat",
     "max_electrify_stacks_flat",
     "max_elemental_resistance_inc",
     "max_energy_shield",
@@ -201,9 +204,7 @@
     "max_temporary_life_pct",
     "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
-    "melee_dmg_additional",
-    "melee_dmg_inc",
-    "melee_skill_level",
+    "min_channeled_stacks_flat",
     "no_guard_dmg_taken",
     "numbed_lightning_taken",
     "paralysis_dmg_taken",
@@ -228,12 +229,20 @@
     "physical_dmg_max_additional",
     "physical_dmg_min_additional",
     "physical_skill_level",
+    "projectile_crit_dmg_inc",
+    "projectile_crit_rating_inc",
+    "projectile_dmg_additional",
+    "projectile_dmg_inc",
+    "projectile_quantity_flat",
+    "projectile_skill_level",
     "quadruple_dmg_chance",
+    "ranged_dmg_inc",
     "regain_interval_additional",
     "restoration_duration_additional",
     "restoration_duration_inc",
     "restoration_effect_additional",
     "restoration_effect_inc",
+    "same_target_shotgun_grant",
     "sealed_mana_compensation_additional",
     "sealed_mana_compensation_inc",
     "shield_dmg_inc",
@@ -244,9 +253,7 @@
     "skill_no_mana_cost",
     "spell_block_chance_inc",
     "spell_skill_cost_flat",
-    "steep_strike_additional_dmg",
     "steep_strike_chance",
-    "strength",
     "strength_additional",
     "strength_flat",
     "strength_inc",
@@ -270,16 +277,16 @@
     "base_dmg_max": {},
     "base_dmg_min": {},
     "cast_multiplier": 1.0,
-    "channel_attack_ticks": 0,
-    "channel_attack_to_next_additional": 0.0,
-    "channel_attack_to_next_increased": 0.0,
+    "channel_attack_ticks": 5,
+    "channel_attack_to_next_additional": 0.22452978056426298,
+    "channel_attack_to_next_increased": 0.26045454545454505,
     "channeled_attack_frequency": 0.0,
-    "channeled_behavior": "",
-    "channeled_burst_rate": 0.0,
-    "channeled_max_stacks": 0,
+    "channeled_behavior": "refresh",
+    "channeled_burst_rate": 1.2,
+    "channeled_max_stacks": 5,
     "channeled_min_stacks": 0,
-    "channeled_rounds_per_cycle": 0.0,
-    "channeled_stacks": 0.0,
+    "channeled_rounds_per_cycle": 5.0,
+    "channeled_stacks": 5.0,
     "compulsory_breakdown": {},
     "crit_chance": 0.396,
     "crit_luck_effect": "",
@@ -319,77 +326,45 @@
       "lightning": 10.0,
       "physical": 578.0
     },
-    "generic_add": 7.420901555257343,
+    "generic_add": 1.7436483194489343,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 12448.839900662359,
-        "avg_hit_with_crit": 14913.710200993504,
+        "avg_hit_pre_crit": 6590.826221480448,
+        "avg_hit_with_crit": 7895.809813333576,
         "base_max_by_type": {},
         "base_min_by_type": {},
         "damage_by_type": {
-          "fire": 1188.531593090016,
-          "lightning": 2357.749547792319,
-          "physical": 8902.558759780024
+          "fire": 629.2478055227315,
+          "lightning": 1248.2703342057182,
+          "physical": 4713.3080817519985
         },
-        "dps_contribution": 0.0,
-        "dps_vs_target": 0.0,
-        "effectiveness_pct": 154.0,
-        "fires_per_sec": 0.0,
-        "form_type": "exclusive",
+        "dps_contribution": 145440.81676160445,
+        "dps_vs_target": 72306.09344887933,
+        "effectiveness_pct": 347.0,
+        "fires_per_sec": 6.0,
+        "form_type": "additive",
         "hit_max_by_type": {
-          "fire": 1542.8054333380016,
-          "lightning": 4488.792408296915,
-          "physical": 11199.624627194382
+          "fire": 816.8120552458533,
+          "lightning": 2376.51467473781,
+          "physical": 5929.450475118047
         },
         "hit_min_by_type": {
-          "fire": 834.2577528420305,
-          "lightning": 226.70668728772299,
-          "physical": 6605.492892365666
+          "fire": 441.68355579960956,
+          "lightning": 120.02599367362674,
+          "physical": 3497.1656883859496
         },
-        "hits_per_fire": 1,
-        "name": "Sweep Slash",
-        "proc_chance": 0.0,
-        "shotgun_falloff": 0.0,
-        "shotgun_mult": 1.0
-      },
-      {
-        "avg_hit_pre_crit": 40707.70647516592,
-        "avg_hit_with_crit": 48767.83235724877,
-        "base_max_by_type": {},
-        "base_min_by_type": {},
-        "damage_by_type": {
-          "fire": 3886.4983094043528,
-          "lightning": 7709.841021280882,
-          "physical": 29111.36714448068
-        },
-        "dps_contribution": 149346.60981083868,
-        "dps_vs_target": 74247.86360321517,
-        "effectiveness_pct": 308.0,
-        "fires_per_sec": 3.0624000000000007,
-        "form_type": "exclusive",
-        "hit_max_by_type": {
-          "fire": 5044.973767015265,
-          "lightning": 14678.35117513091,
-          "physical": 36622.77253092563
-        },
-        "hit_min_by_type": {
-          "fire": 2728.0228517934397,
-          "lightning": 741.3308674308541,
-          "physical": 21599.96175803573
-        },
-        "hits_per_fire": 1,
-        "name": "Steep Strike",
+        "hits_per_fire": 10,
+        "name": "Split Shot",
         "proc_chance": 1.0,
-        "shotgun_falloff": 0.0,
-        "shotgun_mult": 1.0
+        "shotgun_falloff": 0.77,
+        "shotgun_mult": 3.07
       }
     ],
     "jumps": 0,
     "jumps_base": 0,
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
-      "strength",
       "dexterity"
     ],
     "mana_cost": 5.0,
@@ -415,20 +390,21 @@
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
     ],
-    "projectile_base_count": 0,
-    "projectile_count": -1,
+    "projectile_base_count": 3,
+    "projectile_count": 10,
     "quad_dmg_chance": 0,
     "shotgun_hits": 1,
     "skill_area_inc": 0.0,
-    "skill_name": "Focused Slash",
+    "skill_name": "Split Shot",
     "skill_tags": [
       "Attack",
-      "Melee",
-      "Area",
+      "Projectile",
       "Physical",
-      "Slash-Strike"
+      "Ranged",
+      "Horizontal",
+      "Channeled"
     ],
-    "skills_per_second": 3.0624000000000007,
+    "skills_per_second": 6.0,
     "spell_burst_auto": false,
     "spell_burst_auto_source": "",
     "spell_burst_cast_to_next_add": 0.0,
@@ -449,7 +425,7 @@
     "spell_burst_rate": 0.0,
     "spell_ripple_dps": 0.0,
     "spell_ripple_fraction": 0.0,
-    "steep_strike_chance": 1.0,
+    "steep_strike_chance": 0.0,
     "supported": true,
     "tangle_attach_range": 0.0,
     "tangle_cast_ticks": 0,
@@ -461,14 +437,14 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
-    "total_dps": 149346.60981083868,
-    "total_dps_vs_target": 74247.86360321517,
+    "total_dps": 145440.81676160445,
+    "total_dps_vs_target": 72306.09344887933,
     "trigger_interval": 0.0,
     "triple_dmg_chance": 0,
     "type_add": {
-      "fire": 7.420901555257343,
-      "lightning": 9.814142306827835,
-      "physical": 7.420901555257343
+      "fire": 1.7436483194489343,
+      "lightning": 2.305974902471215,
+      "physical": 1.7436483194489343
     },
     "type_inc": {
       "fire": 0,
@@ -499,16 +475,16 @@
       "base_dmg_max": {},
       "base_dmg_min": {},
       "cast_multiplier": 1.0,
-      "channel_attack_ticks": 0,
-      "channel_attack_to_next_additional": 0.0,
-      "channel_attack_to_next_increased": 0.0,
+      "channel_attack_ticks": 5,
+      "channel_attack_to_next_additional": 0.22452978056426298,
+      "channel_attack_to_next_increased": 0.26045454545454505,
       "channeled_attack_frequency": 0.0,
-      "channeled_behavior": "",
-      "channeled_burst_rate": 0.0,
-      "channeled_max_stacks": 0,
+      "channeled_behavior": "refresh",
+      "channeled_burst_rate": 1.2,
+      "channeled_max_stacks": 5,
       "channeled_min_stacks": 0,
-      "channeled_rounds_per_cycle": 0.0,
-      "channeled_stacks": 0.0,
+      "channeled_rounds_per_cycle": 5.0,
+      "channeled_stacks": 5.0,
       "compulsory_breakdown": {},
       "crit_chance": 0.396,
       "crit_luck_effect": "",
@@ -548,77 +524,45 @@
         "lightning": 10.0,
         "physical": 578.0
       },
-      "generic_add": 7.420901555257343,
+      "generic_add": 1.7436483194489343,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 12448.839900662359,
-          "avg_hit_with_crit": 14913.710200993504,
+          "avg_hit_pre_crit": 6590.826221480448,
+          "avg_hit_with_crit": 7895.809813333576,
           "base_max_by_type": {},
           "base_min_by_type": {},
           "damage_by_type": {
-            "fire": 1188.531593090016,
-            "lightning": 2357.749547792319,
-            "physical": 8902.558759780024
+            "fire": 629.2478055227315,
+            "lightning": 1248.2703342057182,
+            "physical": 4713.3080817519985
           },
-          "dps_contribution": 0.0,
-          "dps_vs_target": 0.0,
-          "effectiveness_pct": 154.0,
-          "fires_per_sec": 0.0,
-          "form_type": "exclusive",
+          "dps_contribution": 145440.81676160445,
+          "dps_vs_target": 72306.09344887933,
+          "effectiveness_pct": 347.0,
+          "fires_per_sec": 6.0,
+          "form_type": "additive",
           "hit_max_by_type": {
-            "fire": 1542.8054333380016,
-            "lightning": 4488.792408296915,
-            "physical": 11199.624627194382
+            "fire": 816.8120552458533,
+            "lightning": 2376.51467473781,
+            "physical": 5929.450475118047
           },
           "hit_min_by_type": {
-            "fire": 834.2577528420305,
-            "lightning": 226.70668728772299,
-            "physical": 6605.492892365666
+            "fire": 441.68355579960956,
+            "lightning": 120.02599367362674,
+            "physical": 3497.1656883859496
           },
-          "hits_per_fire": 1,
-          "name": "Sweep Slash",
-          "proc_chance": 0.0,
-          "shotgun_falloff": 0.0,
-          "shotgun_mult": 1.0
-        },
-        {
-          "avg_hit_pre_crit": 40707.70647516592,
-          "avg_hit_with_crit": 48767.83235724877,
-          "base_max_by_type": {},
-          "base_min_by_type": {},
-          "damage_by_type": {
-            "fire": 3886.4983094043528,
-            "lightning": 7709.841021280882,
-            "physical": 29111.36714448068
-          },
-          "dps_contribution": 149346.60981083868,
-          "dps_vs_target": 74247.86360321517,
-          "effectiveness_pct": 308.0,
-          "fires_per_sec": 3.0624000000000007,
-          "form_type": "exclusive",
-          "hit_max_by_type": {
-            "fire": 5044.973767015265,
-            "lightning": 14678.35117513091,
-            "physical": 36622.77253092563
-          },
-          "hit_min_by_type": {
-            "fire": 2728.0228517934397,
-            "lightning": 741.3308674308541,
-            "physical": 21599.96175803573
-          },
-          "hits_per_fire": 1,
-          "name": "Steep Strike",
+          "hits_per_fire": 10,
+          "name": "Split Shot",
           "proc_chance": 1.0,
-          "shotgun_falloff": 0.0,
-          "shotgun_mult": 1.0
+          "shotgun_falloff": 0.77,
+          "shotgun_mult": 3.07
         }
       ],
       "jumps": 0,
       "jumps_base": 0,
       "main_stat_damage_bonus": 0.0,
       "main_stats": [
-        "strength",
         "dexterity"
       ],
       "mana_cost": 5.0,
@@ -644,20 +588,21 @@
         "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
         "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
       ],
-      "projectile_base_count": 0,
-      "projectile_count": -1,
+      "projectile_base_count": 3,
+      "projectile_count": 10,
       "quad_dmg_chance": 0,
       "shotgun_hits": 1,
       "skill_area_inc": 0.0,
-      "skill_name": "Focused Slash",
+      "skill_name": "Split Shot",
       "skill_tags": [
         "Attack",
-        "Melee",
-        "Area",
+        "Projectile",
         "Physical",
-        "Slash-Strike"
+        "Ranged",
+        "Horizontal",
+        "Channeled"
       ],
-      "skills_per_second": 3.0624000000000007,
+      "skills_per_second": 6.0,
       "spell_burst_auto": false,
       "spell_burst_auto_source": "",
       "spell_burst_cast_to_next_add": 0.0,
@@ -678,7 +623,7 @@
       "spell_burst_rate": 0.0,
       "spell_ripple_dps": 0.0,
       "spell_ripple_fraction": 0.0,
-      "steep_strike_chance": 1.0,
+      "steep_strike_chance": 0.0,
       "supported": true,
       "tangle_attach_range": 0.0,
       "tangle_cast_ticks": 0,
@@ -690,14 +635,14 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
-      "total_dps": 149346.60981083868,
-      "total_dps_vs_target": 74247.86360321517,
+      "total_dps": 145440.81676160445,
+      "total_dps_vs_target": 72306.09344887933,
       "trigger_interval": 0.0,
       "triple_dmg_chance": 0,
       "type_add": {
-        "fire": 7.420901555257343,
-        "lightning": 9.814142306827835,
-        "physical": 7.420901555257343
+        "fire": 1.7436483194489343,
+        "lightning": 2.305974902471215,
+        "physical": 1.7436483194489343
       },
       "type_inc": {
         "fire": 0,
@@ -741,6 +686,18 @@
     "attack_speed_additional": {
       "category": "Attack Speed",
       "display_name": "Additional Attack Speed",
+      "slot_sources": [
+        {
+          "amount": 1.0,
+          "label": "Split Shot: Rapid Advance",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Split Shot: Rapid Advance (Noble)",
+          "source_type": "support",
+          "text": "+100% additional Attack Speed for the supported skill |split_shot_rapid_advance_noble|as"
+        }
+      ],
       "sources": [
         {
           "amount": 0.1,
@@ -820,53 +777,63 @@
       "slot_sources": [
         {
           "amount": 0.2,
-          "label": "Focused Slash: Behead (Noble) (Rank 5)",
+          "label": "Split Shot: Collaboration (Noble) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Focused Slash: Behead (Noble)",
+          "source_name": "Split Shot: Collaboration (Noble)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |focused_slash_behead_noble|universal"
-        },
-        {
-          "amount": 0.07,
-          "label": "Focused Slash: Behead (Noble) (Tier 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Focused Slash: Behead (Noble)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |focused_slash_behead_noble|specific"
+          "text": "additional damage for the supported skill |split_shot_collaboration_noble|universal"
         },
         {
           "amount": 0.2,
-          "label": "Focused Slash: Duel (Magnificent) (Rank 5)",
+          "label": "Split Shot: Diversion (Magnificent) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Focused Slash: Duel (Magnificent)",
+          "source_name": "Split Shot: Diversion (Magnificent)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |focused_slash_duel_magnificent|universal"
+          "text": "additional damage for the supported skill |split_shot_diversion_magnificent|universal"
+        },
+        {
+          "amount": 0.12,
+          "label": "Split Shot: Diversion (Magnificent)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Split Shot: Diversion (Magnificent)",
+          "source_type": "support",
+          "text": "+12.00% additional damage for the supported skill |split_shot_diversion_magnificent|specific"
         },
         {
           "amount": 0.2,
-          "label": "Focused Slash: Fervor (Noble) (Rank 5)",
+          "label": "Split Shot: Rapid Advance (Noble) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Focused Slash: Fervor (Noble)",
+          "source_name": "Split Shot: Rapid Advance (Noble)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |focused_slash_fervor_noble|universal"
+          "text": "additional damage for the supported skill |split_shot_rapid_advance_noble|universal"
         },
         {
           "amount": 0.2,
-          "label": "Focused Slash: Tranquility (Magnificent) (Rank 5)",
+          "label": "Split Shot: Volley (Magnificent) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Focused Slash: Tranquility (Magnificent)",
+          "source_name": "Split Shot: Volley (Magnificent)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |focused_slash_tranquility_magnificent|universal"
+          "text": "additional damage for the supported skill |split_shot_volley_magnificent|universal"
+        },
+        {
+          "amount": -0.385,
+          "label": "Split Shot: Volley (Magnificent)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Split Shot: Volley (Magnificent)",
+          "source_type": "support",
+          "text": "-38.50% additional damage for the supported skill |split_shot_volley_magnificent|specific"
         },
         {
           "amount": 0.078,
@@ -887,6 +854,26 @@
           "source_name": "Attack Focus",
           "source_type": "support",
           "text": "The supported skill 1.65 % additional damage for every 10 Fervor Rating |attack_focus|the supported skill#% ad"
+        },
+        {
+          "amount": 0.3870000000000001,
+          "label": "Split Shot: Collaboration",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Split Shot: Collaboration (Noble)",
+          "source_type": "support",
+          "text": "+38.70% additional damage (4.30% \u00d7 9 Projectile Quantity) |split_shot_collaboration_noble|collab"
+        },
+        {
+          "amount": -0.5,
+          "label": "Split Shot: Rapid Advance",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Split Shot: Rapid Advance (Noble)",
+          "source_type": "support",
+          "text": "-50% additional damage for the supported skill |split_shot_rapid_advance_noble|dmg"
         }
       ],
       "sources": [
@@ -944,25 +931,6 @@
       "sources": [],
       "total": 0.0,
       "unit": ""
-    },
-    "fervor_effect_skill_inc": {
-      "category": "Buffs",
-      "display_name": "Skill Fervor Effect",
-      "slot_sources": [
-        {
-          "amount": 1.25,
-          "label": "Focused Slash: Tranquility",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": null,
-          "source_type": "support",
-          "text": "Fervor's bonus +125% (10 stacks, standing still) |tranquility"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": "%"
     },
     "fire_attack_dmg_flat_max": {
       "category": "Fire",
@@ -1247,43 +1215,53 @@
       "total": 500.0,
       "unit": ""
     },
-    "steep_strike_additional_dmg": {
-      "category": "Steep Strike",
-      "display_name": "Steep Strike Additional Damage",
+    "projectile_quantity_flat": {
+      "category": "Projectile",
+      "display_name": "Projectile Quantity",
       "slot_sources": [
         {
-          "amount": 0.635,
-          "label": "Focused Slash: Fervor (Noble)",
+          "amount": 5.0,
+          "label": "Split Shot: Diversion",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Focused Slash: Fervor (Noble)",
+          "source_name": "Split Shot: Diversion (Magnificent)",
           "source_type": "support",
-          "text": "Steep Strike +64% additional damage (consumes Fervor; cost NYI) |focused_slash_fervor_noble|fervor"
+          "text": "Projectile Quantity of the supported skill +5 |split_shot_diversion_magnificent|proj"
+        },
+        {
+          "amount": 2.0,
+          "label": "Split Shot: Volley",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Split Shot: Volley (Magnificent)",
+          "source_type": "support",
+          "text": "Projectile Quantity of the supported skill +2 |split_shot_volley_magnificent|proj"
         }
       ],
       "sources": [],
       "total": 0.0,
-      "unit": "%"
+      "unit": ""
     },
-    "steep_strike_chance": {
-      "category": "Steep Strike",
-      "display_name": "Steep Strike Chance",
+    "same_target_shotgun_grant": {
+      "category": "Other",
+      "display_name": "same_target_shotgun_grant",
       "slot_sources": [
         {
           "amount": 1.0,
-          "label": "Focused Slash: Behead",
+          "label": "Split Shot: Volley",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": null,
+          "source_name": "Split Shot: Volley (Magnificent)",
           "source_type": "support",
-          "text": "Guaranteed Steep Strike |behead"
+          "text": "The supported skill has Shotgun Effect |split_shot_volley_magnificent|shotgun"
         }
       ],
       "sources": [],
       "total": 0.0,
-      "unit": "%"
+      "unit": ""
     },
     "weapon_attack_speed": {
       "category": "Gear",

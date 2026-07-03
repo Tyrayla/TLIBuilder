@@ -537,6 +537,9 @@ class Stat(Enum):
     ICY_BLADE_EXTRA_BLADE_EQUIV = "icy_blade_extra_blade_equiv"
     ICY_BLADE_FROZEN_BURST_RATE = "icy_blade_frozen_burst_rate"
     JUMP_DMG_FOR_EVERY_ADDITIONAL = "jump_dmg_for_every_additional"  # revisit stacking behavior
+    # Split Shot: Volley grants Shotgun Effect (the base skill "cannot hit the same enemy"). Presence-gated flag
+    # emitted slot-local by skill_effects/split_shot.py; offense uses it to let projectiles shotgun one target.
+    SAME_TARGET_SHOTGUN_GRANT = "same_target_shotgun_grant"
 
     # ── Steep Strike ─────────────────────────────────────────────────────────
     STEEP_STRIKE_CHANCE = "steep_strike_chance"
@@ -681,6 +684,10 @@ class Stat(Enum):
     # into the live pools (so they converge). Cap is the affix's "up to Y%" (fraction); 0 = uncapped.
     DMG_ADDITIONAL_PER_LIFE_CONSUMED = "dmg_additional_per_life_consumed"
     DMG_ADDITIONAL_PER_LIFE_CONSUMED_CAP = "dmg_additional_per_life_consumed_cap"
+    # Plain "+X% damage for every N Life consumed" is INCREASED (per the bonus-vs-additional rule); the
+    # "additional damage" variant above stays additional. Folds into the generic increased pool in offense.
+    DMG_INC_PER_LIFE_CONSUMED = "dmg_inc_per_life_consumed"
+    DMG_INC_PER_LIFE_CONSUMED_CAP = "dmg_inc_per_life_consumed_cap"
     ATTACK_SPEED_INC_PER_LIFE_CONSUMED = "attack_speed_inc_per_life_consumed"
     ATTACK_SPEED_INC_PER_LIFE_CONSUMED_CAP = "attack_speed_inc_per_life_consumed_cap"
     SPELL_DMG_INC_PER_MANA_CONSUMED = "spell_dmg_inc_per_mana_consumed"
@@ -692,6 +699,7 @@ class Stat(Enum):
     # Per-N-consumed DIVISORS (the "N" in "for every N consumed"). consumed-recently is quantized DOWN to a whole
     # multiple of N before applying the per-unit benefit — "for every N" procs in discrete stacks, not fractionally.
     DMG_ADDITIONAL_PER_LIFE_CONSUMED_UNIT = "dmg_additional_per_life_consumed_unit"
+    DMG_INC_PER_LIFE_CONSUMED_UNIT = "dmg_inc_per_life_consumed_unit"
     ATTACK_SPEED_INC_PER_LIFE_CONSUMED_UNIT = "attack_speed_inc_per_life_consumed_unit"
     SPELL_DMG_INC_PER_MANA_CONSUMED_UNIT = "spell_dmg_inc_per_mana_consumed_unit"
     MANA_REGEN_SPEED_INC_PER_MANA_CONSUMED_UNIT = "mana_regen_speed_inc_per_mana_consumed_unit"

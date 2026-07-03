@@ -408,7 +408,9 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         _pct, _benefit, _per_n, _pool, _cap = m.groups()
         _b, _p = _benefit.strip().lower(), _pool.lower()
-        _stat = ("dmg_additional_per_life_consumed" if (_p == "life" and _b == "damage")
+        # Plain "damage" is INCREASED; "additional damage" is the ADDITIONAL pool (bonus-vs-additional rule).
+        _stat = ("dmg_inc_per_life_consumed" if (_p == "life" and _b == "damage")
+                 else "dmg_additional_per_life_consumed" if (_p == "life" and _b == "additional damage")
                  else "attack_speed_inc_per_life_consumed" if (_p == "life" and "attack speed" in _b)
                  else "spell_dmg_inc_per_mana_consumed" if (_p == "mana" and "spell damage" in _b)
                  else "mana_regen_speed_inc_per_mana_consumed" if (_p == "mana" and "mana regeneration speed" in _b)

@@ -269,6 +269,9 @@
       "cold": 171.0
     },
     "cast_multiplier": 1.0,
+    "channel_attack_ticks": 0,
+    "channel_attack_to_next_additional": 0.0,
+    "channel_attack_to_next_increased": 0.0,
     "channeled_attack_frequency": 0.0,
     "channeled_behavior": "reset",
     "channeled_burst_rate": 0.6966966966966966,
@@ -556,6 +559,9 @@
         "cold": 171.0
       },
       "cast_multiplier": 1.0,
+      "channel_attack_ticks": 0,
+      "channel_attack_to_next_additional": 0.0,
+      "channel_attack_to_next_increased": 0.0,
       "channeled_attack_frequency": 0.0,
       "channeled_behavior": "reset",
       "channeled_burst_rate": 0.6966966966966966,

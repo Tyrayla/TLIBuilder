@@ -796,13 +796,14 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
           {/* Main-stat Damage Bonus (0.5%/point) is part of Total Additional above — shown as a source inside that
               breakdown (not its own row), since it's one cumulative additional multiplier, not a separate pool. */}
 
-          {/* ── Enemy Multiplier: the cumulative outgoing multiplier the TARGET applies per type — armor/resist
-               mitigation × enemy vulnerability (Paralysis/Numbed/Frostbite/Infiltration/curses). All Types = the
-               net multiplier across the skill's damage (total vs-target ÷ total pre-mitigation). ── */}
+          {/* ── Enemy Multiplier: the cumulative outgoing multiplier the TARGET applies PER TYPE — armor/resist
+               mitigation × enemy vulnerability (Paralysis/Numbed/Frostbite/Infiltration/curses). There is NO
+               meaningful "All Types" aggregate here (unlike Increased/Additional, enemy mitigation+vulnerability
+               is inherently per-type), so that cell is dashed — the real values live in the per-type columns. ── */}
           {offense.enemy_mult_by_type && Object.keys(offense.enemy_mult_by_type).length > 0 && (
             <tr>
               <td style={tdLbl}>Enemy Multiplier</td>
-              <td style={td}>{offense.total_dps > 0 ? `×${dec(offense.total_dps_vs_target / offense.total_dps)}` : '—'}</td>
+              <td style={tdDim}>—</td>
               {ALL_DTYPES.map(d => {
                 const m = offense.enemy_mult_by_type?.[d]
                 if (m === undefined) return <td key={d} style={tdDim}>—</td>
@@ -2063,6 +2064,37 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             title: 'Min Channeled Stacks', keys: ['min_channeled_stacks_flat'], total: offense.channeled_min_stacks, totalUnit: '',
             formula: 'Σ +Min Channeled Stacks — the first round from 0 gains 1 + Min (shortens the ramp)',
           }}>{offense.channeled_min_stacks}</Row>
+          {(offense.channel_attack_ticks ?? 0) > 0 && (
+            <Row label="Channel Attack Rate" breakdown={{
+              title: 'Channel Attack Rate', keys: ['weapon_attack_speed', 'attack_speed_inc', 'attack_speed_gear', 'attack_speed_mh', 'attack_speed_additional'],
+              total: offense.skills_per_second, totalUnit: ' /s',
+              formula: 'Weapon APS × (1 + Gear) × (1 + Increased) × Π(1 + Additional) — the normal attack rate (a stock '
+                + '1.5 base weapon APS × the +100% additional = 3/s) — snapped DOWN to the 30 ÷ ticks breakpoint: the '
+                + 'channel is server-scheduled, so it fires on whole ticks (rate = 30 ÷ ticks → 30, 15, 10, 7.5, 6, …).',
+            }}>{dec(offense.skills_per_second)} /s</Row>
+          )}
+          {(offense.channel_attack_ticks ?? 0) > 0 && (() => {
+            const incNeed = offense.channel_attack_to_next_increased ?? 0
+            const addNeed = offense.channel_attack_to_next_additional ?? 0
+            const nextTicks = (offense.channel_attack_ticks ?? 0) - 1
+            const reachable = nextTicks >= 1 && (incNeed > 0 || addNeed > 0)
+            const nextRate = nextTicks >= 1 ? dec(30 / nextTicks) : ''
+            return (
+              <Row label="Attack Ticks" labelColor="#9ab" breakdown={{
+                title: 'Attack Ticks → next attacks/sec breakpoint', keys: [], total: offense.channel_attack_ticks, totalUnit: ' ticks',
+                formula: 'Attack Ticks = ceil(30 ÷ attack rate) — the channel is server-scheduled, so its rate rounds '
+                  + 'DOWN to a whole tick; attacks/sec = 30 ÷ ticks. Extra attack speed only helps when it crosses a tick '
+                  + 'boundary. Either lever below reaches the next breakpoint on its own (Increased dilutes against your '
+                  + 'existing increased pool, so it needs more than Additional).',
+                extra: reachable
+                  ? [
+                      { value: `+${dec(incNeed * 100)}%`, stat: `Increased Attack Speed → ${nextTicks} ticks`, source: '', sourceName: `reaches ${nextRate} attacks/s` },
+                      { value: `+${dec(addNeed * 100)}%`, stat: `Additional Attack Speed → ${nextTicks} ticks`, source: '', sourceName: `reaches ${nextRate} attacks/s` },
+                    ]
+                  : [{ value: '—', stat: 'Attack Speed', source: '', sourceName: (offense.channel_attack_ticks ?? 0) <= 1 ? 'already at 1 tick (30 attacks/s)' : 'no reachable breakpoint' }],
+              }}>{offense.channel_attack_ticks}</Row>
+            )
+          })()}
           {(offense.channeled_attack_frequency ?? 0) > 0 && (
             <>
               <Row label="Channel Rate" breakdown={{

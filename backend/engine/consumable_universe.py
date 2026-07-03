@@ -181,6 +181,9 @@ def consumable_universe() -> frozenset[str]:
     # REAL spell_dmg_inc / mana_regen_speed_inc stats (engine/compute), so whitelist the consumer + its cap to badge green.
     consumed |= {"spell_dmg_inc_per_mana_consumed", "spell_dmg_inc_per_mana_consumed_cap",
                  "mana_regen_speed_inc_per_mana_consumed", "mana_regen_speed_inc_per_mana_consumed_cap"}
+    # Plain "damage per N Life consumed" is INCREASED (folds into generic_inc in offense) — whitelist its cap +
+    # divisor (read only when the consumer is present).
+    consumed |= {"dmg_inc_per_life_consumed", "dmg_inc_per_life_consumed_cap", "dmg_inc_per_life_consumed_unit"}
     # Per-N divisors (the "N") — read alongside each consumer to floor consumed-recently into discrete stacks.
     consumed |= {"dmg_additional_per_life_consumed_unit", "attack_speed_inc_per_life_consumed_unit",
                  "spell_dmg_inc_per_mana_consumed_unit", "crit_rating_inc_per_mana_consumed_unit",

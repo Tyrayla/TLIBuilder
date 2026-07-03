@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**47 entries** — ✅ Confirmed: 9 · 🔶 Partial: 4 · ⬜ Pending: 9 · ⚠️ Unverified: 25
+**48 entries** — ✅ Confirmed: 9 · 🔶 Partial: 4 · ⬜ Pending: 9 · ⚠️ Unverified: 26
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -54,5 +54,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Restoration / recovery subsystem | — | sustain, defense | ⚠️ Unverified | — | [restoration-subsystem.md](restoration-subsystem.md) |
 | Sing with the Tide (Selena trait) | Sing with the Tide | hero-trait, buff | ⚠️ Unverified | — | [sing-with-the-tide.md](sing-with-the-tide.md) |
 | Slate inventory + bonus overview | — | build-system, slates | ⚠️ Unverified | — | [slate-inventory.md](slate-inventory.md) |
+| Split Shot + supports (spread / Shotgun Effect / channel) | Split Shot | shotgun, projectile, channeled, breakpoint, supports, damage-pool | ⚠️ Unverified | — | [split-shot.md](split-shot.md) |
 | Unsullied Blade (Rosa trait) | Unsullied Blade | hero-trait, conversion, true-damage | ⚠️ Unverified | — | [unsullied-blade.md](unsullied-blade.md) |
 | Wind Stalker (Erika trait) | Wind Stalker | hero-trait, speed | ⚠️ Unverified | — | [wind-stalker.md](wind-stalker.md) |

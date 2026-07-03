@@ -87,6 +87,11 @@ class ResolvedSkill:
     channeled: "ChanneledSpec | None" = None  # set on channeled skills (Icebound Beam, …)
     base_steep_strike_chance: float = 0.0  # intrinsic passive from skill text (e.g. "This skill +20% Steep Strike chance")
     intrinsic_additional: list[IntrinsicAdditional] = field(default_factory=list)
+    # Projectile-scaling form has NO Shotgun Effect by default ("the Projectiles shot by this skill cannot hit the
+    # same enemy") → single-target hit count is 1 until a support grants Shotgun Effect (emits
+    # same_target_shotgun_grant). Distinct from spread/trajectory. Chromatic Shot / Icebound keep their innate
+    # shotgun (they do NOT set this). Split Shot base sets it True; Volley flips it on. See engine/offense.py.
+    shotgun_requires_grant: bool = False
     # Extra tags merged into the skill's tag set ONLY for damage increased/additional filtering, so a
     # skill can benefit from off-type damage mods. E.g. Moon Strike: ['spell'] → Spell Damage
     # inc/additional apply to its Attack Damage (without making it count as a spell for flat adds).
@@ -253,6 +258,44 @@ def _resolve_groundshaker(skill_data: dict) -> ResolvedSkill:
         hit_forms_by_level=forms_by_level,
         supported=True,
         demolisher_base_restore=base_restore,
+    )
+
+
+# ── Split Shot (projectile attack) ───────────────────────────────────────────────
+# Tags: Attack, Projectile, Physical, Ranged, Horizontal. Main stat Dexterity. Fires 1 + intrinsic "+2 Projectile
+# Quantity" = 3 projectiles, dealing a per-level % Weapon Attack Damage (237% @L1 → 347% @L20). Base state
+# spreads and "the Projectiles shot by this skill cannot hit the same enemy" → NO Shotgun Effect (single-target
+# hit count 1) until Volley grants it. The skill DEFINES a dormant Shotgun Effect falloff coefficient of 77% (in
+# the engine's convention that coefficient is the fraction LOST, so a granted subsequent projectile deals 1−0.77).
+# Rapid Advance turns it channeled (installed at slot time by skill_effects/split_shot.py). On-kill extra
+# projectiles (50%/8m/2 targets) are a clear/AoE mechanic → NYI.
+_SPLIT_SHOT_WAD_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%\s*weapon\s+attack\s+damage", re.IGNORECASE)
+_SPLIT_SHOT_FALLOFF = 0.77   # in-game "falloff coefficient" — engine convention: subsequent hit deals (1 − this)
+
+
+@_register("split_shot")
+def _resolve_split_shot(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    forms_by_level: dict[int, list[SkillHitForm]] = {}
+    for lvl, values in progression.items():
+        # WAD % lives in "Effectiveness of added damage" / "damage" / "Descript" — search all values.
+        text = " ".join(str(v) for v in values.values())
+        m = _SPLIT_SHOT_WAD_RE.search(text)
+        if not m:
+            continue
+        eff_pct = float(m.group(1))
+        forms_by_level[lvl] = [SkillHitForm(
+            "Split Shot", eff_pct, "additive",
+            hit_count=3, shotgun_falloff=_SPLIT_SHOT_FALLOFF, scales_with_projectiles=True)]
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms_by_level,
+        supported=True,
+        shotgun_requires_grant=True,   # base has no Shotgun Effect; Volley grants it
     )
 
 
@@ -556,6 +599,8 @@ _SKILL_MODELED_PHRASES: dict[str, tuple[str, ...]] = {
     "berserking_blade": ("skill area for each stack of buff", "stacks up to"),
     "groundshaker": ("demolisher charge", "fissure", "weapon attack damage",
                      "restoration speed", "skill area when the skill consumes"),
+    "split_shot": ("weapon attack damage", "fires 1 projectile", "projectile quantity of this skill",
+                   "shotgun effect falloff", "hit the same enemy"),
 }
 
 

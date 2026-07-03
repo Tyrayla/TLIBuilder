@@ -91,8 +91,13 @@ def test_per_n_consumed_consumer_parsing():
     from engine.mod_parser import _parse_custom_mod_text as P
     def kv(text):
         return {r["stat_key"]: round(r["amount"], 8) for r in (P(text) or [])}
-    # Tide of the Styx: +(3-5)% damage per 4000 Life consumed → midpoint 4% normalized to per-1-life + the divisor N.
+    # Tide of the Styx: +(3-5)% damage per 4000 Life consumed → plain "damage" is INCREASED (bonus-vs-additional),
+    # midpoint 4% normalized to per-1-life + the divisor N.
     assert kv("+(3-5) % damage for every 4000 Life consumed recently") == {
+        "dmg_inc_per_life_consumed": round(0.04 / 4000.0, 8),
+        "dmg_inc_per_life_consumed_unit": 4000}
+    # The "additional damage" variant stays in the ADDITIONAL pool.
+    assert kv("+(3-5) % additional damage for every 4000 Life consumed recently") == {
         "dmg_additional_per_life_consumed": round(0.04 / 4000.0, 8),
         "dmg_additional_per_life_consumed_unit": 4000}
     # Tide: +1% Attack Speed per 5000 Life consumed.
@@ -104,6 +109,25 @@ def test_per_n_consumed_consumer_parsing():
     assert out["spell_dmg_inc_per_mana_consumed"] == round(0.045 / 100.0, 8)
     assert out["spell_dmg_inc_per_mana_consumed_cap"] == 2.16
     assert out["spell_dmg_inc_per_mana_consumed_unit"] == 100
+
+
+def test_damage_per_consumed_lands_in_increased_not_additional():
+    """End-to-end: '+X% damage per N Life consumed' feeds the INCREASED pool (generic_inc), not additional, and
+    '+X% Attack Speed per N Life consumed' applies AND badges Consumed (never silently Inactive)."""
+    styx = _gear([
+        ("max_life_flat", 60000),
+        ("life_consumed_pct_current_per_sec", 0.10),
+        ("dmg_inc_per_life_consumed", 0.04 / 4000.0), ("dmg_inc_per_life_consumed_unit", 4000),
+        ("attack_speed_inc_per_life_consumed", 0.01 / 5000.0), ("attack_speed_inc_per_life_consumed_unit", 5000),
+    ])
+    from tests.mock_build import make_request, DUAL_WEAPONS
+    req = make_request("split_shot", 20, gear=DUAL_WEAPONS + styx, extra_conditions={"current_life_pct": 50})
+    r = engine_stats(EngineStatsRequest(**req))
+    r = r if isinstance(r, dict) else r.model_dump()
+    off = r["offense"]
+    assert off["generic_inc"] > 0.0            # damage-per-consumed is INCREASED
+    assert off["generic_add"] == pytest.approx(1.0)   # …and NOT additional
+    assert "attack_speed_inc_per_life_consumed" in set(r["consumed_stats"])  # badges Consumed, not Inactive
 
 
 def test_g_flat_phys_per_consumed_parsing():

@@ -757,6 +757,11 @@ class OffenseResult:
     tangle_cast_ticks: int = 0         # whole server ticks per tangle cast (cast-speed breakpoint); 0 if untangled
     tangle_cast_to_next_increased: float = 0.0  # +Increased Cast Speed needed for the next faster tick breakpoint
     tangle_cast_to_next_additional: float = 0.0  # +Additional Cast Speed needed for the next faster tick breakpoint
+    # Channeled-attack rate breakpoints (Split Shot: Rapid Advance) — the channel fires on whole 30 Hz ticks
+    # (rate = 30 ÷ ticks). 0 when not a channeled attack. Surfaced in the Channeled box.
+    channel_attack_ticks: int = 0
+    channel_attack_to_next_increased: float = 0.0  # +Increased Attack Speed needed for the next faster breakpoint
+    channel_attack_to_next_additional: float = 0.0  # +Additional Attack Speed needed for the next faster breakpoint
     # Spell Burst mode (an eligible Spell cast at full charge consumes all M stacks and auto-recasts the spell
     # M times — the triggering cast also counts, so casts_per_burst = M + 1). The charge is a server-timed,
     # whole-tick countdown (hard-rounded breakpoints — see engine/tick.py), so charge speed only helps at
@@ -913,7 +918,10 @@ def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags
         sps = (1.0 / cast_time) * (1.0 + source.total("cast_speed_inc"))
         sps *= _speed_additional_product(source, _CAST_ADDITIONAL_STATS, skill_tags_lower)
     else:
-        # APS: base × (1 + per-weapon gear multipliers) × (1 + inc) × additional pools.
+        # APS: base × (1 + per-weapon gear multipliers) × (1 + inc) × additional pools. A channeled ATTACK
+        # (Split Shot: Rapid Advance) uses this SAME weapon-APS path — it keys off weapon attack speed like any
+        # attack (the standard 1.5 base weapon APS × +100% additional = 3/s); calculate_offense then hard-rounds
+        # the rate to 30 Hz tick breakpoints (opt-in regime, engine/tick.py).
         weapon_aps_mult = 1.0 + source.total("attack_speed_gear") + source.total("attack_speed_mh")
         sps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
         sps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
@@ -1174,8 +1182,9 @@ def calculate_offense(
         if _es_amt:
             add_factors = add_factors + [(_es_amt, frozenset(), "dmg_additional_per_400_es")]
 
-    # "+X% damage per N Life consumed recently, up to Y%" (Tide of the Styx, etc.). per-unit normalized to per-1-life
-    # at parse; consumed-recently is floored to whole N-chunks (discrete "for every N" procs) then × per-unit, capped.
+    # "+X% ADDITIONAL damage per N Life consumed recently, up to Y%". per-unit normalized to per-1-life at parse;
+    # consumed-recently is floored to whole N-chunks (discrete "for every N" procs) then × per-unit, capped. (Plain
+    # "damage per N consumed" is INCREASED — folded into generic_inc below, not here.)
     _per_life_cons = source.total("dmg_additional_per_life_consumed")
     if _per_life_cons:
         _lc_amt = floored_consumed(source.total("consumed_recently_life"),
@@ -1313,6 +1322,24 @@ def calculate_offense(
             _x = max(0.0, _next_cs / _sps_raw - 1.0)
             tangle_cast_to_next_additional = _x
             tangle_cast_to_next_increased = (1.0 + source.total("cast_speed_inc")) * _x
+
+    # ── Channeled-attack tick breakpoints (Split Shot: Rapid Advance) ── the channel fires on whole 30 Hz server
+    # ticks (opt-in breakpoint regime, engine/tick.py): rate = 30/N → 30, 15, 10, 7.5, 6, … Extra attack speed
+    # only helps when it crosses an integer-tick boundary. ONLY for channeled ATTACKS (Split Shot); channeled
+    # spells (Icebound/Howling) and normal attacks are untouched → golden-safe. Quantizes sps BEFORE the channel
+    # cadence + hit-form rates below, so every downstream rate uses the breakpoint value.
+    channel_attack_ticks = 0
+    channel_attack_to_next_increased = 0.0
+    channel_attack_to_next_additional = 0.0
+    if skill.channeled and is_attack and sps > 0.0:
+        _sps_raw = sps                                   # smooth attack rate before tick-rounding
+        channel_attack_ticks = period_ticks(1.0 / _sps_raw)
+        sps = rate_from_ticks(channel_attack_ticks)
+        if channel_attack_ticks > 1:
+            _next_cs = rate_from_ticks(channel_attack_ticks - 1)   # rate needed for (ticks − 1)
+            _x = max(0.0, _next_cs / _sps_raw - 1.0)
+            channel_attack_to_next_additional = _x
+            channel_attack_to_next_increased = (1.0 + source.total("attack_speed_inc")) * _x
 
     # ── Channeled cadence ── 1 stack per use; a RESET skill ramps 0→max over `rounds_per_cycle` uses then
     # dumps + fires its burst form once per cycle. Min Channeled Stacks shortens the ramp (first round gains
@@ -1511,6 +1538,15 @@ def calculate_offense(
                      if "chromatic_shots_on_target_flat" in source.all_stats() else 7)
             if shots >= 1:
                 n_proj = min(n_proj, shots)
+        # Shotgun-Effect gating (Split Shot): a projectile-scaling form on a skill with NO innate Shotgun Effect
+        # ("the Projectiles shot by this skill cannot hit the same enemy") lands only 1 projectile on a single
+        # target UNTIL a support grants Shotgun Effect (Volley → same_target_shotgun_grant). Distinct from
+        # spread/trajectory. Presence-gated so other skills stay byte-identical.
+        if skill.shotgun_requires_grant and form.scales_with_projectiles:
+            granted = ("same_target_shotgun_grant" in source.all_stats()
+                       and source.total("same_target_shotgun_grant") > 0.0)
+            if not granted:
+                n_proj = 1
         form_shotgun = (1.0 + (n_proj - 1) * (1.0 - form.shotgun_falloff)) if n_proj >= 1 else 0.0
 
         # Icebound Beam canvas supports add extra Icy Blade damage onto the projectile-scaling (burst) form:
@@ -2065,6 +2101,9 @@ def calculate_offense(
         tangle_cast_ticks=tangle_cast_ticks,
         tangle_cast_to_next_increased=tangle_cast_to_next_increased,
         tangle_cast_to_next_additional=tangle_cast_to_next_additional,
+        channel_attack_ticks=channel_attack_ticks,
+        channel_attack_to_next_increased=channel_attack_to_next_increased,
+        channel_attack_to_next_additional=channel_attack_to_next_additional,
         spell_burst_count=spell_burst_count,
         spell_burst_casts_per_burst=spell_burst_casts_per_burst,
         spell_burst_charge_ticks=spell_burst_charge_ticks,

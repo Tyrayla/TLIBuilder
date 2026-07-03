@@ -506,6 +506,13 @@ def compute(
         # + the consume block read sps) from the PRIOR pass's consumed-recently so it converges with the loop. (Only
         # this consumer feeds back; the damage-per-consumed fold is one-directional and stays post-loop.)
         _as_per = source.total("attack_speed_inc_per_life_consumed")
+        if _as_per:
+            # This consumer is applied here (in the loop, outside the offense recording window), so it would badge
+            # Inactive despite contributing — explicitly mark it (and its unit/cap) Consumed so the badge is honest
+            # (never silently drop). Recorded whenever present, matching how the damage-per-consumed fold badges.
+            source.consumed_stats.update({"attack_speed_inc_per_life_consumed",
+                                          "attack_speed_inc_per_life_consumed_unit",
+                                          "attack_speed_inc_per_life_consumed_cap"})
         if _as_per and _prev_consumed_recently_life > 0.0:
             from engine.consumption import floored_consumed as _floored
             _as_amt = _floored(_prev_consumed_recently_life,
@@ -514,9 +521,13 @@ def compute(
             if _as_cap:
                 _as_amt = min(_as_amt, _as_cap)
             if _as_amt:
+                _orig = next((e for e in source.source_log if e.stat == "attack_speed_inc_per_life_consumed"), None)
                 source.add_with_source("attack_speed_inc", _as_amt, SourceEntry(
-                    stat="attack_speed_inc", amount=_as_amt, source_type="gear", label="Attack Speed per Life Consumed",
-                    text="Attack Speed per Life consumed recently", points=1, source_name="Life Consumed"))
+                    stat="attack_speed_inc", amount=_as_amt,
+                    source_type=(_orig.source_type if _orig else "gear"),
+                    label=(_orig.label if _orig else "Attack Speed per Life Consumed"),
+                    text=(_orig.text if _orig else "Attack Speed per Life consumed recently"),
+                    points=1, source_name=(_orig.source_name if _orig else "Life Consumed")))
 
         # Flash Flood kismet: "+X% additional Attack & Cast Speed for every Spell Burst triggered recently (4s), up to
         # cap" — resolved as a per-scaling of the generic Attack/Cast Speed additional on the DERIVED
@@ -711,6 +722,28 @@ def compute(
                         label=(_orig.label if _orig else "Gear · Item"), points=1,
                         text=(_orig.text if _orig else "per Mana consumed recently"),
                         source_name=(_orig.source_name if _orig else "Mana Consumed")))
+
+            # Increased damage per-Life-consumed (Tide of the Styx): plain "+X% damage for every N Life consumed"
+            # is INCREASED → fold per-unit × consumed-recently-life (discrete N-chunks, capped) into the REAL dmg_inc
+            # stat in-loop, so it shows a source row in the Increased breakdown + flows through the normal pipeline.
+            _dl_per = source.total("dmg_inc_per_life_consumed")
+            if _dl_per:
+                # Read in the loop (outside the offense recording window) → record so it badges Consumed, not Inactive.
+                source.consumed_stats.update({"dmg_inc_per_life_consumed", "dmg_inc_per_life_consumed_unit",
+                                              "dmg_inc_per_life_consumed_cap"})
+                _dl_amt = _floored(_cons_now.consumed_recently_life,
+                                   source.total("dmg_inc_per_life_consumed_unit")) * _dl_per
+                _dl_cap = source.total("dmg_inc_per_life_consumed_cap")
+                if _dl_cap:
+                    _dl_amt = min(_dl_amt, _dl_cap)
+                if _dl_amt:
+                    _orig = next((e for e in source.source_log if e.stat == "dmg_inc_per_life_consumed"), None)
+                    source.add_with_source("dmg_inc", _dl_amt, SourceEntry(
+                        stat="dmg_inc", amount=_dl_amt,
+                        source_type=(_orig.source_type if _orig else "gear"),
+                        label=(_orig.label if _orig else "Gear · Item"), points=1,
+                        text=(_orig.text if _orig else "damage per Life consumed recently"),
+                        source_name=(_orig.source_name if _orig else "Life Consumed")))
 
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS
@@ -1108,6 +1141,10 @@ def compute(
             # Wrathful Vault makes Groundshaker a Mobility skill (Mobility-scoped mods apply + it reads as one).
             if dflags.get("wrathful_vault"):
                 add_mod_tags = (add_mod_tags or set()) | {"mobility"}
+        # skill_effects modules may add damage-mod tags (Split Shot: Rapid Advance → "channeled", so
+        # Channeled-scoped mods apply and the skill reports as channeled).
+        if overrides.get("add_mod_tags"):
+            add_mod_tags = (add_mod_tags or set()) | set(overrides["add_mod_tags"])
         return asdict(calculate_offense(
             eff, resolved, level, is_main_skill=is_main, extra_additional=extra,
             support_behavior=_behavior_by_slot.get(slot, {}),

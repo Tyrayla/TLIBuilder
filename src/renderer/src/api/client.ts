@@ -827,6 +827,11 @@ export interface OffenseResult {
   tangle_cast_ticks?: number   // whole server ticks per tangle cast (cast-speed breakpoint); 0/undefined if untangled
   tangle_cast_to_next_increased?: number  // +Increased Cast Speed needed for the next faster tick breakpoint
   tangle_cast_to_next_additional?: number  // +Additional Cast Speed needed for the next faster tick breakpoint
+  // Channeled-attack rate breakpoints (Split Shot: Rapid Advance) — the channel fires on whole 30 Hz ticks
+  // (rate = 30 ÷ ticks). 0/undefined when not a channeled attack. Shown in the Channeled box.
+  channel_attack_ticks?: number
+  channel_attack_to_next_increased?: number  // +Increased Attack Speed needed for the next faster breakpoint
+  channel_attack_to_next_additional?: number  // +Additional Attack Speed needed for the next faster breakpoint
   // Spell Burst mode (an eligible Spell cast at full charge consumes M stacks and auto-recasts the spell M
   // times; the triggering cast also counts → casts_per_burst = M + 1). The charge is a server-timed whole-tick
   // countdown (hard-rounded breakpoints), so charge speed only helps at integer-tick crossings. spell_burst_mult
