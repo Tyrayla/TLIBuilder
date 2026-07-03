@@ -2656,16 +2656,4 @@ export const api = {
     post<{ ok: boolean }>('/dev/conditions/overrides', { condition_text: conditionText, expression }),
   devDeleteConditionOverride: (conditionText: string) =>
     del<{ ok: boolean }>('/dev/conditions/overrides', { condition_text: conditionText, expression: null }),
-
-  validateAllocate: (
-    tree_name: string,
-    node_states: Record<string, number>,
-    node_id: string,
-    action: 'allocate' | 'deallocate',
-    prereq_satisfied: string[] = [],
-    max_overrides: Record<string, number> = {},
-    extra_column_points: Record<number, number> = {}
-  ) => post<{ allowed: boolean; reason?: string; node_states: Record<string, number> }>('/validate-allocate', {
-    tree_name, node_states, node_id, action, prereq_satisfied, max_overrides, extra_column_points,
-  }),
 }

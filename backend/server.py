@@ -352,43 +352,10 @@ def get_tree(name: str):
 
 
 # ── Allocation validation ──────────────────────────────────────────────────────
-
-class AllocateRequest(BaseModel):
-    tree_name: str
-    node_states: dict[str, int]
-    node_id: str
-    action: str  # "allocate" or "deallocate"
-    # Node ids whose prerequisite chain is broken by an installed Prism (anchor + reflected-box cells).
-    prereq_satisfied: list[str] = []
-    # Node id → raised max-point cap (an Ethereal Prism's over-allocation affix).
-    max_overrides: dict[str, int] = {}
-    # Column index → extra points from an Inverse Image's reflected box (virtual cells; count toward unlocks).
-    extra_column_points: dict[int, int] = {}
-
-
-@app.post("/api/validate-allocate")
-def validate_allocate(req: AllocateRequest):
-    if req.tree_name not in TREES:
-        raise HTTPException(status_code=404, detail="Tree not found")
-    tree = _build_tree(req.tree_name)
-    tree.extra_column_points = {int(c): p for c, p in (req.extra_column_points or {}).items()}
-    _broken = set(req.prereq_satisfied)
-    for node_id, pts in req.node_states.items():
-        if node_id in tree.nodes:
-            tree.nodes[node_id].current_points = pts
-
-    if req.action in ("allocate", "deallocate"):
-        try:
-            if req.action == "allocate":
-                tree.allocate(req.node_id, _broken, req.max_overrides)
-            else:
-                tree.deallocate(req.node_id, _broken)
-            return {"allowed": True,
-                    "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
-        except ValueError as e:
-            return {"allowed": False, "reason": str(e),
-                    "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
-    raise HTTPException(status_code=400, detail="action must be allocate or deallocate")
+# Interactive point allocation is now validated CLIENT-SIDE (TreeViewerScreen.tryLocalAllocate) so clicks are
+# instant — the old /api/validate-allocate round-trip was removed. The authoritative rules still live in
+# PassiveTree.allocate/deallocate (models/passive_tree.py), covered by test_passive_tree.py +
+# test_ethereal_prism_catalog.py; the client mirror must stay in lockstep with them.
 
 
 # ── Tree editing (debug tools) ─────────────────────────────────────────────────

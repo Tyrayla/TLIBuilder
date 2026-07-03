@@ -416,7 +416,9 @@ export default function TreeViewerScreen({
     ],
   })
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null)
-  const [processing, setProcessing] = useState(false)
+  // Allocation is now validated client-side & applied synchronously (no per-click backend round-trip), so there's
+  // no in-flight "processing" state. Kept as a const false purely to feed the node's cursor prop unchanged.
+  const processing = false
   const [search, setSearch] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -606,40 +608,96 @@ export default function TreeViewerScreen({
     return out
   }
 
-  const handleClick = async (nodeId: string, action: 'allocate' | 'deallocate') => {
-    if (processing) return
-    setProcessing(true)
-    try {
-      const res = await api.validateAllocate(treeName, nodeStates, nodeId, action, prismBrokenIds(), prismMaxOverrides(), prismExtraColumnPoints())
-      if (res.allowed) {
-        setNodeStates(res.node_states)
-        if (!previewMode) updateSlotNodeStates(activeSlot, res.node_states)
-        if (treeData && Object.keys(coreTalentSelections).length > 0) {
-          const newTotal = sumPoints(res.node_states)
-          const next = { ...coreTalentSelections }
-          let changed = false
-          for (const idxStr of Object.keys(coreTalentSelections)) {
-            const idx = Number(idxStr)
-            const slot = treeData.core_talent_slots[idx]
-            if (slot && newTotal < slot.threshold) {
-              delete next[idx]
-              changed = true
-            }
-          }
-          if (changed) {
-            setCoreTalentSelections(next)
-            if (!previewMode) updateSlotCoreTalentSelections(activeSlot, next)
+  // Client-side mirror of the backend allocate/deallocate validator (models/passive_tree.py). Runs synchronously
+  // so allocating a point is instant instead of awaiting a per-click round-trip — the stats recompute still
+  // re-derives everything server-side in the debounced background. RULES MUST STAY IN LOCKSTEP with PassiveTree.
+  const tryLocalAllocate = (
+    nodeId: string, action: 'allocate' | 'deallocate',
+  ): { allowed: boolean; nodeStates?: Record<string, number>; reason?: string } => {
+    if (!treeData) return { allowed: false, reason: 'Tree not loaded.' }
+    const byId: Record<string, TreeNode> = {}
+    for (const n of treeData.nodes) byId[n.id] = n
+    const node = byId[nodeId]
+    if (!node) return { allowed: false, reason: 'Node not found.' }
+
+    const broken = new Set(prismBrokenIds())
+    const maxOv = prismMaxOverrides()
+    const extraCol = prismExtraColumnPoints()
+    const thr = (n: TreeNode) => (n.node_type === 'Legendary Medium Talent' ? 1 : 3)
+    const colPtsOf = (states: Record<string, number>, col: number): number => {
+      let s = extraCol[col] ?? 0
+      for (const n of treeData.nodes) if (n.column === col) s += states[n.id] ?? 0
+      return s
+    }
+    const beforeCol = (states: Record<string, number>, col: number): number => {
+      let s = 0
+      for (let c = 0; c < col; c++) s += colPtsOf(states, c)
+      return s
+    }
+
+    if (action === 'allocate') {
+      if (node.column !== 0 && beforeCol(nodeStates, node.column) < node.column * 3)
+        return { allowed: false, reason: `Column ${node.column * 3} is locked — need ${node.column * 3} points in earlier columns.` }
+      const effMax = maxOv[nodeId] ?? node.max_points
+      const cur = nodeStates[nodeId] ?? 0
+      if (cur >= effMax) return { allowed: false, reason: `'${node.node_type}' is already at max (${cur}/${effMax}).` }
+      for (const { from, to } of treeData.connections) {
+        if (to !== nodeId || broken.has(from)) continue
+        const prereq = byId[from]
+        if (prereq && (nodeStates[from] ?? 0) < thr(prereq))
+          return { allowed: false, reason: `Requires the connected '${prereq.node_type}' to have ≥${thr(prereq)} pt(s) first.` }
+      }
+      return { allowed: true, nodeStates: { ...nodeStates, [nodeId]: cur + 1 } }
+    }
+
+    // deallocate
+    const cur = nodeStates[nodeId] ?? 0
+    if (cur <= 0) return { allowed: false, reason: `'${node.node_type}' already has 0 points.` }
+    const after = { ...nodeStates, [nodeId]: cur - 1 }
+    // Removing a point in this column can strand any column to its RIGHT that relied on it for its unlock.
+    for (let col = node.column + 1; col < COLS; col++) {
+      if (colPtsOf(after, col) > 0 && beforeCol(after, col) < col * 3)
+        return { allowed: false, reason: `Cannot remove: column ${col * 3} requires ${col * 3} points in earlier columns.` }
+    }
+    // Dropping below this node's own threshold must not orphan a connected dependant.
+    if (cur - 1 < thr(node) && !broken.has(nodeId)) {
+      for (const { from, to } of treeData.connections) {
+        if (from !== nodeId) continue
+        const dep = byId[to]
+        if (dep && (nodeStates[to] ?? 0) > 0)
+          return { allowed: false, reason: `Cannot remove: '${dep.node_type}' depends on this node having ≥${thr(node)} pt(s).` }
+      }
+    }
+    return { allowed: true, nodeStates: after }
+  }
+
+  const handleClick = (nodeId: string, action: 'allocate' | 'deallocate') => {
+    const res = tryLocalAllocate(nodeId, action)
+    if (res.allowed && res.nodeStates) {
+      const ns = res.nodeStates
+      setNodeStates(ns)
+      if (!previewMode) updateSlotNodeStates(activeSlot, ns)
+      if (treeData && Object.keys(coreTalentSelections).length > 0) {
+        const newTotal = sumPoints(ns)
+        const next = { ...coreTalentSelections }
+        let changed = false
+        for (const idxStr of Object.keys(coreTalentSelections)) {
+          const idx = Number(idxStr)
+          const slot = treeData.core_talent_slots[idx]
+          if (slot && newTotal < slot.threshold) {
+            delete next[idx]
+            changed = true
           }
         }
-      } else {
-        flash(res.reason ?? (action === 'allocate'
-          ? 'Cannot allocate — check column unlock & prerequisites.'
-          : 'Cannot remove — would break a prerequisite.'))
+        if (changed) {
+          setCoreTalentSelections(next)
+          if (!previewMode) updateSlotCoreTalentSelections(activeSlot, next)
+        }
       }
-    } catch {
-      flash('Request failed — is the backend running?')
-    } finally {
-      setProcessing(false)
+    } else {
+      flash(res.reason ?? (action === 'allocate'
+        ? 'Cannot allocate — check column unlock & prerequisites.'
+        : 'Cannot remove — would break a prerequisite.'))
     }
   }
 
