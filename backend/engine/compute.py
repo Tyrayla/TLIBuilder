@@ -203,6 +203,40 @@ def _eval_intrinsic_additional(skill, source: BuildSource, condition_state: dict
     return total
 
 
+def _main_skill_use_rate(source, skills_by_id, build_input, condition_state, main_slot, resolved) -> float:
+    """The main skill's true USE/fire rate for the consume 'use rate' — the SAME cadence the offense fires at:
+    weapon APS with the skill's SLOT-LOCAL attack speed (Rapid Advance's +100%, Quick Decision, …) folded in,
+    and the 30 Hz breakpoint for a channeled attack. Those slot-local emissions + the channel transform are
+    normally applied post-loop (in the offense pass), so we run the skill's slot effects into a SCRATCH copy of
+    the source here — seeing them WITHOUT mutating/accumulating on the live source (add_slotted appends per call).
+    `resolved` MUST be a fresh resolve (apply_slot_effects mutates it: installs the channel + intrinsics)."""
+    import copy
+    from engine import skill_effects
+    from engine.offense import compute_skill_rates, channeled_attack_fire_rate
+    mt = ({t.lower() for t in resolved.tags}
+          | {t.lower() for t in getattr(resolved, "extra_damage_mod_tags", [])})
+    # FULLY isolate the scratch: some apply_slot_effects modules emit GLOBAL stats (add_with_source) or touch
+    # referenced_conditions/consumed_stats, not just slot-local — sharing any of those containers would leak the
+    # throwaway emissions into the live source. Copy every mutable container the emit path touches.
+    scratch = copy.copy(source)
+    scratch._entries = list(source._entries)
+    scratch.source_log = list(source.source_log)
+    scratch.slot_entries = list(source.slot_entries)
+    scratch.slot_log = list(source.slot_log)
+    scratch.scoped_entries = list(source.scoped_entries)
+    scratch.scoped_log = list(source.scoped_log)
+    scratch.referenced_conditions = set(source.referenced_conditions)
+    scratch.consumed_stats = set(source.consumed_stats)
+    skill_effects.apply_slot_effects(
+        resolved.skill_id, source=scratch, resolved=resolved, slot=main_slot,
+        condition_state=condition_state, mod_tags=mt,
+        attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
+    eff = scratch.materialize_for_skill(mt, main_slot)
+    smooth = compute_skill_rates(eff, resolved, skill_tags_lower=mt).get("sps", 0.0)
+    # A channeled attack fires at the 30 Hz breakpoint (30 ÷ ticks), matching the offense; others use smooth.
+    return channeled_attack_fire_rate(smooth, resolved, "attack" in mt)
+
+
 def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys, auto_sources=None, auto_values=None) -> None:
     """Apply auto-derived support condition effects (from map_autoderive_line) to condition_state,
     respecting manually-set values (never lower / never override). Gated by the supported skill's
@@ -614,7 +648,12 @@ def compute(
         # consume affixes). Separate from skill COST, which sums EVERY active skill at its own rate (below).
         _active_skill = (_resolve_skill_for_trait(skill_data)
                          if (skill_data and build_input.main_skill and main_enabled) else None)
-        _use_rate = compute_skill_rates(source, _active_skill).get("sps", 0.0) if _active_skill else 0.0
+        # Use the skill's TRUE fire rate (slot-local attack speed + channel breakpoint) as the consume use-rate,
+        # not the bare-source rate — else a channeled attack (Split Shot: Rapid Advance) consumes far too little
+        # because its +100% additional Attack Speed is slot-local and applied post-loop. Fresh resolve (mutated).
+        _use_rate = (_main_skill_use_rate(source, skills_by_id, build_input, condition_state, main_slot,
+                                          _resolve_skill_for_trait(skill_data))
+                     if _active_skill else 0.0)
         _attack_rate = _use_rate if (_active_skill is not None and not _active_skill.is_spell) else 0.0
         _cons_rates = {"any": _use_rate, "attack": _attack_rate}
         # Skill COST: sum of every enabled active skill's per-cast cost × its own use rate (cost ≠ consume). Computed
@@ -1004,7 +1043,10 @@ def compute(
     # Self-consume drains (Mana Boil / life-consume affixes). Per-use consume needs the active skill's use rate +
     # the attack-use rate (its rate when it is an attack); the heavy damage calc stays post-loop below.
     _cons_active = resolve_skill(skill_data) if (skill_data and build_input.main_skill and main_enabled) else None
-    _cons_use_rate = compute_skill_rates(source, _cons_active).get("sps", 0.0) if _cons_active else 0.0
+    # True fire rate (slot-local attack speed + channel breakpoint), matching the offense — see _main_skill_use_rate.
+    _cons_use_rate = (_main_skill_use_rate(source, skills_by_id, build_input, condition_state, main_slot,
+                                           resolve_skill(skill_data))
+                      if _cons_active else 0.0)
     _cons_rates_final = {"any": _cons_use_rate,
                          "attack": _cons_use_rate if (_cons_active is not None and not _cons_active.is_spell) else 0.0}
     # Skill COST: sum of EVERY enabled active skill's per-cast cost × its own use rate (cost ≠ consume). Feeds net

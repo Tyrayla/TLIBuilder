@@ -951,6 +951,16 @@ def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags
     return {"sps": cap_rate(sps), "base_cast_time": base_cast_time}
 
 
+def channeled_attack_fire_rate(smooth_sps: float, skill: ResolvedSkill, is_attack: bool) -> float:
+    """The actual fire cadence of a channeled ATTACK (Split Shot: Rapid Advance): it is server-scheduled, so it
+    fires on whole 30 Hz ticks (rate = 30 ÷ ticks) — see engine/tick.py. Returns that quantized rate for a
+    channeled attack, else the smooth rate unchanged (normal attacks + channeled SPELLS keep their smooth/capped
+    rate). Shared by the offense DPS path AND the consumption use-rate so "how often it fires" agrees in both."""
+    if skill.channeled and is_attack and smooth_sps > 0.0:
+        return rate_from_ticks(period_ticks(1.0 / smooth_sps))
+    return smooth_sps
+
+
 def _spell_flat(source: BuildSource, base_map: dict, eff_mult: float):
     """Spell flat pool for one (per-level base, added-damage effectiveness): the intrinsic base (UNSCALED
     by effectiveness) + spell-tagged added flat (gear/supports) scaled by eff_mult. Weapon base does NOT
