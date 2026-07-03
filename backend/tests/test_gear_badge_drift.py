@@ -52,6 +52,23 @@ def test_dual_pool_combo_resolves_to_both(raw_text, expected):
     assert set(r.get("stat_keys") or []) == expected, f"{raw_text!r} -> {r.get('stat_keys')}"
 
 
+# Per-N-consumed lines must stay UNRESOLVED in the affix fields (no single stat_key), so buildGearPayload routes
+# them to unresolved_texts → the engine's mod_parser, which emits BOTH the per-unit value and the ÷N divisor.
+# Collapsing one to a single stat_key drops the divisor: Tide of the Styx's "+1% Attack Speed per 5000 Life
+# consumed" was applied per-1-life and ballooned attack speed to +169076%. The engine still resolves the text
+# (via _resolve_gear_affix_clauses), so it is never silently dropped.
+@pytest.mark.parametrize("text", [
+    "+1 % Attack Speed for every 5000 Life consumed recently",
+    "+(3-5) % damage for every 4000 Life consumed recently",
+    "+(3-6) % Spell Damage for every 100 Mana consumed recently, up to 216 %",
+])
+def test_per_n_consumed_stays_unresolved(text):
+    r = _resolve_affix({"raw_text": text, "affix_kind": "numeric"})
+    assert r.get("stat_key") is None and not r.get("stat_keys"), \
+        f"per-N-consumed must NOT collapse to a single stat_key (drops the divisor): {text!r} -> {r}"
+    assert _engine_keys(text), f"engine must still resolve it via mod_parser: {text!r}"
+
+
 def _all_legendary_affix_texts() -> set[str]:
     path = os.path.join(_SEASON_DIR, "_legendary_gear.json")
     d = json.load(open(path, encoding="utf-8"))

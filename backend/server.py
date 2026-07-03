@@ -2529,6 +2529,15 @@ def _resolve_affix(affix: dict) -> dict:
     text = _GEAR_SUFFIX_RE.sub("", text)
     ne = _norm_expr(text)
     unit = "%" if "%" in raw_text else ""
+    # 0. Per-N-consumed lines ("+X% … for every N <Life|Mana|Energy Shield> consumed recently") expand — via
+    # engine.mod_parser — into a per-unit value PLUS a companion "_unit" divisor (and some into min/max flat + a
+    # cap). A single affix stat_key can't carry the divisor, so resolving one here drops the ÷N and applies the
+    # bonus per-1-consumed (e.g. Tide of the Styx's "+1% Attack Speed per 5000 Life consumed" ballooned to
+    # +169076%). Leave them UNRESOLVED so the engine's gear loop parses them through mod_parser (which emits both
+    # the per-unit and the divisor). Never silently drop.
+    if re.search(r'for\s+every\s+[\d.\s()–\-]+\s+(?:life|mana|energy\s+shield)\s+consumed\s+recently',
+                 raw_text, re.I):
+        return {**affix, "stat_key": None, "unit": unit, "condition_expr": condition_expr}
     # 1. Range-multi: min and max each fan out to multiple stats
     if ne in _RANGE_MULTI_STAT_OVERRIDES:
         rm = _RANGE_MULTI_STAT_OVERRIDES[ne]
