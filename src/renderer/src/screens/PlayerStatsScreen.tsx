@@ -1565,13 +1565,17 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               keys: isSpell
                 ? ['spell_crit_rating_flat', 'spell_crit_rating_inc', 'crit_rating_inc', 'crit_rating_additional', 'projectile_crit_rating_inc']
                 : ['weapon_crit_rating_flat', 'attack_crit_rating_gear', 'attack_crit_rating_mh', 'attack_crit_rating_flat', 'attack_crit_rating_inc', 'crit_rating_inc', 'crit_rating_additional'],
-              total: offense.crit_chance, totalUnit: '%',
-              formula: '(Base + Flat) × (1 + Increased) ÷ 100'
+              total: (offense.crit_chance_uncapped ?? offense.crit_chance), totalUnit: '%',
+              formula: '(Base + Flat) × (1 + Increased) ÷ 100 — the true chance from rating (shown here). Crit is '
+                + 'capped at 100% effective, so anything above is wasted except in niche scenarios.'
                 + (offense.crit_luck_effect === 'lucky' ? '  →  Lucky: 1 − (1 − p)²'
                   : offense.crit_luck_effect === 'unlucky' ? '  →  Unlucky: p²' : ''),
               extra: [
                 ...(isSpell && offense.base_csr > 0
                   ? [{ value: offense.base_csr.toFixed(0), stat: 'Base Crit Rating', source: 'Baseline', sourceName: 'Spell base' }] : []),
+                // Show the effective (capped) chance when the true chance is over 100%, so it's clear crit is maxed.
+                ...((offense.crit_chance_uncapped ?? offense.crit_chance) > 1
+                  ? [{ value: `${dec(offense.crit_chance * 100)}%`, stat: 'Effective (capped)', source: '', sourceName: 'crit caps at 100%' }] : []),
                 ...(offense.crit_luck_effect
                   ? [{ value: offense.crit_luck_effect === 'lucky' ? 'Lucky' : 'Unlucky',
                        stat: `Critical Strikes have the ${offense.crit_luck_effect === 'lucky' ? 'Lucky' : 'Unlucky'} effect`,
@@ -1580,7 +1584,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                          ? 'crit-chance rolled twice, higher kept → effective chance shown'
                          : 'crit-chance rolled twice, lower kept → effective chance shown' }] : []),
               ],
-            }}>{dec((offense.crit_chance * 100))}%</Row>
+            }}>{dec(((offense.crit_chance_uncapped ?? offense.crit_chance) * 100))}%</Row>
             <Row label="Crit Multiplier" breakdown={{
               title: 'Crit Multiplier',
               keys: ['crit_damage'],

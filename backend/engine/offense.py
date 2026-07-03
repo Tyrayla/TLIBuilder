@@ -688,7 +688,8 @@ class OffenseResult:
     supported: bool             # False = NYI; when False no numeric fields are meaningful
     effective_level: int = 0
     hit_forms: list[HitFormResult] = field(default_factory=list)
-    crit_chance: float = 0.0            # EFFECTIVE crit chance (post Lucky/Unlucky crit)
+    crit_chance: float = 0.0            # EFFECTIVE crit chance (capped at 1.0, post Lucky/Unlucky crit) — drives DPS
+    crit_chance_uncapped: float = 0.0   # TRUE chance from rating (may exceed 1.0) — display-only, surfaces over-cap
     crit_luck_effect: str = ""          # "", "lucky", or "unlucky" — Critical Strikes have the Lucky/Unlucky effect
     crit_multiplier: float = 1.5
     # Double / Triple / Quadruple damage CHANCE (tag-filtered, summed pool, capped 100%) + the expected-value
@@ -1046,7 +1047,10 @@ def calculate_offense(
                                             source.total("crit_rating_inc_per_mana_consumed_unit")) * _crr_per
     raw_csr = (base_csr + weapon_csr + other_csr) * (1.0 + crit_rating_inc)
     # 100 CSR = 1% crit chance; divide by 10000 to convert to 0–1 float
-    crit_chance = min(raw_csr / 10000.0, 1.0)
+    # crit_chance_uncapped is the TRUE chance from rating (can exceed 1.0) — surfaced so the user sees over-cap;
+    # the EFFECTIVE crit_chance that drives crit_factor is capped at 1.0 (crit is ineffective above 100%).
+    crit_chance_uncapped = raw_csr / 10000.0
+    crit_chance = min(crit_chance_uncapped, 1.0)
     # "Critical Strikes have the Lucky / Unlucky effect" (Perched River kismet): the crit-CHANCE roll is made twice —
     # Lucky keeps the better outcome (crit if EITHER roll succeeds → 1−(1−p)²), Unlucky the worse (crit only if BOTH →
     # p²). This EFFECTIVE chance drives crit_factor AND the displayed Crit Chance. Lucky+Unlucky cancel (→ unchanged).
@@ -2055,6 +2059,7 @@ def calculate_offense(
         effective_level=effective_level,
         hit_forms=hit_forms,
         crit_chance=crit_chance,
+        crit_chance_uncapped=crit_chance_uncapped,
         crit_luck_effect=crit_luck_effect,
         crit_multiplier=crit_mult,
         double_dmg_chance=q2, triple_dmg_chance=q3, quad_dmg_chance=q4, double_dmg_factor=double_dmg_factor,

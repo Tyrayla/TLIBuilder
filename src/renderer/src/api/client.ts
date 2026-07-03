@@ -793,7 +793,8 @@ export interface OffenseResult {
   supported: boolean   // false = NYI; when false no other fields are meaningful
   effective_level: number
   hit_forms: HitFormResult[]
-  crit_chance: number            // effective (post Lucky/Unlucky crit)
+  crit_chance: number            // effective (capped at 1.0, post Lucky/Unlucky crit) — drives DPS
+  crit_chance_uncapped?: number  // true chance from rating (may exceed 1.0) — display-only, surfaces over-cap
   crit_luck_effect?: string      // '', 'lucky', or 'unlucky'
   crit_multiplier: number
   double_dmg_chance?: number       // double-damage chance (tag-filtered, capped 100%)

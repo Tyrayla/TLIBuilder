@@ -334,6 +334,7 @@
     "channeled_stacks": 0.0,
     "compulsory_breakdown": {},
     "crit_chance": 0.05,
+    "crit_chance_uncapped": 0.05,
     "crit_luck_effect": "",
     "crit_multiplier": 1.5,
     "demolisher_area_mode": "both",
