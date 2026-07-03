@@ -223,8 +223,12 @@ function _buildItemContributions(
   const affixOffset = mutationAffix ? 1 : 0
   // Inject the base ITEM implicit (e.g. a belt base's "+110 Max Life") when the item carries none — the
   // legendary catalog often omits it, so it'd be silently missing. Appended (indices for customizations stay
-  // put); only when the item has NO implicit affix already (armour bases keep their "+N gear X" implicit).
-  if (!affixesToProcess.some(a => a.affix_kind === 'implicit')) {
+  // put); only when the item has NO implicit already. NOTE: a legendary's own implicit is stored with
+  // affix_kind 'numeric' (e.g. Tide of the Styx's "+1777 Gear Armor"), so `implicit_count` — the number of
+  // leading implicit affixes — is the reliable "already has one" signal; checking affix_kind alone misfires and
+  // DOUBLES the implicit (a base-implicit copy on top of the item's own).
+  const _hasOwnImplicit = (item.implicit_count ?? 0) > 0 || affixesToProcess.some(a => a.affix_kind === 'implicit')
+  if (!_hasOwnImplicit) {
     const baseImpls = _baseItemImplicits(item.base_type)
     if (baseImpls.length) {
       affixesToProcess = [...affixesToProcess, ...baseImpls.map(text => ({
@@ -585,7 +589,11 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
   for (const item of gear) {
     if (item.slot === null) continue
 
-    if (!Array.isArray(item.slot) && (item.slot === 'weapon1' || item.slot === 'weapon2')) {
+    // Only actual WEAPONS enter the weapon-averaging path. A shield in weapon2 is NOT a weapon: including it
+    // would make a weapon+shield build average the weapon's base stats (APS/damage/CSR) with the shield (e.g.
+    // a 1.5-APS weapon → 1.03), which is wrong. Shields fall through to the standard path so their defense/affix
+    // contributions still apply. (Mirrors isDualWielding, which already excludes shields.)
+    if (!Array.isArray(item.slot) && (item.slot === 'weapon1' || item.slot === 'weapon2') && !isShieldItem(item)) {
       singleWeaponItems.push(item)
       continue
     }
