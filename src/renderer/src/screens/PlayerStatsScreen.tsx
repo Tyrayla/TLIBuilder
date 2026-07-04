@@ -55,13 +55,22 @@ interface Collected {
   amount: number; points: number; slot: number | null
 }
 
+// Qualify a stat's display name by its pool so a combined breakdown (e.g. Max Life = flat/increased/additional,
+// which all share the display name "Max Life") labels each row correctly. Suffix-based and idempotent — a stat
+// whose name already reads "Additional …"/"Increased …" (e.g. dmg_additional → "Additional Damage") is untouched.
+function qualifiedStatName(statKey: string, displayName: string): string {
+  if (/_inc$/.test(statKey) && !/^increased\b/i.test(displayName)) return `Increased ${displayName}`
+  if (/_additional$/.test(statKey) && !/^additional\b/i.test(displayName)) return `Additional ${displayName}`
+  return displayName
+}
+
 function collectSources(keys: string[], stats: Record<string, StatEntry>): { main: Collected[]; slot: Collected[] } {
   const main: Collected[] = []
   const slot: Collected[] = []
   for (const k of keys) {
     const entry = stats[k]
     if (!entry) continue
-    const base = { statKey: k, statName: entry.display_name || k, unit: entry.unit || '' }
+    const base = { statKey: k, statName: qualifiedStatName(k, entry.display_name || k), unit: entry.unit || '' }
     for (const s of entry.sources ?? [])
       main.push({ ...base, source_type: s.source_type, label: s.label, text: s.text, source_name: s.source_name ?? null, amount: s.amount, points: s.points, slot: s.slot ?? null })
     for (const s of entry.slot_sources ?? [])
@@ -129,7 +138,7 @@ function BreakdownHeader({ title, total, totalUnit, formula, totalSuffix }: { ti
 // Column header row (subgrid) shared by the main table + each section table.
 function BreakdownColHeader() {
   return (
-    <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', paddingBottom: 3, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+    <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', paddingBottom: 3, borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'sticky', top: 0, background: '#0e0e1e', zIndex: 1 }}>
       <span style={{ textAlign: 'right' }}>Value</span><span>Stat</span><span>Source</span><span>Source Name</span>
     </div>
   )
@@ -288,7 +297,9 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
         // ONE grid so every column sizes to the widest entry across ALL rows (header + extras + sources);
         // each row is a subgrid spanning all columns so it keeps its own box (hover/outline) while its
         // cells snap to the shared column tracks. columnGap lives on the parent; subgrids inherit it.
-        <div style={{ display: 'grid', gridTemplateColumns: BD_GRID, columnGap: 8, padding: '0 8px' }}>
+        // Bounded + scrollable so a long breakdown (e.g. Max Life's ~40 sources) stays compact and the fixed
+        // title header above never gets pushed off the top of the viewport.
+        <div style={{ display: 'grid', gridTemplateColumns: BD_GRID, columnGap: 8, padding: '0 8px', maxHeight: 'min(58vh, 460px)', overflowY: 'auto' }}>
           <BreakdownColHeader />
           {(extra ?? []).map((e, i) => <ExtraRowView key={`e${i}`} e={e} />)}
           {groupedMain.map((g, i) => <BreakdownSourceRow key={`m${i}`} g={g} ctx={ctx} />)}
@@ -325,7 +336,9 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
 // only) outside a BreakdownCtx provider.
 function Breakdown({ title, keys, children, block, total, totalUnit, extra, formula, sections }: { title: string; keys: string[]; children: React.ReactNode; block?: boolean; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[] }) {
   const ctx = useContext(BreakdownCtx)
-  const tip = useFloatingTooltip({ anchor: 'element', side: 'right', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
+  // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
+  // the right) — a tall breakdown near the top of the screen no longer centers on the row and overflows the top.
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right-start', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
   if (!ctx) return <>{children}</>
   return (
     <>
@@ -389,7 +402,9 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
   breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string };
 }) {
   const ctx = useContext(BreakdownCtx)
-  const tip = useFloatingTooltip({ anchor: 'element', side: 'right', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
+  // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
+  // the right) — a tall breakdown near the top of the screen no longer centers on the row and overflows the top.
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right-start', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
   const bd = !!breakdown && !!ctx
   return (
     <>
@@ -2238,7 +2253,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
 function SubRow({ label, children, breakdown }: { label: string; children: React.ReactNode; breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string } }) {
   const ctx = useContext(BreakdownCtx)
-  const tip = useFloatingTooltip({ anchor: 'element', side: 'right', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
+  // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
+  // the right) — a tall breakdown near the top of the screen no longer centers on the row and overflows the top.
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right-start', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
   const bd = !!breakdown && !!ctx
   return (
     <>
