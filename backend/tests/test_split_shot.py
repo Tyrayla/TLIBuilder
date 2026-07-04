@@ -5,8 +5,8 @@
   - Diversion (Magnificent): +5 Projectile Quantity + a plain damage roll; stays spread (still 1 hit ST).
   - Volley (Magnificent): +2 Projectile Quantity + grants Shotgun Effect (N projectiles shotgun one target,
         falloff coefficient 77% → each subsequent deals 1−0.77 = 23%) + a negative damage roll.
-  - Rapid Advance (Noble): turns Split Shot into a channeled attack (1.5/s base × attack speed, 30 Hz tick
-        breakpoints; +100% additional AS → 3/s), −50% additional damage, per-additional-max-stack bonus.
+  - Rapid Advance (Noble): turns Split Shot into a channeled attack (1.5/s base × attack speed, fired SMOOTHLY —
+        no 30 Hz breakpoint; +100% additional AS → 3/s), −50% additional damage, per-additional-max-stack bonus.
 """
 import pytest
 from engine.skill_resolver import resolve_skill
@@ -116,27 +116,28 @@ def test_collaboration_scales_with_projectile_quantity():
 
 # ── Rapid Advance: channel transform ────────────────────────────────────────────
 def test_rapid_advance_channels_at_three_per_second():
-    # Keys off the WEAPON attack rate: a stock 1.5 base weapon APS × the +100% additional = 3/s → 30/10 ticks.
+    # Keys off the WEAPON attack rate and fires SMOOTHLY (no 30 Hz breakpoint): 1.5 base × the +100% additional = 3/s.
     ra = _off_single(supports=[_sup(RAPID)], aps=1.5)
     assert "channeled" in [t.lower() for t in ra["skill_tags"]]
-    assert ra["channel_attack_ticks"] == 10
+    assert ra["channel_attack_ticks"] == 0                   # no breakpoint snapping
     assert ra["skills_per_second"] == pytest.approx(3.0)
     assert ra["channeled_max_stacks"] == 5
 
 
 def test_channel_rate_keys_off_weapon_attack_speed():
-    """The channel is weapon-APS-driven: a faster weapon → a faster (before-quantize) channel rate."""
-    slow = _off_single(supports=[_sup(RAPID)], aps=1.5)      # 1.5 × 2 = 3.0 → 10 ticks
-    fast = _off_single(supports=[_sup(RAPID)], aps=3.0)      # 3.0 × 2 = 6.0 → 5 ticks
+    """The channel is weapon-APS-driven: a faster weapon → a faster (smooth) channel rate."""
+    slow = _off_single(supports=[_sup(RAPID)], aps=1.5)      # 1.5 × 2 = 3.0/s
+    fast = _off_single(supports=[_sup(RAPID)], aps=3.0)      # 3.0 × 2 = 6.0/s
     assert fast["skills_per_second"] > slow["skills_per_second"]
-    assert fast["channel_attack_ticks"] < slow["channel_attack_ticks"]
 
 
-def test_rapid_advance_rate_is_tick_quantized():
-    """The channel rate is always exactly 30 ÷ (whole ticks); more attack speed → fewer ticks (faster)."""
-    ra = _off(supports=[_sup(RAPID)], gear=[_flat_item("AS", [("attack_speed_inc", 1.0)])])
-    assert ra["skills_per_second"] == pytest.approx(30 / ra["channel_attack_ticks"])
-    assert ra["channel_attack_ticks"] < 10
+def test_rapid_advance_rate_is_smooth_not_snapped():
+    """Channeled attacks fire at the SMOOTH rate — NO 30 Hz breakpoint (Split Shot's old snap was removed in-game).
+    A small attack-speed bump changes the rate continuously; a breakpoint would freeze it across a tick band."""
+    base = _off(supports=[_sup(RAPID)])
+    more = _off(supports=[_sup(RAPID)], gear=[_flat_item("AS", [("attack_speed_inc", 0.05)])])
+    assert base["channel_attack_ticks"] == 0 and more["channel_attack_ticks"] == 0   # never quantized
+    assert more["skills_per_second"] > base["skills_per_second"]                       # +5% AS raises it (no plateau)
 
 
 def test_rapid_advance_damage_penalty():
@@ -159,4 +160,4 @@ def test_rapid_advance_plus_volley_shotguns_in_channel():
     """Volley (3rd) + Rapid Advance (5th) coexist → the channel shotguns the target."""
     ra_vol = _off(supports=[_sup(RAPID, slot=1), _sup(VOLLEY, slot=1)])
     assert ra_vol["hit_forms"][0]["hits_per_fire"] == 5
-    assert ra_vol["skills_per_second"] == pytest.approx(30 / ra_vol["channel_attack_ticks"])
+    assert ra_vol["skills_per_second"] > 0 and ra_vol["channel_attack_ticks"] == 0   # smooth, no breakpoint

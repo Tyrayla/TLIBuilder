@@ -956,12 +956,11 @@ def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags
 
 
 def channeled_attack_fire_rate(smooth_sps: float, skill: ResolvedSkill, is_attack: bool) -> float:
-    """The actual fire cadence of a channeled ATTACK (Split Shot: Rapid Advance): it is server-scheduled, so it
-    fires on whole 30 Hz ticks (rate = 30 ÷ ticks) — see engine/tick.py. Returns that quantized rate for a
-    channeled attack, else the smooth rate unchanged (normal attacks + channeled SPELLS keep their smooth/capped
-    rate). Shared by the offense DPS path AND the consumption use-rate so "how often it fires" agrees in both."""
-    if skill.channeled and is_attack and smooth_sps > 0.0:
-        return rate_from_ticks(period_ticks(1.0 / smooth_sps))
+    """The actual fire cadence of a channeled ATTACK. It fires at the SMOOTH attack rate — channeled attacks do
+    NOT snap to 30 Hz breakpoints. (Split Shot: Rapid Advance snapped ~3 seasons ago, but that quirk was removed
+    in-game; breakpoints are unrelated to channeling — verified: the flat-damage-per-consume ramps CONTINUOUSLY
+    with attack speed, which a breakpoint would freeze flat across a whole tick band.) Kept as the single shared
+    entry point (offense DPS path + consumption use-rate) so "how often it fires" stays defined in one place."""
     return smooth_sps
 
 
@@ -1342,25 +1341,17 @@ def calculate_offense(
             tangle_cast_to_next_additional = _x
             tangle_cast_to_next_increased = (1.0 + source.total("cast_speed_inc")) * _x
 
-    # ── Channeled-attack tick breakpoints (Split Shot: Rapid Advance) ── the channel fires on whole 30 Hz server
-    # ticks (opt-in breakpoint regime, engine/tick.py): rate = 30/N → 30, 15, 10, 7.5, 6, … Extra attack speed
-    # only helps when it crosses an integer-tick boundary. ONLY for channeled ATTACKS (Split Shot); channeled
-    # spells (Icebound/Howling) and normal attacks are untouched → golden-safe. Quantizes sps BEFORE the channel
-    # cadence + hit-form rates below, so every downstream rate uses the breakpoint value.
+    # ── Channeled attacks fire at the SMOOTH attack rate (no 30 Hz breakpoint) ── Split Shot: Rapid Advance
+    # snapped to whole 30 Hz ticks ~3 seasons ago, but that quirk was removed in-game; channeled attacks (likely
+    # all of them) now fire smoothly, and the breakpoint regime is unrelated to channeling. Verified in-game: the
+    # flat-damage-per-consume ramps CONTINUOUSLY with attack speed, which a breakpoint would freeze flat across a
+    # tick band. So `sps` is left as the smooth rate (channeled_attack_fire_rate is a no-op) and the channel-
+    # breakpoint fields stay 0 → the "Attack Ticks / next breakpoint" rows don't render; the normal Attacks-per-
+    # Second row shows the true rate. Fields kept for schema stability / any future skill that genuinely snaps.
     channel_attack_ticks = 0
     channel_attack_smooth_sps = 0.0
     channel_attack_to_next_increased = 0.0
     channel_attack_to_next_additional = 0.0
-    if skill.channeled and is_attack and sps > 0.0:
-        _sps_raw = sps                                   # smooth attack rate before tick-rounding
-        channel_attack_smooth_sps = _sps_raw             # the true attack speed (surfaced despite the breakpoint)
-        channel_attack_ticks = period_ticks(1.0 / _sps_raw)
-        sps = rate_from_ticks(channel_attack_ticks)
-        if channel_attack_ticks > 1:
-            _next_cs = rate_from_ticks(channel_attack_ticks - 1)   # rate needed for (ticks − 1)
-            _x = max(0.0, _next_cs / _sps_raw - 1.0)
-            channel_attack_to_next_additional = _x
-            channel_attack_to_next_increased = (1.0 + source.total("attack_speed_inc")) * _x
 
     # ── Channeled cadence ── 1 stack per use; a RESET skill ramps 0→max over `rounds_per_cycle` uses then
     # dumps + fires its burst form once per cycle. Min Channeled Stacks shortens the ramp (first round gains

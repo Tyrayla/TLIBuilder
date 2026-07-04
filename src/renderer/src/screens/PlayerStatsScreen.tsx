@@ -1546,30 +1546,23 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               ))
             ) : (() => {
               const isTrig = (offense.trigger_interval ?? 0) > 0
-              // Channeled attack (Split Shot: Rapid Advance): show the SMOOTH attack speed as the headline (like the
-              // in-game skill panel) even though the channel fires on whole 30 Hz ticks — the breakpoint fire rate
-              // (what the DPS uses) is noted in the extra row.
-              const isChan = (offense.channel_attack_smooth_sps ?? 0) > 0
-              const shownRate = isChan ? (offense.channel_attack_smooth_sps ?? 0) : offense.skills_per_second
+              // A channeled attack (Split Shot: Rapid Advance) fires at the SMOOTH weapon-APS rate — no 30 Hz
+              // breakpoint (that was a removed Split-Shot quirk), so it uses the normal attack-rate row.
               return (
               <Row label={isTrig ? 'Triggers per Second' : rateLabel} breakdown={{
                 title: isTrig ? 'Triggers per Second' : rateLabel, keys: rateKeys,
-                total: shownRate, totalUnit: '',
+                total: offense.skills_per_second, totalUnit: '',
                 formula: isTrig
                   ? (offense.wind_rhythm_active
                       ? 'Wind Rhythm trigger rate (tick-quantized — see the Wind Rhythm panel). The skill fires at the medium\'s cadence, not your cast rate.'
                       : `Triggered by an Activation Medium every ${dec(offense.trigger_interval ?? 0)} s → ${dec(offense.skills_per_second)}/s (overrides your cast rate).`)
-                  : isChan
-                    ? 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional — the smooth attack speed. The channel is server-scheduled, so it FIRES on whole 30 Hz ticks (30 ÷ ticks); the DPS uses that fire rate.'
-                    : (isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional'),
+                  : (isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional'),
                 extra: isTrig
                   ? [{ value: `${dec(offense.trigger_interval ?? 0)} s`, stat: 'Trigger interval', source: 'Medium', sourceName: 'cadence' }]
-                  : isChan
-                    ? [{ value: `${dec(offense.skills_per_second)}/s`, stat: 'Fires at (30 Hz breakpoint)', source: '', sourceName: `${offense.channel_attack_ticks} ticks — used for DPS` }]
-                    : (isSpell && offense.base_cast_time > 0
+                  : (isSpell && offense.base_cast_time > 0
                       ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
                       : undefined),
-              }}>{dec(shownRate)}</Row>
+              }}>{dec(offense.skills_per_second)}</Row>
               )
             })()}
           </StatPanel>
@@ -2088,37 +2081,8 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             title: 'Min Channeled Stacks', keys: ['min_channeled_stacks_flat'], total: offense.channeled_min_stacks, totalUnit: '',
             formula: 'Σ +Min Channeled Stacks — the first round from 0 gains 1 + Min (shortens the ramp)',
           }}>{offense.channeled_min_stacks}</Row>
-          {(offense.channel_attack_ticks ?? 0) > 0 && (
-            <Row label="Channel Attack Rate" breakdown={{
-              title: 'Channel Attack Rate', keys: ['weapon_attack_speed', 'attack_speed_inc', 'attack_speed_gear', 'attack_speed_mh', 'attack_speed_additional'],
-              total: offense.skills_per_second, totalUnit: ' /s',
-              formula: 'Weapon APS × (1 + Gear) × (1 + Increased) × Π(1 + Additional) — the normal attack rate (a stock '
-                + '1.5 base weapon APS × the +100% additional = 3/s) — snapped DOWN to the 30 ÷ ticks breakpoint: the '
-                + 'channel is server-scheduled, so it fires on whole ticks (rate = 30 ÷ ticks → 30, 15, 10, 7.5, 6, …).',
-            }}>{dec(offense.skills_per_second)} /s</Row>
-          )}
-          {(offense.channel_attack_ticks ?? 0) > 0 && (() => {
-            const incNeed = offense.channel_attack_to_next_increased ?? 0
-            const addNeed = offense.channel_attack_to_next_additional ?? 0
-            const nextTicks = (offense.channel_attack_ticks ?? 0) - 1
-            const reachable = nextTicks >= 1 && (incNeed > 0 || addNeed > 0)
-            const nextRate = nextTicks >= 1 ? dec(30 / nextTicks) : ''
-            return (
-              <Row label="Attack Ticks" labelColor="#9ab" breakdown={{
-                title: 'Attack Ticks → next attacks/sec breakpoint', keys: [], total: offense.channel_attack_ticks, totalUnit: ' ticks',
-                formula: 'Attack Ticks = ceil(30 ÷ attack rate) — the channel is server-scheduled, so its rate rounds '
-                  + 'DOWN to a whole tick; attacks/sec = 30 ÷ ticks. Extra attack speed only helps when it crosses a tick '
-                  + 'boundary. Either lever below reaches the next breakpoint on its own (Increased dilutes against your '
-                  + 'existing increased pool, so it needs more than Additional).',
-                extra: reachable
-                  ? [
-                      { value: `+${dec(incNeed * 100)}%`, stat: `Increased Attack Speed → ${nextTicks} ticks`, source: '', sourceName: `reaches ${nextRate} attacks/s` },
-                      { value: `+${dec(addNeed * 100)}%`, stat: `Additional Attack Speed → ${nextTicks} ticks`, source: '', sourceName: `reaches ${nextRate} attacks/s` },
-                    ]
-                  : [{ value: '—', stat: 'Attack Speed', source: '', sourceName: (offense.channel_attack_ticks ?? 0) <= 1 ? 'already at 1 tick (30 attacks/s)' : 'no reachable breakpoint' }],
-              }}>{offense.channel_attack_ticks}</Row>
-            )
-          })()}
+          {/* Channeled ATTACKS (Split Shot: Rapid Advance) fire at the SMOOTH attack rate — no 30 Hz breakpoint —
+              so the attack rate is shown in the normal Attacks-per-Second row above, not a channel-specific one. */}
           {(offense.channeled_attack_frequency ?? 0) > 0 && (
             <>
               <Row label="Channel Rate" breakdown={{
