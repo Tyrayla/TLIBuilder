@@ -676,6 +676,30 @@ def _cached_filter() -> dict:
     return _filter_cache[season]
 
 
+def _resolve_custom_mod(mod_text: str) -> tuple[list[dict], dict]:
+    """Parse ONE custom-mod line → (contributions, status). SINGLE source of truth for both the engine pass (needs
+    the contributions) and the lightweight /validate-custom-mods endpoint (needs only the status), so the editor's
+    green/red matches EXACTLY what the engine applies. Mirrors the gear/talent paths: try the whole line first;
+    only fall back to a stat-part + translated-condition split if that fails (an untranslatable gate → unresolved)."""
+    from engine.core_talent_resolver import _split_condition
+    cond_expr = None
+    parsed = _parse_custom_mod_text(mod_text)
+    if not parsed:
+        stat_part, cond_part = _split_condition(mod_text)
+        parsed = _parse_custom_mod_text(stat_part)
+        if parsed and cond_part is not None:
+            cond_expr = _translate_condition_expr(mod_text) or _translate_condition_expr(cond_part)
+            if cond_expr is None:
+                parsed = []
+    if parsed:
+        for entry in parsed:
+            if cond_expr is not None:
+                entry["condition"] = cond_expr
+        return parsed, {"text": mod_text, "resolved": True,
+                        "stat_display": ", ".join(_qualified_stat_display(e["stat_key"]) for e in parsed)}
+    return [], {"text": mod_text, "resolved": False, "stat_display": None}
+
+
 @app.post("/api/engine/stats")
 def engine_stats(req: EngineStatsRequest):
     import re
@@ -737,44 +761,14 @@ def engine_stats(req: EngineStatsRequest):
     # payload (today's common case) every support stays enabled → byte-identical.
     _disabled_slots = {s.slot for s in req.skills if not s.enabled}
 
-    # Pre-resolve custom mods and build status list for the frontend. Mirror the gear path: split off a
-    # leading/trailing condition ("vs Low Life enemies", "if Ignited", "when only 1 enemy nearby") so the
-    # stat clause resolves and the gate rides on each contribution's `condition` (gated in the aggregator).
-    # An untranslatable gate makes the mod UNRESOLVED (honest NYI), never applied always-on.
-    from engine.core_talent_resolver import _split_condition
+    # Pre-resolve custom mods and build the status list for the frontend, via the shared _resolve_custom_mod
+    # helper (same parse used by the /validate-custom-mods editor endpoint, so green/red matches what's applied).
     custom_contributions: list[dict] = []
     custom_mod_statuses: list[dict] = []
     for mod_text in req.custom_mods:
-        cond_expr = None
-        # Try the FULL text first (mirrors the gear + talent-node paths): self-consume lines carry their cadence/scope
-        # inline ("… when you use Attack Skills") and must NOT have that split off as an untranslatable gate. Genuinely
-        # gated mods ("+X% damage if at full life") don't resolve whole → they fall through to the split path below.
-        parsed = _parse_custom_mod_text(mod_text)
-        if not parsed:
-            stat_part, cond_part = _split_condition(mod_text)
-            parsed = _parse_custom_mod_text(stat_part)
-            if parsed and cond_part is not None:
-                cond_expr = _translate_condition_expr(mod_text) or _translate_condition_expr(cond_part)
-                if cond_expr is None:
-                    parsed = []
-        if parsed:
-            # Each parsed entry becomes a contribution; all share the same original text + gate.
-            for entry in parsed:
-                if cond_expr is not None:
-                    entry["condition"] = cond_expr
-                custom_contributions.append(entry)
-            display_names = [_qualified_stat_display(e["stat_key"]) for e in parsed]
-            custom_mod_statuses.append({
-                "text": mod_text,
-                "resolved": True,
-                "stat_display": ", ".join(display_names),
-            })
-        else:
-            custom_mod_statuses.append({
-                "text": mod_text,
-                "resolved": False,
-                "stat_display": None,
-            })
+        _contribs, _status = _resolve_custom_mod(mod_text)
+        custom_contributions.extend(_contribs)
+        custom_mod_statuses.append(_status)
 
     # Pre-resolve pact-spirit / hero-memory effects through the unified resolver + build status lists so
     # nothing is silently dropped (cardinal rule), mirroring the custom-mod block above.
@@ -2817,6 +2811,13 @@ def resolve_gear_affixes(req: ResolveGearAffixesRequest):
                 entry[k] = resolved[k]
         results[raw_text] = entry
     return {"results": results}
+
+
+@app.post("/api/validate-custom-mods")
+def validate_custom_mods(req: ResolveGearAffixesRequest):
+    """Parse-only validation of custom-mod lines (resolved + stat display) WITHOUT a full stats compute — lets the
+    custom-mod editor show green/red instantly while typing, decoupled from the (debounced, heavier) engine pass."""
+    return {"statuses": [_resolve_custom_mod(t)[1] for t in req.texts]}
 
 
 class MapModifierItem(BaseModel):

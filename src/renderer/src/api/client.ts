@@ -2537,6 +2537,10 @@ export const api = {
   getCraftBaseTypes: () => get<{ season: string | null; base_types: CraftBaseType[] }>('/craft-base-types'),
   resolveGearAffixes: (texts: string[]) =>
     post<{ results: Record<string, ResolvedAffixFields> }>('/resolve-gear-affixes', { texts }),
+  // Parse-only custom-mod validation (resolved + stat display), no full stats compute — for the editor's live
+  // green/red while typing, so it doesn't wait on the debounced engine pass.
+  validateCustomMods: (texts: string[]) =>
+    post<{ statuses: CustomModStatus[] }>('/validate-custom-mods', { texts }),
   getCraftBaseItems: () => get<{ season: string | null; base_types: CraftBaseItemGroup[] }>('/craft-base-items'),
   clearCraftBaseTypes: () => del<{ ok: boolean }>('/dev/craft-base-types'),
 
