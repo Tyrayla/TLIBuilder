@@ -291,15 +291,20 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
   }
   const empty = groupedMain.length === 0 && slotGroups.size === 0 && !(extra && extra.length) && !(sections && sections.length)
   return (
-    <div style={{ minWidth: 340, maxWidth: 520, fontSize: 11 }}>
+    // Flex column that fills the size-capped .tooltip--breakdown height: the title header stays fixed at the top
+    // and the rows scroll into whatever space remains, so the popover always fits the viewport (no top cutoff)
+    // regardless of where the anchor sits or how many sources there are. Mirrors the .tooltip--stat pattern.
+    <div style={{ minWidth: 340, maxWidth: 520, fontSize: 11, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
       <BreakdownHeader title={title} total={headerVal} totalUnit={headerUnit} formula={formula} totalSuffix={totalSuffix} />
       {empty ? <div style={{ color: '#555' }}>No sources found</div> : (
         // ONE grid so every column sizes to the widest entry across ALL rows (header + extras + sources);
         // each row is a subgrid spanning all columns so it keeps its own box (hover/outline) while its
         // cells snap to the shared column tracks. columnGap lives on the parent; subgrids inherit it.
-        // Bounded + scrollable so a long breakdown (e.g. Max Life's ~40 sources) stays compact and the fixed
-        // title header above never gets pushed off the top of the viewport.
-        <div style={{ display: 'grid', gridTemplateColumns: BD_GRID, columnGap: 8, padding: '0 8px', maxHeight: 'min(58vh, 460px)', overflowY: 'auto' }}>
+        // Scrollable rows under the fixed header. maxHeight caps the ROWS to ~half the viewport so the whole
+        // popover stays SHORT (never fills the window / hugs the top chrome); flex:1 + min-height:0 keep the
+        // header pinned and let it scroll when long. So the title is always visible whether the anchor is high
+        // or low on-screen — a long breakdown (Max Life's ~40 sources) just scrolls inside this box.
+        <div style={{ display: 'grid', gridTemplateColumns: BD_GRID, columnGap: 8, padding: '0 8px', flex: 1, minHeight: 0, maxHeight: 'min(50vh, 360px)', overflowY: 'auto' }}>
           <BreakdownColHeader />
           {(extra ?? []).map((e, i) => <ExtraRowView key={`e${i}`} e={e} />)}
           {groupedMain.map((g, i) => <BreakdownSourceRow key={`m${i}`} g={g} ctx={ctx} />)}

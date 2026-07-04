@@ -942,7 +942,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .tooltip--node   { background: #0d1b2a; border-color: var(--accent); }
 .tooltip--node .tooltip-title { color: var(--accent); }
 .tooltip--gear   { min-width: 220px; max-width: 300px; }
-.tooltip--breakdown { max-width: 540px; overflow-y: auto; }
+.tooltip--breakdown { max-width: 540px; display: flex; flex-direction: column; overflow: hidden; }
 .tooltip--skill  { max-width: 280px; }
 .tooltip--spirit { /* centered-above is handled by Floating UI placement now */ }
 .tooltip--stat   { width: 230px; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
