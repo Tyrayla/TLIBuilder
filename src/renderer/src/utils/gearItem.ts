@@ -2,7 +2,7 @@
 // (GearScreen keeps its own local copies for now; this is the reusable surface for code
 // outside that screen — notably converting a catalog item into a priceable equipped item.)
 import type {
-  LegendaryGearItem, EquippedGearItem, GearSlot, LegendaryAffix,
+  LegendaryGearItem, EquippedGearItem, GearSlot, LegendaryAffix, CustomizedAffix,
 } from '../api/client'
 
 export function getItemSlots(item: EquippedGearItem): GearSlot[] {
@@ -91,5 +91,69 @@ export function legendaryToEquipped(item: LegendaryGearItem, slot: GearSlot): Eq
     slot,
     base_type: item.base_type,
     implicit_count: getItemImplicits(item).length,
+  }
+}
+
+// Build an equipped item from a catalog item + the user's staged customization/corrosion. Affixes are the
+// CURRENT catalog's base affixes with the corroded ("T0") variants swapped in for the desecrated explicit
+// indices and any chosen random-affix options applied by index. The rolled VALUES live separately in
+// `customizations` (applied downstream), so the affixes here are the templates. Shared by GearScreen (add /
+// edit / preview) and the build-load migration below. `corrosionBaseAffixes` (the base-type's corrosion pool)
+// is only consulted to resolve a mutation affix; pass [] when it isn't needed.
+export function makeCatalogItem(
+  catalogItem: LegendaryGearItem, customizations: CustomizedAffix[],
+  corrosionType: 'none' | 'desecration' | 'mutation', corrodedExplicitIndices: number[],
+  selectedRandomAffixes: Record<number, string>,
+  corrosionBaseAffixes: Array<LegendaryAffix & { modifier_text: string }>, mutationAffixText: string | null,
+): EquippedGearItem {
+  const baseAffixes = getItemAffixes(catalogItem)
+  const implCount = getItemImplicits(catalogItem).length
+  const affixes = [...baseAffixes]
+  if (corrodedExplicitIndices.length > 0 && catalogItem.variants.corroded) {
+    for (const idx of corrodedExplicitIndices) {
+      const corroded = catalogItem.variants.corroded.explicits[idx]
+      if (corroded) affixes[implCount + idx] = corroded
+    }
+  }
+  const allRandomOptions = Object.values(catalogItem.random_affixes).flat().flatMap(g => g.options)
+  for (const [explicitIdxStr, modifierId] of Object.entries(selectedRandomAffixes)) {
+    const explicitIdx = Number(explicitIdxStr)
+    const opt = allRandomOptions.find(o => o.modifier_id === modifierId)
+    if (opt) affixes[implCount + explicitIdx] = opt
+  }
+  const mutationResolvedAffix = corrosionType === 'mutation' && mutationAffixText
+    ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationAffixText) ?? null)
+    : null
+  return {
+    item_id: catalogItem.item_id,
+    name: catalogItem.name,
+    required_level: catalogItem.required_level,
+    affixes,
+    customizations,
+    slot: null,
+    base_type: catalogItem.base_type,
+    implicit_count: implCount,
+    corrosion_type: corrosionType,
+    corroded_explicit_indices: corrodedExplicitIndices,
+    mutation_affix_text: mutationAffixText,
+    mutation_resolved_affix: mutationResolvedAffix,
+    selected_random_affixes: Object.keys(selectedRandomAffixes).length ? selectedRandomAffixes : undefined,
+  }
+}
+
+// Migrate an OLD saved legendary item to the CURRENT catalog: re-derive its affix array + implicit_count from
+// the catalog (matched by item_id) so index-based desecration/corrosion aligns again (old saves can carry a
+// stale affix layout from a prior app/catalog version, which made the corrosion toggle swap the wrong slot or
+// no-op). The user's rolls (customizations), corrosion state, slot, enable flag, and stored mutation-resolved
+// affix are all preserved. Only for real legendaries (skip crafted/Vorax items — they have no catalog entry).
+export function migrateLegendaryItem(saved: EquippedGearItem, catalogItem: LegendaryGearItem): EquippedGearItem {
+  const derived = makeCatalogItem(
+    catalogItem, saved.customizations ?? [], saved.corrosion_type ?? 'none',
+    saved.corroded_explicit_indices ?? [], saved.selected_random_affixes ?? {}, [], saved.mutation_affix_text ?? null,
+  )
+  return {
+    ...saved, ...derived, slot: saved.slot,
+    // corrosionBaseAffixes is [] above, so a mutation's resolved affix isn't recomputed here — keep the saved one.
+    mutation_resolved_affix: saved.mutation_resolved_affix ?? derived.mutation_resolved_affix,
   }
 }

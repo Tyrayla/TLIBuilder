@@ -7,6 +7,7 @@ import { useBuildStore } from './store/buildStore'
 import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useReferenceStore } from './store/referenceStore'
+import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
 import { useUiPrefs } from './store/uiPrefsStore'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
@@ -326,6 +327,21 @@ function App() {
       mutation_resolved_affix: g.mutation_resolved_affix ?? null,
       selected_random_affixes: g.selected_random_affixes ?? {},
     }))
+
+    // Migrate OLD saved legendary items onto the CURRENT catalog layout: re-derive each affix array from the
+    // catalog (matched by item_id) so index-based desecration/corrosion lines up again. Older saves can carry a
+    // stale affix layout (from a prior app/catalog version) that made the corrosion toggle swap the wrong slot or
+    // silently no-op; fresh items already match, so re-deriving them is a no-op. Rolls (customizations), corrosion
+    // state, slot, and enable flag are preserved. Crafted/Vorax items have no catalog entry → left untouched.
+    const legendaryCatalog = useReferenceStore.getState().legendaryCatalog
+    if (legendaryCatalog) {
+      const byId = new Map(legendaryCatalog.map(c => [c.item_id, c]))
+      gear = gear.map(item => {
+        if (item.is_crafted || item.is_vorax) return item
+        const cat = byId.get(item.item_id)
+        return cat ? migrateLegendaryItem(item, cat) : item
+      })
+    }
 
     // Re-resolve stat fields for ALL gear (crafted, legendary, graft) — saved values can become stale
     // when override entries are added or the resolver improves (e.g. a dual-pool combo like

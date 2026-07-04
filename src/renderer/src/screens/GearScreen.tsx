@@ -10,7 +10,7 @@ import { FloatingPortal } from '@floating-ui/react'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDeltaList, type DeltaRequest, type StateTransform, type DamageDelta, type LabeledDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
-import { legendaryToEquipped } from '../utils/gearItem'
+import { legendaryToEquipped, makeCatalogItem } from '../utils/gearItem'
 import { GearTooltipBody, type GearTooltipItem } from '../components/tooltip/bodies/GearTooltipBody'
 import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, useGearUnresolvedTexts, useTextModifierStatus, useTextModifierStatuses, gearModifierStatus } from '../components/ModifierBadge'
 import {
@@ -996,7 +996,13 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
               {craftImplicits.length > 0 && craftExplicits.length > 0 && (
                 <div className="gear-affix-section-divider" />
               )}
-              {craftExplicits.map((affix, i) => renderAffixRow(affix, implCount + i, catalogItem ? i : undefined))}
+              {craftExplicits.map((affix, i) => {
+                // Editing a build item shows its STORED affixes; swap in the corroded ("T0") variant for the
+                // staged desecrated indices so toggling shows the corroded VALUE live (not just the checkbox).
+                const shown = catalogItem?.variants?.corroded && corrodedExplicitIndices.includes(i)
+                  ? (catalogItem.variants.corroded.explicits[i] ?? affix) : affix
+                return renderAffixRow(shown, implCount + i, catalogItem ? i : undefined)
+              })}
             </>
           )
         })()}
@@ -2591,47 +2597,6 @@ function makeCraftedItem(
 
 // Build the EquippedGearItem for a legendary catalog item customized in the panel (corrosion,
 // random affixes, slider rolls). Mirrors handleAddFromCatalog so the live preview matches.
-function makeCatalogItem(
-  catalogItem: LegendaryGearItem, customizations: CustomizedAffix[],
-  corrosionType: 'none' | 'desecration' | 'mutation', corrodedExplicitIndices: number[],
-  selectedRandomAffixes: Record<number, string>,
-  corrosionBaseAffixes: Array<LegendaryAffix & { modifier_text: string }>, mutationAffixText: string | null,
-): EquippedGearItem {
-  const baseAffixes = getItemAffixes(catalogItem)
-  const implCount = getItemImplicits(catalogItem).length
-  const affixes = [...baseAffixes]
-  if (corrodedExplicitIndices.length > 0 && catalogItem.variants.corroded) {
-    for (const idx of corrodedExplicitIndices) {
-      const corroded = catalogItem.variants.corroded.explicits[idx]
-      if (corroded) affixes[implCount + idx] = corroded
-    }
-  }
-  const allRandomOptions = Object.values(catalogItem.random_affixes).flat().flatMap(g => g.options)
-  for (const [explicitIdxStr, modifierId] of Object.entries(selectedRandomAffixes)) {
-    const explicitIdx = Number(explicitIdxStr)
-    const opt = allRandomOptions.find(o => o.modifier_id === modifierId)
-    if (opt) affixes[implCount + explicitIdx] = opt
-  }
-  const mutationResolvedAffix = corrosionType === 'mutation' && mutationAffixText
-    ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationAffixText) ?? null)
-    : null
-  return {
-    item_id: catalogItem.item_id,
-    name: catalogItem.name,
-    required_level: catalogItem.required_level,
-    affixes,
-    customizations,
-    slot: null,
-    base_type: catalogItem.base_type,
-    implicit_count: implCount,
-    corrosion_type: corrosionType,
-    corroded_explicit_indices: corrodedExplicitIndices,
-    mutation_affix_text: mutationAffixText,
-    mutation_resolved_affix: mutationResolvedAffix,
-    selected_random_affixes: Object.keys(selectedRandomAffixes).length ? selectedRandomAffixes : undefined,
-  }
-}
-
 // ── Item Preview Card ─────────────────────────────────────────────────────────
 
 // Live damage-delta bands for the item currently being built/customized. Prices the in-progress
@@ -3160,11 +3125,18 @@ export default function GearScreen(_props: Props) {
         text: tooltipAffixText(affix, i, customizations),
         label: affixTypeLabel(affix.affix_type),
       }))
-      const explicitLines = allAffixes.slice(implicitCount).map((affix, i) => ({
-        text: tooltipAffixText(affix, implicitCount + i, customizations),
-        label: affixTypeLabel(affix.affix_type),
-        corroded: corrodedExplicitIndices.includes(i),
-      }))
+      // Swap in the corroded ("T0") variant for staged desecrated indices so the summary shows the corroded
+      // VALUE live (a build-item edit stores base affixes; without this it kept showing base until save+reload).
+      const corrodedVariant = legendaryCatalogItem?.variants?.corroded
+      const explicitLines = allAffixes.slice(implicitCount).map((affix, i) => {
+        const isCorroded = corrodedExplicitIndices.includes(i)
+        const shown = isCorroded && corrodedVariant?.explicits[i] ? corrodedVariant.explicits[i] : affix
+        return {
+          text: tooltipAffixText(shown, implicitCount + i, isCorroded ? undefined : customizations),
+          label: affixTypeLabel(shown.affix_type),
+          corroded: isCorroded,
+        }
+      })
       const allImplicits = mutationLine ? [mutationLine, ...implicitLines] : implicitLines
       if (allImplicits.length > 0 && explicitLines.length > 0) return [...allImplicits, null, ...explicitLines]
       return [...allImplicits, ...explicitLines]
