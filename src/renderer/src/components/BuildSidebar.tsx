@@ -48,7 +48,26 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
     .sort((a, b) => a.slot - b.slot)
     .map(sk => ({ name: sk.name, dps: slotOffense?.[String(sk.slot)]?.total_dps_vs_target ?? 0 }))
     .filter(c => c.dps > 0)
-  const total = contributors.reduce((s, c) => s + c.dps, 0)
+
+  // Minion owners (Spirit Magi / Synthetic Troops / Modules) contribute their minion's DPS = the sum of its
+  // SUPPORTED abilities' total_dps_vs_target. A minion is only ever supported through a bespoke module, which is
+  // responsible for designing its abilities so this sum is the true DPS (no double-counting Enhanced-replaces-Base,
+  // etc.). Unmodelled minions are all NYI → contribute 0. Gated by the owner skill's enabled / countInDps toggles
+  // (the owner passive itself isn't dps_eligible, but its minions deal the damage).
+  const minionOffense = (computedStats as { minion_offense?: Record<string, OffenseResult[]> | null }).minion_offense ?? null
+  const minionContributors = minionOffense
+    ? Object.entries(minionOffense).flatMap(([ownerId, abilities]) => {
+        const ownerSk = skills.find(sk => sk.item_id === ownerId)
+        if (ownerSk && (ownerSk.enabled === false || ownerSk.countInDps === false)) return []
+        const dps = abilities.filter(a => a.supported).reduce((s, a) => s + (a.total_dps_vs_target ?? 0), 0)
+        if (dps <= 0) return []
+        const name = ownerSk?.name ?? skillsById?.[ownerId]?.name ?? ownerId
+        return [{ name: `${name} (minion)`, dps }]
+      })
+    : []
+
+  const allContributors = [...contributors, ...minionContributors]
+  const total = allContributors.reduce((s, c) => s + c.dps, 0)
 
   // Keep showing the last computed total/rows while a recompute is in flight (computedStats holds the
   // previous result until the new one lands) — only fall back to a placeholder when there's nothing yet.
@@ -59,9 +78,9 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
       <div className="sidebar-dps-value">
         {total > 0 ? fmtDps(total) : statsLoading ? '…' : '—'}
       </div>
-      {contributors.length > 0 && (
+      {allContributors.length > 0 && (
         <div className="sidebar-dps-breakdown">
-          {contributors.map((c, i) => (
+          {allContributors.map((c, i) => (
             <div key={i} className="sidebar-dps-row">
               <span className="sidebar-dps-row-name" title={c.name}>{c.name}</span>
               <span className="sidebar-dps-row-val">{Math.round(c.dps).toLocaleString()}</span>

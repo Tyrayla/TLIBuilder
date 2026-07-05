@@ -1057,6 +1057,9 @@ def engine_stats(req: EngineStatsRequest):
         # Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Additive —
         # the renderer doesn't consume it yet.
         "slot_offense": result.slot_offense,
+        # Per-minion-owner offense ({owner_id: [MinionOffenseResult per nested ability]}) for slotted minion
+        # owners (Spirit Magi / Synthetic Troops / Modularization). Additive — folded into FULL DPS by the renderer.
+        "minion_offense": result.minion_offense,
         "consumed_stats": result.consumed_stats,
         # Maximal set of stats the engine can EVER read (all skills/tags) — lets the UI tell "Inactive"
         # (modeled, not for your skill) apart from "Unconsumed" (engine never reads it). Cached per process.

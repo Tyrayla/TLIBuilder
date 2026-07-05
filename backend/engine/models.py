@@ -257,6 +257,7 @@ class StatResult:
     consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
+    minion_offense:      dict | None = None       # {owner_id: [OffenseResult dict per nested ability]} for slotted minion owners (NYI unless the owner has a bespoke module)
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
     aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
     empower_summaries:   list | None = None        # per-empower display summary (Empower Effect, granted buffs, NYI)

@@ -283,6 +283,15 @@ def delete_belt_blends(season: str) -> None:
         os.remove(path)
 
 
+def load_minion_base_stats(season: str) -> dict | None:
+    """Shared minion base-stats table: fixed `constants` (all-res, crit) + a shared level-scaling
+    `base_damage_by_level` + `life_by_group` with two groups (`magus`, `synthetic_troop`). The minion DPS
+    engine multiplies the interpolated Base Damage by each minion ability's base-damage coefficient; the group
+    (for Life) is chosen from the owner's tags. Hand-curated — the absolute Base Damage/Life are not in the
+    crawler data. Returns None if the file is absent (engine then treats minion DPS as NYI)."""
+    return _load_singleton(season, "_minion_base_stats.json")
+
+
 def _save_singleton(season: str, filename: str, data: dict) -> None:
     d = _season_dir(season)
     os.makedirs(d, exist_ok=True)

@@ -208,12 +208,46 @@ def _dedup_lines(lines: list[str]) -> list[str]:
     return out
 
 
-def import_crawler_skill(data: dict) -> dict:
-    """Import a single crawler skill file (one JSON file per skill).
+# A minion ability deals damage as a coefficient of its (shared) minion Base Damage — "Deals X% of Base Damage"
+# (the "% weapon Attack Damage" wording seen on some minions is a crawler inconsistency meaning the same thing).
+# This is distinct from `effectiveness_of_added_damage` (which scales ADDED flat damage). We mine it so the minion
+# engine can multiply the shared per-level Base Damage table by this coefficient.
+_BASE_DMG_COEFF_RE = _re.compile(r"([\d.]+)\s*%\s*(?:of\s*)?(?:base damage|weapon attack damage)", _re.I)
+
+
+def _base_damage_coefficient(progression: list, lines: list[str]):
+    """Extract a minion ability's '% of Base Damage' hit coefficient. Prefers per-level values mined from
+    `progression`; falls back to the single value in the description lines. Returns {level: pct} (per-level),
+    a float (single value), or None when the skill states no base-damage coefficient (e.g. pure buff skills)."""
+    per_level: dict[int, float] = {}
+    for entry in progression or []:
+        lvl = entry.get("level")
+        if lvl is None:
+            continue
+        text = " ".join(str(v) for v in (entry.get("values") or {}).values())
+        m = _BASE_DMG_COEFF_RE.search(text)
+        if m:
+            per_level[int(lvl)] = float(m.group(1))
+    if per_level:
+        return per_level
+    for line in lines or []:
+        m = _BASE_DMG_COEFF_RE.search(line)
+        if m:
+            return float(m.group(1))
+    return None
+
+
+def import_crawler_skill(data: dict, owner_id: str | None = None) -> dict:
+    """Import a single crawler skill file (one JSON file per skill), recursing into nested `minion_skills`.
 
     The recrawl emits `simple_description` (Lv1) and `detailed_description` (Lv20) as SPLIT LINE LISTS, plus a
     `sealed_mana` reservation amount. We keep both anchor descriptions (for aura/focus per-level interpolation)
     and `sealed_mana`; `description_lines` mirrors the simple (Lv1) lines for back-compat with existing readers.
+
+    A minion owner (a summon/module skill) nests its minion's abilities under `minion_skills`; we preserve that
+    tree, tag each child with `owner_id`, and mine each child's Base-Damage coefficient. Children are kept ONLY
+    nested (they are not hoisted into the flat top-level skills array), so they never appear in the active-skill
+    picker but stay reachable via their owner for the minion DPS engine + panel.
     """
     name = data.get("name", "")
     item_id = _re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
@@ -262,6 +296,16 @@ def import_crawler_skill(data: dict) -> dict:
     # derives it from skill_type). Never write null, which would read as "explicitly ineligible".
     if "dps_eligible" in data:
         out["dps_eligible"] = bool(data["dps_eligible"])
+    # Minion-ability metadata: owner back-link + the "% of Base Damage" hit coefficient (only for nested abilities).
+    if owner_id is not None:
+        out["owner_id"] = owner_id
+        coeff = _base_damage_coefficient(out["progression"], detailed or simple)
+        if coeff is not None:
+            out["base_damage_coefficient"] = coeff
+    # Preserve nested minion abilities (the summon/module owner's minion_skills tree), recursing the same builder.
+    children = data.get("minion_skills") or []
+    if children:
+        out["minion_skills"] = [import_crawler_skill(c, owner_id=item_id) for c in children if c.get("name")]
     return out
 
 

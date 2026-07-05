@@ -1168,6 +1168,10 @@ export interface StatSheetResponse {
   // Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Lets the UI
   // eventually show each setup's DPS independently. Additive — not consumed yet.
   slot_offense?: Record<string, OffenseResult> | null
+  // Per-minion-owner offense ({owner_id: [OffenseResult per nested ability]}) for slotted minion owners (Spirit
+  // Magi / Synthetic Troops / Modularization). Each ability is a full OffenseResult so the UI reuses the player
+  // offense panels; unmodelled minions come back supported=false (NYI, 0 DPS). Additive — folded into Full DPS.
+  minion_offense?: Record<string, OffenseResult[]> | null
   // Stat keys the engine actually READ for this build (offense/defense/derive/aggregator). A resolved
   // modifier whose mapped stat is here → "Consumed" (green badge).
   consumed_stats?: string[]

@@ -17,7 +17,22 @@ from server import _get_skills_data
 _GOLDEN_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "tooltip_golden")
 _SEASON = season_manager.get_active_season()
 _SKILLS_BY_ID = _get_skills_data(_SEASON) if _SEASON else {}
-_BY_NAME = {s.get("name"): s for s in _SKILLS_BY_ID.values()}
+
+
+def _index_by_name(skills):
+    """Name → skill record, INCLUDING nested minion abilities (minion owners nest their abilities under
+    `minion_skills` rather than as top-level catalog entries)."""
+    out = {}
+    def walk(s):
+        out[s.get("name")] = s
+        for c in s.get("minion_skills") or []:
+            walk(c)
+    for s in skills:
+        walk(s)
+    return out
+
+
+_BY_NAME = _index_by_name(_SKILLS_BY_ID.values())
 
 # One representative per skill type (and the special cases: range, midpoint, tier-3 exclusion, junk strip).
 _REPRESENTATIVE = [
@@ -25,7 +40,8 @@ _REPRESENTATIVE = [
     "Multiple Projectiles",                         # support_skill — % scaling + always-show special line
     "Chain Lightning",                              # active_skill — damage range + "+2 Jumps"
     "Howling Gale",                                 # active_skill (modeled) — detailed_description split + 'modeled' coverage
-    "Blazing Incineration",                         # passive_skill — Descript scaling + #skillstone strip
+    "Summon Fire Magus",                            # passive_skill — a minion owner (Origin buff + summon lines)
+    "Blazing Incineration",                         # nested minion ability (active_skill) — Descript scaling + #skillstone strip
     "Acuteness Focus: Sharpening (Magnificent)",    # magnificent — fixed +20% + (a-b)% MIDPOINT per tier
     "Berserking Blade: Decimate (Noble)",           # noble — universal damage line + threshold midpoint
     "Activation Medium: Boss",                      # activation_medium — tier 3 EXCLUDED

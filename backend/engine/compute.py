@@ -16,6 +16,23 @@ log = logging.getLogger(__name__)
 
 _MAX_ITERS = 10
 
+import re as _re
+
+
+def _minion_base_count(owner: dict, level: int) -> int:
+    """The owner's summon cap at `level` ("up to N Minions"). Prefers the level-scaled value in progression
+    (e.g. Grim Phantom "Can only summon up to N …" grows 2→4); falls back to the "up to N" text; default 1."""
+    for entry in owner.get("progression", []) or []:
+        if entry.get("level") == level:
+            for k, v in (entry.get("values") or {}).items():
+                if "summon up to" in str(k).lower():
+                    try:
+                        return max(1, int(float(v)))
+                    except (ValueError, TypeError):
+                        pass
+    m = _re.search(r"up to (\d+)", " ".join(owner.get("detailed_description") or []), _re.I)
+    return int(m.group(1)) if m else 1
+
 # Support ids that turn a Spell into a Tangle (the skill is then cast by attached tangles, not the player).
 # Manifold Entanglement is NOT here — it's a normal damage support that spawns all tangles at once.
 _TANGLE_ACTIVATORS = frozenset({"spell_tangle", "activation_medium_tangle"})
@@ -1297,6 +1314,40 @@ def compute(
             if not resolved_sk.supported:
                 continue
             slot_offense[sk["slot"]] = _offense_for_slot(resolved_sk, sk["level"], sk["slot"], False, skill_dict=sd)
+
+    # ── Minion DPS pass (Spirit Magi / Synthetic Troops / Modularization) ─────────
+    # Every slotted minion OWNER (a skill carrying nested `minion_skills`) contributes each nested ability's DPS,
+    # computed off the minion-scoped pools ONLY (player pools never leak — see engine.minion_offense). Minion
+    # abilities are not player skill slots (they ride on the owner), so this runs outside the per-slot player
+    # loop and can pick up passive owners (Spirit Magi, slot > 5) as well as active/module owners. Runs while
+    # recording is on so minion mods badge Consumed. Empty for builds with no minion owner → no output change.
+    minion_offense: dict[str, list] = {}
+    if skills_by_id is not None:
+        from engine import minion_offense as _mo
+        from persistence import season_manager
+        _mbase = season_manager.load_minion_base_stats(build_input.season)
+        _owners: list[tuple[dict, int, int]] = []
+        if skill_data and build_input.main_skill and main_enabled and skill_data.get("minion_skills"):
+            _owners.append((skill_data, build_input.main_skill.level, main_slot))
+        for sk in (skills_input or []):
+            if sk["slot"] == main_slot or not sk.get("enabled", True):
+                continue
+            sd = skills_by_id.get(sk["skill_id"])
+            if sd and sd.get("minion_skills"):
+                _owners.append((sd, sk["level"], sk["slot"]))
+        for owner, level, slot in _owners:
+            abilities = owner.get("minion_skills") or []
+            # GATE: a minion contributes damage ONLY through a registered bespoke module — its rotation/forms/
+            # conversion must be modelled explicitly. Unmodelled owners list their abilities as NYI (0 damage).
+            if _mo.is_modeled(owner["item_id"]):
+                eff = source.materialize_for_skill({"minion"}, slot)
+                count = max(1, _minion_base_count(owner, level)
+                            + int(round(eff.total("max_spirit_magi_flat") + eff.total("extra_max_minions_flat"))))
+                results = _mo.MINION_MODULES[owner["item_id"]](eff, owner, _mbase, level, count)
+                minion_offense[owner["item_id"]] = [asdict(r) for r in results]
+            else:
+                minion_offense[owner["item_id"]] = [asdict(_mo.nyi_offense(ab, level)) for ab in abilities]
+
     source._recording = False
 
     # ── General build warnings (player diagnostics; extensible) ───────────────
@@ -1510,6 +1561,7 @@ def compute(
         consumed_stats=sorted(source.consumed_stats),
         target_stats=target_stats,
         slot_offense={str(k): v for k, v in slot_offense.items()} or None,
+        minion_offense=minion_offense or None,
         blessings=blessings,
         aura_summaries=aura_summaries,
         empower_summaries=empower_summaries,

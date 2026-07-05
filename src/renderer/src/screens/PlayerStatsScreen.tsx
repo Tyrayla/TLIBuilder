@@ -526,6 +526,7 @@ const CALC_MODES: { key: string; label: string; enabled: boolean }[] = [
 function SkillSelectionBar({
   skills, selected, onSelect,
   forms, selectedForm, onSelectForm,
+  minionAbilities = [], selectedMinionIdx = 0, onSelectMinionIdx,
   calcMode, onCalcMode,
 }: {
   skills: EquippedSkill[]
@@ -534,6 +535,9 @@ function SkillSelectionBar({
   forms: string[]
   selectedForm: string | null
   onSelectForm: (form: string | null) => void
+  minionAbilities?: string[]
+  selectedMinionIdx?: number
+  onSelectMinionIdx?: (i: number) => void
   calcMode: string
   onCalcMode: (mode: string) => void
 }) {
@@ -605,6 +609,19 @@ function SkillSelectionBar({
             </select>
           </label>
         )}
+        {/* Minion ability selector — shown when the selected skill is a minion owner (its nested abilities). */}
+        {minionAbilities.length > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888' }}>
+            Minion Skill
+            <select
+              value={selectedMinionIdx}
+              onChange={e => onSelectMinionIdx?.(Number(e.target.value))}
+              style={selectSt}
+            >
+              {minionAbilities.map((name, i) => <option key={name + i} value={i}>{name}</option>)}
+            </select>
+          </label>
+        )}
         {/* Reveal every mechanic/ailment/CC box even when this skill can't use it (find a box you think is
             wrongly hidden). Default off → boxes are skill-gated. */}
         <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888', cursor: 'pointer' }}>
@@ -632,7 +649,11 @@ const DTYPE_LABEL: Record<string, string> = {
 // case-insensitively so spell/attack detection and key selection actually match.
 const hasTag = (offense: OffenseResult, tag: string) => offense.skill_tags.some(t => t.toLowerCase() === tag)
 
-function flatMinKeys(dtype: string, offense: OffenseResult): string[] {
+// The `minion` flag switches these to the minion-scoped stat pools (`minion_*`), skipping the player-only
+// mechanic pushes (attack/spell/melee/tangle/spell-burst) that have no minion analogue. Enemy-vulnerability
+// keys are NOT namespaced — enemy debuffs apply to minion hits the same as player hits.
+function flatMinKeys(dtype: string, offense: OffenseResult, minion = false): string[] {
+  if (minion) return [`minion_${dtype}_dmg_flat_min`]
   const keys = [`${dtype}_dmg_gear_flat_min`]
   if (hasTag(offense,'attack')) keys.push(`${dtype}_attack_dmg_flat_min`)
   if (hasTag(offense,'spell')) keys.push(`${dtype}_spell_dmg_flat_min`)
@@ -640,7 +661,8 @@ function flatMinKeys(dtype: string, offense: OffenseResult): string[] {
   return keys
 }
 
-function flatMaxKeys(dtype: string, offense: OffenseResult): string[] {
+function flatMaxKeys(dtype: string, offense: OffenseResult, minion = false): string[] {
+  if (minion) return [`minion_${dtype}_dmg_flat_max`]
   const keys = [`${dtype}_dmg_gear_flat_max`]
   if (hasTag(offense,'attack')) keys.push(`${dtype}_attack_dmg_flat_max`)
   if (hasTag(offense,'spell')) keys.push(`${dtype}_spell_dmg_flat_max`)
@@ -648,7 +670,8 @@ function flatMaxKeys(dtype: string, offense: OffenseResult): string[] {
   return keys
 }
 
-function genericIncKeys(offense: OffenseResult): string[] {
+function genericIncKeys(offense: OffenseResult, minion = false): string[] {
+  if (minion) return ['minion_dmg_inc']
   const keys = ['dmg_inc']
   if (hasTag(offense,'attack'))     keys.push('attack_dmg_inc')
   if (hasTag(offense,'spell'))      keys.push('spell_dmg_inc')
@@ -660,13 +683,15 @@ function genericIncKeys(offense: OffenseResult): string[] {
   return keys
 }
 
-function typeIncKeys(dtype: string): string[] {
+function typeIncKeys(dtype: string, minion = false): string[] {
+  if (minion) return [`minion_${dtype}_dmg_inc`]
   const keys = [`${dtype}_dmg_inc`]
   if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_inc')
   return keys
 }
 
-function genericAddKeys(offense: OffenseResult): string[] {
+function genericAddKeys(offense: OffenseResult, minion = false): string[] {
+  if (minion) return ['minion_dmg_additional']
   // 'hit_dmg_additional' is generic (untagged) hit-only additional — e.g. Splendor's "+additional Hit Damage".
   // It folds into generic_add in offense, so it belongs in the All-Types breakdown alongside dmg_additional.
   const keys = ['dmg_additional', 'hit_dmg_additional']
@@ -682,7 +707,8 @@ function genericAddKeys(offense: OffenseResult): string[] {
   return keys
 }
 
-function typeAddKeys(dtype: string): string[] {
+function typeAddKeys(dtype: string, minion = false): string[] {
+  if (minion) return [`minion_${dtype}_dmg_additional`]
   const keys = [`${dtype}_dmg_additional`]
   if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_additional')
   return keys
@@ -699,7 +725,7 @@ function enemyVulnKeys(dtype: string, isSpell: boolean): string[] {
   return keys
 }
 
-function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
+function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseResult; minion?: boolean }) {
   const ctx = useContext(BreakdownCtx)
   const isSpell = hasTag(offense, 'spell')
   const totalDps = offense.total_dps_vs_target
@@ -761,7 +787,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               const v = offense.flat_dmg_min[d] ?? 0
               const base = offense.base_dmg_min[d] ?? 0
               return <td key={d} style={v > 0 ? td : tdDim}>
-                {v > 0 ? <Breakdown title={`Added Min — ${DTYPE_LABEL[d]}`} keys={flatMinKeys(d, offense)} total={v} formula={addedFormula}
+                {v > 0 ? <Breakdown title={`Added Min — ${DTYPE_LABEL[d]}`} keys={flatMinKeys(d, offense, minion)} total={v} formula={addedFormula}
                   extra={base > 0 ? [{ value: fmtNum(base), stat: 'Base damage', source: 'Baseline', sourceName: offense.skill_name }] : undefined}>{fmtNum(v)}</Breakdown> : fmtNum(v)}
               </td>
             })}
@@ -773,7 +799,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               const v = offense.flat_dmg_max[d] ?? 0
               const base = offense.base_dmg_max[d] ?? 0
               return <td key={d} style={v > 0 ? td : tdDim}>
-                {v > 0 ? <Breakdown title={`Added Max — ${DTYPE_LABEL[d]}`} keys={flatMaxKeys(d, offense)} total={v} formula={addedFormula}
+                {v > 0 ? <Breakdown title={`Added Max — ${DTYPE_LABEL[d]}`} keys={flatMaxKeys(d, offense, minion)} total={v} formula={addedFormula}
                   extra={base > 0 ? [{ value: fmtNum(base), stat: 'Base damage', source: 'Baseline', sourceName: offense.skill_name }] : undefined}>{fmtNum(v)}</Breakdown> : fmtNum(v)}
               </td>
             })}
@@ -784,7 +810,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                dash — a type with no specific modifier reads ×1.00. ── */}
           <tr>
             <td style={tdLbl}>Total Increased</td>
-            <td style={td}><Breakdown title="Total Increased — All Types" keys={genericIncKeys(offense)} total={offense.generic_inc} totalUnit="%" formula="Σ Increased %">{(offense.generic_inc * 100).toFixed(0)}%</Breakdown></td>
+            <td style={td}><Breakdown title="Total Increased — All Types" keys={genericIncKeys(offense, minion)} total={offense.generic_inc} totalUnit="%" formula="Σ Increased %">{(offense.generic_inc * 100).toFixed(0)}%</Breakdown></td>
             {ALL_DTYPES.map(d => {
               // Specific = this type's increase beyond the generic (catch-all) bucket. Types the skill
               // doesn't deal have no entry → treated as generic-only → 0% specific.
@@ -792,13 +818,13 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               const show = specific >= 0.005
               const txt = `${(specific * 100).toFixed(0)}%`
               return <td key={d} style={show ? td : tdDim}>
-                {show ? <Breakdown title={`Total Increased — ${DTYPE_LABEL[d]}`} keys={typeIncKeys(d)} total={specific} totalUnit="%" formula="Σ this type's Increased %">{txt}</Breakdown> : txt}
+                {show ? <Breakdown title={`Total Increased — ${DTYPE_LABEL[d]}`} keys={typeIncKeys(d, minion)} total={specific} totalUnit="%" formula="Σ this type's Increased %">{txt}</Breakdown> : txt}
               </td>
             })}
           </tr>
           <tr>
             <td style={tdLbl}>Total Additional</td>
-            <td style={td}><Breakdown title="Total Additional — All Types" keys={genericAddKeys(offense)} total={offense.generic_add} totalUnit="×" formula="Π (1 + Additional)"
+            <td style={td}><Breakdown title="Total Additional — All Types" keys={genericAddKeys(offense, minion)} total={offense.generic_add} totalUnit="×" formula="Π (1 + Additional)"
               extra={(() => {
                 const rows: Array<{ value: string; stat: string; source: string; sourceName: string }> = []
                 if (offense.main_stat_damage_bonus > 0) rows.push({ value: `×${dec(1 + offense.main_stat_damage_bonus)}`, stat: 'Additional Damage', source: 'Main Stat', sourceName: `${offense.main_stats.join(' + ')} Damage Bonus (+${dec(offense.main_stat_damage_bonus * 100)}%)` })
@@ -817,7 +843,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               const show = Math.abs(specificAdd - 1) >= 0.005
               const txt = `×${dec(specificAdd)}`
               return <td key={d} style={show ? td : tdDim}>
-                {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(d)} total={specificAdd} totalUnit="×" formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
+                {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(d, minion)} total={specificAdd} totalUnit="×" formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
               </td>
             })}
           </tr>
@@ -1412,7 +1438,7 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
   )
 }
 
-function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower, elixir, skillCost }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null; skillCost?: SkillCost | null }) {
+function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower, elixir, skillCost, minion = false }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null; skillCost?: SkillCost | null; minion?: boolean }) {
   // Character-wide stats the Skill Effects box surfaces (projectile speed / penetration / jumps). Per-skill
   // scoping is Phase-2 engine work; for now we show the build-wide totals with their source breakdowns.
   const bdCtx = useContext(BreakdownCtx)
@@ -1539,7 +1565,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       </StatPanel>
 
       <StatPanel title="Skill Hit Damage" accent={AMBER}>
-        <DamageBreakdownTable offense={offense} />
+        <DamageBreakdownTable offense={offense} minion={minion} />
       </StatPanel>
 
       {/* Box grid: rate · crit · skill effects always present, then any mechanic boxes that apply (shotgun,
@@ -2801,8 +2827,9 @@ export default function PlayerStatsScreen() {
   const calcMode = uptimeMode === 'real' ? 'effective' : 'full_uptime'
   const setCalcMode = (mode: string) => setUptimeMode(mode === 'effective' ? 'real' : 'max')
   const [selectedForm, setSelectedForm] = useState<string | null>(null)   // null = all forms combined
-  // Reset the form filter whenever the selected skill changes (forms differ per skill).
-  useEffect(() => { setSelectedForm(null) }, [selectedSlot])
+  const [selectedMinionIdx, setSelectedMinionIdx] = useState(0)           // which nested minion ability to view
+  // Reset the form / minion-ability filters whenever the selected skill changes.
+  useEffect(() => { setSelectedForm(null); setSelectedMinionIdx(0) }, [selectedSlot])
 
   // If the selected slot has no skill (e.g. the main damage skill is parked in slot 2 and slot 1 is
   // empty), jump to the first populated slot so the viewer opens on a real skill instead of "Main · empty".
@@ -2890,6 +2917,14 @@ export default function PlayerStatsScreen() {
   const skillCost = ((computedStats as { skill_cost?: SkillCost | null }).skill_cost) ?? null
   const statMap = (computedStats.stats ?? {}) as Record<string, StatEntry>
   const slotOffense = ((computedStats as { slot_offense?: Record<string, OffenseResult> | null }).slot_offense) ?? null
+  const minionOffense = ((computedStats as { minion_offense?: Record<string, OffenseResult[]> | null }).minion_offense) ?? null
+  // Minion mode: when the selected slot's skill is a minion OWNER, the panels show its nested minion abilities
+  // (each a full OffenseResult) with a top-bar ability dropdown, instead of the owner's own (damage-less) offense.
+  const selectedOwnerId = skills.find(sk => sk.slot === selectedSlot)?.item_id
+  const minionAbilities = (selectedOwnerId && minionOffense?.[selectedOwnerId]) || null
+  const minionMode = !!minionAbilities && minionAbilities.length > 0
+  const shownMinion = minionMode ? (minionAbilities![selectedMinionIdx] ?? minionAbilities![0]) : null
+  const minionAbilityNames = minionAbilities?.map(a => a.skill_name) ?? []
 
   // slot_offense holds EVERY active slot's offense (incl. the main slot), so index it by the selected
   // slot directly — don't assume the main skill is slot 1. Fall back to the headline offense only if the
@@ -2937,9 +2972,13 @@ export default function PlayerStatsScreen() {
         <div style={{ flex: '55', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
           <SkillSelectionBar
             skills={skills} selected={selectedSlot} onSelect={setSelectedSlot}
-            forms={formNames} selectedForm={selectedForm} onSelectForm={setSelectedForm}
+            forms={minionMode ? [] : formNames} selectedForm={selectedForm} onSelectForm={setSelectedForm}
+            minionAbilities={minionMode ? minionAbilityNames : []}
+            selectedMinionIdx={selectedMinionIdx} onSelectMinionIdx={setSelectedMinionIdx}
             calcMode={calcMode} onCalcMode={setCalcMode} />
-          <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} skillCost={skillCost} />
+          {minionMode
+            ? <OffensePanels offense={shownMinion} slot={selectedSlot} minion />
+            : <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} skillCost={skillCost} />}
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility. (Condition-setting controls like Numbed
