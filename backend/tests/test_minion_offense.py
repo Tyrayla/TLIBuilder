@@ -107,6 +107,59 @@ def test_per_level_coefficient_interpolation():
     assert _interp_level_table({"1": 100, "20": 1000}, 16) == pytest.approx(100 + (1000 - 100) * 15 / 19)
 
 
+def test_growth_stage_thresholds():
+    from engine.minion_offense import spirit_magi_growth, growth_stage
+    s = BuildSource()
+    assert spirit_magi_growth(s) == 100.0 and growth_stage(100) == 1   # base Stage 1
+    s.add("spirit_magi_initial_growth_flat", 100)
+    assert spirit_magi_growth(s) == 200.0 and growth_stage(200) == 2   # Stage 2
+    assert growth_stage(500) == 5 and growth_stage(1000) == 5          # caps at 5
+
+
+def test_thunder_magus_module_base_enhanced_blend_and_gates():
+    """Thunder Magus is modelled: Base + Enhanced blend at the shared attack rate, Empower's +35% AS folded in,
+    Empower/Ultimate NYI, and summing supported = the blended DPS."""
+    import json
+    from engine.minion_offense import MINION_MODULES
+    from persistence import season_manager
+    import engine.minion_effects  # noqa: F401 — register
+    assert "summon_thunder_magus" in MINION_MODULES
+    owner = next(s for s in json.load(open(
+        season_manager._season_dir("SS12") + "/_skills.json", encoding="utf-8"))["skills"]
+        if s["item_id"] == "summon_thunder_magus")
+    base_stats = season_manager.load_minion_base_stats("SS12")
+    handler = MINION_MODULES["summon_thunder_magus"]
+
+    # Stage 1: 0% Enhanced chance → Enhanced fires 0, Base carries all; Empower +35% AS folds in.
+    s1 = handler(BuildSource(), owner, base_stats, 20, 1)
+    by = {a.skill_name.split(" (")[0]: a for a in s1}
+    assert by["Lightning Star"].supported and by["Lightning Star"].total_dps > 0
+    assert by["Lightning Star"].skills_per_second == pytest.approx((1 / 0.8) * 1.35)  # +35% Empower AS
+    assert by["Thunderlight Arrow"].supported and by["Thunderlight Arrow"].total_dps == 0.0  # 0% chance
+    assert not by["Thundercloud Surge"].supported          # Empower buff → NYI hit
+    assert not by["Lightning Surge"].supported             # Ultimate → NYI (Full Bloom/Iris)
+
+    # Stage 2: Growth 200 → +30% Enhanced chance → Base at 0.7 share, Enhanced at 0.3.
+    src = BuildSource(); src.add("spirit_magi_initial_growth_flat", 100)
+    s2 = handler(src, owner, base_stats, 20, 1)
+    by2 = {a.skill_name.split(" (")[0]: a for a in s2}
+    base_rate = (1 / 0.8) * 1.35
+    assert by2["Lightning Star"].skills_per_second == pytest.approx(base_rate * 0.7)
+    assert by2["Thunderlight Arrow"].skills_per_second == pytest.approx(base_rate * 0.3)
+
+
+def test_origin_of_thunder_buffs_summoner_through_engine():
+    """Slotting a Thunder Magus auto-grants the summoner Origin of Thunder: +6% additional Cast Speed + level-
+    scaled additional damage (7.25% at L20), emitted globally by the aggregator."""
+    from tests.mock_build import make_request
+    from server import engine_stats, EngineStatsRequest
+    res = engine_stats(EngineStatsRequest(**make_request("summon_thunder_magus", 20)))
+    stats = res.get("stats", {})
+    assert stats["cast_speed_additional"]["total"] == pytest.approx(0.06)        # +6% (no other cast-add source)
+    assert stats["dmg_additional"]["total"] == pytest.approx(0.0725)             # +7.25% additional damage @ L20
+    assert stats["attack_speed_additional"]["total"] >= 0.06                     # +6% on top of any dual-wield add
+
+
 def test_unmodelled_minion_contributes_no_damage_through_engine():
     """The registry gate: with no bespoke module for Summon Fire Magus, every nested ability comes back NYI
     (supported=false, 0 DPS) even though the base-stats table is filled — nothing is computed for it."""

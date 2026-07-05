@@ -513,6 +513,24 @@ def compute(
     reservation: dict | None = None
     _prev_consumed_recently_life = 0.0   # carries consumed-recently across passes for the AS-per-consumed feedback
     _prev_burst_rate = 0.0               # carries the burst-trigger rate across passes for the Flash Flood AS/CS feedback
+    # Origin of Thunder (Spirit Magus summoner buff): auto-active when a Thunder Magus summon skill is slotted.
+    # Set BEFORE the fixed-point loop so the aggregator's Origin-of-Thunder block emits the +6% additional
+    # Attack/Cast Speed + level-scaled additional damage (scaled by Origin of Spirit Magus Effect). Level = the
+    # summon skill's level. Marked manual so the condition-effect resolver doesn't clobber the engine value.
+    _slotted_for_origin: list[tuple[str, int]] = []
+    if build_input.main_skill:
+        _slotted_for_origin.append((build_input.main_skill.skill_id, build_input.main_skill.level))
+    for _sk in (skills_input or []):
+        if _sk.get("enabled", True):
+            _slotted_for_origin.append((_sk["skill_id"], int(_sk.get("level", 1))))
+    for _sid, _lvl in _slotted_for_origin:
+        if _sid == "summon_thunder_magus":
+            condition_state["origin_of_thunder"] = True
+            condition_state["origin_of_thunder_level"] = float(_lvl)
+            manual_cond_keys.add("origin_of_thunder")
+            manual_cond_keys.add("origin_of_thunder_level")
+            break
+
     _converged_iters = _MAX_ITERS
     for iteration in range(_MAX_ITERS):
         # Loop-top: the trait module recomputes its contributions + Numbed override from the prior pass's
@@ -1324,6 +1342,7 @@ def compute(
     minion_offense: dict[str, list] = {}
     if skills_by_id is not None:
         from engine import minion_offense as _mo
+        from engine import minion_effects as _  # noqa: F401 — registers bespoke minion modules into MINION_MODULES
         from persistence import season_manager
         _mbase = season_manager.load_minion_base_stats(build_input.season)
         _owners: list[tuple[dict, int, int]] = []

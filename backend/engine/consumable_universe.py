@@ -156,6 +156,11 @@ def consumable_universe() -> frozenset[str]:
                  "temporary_life_flat", "temporary_life_pct", "temporary_mana_flat", "temporary_mana_pct",
                  "max_temporary_life_pct", "max_temporary_mana_pct", "excess_restoration_to_es_pct",
                  "life_regain_to_restoration", "es_regain_to_restoration"}
+    # engine.minion_offense (minion DPS pass, post-loop) reads Spirit Magi Growth to derive the stage bonuses
+    # and the Enhanced-Skill chance — outside the synthetic offense/defense/derive passes. engine.aggregator's
+    # Origin-of-Thunder buff block scales by Origin of Spirit Magus Effect.
+    consumed |= {"spirit_magi_initial_growth_flat", "spirit_magi_enhanced_skill_chance",
+                 "spirit_magi_origin_effect_inc", "spirit_magi_origin_effect_additional"}
     # engine.consumption (self-consume drains) reads the typed consume-rate stats outside the offense/defense passes.
     consumed |= {f"{p}_consumed_{b}_per_{c}"
                  for p in ("life", "mana", "energy_shield")

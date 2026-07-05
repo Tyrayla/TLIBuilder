@@ -117,6 +117,22 @@ def _primary_dtype(tags_lower: set[str]) -> str:
     return "physical"
 
 
+# ── Spirit Magus Growth (Help DB / glossary id 759) ───────────────────────────
+# Magi start at Stage 1 (100 Growth) and grow a stage per +100 Growth up to Stage 5 (500). Growth itself can
+# rise to 1000. Stage grants: 2 → +30% Enhanced-Skill chance, 3 → stronger Enhanced, 4 → stronger Empower,
+# 5 → +50% additional damage (+area/move). Per 8 Growth → +1% Physique. Sourced from spirit_magi_initial_growth
+# + talent/gear/Iris growth mods.
+
+def spirit_magi_growth(source: BuildSource) -> float:
+    """A Spirit Magus's Growth: base 100 (Stage 1) + initial-growth mods, clamped to [100, 1000]."""
+    return max(100.0, min(1000.0, 100.0 + source.total("spirit_magi_initial_growth_flat")))
+
+
+def growth_stage(growth: float) -> int:
+    """Stage 1-5 from Growth (100/200/300/400/500 thresholds; caps at 5 even as Growth rises to 1000)."""
+    return max(1, min(5, int(growth // 100)))
+
+
 def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: bool) -> float:
     """Per-affix additional product for minion damage. `generic_only`=True → only stats with NO damage-type tag
     (the 'all types' factor); False → the full product applicable to `dtype_tag` (generic + type-specific)."""
@@ -196,11 +212,15 @@ def calculate_minion_offense(
     base_stats: dict | None,
     level: int,
     minion_count: int = 1,
+    rate_multiplier: float = 1.0,
 ) -> OffenseResult:
     """Compute ONE minion ability's DPS as a full `OffenseResult` (so the frontend reuses the player panels).
     A BUILDING BLOCK for bespoke minion modules — NOT called for unmodelled minions (compute stubs those NYI).
     Reads only minion-scoped pools off `source` (materialize for the owner's slot with 'minion' in scope first).
-    `minion_count` is folded into the DPS totals via `cast_multiplier` (per-form figures stay per-minion)."""
+    `minion_count` is folded into the DPS totals via `cast_multiplier` (per-form figures stay per-minion).
+    `rate_multiplier` scales the firing rate — a bespoke module uses it to split shared attacks between a
+    Base skill and its Enhanced replacement (Base at 1−chance, Enhanced at chance) so summing the two = the
+    true blended DPS."""
     tags_list = list(minion_skill.get("skill_tags") or [])
     tags_lower = {str(t).lower() for t in tags_list}
     is_spell = "spell" in tags_lower
@@ -281,6 +301,7 @@ def calculate_minion_offense(
     cooldown = _parse_cast_time(minion_skill.get("cooldown", "")) or 0.0
     if cooldown > 0:
         rate = min(rate, 1.0 / cooldown) if rate > 0 else 1.0 / cooldown
+    rate *= max(0.0, rate_multiplier)   # Base/Enhanced share split (a bespoke module passes 1−chance / chance)
 
     avg_pre = sum((hit_min.get(t, 0.0) + hit_max.get(t, 0.0)) / 2.0 for t in hit_min)
     per_minion_dps = avg_pre * crit_factor * double_factor * rate

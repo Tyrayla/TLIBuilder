@@ -749,6 +749,28 @@ def aggregate(
                 label="Aim (Euphoria)", points=1,
                 text=f"+{_aim_pct:.0%} additional Ailment Damage for {tag.title()} Skills (Aim Lv {int(_aim_lvl)})"))
 
+    # ── Origin of Thunder (Spirit Magus summoner buff) ────────────────────────
+    # Summoning a Thunder Magus grants the SUMMONER "Origin of Thunder": +6% additional Attack AND Cast Speed
+    # (constant at all levels) + additional damage scaling with the summon level (2.5% @ Lv1 → 7.25% @ Lv20,
+    # +0.25%/level). Both magnitudes scale by Origin of Spirit Magus Effect = (1 + inc) × (1 + additional) —
+    # the engine-wide effect-scalar convention. Gated by origin_of_thunder (compute auto-sets it + the level
+    # when a Thunder Magus is slotted). Emitted GLOBAL (all skills) via add_with_source, like Aim's AS/CS.
+    if "origin_of_thunder" in (active_booleans or frozenset()):
+        _ot_lvl = float((numeric_vals or {}).get("origin_of_thunder_level", 20.0) or 20.0)
+        _origin_factor = ((1.0 + source.total("spirit_magi_origin_effect_inc"))
+                          * (1.0 + source.total("spirit_magi_origin_effect_additional")))
+        _ot_speed = 0.06 * _origin_factor
+        _ot_dmg = (2.5 + max(0.0, _ot_lvl - 1.0) * 0.25) / 100.0 * _origin_factor
+        for _sk, _lbl in (("attack_speed_additional", "Attack"), ("cast_speed_additional", "Cast")):
+            source.add_with_source(_sk, _ot_speed, SourceEntry(
+                stat=_sk, amount=_ot_speed, source_type="condition",
+                label="Origin of Thunder", source_name="Thunder Magus", points=1,
+                text=f"+{_ot_speed * 100:.2g}% additional {_lbl} Speed (Origin of Thunder)"))
+        source.add_with_source("dmg_additional", _ot_dmg, SourceEntry(
+            stat="dmg_additional", amount=_ot_dmg, source_type="condition",
+            label="Origin of Thunder", source_name="Thunder Magus", points=1,
+            text=f"+{_ot_dmg * 100:.3g}% additional damage (Origin of Thunder Lv {int(_ot_lvl)})"))
+
     # ── Support-granted buff / debuff base effects (roadmap #2) ────────────────
     _booleans = active_booleans or frozenset()
 
