@@ -442,6 +442,13 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=10,
         source_types=_T,
     ),
+    Stat.MINION_HIT_DMG_ADDITIONAL: StatMeta(
+        "Additional Hit Damage for Minions", "Minion", "additional", "%",
+        subgroup="minion_damage",      pipeline_stage="additional",
+        tags=("minion",),              affects=_HIT,
+        stacking_rule="additive",      ui_priority=10,
+        source_types=_T,
+    ),
     Stat.MINION_DMG_MAX: StatMeta(
         "Additional Max Damage for Minions", "Minion", "additional", "%",
         subgroup="minion_damage",      pipeline_stage="additional",

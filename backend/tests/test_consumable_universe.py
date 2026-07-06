@@ -16,7 +16,7 @@ from models.stat_meta import STAT_META
 
 def test_universe_is_stable_and_nonempty():
     u = consumable_universe()
-    assert 150 < len(u) < 500, f"universe size {len(u)} outside sane range — synthetic run likely changed shape"
+    assert 150 < len(u) < 600, f"universe size {len(u)} outside sane range — synthetic run likely changed shape"
     assert consumable_universe() is u  # cached singleton
 
 

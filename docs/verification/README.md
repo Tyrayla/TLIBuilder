@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**48 entries** — ✅ Confirmed: 9 · 🔶 Partial: 4 · ⬜ Pending: 9 · ⚠️ Unverified: 26
+**59 entries** — ✅ Confirmed: 9 · 🔶 Partial: 4 · ⬜ Pending: 9 · ⚠️ Unverified: 37
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -32,8 +32,10 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Skill mana/life cost model | — | cost, sustain | ⬜ Pending | — | [skill-cost.md](skill-cost.md) |
 | Support universal-line rank table | Chain Lightning | supports, damage-pool | ⬜ Pending | — | [support-rank-table.md](support-rank-table.md) |
 | Activation mediums (general parser) | — | trigger, cooldown | ⚠️ Unverified | — | [activation-mediums.md](activation-mediums.md) |
+| Active minion count (adjustable, scales DPS) | — | minion, dps | ⚠️ Unverified | — | [minion-active-count.md](minion-active-count.md) |
 | Berserking Blade (+ supports) | Berserking Blade | skill, buff, per-slot | ⚠️ Unverified | — | [berserking-blade.md](berserking-blade.md) |
 | Chromatic Shot (+ canvas supports) | Chromatic Shot | skill, conversion, shotgun | ⚠️ Unverified | — | [chromatic-shot.md](chromatic-shot.md) |
+| Conditional / scaling minion modifiers | — | minion, modifier, condition | ⚠️ Unverified | — | [minion-conditional-mods.md](minion-conditional-mods.md) |
 | Core talents (uniqueness / grants) | — | talent, damage-pool | ⚠️ Unverified | — | [core-talents.md](core-talents.md) |
 | Damage conversions | — | conversion, damage-pool | ⚠️ Unverified | — | [damage-conversions.md](damage-conversions.md) |
 | Dreamweaver spirit | — | pact-spirit, penetration | ⚠️ Unverified | — | [dreamweaver.md](dreamweaver.md) |
@@ -45,15 +47,24 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Frostbite ailment | — | ailment, enemy-vulnerability | ⚠️ Unverified | — | [frostbite.md](frostbite.md) |
 | High Court Chariot (Rosa trait) | High Court Chariot | hero-trait, defense | ⚠️ Unverified | — | [high-court-chariot.md](high-court-chariot.md) |
 | Howling Gale | Howling Gale | skill, channeled | ⚠️ Unverified | — | [howling-gale.md](howling-gale.md) |
+| Isomorphic Arms (weapon transfer) | — | minion, core-talent, god-of-machines | ⚠️ Unverified | — | [isomorphic-arms.md](isomorphic-arms.md) |
 | Licorice Note (Sage trait) | Licorice Note | hero-trait, buff, crit | ⚠️ Unverified | — | [licorice-note.md](licorice-note.md) |
 | Life/Mana consumption subsystem | — | sustain, cost | ⚠️ Unverified | — | [consumption-subsystem.md](consumption-subsystem.md) |
 | Loadouts | — | build-system | ⚠️ Unverified | — | [loadouts.md](loadouts.md) |
+| Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | — | [minion-dps-engine.md](minion-dps-engine.md) |
+| Minion Lucky damage (Queer Angle) | — | minion, lucky | ⚠️ Unverified | — | [minion-lucky-damage.md](minion-lucky-damage.md) |
+| Minion modifier coverage (parser + consumption + remap) | — | minion, modifier, parser | ⚠️ Unverified | — | [minion-mod-coverage.md](minion-mod-coverage.md) |
+| Minion Skill Level scaling | — | minion, level-scaling | ⚠️ Unverified | — | [minion-skill-level.md](minion-skill-level.md) |
+| Minion spell/attack pool separation | — | minion, damage-pool | ⚠️ Unverified | — | [minion-spell-attack-separation.md](minion-spell-attack-separation.md) |
+| Origin of Thunder (summoner buff) | Summon Thunder Magus | minion, spirit-magus, buff | ⚠️ Unverified | — | [origin-of-thunder.md](origin-of-thunder.md) |
 | Pact Fates / Kismets | — | pact-spirit, build-system | ⚠️ Unverified | — | [fates-kismets.md](fates-kismets.md) |
 | Prisms (Inverse Image) | — | passive-tree, damage-pool | ⚠️ Unverified | — | [prisms.md](prisms.md) |
 | Reservation / Mana-Life sealing | — | reservation, sustain | ⚠️ Unverified | — | [reservation-sealing.md](reservation-sealing.md) |
 | Restoration / recovery subsystem | — | sustain, defense | ⚠️ Unverified | — | [restoration-subsystem.md](restoration-subsystem.md) |
 | Sing with the Tide (Selena trait) | Sing with the Tide | hero-trait, buff | ⚠️ Unverified | — | [sing-with-the-tide.md](sing-with-the-tide.md) |
 | Slate inventory + bonus overview | — | build-system, slates | ⚠️ Unverified | — | [slate-inventory.md](slate-inventory.md) |
+| Spirit Magi Growth + stages | — | minion, spirit-magus, growth | ⚠️ Unverified | — | [spirit-magi-growth.md](spirit-magi-growth.md) |
 | Split Shot + supports (spread / Shotgun Effect / channel) | Split Shot | shotgun, projectile, channeled, breakpoint, supports, damage-pool | ⚠️ Unverified | — | [split-shot.md](split-shot.md) |
+| Thunder Magus (Spirit Magus) | Summon Thunder Magus | minion, spirit-magus | ⚠️ Unverified | — | [thunder-magus.md](thunder-magus.md) |
 | Unsullied Blade (Rosa trait) | Unsullied Blade | hero-trait, conversion, true-damage | ⚠️ Unverified | — | [unsullied-blade.md](unsullied-blade.md) |
 | Wind Stalker (Erika trait) | Wind Stalker | hero-trait, speed | ⚠️ Unverified | — | [wind-stalker.md](wind-stalker.md) |

@@ -52,3 +52,35 @@ def test_unmapped_minion_mod_never_leaks_to_player(text):
 
 def test_isomorphic_arms_flag_parses():
     assert _keys("Minions gain the Main-Hand Weapon's bonuses") == {"minions_inherit_mainhand_weapon"}
+
+
+# Conditional / scaling core-talent lines: resolve to a minion stat + the right condition_expr (via the real
+# core-talent classifier — _split_condition + translate + parse).
+from server import _parse_custom_mod_text as _P2, _translate_condition_expr as _TC
+from engine import core_talent_resolver as _C
+
+COND_CASES = [
+    ("+12% additional Hit Damage for Minions for every type of Ailment on the enemy",
+     {"minion_hit_dmg_additional"}, {"key": "ailment_type_count", "op": "per", "divisor": 1}),
+    ("+1% additional Minion Damage for every 5 remaining Energy, up to +50% additional damage",
+     {"minion_dmg_additional"}, {"key": "remaining_energy", "op": "per", "divisor": 5, "cap": 0.5}),
+    ("Minions +6% additional damage for each type of Aura they are affected by",
+     {"minion_dmg_additional"}, {"key": "aura_type_count", "op": "per", "divisor": 1}),
+    ("+25% additional Minion Damage when you have 5 Minions",
+     {"minion_dmg_additional"}, {"key": "active_minions", "op": ">=", "value": 5}),
+]
+
+
+@pytest.mark.parametrize("text,keys,cond", COND_CASES)
+def test_conditional_minion_line_resolves(text, keys, cond):
+    cls = _C._classify_effect(text, _P2, _TC)
+    assert cls["kind"] == "stat"
+    assert {c["stat_key"] for c in cls["contribs"]} == keys
+    assert cls["condition_expr"] == cond
+
+
+def test_talons_and_focused_and_lucky_resolve():
+    assert _keys("For every 20 Growth a Spirit Magus has, it deals +1% additional damage") == {"minion_dmg_additional_per_20_growth"}
+    assert _keys("Minions' Area Skills deal up to +32% additional damage to enemies at the center") == {"minion_at_center_dmg_additional"}
+    lucky = _keys("You and Minions deal Lucky Damage")
+    assert {f"minion_lucky_{t}" for t in ("physical","fire","cold","lightning","erosion")} <= lucky

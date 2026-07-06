@@ -131,16 +131,29 @@ _SPIRIT_MAGI_FOLD = {
 }
 
 
-def fold_spirit_magi_pools(source: BuildSource) -> None:
+def fold_spirit_magi_pools(source: BuildSource, growth: float = 0.0) -> None:
     """Fold `spirit_magi_*` damage/crit pools into the generic `minion_*` pools IN PLACE. Call on a source COPY a
     magus module owns (never the shared source), so Spirit-Magi-scoped mods (which the minion offense would
-    otherwise drop on the `spirit_magi` tag) actually apply to the magus."""
-    for src_key, dst_key in _SPIRIT_MAGI_FOLD.items():
-        amt = source.total(src_key)
+    otherwise drop on the `spirit_magi` tag) actually apply to the magus. Also folds the per-Growth pools (Talons
+    of Abyss) scaled by this magus's `growth` — dmg per 20 Growth, Ultimate AS/CS per 40 Growth."""
+    def _add(dst: str, amt: float, text: str) -> None:
         if amt:
-            source.add_with_source(dst_key, amt, SourceEntry(
-                stat=dst_key, amount=amt, source_type="minion", label="Spirit Magi",
-                source_name="Spirit Magi", text=f"Spirit Magi {src_key.replace('spirit_magi_', '').replace('_', ' ')}"))
+            source.add_with_source(dst, amt, SourceEntry(
+                stat=dst, amount=amt, source_type="minion", label="Spirit Magi", source_name="Spirit Magi", text=text))
+
+    for src_key, dst_key in _SPIRIT_MAGI_FOLD.items():
+        _add(dst_key, source.total(src_key), f"Spirit Magi {src_key.replace('spirit_magi_', '').replace('_', ' ')}")
+
+    # Per-Growth folds (Talons of Abyss): per-unit stat × floor(growth / divisor).
+    if growth > 0:
+        _add("minion_dmg_additional", source.total("minion_dmg_additional_per_20_growth") * (growth // 20),
+             "Talons of Abyss: additional damage per 20 Growth")
+        _add("minion_ultimate_attack_speed_additional",
+             source.total("minion_ultimate_attack_speed_additional_per_40_growth") * (growth // 40),
+             "Talons of Abyss: Ultimate Attack Speed per 40 Growth")
+        _add("minion_ultimate_cast_speed_additional",
+             source.total("minion_ultimate_cast_speed_additional_per_40_growth") * (growth // 40),
+             "Talons of Abyss: Ultimate Cast Speed per 40 Growth")
 
 
 def _minion_target_mitigation(source: BuildSource, dtype: str) -> float:
@@ -428,7 +441,9 @@ def calculate_minion_offense(
     # Generic (all-types) increased/additional + per-type totals (generic + type-specific). Skill-type-tagged pools
     # (e.g. minion_spell_dmg_additional) apply ONLY to a matching ability — a Spell pool NEVER touches an Attack.
     # An Enhanced-only skill-intrinsic additional (Thunderlight Arrow's +5%/Projectile Quantity) folds in here too.
-    extra_add_factor = 1.0 + max(0.0, extra_additional)
+    # Focused Strike's at-center additional applies full-uptime to AREA abilities only (mirrors the player Epicenter).
+    area_center_add = source.total("minion_at_center_dmg_additional") if "area" in tags_lower else 0.0
+    extra_add_factor = (1.0 + max(0.0, extra_additional)) * (1.0 + max(0.0, area_center_add))
     generic_inc = sum(source.total(k) for k, tags in _MINION_INC_STATS
                       if not _has_dtype_tags(tags) and _skill_type_ok(tags, is_spell))
     generic_add = _minion_additional(source, frozenset(), generic_only=True, is_spell=is_spell) * extra_add_factor
@@ -479,12 +494,22 @@ def calculate_minion_offense(
     shots = max(1, shotgun_hits)
     shotgun_mult = 1.0 + (shots - 1) * (1.0 - shotgun_falloff)
 
-    avg_pre = sum((hit_min.get(t, 0.0) + hit_max.get(t, 0.0)) / 2.0 for t in hit_min)
+    # Lucky damage (Queer Angle): a type with minion_lucky_<type> active rolls the range twice, keeping the higher
+    # → EV = min + 2/3·range instead of the midpoint (mirror the player _luck_ratio; Lucky-only, no minion Unlucky).
+    def _type_avg(t: str) -> float:
+        mn, mx = hit_min.get(t, 0.0), hit_max.get(t, 0.0)
+        mid = (mn + mx) / 2.0
+        if mx > mn and source.total(f"minion_lucky_{t}") > 0.0:
+            return mn + (2.0 / 3.0) * (mx - mn)
+        return mid
+
+    type_avg = {t: _type_avg(t) for t in hit_min}
+    avg_pre = sum(type_avg.values())
     per_minion_dps = avg_pre * crit_factor * double_factor * rate * shotgun_mult
-    per_minion_vs = sum(((hit_min.get(t, 0.0) + hit_max.get(t, 0.0)) / 2.0) * enemy_mult.get(t, 1.0)
+    per_minion_vs = sum(type_avg[t] * enemy_mult.get(t, 1.0)
                         for t in hit_min) * crit_factor * double_factor * rate * shotgun_mult
     count = max(1, minion_count)
-    damage_by_type = {t: ((hit_min.get(t, 0.0) + hit_max.get(t, 0.0)) / 2.0) for t in hit_min}
+    damage_by_type = dict(type_avg)
 
     form = HitFormResult(
         name=name, effectiveness_pct=coeff, form_type="additive", proc_chance=1.0,

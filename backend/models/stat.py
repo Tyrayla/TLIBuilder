@@ -183,6 +183,21 @@ class Stat(Enum):
     MINION_LIGHTNING_DMG_FLAT_MAX = "minion_lightning_dmg_flat_max"
     MINION_EROSION_DMG_FLAT_MIN = "minion_erosion_dmg_flat_min"
     MINION_EROSION_DMG_FLAT_MAX = "minion_erosion_dmg_flat_max"
+    # ── Conditional / scaling minion damage (Phase-1 core-talent wiring) ────────
+    MINION_HIT_DMG_ADDITIONAL = "minion_hit_dmg_additional"                 # additional Hit Damage (folds into additional)
+    MINION_AT_CENTER_DMG_ADDITIONAL = "minion_at_center_dmg_additional"     # Focused Strike — area skills, full-uptime
+    MINION_LUCKY_PHYSICAL = "minion_lucky_physical"                         # Queer Angle — per-type Lucky damage
+    MINION_LUCKY_FIRE = "minion_lucky_fire"
+    MINION_LUCKY_COLD = "minion_lucky_cold"
+    MINION_LUCKY_LIGHTNING = "minion_lucky_lightning"
+    MINION_LUCKY_EROSION = "minion_lucky_erosion"
+    MINION_MAX_MULTISTRIKE_COUNT_FLAT = "minion_max_multistrike_count_flat"  # Max Multistrike Count (K)
+    # Per-Growth per-unit stats (Talons of Abyss) — read explicitly, scaled by the minion's Growth in the pass.
+    MINION_DMG_ADDITIONAL_PER_20_GROWTH = "minion_dmg_additional_per_20_growth"
+    MINION_ULTIMATE_ATTACK_SPEED_ADDITIONAL = "minion_ultimate_attack_speed_additional"
+    MINION_ULTIMATE_CAST_SPEED_ADDITIONAL = "minion_ultimate_cast_speed_additional"
+    MINION_ULTIMATE_AS_ADDITIONAL_PER_40_GROWTH = "minion_ultimate_attack_speed_additional_per_40_growth"
+    MINION_ULTIMATE_CS_ADDITIONAL_PER_40_GROWTH = "minion_ultimate_cast_speed_additional_per_40_growth"
     # Core-talent additional-pool minion mods (subsystem not yet simulated — tracked, Inactive)
     MINION_PHYSICAL_DMG_ADDITIONAL = "minion_physical_dmg_additional"
     MINION_SPELL_DMG_ADDITIONAL = "minion_spell_dmg_additional"

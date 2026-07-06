@@ -422,3 +422,25 @@ def test_minion_skill_level_above_max_multiplier():
     # spirit_magi_skill_level stacks with minion_skill_level.
     s2 = BuildSource(); s2.add("minion_skill_level", 1); s2.add("spirit_magi_skill_level", 1)
     assert calculate_minion_offense(s2, _ATTACK_ABILITY, _BASE_STATS, 20).above_max_mult == pytest.approx(1.10 ** 2)
+
+
+def test_talons_per_growth_additional_fold():
+    from engine.minion_offense import fold_spirit_magi_pools
+    s = BuildSource(); s.add("minion_dmg_additional_per_20_growth", 0.01); fold_spirit_magi_pools(s, 300)  # floor(300/20)=15
+    assert calculate_minion_offense(s, _ATTACK_ABILITY, _BASE_STATS, 20).generic_add == pytest.approx(1.15)
+
+
+def test_focused_strike_at_center_area_scoped():
+    _area = {"name": "Ar", "skill_tags": ["Base Skill", "Attack", "Fire", "Area"], "base_damage_coefficient": 232.0, "cast_speed": "0.8 s"}
+    s = BuildSource(); s.add("minion_at_center_dmg_additional", 0.32)
+    assert calculate_minion_offense(s, _area, _BASE_STATS, 20).generic_add == pytest.approx(1.32)          # area
+    assert calculate_minion_offense(s, _ATTACK_ABILITY, _BASE_STATS, 20).generic_add == pytest.approx(1.0)  # not area
+
+
+def test_queer_angle_lucky_raises_average_with_spread():
+    # Lucky raises a type's average from the midpoint toward the max (min + 2/3 range) — needs a damage spread.
+    def dps(lucky):
+        s = BuildSource(); s.add("minion_fire_dmg_flat_min", 0); s.add("minion_fire_dmg_flat_max", 4640)
+        if lucky: s.add("minion_lucky_fire", 1.0)
+        return calculate_minion_offense(s, _ATTACK_ABILITY, _BASE_STATS, 20).total_dps
+    assert dps(True) / dps(False) == pytest.approx(7.0 / 6.0, rel=1e-3)   # midpoint→lucky for a 0..R + base spread

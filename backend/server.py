@@ -2303,7 +2303,24 @@ _COND_PATTERNS: list[tuple] = [
     # otherwise shadow them (e.g. "for each time you have Regained" must scale, not just gate on regained).
     (re.compile(r"for\s+each\s+unique\s+type\s+of\s+weapon", re.I), {"key": "unique_weapon_types", "op": "per", "divisor": 1}),
     (re.compile(r"for\s+each\s+time\s+you\s+have\s+regained", re.I), {"key": "regain_stacks", "op": "per", "divisor": 1}),
-    (re.compile(r"for\s+each\s+type\s+of\s+(?:elemental\s+)?ailment", re.I), {"key": "ailment_type_count", "op": "per", "divisor": 1}),
+    (re.compile(r"for\s+(?:each|every)\s+type\s+of\s+(?:elemental\s+)?ailment", re.I), {"key": "ailment_type_count", "op": "per", "divisor": 1}),
+    # ── Minion / core-talent scaling gates (all key off the PLAYER's value, so they reach minion mods too) ──
+    # "per stack of any Blessing" (any blessing type) → the derived any_blessings count (sum of the three).
+    (re.compile(r"(?:per|for\s+every|for\s+each)\s+stack(?:\(s\))?\s+of\s+any\s+blessing", re.I),
+     {"key": "any_blessings", "op": "per", "divisor": 1}),
+    # "for every N remaining Energy[, up to Y%]" (Indifference) → per the player's remaining Energy, capped.
+    (re.compile(r"(?:per|for\s+every|for\s+each)\s+(\d+)\s+remaining\s+energy(?:\s*,?\s*up\s+to\s+\+?([\d.]+)\s*%)?", re.I),
+     lambda m: {"key": "remaining_energy", "op": "per", "divisor": int(m.group(1)),
+                **({"cap": float(m.group(2)) / 100.0} if m.group(2) else {})}),
+    # "for each type of Aura [you/they are affected by]" (Reflection) → the player's UNIQUE active-aura count.
+    (re.compile(r"for\s+(?:each|every)\s+type\s+of\s+aura", re.I), {"key": "aura_type_count", "op": "per", "divisor": 1}),
+    # Active-minion count: "for each Minion you have" (per) or "when you have N Minion(s)" (threshold). Keys off the
+    # config-adjustable active-minion count.
+    (re.compile(r"for\s+(?:each|every)\s+minion\s+you\s+have", re.I), {"key": "active_minions", "op": "per", "divisor": 1}),
+    (re.compile(r"when\s+you\s+have\s+(\d+)\s+minion", re.I),
+     lambda m: {"key": "active_minions", "op": ">=", "value": int(m.group(1))}),
+    (re.compile(r"recently\s+summoned\s+minion", re.I), "recently_summoned_minion"),
+    (re.compile(r"minions?\s+(?:are|that\s+are|when\s+they\s+are)\s+at\s+low\s+life|for\s+minions?\s+at\s+low\s+life", re.I), "minion_low_life"),
     # Per-Tangle scaling: "+X … for each activated Tangle" / "… per inactivated (dormant) Tangle" → ×the derived
     # effective count (compute injects active_tangle_count / inactivated_tangle_count each pass). The inactivated /
     # dormant form MUST precede the generic "tangle" form so it isn't shadowed.

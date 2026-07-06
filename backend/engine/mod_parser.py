@@ -309,6 +309,21 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
         if _me:
             return [{"stat_key": "spirit_magi_empower_effect_additional", "amount": float(_me.group(1)) / 100.0, "text": stripped}]
 
+    # LEADING minion subject: "Minions +N% …" / "Spirit Magi +N% …" (a subject before a value, e.g. Reflection's
+    # "Minions +6% additional damage …") — strip the subject, resolve the core, strict-remap to minion. Requires a
+    # value right after so adjective forms ("Minion Attack Speed", handled by the fuzzy display-name match) are left
+    # alone. Fall through if the core doesn't resolve.
+    m_lead = re.match(r'\s*(?:minions?|spirit\s+mag(?:i|us))\s+(?=[+\-]?\d)', stripped, re.I)
+    if m_lead:
+        core = stripped[m_lead.end():].lstrip()
+        core_results = _parse_custom_mod_text(core)
+        if core_results:
+            from engine.minion_offense import to_minion_stat_strict
+            out = [{**d, "stat_key": to_minion_stat_strict(d["stat_key"]), "text": stripped}
+                   for d in core_results if to_minion_stat_strict(d["stat_key"]) is not None]
+            if out:
+                return out
+
     # MINION scope peel: "… for/by Minions [summoned by the supported skill]" → resolve the CORE and remap each
     # result to its minion-scoped stat, so the whole line routes to the minion pools (never leaks to the player).
     # Only adopt it if the core resolves; otherwise fall through so the fuzzy resolver's "Minion X" forms still work.
@@ -659,6 +674,42 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     m = re.search(r'([\d.]+)\s*%\s*chance\s+for\s+minions?\s+to\s+deal\s+double\s+damage', t, re.I)
     if m:
         return [{"stat_key": "minion_double_dmg_chance", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Talons of Abyss — per-Growth folds (Growth is a per-minion value, applied in minion_offense; the stat name
+    # bakes in the divisor). "For every 20 Growth … it deals +N% additional damage".
+    m = re.search(r'for\s+every\s+20\s+growth\s+a\s+spirit\s+mag(?:i|us)\s+has.*?([\d.]+)\s*%\s*additional\s+damage', t, re.I)
+    if m:
+        return [{"stat_key": "minion_dmg_additional_per_20_growth", "amount": float(m.group(1)) / 100.0, "text": t}]
+    # "For every 40 Growth … +N% additional Ultimate Attack and Cast Speed" (or a split half).
+    m = re.search(r'for\s+every\s+40\s+growth\s+a\s+spirit\s+mag(?:i|us)\s+has.*?([\d.]+)\s*%\s*additional\s+ultimate\s+(attack and cast|attack|cast)\s+speed', t, re.I)
+    if m:
+        amt, which = float(m.group(1)) / 100.0, m.group(2).lower()
+        out = []
+        if which in ("attack", "attack and cast"):
+            out.append({"stat_key": "minion_ultimate_attack_speed_additional_per_40_growth", "amount": amt, "text": t})
+        if which in ("cast", "attack and cast"):
+            out.append({"stat_key": "minion_ultimate_cast_speed_additional_per_40_growth", "amount": amt, "text": t})
+        return out
+
+    # Focused Strike — "Minions' Area Skills deal up to +N% additional damage to enemies at the center" → an
+    # Area-scoped, full-uptime ("up to") minion additional pool (mirrors the player at-center / Epicenter).
+    m = re.search(r'minions?.{0,25}area\s+skills?\s+deal\s+up\s+to\s+\+?([\d.]+)\s*%\s*additional\s+damage.*?at\s+the\s+cent', t, re.I)
+    if m:
+        return [{"stat_key": "minion_at_center_dmg_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Queer Angle — "You and Minions deal Lucky Damage [against …]" → per-type Lucky for the player and/or minions
+    # (the condition clause, e.g. 'against Numbed enemies', is split off upstream). Mirrors the player Lucky parse.
+    if re.search(r'\blucky\s+damage\b', t, re.I):
+        _types = ("physical", "fire", "cold", "lightning", "erosion")
+        _has_minion = bool(re.search(r'\bminions?\b', t, re.I))
+        _has_you = bool(re.search(r'\byou\b', t, re.I)) or not _has_minion
+        out = []
+        if _has_you:
+            out += [{"stat_key": f"lucky_{ty}", "amount": 1.0, "text": t} for ty in _types]
+        if _has_minion:
+            out += [{"stat_key": f"minion_lucky_{ty}", "amount": 1.0, "text": t} for ty in _types]
+        if out:
+            return out
 
     # "N% Max Life and (Max) Energy Shield" → BOTH increased pools. Explicit because the generic single-stat
     # resolver only catches the trailing "Max Energy Shield" and silently drops the Max Life half (Heart of the

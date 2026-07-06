@@ -442,6 +442,22 @@ def compute(
                 slot_cats[main_slot] = _minion_owner_cat(_msd)
     from engine.minion_offense import to_minion_stat as _to_minion_stat
 
+    # `active_minions` config: default = the summon-cap total (base "up to N"), so "when you have N Minion(s)" gear
+    # gates against the real count by default; the user can lower it in Config to model fewer active minions (which
+    # scales minion DPS in the minion pass below). Injected before the loop so the in-loop aggregator sees it.
+    if skills_by_id is not None and not condition_state.get("active_minions"):
+        _base_total = 0
+        for _sk in (skills_input or []):
+            _sd = skills_by_id.get(_sk["skill_id"])
+            if _sd and _sd.get("minion_skills"):
+                _base_total += _minion_base_count(_sd, _sk.get("level", 1))
+        if build_input.main_skill:
+            _msd2 = skills_by_id.get(build_input.main_skill.skill_id)
+            if _msd2 and _msd2.get("minion_skills"):
+                _base_total += _minion_base_count(_msd2, build_input.main_skill.level)
+        if _base_total > 0:
+            condition_state["active_minions"] = float(_base_total)
+
     # Aim (Euphoria) can be SLOTTED as a buff skill (not only gear-triggered): an enabled "aim" skill self-grants
     # Euphoria at its own level. Detected once (the skill list is stable across passes); folded into the aim
     # derivation below alongside any "Triggers Lv. N Aim" gear flag (the higher level wins).
@@ -657,6 +673,9 @@ def compute(
         from engine.utility import apply_aura_buffs, apply_empower_buffs, apply_elixir_buffs
         aura_summaries = apply_aura_buffs(
             source, build_input.aura_buffs, build_input.aura_meta, active_booleans, numeric_vals)
+        # Derive aura_type_count = number of UNIQUE active auras (for "… for each type of Aura" scaling, e.g.
+        # Reflection). Injected into condition_state so the next pass's aggregator scales the contribution.
+        condition_state["aura_type_count"] = float(len(aura_summaries))
 
         # Empower (Euphoria) buffs: scale by the now-aggregated Empower Skill Effect (global + slot-local from
         # the skill + its empower supports) and fold in player-wide. Runs each pass like the auras.
@@ -1388,8 +1407,12 @@ def compute(
             # conversion must be modelled explicitly. Unmodelled owners list their abilities as NYI (0 damage).
             if _mo.is_modeled(owner["item_id"]):
                 eff = source.materialize_for_skill({"minion"}, slot)
-                count = max(1, _minion_base_count(owner, level)
-                            + int(round(eff.total("max_spirit_magi_flat") + eff.total("extra_max_minions_flat"))))
+                _max_count = max(1, _minion_base_count(owner, level)
+                                 + int(round(eff.total("max_spirit_magi_flat") + eff.total("extra_max_minions_flat"))))
+                # Active count = the user's `active_minions` (Config), capped at the max; 0/unset → the full max.
+                # Fewer active minions → lower DPS (the count folds into the totals via cast_multiplier).
+                _active = int(condition_state.get("active_minions") or 0)
+                count = min(_active, _max_count) if 0 < _active <= _max_count else _max_count
                 # A bespoke module returns ONE OffenseResult whose hit_forms ARE the minion's damage abilities
                 # (like a player multi-form skill), so the frontend's form dropdown / % of Total / combined view work.
                 result = _mo.MINION_MODULES[owner["item_id"]](eff, owner, _mbase, level, count)

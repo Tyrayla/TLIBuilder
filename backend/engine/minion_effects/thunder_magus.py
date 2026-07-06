@@ -56,8 +56,9 @@ def handler(source, owner, base_stats, level, count):
     # Fold the Empower buff + Growth stage bonuses into a COPY of the source (never mutate the shared one).
     buffed = replace(source, _entries=list(source._entries), source_log=list(source.source_log))
     # Spirit-Magi-scoped damage/crit gear/talents carry the `spirit_magi` tag (not `minion`) and would otherwise
-    # be dropped — fold them into the generic minion pools so a magus actually consumes them.
-    fold_spirit_magi_pools(buffed)
+    # be dropped — fold them into the generic minion pools so a magus consumes them. Also folds the per-Growth
+    # pools (Talons of Abyss) scaled by this magus's Growth.
+    fold_spirit_magi_pools(buffed, growth)
 
     def _add(stat: str, amt: float, text: str) -> None:
         buffed.add_with_source(stat, amt, SourceEntry(

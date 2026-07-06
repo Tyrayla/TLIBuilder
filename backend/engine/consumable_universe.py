@@ -170,6 +170,14 @@ def consumable_universe() -> frozenset[str]:
                  "spirit_magi_dmg_inc", "spirit_magi_dmg_additional", "spirit_magi_crit_rating_flat",
                  "spirit_magi_empower_effect_additional", "minions_inherit_mainhand_weapon",
                  "minion_skill_level", "spirit_magi_skill_level"}
+    # Phase-1 conditional/scaling minion damage — read explicitly in engine.minion_offense (per-Growth folds,
+    # Focused-Strike at-center full-uptime, Queer-Angle per-type Lucky, multistrike Max Count).
+    consumed |= {"minion_at_center_dmg_additional", "minion_max_multistrike_count_flat",
+                 "minion_dmg_additional_per_20_growth",
+                 "minion_ultimate_attack_speed_additional", "minion_ultimate_cast_speed_additional",
+                 "minion_ultimate_attack_speed_additional_per_40_growth",
+                 "minion_ultimate_cast_speed_additional_per_40_growth"}
+    consumed |= {f"minion_lucky_{t}" for t in ("physical", "fire", "cold", "lightning", "erosion")}
     # engine.consumption (self-consume drains) reads the typed consume-rate stats outside the offense/defense passes.
     consumed |= {f"{p}_consumed_{b}_per_{c}"
                  for p in ("life", "mana", "energy_shield")
