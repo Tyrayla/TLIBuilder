@@ -258,6 +258,26 @@ def test_thunder_magus_external_projectile_quantity_grants_additional_not_shotgu
     assert e2.avg_hit_pre_crit / e0.avg_hit_pre_crit == pytest.approx(1.15 / 1.05, rel=1e-6)
 
 
+def test_thunder_magus_empower_uptime_responds_to_minion_cdr_and_duration():
+    """Empower uptime = effective duration ÷ effective cooldown (clamped ≤ 1). Generic minion mods drive it:
+    Minion Skill Effect Duration lengthens the 6 s buff, Minion Cooldown Recovery Speed shortens the 10 s cd."""
+    from engine.minion_offense import MINION_MODULES
+    owner, base_stats = _thunder_owner_and_stats()
+    handler = MINION_MODULES["summon_thunder_magus"]
+
+    def as_rate(r):   # Stage-1 Base form fires at the full attack rate → exposes the Empower AS uptime.
+        return next(f for f in r.hit_forms if "Lightning Star" in f.name).fires_per_sec
+
+    # No mods → 6/10 = 60% uptime → +35% AS × 0.6 = +21%.
+    assert as_rate(handler(BuildSource(), owner, base_stats, 20, 1)) == pytest.approx((1 / 0.8) * (1 + 0.35 * 0.6))
+    # +20% Skill Effect Duration → 7.2 s ÷ 10 s = 72% uptime.
+    s1 = BuildSource(); s1.add("minion_skill_effect_duration_inc", 0.20)
+    assert as_rate(handler(s1, owner, base_stats, 20, 1)) == pytest.approx((1 / 0.8) * (1 + 0.35 * (7.2 / 10)))
+    # +50% Duration (9 s) + 25% CDR (10/1.25 = 8 s) → 9/8 > 1 → clamped to 100% uptime → +35% AS full.
+    s2 = BuildSource(); s2.add("minion_skill_effect_duration_inc", 0.50); s2.add("minion_cdr_speed_inc", 0.25)
+    assert as_rate(handler(s2, owner, base_stats, 20, 1)) == pytest.approx((1 / 0.8) * 1.35)
+
+
 def test_origin_of_thunder_buffs_summoner_through_engine():
     """Slotting a Thunder Magus auto-grants the summoner Origin of Thunder: +6% additional Cast Speed + level-
     scaled additional damage (7.25% at L20), emitted globally by the aggregator."""

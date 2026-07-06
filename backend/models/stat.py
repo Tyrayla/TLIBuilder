@@ -155,6 +155,12 @@ class Stat(Enum):
     MINION_AFFLICTION_PER_SECOND_FLAT = "minion_affliction_per_second_flat"
     MINION_ARMOR_PEN = "minion_armor_pen"
     MINION_DURATION_INC = "minion_duration_inc"
+    # Generic minion Cooldown Recovery Speed + Skill Effect Duration — apply to ALL minion types (Spirit Magi,
+    # Synthetic Troops, Modularization). Read explicitly (no pipeline_stage): CDR shortens a minion skill's
+    # cooldown, Skill Effect Duration lengthens its buff/skill durations → together they drive buff uptime.
+    # Supports (Cooldown Recovery / Extended Duration) on a minion convert to these for ease of use.
+    MINION_CDR_SPEED_INC = "minion_cdr_speed_inc"
+    MINION_SKILL_EFFECT_DURATION_INC = "minion_skill_effect_duration_inc"
     MINION_PHYSIQUE_INC = "minion_physique_inc"
     # External +Projectile Quantity granted to a minion skill (multiple-projectile supports on the minion link,
     # a +Proj weapon shared to the minion, etc.). Some minion skills (Thunderlight Arrow) do NOT add firing

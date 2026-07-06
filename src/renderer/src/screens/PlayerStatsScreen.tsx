@@ -727,10 +727,16 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
   const spellBurstMult = (offense.spell_burst_count ?? 0) > 0 ? (offense.spell_burst_mult ?? 1) : 1
   const breakdownMult = castMult * tangleMult * spellBurstMult
 
-  // Per-dtype DPS total across all forms (proportional attribution via avg hit)
+  // Only forms that deal DIRECT damage belong in this table / the "All forms (combined)" view — NYI, buff, and
+  // can't-activate forms (a minion's Empower / locked Ultimate) are excluded here (they're still selectable in
+  // the Form dropdown, where selecting one shows its effect). This is what makes the combined page show only
+  // real contributors.
+  const forms = offense.hit_forms.filter(f => !(f.nyi?.length))
+
+  // Per-dtype DPS total across all (damage) forms (proportional attribution via avg hit)
   const dtypeDpsTotal: Record<string, number> = {}
   for (const dtype of ALL_DTYPES) {
-    dtypeDpsTotal[dtype] = offense.hit_forms.reduce((sum, form) => {
+    dtypeDpsTotal[dtype] = forms.reduce((sum, form) => {
       const dtypeAvg = form.damage_by_type[dtype] ?? 0
       const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
       return sum + prop * form.dps_vs_target * breakdownMult
@@ -860,36 +866,13 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
             </tr>
           )}
 
-          {/* ── Per hit form ── */}
-          {offense.hit_forms.map(form => {
+          {/* ── Per hit form (direct-damage forms only; NYI/buff forms are excluded above) ── */}
+          {forms.map(form => {
             const formMin = ALL_DTYPES.reduce((s, d) => s + (form.hit_min_by_type[d] ?? 0), 0)
             const formMax = ALL_DTYPES.reduce((s, d) => s + (form.hit_max_by_type[d] ?? 0), 0)
             const formPct = totalDps > 0 ? `${(form.dps_vs_target * breakdownMult / totalDps * 100).toFixed(0)}%` : '—'
 
-            const multiForm = offense.hit_forms.length > 1
-            const formNyi = form.nyi ?? []
-            if (formNyi.length > 0) {
-              // An NYI form (e.g. a minion's Empower buff / locked Ultimate) — shown so it's visible/selectable,
-              // but it deals no damage yet: name header + its reason(s), no damage/DPS/% rows.
-              return (
-                <React.Fragment key={form.name}>
-                  <tr>
-                    <td colSpan={7} style={{
-                      paddingTop: 6, paddingBottom: 2, fontSize: 13, color: '#9a9a9a', fontWeight: 700,
-                      borderTop: multiForm ? '1px solid rgba(255,255,255,0.10)' : undefined,
-                    }}>
-                      {form.name}
-                      <span style={{ color: '#c8645a', fontWeight: 700, marginLeft: 8, fontSize: 11 }}>NYI</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colSpan={7} style={{ ...tdSub, whiteSpace: 'normal', paddingBottom: 4, lineHeight: 1.35 }}>
-                      {formNyi.join(' ')}
-                    </td>
-                  </tr>
-                </React.Fragment>
-              )
-            }
+            const multiForm = forms.length > 1
             return (
               <React.Fragment key={form.name}>
                 {/* Each form is its own visually-separated area (border + faint background) so multi-form
@@ -1470,6 +1453,28 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       )
   }
 
+  // A minion Empower/Ultimate NYI form selected on its own (via the Form dropdown) deals no hit — it's a buff or
+  // a locked skill. Show its EFFECT (not the hit-damage / rate / crit panels, which would wrongly display the
+  // Base form's shared numbers). The combined "All forms" view excludes these entirely (DamageBreakdownTable).
+  const nyiFormsSel = (offense.hit_forms ?? []).filter(f => f.nyi?.length)
+  const damageFormsSel = (offense.hit_forms ?? []).filter(f => !(f.nyi?.length))
+  if (nyiFormsSel.length > 0 && damageFormsSel.length === 0) {
+    return (
+      <StatPanel title={`${offense.skill_name} — ${nyiFormsSel[0].name}`} accent={AMBER}>
+        {nyiFormsSel.map(f => (
+          <div key={f.name} style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#e0d0a0', marginBottom: 3 }}>
+              {f.name}<span style={{ color: '#c8645a', fontWeight: 700, fontSize: 11, marginLeft: 6 }}>NYI</span>
+            </div>
+            {(f.nyi ?? []).map((n, i) => (
+              <div key={i} style={{ fontSize: 12, color: '#b8b0d0', lineHeight: 1.45 }}>{n}</div>
+            ))}
+          </div>
+        ))}
+      </StatPanel>
+    )
+  }
+
   const isSpell = hasTag(offense,'spell')
   const rateLabel = isSpell ? 'Casts per Second' : 'Attacks per Second'
   // Minion abilities are scaled ONLY by minion-scoped speed pools — the player's attack/cast speed (incl. any
@@ -1711,6 +1716,15 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           const areaInc = offense.skill_area_inc ?? 0
           const enhChance = offense.spirit_magi_enhanced_chance ?? 0
           const maxMagi = offense.spirit_magi_max ?? 0
+          // Per-stage bonuses (glossary 759 / in-game tooltip), indexed 0→Stage 1 … 4→Stage 5. The Stage row's
+          // hover breakdown lists all five and marks which are reached, so it's clear what each Stage unlocks.
+          const stageBonuses = [
+            'Spirit Magi active — Physique (per 8 Growth) & Skill Area (per stage) apply from here',
+            '+30% chance to use the Enhanced Skill',
+            'Enhanced Skills become stronger',
+            'Empower Skills become stronger',
+            '+50% additional damage, +10% additional Skill Area, increased Movement Speed & Tracking Area',
+          ]
           return (
             <GridBox>
               <StatPanel title="Spirit Magi" accent={AMBER}
@@ -1720,7 +1734,22 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                   formula: 'Base 100 (Stage 1) + Initial Growth mods (gear / talents / Iris), clamped 100–1000',
                   extra: [{ value: '100', stat: 'Base Growth', source: 'Baseline', sourceName: 'Stage 1' }],
                 }}>{dec(growth)} / 1000</Row>
-                <Row label="Stage">{stageN} / 5</Row>
+                <Row label="Stage" breakdown={{
+                  title: 'Growth Stages', keys: [], total: stageN, totalUnit: ' / 5',
+                  formula: 'Spirit Magi grow one Stage per 100 Growth (Stage 1 at 100 → Stage 5 at 500; Growth caps at 1000). Each Stage unlocks a bonus:',
+                  // The long effect text goes in the wide `sourceName` column (BD_GRID's 1fr) so it wraps cleanly;
+                  // the short status sits in `stat` (an auto column). Putting long text in `stat` starves the
+                  // Source Name column and wraps it per-character.
+                  extra: stageBonuses.map((b, i) => {
+                    const s = i + 1
+                    return {
+                      value: `Stage ${s}`,
+                      stat: stageN === s ? '◀ current' : stageN > s ? '✓ reached' : `needs ${s * 100}`,
+                      source: '',
+                      sourceName: b,
+                    }
+                  }),
+                }}>{stageN} / 5</Row>
                 <Row label="Enhanced Skill Chance" breakdown={{
                   title: 'Enhanced Skill Chance', keys: ['spirit_magi_enhanced_skill_chance'], total: enhChance, totalUnit: '%',
                   formula: 'Σ Enhanced-Skill Chance (gear / talents) + 30% at Growth Stage 2, capped at 100%',

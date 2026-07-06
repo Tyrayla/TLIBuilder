@@ -591,6 +591,18 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="minion_mechanics",   stacking_rule="additive",
         ui_priority=71,                source_types=_TB,
     ),
+    # Generic minion CDR + Skill Effect Duration (all minion types). No pipeline_stage — read explicitly by the
+    # minion offense (drive buff uptime), never auto-folded into damage. Supports convert to these.
+    Stat.MINION_CDR_SPEED_INC: StatMeta(
+        "Minion Cooldown Recovery Speed", "Minion", "increased", "%",
+        subgroup="minion_mechanics",   stacking_rule="additive",
+        ui_priority=73,                source_types=_TB,
+    ),
+    Stat.MINION_SKILL_EFFECT_DURATION_INC: StatMeta(
+        "Minion Skill Effect Duration", "Minion", "increased", "%",
+        subgroup="minion_mechanics",   stacking_rule="additive",
+        ui_priority=74,                source_types=_TB,
+    ),
     # +Projectile Quantity for minion skills. No pipeline_stage — read explicitly by the minion offense (some
     # minion skills convert it to additional damage rather than more projectiles), never auto-folded.
     Stat.MINION_PROJECTILE_QUANTITY_FLAT: StatMeta(

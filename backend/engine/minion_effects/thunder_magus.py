@@ -62,15 +62,18 @@ def handler(source, owner, base_stats, level, count):
 
     empower = by_role.get("Empower")
     empower_uptime = 1.0
+    _dur_eff = _cd_eff = 0.0
     if empower:
         from engine.skill_resolver import _parse_cast_time as _pct
-        # True uptime — the buff is up (duration ÷ cooldown) of the time (6 s / 10 s = 60%). There are no
-        # realistic minion CDR / skill-effect-duration sources, so model it directly: for a linear rate buff,
-        # buff × uptime IS the DPS-weighted average. FLAG: at Stage 4+ the AS and damage buffs share the same
-        # window, so scaling each independently slightly under-counts their PRODUCT vs the exact time-weighted
-        # average — an accepted approximation (per the plan).
-        _dur = float(empower.get("duration") or 0.0)
-        _cd = _pct(empower.get("cooldown", "")) or 0.0
+        # True uptime = effective duration ÷ effective cooldown, clamped ≤ 1 (base 6 s / 10 s = 60%). Now driven
+        # by GENERIC minion mods so it responds to Cooldown Recovery / Extended Duration (from gear, talents, or
+        # supports converted to minion stats): duration ×(1 + Minion Skill Effect Duration), cooldown ÷(1 + Minion
+        # CDR). For a linear rate buff, buff × uptime IS the DPS-weighted average. FLAG: at Stage 4+ the AS and
+        # damage buffs share the same window, so scaling each independently slightly under-counts their PRODUCT.
+        _dur = float(empower.get("duration") or 0.0) * (1.0 + source.total("minion_skill_effect_duration_inc"))
+        _cd0 = _pct(empower.get("cooldown", "")) or 0.0
+        _cd = _cd0 / (1.0 + source.total("minion_cdr_speed_inc")) if _cd0 > 0 else 0.0
+        _dur_eff, _cd_eff = _dur, _cd
         empower_uptime = min(1.0, _dur / _cd) if (_dur > 0 and _cd > 0) else 1.0
         _pct_txt = f"{round(empower_uptime * 100)}% uptime"
         _add("minion_attack_speed_additional", 0.35 * empower_uptime,
@@ -108,10 +111,12 @@ def handler(source, owner, base_stats, level, count):
             penetrates=True))
     if empower:
         r = nyi_offense(empower, level)
-        r.nyi = [f"Thundercloud Surge is an Empower buff (Euphoria +35% Attack Speed"
-                 + (", +25% damage at Growth Stage 4+" if stage >= 4 else ", +25% damage once at Growth Stage 4+")
-                 + f") — folded into the attacks above at {round(empower_uptime * 100)}% uptime "
-                 + "(6 s buff ÷ 10 s cooldown), no direct hit."]
+        _win = (f"{_dur_eff:g} s buff ÷ {_cd_eff:g} s cooldown" if _cd_eff and abs(_dur_eff - 6.0) + abs(_cd_eff - 10.0) > 1e-9
+                else "6 s buff ÷ 10 s cooldown")
+        r.nyi = [f"Thundercloud Surge is an Empower buff (Euphoria: +35% additional Attack Speed"
+                 + (", and +25% additional damage at Stage 4+" if stage >= 4 else "; +25% additional damage unlocks at Stage 4+")
+                 + f") — folded into the attacks above at {round(empower_uptime * 100)}% uptime ({_win}), no direct hit. "
+                 + "Uptime responds to Minion Cooldown Recovery Speed / Skill Effect Duration."]
         results.append(r)
     ultimate = by_role.get("Ultimate")
     if ultimate:
