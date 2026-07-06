@@ -50,6 +50,53 @@ _MINION_SPEED_ADD = {"attack": "minion_attack_speed_additional", "cast": "minion
 _ELEMENTAL_SET = frozenset(_ELEMENTAL)
 
 
+# ── Player→minion stat remap (a support/effect applied TO a minion) ────────────
+# Built once from the Stat enum: for every `minion_<X>` stat whose bare `<X>` is also a real stat, map X → the
+# minion form. So a support attached to a minion converts its output to the minion-scoped equivalent (damage,
+# speed, crit, flats, CDR, duration, projectiles, ailments, …) — "everything that has a minion version maps".
+# Keys with no minion equivalent fall through unchanged (a player-only effect does nothing to a minion).
+
+def _build_player_to_minion_remap() -> dict[str, str]:
+    from models.stat import Stat
+    all_keys = {s.value for s in Stat}
+    remap: dict[str, str] = {}
+    for k in all_keys:
+        if k.startswith("minion_"):
+            base = k[len("minion_"):]
+            if base in all_keys:
+                remap[base] = k
+    return remap
+
+
+PLAYER_TO_MINION_STAT: dict[str, str] = _build_player_to_minion_remap()
+# Player added/scaled damage carries an attack|spell INFIX the minion pools don't (e.g. a support's
+# "lightning_attack_dmg_flat_min" ↔ the minion's "minion_lightning_dmg_flat_min"). Bridge that shape separately.
+_CAT_DMG_RE = re.compile(r"^(physical|fire|cold|lightning|erosion)_(?:attack|spell)_dmg_(flat_min|flat_max|inc|additional)$")
+
+
+def to_minion_stat(stat_key: str) -> str:
+    """Remap a player stat key to its minion-scoped equivalent (for an effect applied to a MINION, e.g. a support
+    on a minion's link). Unchanged when there is no minion version."""
+    direct = PLAYER_TO_MINION_STAT.get(stat_key)
+    if direct is not None:
+        return direct
+    m = _CAT_DMG_RE.match(stat_key)
+    if m:
+        cand = f"minion_{m.group(1)}_dmg_{m.group(2)}"
+        if cand in _MINION_ALL_KEYS:
+            return cand
+    return stat_key
+
+
+# Every real minion_* stat value (for the cat-infix bridge above — those minion stats have no bare-base twin).
+def _all_minion_stat_values() -> frozenset:
+    from models.stat import Stat
+    return frozenset(s.value for s in Stat if s.value.startswith("minion_"))
+
+
+_MINION_ALL_KEYS: frozenset = _all_minion_stat_values()
+
+
 def _dtype_tag(dtype: str) -> frozenset:
     return frozenset({dtype}) | ({"elemental"} if dtype in _ELEMENTAL_SET else frozenset())
 

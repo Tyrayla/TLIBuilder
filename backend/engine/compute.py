@@ -417,6 +417,31 @@ def compute(
                 main_enabled = _sk.get("enabled", True)
                 break
 
+    # Slots whose skill is a MINION owner (carries nested minion_skills). A support attached to such a slot acts
+    # on the MINION, so its resolved contributions are remapped to minion-scoped stats (support→minion) when
+    # folded below — so Faster Attacks / Cooldown Recovery / Extended Duration / Added Damage / … on a minion
+    # link scale the minion, not the player. Static across passes (skill list is stable).
+    minion_owner_slots: set[int] = set()
+
+    def _minion_owner_cat(sd: dict) -> str:
+        """The minion's ability category (attack unless a Spell) — used to (a) let category-gated supports resolve
+        for the passive owner slot and (b) give the added-flat supports the right cat before the minion remap."""
+        tags = {str(t).lower() for ab in (sd.get("minion_skills") or []) for t in (ab.get("skill_tags") or [])}
+        return "spell" if "spell" in tags else "attack"
+
+    if skills_by_id is not None:
+        for _sk in (skills_input or []):
+            _sd = skills_by_id.get(_sk["skill_id"])
+            if _sd and _sd.get("minion_skills"):
+                minion_owner_slots.add(_sk["slot"])
+                slot_cats[_sk["slot"]] = _minion_owner_cat(_sd)   # minion category drives its supports
+        if build_input.main_skill:
+            _msd = skills_by_id.get(build_input.main_skill.skill_id)
+            if _msd and _msd.get("minion_skills"):
+                minion_owner_slots.add(main_slot)
+                slot_cats[main_slot] = _minion_owner_cat(_msd)
+    from engine.minion_offense import to_minion_stat as _to_minion_stat
+
     # Aim (Euphoria) can be SLOTTED as a buff skill (not only gear-triggered): an enabled "aim" skill self-grants
     # Euphoria at its own level. Detected once (the skill list is stable across passes); folded into the aim
     # derivation below alongside any "Triggers Lv. N Aim" gear flag (the higher level wins).
@@ -568,19 +593,22 @@ def compute(
             build_input.attached_supports, skills_by_id, main_cat, main_dtypes, condition_state, slot_cats,
             source=source, curse_slots=curse_slots, empower_slots=empower_slots, slot_skill=slot_skill)
         for c in std_contribs:
+            _slot = c.get("slot")
+            # A support on a MINION owner's slot acts on the minion → convert its stat to the minion-scoped
+            # equivalent so the minion offense reads it (and it never leaks into the player's pools).
+            _key = _to_minion_stat(c["stat_key"]) if _slot in minion_owner_slots else c["stat_key"]
             _se = SourceEntry(
-                stat=c["stat_key"], amount=c["amount"], source_type="support",
+                stat=_key, amount=c["amount"], source_type="support",
                 label=c.get("label", "Support"), text=c.get("text", ""), points=1,
                 # The breakdown's Source Name column reads source_name; without it, it fell back to the
                 # (level-1) effect text. Use the support's name so the row shows e.g. "Overload".
                 source_name=c.get("source_name") or c.get("label"))
             # Standard supports are slot-local to their host skill (default slot 1) — fold only into that
             # slot's offense pass, like the Noble/Magnificent contributions above.
-            _slot = c.get("slot")
             if _slot is not None:
-                source.add_slotted(c["stat_key"], c["amount"], _slot, None, _se)
+                source.add_slotted(_key, c["amount"], _slot, None, _se)
             else:
-                source.add_with_source(c["stat_key"], c["amount"], _se)
+                source.add_with_source(_key, c["amount"], _se)
 
         # Attack-Speed-per-Life-Consumed (Tide of the Styx) — a feedback loop: more attack speed → more attack uses →
         # more Life consumed recently → more attack speed. Inject it here (into the aggregated source, before derive

@@ -278,6 +278,38 @@ def test_thunder_magus_empower_uptime_responds_to_minion_cdr_and_duration():
     assert as_rate(handler(s2, owner, base_stats, 20, 1)) == pytest.approx((1 / 0.8) * 1.35)
 
 
+def test_player_to_minion_stat_remap():
+    """The support→minion remap converts a player stat to its minion-scoped equivalent; keys with no minion
+    version fall through unchanged."""
+    from engine.minion_offense import to_minion_stat
+    assert to_minion_stat("attack_speed_inc") == "minion_attack_speed_inc"
+    assert to_minion_stat("cast_speed_inc") == "minion_cast_speed_inc"
+    assert to_minion_stat("cdr_speed_inc") == "minion_cdr_speed_inc"
+    assert to_minion_stat("skill_effect_duration_inc") == "minion_skill_effect_duration_inc"
+    # Added-flat damage carries an attack|spell infix the minion pool lacks — the cat-infix bridge handles it.
+    assert to_minion_stat("lightning_attack_dmg_flat_min") == "minion_lightning_dmg_flat_min"
+    assert to_minion_stat("physical_spell_dmg_additional") == "minion_physical_dmg_additional"
+    assert to_minion_stat("dmg_inc") == "minion_dmg_inc"
+    assert to_minion_stat("crit_rating_inc") == "minion_crit_rating_inc"
+    assert to_minion_stat("projectile_quantity_flat") == "minion_projectile_quantity_flat"
+    assert to_minion_stat("empower_effect_inc") == "empower_effect_inc"      # no minion version → unchanged
+    assert to_minion_stat("weapon_attack_speed") == "weapon_attack_speed"    # weapon-only → unchanged
+
+
+def test_support_on_minion_owner_converts_to_minion_stats_through_engine():
+    """A standard support attached to a minion owner's slot is remapped to minion pools — it scales the MINION
+    (Added Lightning Damage → minion flat lightning → higher magus DPS) and does NOT leak into the player's pools."""
+    from tests.mock_build import make_request
+    from server import engine_stats, EngineStatsRequest
+    sup = [{"item_id": "added_lightning_damage", "skill_type": "support_skill", "level": 20, "slot": 1}]
+    base = engine_stats(EngineStatsRequest(**make_request("summon_thunder_magus", 20)))
+    withs = engine_stats(EngineStatsRequest(**make_request("summon_thunder_magus", 20, attached_supports=sup)))
+    # Minion DPS rose because the support's Added Lightning Damage converted to the minion flat pool.
+    assert withs["minion_offense"]["summon_thunder_magus"]["total_dps"] > base["minion_offense"]["summon_thunder_magus"]["total_dps"]
+    # No leak: the player's own lightning flat pool never received the support's damage.
+    assert withs.get("stats", {}).get("lightning_dmg_flat_min", {}).get("total", 0) == 0
+
+
 def test_origin_of_thunder_buffs_summoner_through_engine():
     """Slotting a Thunder Magus auto-grants the summoner Origin of Thunder: +6% additional Cast Speed + level-
     scaled additional damage (7.25% at L20), emitted globally by the aggregator."""
