@@ -503,11 +503,38 @@ def calculate_minion_offense(
             return mn + (2.0 / 3.0) * (mx - mn)
         return mid
 
+    # Multistrike (minion ATTACK abilities) — mirror the player: a chance to auto-repeat the attack with
+    # increasing damage; the +20% multistrike Attack Speed is INCREASED, so it dilutes against the minion's own
+    # increased AS. multiplier = E[chain damage] ÷ (E[chain time] × rate). Spell abilities never multistrike.
+    ms_mult = 1.0
+    ms_chance = ms_inc = ms_avg_count = ms_repeat_aps = 0.0
+    ms_max_count = 0
+    ms_chain: list = []
+    _mc = source.total("minion_multistrike_chance") if not is_spell else 0.0
+    if _mc > 0.0:
+        _inc = source.total("minion_multistrike_increasing_dmg_inc")
+        _init = source.total("minion_max_multistrike_count_flat")     # Initial Multistrike Count (pre-stacks, adds no attacks)
+        _as_inc = source.total("minion_attack_speed_inc")
+        _s = (1.0 + _as_inc + 0.20) / (1.0 + _as_inc)
+        _G = int(_mc); _p = _mc - _G
+        def _chain_dmg(L: int) -> float:
+            return L + _inc * (_init * L + L * (L - 1) / 2.0)
+        def _chain_time(L: int) -> float:
+            return 1.0 if L <= 1 else L / _s
+        _e = (1.0 - _p) * _chain_dmg(1 + _G) + _p * _chain_dmg(2 + _G)
+        _den = (1.0 - _p) * _chain_time(1 + _G) + _p * _chain_time(2 + _G)
+        ms_mult = _e / _den if _den > 0.0 else _e
+        ms_chance, ms_inc, ms_avg_count = _mc, _inc, 1.0 + _mc
+        ms_max_count = 1 + _G + (1 if _p > 1e-9 else 0)
+        ms_repeat_aps = rate * _s
+        ms_chain = ([{"count": 1 + _G, "prob": 1.0}] if _p <= 1e-9
+                    else [{"count": 1 + _G, "prob": 1.0 - _p}, {"count": 2 + _G, "prob": _p}])
+
     type_avg = {t: _type_avg(t) for t in hit_min}
     avg_pre = sum(type_avg.values())
-    per_minion_dps = avg_pre * crit_factor * double_factor * rate * shotgun_mult
+    per_minion_dps = avg_pre * crit_factor * double_factor * rate * shotgun_mult * ms_mult
     per_minion_vs = sum(type_avg[t] * enemy_mult.get(t, 1.0)
-                        for t in hit_min) * crit_factor * double_factor * rate * shotgun_mult
+                        for t in hit_min) * crit_factor * double_factor * rate * shotgun_mult * ms_mult
     count = max(1, minion_count)
     damage_by_type = dict(type_avg)
 
@@ -540,6 +567,9 @@ def calculate_minion_offense(
         type_inc=type_inc, type_add=type_add, generic_inc=generic_inc, generic_add=generic_add,
         intrinsic_additional_sources=intrinsic_sources,
         enemy_mult_by_type=enemy_mult, base_csr=base_csr, skill_tags=tags_list,
+        multistrike_chance=ms_chance, multistrike_avg_count=ms_avg_count, multistrike_increment=ms_inc,
+        multistrike_max_count=ms_max_count, multistrike_mult=ms_mult, multistrike_repeat_aps=ms_repeat_aps,
+        multistrike_chain=ms_chain,
         nyi=nyi,
     )
 

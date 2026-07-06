@@ -444,3 +444,18 @@ def test_queer_angle_lucky_raises_average_with_spread():
         if lucky: s.add("minion_lucky_fire", 1.0)
         return calculate_minion_offense(s, _ATTACK_ABILITY, _BASE_STATS, 20).total_dps
     assert dps(True) / dps(False) == pytest.approx(7.0 / 6.0, rel=1e-3)   # midpoint→lucky for a 0..R + base spread
+
+
+def test_minion_multistrike_mirrors_player_formula():
+    """Minion multistrike = the player model: chance auto-repeats the attack with increasing damage, +20%
+    multistrike AS diluting against the minion's increased AS. Spell abilities never multistrike."""
+    o0 = calculate_minion_offense(BuildSource(), _ATTACK_ABILITY, _BASE_STATS, 20)
+    s = BuildSource(); s.add("minion_multistrike_chance", 1.16); s.add("minion_multistrike_increasing_dmg_inc", 0.55)
+    o = calculate_minion_offense(s, _ATTACK_ABILITY, _BASE_STATS, 20)
+    # c=1.16, inc=0.55, s=1.2 → mult = (0.84·2.55 + 0.16·4.65) / (0.84·(2/1.2) + 0.16·(3/1.2)) = 1.6033
+    assert o.multistrike_mult == pytest.approx(1.6033, rel=1e-4)
+    assert o.total_dps / o0.total_dps == pytest.approx(o.multistrike_mult)
+    assert o.multistrike_max_count == 3 and o.multistrike_avg_count == pytest.approx(2.16)
+    # A SPELL minion ability does not multistrike.
+    _spell = {"name": "S", "skill_tags": ["Base Skill", "Spell", "Fire"], "base_damage_coefficient": 232.0, "cast_speed": "0.8 s"}
+    assert calculate_minion_offense(s, _spell, _BASE_STATS, 20).multistrike_mult == 1.0

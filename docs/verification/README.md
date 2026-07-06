@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**59 entries** — ✅ Confirmed: 9 · 🔶 Partial: 4 · ⬜ Pending: 9 · ⚠️ Unverified: 37
+**60 entries** — ✅ Confirmed: 9 · 🔶 Partial: 4 · ⬜ Pending: 9 · ⚠️ Unverified: 38
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -54,6 +54,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | — | [minion-dps-engine.md](minion-dps-engine.md) |
 | Minion Lucky damage (Queer Angle) | — | minion, lucky | ⚠️ Unverified | — | [minion-lucky-damage.md](minion-lucky-damage.md) |
 | Minion modifier coverage (parser + consumption + remap) | — | minion, modifier, parser | ⚠️ Unverified | — | [minion-mod-coverage.md](minion-mod-coverage.md) |
+| Minion Multistrike | — | minion, multistrike | ⚠️ Unverified | — | [minion-multistrike.md](minion-multistrike.md) |
 | Minion Skill Level scaling | — | minion, level-scaling | ⚠️ Unverified | — | [minion-skill-level.md](minion-skill-level.md) |
 | Minion spell/attack pool separation | — | minion, damage-pool | ⚠️ Unverified | — | [minion-spell-attack-separation.md](minion-spell-attack-separation.md) |
 | Origin of Thunder (summoner buff) | Summon Thunder Magus | minion, spirit-magus, buff | ⚠️ Unverified | — | [origin-of-thunder.md](origin-of-thunder.md) |

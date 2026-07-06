@@ -178,6 +178,11 @@ def consumable_universe() -> frozenset[str]:
                  "minion_ultimate_attack_speed_additional_per_40_growth",
                  "minion_ultimate_cast_speed_additional_per_40_growth"}
     consumed |= {f"minion_lucky_{t}" for t in ("physical", "fire", "cold", "lightning", "erosion")}
+    # Minion multistrike — read explicitly in calculate_minion_offense (mirrors the player multistrike model).
+    consumed |= {"minion_multistrike_chance", "minion_multistrike_increasing_dmg_inc"}
+    # Minion attack/cast speed pools — read in the rate + multistrike-AS-dilution paths.
+    consumed |= {"minion_attack_speed_inc", "minion_cast_speed_inc",
+                 "minion_attack_speed_additional", "minion_cast_speed_additional"}
     # engine.consumption (self-consume drains) reads the typed consume-rate stats outside the offense/defense passes.
     consumed |= {f"{p}_consumed_{b}_per_{c}"
                  for p in ("life", "mana", "energy_shield")

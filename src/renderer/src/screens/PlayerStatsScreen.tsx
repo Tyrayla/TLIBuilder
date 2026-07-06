@@ -2343,9 +2343,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         </GridBox>
       )}
 
-      {/* Multistrike (attack skills): the auto-repeat DPS multiplier + its inputs. Shown when this skill has any
-          Multistrike Chance (or Show-all). */}
-      {!minion && ((offense.multistrike_chance ?? 0) > 0 || showAll) && (
+      {/* Multistrike (attack skills incl. minions): the auto-repeat DPS multiplier + its inputs. Shown when the
+          skill has Multistrike Chance (or, for the player only, Show-all). All rows read the offense's own
+          multistrike_* fields — no player stat-map keys — so it's safe to show for a minion. */}
+      {((offense.multistrike_chance ?? 0) > 0 || (!minion && showAll)) && (
         <GridBox><StatPanel title="Multistrike" accent={AMBER}
           info="Using an attack skill has a chance to auto-repeat it: every full 100% chance = +1 guaranteed repeat, the leftover is the chance of one more. Each repeat pays its own attack time (repeats get +20% increased attack speed) and deals increasing damage (the n-th hit of a chain gets (n−1) increment stacks; Initial Count pre-stacks it). DPS multiplier = expected chain damage ÷ (rate × expected chain time).">
           <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.multistrike_mult ?? 1)}</span></Row>
