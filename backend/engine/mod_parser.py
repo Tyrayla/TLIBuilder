@@ -37,6 +37,16 @@ _MINION_SCOPE_SUFFIX_RE = re.compile(
     r"\s+(?:for|by|dealt by|to|of)\s+(?:minions?|spirit\s+mag(?:i|us|uses))"
     r"(?:\s+summoned\s+by\s+(?:the\s+supported|this)\s+skill)?\s*$", re.I)
 
+
+def _already_minion_scoped(stat_key: str) -> bool:
+    """A stat that is ALREADY the correct minion/spirit-magi pool — a minion-scope peel must KEEP it as-is
+    (never strict-remap it, which would drop it since it has no further `minion_` twin). Covers the `minion_*`
+    and `spirit_magi_*` pools plus the minion-container stats."""
+    return (
+        stat_key.startswith(("minion_", "spirit_magi_"))
+        or stat_key in ("max_spirit_magi_flat", "extra_max_minions_flat", "minions_inherit_mainhand_weapon")
+    )
+
 # Exact normalized-expression → stat overrides (wording that the fuzzy display-name match would miss or mis-tie).
 _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     # Hero-memory alias: in-game wording "for Combo Finishers" isn't a skill-type scope, so it stays in the
@@ -319,8 +329,14 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
         core_results = _parse_custom_mod_text(core)
         if core_results:
             from engine.minion_offense import to_minion_stat_strict
-            out = [{**d, "stat_key": to_minion_stat_strict(d["stat_key"]), "text": stripped}
-                   for d in core_results if to_minion_stat_strict(d["stat_key"]) is not None]
+            out = []
+            for d in core_results:
+                if _already_minion_scoped(d["stat_key"]):
+                    out.append({**d, "text": stripped})
+                    continue
+                mk = to_minion_stat_strict(d["stat_key"])
+                if mk is not None:
+                    out.append({**d, "stat_key": mk, "text": stripped})
             if out:
                 return out
 
@@ -339,6 +355,9 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
                 from engine.minion_offense import to_minion_stat_strict
                 out = []
                 for d in core_results:
+                    if _already_minion_scoped(d["stat_key"]):
+                        out.append({**d, "text": stripped})
+                        continue
                     mk = to_minion_stat_strict(d["stat_key"])
                     if mk is not None:
                         out.append({**d, "stat_key": mk, "text": stripped})

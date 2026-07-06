@@ -877,6 +877,9 @@ class OffenseResult:
     spirit_magi_physique_inc: float = 0.0         # total Physique % (Growth +1%/8 + gear) — display only
     spirit_magi_enhanced_chance: float = 0.0      # Enhanced-Skill chance (pool + Stage-2 +30%), capped ≤ 1
     spirit_magi_max: int = 0                       # Max Spirit Magi in Map (the count that fights)
+    # A minion's Empower buff (e.g. Thundercloud Surge) surfaced like a player empower: base/effective cooldown +
+    # duration, uptime, Empower Effect, and the per-buff magnitudes (base → effective). None for non-empower.
+    minion_empower: dict | None = None
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:

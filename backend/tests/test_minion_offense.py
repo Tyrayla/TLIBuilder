@@ -214,6 +214,25 @@ def _thunder_owner_and_stats():
     return owner, season_manager.load_minion_base_stats("SS12")
 
 
+def test_thunder_magus_empower_display_matches_form_name():
+    """The `minion_empower` display dict must exist AND its `name` must exactly equal the Empower hit_form's
+    name (ability_label → 'Thundercloud Surge (Empower)') — the frontend gates the structured Empower panel on
+    that match, so a bare skill name would silently fall back to the plain NYI text. Also pins the buff shape."""
+    from engine.minion_offense import MINION_MODULES
+    owner, base_stats = _thunder_owner_and_stats()
+    r = MINION_MODULES["summon_thunder_magus"](BuildSource(), owner, base_stats, 20, 2)
+    emp = r.minion_empower
+    assert emp is not None, "Thunder Magus must surface a minion_empower display block"
+    nyi_form_names = [f.name for f in r.hit_forms if f.nyi]
+    assert emp["name"] in nyi_form_names, f"{emp['name']!r} must match a NYI form ({nyi_form_names})"
+    assert emp["base_cooldown"] == pytest.approx(10.0) and emp["base_duration"] == pytest.approx(6.0)
+    assert emp["uptime"] == pytest.approx(0.60)               # 6 s ÷ 10 s, no CDR / duration mods
+    labels = {b["label"]: b for b in emp["buffs"]}
+    assert labels["Attack Speed (Euphoria)"]["active"] is True
+    assert labels["Attack Speed (Euphoria)"]["value"] == pytest.approx(0.35 * 0.60)   # base × uptime (empEff 1)
+    assert labels["Damage (Growth Stage 4+)"]["active"] is False    # Stage 1 → damage buff not yet unlocked
+
+
 def test_thunder_magus_enhanced_projectile_shotgun_makes_it_stronger_at_stage3():
     """Thunderlight Arrow (189% coeff) is weaker than Base (232%) as a plain hit, but at Stage 3+ it gains
     +1 Projectile Quantity → 2 same-target Shotgun hits (70% falloff → ×1.30) + 5% additional damage, netting

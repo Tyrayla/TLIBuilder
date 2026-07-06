@@ -413,6 +413,7 @@
     "mana_cost": 8.0,
     "mercury_baptism_dps": 0.0,
     "mercury_baptism_fraction": 0.0,
+    "minion_empower": null,
     "multistrike_avg_count": 0.0,
     "multistrike_chain": [],
     "multistrike_chance": 0.0,

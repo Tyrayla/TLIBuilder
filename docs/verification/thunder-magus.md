@@ -6,6 +6,15 @@
 - **Status:** ⚠️ Unverified
 - **Skills affected:** Summon Thunder Magus
 - **Mechanic tags:** minion, spirit-magus
+- **Last verified:** 2026-07-06 by Tyra
+
+## Setup
+
+Character with NO gear, Thunder Magus slotted; DPS vs the training dummy, span-averaged over a 5-minute Recount.
+
+## Raw data points
+
+No-gear Thunder Magus modeled DPS within 2.5% of the in-game Recount vs the training dummy over a 5-minute test (Tyra). Verifies the Base+Enhanced blend, Empower 60% uptime, and Growth-stage bonuses at baseline; gear/talent interactions still to validate.
 
 ## Derived / confirmed formula
 

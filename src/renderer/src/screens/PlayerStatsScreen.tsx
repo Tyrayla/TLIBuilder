@@ -1459,6 +1459,69 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   const nyiFormsSel = (offense.hit_forms ?? []).filter(f => f.nyi?.length)
   const damageFormsSel = (offense.hit_forms ?? []).filter(f => !(f.nyi?.length))
   if (nyiFormsSel.length > 0 && damageFormsSel.length === 0) {
+    // A modeled minion Empower (e.g. Thundercloud Surge) — show it like a player empower skill: Empower Effect,
+    // base→effective cooldown/duration, an uptime box, and each Euphoria buff's base→effective magnitude. Each
+    // box carries its formula + source breakdown. The buffs themselves are already folded into the attacks above.
+    const emp = (minion && offense.minion_empower && nyiFormsSel.some(f => f.name === offense.minion_empower!.name))
+      ? offense.minion_empower : null
+    if (emp) {
+      const secHeader: React.CSSProperties = { fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 8, marginBottom: 2 }
+      const effRow: ExtraRow[] = Math.abs(emp.empower_effect - 1) > 1e-9
+        ? [{ value: `×${dec(emp.empower_effect)}`, stat: 'Empower Effect', source: '', sourceName: `+${dec(emp.empower_effect_inc * 100)}%` }]
+        : []
+      return (
+        <StatPanel title={`${offense.skill_name} — ${emp.name}`} accent={AMBER}>
+          <div style={{ fontSize: 11, color: '#8a9', lineHeight: 1.45, marginBottom: 6 }}>
+            Empower buff — folded into the minion's attacks at {dec(emp.uptime * 100)}% uptime (no direct hit of its own).
+          </div>
+          <Row label="Empower Effect" breakdown={{
+            title: 'Empower Effect', keys: ['spirit_magi_empower_effect_additional'],
+            total: emp.empower_effect_inc, totalUnit: '%',
+            formula: '1 + Σ Spirit Magi Empower Effect',
+          }}>{dec(emp.empower_effect_inc * 100)}%</Row>
+          <Row label="Cooldown" breakdown={{
+            title: 'Cooldown', keys: ['minion_cdr_speed_inc'], total: emp.cdr_inc, totalUnit: '%',
+            formula: 'Base Cooldown ÷ (1 + Minion Cooldown Recovery Speed)',
+            extra: [
+              { value: `${dec(emp.base_cooldown)} s`, stat: 'Base Cooldown', source: 'Skill', sourceName: emp.name },
+              ...(emp.cdr_inc ? [{ value: `÷ ${dec(1 + emp.cdr_inc)}`, stat: 'Cooldown Recovery Speed', source: '', sourceName: `+${dec(emp.cdr_inc * 100)}%` }] : []),
+            ],
+          }}>{dec(emp.cooldown)} s</Row>
+          <Row label="Duration" breakdown={{
+            title: 'Duration', keys: ['minion_skill_effect_duration_inc'], total: emp.duration_inc, totalUnit: '%',
+            formula: 'Base Duration × (1 + Minion Skill Effect Duration)',
+            extra: [
+              { value: `${dec(emp.base_duration)} s`, stat: 'Base Duration', source: 'Skill', sourceName: emp.name },
+              ...(emp.duration_inc ? [{ value: `×${dec(1 + emp.duration_inc)}`, stat: 'Skill Effect Duration', source: '', sourceName: `+${dec(emp.duration_inc * 100)}%` }] : []),
+            ],
+          }}>{dec(emp.duration)} s</Row>
+          <Row label="Uptime" breakdown={{
+            title: 'Uptime', keys: [], total: emp.uptime, totalUnit: '%',
+            formula: 'min(1, Duration ÷ Cooldown)',
+            extra: [
+              { value: `${dec(emp.duration)} s`, stat: 'Duration', source: 'effective', sourceName: '' },
+              { value: `÷ ${dec(emp.cooldown)} s`, stat: 'Cooldown', source: 'effective', sourceName: '' },
+            ],
+          }}>{dec(emp.uptime * 100)}%</Row>
+          <div style={secHeader}>Grants (Euphoria)</div>
+          {emp.buffs.map((b, i) => !b.active ? (
+            <Row key={i} label={b.label} labelColor="#6a6a6a">
+              <span style={{ color: '#6a6a6a', fontSize: 11 }}>{b.note ?? 'inactive'}</span>
+            </Row>
+          ) : (
+            <Row key={i} label={b.label} breakdown={{
+              title: b.label, keys: [], total: b.value, totalUnit: '%',
+              formula: 'Base × Empower Effect × Uptime',
+              extra: [
+                { value: `${dec(b.base * 100)}%`, stat: 'Base', source: 'Euphoria', sourceName: emp.name },
+                ...effRow,
+                { value: `×${dec(emp.uptime * 100)}%`, stat: 'Uptime', source: '', sourceName: '' },
+              ],
+            }}>{dec(b.value * 100)}%</Row>
+          ))}
+        </StatPanel>
+      )
+    }
     return (
       <StatPanel title={`${offense.skill_name} — ${nyiFormsSel[0].name}`} accent={AMBER}>
         {nyiFormsSel.map(f => (
@@ -2344,9 +2407,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       )}
 
       {/* Multistrike (attack skills incl. minions): the auto-repeat DPS multiplier + its inputs. Shown when the
-          skill has Multistrike Chance (or, for the player only, Show-all). All rows read the offense's own
-          multistrike_* fields — no player stat-map keys — so it's safe to show for a minion. */}
-      {((offense.multistrike_chance ?? 0) > 0 || (!minion && showAll)) && (
+          skill has Multistrike Chance, or with Show-all (minions included — a minion CAN multistrike). All rows
+          read the offense's own multistrike_* fields — no player stat-map keys — so it's safe for a minion. */}
+      {((offense.multistrike_chance ?? 0) > 0 || showAll) && (
         <GridBox><StatPanel title="Multistrike" accent={AMBER}
           info="Using an attack skill has a chance to auto-repeat it: every full 100% chance = +1 guaranteed repeat, the leftover is the chance of one more. Each repeat pays its own attack time (repeats get +20% increased attack speed) and deals increasing damage (the n-th hit of a chain gets (n−1) increment stacks; Initial Count pre-stacks it). DPS multiplier = expected chain damage ÷ (rate × expected chain time).">
           <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.multistrike_mult ?? 1)}</span></Row>
@@ -2370,16 +2433,15 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         </StatPanel></GridBox>
       )}
 
-      {/* Stub boxes for mechanics this skill has but the engine doesn't model yet (Combo / Demolisher / Barrage).
-          The modeled mechanics above (Tangle / Spell Burst / Channeled / Multistrike) render real data instead.
-          Show-all reveals every stub regardless of the skill's tags. */}
-      {MECH_STUBS.filter(m => showAll || hasTag(offense, m.tag)).map(m => (
+      {/* Stub boxes for player mechanics the engine doesn't model yet (Combo / Demolisher / Barrage). These are
+          PLAYER mechanics with no minion analogue, so they never show in minion mode (even with Show-all).
+          The modeled mechanics above (Tangle / Spell Burst / Channeled / Multistrike) render real data instead. */}
+      {!minion && MECH_STUBS.filter(m => showAll || hasTag(offense, m.tag)).map(m => (
         <GridBox key={m.tag}><MechanicStubPanel label={m.label} note={m.note} /></GridBox>
       ))}
 
-      {/* Consume boxes — not wired yet. Made now and hidden (only the Show-all toggle reveals them) so they're
-          easy to populate later with the skill's per-cast / over-time Life & Mana consumption. */}
-      {showAll && (
+      {/* Consume boxes — player-only, not wired yet (Show-all reveals them). Hidden in minion mode. */}
+      {!minion && showAll && (
         <>
           <GridBox><MechanicStubPanel label="Mana Consume" note="Mana consumed by this skill (per cast / over time) is not wired yet." /></GridBox>
           <GridBox><MechanicStubPanel label="Life Consume" note="Life consumed by this skill (per cast / over time) is not wired yet." /></GridBox>

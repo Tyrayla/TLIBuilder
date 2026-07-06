@@ -5,6 +5,15 @@
 
 - **Status:** ⚠️ Unverified
 - **Mechanic tags:** minion, dps-engine
+- **Last verified:** 2026-07-06 by Tyra
+
+## Setup
+
+Character with NO gear, Thunder Magus slotted; DPS vs the training dummy, span-averaged over a 5-minute Recount.
+
+## Raw data points
+
+No-gear Thunder Magus within 2.5% of the dummy Recount over 5 min (Tyra) — the minion offense pipeline produces correct baseline DPS.
 
 ## Derived / confirmed formula
 

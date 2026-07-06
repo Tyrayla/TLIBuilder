@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**60 entries** — ✅ Confirmed: 9 · 🔶 Partial: 4 · ⬜ Pending: 9 · ⚠️ Unverified: 38
+**60 entries** — ✅ Confirmed: 9 · 🔶 Partial: 4 · ⬜ Pending: 9 · ⚠️ Unverified: 36
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -51,7 +51,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Licorice Note (Sage trait) | Licorice Note | hero-trait, buff, crit | ⚠️ Unverified | — | [licorice-note.md](licorice-note.md) |
 | Life/Mana consumption subsystem | — | sustain, cost | ⚠️ Unverified | — | [consumption-subsystem.md](consumption-subsystem.md) |
 | Loadouts | — | build-system | ⚠️ Unverified | — | [loadouts.md](loadouts.md) |
-| Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | — | [minion-dps-engine.md](minion-dps-engine.md) |
 | Minion Lucky damage (Queer Angle) | — | minion, lucky | ⚠️ Unverified | — | [minion-lucky-damage.md](minion-lucky-damage.md) |
 | Minion modifier coverage (parser + consumption + remap) | — | minion, modifier, parser | ⚠️ Unverified | — | [minion-mod-coverage.md](minion-mod-coverage.md) |
 | Minion Multistrike | — | minion, multistrike | ⚠️ Unverified | — | [minion-multistrike.md](minion-multistrike.md) |
@@ -66,6 +65,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Slate inventory + bonus overview | — | build-system, slates | ⚠️ Unverified | — | [slate-inventory.md](slate-inventory.md) |
 | Spirit Magi Growth + stages | — | minion, spirit-magus, growth | ⚠️ Unverified | — | [spirit-magi-growth.md](spirit-magi-growth.md) |
 | Split Shot + supports (spread / Shotgun Effect / channel) | Split Shot | shotgun, projectile, channeled, breakpoint, supports, damage-pool | ⚠️ Unverified | — | [split-shot.md](split-shot.md) |
-| Thunder Magus (Spirit Magus) | Summon Thunder Magus | minion, spirit-magus | ⚠️ Unverified | — | [thunder-magus.md](thunder-magus.md) |
 | Unsullied Blade (Rosa trait) | Unsullied Blade | hero-trait, conversion, true-damage | ⚠️ Unverified | — | [unsullied-blade.md](unsullied-blade.md) |
 | Wind Stalker (Erika trait) | Wind Stalker | hero-trait, speed | ⚠️ Unverified | — | [wind-stalker.md](wind-stalker.md) |
+| Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | 2026-07-06 | [minion-dps-engine.md](minion-dps-engine.md) |
+| Thunder Magus (Spirit Magus) | Summon Thunder Magus | minion, spirit-magus | ⚠️ Unverified | 2026-07-06 | [thunder-magus.md](thunder-magus.md) |

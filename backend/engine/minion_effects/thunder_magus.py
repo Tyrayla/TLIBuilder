@@ -41,7 +41,7 @@ def handler(source, owner, base_stats, level, count):
     notes, not forms)."""
     from engine.minion_offense import (
         calculate_minion_offense, nyi_offense, spirit_magi_growth, growth_stage, combine_minion_forms,
-        spirit_magi_physique_inc, spirit_magi_skill_area_inc, fold_spirit_magi_pools,
+        spirit_magi_physique_inc, spirit_magi_skill_area_inc, fold_spirit_magi_pools, ability_label,
     )
     by_role: dict[str, dict] = {}
     for a in owner.get("minion_skills") or []:
@@ -71,6 +71,7 @@ def handler(source, owner, base_stats, level, count):
     empower = by_role.get("Empower")
     empower_uptime = 1.0
     _dur_eff = _cd_eff = 0.0
+    empower_display: dict | None = None
     if empower:
         from engine.skill_resolver import _parse_cast_time as _pct
         # True uptime = effective duration ÷ effective cooldown, clamped ≤ 1 (base 6 s / 10 s = 60%). Now driven
@@ -78,9 +79,12 @@ def handler(source, owner, base_stats, level, count):
         # supports converted to minion stats): duration ×(1 + Minion Skill Effect Duration), cooldown ÷(1 + Minion
         # CDR). For a linear rate buff, buff × uptime IS the DPS-weighted average. FLAG: at Stage 4+ the AS and
         # damage buffs share the same window, so scaling each independently slightly under-counts their PRODUCT.
-        _dur = float(empower.get("duration") or 0.0) * (1.0 + source.total("minion_skill_effect_duration_inc"))
+        _dur_inc = source.total("minion_skill_effect_duration_inc")
+        _cdr_inc = source.total("minion_cdr_speed_inc")
+        _dur0 = float(empower.get("duration") or 0.0)
+        _dur = _dur0 * (1.0 + _dur_inc)
         _cd0 = _pct(empower.get("cooldown", "")) or 0.0
-        _cd = _cd0 / (1.0 + source.total("minion_cdr_speed_inc")) if _cd0 > 0 else 0.0
+        _cd = _cd0 / (1.0 + _cdr_inc) if _cd0 > 0 else 0.0
         _dur_eff, _cd_eff = _dur, _cd
         empower_uptime = min(1.0, _dur / _cd) if (_dur > 0 and _cd > 0) else 1.0
         _pct_txt = f"{round(empower_uptime * 100)}% uptime"
@@ -90,6 +94,33 @@ def handler(source, owner, base_stats, level, count):
         if stage >= 4:
             _add("minion_dmg_additional", 0.25 * emp_eff * empower_uptime,
                  f"Thundercloud Surge: +25% additional damage (Growth Stage 4+){_eff_txt} × {_pct_txt}")
+
+        # Surface the Empower like a normal player empower skill: Empower Effect, base→effective cooldown/duration,
+        # an uptime box, and each Euphoria buff's base → effective magnitude. Effective magnitude = base × Empower
+        # Effect × uptime (the same value folded into the attacks above). Frontend renders each with its breakdown.
+        _buffs = [{
+            "label": "Attack Speed (Euphoria)", "stat": "attack_speed", "base": 0.35,
+            "value": 0.35 * emp_eff * empower_uptime, "active": True,
+        }, {
+            "label": "Damage (Growth Stage 4+)", "stat": "damage", "base": 0.25,
+            "value": (0.25 * emp_eff * empower_uptime) if stage >= 4 else 0.0, "active": stage >= 4,
+            "note": None if stage >= 4 else "Unlocks at Growth Stage 4",
+        }]
+        empower_display = {
+            # MUST equal the empower hit_form's name (ability_label → "Thundercloud Surge (Empower)") so the
+            # frontend can match the selected NYI form to this display block; a bare skill name would not match.
+            "name": ability_label(empower),
+            "empower_effect": emp_eff,
+            "empower_effect_inc": source.total("spirit_magi_empower_effect_additional"),
+            "base_cooldown": _cd0,
+            "cooldown": _cd,
+            "cdr_inc": _cdr_inc,
+            "base_duration": _dur0,
+            "duration": _dur,
+            "duration_inc": _dur_inc,
+            "uptime": empower_uptime,
+            "buffs": _buffs,
+        }
     if stage >= 5:
         _add("minion_dmg_additional", 0.50, "Growth Stage 5: +50% additional damage")
 
@@ -143,4 +174,5 @@ def handler(source, owner, base_stats, level, count):
     combined.skill_area_inc = spirit_magi_skill_area_inc(stage)   # +10% additional per stage (display only)
     combined.spirit_magi_enhanced_chance = enh_chance
     combined.spirit_magi_max = count
+    combined.minion_empower = empower_display
     return combined

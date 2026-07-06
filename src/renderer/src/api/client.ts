@@ -766,6 +766,32 @@ export interface SkillSlotSummary {
   supported: boolean
 }
 
+// One Euphoria buff granted by a minion Empower (base magnitude → effective, after Empower Effect × uptime).
+export interface MinionEmpowerBuff {
+  label: string
+  stat: string
+  base: number
+  value: number
+  active: boolean
+  note?: string | null
+}
+
+// A minion Empower buff surfaced like a player empower skill: Empower Effect, base→effective cooldown/duration,
+// uptime, and each granted buff's base→effective magnitude. Rendered as its own panel when the form is selected.
+export interface MinionEmpower {
+  name: string
+  empower_effect: number       // 1 + Spirit Magi Empower Effect (multiplier on the buff magnitudes)
+  empower_effect_inc: number   // the raw additional Empower Effect (spirit_magi_empower_effect_additional)
+  base_cooldown: number
+  cooldown: number             // effective = base ÷ (1 + Minion CDR)
+  cdr_inc: number
+  base_duration: number
+  duration: number             // effective = base × (1 + Minion Skill Effect Duration)
+  duration_inc: number
+  uptime: number               // clamp(duration ÷ cooldown, ≤1)
+  buffs: MinionEmpowerBuff[]
+}
+
 export interface HitFormResult {
   name: string
   effectiveness_pct: number
@@ -928,6 +954,8 @@ export interface OffenseResult {
   spirit_magi_physique_inc?: number
   spirit_magi_enhanced_chance?: number
   spirit_magi_max?: number
+  // A minion Empower buff (e.g. Thundercloud Surge) surfaced like a player empower skill. Null for non-empower.
+  minion_empower?: MinionEmpower | null
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number
