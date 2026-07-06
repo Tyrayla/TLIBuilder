@@ -334,3 +334,59 @@ def test_unmodelled_minion_contributes_no_damage_through_engine():
     result = mo["summon_fire_magus"]                    # ONE result per owner now
     assert result["supported"] is False and result["total_dps"] == 0.0    # contributes nothing
     assert any("Blazing Dance" in n for n in result["nyi"])   # abilities still listed (surfaced, not dropped)
+
+
+def test_minion_penetration_reduces_target_mitigation():
+    """Minion penetration (minion_<type>_pen_inc / minion_elemental_pen) raises the minion's enemy multiplier
+    (less mitigation). It reads the MINION's pen off minion pools — the player's pen never applies to minions."""
+    o0 = calculate_minion_offense(BuildSource(), _BASE_SKILL, _BASE_STATS, 20)
+    s1 = BuildSource(); s1.add("minion_fire_pen_inc", 0.30)     # +30% fire pen for the minion
+    o1 = calculate_minion_offense(s1, _BASE_SKILL, _BASE_STATS, 20)
+    assert o1.enemy_mult_by_type["fire"] > o0.enemy_mult_by_type["fire"]
+    # The player's own pen must NOT help the minion.
+    sp = BuildSource(); sp.add("fire_pen", 0.30)               # PLAYER fire pen
+    op = calculate_minion_offense(sp, _BASE_SKILL, _BASE_STATS, 20)
+    assert op.enemy_mult_by_type["fire"] == pytest.approx(o0.enemy_mult_by_type["fire"])
+
+
+def test_thunder_magus_folds_spirit_magi_damage_pools():
+    """Spirit-Magi-scoped damage (spirit_magi_dmg_inc, tag `spirit_magi`) would be dropped by the minion offense's
+    `minion`-tag filter — the magus module folds it into the generic minion pool so it applies."""
+    owner, base_stats = _thunder_owner_and_stats()
+    r = MINION_MODULES["summon_thunder_magus"](
+        _seeded(BuildSource(), spirit_magi_dmg_inc=0.5), owner, base_stats, 20, 1)
+    assert r.generic_inc >= 0.5      # +50% Spirit Magi Skill Damage folded into the minion increased pool
+
+
+def test_thunder_magus_empower_effect_scales_euphoria():
+    """The Euphoria buff scales by the MINION/magi Empower Effect (spirit_magi_empower_effect_additional), not the
+    player's: +35% AS × (1 + Empower Effect) × uptime."""
+    owner, base_stats = _thunder_owner_and_stats()
+    r = MINION_MODULES["summon_thunder_magus"](
+        _seeded(BuildSource(), spirit_magi_empower_effect_additional=0.5), owner, base_stats, 20, 1)
+    ls = next(f for f in r.hit_forms if "Lightning Star" in f.name)
+    assert ls.fires_per_sec == pytest.approx((1 / 0.8) * (1 + 0.35 * 1.5 * 0.6))
+
+
+def test_isomorphic_arms_transfers_weapon_bonuses_and_conditional_spell_damage():
+    """God of Machines 'Isomorphic Arms': the main-hand weapon's Base Damage transfers to the minion (but NOT its
+    Base Attack Speed / Crit), and '+30% additional Spell Damage for Minions when wielding a Wand/Tin Staff' applies."""
+    from tests.mock_build import make_request
+    from server import engine_stats, EngineStatsRequest
+    mods = ["Minions gain the Main-Hand Weapon's bonuses",
+            "+30% additional Spell Damage for Minions when wielding a Wand or Tin Staff"]
+    base = engine_stats(EngineStatsRequest(**make_request("summon_thunder_magus", 20)))
+    iso = engine_stats(EngineStatsRequest(**make_request(
+        "summon_thunder_magus", 20, custom_mods=mods, extra_conditions={"wielding_wand_or_tin_staff": True})))
+    d = lambda r: r["minion_offense"]["summon_thunder_magus"]["total_dps"]
+    assert d(iso) > d(base)
+    st = iso.get("stats", {})
+    assert st.get("minion_physical_dmg_flat_min", {}).get("total", 0) == 200.0    # weapon1 base damage transferred
+    assert st.get("minion_spell_dmg_additional", {}).get("total", 0) == pytest.approx(0.3)
+    assert "minion_weapon_attack_speed" not in st                                 # base AS NOT transferred
+
+
+def _seeded(src, **kv):
+    for k, v in kv.items():
+        src.add(k, v)
+    return src

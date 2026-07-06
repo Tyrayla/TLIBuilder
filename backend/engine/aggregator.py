@@ -520,6 +520,31 @@ def aggregate(
             label=contrib.get("label", "Talent"), text=contrib.get("text", ""), points=1,
         ))
 
+    # ── Isomorphic Arms (God of Machines): minions inherit the Main-Hand Weapon's bonuses ─────────────────
+    # Glossary "Applied Weapon Bonuses": the weapon's Base Damage + affixes transfer to minions, but NOT its
+    # Base Attack Speed / Base Critical Strike Rating. Transfer the main-hand (weapon1) gear contributions to the
+    # minion pools via the STRICT remap — which implements that rule for free: base damage (physical_dmg_gear_flat)
+    # + affix increased/additional/crit/AS map to their minion pools, while the intrinsic weapon_attack_speed /
+    # weapon_crit_rating_flat have no minion equivalent and are DROPPED (never leaked to the player). Runs after
+    # core-talent + node contributions so the flag (from either) is set.
+    if source.total("minions_inherit_mainhand_weapon") > 0:
+        from engine.minion_offense import to_minion_stat_strict
+        for _item in build.gear:
+            for _c in _item.get("contributions", []):
+                if _c.get("slot") != "weapon1":       # main-hand
+                    continue
+                _st = _c.get("stat")
+                _mk = to_minion_stat_strict(_st) if _st else None
+                if _mk is None:                        # base AS/crit + anything without a minion twin → not transferred
+                    continue
+                _v = _c.get("display_value", 0)
+                _amt = _v / 100.0 if _c.get("unit") == "%" else float(_v)
+                if _amt == 0.0:
+                    continue
+                source.add_with_source(_mk, _amt, SourceEntry(
+                    stat=_mk, amount=_amt, source_type="core_talent", label="Isomorphic Arms",
+                    source_name="Isomorphic Arms", text=f"Main-Hand Weapon: {_st}"))
+
     # ── Fervor mechanics ──────────────────────────────────────────────────────
     # Fervor's BASE effects scale per point of Fervor Rating AND are multiplied by Fervor Effect
     # (fervor_effect_inc). Today the only base effect is +2% (generic) Critical Strike Rating per

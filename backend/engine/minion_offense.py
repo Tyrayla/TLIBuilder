@@ -17,12 +17,13 @@ import re
 from collections import defaultdict
 from dataclasses import replace
 
-from engine.models import BuildSource
+from engine.models import BuildSource, SourceEntry
 from engine.affix_identity import affix_identity
 from engine.skill_resolver import _parse_cast_time
 from engine.constants import DAMAGE_TYPES as _DAMAGE_TYPES, ELEMENTAL as _ELEMENTAL
 from engine.offense import (
-    OffenseResult, HitFormResult, _target_mitigation, _enemy_vuln_mult, _DTYPE_TAG_SET,
+    OffenseResult, HitFormResult, _enemy_vuln_mult, _DTYPE_TAG_SET,
+    TARGET_ARMOR_MITIGATION, TARGET_NONPHYS_ARMOR_FACTOR, TARGET_ELEMENTAL_RESIST, TARGET_EROSION_RESIST,
 )
 from models.stat_meta import STAT_META
 
@@ -50,11 +51,21 @@ _MINION_SPEED_ADD = {"attack": "minion_attack_speed_additional", "cast": "minion
 _ELEMENTAL_SET = frozenset(_ELEMENTAL)
 
 
-# ── Player→minion stat remap (a support/effect applied TO a minion) ────────────
+# ── Player→minion stat remap (a support/gear/effect applied TO a minion) ───────
 # Built once from the Stat enum: for every `minion_<X>` stat whose bare `<X>` is also a real stat, map X → the
-# minion form. So a support attached to a minion converts its output to the minion-scoped equivalent (damage,
-# speed, crit, flats, CDR, duration, projectiles, ailments, …) — "everything that has a minion version maps".
-# Keys with no minion equivalent fall through unchanged (a player-only effect does nothing to a minion).
+# minion form. So a support attached to a minion (or a gear bonus transferred to it) converts to the minion-scoped
+# equivalent (damage, speed, crit, flats, CDR, duration, projectiles, ailments, …). `to_minion_stat` passes a key
+# with no minion version through UNCHANGED (fine for a support — it just does nothing to the minion). For the
+# weapon-bonus TRANSFER (Isomorphic Arms), use `to_minion_stat_strict`, which returns None for "no minion
+# equivalent" so the caller can drop + flag it (never let a player stat leak through as if it applied).
+
+def _all_minion_stat_values() -> frozenset:
+    from models.stat import Stat
+    return frozenset(s.value for s in Stat if s.value.startswith("minion_"))
+
+
+_MINION_ALL_KEYS: frozenset = _all_minion_stat_values()
+
 
 def _build_player_to_minion_remap() -> dict[str, str]:
     from models.stat import Stat
@@ -69,32 +80,88 @@ def _build_player_to_minion_remap() -> dict[str, str]:
 
 
 PLAYER_TO_MINION_STAT: dict[str, str] = _build_player_to_minion_remap()
-# Player added/scaled damage carries an attack|spell INFIX the minion pools don't (e.g. a support's
-# "lightning_attack_dmg_flat_min" ↔ the minion's "minion_lightning_dmg_flat_min"). Bridge that shape separately.
-_CAT_DMG_RE = re.compile(r"^(physical|fire|cold|lightning|erosion)_(?:attack|spell)_dmg_(flat_min|flat_max|inc|additional)$")
+# Manual bridges where player and minion names DON'T align by a bare prefix: typed penetration (player `fire_pen`
+# ↔ minion `minion_fire_pen_inc`) and the weapon's AFFIX attack-speed / crit-rating aggregates (which a minion
+# consumes as its increased pools — the weapon's intrinsic BASE `weapon_attack_speed`/`weapon_crit_rating_flat`
+# still have no twin and correctly don't transfer).
+PLAYER_TO_MINION_STAT.update({
+    "fire_pen": "minion_fire_pen_inc", "cold_pen": "minion_cold_pen_inc",
+    "lightning_pen": "minion_lightning_pen_inc", "erosion_pen": "minion_erosion_pen_inc",
+    "attack_speed_gear": "minion_attack_speed_inc", "attack_speed_mh": "minion_attack_speed_inc",
+    "attack_crit_rating_gear": "minion_crit_rating_inc", "attack_crit_rating_mh": "minion_crit_rating_inc",
+})
+# Player added/scaled damage carries an infix the minion pools don't — TWO shapes: attack|spell come BEFORE
+# "dmg" (a support's "lightning_attack_dmg_flat_min"), while "gear" comes AFTER (a weapon's
+# "physical_dmg_gear_flat_min"). Both bridge to the minion's "minion_<type>_dmg_<suffix>".
+_INFIX_DMG_RE = re.compile(r"^(physical|fire|cold|lightning|erosion)_(?:attack|spell)_dmg_(flat_min|flat_max|inc|additional)$")
+_GEAR_DMG_RE = re.compile(r"^(physical|fire|cold|lightning|erosion)_dmg_gear_(flat_min|flat_max)$")
 
 
-def to_minion_stat(stat_key: str) -> str:
-    """Remap a player stat key to its minion-scoped equivalent (for an effect applied to a MINION, e.g. a support
-    on a minion's link). Unchanged when there is no minion version."""
+def _minion_equiv(stat_key: str) -> str | None:
+    """The minion-scoped equivalent of a player stat key, or None if there is none."""
     direct = PLAYER_TO_MINION_STAT.get(stat_key)
     if direct is not None:
         return direct
-    m = _CAT_DMG_RE.match(stat_key)
-    if m:
-        cand = f"minion_{m.group(1)}_dmg_{m.group(2)}"
-        if cand in _MINION_ALL_KEYS:
-            return cand
-    return stat_key
+    for rx in (_INFIX_DMG_RE, _GEAR_DMG_RE):
+        m = rx.match(stat_key)
+        if m:
+            cand = f"minion_{m.group(1)}_dmg_{m.group(2)}"
+            if cand in _MINION_ALL_KEYS:
+                return cand
+    return None
 
 
-# Every real minion_* stat value (for the cat-infix bridge above — those minion stats have no bare-base twin).
-def _all_minion_stat_values() -> frozenset:
-    from models.stat import Stat
-    return frozenset(s.value for s in Stat if s.value.startswith("minion_"))
+def to_minion_stat(stat_key: str) -> str:
+    """Remap a player stat key to its minion equivalent; unchanged when there is no minion version."""
+    return _minion_equiv(stat_key) or stat_key
 
 
-_MINION_ALL_KEYS: frozenset = _all_minion_stat_values()
+def to_minion_stat_strict(stat_key: str) -> str | None:
+    """Like to_minion_stat but returns None when there is NO minion equivalent — so a transfer (weapon bonuses)
+    can DROP + flag the stat instead of leaking the player key through as if it applied to the minion."""
+    return _minion_equiv(stat_key)
+
+
+# Spirit-magus-specific damage/crit pools carry the `spirit_magi` tag (not `minion`), so `_minion_keyed` skips
+# them. A magus module folds them into the generic minion pools so they're consumed — scoped to magi only.
+_SPIRIT_MAGI_FOLD = {
+    "spirit_magi_dmg_inc": "minion_dmg_inc",
+    "spirit_magi_dmg_additional": "minion_dmg_additional",
+    "spirit_magi_crit_rating_flat": "minion_crit_rating_flat",
+}
+
+
+def fold_spirit_magi_pools(source: BuildSource) -> None:
+    """Fold `spirit_magi_*` damage/crit pools into the generic `minion_*` pools IN PLACE. Call on a source COPY a
+    magus module owns (never the shared source), so Spirit-Magi-scoped mods (which the minion offense would
+    otherwise drop on the `spirit_magi` tag) actually apply to the magus."""
+    for src_key, dst_key in _SPIRIT_MAGI_FOLD.items():
+        amt = source.total(src_key)
+        if amt:
+            source.add_with_source(dst_key, amt, SourceEntry(
+                stat=dst_key, amount=amt, source_type="minion", label="Spirit Magi",
+                source_name="Spirit Magi", text=f"Spirit Magi {src_key.replace('spirit_magi_', '').replace('_', ' ')}"))
+
+
+def _minion_target_mitigation(source: BuildSource, dtype: str) -> float:
+    """Target armor/resist mitigation for a MINION hit — uses the MINION's penetration (`minion_*_pen`), NOT the
+    player's (minion damage penetrates with its own pen). Enemy resistance-reduction (`all_resistance_reduction`,
+    an enemy debuff) is shared. Zero minion pen reproduces the base dummy mitigation (physical 0.50, others 0.49)."""
+    tc = getattr(source, "target_config", None) or {}
+    armor = tc.get("armor", TARGET_ARMOR_MITIGATION)
+    armor_pen = source.total("minion_armor_pen")
+    if dtype == "physical":
+        return 1.0 - (armor - armor_pen)
+    eff_armor = armor * TARGET_NONPHYS_ARMOR_FACTOR - armor_pen
+    all_res_red = source.total("all_resistance_reduction")           # enemy debuff — shared with the player
+    if dtype == "erosion":
+        base_res = tc.get("erosion_res", TARGET_EROSION_RESIST)
+        eff_resist = base_res - source.total("minion_erosion_pen_inc") + all_res_red
+    else:  # fire / cold / lightning — minion_elemental_pen stacks on the per-type minion pen
+        base_res = tc.get(f"{dtype}_res", TARGET_ELEMENTAL_RESIST)
+        eff_resist = (base_res - source.total(f"minion_{dtype}_pen_inc")
+                      - source.total("minion_elemental_pen") + all_res_red)
+    return (1.0 - eff_armor) * (1.0 - eff_resist)
 
 
 def _dtype_tag(dtype: str) -> frozenset:
@@ -356,7 +423,7 @@ def calculate_minion_offense(
         type_add[t] = add
         hit_min[t] = flat_min.get(t, 0.0) * (1.0 + inc) * add
         hit_max[t] = flat_max.get(t, 0.0) * (1.0 + inc) * add
-        enemy_mult[t] = _target_mitigation(source, t) * _enemy_vuln_mult(source, t, is_spell)
+        enemy_mult[t] = _minion_target_mitigation(source, t) * _enemy_vuln_mult(source, t, is_spell)
 
     # Crit (fixed 500 CSR / 150% base from constants, scaled by minion crit pools).
     base_csr = float(consts.get("crit_rating_flat", 500.0))

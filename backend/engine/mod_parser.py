@@ -30,6 +30,13 @@ _GEAR_COND_RE = re.compile(
 # Trailing "for/to this gear" / "to the gear" qualifier (gear-local affix), stripped before normalization.
 _GEAR_SUFFIX_RE = re.compile(r"\s+(?:(?:for|to)\s+this\s+gear|to\s+the\s+gear)\s*$", re.I)
 
+# Trailing MINION scope qualifier ("… for/by Minions [summoned by the supported skill]", "… for Spirit Magi").
+# When present, the CORE (everything before it) is resolved and each result remapped to its minion-scoped stat —
+# so a minion-scoped affix routes to the minion pools instead of leaking into the player's.
+_MINION_SCOPE_SUFFIX_RE = re.compile(
+    r"\s+(?:for|by|dealt by|to|of)\s+(?:minions?|spirit\s+mag(?:i|us|uses))"
+    r"(?:\s+summoned\s+by\s+(?:the\s+supported|this)\s+skill)?\s*$", re.I)
+
 # Exact normalized-expression → stat overrides (wording that the fuzzy display-name match would miss or mis-tie).
 _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     # Hero-memory alias: in-game wording "for Combo Finishers" isn't a skill-type scope, so it stays in the
@@ -180,10 +187,11 @@ _POOL_QUALIFIER_WORDS = frozenset(_POOL_QUALIFIERS)
 # Custom mod text parsing — freeform modifier text → stat contributions
 _CUSTOM_RANGE_RE  = re.compile(r'^\s*([+-]?\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s+(.*)', re.IGNORECASE)
 _CUSTOM_SINGLE_RE = re.compile(r'^\s*([+-]?\d+(?:\.\d+)?)\s*(%?)\s+(.*)', re.IGNORECASE)
-# "Adds N-N <Type> Damage to <Attacks|Spells|Attacks and Spells>" → flat <type>_<dest>_dmg_flat_min/max.
+# "Adds N-N <Type> Damage to <Attacks|Spells|Attacks and Spells|Minions>" → flat <type>_<dest>_dmg_flat_min/max
+# (Minions → minion_<type>_dmg_flat_min/max). Optional "Base" ("Adds N-M Base Lightning Damage to Minions").
 _CUSTOM_ADDS_RE = re.compile(
-    r'^\s*adds\s+([\d.]+)\s*[-–]\s*([\d.]+)\s+(physical|fire|cold|lightning|erosion)\s+damage\s+to\s+'
-    r'(attacks and spells|attacks|spells)\b', re.IGNORECASE)
+    r'^\s*adds\s+([\d.]+)\s*[-–]\s*([\d.]+)\s+(?:base\s+)?(physical|fire|cold|lightning|erosion)\s+damage\s+to\s+'
+    r'(attacks and spells|attacks|spells|minions)\b', re.IGNORECASE)
 # Modifier verbs that appear in game text but not in stat display names — strip before fuzzy match
 _CUSTOM_VERB_RE   = re.compile(r'\b(increased|reduced|more|less)\b', re.IGNORECASE)
 
@@ -293,6 +301,34 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     resolves the RESIDUAL via the unchanged base resolver, then tags the results with the scope and restores
     the ORIGINAL full text (incl. scope words) so the additional pool's affix-identity keeps scoped mods as
     distinct multiplicative factors."""
+    stripped = text.strip()
+    # "Spirit Magi … additional Empower Skill Effect" → the magi Empower Effect (else the leading "Spirit Magi"
+    # strip leaves "additional Empower Skill Effect" and it leaks to the PLAYER's empower_effect_additional).
+    if re.search(r'spirit\s+mag(?:i|us)', stripped, re.I):
+        _me = re.search(r'([\d.]+)\s*%\s*additional\s+empower\s+skill\s+effect', stripped, re.I)
+        if _me:
+            return [{"stat_key": "spirit_magi_empower_effect_additional", "amount": float(_me.group(1)) / 100.0, "text": stripped}]
+
+    # MINION scope peel: "… for/by Minions [summoned by the supported skill]" → resolve the CORE and remap each
+    # result to its minion-scoped stat, so the whole line routes to the minion pools (never leaks to the player).
+    # Only adopt it if the core resolves; otherwise fall through so the fuzzy resolver's "Minion X" forms still work.
+    m_scope = _MINION_SCOPE_SUFFIX_RE.search(stripped)
+    if m_scope:
+        core = stripped[:m_scope.start()].rstrip()
+        if core and core != stripped:
+            core_results = _parse_custom_mod_text(core)
+            if core_results:
+                # Use the STRICT remap: a core stat with no minion equivalent is DROPPED (surfaces as
+                # unresolved / red), never passed through — a minion-scoped bonus must not leak into the player's
+                # pools. (If the core doesn't resolve at all we fall through, so fuzzy "Minion X" forms still work.)
+                from engine.minion_offense import to_minion_stat_strict
+                out = []
+                for d in core_results:
+                    mk = to_minion_stat_strict(d["stat_key"])
+                    if mk is not None:
+                        out.append({**d, "stat_key": mk, "text": stripped})
+                return out
+
     residual, scope = detect_skill_scope(text.strip())
     results = _parse_custom_mod_text_base(residual)
     if not results:
@@ -600,6 +636,30 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         return [{"stat_key": f"attack_speed_{pool}", "amount": amt, "text": t},
                 {"stat_key": f"cast_speed_{pool}", "amount": amt, "text": t}]
 
+    # ── Minion-scoped forms the generic/fuzzy resolver mis-handles (leading "Minion …") ───────────────────
+    # "N% [additional] Minion Attack and Cast Speed" → BOTH minion speed pools (fuzzy only catches the Cast half).
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*(additional\s+)?minions?\s+attack and cast speed\b', t, re.I)
+    if m:
+        pool = "additional" if m.group(2) else "inc"
+        amt = float(m.group(1)) / 100.0
+        return [{"stat_key": f"minion_attack_speed_{pool}", "amount": amt, "text": t},
+                {"stat_key": f"minion_cast_speed_{pool}", "amount": amt, "text": t}]
+
+    # "Minion Damage penetrates N% <type> Resistance" → minion pen (the player matcher is start-anchored on
+    # "Damage penetrates …", so a leading "Minion" makes it miss; the old override entry is likewise dead).
+    m = re.match(r'minion\s+damage\s+penetrates\s+([\d.]+)\s*%\s*'
+                 r'(elemental|fire|cold|lightning|erosion)\s+resistance', t, re.I)
+    if m:
+        typ = m.group(2).lower()
+        return [{"stat_key": ("minion_elemental_pen" if typ == "elemental" else f"minion_{typ}_pen_inc"),
+                 "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "N% chance for Minions to deal Double Damage" → generic minion double-damage (fuzzy ties the plural
+    # 'Minions' to the Synthetic-Troop-specific stat).
+    m = re.search(r'([\d.]+)\s*%\s*chance\s+for\s+minions?\s+to\s+deal\s+double\s+damage', t, re.I)
+    if m:
+        return [{"stat_key": "minion_double_dmg_chance", "amount": float(m.group(1)) / 100.0, "text": t}]
+
     # "N% Max Life and (Max) Energy Shield" → BOTH increased pools. Explicit because the generic single-stat
     # resolver only catches the trailing "Max Energy Shield" and silently drops the Max Life half (Heart of the
     # Storm). Anchored at the value so scoped/other forms don't false-match.
@@ -613,6 +673,12 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     # per-inactivated-tangle bonus (read in compute._offense_for_slot). No value in the text → amount 1.0.
     if re.search(r'\bhas\s+dormant\s+entanglement\b', t, re.I):
         return [{"stat_key": "has_dormant_entanglement_flag", "amount": 1.0, "text": t}]
+
+    # Isomorphic Arms (God of Machines): "Minions gain the Main-Hand Weapon's bonuses" → a flag the aggregator
+    # reads to transfer the main-hand weapon's Base Damage + affixes (NOT its Base Attack Speed / Crit Rating —
+    # glossary "Applied Weapon Bonuses") to the minion pools.
+    if re.search(r'minions?\s+gain\s+the\s+main-?hand\s+weapon', t, re.I):
+        return [{"stat_key": "minions_inherit_mainhand_weapon", "amount": 1.0, "text": t}]
 
     # Magister "Gains N stack(s) of <Blessing> when activating Spell Burst or generating Tangle" → full-uptime
     # flag the compute loop reads to pin that blessing to its max while the build generates tangles/bursts.
@@ -930,10 +996,13 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         if stat_key and stat_key.endswith('_flat'):
             return [{"stat_key": stat_key, "amount": float(m.group(2)), "text": t}]
 
-    # "Adds N-N <Type> Damage to Attacks/Spells/Attacks and Spells" → flat added damage min+max.
+    # "Adds N-N <Type> Damage to Attacks/Spells/Attacks and Spells/Minions" → flat added damage min+max.
     m = _CUSTOM_ADDS_RE.match(t)
     if m:
         lo, hi, dtype, dest = float(m.group(1)), float(m.group(2)), m.group(3).lower(), m.group(4).lower()
+        if dest == "minions":
+            return [{"stat_key": f"minion_{dtype}_dmg_flat_min", "amount": lo, "text": t},
+                    {"stat_key": f"minion_{dtype}_dmg_flat_max", "amount": hi, "text": t}]
         dests = ["attack", "spell"] if dest == "attacks and spells" else (["attack"] if dest == "attacks" else ["spell"])
         out: list[dict] = []
         for d in dests:

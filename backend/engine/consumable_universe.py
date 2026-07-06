@@ -163,6 +163,12 @@ def consumable_universe() -> frozenset[str]:
                  "spirit_magi_origin_effect_inc", "spirit_magi_origin_effect_additional",
                  "minion_physique_inc", "max_spirit_magi_flat", "minion_projectile_quantity_flat",
                  "minion_cdr_speed_inc", "minion_skill_effect_duration_inc"}
+    # Minion penetration — read explicitly in engine.minion_offense._minion_target_mitigation (minion damage
+    # penetrates with its OWN pen). Plus the spirit-magi damage/crit pools folded into minion pools for magi.
+    consumed |= {"minion_armor_pen", "minion_elemental_pen", "minion_fire_pen_inc", "minion_cold_pen_inc",
+                 "minion_lightning_pen_inc", "minion_erosion_pen_inc",
+                 "spirit_magi_dmg_inc", "spirit_magi_dmg_additional", "spirit_magi_crit_rating_flat",
+                 "spirit_magi_empower_effect_additional", "minions_inherit_mainhand_weapon"}
     # engine.consumption (self-consume drains) reads the typed consume-rate stats outside the offense/defense passes.
     consumed |= {f"{p}_consumed_{b}_per_{c}"
                  for p in ("life", "mana", "energy_shield")

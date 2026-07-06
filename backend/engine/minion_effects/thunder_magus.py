@@ -41,7 +41,7 @@ def handler(source, owner, base_stats, level, count):
     notes, not forms)."""
     from engine.minion_offense import (
         calculate_minion_offense, nyi_offense, spirit_magi_growth, growth_stage, combine_minion_forms,
-        spirit_magi_physique_inc, spirit_magi_skill_area_inc,
+        spirit_magi_physique_inc, spirit_magi_skill_area_inc, fold_spirit_magi_pools,
     )
     by_role: dict[str, dict] = {}
     for a in owner.get("minion_skills") or []:
@@ -55,10 +55,17 @@ def handler(source, owner, base_stats, level, count):
 
     # Fold the Empower buff + Growth stage bonuses into a COPY of the source (never mutate the shared one).
     buffed = replace(source, _entries=list(source._entries), source_log=list(source.source_log))
+    # Spirit-Magi-scoped damage/crit gear/talents carry the `spirit_magi` tag (not `minion`) and would otherwise
+    # be dropped — fold them into the generic minion pools so a magus actually consumes them.
+    fold_spirit_magi_pools(buffed)
 
     def _add(stat: str, amt: float, text: str) -> None:
         buffed.add_with_source(stat, amt, SourceEntry(
             stat=stat, amount=amt, source_type="minion", label="Thunder Magus", source_name="Thunder Magus", text=text))
+
+    # Empower Effect scales the Euphoria buff magnitudes — the MINION/magi Empower Effect only (spirit_magi_*),
+    # never the player's Empower Effect.
+    emp_eff = 1.0 + source.total("spirit_magi_empower_effect_additional")
 
     empower = by_role.get("Empower")
     empower_uptime = 1.0
@@ -76,11 +83,12 @@ def handler(source, owner, base_stats, level, count):
         _dur_eff, _cd_eff = _dur, _cd
         empower_uptime = min(1.0, _dur / _cd) if (_dur > 0 and _cd > 0) else 1.0
         _pct_txt = f"{round(empower_uptime * 100)}% uptime"
-        _add("minion_attack_speed_additional", 0.35 * empower_uptime,
-             f"Thundercloud Surge: +35% additional Attack Speed (Euphoria) × {_pct_txt}")
+        _eff_txt = f" × {round(emp_eff * 100)}% Empower Effect" if abs(emp_eff - 1.0) > 1e-9 else ""
+        _add("minion_attack_speed_additional", 0.35 * emp_eff * empower_uptime,
+             f"Thundercloud Surge: +35% additional Attack Speed (Euphoria){_eff_txt} × {_pct_txt}")
         if stage >= 4:
-            _add("minion_dmg_additional", 0.25 * empower_uptime,
-                 f"Thundercloud Surge: +25% additional damage (Growth Stage 4+) × {_pct_txt}")
+            _add("minion_dmg_additional", 0.25 * emp_eff * empower_uptime,
+                 f"Thundercloud Surge: +25% additional damage (Growth Stage 4+){_eff_txt} × {_pct_txt}")
     if stage >= 5:
         _add("minion_dmg_additional", 0.50, "Growth Stage 5: +50% additional damage")
 

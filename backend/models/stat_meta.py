@@ -470,6 +470,27 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=10,
         source_types=_T,
     ),
+    Stat.MINION_COLD_PEN_INC: StatMeta(
+        "Minion Cold Penetration", "Minion", "penetration", "%",
+        subgroup="minion_penetration",  pipeline_stage="penetration",
+        tags=("minion", "cold"),        affects=_HIT_DOT,
+        stacking_rule="additive",       ui_priority=9,
+        source_types=_T,
+    ),
+    Stat.MINION_LIGHTNING_PEN_INC: StatMeta(
+        "Minion Lightning Penetration", "Minion", "penetration", "%",
+        subgroup="minion_penetration",  pipeline_stage="penetration",
+        tags=("minion", "lightning"),   affects=_HIT_DOT,
+        stacking_rule="additive",       ui_priority=9,
+        source_types=_T,
+    ),
+    Stat.MINION_EROSION_PEN_INC: StatMeta(
+        "Minion Erosion Penetration", "Minion", "penetration", "%",
+        subgroup="minion_penetration",  pipeline_stage="penetration",
+        tags=("minion", "erosion"),     affects=_HIT_DOT,
+        stacking_rule="additive",       ui_priority=9,
+        source_types=_T,
+    ),
     Stat.MINION_FIRE_PEN_INC: StatMeta(
         "Minion Fire Penetration", "Minion", "penetration", "%",
         subgroup="minion_penetration",  pipeline_stage="penetration",
