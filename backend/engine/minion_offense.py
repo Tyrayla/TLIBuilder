@@ -22,7 +22,7 @@ from engine.affix_identity import affix_identity
 from engine.skill_resolver import _parse_cast_time
 from engine.constants import DAMAGE_TYPES as _DAMAGE_TYPES, ELEMENTAL as _ELEMENTAL
 from engine.offense import (
-    OffenseResult, HitFormResult, _enemy_vuln_mult, _DTYPE_TAG_SET,
+    OffenseResult, HitFormResult, _enemy_vuln_mult, _DTYPE_TAG_SET, _above_max_mult,
     TARGET_ARMOR_MITIGATION, TARGET_NONPHYS_ARMOR_FACTOR, TARGET_ELEMENTAL_RESIST, TARGET_EROSION_RESIST,
 )
 from models.stat_meta import STAT_META
@@ -177,6 +177,18 @@ def _applies(tags: frozenset, dtype_tag: frozenset) -> bool:
     return (not dmg) or bool(dmg & dtype_tag)
 
 
+# A minion ability is an ATTACK or a SPELL — their damage pools MUST NOT mix. A stat tagged `spell`/`attack`
+# applies ONLY to an ability of that category (untagged stats apply to both).
+_SKILL_TYPE_TAGS = frozenset({"attack", "spell"})
+
+
+def _skill_type_ok(tags: frozenset, is_spell: bool) -> bool:
+    st = tags & _SKILL_TYPE_TAGS
+    if not st:
+        return True
+    return ("spell" in st) if is_spell else ("attack" in st)
+
+
 # ── Interpolation / coefficient helpers ───────────────────────────────────────
 
 def _interp_level_table(table: dict, level: int) -> float:
@@ -261,9 +273,10 @@ def spirit_magi_skill_area_inc(stage: int) -> float:
     return stage * 0.10
 
 
-def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: bool) -> float:
+def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: bool, is_spell: bool) -> float:
     """Per-affix additional product for minion damage. `generic_only`=True → only stats with NO damage-type tag
-    (the 'all types' factor); False → the full product applicable to `dtype_tag` (generic + type-specific)."""
+    (the 'all types' factor); False → the full product applicable to `dtype_tag` (generic + type-specific). A
+    `spell`/`attack`-tagged stat is included only when it matches the ability's category (`is_spell`)."""
     pos: dict[tuple[str, str], float] = defaultdict(float)
     neg: dict[tuple[str, str], list[float]] = defaultdict(list)
     tracked: dict[str, float] = defaultdict(float)
@@ -271,6 +284,8 @@ def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: 
         if e.stat not in _MINION_ADDITIONAL_KEYS:
             continue
         tags = _MINION_ADDITIONAL_TAGS[e.stat]
+        if not _skill_type_ok(tags, is_spell):
+            continue
         if generic_only and _has_dtype_tags(tags):
             continue
         if not generic_only and not _applies(tags, dtype_tag):
@@ -288,6 +303,8 @@ def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: 
         for a in amts:
             p *= (1.0 + a)
     for key, tags in _MINION_ADDITIONAL_STATS:
+        if not _skill_type_ok(tags, is_spell):
+            continue
         if generic_only and _has_dtype_tags(tags):
             continue
         if not generic_only and not _applies(tags, dtype_tag):
@@ -369,9 +386,16 @@ def calculate_minion_offense(
     dtype = _primary_dtype(tags_lower)
     name = ability_label(minion_skill)
 
-    coeff = _coefficient_at(minion_skill.get("base_damage_coefficient"), level)
+    # Minion Skill Level (e.g. Isometric-Arms/Mighty-Guard "+N Minion Skill Level") raises the ability's effective
+    # level. Coefficient + shared base plateau at the data max (≤ 20); above level 20 the standard compounding
+    # multiplier applies (×1.10 per level 21-30, ×1.08 per level 31+). spirit_magi_skill_level stacks for magi.
+    _MINION_MAX_LEVEL = 20
+    skill_level_bonus = int(round(source.total("minion_skill_level") + source.total("spirit_magi_skill_level")))
+    effective_level = level + max(0, skill_level_bonus)
+    above_mult = _above_max_mult(effective_level, _MINION_MAX_LEVEL)
+    coeff = _coefficient_at(minion_skill.get("base_damage_coefficient"), effective_level)
     consts = (base_stats or {}).get("constants") or {}
-    shared_base = _interp_level_table((base_stats or {}).get("base_damage_by_level") or {}, level)
+    shared_base = _interp_level_table((base_stats or {}).get("base_damage_by_level") or {}, effective_level)
     if base_stats is None or shared_base <= 0:
         r = nyi_offense(minion_skill, level)
         r.nyi = ["Minion Base Damage table not filled (data/seasons/<S>/_minion_base_stats.json)"]
@@ -393,7 +417,7 @@ def calculate_minion_offense(
     base_min[dtype] += base_hit; base_max[dtype] += base_hit
     for key, tags in _MINION_FLAT_STATS:
         t = next(iter(tags & _DTYPE_TAG_SET), None)
-        if t is None:
+        if t is None or not _skill_type_ok(tags, is_spell):     # attack-flat never lands on a spell (and vice versa)
             continue
         amt = source.total(key) * (effectiveness if effectiveness > 0 else 1.0)
         if key.endswith("_min"):
@@ -401,12 +425,13 @@ def calculate_minion_offense(
         elif key.endswith("_max"):
             flat_max[t] += amt
 
-    # Generic (all-types) increased/additional + per-type totals (generic + type-specific). An Enhanced-only
-    # skill-intrinsic additional (e.g. Thunderlight Arrow's +5%/Projectile Quantity) folds into the additional
-    # product here (all types), so it flows through the hit damage AND shows in the Total-Additional breakdown.
+    # Generic (all-types) increased/additional + per-type totals (generic + type-specific). Skill-type-tagged pools
+    # (e.g. minion_spell_dmg_additional) apply ONLY to a matching ability — a Spell pool NEVER touches an Attack.
+    # An Enhanced-only skill-intrinsic additional (Thunderlight Arrow's +5%/Projectile Quantity) folds in here too.
     extra_add_factor = 1.0 + max(0.0, extra_additional)
-    generic_inc = sum(source.total(k) for k, tags in _MINION_INC_STATS if not _has_dtype_tags(tags))
-    generic_add = _minion_additional(source, frozenset(), generic_only=True) * extra_add_factor
+    generic_inc = sum(source.total(k) for k, tags in _MINION_INC_STATS
+                      if not _has_dtype_tags(tags) and _skill_type_ok(tags, is_spell))
+    generic_add = _minion_additional(source, frozenset(), generic_only=True, is_spell=is_spell) * extra_add_factor
 
     hit_min: dict[str, float] = {}
     hit_max: dict[str, float] = {}
@@ -417,12 +442,13 @@ def calculate_minion_offense(
         if flat_min.get(t, 0.0) == 0.0 and flat_max.get(t, 0.0) == 0.0:
             continue
         t_tag = _dtype_tag(t)
-        inc = sum(source.total(k) for k, tags in _MINION_INC_STATS if _applies(tags, t_tag))
-        add = _minion_additional(source, t_tag, generic_only=False) * extra_add_factor
+        inc = sum(source.total(k) for k, tags in _MINION_INC_STATS
+                  if _applies(tags, t_tag) and _skill_type_ok(tags, is_spell))
+        add = _minion_additional(source, t_tag, generic_only=False, is_spell=is_spell) * extra_add_factor
         type_inc[t] = inc
         type_add[t] = add
-        hit_min[t] = flat_min.get(t, 0.0) * (1.0 + inc) * add
-        hit_max[t] = flat_max.get(t, 0.0) * (1.0 + inc) * add
+        hit_min[t] = flat_min.get(t, 0.0) * (1.0 + inc) * add * above_mult   # above-max skill-level multiplier
+        hit_max[t] = flat_max.get(t, 0.0) * (1.0 + inc) * add * above_mult
         enemy_mult[t] = _minion_target_mitigation(source, t) * _enemy_vuln_mult(source, t, is_spell)
 
     # Crit (fixed 500 CSR / 150% base from constants, scaled by minion crit pools).
@@ -475,7 +501,8 @@ def calculate_minion_offense(
     intrinsic_sources = ([{"label": extra_additional_label or "Projectile Quantity", "amount": extra_additional}]
                          if extra_additional > 0 else [])
     return OffenseResult(
-        skill_name=name, supported=True, effective_level=level, hit_forms=[form],
+        skill_name=name, supported=True, effective_level=effective_level, hit_forms=[form],
+        above_max_mult=above_mult,
         crit_chance=crit_chance, crit_chance_uncapped=crit_chance_uncapped, crit_multiplier=crit_mult,
         double_dmg_chance=double_chance, double_dmg_factor=double_factor,
         skills_per_second=rate, base_cast_time=base_time,

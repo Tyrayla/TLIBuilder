@@ -390,3 +390,35 @@ def _seeded(src, **kv):
     for k, v in kv.items():
         src.add(k, v)
     return src
+
+
+_ATTACK_ABILITY = {"name": "Atk", "skill_tags": ["Base Skill", "Attack", "Fire"],
+                   "base_damage_coefficient": 232.0, "cast_speed": "0.8 s"}
+_SPELL_ABILITY = {"name": "Spl", "skill_tags": ["Base Skill", "Spell", "Fire"],
+                  "base_damage_coefficient": 232.0, "cast_speed": "0.8 s"}
+
+
+def test_minion_spell_and_attack_pools_never_mix():
+    """CRITICAL: a minion's Spell-damage pool must NOT touch an Attack ability, and vice versa."""
+    s = BuildSource(); s.add("minion_spell_dmg_additional", 0.5)      # +50% additional Spell Damage for Minions
+    attack = calculate_minion_offense(s, _ATTACK_ABILITY, _BASE_STATS, 20)
+    spell = calculate_minion_offense(s, _SPELL_ABILITY, _BASE_STATS, 20)
+    assert attack.generic_add == pytest.approx(1.0)                   # spell pool excluded from the attack
+    assert spell.generic_add == pytest.approx(1.5)                    # applies to the spell
+    # A generic (untagged) minion pool applies to both.
+    sg = BuildSource(); sg.add("minion_dmg_additional", 0.5)
+    assert calculate_minion_offense(sg, _ATTACK_ABILITY, _BASE_STATS, 20).generic_add == pytest.approx(1.5)
+
+
+def test_minion_skill_level_above_max_multiplier():
+    """+Minion Skill Level scales like any skill above max level: ×1.10 per level 21-30, ×1.08 per level 31+."""
+    o0 = calculate_minion_offense(BuildSource(), _ATTACK_ABILITY, _BASE_STATS, 20)
+    for n, exp in [(2, 1.10 ** 2), (10, 1.10 ** 10), (15, 1.10 ** 10 * 1.08 ** 5)]:
+        s = BuildSource(); s.add("minion_skill_level", n)
+        o = calculate_minion_offense(s, _ATTACK_ABILITY, _BASE_STATS, 20)
+        assert o.effective_level == 20 + n
+        assert o.above_max_mult == pytest.approx(exp)
+        assert o.total_dps / o0.total_dps == pytest.approx(exp)
+    # spirit_magi_skill_level stacks with minion_skill_level.
+    s2 = BuildSource(); s2.add("minion_skill_level", 1); s2.add("spirit_magi_skill_level", 1)
+    assert calculate_minion_offense(s2, _ATTACK_ABILITY, _BASE_STATS, 20).above_max_mult == pytest.approx(1.10 ** 2)

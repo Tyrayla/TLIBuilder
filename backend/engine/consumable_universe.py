@@ -168,7 +168,8 @@ def consumable_universe() -> frozenset[str]:
     consumed |= {"minion_armor_pen", "minion_elemental_pen", "minion_fire_pen_inc", "minion_cold_pen_inc",
                  "minion_lightning_pen_inc", "minion_erosion_pen_inc",
                  "spirit_magi_dmg_inc", "spirit_magi_dmg_additional", "spirit_magi_crit_rating_flat",
-                 "spirit_magi_empower_effect_additional", "minions_inherit_mainhand_weapon"}
+                 "spirit_magi_empower_effect_additional", "minions_inherit_mainhand_weapon",
+                 "minion_skill_level", "spirit_magi_skill_level"}
     # engine.consumption (self-consume drains) reads the typed consume-rate stats outside the offense/defense passes.
     consumed |= {f"{p}_consumed_{b}_per_{c}"
                  for p in ("life", "mana", "energy_shield")

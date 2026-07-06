@@ -26,6 +26,11 @@ What's hooked up for minions, and what isn't yet. Gear and talent minion mods bo
   `spirit_magi` tag (which the minion offense skips), now **folded** into the generic minion pools by the magus
   module (`fold_spirit_magi_pools`), scoped to magi only.
 - **Empower Effect** — the Euphoria buff scales by `spirit_magi_empower_effect_additional` (minion/magi only).
+- **Spell / Attack pool separation** — a `spell`/`attack`-tagged minion pool applies ONLY to a matching ability
+  (`minion_spell_dmg_additional` never touches an Attack magus, and vice versa). Enforced across the flat /
+  increased / additional pools via `_skill_type_ok`.
+- **Minion Skill Level** (`minion_skill_level` + `spirit_magi_skill_level`) — raises the ability's effective
+  level; above level 20 the standard compounding multiplier applies (×1.10 per level 21-30, ×1.08 per level 31+).
 - **Remap bridges**: player↔minion damage infix (`{type}_{attack|spell}_dmg_*` and `{type}_dmg_gear_*`), typed pen
   (`fire_pen ↔ minion_fire_pen_inc`), weapon affix AS/crit (`attack_speed_gear/_mh`, `attack_crit_rating_gear/_mh`).
 
@@ -59,15 +64,12 @@ horizontal penetration** (`projectile_speed_inc`, `horizontal_projectile_penetra
 - **Minion ailment / DoT**: `minion_ignite_chance`, `minion_trauma_chance`, `minion_damaging_ailment_chance`,
   `minion_affliction_effect_inc`, `minion_affliction_per_second_flat`.
 - **Minion multistrike**: `minion_multistrike_chance`, `minion_multistrike_increasing_dmg_inc`.
-- **Minion duration / skill-level / area / movement**: `minion_duration_inc` (summon lifetime),
-  `minion_skill_level`, `minion_skill_area_inc` (Growth surfaces a display value but this pool is unread),
-  `minion_movement_speed_inc`, `summon_skill_cast_speed_additional`.
+- **Minion duration / area / movement**: `minion_duration_inc` (summon lifetime), `minion_skill_area_inc`
+  (Growth surfaces a display value but this pool is unread), `minion_movement_speed_inc`,
+  `summon_skill_cast_speed_additional`.
 - **Spirit-Magi Ultimate** (Full Bloom NYI): `spirit_magi_ultimate_dmg_inc/_additional`, `spirit_magi_cdr_speed_inc`.
 
 ### Known modeling limitations
-- `minion_spell_dmg_additional` folds into the **generic** minion additional pool (spell isn't a damage-type tag),
-  so "Spell Damage for Minions" applies to a magus's attacks too (Isomorphic-Arms effect 1 on an attack magus).
-  Needs spell/attack skill-type scoping in the minion offense.
 - Conditional/scaling minion mods ("per N Minions", "recently summoned", "at Low Life", per-Blessing/Elixir, "vs
   Ailment-affected") resolve their base but need condition wiring for the scaling clause.
 - "Isometric Arms" is actually **Isomorphic Arms** (name corrected).
