@@ -526,7 +526,6 @@ const CALC_MODES: { key: string; label: string; enabled: boolean }[] = [
 function SkillSelectionBar({
   skills, selected, onSelect,
   forms, selectedForm, onSelectForm,
-  minionAbilities = [], selectedMinionIdx = 0, onSelectMinionIdx,
   calcMode, onCalcMode,
 }: {
   skills: EquippedSkill[]
@@ -535,9 +534,6 @@ function SkillSelectionBar({
   forms: string[]
   selectedForm: string | null
   onSelectForm: (form: string | null) => void
-  minionAbilities?: string[]
-  selectedMinionIdx?: number
-  onSelectMinionIdx?: (i: number) => void
   calcMode: string
   onCalcMode: (mode: string) => void
 }) {
@@ -606,19 +602,6 @@ function SkillSelectionBar({
             >
               <option value="__all__">All forms (combined)</option>
               {forms.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </label>
-        )}
-        {/* Minion ability selector — shown when the selected skill is a minion owner (its nested abilities). */}
-        {minionAbilities.length > 0 && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888' }}>
-            Minion Skill
-            <select
-              value={selectedMinionIdx}
-              onChange={e => onSelectMinionIdx?.(Number(e.target.value))}
-              style={selectSt}
-            >
-              {minionAbilities.map((name, i) => <option key={name + i} value={i}>{name}</option>)}
             </select>
           </label>
         )}
@@ -884,6 +867,29 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
             const formPct = totalDps > 0 ? `${(form.dps_vs_target * breakdownMult / totalDps * 100).toFixed(0)}%` : '—'
 
             const multiForm = offense.hit_forms.length > 1
+            const formNyi = form.nyi ?? []
+            if (formNyi.length > 0) {
+              // An NYI form (e.g. a minion's Empower buff / locked Ultimate) — shown so it's visible/selectable,
+              // but it deals no damage yet: name header + its reason(s), no damage/DPS/% rows.
+              return (
+                <React.Fragment key={form.name}>
+                  <tr>
+                    <td colSpan={7} style={{
+                      paddingTop: 6, paddingBottom: 2, fontSize: 13, color: '#9a9a9a', fontWeight: 700,
+                      borderTop: multiForm ? '1px solid rgba(255,255,255,0.10)' : undefined,
+                    }}>
+                      {form.name}
+                      <span style={{ color: '#c8645a', fontWeight: 700, marginLeft: 8, fontSize: 11 }}>NYI</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colSpan={7} style={{ ...tdSub, whiteSpace: 'normal', paddingBottom: 4, lineHeight: 1.35 }}>
+                      {formNyi.join(' ')}
+                    </td>
+                  </tr>
+                </React.Fragment>
+              )
+            }
             return (
               <React.Fragment key={form.name}>
                 {/* Each form is its own visually-separated area (border + faint background) so multi-form
@@ -1466,9 +1472,33 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
   const isSpell = hasTag(offense,'spell')
   const rateLabel = isSpell ? 'Casts per Second' : 'Attacks per Second'
-  const rateKeys = isSpell
+  // Minion abilities are scaled ONLY by minion-scoped speed pools — the player's attack/cast speed (incl. any
+  // Origin +6% AS granted to the SUMMONER) must never appear in a minion's hit-rate breakdown.
+  const rateKeys = minion
+    ? (isSpell
+        ? ['minion_cast_speed_inc', 'minion_cast_speed_additional']
+        : ['minion_attack_speed_inc', 'minion_attack_speed_additional'])
+    : isSpell
     ? ['cast_speed_inc', 'cast_speed_additional', 'combo_starter_cast_speed_additional']
     : ['weapon_attack_speed', 'attack_speed_inc', 'attack_speed_gear', 'attack_speed_mh', 'attack_speed_additional', 'combo_starter_attack_speed_additional']
+  // Firing-rate wording/baseline differ for minions: a minion has no weapon/gear — its rate is an intrinsic base
+  // rate (1 ÷ base attack/cast time) scaled by minion-scoped speed pools only, so the player "Weapon APS × (1 +
+  // Gear)" formula and weapon source must never show. NYI forms (Empower/Ultimate) don't fire → excluded here.
+  const baseRate = offense.base_cast_time > 0 ? 1 / offense.base_cast_time : 0
+  const rateWhat = isSpell ? 'Cast' : 'Attack'
+  const rateForms = offense.hit_forms.filter(f => !(f.nyi?.length))
+  const rateFormula = minion
+    ? `Base ${rateWhat} Rate × (1 + Increased) × Π(1 + Additional)`
+    : (isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional')
+  const rateBaseline: ExtraRow[] | undefined = minion && baseRate > 0
+    ? [{ value: `${dec(baseRate)} /s`, stat: `Base ${rateWhat} Rate`, source: 'Minion', sourceName: `1 ÷ ${dec(offense.base_cast_time)}s base ${rateWhat.toLowerCase()} time` }]
+    : (isSpell && offense.base_cast_time > 0
+        ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
+        : undefined)
+  const rateInfo = minion
+    ? `${rateWhat} Rate = Base Rate × (1 + Increased) × Additional — minion-scoped pools only (no weapon/gear). Multi-form minions list each ability's own firing rate.`
+    : (isSpell ? 'Cast Rate = 1 ÷ Cast Time × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate — some forms fire every cast, others on a slower cadence.'
+      : 'Attack Rate = Weapon APS × (1 + Gear) × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate.')
 
   // Whether this skill lands hits — a precondition for inflicting ailments / crowd control. A skill that deals
   // no hit damage (pure aura/buff/persistent with no strike) can't apply these unless it has special behavior,
@@ -1574,20 +1604,17 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           capped by columnMax so boxes don't sprawl. */}
       <MasonryGrid columnWidth={220} columnMax={340} gap={6}>
         <GridBox>
-          <StatPanel title="Hit Rate" accent={AMBER}
-            info={isSpell ? 'Cast Rate = 1 ÷ Cast Time × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate — some forms fire every cast, others on a slower cadence.'
-              : 'Attack Rate = Weapon APS × (1 + Gear) × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate.'}>
+          <StatPanel title="Hit Rate" accent={AMBER} info={rateInfo}>
             {/* Multi-form skills list each form's own firing rate (forms fire at different cadences — e.g. beam
                 every cast, blade slower); the general cast/attack rate is dropped since the main form duplicates
-                it. Single-form skills show the one general rate. Each row carries its own source breakdown. */}
-            {offense.hit_forms.length > 1 ? (
-              offense.hit_forms.map(f => (
+                it. Single-form skills show the one general rate. Each row carries its own source breakdown.
+                NYI forms (a minion's Empower/Ultimate) don't fire, so they're excluded from the Hit Rate list. */}
+            {rateForms.length > 1 ? (
+              rateForms.map(f => (
                 <Row key={f.name} label={f.name} labelColor="#8aa" breakdown={{
                   title: `${f.name} — firing rate`, keys: rateKeys, total: f.fires_per_sec, totalUnit: ' /s',
-                  formula: isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional, at this form\'s cadence' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional, at this form\'s cadence',
-                  extra: isSpell && offense.base_cast_time > 0
-                    ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
-                    : undefined,
+                  formula: `${rateFormula}, at this form's cadence`,
+                  extra: rateBaseline,
                 }}>{dec(f.fires_per_sec)}/s</Row>
               ))
             ) : (() => {
@@ -1602,12 +1629,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                   ? (offense.wind_rhythm_active
                       ? 'Wind Rhythm trigger rate (tick-quantized — see the Wind Rhythm panel). The skill fires at the medium\'s cadence, not your cast rate.'
                       : `Triggered by an Activation Medium every ${dec(offense.trigger_interval ?? 0)} s → ${dec(offense.skills_per_second)}/s (overrides your cast rate).`)
-                  : (isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional'),
+                  : rateFormula,
                 extra: isTrig
                   ? [{ value: `${dec(offense.trigger_interval ?? 0)} s`, stat: 'Trigger interval', source: 'Medium', sourceName: 'cadence' }]
-                  : (isSpell && offense.base_cast_time > 0
-                      ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
-                      : undefined),
+                  : rateBaseline,
               }}>{dec(offense.skills_per_second)}</Row>
               )
             })()}
@@ -1621,7 +1646,11 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                 crit rating shows as a real gear source via weapon_crit_rating_flat. */}
             <Row label="Crit Chance" breakdown={{
               title: 'Crit Chance',
-              keys: isSpell
+              // Minions crit only off their own base (500 CSR, shown as a baseline below) + minion-scoped crit
+              // pools — never the player's weapon/spell/generic crit rating.
+              keys: minion
+                ? ['minion_crit_rating_flat', 'minion_crit_rating_inc']
+                : isSpell
                 ? ['spell_crit_rating_flat', 'spell_crit_rating_inc', 'crit_rating_inc', 'crit_rating_additional', 'projectile_crit_rating_inc']
                 : ['weapon_crit_rating_flat', 'attack_crit_rating_gear', 'attack_crit_rating_mh', 'attack_crit_rating_flat', 'attack_crit_rating_inc', 'crit_rating_inc', 'crit_rating_additional'],
               total: (offense.crit_chance_uncapped ?? offense.crit_chance), totalUnit: '%',
@@ -1630,8 +1659,8 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                 + (offense.crit_luck_effect === 'lucky' ? '  →  Lucky: 1 − (1 − p)²'
                   : offense.crit_luck_effect === 'unlucky' ? '  →  Unlucky: p²' : ''),
               extra: [
-                ...(isSpell && offense.base_csr > 0
-                  ? [{ value: offense.base_csr.toFixed(0), stat: 'Base Crit Rating', source: 'Baseline', sourceName: 'Spell base' }] : []),
+                ...((isSpell || minion) && offense.base_csr > 0
+                  ? [{ value: offense.base_csr.toFixed(0), stat: 'Base Crit Rating', source: 'Baseline', sourceName: minion ? 'Minion base' : 'Spell base' }] : []),
                 // Show the effective (capped) chance when the true chance is over 100%, so it's clear crit is maxed.
                 ...((offense.crit_chance_uncapped ?? offense.crit_chance) > 1
                   ? [{ value: `${dec(offense.crit_chance * 100)}%`, stat: 'Effective (capped)', source: '', sourceName: 'crit caps at 100%' }] : []),
@@ -1646,15 +1675,16 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             }}>{dec(((offense.crit_chance_uncapped ?? offense.crit_chance) * 100))}%</Row>
             <Row label="Crit Multiplier" breakdown={{
               title: 'Crit Multiplier',
-              keys: ['crit_damage'],
+              // Minions add Crit Damage only from minion-scoped pools; their base multiplier is 150% (constants).
+              keys: minion ? ['minion_crit_dmg_inc'] : ['crit_damage'],
               total: offense.crit_multiplier, totalUnit: '%',
               formula: '150% + Σ Crit Damage',
-              extra: [{ value: '150%', stat: 'Crit Multiplier', source: 'Baseline', sourceName: 'Base ×1.5' }],
+              extra: [{ value: '150%', stat: 'Crit Multiplier', source: 'Baseline', sourceName: minion ? 'Minion base' : 'Base' }],
             }}>{(offense.crit_multiplier * 100).toFixed(0)}%</Row>
             {(offense.double_dmg_chance ?? 0) > 0 && (
               <Row label="Double Damage Chance" breakdown={{
                 title: 'Double Damage Chance', totalUnit: '%', total: offense.double_dmg_chance!,
-                keys: ['double_dmg_chance', 'attack_double_dmg_chance', 'spell_double_dmg_chance', 'minion_double_dmg_chance', 'synth_double_dmg_chance'],
+                keys: minion ? ['minion_double_dmg_chance'] : ['double_dmg_chance', 'attack_double_dmg_chance', 'spell_double_dmg_chance', 'minion_double_dmg_chance', 'synth_double_dmg_chance'],
                 formula: 'Σ Double Damage chance (tag-filtered), capped at 100%. Lifts average DPS like crit.',
               }}>{dec((offense.double_dmg_chance! * 100))}%</Row>
             )}
@@ -1671,10 +1701,58 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           </StatPanel>
         </GridBox>
 
+        {/* Spirit Magi — the minion's Growth-subsystem state (Growth / Stage / Enhanced chance / Physique / Skill
+            Area / Max in Map). Replaces the player Skill Effects box in minion mode. Physique & Skill Area are
+            surfaced but don't change single-target DPS (noted in the info + row formulas). */}
+        {minion && (offense.spirit_magi_stage ?? 0) > 0 && (() => {
+          const growth = offense.spirit_magi_growth ?? 0
+          const stageN = offense.spirit_magi_stage ?? 0
+          const physique = offense.spirit_magi_physique_inc ?? 0
+          const areaInc = offense.skill_area_inc ?? 0
+          const enhChance = offense.spirit_magi_enhanced_chance ?? 0
+          const maxMagi = offense.spirit_magi_max ?? 0
+          return (
+            <GridBox>
+              <StatPanel title="Spirit Magi" accent={AMBER}
+                info="Spirit Magi grow a Stage per 100 Growth (Stage 5 at 500; Growth caps at 1000). Per 8 Growth they gain +1% Physique; per stage they gain +10% additional Skill Area plus a unique bonus. Physique & Skill Area don't change single-target DPS.">
+                <Row label="Growth" breakdown={{
+                  title: 'Growth', keys: ['spirit_magi_initial_growth_flat'], total: growth, totalUnit: '',
+                  formula: 'Base 100 (Stage 1) + Initial Growth mods (gear / talents / Iris), clamped 100–1000',
+                  extra: [{ value: '100', stat: 'Base Growth', source: 'Baseline', sourceName: 'Stage 1' }],
+                }}>{dec(growth)} / 1000</Row>
+                <Row label="Stage">{stageN} / 5</Row>
+                <Row label="Enhanced Skill Chance" breakdown={{
+                  title: 'Enhanced Skill Chance', keys: ['spirit_magi_enhanced_skill_chance'], total: enhChance, totalUnit: '%',
+                  formula: 'Σ Enhanced-Skill Chance (gear / talents) + 30% at Growth Stage 2, capped at 100%',
+                  extra: stageN >= 2 ? [{ value: '+30%', stat: 'Growth Stage 2', source: 'Growth', sourceName: 'Enhanced Skill chance' }] : undefined,
+                }}>{dec(enhChance * 100)}%</Row>
+                <Row label="Physique" breakdown={{
+                  title: 'Physique', keys: ['minion_physique_inc'], total: physique, totalUnit: '%',
+                  formula: '+1% per 8 Growth + gear / talent Physique. Does not change single-target DPS.',
+                  extra: [{ value: `+${dec(growth / 8)}%`, stat: 'Growth', source: 'Growth', sourceName: `${dec(growth)} Growth ÷ 8` }],
+                }}>+{dec(physique * 100)}%</Row>
+                <Row label="Skill Area" breakdown={{
+                  title: 'Additional Skill Area', keys: [], total: areaInc, totalUnit: '%',
+                  formula: `+10% additional Skill Area per stage → Stage ${stageN} × 10%. Does not change single-target DPS.`,
+                  extra: [{ value: `+${dec(stageN * 10)}%`, stat: `Growth Stage ${stageN}`, source: 'Growth', sourceName: '+10% additional per stage' }],
+                }}>+{dec(areaInc * 100)}%</Row>
+                <Row label="Max Spirit Magi" breakdown={{
+                  title: 'Max Spirit Magi in Map', keys: ['max_spirit_magi_flat'], total: maxMagi, totalUnit: '',
+                  formula: 'The skill\'s base count + Max Spirit Magi in Map mods — how many fight at once.',
+                }}>{maxMagi}</Row>
+              </StatPanel>
+            </GridBox>
+          )
+        })()}
+
         {/* Skill Effects — one of the 3 always-present boxes. Area/count/speed show for projectile-or-area skills;
             penetrations and jumps only appear when the build actually has them. (Values are build-wide today;
             per-skill scoping is Phase-2.) */}
         {(() => {
+          // Every row here reads player-scoped pools (projectile/area/penetration/jumps/mana), which never apply
+          // to minions — so in minion mode the box is skipped rather than leak player sources (the Spirit Magi
+          // box above carries the minion's Growth info instead).
+          if (minion) return null
           const projSpeedInc = statForSlot('projectile_speed_inc')
           const penetrations = statForSlot('horizontal_projectile_penetration_flat')
           const baseJumps = offense.jumps_base ?? 0
@@ -2170,7 +2248,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       {/* Damaging-ailment boxes (Ignite=fire / Wilt=erosion / Trauma=physical) — informational: inflict chance +
           scaling mods, with DoT damage flagged NYI (not modeled). Shown when this skill deals the matching type
           (or Show-all). Per-skill scoping + "cannot inflict" override chains in the breakdown are Phase-2. */}
-      {AILMENTS.filter(a => (canHit && dealsType(a.dtype)) || showAll).map(a => {
+      {/* Minions don't model ailments/CC and have no minion-scoped ailment pools, so these player-mechanic
+          boxes are hidden in minion mode (only minion sources belong in a minion's view). */}
+      {!minion && AILMENTS.filter(a => (canHit && dealsType(a.dtype)) || showAll).map(a => {
         const chance = stat(a.chanceKey)
         return (
           <GridBox key={a.key}>
@@ -2196,7 +2276,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
       {/* Non-damage ailment boxes (Numbed=lightning / Frostbite=cold / Freeze=cold) — debuffs on the target.
           Gated to skills that deal the matching type. */}
-      {NONDMG.filter(n => (canHit && dealsType(n.dtype)) || showAll).map(n => (
+      {!minion && NONDMG.filter(n => (canHit && dealsType(n.dtype)) || showAll).map(n => (
         <GridBox key={n.key}>
           <StatPanel title={n.name} accent={n.accent}
             info={n.note ?? `${n.name} debuff applied to enemies hit by ${n.dtype} damage. Values are the build's ${n.name} scaling.`}>
@@ -2218,7 +2298,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       ))}
 
       {/* Crowd Control — chance-only stats (the effects beyond chance aren't simulated). */}
-      {((canHit && ccActive.length > 0) || showAll) && (
+      {!minion && ((canHit && ccActive.length > 0) || showAll) && (
         <GridBox>
           <StatPanel title="Crowd Control" accent={GREY}
             info="Chance to apply each crowd-control effect on hit. The effects themselves (duration, distance, etc.) aren't simulated yet.">
@@ -2236,7 +2316,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
       {/* Multistrike (attack skills): the auto-repeat DPS multiplier + its inputs. Shown when this skill has any
           Multistrike Chance (or Show-all). */}
-      {((offense.multistrike_chance ?? 0) > 0 || showAll) && (
+      {!minion && ((offense.multistrike_chance ?? 0) > 0 || showAll) && (
         <GridBox><StatPanel title="Multistrike" accent={AMBER}
           info="Using an attack skill has a chance to auto-repeat it: every full 100% chance = +1 guaranteed repeat, the leftover is the chance of one more. Each repeat pays its own attack time (repeats get +20% increased attack speed) and deals increasing damage (the n-th hit of a chain gets (n−1) increment stacks; Initial Count pre-stacks it). DPS multiplier = expected chain damage ÷ (rate × expected chain time).">
           <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.multistrike_mult ?? 1)}</span></Row>
@@ -2827,9 +2907,8 @@ export default function PlayerStatsScreen() {
   const calcMode = uptimeMode === 'real' ? 'effective' : 'full_uptime'
   const setCalcMode = (mode: string) => setUptimeMode(mode === 'effective' ? 'real' : 'max')
   const [selectedForm, setSelectedForm] = useState<string | null>(null)   // null = all forms combined
-  const [selectedMinionIdx, setSelectedMinionIdx] = useState(0)           // which nested minion ability to view
-  // Reset the form / minion-ability filters whenever the selected skill changes.
-  useEffect(() => { setSelectedForm(null); setSelectedMinionIdx(0) }, [selectedSlot])
+  // Reset the form filter whenever the selected skill changes.
+  useEffect(() => { setSelectedForm(null) }, [selectedSlot])
 
   // If the selected slot has no skill (e.g. the main damage skill is parked in slot 2 and slot 1 is
   // empty), jump to the first populated slot so the viewer opens on a real skill instead of "Main · empty".
@@ -2917,19 +2996,20 @@ export default function PlayerStatsScreen() {
   const skillCost = ((computedStats as { skill_cost?: SkillCost | null }).skill_cost) ?? null
   const statMap = (computedStats.stats ?? {}) as Record<string, StatEntry>
   const slotOffense = ((computedStats as { slot_offense?: Record<string, OffenseResult> | null }).slot_offense) ?? null
-  const minionOffense = ((computedStats as { minion_offense?: Record<string, OffenseResult[]> | null }).minion_offense) ?? null
-  // Minion mode: when the selected slot's skill is a minion OWNER, the panels show its nested minion abilities
-  // (each a full OffenseResult) with a top-bar ability dropdown, instead of the owner's own (damage-less) offense.
+  const minionOffense = ((computedStats as { minion_offense?: Record<string, OffenseResult> | null }).minion_offense) ?? null
+  // Minion mode: when the selected slot's skill is a minion OWNER, the panels show its ONE minion OffenseResult
+  // (its damage abilities are hit forms — like a player multi-form skill) instead of the owner's damage-less
+  // offense. It flows through the SAME form-dropdown / % of Total path as a player skill.
   const selectedOwnerId = skills.find(sk => sk.slot === selectedSlot)?.item_id
-  const minionAbilities = (selectedOwnerId && minionOffense?.[selectedOwnerId]) || null
-  const minionMode = !!minionAbilities && minionAbilities.length > 0
-  const shownMinion = minionMode ? (minionAbilities![selectedMinionIdx] ?? minionAbilities![0]) : null
-  const minionAbilityNames = minionAbilities?.map(a => a.skill_name) ?? []
+  const minionResult = (selectedOwnerId && minionOffense?.[selectedOwnerId]) || null
+  const minionMode = !!minionResult
 
   // slot_offense holds EVERY active slot's offense (incl. the main slot), so index it by the selected
   // slot directly — don't assume the main skill is slot 1. Fall back to the headline offense only if the
-  // per-slot map is absent (legacy response).
-  const shownOffense = slotOffense
+  // per-slot map is absent (legacy response). In minion mode the minion's single OffenseResult drives the panels.
+  const shownOffense = minionMode
+    ? minionResult
+    : slotOffense
     ? (slotOffense[String(selectedSlot)] ?? null)
     : (selectedSlot === 1 ? offense : null)
   // Form filter (Phase 1 = display-only): when a single form is selected, show just its damage by filtering
@@ -2972,12 +3052,10 @@ export default function PlayerStatsScreen() {
         <div style={{ flex: '55', minWidth: '500px', display: 'flex', flexDirection: 'column' }}>
           <SkillSelectionBar
             skills={skills} selected={selectedSlot} onSelect={setSelectedSlot}
-            forms={minionMode ? [] : formNames} selectedForm={selectedForm} onSelectForm={setSelectedForm}
-            minionAbilities={minionMode ? minionAbilityNames : []}
-            selectedMinionIdx={selectedMinionIdx} onSelectMinionIdx={setSelectedMinionIdx}
+            forms={formNames} selectedForm={selectedForm} onSelectForm={setSelectedForm}
             calcMode={calcMode} onCalcMode={setCalcMode} />
           {minionMode
-            ? <OffensePanels offense={shownMinion} slot={selectedSlot} minion />
+            ? <OffensePanels offense={displayOffense} slot={selectedSlot} minion />
             : <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} skillCost={skillCost} />}
         </div>
 

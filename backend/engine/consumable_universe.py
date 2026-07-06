@@ -160,7 +160,8 @@ def consumable_universe() -> frozenset[str]:
     # and the Enhanced-Skill chance — outside the synthetic offense/defense/derive passes. engine.aggregator's
     # Origin-of-Thunder buff block scales by Origin of Spirit Magus Effect.
     consumed |= {"spirit_magi_initial_growth_flat", "spirit_magi_enhanced_skill_chance",
-                 "spirit_magi_origin_effect_inc", "spirit_magi_origin_effect_additional"}
+                 "spirit_magi_origin_effect_inc", "spirit_magi_origin_effect_additional",
+                 "minion_physique_inc", "max_spirit_magi_flat", "minion_projectile_quantity_flat"}
     # engine.consumption (self-consume drains) reads the typed consume-rate stats outside the offense/defense passes.
     consumed |= {f"{p}_consumed_{b}_per_{c}"
                  for p in ("life", "mana", "energy_shield")

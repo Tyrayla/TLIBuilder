@@ -591,6 +591,13 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="minion_mechanics",   stacking_rule="additive",
         ui_priority=71,                source_types=_TB,
     ),
+    # +Projectile Quantity for minion skills. No pipeline_stage — read explicitly by the minion offense (some
+    # minion skills convert it to additional damage rather than more projectiles), never auto-folded.
+    Stat.MINION_PROJECTILE_QUANTITY_FLAT: StatMeta(
+        "Projectile Quantity for Minions", "Minion", "added_flat",
+        subgroup="minion_mechanics",   stacking_rule="additive",
+        ui_priority=72,                source_types=_TB,
+    ),
     Stat.MINION_LIFE_REGAIN_INC: StatMeta(
         "Life Regain for Minions", "Minion", "increased", "%",
         subgroup="minion_life",        stacking_rule="additive",

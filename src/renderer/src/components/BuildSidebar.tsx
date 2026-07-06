@@ -49,17 +49,17 @@ function DpsBox({ onNav }: { onNav: (t: string) => void }) {
     .map(sk => ({ name: sk.name, dps: slotOffense?.[String(sk.slot)]?.total_dps_vs_target ?? 0 }))
     .filter(c => c.dps > 0)
 
-  // Minion owners (Spirit Magi / Synthetic Troops / Modules) contribute their minion's DPS = the sum of its
-  // SUPPORTED abilities' total_dps_vs_target. A minion is only ever supported through a bespoke module, which is
-  // responsible for designing its abilities so this sum is the true DPS (no double-counting Enhanced-replaces-Base,
-  // etc.). Unmodelled minions are all NYI → contribute 0. Gated by the owner skill's enabled / countInDps toggles
-  // (the owner passive itself isn't dps_eligible, but its minions deal the damage).
-  const minionOffense = (computedStats as { minion_offense?: Record<string, OffenseResult[]> | null }).minion_offense ?? null
+  // Minion owners (Spirit Magi / Synthetic Troops / Modules) contribute their minion's DPS = the ONE combined
+  // OffenseResult's total_dps_vs_target. A minion is only ever supported through a bespoke module, which combines
+  // its damage abilities into that single result (no double-counting Enhanced-replaces-Base — those are uptime-
+  // split hit forms). Unmodelled minions are NYI → supported=false → contribute 0. Gated by the owner skill's
+  // enabled / countInDps toggles (the owner passive itself isn't dps_eligible, but its minions deal the damage).
+  const minionOffense = (computedStats as { minion_offense?: Record<string, OffenseResult> | null }).minion_offense ?? null
   const minionContributors = minionOffense
-    ? Object.entries(minionOffense).flatMap(([ownerId, abilities]) => {
+    ? Object.entries(minionOffense).flatMap(([ownerId, result]) => {
         const ownerSk = skills.find(sk => sk.item_id === ownerId)
         if (ownerSk && (ownerSk.enabled === false || ownerSk.countInDps === false)) return []
-        const dps = abilities.filter(a => a.supported).reduce((s, a) => s + (a.total_dps_vs_target ?? 0), 0)
+        const dps = result.supported ? (result.total_dps_vs_target ?? 0) : 0
         if (dps <= 0) return []
         const name = ownerSk?.name ?? skillsById?.[ownerId]?.name ?? ownerId
         return [{ name: `${name} (minion)`, dps }]

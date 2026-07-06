@@ -1339,7 +1339,7 @@ def compute(
     # abilities are not player skill slots (they ride on the owner), so this runs outside the per-slot player
     # loop and can pick up passive owners (Spirit Magi, slot > 5) as well as active/module owners. Runs while
     # recording is on so minion mods badge Consumed. Empty for builds with no minion owner → no output change.
-    minion_offense: dict[str, list] = {}
+    minion_offense: dict[str, dict] = {}
     if skills_by_id is not None:
         from engine import minion_offense as _mo
         from engine import minion_effects as _  # noqa: F401 — registers bespoke minion modules into MINION_MODULES
@@ -1362,10 +1362,12 @@ def compute(
                 eff = source.materialize_for_skill({"minion"}, slot)
                 count = max(1, _minion_base_count(owner, level)
                             + int(round(eff.total("max_spirit_magi_flat") + eff.total("extra_max_minions_flat"))))
-                results = _mo.MINION_MODULES[owner["item_id"]](eff, owner, _mbase, level, count)
-                minion_offense[owner["item_id"]] = [asdict(r) for r in results]
+                # A bespoke module returns ONE OffenseResult whose hit_forms ARE the minion's damage abilities
+                # (like a player multi-form skill), so the frontend's form dropdown / % of Total / combined view work.
+                result = _mo.MINION_MODULES[owner["item_id"]](eff, owner, _mbase, level, count)
+                minion_offense[owner["item_id"]] = asdict(result)
             else:
-                minion_offense[owner["item_id"]] = [asdict(_mo.nyi_offense(ab, level)) for ab in abilities]
+                minion_offense[owner["item_id"]] = asdict(_mo.nyi_owner(owner.get("name") or owner["item_id"], abilities, level))
 
     source._recording = False
 

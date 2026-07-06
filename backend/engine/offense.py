@@ -680,6 +680,10 @@ class HitFormResult:
     shotgun_mult: float = 1.0    # total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
     base_min_by_type: dict[str, float] = field(default_factory=dict)  # this form's intrinsic base (spells)
     base_max_by_type: dict[str, float] = field(default_factory=dict)
+    # Non-empty → this form is NOT-YET-IMPLEMENTED (0 DPS, excluded from % of Total); the strings are the reasons.
+    # Used to surface a minion's non-damage abilities (Empower buffs, locked Ultimates) as visible, selectable
+    # forms in the form dropdown rather than hiding them (never-silently-drop).
+    nyi: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -865,6 +869,14 @@ class OffenseResult:
     wind_rhythm_cdr_to_next: float = 0.0          # +Increased CDR % to the next faster tick
     wind_rhythm_cast_to_next: float = 0.0         # +Increased Cast Speed % to the next faster tick
     wind_rhythm_wind_to_next: float = 0.0         # +Wind-bonus % to the next faster tick
+    # Spirit Magus (minion) display info — the Growth subsystem's per-minion state, surfaced for the minion panel.
+    # All 0 for non-Spirit-Magus results. Growth/Stage/Physique/Skill Area/Enhanced-chance don't (except via the
+    # stage bonuses already folded into the damage forms) feed hit DPS — Physique & Skill Area are display-only.
+    spirit_magi_growth: float = 0.0               # current Growth (100–1000)
+    spirit_magi_stage: int = 0                    # Stage 1–5 (0 = not a Spirit Magus)
+    spirit_magi_physique_inc: float = 0.0         # total Physique % (Growth +1%/8 + gear) — display only
+    spirit_magi_enhanced_chance: float = 0.0      # Enhanced-Skill chance (pool + Stage-2 +30%), capped ≤ 1
+    spirit_magi_max: int = 0                       # Max Spirit Magi in Map (the count that fights)
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:

@@ -786,6 +786,9 @@ export interface HitFormResult {
   shotgun_mult: number      // total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
   base_min_by_type: Record<string, number>   // this form's intrinsic base (multi-form spells)
   base_max_by_type: Record<string, number>
+  // Non-empty → this form is NOT-YET-IMPLEMENTED (0 DPS, excluded from % of Total); the strings are the reasons.
+  // Surfaces a minion's non-damage abilities (Empower buffs / locked Ultimates) as visible, selectable forms.
+  nyi?: string[]
 }
 
 export interface OffenseResult {
@@ -919,6 +922,12 @@ export interface OffenseResult {
   wind_rhythm_cdr_to_next?: number
   wind_rhythm_cast_to_next?: number
   wind_rhythm_wind_to_next?: number
+  // Spirit Magus (minion) display info — the Growth subsystem's per-minion state (0 for non-magus results).
+  spirit_magi_growth?: number
+  spirit_magi_stage?: number
+  spirit_magi_physique_inc?: number
+  spirit_magi_enhanced_chance?: number
+  spirit_magi_max?: number
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number
@@ -1168,10 +1177,11 @@ export interface StatSheetResponse {
   // Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Lets the UI
   // eventually show each setup's DPS independently. Additive — not consumed yet.
   slot_offense?: Record<string, OffenseResult> | null
-  // Per-minion-owner offense ({owner_id: [OffenseResult per nested ability]}) for slotted minion owners (Spirit
-  // Magi / Synthetic Troops / Modularization). Each ability is a full OffenseResult so the UI reuses the player
-  // offense panels; unmodelled minions come back supported=false (NYI, 0 DPS). Additive — folded into Full DPS.
-  minion_offense?: Record<string, OffenseResult[]> | null
+  // Per-minion-owner offense ({owner_id: OffenseResult}) for slotted minion owners (Spirit Magi / Synthetic
+  // Troops / Modularization). ONE OffenseResult per owner whose hit_forms are the minion's damage abilities
+  // (like a player multi-form skill), so the UI reuses the player offense panels + form dropdown; unmodelled
+  // minions come back supported=false (NYI, 0 DPS). Additive — folded into Full DPS.
+  minion_offense?: Record<string, OffenseResult> | null
   // Stat keys the engine actually READ for this build (offense/defense/derive/aggregator). A resolved
   // modifier whose mapped stat is here → "Consumed" (green badge).
   consumed_stats?: string[]

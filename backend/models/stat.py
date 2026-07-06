@@ -156,6 +156,10 @@ class Stat(Enum):
     MINION_ARMOR_PEN = "minion_armor_pen"
     MINION_DURATION_INC = "minion_duration_inc"
     MINION_PHYSIQUE_INC = "minion_physique_inc"
+    # External +Projectile Quantity granted to a minion skill (multiple-projectile supports on the minion link,
+    # a +Proj weapon shared to the minion, etc.). Some minion skills (Thunderlight Arrow) do NOT add firing
+    # projectiles from this — instead each +1 grants additional damage — so it's read explicitly (no pipeline_stage).
+    MINION_PROJECTILE_QUANTITY_FLAT = "minion_projectile_quantity_flat"
     MINION_LIFE_REGAIN_INC = "minion_life_regain_inc"
     MINION_SKILL_AREA_INC = "minion_skill_area_inc"
     MINION_DAMAGING_AILMENT_CHANCE = "minion_damaging_ailment_chance"

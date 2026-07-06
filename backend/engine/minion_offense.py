@@ -15,6 +15,7 @@ Base Damage / Life come from data/seasons/<S>/_minion_base_stats.json (hand-ente
 from __future__ import annotations
 import re
 from collections import defaultdict
+from dataclasses import replace
 
 from engine.models import BuildSource
 from engine.affix_identity import affix_identity
@@ -133,6 +134,19 @@ def growth_stage(growth: float) -> int:
     return max(1, min(5, int(growth // 100)))
 
 
+def spirit_magi_physique_inc(source: BuildSource, growth: float) -> float:
+    """Total Spirit Magi Physique %: Growth grants +1% per 8 Growth (glossary 759), plus any gear/talent
+    `minion_physique_inc` pool (e.g. Big Tough Guy's +10%). Display/attribute only — does NOT feed hit DPS."""
+    return growth / 800.0 + source.total("minion_physique_inc")   # growth/8 % → growth/800 as a fraction
+
+
+def spirit_magi_skill_area_inc(stage: int) -> float:
+    """Total additional Skill Area from Growth: +10% additional per STAGE (in-game tooltip — the glossary's
+    "per 8 Growth" is a mis-scrape; Physique is the per-8-Growth stat). Stage N → +N×10%. Display only —
+    Skill Area doesn't change single-target hit DPS."""
+    return stage * 0.10
+
+
 def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: bool) -> float:
     """Per-affix additional product for minion damage. `generic_only`=True → only stats with NO damage-type tag
     (the 'all types' factor); False → the full product applicable to `dtype_tag` (generic + type-specific)."""
@@ -213,6 +227,12 @@ def calculate_minion_offense(
     level: int,
     minion_count: int = 1,
     rate_multiplier: float = 1.0,
+    *,
+    shotgun_hits: int = 1,
+    shotgun_falloff: float = 0.0,
+    extra_additional: float = 0.0,
+    extra_additional_label: str = "",
+    penetrates: bool = False,
 ) -> OffenseResult:
     """Compute ONE minion ability's DPS as a full `OffenseResult` (so the frontend reuses the player panels).
     A BUILDING BLOCK for bespoke minion modules — NOT called for unmodelled minions (compute stubs those NYI).
@@ -220,7 +240,15 @@ def calculate_minion_offense(
     `minion_count` is folded into the DPS totals via `cast_multiplier` (per-form figures stay per-minion).
     `rate_multiplier` scales the firing rate — a bespoke module uses it to split shared attacks between a
     Base skill and its Enhanced replacement (Base at 1−chance, Enhanced at chance) so summing the two = the
-    true blended DPS."""
+    true blended DPS.
+
+    Ability-specific (Enhanced-only) knobs, applied to THIS call only (never the shared Base):
+      `shotgun_hits` / `shotgun_falloff` — same-target Shotgun: N projectiles hit one enemy, each extra hit at
+        (1 − falloff) → multiplier `1 + (hits−1)×(1−falloff)`, folded into DPS + surfaced on the hit form.
+      `extra_additional` (+ `_label`) — a skill-intrinsic additional-damage fraction (e.g. Thunderlight Arrow's
+        +5% per Projectile Quantity), folded into the additional pool + labelled in the Total-Additional breakdown.
+      `penetrates` — the projectiles always Penetrate/track (multi-target / QoL; no single-target DPS effect,
+        surfaced as a note so it's never silently dropped)."""
     tags_list = list(minion_skill.get("skill_tags") or [])
     tags_lower = {str(t).lower() for t in tags_list}
     is_spell = "spell" in tags_lower
@@ -259,9 +287,12 @@ def calculate_minion_offense(
         elif key.endswith("_max"):
             flat_max[t] += amt
 
-    # Generic (all-types) increased/additional + per-type totals (generic + type-specific).
+    # Generic (all-types) increased/additional + per-type totals (generic + type-specific). An Enhanced-only
+    # skill-intrinsic additional (e.g. Thunderlight Arrow's +5%/Projectile Quantity) folds into the additional
+    # product here (all types), so it flows through the hit damage AND shows in the Total-Additional breakdown.
+    extra_add_factor = 1.0 + max(0.0, extra_additional)
     generic_inc = sum(source.total(k) for k, tags in _MINION_INC_STATS if not _has_dtype_tags(tags))
-    generic_add = _minion_additional(source, frozenset(), generic_only=True)
+    generic_add = _minion_additional(source, frozenset(), generic_only=True) * extra_add_factor
 
     hit_min: dict[str, float] = {}
     hit_max: dict[str, float] = {}
@@ -273,7 +304,7 @@ def calculate_minion_offense(
             continue
         t_tag = _dtype_tag(t)
         inc = sum(source.total(k) for k, tags in _MINION_INC_STATS if _applies(tags, t_tag))
-        add = _minion_additional(source, t_tag, generic_only=False)
+        add = _minion_additional(source, t_tag, generic_only=False) * extra_add_factor
         type_inc[t] = inc
         type_add[t] = add
         hit_min[t] = flat_min.get(t, 0.0) * (1.0 + inc) * add
@@ -303,10 +334,15 @@ def calculate_minion_offense(
         rate = min(rate, 1.0 / cooldown) if rate > 0 else 1.0 / cooldown
     rate *= max(0.0, rate_multiplier)   # Base/Enhanced share split (a bespoke module passes 1−chance / chance)
 
+    # Same-target Shotgun (Enhanced-only): N projectiles converge on one enemy; each extra hit deals (1−falloff).
+    # Folded into DPS (like the player's cast-level shotgun), NOT the per-hit-form damage, and surfaced on the form.
+    shots = max(1, shotgun_hits)
+    shotgun_mult = 1.0 + (shots - 1) * (1.0 - shotgun_falloff)
+
     avg_pre = sum((hit_min.get(t, 0.0) + hit_max.get(t, 0.0)) / 2.0 for t in hit_min)
-    per_minion_dps = avg_pre * crit_factor * double_factor * rate
+    per_minion_dps = avg_pre * crit_factor * double_factor * rate * shotgun_mult
     per_minion_vs = sum(((hit_min.get(t, 0.0) + hit_max.get(t, 0.0)) / 2.0) * enemy_mult.get(t, 1.0)
-                        for t in hit_min) * crit_factor * double_factor * rate
+                        for t in hit_min) * crit_factor * double_factor * rate * shotgun_mult
     count = max(1, minion_count)
     damage_by_type = {t: ((hit_min.get(t, 0.0) + hit_max.get(t, 0.0)) / 2.0) for t in hit_min}
 
@@ -314,9 +350,16 @@ def calculate_minion_offense(
         name=name, effectiveness_pct=coeff, form_type="additive", proc_chance=1.0,
         damage_by_type=damage_by_type, avg_hit_pre_crit=avg_pre, avg_hit_with_crit=avg_pre * crit_factor * double_factor,
         dps_contribution=per_minion_dps, dps_vs_target=per_minion_vs,
-        hit_min_by_type=dict(hit_min), hit_max_by_type=dict(hit_max), fires_per_sec=rate, hits_per_fire=1,
+        hit_min_by_type=dict(hit_min), hit_max_by_type=dict(hit_max), fires_per_sec=rate,
+        hits_per_fire=shots, shotgun_falloff=shotgun_falloff, shotgun_mult=shotgun_mult,
         base_min_by_type=dict(base_min), base_max_by_type=dict(base_max),
     )
+    nyi = ["Conversion (owner phys→element line), Persistent/domain per-second damage, and ailment/DoT are NYI"]
+    if penetrates:
+        nyi.append(f"{name}: Projectiles always Penetrate and track the enemy — multi-target / clear utility, "
+                   "no single-target DPS effect (surfaced, not dropped).")
+    intrinsic_sources = ([{"label": extra_additional_label or "Projectile Quantity", "amount": extra_additional}]
+                         if extra_additional > 0 else [])
     return OffenseResult(
         skill_name=name, supported=True, effective_level=level, hit_forms=[form],
         crit_chance=crit_chance, crit_chance_uncapped=crit_chance_uncapped, crit_multiplier=crit_mult,
@@ -324,10 +367,72 @@ def calculate_minion_offense(
         skills_per_second=rate, base_cast_time=base_time,
         total_dps=per_minion_dps * count, total_dps_vs_target=per_minion_vs * count,
         cast_multiplier=float(count),                       # count folds into totals like a per-cast multiplier
+        # NOTE: the shotgun is folded into the FORM's dps + surfaced via form.hits_per_fire — NOT into the
+        # result-level shotgun_hits/cast_multiplier (which would double-count against the per-minion count).
         flat_dmg_min=dict(flat_min), flat_dmg_max=dict(flat_max),
         base_dmg_min=dict(base_min), base_dmg_max=dict(base_max),
         type_inc=type_inc, type_add=type_add, generic_inc=generic_inc, generic_add=generic_add,
+        intrinsic_additional_sources=intrinsic_sources,
         enemy_mult_by_type=enemy_mult, base_csr=base_csr, skill_tags=tags_list,
-        nyi=["Conversion (owner phys→element line), Persistent/domain per-second damage, multi-hit/shotgun forms, "
-             "and ailment/DoT are NYI"],
+        nyi=nyi,
+    )
+
+
+def combine_minion_forms(name: str, results: list[OffenseResult], count: int) -> OffenseResult:
+    """Merge a minion's per-ability OffenseResults into ONE result, exactly like a player multi-form skill
+    (e.g. Cold Beam + Icy Blade): each DAMAGE ability becomes a hit form of the single result, so the frontend's
+    Form dropdown, per-form '% of Total', and 'All forms (combined)' all work off `hit_forms`.
+
+    Non-damage abilities (Empower buffs, locked Ultimates → supported=False) become **NYI hit forms** — they show
+    up in the form dropdown / breakdown as selectable, clearly-labelled forms with 0 DPS (excluded from % of
+    Total), carrying their reason. This surfaces them (never silently dropped) without polluting the DPS.
+
+    All of a minion's damage abilities read the SAME minion pools (crit/increased/additional/enemy — only their
+    base coefficient and firing-rate share differ), so the shared pipeline fields (crit, generic/type inc/add,
+    enemy multiplier, cast_multiplier=count) come from the primary (first) damage ability; the per-form rows
+    carry each ability's own base damage, rate, and DPS share."""
+    damage = [r for r in results if r.supported and r.hit_forms]
+    forms = [f for r in damage for f in r.hit_forms]
+    # Non-damage abilities → NYI forms (visible + selectable, 0 DPS, carry their reason).
+    for r in results:
+        if r.supported and r.hit_forms:
+            continue
+        forms.append(HitFormResult(
+            name=r.skill_name, effectiveness_pct=0.0, form_type="additive", proc_chance=0.0,
+            damage_by_type={}, avg_hit_pre_crit=0.0, avg_hit_with_crit=0.0,
+            dps_contribution=0.0, dps_vs_target=0.0, fires_per_sec=0.0,
+            nyi=list(r.nyi or []) or ["Not yet modelled."],
+        ))
+
+    # Shared damage-ability NYI notes (conversion / persistent / ailment) — kept on the combined result too.
+    nyi_notes: list[str] = []
+    for r in damage:
+        for n in (r.nyi or []):
+            if n not in nyi_notes:
+                nyi_notes.append(n)
+
+    if not damage:
+        return OffenseResult(skill_name=name, supported=False,
+                             effective_level=(results[0].effective_level if results else 0),
+                             hit_forms=forms, nyi=nyi_notes or ["Minion not yet modelled — no damage form."])
+
+    prim = damage[0]                                   # shared-pipeline representative (same pools on every form)
+    return replace(
+        prim,
+        skill_name=name,
+        hit_forms=forms,
+        total_dps=sum(r.total_dps for r in damage),
+        total_dps_vs_target=sum(r.total_dps_vs_target for r in damage),
+        skills_per_second=sum(f.fires_per_sec for f in forms),   # NYI forms are 0/s → = the shared attack rate
+        nyi=nyi_notes,
+    )
+
+
+def nyi_owner(name: str, abilities: list[dict], level: int) -> OffenseResult:
+    """A single NYI card for an unmodelled minion OWNER — lists its abilities so nothing is silently dropped."""
+    labels = ", ".join(ability_label(a) for a in abilities) or "(no abilities)"
+    return OffenseResult(
+        skill_name=name, supported=False, effective_level=level,
+        nyi=["Minion not yet modelled — its skill rotation / form combination / conversion must be specified "
+             f"explicitly before it contributes DPS. Abilities: {labels}"],
     )
