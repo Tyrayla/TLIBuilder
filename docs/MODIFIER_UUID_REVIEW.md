@@ -1,6 +1,10 @@
 # Modifier Identity (UUID v5) — builder-side review findings
 
-Status: **review notes, nothing implemented.** This is the tlibuilder-side response to the external
+Status: **SHIPPED 2026-07-07 — see the addendum at the bottom.** The review below is preserved
+as-written (it drove the final design); the scraper handoff that answered it is
+`tlidb-scraper/docs/BUILDER_HANDOFF_IDENTITY.md`.
+
+Original status: review notes, nothing implemented. This is the tlibuilder-side response to the external
 scraper's "Modifier Identity (UUID v5)" design spec (localization via stable modifier UUIDs replacing
 fragile English text-matching). The spec is directionally correct — UUIDs are the right fix for the
 localization problem — but several load-bearing premises are inaccurate against the live engine.
@@ -144,3 +148,44 @@ identity).
 | Gear import (full-replace) | `server.py:1649-1660`; `backend/tools/legendary_gear_importer.py` |
 | Reimport field carry-over precedent | `backend/tools/rebuild_skills.py` (`_PRESERVE_FIELDS`) |
 | Pooling model (framing this corrects) | `docs/ADDITIONAL_DAMAGE_POOLING.md` |
+
+---
+
+## SHIPPED — 2026-07-07 (modifier-identity migration, 5 commits on dev)
+
+The scraper resolved every concern above the right way: it mints
+`pooling_uuid = uuid5(4d8c3c25-940d-453e-be66-21a9d603aa0e, canonical_template(text))` where
+`canonical_template` is a byte-for-byte copy of `engine/affix_identity.py` — so the §2 tension
+dissolved (the template IS our identity; partition preserved by construction), and §1's invariant is
+enforced mechanically. What landed builder-side:
+
+1. **Gate first** (`tests/test_scraper_parity_gate.py`): template-join against the scraper's parity
+   export; partition + clause-layer equality; strict (zero misses) since the reimport.
+2. **Legacy retirement**: the PDF-snapshot path (`talent_snapshot.json`, `talent_parser`,
+   `snapshot_diff`, `snapshot_manager`, 6 endpoints) and the single-save path are DELETED;
+   `node_type_filter` rebuilds from crawler season trees (the §5 wording drift died with it — the
+   "(Max Divinity Effect: N)" suffix now stays in stored text, identity-bearing, with a structured
+   `max_divinity_effect: N` parsed at tree import).
+3. **Storage**: every imported catalog line stores slim `{text, uuid, pooling_uuid, modifier_id}`
+   (`engine/modifier_lines.py`; `slim_checked` degrades ids to null on any wording-changing
+   transform). Runtime consumers still see plain strings — unwrapped ONCE at the `season_manager`
+   load boundary (`raw=True` for import-merge/identity tooling; never save a normalized view back).
+   The §7 side-table became unnecessary: identity lives IN the records; reimports redeliver it
+   (`tools/reimport_season.py`, in-process, all entity types).
+4. **The key switch**: `engine/identity_index.py` (identity → uuid over stored season files,
+   mtime-fingerprint cached) attaches to the BuildSource; all five pool sites key by
+   `pool_identity(entry, index) = index.get(identity, identity)` — a pure function of the text, so
+   §5's two special cases hold by construction (suffix-minted support/core/node instance texts miss
+   the index and keep multiplying; `*_enhancement_additional` still pools by stat key). SourceEntry
+   also carries a stamped `pooling_uuid` (definition-level surfaces only) as metadata for the
+   breakdown UI / locale future.
+5. **Cross-checks for one season**: `tests/test_identity_crosscheck.py` (every stored uuid
+   recomputes from its text — DELETE AT SS13, after which the scraper's freeze store is the source
+   of truth) + the index-equivalence gate in `tests/test_pooling_partition.py` (fixture refrozen:
+   175 identities / 298 texts; the 3 §5-ruled rewordings plus 3 corpus-source deltas, all
+   scraper-confirmed).
+
+Still English-keyed (deliberately deferred to the localization pass): the condition matcher
+(`_COND_PATTERNS`, §4), `specific_rolls` keys (`affixIdentity.ts` — formatting-invariant, old
+builds' rolls survive), and stat-key resolution (`mod_parser`). Keying the pooling layer on uuids is
+the piece that had to move first; locale texts attach to the same uuids via `text_by_lang` later.

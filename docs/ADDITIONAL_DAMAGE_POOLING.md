@@ -80,6 +80,28 @@ pooling: 1.16/1.03/−0.20 vs 1.1664/1.026/0.16). Auditor: `tools/audit_affix_id
 STILL pooled by stat-key (FUTURE, marked in offense.py): attack-speed additional; damage-taken
 additional; `extra_additional` application; "(multiplies)" per-stack compounding.
 
+## 5c. Minted-identity key — SHIPPED (2026-07-07, modifier-identity migration)
+
+The pooling key is now the scraper-minted `pooling_uuid` where one exists:
+`pooling_uuid = uuid5(4d8c3c25-940d-453e-be66-21a9d603aa0e, affix_identity(text))`, minted by
+tlidb-scraper (its `canonical_template` is a byte-for-byte matched pair with
+`engine/affix_identity.py` — neither side may change alone; coordinated two-repo change + fixture
+refreeze + scraper seed migration required). Every imported catalog line stores a slim
+`{text, uuid, pooling_uuid, modifier_id}` (see `engine/modifier_lines.py`; plain-string runtime
+view unwrapped at the `season_manager` load boundary).
+
+At runtime `engine/identity_index.py` builds `affix_identity(text) → pooling_uuid` over the stored
+season files, and the pool sites key by `pool_identity(entry, index) = index.get(identity,
+identity)` — a PURE function of the text, so same-wording entries key identically regardless of
+emit path, and minted-suffix per-instance texts (supports `|id|role`, nodes `|tag|id`, cores
+`|core|<name>`) miss the index and keep multiplying. Provably partition-identical to
+`affix_identity` — gates: `tests/test_pooling_partition.py` (frozen partition + index-equivalence),
+`tests/test_scraper_parity_gate.py` (cross-repo, template-join), `tests/test_identity_crosscheck.py`
+(every stored uuid recomputes from its text; DELETE AT SS13 — after that the scraper's freeze store,
+not recomputation, is the source of truth). `affix_identity` remains the fallback for uuid-less
+lines (custom rolls, engine-minted texts) and the dev-time cross-check for one season; keying on
+the uuid is what lets CN/RU/KO texts attach to the same identities later.
+
 **Note on `(multiplies)`:** the keyword IS on 24+ real legendary affixes (e.g. Marksman Bracers
 `+X% additional damage dealt by Horizontal Projectiles after each Jump (multiplies)`), but **none
 resolve to a stat yet — all NYI** (no `stat_key`, so the renderer skips them and they contribute
