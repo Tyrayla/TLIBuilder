@@ -1028,11 +1028,13 @@ def engine_stats(req: EngineStatsRequest):
         inflict_cond_effects=_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects(),
         numbed_blocked=_numbed_inflict.blocked,
     )
+    from engine.identity_index import get_identity_index
     result = compute(
         build, season_trees, filter_data,
         skill_data=skill_data,
         skills_input=skills_input or None,
         skills_by_id=skills_by_id or None,
+        identity_index=get_identity_index(active_season) if active_season else None,
     )
     return {
         "stats": result.stat_map,

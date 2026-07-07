@@ -32,6 +32,12 @@ class SourceEntry:
     # for gear contributions. Lets offense scope a main-hand-only modifier to the weapon1 base share (see
     # BuildSource.main_hand_flat). None for non-weapon sources. Not read by compute.py's stat_map → output-neutral.
     weapon_slot:  str | None = None
+    # Minted language-independent pooling identity (engine/identity_index.py), stamped by the aggregator on
+    # DEFINITION-level contributions only (gear/character/spirit/memory/trait/custom). offense pools by
+    # `pooling_uuid or affix_identity(text)`. None on minted-suffix entries (supports/nodes/cores — their
+    # per-instance text distinctness is deliberate) and on lines with no catalog counterpart (custom rolls).
+    # Not read by compute.py's stat_map → output-neutral.
+    pooling_uuid: str | None = None
 
 
 @dataclass

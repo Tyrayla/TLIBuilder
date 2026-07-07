@@ -193,6 +193,64 @@ class TestAdditionalPooling:
         r = calculate_offense(s, _skill(tags=("attack", "sentry")), 1)
         assert r.type_add["physical"] == pytest.approx(0.40 * 0.40)
 
+
+class TestPoolingUuidKey:
+    """The minted-identity pooling key (engine/modifier_lines.pool_identity + identity_index).
+
+    With a source-attached index, the key is a pure function of the text: index.get(identity,
+    identity). Different wordings sharing one minted uuid (the localization case) ADD; suffix-minted
+    per-instance texts miss the index and keep multiplying; without an index a stamped entry's
+    pooling_uuid is honored and unstamped entries fall back to text identity."""
+
+    def _src(self, *entries, index=None):
+        s = _add_src(*[(stat, amount, text) for stat, amount, text, _pu in entries])
+        # restamp the per-entry uuids (helper builds text-only entries)
+        for e, (_s, _a, _t, pu) in zip(s.source_log, entries):
+            e.pooling_uuid = pu
+        s.identity_index = index
+        return s
+
+    def test_shared_uuid_across_wordings_adds(self):
+        # Two wordings joined to ONE minted identity by the index (how CN/RU text will join) → SUM.
+        from engine.affix_identity import affix_identity
+        idx = {affix_identity("+8 % additional Attack Damage"): "u-shared",
+               affix_identity("8% additional attack damage!"): "u-shared"}
+        s = self._src((_ATK, 0.08, "+8 % additional Attack Damage", None),
+                      (_ATK, 0.08, "8% additional attack damage!", None), index=idx)
+        r = calculate_offense(s, _skill(tags=("attack",)), 1)
+        assert r.type_add["physical"] == pytest.approx(1.16)
+
+    def test_index_misses_keep_per_instance_identity(self):
+        # Suffix-minted support-instance texts never hit the index → still their own ×(1+x) factors.
+        from engine.affix_identity import affix_identity
+        idx = {affix_identity("+8 % additional Attack Damage"): "u-cat"}
+        s = self._src((_ATK, 0.08, "+8 % additional damage for the supported skill |web|universal", None),
+                      (_ATK, 0.08, "+8 % additional damage for the supported skill |merge|universal", None),
+                      index=idx)
+        r = calculate_offense(s, _skill(tags=("attack",)), 1)
+        assert r.type_add["physical"] == pytest.approx(1.08 * 1.08)
+
+    def test_same_wording_keys_identically_with_index(self):
+        # Consistency: same wording always one key through the index, whether or not a catalog entry
+        # exists for it (both hit or both miss) — no stamped/unstamped split is possible.
+        from engine.affix_identity import affix_identity
+        idx = {affix_identity(_SENT_POS): "u-sent"}
+        s = self._src((_SENT, 0.08, _SENT_POS, "u-sent"), (_SENT, 0.05, _SENT_POS, None), index=idx)
+        r = calculate_offense(s, _skill(tags=("attack", "sentry")), 1)
+        assert r.type_add["physical"] == pytest.approx(1.13)
+
+    def test_no_index_stamped_uuid_wins_none_falls_back(self):
+        # Legacy/no-index regime: distinct stamped uuids on identical texts multiply; unstamped
+        # entries pool by text identity (the pre-migration behavior).
+        s = self._src((_ATK, 0.08, "+8 % additional Attack Damage", "u-1"),
+                      (_ATK, 0.08, "+8 % additional Attack Damage", "u-2"))
+        r = calculate_offense(s, _skill(tags=("attack",)), 1)
+        assert r.type_add["physical"] == pytest.approx(1.08 * 1.08)
+        s2 = self._src((_ATK, 0.08, "+8 % additional Attack Damage", None),
+                       (_ATK, 0.08, "+8 % additional Attack Damage", None))
+        r2 = calculate_offense(s2, _skill(tags=("attack",)), 1)
+        assert r2.type_add["physical"] == pytest.approx(1.16)
+
     def test_tag_scoping_fire_only(self):  # ★ fire factor must not touch physical
         s = _add_src((_FIRE, 0.50, _FIRE_TXT), types=("physical", "fire"))
         r = calculate_offense(s, _skill(tags=("attack",)), 1)

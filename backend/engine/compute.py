@@ -336,12 +336,15 @@ def compute(
     skill_data: dict | None = None,
     skills_input: list[dict] | None = None,
     skills_by_id: dict[str, dict] | None = None,
+    identity_index: dict[str, str] | None = None,
 ) -> StatResult:
     """
     Run the fixed-point aggregation loop and return a StatResult.
 
-    season_trees: {tree_slug: season_tree_dict}
-    filter_data:  loaded node_type_filter.json dict
+    season_trees:   {tree_slug: season_tree_dict}
+    filter_data:    loaded node_type_filter.json dict
+    identity_index: affix_identity(text) → minted pooling_uuid (engine/identity_index.py); None →
+                    contributions pool by text identity (tests/legacy callers, same partition)
     """
     from engine.aggregator import aggregate
     from engine.models import SourceEntry
@@ -600,6 +603,7 @@ def compute(
             filter_data,
             active_booleans=active_booleans,
             numeric_vals=numeric_vals,
+            identity_index=identity_index,
         )
         source.target_config = build_input.target_config   # editable dummy stats → offense mitigation
 

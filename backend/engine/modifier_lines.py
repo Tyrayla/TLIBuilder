@@ -68,6 +68,26 @@ def slim(x, text: str | None = None) -> dict:
     }
 
 
+def pool_identity(entry, index: dict[str, str] | None = None) -> str:
+    """Per-affix pooling key for a SourceEntry.
+
+    With the season identity `index` (engine/identity_index.py, attached to the BuildSource by the
+    aggregator): a PURE function of the entry's text — `index.get(affix_identity(text), identity)` —
+    so every same-wording entry keys identically no matter which emit path produced it (a per-entry
+    stamp alone could split a stamped gear line from an identical unstamped engine-emitted buff line
+    into a wrongful MULTIPLY). Minted-suffix texts (supports `|id|role`, nodes `|tag|id`, cores
+    `|core|<name>`) miss the index and keep their per-instance identity — they still multiply.
+
+    Without an index (tests/legacy callers): the entry's stamped pooling_uuid if any, else the text
+    identity. Same partition either way — proven by tests/test_pooling_partition.py."""
+    from engine.affix_identity import affix_identity  # deferred: avoid import cycles
+
+    ident = affix_identity(getattr(entry, "text", "") or "")
+    if index:
+        return index.get(ident, ident)
+    return getattr(entry, "pooling_uuid", None) or ident
+
+
 def slim_checked(x, text: str) -> dict:
     """`slim(x, text)`, but the ids carry ONLY if the transformed text still recomputes to the line's
     minted pooling_uuid — i.e. the transform was provably value-only under affix_identity. Use for any

@@ -20,6 +20,7 @@ from dataclasses import replace
 
 from engine.models import BuildSource, SourceEntry
 from engine.affix_identity import affix_identity
+from engine.modifier_lines import pool_identity
 from engine.skill_resolver import _parse_cast_time
 from engine.constants import DAMAGE_TYPES as _DAMAGE_TYPES, ELEMENTAL as _ELEMENTAL
 from engine.offense import (
@@ -339,7 +340,7 @@ def _minion_additional(source: BuildSource, dtype_tag: frozenset, generic_only: 
             continue
         if not generic_only and not _applies(tags, dtype_tag):
             continue
-        ident = (e.stat, affix_identity(e.text or ""))
+        ident = (e.stat, pool_identity(e, getattr(source, "identity_index", None)))
         if e.amount < 0:
             neg[ident].append(e.amount)
         else:
@@ -371,7 +372,7 @@ def _speed_add_product(source: BuildSource, key: str) -> float:
         return 1.0 + source.total(key)
     pos: dict[str, float] = defaultdict(float)
     for e in entries:
-        pos[affix_identity(e.text or "")] += e.amount
+        pos[pool_identity(e, getattr(source, "identity_index", None))] += e.amount
     p = 1.0
     for amt in pos.values():
         p *= (1.0 + amt)

@@ -8,6 +8,7 @@ from engine import uptime
 from engine.models import BuildSource
 from engine.consumption import floored_consumed
 from engine.affix_identity import affix_identity
+from engine.modifier_lines import pool_identity
 from engine.skill_resolver import ResolvedSkill
 from engine.tick import TICK_RATE, cap_rate, period_ticks, rate_from_ticks
 from engine.constants import DAMAGE_TYPES as _DAMAGE_TYPES, ELEMENTAL
@@ -209,6 +210,7 @@ def _build_additional_factors(source: BuildSource) -> list[tuple[float, frozense
     pos: dict[tuple[str, str], float] = defaultdict(float)
     neg: dict[tuple[str, str], list[float]] = defaultdict(list)
     tracked: dict[str, float] = defaultdict(float)
+    _idx = getattr(source, "identity_index", None)
 
     for e in source.source_log:
         if e.stat not in _HIT_ADDITIONAL_KEYS:
@@ -217,7 +219,7 @@ def _build_additional_factors(source: BuildSource) -> list[tuple[float, frozense
         # single additional factor (Help DB) rather than each being its own ×(1+x) factor — so pool them by
         # stat-key alone (shared identity), not by text, so two sources sum (50%+50% → +100%) instead of
         # multiplying. Regular additional mods keep their per-text identity (distinct sources multiply).
-        ident = (e.stat, "" if e.stat.endswith("_enhancement_additional") else affix_identity(e.text or ""))
+        ident = (e.stat, "" if e.stat.endswith("_enhancement_additional") else pool_identity(e, _idx))
         if e.amount < 0:
             neg[ident].append(e.amount)
         else:
@@ -280,13 +282,14 @@ def _speed_additional_product(source: BuildSource, keys, skill_tags_lower: set[s
     keyset = set(tags_for)
     pos: dict[tuple[str, str], float] = defaultdict(float)
     tracked: dict[str, float] = defaultdict(float)
+    _idx = getattr(source, "identity_index", None)
     for e in source.source_log:
         if e.stat not in keyset:
             continue
         tags = tags_for[e.stat]
         if tags and not (tags & skill_tags_lower):
             continue
-        pos[(e.stat, affix_identity(e.text or ""))] += e.amount
+        pos[(e.stat, pool_identity(e, _idx))] += e.amount
         tracked[e.stat] += e.amount
     p = 1.0
     for amt in pos.values():
@@ -314,8 +317,9 @@ def additional_total_product(source: BuildSource, key: str) -> float:
     if not entries:
         return 1.0 + source.total(key)
     pos: dict[str, float] = defaultdict(float)
+    _idx = getattr(source, "identity_index", None)
     for e in entries:
-        pos[affix_identity(e.text or "")] += e.amount
+        pos[pool_identity(e, _idx)] += e.amount
     p = 1.0
     for amt in pos.values():
         p *= (1.0 + amt)

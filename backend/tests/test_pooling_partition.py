@@ -162,6 +162,21 @@ def test_parity_primitive_reproduces_the_fixture_partition():
     assert induced_partition(affix_identity, corpus) == frozen_grouping
 
 
+def test_identity_index_induces_the_same_partition():
+    """THE index-equivalence gate for the runtime key switch: keying by
+    `identity_index.get(affix_identity(t), affix_identity(t))` — exactly what engine/modifier_lines.
+    pool_identity does with the source-attached index — induces byte-identically the partition
+    affix_identity induces. Holds for index misses too (suffix-minted texts, custom rolls) by the
+    same-fallback argument: same identity → both hit or both miss → same key either way."""
+    from engine.identity_index import build_identity_index
+
+    idx = build_identity_index(_SEASON)
+    assert idx, "empty identity index — season data missing pooling_uuids?"
+    corpus = collect_additional_damage_texts(_SEASON)
+    assert induced_partition(lambda t: idx.get(affix_identity(t), affix_identity(t)), corpus) == \
+        induced_partition(affix_identity, corpus)
+
+
 # ── Intent anchors (data-independent — document the two invariants a new key MUST preserve) ─────────
 def test_anchor_tier_and_format_variants_share_identity():
     """Same affix at different rolls/formatting → ONE identity → they ADD. (Gravel + Sun-shooter case.)"""

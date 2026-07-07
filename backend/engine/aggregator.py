@@ -1,6 +1,7 @@
 from __future__ import annotations
 import math
 import re
+from engine.affix_identity import affix_identity
 from engine.models import BuildInput, BuildSource, SourceEntry
 
 
@@ -270,7 +271,8 @@ def _extract_cond_keys(expr, out: set) -> None:
         out.add(expr["key"])
 
 
-def _apply_effect_contribs(source, contribs, source_type, label, active_booleans, numeric_vals):
+def _apply_effect_contribs(source, contribs, source_type, label, active_booleans, numeric_vals,
+                           stamp=None):
     """Apply pre-resolved pact-spirit / hero-memory contributions (server._resolve_effect_modifiers).
     Gates on the optional translated `condition` exactly like the gear-contribution loop: boolean → on/off,
     'per'/float → scale the amount (capped if the expr carries a cap). Scoped contributions route to
@@ -294,7 +296,8 @@ def _apply_effect_contribs(source, contribs, source_type, label, active_booleans
                 continue
         entry = SourceEntry(stat=stat, amount=amount, source_type=source_type, label=label,
                             text=contrib.get("text", ""), points=1,
-                            source_name=contrib.get("source"))
+                            source_name=contrib.get("source"),
+                            pooling_uuid=stamp(contrib.get("text")) if stamp else None)
         # slot-local contributions (e.g. Licorice Note's per-scent-bottle Elixir Effect) route to add_slotted;
         # default None → unchanged global/scoped behavior for every existing trait/spirit/memory contribution.
         _emit(source, stat, amount, contrib.get("scope"), entry, slot=contrib.get("slot"))
@@ -306,6 +309,7 @@ def aggregate(
     filter_data: dict,
     active_booleans: frozenset[str] | None = None,
     numeric_vals: dict[str, float] | None = None,
+    identity_index: dict[str, str] | None = None,
 ) -> BuildSource:
     """
     Collect all stat contributions from talent nodes and slates into a BuildSource.
@@ -315,8 +319,25 @@ def aggregate(
     active_booleans: derived from build.condition_state by the fixed-point engine; if None,
                      derived here for backward-compat single-call usage
     numeric_vals:    numeric condition values (clamped) for scaling/threshold evaluation
+    identity_index:  affix_identity(text) → minted pooling_uuid (engine/identity_index.py); None
+                     (tests/legacy) → entries stay uuid-less and pool by text identity as before
     """
     source = BuildSource()
+    # Attach the index for offense's pool_identity — the pooling key is a PURE function of each
+    # entry's text through this index, so same-wording entries key identically regardless of which
+    # emit path produced them (see engine/modifier_lines.pool_identity).
+    source.identity_index = identity_index
+
+    # Stamp a DEFINITION-level contribution's minted pooling identity. Applied ONLY to the gear /
+    # character / spirit / memory / trait / custom loops below — NEVER to supports, core talents, or
+    # node/slate contributions: those carry deliberately-unique minted-suffix texts (`|item_id|role`,
+    # `|core|<name>`, `|tag|node_id`) so per-instance copies MULTIPLY; a definition-level uuid would
+    # collapse them into ADD (a DPS regression). Suffixed texts can't hit the index anyway (it holds
+    # only catalog lines), but the rule is enforced here, not left to that accident.
+    def _stamp(text) -> str | None:
+        if not identity_index or not text:
+            return None
+        return identity_index.get(affix_identity(text))
 
     if active_booleans is None:
         active_booleans = frozenset(
@@ -368,6 +389,7 @@ def aggregate(
             points=1,
             # Preserve weapon identity so offense can scope a main-hand-only modifier to the weapon1 base.
             weapon_slot=_gslot if _gslot in ("weapon1", "weapon2") else None,
+            pooling_uuid=_stamp(contrib.get("text") or contrib.get("item_name", "")),
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)
 
@@ -384,6 +406,7 @@ def aggregate(
             label=f"Character · {contrib.get('label', '')}",
             text=contrib.get("text", ""),
             points=1,
+            pooling_uuid=_stamp(contrib.get("text")),
         )
         source.add_with_source(stat, amount, entry)
 
@@ -391,13 +414,13 @@ def aggregate(
     # Resolved by server._resolve_effect_modifiers (the unified pool-strict path; replaces the old
     # _MEMORY_STAT_LOOKUP). Spirit→memory order preserved (multiplicative-pool order); conditional effects
     # gated in _apply_effect_contribs.
-    _apply_effect_contribs(source, build.spirit_contributions, "pact_spirit", "Pact Spirit", active_booleans, numeric_vals)
-    _apply_effect_contribs(source, build.memory_contributions, "hero_memory", "Hero Memory", active_booleans, numeric_vals)
+    _apply_effect_contribs(source, build.spirit_contributions, "pact_spirit", "Pact Spirit", active_booleans, numeric_vals, stamp=_stamp)
+    _apply_effect_contribs(source, build.memory_contributions, "hero_memory", "Hero Memory", active_booleans, numeric_vals, stamp=_stamp)
     # Hero-trait contributions: for a bespoke trait these are recomputed each pass by its hero_traits module
     # (loop-top) so MS↔Numbed coupling converges; folded here BEFORE the Numbed block so additional Numbed
     # Effect is in source when numbed_lightning_taken is computed.
     _apply_effect_contribs(source, getattr(build, "trait_contributions", None) or [],
-                           "hero_trait", "Hero Trait", active_booleans, numeric_vals)
+                           "hero_trait", "Hero Trait", active_booleans, numeric_vals, stamp=_stamp)
 
     # ── Custom mod contributions ──────────────────────────────────────────────
     for contrib in build.custom_contributions:
@@ -424,6 +447,7 @@ def aggregate(
             label="Custom Config",
             text=contrib.get("text", ""),
             points=1,
+            pooling_uuid=_stamp(contrib.get("text")),
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)
 

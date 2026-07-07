@@ -23,30 +23,12 @@ import uuid
 import pytest
 
 from engine.affix_identity import affix_identity
+from engine.identity_index import iter_identity_lines as _iter_identity_lines
 from engine.modifier_lines import NAMESPACE
 
 _SEASON = "SS12"
 _SEASON_DIR = os.path.normpath(os.path.join(
     os.path.dirname(__file__), "..", "..", "data", "seasons", _SEASON))
-
-# First present wins: effect_raw (belt blends — effect_text is a derived wording), raw_text
-# (parse_affix_text output), text (slim lines), modifier (hero-memory rows).
-_TEXT_KEYS = ("effect_raw", "raw_text", "text", "modifier")
-
-
-def _iter_identity_lines(obj, path=""):
-    if isinstance(obj, dict):
-        pu = obj.get("pooling_uuid")
-        if pu:
-            for k in _TEXT_KEYS:
-                if isinstance(obj.get(k), str):
-                    yield path, obj[k], pu
-                    break
-        for key, val in obj.items():
-            yield from _iter_identity_lines(val, f"{path}/{key}")
-    elif isinstance(obj, list):
-        for i, val in enumerate(obj):
-            yield from _iter_identity_lines(val, f"{path}[{i}]")
 
 
 def test_every_stored_pooling_uuid_recomputes_from_its_text():
