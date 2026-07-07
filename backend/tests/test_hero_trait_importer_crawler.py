@@ -1,4 +1,5 @@
 import pytest
+from engine.modifier_lines import line_text
 from tools.hero_trait_importer import import_crawler_hero_trait, import_crawler_hero_traits
 
 _ANGER = {
@@ -82,8 +83,9 @@ def test_levels_count():
 
 
 def test_level_effects_stored():
+    # Effects are stored as slim modifier-line dicts ({text, uuid, pooling_uuid, modifier_id}).
     r = import_crawler_hero_trait(_ANGER)
-    assert r["levels"][0]["effects"] == ["0.22 % additional damage per 1 Rage"]
+    assert [line_text(e) for e in r["levels"][0]["effects"]] == ["0.22 % additional damage per 1 Rage"]
     assert r["levels"][0]["unlock_level"] == 1
 
 
@@ -91,14 +93,14 @@ def test_artificial_moon_extracted():
     r = import_crawler_hero_trait(_ANGER)
     am = r["artificial_moon"]
     assert len(am["effects"]) == 1
-    assert "Artificial Moon" in am["effects"][0]
-    assert "+1.5 % Burst Speed" in am["effects"][0]
+    assert "Artificial Moon" in line_text(am["effects"][0])
+    assert "+1.5 % Burst Speed" in line_text(am["effects"][0])
 
 
 def test_artificial_moon_removed_from_level():
     r = import_crawler_hero_trait(_ANGER)
     # Level 5 description should have AM stripped
-    assert "Artificial Moon" not in r["levels"][4]["effects"][0]
+    assert "Artificial Moon" not in line_text(r["levels"][4]["effects"][0])
 
 
 def test_advanced_traits_count():
@@ -165,7 +167,7 @@ def test_leveled_advanced_node_effects_collapsed_to_tier_syntax():
     # Per-level descriptions collapse to ONE line with (a/b/...) tier syntax (the differing token only).
     r = import_crawler_hero_trait(_LEVELED_ADV)
     punches = next(t for t in r["advanced_traits"] if t["name"] == "Cat's Punches")
-    assert punches["effects"] == ["punch (L1/L2)"]
+    assert [line_text(e) for e in punches["effects"]] == ["punch (L1/L2)"]
     assert punches["unlock_level"] == 75
 
 

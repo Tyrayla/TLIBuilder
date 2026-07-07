@@ -102,6 +102,8 @@ def merge_hero_traits(existing: list[dict], incoming: dict) -> list[dict]:
 import re as _re
 from collections import Counter as _Counter
 
+from engine.modifier_lines import line_text, slim, slim_checked
+
 _HERO_RE = _re.compile(r"HeroTraits/([^/]+)/")
 _AM_RE = _re.compile(r"Artificial Moon:\s*.+", _re.I)
 
@@ -211,18 +213,23 @@ def import_crawler_hero_trait(data: dict) -> dict:
     hero_m = _HERO_RE.search(icon_url)
     hero = hero_m.group(1) if hero_m else ""
 
-    # Build levels; extract Artificial Moon text when found
-    am_effects: list[str] = []
+    # Build levels; extract Artificial Moon text when found. Stored effects are slim modifier-line
+    # dicts; the AM split CHANGES the wording, so both halves become uuid-less lines (carry rule).
+    am_effects: list[dict] = []
     levels: list[dict] = []
     for lv in (base.get("levels") or []):
-        desc = lv.get("description", "")
+        raw_desc = lv.get("description", "")
+        desc = line_text(raw_desc)
         am_m = _AM_RE.search(desc)
         if am_m and not am_effects:
-            am_effects = [am_m.group(0)]
+            am_effects = [slim(am_m.group(0))]
             desc = desc[: am_m.start()].rstrip()
+            effect = slim(desc) if desc else None            # truncated wording → uuid-less
+        else:
+            effect = slim(raw_desc) if desc else None        # unsplit line → ids carry
         levels.append({
             "level": lv.get("level", 0),
-            "effects": [desc] if desc else [],
+            "effects": [effect] if effect else [],
             "unlock_level": 1,
         })
 
@@ -230,11 +237,18 @@ def import_crawler_hero_trait(data: dict) -> dict:
     # `description` is null); others use `description`. Per-level descriptions are COLLAPSED into a single line
     # using the `(a/b/c/d/e)` tier syntax the resolvers already understand (resolveLevel in the UI,
     # _expandTraitTier in the engine), so the tooltip/engine pick the selected rank instead of listing all tiers.
-    def _adv_effects(t: dict) -> list[str]:
+    def _adv_effects(t: dict) -> list[dict]:
         lv = t.get("levels")
         if lv:
-            return _collapse_tiers([e.get("description", "") for e in lv if e.get("description")])
-        return [t["description"]] if t.get("description") else []
+            lines = [e.get("description") for e in lv if line_text(e.get("description")).strip()]
+            collapsed = _collapse_tiers([line_text(d) for d in lines])
+            if not collapsed:
+                return []
+            # Tier collapse is value-only when tiers differ only in numbers → ids carry from the first
+            # tier line; slim_checked degrades to uuid-less if the tiers differed in wording.
+            return [slim_checked(lines[0], collapsed[0])]
+        d = t.get("description")
+        return [slim(d)] if line_text(d).strip() else []
 
     # Count nodes per unlock level (drives is_pick_one_from_two + the derived grouping).
     level_counts = _Counter(t.get("required_level", 0) for t in advanced_raw)
@@ -262,6 +276,7 @@ def import_crawler_hero_trait(data: dict) -> dict:
     return {
         "trait_id": trait_id,
         "hero": hero,
+        "uuid": data.get("uuid"),
         "variant_name": name,
         "description": "",
         "icon_url": icon_url,   # base-trait icon; UI pairs on its basename to a bundled hero_trait webp

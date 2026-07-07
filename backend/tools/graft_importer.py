@@ -1,4 +1,5 @@
 import re
+from engine.modifier_lines import line_text, line_pooling_uuid
 from tools.legendary_gear_importer import parse_affix_text
 
 
@@ -8,8 +9,10 @@ def _parse_affix_list(raw: list[dict], tier_key: str = "tier", modifier_key: str
                       default_affix_type: str = "") -> list[dict]:
     result = []
     for a in raw:
-        text = a.get(modifier_key, "")
-        parsed = parse_affix_text(text, None)
+        line = a.get(modifier_key, "")           # ModifierLine dict (legacy: plain string)
+        parsed = parse_affix_text(line_text(line), line.get("modifier_id") if isinstance(line, dict) else None)
+        parsed["uuid"] = line.get("uuid") if isinstance(line, dict) else None
+        parsed["pooling_uuid"] = line_pooling_uuid(line)
         try:
             parsed["level"] = int(a.get(level_key, 0) or 0)
         except (ValueError, TypeError):
@@ -47,6 +50,7 @@ def import_crawler_graft(data: dict) -> dict:
     return {
         "item_id": item_id,
         "name": name,
+        "uuid": data.get("uuid"),
         "legendary_items": legendary_items,
         "base_affixes": base_affixes,
         "affixes": affixes,

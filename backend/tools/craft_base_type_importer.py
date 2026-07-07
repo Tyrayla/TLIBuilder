@@ -1,7 +1,16 @@
 import re
+from engine.modifier_lines import line_text, line_pooling_uuid, slim
 from tools.legendary_gear_importer import parse_affix_text
 
 _PAREN_HASH_RE = re.compile(r'\(#\)')
+
+
+def _parse_affix_line(line) -> dict:
+    """parse_affix_text over a ModifierLine dict (legacy: plain string), carrying the minted ids."""
+    parsed = parse_affix_text(line_text(line), line.get("modifier_id") if isinstance(line, dict) else None)
+    parsed["uuid"] = line.get("uuid") if isinstance(line, dict) else None
+    parsed["pooling_uuid"] = line_pooling_uuid(line)
+    return parsed
 
 # Maps craft_affixes / craft_suffix_affixes Library names (the affix quality) to the affix_type stored in
 # the DB. Same Library names appear in both tables; the prefix/suffix distinction comes from which table.
@@ -47,8 +56,7 @@ def import_crawler_craft_base_type(data: dict) -> dict:
         atype = a.get("Type", "")
         if atype not in _BASE_TYPES:
             continue
-        text = a.get("Affix Effect", "")
-        parsed = parse_affix_text(text, None)
+        parsed = _parse_affix_line(a.get("Affix Effect", ""))
         parsed["source"] = a.get("Source", "")
         parsed["affix_type"] = atype
         parsed["tier"] = "0"
@@ -60,9 +68,8 @@ def import_crawler_craft_base_type(data: dict) -> dict:
         affix_type = _LIBRARY_TO_TYPE.get(library)
         if not affix_type:
             continue
-        text = a.get("Modifier", "")
         tier = str(a.get("Tier", "0"))
-        parsed = parse_affix_text(text, None)
+        parsed = _parse_affix_line(a.get("Modifier", ""))
         # Normalize expression: fixed-value tiers produce "+#" while range tiers produce "+(#)".
         # Strip the parens so all tiers of the same modifier share one expression key.
         parsed["expression"] = _PAREN_HASH_RE.sub('#', parsed["expression"])
@@ -77,7 +84,7 @@ def import_crawler_craft_base_type(data: dict) -> dict:
         affix_type = _LIBRARY_TO_SUFFIX_TYPE.get(a.get("Library", ""))
         if not affix_type:
             continue
-        parsed = parse_affix_text(a.get("Modifier", ""), None)
+        parsed = _parse_affix_line(a.get("Modifier", ""))
         parsed["expression"] = _PAREN_HASH_RE.sub('#', parsed["expression"])
         parsed["source"] = name
         parsed["affix_type"] = affix_type
@@ -91,8 +98,7 @@ def import_crawler_craft_base_type(data: dict) -> dict:
             atype = a.get("Type", "")
             if atype not in _SUFFIX_TYPES:
                 continue
-            text = a.get("Affix Effect", "")
-            parsed = parse_affix_text(text, None)
+            parsed = _parse_affix_line(a.get("Affix Effect", ""))
             parsed["source"] = a.get("Source", "")
             parsed["affix_type"] = atype
             parsed["tier"] = "0"
@@ -101,16 +107,9 @@ def import_crawler_craft_base_type(data: dict) -> dict:
     raw_base_items = data.get("base_items", [])
     base_items = []
     for bi in raw_base_items:
-        raw_implicits = bi.get("implicits") or []
-        # Handle both string[] and {modifier_id, text}[] formats from crawler
-        implicits = []
-        for imp in raw_implicits:
-            if isinstance(imp, dict):
-                text = imp.get("text", "")
-            else:
-                text = str(imp)
-            if text:
-                implicits.append(text)
+        # Implicits stored as slim modifier-line dicts (crawler emits ModifierLine dicts; older
+        # outputs had string[] / {modifier_id, text}[] — all coerce through slim()).
+        implicits = [slim(imp) for imp in (bi.get("implicits") or []) if line_text(imp)]
         base_items.append({
             "name": bi.get("name", ""),
             "required_level": bi.get("required_level", 0),
@@ -120,15 +119,17 @@ def import_crawler_craft_base_type(data: dict) -> dict:
 
     corrosion_base_affixes = []
     for a in (data.get("corrosion_base") or []):
-        text = a.get("Modifier", "").strip()
+        line = a.get("Modifier", "")
+        text = line_text(line).strip()
         if text:
-            parsed = parse_affix_text(text, None)
+            parsed = _parse_affix_line(line)
             parsed["modifier_text"] = text
             corrosion_base_affixes.append(parsed)
 
     return {
         "item_id": item_id,
         "name": name,
+        "uuid": data.get("uuid"),
         "affixes": affixes,
         "base_items": base_items,
         "corrosion_base_affixes": corrosion_base_affixes,

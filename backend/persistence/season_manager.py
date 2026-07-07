@@ -2,8 +2,59 @@ import json
 import os
 import shutil
 
+from engine.modifier_lines import line_texts
+
 _DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
+
+
+# ── Runtime line normalization ────────────────────────────────────────────────
+# Stored season files keep modifier lines as slim {text, uuid, pooling_uuid, modifier_id} dicts
+# (see engine/modifier_lines.py). The RUNTIME view unwraps them to plain strings at this load
+# boundary, so every engine/renderer consumer keeps operating on strings. Identity-aware callers
+# (import-merge endpoints, the identity index, cross-check tests) pass raw=True to read the stored
+# shape — NEVER save a normalized view back (that would silently strip the minted identities).
+
+def _normalize_tree_lines(data: dict) -> dict:
+    for n in data.get("nodes") or []:
+        if "effects" in n:
+            n["effects"] = line_texts(n.get("effects"))
+    for c in data.get("core_talents") or []:
+        if "effects" in c:
+            c["effects"] = line_texts(c.get("effects"))
+    return data
+
+
+def _normalize_skill_lines(sk: dict) -> dict:
+    for k in ("description_lines", "simple_description", "detailed_description"):
+        if k in sk:
+            sk[k] = line_texts(sk.get(k))
+    for child in sk.get("minion_skills") or []:
+        _normalize_skill_lines(child)
+    return sk
+
+
+def _normalize_trait_lines(t: dict) -> dict:
+    for lv in t.get("levels") or []:
+        if "effects" in lv:
+            lv["effects"] = line_texts(lv.get("effects"))
+    am = t.get("artificial_moon")
+    if isinstance(am, dict) and "effects" in am:
+        am["effects"] = line_texts(am.get("effects"))
+    for at in t.get("advanced_traits") or []:
+        if "effects" in at:
+            at["effects"] = line_texts(at.get("effects"))
+    return t
+
+
+def _normalize_spirit_lines(sp: dict) -> dict:
+    for s in sp.get("slots") or []:
+        if "effect" in s:
+            s["effect"] = line_texts(s.get("effect"))
+    for r in sp.get("upgrade_ranks") or []:
+        if isinstance(r, dict) and "modifiers" in r:
+            r["modifiers"] = line_texts(r.get("modifiers"))
+    return sp
 _SEASONS_DIR = os.path.normpath(os.path.join(_DATA_ROOT, 'seasons'))
 _ACTIVE_FILE = os.path.join(_SEASONS_DIR, ".active")
 
@@ -40,7 +91,7 @@ def _season_dir(season: str) -> str:
     return os.path.join(_SEASONS_DIR, season)
 
 
-def load_all_season_trees(season: str) -> dict[str, dict]:
+def load_all_season_trees(season: str, raw: bool = False) -> dict[str, dict]:
     """Return {slug: tree_data} for all tree files in the season (excludes _ prefixed files)."""
     d = _season_dir(season)
     result: dict[str, dict] = {}
@@ -49,7 +100,7 @@ def load_all_season_trees(season: str) -> dict[str, dict]:
     for fname in os.listdir(d):
         if fname.endswith(".json") and not fname.startswith("_"):
             slug = fname[:-5]
-            tree_data = load_season_tree(season, slug)
+            tree_data = load_season_tree(season, slug, raw=raw)
             if tree_data:
                 result[slug] = tree_data
     return result
@@ -61,15 +112,21 @@ def load_all_season_trees(season: str) -> dict[str, dict]:
 _season_trees_cache: dict[tuple[str, str], dict] = {}
 
 
-def load_season_tree(season: str, tree_slug: str) -> dict | None:
+def load_season_tree(season: str, tree_slug: str, raw: bool = False) -> dict | None:
+    path = os.path.join(_season_dir(season), f"{tree_slug}.json")
+    if raw:
+        # Raw stored shape (slim modifier-line dicts intact) — fresh read, never cached.
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
     cached = _season_trees_cache.get((season, tree_slug))
     if cached is not None:
         return cached
-    path = os.path.join(_season_dir(season), f"{tree_slug}.json")
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+        data = _normalize_tree_lines(json.load(f))
     _season_trees_cache[(season, tree_slug)] = data
     return data
 
@@ -145,12 +202,16 @@ def save_skills(season: str, data: dict) -> None:
         json.dump(data, f, indent=2)
 
 
-def load_skills(season: str) -> dict | None:
+def load_skills(season: str, raw: bool = False) -> dict | None:
     path = os.path.join(_season_dir(season), "_skills.json")
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    if not raw:
+        for sk in data.get("skills") or []:
+            _normalize_skill_lines(sk)
+    return data
 
 
 def delete_skills(season: str) -> None:
@@ -167,12 +228,16 @@ def save_hero_traits(season: str, data: dict) -> None:
         json.dump(data, f, indent=2)
 
 
-def load_hero_traits(season: str) -> dict | None:
+def load_hero_traits(season: str, raw: bool = False) -> dict | None:
     path = os.path.join(_season_dir(season), "_hero_traits.json")
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    if not raw:
+        for t in data.get("traits") or []:
+            _normalize_trait_lines(t)
+    return data
 
 
 def delete_hero_traits(season: str) -> None:
@@ -188,12 +253,16 @@ def save_pact_spirits(season: str, data: dict) -> None:
         json.dump(data, f, indent=2)
 
 
-def load_pact_spirits(season: str) -> dict | None:
+def load_pact_spirits(season: str, raw: bool = False) -> dict | None:
     path = os.path.join(_season_dir(season), "_pact_spirits.json")
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    if not raw:
+        for sp in data.get("spirits") or data.get("items") or []:
+            _normalize_spirit_lines(sp)
+    return data
 
 
 def delete_pact_spirits(season: str) -> None:
@@ -233,12 +302,18 @@ def save_craft_base_items(season: str, data: dict) -> None:
         json.dump(data, f, indent=2)
 
 
-def load_craft_base_items(season: str) -> dict | None:
+def load_craft_base_items(season: str, raw: bool = False) -> dict | None:
     path = os.path.join(_season_dir(season), "_craft_base_items.json")
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    if not raw:
+        for group in data.get("base_types") or data.get("items") or []:
+            for bi in group.get("base_items") or []:
+                if "implicits" in bi:
+                    bi["implicits"] = line_texts(bi.get("implicits"))
+    return data
 
 
 def save_grafts(season: str, data: dict) -> None:

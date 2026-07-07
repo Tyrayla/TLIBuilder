@@ -1589,8 +1589,9 @@ def import_skills(req: ImportSkillsRequest):
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Load existing skills for this season and merge
-    existing_data = season_manager.load_skills(req.season_name) or {"skills": []}
+    # Load existing skills for this season and merge — RAW: preserved entries must keep their stored
+    # slim modifier-line dicts (a normalized view saved back would strip the minted identities).
+    existing_data = season_manager.load_skills(req.season_name, raw=True) or {"skills": []}
     merged = merge_skills(existing_data.get("skills", []), incoming)
 
     stored = {
@@ -1664,7 +1665,7 @@ def import_crawler_hero_traits_endpoint(req: ImportCrawlerHeroTraitsRequest):
     if not req.season_name.strip():
         raise HTTPException(400, "season_name must not be empty")
     items = import_crawler_hero_traits(req.items)
-    existing = season_manager.load_hero_traits(req.season_name) or {"traits": []}
+    existing = season_manager.load_hero_traits(req.season_name, raw=True) or {"traits": []}
     merged: list[dict] = existing.get("traits", [])
     for item in items:
         merged = merge_hero_traits(merged, item)
@@ -1690,7 +1691,7 @@ def import_hero_traits(req: ImportHeroTraitRequest):
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    existing_data = season_manager.load_hero_traits(req.season_name) or {"traits": []}
+    existing_data = season_manager.load_hero_traits(req.season_name, raw=True) or {"traits": []}
     merged = merge_hero_traits(existing_data.get("traits", []), incoming)
 
     # Derive unique hero count from merged traits

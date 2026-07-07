@@ -15,6 +15,22 @@ JSON node fields used:
 
 import re
 
+from engine.modifier_lines import slim
+
+# "(Max Divinity Effect: N)" — identity/display-bearing suffix marking a once-per-Divinity-Slate cap.
+# It STAYS in the stored text; we also parse N structurally so the engine can enforce the cap from a
+# field instead of regex-matching English at aggregation time.
+_MAX_DIV_N_RE = re.compile(r"\(Max Divinity Effect:\s*(\d+)[^)]*\)\s*$", re.I)
+
+
+def _effect_line(e) -> dict:
+    """Slim stored modifier line for a tree/core effect, with the structured Max-Divinity cap."""
+    out = slim(e)
+    m = _MAX_DIV_N_RE.search(out["text"])
+    if m:
+        out["max_divinity_effect"] = int(m.group(1))
+    return out
+
 
 _NODE_CATEGORY_MAP = {
     "micro": "Micro Talent",
@@ -237,7 +253,8 @@ def import_crawler_tree(crawler_data: dict, tree_name: str) -> dict:
             core_talents.append({
                 "display_name_key": _make_display_name_key(tree_name, raw_name),
                 "name": raw_name,
-                "effects": node.get("effects") or [],
+                "uuid": node.get("uuid"),
+                "effects": [_effect_line(e) for e in (node.get("effects") or [])],
                 "pts_required": node.get("pts_required"),
                 "icon_url": node.get("icon_url", ""),
             })
@@ -250,11 +267,12 @@ def import_crawler_tree(crawler_data: dict, tree_name: str) -> dict:
         node_id = f"{tree_slug}_c{col - 1}_r{row - 1}"
         regular_nodes.append({
             "id": node_id,
+            "uuid": node.get("uuid"),
             "column": col - 1,
             "row": row - 1,
             "node_type": mapped_type,
             "max_rank": node.get("max_rank") or 1,
-            "effects": node.get("effects") or [],
+            "effects": [_effect_line(e) for e in (node.get("effects") or [])],
             "pts_required": node.get("pts_required"),
             "icon_url": node.get("icon_url", ""),
         })
@@ -275,6 +293,7 @@ def import_crawler_tree(crawler_data: dict, tree_name: str) -> dict:
 
     return {
         "tree_name": tree_name,
+        "uuid": crawler_data.get("uuid"),
         "total_points": crawler_data.get("total_points"),
         "tags": crawler_data.get("tags", []),
         "glossary": glossary_dict,

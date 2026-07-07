@@ -1,5 +1,7 @@
 import re
 
+from engine.modifier_lines import line_text, line_pooling_uuid
+
 _COND_RE = re.compile(
     r"\s+(?:while\b|when\b|if\b|against\b|recently\b|on\s+hit\b|upon\b|"
     r"for\s+every\b|for\s+each\b|per\s+(?!second))",
@@ -49,12 +51,18 @@ def parse_affix_text(text: str, modifier_id: str | None) -> dict:
             "numeric_values": numeric_values}
 
 
+def _parse_affix(line) -> dict:
+    """Parse one affix line (scraper ModifierLine dict or legacy plain string) into the stored
+    affix dict, carrying the minted identity fields alongside the parse."""
+    parsed = parse_affix_text(line_text(line), line.get("modifier_id") if isinstance(line, dict) else None)
+    parsed["uuid"] = line.get("uuid") if isinstance(line, dict) else None
+    parsed["pooling_uuid"] = line_pooling_uuid(line)
+    return parsed
+
+
 def _parse_variant(variant: dict) -> dict:
-    implicits = [parse_affix_text(t, None) for t in (variant.get("implicits") or [])]
-    explicits = [
-        parse_affix_text(e["text"], e.get("modifier_id"))
-        for e in (variant.get("explicits") or [])
-    ]
+    implicits = [_parse_affix(t) for t in (variant.get("implicits") or [])]
+    explicits = [_parse_affix(e) for e in (variant.get("explicits") or [])]
     return {"implicits": implicits, "explicits": explicits}
 
 
@@ -68,7 +76,7 @@ def import_crawler_item(item_data: dict) -> dict:
     random_affixes: dict[str, list] = {}
     for ra in (item_data.get("random_affixes") or []):
         state = ra.get("rarity_state", "base")
-        options = [parse_affix_text(o["text"], o.get("modifier_id")) for o in (ra.get("options") or [])]
+        options = [_parse_affix(o) for o in (ra.get("options") or [])]
         random_affixes.setdefault(state, []).append(
             {"placeholder": ra["placeholder"], "options": options}
         )
@@ -82,6 +90,7 @@ def import_crawler_item(item_data: dict) -> dict:
     return {
         "item_id": item_id,
         "name": item_data["name"],
+        "uuid": item_data.get("uuid"),
         "internal_id": item_data.get("internal_id"),
         "base_type": item_data.get("base_type", ""),
         "required_level": item_data.get("required_level"),
