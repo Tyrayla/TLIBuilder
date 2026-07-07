@@ -1070,7 +1070,7 @@ function ToolsTab() {
         <div style={{ padding: '9px 14px', background: '#14142a' }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#ccc' }}>Node Type Filter</span>
           <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>
-            Rebuilds data/node_type_filter.json by matching talent snapshot modifier texts to stat definitions.
+            Rebuilds data/node_type_filter.json by matching the active season's tree effect texts to stat definitions.
           </div>
         </div>
         <div style={{ padding: '12px 14px', background: '#0e0e24', borderTop: '1px solid #1a1a3a' }}>

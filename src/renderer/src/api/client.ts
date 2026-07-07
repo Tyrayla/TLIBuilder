@@ -525,10 +525,6 @@ export interface ModPoolEntry {
   node_types: string[]
 }
 
-export interface SnapshotModifier {
-  text: string
-}
-
 export interface StatRecipe {
   stat: string
   rank1: number
@@ -550,15 +546,9 @@ export interface UnresolvedStat {
   tied?: TiedCandidate[]
 }
 
-export interface SnapshotStatus {
-  exists: boolean
-  source_file: string | null
-  generated_at: string | null
-}
-
 export interface NodeTypeFilterMeta {
   generated_at: string
-  snapshot_source: string
+  source: string
   matched: number
   ambiguous: number
   unmatched: number
@@ -575,38 +565,6 @@ export interface RebuildFilterResult {
   stats: Record<string, string[]>
   unresolved: UnresolvedStat[]
   matched_texts: Record<string, string[]>
-}
-
-export interface TalentStat {
-  text: string
-  max_divinity_effect?: true
-}
-
-export interface TalentNode {
-  node_type: string
-  stats: TalentStat[]
-}
-
-export interface CoreTalentEntry {
-  name: string
-  stats: TalentStat[]
-}
-
-export interface NewGodTalent {
-  name: string
-  stats: TalentStat[]
-}
-
-export interface TreeSnapshot {
-  nodes: TalentNode[]
-  core_talents: CoreTalentEntry[]
-}
-
-export interface TalentSnapshot {
-  generated_at: string
-  source_file: string
-  trees: Record<string, TreeSnapshot>
-  new_god_talents: NewGodTalent[]
 }
 
 export interface SlateModifierOption {
@@ -1433,40 +1391,6 @@ export const EMPTY_STAT_SHEET: StatSheetResponse = {
   defense: null,
   consumed_stats: [],
   consumable_universe: [],
-}
-
-export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
-
-export interface DiffNode {
-  index: number
-  node_type: string
-  status: DiffStatus
-  stats_a: TalentStat[] | null
-  stats_b: TalentStat[] | null
-}
-
-export interface DiffNamedTalent {
-  name: string
-  status: DiffStatus
-  stats_a: TalentStat[] | null
-  stats_b: TalentStat[] | null
-}
-
-export interface DiffTree {
-  status: DiffStatus
-  nodes: DiffNode[]
-  core_talents: DiffNamedTalent[]
-}
-
-export interface TalentDiff {
-  summary: {
-    trees_added: number; trees_removed: number
-    nodes_added: number; nodes_removed: number; nodes_changed: number
-    core_talents_added: number; core_talents_removed: number; core_talents_changed: number
-    new_god_added: number; new_god_removed: number; new_god_changed: number
-  }
-  trees: Record<string, DiffTree>
-  new_god_talents: DiffNamedTalent[]
 }
 
 export interface SeasonSummary {
@@ -2479,26 +2403,6 @@ export const api = {
   getModifierPool: () => get<ModPoolEntry[]>('/modifier-pool'),
 
   // Dev tools
-  parseTalentDoc: async (file: File): Promise<TalentSnapshot> => {
-    if (ipcMode) {
-      rlog('parseTalentDoc (IPC) — reading file bytes')
-      const bytes = new Uint8Array(await file.arrayBuffer())
-      const result = await window.api!.apiFormUpload('/dev/parse-talent-doc', bytes, file.name) as { ok: boolean; status: number; data: TalentSnapshot }
-      if (!result.ok) return Promise.reject(result.data ?? 'Upload failed')
-      return result.data
-    }
-    const form = new FormData()
-    form.append('file', file)
-    const r = await fetch(`${BASE}/dev/parse-talent-doc`, { method: 'POST', body: form })
-    if (!r.ok) return Promise.reject((await r.json()).detail ?? r.statusText)
-    return r.json()
-  },
-  diffSnapshots: (a: TalentSnapshot, b: TalentSnapshot): Promise<TalentDiff> =>
-    post<TalentDiff>('/dev/diff-snapshots', { snapshot_a: a, snapshot_b: b }),
-
-  saveCanonicalSnapshot: (snapshot: TalentSnapshot): Promise<{ ok: boolean; source_file: string; generated_at: string }> =>
-    post<{ ok: boolean; source_file: string; generated_at: string }>('/dev/save-snapshot', { snapshot }),
-  getSnapshotStatus: () => get<SnapshotStatus>('/dev/snapshot-status'),
   rebuildNodeTypeFilter: () => post<RebuildFilterResult>('/dev/rebuild-node-type-filter', {}),
   exportStatMeta: () => post<{ ok: boolean; stat_count: number; path: string }>('/dev/export-stat-meta', {}),
   exportUnmatched: () => post<{ ok: boolean; total: number; unique: number; path: string }>('/dev/export-unmatched', {}),
@@ -2507,10 +2411,6 @@ export const api = {
   deleteNodeTypeFilterOverride: (key: string) => del<{ ok: boolean }>(`/dev/node-type-filter/overrides/${encodeURIComponent(key)}`),
   getStatRecipes: (treeName: string, nodeType: string) =>
     get<StatRecipe[]>(`/dev/stat-recipes/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeType)}`),
-  getSnapshotModifiers: (treeName: string, nodeType: string) =>
-    get<SnapshotModifier[]>(`/dev/snapshot-modifiers/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeType)}`),
-
-  clearSnapshot: () => del<{ ok: boolean }>('/dev/snapshot'),
   clearNodeTypeFilter: () => del<{ ok: boolean }>('/dev/node-type-filter'),
 
   // Seasons

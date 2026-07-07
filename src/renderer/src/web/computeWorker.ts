@@ -44,7 +44,7 @@ function snapshotPersist(): Record<string, string> {
 }
 
 // Recreate the persisted files (and their parent dirs) in the in-memory FS at startup, from the main thread's
-// IndexedDB snapshot, so builds_manager/save_manager read them exactly as desktop would.
+// IndexedDB snapshot, so builds_manager reads them exactly as desktop would.
 function restorePersist(snapshot: Record<string, string>): void {
   for (const path of Object.keys(snapshot)) {
     const dir = path.slice(0, path.lastIndexOf('/'))

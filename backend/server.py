@@ -4,7 +4,7 @@ import os
 import re
 import socket
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,7 +13,7 @@ import uvicorn
 
 from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
-from persistence import save_manager, builds_manager
+from persistence import builds_manager
 from persistence import tree_config_manager
 from persistence import season_manager
 import build_code as _build_code
@@ -1236,98 +1236,19 @@ def get_help_db():
     return {"entries": data.get("entries") or []}
 
 
-# ── Legacy single save ─────────────────────────────────────────────────────────
-
-class SaveRequest(BaseModel):
-    tree: str
-    nodes: dict[str, int]
-    core_talents: dict[str, str | None] | None = None
-
-
-@app.get("/api/save")
-def get_save():
-    data = save_manager.load()
-    return data if data else {}
-
-
-@app.post("/api/save")
-def post_save(req: SaveRequest):
-    save_manager.save(req.tree, req.nodes, req.core_talents)
-    return {"ok": True}
-
-
-@app.delete("/api/save")
-def delete_save():
-    save_manager.clear()
-    return {"ok": True}
-
-
 # ── Dev tools ─────────────────────────────────────────────────────────────────
-
-@app.post("/api/dev/parse-talent-doc")
-async def parse_talent_doc(file: UploadFile = File(...)):
-    from tools.talent_parser import parse_document
-    data = await file.read()
-    try:
-        result = parse_document(data, file.filename or "upload",
-                                known_tree_names=list(TREES.keys()))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return result
-
-
-class DiffRequest(BaseModel):
-    snapshot_a: dict
-    snapshot_b: dict
-
-
-@app.post("/api/dev/diff-snapshots")
-def diff_talent_snapshots(req: DiffRequest):
-    from tools.snapshot_diff import diff_snapshots
-    return diff_snapshots(req.snapshot_a, req.snapshot_b)
-
-
-class SaveSnapshotRequest(BaseModel):
-    snapshot: dict
-
-
-@app.post("/api/dev/save-snapshot")
-def save_snapshot(req: SaveSnapshotRequest):
-    from persistence import snapshot_manager
-    snap = req.snapshot
-    if "trees" not in snap or "generated_at" not in snap:
-        raise HTTPException(status_code=400, detail="Invalid snapshot format")
-    snapshot_manager.save(snap)
-    return {"ok": True, "source_file": snap.get("source_file", ""), "generated_at": snap.get("generated_at", "")}
-
-
-@app.get("/api/dev/snapshot-status")
-def snapshot_status():
-    from persistence import snapshot_manager
-    if not snapshot_manager.exists():
-        return {"exists": False, "source_file": None, "generated_at": None}
-    snap = snapshot_manager.load()
-    return {
-        "exists": True,
-        "source_file": snap.get("source_file"),
-        "generated_at": snap.get("generated_at"),
-    }
-
 
 @app.post("/api/dev/rebuild-node-type-filter")
 def rebuild_node_type_filter():
-    from persistence import snapshot_manager
     from tools.node_type_filter_builder import build_filter, build_node_recipes, save_filter
-    snap = snapshot_manager.load()
-    if snap is None:
-        raise HTTPException(status_code=400, detail="No canonical snapshot saved. Upload one first.")
-    result = build_filter(snap)
-
-    # Build per-node-id recipes from the active season's tree data
     active = season_manager.get_active_season()
-    if active:
-        season_trees = season_manager.load_all_season_trees(active)
-        result["node_recipes"] = build_node_recipes(season_trees)
+    if not active:
+        raise HTTPException(status_code=400, detail="No active season — import season trees first.")
+    season_trees = season_manager.load_all_season_trees(active)
+    if not season_trees:
+        raise HTTPException(status_code=400, detail=f"No season trees found for {active}.")
+    result = build_filter(season_trees)
+    result["node_recipes"] = build_node_recipes(season_trees)
 
     save_filter(result)
     _filter_cache.clear()   # invalidate the cached filter so the next compute reparses the rebuilt file
@@ -1398,16 +1319,6 @@ def export_stat_meta():
     return {"ok": True, "stat_count": len(STAT_META), "path": out_path}
 
 
-@app.delete("/api/dev/snapshot")
-def clear_snapshot():
-    from persistence import snapshot_manager
-    import os
-    path = snapshot_manager._PATH
-    if os.path.exists(path):
-        os.remove(path)
-    return {"ok": True}
-
-
 @app.delete("/api/dev/node-type-filter")
 def clear_node_type_filter():
     from tools.node_type_filter_builder import _FILTER_PATH
@@ -1415,28 +1326,6 @@ def clear_node_type_filter():
     if os.path.exists(_FILTER_PATH):
         os.remove(_FILTER_PATH)
     return {"ok": True}
-
-
-@app.get("/api/dev/snapshot-modifiers/{tree_name}/{node_type}")
-def get_snapshot_modifiers(tree_name: str, node_type: str):
-    from persistence import snapshot_manager
-    snap = snapshot_manager.load()
-    if not snap:
-        return []
-    tree = snap.get("trees", {}).get(tree_name)
-    if not tree:
-        return []
-    seen: set[str] = set()
-    texts: list[dict] = []
-    for node in tree.get("nodes", []):
-        if node.get("node_type") != node_type:
-            continue
-        for stat in node.get("stats", []):
-            text = stat.get("text", "")
-            if text and text not in seen:
-                seen.add(text)
-                texts.append({"text": text})
-    return texts
 
 
 @app.get("/api/dev/stat-recipes/{tree_name}/{node_type}")
