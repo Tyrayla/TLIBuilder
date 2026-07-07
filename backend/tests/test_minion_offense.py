@@ -130,13 +130,17 @@ def test_thunder_magus_module_base_enhanced_blend_and_gates():
     base_stats = season_manager.load_minion_base_stats("SS12")
     handler = MINION_MODULES["summon_thunder_magus"]
 
-    # Stage 1: 0% Enhanced chance → Enhanced fires 0, Base carries all; Empower +35% AS folds in at 60% uptime.
+    # Empower AS = 35% × 60% uptime (6 s ÷ 10 s) = +21% additional AS. The Empower cast-slot (Thundercloud Surge's
+    # 0.6 s cast, ~half effective, on the 10 s cooldown) scales the attack rate by (1 − 0.5·0.6/10) = 0.97.
+    base_rate = (1 / 0.8) * (1 + 0.35 * 0.6)
+    cast_slot = 1 - 0.5 * (0.6 / 10)                # 0.97
+
+    # Stage 1: 0% Enhanced chance → Enhanced fires 0, Base carries all (× the cast-slot factor).
     r1 = handler(BuildSource(), owner, base_stats, 20, 1)
     assert r1.supported and r1.total_dps > 0
     forms = {f.name.split(" (")[0]: f for f in r1.hit_forms}
     assert forms["Lightning Star"].dps_contribution > 0 and not forms["Lightning Star"].nyi
-    # Empower Euphoria = 35% AS × 60% uptime (6 s ÷ 10 s) = +21% effective additional Attack Speed.
-    assert forms["Lightning Star"].fires_per_sec == pytest.approx((1 / 0.8) * (1 + 0.35 * 0.6))
+    assert forms["Lightning Star"].fires_per_sec == pytest.approx(base_rate * cast_slot)
     assert forms["Thunderlight Arrow"].fires_per_sec == 0.0 and forms["Thunderlight Arrow"].dps_contribution == 0.0
     # Empower + Ultimate ARE forms now — visible/selectable in the dropdown, but NYI (0 DPS, carry their reason).
     assert forms["Thundercloud Surge"].nyi and forms["Thundercloud Surge"].dps_contribution == 0.0
@@ -144,15 +148,15 @@ def test_thunder_magus_module_base_enhanced_blend_and_gates():
     assert any("Thundercloud Surge" in n for n in forms["Thundercloud Surge"].nyi)   # Empower reason surfaced
     assert any("Lightning Surge" in n for n in forms["Lightning Surge"].nyi)         # Ultimate reason surfaced
 
-    # Stage 2: Growth 200 → +30% Enhanced chance → Base at 0.7 share, Enhanced at 0.3.
+    # Stage 2: Growth 200 → +30% Enhanced chance (p=0.30). Base fires at (1−p); Enhanced fires at its RAW chance p
+    # PLUS the fast-insert bump p·F·(1−p) → p·(1 + F(1−p)), F=0.90. Both ×cast_slot. Enhanced lands 2 hits/cast.
     src = BuildSource(); src.add("spirit_magi_initial_growth_flat", 100)
     r2 = handler(src, owner, base_stats, 20, 1)
     forms2 = {f.name.split(" (")[0]: f for f in r2.hit_forms}
-    base_rate = (1 / 0.8) * (1 + 0.35 * 0.6)   # Empower AS at 60% uptime
-    assert forms2["Lightning Star"].fires_per_sec == pytest.approx(base_rate * 0.7)
-    assert forms2["Thunderlight Arrow"].fires_per_sec == pytest.approx(base_rate * 0.3)
-    # The combined rate is the shared attack rate (the two shares sum back to the full rate).
-    assert r2.skills_per_second == pytest.approx(base_rate)
+    p = 0.30
+    assert forms2["Lightning Star"].fires_per_sec == pytest.approx(base_rate * (1 - p) * cast_slot)
+    assert forms2["Thunderlight Arrow"].fires_per_sec == pytest.approx(base_rate * p * (1 + 0.90 * (1 - p)) * cast_slot)
+    assert forms2["Thunderlight Arrow"].hits_per_fire == 2 and forms2["Thunderlight Arrow"].shotgun_mult == pytest.approx(2.0)
 
 
 def test_spirit_magi_physique_and_skill_area_helpers():
@@ -233,48 +237,80 @@ def test_thunder_magus_empower_display_matches_form_name():
     assert labels["Damage (Growth Stage 4+)"]["active"] is False    # Stage 1 → damage buff not yet unlocked
 
 
-def test_thunder_magus_enhanced_projectile_shotgun_makes_it_stronger_at_stage3():
-    """Thunderlight Arrow (189% coeff) is weaker than Base (232%) as a plain hit, but at Stage 3+ it gains
-    +1 Projectile Quantity → 2 same-target Shotgun hits (70% falloff → ×1.30) + 5% additional damage, netting
-    ~258% > Base's 232%. Below Stage 3 it stays a single weaker hit."""
+def test_thunder_magus_enhanced_2hit_through_return_always_stronger():
+    """Thunderlight Arrow (Enhanced) passes THROUGH the target then tracks back — 2 FULL-damage hits per cast (no
+    falloff) at EVERY Growth stage (reverse-engineered + validated in-game 2026-07-06). Its per-hit coefficient
+    (189% @20) is below Base (232%), but 2 full hits (~378%) make it always stronger. Stage 3's extra projectile
+    adds +5% additional (multi-target arrow), NOT a same-target shotgun."""
     from engine.minion_offense import MINION_MODULES
     owner, base_stats = _thunder_owner_and_stats()
     handler = MINION_MODULES["summon_thunder_magus"]
 
-    s3 = BuildSource(); s3.add("spirit_magi_initial_growth_flat", 200)   # Growth 300 → Stage 3
-    r3 = handler(s3, owner, base_stats, 20, 1)
-    f3 = {f.name.split(" (")[0]: f for f in r3.hit_forms}
-    enh, base = f3["Thunderlight Arrow"], f3["Lightning Star"]
-    assert enh.hits_per_fire == 2 and enh.shotgun_mult == pytest.approx(1.30)     # 2 projectiles, 70% falloff
-    assert base.hits_per_fire == 1 and base.shotgun_mult == pytest.approx(1.0)    # Base never shotguns
-    # Enhanced per-fire (its +5% is in the hit; ×1.30 shotgun on top) beats Base's plain 232%.
-    enh_eff = enh.avg_hit_pre_crit * enh.shotgun_mult
-    assert enh_eff > base.avg_hit_pre_crit
-    assert enh_eff / base.avg_hit_pre_crit == pytest.approx((189 * 1.05 * 1.30) / 232, rel=1e-3)
-
-    # Below Stage 3: no projectile bonus → single weaker hit (correctly a slight dip when forced in).
+    # Stage 1: already 2 full hits (through + return), stronger than Base per cast — no shotgun/falloff.
     r1 = handler(BuildSource(), owner, base_stats, 20, 1)
     f1 = {f.name.split(" (")[0]: f for f in r1.hit_forms}
-    assert f1["Thunderlight Arrow"].hits_per_fire == 1 and f1["Thunderlight Arrow"].shotgun_mult == pytest.approx(1.0)
-    assert f1["Thunderlight Arrow"].avg_hit_pre_crit < f1["Lightning Star"].avg_hit_pre_crit   # 189% < 232%
+    enh1, base1 = f1["Thunderlight Arrow"], f1["Lightning Star"]
+    assert enh1.hits_per_fire == 2 and enh1.shotgun_mult == pytest.approx(2.0)   # 2 hits, each FULL damage
+    assert base1.hits_per_fire == 1 and base1.shotgun_mult == pytest.approx(1.0)
+    # Per-cast: Enhanced 2×189% vs Base 1×232% → ~1.63× stronger.
+    assert enh1.avg_hit_pre_crit * enh1.shotgun_mult == pytest.approx(base1.avg_hit_pre_crit * (189 * 2) / 232, rel=1e-3)
+
+    # Stage 3: +1 projectile → +5% additional on the hit; still exactly 2 single-target hits (not a shotgun).
+    s3 = BuildSource(); s3.add("spirit_magi_initial_growth_flat", 200)   # Growth 300 → Stage 3
+    enh3 = {f.name.split(" (")[0]: f for f in handler(s3, owner, base_stats, 20, 1).hit_forms}["Thunderlight Arrow"]
+    assert enh3.hits_per_fire == 2 and enh3.shotgun_mult == pytest.approx(2.0)
+    assert enh3.avg_hit_pre_crit == pytest.approx(enh1.avg_hit_pre_crit * 1.05, rel=1e-3)   # +5% from the +1 proj
 
 
-def test_thunder_magus_external_projectile_quantity_grants_additional_not_shotgun():
-    """External minion +Projectile Quantity (multiple-proj support on the link / a +Proj weapon shared to the
-    minion) grants +5% additional damage EACH for Thunderlight Arrow but does NOT add firing/shotgun projectiles
-    (the skill text: 'not affected by Projectile Quantity bonuses' for its own quantity)."""
+def test_thunder_magus_external_projectile_quantity_grants_additional():
+    """External minion +Projectile Quantity (multi-proj support on the link / a +Proj weapon shared to the minion)
+    grants +5% additional damage EACH to Thunderlight Arrow, but does NOT add single-target hits — it always lands
+    exactly 2 (through + return); the extra arrows are multi-target only."""
     from engine.minion_offense import MINION_MODULES
     owner, base_stats = _thunder_owner_and_stats()
     handler = MINION_MODULES["summon_thunder_magus"]
 
-    s0 = BuildSource(); s0.add("spirit_magi_initial_growth_flat", 200)                    # Stage 3, no external
-    s2 = BuildSource(); s2.add("spirit_magi_initial_growth_flat", 200); s2.add("minion_projectile_quantity_flat", 2)
+    s0 = BuildSource()                                                  # Stage 1, no external → +0%
+    s2 = BuildSource(); s2.add("minion_projectile_quantity_flat", 2)    # +2 external → +5%×2 = +10%
     e0 = [f for f in handler(s0, owner, base_stats, 20, 1).hit_forms if "Thunderlight" in f.name][0]
     e2 = [f for f in handler(s2, owner, base_stats, 20, 1).hit_forms if "Thunderlight" in f.name][0]
-    # Shotgun (firing projectiles) unchanged by external +Proj.
-    assert e0.hits_per_fire == 2 and e2.hits_per_fire == 2 and e2.shotgun_mult == pytest.approx(1.30)
-    # Additional: 0.05 × 1 (Stage-3) vs 0.05 × (1 + 2 external) = 0.15 → the +Proj scales the hit damage.
-    assert e2.avg_hit_pre_crit / e0.avg_hit_pre_crit == pytest.approx(1.15 / 1.05, rel=1e-6)
+    assert e0.hits_per_fire == 2 and e2.hits_per_fire == 2 and e2.shotgun_mult == pytest.approx(2.0)
+    assert e2.avg_hit_pre_crit == pytest.approx(e0.avg_hit_pre_crit * 1.10, rel=1e-3)     # +5% × 2 external
+
+
+def test_thunder_magus_enhanced_dps_matches_ingame_validation():
+    """End-to-end lock on the reverse-engineered Enhanced model — 2-hit through+return + p(1−p) fast-insert +
+    Empower cast-slot + level-scaled Base coefficient — validated in-game 2026-07-06 (Tyra; magus-only, level 16,
+    no gear). Engine vs-target DPS at 0 / 18 / 47 / 100 % Enhanced chance must stay within 2 % of the measured
+    202 / 265 / 326 / 320 (the 47 % and 100 % raw measurements 346 / 588 are normalized here by the +6 % / +84 %
+    increased minion damage those runs carried). If this drifts, the minion model or its calibration changed."""
+    from engine.minion_offense import MINION_MODULES
+    owner, base_stats = _thunder_owner_and_stats()
+    handler = MINION_MODULES["summon_thunder_magus"]
+    for p, tgt in {0.0: 202, 0.18: 265, 0.47: 326, 1.0: 320}.items():
+        src = BuildSource()
+        if p > 0:
+            src.add("spirit_magi_enhanced_skill_chance", p)
+        dps = handler(src, owner, base_stats, 16, 1).total_dps_vs_target
+        assert dps == pytest.approx(tgt, rel=0.02), f"enhanced={p:.0%}: engine {dps:.1f} vs measured {tgt}"
+
+
+def test_minion_coefficient_override_precedence():
+    """Base-skill coefficient resolution: a crawler per-level TABLE always wins; a bare scalar (crawler only
+    captured the max level) falls back to the hand-collected override file (which survives re-imports). Lightning
+    Star's crawler value is still the scalar 232, but the SS12 override supplies 221 @16 / 225 @17 / 232 @20."""
+    from engine.minion_offense import _resolve_coefficient, _coefficient_overrides
+    from persistence import season_manager
+    assert "Lightning Star" in _coefficient_overrides(season_manager.get_active_season())
+    ls = {"name": "Lightning Star", "base_damage_coefficient": 232.0}   # crawler scalar (unchanged in _skills.json)
+    assert _resolve_coefficient(ls, 16) == pytest.approx(221.0)         # override, not the 232 scalar
+    assert _resolve_coefficient(ls, 20) == pytest.approx(232.0)
+    assert _resolve_coefficient(ls, 19) == pytest.approx(230.5)         # engine interpolates the gap (18↔20)
+    # A crawler TABLE takes precedence over any override (never overridden when real data exists).
+    tabled = {"name": "Lightning Star", "base_damage_coefficient": {"16": 999.0, "20": 999.0}}
+    assert _resolve_coefficient(tabled, 16) == pytest.approx(999.0)
+    # An ability with no override + a scalar just uses the scalar.
+    assert _resolve_coefficient({"name": "Nonexistent Skill", "base_damage_coefficient": 50.0}, 16) == pytest.approx(50.0)
 
 
 def test_thunder_magus_empower_uptime_responds_to_minion_cdr_and_duration():
@@ -284,17 +320,21 @@ def test_thunder_magus_empower_uptime_responds_to_minion_cdr_and_duration():
     owner, base_stats = _thunder_owner_and_stats()
     handler = MINION_MODULES["summon_thunder_magus"]
 
-    def as_rate(r):   # Stage-1 Base form fires at the full attack rate → exposes the Empower AS uptime.
+    def as_rate(r):   # Stage-1 Base form fires at the full attack rate → exposes the Empower AS uptime + cast-slot.
         return next(f for f in r.hit_forms if "Lightning Star" in f.name).fires_per_sec
 
-    # No mods → 6/10 = 60% uptime → +35% AS × 0.6 = +21%.
-    assert as_rate(handler(BuildSource(), owner, base_stats, 20, 1)) == pytest.approx((1 / 0.8) * (1 + 0.35 * 0.6))
-    # +20% Skill Effect Duration → 7.2 s ÷ 10 s = 72% uptime.
+    def cast_slot(cd):   # Empower cast-slot: a shorter cooldown (CDR) means more casts → MORE attacking time lost.
+        return 1 - 0.5 * (0.6 / cd)
+
+    # No mods → 6/10 = 60% uptime → +35% AS × 0.6 = +21%; cast-slot at cd=10.
+    assert as_rate(handler(BuildSource(), owner, base_stats, 20, 1)) == pytest.approx((1 / 0.8) * (1 + 0.35 * 0.6) * cast_slot(10))
+    # +20% Skill Effect Duration → 7.2 s ÷ 10 s = 72% uptime; cooldown unchanged so cast-slot unchanged.
     s1 = BuildSource(); s1.add("minion_skill_effect_duration_inc", 0.20)
-    assert as_rate(handler(s1, owner, base_stats, 20, 1)) == pytest.approx((1 / 0.8) * (1 + 0.35 * (7.2 / 10)))
-    # +50% Duration (9 s) + 25% CDR (10/1.25 = 8 s) → 9/8 > 1 → clamped to 100% uptime → +35% AS full.
+    assert as_rate(handler(s1, owner, base_stats, 20, 1)) == pytest.approx((1 / 0.8) * (1 + 0.35 * (7.2 / 10)) * cast_slot(10))
+    # +50% Duration (9 s) + 25% CDR (10/1.25 = 8 s) → 9/8 > 1 → clamped to 100% uptime → +35% AS full. CDR also
+    # SHRINKS the cast-slot (cd 8 → more casts) — exactly why Extended Duration is more DPS-efficient than CDR.
     s2 = BuildSource(); s2.add("minion_skill_effect_duration_inc", 0.50); s2.add("minion_cdr_speed_inc", 0.25)
-    assert as_rate(handler(s2, owner, base_stats, 20, 1)) == pytest.approx((1 / 0.8) * 1.35)
+    assert as_rate(handler(s2, owner, base_stats, 20, 1)) == pytest.approx((1 / 0.8) * 1.35 * cast_slot(8))
 
 
 def test_player_to_minion_stat_remap():
@@ -384,7 +424,8 @@ def test_thunder_magus_empower_effect_scales_euphoria():
     r = MINION_MODULES["summon_thunder_magus"](
         _seeded(BuildSource(), spirit_magi_empower_effect_additional=0.5), owner, base_stats, 20, 1)
     ls = next(f for f in r.hit_forms if "Lightning Star" in f.name)
-    assert ls.fires_per_sec == pytest.approx((1 / 0.8) * (1 + 0.35 * 1.5 * 0.6))
+    cast_slot = 1 - 0.5 * (0.6 / 10)   # Empower cast-slot on the 10 s cooldown
+    assert ls.fires_per_sec == pytest.approx((1 / 0.8) * (1 + 0.35 * 1.5 * 0.6) * cast_slot)
 
 
 def test_isomorphic_arms_transfers_weapon_bonuses_and_conditional_spell_damage():

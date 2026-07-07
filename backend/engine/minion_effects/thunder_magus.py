@@ -70,7 +70,7 @@ def handler(source, owner, base_stats, level, count):
 
     empower = by_role.get("Empower")
     empower_uptime = 1.0
-    _dur_eff = _cd_eff = 0.0
+    _dur_eff = _cd_eff = _emp_cast_time = 0.0
     empower_display: dict | None = None
     if empower:
         from engine.skill_resolver import _parse_cast_time as _pct
@@ -85,6 +85,7 @@ def handler(source, owner, base_stats, level, count):
         _dur = _dur0 * (1.0 + _dur_inc)
         _cd0 = _pct(empower.get("cooldown", "")) or 0.0
         _cd = _cd0 / (1.0 + _cdr_inc) if _cd0 > 0 else 0.0
+        _emp_cast_time = _pct(empower.get("cast_speed", "")) or 0.0    # cast-slot: attacking paused while casting it
         _dur_eff, _cd_eff = _dur, _cd
         empower_uptime = min(1.0, _dur / _cd) if (_dur > 0 and _cd > 0) else 1.0
         _pct_txt = f"{round(empower_uptime * 100)}% uptime"
@@ -124,31 +125,47 @@ def handler(source, owner, base_stats, level, count):
     if stage >= 5:
         _add("minion_dmg_additional", 0.50, "Growth Stage 5: +50% additional damage")
 
+    # Empower cast-slot: the magus visibly stops attacking to cast Thundercloud Surge, losing its cast time each
+    # cooldown. Scales BOTH Base and Enhanced rates down by (1 − cast_time ÷ effective_cooldown). CDR shortens the
+    # cooldown → more frequent casts → MORE slot loss, which correctly dampens CDR's uptime gain (Extended Duration,
+    # which adds no casts, stays strictly more efficient — matches Tyra's 202→207 CDR vs 202→215 CDR+Duration tests).
+    # The nominal 0.6 s cast overlaps the attack's recovery frames, so the EFFECTIVE attacking time lost is ~half
+    # (the visible pause). 0.5 calibrated to the magus-only base-only 202 (full cast time would over-count to ~196).
+    _CAST_SLOT_EFFICIENCY = 0.5
+    cast_slot_factor = (1.0 - _CAST_SLOT_EFFICIENCY * (_emp_cast_time / _cd_eff)
+                        if (_emp_cast_time > 0 and _cd_eff > 0) else 1.0)
+    cast_slot_factor = max(0.0, cast_slot_factor)
+
     results = []
     base = by_role.get("Base")
     enhanced = by_role.get("Enhanced")
     if base:
-        results.append(calculate_minion_offense(buffed, base, base_stats, level, count, rate_multiplier=1.0 - enh_chance))
+        results.append(calculate_minion_offense(buffed, base, base_stats, level, count,
+                                                 rate_multiplier=(1.0 - enh_chance) * cast_slot_factor))
     if enhanced:
-        # Thunderlight Arrow (Enhanced) projectile mechanics — makes it correctly STRONGER than Base at Stage 3+.
-        #  • +1 Base Projectile Quantity at Stage 3+ → 2 projectiles that "can hit the same enemy" = a same-target
-        #    Shotgun (70% falloff → each extra hit deals 30% → ×1.30 for 2). External +Proj does NOT add firing
-        #    projectiles for this skill, so the shotgun count uses only the skill's own quantity.
-        #  • +5% additional Damage per +1 Projectile Quantity — counts the Stage-3 +1 AND external minion +Proj
-        #    (multiple-projectile supports on the link / a +Proj weapon shared to the minion → the new pool).
-        #  • Projectiles always Penetrate/track — multi-target / clear only, no single-target DPS effect.
-        stage3 = stage >= 3
-        q_base_bonus = 1 if stage3 else 0                                   # the skill's own +1 (firing) projectile
-        q_external = source.total("minion_projectile_quantity_flat")        # external → additional dmg only
-        fire_projectiles = 1 + q_base_bonus                                 # shotgun count (external excluded)
-        proj_quantity_bonus = q_base_bonus + q_external                     # each +1 above base → +5% additional
+        # Thunderlight Arrow (Enhanced) — reverse-engineered + validated in-game (Tyra, 2026-07-06) against
+        # magus-only DPS at 0/18/47/100 % Enhanced chance (202 / 265 / 346 / 588), all reproduced within ~1 %.
+        #  • Deals 2 FULL hits per cast: the arrow passes THROUGH the target, tracks back, and hits AGAIN for equal
+        #    damage (no falloff). Innate at every Growth stage — this REPLACES the old Stage-3 same-target-shotgun
+        #    guess. (Help DB: Enhanced REPLACES the Base skill on proc.)
+        #  • Fires with a much shorter recovery ONLY when it follows a Base attack ("fast insert"); chained
+        #    Enhanced→Enhanced runs at the normal cadence (confirmed by the 100 % clip). The net DPS boost scales
+        #    as p(1−p): large at low chance (every Enhanced follows a Base), vanishing at 100 % (no Base to insert
+        #    after). Modelled as an effective fire-rate bump on the Enhanced form — rate ×= (1 + F·(1−p)) — so the
+        #    p(1−p) curve falls out of (1−p) base attacks × the boosted Enhanced rate, no special-casing.
+        #    F=0.90 calibrated to the 18 % point; it then PREDICTS 47 %→346 and 100 %→588 (measured 346 / 588).
+        #  • The Stage-3 "+1 Projectile" and external +Proj are multi-target only (extra arrows) → +5% additional
+        #    per projectile, NOT a single-target shotgun.
+        _F_INSERT = 0.90
+        p = enh_chance
+        enh_rate_mult = p * (1.0 + _F_INSERT * (1.0 - p)) * cast_slot_factor
+        proj_quantity_bonus = (1 if stage >= 3 else 0) + source.total("minion_projectile_quantity_flat")
         enh_additional = 0.05 * proj_quantity_bonus
         results.append(calculate_minion_offense(
-            buffed, enhanced, base_stats, level, count, rate_multiplier=enh_chance,
-            shotgun_hits=fire_projectiles, shotgun_falloff=0.70,
+            buffed, enhanced, base_stats, level, count, rate_multiplier=enh_rate_mult,
+            shotgun_hits=2, shotgun_falloff=0.0,          # through + return = 2 full-damage hits
             extra_additional=enh_additional,
-            extra_additional_label=f"Thunderlight Arrow: +5% additional damage × {proj_quantity_bonus:g} Projectile Quantity",
-            penetrates=True))
+            extra_additional_label=f"Thunderlight Arrow: +5% additional damage × {proj_quantity_bonus:g} Projectile Quantity"))
     if empower:
         r = nyi_offense(empower, level)
         _win = (f"{_dur_eff:g} s buff ÷ {_cd_eff:g} s cooldown" if _cd_eff and abs(_dur_eff - 6.0) + abs(_cd_eff - 10.0) > 1e-9

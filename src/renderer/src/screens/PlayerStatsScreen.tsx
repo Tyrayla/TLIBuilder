@@ -1677,7 +1677,33 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                 every cast, blade slower); the general cast/attack rate is dropped since the main form duplicates
                 it. Single-form skills show the one general rate. Each row carries its own source breakdown.
                 NYI forms (a minion's Empower/Ultimate) don't fire, so they're excluded from the Hit Rate list. */}
-            {rateForms.length > 1 ? (
+            {minion ? (() => {
+              // Minions: split into ATTACK rate (how often the magus swings) and HIT rate (damage instances
+              // landing/sec). They differ whenever a form lands >1 hit per fire — Thunderlight Arrow's 2 hits
+              // (through + return), so Hit Rate > Attack Rate. Per-form detail lives in each row's breakdown.
+              const totalFires = rateForms.reduce((s, f) => s + f.fires_per_sec, 0)
+              const totalHits = rateForms.reduce((s, f) => s + f.fires_per_sec * (f.hits_per_fire || 1), 0)
+              const perFormFires: ExtraRow[] = rateForms.map(f => ({
+                value: `${dec(f.fires_per_sec)}/s`, stat: f.name, source: 'Form', sourceName: 'firing rate' }))
+              const perFormHits: ExtraRow[] = rateForms.map(f => ({
+                value: `${dec(f.fires_per_sec)}/s × ${f.hits_per_fire || 1} = ${dec(f.fires_per_sec * (f.hits_per_fire || 1))}/s`,
+                stat: f.name, source: 'Form', sourceName: `${f.hits_per_fire || 1} hit${(f.hits_per_fire || 1) === 1 ? '' : 's'}/fire` }))
+              return (
+                <>
+                  <Row label={rateLabel} breakdown={{
+                    title: rateLabel, keys: rateKeys, total: totalFires, totalUnit: ' /s',
+                    formula: rateForms.length > 1 ? `${rateFormula} — summed across forms` : rateFormula,
+                    extra: [...(rateBaseline ?? []), ...(rateForms.length > 1 ? perFormFires : [])],
+                  }}>{dec(totalFires)}/s</Row>
+                  {totalHits > totalFires + 1e-6 && (
+                    <Row label="Hits per Second" labelColor="#8aa" breakdown={{
+                      title: 'Hit Rate — damage instances landing / second', keys: [], total: totalHits, totalUnit: ' /s',
+                      formula: 'Σ (form firing rate × hits per fire)', extra: perFormHits,
+                    }}>{dec(totalHits)}/s</Row>
+                  )}
+                </>
+              )
+            })() : rateForms.length > 1 ? (
               rateForms.map(f => (
                 <Row key={f.name} label={f.name} labelColor="#8aa" breakdown={{
                   title: `${f.name} — firing rate`, keys: rateKeys, total: f.fires_per_sec, totalUnit: ' /s',

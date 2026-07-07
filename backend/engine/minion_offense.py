@@ -13,6 +13,7 @@ Two hard rules:
 Base Damage / Life come from data/seasons/<S>/_minion_base_stats.json (hand-entered from in-game).
 """
 from __future__ import annotations
+import functools
 import re
 from collections import defaultdict
 from dataclasses import replace
@@ -226,6 +227,41 @@ def _coefficient_at(coeff, level: int) -> float:
     return float(coeff)
 
 
+@functools.lru_cache(maxsize=None)
+def _coefficient_overrides(season: str) -> dict:
+    """Hand-collected per-level coefficient tables for minion Base skills whose crawler `_skills.json` value is an
+    incomplete scalar (=level-20 max). Lives in a SEPARATE file the crawler never writes, so it survives re-imports:
+    data/seasons/<S>/_minion_coefficient_overrides.json, keyed by ability name. Cached per season."""
+    import json
+    import os
+    from persistence import season_manager
+    try:
+        path = os.path.join(season_manager._season_dir(season), "_minion_coefficient_overrides.json")
+        if not os.path.exists(path):
+            return {}
+        data = json.load(open(path, encoding="utf-8"))
+        return {k: v for k, v in data.items() if not k.startswith("_")}   # skip _comment / _source metadata keys
+    except Exception:
+        return {}
+
+
+def _resolve_coefficient(minion_skill: dict, level: int) -> float:
+    """Resolve a minion ability's `% of Base Damage` at a level. Precedence: (1) a per-level TABLE in the crawler
+    data always wins; (2) if the crawler value is a bare scalar (only the max level captured), fall back to the
+    hand-collected override table for the ability, so sub-max scaling is right without editing the crawler data;
+    (3) the scalar itself. See _minion_coefficient_overrides + data/.../_minion_coefficient_overrides.json."""
+    coeff = minion_skill.get("base_damage_coefficient")
+    if isinstance(coeff, dict):
+        return _coefficient_at(coeff, level)
+    from persistence import season_manager
+    season = season_manager.get_active_season()
+    if season:
+        override = _coefficient_overrides(season).get(minion_skill.get("name", ""))
+        if override:
+            return _coefficient_at(override, level)
+    return _coefficient_at(coeff, level)
+
+
 def _parse_pct(val) -> float:
     if val is None:
         return 0.0
@@ -406,7 +442,7 @@ def calculate_minion_offense(
     skill_level_bonus = int(round(source.total("minion_skill_level") + source.total("spirit_magi_skill_level")))
     effective_level = level + max(0, skill_level_bonus)
     above_mult = _above_max_mult(effective_level, _MINION_MAX_LEVEL)
-    coeff = _coefficient_at(minion_skill.get("base_damage_coefficient"), effective_level)
+    coeff = _resolve_coefficient(minion_skill, effective_level)
     consts = (base_stats or {}).get("constants") or {}
     shared_base = _interp_level_table((base_stats or {}).get("base_damage_by_level") or {}, effective_level)
     if base_stats is None or shared_base <= 0:

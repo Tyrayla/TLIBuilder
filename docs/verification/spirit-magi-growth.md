@@ -12,7 +12,7 @@ Growth = 100 (Stage 1) + Initial Growth mods, clamped 100-1000; one Stage per 10
 
 ## Notes / caveats / open questions
 
-Shipped, unverified. Physique->Life scaling unknown (no formula); Skill-Area/Physique DPS-neutral.
+Shipped, unverified. Physique->Life scaling unknown (no formula); Skill-Area/Physique DPS-neutral. Stage 2 (+30% Enhanced chance) is exercised by the validated thunder-magus entry, which also documents the Enhanced (2-hit + fast-insert) / Empower (cast-slot) mechanics and the reverse-engineering method that other magi should reuse. Stage 3-5 damage bonuses (Enhanced stronger / Empower Stage-4 buff / Stage-5 +50%) remain UNVERIFIED - Tyra tested at Growth 100 (Stage 1) only.
 
 ## Implementation (engine model)
 

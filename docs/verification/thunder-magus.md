@@ -10,25 +10,29 @@
 
 ## Setup
 
-Character with NO gear, Thunder Magus slotted; DPS vs the training dummy, span-averaged over a 5-minute Recount.
+Character with NO gear, single Thunder Magus (Growth pinned at 100 = Stage 1), point-blank DPS vs the training dummy. Magus-only Recount span-averaged; Enhanced chance varied 0/18/47/100% (via tree/gear). 47% and 100% runs carried +6% and +84% increased minion damage respectively (normalized out).
 
 ## Raw data points
 
-No-gear Thunder Magus modeled DPS within 2.5% of the in-game Recount vs the training dummy over a 5-minute test (Tyra). Verifies the Base+Enhanced blend, Empower 60% uptime, and Growth-stage bonuses at baseline; gear/talent interactions still to validate.
+Magus-only steady-state DPS vs the dummy at 0/18/47/100% Enhanced chance = 202 / 265 / 346 / 588 (346, 588 normalize to 326 / 320 after removing the +6%/+84% minion damage). Engine reproduces 201.9 / 265.1 / 327.8 / 318.0 - all within 1%. F=0.90 was calibrated to the 18% point and then PREDICTED the 47% and 100% points. Per-hit at level 16: Base 134.5, Enhanced 105.5 (both mitigated); Enhanced return hit lands ~0.33s after the through hit. Locked by test_thunder_magus_enhanced_dps_matches_ingame_validation.
 
 ## Derived / confirmed formula
 
-Base (Lightning Star 232%) + Enhanced (Thunderlight Arrow 189%) blended at the shared attack rate (Base at 1-chance, Enhanced at chance). Enhanced Stage 3+: +1 proj -> 2 same-target shotgun (70% falloff = x1.30) + 5% additional per +1 Projectile Quantity. Empower (Thundercloud Surge): +35% additional AS, +25% additional dmg at Stage 4+, folded at true uptime = duration/cooldown (6/10 = 60%) x Empower Effect. Stage 5 +50% additional dmg.
+Base (Lightning Star) + Enhanced (Thunderlight Arrow) blended per attack. Enhanced REPLACES Base on proc (chance p) and lands 2 FULL hits (through + tracked return, no falloff) at every stage. Enhanced fires with a short recovery only when it follows a Base attack ('fast insert'), so its net DPS boost scales p(1-p) - modeled as an Enhanced fire-rate bump enh_rate_mult = p*(1 + F*(1-p)), F=0.90. Empower (Thundercloud Surge): +35% additional AS (all stages) + 25% additional dmg (Stage 4+), folded at true uptime = duration/cooldown (6/10 = 60%) x Empower Effect; its 0.6s cast is a cast-slot that scales both rates by (1 - 0.5*cast/eff_cooldown). Stage 5 +50% additional dmg. Stage-3 +1 proj + external +Proj = +5% additional each (multi-target only). Base coefficient is level-scaled (per-level table).
 
 ## Notes / caveats / open questions
 
-Shipped, unverified. Enhanced projectile/shotgun is an approximation; Empower uptime + Enhanced strength need in-game checks.
+VALIDATED in-game (reverse-engineered from screen-recorded footage + magus-only Recount). The old Stage-3 same-target-shotgun approximation was replaced by the 2-hit through+return + p(1-p) fast-insert model. Crit 5%/150% and dummy mitigation x0.49 confirmed by the in-game panel; the game 'Minion Attack DPS 343' tooltip matches the engine's un-buffed Base DPS. Remaining unverified: Growth Stage 3-5 damage bonuses, Empower Stage-4 damage buff, Ultimate (Full Bloom / Iris).
+
+GENERALIZES TO OTHER SPIRIT MAGI (Fire / Frost / Rock / Erosion) — validate each before trusting: Per the Help DB the STRUCTURE is shared — every magus has Base + Enhanced (Enhanced REPLACES the Base skill on proc) + Empower + Ultimate, and every magus BASE skill has the scalar-coefficient data gap (fill it in _minion_coefficient_overrides.json). The reusable REVERSE-ENGINEERING METHOD: (1) magus-only Recount DPS at several Enhanced chances (0 / mid / 100%) isolates per-cast damage and the fast-insert curve — solve F from the mid point, then it should PREDICT the others; (2) ffmpeg frame extraction of point-blank dummy footage reads the true hit count + attack cadence off the damage numbers. THUNDER-SPECIFIC, do NOT assume for others: the 2 hits (through + return) come from Thunderlight Arrow being a boomerang PROJECTILE — other magi Enhanced skills have different geometry (could be 1 hit, an AoE, or a genuine multi-hit); F=0.90 (fast-insert efficiency) and the 0.5 Empower cast-slot efficiency were CALIBRATED to Thunder. STRUCTURALLY likely on all magi but needing per-magus calibration: the fast-insert cadence (Enhanced fires fast only right after a Base -> p(1-p) DPS boost) and the Empower cast-slot (the magus pauses to cast its Empower). Verified numbers here (crit 5%/150%, dummy mitigation x0.49) are engine-wide minion constants and DO carry over.
 
 ## Implementation (engine model)
 
-engine/minion_effects/thunder_magus.py returns ONE OffenseResult whose hit forms are the damage abilities; Empower/Ultimate are NYI forms. spirit_magi damage/crit pools folded into minion pools for magi.
+engine/minion_effects/thunder_magus.py returns ONE OffenseResult whose hit forms are the damage abilities (Base, Enhanced=2 hits); Empower/Ultimate are NYI forms (Empower also surfaces a structured display dict). spirit_magi damage/crit pools folded into minion pools. Base coefficient resolved via engine/minion_offense._resolve_coefficient (precedence: crawler per-level TABLE > hand-collected data/seasons/<S>/_minion_coefficient_overrides.json > bare scalar); the crawler data is never edited so re-imports win.
 
 ## Sources
 
 - backend/engine/minion_effects/thunder_magus.py
+- backend/engine/minion_offense.py
 - backend/tests/test_minion_offense.py
+- data/seasons/SS12/_minion_coefficient_overrides.json
