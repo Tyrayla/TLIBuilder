@@ -33,18 +33,6 @@ _SCRAPER_DIR = os.environ.get("TLIDB_SCRAPER_DIR") or os.path.join(
     os.path.dirname(_REPO_ROOT), "tlidb-scraper")
 _EXPORT = os.path.join(_SCRAPER_DIR, "output", "parity", f"pooling_parity_{_SEASON}.json")
 
-# Corpus identities with no counterpart in the scraped corpus — legacy wording drift from the retired
-# PDF-snapshot import (handoff §5, rulings: scraped wording is canonical in all three). These disappear
-# when the crawler-derived node_type_filter recipes land (stage-4 reimport); this allowlist is removed
-# with them. Anything OUTSIDE this set failing to join is a real problem.
-_KNOWN_DRIFT = {
-    # truncated "…while Dual Wielding" (Bladerunner legendary medium talent)
-    "additional attack damage for each unique type of weapon equipped while dual",
-    # missing "(Max Divinity Effect: 1)" suffix (Warrior)
-    "additional damage against low life enemies",
-    # missing "(Max Divinity Effect: 1)" suffix (Marksman)
-    "additional evasion on spell damage",
-}
 
 
 def _load_export() -> dict:
@@ -76,9 +64,9 @@ def test_pooling_uuid_induces_our_partition():
     assert corpus, "empty pooling corpus — season data missing?"
 
     missing = {affix_identity(t) for t in corpus} - set(by_template)
-    assert missing <= _KNOWN_DRIFT, (
-        "corpus identities with no scraped counterpart beyond the known legacy drift "
-        f"(real problem — compare against the scraper export): {sorted(missing - _KNOWN_DRIFT)}"
+    assert not missing, (
+        "corpus identities with no scraped counterpart — since the corpus is now built from "
+        f"crawler-canonical wordings, any miss is a real problem: {sorted(missing)}"
     )
 
     joinable = [t for t in corpus if affix_identity(t) in by_template]

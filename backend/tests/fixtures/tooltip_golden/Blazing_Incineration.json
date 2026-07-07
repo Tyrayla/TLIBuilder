@@ -43,17 +43,10 @@
       "values_by_level": null
     },
     {
-      "badge_text": "When at Stage 3 or higher,",
+      "badge_text": "When at Stage 3 or higher, +30 % additional damage for this skill",
       "coverage": null,
       "kind": "special",
-      "text": "When at Stage 3 or higher,",
-      "values_by_level": null
-    },
-    {
-      "badge_text": "+30 % additional damage for this skill",
-      "coverage": null,
-      "kind": "special",
-      "text": "+30 % additional damage for this skill",
+      "text": "When at Stage 3 or higher, +30 % additional damage for this skill",
       "values_by_level": null
     }
   ],

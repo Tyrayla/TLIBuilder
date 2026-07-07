@@ -137,7 +137,9 @@ def save_season_tree(season: str, tree_name: str, tree_slug: str, data: dict) ->
     path = os.path.join(d, f"{tree_slug}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    _season_trees_cache[(season, tree_slug)] = data  # keep cache fresh after a write
+    # Invalidate (don't insert `data` — it holds the RAW stored shape with slim modifier-line
+    # dicts; the cache holds the normalized runtime view, rebuilt on next load).
+    _season_trees_cache.pop((season, tree_slug), None)
 
 
 def delete_season(name: str) -> None:
@@ -468,12 +470,17 @@ def save_new_god_talents(season: str, talents: list[dict]) -> None:
         json.dump(talents, f, indent=2)
 
 
-def load_new_god_talents(season: str) -> list[dict] | None:
+def load_new_god_talents(season: str, raw: bool = False) -> list[dict] | None:
     path = os.path.join(_season_dir(season), "_new_god_talents.json")
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        talents = json.load(f)
+    if not raw:
+        for t in talents or []:
+            if isinstance(t, dict) and "effects" in t:
+                t["effects"] = line_texts(t.get("effects"))
+    return talents
 
 
 def get_season_summary(name: str) -> dict:

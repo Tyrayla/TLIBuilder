@@ -10,8 +10,8 @@ import os
 from engine.tooltip import build_tooltip
 from server import _resolve_skill_line_keys
 
-_SKILLS = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons", "SS12", "_skills.json")
-_BY_ID = {s["item_id"]: s for s in json.load(open(_SKILLS, encoding="utf-8"))["skills"]}
+from persistence import season_manager
+_BY_ID = {s["item_id"]: s for s in season_manager.load_skills("SS12")["skills"]}
 
 
 def _badge_keys(sid, needle):

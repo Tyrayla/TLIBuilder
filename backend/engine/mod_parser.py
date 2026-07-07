@@ -60,6 +60,14 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     "+(#) % lightning penetration": "lightning_pen",
     "+(#) % erosion penetration":   "erosion_pen",
     "+(#) % elemental penetration": "elemental_pen",
+    # Sign-less twins: talent-node effect wording drops the leading "+" ("1.5 % Lightning Penetration"),
+    # which missed these overrides and fuzzy-tied onto the MINION pen variant (assassin_c5_r3 double-
+    # counted minion pen and lost player pen).
+    "(#) % fire penetration":      "fire_pen",
+    "(#) % cold penetration":      "cold_pen",
+    "(#) % lightning penetration": "lightning_pen",
+    "(#) % erosion penetration":   "erosion_pen",
+    "(#) % elemental penetration": "elemental_pen",
     # Flat-count core-talent lines whose in-game wording differs from the stat's gear display name
     # (reached value-stripped via the trailing-count handler in _parse_custom_mod_text).
     "max sentry quantity":  "max_sentry_quantity_flat",

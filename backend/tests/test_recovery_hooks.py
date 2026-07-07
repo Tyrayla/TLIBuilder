@@ -109,7 +109,8 @@ def test_life_tonic_value_interpolates_with_level():
 def test_life_tonic_tooltip_restoration_modeled_single_line():
     import json as _json
     from engine.tooltip import build_tooltip
-    skills = _json.load(open("../data/seasons/SS12/_skills.json", encoding="utf-8"))["skills"]
+    from persistence import season_manager
+    skills = season_manager.load_skills("SS12")["skills"]   # normalized runtime view
     s = next(x for x in skills if x.get("name") == "Life Tonic")
     lines = build_tooltip(s)["lines"]
     restore = [ln for ln in lines if "restores" in (ln.get("badge_text", "") + str(ln.get("values_by_level") or "")).lower()]

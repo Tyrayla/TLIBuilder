@@ -14,8 +14,8 @@ import pytest
 from engine.support_resolver import resolve_support_contributions
 from server import _translate_condition_expr as tc, engine_stats, EngineStatsRequest
 
-_SKILLS = json.load(open(os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons", "SS12",
-                                       "_skills.json"), encoding="utf-8"))
+from persistence import season_manager
+_SKILLS = season_manager.load_skills("SS12")   # normalized runtime view (plain-string lines)
 _BY_ID = {it["item_id"]: it for it in _SKILLS["skills"]}
 _BASELINE = json.load(open(os.path.join(os.path.dirname(__file__), "fixtures", "support_baseline.json"),
                            encoding="utf-8"))

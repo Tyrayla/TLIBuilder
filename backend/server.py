@@ -1455,6 +1455,7 @@ def import_crawler_tree_endpoint(req: ImportCrawlerTreeRequest):
 
     # New God — routes to _new_god_talents.json, not a regular tree file
     if tree_name == "New God":
+        from tools.season_importer import _effect_line
         talents = []
         for node in req.crawler_data.get("nodes", []):
             if node.get("type") != "core_talent":
@@ -1466,7 +1467,8 @@ def import_crawler_tree_endpoint(req: ImportCrawlerTreeRequest):
             talents.append({
                 "name": raw_name,
                 "item_id": item_id,
-                "effects": node.get("effects") or [],
+                "uuid": node.get("uuid"),
+                "effects": [_effect_line(e) for e in (node.get("effects") or [])],
                 "icon_url": node.get("icon_url", ""),
                 "note": "",
             })
@@ -1567,7 +1569,8 @@ def import_crawler_skills_endpoint(req: ImportCrawlerSkillsRequest):
     if not req.season_name.strip():
         raise HTTPException(400, "season_name must not be empty")
     items = import_crawler_skills(req.items)
-    existing = season_manager.load_skills(req.season_name) or {"skills": []}
+    # RAW: preserved entries keep their stored slim modifier-line dicts (see import-skills below).
+    existing = season_manager.load_skills(req.season_name, raw=True) or {"skills": []}
     merged = merge_skills(existing.get("skills", []), items)
     season_manager.save_skills(req.season_name, {
         "season": req.season_name,

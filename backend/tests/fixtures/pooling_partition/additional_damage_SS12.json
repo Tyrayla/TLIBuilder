@@ -1,6 +1,6 @@
 {
-  "affix_count": 297,
-  "identity_count": 173,
+  "affix_count": 298,
+  "identity_count": 175,
   "note": "Frozen additional-damage identity partition. Gate for the modifier-identity migration (docs/MODIFIER_UUID_REVIEW.md). Regenerate ONLY on an intended data change.",
   "partition": {
     "additional active skill damage": [
@@ -17,14 +17,14 @@
       "+(40–50) % additional Area Damage for this skill when Demolisher Charge is consumed.",
       "+(57–70) % additional Area Damage for this skill when Demolisher Charge is consumed."
     ],
-    "additional attack damage for each unique type of weapon equipped while dual": [
-      "+5% additional Attack Damage for each unique type of weapon equipped while Dual"
+    "additional attack damage for each unique type of weapon equipped while dual wielding": [
+      "+5 % additional Attack Damage for each unique type of weapon equipped while Dual Wielding"
     ],
     "additional attack damage if you have used a warcry skill in the last s": [
-      "+8% additional Attack Damage if you have used a Warcry Skill in the last 8s"
+      "+8 % additional Attack Damage if you have used a Warcry Skill in the last 8s"
     ],
     "additional attack damage when holding a one-handed weapon": [
-      "+8% additional Attack Damage when holding a One-Handed Weapon"
+      "+8 % additional Attack Damage when holding a One-Handed Weapon"
     ],
     "additional attack damage when no enemies are nearby": [
       "+(130–144) % additional Attack Damage when no enemies are Nearby",
@@ -41,8 +41,8 @@
     "additional base damage for two-handed weapons": [
       "+(100–120) % additional Base Damage for Two-Handed Weapons",
       "+(80–90) % additional Base Damage for Two-Handed Weapons",
-      "+10% additional Base Damage for Two-Handed Weapons",
-      "+4% additional Base Damage for Two-Handed Weapons"
+      "+10 % additional Base Damage for Two-Handed Weapons",
+      "+4 % additional Base Damage for Two-Handed Weapons"
     ],
     "additional beam skill damage while standing still": [
       "+(60–70) % additional Beam Skill Damage while standing still",
@@ -67,16 +67,16 @@
     "additional damage against cursed enemies": [
       "+20 % additional damage against Cursed enemies",
       "+30 % additional damage against Cursed enemies",
-      "+8% additional damage against Cursed enemies"
+      "+8 % additional damage against Cursed enemies"
     ],
     "additional damage against frostbitten enemies": [
       "+(36–48) % additional damage against Frostbitten enemies"
     ],
     "additional damage against frozen enemies": [
-      "+10% additional damage against Frozen enemies"
+      "+10 % additional damage against Frozen enemies"
     ],
-    "additional damage against low life enemies": [
-      "+25% additional damage against Low Life enemies"
+    "additional damage against low life enemies max divinity effect": [
+      "+25 % additional damage against Low Life enemies (Max Divinity Effect: 1)"
     ],
     "additional damage and minion damage when equipped with boots": [
       "+5 % additional damage and Minion Damage when equipped with Boots",
@@ -85,6 +85,9 @@
     "additional damage and minion damage while an elixir skill is active": [
       "+(15–20) % additional damage and Minion Damage while an Elixir Skill is active",
       "+(27–32) % additional damage and Minion Damage while an Elixir Skill is active"
+    ],
+    "additional damage applied to life": [
+      "8 % additional damage applied to Life"
     ],
     "additional damage at low life": [
       "+(15–20) % additional damage at Low Life",
@@ -134,7 +137,7 @@
     "additional damage for s after using mobility skills": [
       "+(35–45) % additional damage for 5 s after using Mobility Skills",
       "+(45–55) % additional damage for 5 s after using Mobility Skills",
-      "+10% additional damage for 4s after using Mobility Skills"
+      "+10 % additional damage for 4s after using Mobility Skills"
     ],
     "additional damage for the next focus skill triggered for each enemy defeated stacks up to time s": [
       "+5 % additional damage for the next Focus Skill triggered for each enemy defeated. Stacks up to 10 time(s)",
@@ -149,7 +152,7 @@
       "+(8–10) % additional damage if the max stacks of Focus Blessing is not lower than the stacks of other Blessings"
     ],
     "additional damage if you have lost life recently": [
-      "+8% additional damage if you have lost Life recently"
+      "+8 % additional damage if you have lost Life recently"
     ],
     "additional damage over time": [
       "-99 % additional Damage Over Time"
@@ -179,14 +182,14 @@
       "+(45–50) % additional damage when having at least 25000 Armor"
     ],
     "additional damage when having both sealed mana and life": [
-      "+10% additional damage when having both Sealed Mana and Life"
+      "+10 % additional damage when having both Sealed Mana and Life"
     ],
     "additional damage when unarmed": [
       "+(15–21) % additional damage when Unarmed",
       "+(27–33) % additional damage when Unarmed"
     ],
     "additional deterioration damage": [
-      "+8% additional Deterioration Damage"
+      "+8 % additional Deterioration Damage"
     ],
     "additional deterioration damage if you have dealt a critical strike recently": [
       "+(30–35) % additional Deterioration Damage if you have dealt a Critical Strike recently",
@@ -217,13 +220,13 @@
       "+10 % additional Erosion Area Damage against Elites",
       "+20 % additional Erosion Area Damage against Elites"
     ],
-    "additional evasion on spell damage": [
-      "+20% additional Evasion on Spell Damage"
+    "additional evasion on spell damage max divinity effect": [
+      "+20 % additional Evasion on Spell Damage (Max Divinity Effect: 1)"
     ],
     "additional fire damage": [
       "+(60–70) % additional Fire Damage",
       "+(90–100) % additional Fire Damage",
-      "+4% additional Fire Damage"
+      "+4 % additional Fire Damage"
     ],
     "additional fire damage for every stack of tenacity blessing": [
       "+(14–15) % additional Fire Damage for every stack of Tenacity Blessing",
@@ -268,12 +271,12 @@
     "additional max damage": [
       "+(10–40) % additional Max Damage",
       "+(6–30) % additional Max Damage",
-      "+12% additional Max Damage",
-      "+2% additional Max Damage"
+      "+12 % additional Max Damage",
+      "+2 % additional Max Damage"
     ],
     "additional max damage for minions": [
-      "+12% additional Max Damage for Minions",
-      "+2% additional Max Damage for Minions"
+      "+12 % additional Max Damage for Minions",
+      "+2 % additional Max Damage for Minions"
     ],
     "additional max damage multiplies for each time you inflict numbed recently stacks up to time s": [
       "+1 % additional Max Damage (multiplies) for each time you inflict Numbed recently. Stacks up to 20 time(s)",
@@ -292,7 +295,7 @@
       "+20 % additional Minion Damage for every Minion you have. Stacks up to 6 times"
     ],
     "additional minion damage if a synthetic troop skill has been cast recently": [
-      "+8% additional Minion Damage if a Synthetic Troop Skill has been cast recently"
+      "+8 % additional Minion Damage if a Synthetic Troop Skill has been cast recently"
     ],
     "additional minion damage when you have at least stack s of focus blessing": [
       "+(130–150) % additional Minion Damage when you have at least (6–7) stack(s) of Focus Blessing",
@@ -303,7 +306,7 @@
       "+(30–40) % additional Numbed Effect on Critical Strike with Lightning Damage for 2 s"
     ],
     "additional physical damage while having fervor": [
-      "+8% additional Physical Damage while having Fervor"
+      "+8 % additional Physical Damage while having Fervor"
     ],
     "additional projectile damage": [
       "+(10–15) % additional Projectile Damage",
@@ -311,14 +314,14 @@
       "+(30–40) % additional Projectile Damage"
     ],
     "additional sentry damage": [
-      "+8% additional Sentry Damage"
+      "+8 % additional Sentry Damage"
     ],
     "additional sentry damage for every nearby sentry within m": [
       "+(11–12) % additional Sentry Damage for every nearby Sentry within 10m",
       "+(8–10) % additional Sentry Damage for every nearby Sentry within 10m"
     ],
     "additional sentry damage if sentry skill is not used in the last s": [
-      "+10% additional Sentry Damage if Sentry Skill is not used in the last 1 s"
+      "+10 % additional Sentry Damage if Sentry Skill is not used in the last 1 s"
     ],
     "additional shadow damage": [
       "+(14–16) % additional Shadow Damage",
@@ -329,9 +332,6 @@
     "additional skill damage when demolisher charge is consumed": [
       "+(30–40) % additional skill damage when Demolisher Charge is consumed",
       "+(45–55) % additional skill damage when Demolisher Charge is consumed"
-    ],
-    "additional spell damage": [
-      "+8% additional Spell Damage"
     ],
     "additional spell damage additional minion damage": [
       "-50 % additional Spell Damage -50 % additional Minion Damage",
@@ -345,6 +345,9 @@
       "+1 % additional Spell Damage for every (75–100) Max Mana owned, up to 70 %",
       "+2 % additional Spell Damage for every (75–100) Max Mana owned, up to 105 %"
     ],
+    "additional spell damage max divinity effect": [
+      "+8 % additional Spell Damage (Max Divinity Effect: 1)"
+    ],
     "additional spell damage when not at full mana": [
       "+(30–40) % additional Spell Damage when not at Full Mana",
       "+(50–60) % additional Spell Damage when not at Full Mana"
@@ -355,8 +358,10 @@
     ],
     "additional spirit magus skill damage": [
       "+(26–40) % additional Spirit Magus Skill Damage",
-      "+(34–52) % additional Spirit Magus Skill Damage",
-      "-40% additional Spirit Magus Skill Damage"
+      "+(34–52) % additional Spirit Magus Skill Damage"
+    ],
+    "additional spirit magus skill damage max divinity effect": [
+      "-40 % additional Spirit Magus Skill Damage (Max Divinity Effect: 1)"
     ],
     "additional spirit magus ultimate damage and ailment damage dealt by ultimate": [
       "+(10–21) % additional Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate .",
@@ -375,7 +380,7 @@
       "+(35–40) % additional Thunder Focus Damage"
     ],
     "additional trauma damage dealt by critical strikes": [
-      "+12% additional Trauma Damage dealt by Critical Strikes"
+      "+12 % additional Trauma Damage dealt by Critical Strikes"
     ],
     "additional trauma damage multiplies for each critical strike dealt recently stacks up to time s": [
       "+(17–20) % additional Trauma Damage (multiplies) for each Critical Strike dealt recently. Stacks up to (3–4) time(s)",

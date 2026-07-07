@@ -17,7 +17,8 @@ SP = "chromatic_shot_splendor_noble"
 
 def _skill_data():
     import json, os
-    d = json.load(open(os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons", "SS12", "_skills.json"), encoding="utf-8"))
+    from persistence import season_manager
+    d = season_manager.load_skills("SS12")   # normalized runtime view
     items = d if isinstance(d, list) else d.get("skills") or d.get("items") or []
     return next(x for x in items if x.get("item_id") == "chromatic_shot")
 

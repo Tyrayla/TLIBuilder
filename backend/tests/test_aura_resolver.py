@@ -6,8 +6,8 @@ import os
 from server import _parse_custom_mod_text as P, _translate_condition_expr as T
 from engine.aura_resolver import resolve_auras
 
-_SKILLS = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons", "SS12", "_skills.json")
-_BY_ID = {s["item_id"]: s for s in json.load(open(_SKILLS, encoding="utf-8"))["skills"]}
+from persistence import season_manager
+_BY_ID = {s["item_id"]: s for s in season_manager.load_skills("SS12")["skills"]}
 
 
 def _resolve(skill_id, level):
