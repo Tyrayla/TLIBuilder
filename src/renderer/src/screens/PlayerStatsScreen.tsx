@@ -1683,22 +1683,38 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               // (through + return), so Hit Rate > Attack Rate. Per-form detail lives in each row's breakdown.
               const totalFires = rateForms.reduce((s, f) => s + f.fires_per_sec, 0)
               const totalHits = rateForms.reduce((s, f) => s + f.fires_per_sec * (f.hits_per_fire || 1), 0)
-              const perFormFires: ExtraRow[] = rateForms.map(f => ({
-                value: `${dec(f.fires_per_sec)}/s`, stat: f.name, source: 'Form', sourceName: 'firing rate' }))
+              const encP = offense.spirit_magi_enhanced_chance ?? 0    // Enhanced (replace) chance, for labels
+              const perFormFires: ExtraRow[] = rateForms.map(f => {
+                const isEnh = /enhanced/i.test(f.name)
+                const sn = encP > 0
+                  ? (isEnh
+                      ? `${dec(encP * 100)}% Enhanced chance + fast-insert (fires fast after a Base)`
+                      : `Base share = 1 − ${dec(encP * 100)}% Enhanced`)
+                  : 'firing rate'
+                return { value: `${dec(f.fires_per_sec)}/s`, stat: f.name, source: 'Form', sourceName: sn }
+              })
               const perFormHits: ExtraRow[] = rateForms.map(f => ({
                 value: `${dec(f.fires_per_sec)}/s × ${f.hits_per_fire || 1} = ${dec(f.fires_per_sec * (f.hits_per_fire || 1))}/s`,
                 stat: f.name, source: 'Form', sourceName: `${f.hits_per_fire || 1} hit${(f.hits_per_fire || 1) === 1 ? '' : 's'}/fire` }))
+              // Minions swing at a shared cadence, but an Enhanced skill REPLACES the Base skill on proc and (for
+              // Thunder) fires with a short recovery right after a Base — so Enhanced lands ABOVE its raw chance
+              // (the "fast insert"). Both forms are further scaled by the Empower cast-slot. Spell out that here
+              // so the per-form rates (which sum to the total) aren't a black box.
+              const attackFormula = rateForms.length > 1
+                ? `${rateFormula} = shared cadence. Enhanced REPLACES Base at its chance; it fires faster right after a Base (fast-insert) so it lands above its raw chance. Both × the Empower cast-slot. Per-form rows sum to the total.`
+                : rateFormula
               return (
                 <>
                   <Row label={rateLabel} breakdown={{
                     title: rateLabel, keys: rateKeys, total: totalFires, totalUnit: ' /s',
-                    formula: rateForms.length > 1 ? `${rateFormula} — summed across forms` : rateFormula,
+                    formula: attackFormula,
                     extra: [...(rateBaseline ?? []), ...(rateForms.length > 1 ? perFormFires : [])],
                   }}>{dec(totalFires)}/s</Row>
                   {totalHits > totalFires + 1e-6 && (
                     <Row label="Hits per Second" labelColor="#8aa" breakdown={{
                       title: 'Hit Rate — damage instances landing / second', keys: [], total: totalHits, totalUnit: ' /s',
-                      formula: 'Σ (form firing rate × hits per fire)', extra: perFormHits,
+                      formula: 'Σ (form firing rate × hits per fire). Thunderlight Arrow lands 2 hits/cast — the arrow passes through the target, then tracks back and hits again.',
+                      extra: perFormHits,
                     }}>{dec(totalHits)}/s</Row>
                   )}
                 </>
