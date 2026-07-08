@@ -2,7 +2,8 @@
 Generalized "inflicts Numbed" detection (engine.ailment_inflict) — works from ANY mod source
 (talents / gear / custom mods), not just attached supports. Numbed stacks stay user-set; an inflict line
 enables the enemy_numbed gate + auto-floors a baseline (max-rule, gated by hit damage type). "cannot
-inflict Numbed" hard-overrides.
+inflict Numbed" withholds the AUTO-apply only — a manually-toggled enemy_numbed / numbed_stacks value is
+NOT cleared by the block (same shape as Frostbite's "cannot inflict Frostbite", see test_frostbite_inflict.py).
 """
 import pytest
 from engine.ailment_inflict import scan_numbed_inflict
@@ -46,10 +47,36 @@ class TestEngine:
         assert _stacks(mods=[A], conds={"numbed_stacks": 8}) == pytest.approx(8.0)
 
     def test_block_forces_zero(self):
+        # No manual override present -> the block withholds the auto-floor entirely, same as before.
         assert _stacks(mods=[A, H]) == 0.0
 
-    def test_block_overrides_user_value(self):
-        assert _stacks(mods=[H], conds={"numbed_stacks": 9}) == 0.0
+    def test_block_does_not_override_manual_value(self):
+        # A "cannot inflict Numbed" block only withholds the engine's AUTO-apply; it must not clear a
+        # manually-toggled numbed_stacks value -- mirrors Frostbite's block (see
+        # test_frostbite_inflict.py::TestEngine::test_block_does_not_override_manual_toggle), which never hard-clears
+        # a manual enemy_frostbitten toggle either.
+        assert _stacks(mods=[H], conds={"numbed_stacks": 9}) == pytest.approx(9.0)
+
+    def test_block_does_not_override_manual_bool_and_still_gates_consumer(self):
+        # A manually-toggled enemy_numbed BOOLEAN (independent of numbed_stacks) must also survive the
+        # "cannot inflict Numbed" block, AND still gate a downstream "vs Numbed enemy" consumer (a custom
+        # damage line resolved via the stat-part + translated-condition split — see
+        # server.py's "against/from <Status> enemies" pattern; shape mirrors support_mapper.py's
+        # "numbed enem" gate at lines 188-193). Mirrors Frostbite's manual-toggle survival (see
+        # test_frostbite_inflict.py::TestEngine::test_block_does_not_override_manual_toggle).
+        line = "+50 % additional Lightning Damage against Numbed enemies"
+
+        def dps(mods, conds):
+            req = make_request("chain_lightning", 14, custom_mods=mods, extra_conditions=conds)
+            r = engine_stats(EngineStatsRequest(**req))
+            d = r.model_dump() if hasattr(r, "model_dump") else r
+            return d["offense"]["total_dps"]
+
+        base = dps([H], {})
+        blocked_no_manual = dps([H, line], {})
+        blocked_with_manual = dps([H, line], {"enemy_numbed": True})
+        assert blocked_no_manual == pytest.approx(base)          # block alone: consumer line stays gated off
+        assert blocked_with_manual > base                        # manual toggle survives the block and gates it on
 
     def test_gated_on_lightning_damage(self):
         # A non-lightning skill carrying the line inflicts no Numbed (no Lightning hit).

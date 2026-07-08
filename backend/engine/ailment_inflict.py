@@ -14,7 +14,10 @@ Functional spec (Tyra-confirmed):
   C  "Inflicts N additional stack(s) of Numbed"                  -> raises the floor to 1 + N (needs A/B)
   E  "Critical Strikes are guaranteed to inflict Numbed"         -> like A (Lightning hit)
   G  "inflicts ... Numbed based on Elemental Hit Damage"         -> like A, but any Elemental hit
-  H  "cannot inflict ... Numbed"                                 -> HARD override: no Numbed at all
+  H  "cannot inflict ... Numbed"                                 -> withholds AUTO-apply only (no
+                                                                     enemy_numbed/numbed_stacks ConditionEffect
+                                                                     emitted); a MANUAL user toggle of either is
+                                                                     NOT cleared -- same shape as Frostbite's block
   F  threshold "-X% to ... thresholds for inflicting Numbed"     -> not modelled (informational)
 """
 from __future__ import annotations
@@ -49,7 +52,8 @@ class NumbedInflict:
         return _classify(text) is not None
 
     def condition_effects(self) -> list[ConditionEffect]:
-        """Floor + gate effects for compute._apply_cond_effects. H is handled separately (override)."""
+        """Floor + gate effects for compute._apply_cond_effects. H withholds these entirely (no auto-apply);
+        it does not clear any manually-set enemy_numbed/numbed_stacks — compute never hard-overrides them."""
         if self.blocked:
             return []
         floor = 1.0 + float(self.additional)

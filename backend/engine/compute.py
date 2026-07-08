@@ -985,12 +985,13 @@ def compute(
         # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
         # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values. Non-support
         # "inflicts Numbed" sources (talents/gear/custom mods) ride the same path via inflict_cond_effects.
+        # H — "cannot inflict Numbed" withholds the AUTO-apply: engine.ailment_inflict.NumbedInflict emits
+        # no ConditionEffect for enemy_numbed/numbed_stacks when blocked (see condition_effects()), so the
+        # call above simply has nothing to apply. A MANUAL user toggle of enemy_numbed / numbed_stacks is
+        # NOT force-cleared here — mirrors Frostbite, where a "cannot inflict Frostbite" block likewise only
+        # withholds enemy_frostbitten's auto-apply ConditionEffect and never hard-clears a manual toggle.
         _apply_cond_effects(condition_state, list(cond_effects) + list(build_input.inflict_cond_effects),
                             main_dtypes, manual_cond_keys, auto_sources, auto_values)
-        # H — "cannot inflict Numbed" overrides everything (even a user-set value): no Numbed at all.
-        if build_input.numbed_blocked:
-            condition_state["enemy_numbed"] = False
-            condition_state["numbed_stacks"] = 0.0
 
         maxes = derive_condition_maximums(source)
         mins = derive_condition_minimums(source)

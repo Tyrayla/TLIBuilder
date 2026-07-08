@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixes
+- **"Cannot inflict Numbed"** no longer overrides a manual Numbed toggle — it now only suppresses the engine's automatic application, matching how Frostbite already behaves. (Only affects builds with both a manual Numbed toggle and a "cannot inflict Numbed" source active.)
+- Importing a malformed or too-new build code now shows a clear error message instead of failing silently or crashing.
+
+---
+
 ## [0.5.5] - 2026-06-26
 
 ### New skill

@@ -36,7 +36,23 @@ def _strip_for_share(build: dict) -> dict:
     """Return a copy of the build with the id and derived gear fields removed."""
     result = {k: v for k, v in build.items() if k != "id"}
     if "gear" in result:
-        result["gear"] = [_strip_gear_item(item) for item in result["gear"]]
+        gear = result["gear"]
+        if gear is None:
+            # No gear is not an error — drop the key so it round-trips the same as "absent".
+            result.pop("gear", None)
+        else:
+            if not isinstance(gear, list):
+                raise BuildCodeError(
+                    "Build has an invalid 'gear' value — expected a list of gear items."
+                )
+            stripped_gear = []
+            for item in gear:
+                if not isinstance(item, dict):
+                    raise BuildCodeError(
+                        "Build has an invalid gear entry — expected a gear item object."
+                    )
+                stripped_gear.append(_strip_gear_item(item))
+            result["gear"] = stripped_gear
     return result
 
 
@@ -84,12 +100,20 @@ def decode_build(code: str, legendary_gear_items: list[dict]) -> dict:
         if isinstance(item, dict) and "item_id" in item
     }
 
-    if "gear" in build and isinstance(build["gear"], list):
-        build["gear"] = [
-            _rehydrate_gear_item(g, gear_by_id)
-            for g in build["gear"]
-            if isinstance(g, dict)
-        ]
+    if "gear" in build:
+        gear = build["gear"]
+        if not isinstance(gear, list):
+            raise BuildCodeError(
+                "Build code has an invalid 'gear' value — expected a list of gear items."
+            )
+        rehydrated_gear = []
+        for g in gear:
+            if not isinstance(g, dict):
+                raise BuildCodeError(
+                    "Build code has an invalid gear entry — expected a gear item object."
+                )
+            rehydrated_gear.append(_rehydrate_gear_item(g, gear_by_id))
+        build["gear"] = rehydrated_gear
 
     # Remove the schema version marker before returning to the frontend
     build.pop("v", None)
@@ -186,6 +210,11 @@ def _migrate(build: dict, from_version) -> dict:
     if not isinstance(from_version, int) or from_version < 1:
         raise BuildCodeError(
             "This build code is from an older version and can't be imported."
+        )
+
+    if from_version > SCHEMA_VERSION:
+        raise BuildCodeError(
+            "This build code is from a newer version of the app — please update to import it."
         )
 
     if from_version < 2:

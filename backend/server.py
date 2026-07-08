@@ -1026,7 +1026,6 @@ def engine_stats(req: EngineStatsRequest):
         uptime_mode=req.uptime_mode,
         target_config=target_config,
         inflict_cond_effects=_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects(),
-        numbed_blocked=_numbed_inflict.blocked,
     )
     from engine.identity_index import get_identity_index
     result = compute(

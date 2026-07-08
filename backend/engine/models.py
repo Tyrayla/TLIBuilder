@@ -243,9 +243,11 @@ class BuildInput:
     uptime_mode: str = "max"
     # Generalized "inflicts Numbed" effects from non-support sources (talents/gear/slates/custom mods),
     # built server-side by engine.ailment_inflict. Same shape as the support cond_effects: floor numbed_stacks
-    # + enable enemy_numbed, gated by hit damage type. `numbed_blocked` hard-overrides (H "cannot inflict").
+    # + enable enemy_numbed, gated by hit damage type. A "cannot inflict Numbed" block line withholds these
+    # effects entirely (engine.ailment_inflict.NumbedInflict.condition_effects() returns [] when blocked) —
+    # it does NOT hard-clear a manually-toggled enemy_numbed/numbed_stacks, mirroring how Frostbite's block
+    # only withholds its own auto-apply ConditionEffect without a separate hard-override field/flag.
     inflict_cond_effects: list = field(default_factory=list)
-    numbed_blocked: bool = False
 
 
 @dataclass
