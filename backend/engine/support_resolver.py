@@ -110,6 +110,12 @@ _RANKED_TYPES = {"magnificent_support_skill", "noble_support_skill"}
 _UNIVERSAL_PHRASE = "additional damage for the supported skill"
 _NUM_RE = re.compile(r"\d+(?:\.\d+)?")
 
+# A crawler artifact: a progression `name` sometimes glues a "stacking up to N time(s)" clause directly onto
+# a following "When/While/If …" gated sentence with no separating punctuation (~50 lines season-wide, e.g.
+# Crossed Lightning's Chain Lightning Quantity clause run into its Dexterity-threshold damage clause). Split
+# on that exact boundary before any per-line condition parsing (see the specific-tier-line loop below).
+_RUNON_SENTENCE_RE = re.compile(r"(?<=\btime\(s\))\s+(?=(?:when|while|if)\b)", re.I)
+
 # Behavioral (non-stat) support effects, parsed from description text (not hardcoded to skill ids).
 _FALLOFF_RE = re.compile(r"falloff coefficient of the supported skill is\s*(\d+(?:\.\d+)?)\s*%", re.I)
 _RELEASE_CHAINS_RE = re.compile(r"releases?\s+(\d+)\s+additional\s+chain lightning", re.I)
@@ -268,7 +274,7 @@ def resolve_support_contributions(
         tier = _tier_value(sup.get("level"))
         entry = _progression_for_tier(data.get("progression"), tier)
         if entry:
-            line = str((entry.get("values") or {}).get("name", ""))
+            full_line = str((entry.get("values") or {}).get("name", ""))
             # "+X% additional damage for the supported skill when it lands a Critical Strike" (Critical Strike
             # Damage Increase) → the crit-weighted additional-damage pool (offense scales it by the finalized crit
             # chance), NOT a plain always-on additional. Its progression is keyed by the LINE TEXT (no "name"
@@ -286,45 +292,53 @@ def resolve_support_contributions(
                         "label": f"{name} (Tier {tier})", "source_name": name, "slot": sup.get("slot", 1),
                     })
                 continue
-            # Split off & translate a condition ("…when only 1 enemy nearby") so the line is GATED, not
-            # applied always-on. Untranslatable gate → drop the line (don't inflate DPS ungated).
-            stat_clause, cond_part = _split_condition(line)
-            cond_expr = None
-            if cond_part is not None and translate_cond is not None:
-                cond_expr = translate_cond(line) or translate_cond(cond_part)
-                if cond_expr is None:
-                    stat_clause = ""
-            low = stat_clause.lower()
-            if "(multiplies)" in low:
-                pass  # Augmentation's per-Jump compounding line → resolve_support_behavior
-            elif "additional hit damage for the supported skill" in low:
-                # Generic "+X% additional Hit Damage for the supported skill" → the hit-only additional pool.
-                # (The universal phrase below only matches "additional DAMAGE…"; this is the "…HIT DAMAGE…" variant.)
-                roll = _explicit_roll(sup, line)
-                frac = roll if roll is not None else _range_mid_fraction(stat_clause)
-                if frac is not None and frac != 0.0:
-                    out.append({
-                        "stat_key": "hit_dmg_additional",
-                        "amount": frac,
-                        "text": "additional Hit Damage for the supported skill |{}|specific".format(item_id),
-                        "label": f"{name} (Tier {tier})",
-                        "source_name": name,
-                        "condition": cond_expr,
-                        "slot": sup.get("slot", 1),
-                    })
-            elif _UNIVERSAL_PHRASE in low:
-                roll = _explicit_roll(sup, line)
-                frac = roll if roll is not None else _range_mid_fraction(stat_clause)
-                if frac is not None and frac != 0.0:
-                    out.append({
-                        "stat_key": "dmg_additional",
-                        "amount": frac,
-                        "text": f"{_UNIVERSAL_PHRASE} |{item_id}|specific",
-                        "label": f"{name} (Tier {tier})",
-                        "source_name": name,
-                        "condition": cond_expr,
-                        "slot": sup.get("slot", 1),
-                    })
+            # A progression `name` sometimes GLUES two independent sentences with no separating punctuation
+            # (~50 occurrences season-wide, e.g. Crossed Lightning: "...stacking up to 6 time(s) When having at
+            # least 240 Dexterity, +42% additional damage..."). Split on that glue point FIRST, so a following
+            # sentence's own untranslatable gate can't swallow (and zero out) an unrelated preceding clause's
+            # stat text — each sentence is condition-split and resolved independently below.
+            for line in _RUNON_SENTENCE_RE.split(full_line) if full_line else [full_line]:
+                if not line:
+                    continue
+                # Split off & translate a condition ("…when only 1 enemy nearby") so the line is GATED, not
+                # applied always-on. Untranslatable gate → drop the line (don't inflate DPS ungated).
+                stat_clause, cond_part = _split_condition(line)
+                cond_expr = None
+                if cond_part is not None and translate_cond is not None:
+                    cond_expr = translate_cond(line) or translate_cond(cond_part)
+                    if cond_expr is None:
+                        stat_clause = ""
+                low = stat_clause.lower()
+                if "(multiplies)" in low:
+                    pass  # Augmentation's per-Jump compounding line → resolve_support_behavior
+                elif "additional hit damage for the supported skill" in low:
+                    # Generic "+X% additional Hit Damage for the supported skill" → the hit-only additional pool.
+                    # (The universal phrase below only matches "additional DAMAGE…"; this is the "…HIT DAMAGE…" variant.)
+                    roll = _explicit_roll(sup, line)
+                    frac = roll if roll is not None else _range_mid_fraction(stat_clause)
+                    if frac is not None and frac != 0.0:
+                        out.append({
+                            "stat_key": "hit_dmg_additional",
+                            "amount": frac,
+                            "text": "additional Hit Damage for the supported skill |{}|specific".format(item_id),
+                            "label": f"{name} (Tier {tier})",
+                            "source_name": name,
+                            "condition": cond_expr,
+                            "slot": sup.get("slot", 1),
+                        })
+                elif _UNIVERSAL_PHRASE in low:
+                    roll = _explicit_roll(sup, line)
+                    frac = roll if roll is not None else _range_mid_fraction(stat_clause)
+                    if frac is not None and frac != 0.0:
+                        out.append({
+                            "stat_key": "dmg_additional",
+                            "amount": frac,
+                            "text": f"{_UNIVERSAL_PHRASE} |{item_id}|specific",
+                            "label": f"{name} (Tier {tier})",
+                            "source_name": name,
+                            "condition": cond_expr,
+                            "slot": sup.get("slot", 1),
+                        })
     return out
 
 

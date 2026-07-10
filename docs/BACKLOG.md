@@ -1,6 +1,11 @@
 # TLI Builder — Outstanding Backlog
 
-Grouped by area. Pruned 2026-06-16 after the 0.5.2 release and the web launch.
+Grouped by area. Pruned 2026-06-16 after the 0.5.2 release and the web launch. Revised 2026-07-10: §4's
+"Dropped ungated/conditional support damage lines" entry was audited and found to be largely wrong — see that
+entry for the corrected split (5 already wired, 7 re-filed under §3 as blocked on unmodeled host skills, 1
+closed-bug note on a run-on-sentence parser bug affecting exactly 1 entity in the field the resolver actually
+reads (`progression[].values.name`) — corrected down from an interim "6 entities" count, itself corrected down
+from an original "~50").
 
 > **Verification Knowledge Base:** confirmed in-game behavior + modeled-but-untested coverage now lives in
 > `data/verification/*.json` (source of truth), rendered to `docs/verification/README.md` and viewable in-app
@@ -271,6 +276,35 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   mechanics; cross-skill buff DPS with damage-skill marking.
 - **Skill list audit**: prune active/passive catalogs (minion + out-of-game skills appearing).
 - **Fervor gating**: add a "Have Fervor" source; gate base Fervor application instead of unconditional.
+- **Model 6 host skills to unlock their gated support lines (re-filed from §4 2026-07-10, EXPLICIT — do not
+  forget).** Each support below carries a conditional / per-stack / per-X "additional damage for the supported
+  skill" line that the resolver currently drops as untranslatable — but in every case the real blocker is that
+  the HOST skill has no `skill_resolver._REGISTRY` entry at all (`total_dps = 0.0` regardless of the support), so
+  fixing the gate alone would produce zero visible change:
+  - `inexhaustible_barrage` — **best value**: one host skill unlocks BOTH `inexhaustible_barrage_fatal_pursuit_noble`
+    ("+27–29% when using a gun") and `inexhaustible_barrage_landslide_noble` ("−5–−4% when using a cannon"). The
+    gun/cannon gate follows the existing manual-boolean precedent of `holding_two_handed` / `holding_one_handed` /
+    `dual_wielding` in `data/conditions.json` (category "Equipment") — no weapon-type auto-derivation exists
+    anywhere in the engine.
+  - `scorching_beam` — **worst value**: needs a full Icebound-Beam-style `ChanneledSpec` (reset behavior, burst +
+    continuous forms) built from scratch. Once it exists, `scorching_beam_supercharge_magnificent`'s ("+6–6.4% per
+    channeled stack") per-channeled-stack line falls out of the already-existing `IntrinsicAdditional` mechanism
+    for free — but a modelling decision on the steady-state/at-cap assumption is needed first.
+  - `lightning_shot_crossed_lightning_noble` — "+42–44% when ≥240 Dexterity" (+ per-Dex Chain qty): the gate needs
+    a new Dexterity-threshold condition (seed `dexterity_total` in `compute.py` alongside the existing
+    `dexterity_ge_strength`, plus `_COND_PATTERNS` entries). Small and reusable catalogue-wide. NOTE: a separate
+    run-on-sentence parser bug affecting this support was fixed 2026-07-10 (§4 closed-bug note) — that bug is
+    closed; the Dex gate remains open.
+  - `blazing_bullet_ignition_point_noble` — "+43–45% when bonus+additional Skill Area ≥ 120%": can reuse the
+    `(1+Σinc)·Π(1+add)−1` helper currently private to `skill_effects/berserking_blade.py::emit_rampage`; extract
+    it to a shared utility.
+  - `path_of_flames` — **being modelled right now** as part of the Damage-over-Time engine work (it is the control
+    skill for Mind Control). Once registered, `path_of_flames_raging_boil_noble`'s ("+8–8.5% per Elite passed
+    while channeling, stacks 8") gate still needs a novel proximity/trigger subsystem — lowest priority.
+  - `focused_shot_aspire_magnificent` — "+7.5–8% per use while 100 Fervor, stacks 6": needs a per-use stacking
+    buff with hysteresis (activates at 100 Fervor, deactivates below 50). No precedent in the engine. Cheapest
+    approximation if picked up: a manual user-set stack count (0–6), the way `berserking_blade_stacks` works —
+    flagged as a simplification, not a full trigger simulation.
 
 ## 4. Data / crawler / import
 - **Crawler & import rework** — DONE. Scraper built; importer/schema rework complete; data reimported in
@@ -278,22 +312,51 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
 - **Master glossary expansion**: keep data/master_glossary.json in sync; expand Help DB glossary terms.
 - **Revisit ~22 unmapped support DPS lines** (ailment/DoT, Tendonslicer, Projectile Penetration) with
   conditions active + autoderive/canvas resolvers.
-- **Dropped ungated/conditional support damage lines (EXPLICIT — do not forget).** These supports carry a
-  conditional / per-stack / per-X "additional damage for the supported skill" line the resolver currently DROPS
-  (untranslatable gate → not applied ungated; surfaced as a tooltip badge but not in DPS). Pre-existing (predates
-  the AM work; the stale baseline just recorded them ungated). Model each as a gated/per-N contribution:
-  - `berserking_blade_desperation_magnificent` — "+2.7–2.9% per 5% Life lost, up to 38%" (per-life scaling)
-  - `blazing_bullet_ignition_point_noble` — "+43–45% when bonus+additional Skill Area ≥ 120%"
-  - `focused_shot_aspire_magnificent` — "+7.5–8% per use while 100 Fervor, stacks 6"
-  - `focused_slash_duel_magnificent` — "+65–70% when only 1 enemy nearby"
-  - `inexhaustible_barrage_fatal_pursuit_noble` — "+27–29% when using a gun"
-  - `inexhaustible_barrage_landslide_noble` — "−5–−4% when using a cannon"
-  - `lightning_shot_crossed_lightning_noble` — "+42–44% when ≥240 Dexterity" (+ per-Dex Chain qty)
-  - `moon_strike_lunar_eclipse_noble` — "+1% per 100 sealed Mana, up to 57–60%" (needs mana-seal model)
-  - `path_of_flames_raging_boil_noble` — "+8–8.5% per Elite passed while channeling, stacks 8"
-  - `scorching_beam_supercharge_magnificent` — "+6–6.4% per channeled stack"
-  - `split_shot_collaboration_noble` — "+4.2–4.4% per +1 Projectile Quantity"
-  - `split_shot_rapid_advance_noble` — "+22–23% per +1 Max Channeled Stack, stacks 15"
+- **Dropped ungated/conditional support damage lines — AUDITED 2026-07-10, most of this entry was WRONG.** The
+  previous version of this entry listed twelve supports as "dropped because the resolver can't translate their
+  gate." A full audit (driven the real pipeline end-to-end, not read off comments) found that's only true for
+  one of them — the rest are either already wired, or blocked on a much bigger hole (an unmodeled host skill)
+  than the gate itself. Corrected below so the genuinely-open items aren't silently lost.
+
+  **Already wired — remove from any "dropped" list:**
+  - `berserking_blade_desperation_magnificent` — wired via `skill_effects/berserking_blade.py::desperation_contribution`
+    (CONTRIB_HOOK), gated on the auto-derived `life_lost_pct` condition (`backend/engine/compute.py:922-929`).
+  - `focused_slash_duel_magnificent` — wired through the GENERIC resolver; `server.py`'s `_COND_PATTERNS`
+    (`backend/server.py:2133`) already translates "only 1 enemy nearby" → `{"key":"enemies_nearby","op":"==","value":1}`.
+    Covered by `test_duel_gates_on_single_enemy`.
+  - `split_shot_collaboration_noble` — wired in `skill_effects/split_shot.py::apply_slot_effects` (slot-local,
+    per-Projectile-Quantity).
+  - `split_shot_rapid_advance_noble` — wired via `IntrinsicAdditional(rating_key="max_channeled_stacks_flat")`
+    plus the channel transform.
+  - `moon_strike_lunar_eclipse_noble` — wired in `backend/engine/utility.py:462-470` (`apply_reservation` detects
+    "mana sealed" + "up to", interpolates the cap by rank via `_seal_dmg_cap`). Measured end-to-end: Moon Strike
+    base 2535.59 DPS → 3042.71 DPS with Lunar Eclipse rank 1 and 20000 Max Mana — exactly the +20% predicted from
+    2000 sealed Mana. Its source comment and test docstring were stale ("DEFERRED") and have been corrected too
+    (see `.wolf/buglog.json` id `docs-moon-strike-lunar-eclipse-stale-deferred-claim`).
+
+  **The remaining seven are NOT blocked on their gate — their HOST SKILL is unmodeled.** Six host skills have no
+  `skill_resolver._REGISTRY` entry and compute `total_dps = 0.0` regardless of any support attached:
+  `blazing_bullet`, `focused_shot`, `inexhaustible_barrage`, `lightning_shot`, `path_of_flames`, `scorching_beam`.
+  The untranslatable support gate is downstream of that much larger hole — fixing the gates first would produce
+  zero visible change. **Re-filed under §3 "Skill modeling / contributions"** (the "model more skills" bullet;
+  do not re-add them here) with the verbatim in-game line text preserved so they aren't silently lost.
+
+  **Closed bug (2026-07-10):** `lightning_shot_crossed_lightning_noble`'s progression line in
+  `data/seasons/SS12/_skills.json` is a run-on of two sentences with no separator ("...stacking up to 6 time(s)
+  When having at least 240 Dexterity, +(42–44)% additional damage..."). `_split_condition` matched "for every"
+  *inside* the first clause, so `cond_part` swallowed the entire second sentence and the untranslatable compound
+  zeroed the whole line — silently destroying the `+1 Chain Lightning Quantity` grant as well as the damage clause.
+  Fixed in `backend/engine/support_resolver.py` (`_RUNON_SENTENCE_RE`, line 117, splits sentences before
+  condition-splitting), with a regression test in `backend/tests/test_crossed_lightning_runon.py`. **Correction
+  2026-07-10:** the "6 entities" figure above was itself wrong — it came from a text scan across the whole skill
+  entry, not the field the code reads. `_RUNON_SENTENCE_RE` (`support_resolver.py:300`) is applied only to
+  `full_line`, read from `progression[].values.name` — and in that field, across all of SS12, exactly **one**
+  entity carries the glue pattern: `lightning_shot_crossed_lightning_noble` (3 tiers, `_skills.json:62610, 62616,
+  62622`). The other five previously listed (`ice_shot_ice_blast_magnificent`, `shockwave_warcry`,
+  `summon_erosion_magus`, `summon_fire_magus`, `summon_spider_tank_focus_fire_noble`) contain "time(s)" in
+  `raw_text` / `description_lines` only — fields this code path never reads — and are unaffected by it.
+  Crossed Lightning's host skill `lightning_shot` is not in `skill_resolver._REGISTRY` (see `.wolf/buglog.json`
+  id `bug-crossed-lightning-runon-progression-line-drops-quantity-grant`), so this fix changes no DPS today.
 
 ## 5. UI / screens
 - **★ Engine↔frontend display-fidelity audit (NEW initiative).** There are disconnects between how the engine

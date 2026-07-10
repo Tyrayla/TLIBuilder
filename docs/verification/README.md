@@ -5,19 +5,22 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**60 entries** — ✅ Confirmed: 9 · 🔶 Partial: 4 · ⬜ Pending: 9 · ⚠️ Unverified: 36
+**63 entries** — ✅ Confirmed: 11 · 🔶 Partial: 5 · ⬜ Pending: 9 · ⚠️ Unverified: 36
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
 | Additional attack/cast speed pooling | — | damage-pool, speed | ✅ Confirmed | 2026-06-10 | [additional-speed-pooling.md](additional-speed-pooling.md) |
+| Armor does not mitigate Damage over Time | Mind Control, Path of Flames | dot, mitigation | ✅ Confirmed | 2026-07-10 | [dot-armor-exclusion.md](dot-armor-exclusion.md) |
 | Chain Lightning (baseline) | Chain Lightning | baseline, damage-pool | ✅ Confirmed | 2026-06-10 | [chain-lightning.md](chain-lightning.md) |
 | Channeled / Icebound Beam | Icebound Beam | channeled, redistribution | ✅ Confirmed | 2026-06-14 | [channeled.md](channeled.md) |
 | Collapse | Groundshaker | breakpoint, step-function, rhythm, damage-pool | ✅ Confirmed | 2026-07-01 | [collapse.md](collapse.md) |
+| Damage over Time never critically strikes | Mind Control | dot, crit | ✅ Confirmed | 2026-07-10 | [dot-no-crit.md](dot-no-crit.md) |
 | Multistrike + Wind Stalker | — | speed, attack | ✅ Confirmed | 2026-06-22 | [multistrike.md](multistrike.md) |
 | Standard support skills (Chain Lightning L16) | Chain Lightning | supports, methodology | ✅ Confirmed | 2026-06-10 | [standard-supports.md](standard-supports.md) |
 | Support additional-damage pooling | Chain Lightning | damage-pool, supports | ✅ Confirmed | 2026-06-10 | [support-additional-damage-pooling.md](support-additional-damage-pooling.md) |
 | Tangle (tick-rounding + model) | Spell Tangle | tick-rounding, breakpoint, trigger | ✅ Confirmed | 2026-06-19 | [tangle.md](tangle.md) |
 | Training Dummy (calc target) | — | mitigation, methodology, calc-target | ✅ Confirmed | 2026-06-10 | [training-dummy.md](training-dummy.md) |
+| Damage over Time — skill-DoT damage model | Mind Control, Path of Flames | dot, damage-pool, tick-rounding, methodology | 🔶 Partial | 2026-07-10 | [dot-model.md](dot-model.md) |
 | Demolisher / Cripple / Frequent Quake | Groundshaker | damage-pool, restoration, trigger | 🔶 Partial | 2026-07-01 | [demolisher.md](demolisher.md) |
 | Shotgun (Merge + Web) | Chain Lightning | shotgun, supports, damage-pool | 🔶 Partial | — | [shotgun.md](shotgun.md) |
 | Spell Burst | Spell Burst | breakpoint, tick-rounding, trigger, damage-pool | 🔶 Partial | 2026-06-18 | [spell-burst.md](spell-burst.md) |

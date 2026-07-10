@@ -7,7 +7,10 @@ gates, the count fold, and — most importantly — (a) that PLAYER stat pools n
 import pytest
 
 from engine.models import BuildSource
-from engine.minion_offense import calculate_minion_offense, _interp_level_table, _coefficient_at, MINION_MODULES
+from engine.minion_offense import (
+    calculate_minion_offense, _interp_level_table, _coefficient_at, MINION_MODULES,
+    combine_minion_forms, nyi_offense,
+)
 
 
 _BASE_STATS = {
@@ -74,6 +77,65 @@ def test_minion_count_folds_into_totals_via_cast_multiplier():
     assert three.cast_multiplier == pytest.approx(3.0)
     # per-form figures stay per-minion (the table reconciles via cast_multiplier)
     assert three.hit_forms[0].dps_vs_target == pytest.approx(one.hit_forms[0].dps_vs_target)
+
+
+def test_damage_rows_reconcile_single_ability():
+    # count=1 → delivery=1.0: the single damage_row must reproduce total_dps_vs_target exactly and sum
+    # pct_of_total to 100.
+    o = calculate_minion_offense(_src_with_minion_mods(), _BASE_SKILL, _BASE_STATS, level=20, minion_count=1)
+    assert len(o.damage_rows) == 1
+    assert o.damage_rows[0].dps_vs_target_final == pytest.approx(o.total_dps_vs_target)
+    assert o.damage_rows[0].pct_of_total == pytest.approx(100.0, abs=1e-6)
+    assert o.target_mitigation_by_type["fire"] * o.enemy_vuln_by_type["fire"] == pytest.approx(
+        o.enemy_mult_by_type["fire"])
+
+
+def test_damage_rows_fold_minion_count_like_cast_multiplier():
+    # count folds into the row the same way it folds into total_dps_vs_target (delivery=count).
+    three = calculate_minion_offense(_src_with_minion_mods(), _BASE_SKILL, _BASE_STATS, 20, minion_count=3)
+    assert three.damage_rows[0].dps_vs_target_final == pytest.approx(three.total_dps_vs_target)
+
+
+_ABILITY_A = {"name": "Ability A", "skill_tags": ["Base Skill", "Spell", "Fire", "Area"],
+              "base_damage_coefficient": 110.0, "effectiveness_of_added_damage": "110%",
+              "cast_speed": "0.8 s", "cooldown": None}
+_ABILITY_B = {"name": "Ability B", "skill_tags": ["Base Skill", "Spell", "Fire", "Area"],
+              "base_damage_coefficient": 60.0, "effectiveness_of_added_damage": "60%",
+              "cast_speed": "1.0 s", "cooldown": None}
+
+
+def test_combine_minion_forms_merges_two_damage_abilities_without_double_counting_count():
+    """combine_minion_forms must only concatenate hit_forms/damage_rows and re-percentage against the COMBINED
+    total — minion `count` is folded in ONCE, per-ability, inside calculate_minion_offense (see its
+    `cast_multiplier=float(count)`); combine_minion_forms must not re-apply it."""
+    src = _src_with_minion_mods()
+    a3 = calculate_minion_offense(src, _ABILITY_A, _BASE_STATS, level=20, minion_count=3)
+    b3 = calculate_minion_offense(src, _ABILITY_B, _BASE_STATS, level=20, minion_count=3)
+    combined = combine_minion_forms("Combo", [a3, b3], count=3)
+
+    assert len(combined.hit_forms) == len(combined.damage_rows) == 2
+    # Concatenation only — no re-applied count.
+    assert combined.total_dps_vs_target == pytest.approx(a3.total_dps_vs_target + b3.total_dps_vs_target)
+    a1 = calculate_minion_offense(src, _ABILITY_A, _BASE_STATS, level=20, minion_count=1)
+    assert a3.total_dps_vs_target == pytest.approx(a1.total_dps_vs_target * 3)   # count folds ONCE, per-ability
+
+    # Re-percentage against the COMBINED total (not each ability's own single-ability 100%).
+    assert combined.damage_rows[0].dps_vs_target_final == pytest.approx(a3.total_dps_vs_target)
+    assert combined.damage_rows[1].dps_vs_target_final == pytest.approx(b3.total_dps_vs_target)
+    assert sum(row.pct_of_total for row in combined.damage_rows) == pytest.approx(100.0, abs=1e-6)
+    expected_a_pct = a3.total_dps_vs_target / combined.total_dps_vs_target * 100.0
+    assert combined.damage_rows[0].pct_of_total == pytest.approx(expected_a_pct)
+
+
+def test_combine_minion_forms_all_nyi_damage_rows_len_matches_hit_forms():
+    """CONFIRMED-DEFECT regression: the all-NYI early return (no damage ability at all) must still carry
+    damage_rows 1:1 with hit_forms — combine_minion_forms's own stated invariant, applies unconditionally."""
+    n1 = nyi_offense({"name": "Skill A", "skill_tags": []}, 20)
+    n2 = nyi_offense({"name": "Skill B", "skill_tags": []}, 20)
+    combined = combine_minion_forms("Owner", [n1, n2], count=1)
+    assert not combined.supported
+    assert len(combined.hit_forms) == 2
+    assert len(combined.damage_rows) == len(combined.hit_forms)
 
 
 def test_player_stats_do_not_leak_into_minions():

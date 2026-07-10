@@ -691,6 +691,67 @@ class HitFormResult:
 
 
 @dataclass
+class DamageRow:
+    """One row of the engine-owned breakdown table (`OffenseResult.damage_rows`) — the reconciliation
+    contract that lets the frontend stop hand-reconstructing `_delivery` (cast/tangle/spell-burst/multistrike
+    multiplier) and stop back-solving per-type mitigation. Every row here is ALREADY fully delivered and
+    ALREADY split per damage type post-mitigation: nothing is left for the UI to multiply or re-derive.
+    `pct_of_total` is of `OffenseResult.total_dps_vs_target`; summed across every row (all kinds) it equals
+    100.0 (within float tolerance) — see `_finalize_damage_row_pcts`.
+
+    kind:
+      "hit"  — mirrors one `hit_forms[i]` entry, 1:1, same order. dps_final/dps_vs_target_final are that
+               form's dps_contribution/dps_vs_target × the caller's delivery multiplier (1.0 for minions,
+               which fold delivery — `count` — in earlier; see minion_offense.calculate_minion_offense).
+      "true" — an unmitigated true-damage add-on with NO HitFormResult of its own (Mercury Baptism, Spell
+               Ripple). dps_by_type_vs_target / hit_min_by_type / hit_max_by_type are empty — these are a
+               single already-final number, not a per-type hit roll.
+      "dot"  — FORWARD SLOT for the upcoming DoT damage stage; no "dot" row is emitted today. No DoT ever
+               crits (ailment or otherwise — confirmed by the Help DB's "will not affect" list, and in-game:
+               the control_spell support carries −100% Critical Strike Rating and RAISED Mind Control's DPS),
+               so skip crit_factor/double_dmg_factor entirely. A DoT is a per-second standing effect, not
+               delivered per-cast (tick granularity is deliberately not modelled here), so it must NOT be
+               multiplied by `_delivery` either — cast_multiplier/tangle_mult/spell_burst_mult/multistrike_mult
+               all describe how often a HIT is DELIVERED, which doesn't apply to a standing effect.
+               (Design inference, not a Help DB statement: the Help DB never says a standing effect isn't
+               "delivered" per cast — this is a sound engineering read of "DoT effects deal damage
+               continuously for a period of time", not a cited mechanic. Revisit if a DoT is ever observed
+               scaling with multistrike/tangle/spell-burst count in-game.)
+               dps_final/dps_vs_target_final DO still have the usual pre-target/post-target split (a DoT is
+               mitigated by the target's RESISTANCE — Help DB-confirmed in-game via Mind Control 222/sec base
+               → ~155/sec vs the 30%-erosion-resist dummy, 222×0.70=155.4 — the ×0.49 an armor term would add
+               is absent from the measurement) — they are NOT the same number:
+                 dps_final          = base_per_second × (1 + Σ increased) × Π(1 + additional)
+                 dps_vs_target_final = dps_final × (a RESISTANCE-ONLY multiplier — NO armor term, so no
+                                       armor_pen either). Do not reuse `_target_mitigation` (it multiplies in
+                                       `(1 − eff_armor)`); a sibling `_target_mitigation_dot` will be added
+                                       that applies only `(1 − effective_resistance)`, with erosion_pen /
+                                       <type>_pen / elemental_pen / all_resistance_reduction still feeding
+                                       effective_resistance exactly as they do for a hit. BINDING CONSTRAINT:
+                                       `_target_mitigation_dot` MUST reuse `_target_effective`'s existing
+                                       per-type dispatch (the fire/cold/lightning branch vs the erosion branch)
+                                       rather than reimplementing it — that dispatch is what keeps
+                                       `elemental_pen` off Erosion (TLI "Elemental" excludes Erosion; see
+                                       `_target_effective`'s branch at the top of this file). A fresh
+                                       implementation is exactly where that bug would be reintroduced, silently
+                                       overstating every Erosion DoT.
+               dps_by_type_vs_target IS populated (a DoT has a damage type, unlike a "true" row);
+               hit_min_by_type/hit_max_by_type stay `{}` (a DoT has no hit min/max — it isn't rolled per-hit).
+               To add one: append the row to the SAME `damage_rows` list, fold its dps_final into total_dps
+               AND its dps_vs_target_final into total_dps_vs_target, THEN call `_finalize_damage_row_pcts`.
+               Zero frontend change required — the table already renders whatever rows are in the list.
+    """
+    kind: Literal["hit", "true", "dot"]
+    name: str
+    dps_final: float
+    dps_vs_target_final: float
+    pct_of_total: float
+    dps_by_type_vs_target: dict[str, float] = field(default_factory=dict)
+    hit_min_by_type: dict[str, float] = field(default_factory=dict)
+    hit_max_by_type: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
 class OffenseResult:
     skill_name: str
     supported: bool             # False = NYI; when False no numeric fields are meaningful
@@ -884,6 +945,74 @@ class OffenseResult:
     # A minion's Empower buff (e.g. Thundercloud Surge) surfaced like a player empower: base/effective cooldown +
     # duration, uptime, Empower Effect, and the per-buff magnitudes (base → effective). None for non-empower.
     minion_empower: dict | None = None
+    # ── Purpose-built breakdown-row contract (engine-owned; see DamageRow) ────────────────────────────────
+    # Replaces the frontend's hand-reconstruction of _delivery and its back-solved per-type mitigation.
+    # kind="hit" rows mirror hit_forms 1:1; kind="true" covers Mercury Baptism / Spell Ripple; kind="dot" is
+    # the forward slot for the upcoming DoT stage (see DamageRow's docstring for the exact slot-in contract).
+    damage_rows: list[DamageRow] = field(default_factory=list)
+    # The two halves of enemy_mult_by_type, split out so the frontend can show/verify them separately instead
+    # of back-solving mitigation as enemy_mult_by_type ÷ its own copy of the vuln stat-key list.
+    # target_mitigation_by_type[d] × enemy_vuln_by_type[d] == enemy_mult_by_type[d] for every d.
+    target_mitigation_by_type: dict[str, float] = field(default_factory=dict)  # armour/resist half only
+    enemy_vuln_by_type: dict[str, float] = field(default_factory=dict)         # vulnerability-product half only
+
+
+def _build_hit_damage_rows(hit_forms: list[HitFormResult], *, delivery: float,
+                           mitigation_fn: Callable[[str], float],
+                           crit_factor: float, double_dmg_factor: float) -> list[DamageRow]:
+    """Build one kind="hit" DamageRow per HitFormResult (same order), fully delivered (× `delivery` — the
+    cast/tangle/spell-burst/multistrike multiplier the caller already computed) and split per damage type
+    using `mitigation_fn(dtype)` — the remaining post-hit multiplier NOT already folded into `damage_by_type`.
+    Player caller: pass target-mitigation ALONE (enemy-vulnerability is already folded into damage_by_type at
+    hit time — see the per-type loop in calculate_offense). Minion caller: pass mitigation × vulnerability
+    combined (neither is pre-folded into the minion's damage_by_type — see calculate_minion_offense).
+
+    Pure read of hit_forms — never mutates it (hit_forms is consumed elsewhere, and displayOffense relies on
+    a pre-delivery RATIO where _delivery cancels; that must keep working byte-identical).
+
+    Share math: damage_by_type[t] already reflects every per-hit factor EXCEPT crit/double-damage (both
+    single skill-level scalars applied uniformly to every type) and this remaining mitigation factor — so
+    `damage_by_type[t] * mitigation_fn(t) * crit_factor * double_dmg_factor` is exactly the per-type slice of
+    the form's own `avg_hit_with_crit` vs-target average; summed over t it reproduces that scalar exactly.
+    Multiplying the form's ALREADY-FINAL dps_vs_target by each type's SHARE of that slice (rather than
+    recomputing a rate from scratch) makes this exact for every form, including ones a caller rewrites after
+    the fact with a different rate (Demolisher's cast/charged-rate rebuild, Chilling Spike's split-off form)
+    — those rewrites only ever rescale a form's total DPS by a scalar uniform across damage types.
+    """
+    rows: list[DamageRow] = []
+    for form in hit_forms:
+        per_type_vs_target = {
+            t: v * mitigation_fn(t) * crit_factor * double_dmg_factor
+            for t, v in form.damage_by_type.items()
+        }
+        share_total = sum(per_type_vs_target.values())
+        dps_vs_target_final = form.dps_vs_target * delivery
+        dps_by_type_vs_target = (
+            {t: dps_vs_target_final * (v / share_total) for t, v in per_type_vs_target.items()}
+            if share_total > 0.0 else {}
+        )
+        rows.append(DamageRow(
+            kind="hit",
+            name=form.name,
+            dps_final=form.dps_contribution * delivery,
+            dps_vs_target_final=dps_vs_target_final,
+            pct_of_total=0.0,   # filled by _finalize_damage_row_pcts once the FINAL total is known
+            dps_by_type_vs_target=dps_by_type_vs_target,
+            hit_min_by_type=dict(form.hit_min_by_type),
+            hit_max_by_type=dict(form.hit_max_by_type),
+        ))
+    return rows
+
+
+def _finalize_damage_row_pcts(rows: list[DamageRow], total_dps_vs_target: float) -> None:
+    """Fill pct_of_total on every row (hit + true + any dot rows already appended) so they sum to 100.0 of
+    the FINAL total_dps_vs_target (after true-damage add-ons like Mercury Baptism / Spell Ripple have been
+    folded in by the caller). No-op (rows stay at their DamageRow-construction default 0.0) when the total
+    is zero — an unsupported/zero-damage skill has nothing to reconcile."""
+    if total_dps_vs_target <= 0.0:
+        return
+    for row in rows:
+        row.pct_of_total = row.dps_vs_target_final / total_dps_vs_target * 100.0
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -2046,6 +2175,16 @@ def calculate_offense(
     total_dps_vs_target = sum(f.dps_vs_target for f in hit_forms) * _delivery
     _base_dps_pre_true, _base_vt_pre_true = total_dps, total_dps_vs_target   # hit DPS before true-damage stages
 
+    # ── Purpose-built breakdown rows (engine-owned reconciliation; see DamageRow) ─────────────────────────
+    # Vuln (Numbed/Frostbite/Infiltration/curses/Paralysis) is already folded into damage_by_type at hit time
+    # (the per-type loop above applies `vuln` before storing it) — mitigation_fn supplies only the REMAINING
+    # target armour/resist factor, so the two never double-apply.
+    damage_rows: list[DamageRow] = _build_hit_damage_rows(
+        hit_forms, delivery=_delivery,
+        mitigation_fn=lambda dt: _target_mitigation(source, dt),
+        crit_factor=crit_factor, double_dmg_factor=double_dmg_factor,
+    )
+
     # ── Mercury Baptism (Rosa Unsullied Blade) ────────────────────────────────────────────────────────────
     # Records a fraction (0.12-0.44) of non-channeled attack ELEMENTAL hit damage DEALT and re-deals it as TRUE
     # damage every 0.5s; in sustained DPS the record/dump window cancels, so it's `fraction × (elemental DPS dealt)`
@@ -2066,6 +2205,12 @@ def calculate_offense(
         mercury_baptism_dps = mbf * elem_vt                  # true damage (unmitigated), vs-target
         total_dps += mbf * elem_premit
         total_dps_vs_target += mbf * elem_vt
+        # kind="true": already-final true damage, no HitFormResult / per-type split of its own (sourced from
+        # the existing, already-correct mercury_baptism_dps — not recomputed here).
+        damage_rows.append(DamageRow(
+            kind="true", name="Mercury Baptism (True Damage)",
+            dps_final=mercury_baptism_dps, dps_vs_target_final=mercury_baptism_dps, pct_of_total=0.0,
+        ))
 
     # ── Spell Ripple (Ethereal Prism) ───────────────────────────────────────────────────────────────────────
     # Spell hits proc a Pulse dealing TRUE damage = 150% of Hit Damage at 50% chance → fraction 0.75 of the spell's
@@ -2079,6 +2224,24 @@ def calculate_offense(
         spell_ripple_dps = srf * _base_vt_pre_true            # true damage (unmitigated), vs-target
         total_dps += srf * _base_dps_pre_true
         total_dps_vs_target += srf * _base_vt_pre_true
+        # kind="true": sourced from the existing, already-correct spell_ripple_dps — not recomputed here.
+        damage_rows.append(DamageRow(
+            kind="true", name="Spell Ripple (True Damage)",
+            dps_final=spell_ripple_dps, dps_vs_target_final=spell_ripple_dps, pct_of_total=0.0,
+        ))
+
+    # target_mitigation_by_type × enemy_vuln_by_type == enemy_mult_by_type — derived from the SAME two calls
+    # enemy_mult_by_type is built from below, so the identity is exact (not just float-close).
+    target_mitigation_by_type = {
+        dt: _target_mitigation(source, dt)
+        for dt in DAMAGE_TYPES
+        if any(f.hit_max_by_type.get(dt, 0.0) > 0.0 for f in hit_forms)
+    }
+    enemy_vuln_by_type = {
+        dt: _enemy_vuln_mult(source, dt, is_spell)
+        for dt in target_mitigation_by_type
+    }
+    _finalize_damage_row_pcts(damage_rows, total_dps_vs_target)
 
     return OffenseResult(
         skill_name=skill.name,
@@ -2171,10 +2334,12 @@ def calculate_offense(
         # loop above, so re-reading is golden-neutral; reading types the skill doesn't deal would wrongly mark
         # their enemy-vuln stats "Consumed".
         enemy_mult_by_type={
-            dt: _target_mitigation(source, dt) * _enemy_vuln_mult(source, dt, is_spell)
-            for dt in ("physical", "fire", "cold", "lightning", "erosion")
-            if any(f.hit_max_by_type.get(dt, 0.0) > 0.0 for f in hit_forms)
+            dt: target_mitigation_by_type[dt] * enemy_vuln_by_type[dt]
+            for dt in target_mitigation_by_type
         },
+        damage_rows=damage_rows,
+        target_mitigation_by_type=target_mitigation_by_type,
+        enemy_vuln_by_type=enemy_vuln_by_type,
         multistrike_chance=multistrike_chance,
         multistrike_avg_count=multistrike_avg_count,
         multistrike_increment=multistrike_increment,

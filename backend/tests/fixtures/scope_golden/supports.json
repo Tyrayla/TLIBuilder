@@ -338,6 +338,24 @@
     "crit_chance_uncapped": 0.05,
     "crit_luck_effect": "",
     "crit_multiplier": 1.5,
+    "damage_rows": [
+      {
+        "dps_by_type_vs_target": {
+          "lightning": 167.97851699999993
+        },
+        "dps_final": 342.81329999999986,
+        "dps_vs_target_final": 167.97851699999993,
+        "hit_max_by_type": {
+          "lightning": 317.8422
+        },
+        "hit_min_by_type": {
+          "lightning": 16.497
+        },
+        "kind": "hit",
+        "name": "Chain Lightning",
+        "pct_of_total": 100.0
+      }
+    ],
     "demolisher_area_mode": "both",
     "demolisher_base_restore": 0.0,
     "demolisher_cast_rate": 0.0,
@@ -360,6 +378,9 @@
     "effective_level": 14,
     "enemy_mult_by_type": {
       "lightning": 0.48999999999999994
+    },
+    "enemy_vuln_by_type": {
+      "lightning": 1.0
     },
     "flat_dmg_max": {
       "lightning": 289.0
@@ -482,6 +503,9 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
+    "target_mitigation_by_type": {
+      "lightning": 0.48999999999999994
+    },
     "total_dps": 342.81329999999986,
     "total_dps_vs_target": 167.97851699999993,
     "trigger_interval": 0.0,

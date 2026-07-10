@@ -28,6 +28,7 @@ _HIT      = ("hit",)
 _HIT_DOT  = ("hit", "dot")
 _DOT      = ("dot",)   # DoT / ailment damage ONLY (never hit) — e.g. "Additional Ailment Damage dealt by …"
 _ALL_DMGF = ("hit", "dot", "secondary", "reflect")
+_NO_DOT   = ("hit", "secondary", "reflect")   # like _ALL_DMGF but never DoT — Help DB: Armor excluded from DoT
 
 
 STAT_META: dict[Stat, StatMeta] = {
@@ -127,10 +128,12 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Generic ───────────────────────────────────────────────────────────────
+    # MISLABEL fix (dot audit): Armor does not mitigate DoT (Help DB "Damage Form" article: Armor excluded from
+    # DoT), so Armor Penetration against it is inert on the DoT tick. Was _ALL_DMGF (included "dot").
     Stat.ARMOR_PEN: StatMeta(
         "Armor DMG Mitigation Penetration", "Generic", "penetration", "%",
         subgroup="mitigation",    pipeline_stage="mitigation",
-        tags=("physical",),       affects=_ALL_DMGF,
+        tags=("physical",),       affects=_NO_DOT,
         stacking_rule="additive", ui_priority=25,
         source_types=_T,
     ),
@@ -602,10 +605,12 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="affliction",         stacking_rule="additive",
         ui_priority=72,                source_types=_T,
     ),
+    # MISLABEL fix (dot audit): same as ARMOR_PEN — Armor is excluded from DoT mitigation, so penetrating it
+    # does nothing to a DoT tick. Was _HIT_DOT.
     Stat.MINION_ARMOR_PEN: StatMeta(
         "Armor DMG Mitigation Penetration for Minions", "Minion", "penetration", "%",
         subgroup="minion_damage",      pipeline_stage="penetration",
-        tags=("minion",),              affects=_HIT_DOT,
+        tags=("minion",),              affects=_HIT,
         stacking_rule="additive",      ui_priority=25,
         source_types=_T,
     ),
@@ -1143,31 +1148,39 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=15,
         source_types=_T,
     ),
+    # MISLABEL fix (dot audit): added-FLAT damage does not feed a skill-DoT's base (in-game test: an "Adds X-Y
+    # Erosion Damage to Spells" ring changed nothing on an Erosion DoT skill — see EROSION_SPELL_DMG_FLAT_MIN/MAX
+    # below for the exact stat that was tested). Applies to every *_ATTACK_DMG_FLAT_MIN/MAX and
+    # *_SPELL_DMG_FLAT_MIN/MAX added-flat stat across all damage types. Was _HIT_DOT on all of them.
+    # CAUTION: this removal is scoped to skill-DoT (measured). The Help DB states AILMENT base damage IS derived
+    # from added-flat damage (Attack ailments: Weapon + added flat; Spell ailments: added flat only) — a future
+    # Trauma/Ignite/Wilt implementation (Phase 3) MUST read these *_flat_min/max stats directly, not via `affects`
+    # (they carry no "dot" now, and never carried an ailment-specific affects flag to begin with).
     Stat.PHYSICAL_ATTACK_DMG_FLAT_MIN: StatMeta(
         "Min Physical Attack Damage", "Physical", "added_flat",
         subgroup="physical_damage",    pipeline_stage="added_flat",
-        tags=("physical", "attack"),   affects=_HIT_DOT,
+        tags=("physical", "attack"),   affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.PHYSICAL_ATTACK_DMG_FLAT_MAX: StatMeta(
         "Max Physical Attack Damage", "Physical", "added_flat",
         subgroup="physical_damage",    pipeline_stage="added_flat",
-        tags=("physical", "attack"),   affects=_HIT_DOT,
+        tags=("physical", "attack"),   affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.PHYSICAL_SPELL_DMG_FLAT_MIN: StatMeta(
         "Min Physical Spell Damage", "Physical", "added_flat",
         subgroup="physical_damage",    pipeline_stage="added_flat",
-        tags=("physical", "spell"),    affects=_HIT_DOT,
+        tags=("physical", "spell"),    affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.PHYSICAL_SPELL_DMG_FLAT_MAX: StatMeta(
         "Max Physical Spell Damage", "Physical", "added_flat",
         subgroup="physical_damage",    pipeline_stage="added_flat",
-        tags=("physical", "spell"),    affects=_HIT_DOT,
+        tags=("physical", "spell"),    affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
@@ -1199,31 +1212,35 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
+    # MISLABEL fix (dot audit): added-flat damage doesn't feed skill-DoT base — see the comment above
+    # PHYSICAL_ATTACK_DMG_FLAT_MIN. Was _HIT_DOT on all four below.
+    # CAUTION: scoped to skill-DoT only — ailment base damage IS derived from added flat per Help DB; Phase 3
+    # (Trauma/Ignite/Wilt) must read these directly, not via `affects`.
     Stat.LIGHTNING_ATTACK_DMG_FLAT_MIN: StatMeta(
         "Min Lightning Attack Damage", "Lightning", "added_flat",
         subgroup="lightning_damage",   pipeline_stage="added_flat",
-        tags=("lightning", "attack"),  affects=_HIT_DOT,
+        tags=("lightning", "attack"),  affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.LIGHTNING_ATTACK_DMG_FLAT_MAX: StatMeta(
         "Max Lightning Attack Damage", "Lightning", "added_flat",
         subgroup="lightning_damage",   pipeline_stage="added_flat",
-        tags=("lightning", "attack"),  affects=_HIT_DOT,
+        tags=("lightning", "attack"),  affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.LIGHTNING_SPELL_DMG_FLAT_MIN: StatMeta(
         "Min Lightning Spell Damage", "Lightning", "added_flat",
         subgroup="lightning_damage",   pipeline_stage="added_flat",
-        tags=("lightning", "spell"),   affects=_HIT_DOT,
+        tags=("lightning", "spell"),   affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.LIGHTNING_SPELL_DMG_FLAT_MAX: StatMeta(
         "Max Lightning Spell Damage", "Lightning", "added_flat",
         subgroup="lightning_damage",   pipeline_stage="added_flat",
-        tags=("lightning", "spell"),   affects=_HIT_DOT,
+        tags=("lightning", "spell"),   affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
@@ -1262,31 +1279,35 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
+    # MISLABEL fix (dot audit): added-flat damage doesn't feed skill-DoT base — see the comment above
+    # PHYSICAL_ATTACK_DMG_FLAT_MIN. Was _HIT_DOT on all four below.
+    # CAUTION: scoped to skill-DoT only — ailment base damage IS derived from added flat per Help DB; Phase 3
+    # (Trauma/Ignite/Wilt) must read these directly, not via `affects`.
     Stat.COLD_ATTACK_DMG_FLAT_MIN: StatMeta(
         "Min Cold Attack Damage", "Cold", "added_flat",
         subgroup="cold_damage",        pipeline_stage="added_flat",
-        tags=("cold", "attack"),       affects=_HIT_DOT,
+        tags=("cold", "attack"),       affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.COLD_ATTACK_DMG_FLAT_MAX: StatMeta(
         "Max Cold Attack Damage", "Cold", "added_flat",
         subgroup="cold_damage",        pipeline_stage="added_flat",
-        tags=("cold", "attack"),       affects=_HIT_DOT,
+        tags=("cold", "attack"),       affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.COLD_SPELL_DMG_FLAT_MIN: StatMeta(
         "Min Cold Spell Damage", "Cold", "added_flat",
         subgroup="cold_damage",        pipeline_stage="added_flat",
-        tags=("cold", "spell"),        affects=_HIT_DOT,
+        tags=("cold", "spell"),        affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.COLD_SPELL_DMG_FLAT_MAX: StatMeta(
         "Max Cold Spell Damage", "Cold", "added_flat",
         subgroup="cold_damage",        pipeline_stage="added_flat",
-        tags=("cold", "spell"),        affects=_HIT_DOT,
+        tags=("cold", "spell"),        affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
@@ -1325,31 +1346,35 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
+    # MISLABEL fix (dot audit): added-flat damage doesn't feed skill-DoT base — see the comment above
+    # PHYSICAL_ATTACK_DMG_FLAT_MIN. Was _HIT_DOT on all four below.
+    # CAUTION: scoped to skill-DoT only — ailment base damage IS derived from added flat per Help DB; Phase 3
+    # (Trauma/Ignite/Wilt) must read these directly, not via `affects`.
     Stat.FIRE_ATTACK_DMG_FLAT_MIN: StatMeta(
         "Min Fire Attack Damage", "Fire", "added_flat",
         subgroup="fire_damage",        pipeline_stage="added_flat",
-        tags=("fire", "attack"),       affects=_HIT_DOT,
+        tags=("fire", "attack"),       affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.FIRE_ATTACK_DMG_FLAT_MAX: StatMeta(
         "Max Fire Attack Damage", "Fire", "added_flat",
         subgroup="fire_damage",        pipeline_stage="added_flat",
-        tags=("fire", "attack"),       affects=_HIT_DOT,
+        tags=("fire", "attack"),       affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.FIRE_SPELL_DMG_FLAT_MIN: StatMeta(
         "Min Fire Spell Damage", "Fire", "added_flat",
         subgroup="fire_damage",        pipeline_stage="added_flat",
-        tags=("fire", "spell"),        affects=_HIT_DOT,
+        tags=("fire", "spell"),        affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.FIRE_SPELL_DMG_FLAT_MAX: StatMeta(
         "Max Fire Spell Damage", "Fire", "added_flat",
         subgroup="fire_damage",        pipeline_stage="added_flat",
-        tags=("fire", "spell"),        affects=_HIT_DOT,
+        tags=("fire", "spell"),        affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
@@ -1395,31 +1420,37 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
+    # MISLABEL fix (dot audit): added-flat damage doesn't feed skill-DoT base. EROSION_SPELL_DMG_FLAT_MIN/MAX is
+    # the exact stat pair the field test used ("Adds X-Y Erosion Damage to Spells" ring — no effect on an Erosion
+    # DoT skill's tick). Was _HIT_DOT on all four below.
+    # CAUTION: this removal is scoped to skill-DoT (measured). The Help DB states AILMENT base damage IS derived
+    # from added-flat damage (Attack ailments: Weapon + added flat; Spell ailments: added flat only) — a future
+    # Trauma/Ignite/Wilt implementation (Phase 3) MUST read these *_flat_min/max stats directly, not via `affects`.
     Stat.EROSION_ATTACK_DMG_FLAT_MIN: StatMeta(
         "Min Erosion Attack Damage", "Erosion", "added_flat",
         subgroup="erosion_damage",     pipeline_stage="added_flat",
-        tags=("erosion", "attack"),    affects=_HIT_DOT,
+        tags=("erosion", "attack"),    affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.EROSION_ATTACK_DMG_FLAT_MAX: StatMeta(
         "Max Erosion Attack Damage", "Erosion", "added_flat",
         subgroup="erosion_damage",     pipeline_stage="added_flat",
-        tags=("erosion", "attack"),    affects=_HIT_DOT,
+        tags=("erosion", "attack"),    affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.EROSION_SPELL_DMG_FLAT_MIN: StatMeta(
         "Min Erosion Spell Damage", "Erosion", "added_flat",
         subgroup="erosion_damage",     pipeline_stage="added_flat",
-        tags=("erosion", "spell"),     affects=_HIT_DOT,
+        tags=("erosion", "spell"),     affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.EROSION_SPELL_DMG_FLAT_MAX: StatMeta(
         "Max Erosion Spell Damage", "Erosion", "added_flat",
         subgroup="erosion_damage",     pipeline_stage="added_flat",
-        tags=("erosion", "spell"),     affects=_HIT_DOT,
+        tags=("erosion", "spell"),     affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
@@ -1566,6 +1597,14 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Tangle ────────────────────────────────────────────────────────────────
+    # UNVERIFIED (dot audit): Tangle is NOT an ailment despite the "Ailments" UI category — it's a skill-type
+    # (docs/BACKLOG.md §0c): a Spell converted by an activator support and cast by N attached tangle entities.
+    # "hit" is confirmed correct (a Tangle's entities cast the underlying Spell as an ordinary hit). Whether
+    # "dot" is ALSO correct is unresolved, not disproven: SS12 has several plain (non-channeled) persistent-DoT
+    # Spells (black_hole, flame_jet, frost_terra, shadow_swamp) that are plausible Spell Tangle candidates —
+    # if any can be tangled, the tangle entities cast a DoT skill and tangle_dmg_inc/additional would scale it.
+    # No parse or Help DB line rules this out, so "dot" stays in affects pending the in-game check: can Spell
+    # Tangle attach to a persistent-DoT Spell, and if so does +% Tangle Damage scale the resulting DoT tick?
     Stat.TANGLE_DMG_INC: StatMeta(
         "Tangle Damage", "Ailments", "increased", "%",
         subgroup="tangle",             pipeline_stage="increased_reduced",
@@ -1595,6 +1634,8 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     # Multiplicative additional Tangle Damage (each source its own factor) — Dormant Entanglement + gear/talents.
     # Applies via the tangle tag when the skill is in tangle mode (like other tagged additional pools).
+    # UNVERIFIED (dot audit): see the TANGLE_DMG_INC comment above — whether a tangled persistent-DoT Spell
+    # exists (and is scaled by this stat) is unresolved, not disproven.
     Stat.TANGLE_DMG_ADDITIONAL: StatMeta(
         "Additional Tangle Damage", "Ailments", "additional", "%",
         subgroup="tangle",             pipeline_stage="additional",
@@ -1607,6 +1648,8 @@ STAT_META: dict[Stat, StatMeta] = {
     # the normal additional pool (so it shows in the additional source breakdown) but, unlike regular additional
     # mods (each its own ×(1+x) factor), all *_enhancement_additional sources of a stat SUM into a single factor —
     # see offense._build_additional_factors. tag "tangle" → applies in tangle mode like the other tangle pools.
+    # UNVERIFIED (dot audit): see the TANGLE_DMG_INC comment above — whether a tangled persistent-DoT Spell
+    # exists (and is scaled by this stat) is unresolved, not disproven.
     Stat.TANGLE_DMG_ENHANCEMENT_ADDITIONAL: StatMeta(
         "Tangle Damage Enhancement", "Ailments", "additional", "%",
         subgroup="tangle",             pipeline_stage="additional",
@@ -3432,24 +3475,27 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Elemental Conversion (offensive) ─────────────────────────────────────
+    # MISLABEL fix (dot audit) on all three below: Help DB excludes "conversion ... of the type of damage
+    # dealt" from Damage over Time. Sibling conversion stats (PHYSICAL_AS_LIGHTNING etc., above) correctly
+    # carry no affects tuple at all; these three had picked up _HIT_DOT inconsistently. Was _HIT_DOT.
     Stat.LIGHTNING_AS_EROSION: StatMeta(
         "Lightning Damage as Erosion Damage", "Lightning", "conversion", "%",
         subgroup="conversion",         pipeline_stage="conversion",
-        tags=("lightning",),           affects=_HIT_DOT,
+        tags=("lightning",),           affects=_HIT,
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
     Stat.COLD_AS_EROSION: StatMeta(
         "Cold Damage as Erosion Damage", "Cold", "conversion", "%",
         subgroup="conversion",         pipeline_stage="conversion",
-        tags=("cold",),                affects=_HIT_DOT,
+        tags=("cold",),                affects=_HIT,
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
     Stat.FIRE_AS_EROSION: StatMeta(
         "Fire Damage as Erosion Damage", "Fire", "conversion", "%",
         subgroup="conversion",         pipeline_stage="conversion",
-        tags=("fire",),                affects=_HIT_DOT,
+        tags=("fire",),                affects=_HIT,
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),

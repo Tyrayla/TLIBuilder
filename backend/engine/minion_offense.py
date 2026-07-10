@@ -24,7 +24,8 @@ from engine.modifier_lines import pool_identity
 from engine.skill_resolver import _parse_cast_time
 from engine.constants import DAMAGE_TYPES as _DAMAGE_TYPES, ELEMENTAL as _ELEMENTAL
 from engine.offense import (
-    OffenseResult, HitFormResult, _enemy_vuln_mult, _DTYPE_TAG_SET, _above_max_mult,
+    OffenseResult, HitFormResult, DamageRow, _enemy_vuln_mult, _DTYPE_TAG_SET, _above_max_mult,
+    _build_hit_damage_rows, _finalize_damage_row_pcts,
     TARGET_ARMOR_MITIGATION, TARGET_NONPHYS_ARMOR_FACTOR, TARGET_ELEMENTAL_RESIST, TARGET_EROSION_RESIST,
 )
 from models.stat_meta import STAT_META
@@ -490,6 +491,8 @@ def calculate_minion_offense(
     type_inc: dict[str, float] = {}
     type_add: dict[str, float] = {}
     enemy_mult: dict[str, float] = {}
+    target_mitigation_by_type: dict[str, float] = {}   # armour/resist half of enemy_mult (this minion's OWN pen)
+    enemy_vuln_by_type: dict[str, float] = {}          # vulnerability-product half of enemy_mult
     for t in {*flat_min, *flat_max}:
         if flat_min.get(t, 0.0) == 0.0 and flat_max.get(t, 0.0) == 0.0:
             continue
@@ -501,7 +504,9 @@ def calculate_minion_offense(
         type_add[t] = add
         hit_min[t] = flat_min.get(t, 0.0) * (1.0 + inc) * add * above_mult   # above-max skill-level multiplier
         hit_max[t] = flat_max.get(t, 0.0) * (1.0 + inc) * add * above_mult
-        enemy_mult[t] = _minion_target_mitigation(source, t) * _enemy_vuln_mult(source, t, is_spell)
+        target_mitigation_by_type[t] = _minion_target_mitigation(source, t)
+        enemy_vuln_by_type[t] = _enemy_vuln_mult(source, t, is_spell)
+        enemy_mult[t] = target_mitigation_by_type[t] * enemy_vuln_by_type[t]
 
     # Crit (fixed 500 CSR / 150% base from constants, scaled by minion crit pools).
     base_csr = float(consts.get("crit_rating_flat", 500.0))
@@ -589,6 +594,16 @@ def calculate_minion_offense(
                    "no single-target DPS effect (surfaced, not dropped).")
     intrinsic_sources = ([{"label": extra_additional_label or "Projectile Quantity", "amount": extra_additional}]
                          if extra_additional > 0 else [])
+    # Purpose-built breakdown row (see engine.offense.DamageRow) — delivery = count (mirrors cast_multiplier
+    # above: count is the minion's own "how many casters deliver this hit" multiplier, folded in the same
+    # place a player's cast_multiplier/tangle_mult would be). Neither mitigation nor vuln is pre-folded into
+    # this minion's damage_by_type (unlike the player path), so mitigation_fn combines both halves.
+    damage_rows = _build_hit_damage_rows(
+        [form], delivery=float(count),
+        mitigation_fn=lambda t: target_mitigation_by_type.get(t, 1.0) * enemy_vuln_by_type.get(t, 1.0),
+        crit_factor=crit_factor, double_dmg_factor=double_factor,
+    )
+    _finalize_damage_row_pcts(damage_rows, per_minion_vs * count)
     return OffenseResult(
         skill_name=name, supported=True, effective_level=effective_level, hit_forms=[form],
         above_max_mult=above_mult,
@@ -604,6 +619,8 @@ def calculate_minion_offense(
         type_inc=type_inc, type_add=type_add, generic_inc=generic_inc, generic_add=generic_add,
         intrinsic_additional_sources=intrinsic_sources,
         enemy_mult_by_type=enemy_mult, base_csr=base_csr, skill_tags=tags_list,
+        damage_rows=damage_rows,
+        target_mitigation_by_type=target_mitigation_by_type, enemy_vuln_by_type=enemy_vuln_by_type,
         multistrike_chance=ms_chance, multistrike_avg_count=ms_avg_count, multistrike_increment=ms_inc,
         multistrike_max_count=ms_max_count, multistrike_mult=ms_mult, multistrike_repeat_aps=ms_repeat_aps,
         multistrike_chain=ms_chain,
@@ -626,6 +643,9 @@ def combine_minion_forms(name: str, results: list[OffenseResult], count: int) ->
     carry each ability's own base damage, rate, and DPS share."""
     damage = [r for r in results if r.supported and r.hit_forms]
     forms = [f for r in damage for f in r.hit_forms]
+    # damage_rows mirror hit_forms 1:1 — each damage ability already carries its own (see
+    # calculate_minion_offense); zero rows are appended below for the NYI forms, in the same order.
+    damage_rows: list[DamageRow] = [row for r in damage for row in r.damage_rows]
     # Non-damage abilities → NYI forms (visible + selectable, 0 DPS, carry their reason).
     for r in results:
         if r.supported and r.hit_forms:
@@ -636,6 +656,8 @@ def combine_minion_forms(name: str, results: list[OffenseResult], count: int) ->
             dps_contribution=0.0, dps_vs_target=0.0, fires_per_sec=0.0,
             nyi=list(r.nyi or []) or ["Not yet modelled."],
         ))
+        damage_rows.append(DamageRow(kind="hit", name=r.skill_name, dps_final=0.0, dps_vs_target_final=0.0,
+                                     pct_of_total=0.0))
 
     # Shared damage-ability NYI notes (conversion / persistent / ailment) — kept on the combined result too.
     nyi_notes: list[str] = []
@@ -645,19 +667,26 @@ def combine_minion_forms(name: str, results: list[OffenseResult], count: int) ->
                 nyi_notes.append(n)
 
     if not damage:
+        # damage_rows must still mirror hit_forms 1:1 (this function's own invariant, above) even on the
+        # all-NYI branch — omitting it here would silently fall back to the dataclass default `[]`,
+        # breaking that invariant for a frontend that renders damage_rows directly.
         return OffenseResult(skill_name=name, supported=False,
                              effective_level=(results[0].effective_level if results else 0),
-                             hit_forms=forms, nyi=nyi_notes or ["Minion not yet modelled — no damage form."])
+                             hit_forms=forms, damage_rows=damage_rows,
+                             nyi=nyi_notes or ["Minion not yet modelled — no damage form."])
 
     prim = damage[0]                                   # shared-pipeline representative (same pools on every form)
+    combined_vs_target = sum(r.total_dps_vs_target for r in damage)
+    _finalize_damage_row_pcts(damage_rows, combined_vs_target)
     return replace(
         prim,
         skill_name=name,
         hit_forms=forms,
         total_dps=sum(r.total_dps for r in damage),
-        total_dps_vs_target=sum(r.total_dps_vs_target for r in damage),
+        total_dps_vs_target=combined_vs_target,
         skills_per_second=sum(f.fires_per_sec for f in forms),   # NYI forms are 0/s → = the shared attack rate
         nyi=nyi_notes,
+        damage_rows=damage_rows,
     )
 
 

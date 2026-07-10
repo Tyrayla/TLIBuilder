@@ -306,6 +306,30 @@
     "crit_chance_uncapped": 0.15,
     "crit_luck_effect": "",
     "crit_multiplier": 1.5,
+    "damage_rows": [
+      {
+        "dps_by_type_vs_target": {
+          "cold": 2173.47707293621,
+          "fire": 1975.8882481238277,
+          "lightning": 3919.6683122156414
+        },
+        "dps_final": 16467.415578113632,
+        "dps_vs_target_final": 8069.03363327568,
+        "hit_max_by_type": {
+          "cold": 5928.841877795107,
+          "fire": 5389.856252541006,
+          "lightning": 10692.127340978219
+        },
+        "hit_min_by_type": {
+          "cold": 2741.5186041485194,
+          "fire": 2492.2896401350176,
+          "lightning": 4944.07957361784
+        },
+        "kind": "hit",
+        "name": "Chromatic Shot",
+        "pct_of_total": 100.0
+      }
+    ],
     "demolisher_area_mode": "both",
     "demolisher_base_restore": 0.0,
     "demolisher_cast_rate": 0.0,
@@ -330,6 +354,11 @@
       "cold": 0.5389999999999999,
       "fire": 0.48999999999999994,
       "lightning": 0.7349999999999999
+    },
+    "enemy_vuln_by_type": {
+      "cold": 1.1,
+      "fire": 1.0,
+      "lightning": 1.5
     },
     "flat_dmg_max": {
       "fire": 211.95000000000002,
@@ -463,6 +492,11 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
+    "target_mitigation_by_type": {
+      "cold": 0.48999999999999994,
+      "fire": 0.48999999999999994,
+      "lightning": 0.48999999999999994
+    },
     "total_dps": 16467.415578113632,
     "total_dps_vs_target": 8069.03363327568,
     "trigger_interval": 0.0,
@@ -541,6 +575,30 @@
       "crit_chance_uncapped": 0.15,
       "crit_luck_effect": "",
       "crit_multiplier": 1.5,
+      "damage_rows": [
+        {
+          "dps_by_type_vs_target": {
+            "cold": 2173.47707293621,
+            "fire": 1975.8882481238277,
+            "lightning": 3919.6683122156414
+          },
+          "dps_final": 16467.415578113632,
+          "dps_vs_target_final": 8069.03363327568,
+          "hit_max_by_type": {
+            "cold": 5928.841877795107,
+            "fire": 5389.856252541006,
+            "lightning": 10692.127340978219
+          },
+          "hit_min_by_type": {
+            "cold": 2741.5186041485194,
+            "fire": 2492.2896401350176,
+            "lightning": 4944.07957361784
+          },
+          "kind": "hit",
+          "name": "Chromatic Shot",
+          "pct_of_total": 100.0
+        }
+      ],
       "demolisher_area_mode": "both",
       "demolisher_base_restore": 0.0,
       "demolisher_cast_rate": 0.0,
@@ -565,6 +623,11 @@
         "cold": 0.5389999999999999,
         "fire": 0.48999999999999994,
         "lightning": 0.7349999999999999
+      },
+      "enemy_vuln_by_type": {
+        "cold": 1.1,
+        "fire": 1.0,
+        "lightning": 1.5
       },
       "flat_dmg_max": {
         "fire": 211.95000000000002,
@@ -698,6 +761,11 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
+      "target_mitigation_by_type": {
+        "cold": 0.48999999999999994,
+        "fire": 0.48999999999999994,
+        "lightning": 0.48999999999999994
+      },
       "total_dps": 16467.415578113632,
       "total_dps_vs_target": 8069.03363327568,
       "trigger_interval": 0.0,

@@ -291,6 +291,52 @@
     "crit_chance_uncapped": 0.396,
     "crit_luck_effect": "",
     "crit_multiplier": 1.5,
+    "damage_rows": [
+      {
+        "dps_by_type_vs_target": {
+          "fire": 772.2637751275505,
+          "lightning": 1531.9782639092782,
+          "physical": 5902.604796157399
+        },
+        "dps_final": 16507.744365859347,
+        "dps_vs_target_final": 8206.846835194227,
+        "hit_max_by_type": {
+          "fire": 5315.98292823901,
+          "lightning": 15466.852329711397,
+          "physical": 38590.09829388319
+        },
+        "hit_min_by_type": {
+          "fire": 2874.5685463810946,
+          "lightning": 781.1541580662322,
+          "physical": 22760.282463127023
+        },
+        "kind": "hit",
+        "name": "Primary Fissure",
+        "pct_of_total": 57.0680752285755
+      },
+      {
+        "dps_by_type_vs_target": {
+          "fire": 580.968784467972,
+          "lightning": 1152.4968261883391,
+          "physical": 4440.489433875101
+        },
+        "dps_final": 12418.663787456959,
+        "dps_vs_target_final": 6173.955044531412,
+        "hit_max_by_type": {
+          "fire": 5315.98292823901,
+          "lightning": 15466.852329711397,
+          "physical": 38590.09829388319
+        },
+        "hit_min_by_type": {
+          "fire": 2874.5685463810946,
+          "lightning": 781.1541580662322,
+          "physical": 22760.282463127023
+        },
+        "kind": "hit",
+        "name": "Fissure Ticks (Frequent Quake)",
+        "pct_of_total": 42.931924771424505
+      }
+    ],
     "demolisher_area_mode": "both",
     "demolisher_base_restore": 3.0,
     "demolisher_cast_rate": 3.0624000000000007,
@@ -315,6 +361,11 @@
       "fire": 0.48999999999999994,
       "lightning": 0.7349999999999999,
       "physical": 0.5
+    },
+    "enemy_vuln_by_type": {
+      "fire": 1.0,
+      "lightning": 1.5,
+      "physical": 1.0
     },
     "flat_dmg_max": {
       "fire": 135.0,
@@ -477,6 +528,11 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
+    "target_mitigation_by_type": {
+      "fire": 0.48999999999999994,
+      "lightning": 0.48999999999999994,
+      "physical": 0.5
+    },
     "total_dps": 28926.408153316304,
     "total_dps_vs_target": 14380.801879725637,
     "trigger_interval": 0.0,
@@ -531,6 +587,52 @@
       "crit_chance_uncapped": 0.396,
       "crit_luck_effect": "",
       "crit_multiplier": 1.5,
+      "damage_rows": [
+        {
+          "dps_by_type_vs_target": {
+            "fire": 772.2637751275505,
+            "lightning": 1531.9782639092782,
+            "physical": 5902.604796157399
+          },
+          "dps_final": 16507.744365859347,
+          "dps_vs_target_final": 8206.846835194227,
+          "hit_max_by_type": {
+            "fire": 5315.98292823901,
+            "lightning": 15466.852329711397,
+            "physical": 38590.09829388319
+          },
+          "hit_min_by_type": {
+            "fire": 2874.5685463810946,
+            "lightning": 781.1541580662322,
+            "physical": 22760.282463127023
+          },
+          "kind": "hit",
+          "name": "Primary Fissure",
+          "pct_of_total": 57.0680752285755
+        },
+        {
+          "dps_by_type_vs_target": {
+            "fire": 580.968784467972,
+            "lightning": 1152.4968261883391,
+            "physical": 4440.489433875101
+          },
+          "dps_final": 12418.663787456959,
+          "dps_vs_target_final": 6173.955044531412,
+          "hit_max_by_type": {
+            "fire": 5315.98292823901,
+            "lightning": 15466.852329711397,
+            "physical": 38590.09829388319
+          },
+          "hit_min_by_type": {
+            "fire": 2874.5685463810946,
+            "lightning": 781.1541580662322,
+            "physical": 22760.282463127023
+          },
+          "kind": "hit",
+          "name": "Fissure Ticks (Frequent Quake)",
+          "pct_of_total": 42.931924771424505
+        }
+      ],
       "demolisher_area_mode": "both",
       "demolisher_base_restore": 3.0,
       "demolisher_cast_rate": 3.0624000000000007,
@@ -555,6 +657,11 @@
         "fire": 0.48999999999999994,
         "lightning": 0.7349999999999999,
         "physical": 0.5
+      },
+      "enemy_vuln_by_type": {
+        "fire": 1.0,
+        "lightning": 1.5,
+        "physical": 1.0
       },
       "flat_dmg_max": {
         "fire": 135.0,
@@ -717,6 +824,11 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
+      "target_mitigation_by_type": {
+        "fire": 0.48999999999999994,
+        "lightning": 0.48999999999999994,
+        "physical": 0.5
+      },
       "total_dps": 28926.408153316304,
       "total_dps_vs_target": 14380.801879725637,
       "trigger_interval": 0.0,

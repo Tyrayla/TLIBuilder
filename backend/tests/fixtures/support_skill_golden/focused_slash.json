@@ -285,6 +285,52 @@
     "crit_chance_uncapped": 0.396,
     "crit_luck_effect": "",
     "crit_multiplier": 1.5,
+    "damage_rows": [
+      {
+        "dps_by_type_vs_target": {
+          "fire": 0.0,
+          "lightning": 0.0,
+          "physical": 0.0
+        },
+        "dps_final": 0.0,
+        "dps_vs_target_final": 0.0,
+        "hit_max_by_type": {
+          "fire": 1542.8054333380016,
+          "lightning": 4488.792408296915,
+          "physical": 11199.624627194382
+        },
+        "hit_min_by_type": {
+          "fire": 834.2577528420305,
+          "lightning": 226.70668728772299,
+          "physical": 6605.492892365666
+        },
+        "kind": "hit",
+        "name": "Sweep Slash",
+        "pct_of_total": 0.0
+      },
+      {
+        "dps_by_type_vs_target": {
+          "fire": 6986.7193323850315,
+          "lightning": 13859.904475618801,
+          "physical": 53401.239795211346
+        },
+        "dps_final": 149346.60981083868,
+        "dps_vs_target_final": 74247.86360321517,
+        "hit_max_by_type": {
+          "fire": 5044.973767015265,
+          "lightning": 14678.35117513091,
+          "physical": 36622.77253092563
+        },
+        "hit_min_by_type": {
+          "fire": 2728.0228517934397,
+          "lightning": 741.3308674308541,
+          "physical": 21599.96175803573
+        },
+        "kind": "hit",
+        "name": "Steep Strike",
+        "pct_of_total": 100.0
+      }
+    ],
     "demolisher_area_mode": "both",
     "demolisher_base_restore": 0.0,
     "demolisher_cast_rate": 0.0,
@@ -309,6 +355,11 @@
       "fire": 0.48999999999999994,
       "lightning": 0.7349999999999999,
       "physical": 0.5
+    },
+    "enemy_vuln_by_type": {
+      "fire": 1.0,
+      "lightning": 1.5,
+      "physical": 1.0
     },
     "flat_dmg_max": {
       "fire": 135.0,
@@ -476,6 +527,11 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
+    "target_mitigation_by_type": {
+      "fire": 0.48999999999999994,
+      "lightning": 0.48999999999999994,
+      "physical": 0.5
+    },
     "total_dps": 149346.60981083868,
     "total_dps_vs_target": 74247.86360321517,
     "trigger_interval": 0.0,
@@ -530,6 +586,52 @@
       "crit_chance_uncapped": 0.396,
       "crit_luck_effect": "",
       "crit_multiplier": 1.5,
+      "damage_rows": [
+        {
+          "dps_by_type_vs_target": {
+            "fire": 0.0,
+            "lightning": 0.0,
+            "physical": 0.0
+          },
+          "dps_final": 0.0,
+          "dps_vs_target_final": 0.0,
+          "hit_max_by_type": {
+            "fire": 1542.8054333380016,
+            "lightning": 4488.792408296915,
+            "physical": 11199.624627194382
+          },
+          "hit_min_by_type": {
+            "fire": 834.2577528420305,
+            "lightning": 226.70668728772299,
+            "physical": 6605.492892365666
+          },
+          "kind": "hit",
+          "name": "Sweep Slash",
+          "pct_of_total": 0.0
+        },
+        {
+          "dps_by_type_vs_target": {
+            "fire": 6986.7193323850315,
+            "lightning": 13859.904475618801,
+            "physical": 53401.239795211346
+          },
+          "dps_final": 149346.60981083868,
+          "dps_vs_target_final": 74247.86360321517,
+          "hit_max_by_type": {
+            "fire": 5044.973767015265,
+            "lightning": 14678.35117513091,
+            "physical": 36622.77253092563
+          },
+          "hit_min_by_type": {
+            "fire": 2728.0228517934397,
+            "lightning": 741.3308674308541,
+            "physical": 21599.96175803573
+          },
+          "kind": "hit",
+          "name": "Steep Strike",
+          "pct_of_total": 100.0
+        }
+      ],
       "demolisher_area_mode": "both",
       "demolisher_base_restore": 0.0,
       "demolisher_cast_rate": 0.0,
@@ -554,6 +656,11 @@
         "fire": 0.48999999999999994,
         "lightning": 0.7349999999999999,
         "physical": 0.5
+      },
+      "enemy_vuln_by_type": {
+        "fire": 1.0,
+        "lightning": 1.5,
+        "physical": 1.0
       },
       "flat_dmg_max": {
         "fire": 135.0,
@@ -721,6 +828,11 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
+      "target_mitigation_by_type": {
+        "fire": 0.48999999999999994,
+        "lightning": 0.48999999999999994,
+        "physical": 0.5
+      },
       "total_dps": 149346.60981083868,
       "total_dps_vs_target": 74247.86360321517,
       "trigger_interval": 0.0,
