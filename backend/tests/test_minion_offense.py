@@ -138,6 +138,118 @@ def test_combine_minion_forms_all_nyi_damage_rows_len_matches_hit_forms():
     assert len(combined.damage_rows) == len(combined.hit_forms)
 
 
+def test_combine_minion_forms_mixed_nyi_row_carries_reason_and_zero_pct():
+    """A minion owner with ONE modelled damage ability + ONE unmodelled (buff/Ultimate) ability: the NYI
+    ability's damage_row must carry the same `nyi` reason as its hit_forms entry, contribute 0.0 to
+    pct_of_total, and not stop the real damage row from reconciling to 100%."""
+    src = _src_with_minion_mods()
+    dmg = calculate_minion_offense(src, _BASE_SKILL, _BASE_STATS, level=20, minion_count=1)
+    buff = nyi_offense({"name": "Empower Buff", "skill_tags": []}, 20)
+    combined = combine_minion_forms("Owner", [dmg, buff], count=1)
+
+    assert combined.supported
+    assert len(combined.hit_forms) == len(combined.damage_rows) == 2
+    dmg_row, nyi_row = combined.damage_rows
+    assert dmg_row.nyi == []
+    assert nyi_row.nyi and nyi_row.nyi == combined.hit_forms[1].nyi
+    assert nyi_row.pct_of_total == pytest.approx(0.0)
+    assert dmg_row.pct_of_total == pytest.approx(100.0, abs=1e-6)
+    assert sum(row.pct_of_total for row in combined.damage_rows) == pytest.approx(100.0, abs=1e-6)
+
+
+def test_enemy_vuln_sources_by_type_invariant_holds_for_minion_path():
+    """Same identity as the player path (see test_damage_rows.TestEnemyVulnSourcesByType), exercised through
+    calculate_minion_offense: Π(1 + source.total(k)) over enemy_vuln_sources_by_type[d] == enemy_vuln_by_type[d]."""
+    src = _src_with_minion_mods()
+    src.add("paralysis_dmg_taken", 0.25)
+    o = calculate_minion_offense(src, _BASE_SKILL, _BASE_STATS, level=20)
+    assert set(o.enemy_vuln_sources_by_type) == set(o.enemy_vuln_by_type)
+    assert o.enemy_vuln_sources_by_type  # non-empty — _BASE_SKILL deals fire
+    for t, keys in o.enemy_vuln_sources_by_type.items():
+        product = 1.0
+        for k in keys:
+            product *= 1.0 + src.total(k)
+        assert product == pytest.approx(o.enemy_vuln_by_type[t])
+    assert "numbed_lightning_taken" not in o.enemy_vuln_sources_by_type["fire"]  # type-scoped, not fire's
+
+
+def test_combine_minion_forms_carries_enemy_vuln_sources_by_type_from_primary():
+    src = _src_with_minion_mods()
+    a = calculate_minion_offense(src, _ABILITY_A, _BASE_STATS, level=20, minion_count=1)
+    combined = combine_minion_forms("Combo", [a], count=1)
+    assert combined.enemy_vuln_sources_by_type == a.enemy_vuln_sources_by_type
+
+
+_ABILITY_LIGHTNING = {"name": "Ability C", "skill_tags": ["Base Skill", "Spell", "Lightning", "Area"],
+                      "base_damage_coefficient": 80.0, "effectiveness_of_added_damage": "80%",
+                      "cast_speed": "1.0 s", "cooldown": None}
+
+
+def test_combine_minion_forms_unions_per_type_dicts_across_different_damage_types():
+    """CONFIRMED-BUG regression: combine_minion_forms used to borrow target_mitigation_by_type /
+    enemy_vuln_by_type / enemy_vuln_sources_by_type / enemy_mult_by_type straight from `prim` (the FIRST
+    merged ability) — so combining a Fire ability with a Lightning ability silently dropped Lightning from
+    all four dicts (each ability's calculate_minion_offense only populates entries for the type(s) IT deals).
+    DPS itself was unaffected (each ability's damage_rows already closed over its own mitigation), but the
+    frontend's Enemy Multiplier row rendered "—" for a type the minion demonstrably deals. Fire + Lightning
+    (not two Fire abilities, unlike test_combine_minion_forms_merges_two_damage_abilities_...) is required to
+    catch this — same-type merges can't distinguish "unioned" from "just prim's copy"."""
+    src = _src_with_minion_mods()
+    fire = calculate_minion_offense(src, _ABILITY_A, _BASE_STATS, level=20, minion_count=1)         # Fire
+    lightning = calculate_minion_offense(src, _ABILITY_LIGHTNING, _BASE_STATS, level=20, minion_count=1)  # Lightning
+    combined = combine_minion_forms("Combo", [fire, lightning], count=1)
+
+    for d in ({"target_mitigation_by_type": combined.target_mitigation_by_type},
+              {"enemy_vuln_by_type": combined.enemy_vuln_by_type},
+              {"enemy_vuln_sources_by_type": combined.enemy_vuln_sources_by_type},
+              {"enemy_mult_by_type": combined.enemy_mult_by_type}):
+        (label, mapping), = d.items()
+        assert "fire" in mapping and "lightning" in mapping, f"{label} dropped a merged ability's damage type"
+
+    # The invariant must hold for EVERY type present on the combined result, not just prim's own type.
+    for t in ("fire", "lightning"):
+        assert combined.target_mitigation_by_type[t] * combined.enemy_vuln_by_type[t] == pytest.approx(
+            combined.enemy_mult_by_type[t])
+    assert combined.target_mitigation_by_type["fire"] == pytest.approx(fire.target_mitigation_by_type["fire"])
+    assert combined.enemy_vuln_by_type["lightning"] == pytest.approx(lightning.enemy_vuln_by_type["lightning"])
+
+
+def test_combine_minion_forms_rebases_form_index_to_merged_position():
+    """form_index is ability-LOCAL (always 0) on each ability's own OffenseResult — combine_minion_forms must
+    re-base it to the row's position in the MERGED hit_forms list, not leave the stale local index."""
+    src = _src_with_minion_mods()
+    a3 = calculate_minion_offense(src, _ABILITY_A, _BASE_STATS, level=20, minion_count=3)
+    b3 = calculate_minion_offense(src, _ABILITY_B, _BASE_STATS, level=20, minion_count=3)
+    assert a3.damage_rows[0].form_index == 0 and b3.damage_rows[0].form_index == 0   # ability-local, pre-merge
+
+    combined = combine_minion_forms("Combo", [a3, b3], count=3)
+    assert [row.form_index for row in combined.damage_rows] == [0, 1]
+    for i, (form, row) in enumerate(zip(combined.hit_forms, combined.damage_rows)):
+        assert row.form_index == i
+        assert combined.hit_forms[row.form_index] is form
+
+    # Mixed real + NYI ability: the NYI placeholder row must also carry its MERGED position.
+    dmg = calculate_minion_offense(src, _BASE_SKILL, _BASE_STATS, level=20, minion_count=1)
+    buff = nyi_offense({"name": "Empower Buff", "skill_tags": []}, 20)
+    mixed = combine_minion_forms("Owner", [dmg, buff], count=1)
+    assert [row.form_index for row in mixed.damage_rows] == [0, 1]
+
+
+def test_enemy_vuln_mult_pinned_literal_for_minion_lightning_hit():
+    """Same pinned-literal oracle as test_damage_rows.TestEnemyVulnMultPinnedLiteral (Paralysis x Numbed x a
+    lightning curse = 1.25 x 1.5 x 1.3 = 2.4375, hand-computed), exercised through calculate_minion_offense —
+    not a recomputation from enemy_vuln_sources_by_type (see test_enemy_vuln_sources_by_type_invariant_holds_
+    for_minion_path, which is a self-consistency check, not an independent oracle)."""
+    lightning_ability = {"name": "Bolt", "skill_tags": ["Base Skill", "Attack", "Lightning"],
+                         "base_damage_coefficient": 100.0, "cast_speed": "1.0 s"}
+    src = _src_with_minion_mods()
+    src.add("paralysis_dmg_taken", 0.25)
+    src.add("numbed_lightning_taken", 0.5)
+    src.add("lightning_curse_taken", 0.30)
+    o = calculate_minion_offense(src, lightning_ability, _BASE_STATS, level=20)
+    assert o.enemy_vuln_by_type["lightning"] == pytest.approx(2.4375)
+
+
 def test_player_stats_do_not_leak_into_minions():
     base = calculate_minion_offense(_src_with_minion_mods(), _BASE_SKILL, _BASE_STATS, 20)
     s = _src_with_minion_mods()

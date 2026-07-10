@@ -295,6 +295,7 @@
         },
         "dps_final": 24507.487968263213,
         "dps_vs_target_final": 12183.929894557179,
+        "form_index": 0,
         "hit_max_by_type": {
           "fire": 1034.8379689697279,
           "lightning": 3010.8610707174225,
@@ -307,6 +308,7 @@
         },
         "kind": "hit",
         "name": "Sweep Slash",
+        "nyi": [],
         "pct_of_total": 59.67280548285103
       },
       {
@@ -317,6 +319,7 @@
         },
         "dps_final": 16562.288741508306,
         "dps_vs_target_final": 8233.963643326904,
+        "form_index": 1,
         "hit_max_by_type": {
           "fire": 2797.395680038318,
           "lightning": 8139.0227310714845,
@@ -329,6 +332,7 @@
         },
         "kind": "hit",
         "name": "Steep Strike",
+        "nyi": [],
         "pct_of_total": 40.327194517148975
       }
     ],
@@ -361,6 +365,38 @@
       "fire": 1.0,
       "lightning": 1.5,
       "physical": 1.0
+    },
+    "enemy_vuln_sources_by_type": {
+      "fire": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "fire_infiltration_taken",
+        "fire_curse_taken",
+        "hit_curse_taken"
+      ],
+      "lightning": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "numbed_lightning_taken",
+        "lightning_infiltration_taken",
+        "lightning_curse_taken",
+        "hit_curse_taken"
+      ],
+      "physical": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "physical_curse_taken",
+        "hit_curse_taken"
+      ]
     },
     "flat_dmg_max": {
       "fire": 135.0,
@@ -592,6 +628,7 @@
           },
           "dps_final": 24507.487968263213,
           "dps_vs_target_final": 12183.929894557179,
+          "form_index": 0,
           "hit_max_by_type": {
             "fire": 1034.8379689697279,
             "lightning": 3010.8610707174225,
@@ -604,6 +641,7 @@
           },
           "kind": "hit",
           "name": "Sweep Slash",
+          "nyi": [],
           "pct_of_total": 59.67280548285103
         },
         {
@@ -614,6 +652,7 @@
           },
           "dps_final": 16562.288741508306,
           "dps_vs_target_final": 8233.963643326904,
+          "form_index": 1,
           "hit_max_by_type": {
             "fire": 2797.395680038318,
             "lightning": 8139.0227310714845,
@@ -626,6 +665,7 @@
           },
           "kind": "hit",
           "name": "Steep Strike",
+          "nyi": [],
           "pct_of_total": 40.327194517148975
         }
       ],
@@ -658,6 +698,38 @@
         "fire": 1.0,
         "lightning": 1.5,
         "physical": 1.0
+      },
+      "enemy_vuln_sources_by_type": {
+        "fire": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "fire_infiltration_taken",
+          "fire_curse_taken",
+          "hit_curse_taken"
+        ],
+        "lightning": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "numbed_lightning_taken",
+          "lightning_infiltration_taken",
+          "lightning_curse_taken",
+          "hit_curse_taken"
+        ],
+        "physical": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "physical_curse_taken",
+          "hit_curse_taken"
+        ]
       },
       "flat_dmg_max": {
         "fire": 135.0,

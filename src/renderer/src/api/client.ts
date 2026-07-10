@@ -775,6 +775,28 @@ export interface HitFormResult {
   nyi?: string[]
 }
 
+// One row of the engine-owned breakdown table (backend/engine/offense.py DamageRow) - the reconciliation
+// contract that replaces the frontend's hand-reconstructed delivery multiplier and back-solved per-type
+// mitigation. Every row is ALREADY fully delivered (cast/tangle/spell-burst/multistrike multiplier applied)
+// and ALREADY split per damage type post-mitigation - nothing here should be multiplied or re-derived.
+// kind="hit" rows mirror hit_forms 1:1 in the same order; kind="true" rows (Mercury Baptism / Spell Ripple)
+// have no HitFormResult of their own - hit_min_by_type/hit_max_by_type/dps_by_type_vs_target are {} for those.
+export interface DamageRow {
+  kind: 'hit' | 'true' | 'dot'   // "dot" not emitted yet
+  name: string
+  dps_final: number                  // already x delivery
+  dps_vs_target_final: number        // already x delivery
+  pct_of_total: number               // of total_dps_vs_target; all non-NYI rows sum to 100.0
+  dps_by_type_vs_target: Record<string, number>   // POST-mitigation, per damage type
+  hit_min_by_type: Record<string, number>         // {} for "true"/"dot"
+  hit_max_by_type: Record<string, number>         // {} for "true"/"dot"
+  // The engine's STABLE join key back to hit_forms - use this, never `name` (names are not unique).
+  // 0-based index into hit_forms for kind="hit"; -1 for "true"/"dot" (no HitFormResult of their own).
+  // Optional, like the fields above: the web build can hit a CDN engine older than this renderer.
+  form_index?: number
+  nyi?: string[]                     // non-empty -> not a real damage row; filter it out of the table
+}
+
 export interface OffenseResult {
   skill_name: string
   supported: boolean   // false = NYI; when false no other fields are meaningful
@@ -865,6 +887,16 @@ export interface OffenseResult {
   // Combined per-type ENEMY damage multiplier on outgoing damage: (1−armor)(1−resist) × enemy vulnerability
   // (Paralysis/Numbed/Frostbite/curses/…). Only types this skill deals are present. 1.0 = neutral.
   enemy_mult_by_type?: Record<string, number>
+  // Engine-owned breakdown rows (see DamageRow) - the pure-render replacement for hand-reconstructed
+  // per-form/per-type DPS. Includes kind="true" rows (Mercury Baptism / Spell Ripple) that have no
+  // HitFormResult of their own.
+  damage_rows?: DamageRow[]
+  // target_mitigation_by_type[d] x enemy_vuln_by_type[d] == enemy_mult_by_type[d] for every d present.
+  target_mitigation_by_type?: Record<string, number>   // armour/resist half only
+  enemy_vuln_by_type?: Record<string, number>          // vulnerability-product half only
+  // Ordered stat keys _enemy_vuln_mult actually consulted per type - drives the Breakdown popover's source
+  // list instead of a hand-copied key list that can drift from the engine.
+  enemy_vuln_sources_by_type?: Record<string, string[]>
   // Multistrike (attack skills): per-cast delivery multiplier from auto-repeats with increasing damage + the
   // +20% repeat attack speed. mult 1.0 / chance 0 when not multistriking.
   multistrike_chance?: number          // total chance (fraction; 1.16 = 116%)

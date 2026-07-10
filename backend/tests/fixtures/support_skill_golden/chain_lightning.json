@@ -272,6 +272,7 @@
         },
         "dps_final": 14774.233589609743,
         "dps_vs_target_final": 7260.611773915888,
+        "form_index": 0,
         "hit_max_by_type": {
           "fire": 736.9064025354829,
           "lightning": 4445.070594149764,
@@ -284,6 +285,7 @@
         },
         "kind": "hit",
         "name": "Chain Lightning",
+        "nyi": [],
         "pct_of_total": 100.0
       }
     ],
@@ -316,6 +318,41 @@
       "fire": 1.0,
       "lightning": 1.5,
       "physical": 1.0
+    },
+    "enemy_vuln_sources_by_type": {
+      "fire": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "fire_infiltration_taken",
+        "frail_spell_taken",
+        "fire_curse_taken",
+        "hit_curse_taken"
+      ],
+      "lightning": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "numbed_lightning_taken",
+        "lightning_infiltration_taken",
+        "frail_spell_taken",
+        "lightning_curse_taken",
+        "hit_curse_taken"
+      ],
+      "physical": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "frail_spell_taken",
+        "physical_curse_taken",
+        "hit_curse_taken"
+      ]
     },
     "flat_dmg_max": {
       "fire": 183.60000000000002,
@@ -520,6 +557,7 @@
           },
           "dps_final": 14774.233589609743,
           "dps_vs_target_final": 7260.611773915888,
+          "form_index": 0,
           "hit_max_by_type": {
             "fire": 736.9064025354829,
             "lightning": 4445.070594149764,
@@ -532,6 +570,7 @@
           },
           "kind": "hit",
           "name": "Chain Lightning",
+          "nyi": [],
           "pct_of_total": 100.0
         }
       ],
@@ -564,6 +603,41 @@
         "fire": 1.0,
         "lightning": 1.5,
         "physical": 1.0
+      },
+      "enemy_vuln_sources_by_type": {
+        "fire": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "fire_infiltration_taken",
+          "frail_spell_taken",
+          "fire_curse_taken",
+          "hit_curse_taken"
+        ],
+        "lightning": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "numbed_lightning_taken",
+          "lightning_infiltration_taken",
+          "frail_spell_taken",
+          "lightning_curse_taken",
+          "hit_curse_taken"
+        ],
+        "physical": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "frail_spell_taken",
+          "physical_curse_taken",
+          "hit_curse_taken"
+        ]
       },
       "flat_dmg_max": {
         "fire": 183.60000000000002,

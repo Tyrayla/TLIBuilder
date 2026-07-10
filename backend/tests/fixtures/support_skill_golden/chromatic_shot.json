@@ -315,6 +315,7 @@
         },
         "dps_final": 16467.415578113632,
         "dps_vs_target_final": 8069.03363327568,
+        "form_index": 0,
         "hit_max_by_type": {
           "cold": 5928.841877795107,
           "fire": 5389.856252541006,
@@ -327,6 +328,7 @@
         },
         "kind": "hit",
         "name": "Chromatic Shot",
+        "nyi": [],
         "pct_of_total": 100.0
       }
     ],
@@ -359,6 +361,43 @@
       "cold": 1.1,
       "fire": 1.0,
       "lightning": 1.5
+    },
+    "enemy_vuln_sources_by_type": {
+      "cold": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "frostbite_cold_taken",
+        "cold_infiltration_taken",
+        "frail_spell_taken",
+        "cold_curse_taken",
+        "hit_curse_taken"
+      ],
+      "fire": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "fire_infiltration_taken",
+        "frail_spell_taken",
+        "fire_curse_taken",
+        "hit_curse_taken"
+      ],
+      "lightning": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "numbed_lightning_taken",
+        "lightning_infiltration_taken",
+        "frail_spell_taken",
+        "lightning_curse_taken",
+        "hit_curse_taken"
+      ]
     },
     "flat_dmg_max": {
       "fire": 211.95000000000002,
@@ -584,6 +623,7 @@
           },
           "dps_final": 16467.415578113632,
           "dps_vs_target_final": 8069.03363327568,
+          "form_index": 0,
           "hit_max_by_type": {
             "cold": 5928.841877795107,
             "fire": 5389.856252541006,
@@ -596,6 +636,7 @@
           },
           "kind": "hit",
           "name": "Chromatic Shot",
+          "nyi": [],
           "pct_of_total": 100.0
         }
       ],
@@ -628,6 +669,43 @@
         "cold": 1.1,
         "fire": 1.0,
         "lightning": 1.5
+      },
+      "enemy_vuln_sources_by_type": {
+        "cold": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "frostbite_cold_taken",
+          "cold_infiltration_taken",
+          "frail_spell_taken",
+          "cold_curse_taken",
+          "hit_curse_taken"
+        ],
+        "fire": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "fire_infiltration_taken",
+          "frail_spell_taken",
+          "fire_curse_taken",
+          "hit_curse_taken"
+        ],
+        "lightning": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "numbed_lightning_taken",
+          "lightning_infiltration_taken",
+          "frail_spell_taken",
+          "lightning_curse_taken",
+          "hit_curse_taken"
+        ]
       },
       "flat_dmg_max": {
         "fire": 211.95000000000002,

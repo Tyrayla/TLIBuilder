@@ -24,7 +24,7 @@ from engine.modifier_lines import pool_identity
 from engine.skill_resolver import _parse_cast_time
 from engine.constants import DAMAGE_TYPES as _DAMAGE_TYPES, ELEMENTAL as _ELEMENTAL
 from engine.offense import (
-    OffenseResult, HitFormResult, DamageRow, _enemy_vuln_mult, _DTYPE_TAG_SET, _above_max_mult,
+    OffenseResult, HitFormResult, DamageRow, _enemy_vuln_mult, _enemy_vuln_source_keys, _DTYPE_TAG_SET, _above_max_mult,
     _build_hit_damage_rows, _finalize_damage_row_pcts,
     TARGET_ARMOR_MITIGATION, TARGET_NONPHYS_ARMOR_FACTOR, TARGET_ELEMENTAL_RESIST, TARGET_EROSION_RESIST,
 )
@@ -493,6 +493,7 @@ def calculate_minion_offense(
     enemy_mult: dict[str, float] = {}
     target_mitigation_by_type: dict[str, float] = {}   # armour/resist half of enemy_mult (this minion's OWN pen)
     enemy_vuln_by_type: dict[str, float] = {}          # vulnerability-product half of enemy_mult
+    enemy_vuln_sources_by_type: dict[str, list[str]] = {}  # stat keys _enemy_vuln_mult consulted, per type
     for t in {*flat_min, *flat_max}:
         if flat_min.get(t, 0.0) == 0.0 and flat_max.get(t, 0.0) == 0.0:
             continue
@@ -506,6 +507,7 @@ def calculate_minion_offense(
         hit_max[t] = flat_max.get(t, 0.0) * (1.0 + inc) * add * above_mult
         target_mitigation_by_type[t] = _minion_target_mitigation(source, t)
         enemy_vuln_by_type[t] = _enemy_vuln_mult(source, t, is_spell)
+        enemy_vuln_sources_by_type[t] = _enemy_vuln_source_keys(t, is_spell)
         enemy_mult[t] = target_mitigation_by_type[t] * enemy_vuln_by_type[t]
 
     # Crit (fixed 500 CSR / 150% base from constants, scaled by minion crit pools).
@@ -621,6 +623,7 @@ def calculate_minion_offense(
         enemy_mult_by_type=enemy_mult, base_csr=base_csr, skill_tags=tags_list,
         damage_rows=damage_rows,
         target_mitigation_by_type=target_mitigation_by_type, enemy_vuln_by_type=enemy_vuln_by_type,
+        enemy_vuln_sources_by_type=enemy_vuln_sources_by_type,
         multistrike_chance=ms_chance, multistrike_avg_count=ms_avg_count, multistrike_increment=ms_inc,
         multistrike_max_count=ms_max_count, multistrike_mult=ms_mult, multistrike_repeat_aps=ms_repeat_aps,
         multistrike_chain=ms_chain,
@@ -650,14 +653,33 @@ def combine_minion_forms(name: str, results: list[OffenseResult], count: int) ->
     for r in results:
         if r.supported and r.hit_forms:
             continue
+        form_nyi = list(r.nyi or []) or ["Not yet modelled."]
         forms.append(HitFormResult(
             name=r.skill_name, effectiveness_pct=0.0, form_type="additive", proc_chance=0.0,
             damage_by_type={}, avg_hit_pre_crit=0.0, avg_hit_with_crit=0.0,
             dps_contribution=0.0, dps_vs_target=0.0, fires_per_sec=0.0,
-            nyi=list(r.nyi or []) or ["Not yet modelled."],
+            nyi=form_nyi,
         ))
+        # nyi mirrors the HitFormResult just appended above — the row IS this form's damage_rows entry
+        # (1:1 by construction), so the frontend can filter NYI rows without zipping against hit_forms.
         damage_rows.append(DamageRow(kind="hit", name=r.skill_name, dps_final=0.0, dps_vs_target_final=0.0,
-                                     pct_of_total=0.0))
+                                     pct_of_total=0.0, nyi=list(form_nyi)))
+
+    # Re-base form_index to the MERGED hit_forms list's own position. Each ability's own damage_rows entry
+    # was built by calculate_minion_offense's _build_hit_damage_rows call against that ability's OWN (single-
+    # element) hit_forms list, so it always carries form_index=0 — but this function concatenates several
+    # abilities' hit_forms into ONE list (`forms`), so an ability-local index is no longer the row's true
+    # position. hit ROWS and forms are built in lockstep (1:1, same order), so re-indexing by position is exact.
+    #
+    # Count only kind="hit" rows. `forms` contains hit forms alone, so a "true"/"dot" row must NOT consume an
+    # index (it has no HitFormResult and keeps form_index=-1). No minion path emits one today, but the DoT stage
+    # will — and an unguarded enumerate() would both mis-tag that row and shift every later row's index by one.
+    _fi = 0
+    for row in damage_rows:
+        if row.kind != "hit":
+            continue
+        row.form_index = _fi
+        _fi += 1
 
     # Shared damage-ability NYI notes (conversion / persistent / ailment) — kept on the combined result too.
     nyi_notes: list[str] = []
@@ -678,6 +700,47 @@ def combine_minion_forms(name: str, results: list[OffenseResult], count: int) ->
     prim = damage[0]                                   # shared-pipeline representative (same pools on every form)
     combined_vs_target = sum(r.total_dps_vs_target for r in damage)
     _finalize_damage_row_pcts(damage_rows, combined_vs_target)
+
+    # CONFIRMED BUG FIX: each ability's calculate_minion_offense populates target_mitigation_by_type /
+    # enemy_vuln_by_type / enemy_vuln_sources_by_type ONLY for the damage type(s) THAT ability deals — so
+    # borrowing these dicts from `prim` (the first ability) alone drops every type a later-merged ability
+    # introduces (e.g. combining a Fire ability with a Cold ability left Cold absent from all three dicts,
+    # so the frontend's Enemy Multiplier row rendered "—" for a type the minion demonstrably deals — DPS
+    # itself was unaffected, since each ability's damage_rows already closed over its own mitigation at
+    # construction). Union every merged damage ability's dicts by damage type instead, first writer per type
+    # wins (order = `damage`, i.e. `results` order).
+    #
+    # How safe first-writer-wins actually is, per dict — these are NOT the same:
+    #   • target_mitigation_by_type — SAFE. `_minion_target_mitigation` depends only on `dtype`; two abilities
+    #     dealing the same type against the same dummy cannot disagree.
+    #   • enemy_vuln_by_type / enemy_vuln_sources_by_type — AN ASSUMPTION, not an invariant. Both come from
+    #     `_enemy_vuln_mult(source, t, is_spell)` / `_enemy_vuln_source_keys(t, is_spell)`, and `is_spell` is
+    #     PER-ABILITY. `_enemy_vuln_source_keys` appends `frail_spell_taken` only for spells, so an Attack and
+    #     a Spell ability dealing the SAME type genuinely diverge whenever Frail is active (see
+    #     tests/test_damage_rows.py::test_frail_key_only_present_for_spell_skills). First-writer-wins then
+    #     silently reports one ability's multiplier for both.
+    #     Not reachable today: the only production caller (minion_effects/thunder_magus.py) merges two Attack
+    #     abilities. Per-form DPS is unaffected regardless — each ability's damage_rows closed over its own
+    #     mitigation at construction; only the combined Enemy Multiplier *display* would misreport.
+    #     If you add a minion that mixes Attack and Spell abilities of the same damage type, this needs to
+    #     become per-ability rather than a merged dict. Flagged by the Wave 2 correctness review.
+    combined_target_mitigation: dict[str, float] = {}
+    combined_enemy_vuln: dict[str, float] = {}
+    combined_enemy_vuln_sources: dict[str, list[str]] = {}
+    for r in damage:
+        for t, v in r.target_mitigation_by_type.items():
+            combined_target_mitigation.setdefault(t, v)
+        for t, v in r.enemy_vuln_by_type.items():
+            combined_enemy_vuln.setdefault(t, v)
+        for t, v in r.enemy_vuln_sources_by_type.items():
+            combined_enemy_vuln_sources.setdefault(t, v)
+    # Re-derive enemy_mult_by_type from the UNIONED dicts (not prim's own, type-incomplete copy) so the
+    # invariant target_mitigation_by_type[d] * enemy_vuln_by_type[d] == enemy_mult_by_type[d] holds for
+    # EVERY type present on the combined result, not just the types prim (the first ability) happened to deal.
+    combined_enemy_mult = {
+        t: combined_target_mitigation[t] * combined_enemy_vuln[t] for t in combined_target_mitigation
+    }
+
     return replace(
         prim,
         skill_name=name,
@@ -687,6 +750,10 @@ def combine_minion_forms(name: str, results: list[OffenseResult], count: int) ->
         skills_per_second=sum(f.fires_per_sec for f in forms),   # NYI forms are 0/s → = the shared attack rate
         nyi=nyi_notes,
         damage_rows=damage_rows,
+        target_mitigation_by_type=combined_target_mitigation,
+        enemy_vuln_by_type=combined_enemy_vuln,
+        enemy_vuln_sources_by_type=combined_enemy_vuln_sources,
+        enemy_mult_by_type=combined_enemy_mult,
     )
 
 

@@ -565,6 +565,35 @@ def target_profile(source: BuildSource) -> dict:
     }
 
 
+def _enemy_vuln_source_keys(dtype: str, is_spell: bool = False) -> list[str]:
+    """The ordered stat keys `_enemy_vuln_mult` actually consults for `dtype`/`is_spell` — the SINGLE source
+    of truth for both computing the vulnerability multiplier and reporting which stats produced it (surfaced
+    via `OffenseResult.enemy_vuln_sources_by_type` for the frontend's Breakdown popover). `_enemy_vuln_mult`
+    is defined in terms of this list — do not hand-copy it elsewhere (that was the bug this replaces: the
+    frontend used to keep its own parallel copy, `enemyVulnKeys`, which could silently drift from this list)."""
+    keys = [
+        "paralysis_dmg_taken",        # global
+        "no_guard_dmg_taken",         # global (Rosa Desperation — No Guard)
+        "knockback_dmg_taken",        # global (Howling Gale — Headwind; gated by hook on enemy_knocked_back)
+        "tide_dmg_taken",             # global (Selena Sing with the Tide; gated on enemy_on_tide, × Tide Effect)
+        "enemy_nearby_dmg_taken_additional",  # "additional damage taken by enemies within Nm" (Licorice Note Scattered Spore; assume in range)
+    ]
+    if dtype == "cold":
+        keys.append("frostbite_cold_taken")   # Frostbite (+Condensed Frost) — baked in aggregator
+    if dtype == "lightning":
+        keys.append("numbed_lightning_taken")
+    if dtype in ("fire", "cold", "lightning"):
+        keys.append(f"{dtype}_infiltration_taken")  # Infiltration — element-typed
+    if is_spell:
+        keys.append("frail_spell_taken")      # Frail — Spell-form (all damage of a Spell skill)
+    # Curses (applied curse skill, scaled by Curse Effect in apply_curses): the per-type pool keys off the FINAL
+    # converted dtype — so an "increased Lightning Damage taken" curse does nothing once 100% of the lightning is
+    # converted to cold. hit_curse_taken (Timid) is all hit damage.
+    keys.append(f"{dtype}_curse_taken")
+    keys.append("hit_curse_taken")
+    return keys
+
+
 def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) -> float:
     """Enemy-vulnerability stage: 'the enemy takes more <type> damage' effects, applied as a final
     per-type multiplier on OUTGOING damage — deliberately NOT in the attacker's additional pool, so
@@ -577,27 +606,13 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
     their enemy condition: Paralysis (global), Numbed (lightning), Frail (Spell-form), Infiltration (per
     element type). NOT the defensive dmg_taken family (incoming damage / immunity tripwire) — this is
     outgoing amplification.
+
+    Iterates `_enemy_vuln_source_keys` (the shared source-of-truth key list) rather than hand-listing the
+    stats again, so this multiplier and the reported source list can never drift apart.
     """
-    mult = 1.0 + source.total("paralysis_dmg_taken")        # global
-    mult *= 1.0 + source.total("no_guard_dmg_taken")        # global (Rosa Desperation — No Guard)
-    mult *= 1.0 + source.total("knockback_dmg_taken")       # global (Howling Gale — Headwind; gated by hook on enemy_knocked_back)
-    mult *= 1.0 + source.total("tide_dmg_taken")            # global (Selena Sing with the Tide; gated on enemy_on_tide, × Tide Effect)
-    mult *= 1.0 + source.total("enemy_nearby_dmg_taken_additional")  # "additional damage taken by enemies within Nm" (Licorice Note Scattered Spore; assume in range)
-    if dtype == "cold":
-        mult *= 1.0 + source.total("frostbite_cold_taken")  # Frostbite (+Condensed Frost) — baked in aggregator
-    if dtype == "lightning":
-        mult *= 1.0 + source.total("numbed_lightning_taken")
-    if dtype in ("fire", "cold", "lightning"):              # Infiltration — element-typed
-        mult *= 1.0 + source.total(f"{dtype}_infiltration_taken")
-    if is_spell:                                            # Frail — Spell-form (all damage of a Spell skill)
-        mult *= 1.0 + source.total("frail_spell_taken")
-    # Curses (applied curse skill, scaled by Curse Effect in apply_curses): the per-type pool keys off the FINAL
-    # converted dtype — so an "increased Lightning Damage taken" curse does nothing once 100% of the lightning is
-    # converted to cold. hit_curse_taken (Timid) is all hit damage. Distinct curse TYPES multiply (separate
-    # factors); same curse is deduped to one source upstream. Pooling vs the in-game "additional" wording is
-    # FLAGGED for verification (kept multiplicative, like the debuffs above).
-    mult *= 1.0 + source.total(f"{dtype}_curse_taken")
-    mult *= 1.0 + source.total("hit_curse_taken")
+    mult = 1.0
+    for key in _enemy_vuln_source_keys(dtype, is_spell):
+        mult *= 1.0 + source.total(key)
     return mult
 
 
@@ -699,10 +714,24 @@ class DamageRow:
     `pct_of_total` is of `OffenseResult.total_dps_vs_target`; summed across every row (all kinds) it equals
     100.0 (within float tolerance) — see `_finalize_damage_row_pcts`.
 
+    form_index: the STABLE join key back to `OffenseResult.hit_forms` — use this, NOT `name`, to line a row
+      up with its source HitFormResult. `name` is display text only: nothing enforces `HitFormResult.name`
+      uniqueness (the test helper defaults every form to `name="Hit"`; a minion's NYI row is named after the
+      ability itself, which could collide with a damage ability's own name), so `visibleFormNames.has(row.name)`
+      / `forms.find(f => f.name === row.name)`-style joins are a LATENT bug even though today's data has zero
+      duplicate names across every `hit_forms` list (verified across all season goldens). For kind="hit" rows
+      this is the 0-based index of the row's HitFormResult in `hit_forms` (same list, same order — see the
+      "hit" case below); for kind="true"/"dot" rows (no HitFormResult of their own) it is always -1.
+      `combine_minion_forms` re-bases this to the MERGED `hit_forms` list's own position — a per-ability
+      row's ability-local index is NOT what ships once abilities are combined into one result.
+
     kind:
-      "hit"  — mirrors one `hit_forms[i]` entry, 1:1, same order. dps_final/dps_vs_target_final are that
-               form's dps_contribution/dps_vs_target × the caller's delivery multiplier (1.0 for minions,
-               which fold delivery — `count` — in earlier; see minion_offense.calculate_minion_offense).
+      "hit"  — mirrors one `hit_forms[i]` entry, 1:1, same order (form_index == i). dps_final/dps_vs_target_final
+               are that form's dps_contribution/dps_vs_target × the caller's delivery multiplier (1.0 for
+               minions, which fold delivery — `count` — in earlier; see minion_offense.calculate_minion_offense).
+               `nyi` mirrors `hit_forms[i].nyi` exactly (non-empty → 0 DPS, not-yet-implemented ability) so
+               the frontend filters NYI rows out of the breakdown table from the row alone (no index-zip
+               against hit_forms needed — form_index is for the OPPOSITE direction, row → form).
       "true" — an unmitigated true-damage add-on with NO HitFormResult of its own (Mercury Baptism, Spell
                Ripple). dps_by_type_vs_target / hit_min_by_type / hit_max_by_type are empty — these are a
                single already-final number, not a per-type hit roll.
@@ -746,9 +775,16 @@ class DamageRow:
     dps_final: float
     dps_vs_target_final: float
     pct_of_total: float
+    # Stable join key back to `hit_forms` — see the class docstring. -1 for kind="true"/"dot" (no HitFormResult
+    # of their own); the 0-based index into `hit_forms` for kind="hit" (re-based on merge — see docstring).
+    form_index: int = -1
     dps_by_type_vs_target: dict[str, float] = field(default_factory=dict)
     hit_min_by_type: dict[str, float] = field(default_factory=dict)
     hit_max_by_type: dict[str, float] = field(default_factory=dict)
+    # Mirrors HitFormResult.nyi for kind="hit" rows (empty for "true"/"dot" — those are never NYI): non-empty
+    # means this row is a not-yet-implemented ability (0 DPS), so the frontend can filter it out of the
+    # breakdown table from the row alone, without zipping damage_rows against hit_forms by index.
+    nyi: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -955,6 +991,11 @@ class OffenseResult:
     # target_mitigation_by_type[d] × enemy_vuln_by_type[d] == enemy_mult_by_type[d] for every d.
     target_mitigation_by_type: dict[str, float] = field(default_factory=dict)  # armour/resist half only
     enemy_vuln_by_type: dict[str, float] = field(default_factory=dict)         # vulnerability-product half only
+    # For each type in enemy_vuln_by_type, the ordered stat keys _enemy_vuln_mult actually consulted to build
+    # that type's multiplier (see _enemy_vuln_source_keys — the single source of truth both use). Lets the
+    # Breakdown popover list the real sources without the frontend hand-copying the engine's vuln-key list.
+    # Invariant: Π(1 + source.total(k) for k in enemy_vuln_sources_by_type[d]) == enemy_vuln_by_type[d].
+    enemy_vuln_sources_by_type: dict[str, list[str]] = field(default_factory=dict)
 
 
 def _build_hit_damage_rows(hit_forms: list[HitFormResult], *, delivery: float,
@@ -980,7 +1021,7 @@ def _build_hit_damage_rows(hit_forms: list[HitFormResult], *, delivery: float,
     — those rewrites only ever rescale a form's total DPS by a scalar uniform across damage types.
     """
     rows: list[DamageRow] = []
-    for form in hit_forms:
+    for i, form in enumerate(hit_forms):
         per_type_vs_target = {
             t: v * mitigation_fn(t) * crit_factor * double_dmg_factor
             for t, v in form.damage_by_type.items()
@@ -994,12 +1035,14 @@ def _build_hit_damage_rows(hit_forms: list[HitFormResult], *, delivery: float,
         rows.append(DamageRow(
             kind="hit",
             name=form.name,
+            form_index=i,   # 0-based index into THIS hit_forms list — the stable join key (see DamageRow docstring)
             dps_final=form.dps_contribution * delivery,
             dps_vs_target_final=dps_vs_target_final,
             pct_of_total=0.0,   # filled by _finalize_damage_row_pcts once the FINAL total is known
             dps_by_type_vs_target=dps_by_type_vs_target,
             hit_min_by_type=dict(form.hit_min_by_type),
             hit_max_by_type=dict(form.hit_max_by_type),
+            nyi=list(form.nyi),
         ))
     return rows
 
@@ -2241,6 +2284,10 @@ def calculate_offense(
         dt: _enemy_vuln_mult(source, dt, is_spell)
         for dt in target_mitigation_by_type
     }
+    enemy_vuln_sources_by_type = {
+        dt: _enemy_vuln_source_keys(dt, is_spell)
+        for dt in target_mitigation_by_type
+    }
     _finalize_damage_row_pcts(damage_rows, total_dps_vs_target)
 
     return OffenseResult(
@@ -2340,6 +2387,7 @@ def calculate_offense(
         damage_rows=damage_rows,
         target_mitigation_by_type=target_mitigation_by_type,
         enemy_vuln_by_type=enemy_vuln_by_type,
+        enemy_vuln_sources_by_type=enemy_vuln_sources_by_type,
         multistrike_chance=multistrike_chance,
         multistrike_avg_count=multistrike_avg_count,
         multistrike_increment=multistrike_increment,

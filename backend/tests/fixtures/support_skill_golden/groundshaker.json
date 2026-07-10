@@ -300,6 +300,7 @@
         },
         "dps_final": 16507.744365859347,
         "dps_vs_target_final": 8206.846835194227,
+        "form_index": 0,
         "hit_max_by_type": {
           "fire": 5315.98292823901,
           "lightning": 15466.852329711397,
@@ -312,6 +313,7 @@
         },
         "kind": "hit",
         "name": "Primary Fissure",
+        "nyi": [],
         "pct_of_total": 57.0680752285755
       },
       {
@@ -322,6 +324,7 @@
         },
         "dps_final": 12418.663787456959,
         "dps_vs_target_final": 6173.955044531412,
+        "form_index": 1,
         "hit_max_by_type": {
           "fire": 5315.98292823901,
           "lightning": 15466.852329711397,
@@ -334,6 +337,7 @@
         },
         "kind": "hit",
         "name": "Fissure Ticks (Frequent Quake)",
+        "nyi": [],
         "pct_of_total": 42.931924771424505
       }
     ],
@@ -366,6 +370,38 @@
       "fire": 1.0,
       "lightning": 1.5,
       "physical": 1.0
+    },
+    "enemy_vuln_sources_by_type": {
+      "fire": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "fire_infiltration_taken",
+        "fire_curse_taken",
+        "hit_curse_taken"
+      ],
+      "lightning": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "numbed_lightning_taken",
+        "lightning_infiltration_taken",
+        "lightning_curse_taken",
+        "hit_curse_taken"
+      ],
+      "physical": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "physical_curse_taken",
+        "hit_curse_taken"
+      ]
     },
     "flat_dmg_max": {
       "fire": 135.0,
@@ -596,6 +632,7 @@
           },
           "dps_final": 16507.744365859347,
           "dps_vs_target_final": 8206.846835194227,
+          "form_index": 0,
           "hit_max_by_type": {
             "fire": 5315.98292823901,
             "lightning": 15466.852329711397,
@@ -608,6 +645,7 @@
           },
           "kind": "hit",
           "name": "Primary Fissure",
+          "nyi": [],
           "pct_of_total": 57.0680752285755
         },
         {
@@ -618,6 +656,7 @@
           },
           "dps_final": 12418.663787456959,
           "dps_vs_target_final": 6173.955044531412,
+          "form_index": 1,
           "hit_max_by_type": {
             "fire": 5315.98292823901,
             "lightning": 15466.852329711397,
@@ -630,6 +669,7 @@
           },
           "kind": "hit",
           "name": "Fissure Ticks (Frequent Quake)",
+          "nyi": [],
           "pct_of_total": 42.931924771424505
         }
       ],
@@ -662,6 +702,38 @@
         "fire": 1.0,
         "lightning": 1.5,
         "physical": 1.0
+      },
+      "enemy_vuln_sources_by_type": {
+        "fire": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "fire_infiltration_taken",
+          "fire_curse_taken",
+          "hit_curse_taken"
+        ],
+        "lightning": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "numbed_lightning_taken",
+          "lightning_infiltration_taken",
+          "lightning_curse_taken",
+          "hit_curse_taken"
+        ],
+        "physical": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "physical_curse_taken",
+          "hit_curse_taken"
+        ]
       },
       "flat_dmg_max": {
         "fire": 135.0,

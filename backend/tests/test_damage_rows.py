@@ -18,7 +18,9 @@ import copy
 import pytest
 
 from engine.models import BuildSource
-from engine.offense import calculate_offense, _build_hit_damage_rows, HitFormResult
+from engine.offense import (
+    calculate_offense, _build_hit_damage_rows, _finalize_damage_row_pcts, HitFormResult,
+)
 from engine.skill_resolver import ResolvedSkill, SkillHitForm
 
 
@@ -245,3 +247,152 @@ class TestMultiFormPctSumsAndPerFormMatch:
             # form's own dps_vs_target exactly.
             assert row.dps_vs_target_final == pytest.approx(form.dps_vs_target)
         assert sum(row.pct_of_total for row in r.damage_rows) == pytest.approx(100.0, abs=1e-6)
+
+
+class TestEnemyVulnSourcesByType:
+    """OffenseResult.enemy_vuln_sources_by_type — the ordered stat-key list _enemy_vuln_mult actually consulted
+    per type, surfaced so the frontend's Breakdown popover can list real sources instead of keeping its own
+    hand-copied `enemyVulnKeys` (the bug this closes: a parallel list that could silently drift from the
+    engine). Both _enemy_vuln_mult and this field are derived from the SAME `_enemy_vuln_source_keys` function,
+    so the identity below is exact, not just float-close."""
+
+    def test_source_keys_reproduce_enemy_vuln_and_the_full_mitigation_chain(self):
+        src = _source(
+            weapon_attack_speed=1.0,
+            physical_attack_dmg_flat_min=70.0, physical_attack_dmg_flat_max=70.0,
+            lightning_attack_dmg_flat_min=30.0, lightning_attack_dmg_flat_max=30.0,
+            numbed_lightning_taken=0.5,
+            paralysis_dmg_taken=0.25,
+        )
+        r = calculate_offense(src, _attack_skill(), 16)
+        assert set(r.enemy_vuln_sources_by_type) == set(r.enemy_vuln_by_type) == set(r.target_mitigation_by_type)
+        assert r.enemy_vuln_sources_by_type  # non-empty — the skill deals physical + lightning
+        for d, keys in r.enemy_vuln_sources_by_type.items():
+            product = 1.0
+            for k in keys:
+                product *= 1.0 + src.total(k)
+            assert product == pytest.approx(r.enemy_vuln_by_type[d])
+            assert r.target_mitigation_by_type[d] * r.enemy_vuln_by_type[d] == pytest.approx(r.enemy_mult_by_type[d])
+        # Type-scoping: Numbed only feeds lightning; Paralysis is global (every type).
+        assert "numbed_lightning_taken" in r.enemy_vuln_sources_by_type["lightning"]
+        assert "numbed_lightning_taken" not in r.enemy_vuln_sources_by_type["physical"]
+        assert "paralysis_dmg_taken" in r.enemy_vuln_sources_by_type["physical"]
+        assert "paralysis_dmg_taken" in r.enemy_vuln_sources_by_type["lightning"]
+
+    def test_frail_key_only_present_for_spell_skills(self):
+        spell = calculate_offense(_source(frail_spell_taken=0.3), _spell_skill(), 16)
+        for keys in spell.enemy_vuln_sources_by_type.values():
+            assert "frail_spell_taken" in keys
+
+        attack = calculate_offense(
+            _source(weapon_attack_speed=1.0, physical_attack_dmg_flat_min=1.0, physical_attack_dmg_flat_max=1.0),
+            _attack_skill(), 16,
+        )
+        for keys in attack.enemy_vuln_sources_by_type.values():
+            assert "frail_spell_taken" not in keys
+
+
+class TestFormIndexIsTheStableJoinKey:
+    """DamageRow.form_index — NOT `name` — is the stable join key back to `hit_forms` (see DamageRow's
+    docstring). kind="hit" rows carry the 0-based index of their source HitFormResult in `hit_forms`
+    (same order, via enumerate); kind="true"/"dot" rows (no HitFormResult of their own) always carry -1."""
+
+    def test_hit_rows_carry_enumerate_index_into_hit_forms(self):
+        r = calculate_offense(_source(), _multi_form_spell_skill(), 16)
+        assert [row.form_index for row in r.damage_rows] == [0, 1]
+        for i, (form, row) in enumerate(zip(r.hit_forms, r.damage_rows)):
+            assert row.form_index == i
+            assert r.hit_forms[row.form_index] is form   # the actual join, not a name lookup
+
+    def test_true_row_form_index_is_negative_one(self):
+        src = _source(
+            weapon_attack_speed=1.0,
+            physical_attack_dmg_flat_min=100.0, physical_attack_dmg_flat_max=100.0,
+            fire_attack_dmg_flat_min=50.0, fire_attack_dmg_flat_max=50.0,
+            mercury_baptism_fraction=0.2,
+        )
+        r = calculate_offense(src, _attack_skill(), 16)
+        hit_rows = [row for row in r.damage_rows if row.kind == "hit"]
+        true_rows = [row for row in r.damage_rows if row.kind == "true"]
+        assert hit_rows and hit_rows[0].form_index == 0
+        assert true_rows and all(row.form_index == -1 for row in true_rows)
+
+    def test_build_hit_damage_rows_direct_enumerate(self):
+        forms = [
+            HitFormResult(name="Hit", effectiveness_pct=100.0, form_type="additive", proc_chance=1.0,
+                          damage_by_type={"physical": 100.0}, avg_hit_pre_crit=100.0, avg_hit_with_crit=100.0,
+                          dps_contribution=100.0, dps_vs_target=50.0),
+            HitFormResult(name="Hit", effectiveness_pct=100.0, form_type="additive", proc_chance=1.0,
+                          damage_by_type={"fire": 50.0}, avg_hit_pre_crit=50.0, avg_hit_with_crit=50.0,
+                          dps_contribution=50.0, dps_vs_target=25.0),
+        ]
+        rows = _build_hit_damage_rows(forms, delivery=1.0, mitigation_fn=lambda t: 0.5,
+                                      crit_factor=1.0, double_dmg_factor=1.0)
+        # Same name on both forms ("Hit") — form_index (not name) is what disambiguates them.
+        assert [row.form_index for row in rows] == [0, 1]
+
+
+class TestEnemyVulnMultPinnedLiteral:
+    """`_enemy_vuln_mult`'s multiplication order (Paralysis → No Guard → Knockback → Tide → Enemy Nearby →
+    Frostbite/Numbed/Infiltration → Frail → {dtype}_curse → hit_curse) is pinned against a HAND-COMPUTED
+    literal, not a recomputation over the same `enemy_vuln_sources_by_type` key list (that's what
+    TestEnemyVulnSourcesByType does, and it's a self-consistency check, not an oracle — it would pass
+    unchanged even if a future reorder silently changed the product for float-order-sensitive inputs).
+    Three simultaneous sources on a lightning hit: Paralysis (+25%, global) x Numbed (+50%, lightning-only)
+    x a lightning curse (+30%) = 1.25 x 1.5 x 1.3 = 2.4375, computed here by hand, independent of the engine."""
+
+    def test_paralysis_numbed_lightning_curse_matches_hand_literal(self):
+        src = _source(
+            weapon_attack_speed=1.0,
+            lightning_attack_dmg_flat_min=100.0, lightning_attack_dmg_flat_max=100.0,
+            paralysis_dmg_taken=0.25,
+            numbed_lightning_taken=0.5,
+            lightning_curse_taken=0.30,
+        )
+        r = calculate_offense(src, _attack_skill(), 16)
+        assert r.enemy_vuln_by_type["lightning"] == pytest.approx(2.4375)
+
+
+class TestDamageRowNyiMirrorsHitForm:
+    """DamageRow.nyi — kind="hit" rows mirror hit_forms[i].nyi exactly (empty for the true/dot kinds), so the
+    frontend can filter NYI rows out of the breakdown table from the row alone (no index-zip against
+    hit_forms). NYI forms carry 0 DPS, so pct_of_total must land at 0.0 without corrupting the surviving
+    row's 100%."""
+
+    def test_nyi_form_row_carries_reason_and_zero_pct_while_real_row_stays_100(self):
+        real = HitFormResult(
+            name="Real", effectiveness_pct=100.0, form_type="additive", proc_chance=1.0,
+            damage_by_type={"physical": 100.0}, avg_hit_pre_crit=100.0, avg_hit_with_crit=100.0,
+            dps_contribution=100.0, dps_vs_target=50.0,
+            hit_min_by_type={"physical": 100.0}, hit_max_by_type={"physical": 100.0},
+        )
+        nyi_form = HitFormResult(
+            name="Locked Ultimate", effectiveness_pct=0.0, form_type="additive", proc_chance=0.0,
+            damage_by_type={}, avg_hit_pre_crit=0.0, avg_hit_with_crit=0.0,
+            dps_contribution=0.0, dps_vs_target=0.0,
+            nyi=["Locked — not yet modelled."],
+        )
+        rows = _build_hit_damage_rows(
+            [real, nyi_form], delivery=1.0, mitigation_fn=lambda t: 0.5,
+            crit_factor=1.0, double_dmg_factor=1.0,
+        )
+        real_row, nyi_row = rows
+        assert real_row.nyi == []
+        assert nyi_row.nyi == ["Locked — not yet modelled."]
+
+        _finalize_damage_row_pcts(rows, sum(row.dps_vs_target_final for row in rows))
+        assert nyi_row.pct_of_total == pytest.approx(0.0)
+        assert real_row.pct_of_total == pytest.approx(100.0, abs=1e-6)
+        assert sum(row.pct_of_total for row in rows) == pytest.approx(100.0, abs=1e-6)
+
+    def test_true_row_nyi_stays_empty(self):
+        # kind="true" rows (Mercury Baptism / Spell Ripple) are never NYI — confirm the default holds end-to-end.
+        src = _source(
+            weapon_attack_speed=1.0,
+            physical_attack_dmg_flat_min=100.0, physical_attack_dmg_flat_max=100.0,
+            fire_attack_dmg_flat_min=50.0, fire_attack_dmg_flat_max=50.0,
+            mercury_baptism_fraction=0.2,
+        )
+        r = calculate_offense(src, _attack_skill(), 16)
+        true_rows = [row for row in r.damage_rows if row.kind == "true"]
+        assert true_rows and all(row.nyi == [] for row in true_rows)

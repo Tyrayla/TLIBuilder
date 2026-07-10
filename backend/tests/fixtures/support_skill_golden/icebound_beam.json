@@ -295,6 +295,7 @@
         },
         "dps_final": 5694.855515812479,
         "dps_vs_target_final": 2796.718102302996,
+        "form_index": 0,
         "hit_max_by_type": {
           "cold": 1029.2611166922761,
           "fire": 216.26498171744325,
@@ -309,6 +310,7 @@
         },
         "kind": "hit",
         "name": "Cold Beam",
+        "nyi": [],
         "pct_of_total": 41.18375955619546
       },
       {
@@ -320,6 +322,7 @@
         },
         "dps_final": 5785.076992143361,
         "dps_vs_target_final": 2840.9983730500094,
+        "form_index": 1,
         "hit_max_by_type": {
           "cold": 3083.778443007987,
           "fire": 643.3883206093936,
@@ -334,6 +337,7 @@
         },
         "kind": "hit",
         "name": "Icy Blade",
+        "nyi": [],
         "pct_of_total": 41.8358195625388
       },
       {
@@ -345,6 +349,7 @@
         },
         "dps_final": 2348.0606615170113,
         "dps_vs_target_final": 1153.111104355592,
+        "form_index": 2,
         "hit_max_by_type": {
           "cold": 3083.778443007987,
           "fire": 643.3883206093936,
@@ -359,6 +364,7 @@
         },
         "kind": "hit",
         "name": "Chilling Spike",
+        "nyi": [],
         "pct_of_total": 16.980420881265747
       }
     ],
@@ -393,6 +399,53 @@
       "fire": 1.0,
       "lightning": 1.5,
       "physical": 1.0
+    },
+    "enemy_vuln_sources_by_type": {
+      "cold": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "frostbite_cold_taken",
+        "cold_infiltration_taken",
+        "frail_spell_taken",
+        "cold_curse_taken",
+        "hit_curse_taken"
+      ],
+      "fire": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "fire_infiltration_taken",
+        "frail_spell_taken",
+        "fire_curse_taken",
+        "hit_curse_taken"
+      ],
+      "lightning": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "numbed_lightning_taken",
+        "lightning_infiltration_taken",
+        "frail_spell_taken",
+        "lightning_curse_taken",
+        "hit_curse_taken"
+      ],
+      "physical": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "frail_spell_taken",
+        "physical_curse_taken",
+        "hit_curse_taken"
+      ]
     },
     "flat_dmg_max": {
       "cold": 257.0,
@@ -686,6 +739,7 @@
           },
           "dps_final": 5694.855515812479,
           "dps_vs_target_final": 2796.718102302996,
+          "form_index": 0,
           "hit_max_by_type": {
             "cold": 1029.2611166922761,
             "fire": 216.26498171744325,
@@ -700,6 +754,7 @@
           },
           "kind": "hit",
           "name": "Cold Beam",
+          "nyi": [],
           "pct_of_total": 41.18375955619546
         },
         {
@@ -711,6 +766,7 @@
           },
           "dps_final": 5785.076992143361,
           "dps_vs_target_final": 2840.9983730500094,
+          "form_index": 1,
           "hit_max_by_type": {
             "cold": 3083.778443007987,
             "fire": 643.3883206093936,
@@ -725,6 +781,7 @@
           },
           "kind": "hit",
           "name": "Icy Blade",
+          "nyi": [],
           "pct_of_total": 41.8358195625388
         },
         {
@@ -736,6 +793,7 @@
           },
           "dps_final": 2348.0606615170113,
           "dps_vs_target_final": 1153.111104355592,
+          "form_index": 2,
           "hit_max_by_type": {
             "cold": 3083.778443007987,
             "fire": 643.3883206093936,
@@ -750,6 +808,7 @@
           },
           "kind": "hit",
           "name": "Chilling Spike",
+          "nyi": [],
           "pct_of_total": 16.980420881265747
         }
       ],
@@ -784,6 +843,53 @@
         "fire": 1.0,
         "lightning": 1.5,
         "physical": 1.0
+      },
+      "enemy_vuln_sources_by_type": {
+        "cold": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "frostbite_cold_taken",
+          "cold_infiltration_taken",
+          "frail_spell_taken",
+          "cold_curse_taken",
+          "hit_curse_taken"
+        ],
+        "fire": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "fire_infiltration_taken",
+          "frail_spell_taken",
+          "fire_curse_taken",
+          "hit_curse_taken"
+        ],
+        "lightning": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "numbed_lightning_taken",
+          "lightning_infiltration_taken",
+          "frail_spell_taken",
+          "lightning_curse_taken",
+          "hit_curse_taken"
+        ],
+        "physical": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "frail_spell_taken",
+          "physical_curse_taken",
+          "hit_curse_taken"
+        ]
       },
       "flat_dmg_max": {
         "cold": 257.0,

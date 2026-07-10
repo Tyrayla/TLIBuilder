@@ -261,6 +261,7 @@
     "effective_level": 20,
     "enemy_mult_by_type": {},
     "enemy_vuln_by_type": {},
+    "enemy_vuln_sources_by_type": {},
     "flat_dmg_max": {
       "fire": 135.0,
       "lightning": 198.0,
@@ -430,6 +431,7 @@
       "effective_level": 20,
       "enemy_mult_by_type": {},
       "enemy_vuln_by_type": {},
+      "enemy_vuln_sources_by_type": {},
       "flat_dmg_max": {
         "fire": 135.0,
         "lightning": 198.0,

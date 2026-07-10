@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DefenseResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost } from '../api/client'
+import type { OffenseResult, DamageRow, DefenseResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { TraitTooltipBody } from './HeroTraitScreen'
@@ -697,50 +697,28 @@ function typeAddKeys(dtype: string, minion = false): string[] {
   return keys
 }
 
-// The enemy-vulnerability stat keys that feed _enemy_vuln_mult for a given damage type — mirrors the engine so
-// the Enemy Multiplier breakdown shows the real sources of the amplification (Numbed/Paralysis/Frostbite/…).
-function enemyVulnKeys(dtype: string, isSpell: boolean): string[] {
-  const keys = ['paralysis_dmg_taken', 'no_guard_dmg_taken', 'knockback_dmg_taken', 'hit_curse_taken', `${dtype}_curse_taken`]
-  if (dtype === 'cold') keys.push('frostbite_cold_taken')
-  if (dtype === 'lightning') keys.push('numbed_lightning_taken')
-  if (dtype === 'fire' || dtype === 'cold' || dtype === 'lightning') keys.push(`${dtype}_infiltration_taken`)
-  if (isSpell) keys.push('frail_spell_taken')
-  return keys
-}
-
 function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseResult; minion?: boolean }) {
-  const ctx = useContext(BreakdownCtx)
-  const isSpell = hasTag(offense, 'spell')
   const totalDps = offense.total_dps_vs_target
-  // Same-target shotgun multiplier (e.g. Chain Lightning Merge+Web): total_dps_vs_target includes it but the
-  // per-form dps_vs_target does NOT, so every per-form / per-type figure below must apply it to reconcile to
-  // 100% (otherwise both "% of Total" and "Type Contribution" read 1/cast_multiplier). 1.0 when no shotgun.
-  const castMult = offense.cast_multiplier ?? 1
-  // Tangle mode multiplier: total_dps_vs_target multiplies by the attached tangle COUNT (each tangle a full
-  // caster), which per-form dps_vs_target does NOT — so the breakdown applies it alongside the shotgun multiplier
-  // to reconcile to 100%. (Tangle Damage Enhancement is NOT here — it rides the additional pool, already in each
-  // form's damage.) 1 when not tangled (tangle_count 0).
-  const tangleMult = (offense.tangle_count ?? 0) > 0 ? offense.tangle_count : 1
-  // Spell Burst mode multiplier: total_dps_vs_target multiplies by (casts/burst × bursts/sec ÷ aps), which the
-  // per-form dps_vs_target does NOT — so apply it alongside the shotgun/tangle multipliers to reconcile to 100%.
-  // 1 when not bursting. (The spell-burst hit-damage pool is already in each form's damage.)
-  const spellBurstMult = (offense.spell_burst_count ?? 0) > 0 ? (offense.spell_burst_mult ?? 1) : 1
-  const breakdownMult = castMult * tangleMult * spellBurstMult
 
   // Only forms that deal DIRECT damage belong in this table / the "All forms (combined)" view — NYI, buff, and
   // can't-activate forms (a minion's Empower / locked Ultimate) are excluded here (they're still selectable in
   // the Form dropdown, where selecting one shows its effect). This is what makes the combined page show only
   // real contributors.
-  const forms = offense.hit_forms.filter(f => !(f.nyi?.length))
+  // Engine-owned breakdown rows (backend/engine/offense.py DamageRow) — ALREADY fully delivered (cast/tangle/
+  // spell-burst/multistrike multiplier applied) and ALREADY split per damage type post-mitigation. A pure
+  // render of what the backend emits — nothing here is multiplied or re-derived. `displayOffense` has already
+  // narrowed both hit_forms and damage_rows when a single form is selected, so no form-matching is needed here.
+  const rows = (offense.damage_rows ?? []).filter(r => !(r.nyi?.length))
+  // A row's source form, if any. `form_index` — never `name` — is the engine's stable join key back to
+  // hit_forms (names are not guaranteed unique). kind="true"/"dot" rows carry -1 and have no form.
+  const formFor = (r: DamageRow) => { const i = r.form_index ?? -1; return i >= 0 ? offense.hit_forms[i] : undefined }
+  // Percentages only mean something when more than one row shares the denominator.
+  const multiRow = rows.length > 1
 
-  // Per-dtype DPS total across all (damage) forms (proportional attribution via avg hit)
+  // Per-dtype DPS total across all rows (already post-mitigation — a straight sum, not a re-derived ratio).
   const dtypeDpsTotal: Record<string, number> = {}
   for (const dtype of ALL_DTYPES) {
-    dtypeDpsTotal[dtype] = forms.reduce((sum, form) => {
-      const dtypeAvg = form.damage_by_type[dtype] ?? 0
-      const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-      return sum + prop * form.dps_vs_target * breakdownMult
-    }, 0)
+    dtypeDpsTotal[dtype] = rows.reduce((sum, row) => sum + (row.dps_by_type_vs_target[dtype] ?? 0), 0)
   }
 
   // Shared cell styles. Tight font/padding so all six damage-type columns (incl. Erosion) fit the
@@ -850,11 +828,11 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
               {ALL_DTYPES.map(d => {
                 const m = offense.enemy_mult_by_type?.[d]
                 if (m === undefined) return <td key={d} style={tdDim}>—</td>
-                // Split the multiplier into (target mitigation) × (Π enemy vulnerability) for the breakdown:
-                // the vuln keys carry the real sources; mitigation = m ÷ that product (the armour/resist part).
-                const vk = enemyVulnKeys(d, isSpell)
-                const vulnProduct = vk.reduce((p, k) => p * (1 + (ctx?.statMap[k]?.total ?? 0)), 1)
-                const mitigation = vulnProduct > 0 ? m / vulnProduct : m
+                // Both halves come straight from the engine now — no back-solve. vk is the ordered stat-key
+                // list the engine actually consulted (enemy_vuln_sources_by_type); mitigation is the engine's
+                // own armour/resist half (target_mitigation_by_type), not m ÷ Π(vuln).
+                const vk = offense.enemy_vuln_sources_by_type?.[d] ?? []
+                const mitigation = offense.target_mitigation_by_type?.[d] ?? m
                 return <td key={d} style={td}>
                   <Breakdown title={`Enemy Multiplier — ${DTYPE_LABEL[d]}`} keys={vk} total={m} totalUnit="×"
                     formula="Target Mitigation × Π(1 + enemy vulnerability)"
@@ -866,26 +844,32 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
             </tr>
           )}
 
-          {/* ── Per hit form (direct-damage forms only; NYI/buff forms are excluded above) ── */}
-          {forms.map(form => {
-            const formMin = ALL_DTYPES.reduce((s, d) => s + (form.hit_min_by_type[d] ?? 0), 0)
-            const formMax = ALL_DTYPES.reduce((s, d) => s + (form.hit_max_by_type[d] ?? 0), 0)
-            const formPct = totalDps > 0 ? `${(form.dps_vs_target * breakdownMult / totalDps * 100).toFixed(0)}%` : '—'
-
-            const multiForm = forms.length > 1
+          {/* ── Per damage row (engine-owned DamageRow — mirrors hit_forms 1:1 for kind="hit", plus any
+               kind="true" true-damage add-ons like Mercury Baptism / Spell Ripple that have no hit form of
+               their own). NYI rows are excluded above. ── */}
+          {rows.map(row => {
+            const form = formFor(row)
+            const hasHitRange = row.kind === 'hit'
+            const formMin = ALL_DTYPES.reduce((s, d) => s + (row.hit_min_by_type[d] ?? 0), 0)
+            const formMax = ALL_DTYPES.reduce((s, d) => s + (row.hit_max_by_type[d] ?? 0), 0)
+            // Blank on a single row: it's trivially 100% of itself, and under a single-form selection the
+            // totals have been rescaled to that form, so the engine's whole-skill pct would be a different
+            // denominator than the one on screen.
+            const formPct = multiRow ? `${row.pct_of_total.toFixed(0)}%` : ''
             return (
-              <React.Fragment key={form.name}>
-                {/* Each form is its own visually-separated area (border + faint background) so multi-form
-                    skills (e.g. Icebound Beam: Cold Beam + Icy Blade) read as distinct damage sources. */}
+              <React.Fragment key={`${row.kind}-${row.name}`}>
+                {/* Each row is its own visually-separated area (border + faint background) so multi-form
+                    skills (e.g. Icebound Beam: Cold Beam + Icy Blade) and true-damage add-ons (Mercury Baptism)
+                    read as distinct damage sources. */}
                 <tr>
-                  {/* Form name only — no full-row banner. A neutral separator line divides forms; the name keeps
+                  {/* Row name only — no full-row banner. A neutral separator line divides rows; the name keeps
                       its own colour to mark it as a distinct damage source. */}
                   <td colSpan={7} style={{
                     paddingTop: 6, paddingBottom: 4, marginTop: 4, fontSize: 13, color: '#e0d0a0', fontWeight: 700,
-                    borderTop: multiForm ? '1px solid rgba(255,255,255,0.10)' : undefined,
+                    borderTop: multiRow ? '1px solid rgba(255,255,255,0.10)' : undefined,
                   }}>
-                    {form.name}
-                    {form.proc_chance < 1.0 && (
+                    {row.name}
+                    {form && form.proc_chance < 1.0 && (
                       <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
                         {(form.proc_chance * 100).toFixed(0)}% chance
                       </span>
@@ -896,10 +880,10 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
                 </tr>
                 <tr>
                   <td style={tdLbl}>Hit Range</td>
-                  <td style={td}>{fmtNum(formMin)}–{fmtNum(formMax)}</td>
+                  <td style={td}>{hasHitRange ? `${fmtNum(formMin)}–${fmtNum(formMax)}` : '—'}</td>
                   {ALL_DTYPES.map(d => {
-                    const mn = form.hit_min_by_type[d] ?? 0
-                    const mx = form.hit_max_by_type[d] ?? 0
+                    const mn = row.hit_min_by_type[d] ?? 0
+                    const mx = row.hit_max_by_type[d] ?? 0
                     return <td key={d} style={mn > 0 || mx > 0 ? td : tdDim}>
                       {mn > 0 || mx > 0 ? `${fmtNum(mn)}–${fmtNum(mx)}` : '—'}
                     </td>
@@ -907,11 +891,9 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
                 </tr>
                 <tr>
                   <td style={tdLbl}>DPS</td>
-                  <td style={{ ...td, color: '#f0c070' }}>{fmtNum(form.dps_vs_target * breakdownMult)}</td>
+                  <td style={{ ...td, color: '#f0c070' }}>{fmtNum(row.dps_vs_target_final)}</td>
                   {ALL_DTYPES.map(d => {
-                    const dtypeAvg = form.damage_by_type[d] ?? 0
-                    const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-                    const dtypeDps = prop * form.dps_vs_target * breakdownMult
+                    const dtypeDps = row.dps_by_type_vs_target[d] ?? 0
                     return <td key={d} style={dtypeDps > 0 ? td : tdDim}>
                       {dtypeDps > 0 ? fmtNum(dtypeDps) : '—'}
                     </td>
@@ -919,13 +901,11 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
                 </tr>
                 <tr>
                   <td style={tdSub}>% of Total</td>
-                  {/* "All Types" is the whole, so its own % is trivially 100% — show the form's SHARE only when
-                      there are multiple forms (where it's informative); blank it for a single form. */}
-                  <td style={{ ...td, color: '#aaa' }}>{multiForm ? formPct : ''}</td>
+                  {/* "All Types" is the whole, so its own % is trivially 100% — show the row's SHARE only when
+                      there are multiple rows (where it's informative); blank it for a single row. */}
+                  <td style={{ ...td, color: '#aaa' }}>{multiRow ? formPct : ''}</td>
                   {ALL_DTYPES.map(d => {
-                    const dtypeAvg = form.damage_by_type[d] ?? 0
-                    const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-                    const dtypeDps = prop * form.dps_vs_target * breakdownMult
+                    const dtypeDps = row.dps_by_type_vs_target[d] ?? 0
                     const pct = totalDps > 0 && dtypeDps > 0 ? `${(dtypeDps / totalDps * 100).toFixed(0)}%` : '—'
                     return <td key={d} style={{ ...td, color: dtypeDps > 0 ? '#888' : '#444' }}>{pct}</td>
                   })}
@@ -3152,13 +3132,28 @@ export default function PlayerStatsScreen() {
   const formNames = shownOffense?.hit_forms?.map(f => f.name) ?? []
   const displayOffense = useMemo(() => {
     if (!shownOffense || !selectedForm) return shownOffense
-    const form = shownOffense.hit_forms.find(f => f.name === selectedForm)
-    if (!form) return shownOffense
+    const idx = shownOffense.hit_forms.findIndex(f => f.name === selectedForm)
+    if (idx < 0) return shownOffense
+    const form = shownOffense.hit_forms[idx]
     const sumVt = shownOffense.hit_forms.reduce((s, f) => s + f.dps_vs_target, 0) || 1
     const sumD = shownOffense.hit_forms.reduce((s, f) => s + f.dps_contribution, 0) || 1
+    // Narrow damage_rows alongside hit_forms. Only the selected form's kind="hit" row survives — kind="true"
+    // add-ons (Mercury Baptism, Spell Ripple) belong to the WHOLE skill, not to one form, and the totals above
+    // have just been rescaled to this form's share, so showing them here would compare two different
+    // denominators. Re-base form_index to 0 so it still indexes the reduced hit_forms on this same object.
+    // Prefer form_index (the engine's stable join key). An older backend — the CDN/web skew that made these
+    // fields optional — omits it entirely, and `undefined === idx` would filter EVERY row out, blanking the
+    // table for the form the user just selected. Fall back to the name in exactly that case.
+    const all = shownOffense.damage_rows ?? []
+    const byIndex = all.filter(r => r.kind === 'hit' && r.form_index === idx)
+    const rows = (byIndex.length
+      ? byIndex
+      : all.filter(r => r.kind === 'hit' && r.form_index === undefined && r.name === selectedForm)
+    ).map(r => ({ ...r, form_index: 0 }))
     return {
       ...shownOffense,
       hit_forms: [form],
+      damage_rows: rows,
       total_dps_vs_target: shownOffense.total_dps_vs_target * (form.dps_vs_target / sumVt),
       total_dps: shownOffense.total_dps * (form.dps_contribution / sumD),
     }

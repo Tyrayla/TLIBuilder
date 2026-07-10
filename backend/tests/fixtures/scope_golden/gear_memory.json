@@ -346,6 +346,7 @@
         },
         "dps_final": 499.53279999999995,
         "dps_vs_target_final": 244.77107199999992,
+        "form_index": 0,
         "hit_max_by_type": {
           "lightning": 601.12
         },
@@ -354,6 +355,7 @@
         },
         "kind": "hit",
         "name": "Chain Lightning",
+        "nyi": [],
         "pct_of_total": 100.0
       }
     ],
@@ -382,6 +384,20 @@
     },
     "enemy_vuln_by_type": {
       "lightning": 1.0
+    },
+    "enemy_vuln_sources_by_type": {
+      "lightning": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "numbed_lightning_taken",
+        "lightning_infiltration_taken",
+        "frail_spell_taken",
+        "lightning_curse_taken",
+        "hit_curse_taken"
+      ]
     },
     "flat_dmg_max": {
       "lightning": 289.0
