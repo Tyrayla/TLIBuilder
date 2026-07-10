@@ -41,3 +41,7 @@ web-data/
 # Web build output + generated backend bundle (regenerate via npm run build:web)
 dist-web/
 src/renderer/public/backend-py.zip
+
+# Private dev vault (handoffs, plans, agent notes). Tracked in a SEPARATE private repo, never here.
+docs/local/
+
