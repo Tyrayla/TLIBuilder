@@ -1,6 +1,13 @@
+// Share-service calls live in ./share — plain fetch to a PUBLIC host, never the
+// local backend or IPC. Owned by the share-service agent. Imported here so the
+// `api` object can expose them, and getShareBase is re-exported below so existing
+// `import { getShareBase } from './client'` callers keep working.
+import { shareBuildCode, fetchSharedBuildCode, getShareBase } from './share'
+
 let BASE = ''
 let ipcMode = false
 export function getApiBase(): string { return BASE }
+export { getShareBase }
 
 // True in the hosted web build (no Electron preload bridge). Desktop-only UI (auto-update, release channel) hides
 // when this is set — the web app updates by redeploy + refresh, not electron-updater.
@@ -218,43 +225,8 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
 }
 
 // ── Share service ────────────────────────────────────────────────────────────
-// The build-code share service is a PUBLIC host, separate from the local Python
-// backend. Share calls never go through the local backend or Electron IPC —
-// they are plain fetches to SHARE_BASE. The base URL is configurable at build
-// time via the Vite env var VITE_SHARE_BASE_URL; it falls back to production.
-
-const _shareEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
-const SHARE_BASE = (_shareEnv?.VITE_SHARE_BASE_URL ?? 'https://api.tlibuilder.com').replace(/\/+$/, '')
-
-export function getShareBase(): string { return SHARE_BASE }
-
-async function postToShareService<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${SHARE_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000),
-  })
-  if (!res.ok) throw new Error(`POST ${path} → ${res.status}`)
-  return res.json() as Promise<T>
-}
-
-const MAX_SHARE_CODE_BYTES = 512 * 1024 // 512 KB — more than enough for any build code
-
-async function getFromShareService(path: string): Promise<string> {
-  // The share service returns the raw tli1_ code as text/plain.
-  const res = await fetch(`${SHARE_BASE}${path}`, {
-    signal: AbortSignal.timeout(15000),
-  })
-  if (!res.ok) throw new Error(`GET ${path} → ${res.status}`)
-  const len = Number(res.headers.get('content-length') ?? 0)
-  if (len > MAX_SHARE_CODE_BYTES) throw new Error('Shared build code exceeds size limit')
-  // No Content-Length fallback: buffers entire response before rejecting — acceptable
-  // given threat model; a streaming reader would be needed to truly bound a hostile server.
-  const text = await res.text()
-  if (text.length > MAX_SHARE_CODE_BYTES) throw new Error('Shared build code exceeds size limit')
-  return text
-}
+// Moved to ./share (SHARE_BASE, getShareBase, shareBuildCode, fetchSharedBuildCode).
+// Imported at the top of this file and exposed on the `api` object below.
 
 export interface TreeSlot {
   treeName: string
@@ -2418,11 +2390,9 @@ export const api = {
   decodeBuildCode: (code: string) =>
     post<{ build: Record<string, unknown> }>('/build-code/decode', { code }),
 
-  // Share service — store/fetch a build code by short id (public host).
-  shareBuildCode: (code: string) =>
-    postToShareService<{ id: string; url: string }>('/b', { code }),
-  fetchSharedBuildCode: (id: string) =>
-    getFromShareService(`/b/${id}`),
+  // Share service — store/fetch a build code by short id (public host). Defined in ./share.
+  shareBuildCode,
+  fetchSharedBuildCode,
 
   // Tree editing (debug tools)
   upsertNode: (tree: string, node: NodeEditData) =>
