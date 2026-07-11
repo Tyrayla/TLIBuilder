@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### New damage mechanics
+- **Damage over Time (skill-DoTs)** — the engine now models the ongoing tick damage of skills that deal Damage over Time directly, rather than only a skill's Hit component. First two skills: **Mind Control** (Erosion) and **Path of Flames** (Fire). Validated against the training dummy to within ~±10% (worst observed case 6%); a small residual on top of *increased*-damage modifiers is still unexplained and under investigation, so treat DoT DPS numbers as an estimate rather than an exact figure for now.
+
 ### Fixes
 - **"Cannot inflict Numbed"** no longer overrides a manual Numbed toggle — it now only suppresses the engine's automatic application, matching how Frostbite already behaves. (Only affects builds with both a manual Numbed toggle and a "cannot inflict Numbed" source active.)
 - Importing a malformed or too-new build code now shows a clear error message instead of failing silently or crashing.

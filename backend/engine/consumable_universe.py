@@ -314,6 +314,14 @@ def consumable_universe() -> frozenset[str]:
     consumed |= {"skill_cost_inc", "skill_cost_additional", "skill_cost_reduction", "skill_cost_flat",
                  "attack_skill_cost_flat", "spell_skill_cost_flat", "mana_cost_to_life_cost", "skill_no_mana_cost"}
 
+    # Damage over Time stage (engine.offense.compute_dot — Mind Control, Path of Flames): the whitelisted
+    # increased/additional pools (dot-model.json). Presence-gated on the skill actually having DoT forms (the
+    # synthetic universe skill has none), so read outside the synthetic offense pass — whitelist so they never
+    # false-yellow. dmg_additional is already covered (hit pool); dot_dmg_additional is read via the per-affix
+    # factor builder (not a literal source.total("dot_dmg_additional") call) so the static scanner in
+    # test_consumable_universe.py doesn't catch it either, but it's genuinely modeled — whitelist it too.
+    consumed |= {"dot_dmg_inc", "fire_dot_dmg_inc", "dot_dmg_additional"}
+
     missing = _SANITY_FLOOR - consumed
     if missing:
         raise RuntimeError(

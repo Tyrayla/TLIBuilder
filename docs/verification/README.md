@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**63 entries** — ✅ Confirmed: 11 · 🔶 Partial: 5 · ⬜ Pending: 9 · ⚠️ Unverified: 36
+**65 entries** — ✅ Confirmed: 11 · 🔶 Partial: 7 · ⬜ Pending: 9 · ⚠️ Unverified: 36
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -22,6 +22,8 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Training Dummy (calc target) | — | mitigation, methodology, calc-target | ✅ Confirmed | 2026-06-10 | [training-dummy.md](training-dummy.md) |
 | Damage over Time — skill-DoT damage model | Mind Control, Path of Flames | dot, damage-pool, tick-rounding, methodology | 🔶 Partial | 2026-07-10 | [dot-model.md](dot-model.md) |
 | Demolisher / Cripple / Frequent Quake | Groundshaker | damage-pool, restoration, trigger | 🔶 Partial | 2026-07-01 | [demolisher.md](demolisher.md) |
+| Mind Control | Mind Control | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [mind-control.md](mind-control.md) |
+| Path of Flames | Path of Flames | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [path-of-flames.md](path-of-flames.md) |
 | Shotgun (Merge + Web) | Chain Lightning | shotgun, supports, damage-pool | 🔶 Partial | — | [shotgun.md](shotgun.md) |
 | Spell Burst | Spell Burst | breakpoint, tick-rounding, trigger, damage-pool | 🔶 Partial | 2026-06-18 | [spell-burst.md](spell-burst.md) |
 | Wind Rhythm | Wind Rhythm | breakpoint, tick-rounding, trigger, cooldown | 🔶 Partial | 2026-07-02 | [wind-rhythm.md](wind-rhythm.md) |

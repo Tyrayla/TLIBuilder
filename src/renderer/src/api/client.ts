@@ -754,7 +754,7 @@ export interface HitFormResult {
 // kind="hit" rows mirror hit_forms 1:1 in the same order; kind="true" rows (Mercury Baptism / Spell Ripple)
 // have no HitFormResult of their own - hit_min_by_type/hit_max_by_type/dps_by_type_vs_target are {} for those.
 export interface DamageRow {
-  kind: 'hit' | 'true' | 'dot'   // "dot" not emitted yet
+  kind: 'hit' | 'true' | 'dot'   // "dot" emitted for skill-DoT skills (Mind Control, Path of Flames)
   name: string
   dps_final: number                  // already x delivery
   dps_vs_target_final: number        // already x delivery

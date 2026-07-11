@@ -1,0 +1,1132 @@
+{
+  "consumed_stats": [
+    "active_skill_level",
+    "all_resistance_reduction",
+    "all_skill_level",
+    "all_stats_flat",
+    "all_stats_inc",
+    "area_dmg_additional",
+    "area_dmg_inc",
+    "armor",
+    "armor_additional",
+    "armor_effective_rate_non_physical_inc",
+    "armor_flat",
+    "armor_gear_flat",
+    "armor_gear_inc",
+    "armor_inc",
+    "armor_pen",
+    "at_center_dmg_additional",
+    "attack_block_chance_inc",
+    "attack_crit_rating_gear",
+    "attack_crit_rating_mh",
+    "attack_skill_cost_flat",
+    "attack_speed_gear",
+    "attack_speed_mh",
+    "block_ratio_inc",
+    "block_ratio_upper_limit_flat",
+    "cast_speed_additional",
+    "cast_speed_inc",
+    "channeled_dmg_additional",
+    "channeled_dmg_inc",
+    "cold_as_erosion",
+    "cold_as_fire",
+    "cold_convert_to_erosion",
+    "cold_convert_to_fire",
+    "cold_resistance",
+    "cold_resistance_max_inc",
+    "cold_spell_dmg_flat_max",
+    "cold_spell_dmg_flat_min",
+    "crit_dmg_additional",
+    "crit_dmg_inc",
+    "crit_dmg_inc_per_mana_consumed",
+    "crit_rating_additional",
+    "crit_rating_inc",
+    "crit_rating_inc_per_mana_consumed",
+    "defense_inc",
+    "dexterity_additional",
+    "dexterity_flat",
+    "dexterity_inc",
+    "dmg_additional",
+    "dmg_additional_on_crit",
+    "dmg_additional_per_400_es",
+    "dmg_additional_per_life_consumed",
+    "dmg_avoid_chance",
+    "dmg_inc",
+    "dmg_max_additional",
+    "dmg_min_additional",
+    "dot_dmg_additional",
+    "dot_dmg_inc",
+    "double_dmg_chance",
+    "elemental_dmg_additional",
+    "elemental_dmg_inc",
+    "elemental_pen",
+    "elemental_resistance",
+    "energy_shield_consumed_flat_per_sec",
+    "energy_shield_consumed_pct_current_per_sec",
+    "energy_shield_consumed_pct_max_per_sec",
+    "energy_shield_gear_flat",
+    "energy_shield_gear_inc",
+    "energy_shield_per_sealed_life",
+    "energy_shield_per_sealed_mana",
+    "energy_shield_regain_inc",
+    "energy_shield_regain_interval_additional",
+    "energy_shield_restored_pct_lost_per_burst",
+    "erosion_resistance",
+    "erosion_resistance_max_inc",
+    "erosion_spell_dmg_flat_max",
+    "erosion_spell_dmg_flat_min",
+    "es_regain_to_restoration",
+    "evasion",
+    "evasion_additional",
+    "evasion_flat",
+    "evasion_gear_flat",
+    "evasion_gear_inc",
+    "evasion_inc",
+    "excess_restoration_to_es_pct",
+    "extra_tangle_applied_flat",
+    "ferv",
+    "fire_as_erosion",
+    "fire_convert_to_erosion",
+    "fire_crit_dmg_inc",
+    "fire_dmg_additional",
+    "fire_dmg_inc",
+    "fire_dot_dmg_inc",
+    "fire_pen",
+    "fire_resistance",
+    "fire_resistance_max_inc",
+    "fire_skill_level",
+    "fire_spell_dmg_flat_max",
+    "fire_spell_dmg_flat_min",
+    "hit_dmg_additional",
+    "intelligence",
+    "intelligence_additional",
+    "intelligence_flat",
+    "intelligence_inc",
+    "life_consumed_flat_per_attack_use",
+    "life_consumed_flat_per_cast",
+    "life_consumed_flat_per_sec",
+    "life_consumed_pct_current_per_attack_use",
+    "life_consumed_pct_current_per_cast",
+    "life_consumed_pct_current_per_sec",
+    "life_consumed_pct_max_per_attack_use",
+    "life_consumed_pct_max_per_cast",
+    "life_consumed_pct_max_per_sec",
+    "life_regain_inc",
+    "life_regain_interval_additional",
+    "life_regain_to_restoration",
+    "life_regen_flat",
+    "life_regen_inc",
+    "life_regen_speed_inc",
+    "life_restored_pct_lost_per_burst",
+    "lightning_as_cold",
+    "lightning_as_erosion",
+    "lightning_as_fire",
+    "lightning_convert_to_cold",
+    "lightning_convert_to_erosion",
+    "lightning_convert_to_fire",
+    "lightning_dmg_additional",
+    "lightning_dmg_inc",
+    "lightning_resistance",
+    "lightning_resistance_max_inc",
+    "lightning_spell_dmg_flat_max",
+    "lightning_spell_dmg_flat_min",
+    "lucky_crit",
+    "main_skill_level",
+    "mana_consume_external_blocked",
+    "mana_consumed_flat_per_attack_use",
+    "mana_consumed_flat_per_cast",
+    "mana_consumed_flat_per_sec",
+    "mana_consumed_pct_current_per_attack_use",
+    "mana_consumed_pct_current_per_attack_use_mystic",
+    "mana_consumed_pct_current_per_cast",
+    "mana_consumed_pct_current_per_sec",
+    "mana_consumed_pct_max_per_attack_use",
+    "mana_consumed_pct_max_per_cast",
+    "mana_consumed_pct_max_per_sec",
+    "mana_cost_override",
+    "mana_cost_to_life_cost",
+    "mana_lost_pct_current_per_burst",
+    "mana_regen_flat",
+    "mana_regen_pct",
+    "mana_regen_speed_inc",
+    "mana_restored_pct_current_per_attack_use",
+    "max_agility_blessing_stacks_flat",
+    "max_channeled_stacks_flat",
+    "max_electrify_stacks_flat",
+    "max_elemental_resistance_inc",
+    "max_energy_shield",
+    "max_energy_shield_additional",
+    "max_energy_shield_flat",
+    "max_energy_shield_inc",
+    "max_focus_blessing_stacks_flat",
+    "max_frostbite_rating_flat",
+    "max_ignite_flat",
+    "max_life",
+    "max_life_additional",
+    "max_life_as_es_pct",
+    "max_life_flat",
+    "max_life_inc",
+    "max_mana",
+    "max_mana_additional",
+    "max_mana_flat",
+    "max_mana_inc",
+    "max_spell_burst_flat",
+    "max_spell_burst_halve_flag",
+    "max_temporary_life_pct",
+    "max_temporary_mana_pct",
+    "max_tenacity_blessing_stacks_flat",
+    "min_channeled_stacks_flat",
+    "physical_as_cold",
+    "physical_as_elemental",
+    "physical_as_erosion",
+    "physical_as_fire",
+    "physical_as_lightning",
+    "physical_convert_to_cold",
+    "physical_convert_to_erosion",
+    "physical_convert_to_fire",
+    "physical_convert_to_lightning",
+    "physical_dmg_additional",
+    "physical_dmg_inc",
+    "physical_dmg_max_additional",
+    "physical_dmg_min_additional",
+    "physical_spell_dmg_flat_max",
+    "physical_spell_dmg_flat_min",
+    "quadruple_dmg_chance",
+    "regain_interval_additional",
+    "restoration_duration_additional",
+    "restoration_duration_inc",
+    "restoration_effect_additional",
+    "restoration_effect_inc",
+    "sealed_mana_compensation_additional",
+    "sealed_mana_compensation_inc",
+    "skill_area_inc",
+    "skill_cost_additional",
+    "skill_cost_flat",
+    "skill_cost_inc",
+    "skill_cost_reduction",
+    "skill_no_mana_cost",
+    "spell_block_chance_inc",
+    "spell_crit_dmg_inc",
+    "spell_crit_rating_flat",
+    "spell_crit_rating_inc",
+    "spell_dmg_additional",
+    "spell_dmg_inc",
+    "spell_double_dmg_chance",
+    "spell_skill_cost_flat",
+    "spell_skill_level",
+    "steep_strike_chance",
+    "strength_additional",
+    "strength_flat",
+    "strength_inc",
+    "temporary_life_flat",
+    "temporary_life_pct",
+    "temporary_mana_flat",
+    "temporary_mana_pct",
+    "triple_dmg_chance",
+    "unlucky_crit",
+    "weapon_attack_speed",
+    "weapon_crit_rating_flat"
+  ],
+  "offense": {
+    "above_max_mult": 1.0,
+    "base_cast_time": 0.333,
+    "base_csr": 500.0,
+    "base_dmg_max": {},
+    "base_dmg_min": {},
+    "cast_multiplier": 1.0,
+    "channel_attack_smooth_sps": 0.0,
+    "channel_attack_ticks": 0,
+    "channel_attack_to_next_additional": 0.0,
+    "channel_attack_to_next_increased": 0.0,
+    "channeled_attack_frequency": 0.0,
+    "channeled_behavior": "refresh",
+    "channeled_burst_rate": 0.6966966966966966,
+    "channeled_max_stacks": 5,
+    "channeled_min_stacks": 0,
+    "channeled_rounds_per_cycle": 5.0,
+    "channeled_stacks": 5.0,
+    "compulsory_breakdown": {},
+    "crit_chance": 0.15,
+    "crit_chance_uncapped": 0.15,
+    "crit_luck_effect": "",
+    "crit_multiplier": 1.5,
+    "damage_rows": [
+      {
+        "dps_by_type_vs_target": {
+          "fire": 1781.9167613829115
+        },
+        "dps_final": 2545.5953734041595,
+        "dps_vs_target_final": 1781.9167613829115,
+        "form_index": -1,
+        "hit_max_by_type": {},
+        "hit_min_by_type": {},
+        "kind": "dot",
+        "name": "Path of Flames (Damage over Time)",
+        "nyi": [],
+        "pct_of_total": 100.0
+      }
+    ],
+    "demolisher_area_mode": "both",
+    "demolisher_base_restore": 0.0,
+    "demolisher_cast_rate": 0.0,
+    "demolisher_cdr_droppable": 0.0,
+    "demolisher_charge_speed_inc": 0.0,
+    "demolisher_charged_rate": 0.0,
+    "demolisher_collapse_pct": 0.0,
+    "demolisher_frequent_quake": false,
+    "demolisher_mismatch": false,
+    "demolisher_mode": "",
+    "demolisher_over_breakpoint": false,
+    "demolisher_primary_dps": 0.0,
+    "demolisher_restoration_time": 0.0,
+    "demolisher_restore_to_sustain": 0.0,
+    "demolisher_rhythm_interval": 0.0,
+    "demolisher_secondary_dps": 0.0,
+    "demolisher_under_breakpoint": false,
+    "double_dmg_chance": 0,
+    "double_dmg_factor": 1,
+    "effective_level": 20,
+    "enemy_mult_by_type": {},
+    "enemy_vuln_by_type": {},
+    "enemy_vuln_sources_by_type": {},
+    "flat_dmg_max": {
+      "fire": 135.0,
+      "lightning": 198.0,
+      "physical": 130.0
+    },
+    "flat_dmg_min": {
+      "fire": 73.0,
+      "lightning": 10.0,
+      "physical": 78.0
+    },
+    "generic_add": 2.8004349542399996,
+    "generic_inc": 0,
+    "hit_forms": [],
+    "intrinsic_additional_sources": [],
+    "jumps": 0,
+    "jumps_base": 0,
+    "main_stat_damage_bonus": 0.0,
+    "main_stats": [
+      "intelligence"
+    ],
+    "mana_cost": 8.0,
+    "mercury_baptism_dps": 0.0,
+    "mercury_baptism_fraction": 0.0,
+    "minion_empower": null,
+    "multistrike_avg_count": 0.0,
+    "multistrike_chain": [],
+    "multistrike_chance": 0.0,
+    "multistrike_increment": 0.0,
+    "multistrike_max_count": 0,
+    "multistrike_mult": 1.0,
+    "multistrike_repeat_aps": 0.0,
+    "non_spell_burst_dps": 0.0,
+    "non_spell_burst_dps_vs_target": 0.0,
+    "nyi": [
+      "Support skill flat damage adds",
+      "Elemental conversion",
+      "Lucky crit",
+      "Ailment DPS",
+      "barrage_dmg_per_wave_inc \u2014 Barrage mechanic \u2014 scales per wave fired, not a flat multiplier",
+      "combo_finisher_additional \u2014 Combo finisher only \u2014 applies to finisher hits, not all hits; combo damage model NYI",
+      "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
+      "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
+      "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
+    ],
+    "projectile_base_count": 0,
+    "projectile_count": -1,
+    "quad_dmg_chance": 0,
+    "shotgun_hits": 1,
+    "skill_area_inc": 0.0,
+    "skill_name": "Path of Flames",
+    "skill_tags": [
+      "Spell",
+      "Fire",
+      "Channeled",
+      "Persistent",
+      "Area"
+    ],
+    "skills_per_second": 3.483483483483483,
+    "spell_burst_auto": false,
+    "spell_burst_auto_source": "",
+    "spell_burst_cast_to_next_add": 0.0,
+    "spell_burst_cast_to_next_inc": 0.0,
+    "spell_burst_casts_per_burst": 0,
+    "spell_burst_charge_factor": 1.0,
+    "spell_burst_charge_inc": 0.0,
+    "spell_burst_charge_ticks": 0,
+    "spell_burst_charge_time": 0.0,
+    "spell_burst_charge_to_next_add": 0.0,
+    "spell_burst_charge_to_next_inc": 0.0,
+    "spell_burst_count": 0,
+    "spell_burst_dps": 0.0,
+    "spell_burst_dps_vs_target": 0.0,
+    "spell_burst_mult": 1.0,
+    "spell_burst_next_breakpoint_ticks": 0,
+    "spell_burst_play_safe": false,
+    "spell_burst_rate": 0.0,
+    "spell_ripple_dps": 0.0,
+    "spell_ripple_fraction": 0.0,
+    "spirit_magi_enhanced_chance": 0.0,
+    "spirit_magi_growth": 0.0,
+    "spirit_magi_max": 0,
+    "spirit_magi_physique_inc": 0.0,
+    "spirit_magi_stage": 0,
+    "steep_strike_chance": 0.0,
+    "supported": true,
+    "tangle_attach_range": 0.0,
+    "tangle_cast_ticks": 0,
+    "tangle_cast_to_next_additional": 0.0,
+    "tangle_cast_to_next_increased": 0.0,
+    "tangle_count": 0,
+    "tangle_duration": 0.0,
+    "tangle_enhancement": 1.0,
+    "tangle_inactivated": 0,
+    "tangle_mult": 1.0,
+    "tangle_placeable": 0,
+    "target_mitigation_by_type": {},
+    "total_dps": 2545.5953734041595,
+    "total_dps_vs_target": 1781.9167613829115,
+    "trigger_interval": 0.0,
+    "triple_dmg_chance": 0,
+    "type_add": {
+      "fire": 2.8004349542399996,
+      "lightning": 3.703575226982399,
+      "physical": 2.8004349542399996
+    },
+    "type_inc": {
+      "fire": 0,
+      "lightning": 0,
+      "physical": 0
+    },
+    "weapon_aps_gear": 0,
+    "weapon_aps_mh": 0,
+    "weapon_attack_speed": 2.4000000000000004,
+    "weapon_crit_rating_flat": 1200.0,
+    "weapon_csr_gear": 0,
+    "weapon_csr_mh": 0,
+    "wind_rhythm_active": false,
+    "wind_rhythm_base_cooldown": 0.0,
+    "wind_rhythm_bonus": 0.0,
+    "wind_rhythm_cast_time": 0.0,
+    "wind_rhythm_cast_to_next": 0.0,
+    "wind_rhythm_cdr_to_next": 0.0,
+    "wind_rhythm_rate": 0.0,
+    "wind_rhythm_ticks": 0,
+    "wind_rhythm_wind_to_next": 0.0
+  },
+  "slot_offense": {
+    "1": {
+      "above_max_mult": 1.0,
+      "base_cast_time": 0.333,
+      "base_csr": 500.0,
+      "base_dmg_max": {},
+      "base_dmg_min": {},
+      "cast_multiplier": 1.0,
+      "channel_attack_smooth_sps": 0.0,
+      "channel_attack_ticks": 0,
+      "channel_attack_to_next_additional": 0.0,
+      "channel_attack_to_next_increased": 0.0,
+      "channeled_attack_frequency": 0.0,
+      "channeled_behavior": "refresh",
+      "channeled_burst_rate": 0.6966966966966966,
+      "channeled_max_stacks": 5,
+      "channeled_min_stacks": 0,
+      "channeled_rounds_per_cycle": 5.0,
+      "channeled_stacks": 5.0,
+      "compulsory_breakdown": {},
+      "crit_chance": 0.15,
+      "crit_chance_uncapped": 0.15,
+      "crit_luck_effect": "",
+      "crit_multiplier": 1.5,
+      "damage_rows": [
+        {
+          "dps_by_type_vs_target": {
+            "fire": 1781.9167613829115
+          },
+          "dps_final": 2545.5953734041595,
+          "dps_vs_target_final": 1781.9167613829115,
+          "form_index": -1,
+          "hit_max_by_type": {},
+          "hit_min_by_type": {},
+          "kind": "dot",
+          "name": "Path of Flames (Damage over Time)",
+          "nyi": [],
+          "pct_of_total": 100.0
+        }
+      ],
+      "demolisher_area_mode": "both",
+      "demolisher_base_restore": 0.0,
+      "demolisher_cast_rate": 0.0,
+      "demolisher_cdr_droppable": 0.0,
+      "demolisher_charge_speed_inc": 0.0,
+      "demolisher_charged_rate": 0.0,
+      "demolisher_collapse_pct": 0.0,
+      "demolisher_frequent_quake": false,
+      "demolisher_mismatch": false,
+      "demolisher_mode": "",
+      "demolisher_over_breakpoint": false,
+      "demolisher_primary_dps": 0.0,
+      "demolisher_restoration_time": 0.0,
+      "demolisher_restore_to_sustain": 0.0,
+      "demolisher_rhythm_interval": 0.0,
+      "demolisher_secondary_dps": 0.0,
+      "demolisher_under_breakpoint": false,
+      "double_dmg_chance": 0,
+      "double_dmg_factor": 1,
+      "effective_level": 20,
+      "enemy_mult_by_type": {},
+      "enemy_vuln_by_type": {},
+      "enemy_vuln_sources_by_type": {},
+      "flat_dmg_max": {
+        "fire": 135.0,
+        "lightning": 198.0,
+        "physical": 130.0
+      },
+      "flat_dmg_min": {
+        "fire": 73.0,
+        "lightning": 10.0,
+        "physical": 78.0
+      },
+      "generic_add": 2.8004349542399996,
+      "generic_inc": 0,
+      "hit_forms": [],
+      "intrinsic_additional_sources": [],
+      "jumps": 0,
+      "jumps_base": 0,
+      "main_stat_damage_bonus": 0.0,
+      "main_stats": [
+        "intelligence"
+      ],
+      "mana_cost": 8.0,
+      "mercury_baptism_dps": 0.0,
+      "mercury_baptism_fraction": 0.0,
+      "minion_empower": null,
+      "multistrike_avg_count": 0.0,
+      "multistrike_chain": [],
+      "multistrike_chance": 0.0,
+      "multistrike_increment": 0.0,
+      "multistrike_max_count": 0,
+      "multistrike_mult": 1.0,
+      "multistrike_repeat_aps": 0.0,
+      "non_spell_burst_dps": 0.0,
+      "non_spell_burst_dps_vs_target": 0.0,
+      "nyi": [
+        "Support skill flat damage adds",
+        "Elemental conversion",
+        "Lucky crit",
+        "Ailment DPS",
+        "barrage_dmg_per_wave_inc \u2014 Barrage mechanic \u2014 scales per wave fired, not a flat multiplier",
+        "combo_finisher_additional \u2014 Combo finisher only \u2014 applies to finisher hits, not all hits; combo damage model NYI",
+        "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
+        "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
+        "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
+      ],
+      "projectile_base_count": 0,
+      "projectile_count": -1,
+      "quad_dmg_chance": 0,
+      "shotgun_hits": 1,
+      "skill_area_inc": 0.0,
+      "skill_name": "Path of Flames",
+      "skill_tags": [
+        "Spell",
+        "Fire",
+        "Channeled",
+        "Persistent",
+        "Area"
+      ],
+      "skills_per_second": 3.483483483483483,
+      "spell_burst_auto": false,
+      "spell_burst_auto_source": "",
+      "spell_burst_cast_to_next_add": 0.0,
+      "spell_burst_cast_to_next_inc": 0.0,
+      "spell_burst_casts_per_burst": 0,
+      "spell_burst_charge_factor": 1.0,
+      "spell_burst_charge_inc": 0.0,
+      "spell_burst_charge_ticks": 0,
+      "spell_burst_charge_time": 0.0,
+      "spell_burst_charge_to_next_add": 0.0,
+      "spell_burst_charge_to_next_inc": 0.0,
+      "spell_burst_count": 0,
+      "spell_burst_dps": 0.0,
+      "spell_burst_dps_vs_target": 0.0,
+      "spell_burst_mult": 1.0,
+      "spell_burst_next_breakpoint_ticks": 0,
+      "spell_burst_play_safe": false,
+      "spell_burst_rate": 0.0,
+      "spell_ripple_dps": 0.0,
+      "spell_ripple_fraction": 0.0,
+      "spirit_magi_enhanced_chance": 0.0,
+      "spirit_magi_growth": 0.0,
+      "spirit_magi_max": 0,
+      "spirit_magi_physique_inc": 0.0,
+      "spirit_magi_stage": 0,
+      "steep_strike_chance": 0.0,
+      "supported": true,
+      "tangle_attach_range": 0.0,
+      "tangle_cast_ticks": 0,
+      "tangle_cast_to_next_additional": 0.0,
+      "tangle_cast_to_next_increased": 0.0,
+      "tangle_count": 0,
+      "tangle_duration": 0.0,
+      "tangle_enhancement": 1.0,
+      "tangle_inactivated": 0,
+      "tangle_mult": 1.0,
+      "tangle_placeable": 0,
+      "target_mitigation_by_type": {},
+      "total_dps": 2545.5953734041595,
+      "total_dps_vs_target": 1781.9167613829115,
+      "trigger_interval": 0.0,
+      "triple_dmg_chance": 0,
+      "type_add": {
+        "fire": 2.8004349542399996,
+        "lightning": 3.703575226982399,
+        "physical": 2.8004349542399996
+      },
+      "type_inc": {
+        "fire": 0,
+        "lightning": 0,
+        "physical": 0
+      },
+      "weapon_aps_gear": 0,
+      "weapon_aps_mh": 0,
+      "weapon_attack_speed": 2.4000000000000004,
+      "weapon_crit_rating_flat": 1200.0,
+      "weapon_csr_gear": 0,
+      "weapon_csr_mh": 0,
+      "wind_rhythm_active": false,
+      "wind_rhythm_base_cooldown": 0.0,
+      "wind_rhythm_bonus": 0.0,
+      "wind_rhythm_cast_time": 0.0,
+      "wind_rhythm_cast_to_next": 0.0,
+      "wind_rhythm_cdr_to_next": 0.0,
+      "wind_rhythm_rate": 0.0,
+      "wind_rhythm_ticks": 0,
+      "wind_rhythm_wind_to_next": 0.0
+    }
+  },
+  "stats": {
+    "attack_block_chance_inc": {
+      "category": "Defense",
+      "display_name": "Attack Block Chance",
+      "sources": [
+        {
+          "amount": 0.3,
+          "label": "Dual Wielding",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+30% Attack Block Chance (Dual Wield)"
+        }
+      ],
+      "total": 0.3,
+      "unit": "%"
+    },
+    "attack_speed_additional": {
+      "category": "Attack Speed",
+      "display_name": "Additional Attack Speed",
+      "sources": [
+        {
+          "amount": 0.1,
+          "label": "Dual Wielding",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+10% additional Attack Speed (Dual Wield)"
+        }
+      ],
+      "total": 0.1,
+      "unit": "%"
+    },
+    "attack_speed_inc": {
+      "category": "Attack Speed",
+      "display_name": "Attack Speed",
+      "sources": [
+        {
+          "amount": 0.16,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+4% Attack Speed per Agility Blessing"
+        }
+      ],
+      "total": 0.16,
+      "unit": "%"
+    },
+    "cast_speed_inc": {
+      "category": "Cast Speed",
+      "display_name": "Cast Speed",
+      "sources": [
+        {
+          "amount": 0.16,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+4% Cast Speed per Agility Blessing"
+        }
+      ],
+      "total": 0.16,
+      "unit": "%"
+    },
+    "crit_rating_inc": {
+      "category": "Critical Strike",
+      "display_name": "Critical Strike Rating",
+      "sources": [
+        {
+          "amount": 2.0,
+          "label": "Fervor Rating",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+2% Critical Strike Rating per Fervor Rating"
+        }
+      ],
+      "total": 2.0,
+      "unit": "%"
+    },
+    "dmg_additional": {
+      "category": "Generic",
+      "display_name": "Additional Damage",
+      "slot_sources": [
+        {
+          "amount": 0.2,
+          "label": "Path of Flames: Heat Wave (Noble) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Path of Flames: Heat Wave (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |path_of_flames_heat_wave_noble|universal"
+        },
+        {
+          "amount": 0.2,
+          "label": "Path of Flames: Raging Boil (Noble) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Path of Flames: Raging Boil (Noble)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |path_of_flames_raging_boil_noble|universal"
+        },
+        {
+          "amount": 0.2,
+          "label": "Path of Flames: Spontaneous Combustion (Magnificent) (Rank 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Path of Flames: Spontaneous Combustion (Magnificent)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |path_of_flames_spontaneous_combustion_magnificent|universal"
+        },
+        {
+          "amount": 0.16,
+          "label": "Overload",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Overload",
+          "source_type": "support",
+          "text": "3.05 % additional damage for the supported skill for each stack of Focus Blessing , stacking up to 8 time(s) |overload|#% additional damage for"
+        },
+        {
+          "amount": 0.078,
+          "label": "Jump",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Jump",
+          "source_type": "support",
+          "text": "+4 % additional damage for the supported skill |jump|+#% additional damage fo"
+        }
+      ],
+      "sources": [
+        {
+          "amount": 0.2,
+          "label": "Focus Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+5% additional damage per Focus Blessing"
+        },
+        {
+          "amount": 0.08,
+          "label": "Agility Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+2% additional damage per Agility Blessing"
+        }
+      ],
+      "total": 0.28,
+      "unit": "%"
+    },
+    "dmg_taken_additional": {
+      "category": "Damage Taken",
+      "display_name": "Additional Damage Taken",
+      "sources": [
+        {
+          "amount": -0.16,
+          "label": "Tenacity Blessing",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "-4% additional Damage Taken per Tenacity Blessing"
+        }
+      ],
+      "total": -0.16,
+      "unit": "%"
+    },
+    "extra_jumps_flat": {
+      "category": "Utility",
+      "display_name": "Jumps",
+      "slot_sources": [
+        {
+          "amount": 2.0,
+          "label": "Jump",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Jump",
+          "source_type": "support",
+          "text": "+2 Jumps for the supported skill |jump|+# jumps for the support"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "fire_spell_dmg_flat_max": {
+      "category": "Fire",
+      "display_name": "Max Fire Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 135.0,
+          "label": "Added Fire Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Fire Damage",
+          "source_type": "support",
+          "text": "The supported skill adds 1 - 3 Fire Damage |added_fire_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "fire_spell_dmg_flat_min": {
+      "category": "Fire",
+      "display_name": "Min Fire Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 73.0,
+          "label": "Added Fire Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Fire Damage",
+          "source_type": "support",
+          "text": "The supported skill adds 1 - 3 Fire Damage |added_fire_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "lightning_dmg_additional": {
+      "category": "Lightning",
+      "display_name": "Additional Lightning Damage",
+      "slot_sources": [
+        {
+          "amount": 0.15,
+          "label": "Electric Overload",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Electric Overload",
+          "source_type": "support",
+          "text": "10.25 % additional Lightning Damage for the supported skill |electric_overload|#% additional lightning "
+        }
+      ],
+      "sources": [
+        {
+          "amount": 0.15,
+          "label": "Electric Overload",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+15% additional Lightning Damage (Electric Overload buff)"
+        }
+      ],
+      "total": 0.15,
+      "unit": "%"
+    },
+    "lightning_spell_dmg_flat_max": {
+      "category": "Lightning",
+      "display_name": "Max Lightning Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 198.0,
+          "label": "Added Lightning Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Lightning Damage",
+          "source_type": "support",
+          "text": "The supported skill adds 1 - 4 Lightning Damage |added_lightning_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "lightning_spell_dmg_flat_min": {
+      "category": "Lightning",
+      "display_name": "Min Lightning Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 10.0,
+          "label": "Added Lightning Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Lightning Damage",
+          "source_type": "support",
+          "text": "The supported skill adds 1 - 4 Lightning Damage |added_lightning_damage|the supported skill adds"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "max_energy_flat": {
+      "category": "Utility",
+      "display_name": "Max Energy",
+      "sources": [
+        {
+          "amount": 4.0,
+          "label": "Character \u00b7 Base",
+          "points": 1,
+          "source_name": null,
+          "source_type": "character",
+          "text": "+4 Max Energy"
+        },
+        {
+          "amount": 90.0,
+          "label": "Character \u00b7 Levels",
+          "points": 1,
+          "source_name": null,
+          "source_type": "character",
+          "text": "+90 Max Energy"
+        }
+      ],
+      "total": 94.0,
+      "unit": ""
+    },
+    "max_life": {
+      "category": "Character",
+      "display_name": "Maximum Life",
+      "sources": [],
+      "total": 1207.0,
+      "unit": ""
+    },
+    "max_life_flat": {
+      "category": "Life",
+      "display_name": "Max Life",
+      "sources": [
+        {
+          "amount": 1207.0,
+          "label": "Character \u00b7 Base",
+          "points": 1,
+          "source_name": null,
+          "source_type": "character",
+          "text": "+1207 Max Life (50 + 13/level)"
+        }
+      ],
+      "total": 1207.0,
+      "unit": ""
+    },
+    "max_mana": {
+      "category": "Character",
+      "display_name": "Maximum Mana",
+      "sources": [],
+      "total": 485.0,
+      "unit": ""
+    },
+    "max_mana_flat": {
+      "category": "Mana",
+      "display_name": "Max Mana",
+      "sources": [
+        {
+          "amount": 485.0,
+          "label": "Character \u00b7 Base",
+          "points": 1,
+          "source_name": null,
+          "source_type": "character",
+          "text": "+485 Max Mana (40 + 5/level)"
+        }
+      ],
+      "total": 485.0,
+      "unit": ""
+    },
+    "movement_speed": {
+      "category": "Character",
+      "display_name": "Movement Speed",
+      "sources": [],
+      "total": 0.0,
+      "unit": "%"
+    },
+    "numbed_lightning_taken": {
+      "category": "Ailments",
+      "display_name": "Numbed: Lightning Damage Taken",
+      "sources": [
+        {
+          "amount": 0.5,
+          "label": "Numbed Stacks",
+          "points": 1,
+          "source_name": null,
+          "source_type": "condition",
+          "text": "+5% Lightning Damage taken per Numbed stack"
+        }
+      ],
+      "total": 0.5,
+      "unit": "%"
+    },
+    "physical_dmg_gear_flat_max": {
+      "category": "Gear",
+      "display_name": "Gear Physical Damage Max",
+      "sources": [
+        {
+          "amount": 350.0,
+          "label": "Gear \u00b7 Weapon 1",
+          "points": 1,
+          "source_name": "Test Sword",
+          "source_type": "gear",
+          "text": "Test Sword:physical_dmg_gear_flat_max"
+        },
+        {
+          "amount": 500.0,
+          "label": "Gear \u00b7 Weapon 2",
+          "points": 1,
+          "source_name": "Test Axe",
+          "source_type": "gear",
+          "text": "Test Axe:physical_dmg_gear_flat_max"
+        }
+      ],
+      "total": 850.0,
+      "unit": ""
+    },
+    "physical_dmg_gear_flat_min": {
+      "category": "Gear",
+      "display_name": "Gear Physical Damage Min",
+      "sources": [
+        {
+          "amount": 200.0,
+          "label": "Gear \u00b7 Weapon 1",
+          "points": 1,
+          "source_name": "Test Sword",
+          "source_type": "gear",
+          "text": "Test Sword:physical_dmg_gear_flat_min"
+        },
+        {
+          "amount": 300.0,
+          "label": "Gear \u00b7 Weapon 2",
+          "points": 1,
+          "source_name": "Test Axe",
+          "source_type": "gear",
+          "text": "Test Axe:physical_dmg_gear_flat_min"
+        }
+      ],
+      "total": 500.0,
+      "unit": ""
+    },
+    "physical_spell_dmg_flat_max": {
+      "category": "Physical",
+      "display_name": "Max Physical Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 130.0,
+          "label": "Added Physical Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Physical Damage",
+          "source_type": "support",
+          "text": "Supported skills add 2 - 3 physical damage |added_physical_damage|supported skills add#-#p"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "physical_spell_dmg_flat_min": {
+      "category": "Physical",
+      "display_name": "Min Physical Spell Damage",
+      "slot_sources": [
+        {
+          "amount": 78.0,
+          "label": "Added Physical Damage",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Added Physical Damage",
+          "source_type": "support",
+          "text": "Supported skills add 2 - 3 physical damage |added_physical_damage|supported skills add#-#p"
+        }
+      ],
+      "sources": [],
+      "total": 0.0,
+      "unit": ""
+    },
+    "weapon_attack_speed": {
+      "category": "Gear",
+      "display_name": "Weapon Attack Speed",
+      "sources": [
+        {
+          "amount": 1.3,
+          "label": "Gear \u00b7 Weapon 1",
+          "points": 1,
+          "source_name": "Test Sword",
+          "source_type": "gear",
+          "text": "Test Sword:weapon_attack_speed"
+        },
+        {
+          "amount": 1.1,
+          "label": "Gear \u00b7 Weapon 2",
+          "points": 1,
+          "source_name": "Test Axe",
+          "source_type": "gear",
+          "text": "Test Axe:weapon_attack_speed"
+        }
+      ],
+      "total": 2.4,
+      "unit": ""
+    },
+    "weapon_crit_rating_flat": {
+      "category": "Critical Strike",
+      "display_name": "Critical Strike Rating (Weapon)",
+      "sources": [
+        {
+          "amount": 600.0,
+          "label": "Gear \u00b7 Weapon 1",
+          "points": 1,
+          "source_name": "Test Sword",
+          "source_type": "gear",
+          "text": "Test Sword:weapon_crit_rating_flat"
+        },
+        {
+          "amount": 600.0,
+          "label": "Gear \u00b7 Weapon 2",
+          "points": 1,
+          "source_name": "Test Axe",
+          "source_type": "gear",
+          "text": "Test Axe:weapon_crit_rating_flat"
+        }
+      ],
+      "total": 1200.0,
+      "unit": ""
+    }
+  }
+}

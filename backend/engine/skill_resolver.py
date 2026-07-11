@@ -27,6 +27,22 @@ class SkillHitForm:
 
 
 @dataclass
+class DotForm:
+    """One Damage-over-Time form a skill deals intrinsically (Mind Control, Path of Flames — dot-model.json).
+    Consumed by `engine.offense.compute_dot`, which reads `base_per_second` at the skill's effective level and
+    applies the DoT damage model (whitelisted increased/additional pools × a resistance-only target
+    multiplier — NO crit, NO armor, NO delivery multiplier; see the `DamageRow` docstring's kind="dot" forward
+    slot in offense.py).
+
+    `duration` (seconds the DoT effect lasts once applied, e.g. 2.0) is NOT consumed by the DPS model — Help
+    DB / in-game confirmed Duration has no effect on a Persistent DoT's steady-state DPS (dot-model.json) —
+    it is carried here purely for display (Skill Effects panel)."""
+    base_per_second: float
+    dtype: str
+    duration: float = 0.0
+
+
+@dataclass
 class IntrinsicAdditional:
     """A skill-intrinsic 'additional damage' pool that scales with a rating value. The rating comes
     from a numeric condition (rating_source='condition', e.g. Focused Slash's Fervor Rating) or from
@@ -124,6 +140,10 @@ class ResolvedSkill:
     # increased/additional apply. offense computes each element fully and reports the expected average. Empty = off.
     compulsory_elements: list[str] = field(default_factory=list)
     base_flat_by_level: dict[int, tuple[float, float]] = field(default_factory=dict)  # type-agnostic base for compulsory
+    # ── Damage over Time forms (Mind Control, Path of Flames — dot-model.json) ──
+    # Empty (the default) → `engine.offense.compute_dot` is a no-op and `total_dps` is untouched — every
+    # skill that doesn't intrinsically deal a DoT is byte-identical to before this field existed.
+    dot_forms_by_level: dict[int, list[DotForm]] = field(default_factory=dict)
 
 
 _REGISTRY: dict[str, Callable[[dict], ResolvedSkill]] = {}
@@ -543,6 +563,92 @@ def _resolve_howling_gale(skill_data: dict) -> ResolvedSkill:
             per=_HOWLING_GALE_PER_ADDITIONAL_MAX_STACK, rating_key="max_channeled_stacks_flat",
             rating_source="stat", per_n=1.0)],
     )
+
+
+# ── Skill-DoT (Damage over Time) skills — Mind Control, Path of Flames ─────────────────────────────────────
+# Both are Spell / Channeled / Persistent, 2s Damage Over Time, cast speed 0.333 (dot-model.json). Neither
+# has a hit component at all — hit_forms_by_level stays {} (a pure DoT host, like a few other non-hit
+# skills already in this registry) and all damage comes from `dot_forms_by_level` (engine.offense.compute_dot).
+# Same "+21.5% additional damage per +1 ADDITIONAL Max Channeled Stack" intrinsic as Howling Gale, dormant
+# (0.0) at the base 5-stack cap — Tyra-confirmed in-game (dot-model.json).
+_DOT_PER_ADDITIONAL_MAX_STACK = 0.215
+
+# "Deals 222 per second Erosion Damage Over Time" (Mind Control's `values.damage` field) OR "Deals 299
+# Persistent Fire Damage every second." (Path of Flames — its `damage` field is None; the base lives only in
+# `values.Descript`). One tolerant regex covers both orderings/wordings.
+_DOT_BASE_RE = re.compile(
+    r"Deals\s+([\d.,]+)\s*(?:per\s+second\s+)?(?:Persistent\s+)?(\w+)\s+Damage"
+    r"(?:\s+Over\s+Time)?(?:\s+every\s+second)?",
+    re.IGNORECASE,
+)
+# "Damage Over Time effect lasts 2 s" — both skills' persistent DoT duration (display only; see DotForm).
+_DOT_DURATION_RE = re.compile(r"Damage Over Time effect lasts\s+([\d.]+)\s*s", re.IGNORECASE)
+
+
+def _parse_dot_base(text: str) -> tuple[float, str] | None:
+    """Parse a per-level DoT description into (base_per_second, dtype). None if unparseable."""
+    m = _DOT_BASE_RE.search(text or "")
+    return (float(m.group(1).replace(",", "")), m.group(2).lower()) if m else None
+
+
+def _resolve_dot_skill(skill_data: dict, *, base_text_key: str, damage_type: str) -> ResolvedSkill:
+    """Shared resolver for a pure skill-DoT (no hit component): Mind Control (`base_text_key="damage"`) and
+    Path of Flames (`base_text_key="Descript"` — its `damage` progression field is empty/None)."""
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    duration = 2.0
+    dot_forms: dict[int, list[DotForm]] = {}
+    for lvl, values in progression.items():
+        if lvl > max_level:
+            continue
+        parsed = _parse_dot_base(values.get(base_text_key) or values.get("Descript", ""))
+        if parsed is None:
+            continue
+        base, dtype = parsed
+        dm = _DOT_DURATION_RE.search(values.get("Descript", ""))
+        if dm:
+            duration = float(dm.group(1))
+        dot_forms[lvl] = [DotForm(base_per_second=base, dtype=dtype or damage_type, duration=duration)]
+
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level={},   # deals no hit damage — only a host for its DoT (+ any attached supports)
+        supported=True,
+        is_spell=True,
+        base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
+        damage_types=[damage_type],
+        dot_forms_by_level=dot_forms,
+        # main_stat is set uniformly by resolve_skill() after the handler returns — not set here (matches
+        # every other resolver's convention).
+        # REFRESH: hold at max 5 channeled stacks (both skills' description text confirms/implies a 5-stack
+        # cap; Path of Flames' SS12 text omits the explicit "Channels up to 5 stacks" line Mind Control has,
+        # so max_from_data=False here mirrors the Icebound Beam fallback precedent).
+        channeled=ChanneledSpec(max_stacks=5, min_stacks=0, behavior="refresh", max_from_data=False),
+        intrinsic_additional=[IntrinsicAdditional(
+            per=_DOT_PER_ADDITIONAL_MAX_STACK, rating_key="max_channeled_stacks_flat",
+            rating_source="stat", per_n=1.0)],
+    )
+
+
+# Mind Control — Tags: Spell, Erosion, Channeled, Persistent. Base per-level DoT lives in the progression's
+# own `damage` field ("Deals 222 per second Erosion Damage Over Time" at L16 → 222/sec). Links (3 base + 1
+# per channeled stack) and `mind_control_links`-scaled supports (Concentrate/Enthrall) are NYI — see
+# .wolf/memory.md; single-link acceptance number only (links don't multiply single-target DPS).
+@_register("mind_control")
+def _resolve_mind_control(skill_data: dict) -> ResolvedSkill:
+    return _resolve_dot_skill(skill_data, base_text_key="damage", damage_type="erosion")
+
+
+# Path of Flames — Tags: Spell, Fire, Channeled, Persistent, Area. Its progression's `damage` field is None
+# at every level (unlike Mind Control) — the per-level base ONLY appears in `values.Descript`
+# ("Fire Path: Deals 299 Persistent Fire Damage every second." at L16 → 299/sec, Tyra-confirmed against the
+# L16 sheet reading 209 = 299 × 0.70).
+@_register("path_of_flames")
+def _resolve_path_of_flames(skill_data: dict) -> ResolvedSkill:
+    return _resolve_dot_skill(skill_data, base_text_key="Descript", damage_type="fire")
 
 
 _MAIN_STAT_NAMES = frozenset({"strength", "dexterity", "intelligence"})

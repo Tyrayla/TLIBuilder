@@ -697,6 +697,14 @@ function typeAddKeys(dtype: string, minion = false): string[] {
   return keys
 }
 
+// Small kind tag next to a row's name — "hit" rows (the common case) get no tag; "true" (Mercury Baptism /
+// Spell Ripple) and "dot" (Mind Control / Path of Flames) rows are add-ons with no hit form of their own, so a
+// tag makes that legible at a glance instead of relying on the name suffix alone.
+const ROW_KIND_TAG: Record<string, { label: string; color: string }> = {
+  true: { label: 'TRUE', color: '#b090e0' },
+  dot: { label: 'DOT', color: '#5ecab0' },
+}
+
 function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseResult; minion?: boolean }) {
   const totalDps = offense.total_dps_vs_target
 
@@ -869,6 +877,15 @@ function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseRes
                     borderTop: multiRow ? '1px solid rgba(255,255,255,0.10)' : undefined,
                   }}>
                     {row.name}
+                    {ROW_KIND_TAG[row.kind] && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, color: ROW_KIND_TAG[row.kind].color, marginLeft: 8,
+                        border: `1px solid ${ROW_KIND_TAG[row.kind].color}66`, borderRadius: 3, padding: '1px 5px',
+                        background: 'rgba(255,255,255,0.05)', verticalAlign: 'middle',
+                      }}>
+                        {ROW_KIND_TAG[row.kind].label}
+                      </span>
+                    )}
                     {form && form.proc_chance < 1.0 && (
                       <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
                         {(form.proc_chance * 100).toFixed(0)}% chance
@@ -1616,9 +1633,19 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   ]
   const ccActive = CC.filter(c => stat(c.key) > 0)
 
+  // Damage-over-Time rows (kind="dot" — Mind Control / Path of Flames): whole-skill, engine-computed, but
+  // measured only to within −6%/+4% across 12 parses with an unexplained residual, so any DPS figure that
+  // includes one carries a disclaimer. "Dominant" gates the headline DPS note (a build that's mostly hit damage
+  // with a small DoT add-on doesn't need the caveat on its top-line number — the breakdown table below still has it).
+  const dotRows = (offense.damage_rows ?? []).filter(r => r.kind === 'dot' && !(r.nyi?.length))
+  const hasDot = dotRows.length > 0
+  const dotDps = dotRows.reduce((s, r) => s + r.dps_vs_target_final, 0)
+  const dotDominant = hasDot && offense.total_dps_vs_target > 0 && dotDps / offense.total_dps_vs_target >= 0.5
+  const DOT_DISCLAIMER = 'Damage over Time is modelled and may be off by up to ~10% vs in-game (measured −6% / +4%). Residual under investigation.'
+
   return (
     <>
-      <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name} (Level ${offense.effective_level})`} accent={AMBER}>
+      <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name} (Level ${offense.effective_level})`} accent={AMBER} info={dotDominant ? DOT_DISCLAIMER : undefined}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 6px' }}>
           <span style={{ fontSize: 12, color: '#999' }}>DPS</span>
           <span style={{ fontSize: 17, fontWeight: 700, color: '#f0c070', fontVariantNumeric: 'tabular-nums' }}>
@@ -1642,7 +1669,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         )}
       </StatPanel>
 
-      <StatPanel title="Skill Hit Damage" accent={AMBER}>
+      <StatPanel title="Skill Hit Damage" accent={AMBER} info={hasDot ? DOT_DISCLAIMER : undefined}>
         <DamageBreakdownTable offense={offense} minion={minion} />
       </StatPanel>
 
