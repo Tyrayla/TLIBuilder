@@ -69,6 +69,8 @@
     "energy_shield_regain_interval_additional",
     "energy_shield_restored_pct_lost_per_burst",
     "erosion_crit_dmg_inc",
+    "erosion_dmg_additional",
+    "erosion_dmg_inc",
     "erosion_pen",
     "erosion_resistance",
     "erosion_resistance_max_inc",

@@ -15,7 +15,10 @@ the engine's default target_config (None) reproduces exactly this dummy.
 import pytest
 
 from engine.models import BuildSource
-from engine.offense import calculate_offense, compute_dot, _target_mitigation_dot
+from engine.offense import (
+    calculate_offense, compute_dot, _target_mitigation_dot,
+    _dot_type_increased_keys, _dot_type_additional_keys,
+)
 from engine.skill_resolver import ResolvedSkill, SkillHitForm, DotForm
 from engine.compute import _eval_intrinsic_additional
 
@@ -115,25 +118,109 @@ class TestAdditionalPoolHandComputed:
         assert dot_row.dps_vs_target_final != pytest.approx(202.02)
 
 
-# ── 4. Whitelist boundary — stats a naive implementation WOULD wrongly apply ───────────────────
-class TestWhitelistBoundaryNegative:
-    """Each of these, applied ALONE, must leave the DoT's DPS at its unmodified baseline."""
+# ── 4. Owner-confirmed type-scoped damage-scoping rule (2026-07-10) — "X Damage" applies to BOTH a hit and
+#      an X-type DoT; "Elemental Damage" applies to fire/cold/lightning DoT but NEVER erosion ─────────────────
+class TestTypeScopedDamageApplies:
+    """Per the owner-confirmed 2026-07-10 rule (`engine.offense`'s `_dot_type_increased_keys` /
+    `_dot_type_additional_keys`, unioned into `compute_dot`'s pools): a type-matching "X Damage" stat (both
+    increased and additional) now applies to an X-type DoT, and "Elemental Damage" applies to fire/cold/
+    lightning DoT (never erosion — TLI "Elemental" excludes Erosion). These PIN the CORRECTED behavior —
+    these used to assert exclusion; a regression back to exclusion would fail these."""
 
-    def test_erosion_dmg_inc_excluded_on_mind_control(self):
-        # erosion_dmg_inc is UNVERIFIED for DoT per dot-model.json's audit — not in the whitelist.
+    def test_erosion_dmg_inc_applies_on_mind_control_erosion_dot(self):
+        # erosion_dmg_inc is "X Damage" for X=erosion; Mind Control's DoT IS erosion, so it now applies.
+        # Hand: 222 × (1 + 0.50) × 0.70 = 233.1.
         skill = _dot_skill("erosion", MIND_CONTROL_BASE)
-        assert _dot_dps_vs_target(skill, _source(erosion_dmg_inc=0.50)) == pytest.approx(155.4)
+        assert _dot_dps_vs_target(skill, _source(erosion_dmg_inc=0.50)) == pytest.approx(233.1)
 
-    def test_elemental_dmg_inc_excluded_on_path_of_flames(self):
-        # Not whitelisted at all (and "Elemental" excludes Erosion anyway — irrelevant here since this
-        # is a Fire DoT, but elemental_dmg_inc is still not in the DoT increased whitelist).
+    def test_elemental_dmg_inc_applies_on_path_of_flames_fire_dot(self):
+        # elemental_dmg_inc applies to fire/cold/lightning DoT per the same rule; Path of Flames is Fire.
+        # Hand: 299 × 1.50 × 0.70 = 313.95.
         skill = _dot_skill("fire", PATH_OF_FLAMES_BASE)
-        assert _dot_dps_vs_target(skill, _source(elemental_dmg_inc=0.50)) == pytest.approx(209.3)
+        assert _dot_dps_vs_target(skill, _source(elemental_dmg_inc=0.50)) == pytest.approx(313.95)
+
+    def test_elemental_dmg_additional_applies_on_fire_dot(self):
+        # Same rule, additional side. Hand: 299 × 1.50 × 0.70 = 313.95.
+        skill = _dot_skill("fire", PATH_OF_FLAMES_BASE)
+        assert _dot_dps_vs_target(skill, _source(elemental_dmg_additional=0.50)) == pytest.approx(313.95)
+
+    def test_type_scoped_increased_and_additional_are_separate_pools(self):
+        # fire_dmg_inc (increased) AND fire_dmg_additional (additional) on a fire DoT multiply as SEPARATE
+        # pools — mirrors TestAdditionalPoolHandComputed.test_increased_and_additional_multiply_separately_
+        # not_summed, but for the type-scoped pools instead of the generic ones.
+        # Hand: 299 × 1.40 (increased) × 1.40 (additional) × 0.70 = 410.228 — NOT the collapsed single-pool
+        # naive answer 299 × (1 + 0.40 + 0.40) × 0.70 = 299 × 1.80 × 0.70 = 376.74.
+        skill = _dot_skill("fire", PATH_OF_FLAMES_BASE)
+        r = calculate_offense(_source(fire_dmg_inc=0.40, fire_dmg_additional=0.40), skill, _LEVEL)
+        dot_row = next(row for row in r.damage_rows if row.kind == "dot")
+        assert dot_row.dps_vs_target_final == pytest.approx(410.228)
+        assert dot_row.dps_vs_target_final != pytest.approx(376.74)
+
+    def test_fire_dot_dmg_inc_deduped_not_double_counted(self):
+        # `fire_dot_dmg_inc` sits in BOTH pools that feed a fire DoT's increased sum: the STATIC whitelist
+        # (`_DOT_INCREASED_STATS`, gated `form.dtype == "fire"`) AND the TYPE-derived pool
+        # (`_dot_type_increased_keys("fire")`, which includes `{dtype}_dot_dmg_inc` generically). compute_dot's
+        # `_seen` guard must union these by KEY so the single stat value is only summed ONCE. This test fails
+        # loudly if that guard ever breaks (e.g. someone "simplifies" the union into two independent sums).
+        # Hand (correct, deduped): 299 × (1 + 0.30) × 0.70 = 299 × 1.30 × 0.70 = 272.09.
+        # Hand (WRONG, double-counted, must NOT be produced): 299 × (1 + 0.30 + 0.30) × 0.70
+        #     = 299 × 1.60 × 0.70 = 334.88.
+        skill = _dot_skill("fire", PATH_OF_FLAMES_BASE)
+        dps = _dot_dps_vs_target(skill, _source(fire_dot_dmg_inc=0.30))
+        assert dps == pytest.approx(272.09)
+        assert dps != pytest.approx(334.88)
+
+    def test_fire_dmg_inc_and_elemental_dmg_inc_sum_in_the_increased_pool(self):
+        # fire_dmg_inc (type-scoped) and elemental_dmg_inc (elemental-scoped) are BOTH members of the fire
+        # DoT's increased pool (`_dot_type_increased_keys("fire")` returns both, disjoint keys — no dedup
+        # applies here, unlike the fire_dot_dmg_inc case above). They must SUM into the single increased term,
+        # not collide/overwrite one another.
+        # Hand: 299 × (1 + 0.30 + 0.20) × 0.70 = 299 × 1.50 × 0.70 = 313.95.
+        skill = _dot_skill("fire", PATH_OF_FLAMES_BASE)
+        dps = _dot_dps_vs_target(skill, _source(fire_dmg_inc=0.30, elemental_dmg_inc=0.20))
+        assert dps == pytest.approx(313.95)
+
+
+# ── 5. Whitelist boundary — stats that remain correctly inert ──────────────────────────────────
+class TestWhitelistBoundaryNegative:
+    """Each of these, applied ALONE, must leave the DoT's DPS at its unmodified baseline. These are the
+    guarantees that keep the 2026-07-10 type-scoping rule from over-applying: wrong-type "X Damage" stays
+    off an X'-type DoT, and "Elemental Damage" stays off Erosion specifically."""
+
+    def test_elemental_dmg_inc_excluded_on_erosion_dot(self):
+        # "Elemental" excludes Erosion — elemental_dmg_inc must NOT touch Mind Control's erosion DoT even
+        # though it does touch a fire DoT (see TestTypeScopedDamageApplies). Hand: 222 × 0.70 = 155.4.
+        skill = _dot_skill("erosion", MIND_CONTROL_BASE)
+        assert _dot_dps_vs_target(skill, _source(elemental_dmg_inc=0.50)) == pytest.approx(155.4)
+
+    def test_fire_dmg_inc_excluded_on_erosion_dot(self):
+        # fire_dmg_inc is Fire-only "X Damage"; Mind Control's DoT is Erosion — wrong type stays inert.
+        # Hand: 222 × 0.70 = 155.4.
+        skill = _dot_skill("erosion", MIND_CONTROL_BASE)
+        assert _dot_dps_vs_target(skill, _source(fire_dmg_inc=0.50)) == pytest.approx(155.4)
+
+    def test_erosion_dmg_inc_excluded_on_fire_dot(self):
+        # erosion_dmg_inc is Erosion-only "X Damage"; Path of Flames' DoT is Fire — wrong type stays inert.
+        # Hand: 299 × 0.70 = 209.3.
+        skill = _dot_skill("fire", PATH_OF_FLAMES_BASE)
+        assert _dot_dps_vs_target(skill, _source(erosion_dmg_inc=0.50)) == pytest.approx(209.3)
 
     def test_fire_dot_dmg_inc_excluded_on_erosion_dot(self):
         # fire_dot_dmg_inc is fire-ONLY; Mind Control's DoT is erosion.
         skill = _dot_skill("erosion", MIND_CONTROL_BASE)
         assert _dot_dps_vs_target(skill, _source(fire_dot_dmg_inc=0.50)) == pytest.approx(155.4)
+
+    def test_spell_dmg_additional_excluded_from_dot_additional_pool(self):
+        # EXCLUDED pending an in-game measurement (owner's under-compute-and-flag policy, 2026-07-10): unlike
+        # spell_dmg_inc (independently MEASURED in dot-model.json's audit and whitelisted in
+        # `_DOT_INCREASED_STATS`), there is no recorded measurement of spell_dmg_additional applying to a DoT.
+        # "spell" is a form tag, never covered by the owner's type/elemental damage-scoping rule (that rule is
+        # about damage TYPES + Elemental, not the Spell form tag), and none of the 12 in-game data points in
+        # dot-model.json isolated it on the additional side. So it stays INERT here — this used to assert it
+        # APPLIES (233.1); flip back to positive deliberately, only if a future measurement confirms it.
+        # Hand: 222 × (1 + 0) × 0.70 = 155.4 (baseline, unmodified).
+        skill = _dot_skill("erosion", MIND_CONTROL_BASE)
+        assert _dot_dps_vs_target(skill, _source(spell_dmg_additional=0.50)) == pytest.approx(155.4)
 
     def test_crit_rating_never_affects_a_dot(self):
         # dot-no-crit.json / control_spell's -100% Crit Rating RAISED Mind Control's DPS in-game — a DoT
@@ -147,18 +234,8 @@ class TestWhitelistBoundaryNegative:
         skill = _dot_skill("erosion", MIND_CONTROL_BASE)
         assert _dot_dps_vs_target(skill, _source(armor_pen=1.0)) == pytest.approx(155.4)
 
-    def test_spell_dmg_additional_excluded_from_dot_additional_pool(self):
-        # The DoT additional whitelist is exactly {dmg_additional, dot_dmg_additional} — spell_dmg_additional
-        # is a hit-only pool member and must not leak in even on a Spell-tagged DoT.
-        skill = _dot_skill("erosion", MIND_CONTROL_BASE)
-        assert _dot_dps_vs_target(skill, _source(spell_dmg_additional=0.50)) == pytest.approx(155.4)
 
-    def test_elemental_dmg_additional_excluded_on_fire_dot(self):
-        skill = _dot_skill("fire", PATH_OF_FLAMES_BASE)
-        assert _dot_dps_vs_target(skill, _source(elemental_dmg_additional=0.50)) == pytest.approx(209.3)
-
-
-# ── 5. Resistance-only mitigation — no armor term, penetration flows through resistance ────────
+# ── 6. Resistance-only mitigation — no armor term, penetration flows through resistance ────────
 class TestResistanceOnlyMitigation:
     def test_target_mitigation_dot_has_no_armor_term(self):
         # Directly at the mitigation-function level: even an enormous armor_pen changes nothing, because
@@ -187,7 +264,7 @@ class TestResistanceOnlyMitigation:
         assert dps > 209.3
 
 
-# ── 6. Non-DoT skills are byte-unchanged; compute_dot is presence-gated ───────────────────────
+# ── 7. Non-DoT skills are byte-unchanged; compute_dot is presence-gated ───────────────────────
 class TestNonDotSkillsUnaffected:
     def test_real_chain_lightning_has_no_dot_forms_and_compute_dot_is_a_noop(self):
         # A real registered hit skill (Chain Lightning) from live season data — dot_forms_by_level must
@@ -230,7 +307,7 @@ class TestNonDotSkillsUnaffected:
         assert rows == [] and dps == 0.0 and dps_vt == 0.0
 
 
-# ── 7. The kind="dot" DamageRow shape ───────────────────────────────────────────────────────────
+# ── 8. The kind="dot" DamageRow shape ───────────────────────────────────────────────────────────
 class TestDotDamageRowShape:
     def test_pure_dot_skill_row_shape(self):
         skill = _dot_skill("erosion", MIND_CONTROL_BASE)
@@ -282,23 +359,21 @@ def _real_resolved_skill(item_id: str) -> ResolvedSkill:
     return sr.resolve_skill(data)
 
 
-# ── 8. Above-max-level — compute_dot deliberately does NOT apply the HIT-only ×1.10/level multiplier ─────
-class TestAboveMaxLevelPinnedNotApplied:
-    """PINS the CURRENT deliberate behavior: `_above_max_mult` (engine/offense.py) applies a compounding
-    ×1.10/level (then ×1.08/level past +10) to HIT forms once `effective_level` exceeds a skill's max level —
-    but `compute_dot` never reads it (see its docstring: "No crit_factor / double_dmg_factor ... and no
-    `_delivery`" — above-max is the same story, just not spelled out there). A DoT skill pushed above its
-    max level (20) caps at the level-20 BASE rate, full stop.
+# ── 9. Above-max-level — compute_dot now applies the SAME compounding ×1.10/level multiplier as hit forms ──
+class TestAboveMaxLevelApplied:
+    """PINS the owner-CONFIRMED (2026-07-10) behavior: above-max-level scaling applies to ALL damage forms,
+    DoT included — not just hit forms. `compute_dot` now receives the SAME `above_mult` value
+    (`_above_max_mult(effective_level, skill.max_level)`, computed once by `calculate_offense` and threaded
+    into both the hit and DoT stages) instead of ignoring it. A DoT skill pushed above its max level (20)
+    scales its level-20 BASE rate by that multiplier, exactly like a hit form would.
 
-    This is NOT sourced in-game either way (no in-game measurement of a DoT skill above its max level exists
-    in data/verification/) — it is a deliberate engineering default (lookup_level clamps via
-    `min(effective_level, skill.max_level)`, and `compute_dot` has no above-max term at all), flagged as an
-    OPEN in-game verification item. This test exists so a future change to that default is a DELIBERATE diff
-    against this pin, not a silent behavior change: if you add above-max scaling to compute_dot on purpose,
-    update this test's expected number on purpose.
+    This used to assert the OPPOSITE (that above-max was a HIT-only multiplier, deliberately NOT applied to
+    DoT, filed as an open in-game verification question) — the verification entry now records this as
+    CONFIRMED, not open (see dot-model.json). This test exists so a future regression back to "DoT ignores
+    above-max" is a DELIBERATE diff against this pin, not a silent behavior change.
     """
 
-    def test_mind_control_above_max_level_caps_at_level_20_base(self):
+    def test_mind_control_above_max_level_scales_by_above_max_mult(self):
         resolved = _real_resolved_skill("mind_control")
         assert resolved.max_level == 20
         # Hand-derived from data/seasons/SS12/_skills.json: mind_control's progression `damage` field at
@@ -309,18 +384,18 @@ class TestAboveMaxLevelPinnedNotApplied:
         # +5 all_skill_level on top of base_level=16 -> effective_level = 16 + 5 = 21, one level ABOVE the
         # skill's max (20). skill_effective_level() computes this; calculate_offense then does
         # lookup_level = min(effective_level, skill.max_level) = min(21, 20) = 20, so compute_dot reads the
-        # level-20 DotForm (675/sec) -- NOT a level-21 form (none exists) and NOT 675 scaled by any
-        # above-max multiplier.
+        # level-20 DotForm (675/sec) -- NOT a level-21 form (none exists) -- but DOES scale it by
+        # above_mult = _above_max_mult(21, 20) = 1.10**1 = 1.10.
         r = calculate_offense(_source(all_skill_level=5), resolved, _LEVEL)
         dot_row = next(row for row in r.damage_rows if row.kind == "dot")
-        # Hand: 675 (L20 base) x (1 + 0 increased) x (1 + 0 additional) x 0.70 (dummy erosion resist) = 472.5.
-        assert dot_row.dps_vs_target_final == pytest.approx(472.5)
-        # NOT what a HIT-form's _above_max_mult(21, 20) = 1.10**1 = 1.10 would give if it were (wrongly, per
-        # current design) applied to this DoT: 675 x 1.10 x 0.70 = 519.75.
-        assert dot_row.dps_vs_target_final != pytest.approx(519.75)
+        # Hand: 675 (L20 base) x (1 + 0 increased) x (1 + 0 additional) x 1.10 (above_mult) x 0.70 (dummy
+        # erosion resist) = 675 x 1.10 x 0.70 = 519.75.
+        assert dot_row.dps_vs_target_final == pytest.approx(519.75)
+        # NOT the OLD (now-wrong) pin that ignored above_mult entirely: 675 x 0.70 = 472.5.
+        assert dot_row.dps_vs_target_final != pytest.approx(472.5)
 
 
-# ── 9. Intrinsic additional — "+21.5% additional damage per +1 additional Max Channeled Stack" engages ────
+# ── 10. Intrinsic additional — "+21.5% additional damage per +1 additional Max Channeled Stack" engages ────
 class TestIntrinsicAdditionalChanneledStackEngages:
     """Mind Control / Path of Flames' skill text: "+21.5% additional damage for every +1 additional Max
     Channeled Stack" (beyond the base 5-stack cap) -- `skill_resolver._resolve_dot_skill` wires this as
@@ -369,3 +444,45 @@ class TestIntrinsicAdditionalChanneledStackEngages:
         assert dot_row.dps_vs_target_final > 155.4
         # Same ratio check from the other direction: engaged / dormant == 1.43 exactly.
         assert dot_row.dps_vs_target_final == pytest.approx(155.4 * 1.43)
+
+
+# ── 11. Future-type key derivation — unit tests of `_dot_type_increased_keys` / `_dot_type_additional_keys`
+#       for damage types that have no DoT skill TODAY (cold, lightning, physical) ─────────────────────────────
+class TestFutureTypeKeyDerivation:
+    """Directly exercises the two key-derivation helpers (imported straight from `engine.offense`, not routed
+    through `compute_dot`) for cold/lightning/physical — no DoT skill of these types exists yet, so this is
+    the only coverage protecting the derivation logic itself. Guards against a regression the next time a
+    cold/lightning/physical DoT ships: the union rule (type-scoped + elemental-scoped, `_ALL_STAT_KEYS`-gated)
+    must keep producing exactly the right key set with no phantom/nonexistent stat keys."""
+
+    def test_cold_is_elemental_increased_and_additional_keys(self):
+        # cold IS elemental (ELEMENTAL = {fire, cold, lightning}) -> both the type-scoped "X Damage" keys AND
+        # the elemental key must be present. cold_dot_dmg_inc does NOT exist as a real stat (only
+        # fire_dot_dmg_inc does today) -> the _ALL_STAT_KEYS guard must drop it, not include a phantom key.
+        assert _dot_type_increased_keys("cold") == ("cold_dmg_inc", "elemental_dmg_inc")
+        assert _dot_type_additional_keys("cold") == ("cold_dmg_additional", "elemental_dmg_additional")
+
+    def test_lightning_is_elemental_increased_and_additional_keys(self):
+        # Same shape as cold -- lightning is also elemental, and lightning_dot_dmg_inc does not exist either.
+        assert _dot_type_increased_keys("lightning") == ("lightning_dmg_inc", "elemental_dmg_inc")
+        assert _dot_type_additional_keys("lightning") == ("lightning_dmg_additional", "elemental_dmg_additional")
+
+    def test_physical_is_not_elemental_no_elemental_key(self):
+        # Physical is explicitly excluded from ELEMENTAL (fire/cold/lightning only) -> physical_dmg_inc/
+        # physical_dmg_additional apply, but elemental_dmg_inc/elemental_dmg_additional must NOT be appended.
+        # physical_dot_dmg_inc does not exist as a real stat either -> dropped by the _ALL_STAT_KEYS guard.
+        assert _dot_type_increased_keys("physical") == ("physical_dmg_inc",)
+        assert _dot_type_additional_keys("physical") == ("physical_dmg_additional",)
+        assert "elemental_dmg_inc" not in _dot_type_increased_keys("physical")
+        assert "elemental_dmg_additional" not in _dot_type_additional_keys("physical")
+
+    def test_no_phantom_dot_dmg_inc_keys_returned(self):
+        # Only fire has a real `{type}_dot_dmg_inc` stat today (FIRE_DOT_DMG_INC in models/stat.py) -- for
+        # every OTHER type, the generic `f"{dtype}_dot_dmg_inc"` candidate must be dropped by the
+        # _ALL_STAT_KEYS guard rather than returned as a nonexistent stat key that would silently no-op
+        # (or worse, collide with something unrelated) if the guard were ever removed.
+        for dtype in ("cold", "lightning", "physical"):
+            keys = _dot_type_increased_keys(dtype)
+            assert f"{dtype}_dot_dmg_inc" not in keys
+        # Fire is the one exception -- its dot_dmg_inc key DOES exist and IS returned.
+        assert "fire_dot_dmg_inc" in _dot_type_increased_keys("fire")

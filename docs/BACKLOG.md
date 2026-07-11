@@ -138,6 +138,18 @@ full charge vs cast-gated — this IS the burst/combined toggle).
 - **USE vs CAST gate (deferred, shared with Tangle):** the M auto-recasts are CASTs, not USEs.
 - See docs/INGAME_VERIFICATION_BACKLOG.md (SPELLBURST-01) for verification items.
 
+## 0e. CLOSED — DoT damage-scoping + above-max expansion (shipped 2026-07-10)
+Tyra confirmed two general mechanics 2026-07-10 (see `data/verification/dot-model.json`'s notes): (1) above-max-
+level scaling (`_above_max_mult`) applies to every damage form, DoT included, not just hit; (2) the "X Damage"
+(hit+DoT) / "X Damage over Time" (DoT-only) / "Elemental Damage" (fire/cold/lightning, excludes Erosion) scoping
+rule. Engine wired both same-day (`backend/engine/offense.py::compute_dot` gained `above_mult` +
+`_dot_type_increased_keys`/`_dot_type_additional_keys` — see `.wolf/buglog.json` ids
+`dot-above-max-level-scaling-not-applied`, `dot-type-scoped-damage-pools-missing`). **`backend/tests/test_dot.py`
+now covers this (36 tests across 11 classes, full backend suite green at 2812 passed)** — the stale-test flip this
+entry used to track is done; nothing open here. `spell_dmg_additional` on the DoT additional pool remains
+explicitly EXCLUDED (unmeasured, the deliberate conservative default — see `data/verification/dot-model.json`'s
+open verification item).
+
 ## 0c. Tangles (core shipped 2026-06-17 — follow-ups)
 Shipped: the **Tangle skill type**. A Spell becomes a Tangle via an activator support (**Spell Tangle** /
 **Activation Medium: Tangle**, NOT Manifold); it's then cast by N attached tangles (each a full caster) instead of
@@ -396,6 +408,16 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   (shotgun hits, tangle count, future per-cast/trigger mechanics) get their own clearly-separated breakdown area
   distinct from the per-hit damage breakdown (base × increased × additional × crit). Pairs with the engine↔frontend
   display-fidelity audit (§5).
+- **Rebuild DoT type-key derivation from `STAT_META`, not string-building (non-blocking, design-consistency).**
+  `backend/engine/offense.py`'s `_dot_type_increased_keys`/`_dot_type_additional_keys` build stat-key STRINGS
+  (`f"{dtype}_dmg_inc"`, etc.) and only check they exist in `_ALL_STAT_KEYS`, rather than filtering `STAT_META` on
+  `pipeline_stage` + `"dot" in affects` the way the hit stage's `_HIT_INC_STATS` does. Correct for all 5 damage
+  types today (the naming convention happens to line up with the metadata), but a future `"dot"`-tagged stat that
+  doesn't follow the `{type}_dmg_inc`/`{type}_dot_dmg_inc` naming pattern would be silently missed — the same
+  "invisible drift" class of bug the codebase generally guards against. Rebuild the derivation from a `STAT_META`
+  filter mirroring the hit stage, reusing `_applies_to_dtype`, so a new stat is picked up (or correctly excluded)
+  by its declared metadata instead of by name-matching. Latent risk only — no known incorrect behavior today for
+  the next DoT type (cold/lightning/physical) that ships.
 
 ## 7. Infra / hosting
 - **Web-hosted version — SHIPPED** (see the top of this doc). Open follow-ups: redeploy automation (currently

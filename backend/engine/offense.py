@@ -109,6 +109,11 @@ _HIT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
 # `dot_dmg_additional`'s stat_meta `affects` is `("dot",)` only (no "hit"), so it is not even a member of
 # that list, and reusing `_HIT_ADDITIONAL_STATS` for consumed-stats recording would badge every unrelated
 # hit-additional stat "Consumed" on every DoT skill (see `_additional_product`'s `keyed_tags` param).
+#
+# NOTE — this is the UNIVERSAL (generic + spell) base pool only. TYPE-scoped and ELEMENTAL-scoped additional
+# keys (e.g. fire_dmg_additional, elemental_dmg_additional) are a SEPARATE, form-dependent pool computed per
+# DoT form in `compute_dot` (see `_dot_type_additional_keys` below) — they can't live in this static list
+# because they vary with `form.dtype`, which this list has no way to express.
 _DOT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
     ("dmg_additional", frozenset()),
     ("dot_dmg_additional", frozenset()),
@@ -135,6 +140,63 @@ _DOT_INCREASED_STATS: tuple[tuple[str, Callable[[bool, object], bool] | None], .
     ("spell_dmg_inc", lambda is_spell, form: is_spell),
     ("fire_dot_dmg_inc", lambda is_spell, form: form.dtype == "fire"),
 )
+
+# ── Owner-confirmed damage-scoping rule (2026-07-10) ───────────────────────────────────────────────────────
+# "X Damage" (increased OR additional) applies to BOTH a hit and an X-type DoT — e.g. fire_dmg_inc /
+# fire_dmg_additional scale a fire DoT, erosion_dmg_inc / erosion_dmg_additional scale an erosion DoT.
+# "Elemental Damage" (elemental_dmg_inc / elemental_dmg_additional) applies to fire/cold/lightning DoTs but
+# NOT erosion (TLI "Elemental" excludes Erosion — reuses `ELEMENTAL`, the SAME set `_target_effective`
+# already uses to keep `elemental_pen` off Erosion, so the definition stays single-sourced).
+#
+# Implemented TYPE-GENERICALLY from `form.dtype` (not a hardcoded per-type list) so a future cold/lightning/
+# physical DoT picks these up automatically. Each `{T}_*` key is guarded against actually existing in
+# STAT_META (`_ALL_STAT_KEYS`) — only `fire_dot_dmg_inc` exists as a `{T}_dot_dmg_inc` stat today; a type
+# lacking one simply contributes nothing extra.
+_ALL_STAT_KEYS: frozenset[str] = frozenset(stat.value for stat in STAT_META)
+
+
+def _dot_type_increased_keys(dtype: str) -> tuple[str, ...]:
+    """Type-scoped + elemental-scoped INCREASED keys that apply to a DoT of `dtype`, per the rule above.
+    `{dtype}_dot_dmg_inc` is included here too (generic derivation) even though today only `fire_dot_dmg_inc`
+    exists and is ALSO listed in `_DOT_INCREASED_STATS` — callers must union/dedupe by key, never sum both
+    verbatim, or fire_dot_dmg_inc would double-count on a fire DoT."""
+    keys = [k for k in (f"{dtype}_dmg_inc", f"{dtype}_dot_dmg_inc") if k in _ALL_STAT_KEYS]
+    if dtype in ELEMENTAL:
+        keys.append("elemental_dmg_inc")
+    return tuple(keys)
+
+
+def _dot_type_additional_keys(dtype: str) -> tuple[str, ...]:
+    """Type-scoped + elemental-scoped ADDITIONAL keys that apply to a DoT of `dtype`, per the rule above.
+    Disjoint from `_DOT_ADDITIONAL_STATS` (dmg_additional/dot_dmg_additional) — no dedup needed."""
+    keys = [k for k in (f"{dtype}_dmg_additional",) if k in _ALL_STAT_KEYS]
+    if dtype in ELEMENTAL:
+        keys.append("elemental_dmg_additional")
+    return tuple(keys)
+
+
+# spell_dmg_additional is EXCLUDED from the DoT additional pool. Unlike spell_dmg_inc (whitelisted in
+# `_DOT_INCREASED_STATS` above because dot-model.json's audit independently MEASURED it), there is no owner
+# statement or recorded measurement establishing that a Spell-scoped ADDITIONAL stat applies to a DoT — the
+# owner's 2026-07-10 damage-scoping rule (below) covers damage TYPES (fire/erosion/…) and Elemental only,
+# never the SPELL form tag for the additional pool, and spell_dmg_inc's measured status on the increased side
+# doesn't transfer to the additional side (increased and additional were audited independently). Per the
+# owner's standing "under-compute is better than over-compute, flag it" policy: excluded here pending an
+# in-game measurement, not included-and-flagged. Open verification item filed in dot-model.json
+# ("spell_dmg_additional applicability on a DoT is unmeasured — excluded pending confirmation").
+
+_DOT_TYPE_INCREASED_KEYS: dict[str, tuple[str, ...]] = {t: _dot_type_increased_keys(t) for t in _DAMAGE_TYPES}
+_DOT_TYPE_ADDITIONAL_KEYS: dict[str, tuple[str, ...]] = {t: _dot_type_additional_keys(t) for t in _DAMAGE_TYPES}
+
+# Precomputed per-dtype (key, tags) lists for the form-scoped additional product in `compute_dot` — built
+# ONCE at module load (mirrors `_DOT_ADDITIONAL_TAGS`'s fast-path purpose above) so the list object handed to
+# `_build_additional_factors` each call is the SAME object every time, not rebuilt per call. Paired with
+# `_DOT_TYPE_ADDITIONAL_POOL_CACHE` below so that identity is actually recognized by the fast path (not just
+# stable-but-ignored).
+_DOT_TYPE_ADDITIONAL_KEYED_TAGS: dict[str, list[tuple[str, frozenset]]] = {
+    t: [(k, frozenset()) for k in keys] for t, keys in _DOT_TYPE_ADDITIONAL_KEYS.items()
+}
+
 
 # Attack speed additional pools (tags read directly from stat_meta)
 _APS_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
@@ -234,6 +296,17 @@ _HIT_ADDITIONAL_KEYS: frozenset[str] = frozenset(_HIT_ADDITIONAL_TAGS)
 _DOT_ADDITIONAL_TAGS: dict[str, frozenset] = {key: tags for key, tags in _DOT_ADDITIONAL_STATS}
 _DOT_ADDITIONAL_KEYS: frozenset[str] = frozenset(_DOT_ADDITIONAL_TAGS)
 
+# Precomputed sibling for the per-dtype SCOPED additional pool `compute_dot` builds (`{type}_dmg_additional`
+# + `elemental_dmg_additional`, keyed by `_DOT_TYPE_ADDITIONAL_KEYED_TAGS[dtype]`) — same fast-path purpose
+# as `_HIT_ADDITIONAL_TAGS`/`_DOT_ADDITIONAL_TAGS`: `_build_additional_factors` looks this dict up BY id() of
+# the `keyed_tags` list it's handed, so the per-dtype constants above are recognized and skip the generic
+# per-call frozenset()/dict() rebuild, instead of only being "stable but ignored" like a per-call-rebuilt list
+# would be. Populated once at module load, one entry per damage type's precomputed list.
+_DOT_TYPE_ADDITIONAL_POOL_CACHE: dict[int, tuple[frozenset[str], dict[str, frozenset]]] = {
+    id(keyed_tags): (frozenset(k for k, _ in keyed_tags), dict(keyed_tags))
+    for keyed_tags in _DOT_TYPE_ADDITIONAL_KEYED_TAGS.values()
+}
+
 
 def _build_additional_factors(
     source: BuildSource,
@@ -256,14 +329,21 @@ def _build_additional_factors(
     Hot-path note: the HIT case runs for every skill on every recompute, so the two recognized defaults
     (`_HIT_ADDITIONAL_STATS`, `_DOT_ADDITIONAL_STATS`) are matched by IDENTITY to reuse the precomputed
     `_HIT_ADDITIONAL_KEYS`/`_HIT_ADDITIONAL_TAGS` (resp. `_DOT_ADDITIONAL_KEYS`/`_DOT_ADDITIONAL_TAGS`)
-    module constants instead of rebuilding a frozenset/dict from scratch on every call. Any other
-    `keyed_tags` value falls back to building fresh structures (correct but uncached)."""
+    module constants instead of rebuilding a frozenset/dict from scratch on every call. The per-dtype SCOPED
+    DoT additional pools (`_DOT_TYPE_ADDITIONAL_KEYED_TAGS[dtype]`, one precomputed list per damage type) hit
+    the same fast path via an id()-keyed lookup in `_DOT_TYPE_ADDITIONAL_POOL_CACHE` — they can't use the
+    `is`-against-a-single-constant check above since there are 5 of them, one per dtype, but each is still a
+    module-level constant built once, so its `id()` is stable across every `compute_dot` call and safe to key
+    a cache by. Any other `keyed_tags` value (e.g. ad-hoc lists built in tests) falls back to building fresh
+    structures (correct but uncached)."""
     if keyed_tags is _HIT_ADDITIONAL_STATS:
         keys = _HIT_ADDITIONAL_KEYS
         tags_map = _HIT_ADDITIONAL_TAGS
     elif keyed_tags is _DOT_ADDITIONAL_STATS:
         keys = _DOT_ADDITIONAL_KEYS
         tags_map = _DOT_ADDITIONAL_TAGS
+    elif id(keyed_tags) in _DOT_TYPE_ADDITIONAL_POOL_CACHE:
+        keys, tags_map = _DOT_TYPE_ADDITIONAL_POOL_CACHE[id(keyed_tags)]
     else:
         keys = frozenset(k for k, _ in keyed_tags)
         tags_map = dict(keyed_tags)
@@ -1145,6 +1225,7 @@ def compute_dot(
     lookup_level: int,
     is_spell: bool,
     extra_additional: float,
+    above_mult: float = 1.0,
 ) -> tuple[list[DamageRow], float, float]:
     """The Damage over Time damage stage (Mind Control, Path of Flames — dot-model.json,
     dot-armor-exclusion.json, dot-no-crit.json). Presence-gated: `skill.dot_forms_by_level.get(lookup_level)`
@@ -1153,6 +1234,7 @@ def compute_dot(
 
     Per form (one per `DotForm` at this level):
         dot_dps            = base_per_second × (1 + Σ increased) × Π(1 + additional) × (1 + extra_additional)
+                              × above_mult
         dot_dps_vs_target   = dot_dps × _target_mitigation_dot(source, dtype)   — RESISTANCE ONLY, no armor.
     No crit_factor / double_dmg_factor (a DoT never crits — dot-no-crit.json) and no `_delivery` (cast/tangle/
     spell-burst/multistrike multiplier — a DoT is a standing effect, not delivered per cast; see the
@@ -1164,13 +1246,30 @@ def compute_dot(
         dmg_inc + dot_dmg_inc (always, per dot-model.json's audit) + spell_dmg_inc (spell skills only, per
         dot-model.json's audit) + fire_dot_dmg_inc (fire DoTs only — an INFERENCE, NOT independently audited;
         see `_DOT_INCREASED_STATS`'s comment and the open question filed in dot-model.json)
+    PLUS, per the owner-confirmed damage-scoping rule (2026-07-10, see the comment above
+    `_dot_type_increased_keys`): `{dtype}_dmg_inc` (e.g. `fire_dmg_inc` on a fire DoT), `{dtype}_dot_dmg_inc`
+    if it exists, and `elemental_dmg_inc` when `dtype` is fire/cold/lightning (never erosion). These are
+    UNIONED with the static whitelist above by KEY (not summed twice) — `fire_dot_dmg_inc` is a member of
+    both and must only be counted once.
     `additional` is the per-affix multiplicative product of exactly `dmg_additional` + `dot_dmg_additional`
     (`_DOT_ADDITIONAL_STATS`), built the same way the hit pool is (`_build_additional_factors` /
     `_additional_product`, parametrized to this pool so consumed-stats badging never bleeds into unrelated
-    hit-only additional stats). `extra_additional` is the SAME skill-intrinsic pool `calculate_offense`
-    already threads through the hit pipeline (evaluated by the caller from `skill.intrinsic_additional` +
-    condition state, e.g. Mind Control / Path of Flames' "+21.5% additional damage per +1 ADDITIONAL Max
-    Channeled Stack") — dormant (0.0) at the base channeled-stack count, confirmed in-game.
+    hit-only additional stats), TIMES a second, form-dependent product over `{dtype}_dmg_additional` /
+    `elemental_dmg_additional` (same 2026-07-10 rule, precomputed per dtype as
+    `_DOT_TYPE_ADDITIONAL_KEYED_TAGS[dtype]` so it hits `_build_additional_factors`'s identity fast path via
+    `_DOT_TYPE_ADDITIONAL_POOL_CACHE`). `spell_dmg_additional` is EXCLUDED from both pools — unmeasured, see
+    the comment above `_DOT_TYPE_INCREASED_KEYS`; only the independently-MEASURED `spell_dmg_inc` is
+    whitelisted, on the increased side only. `extra_additional` is the SAME skill-intrinsic pool
+    `calculate_offense` already threads through the hit pipeline (evaluated by the caller from
+    `skill.intrinsic_additional` + condition state, e.g. Mind Control / Path of Flames' "+21.5% additional
+    damage per +1 ADDITIONAL Max Channeled Stack") — dormant (0.0) at the base channeled-stack count,
+    confirmed in-game.
+
+    `above_mult` — the SAME compounding above-max-level multiplier the hit stage applies
+    (`_above_max_mult(effective_level, skill.max_level)`, computed once by the caller and passed in): per
+    owner confirmation (2026-07-10), above-max-level scaling applies to ALL damage forms, DoT included, not
+    just hit forms. 1.0 at/below max level, so this is a no-op for every skill at or under its cap. (The
+    verification entry now records this as CONFIRMED, not an open question — see dot-model.json.)
 
     Returns `(dot_rows, dot_dps_total, dot_dps_vs_target_total)`; the caller folds the two totals into
     `total_dps`/`total_dps_vs_target` and extends `damage_rows` with `dot_rows` BEFORE calling
@@ -1181,29 +1280,41 @@ def compute_dot(
         return [], 0.0, 0.0
 
     dot_add_factors = _build_additional_factors(source, _DOT_ADDITIONAL_STATS)
-    additional_product = _additional_product(
+    base_additional_product = _additional_product(
         source, dot_add_factors, lambda tags: True, _DOT_ADDITIONAL_STATS,
     ) * (1.0 + extra_additional)
 
     rows: list[DamageRow] = []
     total = 0.0
     total_vt = 0.0
-    # NOTE — above-max-level scaling is deliberately NOT applied here (unlike the hit stage's `_above_max_mult`,
-    # applied at ~L1703 to `above_mult`). A DoT skill pushed past its max level (20, via +Level of Skills) caps
-    # at the level-20 base rate instead of compounding further. This is an OPEN in-game-verification question,
-    # not a confirmed exclusion either way: the Help DB says the multiplier applies to "all hit damage," which
-    # could mean DoT is excluded by design (consistent with DoT being its own regime — no crit, no armor, no
-    # added flat, all measured) OR could just be loose wording; never tested above skill level 16/20 in the
-    # dot-model.json session. The ±10% model disclaimer does NOT cover above-max-level builds. Do not change
-    # this behavior without an in-game measurement — see dot-model.json's "above-max-level scaling on DoT"
-    # open question.
     for form in forms:
-        increased = sum(
-            source.total(key)
-            for key, gate in _DOT_INCREASED_STATS
-            if gate is None or gate(is_spell, form)
-        )
-        dps = form.base_per_second * (1.0 + increased) * additional_product
+        # Increased pool: the static whitelist UNIONED (by key, order-preserving) with the type/elemental-
+        # scoped keys for this form's damage type — see `_dot_type_increased_keys`'s comment for why this must
+        # be a union, not two independent sums (fire_dot_dmg_inc would otherwise double-count on a fire DoT).
+        increased_keys = [key for key, gate in _DOT_INCREASED_STATS if gate is None or gate(is_spell, form)]
+        _seen = set(increased_keys)
+        for key in _DOT_TYPE_INCREASED_KEYS.get(form.dtype, ()):
+            if key not in _seen:
+                increased_keys.append(key)
+                _seen.add(key)
+        increased = sum(source.total(key) for key in increased_keys)
+
+        # Additional pool: the base (dmg_additional/dot_dmg_additional) product, times a SEPARATE form-scoped
+        # product over the type/elemental-scoped keys (disjoint from the base pool — no dedup needed).
+        # spell_dmg_additional is deliberately NOT included here — unmeasured, see the comment above
+        # `_DOT_TYPE_INCREASED_KEYS`. `scoped_keyed_tags` is the precomputed per-dtype module constant
+        # (`_DOT_TYPE_ADDITIONAL_KEYED_TAGS`) — the SAME list object every call, so it's recognized by
+        # IDENTITY in `_build_additional_factors`'s fast path (`_DOT_TYPE_ADDITIONAL_POOL_CACHE`) instead of
+        # falling into the generic per-call frozenset()/dict() rebuild branch.
+        scoped_keyed_tags = _DOT_TYPE_ADDITIONAL_KEYED_TAGS.get(form.dtype)
+        if scoped_keyed_tags:
+            scoped_factors = _build_additional_factors(source, scoped_keyed_tags)
+            scoped_product = _additional_product(source, scoped_factors, lambda tags: True, scoped_keyed_tags)
+        else:
+            scoped_product = 1.0
+        additional_product = base_additional_product * scoped_product
+
+        dps = form.base_per_second * (1.0 + increased) * additional_product * above_mult
         dps_vt = dps * _target_mitigation_dot(source, form.dtype)
         total += dps
         total_vt += dps_vt
@@ -2438,7 +2549,9 @@ def calculate_offense(
     # Presence-gated: a skill with no DoT forms at this level contributes nothing (dot_rows stays empty,
     # totals untouched) — every existing non-DoT skill's total_dps is byte-identical. See dot-model.json /
     # dot-armor-exclusion.json / dot-no-crit.json and compute_dot's docstring.
-    dot_rows, dot_dps, dot_dps_vs_target = compute_dot(source, skill, lookup_level, is_spell, extra_additional)
+    dot_rows, dot_dps, dot_dps_vs_target = compute_dot(
+        source, skill, lookup_level, is_spell, extra_additional, above_mult,
+    )
     if dot_rows:
         total_dps += dot_dps
         total_dps_vs_target += dot_dps_vs_target
