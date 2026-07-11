@@ -80,6 +80,8 @@
   "dependencies": {
     "@floating-ui/react": "^0.27.19",
     "@lexical/react": "^0.45.0",
+    "@types/dompurify": "^3.0.5",
+    "dompurify": "^3.4.11",
     "electron-updater": "^6.8.3",
     "lexical": "^0.45.0",
     "zustand": "^5.0.13"
