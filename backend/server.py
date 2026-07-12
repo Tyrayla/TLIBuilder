@@ -2536,7 +2536,13 @@ def get_legendary_gear():
     if not data:
         return {"season": active, "items": []}
 
-    _resolve = _resolve_affix
+    def _resolve(a: dict) -> dict:
+        # Additive `resolved_keys` (2026-07-12) — build-independent per-affix stat-key list, the SAME
+        # resolution `engine.coverage._affix_is_modeled` uses (see `_affix_resolved_keys`'s docstring), so
+        # a catalog-hover badge can classify an affix without the build-scoped `gear_mod_statuses` fallback.
+        r = _resolve_affix(a)
+        r["resolved_keys"] = _affix_resolved_keys(r, a.get("raw_text") or "")
+        return r
 
     # New crawler format: items have "variants" dict
     if data.get("items") and data["items"][0].get("variants"):
@@ -2565,7 +2571,7 @@ def get_legendary_gear():
     for item in items:
         for affix in item.get("affixes", []):
             resolved = _resolve(affix)
-            affix.update({k: resolved[k] for k in ("stat_key", "unit") if k in resolved})
+            affix.update({k: resolved[k] for k in ("stat_key", "unit", "resolved_keys") if k in resolved})
             for extra_key in ("stat_keys", "is_range_split", "min_stat_keys", "max_stat_keys", "dual_stat_groups"):
                 if extra_key in resolved:
                     affix[extra_key] = resolved[extra_key]
@@ -2790,6 +2796,40 @@ def _affix_stat_keys(resolved: dict) -> list[str]:
         if s and s not in seen:
             seen.add(s)
             out.append(s)
+    return out
+
+
+def _affix_resolved_keys(resolved: dict, raw_text: str) -> list[str]:
+    """Build-independent per-affix stat-key list (2026-07-12) — the SAME resolution
+    `engine.coverage._affix_is_modeled` uses to judge legendary-gear coverage, exposed on the affix itself
+    (`resolved_keys`) so a CATALOG HOVER — an item that isn't equipped in the current build — can classify a
+    stat-bearing affix without falling back to the build-scoped `gear_mod_statuses` unresolved set (which
+    only ever covers what's actually equipped). `resolved` must already be `_resolve_affix(affix)`'s output
+    (callers already compute it for the affix's own `stat_key`/`unit` fields — passed in here rather than
+    recomputed, so this never double-resolves the same affix).
+
+    Primary resolver first (`_affix_stat_keys` over the single/multi/range/dual-stat + "special" base-
+    weapon-line classifier that populates the affix badges the gear catalog actually shows); ONLY on total
+    silence there, falls back to the clause resolver (`_resolve_gear_affix_clauses` — curse-infliction /
+    per-N-consumed / condition-gated clauses the single-line classifier doesn't split) — same "only fall
+    back on total silence" order `/api/map-modifiers` and `_affix_is_modeled` both use. Empty list =
+    unrecognized (no key the engine could ever look up for this affix).
+
+    NOTE (known asymmetry, same one `_affix_is_modeled` already flags): a curse-infliction clause resolves
+    to no plain stat_key at all — it feeds `engine.curse_resolver.apply_curses` structurally, not a stat —
+    so a curse-only affix's `resolved_keys` is always `[]` here even though `_affix_is_modeled` treats it as
+    modeled by a documented judgment call. This list can only ever report real stat keys."""
+    keys = _affix_stat_keys(resolved)
+    if keys:
+        return keys
+    out: list[str] = []
+    for cl in _resolve_gear_affix_clauses(raw_text or ""):
+        if cl.get("curse"):
+            continue
+        for e in (cl.get("parsed") or []):
+            k = e.get("stat_key")
+            if k and k not in out:
+                out.append(k)
     return out
 
 

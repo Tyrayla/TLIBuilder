@@ -2234,6 +2234,13 @@ export interface LegendaryAffix {
 
   // resolved by backend: structured engine expression if condition text was mapped
   condition_expr?: Record<string, unknown> | string | null
+
+  // Build-independent stat-key resolution (engine-computed via the same resolver `coverage.py` uses;
+  // empty array = the engine recognizes no stat for this text at all). Present on the gear catalog
+  // endpoints (legendary item detail) so a CATALOG hover — no build/equip context — can still classify
+  // a stat-bearing affix instead of rendering no badge. Absent on older backends → fail open (no badge),
+  // same as any other optional resolved field here.
+  resolved_keys?: string[]
 }
 
 export interface LegendaryGearVariant {

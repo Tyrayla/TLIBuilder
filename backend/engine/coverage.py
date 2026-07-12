@@ -141,79 +141,228 @@ def _reduce_tooltip_lines(skill_data: dict, tooltip: dict, universe: frozenset[s
     return checked, detail
 
 
-# ── Activation-medium carve-out (2026-07-12, owner-approved conservative carve-out) ─────────────
-# `activation_medium.parse_am_rolls`'s `_RANGE` regex only recognizes a PARENTHESIZED (lo-hi) roll — by
-# design, that's the only shape an activation medium's TIER-VARYING values ever take in the crawled text.
-# But `engine.tooltip.build_tooltip`'s AM branch blanket-clears `badge_text` for EVERY non-universal line on
-# ANY activation-medium item, on the premise "activation mediums are fully handled by the roll parser +
-# wiring hook". That premise is false for a FIXED, non-ranged discrete-count clause — Sentry's "+2 Sentries
-# that can be deployed at a time by the supported skill", Tangle's "Creates 1 additional Tangle" — these
-# have NO `(lo-hi)` substring at ANY tier, so `_RANGE` never matches them at all; `parse_am_rolls` never
-# even sees them, let alone wires them to a stat (e.g. `max_sentry_quantity_flat`/`max_tangle_quantity_flat`
-# — real, CONSUMED stats per `compute.py` — are set by nothing for these two items). Because the tooltip
-# blanks the line before this module ever runs, `_reduce_tooltip_lines` above never sees the unmodeled
-# clause, so the reduction quietly reads 'full'.
+# ── Activation-medium coverage (2026-07-12, real wiring-derived path) ───────────────────────────
+# PRIOR BUG: `engine.tooltip.build_tooltip`'s AM branch blanket-clears `badge_text` for EVERY non-universal
+# line on ANY activation-medium item, on the premise "activation mediums are fully handled by the roll
+# parser + wiring hook" (true — but that wiring lives in `activation_medium.py`, not in a `badge_text` the
+# generic `_reduce_tooltip_lines` reduction can see). Because the tooltip blanks the line before that
+# reduction ever runs, `_reduce_tooltip_lines` saw ZERO checkable lines for EVERY activation medium, so
+# `skill_coverage` fell through to the support "no checkable line -> 'none'" guard unconditionally — all 28
+# activation mediums read 'none' regardless of how well-modeled they actually are (a systematic
+# under-claim, the mirror-image failure of the overclaim bugs this module otherwise guards against).
 #
-# Fix, kept STRICTLY coverage-local (does NOT touch `tooltip.py`'s suppression, `activation_medium.py`'s
-# wiring, badges, `/api/map-modifiers`, or any DPS path): re-derive the item's own per-tier clauses from the
-# RAW `progression` data — the exact same per-tier split `engine.tooltip._lines_tiered` performs (imported,
-# not reinvented), just run independently of the AM-specific blanking — and re-check ONLY the narrow defect
-# class the root cause names: a clause carrying a bare (non-parenthesized) LEADING signed count ("+2
-# Sentries...", "-1 Sentries...") or a "Creates N additional <Noun>" clause. Every other AM clause shape
-# (CDR/Duration/interval/radius/attach-range/willpower rolls — everything `parse_am_rolls`'s `_RANGE` DOES
-# see, whether wired or intentionally "recorded, not wired" per that module's own docstring) is left alone:
-# this targets the one class of clause the roll parser can structurally never notice, not a wholesale
-# re-litigation of every activation medium's coverage. Deliberately gated on the EXISTING `checked` signal
-# from `_reduce_tooltip_lines` (see `skill_coverage`) rather than run unconditionally — an AM item that's
-# already 'none' (the common case: most mediums grant CDR/Duration, not the literal `_UNIVERSAL` "additional
-# damage for the supported skill" phrase, so their lines never un-blank and `checked` stays False) must stay
-# 'none', not be promoted to 'partial' by this fixed-count check alone; this only ever DOWNGRADES an item
-# the existing reduction already found genuinely checkable (i.e. only ever full -> partial, never none ->
-# partial), keeping the flip surface to exactly the items this fix targets.
-_AM_FIXED_COUNT_RE = re.compile(r"^[+\-]\s*\d+\b|\bcreates?\s+\d+\s+additional\b", re.I)
+# Fix: give activation mediums their OWN coverage path, `_am_coverage` below, derived from the SAME
+# machinery that actually wires them — `activation_medium.parse_am_rolls`/`_classify`/`_RANGE` — instead of
+# the blanked tooltip. This also folds in (supersedes) the prior fixed-count carve-out: a clause with no
+# `(lo-hi)` roll at any tier (Sentry's discrete count, Tangle's "Creates 1 additional Tangle", a flat
+# non-tiered clause like Rhythm's "-80% ... manually used Supported Skill") is exactly the `_am_clause_
+# modeled` no-`_RANGE`-match branch below, so it's checked once, not twice.
+_AM_ALWAYS_APPLIED_SPECIALS = frozenset({"willpower_level"})
+# Per-`special` stat key(s) `apply_slot_effects` actually emits for that branch REGARDLESS of the rule's own
+# `wired` flag (mirrors that function's if/elif dispatch order exactly — see its source). `willpower_level`
+# has no stat_key of its own (it injects a REAL support via `inject_supports`, a genuine DPS-affecting wire
+# with nothing to look up in `consumable_universe()`), so it's a separate always-True case, not a keys entry.
+_AM_SPECIAL_CONSUMED_KEYS: dict[str, tuple[str, ...]] = {
+    "trigger_interval": ("trigger_interval",),
+    "wind_share": ("wind_rhythm_share", "wind_rhythm_base_cooldown"),
+    "rhythm_move_cap": ("dmg_additional",),
+}
 
 
-def _am_base_tier_clauses(skill_data: dict) -> tuple[int | None, dict[int, list[str]]]:
-    """(base_tier, {tier: [clause, ...]}) via the SAME per-tier clause split `engine.tooltip._lines_tiered`
-    performs, before any AM-specific blanking. `base_tier` is None if the item has no selectable tiers."""
+def _am_rule_applied_and_consumed(rule: dict, universe: frozenset[str]) -> bool:
+    """True iff `activation_medium.apply_slot_effects` would ACTUALLY emit a universe-consumed stat for
+    this ONE `_classify` rule dict — not merely "the rule carries a `stat_key`". `apply_slot_effects`'s
+    if/elif ladder fires its `special`-keyed branches (trigger_interval / wind_share / rhythm_move_cap /
+    willpower_level) REGARDLESS of the rule's own `wired` flag, and only falls through to the plain
+    `elif stat_key and r.get("wired")` branch otherwise — so a rule with a `stat_key` but `wired=False`
+    (`tangle_attach_range`'s `tangle_attach_range_inc`) is NEVER actually applied by that function even
+    though the key itself is a real, CONSUMED stat elsewhere (`offense.py` reads
+    `source.total("tangle_attach_range_inc")` for the display-only attach-range figure) — treating it as
+    'modeled' here would be exactly the "recognized but nothing ever sets it" overclaim this module exists
+    to catch. Likewise `trigger_rate_limit`/`time`/`radius`/`instruction_dmg`/the `misc:*` fallback: real
+    values the module's own docstring calls "recorded, not wired"."""
+    special = rule.get("special")
+    if special in _AM_ALWAYS_APPLIED_SPECIALS:
+        return True
+    if special in _AM_SPECIAL_CONSUMED_KEYS:
+        return any(k in universe for k in _AM_SPECIAL_CONSUMED_KEYS[special])
+    stat_key = rule.get("stat_key")
+    return bool(stat_key and rule.get("wired") and stat_key in universe)
+
+
+# A bare (non-parenthesized) leading signed value — a discrete count ("+2 Sentries...", "-1 Sentries..."),
+# an optional trailing "%", or a "Creates N additional <Noun>" clause — the FIXED shape `parse_am_rolls`'s
+# `_RANGE` regex can never capture (no `(lo-hi)` substring), even when it sits INSIDE a sentence that also
+# carries a real ranged roll (Sentry's "+2 Sentries that can be deployed..." lives in the same run-on
+# sentence as its dmg/radius rolls; Burst Activation's "-40% Movement Speed for 2 s..." penalty likewise
+# glues onto its Hit-Damage roll with no separating period). The `[+\-]` is never preceded by "(" in
+# practice (a real range's own sign+lo digit is always immediately followed by "(", never a bare digit+
+# unit+word), so this can't false-positive on a roll's own bounds.
+_AM_FIXED_COUNT_RE = re.compile(r"[+\-]\s*\d+(?:\.\d+)?\s*%?\s+(?=[A-Za-z])|\bcreates?\s+\d+\s+additional\b", re.I)
+_AM_FIXED_SNIPPET_STOP_RE = re.compile(r"\b(?:always|interval:|when|while)\b", re.I)
+
+
+def _am_fixed_count_snippets(sent: str, range_matches: list) -> list[str]:
+    """Human-readable snippets for every fixed-count claim in `sent` that ISN'T part of one of its own
+    `range_matches` — the text runs from the count itself up to the next range match / stop keyword / end
+    of sentence, so a caller can resolve/report just that claim rather than the whole run-on sentence."""
+    out: list[str] = []
+    for fm in _AM_FIXED_COUNT_RE.finditer(sent):
+        if any(rm.start() <= fm.start() < rm.end() for rm in range_matches):
+            continue
+        tail = sent[fm.start():]
+        end = len(tail)
+        stop = _AM_FIXED_SNIPPET_STOP_RE.search(tail, 1)
+        if stop:
+            end = min(end, stop.start())
+        for rm in range_matches:
+            if rm.start() > fm.start():
+                end = min(end, rm.start() - fm.start())
+        snippet = tail[:end].strip()
+        if snippet:
+            out.append(snippet)
+    return out
+
+
+def _am_other_tier_clauses(skill_data: dict, base_t: int) -> list[str]:
+    """Every OTHER tier's split clauses (`engine.tooltip._split_clauses`) — used ONLY by
+    `_am_flat_at_base_tier_only` below (the "coincidentally flat at THIS tier" cross-check), never for the
+    main modeled/unmodeled decision (which stays on the base tier's own unsplit sentence text — see
+    `_am_base_tier_text`'s docstring for why splitting is unsafe there)."""
     from engine.tooltip import _split_clauses
+    prog = skill_data.get("progression") or []
+    levels = sorted({e.get("level") for e in prog if isinstance(e.get("level"), int)})
+    tiers = [t for t in levels if t != 3] or levels
+    by_tier = {e.get("level"): (e.get("values") or {}).get("name") or "" for e in prog}
+    out: list[str] = []
+    for t in tiers:
+        if t == base_t:
+            continue
+        out.extend(_split_clauses(by_tier.get(t, "")))
+    return out
+
+
+def _am_flat_at_base_tier_only(snippet: str, other_tier_clauses: list[str]) -> bool:
+    """True if `snippet` — a FIXED, non-parenthesized clause found at the base tier — is actually a real,
+    already-wired roll that's simply flat (lo==hi) at this ONE tier, not a genuine `_RANGE`-miss gap: some
+    OTHER tier has a template/token-similar clause (`engine.tooltip._is_dup`) that DOES carry a real
+    `activation_medium._RANGE` match (an actual `(lo-hi)` NUMERIC range — NOT just a literal "(" substring:
+    an English "(s)" plural marker, e.g. Channel's "sends 1 Instruction for every N stack(s) channeled",
+    would false-positive on a bare "(" containment check, which is exactly the prior `_am_unmodeled_fixed_
+    counts`'s check and a latent bug in it this fix also closes). Motionless's tier-1 "+10% additional
+    damage" has no range only because lo==hi there — it's ranged, e.g. "(12-15) %", at every other tier —
+    so `parse_am_rolls` DOES capture and wire it (from whichever tier supplies the range); flagging it here
+    from the base tier's flat rendering alone would be a false, spurious gap."""
+    from engine.tooltip import _is_dup
+    from engine.skill_effects.activation_medium import _RANGE
+    return any(_is_dup(snippet, oc) and _RANGE.search(oc) for oc in other_tier_clauses)
+
+
+def _am_base_tier_text(skill_data: dict) -> tuple[int | None, str]:
+    """(base_tier, raw_text) — the SAME per-tier text `activation_medium.parse_am_rolls` scans
+    (`progression[tier]["values"]["name"]`), UNSPLIT. `base_tier` is None if the item has no selectable
+    tiers. Kept unsplit deliberately (see `_am_coverage`'s docstring): splitting into display-oriented
+    clauses (`engine.tooltip._split_clauses`) can sever a roll's descriptive lead-in from its own `(lo-hi)`
+    value onto a sibling fragment (Rhythm's "...movement made during the trigger interval, up to" / "+(18-
+    21) %." split), which breaks `_classify`'s "before"-text keyword match for that roll — the exact bug a
+    first draft of this fix hit. Only a SENTENCE split (period-delimited) is used below, which never cuts
+    inside a roll's own sentence for any item in the SS12 catalog (verified against all 28)."""
     prog = skill_data.get("progression") or []
     levels = sorted({e.get("level") for e in prog if isinstance(e.get("level"), int)})
     tiers = [t for t in levels if t != 3] or levels          # tier 3 = unselectable penalty tier
     if not tiers:
-        return None, {}
+        return None, ""
     by_tier = {e.get("level"): (e.get("values") or {}).get("name") or "" for e in prog}
-    tier_clauses = {t: _split_clauses(by_tier.get(t, "")) for t in tiers}
     base_t = 1 if 1 in tiers else tiers[0]
-    return base_t, tier_clauses
+    return base_t, by_tier.get(base_t, "")
 
 
-def _am_unmodeled_fixed_counts(skill_data: dict, universe: frozenset[str]) -> list[str]:
-    """The subset of this AM item's base-tier clauses that (a) match the fixed-discrete-count shape
-    `parse_am_rolls` can never capture (no `(lo-hi)` roll anywhere for this clause, at ANY tier), AND (b)
-    don't resolve to a consumed stat some other way (the same `_clause_resolves` generic fallback the rest
-    of this module uses — the positive-wiring-signal OR). Cross-checks every OTHER tier for a
-    template-matching (`engine.tooltip._is_dup`) clause that DOES carry a paren: some items render a
-    genuinely-rolled value flat at exactly one tier (Motionless's tier-1 '+10 % additional damage' has no
-    parens only because lo==hi at that specific tier — it's parenthesized, e.g. '(12-15) %', at every other
-    tier) — that's a real, already-wired roll coincidentally flat at this tier, not the `_RANGE`-miss gap
-    this checks for, so it's excluded even though it superficially matches the fixed-count shape."""
-    from engine.tooltip import _is_dup
+def _am_coverage(skill_data: dict, universe: frozenset[str]) -> tuple[str, list[str]]:
+    """Build-independent coverage for ONE activation medium — replaces the tooltip-blanked default.
+
+    Splits the item's own base-tier text (`_am_base_tier_text`) into SENTENCES (period-delimited, via
+    `engine.tooltip._SENTENCE_SPLIT` — the gentlest split available, never severs a roll's own `(lo-hi)`
+    value from the keyword context `_classify` needs to read it) rather than tooltip's display-oriented
+    clause splitter. Per sentence:
+      - No `(lo-hi)` roll at all -> a fixed/flat claim `parse_am_rolls`'s `_RANGE` regex structurally never
+        sees (Sentry's discrete Sentry-count, Tangle's "Creates 1 additional Tangle", a flat non-tiered
+        clause like Rhythm's "-80% ... manually used Supported Skill"). Not checkable at all if it carries
+        no digit (`engine.tooltip._kind_for` — pure flavor/gate text, e.g. "Disabled while any Restoration
+        Skill is active"); otherwise falls back to the same generic clause resolver the rest of this module
+        uses (`_clause_resolves`) — this is the prior `_am_unmodeled_fixed_counts` carve-out, folded in here
+        rather than run as a second pass.
+      - >=1 `(lo-hi)` roll -> each is re-classified with `_classify` (the SAME call `parse_am_rolls` makes,
+        `before`/`after` scoped to the FULL sentence so multi-roll run-ons — e.g. Boss's CDR+Duration+radius
+        sentence, Preparation's "every (X-Y) s ... +(A-B)% additional Cooldown Recovery Speed" — keep the
+        context each roll's keyword match needs) and checked via `_am_rule_applied_and_consumed`. Any
+        unmodeled roll in the sentence contributes its own `desc` to `coverage_detail` (not the whole
+        sentence — so a sentence mixing one modeled and one unmodeled roll, e.g. Sentry's dmg+radius run-on,
+        names only the actual gap).
+    Zero checkable sentences at all -> 'none' (vacuous truth, matches every other entity type here). Every
+    sentence's every roll modeled, and every fixed sentence resolved -> 'full'. Otherwise 'partial'."""
+    from engine.tooltip import _kind_for, _SENTENCE_SPLIT, _clean
+    from engine.skill_effects.activation_medium import _RANGE, _classify
     item_id = skill_data.get("item_id")
-    base_t, tier_clauses = _am_base_tier_clauses(skill_data)
+    base_t, raw = _am_base_tier_text(skill_data)
     if base_t is None:
-        return []
+        return "none", []
+    text = _clean(raw)
+    if not text:
+        return "none", []
+
+    other_tier_clauses = _am_other_tier_clauses(skill_data, base_t)
+    checked = False
     detail: list[str] = []
-    for c in tier_clauses.get(base_t, []):
-        if not _AM_FIXED_COUNT_RE.search(c):
+    for sent in _SENTENCE_SPLIT.split(text):
+        sent = sent.strip()
+        if not sent:
             continue
-        if any(_is_dup(c, oc) and "(" in oc
-               for t, clauses in tier_clauses.items() if t != base_t for oc in clauses):
-            continue  # a real roll, flat only at this tier — not the `_RANGE`-miss gap this checks for
-        if _clause_resolves(c, item_id, universe):
+        matches = list(_RANGE.finditer(sent))
+        if not matches:
+            if _kind_for(sent) == "flavor":
+                continue      # no digit at all -> pure flavor/gate text, not a mechanic claim
+            checked = True
+            if not _clause_resolves(sent, item_id, universe) and not _am_flat_at_base_tier_only(
+                    sent, other_tier_clauses):
+                detail.append(sent)
             continue
-        detail.append(c)
-    return detail
+        checked = True
+        for m in matches:
+            unit = m.group(4) or ""
+            after_head = sent[m.end():].split("(")[0]
+            rule = _classify(sent[:m.start()], after_head, unit)
+            if rule is None:
+                detail.append(sent)
+            elif not _am_rule_applied_and_consumed(rule, universe):
+                detail.append(rule.get("desc") or sent)
+        # A fixed-count claim can share a sentence with a real ranged roll (Sentry's "+2 Sentries..." lives
+        # in the same run-on as its dmg/radius rolls) — `_RANGE.finditer` above only ever walks the ranged
+        # rolls, so check separately for this shape too (folds in the prior fixed-count carve-out).
+        for snippet in _am_fixed_count_snippets(sent, matches):
+            if not _clause_resolves(snippet, item_id, universe) and not _am_flat_at_base_tier_only(
+                    snippet, other_tier_clauses):
+                detail.append(snippet)
+
+    if not checked:
+        return "none", []
+    if detail:
+        detail = _dedupe_detail(detail)
+    return ("partial", detail) if detail else ("full", [])
+
+
+def _dedupe_detail(items: list[str]) -> list[str]:
+    """The SAME underlying gap can legitimately surface twice — once via a range's own `_classify` `desc`
+    (which greedily grabs everything after the match up to the next literal `(` or 80 chars, so an
+    un-parenthesized tail clause like Instruction's "-80% ... manually used Supported Skill" rides along
+    inside an unrelated roll's `desc`), once via the dedicated fixed-count scan that finds that same tail
+    clause on its own. Keep the LONGEST wording of each overlapping gap (drop any entry that's wholly
+    contained in one already kept) rather than showing the same gap twice."""
+    out: list[str] = []
+    for d in sorted((x.strip() for x in items if x and x.strip()), key=len, reverse=True):
+        if any(d in existing for existing in out):
+            continue
+        out.append(d)
+    return out
 
 
 # ── Skill ──────────────────────────────────────────────────────────────────────────────────────
@@ -230,6 +379,14 @@ def skill_coverage(skill_data: dict, tooltip: dict | None = None) -> tuple[str, 
     judged purely by whether ITS OWN tooltip lines resolve to a consumed stat, same reduction as below, but
     'none' if the support has ZERO checkable lines at all (mirrors the gear-affix "no affixes -> never 'full'
     by vacuous truth" rule) rather than defaulting to 'full'.
+
+    An activation medium (`is_activation_medium(item_id)`) takes a THIRD, separate path — `_am_coverage`
+    (2026-07-12 fix) — instead of the tooltip-line reduction below: `engine.tooltip.build_tooltip` blanks
+    `badge_text` on every non-universal AM line unconditionally (by design — AM items are wired through
+    `activation_medium.py`'s roll parser, not the generic text resolver), so the reduction below would see
+    zero checkable lines for literally every activation medium and always read 'none' regardless of actual
+    modeling. `_am_coverage` re-derives real per-line coverage from that item's own wiring instead. See its
+    docstring for the mechanic.
 
     Mechanic-vs-flavor split (uses ONLY existing tooltip signals, invents nothing new):
       - `line["coverage"] == "modeled"` -> counts as modeled. This is set by
@@ -270,11 +427,17 @@ def skill_coverage(skill_data: dict, tooltip: dict | None = None) -> tuple[str, 
         if not resolved.supported:
             return "none", []
 
+    universe = consumable_universe()
+
+    if stype in _SUPPORT_SKILL_TYPES:
+        from engine.skill_effects.activation_medium import is_activation_medium
+        if is_activation_medium(skill_data.get("item_id")):
+            return _am_coverage(skill_data, universe)
+
     if tooltip is None:
         from engine.tooltip import build_tooltip
         tooltip = build_tooltip(skill_data)
 
-    universe = consumable_universe()
     checked, detail = _reduce_tooltip_lines(skill_data, tooltip, universe)
 
     if stype in _SUPPORT_SKILL_TYPES and not checked:
@@ -282,14 +445,6 @@ def skill_coverage(skill_data: dict, tooltip: dict | None = None) -> tuple[str, 
         # text) — never 'full' by vacuous truth. (Active skills keep the prior behavior: registry membership
         # already implies real modeling, so this guard is scoped to the newly-added support path only.)
         return "none", []
-
-    if stype in _SUPPORT_SKILL_TYPES:
-        from engine.skill_effects.activation_medium import is_activation_medium
-        if is_activation_medium(skill_data.get("item_id")):
-            # 2026-07-12 carve-out (see `_am_unmodeled_fixed_counts`'s docstring above): only ever ADDS
-            # detail to an item `_reduce_tooltip_lines` already found checkable (`checked` is True above) —
-            # never runs on an already-'none' medium, so this can only downgrade full -> partial.
-            detail = detail + _am_unmodeled_fixed_counts(skill_data, universe)
 
     return ("partial", detail) if detail else ("full", [])
 
@@ -390,32 +545,30 @@ def _iter_affixes(item: dict) -> list[dict]:
 def _affix_is_modeled(aff: dict, universe: frozenset[str]) -> bool:
     """True if this ONE affix resolves to >=1 stat key the engine actually reads (`consumable_universe`).
     Mirrors the exact two-step resolution `/api/map-modifiers` uses for `source: 'gear'` (server.py's
-    `map_modifiers`): the catalog's own per-mod resolver first (`_resolve_affix` + `_affix_stat_keys` — the
-    richer single/multi/range/dual-stat + "special" base-weapon-line classifier that populates the affix
-    badges the gear catalog actually shows), falling back to the clause-based resolver
-    (`_resolve_gear_affix_clauses` — handles curse-infliction, per-N-consumed, and condition-gated clauses
-    the single-line classifier doesn't split) ONLY when the primary resolver found no stat key at all — same
-    "only fall back on total silence" order `map_modifiers` uses. Imported lazily (inside the function) to
-    avoid a module-load-time circular import with `server.py`, which imports this module; by request time
-    both modules are fully loaded.
+    `map_modifiers`) via the shared `server._affix_resolved_keys` (2026-07-12 — the SAME key list is now
+    also exposed on `/api/legendary-gear`'s affixes as `resolved_keys`, so a catalog-hover badge and this
+    coverage roll-up can never drift apart): the catalog's own per-mod resolver first (`_resolve_affix` +
+    `_affix_stat_keys` — the richer single/multi/range/dual-stat + "special" base-weapon-line classifier
+    that populates the affix badges the gear catalog actually shows), falling back to the clause-based
+    resolver (`_resolve_gear_affix_clauses` — per-N-consumed / condition-gated clauses the single-line
+    classifier doesn't split) ONLY when the primary resolver found no stat key at all. Curse infliction is
+    the one thing `_affix_resolved_keys` can't report (it feeds `engine.curse_resolver.apply_curses`, a
+    genuinely-modeled subsystem, but carries no plain stat_key of its own) — checked here separately, a
+    judgment call flagged for review. Imported lazily (inside the function) to avoid a module-load-time
+    circular import with `server.py`, which imports this module; by request time both modules are fully
+    loaded.
     """
-    from server import _resolve_affix, _affix_stat_keys, _resolve_gear_affix_clauses
+    from server import _resolve_affix, _affix_resolved_keys, _resolve_gear_affix_clauses
 
     resolved = _resolve_affix(aff)
-    keys = _affix_stat_keys(resolved)
+    keys = _affix_resolved_keys(resolved, aff.get("raw_text") or "")
     if keys:
         return any(k in universe for k in keys)
-    # Primary resolver found NOTHING — fall back to the clause resolver (curse extraction / named-buff
-    # expansion / condition splitting) on the raw text, exactly as `/api/map-modifiers` does.
+    # No plain stat key at all (from either resolution step `_affix_resolved_keys` tries) — the one thing
+    # left to check is a curse-infliction clause, which resolves to no stat_key by design.
     for cl in _resolve_gear_affix_clauses(aff.get("raw_text") or ""):
         if cl.get("curse"):
-            # Curse infliction feeds engine.curse_resolver.apply_curses (a genuinely-modeled subsystem) even
-            # though it carries no plain stat_key of its own — a judgment call, flagged for review.
             return True
-        if cl.get("resolved"):
-            ks = [e.get("stat_key") for e in (cl.get("parsed") or []) if e.get("stat_key")]
-            if any(k in universe for k in ks):
-                return True
     return False
 
 

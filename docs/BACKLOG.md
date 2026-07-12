@@ -469,6 +469,53 @@ while building it — see `data/verification` cross-links below where the item t
    detector undetected, letting `trait_coverage` claim `'full'` for a trait that actually has an unseen build-
    gated warning branch. Add a lint/test guard (e.g. flag any `status_lines` signature that accepts `**kwargs`
    at all, forcing an explicit named-param audit).
+6. **Rhythm activation medium — per-meter damage rate hardcoded (real, small DPS inaccuracy).**
+   `engine/skill_effects/activation_medium.py`'s `apply_slot_effects` `rhythm_move_cap` branch always computes
+   `dmg_additional = min(0.03 × meters, cap)` — a flat 3%/metre regardless of tier. The crawled per-tier rate is
+   actually **3% / 3% / 2% / 2%** (Rhythm tiers 0–3; confirmed in `data/seasons/SS12/_skills.json`'s
+   `activation_medium_rhythm` progression: "+3% additional damage for every 1m..." at tiers 0/3, "+2%" at tiers
+   1/2). So tiers 2–3 currently overstate the movement-damage bonus by 50% relative (3% modeled vs 2% real).
+   Needs a follow-up DPS fix (rate keyed by tier, mirroring `WIND_RHYTHM_BASE_COOLDOWN`'s per-tier dict) + owner
+   sign-off before changing live DPS output. Surfaced while building `_am_coverage` (see item 8 below); logged in
+   `.wolf/buglog.json` id `activation-medium-coverage-always-none-blanked-tooltip`.
+7. **Rhythm/Instruction's "-80% additional damage for manually used Supported Skill" penalty is unmodeled.**
+   Confirmed real text on `activation_medium_rhythm` and `activation_medium_instruction` (all tiers,
+   `data/seasons/SS12/_skills.json`). The engine's cast-rate/trigger-interval model represents these mediums as
+   **100% AM-triggered** (pinned by `test_trigger_interval_overrides_cast_rate_generically`) with no notion of a
+   player manually casting the supported skill in between triggers, so there's nothing for this penalty to hook
+   into. This is exactly why `activation_medium_rhythm` correctly reads `'partial'` (not `'full'`) coverage — the
+   gap is honestly reported, not silently dropped. Open question for the owner: deliberately out-of-scope like
+   the other manual-vs-triggered deferrals already on file (Spell Burst's USE-vs-CAST gate in §0d, Tangle's in
+   §0c), or worth modeling once one of those lands.
+8. **AM coverage now derives from real wiring, not the blanked display tooltip (shipped 2026-07-12).**
+   `engine.tooltip.build_tooltip` blanket-clears `badge_text` on every non-universal line for any
+   `activation_medium_*` item (by design — AMs are wired through `activation_medium.py`'s roll parser, not the
+   generic text→stat resolver), which used to leave `coverage.py`'s `_reduce_tooltip_lines` with zero checkable
+   lines per AM item, so **all 28 activation mediums read `'none'` regardless of how well-modeled they actually
+   were**. Fixed with a dedicated path, `coverage.py::_am_coverage` (+ `_am_rule_applied_and_consumed`), that
+   re-derives each item's real rolls straight from `activation_medium.parse_am_rolls`/`_classify` and checks each
+   against `apply_slot_effects`'s own if/elif dispatch (mirrors it exactly, including which `special` branches
+   fire regardless of a rule's own `wired` flag). Result across SS12's 28 activation mediums: **7 full, 20
+   partial, 1 none**. This is the AM-specific resolution of item 1 above ("coverage inherits display-tooltip
+   line-suppression") — cross-reference that entry; the general risk it describes is why AMs needed this
+   carve-out in the first place. See `data/verification/activation-mediums.json` (updated same day) and
+   `.wolf/buglog.json` id `activation-medium-coverage-always-none-blanked-tooltip`.
+9. **New additive field: `resolved_keys` on `/api/legendary-gear` affixes (shipped 2026-07-12).**
+   `server._affix_resolved_keys(resolved, raw_text)` exposes the same build-independent stat-key resolution
+   `engine.coverage._affix_is_modeled` already used internally (primary `_affix_stat_keys`, falling back to
+   `_resolve_gear_affix_clauses` only on total silence), now surfaced per-affix so a **gear-catalog HOVER** (an
+   item not equipped in the current build) can badge which affixes the engine actually reads without needing the
+   build-scoped `gear_mod_statuses` unresolved set (which only ever covers what's equipped). Wired into every
+   affix on both the variants-dict and legacy flat response shapes of `GET /api/legendary-gear`; **not** added to
+   the lightweight `/api/legendary-gear-index` (carries no affix data at all). Empty list = unrecognized affix.
+   Known asymmetry (same one `_affix_is_modeled` already flags): a curse-infliction clause resolves to no plain
+   stat key at all — it feeds `engine.curse_resolver.apply_curses` structurally — so a curse-only affix's
+   `resolved_keys` is always `[]` here even though `_affix_is_modeled` treats it as modeled by a documented
+   judgment call; don't read an empty `resolved_keys` list as "unmodeled" for those. Renderer consumer:
+   `ModifierBadge.tsx`'s `gearStatus` now falls back to `resolved_keys` when a keyless catalog-hover affix isn't
+   in the equipped-build unresolved set (`undefined` → unchanged/fail-open behavior for an older backend). See
+   `.wolf/buglog.json` ids `legendary-gear-affix-resolved-keys-catalog-hover` and
+   `gear-catalog-hover-affix-blank-badge-no-equipped-build-scope`.
 
 ## 7. Infra / hosting
 - **Web-hosted version — SHIPPED** (see the top of this doc). Open follow-ups: redeploy automation (currently

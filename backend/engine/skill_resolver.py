@@ -701,15 +701,57 @@ def _resolve_rosa_holy_domain(skill_data: dict) -> ResolvedSkill:
 # shotgun/projectile/beam handling, Berserking's buff Skill-Area/stack-cap). Phrases are lowercased substrings.
 # NOTE: when a NEW skill is brought to full modeling, add its modeled-mechanic phrases here (or rely on the
 # generic ResolvedSkill rules in classify_intrinsic_line for channeled / intrinsic_additional / steep-strike).
+#
+# 2026-07-12 false-partial fixes (owner-confirmed, coverage-recognition only — no DPS change):
+#   - icebound_beam: "Not affected by beam quantity bonuses and refraction attempt bonuses." is a limitation
+#     clause, not an unmodeled mechanic. Confirmed honored by construction: `extra_beams_flat` (the only
+#     "+N beams/refractions" stat `support_mapper`/`mod_parser` produce) is not in `consumable_universe()` —
+#     no skill anywhere is currently affected by a beam-quantity bonus, and there is no "refraction attempt"
+#     stat at all — so the claim is trivially true for Icebound specifically. Targeted per-skill phrase
+#     (NOT a general "not affected by" rule): several other skills glue an exemption clause onto a SEPARATE,
+#     still-unmodeled mechanic in the same tooltip line (e.g. `blink_arrow` — "always Penetrate targets but
+#     cannot return and are not affected by Projectile Quantity" — the Penetrate/no-Return claim is a distinct
+#     mechanic; `saltpeter_mushroom_distillate` glues "(not affected by the effects of Elixir Skills)" onto its
+#     own unmodeled 25%-chance-to-explode-for-True-Damage proc), so a blanket rule would silently overclaim
+#     those. Keeping this scoped to icebound_beam's own exact clause avoids that.
+#   - chromatic_shot: added below — the compulsory random-element conversion IS modeled
+#     (`ResolvedSkill.compulsory_elements`, `_resolve_chromatic_shot`), and 4 of its 5 flagged lines are
+#     base-state/flavor/already-a-stat (fires-1-projectile, +2 quantity, shotgun falloff, hit-same-enemy —
+#     mirrors icebound_beam/split_shot's identical phrases). The 5th flagged line is glued: "...forcibly
+#     converting the damage of the next use of this skill to that type 10% chance for enemies to explode when
+#     defeated by this skill, dealing True Damage equal to 25% of their Max Life..." — the "10% chance to
+#     explode for True Damage" clause is a GENUINE unmodeled proc (no explode/on-kill-true-damage code exists
+#     anywhere in the engine). Deliberately NOT whitelisting any phrase that would match this glued line (e.g.
+#     "forcibly converting" or "random elemental type") — since `classify_intrinsic_line` greenlights the
+#     WHOLE line's badge_text, not a sub-clause, doing so would silently swallow the still-unmodeled explode
+#     proc too. That line is left to `engine.coverage`'s own clause-splitter (correctly stays unresolved on
+#     both halves), so chromatic_shot stays 'partial' — the honest result; see `.wolf/buglog.json`.
+#   - howling_gale: the 3 per-channeled-stack Duration/Skill-Area/Movement-Speed lines are non-DPS
+#     informational for a sustained single-target calc (`_resolve_howling_gale`'s own comment) — none of the
+#     three feeds `calculate_offense`/`compute_dot` for a single-target number, so they're not modeled mechanics
+#     to omit, just properties of the persistent Gale area effect this calc doesn't need. Targeted (not
+#     general) since "per channeled stack, X" is not a safe cross-skill pattern.
 _SKILL_MODELED_PHRASES: dict[str, tuple[str, ...]] = {
     "icebound_beam": ("shotgun effect falloff", "projectile quantity", "beam reflection",
-                      "fires 1 projectile", "hit the same enemy"),
+                      "fires 1 projectile", "hit the same enemy", "not affected by beam quantity"),
     "berserking_blade": ("skill area for each stack of buff", "stacks up to"),
     "groundshaker": ("demolisher charge", "fissure", "weapon attack damage",
                      "restoration speed", "skill area when the skill consumes"),
     "split_shot": ("weapon attack damage", "fires 1 projectile", "projectile quantity of this skill",
                    "shotgun effect falloff", "hit the same enemy"),
+    "chromatic_shot": ("shotgun effect falloff", "fires 1 projectile", "hit the same enemy",
+                       "projectile quantity"),
+    "howling_gale": ("duration for gale", "skill area for gale", "movement speed for gale"),
 }
+
+# A bare standalone duration fragment ("Lasts 10 s.") is never itself a DPS mechanic — it's metadata on
+# whatever buff/effect the PRECEDING line already described (the duration is read elsewhere, e.g. a buff's
+# own stack-decay window, wherever the engine models uptime at all). Generalized (not per-skill) because it's
+# a self-contained, information-only shape with no room to glue a second, unrelated mechanic onto it — unlike
+# a "not affected by ..." exemption clause, which several skills DO glue onto a still-unmodeled mechanic (see
+# the icebound_beam note above), a "Lasts N s." line is always exactly one fact and nothing else at every
+# occurrence checked across the SS12 skill catalog (2026-07-12).
+_BARE_DURATION_RE = re.compile(r"^lasts\s+[\d.]+\s*s\.?$", re.I)
 
 
 def classify_intrinsic_line(line: str, resolved: ResolvedSkill) -> str | None:
@@ -721,6 +763,8 @@ def classify_intrinsic_line(line: str, resolved: ResolvedSkill) -> str | None:
     if not resolved.supported:
         return None
     t = (line or "").lower()
+    if _BARE_DURATION_RE.match(t.strip()):
+        return "modeled"
     if resolved.base_steep_strike_chance and "steep strike chance" in t:
         return "modeled"
     if resolved.channeled:

@@ -55,6 +55,39 @@ class TestSkillCoverage:
         assert status == "none"
         assert detail == []
 
+    def test_icebound_beam_full(self):
+        """2026-07-12 reclassification: the beam-quantity/refraction exemption clause is a limitation on
+        an already-unmodeled stat (no consumer reads it for Icebound), so all of Icebound Beam's intrinsic
+        lines now resolve/classify as modeled -> 'full' (see skill_resolver._SKILL_MODELED_PHRASES)."""
+        status, detail = skill_coverage(_SKILLS["icebound_beam"])
+        assert status == "full"
+        assert detail == []
+
+    def test_howling_gale_full(self):
+        """2026-07-12 reclassification: the 3 per-channeled-stack Duration/Skill-Area/Movement-Speed lines
+        are non-DPS informational properties of the persistent Gale area (not omitted mechanics), so they
+        now classify as modeled -> 'full' (was 'partial' before the reclassification)."""
+        status, detail = skill_coverage(_SKILLS["howling_gale"])
+        assert status == "full"
+        assert detail == []
+
+    def test_chromatic_shot_still_partial_explode_proc_unmodeled(self):
+        """Chromatic Shot's compulsory-conversion line is glued to a genuinely unmodeled "10% chance to
+        explode ... dealing True Damage" on-kill proc — the reclassification recognizes the base-state/
+        flavor lines but must NOT swallow this still-unmodeled clause, so the item stays 'partial'."""
+        status, detail = skill_coverage(_SKILLS["chromatic_shot"])
+        assert status == "partial"
+        assert detail
+        joined = " ".join(detail).lower()
+        assert "explode" in joined and "true damage" in joined
+
+    def test_berserking_blade_still_partial_unchanged(self):
+        """Anchor: berserking_blade's own on-defeat/Elite buff-grant condition is assumed-max, not
+        modeled — unaffected by the 2026-07-12 reclassification of the other 4 skills."""
+        status, detail = skill_coverage(_SKILLS["berserking_blade"])
+        assert status == "partial"
+        assert detail
+
 
 # ── Cross-module `resolve_line_keys` scoping (2026-07-12 accuracy fix) ────────────────────────────
 class TestResolveLineKeysScoping:
@@ -198,12 +231,29 @@ class TestSupportCoverage:
         assert status == "full"
         assert detail == []
 
-    def test_activation_medium_with_no_checkable_line_is_none(self):
-        """An activation medium whose every line is flavor/gate/install-restriction text (or suppressed by
-        the AM-specific 'fully handled elsewhere' rule) -> 'none' by the vacuous-truth guard, never 'full'."""
-        status, detail = skill_coverage(_SKILLS["activation_medium_boss"])
+    def test_activation_medium_lock_on_no_checkable_line_is_none(self):
+        """(2026-07-12 rename) `activation_medium_lock_on`'s SS12 catalog entry carries an EMPTY
+        `progression` list — no tiers at all, so `_am_base_tier_text` returns `(None, "")` and
+        `_am_coverage` never even reaches a sentence to scan -> 'none' by the vacuous-truth guard,
+        never 'full'. Replaces `activation_medium_boss` as this guard's anchor: now that AM coverage
+        is derived from real wiring (`_am_coverage`, not the blanked-tooltip carve-out), Boss's
+        'Trigger radius (metres)'/'Interval: 0.1s' sentences surface as genuinely unwired clauses, so
+        Boss itself now reads 'partial' (see `test_activation_medium_boss_partial_...` below) and can
+        no longer serve as the 'zero checkable lines' anchor."""
+        status, detail = skill_coverage(_SKILLS["activation_medium_lock_on"])
         assert status == "none"
         assert detail == []
+
+    def test_activation_medium_boss_partial_trigger_radius_and_interval_unwired(self):
+        """Anchor for the reclassification noted above: Boss's own base-tier text carries a bare
+        'Trigger radius (metres)' descriptor and an 'Interval: 0.1s' clause, neither of which
+        `activation_medium.parse_am_rolls`/`_classify` wires to a consumed stat -> 'partial', never
+        'none' (it DOES have checkable content) and never 'full' (that content isn't actually modeled)."""
+        status, detail = skill_coverage(_SKILLS["activation_medium_boss"])
+        assert status == "partial"
+        assert detail
+        joined = " ".join(detail).lower()
+        assert "trigger radius" in joined or "interval" in joined
 
     def test_activation_medium_sentry_partial_fixed_count_carveout(self):
         """The AM-fixed-count carve-out (`_am_unmodeled_fixed_counts`): Sentry's '+2 Sentries...deployed at
@@ -224,38 +274,75 @@ class TestSupportCoverage:
         joined = " ".join(detail).lower()
         assert "creates 1 additional tangle" in joined
 
-    def test_activation_medium_carveout_is_downgrade_only(self):
-        """The carve-out (`skill_coverage`'s `_am_unmodeled_fixed_counts` call) is gated on the EXISTING
-        `checked` signal from `_reduce_tooltip_lines` — it can only ever turn an already-checkable
-        full -> partial, never promote an already-'none' medium (zero checkable lines at all) up to
-        'partial'/'full'. `activation_medium_boss` is the concrete already-'none' anchor; the sweep below
-        is the structural guard so a future AM item can't regress this by accident."""
-        from engine.coverage import _reduce_tooltip_lines, consumable_universe
-        from engine.tooltip import build_tooltip
-
-        status, detail = skill_coverage(_SKILLS["activation_medium_boss"])
-        assert status == "none"
+    def test_activation_medium_full_partial_semantics_from_wiring(self):
+        """(2026-07-12 rewrite) The old premise — AM coverage is a downgrade-only carve-out layered on
+        top of `_reduce_tooltip_lines`'s tooltip-line reduction — is obsolete: `_am_coverage` no longer
+        consults the tooltip at all (it's blanked for every AM line by design, see `_am_coverage`'s
+        module-level comment); it derives full/partial/none straight from the SAME wiring
+        `activation_medium.parse_am_rolls`/`_classify` use. New semantics pinned here:
+          - A fully-wired AM (`activation_medium_motionless`: every `(lo-hi)` roll classifies to an
+            applied, consumed stat key at every tier) -> 'full'.
+          - An AM with an unwired fixed-count clause (`activation_medium_sentry`'s discrete '+2
+            Sentries...deployed at a time', which has no `(lo-hi)` roll at any tier for
+            `parse_am_rolls`'s `_RANGE` regex to ever capture) -> 'partial'.
+          - No AM in the live SS12 catalog falsely reads 'full' while still carrying unresolved detail
+            (the structural guard: 'full' implies empty `coverage_detail`, checked over the whole
+            28-item catalog — the case an accidental future regression to the old blanket-none
+            behavior, or a wiring change that stops checking a clause, would trip)."""
+        status, detail = skill_coverage(_SKILLS["activation_medium_motionless"])
+        assert status == "full"
         assert detail == []
 
-        universe = consumable_universe()
+        status, detail = skill_coverage(_SKILLS["activation_medium_sentry"])
+        assert status == "partial"
+        assert detail
+        joined = " ".join(detail).lower()
+        assert "sentries" in joined and "deployed at a time" in joined
+
         am_ids = [iid for iid, s in _SKILLS.items() if iid.startswith("activation_medium_")]
         assert am_ids, "expected >=1 activation-medium item in the SS12 skill catalog"
-        checked_any_none = False
         for iid in am_ids:
-            s = _SKILLS[iid]
-            tooltip = build_tooltip(s)
-            checked, _pre_detail = _reduce_tooltip_lines(s, tooltip, universe)
-            if checked:
-                continue
-            checked_any_none = True
-            status, detail = skill_coverage(s)
-            assert status == "none", (
-                f"{iid}: had zero checkable lines pre-carve-out but the carve-out promoted it to "
-                f"{status!r} — the carve-out must be downgrade-only (full -> partial), never none -> "
-                "partial/full"
-            )
+            status, detail = skill_coverage(_SKILLS[iid])
+            if status == "full":
+                assert detail == [], f"{iid}: reported 'full' but carries non-empty coverage_detail"
+
+    def test_activation_medium_rhythm_partial_manual_use_penalty_and_rate_gap(self):
+        """Rhythm's own base-tier text carries two clauses `_am_coverage` can't wire: the per-meter-of-
+        movement damage rate ('+3% additional damage for every 1m of movement made during the trigger
+        interval, up to...') and the flat manually-used-skill penalty ('-80% additional damage for
+        manually used Supported Skill') — neither maps to an applied, consumed stat key via `_classify`,
+        so Rhythm stays 'partial' even though it's a well-modeled AM overall."""
+        status, detail = skill_coverage(_SKILLS["activation_medium_rhythm"])
+        assert status == "partial"
+        assert detail
+
+    def test_activation_medium_fully_wired_anchors_read_full(self):
+        """Three genuinely fully-wired AMs (verified live against the SS12 catalog): every `(lo-hi)` roll
+        on each classifies to an applied, consumed stat key at every tier, and neither carries a leftover
+        unwired fixed-count clause -> 'full', empty detail."""
+        for item_id in (
+            "activation_medium_motionless", "activation_medium_minion", "activation_medium_still_attack",
+        ):
+            status, detail = skill_coverage(_SKILLS[item_id])
+            assert status == "full", f"{item_id}: expected 'full', got {status!r} (detail={detail!r})"
             assert detail == []
-        assert checked_any_none, "expected >=1 activation-medium item with zero checkable lines for this guard"
+
+    def test_activation_medium_sweep_full_implies_empty_detail(self):
+        """Sweep invariant over the WHOLE 28-item AM catalog (guards against a future AM overclaim
+        regression): 'full' always carries empty `coverage_detail`, and non-empty detail never coexists
+        with 'full'. Mirrors `TestSkillCoverageInvariants`/`TestLegendaryCoverageInvariants`'s 'iff' naming
+        convention loosely — not a true biconditional, since `activation_medium_lock_on`'s 'none' (zero
+        progression tiers at all) ALSO carries empty detail, same as every other entity type here."""
+        am_ids = sorted(iid for iid, s in _SKILLS.items() if iid.startswith("activation_medium_"))
+        assert len(am_ids) == 28, f"expected 28 activation-medium items in the SS12 catalog, found {len(am_ids)}"
+        for iid in am_ids:
+            status, detail = skill_coverage(_SKILLS[iid])
+            if status == "full":
+                assert detail == [], f"{iid}: 'full' must carry empty coverage_detail"
+            if detail:
+                assert status == "partial", (
+                    f"{iid}: non-empty coverage_detail implies 'partial', never 'full'/'none'"
+                )
 
 
 class TestGluedClauseFullLineRule:
@@ -565,3 +652,56 @@ class TestEndpointWiring:
         by_id = {it["item_id"]: it for it in result["items"]}
         assert by_id["berserker_bracer"]["coverage"] == "full"
         assert by_id["aeterna_martyr"]["coverage"] == "partial"
+
+    def test_get_legendary_gear_carries_resolved_keys_on_affixes(self):
+        """`/api/legendary-gear`'s per-affix `resolved_keys` (2026-07-12) — the SAME resolution
+        `engine.coverage._affix_is_modeled`/`_affix_resolved_keys` compute — is now on the wire for
+        every implicit/explicit affix, so a catalog hover (item not equipped in the current build) can
+        classify a gear affix client-side without the build-scoped `gear_mod_statuses` fallback (see
+        `ModifierBadge.tsx`'s `gearStatus`). Spot-checked against `aeterna_martyr` (used above as the
+        live legendary-coverage 'partial' anchor):
+          - its Attack/Spell Critical Strike Rating affix is a recognized, modeled stat pair ->
+            non-empty `resolved_keys`.
+          - its per-Critical-Strike Trauma-Damage stacking affix ("...Stacks up to (3-4) time(s)") is
+            genuinely unrecognized text (no `_affix_stat_keys`/clause resolver hit at all, distinct from
+            the ALSO-partial-but-recognized '-additional Physical Damage taken' affix that resolves to a
+            real, merely-unconsumed key) -> `resolved_keys == []`.
+        """
+        from server import get_legendary_gear
+
+        result = get_legendary_gear()
+        assert result["season"] == _SEASON
+        assert result["items"], "expected non-empty legendary-gear catalog for SS12"
+
+        by_id = {it["item_id"]: it for it in result["items"] if "item_id" in it}
+        item = by_id["aeterna_martyr"]
+        base = item["variants"]["base"]
+
+        found_any = False
+        for group in ("implicits", "explicits"):
+            for a in base[group]:
+                assert "resolved_keys" in a and isinstance(a["resolved_keys"], list), (
+                    f"affix missing resolved_keys: {a.get('raw_text')!r}"
+                )
+                found_any = True
+        assert found_any, "expected >=1 affix on aeterna_martyr to spot-check resolved_keys against"
+
+        crit_rating = next(
+            a for a in base["explicits"] if "Critical Strike Rating" in (a.get("raw_text") or "")
+        )
+        assert set(crit_rating["resolved_keys"]) == {"attack_crit_rating_flat", "spell_crit_rating_flat"}
+
+        trauma_stack = next(
+            a for a in base["explicits"]
+            if "Trauma Damage" in (a.get("raw_text") or "") and "Stacks up to" in (a.get("raw_text") or "")
+        )
+        assert trauma_stack["resolved_keys"] == []
+
+        phys_dmg_taken = next(
+            a for a in base["explicits"] if "additional Physical Damage taken" in (a.get("raw_text") or "")
+        )
+        assert phys_dmg_taken["resolved_keys"] == ["physical_dmg_taken_additional"], (
+            "this affix is recognized (non-empty resolved_keys) but its key is never CONSUMED anywhere — "
+            "the reason aeterna_martyr's legendary_coverage is 'partial' despite this affix resolving; "
+            "distinct from the trauma-stacking affix above, which is genuinely unrecognized (empty list)"
+        )
