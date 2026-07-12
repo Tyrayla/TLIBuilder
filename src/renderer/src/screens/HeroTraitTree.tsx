@@ -131,6 +131,15 @@ export default function HeroTraitTree({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budget, rootId, trait.trait_id])
 
+  // Explicit not-modeled callout — the tree UI is selection/allocation only for a trait with no
+  // registered `hero_traits` engine module (coverage 'none'); make that unambiguous in-UI rather than
+  // leaving it implicit (see the scope note at the top of this file).
+  const notModeledBanner = trait.coverage === 'none' ? (
+    <div className="htt-not-modeled-banner">
+      Selection only — DPS not modeled yet for this trait.
+    </div>
+  ) : null
+
   const memoryRail = (
     <div className="htt-memory-rail">
       {MEMORY_RAIL.map(({ slot, threshold, label }) => {
@@ -158,10 +167,13 @@ export default function HeroTraitTree({
 
   if (!nodes.length || !rootId) {
     return (
-      <div className="htt-row">
-        {memoryRail}
-        <div className="panel-empty">This trait's tree data hasn't loaded — no nodes to allocate.</div>
-      </div>
+      <>
+        {notModeledBanner}
+        <div className="htt-row">
+          {memoryRail}
+          <div className="panel-empty">This trait's tree data hasn't loaded — no nodes to allocate.</div>
+        </div>
+      </>
     )
   }
 
@@ -191,7 +203,9 @@ export default function HeroTraitTree({
   }
 
   return (
-    <div className="htt-row">
+    <>
+      {notModeledBanner}
+      <div className="htt-row">
       {memoryRail}
       <svg viewBox={`0 0 ${VW} ${VH}`} className="htt-tree-svg">
         <defs>
@@ -239,6 +253,7 @@ export default function HeroTraitTree({
           )
         })}
       </svg>
-    </div>
+      </div>
+    </>
   )
 }

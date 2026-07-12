@@ -1471,6 +1471,10 @@ export interface HeroTrait {
   tree_root_id?: string
   tree_nodes?: HeroTraitTreeNode[]
   tree_connections?: { from: string; to: string }[]
+  // Build-independent DPS-modeling coverage (engine-computed, additive). Absent on older backends.
+  coverage?: 'full' | 'partial' | 'none'
+  // For 'partial': the mechanics/status lines NOT modeled — show in a tooltip.
+  coverage_detail?: string[]
 }
 
 export interface PactSpiritSlot {
@@ -1919,6 +1923,10 @@ export interface SkillItem {
   // Whether this skill can contribute to the build's total DPS (dev-set; default derived from skill_type).
   dps_eligible?: boolean
   glossary?: Record<string, { name: string; description: string }>
+  // Build-independent DPS-modeling coverage (engine-computed, additive). Absent on older backends.
+  coverage?: 'full' | 'partial' | 'none'
+  // For 'partial': the intrinsic mechanics/affixes NOT modeled — show in a tooltip.
+  coverage_detail?: string[]
 }
 
 export interface EquippedSupportSkill {
@@ -2243,6 +2251,10 @@ export interface LegendaryGearIndexItem {
   name: string
   required_level: number
   base_type: string
+  // Build-independent DPS-modeling coverage (engine-computed, additive). Absent on older backends.
+  coverage?: 'full' | 'partial' | 'none'
+  // For 'partial': the affixes/mechanics NOT modeled — show in a tooltip.
+  coverage_detail?: string[]
 }
 
 export interface LegendaryGearItem {

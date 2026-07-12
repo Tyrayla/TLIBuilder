@@ -97,18 +97,49 @@ _STOP = {"the", "for", "and", "this", "skill", "that", "with", "when", "deals", 
          "of", "to", "a", "is", "its", "in", "on", "it", "was", "if", "an", "by",
          "additional", "supported"}   # generic modifier words — too common to imply same effect
 
+# A trailing SCOPE/GATE qualifier ("for Minions summoned by the supported skill", "when the supported
+# skill consumes Demolisher Charge") is boilerplate shared across EVERY distinct clause on a given
+# support/skill — its words (minions, summoned, consumes, demolisher, charge, …) aren't in `_STOP`
+# (they're meaningful content words on OTHER items), so two clauses that only agree on the SCOPE, not the
+# actual effect, still cleared the significant-token overlap ratio (2026-07-12 fix,
+# `tooltip-lines-tiered-is-dup-false-positive-swallows-clause`). Stripped ONLY for the sig-token dup
+# check (never the rendered line/template) — mirrors the same "for/of the supported skill" qualifier
+# already stripped for resolution in `support_mapper._strip_support_target` / `server._resolve_skill_line_
+# _keys`, just generalized to the "for <anything> supported skill" / "when <anything> supported skill
+# <verb>…" shapes seen on tiered support items (modularization's "for Minions summoned by the supported
+# skill", groundshaker's "when the supported skill consumes Demolisher Charge").
+_SCOPE_STRIP_RE = re.compile(r"\s*\b(?:when|while|for)\b.*?\bsupported\s+skill\b.*$", re.I)
+
 
 def _sig_tokens(s: str) -> set[str]:
-    return {w for w in re.findall(r"[a-z]+", (s or "").lower()) if w not in _STOP and len(w) > 2}
+    s = _SCOPE_STRIP_RE.sub("", s or "")
+    return {w for w in re.findall(r"[a-z]+", s.lower()) if w not in _STOP and len(w) > 2}
 
 
 def _is_dup(a: str, b: str) -> bool:
-    """Two clauses describe the same effect: equal/subset templates, or high significant-token overlap."""
+    """Two clauses describe the same effect: equal/subset templates, or high significant-token overlap.
+
+    The overlap-RATIO fallback divides by the SMALLER clause's significant-token count, so a clause with
+    only 1-2 significant tokens (e.g. the universal "+20% additional damage" rank line reduces to just
+    {'damage'} after stripping `_STOP`) trivially clears the 0.6 threshold against ANY other clause sharing
+    even one of those tokens — regardless of actual semantic overlap. Require at least 2 significant
+    tokens in the SMALLER clause before trusting the ratio — a clause that short can only be judged a
+    duplicate by the template check above (exact/subset match), never by loose token overlap. Combined
+    with `_sig_tokens`' scope-qualifier stripping above (2026-07-12 fix,
+    `tooltip-lines-tiered-is-dup-false-positive-swallows-clause`): this silently dropped BOTH
+    groundshaker_cripple_noble's distinct "+30% additional Skill Area when the supported skill consumes
+    Demolisher Charge" (falsely deduped against the unrelated split-off "When the cast of the Supported
+    Skill consumes Demolisher Charge," gate fragment — shared scope words, no shared effect) and
+    modularization_compress_noble's "-25% Physique"/"+50% Aggressiveness for Minions summoned by the
+    supported skill" clauses (falsely deduped against its "+34% additional damage for Minions summoned by
+    the supported skill" line — shared "for Minions summoned by the supported skill" scope, different
+    stats).
+    """
     ta, tb = _template(a), _template(b)
     if ta and tb and (ta == tb or ta in tb or tb in ta):
         return True
     sa, sb = _sig_tokens(a), _sig_tokens(b)
-    if not sa or not sb:
+    if not sa or not sb or min(len(sa), len(sb)) < 2:
         return False
     return len(sa & sb) / min(len(sa), len(sb)) >= 0.6
 
@@ -464,10 +495,22 @@ def build_tooltip(skill_data: dict) -> dict:
             bt = ln.get("badge_text") or ""
             if not bt or _UNIVERSAL in bt.lower():
                 continue
-            # Activation mediums are fully handled by the roll parser + wiring hook → their behavioral lines are
-            # recognized (no NYI badge). Other guarded supports only suppress non-stat clauses.
-            if _is_am or not skill_effects.resolve_line_keys(bt):
+            if _is_am:
+                # Activation mediums are fully handled by the roll parser + wiring hook → their behavioral
+                # lines are recognized (no NYI badge).
                 ln["badge_text"] = ""
+                continue
+            # Scoped to THIS item's own specs (2026-07-12): a spec belonging to a DIFFERENT guarded support
+            # must never suppress (or attribute) a line here just because the phrasing coincidentally
+            # matches — that's a silent misattribution, not a suppression decision this item earned.
+            resolved = skill_effects.resolve_line_keys(bt, item_id)
+            if resolved == []:
+                # Recognized bespoke behavioral line (sets a condition/cap, no stat) → genuinely flavor.
+                ln["badge_text"] = ""
+            # resolved is a non-empty stat-key list → leave badge_text so it resolves/consumes normally.
+            # resolved is None → THIS item's own bespoke specs don't recognize the line at all — an honest
+            # gap. Leave badge_text in place (don't suppress) so it stays visible and badges NYI / counts
+            # toward coverage instead of being silently dropped as flavor.
         modeled = skill_effects.modeled_rolls(item_id, skill_data)
 
     # Modeled active skills: positively mark their intrinsic mechanic lines as 'modeled' (green) so they don't

@@ -4,9 +4,12 @@ import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, CreatedHeroMemory, Memor
   SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
+import { useUiPrefs } from '../store/uiPrefsStore'
 import { characterLevelFrom } from '../utils/conditions'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { ModifierBadge, useTextModifierStatus } from '../components/ModifierBadge'
+import { CoverageBadge } from '../components/CoverageBadge'
+import { coverageRank, passesModeledOnly } from '../utils/coverage'
 import { dec } from '../utils/num'
 import { traitSlang, traitOrder } from '../utils/heroTraitOrder'
 import EditableRollValue from '../components/EditableRollValue'
@@ -175,16 +178,25 @@ function HeroTraitSelect({ traits, value, onChange }: {
   traits: HeroTrait[]; value: string | null; onChange: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const modeledOnly = useUiPrefs(s => s.modeledOnly)
+  const toggleModeledOnly = useUiPrefs(s => s.toggleModeledOnly)
+  const heroTraitSort = useUiPrefs(s => s.heroTraitSort)
+  const setHeroTraitSort = useUiPrefs(s => s.setHeroTraitSort)
   const groups = useMemo(() => {
-    const by = groupByHero(traits)
+    // Never hide the CURRENTLY SELECTED trait behind the "Modeled only" filter — it's already
+    // equipped, so hiding it from the list would just make the dropdown confusing.
+    const visible = traits.filter(t => t.trait_id === value || passesModeledOnly(t.coverage, modeledOnly))
+    const by = groupByHero(visible)
     return Object.entries(by)
       .map(([hero, variants]) => ({
         hero,
-        variants: [...variants].sort((a, b) => traitOrder(a.trait_id) - traitOrder(b.trait_id)),
+        variants: [...variants].sort((a, b) => heroTraitSort === 'coverage'
+          ? (coverageRank(a.coverage) - coverageRank(b.coverage) || traitOrder(a.trait_id) - traitOrder(b.trait_id))
+          : traitOrder(a.trait_id) - traitOrder(b.trait_id)),
         order: Math.min(...variants.map(v => traitOrder(v.trait_id))),
       }))
       .sort((a, b) => a.order - b.order)
-  }, [traits])
+  }, [traits, modeledOnly, heroTraitSort, value])
   const current = traits.find(t => t.trait_id === value) ?? null
   return (
     <div className="ht-dd">
@@ -193,12 +205,26 @@ function HeroTraitSelect({ traits, value, onChange }: {
         {current && traitSlang(current.trait_id) && (
           <span className="ht-dd-slang">{traitSlang(current.trait_id)}</span>
         )}
+        <CoverageBadge coverage={current?.coverage} detail={current?.coverage_detail} />
         <span className="ht-dd-caret">{open ? '▴' : '▾'}</span>
       </button>
       {open && (
         <>
           <div className="ht-dd-backdrop" onClick={() => setOpen(false)} />
           <div className="ht-dd-menu">
+            <div className="ht-dd-controls">
+              <select
+                className="ht-dd-sort-select"
+                value={heroTraitSort}
+                onChange={e => setHeroTraitSort(e.target.value as 'release' | 'coverage')}
+              >
+                <option value="release">Release order</option>
+                <option value="coverage">Coverage</option>
+              </select>
+              <label className="skill-modeled-only-label" title="Hide traits the engine doesn't model at all">
+                <input type="checkbox" checked={modeledOnly} onChange={toggleModeledOnly} /> Modeled only
+              </label>
+            </div>
             {groups.map(g => (
               <div key={g.hero} className="ht-dd-group">
                 <div className="ht-dd-group-label">{g.hero}</div>
@@ -208,6 +234,7 @@ function HeroTraitSelect({ traits, value, onChange }: {
                     onClick={() => { onChange(v.trait_id); setOpen(false) }}>
                     <span className="ht-dd-item-name">{v.variant_name}</span>
                     {traitSlang(v.trait_id) && <span className="ht-dd-slang">{traitSlang(v.trait_id)}</span>}
+                    <CoverageBadge coverage={v.coverage} detail={v.coverage_detail} />
                   </button>
                 ))}
               </div>

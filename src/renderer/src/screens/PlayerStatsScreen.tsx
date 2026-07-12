@@ -1445,7 +1445,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
       : (
         <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name}`} accent={AMBER}>
-          <div style={{ fontSize: 12, color: '#ff6b6b' }}>Skill calculation not yet supported.</div>
+          <div style={{ fontSize: 12, color: '#ff6b6b' }}>Not modeled — this skill isn't in the DPS engine yet (0 DPS).</div>
         </StatPanel>
       )
   }

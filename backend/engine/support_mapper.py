@@ -69,6 +69,10 @@ class StatContribution:
     amount: float
     text: str                 # unique pooling identity (support id + line); set by caller wrapper
     modeled: bool = True      # False = captured-but-inert (stored, no DPS effect yet)
+    confident: bool = True    # False = resolved only via mod_parser._resolve_gear_stat's low-confidence
+                               # ranked-overlap fallback (2026-07-12) — engine.coverage's strict classifier
+                               # excludes these; every other path (added-flat, conditional, capture) is
+                               # confident by construction (a real regex match, not word-overlap scoring).
 
 
 # Damage / general stat mapping is no longer table-driven here — map_line delegates to engine.mod_parser
@@ -182,10 +186,17 @@ def map_conditional_line(line: SupportLine, level: int, conds: dict | None) -> l
     has = lambda pat: re.search(pat, t) is not None       # glue-tolerant membership
     base = (_level_value(line, level)[:1] or [_last_number(line.text)])[0] / 100.0
 
-    if has(r"cursed\s*enem"):                                # Grudge — gated on enemy_cursed
+    # Guard (2026-07-12, thunder_core_lightning_lasso_noble false positive): "cursed enem"/"numbed enem" alone
+    # is not enough — Thunder Core's "...launches 1 additional bolt of lightning at Numbed enemies within 10m
+    # nearby..." mentions Numbed enemies purely as a TARGETING clause for a bolt-count mechanic, not a damage
+    # bonus, yet cleared the bare substring check below and got misread as Electric Punishment's own per-stack
+    # damage line. Require the line actually contains "additional damage" (Grudge's/Electric Punishment's own
+    # phrasing) before treating a cursed/numbed mention as one of THEIR damage bonuses — mirrors the Fervor
+    # branch's pre-existing `additional\s*damage` guard below, applied consistently to its sibling branches.
+    if has(r"cursed\s*enem") and has(r"additional\s*damage"):    # Grudge — gated on enemy_cursed
         return [StatContribution("dmg_additional", base, line.text)] if _cbool(conds, "enemy_cursed") else []
 
-    if has(r"numbed\s*enem"):                                # Electric Punishment — flat + per numbed stack
+    if has(r"numbed\s*enem") and has(r"additional\s*damage"):    # Electric Punishment — flat + per numbed stack
         stacks = _cnum(conds, "numbed_stacks")
         if stacks <= 0 and not _cbool(conds, "enemy_numbed"):
             return []
@@ -289,10 +300,12 @@ def map_via_parser(line: SupportLine, level: int) -> list[StatContribution]:
         if not vals:
             return []
         v = vals[0]
-        return [StatContribution(d["stat_key"], v / 100.0 if _stat_is_pct(d["stat_key"]) else v, line.text)
+        return [StatContribution(d["stat_key"], v / 100.0 if _stat_is_pct(d["stat_key"]) else v, line.text,
+                                  confident=d.get("confident", True))
                 for d in parsed]
     # Non-scaling line: the text carries the literal value, already pool/type-correct from the parser.
-    return [StatContribution(d["stat_key"], d["amount"], line.text) for d in parsed]
+    return [StatContribution(d["stat_key"], d["amount"], line.text, confident=d.get("confident", True))
+            for d in parsed]
 
 
 def map_line(line: SupportLine, level: int, cat: str | None = None,

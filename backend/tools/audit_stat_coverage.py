@@ -55,7 +55,7 @@ def _resolve_craft_affix(raw_text: str) -> bool:
         return True
     if ne in _EXPRESSION_STAT_OVERRIDES:
         return True
-    stat_key, _ = _resolve_gear_stat(raw_text)
+    stat_key, _unit, _conf = _resolve_gear_stat(raw_text)
     return stat_key is not None
 
 

@@ -9,6 +9,9 @@
 ### Hero traits
 - **Selena's SS13 hero trait "Dance of the Deep"** is now selectable (tree + node text). Its damage/mechanics are **not yet modeled** — too many unknown mechanics (Crimson Tide, Dance Step/Eternal Sleep, Crimson Shade summons, Ominous Curse, Terra Charge, Catalyst: Ground) to model accurately before SS13's in-game data is available. Selecting it has no effect on computed stats yet; tracked in `data/verification/dance-of-the-deep.json`.
 
+### Internal / docs
+- Filed 5 tracked-not-fixed limitations surfaced while building the DPS-coverage audit (`backend/engine/coverage.py`) to `docs/BACKLOG.md` §8: tooltip-suppression risk to coverage's "modeled" signal, a real (separate) live-engine bug in `support_mapper._strip_support_target` that drops clauses 2+ on supports like `fragile_resurrection`, a hand-maintained hero-trait advanced-pick mirror with no drift guard, an engine→server layering violation, and a `**kwargs` loophole in the build-gated-param detector. Cross-linked in `data/verification/restoration-subsystem.json` and `data/verification/activation-mediums.json`.
+
 ### Fixes
 - **"Cannot inflict Numbed"** no longer overrides a manual Numbed toggle — it now only suppresses the engine's automatic application, matching how Frostbite already behaves. (Only affects builds with both a manual Numbed toggle and a "cannot inflict Numbed" source active.)
 - Importing a malformed or too-new build code now shows a clear error message instead of failing silently or crashing.

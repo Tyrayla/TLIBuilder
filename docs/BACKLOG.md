@@ -427,6 +427,49 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   by its declared metadata instead of by name-matching. Latent risk only — no known incorrect behavior today for
   the next DoT type (cold/lightning/physical) that ships.
 
+## 8. DPS-coverage audit (`backend/engine/coverage.py`) — known limitations (owner-approved, 2026-07-12)
+The build-independent "is this entity DPS-modeled" roll-up (Axis A: skill/trait/gear `'full'`/`'partial'`/`'none'`,
+distinct from Axis B's per-build `consumed_stats`) shipped 2026-07-12. These are tracked-not-fixed decisions made
+while building it — see `data/verification` cross-links below where the item touches a modeled mechanic.
+1. **Coverage inherits display-tooltip line-suppression (systemic).** `coverage.py`'s `_reduce_tooltip_lines`
+   derives "modeled" from the display tooltip's per-line `badge_text`/`coverage` fields, which intentionally
+   suppress/blank lines in several places (guarded supports, activation mediums) for legitimate display reasons.
+   That suppression can hide a genuinely-unmodeled mechanic from the coverage audit, risking a `'full'` overclaim.
+   A coverage-local carve-out was added for activation mediums (see `data/verification/activation-mediums.json`)
+   so this particular case doesn't currently misfire, but the robust fix is for coverage to derive `'full'` from
+   a POSITIVE per-line wiring signal rather than trusting the tooltip's suppression. This is the reason a few edge
+   cases needed targeted carve-outs instead of a single general rule.
+2. **`support_mapper._strip_support_target` truncates glued clauses in the LIVE engine — real, pre-existing DPS
+   bug, not just a coverage artifact.** Its regex `r'...for/of the supported skill\b.*$'` consumes to end-of-
+   string at the FIRST match, so on any support whose clauses each independently end in "...the supported skill"
+   (e.g. `fragile_resurrection`: `-26% Restoration Duration for the supported skill` followed by `+10% additional
+   damage taken during the supported skill's restoration effect`), clauses 2+ are silently dropped from the
+   actual DPS/stat computation, not merely from coverage's view of it. `coverage.py` works around this with its
+   own clause splitter (`_split_coverage_clauses`, mirroring the truncation boundary) so the AUDIT sees every
+   clause independently — but the live engine still only ever applies the first. Needs its own fix + review
+   (blast radius: `support_lines._FLAT_SPLIT` calibration, since that splitter's `(?<!skill)` guard is what
+   produces the glued blob in the first place). Cross-link: `data/verification/restoration-subsystem.json`
+   (notes the Restoration-effect/duration formula this bug sits inside).
+3. **`coverage.py`'s `_ALL_ADVANCED_PICKS` is a hand-maintained mirror** of every hero-trait module's advanced-
+   pick names (used to probe `trait_coverage` at a maximal, pick-everything state), with no drift-guard test. A
+   future hero-trait module that adds a new advanced pick without also updating this tuple would under-probe
+   that trait's coverage (a pick-gated warning/NYI branch could go unseen). Add a drift-guard test mirroring
+   `test_consumable_universe.py`'s aggregator scan, or derive the tuple programmatically from the hero_traits
+   modules instead of hand-copying their literal pick-name lists.
+4. **Engine→server layering violation.** `backend/engine/coverage.py` imports resolver helpers
+   (`_resolve_affix`, `_affix_stat_keys`, `_resolve_gear_affix_clauses`, `_resolve_skill_line_keys`) FROM
+   `backend/server.py` via lazy in-function imports, specifically to dodge a circular import (`server.py` also
+   imports `engine.coverage`). Architecturally backwards — engine code shouldn't reach up into the server layer.
+   Relocate those resolvers into an engine-level module (or a shared resolver module both `server.py` and
+   `coverage.py` import from) so the dependency points the right direction.
+5. **`build_gated_status_params` `**kwargs` loophole.** The trait-coverage build-gated-param detector
+   (`hero_traits.build_gated_status_params`) uses `inspect.signature` on each trait's `status_lines` and excludes
+   `VAR_KEYWORD` params from the "this trait reads build-specific context" check. A future trait module that
+   reads build-specific state via `**kw.get('main_skill_tags')` instead of a named parameter would slip past the
+   detector undetected, letting `trait_coverage` claim `'full'` for a trait that actually has an unseen build-
+   gated warning branch. Add a lint/test guard (e.g. flag any `status_lines` signature that accepts `**kwargs`
+   at all, forcing an explicit named-param audit).
+
 ## 7. Infra / hosting
 - **Web-hosted version — SHIPPED** (see the top of this doc). Open follow-ups: redeploy automation (currently
   manual `wrangler`/drag-drop of `dist-web/` + `web-data/`); revisit the optional pure-compute extraction below if

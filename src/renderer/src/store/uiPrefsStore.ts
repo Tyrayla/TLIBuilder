@@ -6,7 +6,9 @@ import { persist } from 'zustand/middleware'
 // How a catalog list is ordered. Persisted so it sticks across sessions. ACTIVE skills always sort
 // alphabetically (a per-skill DPS sort would be inaccurate — each is a different main skill); PASSIVE skills
 // can sort by DPS contribution because they all buff the same equipped build, so the delta is comparable.
-export type CatalogSort = 'alpha' | 'dps'
+// 'coverage' (build-INDEPENDENT — Full/Partial/None from the engine's coverage roll-up) is valid everywhere,
+// active skills included, since it doesn't depend on the current build.
+export type CatalogSort = 'alpha' | 'dps' | 'coverage'
 
 interface UiPrefsStore {
   // Show the per-modifier "Unused" / "Unrecognized" engine-coverage badges. Default ON.
@@ -18,6 +20,22 @@ interface UiPrefsStore {
   // Passive-skill catalog sort order (same options as supports; only used on passive slots).
   passiveSort: CatalogSort
   setPassiveSort: (sort: CatalogSort) => void
+  // Active-skill catalog sort order (alpha/coverage only — no build-specific DPS delta across different
+  // main skills makes sense here).
+  activeSkillSort: CatalogSort
+  setActiveSkillSort: (sort: CatalogSort) => void
+  // Legendary-gear catalog sort order (alpha/coverage; no DPS-delta sort exists for gear picks).
+  legendarySort: CatalogSort
+  setLegendarySort: (sort: CatalogSort) => void
+  // Hero-trait dropdown sort — 'release' (default, current release-order grouping) or 'coverage'
+  // (re-orders variants within each hero group by DPS-modeling coverage).
+  heroTraitSort: 'release' | 'coverage'
+  setHeroTraitSort: (sort: 'release' | 'coverage') => void
+  // Global "Modeled only" filter — hides any skill/support/hero-trait/legendary whose `coverage` is
+  // 'none' (build-independent: the engine doesn't model it at all). Shared across the catalogs/dropdown
+  // that expose it. Default OFF — nothing is hidden until the user opts in.
+  modeledOnly: boolean
+  toggleModeledOnly: () => void
   // Stats screen: which skill slot is being viewed. Persisted so it sticks when navigating away and back
   // (a new/empty build falls back to the first populated slot via the screen's effect).
   statsSelectedSlot: number
@@ -59,6 +77,14 @@ export const useUiPrefs = create<UiPrefsStore>()(
       setSupportSort: (supportSort) => set({ supportSort }),
       passiveSort: 'alpha',
       setPassiveSort: (passiveSort) => set({ passiveSort }),
+      activeSkillSort: 'alpha',
+      setActiveSkillSort: (activeSkillSort) => set({ activeSkillSort }),
+      legendarySort: 'alpha',
+      setLegendarySort: (legendarySort) => set({ legendarySort }),
+      heroTraitSort: 'release',
+      setHeroTraitSort: (heroTraitSort) => set({ heroTraitSort }),
+      modeledOnly: false,
+      toggleModeledOnly: () => set((s) => ({ modeledOnly: !s.modeledOnly })),
       statsSelectedSlot: 1,
       setStatsSelectedSlot: (statsSelectedSlot) => set({ statsSelectedSlot }),
       collapsiblePanels: false,

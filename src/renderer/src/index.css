@@ -118,6 +118,30 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   background: rgba(63,201,176,0.12); border-color: rgba(63,201,176,0.34);
 }
 
+/* Item-level DPS-coverage pill (Full/Partial/None) — a THIRD axis from the per-mod .nyi-tag and the
+   Verification-DB .verif-badge, so it's deliberately a SOLID-filled rounded-full chip (not outlined/tinted)
+   to read as visually distinct at a glance. */
+.coverage-badge {
+  display: inline-block; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+  border-radius: 999px; padding: 1px 6px; margin-left: 6px; vertical-align: middle;
+  white-space: nowrap; cursor: default;
+}
+.coverage-badge--partial { cursor: help; }
+.coverage-badge-tooltip { max-width: 280px; font-size: 11px; line-height: 1.4; padding: 8px 10px; }
+.coverage-badge-tooltip-title { color: #e0a83a; font-weight: 700; margin-bottom: 4px; }
+.coverage-badge-tooltip ul { margin: 0; padding-left: 16px; color: #cfd6e6; }
+
+/* "?" trigger for CoverageLegend — a small round outline button, unobtrusive next to badge clusters. */
+.coverage-legend-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 999px; margin-left: 6px;
+  font-size: 10px; font-weight: 700; line-height: 1; color: #9aa3ad;
+  background: rgba(154,163,173,0.10); border: 1px solid rgba(154,163,173,0.35);
+  cursor: pointer; vertical-align: middle; padding: 0;
+}
+.coverage-legend-btn:hover { color: #cfd6e6; border-color: rgba(207,214,230,0.5); }
+.coverage-legend-body { max-width: 340px; padding: 10px 12px; }
+
 .btn-back {
   background: transparent;
   color: var(--fg);
@@ -2833,10 +2857,13 @@ span.gear-affix-label {
   padding: 8px 10px 6px;
   border-bottom: 1px solid #1a1a3a;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .gear-craft-create-btn {
-  width: 100%;
+  flex: 1;
 }
 .gear-craft-create-btn.active {
   background: #3a1a6a;
@@ -3200,9 +3227,15 @@ span.gear-affix-label {
 .skill-slot-skill-name {
   font-size: 11px;
   color: var(--gold);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.skill-slot-skill-name-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .skill-slot-empty { font-size: 11px; color: #2a2a44; }
@@ -3413,6 +3446,14 @@ span.gear-affix-label {
 .skill-sort-select:focus { border-color: #5555aa; }
 .skill-sort-select option { background: #0e0e1e; color: var(--fg); }
 
+/* "Modeled only" filter checkbox, shared inline with the sort row (skill/support catalogs) and the
+   legendary-gear search bar. Hides coverage==='none' entries. */
+.skill-modeled-only-label {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+  color: #9aa3ad; font-size: 11px; white-space: nowrap; cursor: pointer; user-select: none;
+}
+.skill-modeled-only-label input { cursor: pointer; }
+
 .skill-catalog-list {
   flex: 1;
   overflow-y: auto;
@@ -3600,6 +3641,16 @@ span.gear-affix-label {
 .ht-dd-item.active { color: #ffffff; font-weight: 600; background: #1a1040; }
 .ht-dd-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ht-dd-item .ht-dd-slang { margin-left: auto; }
+.ht-dd-item .coverage-badge:last-child { margin-left: auto; }
+.ht-dd-controls {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px 8px; margin-bottom: 2px; border-bottom: 1px solid #24244a;
+}
+.ht-dd-sort-select {
+  flex: 1; background: #0a0a18; border: 1px solid #2a2a4a; border-radius: 4px;
+  color: var(--fg); font-size: 11px; padding: 3px 6px; outline: none; cursor: pointer;
+}
+.ht-dd-sort-select option { background: #0e0e1e; color: var(--fg); }
 
 .hero-trait-body {
   flex: 1;
@@ -3728,6 +3779,13 @@ span.gear-affix-label {
   align-items: flex-start;
   flex: 1;
   min-width: 0;
+}
+/* Explicit not-modeled callout above the tree — coverage 'none' (no registered hero_traits engine
+   module for this trait): selection/allocation only, no DPS contribution. */
+.htt-not-modeled-banner {
+  font-size: 12px; font-weight: 600; color: #e0a83a;
+  background: rgba(224,168,58,0.10); border: 1px solid rgba(224,168,58,0.34);
+  border-radius: 4px; padding: 6px 10px; margin-bottom: 12px;
 }
 .htt-memory-rail {
   display: flex;

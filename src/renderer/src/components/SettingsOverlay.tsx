@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { IS_WEB } from '../api/client'
 import { useUiPrefs, UI_SCALE_MIN, UI_SCALE_MAX } from '../store/uiPrefsStore'
+import { CoverageLegend } from './CoverageLegend'
 
 type Channel = 'stable' | 'nightly'
 
@@ -95,7 +96,7 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
             </div>
             <div className="settings-row">
               <div className="settings-row-label">
-                <span>NYI flags</span>
+                <span>NYI flags <CoverageLegend /></span>
                 <span className="settings-row-hint">Show badges marking modifiers the engine doesn't recognize or use for this build.</span>
               </div>
               <div className="settings-segmented">

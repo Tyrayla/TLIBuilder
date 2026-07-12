@@ -1530,6 +1530,8 @@ def import_legendary_gear(req: ImportLegendaryGearRequest):
         "items": items,
     }
     season_manager.save_legendary_gear(req.season_name, stored)
+    from engine.coverage import invalidate_legendary_coverage_cache
+    invalidate_legendary_coverage_cache()
     return {"ok": True, "count": len(items), "set_name": stored["set_name"]}
 
 
@@ -1549,6 +1551,8 @@ def import_crawler_legendary_gear_endpoint(req: ImportCrawlerLegendaryGearReques
         "item_count": len(items),
         "items": items,
     })
+    from engine.coverage import invalidate_legendary_coverage_cache
+    invalidate_legendary_coverage_cache()
     return {"ok": True, "count": len(items)}
 
 
@@ -1639,6 +1643,14 @@ def get_skills():
                           for d in (s.get("description_lines") or [])],
                 "modeled_rolls": [],
             }
+        # Build-independent "is this DPS-modeled" roll-up (Axis A) — additive fields, never overclaims 'full'.
+        # Reuses the tooltip just built above (no recompute). A computation failure falls back to the
+        # conservative 'none' rather than risk a false 'full'.
+        try:
+            from engine.coverage import skill_coverage
+            out["coverage"], out["coverage_detail"] = skill_coverage(s, tooltip=out["tooltip"])
+        except Exception:
+            out["coverage"], out["coverage_detail"] = "none", []
         skills.append(out)
     return {"season": active, "skills": skills}
 
@@ -1719,7 +1731,16 @@ def get_hero_traits():
     data = season_manager.load_hero_traits(active)
     if not data:
         return {"season": active, "traits": []}
-    return {"season": active, "traits": data.get("traits", [])}
+    from engine.coverage import trait_coverage
+    traits = []
+    for t in data.get("traits", []):
+        out = dict(t)
+        try:
+            out["coverage"], out["coverage_detail"] = trait_coverage(t.get("trait_id"))
+        except Exception:
+            out["coverage"], out["coverage_detail"] = "none", []
+        traits.append(out)
+    return {"season": active, "traits": traits}
 
 
 # ── Gear affix stat resolver ───────────────────────────────────────────────────
@@ -2385,7 +2406,16 @@ def get_legendary_gear_index():
     data = season_manager.load_legendary_gear_index(active)
     if not data:
         return {"season": active, "items": []}
-    return {"season": active, "items": data.get("items", [])}
+    from engine.coverage import legendary_coverage_for_season
+    items = []
+    for it in data.get("items", []):
+        out = dict(it)
+        try:
+            out["coverage"], out["coverage_detail"] = legendary_coverage_for_season(active, it.get("item_id"))
+        except Exception:
+            out["coverage"], out["coverage_detail"] = "none", []
+        items.append(out)
+    return {"season": active, "items": items}
 
 
 def _resolve_gear_affix_clauses(text: str) -> list[dict]:
@@ -2471,7 +2501,7 @@ def _resolve_affix(affix: dict) -> dict:
         return {**affix, "stat_key": None, "stat_keys": stat_keys,
                 "is_range_split": is_range_split, "unit": unit, "condition_expr": condition_expr}
     # 4. Expression or fuzzy fallback
-    stat_key, unit = _resolve_gear_stat(raw_text)
+    stat_key, unit, _conf = _resolve_gear_stat(raw_text)
     return {**affix, "stat_key": stat_key, "unit": unit, "condition_expr": condition_expr}
 
 
@@ -2763,20 +2793,35 @@ def _affix_stat_keys(resolved: dict) -> list[str]:
     return out
 
 
-def _resolve_skill_line_keys(text: str) -> list[str]:
+def _resolve_skill_line_keys(text: str, item_id: str | None = None, strict: bool = False) -> list[str]:
     """Stat key(s) a structured tooltip line (skill/support, source='skill') resolves to — for badges.
     Tries the support mapper (handles "for the supported skill" damage/capture/conditional lines, with a
     permissive condition set so gated lines still resolve) and falls back to the unified node resolver
-    for general skill stat phrasing. Empty list → the badge shows 'Unrecognized (NYI)'."""
+    for general skill stat phrasing. Empty list → the badge shows 'Unrecognized (NYI)'.
+
+    `item_id`, when given, scopes the bespoke check to that item's OWN specs (see
+    `skill_effects.resolve_line_keys`) — pass it whenever the caller knows which item this line belongs
+    to (e.g. `engine.coverage.skill_coverage`) so a phrase collision with an unrelated bespoke support
+    can't misattribute a stat key. Defaults to `None` (the prior unscoped, global-search behavior) so
+    every existing caller (the /api/map-modifiers endpoint, which has no per-item text, and the badge
+    regression tests) is unaffected.
+
+    `strict` (2026-07-12, coverage classifier only — default False so badges/`/api/map-modifiers` are
+    UNCHANGED): only accept the generic-fallback resolution's keys when they carry NO low-confidence
+    `mod_parser._resolve_gear_stat` fuzzy-overlap hit (see `resolve_effect_text_keys_strict`'s docstring).
+    `map_line`'s bespoke/capture/conditional branches are confident by construction (real regex matches,
+    not word-overlap scoring) EXCEPT its own `map_via_parser` tail, which shares the same fuzzy resolver —
+    filtered the same way via each `StatContribution.confident`. `engine.coverage.skill_coverage` passes
+    `strict=True`; nothing else should."""
     from engine.support_lines import SupportLine, _template
     from engine.support_mapper import map_line, _ADDED_FLAT_RE
-    from engine.node_resolver import resolve_effect_text_keys
+    from engine.node_resolver import resolve_effect_text_keys, resolve_effect_text_keys_strict
     from engine import skill_effects
     # Bespoke canvas-support lines (Howling Gale, Berserking Blade, …) are handled in engine.skill_effects, so
     # the generic mapper below deliberately skips them — without this they'd badge NYI despite being consumed.
     # A non-empty list = a stat line (badge classifies it); [] = a recognized behavioral line whose badge the
     # tooltip already suppresses (so it won't be queried here); None = not bespoke → fall through.
-    bespoke = skill_effects.resolve_line_keys(text)
+    bespoke = skill_effects.resolve_line_keys(text, item_id)
     if bespoke:
         return bespoke
     # Buff-grant lines ("Buffs grant +X% … to this skill") describe a granted buff the engine applies as a
@@ -2803,7 +2848,8 @@ def _resolve_skill_line_keys(text: str) -> list[str]:
                   "focus_blessings": 4, "ignite_stacks": 5, "ailment_type_count": 3,
                   "standing_still": True, "willpower_stacks": 6}
     line = SupportLine(text=text, template=tmpl, scaling=False)
-    keys = [c.stat_key for c in map_line(line, 20, None, permissive)]   # cat=None: skip added-flat (handled above)
+    contribs = map_line(line, 20, None, permissive)   # cat=None: skip added-flat (handled above)
+    keys = [c.stat_key for c in contribs if (c.confident or not strict)]
     if keys:
         return keys
     # Fallback: the unified node resolver maps the stat phrasing itself via stat_meta (which already honors the
@@ -2812,7 +2858,8 @@ def _resolve_skill_line_keys(text: str) -> list[str]:
     # map_line doesn't cover, with NO per-stat table — the parser decides the exact stat from the bare phrasing.
     bare = re.sub(r'^\s*the supported skill\s+', '', text, flags=re.I)
     bare = re.sub(r'\s+(?:for|of)\s+(?:the supported|this) skill\b.*$', '', bare, flags=re.I).strip()
-    return resolve_effect_text_keys(bare, _parse_custom_mod_text, _translate_condition_expr)
+    resolver = resolve_effect_text_keys_strict if strict else resolve_effect_text_keys
+    return resolver(bare, _parse_custom_mod_text, _translate_condition_expr)
 
 
 @app.post("/api/map-modifiers")

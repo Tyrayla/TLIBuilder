@@ -266,28 +266,41 @@ def _normalize_for_custom_resolve(text: str) -> str:
     return re.sub(r'\s+', ' ', _CUSTOM_VERB_RE.sub('', text)).strip()
 
 
-def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
-    """Return (stat_key, unit) for a gear affix, or (None, '') if unresolved.
+def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str, bool]:
+    """Return (stat_key, unit, confident) for a gear affix, or (None, '', True) if unresolved.
 
     Pool-strict: an "additional" modifier only matches an `additional` stat, and
     "increased"/"reduced" only an `increased` stat. If the text carries a pool qualifier but no
     same-pool stat matches, the affix is left UNRESOLVED rather than silently placed in the wrong pool.
+
+    `confident` (2026-07-12, coverage strictness): True for an exact `_EXPRESSION_STAT_OVERRIDES` hit
+    (a curated literal-phrase mapping) or a ranked word-overlap match where `extra` is empty — i.e. the
+    query has NO leftover words beyond the matched stat's own display name, so the input text is
+    essentially just that stat's name (a well-formed "+N% <Stat Name>" affix/modifier phrase). False
+    when the match only cleared the LOWER (0.7-with-`extra`) bar — the query carries meaningful words
+    the matched display name doesn't, meaning the source text is bigger than a clean stat phrase (a
+    descriptive/mechanic sentence that merely shares a token or two with a stat name, e.g. a "1
+    additional bolt of lightning" mechanic clause spuriously overlapping "dmg_additional" on the word
+    "additional"). This is a data-driven signal already computed for the accept-threshold choice above —
+    exposed here for `engine.coverage`'s strict classifier, NOT used to change gear/talent/spirit
+    resolution itself (every existing caller still gets its stat_key/unit as before; the fuzzy resolver
+    is unchanged and still the primary GEAR affix path — only a NEW confidence bit is added).
     """
     text = _GEAR_COND_RE.sub("", raw_text)
     norm_expr = _norm_expr(text)
     if norm_expr in _EXPRESSION_STAT_OVERRIDES:
         stat_key = _EXPRESSION_STAT_OVERRIDES[norm_expr]
         unit = "%" if "%" in raw_text else ""
-        return stat_key, unit
+        return stat_key, unit, True
     query = _gear_normalize(text)
     if not query:
-        return None, ""
+        return None, "", True
     # Detect the pool qualifier, then drop it from the query so it neither pollutes the word overlap
     # nor is required to appear in the (qualifier-free) display name.
     want_pool = next((_POOL_QUALIFIERS[w] for w in query if w in _POOL_QUALIFIERS), None)
     query = {w for w in query if w not in _POOL_QUALIFIERS}
     if not query:
-        return None, ""
+        return None, "", True
     is_pct = "%" in raw_text
     scores = []
     for stat_val, dn, dn_words, unit, mtype in _get_gear_candidates():
@@ -298,19 +311,20 @@ def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
             continue
         scores.append((overlap / len(query | dn_words), stat_val, dn, unit))
     if not scores:
-        return None, ""
+        return None, "", True
     scores.sort(key=lambda x: x[0], reverse=True)
     best_score, best_stat, best_dn, best_unit = scores[0]
     extra = query - _gear_normalize(best_dn)
     if best_score < (0.7 if extra else 0.5):
-        return None, ""
+        return None, "", True
+    confident = not extra
     tied = [s for s in scores if s[0] == best_score]
     if len(tied) == 1:
-        return best_stat, best_unit
+        return best_stat, best_unit, confident
     # Break ties within the matched pool (additional → _additional; else _inc for %, _flat otherwise).
     suffix = "_additional" if want_pool == "additional" else ("_inc" if is_pct else "_flat")
     pref = [s for s in tied if s[1].endswith(suffix)]
-    return (pref[0][1], pref[0][3]) if len(pref) == 1 else (None, "")
+    return (pref[0][1], pref[0][3], confident) if len(pref) == 1 else (None, "", True)
 
 
 def _parse_custom_mod_text(text: str) -> list[dict]:
@@ -1070,9 +1084,9 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     # value-stripped name; accept ONLY a *_flat stat so a stray "+N" can never land in a % pool.
     m = re.match(r'^(.+?)\s+([+\-]\d+(?:\.\d+)?)\s*$', t)
     if m and '%' not in t:
-        stat_key, _u = _resolve_gear_stat(m.group(1).strip())
+        stat_key, _u, _conf = _resolve_gear_stat(m.group(1).strip())
         if stat_key and stat_key.endswith('_flat'):
-            return [{"stat_key": stat_key, "amount": float(m.group(2)), "text": t}]
+            return [{"stat_key": stat_key, "amount": float(m.group(2)), "text": t, "confident": _conf}]
 
     # "Adds N-N <Type> Damage to Attacks/Spells/Attacks and Spells/Minions" → flat added damage min+max.
     m = _CUSTOM_ADDS_RE.match(t)
@@ -1094,22 +1108,22 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         val_min = float(m.group(1))
         val_max = float(m.group(2))
         desc = _normalize_for_custom_resolve(m.group(3).strip())
-        stat_key, _unit = _resolve_gear_stat(desc)
+        stat_key, _unit, _conf = _resolve_gear_stat(desc)
         if stat_key:
             if stat_key.endswith("_min"):
                 base = stat_key[:-4]
                 return [
-                    {"stat_key": base + "_min", "amount": val_min, "text": t},
-                    {"stat_key": base + "_max", "amount": val_max, "text": t},
+                    {"stat_key": base + "_min", "amount": val_min, "text": t, "confident": _conf},
+                    {"stat_key": base + "_max", "amount": val_max, "text": t, "confident": _conf},
                 ]
             if stat_key.endswith("_max"):
                 base = stat_key[:-4]
                 return [
-                    {"stat_key": base + "_min", "amount": val_min, "text": t},
-                    {"stat_key": base + "_max", "amount": val_max, "text": t},
+                    {"stat_key": base + "_min", "amount": val_min, "text": t, "confident": _conf},
+                    {"stat_key": base + "_max", "amount": val_max, "text": t, "confident": _conf},
                 ]
             avg = (val_min + val_max) / 2.0
-            return [{"stat_key": stat_key, "amount": avg, "text": t}]
+            return [{"stat_key": stat_key, "amount": avg, "text": t, "confident": _conf}]
         return []
 
     # Single value: "10% additional attack damage" or "500 attack crit rating flat"
@@ -1118,9 +1132,9 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         val = float(m.group(1))
         is_pct = bool(m.group(2))
         normalized = _normalize_for_custom_resolve(t)
-        stat_key, _unit = _resolve_gear_stat(normalized)
+        stat_key, _unit, _conf = _resolve_gear_stat(normalized)
         if stat_key:
             amount = val / 100.0 if is_pct else val
-            return [{"stat_key": stat_key, "amount": amount, "text": t}]
+            return [{"stat_key": stat_key, "amount": amount, "text": t, "confident": _conf}]
 
     return []

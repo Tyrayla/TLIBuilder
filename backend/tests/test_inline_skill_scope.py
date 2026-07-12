@@ -24,7 +24,8 @@ def test_melee_attack_speed_resolves_scoped():
 def test_typed_damage_forms_unaffected():
     # These resolve on the FIRST (no-peel) try → must keep their typed stat + no scope.
     assert _one("+30 % additional Spell Damage") == {
-        "stat_key": "spell_dmg_additional", "amount": 0.3, "text": "+30 % additional Spell Damage"}
+        "stat_key": "spell_dmg_additional", "amount": 0.3, "text": "+30 % additional Spell Damage",
+        "confident": True}
     assert _one("+33 % additional Area Damage")["stat_key"] == "area_dmg_additional"
     assert _one("+30 % additional Channeled Skill Damage")["stat_key"] == "channeled_dmg_additional"
     assert "scope" not in _one("8% Attack Speed")  # plain attack speed, no inline scope

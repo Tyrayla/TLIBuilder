@@ -25,6 +25,8 @@ import { buildEngineStatsPayload, type BuildState } from '../utils/statsPayload'
 import { characterLevelFrom } from '../utils/conditions'
 import { modeledRolledLines } from '../utils/supportRolls'
 import { dec } from '../utils/num'
+import { CoverageBadge } from '../components/CoverageBadge'
+import { coverageRank, passesModeledOnly } from '../utils/coverage'
 
 // djb2 string hash → short base36. Used to fingerprint the build slice the support-pick deltas depend on.
 function hashStr(str: string): string {
@@ -288,6 +290,10 @@ export default function SkillsScreen(_props: Props) {
   const setSupportSort = useUiPrefs(s => s.setSupportSort)
   const passiveSort = useUiPrefs(s => s.passiveSort)
   const setPassiveSort = useUiPrefs(s => s.setPassiveSort)
+  const activeSkillSort = useUiPrefs(s => s.activeSkillSort)
+  const setActiveSkillSort = useUiPrefs(s => s.setActiveSkillSort)
+  const modeledOnly = useUiPrefs(s => s.modeledOnly)
+  const toggleModeledOnly = useUiPrefs(s => s.toggleModeledOnly)
   const [fetchedItems, setFetchedItems] = useState<SkillItem[]>([])
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
   const [centerView, setCenterView] = useState<'catalog' | 'detail'>('catalog')
@@ -350,9 +356,10 @@ export default function SkillsScreen(_props: Props) {
         s.description_lines.some(l => l.toLowerCase().includes(q))
       )
     })()
+    const visible = matched.filter(s => passesModeledOnly(s.coverage, modeledOnly))
     // Skills always sort alphabetically (a per-skill DPS sort would be inaccurate).
-    return [...matched].sort((a, b) => a.name.localeCompare(b.name))
-  }, [allItems, focusedSlot, search, equippedSkills])
+    return [...visible].sort((a, b) => a.name.localeCompare(b.name))
+  }, [allItems, focusedSlot, search, equippedSkills, modeledOnly])
 
   const supportCatalogItems = useMemo(() => {
     if (focusedSlot === null || focusedSupportIdx === null || !focusedEquipped) return []
@@ -365,14 +372,16 @@ export default function SkillsScreen(_props: Props) {
       .filter(s => s.support_index !== focusedSupportIdx).map(s => skillFamily(s.item_id, knownIds)))
     const base = allItems.filter(s =>
       !occupiedFamilies.has(skillFamily(s.item_id, knownIds)) && isSupportCompatible(s, focusedEquipped, passive, focusedSupportIdx))
-    if (!supportSearch.trim()) return base
-    const q = supportSearch.toLowerCase()
-    return base.filter(s =>
-      s.name.toLowerCase().includes(q) ||
-      s.skill_tags.some(t => t.toLowerCase().includes(q)) ||
-      s.description_lines.some(l => l.toLowerCase().includes(q))
-    )
-  }, [allItems, focusedSlot, focusedSupportIdx, focusedEquipped, equippedSkills, supportSearch])
+    const matched = !supportSearch.trim() ? base : (() => {
+      const q = supportSearch.toLowerCase()
+      return base.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        s.skill_tags.some(t => t.toLowerCase().includes(q)) ||
+        s.description_lines.some(l => l.toLowerCase().includes(q))
+      )
+    })()
+    return matched.filter(s => passesModeledOnly(s.coverage, modeledOnly))
+  }, [allItems, focusedSlot, focusedSupportIdx, focusedEquipped, equippedSkills, supportSearch, modeledOnly])
 
   // Baseline signature FROZEN when the support panel opens (deps = focused slot/support only, NOT
   // buildVersion), capturing the current build incl. the equipped support at its open-time rolls. So
@@ -408,6 +417,10 @@ export default function SkillsScreen(_props: Props) {
   const sortedSupportCatalog = useMemo(() => {
     if (supportSort === 'alpha') {
       return [...supportCatalogItems].sort((a, b) => a.name.localeCompare(b.name))
+    }
+    if (supportSort === 'coverage') {
+      return [...supportCatalogItems].sort((a, b) =>
+        coverageRank(a.coverage) - coverageRank(b.coverage) || a.name.localeCompare(b.name))
     }
     const score = (i: number) => {
       const d = supportPickDeltas[i]
@@ -446,9 +459,16 @@ export default function SkillsScreen(_props: Props) {
   // different main skills); passive skills honor passiveSort (DPS contribution sinks unresolved/nyi).
   const sortedSkillCatalog = useMemo(() => {
     const isPassive = focusedSlot !== null && isPassiveSlot(focusedSlot)
-    if (!isPassive || passiveSort === 'alpha') {
+    const sortMode = isPassive ? passiveSort : activeSkillSort
+    if (sortMode === 'alpha') {
       return [...skillCatalogItems].sort((a, b) => a.name.localeCompare(b.name))
     }
+    if (sortMode === 'coverage') {
+      return [...skillCatalogItems].sort((a, b) =>
+        coverageRank(a.coverage) - coverageRank(b.coverage) || a.name.localeCompare(b.name))
+    }
+    // 'dps' — passive-only (active skills fall through to 'alpha'/'coverage' above; a per-skill DPS
+    // sort across different main skills is meaningless).
     const score = (i: number) => {
       const d = passivePickDeltas[i]
       return d && d.state === 'value' ? d.absolute : Number.NEGATIVE_INFINITY
@@ -456,7 +476,7 @@ export default function SkillsScreen(_props: Props) {
     return skillCatalogItems.map((it, i) => ({ it, i }))
       .sort((a, b) => score(b.i) - score(a.i))
       .map(x => x.it)
-  }, [skillCatalogItems, passivePickDeltas, passiveSort, focusedSlot])
+  }, [skillCatalogItems, passivePickDeltas, passiveSort, activeSkillSort, focusedSlot])
 
   const selectedSkillItem  = allItems.find(i => i.item_id === selectedSkillId)  ?? null
   const selectedSupportItem = allItems.find(i => i.item_id === selectedSupportId) ?? null
@@ -606,7 +626,11 @@ export default function SkillsScreen(_props: Props) {
             <div className="skill-slot-info">
               <span className="skill-slot-label">{SLOT_LABEL[slot]}</span>
               {eq
-                ? <span className="skill-slot-skill-name">{eq.name}</span>
+                ? <span className="skill-slot-skill-name">
+                    <span className="skill-slot-skill-name-text">{eq.name}</span>
+                    <CoverageBadge coverage={allItems.find(i => i.item_id === eq.item_id)?.coverage}
+                                   detail={allItems.find(i => i.item_id === eq.item_id)?.coverage_detail} />
+                  </span>
                 : <span className="skill-slot-empty">Empty</span>}
             </div>
             {eq && (
@@ -656,20 +680,22 @@ export default function SkillsScreen(_props: Props) {
             />
             {search && <button className="skill-search-clear" onClick={() => setSearch('')}>×</button>}
           </div>
-          {isPassive && (
-            <div className="skill-sort-row">
-              <span className="skill-sort-label">Sort</span>
-              <select
-                className="skill-sort-select"
-                value={passiveSort}
-                onChange={e => setPassiveSort(e.target.value as 'alpha' | 'dps')}
-              >
-                <option value="alpha">Alphabetical</option>
-                <option value="dps">DPS Contribution</option>
-              </select>
-              <RefreshButton onClick={() => setRefreshNonce(n => n + 1)} />
-            </div>
-          )}
+          <div className="skill-sort-row">
+            <span className="skill-sort-label">Sort</span>
+            <select
+              className="skill-sort-select"
+              value={isPassive ? passiveSort : activeSkillSort}
+              onChange={e => (isPassive ? setPassiveSort : setActiveSkillSort)(e.target.value as 'alpha' | 'dps' | 'coverage')}
+            >
+              <option value="alpha">Alphabetical</option>
+              {isPassive && <option value="dps">DPS Contribution</option>}
+              <option value="coverage">Coverage</option>
+            </select>
+            {isPassive && <RefreshButton onClick={() => setRefreshNonce(n => n + 1)} />}
+            <label className="skill-modeled-only-label" title="Hide skills the engine doesn't model at all">
+              <input type="checkbox" checked={modeledOnly} onChange={toggleModeledOnly} /> Modeled only
+            </label>
+          </div>
           <div className="skill-catalog-list">
             {sortedSkillCatalog.length === 0 && (
               <div className="skill-catalog-empty">No skills match your search</div>
@@ -686,7 +712,10 @@ export default function SkillsScreen(_props: Props) {
                       else setPendingLevel(focusedEquipped.level)
                     }}
                   >
-                    <span className="skill-catalog-name">{item.name}</span>
+                    <span className="skill-catalog-name">
+                      {item.name}
+                      <CoverageBadge coverage={item.coverage} detail={item.coverage_detail} />
+                    </span>
                     {isPassive && deltaInline(passiveDeltaById[item.item_id])}
                     <div className="skill-catalog-tags">
                       {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
@@ -1066,12 +1095,16 @@ export default function SkillsScreen(_props: Props) {
           <select
             className="skill-sort-select"
             value={supportSort}
-            onChange={e => setSupportSort(e.target.value as 'alpha' | 'dps')}
+            onChange={e => setSupportSort(e.target.value as 'alpha' | 'dps' | 'coverage')}
           >
             <option value="alpha">Alphabetical</option>
             <option value="dps">DPS Contribution</option>
+            <option value="coverage">Coverage</option>
           </select>
           <RefreshButton onClick={() => setRefreshNonce(n => n + 1)} />
+          <label className="skill-modeled-only-label" title="Hide supports the engine doesn't model at all">
+            <input type="checkbox" checked={modeledOnly} onChange={toggleModeledOnly} /> Modeled only
+          </label>
         </div>
         <div className="skill-catalog-list" style={{ flex: 1 }}>
           {supportCatalogItems.length === 0 && (
@@ -1085,7 +1118,10 @@ export default function SkillsScreen(_props: Props) {
                   className={`skill-catalog-item${selectedSupportId === item.item_id ? ' selected' : ''}`}
                   onClick={() => setSelectedSupportId(item.item_id)}
                 >
-                  <span className="skill-catalog-name">{item.name}</span>
+                  <span className="skill-catalog-name">
+                    {item.name}
+                    <CoverageBadge coverage={item.coverage} detail={item.coverage_detail} />
+                  </span>
                   {deltaInline(supportDeltaById[item.item_id])}
                   <div className="skill-catalog-tags">
                     {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}

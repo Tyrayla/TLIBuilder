@@ -21,6 +21,10 @@ import { tierForValue, overallRange, signedRange, MAX_CORRODED } from '../utils/
 import EditableRollValue from '../components/EditableRollValue'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
+import { useUiPrefs } from '../store/uiPrefsStore'
+import { CoverageBadge } from '../components/CoverageBadge'
+import { CoverageLegend } from '../components/CoverageLegend'
+import { coverageRank, passesModeledOnly } from '../utils/coverage'
 
 // A damage-delta request plus the band label it should display under.
 interface GearSlotDelta { label: string; req: DeltaRequest }
@@ -900,7 +904,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
     <div className="gear-customize-panel">
       <div className="gear-customize-header">
         {typeLabel && <div className="gear-customize-type">{typeLabel}</div>}
-        <div className="gear-customize-name">{item.name}</div>
+        <div className="gear-customize-name">{item.name}<CoverageLegend /></div>
         {baseType && (() => {
           const baseStats = baseItemImplicits[baseType] ?? []
           const hasStats = baseStats.length > 0
@@ -2698,6 +2702,10 @@ export default function GearScreen(_props: Props) {
 
   const [selectedGraft, setSelectedGraft] = useState<Graft | null>(null)
   const [search, setSearch] = useState('')
+  const modeledOnly = useUiPrefs(s => s.modeledOnly)
+  const toggleModeledOnly = useUiPrefs(s => s.toggleModeledOnly)
+  const legendarySort = useUiPrefs(s => s.legendarySort)
+  const setLegendarySort = useUiPrefs(s => s.setLegendarySort)
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<LegendaryGearItem | null>(null)
   const [editingBuildIdx, setEditingBuildIdx] = useState<number | null>(null)
   const [customizations, setCustomizations] = useState<CustomizedAffix[]>([])
@@ -2774,13 +2782,19 @@ export default function GearScreen(_props: Props) {
 
   const q = search.trim().toLowerCase()
   const filtered = useMemo(() => {
-    if (!q) return catalogIndex
-    return catalogIndex.filter(item => {
+    const matched = !q ? catalogIndex : catalogIndex.filter(item => {
       if (item.name.toLowerCase().includes(q)) return true
       const full = catalogMap.get(item.item_id)
       return full ? getItemAffixes(full).some(a => a.raw_text.toLowerCase().includes(q)) : false
     })
-  }, [q, catalogIndex, catalogMap])
+    const visible = matched.filter(item => passesModeledOnly(item.coverage, modeledOnly))
+    // 'alpha' preserves the catalog's existing (already name-ordered) default — only 'coverage' reorders.
+    if (legendarySort === 'coverage') {
+      return [...visible].sort((a, b) =>
+        coverageRank(a.coverage) - coverageRank(b.coverage) || a.name.localeCompare(b.name))
+    }
+    return visible
+  }, [q, catalogIndex, catalogMap, modeledOnly, legendarySort])
 
   const customizeItem: LegendaryGearItem | EquippedGearItem | null =
     editingBuildIdx !== null ? (gear[editingBuildIdx] ?? null) : selectedCatalogItem
@@ -3396,6 +3410,7 @@ export default function GearScreen(_props: Props) {
               className={`btn btn-sm btn-primary gear-craft-create-btn${craftOpen ? ' active' : ''}`}
               onClick={openCraft}
             >+ Create Item</button>
+            <CoverageLegend />
           </div>
           <div className="gear-search-bar">
             <input
@@ -3409,6 +3424,20 @@ export default function GearScreen(_props: Props) {
             {search && (
               <button className="gear-search-clear" onClick={() => setSearch('')}>✕</button>
             )}
+          </div>
+          <div className="skill-sort-row">
+            <span className="skill-sort-label">Sort</span>
+            <select
+              className="skill-sort-select"
+              value={legendarySort}
+              onChange={e => setLegendarySort(e.target.value as 'alpha' | 'coverage')}
+            >
+              <option value="alpha">Default</option>
+              <option value="coverage">Coverage</option>
+            </select>
+            <label className="skill-modeled-only-label" title="Hide items the engine doesn't model at all">
+              <input type="checkbox" checked={modeledOnly} onChange={toggleModeledOnly} /> Modeled only
+            </label>
           </div>
           <div className="gear-catalog-list">
             {loading && <div className="gear-empty">Loading…</div>}
@@ -3426,6 +3455,7 @@ export default function GearScreen(_props: Props) {
                   onClick={() => handleSelectCatalogItem(item)}
                 >
                   <span className="gear-catalog-item-name">{item.name}</span>
+                  <CoverageBadge coverage={item.coverage} detail={item.coverage_detail} />
                   <span className="gear-catalog-item-level">Lv. {item.required_level}</span>
                 </div>
               )

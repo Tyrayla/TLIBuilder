@@ -137,18 +137,21 @@ export function useTextModifierStatus(text: string | null | undefined, source: M
 }
 
 // ── Badge ────────────────────────────────────────────────────────────────────────
+// Plain-language, user-facing labels. The four non-'modeled' states used to read as near-synonyms
+// ("Consumed"/"Unconsumed"/"Inactive"/"Unrecognized") — this wording makes the axis explicit: is it
+// modeled at all, and if so, is it active in THIS build right now.
 const LABEL: Record<ModifierStatus, string> = {
-  working: 'Consumed',
-  inactive: 'Inactive',
-  unused: 'Unconsumed',
-  unrecognized: 'Unrecognized (NYI)',
+  working: 'In your DPS',
+  inactive: 'Modeled · unused here',
+  unused: 'Recognized · not modeled',
+  unrecognized: 'Not recognized (NYI)',
   modeled: 'Modeled',
 }
 const TITLE: Record<ModifierStatus, string> = {
-  working: 'Resolved to an engine stat that this build actively consumes.',
+  working: 'Resolved to an engine stat that this build actively consumes — contributing to your DPS right now.',
   inactive: "The engine models this stat, but your selected skill/calculation doesn't read it (it would work on another build).",
-  unused: "Resolves to a stat the engine doesn't read anywhere yet — recognized, not modeled.",
-  unrecognized: "This modifier doesn't map to any stat the engine models yet.",
+  unused: "Recognized text, but resolves to a stat the engine doesn't read anywhere yet — not modeled.",
+  unrecognized: "This modifier doesn't map to any stat the engine models yet (not yet implemented).",
   modeled: "This skill's intrinsic mechanic is modeled by the engine.",
 }
 

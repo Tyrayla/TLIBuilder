@@ -42,15 +42,34 @@ for _m in _MODULES:
     _LINE_SPECS.extend(getattr(_m, "LINE_SPECS", []))
 
 
-def resolve_line_keys(text: str):
+def resolve_line_keys(text: str, item_id: str | None = None):
     """The engine stat key(s) a bespoke support clause resolves to, for the coverage badge.
       - non-empty list → a stat modifier (badge classifies it against consumed/universe)
       - []             → a RECOGNIZED behavioral line (sets a condition/cap, no stat → no badge)
       - None           → not a bespoke line (caller falls through to the generic resolver)
-    Phrase-matched, so it works on both the raw '(lo–hi)%' line and the rendered midpoint."""
+    Phrase-matched, so it works on both the raw '(lo–hi)%' line and the rendered midpoint.
+
+    `item_id`, when given, SCOPES the search to specs whose `support_ids` include it (mirrors
+    `modeled_rolls`' `item_id not in spec["support_ids"]` guard). Without scoping, a spec's `phrase` is a
+    plain text-similarity regex with no notion of which support it belongs to, so a genuinely-unmodeled
+    line on support A can phrase-collide with an unrelated module B's spec and silently borrow B's stat
+    key (2026-07-12 accuracy fix — e.g. `groundshaker_cripple_noble`'s NYI "+30% additional Skill Area
+    when the supported skill consumes Demolisher Charge" used to borrow `berserking_blade`'s Sweep spec).
+    Default `None` preserves the prior unscoped, global-search behavior for every existing caller/test
+    that doesn't pass an item_id — callers that CAN attribute a specific item (tooltip's own guard-
+    suppression loop, coverage's per-line check) should always pass it."""
     if not text:
         return None
     for spec in _LINE_SPECS:
+        if item_id is not None and item_id not in spec["support_ids"]:
+            continue
+        if item_id is None and spec.get("scoped_only"):
+            # A spec that only recognizes a clause AS THAT ITEM'S OWN — e.g. a generic-sounding phrase
+            # ("Stacks up to N time(s)") that's only a safe "recognized, no stat" call once we know which
+            # item's own mechanic it's describing. Never matched by an unscoped/global search (which has no
+            # item to vouch for it), so the plain-text-similarity contract callers without an item_id rely on
+            # (e.g. "Stacks up to 10 time(s)" reads as an unrecognized flavor clause in isolation) is unchanged.
+            continue
         if spec["phrase"].search(text):
             return list(spec["keys"])
     return None
