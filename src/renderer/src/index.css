@@ -3720,6 +3720,46 @@ span.gear-affix-label {
   width: 12px; height: 12px; background: rgba(12,12,26,0.96); border-left: 1px solid #34345e; border-top: 1px solid #34345e;
 }
 
+/* ── Tree-mode Hero Trait (Selena "Dance of the Deep" and onward) ─────────────
+   Replaces the tier-columns row entirely: a memory-socket rail beside the allocatable SVG tree. */
+.htt-row {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+}
+.htt-memory-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  flex-shrink: 0;
+  width: 130px;
+}
+.htt-memory-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.htt-memory-hint { font-size: 9px; color: #666688; text-align: center; line-height: 1.3; max-width: 120px; }
+.htt-points-readout {
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid #1e1e3a;
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c0c0e0;
+}
+.htt-points-hint { margin-top: 4px; font-size: 10px; font-weight: 400; color: #d09a4a; line-height: 1.3; }
+.htt-tree-svg {
+  flex: 1;
+  min-width: 0;
+  max-height: 100%;
+  width: 100%;
+  border-radius: 10px;
+}
+.htt-tree-bg { fill: #0a0810; }
+.htt-tree-connector { stroke: #362a2a; stroke-width: 2; opacity: 0.7; }
+
 /* Per-slot level selector */
 .trait-slot-level-row { display: flex; gap: 3px; justify-content: center; }
 

@@ -426,6 +426,7 @@ export interface Build {
   traitLevel?: number          // legacy field — kept for loading old saves
   traitSlotLevels?: number[]   // [base, lv45, lv60, lv75], each 1–5
   advancedTraitSelections?: string[]
+  traitTreeAllocations?: string[]   // ordered node_ids allocated on a "tree" allocation_mode trait (Dance of the Deep)
   traitSkillSupports?: EquippedSupportSkill[]   // supports socketed into the Holy Domain trait skill slot
   licoricePreparedSkill?: string | null         // Licorice Note: Empower/Curse the trait prepares
   elixirIngredients?: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: name}
@@ -1436,6 +1437,21 @@ export interface HeroAdvancedTrait {
   icon_url?: string | null      // render via iconUrl('hero_trait', icon_url) → bundled webp
 }
 
+// A tree-allocation node on a "tree" allocation_mode Hero Trait (Selena's Dance of the Deep and onward) —
+// mirrors TreeNode's column/row/effects/icon_url shape so the tree can reuse MiniTree/TreeViewerScreen's
+// SVG grid math, but keyed by node_id (not the passive-tree's id) and with no max_points/current_points
+// (each spendable node is a single allocatable point, gated by adjacency + a Hero-Memory-granted budget).
+export interface HeroTraitTreeNode {
+  node_id: string
+  name: string
+  column: number
+  row: number
+  x?: number   // 0..1, left→right — radial-layout position; falls back to column/row grid math when absent
+  y?: number   // 0..1, top→bottom
+  effects: string[]
+  icon_url?: string | null   // render via iconUrl('hero_trait', icon_url) → bundled webp
+}
+
 export interface HeroTrait {
   trait_id: string
   hero: string
@@ -1449,6 +1465,12 @@ export interface HeroTrait {
   ingredients?: { trait_name: string; categories: { category: string; items: { name: string; effect: string }[] }[] }[]
   max_level?: number | null
   glossary?: Record<string, { name: string; description: string }>
+  // Tree-based traits only (Selena's Dance of the Deep and onward) — when allocation_mode is 'tree', the
+  // renderer branches to the tree UI instead of the fixed tier-column layout; the fields below drive it.
+  allocation_mode?: string
+  tree_root_id?: string
+  tree_nodes?: HeroTraitTreeNode[]
+  tree_connections?: { from: string; to: string }[]
 }
 
 export interface PactSpiritSlot {

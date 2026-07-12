@@ -17,6 +17,14 @@ from an original "~50").
    **Discord link** (feedback sharing) is easy to find — do this as part of the release.
 2. **Hero Traits** (after the release) — implement **one ENTIRE hero trait at a time (all its nodes)**, not piecemeal.
    (Ingenuity Overload / Creative Genius = Bing2 hero trait — its Spell Burst spike mechanic lands here.)
+   - **Selena SS13 — Dance of the Deep: SELECTION-ONLY, tracked (2026-07-12).** Node text transcribed verbatim into
+     `data/seasons/SS13/_hero_traits.json` (`trait_id: dance_of_the_deep`, root at level 15; adjacency-gated tree,
+     one allocation point per socketed Hero Memory at levels 45/60/75) so the tree is browsable/selectable, but
+     **no DPS/mechanic effect is modeled** — no `hero_traits/dance_of_the_deep.py` module exists yet. Too many
+     interlocking unknown mechanics (Crimson Tide, Dance Step / Eternal Sleep, Crimson Shade summons, Ominous
+     Curse, Terra Charge, Catalyst: Ground) to model reliably from owner-supplied pre-launch screenshots alone —
+     SS13 isn't on tlidb yet (season launches ~2026-07-16). Model once real in-game/tlidb data exists. See
+     `data/verification/dance-of-the-deep.json` (status `unverified`).
 
 ## Optimization options (audit 2026-06-26)
 Perf pain was orchestration, not the engine (a single compute is ~0.03s). Catalog damage-delta storm already

@@ -6,6 +6,9 @@
 - **Damage over Time (skill-DoTs)** — the engine now models the ongoing tick damage of skills that deal Damage over Time directly, rather than only a skill's Hit component. First two skills: **Mind Control** (Erosion) and **Path of Flames** (Fire). Validated against the training dummy to within ~±10% (worst observed case 6%); a small residual on top of *increased*-damage modifiers is still unexplained and under investigation, so treat DoT DPS numbers as an estimate rather than an exact figure for now.
 - **DoT damage scoping expanded**: type-matched "X Damage" sources (e.g. Erosion Damage, Fire Damage) and "Elemental Damage" (Fire/Cold/Lightning, excludes Erosion) now correctly scale a matching skill-DoT, and above-max-skill-level scaling now applies to DoT the same way it already applies to Hit damage.
 
+### Hero traits
+- **Selena's SS13 hero trait "Dance of the Deep"** is now selectable (tree + node text). Its damage/mechanics are **not yet modeled** — too many unknown mechanics (Crimson Tide, Dance Step/Eternal Sleep, Crimson Shade summons, Ominous Curse, Terra Charge, Catalyst: Ground) to model accurately before SS13's in-game data is available. Selecting it has no effect on computed stats yet; tracked in `data/verification/dance-of-the-deep.json`.
+
 ### Fixes
 - **"Cannot inflict Numbed"** no longer overrides a manual Numbed toggle — it now only suppresses the engine's automatic application, matching how Frostbite already behaves. (Only affects builds with both a manual Numbed toggle and a "cannot inflict Numbed" source active.)
 - Importing a malformed or too-new build code now shows a clear error message instead of failing silently or crashing.

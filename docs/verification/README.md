@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**65 entries** — ✅ Confirmed: 11 · 🔶 Partial: 7 · ⬜ Pending: 9 · ⚠️ Unverified: 36
+**66 entries** — ✅ Confirmed: 11 · 🔶 Partial: 7 · ⬜ Pending: 9 · ⚠️ Unverified: 37
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -43,6 +43,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Conditional / scaling minion modifiers | — | minion, modifier, condition | ⚠️ Unverified | — | [minion-conditional-mods.md](minion-conditional-mods.md) |
 | Core talents (uniqueness / grants) | — | talent, damage-pool | ⚠️ Unverified | — | [core-talents.md](core-talents.md) |
 | Damage conversions | — | conversion, damage-pool | ⚠️ Unverified | — | [damage-conversions.md](damage-conversions.md) |
+| Dance of the Deep (Selena trait) | Dance of the Deep | hero-trait, not-modeled, selection-only | ⚠️ Unverified | — | [dance-of-the-deep.md](dance-of-the-deep.md) |
 | Dreamweaver spirit | — | pact-spirit, penetration | ⚠️ Unverified | — | [dreamweaver.md](dreamweaver.md) |
 | Elixir system | — | buff, uptime | ⚠️ Unverified | — | [elixir-system.md](elixir-system.md) |
 | Extreme Coldness (only Cold Damage) | — | conversion, damage-pool | ⚠️ Unverified | — | [extreme-coldness.md](extreme-coldness.md) |

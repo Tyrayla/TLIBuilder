@@ -6,12 +6,12 @@ import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
 import { characterLevelFrom } from '../utils/conditions'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
-import { useDamageDelta } from '../components/tooltip/useDamageDelta'
-import { TooltipContributions } from '../components/tooltip/TooltipContributions'
-import { ModifierBadge, useTextModifierStatuses, useTextModifierStatus } from '../components/ModifierBadge'
+import { ModifierBadge, useTextModifierStatus } from '../components/ModifierBadge'
 import { dec } from '../utils/num'
 import { traitSlang, traitOrder } from '../utils/heroTraitOrder'
 import EditableRollValue from '../components/EditableRollValue'
+import { TraitTooltipBody, MemorySlotCircle, resolveMemoryEffect, MEMORY_TYPE_LABELS, RARITY_LABELS } from '../components/HeroTraitShared'
+import HeroTraitTree from './HeroTraitTree'
 
 interface Props {
   onBack: () => void
@@ -47,15 +47,9 @@ const MEMORY_TYPES: Record<number, CreatedHeroMemory['memoryType']> = {
   1: 'discipline',
   2: 'progress',
 }
-const MEMORY_TYPE_LABELS: Record<CreatedHeroMemory['memoryType'], string> = {
-  origin: 'Origin',
-  discipline: 'Discipline',
-  progress: 'Progress',
-}
+// MEMORY_TYPE_LABELS and RARITY_LABELS live in components/HeroTraitShared.tsx (also used by
+// MemorySlotCircle there); RARITY_ORDER is only needed for the rarity <select> below.
 const RARITY_ORDER: MemoryRarity[] = ['normal', 'magic', 'rare', 'epic', 'ultimate']
-const RARITY_LABELS: Record<MemoryRarity, string> = {
-  normal: 'Normal', magic: 'Magic', rare: 'Rare', epic: 'Epic', ultimate: 'Ultimate',
-}
 
 // ── Affix / tier helper functions ─────────────────────────────────────────────
 
@@ -161,22 +155,7 @@ function tierValueToPos(ranges: TierRangeInfo[], tier: number, rolledValue: numb
   return r.startPos + Math.min(Math.max(v - r.min, 0), r.max - r.min)
 }
 
-function resolveMemoryEffect(sel: MemorySlotSelection): string {
-  // Ensure leading + for modifiers that start with a digit (handles legacy stored data)
-  const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
-  if (sel.rolledValue === null) return mod
-  const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : dec(sel.rolledValue)
-  return mod.replace(/\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, val)
-}
-
-function getMemoryAffixLines(memory: CreatedHeroMemory): { text: string; tier: number }[] {
-  const out: { text: string; tier: number }[] = []
-  const add = (sel: MemorySlotSelection | null) => { if (sel) out.push({ text: resolveMemoryEffect(sel), tier: sel.tier ?? 0 }) }
-  add(memory.baseStat)
-  for (const fa of memory.fixedAffixes) add(fa)
-  for (const ra of memory.randomAffixes) add(ra)
-  return out
-}
+// resolveMemoryEffect (used by AffixRow below) lives in components/HeroTraitShared.tsx.
 
 // ── Shared trait helpers ──────────────────────────────────────────────────────
 
@@ -240,41 +219,11 @@ function HeroTraitSelect({ traits, value, onChange }: {
   )
 }
 
-function resolveLevel(text: string, level: number): string {
-  return text.replace(/\(([^)]+)\)/g, (_, inner) => {
-    if (!inner.includes('/')) return `(${inner})`
-    const parts = inner.split('/').map((p: string) => p.trim())
-    return parts[Math.min(level - 1, parts.length - 1)]
-  })
-}
+// resolveLevel and TraitTooltipBody (the `/`-separated Trait-Level 1–5 scaling text resolver and
+// the tooltip content shared with HeroTraitTree.tsx and PlayerStatsScreen.tsx) live in
+// components/HeroTraitShared.tsx.
 
 // ── Tooltip content + trigger components (shared floating primitive) ───────────
-
-export function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
-  name: string; slotLevel: number; effects: string[]; moonEffects?: string[]
-}) {
-  return (
-    <>
-      <div className="trait-info-name">{name}</div>
-      <div className="trait-info-level-current">Level {slotLevel}</div>
-      <ul className="trait-info-effects">
-        {effects.map((line, i) =>
-          /^Level \d+$/.test(line)
-            ? <li key={i} className="trait-info-level-header">{line}</li>
-            : <li key={i}>{resolveLevel(line, slotLevel)}</li>
-        )}
-      </ul>
-      {moonEffects && moonEffects.length > 0 && (
-        <>
-          <div className="trait-info-level-header" style={{ color: '#7070cc', marginTop: 8 }}>Artificial Moon</div>
-          <ul className="trait-info-effects">
-            {moonEffects.map((line, i) => <li key={i}>{line}</li>)}
-          </ul>
-        </>
-      )}
-    </>
-  )
-}
 
 // A trait circle (base or advanced) + its hover info tooltip. Hover-only — the tooltip shows
 // only while the icon itself is hovered (non-interactive, so moving onto the card dismisses
@@ -395,62 +344,8 @@ function PickGroup({ nodes, slotLevel, locked, tierDisabled, selectedNames, onSe
   )
 }
 
-// A memory slot circle + its hover info tooltip (only when a memory is socketed).
-function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
-  memory: CreatedHeroMemory | null; rarityColor?: string; slot: number; onOpen: () => void
-}) {
-  const tip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
-  const lines = memory ? getMemoryAffixLines(memory) : []
-  const lineStatuses = useTextModifierStatuses(lines.map(l => ({ text: l.text, source: 'memory' as const })))
-  // Contribution of this socketed memory: remove it and diff vs the current build.
-  const delta = useDamageDelta(
-    tip.open && memory
-      ? { key: `mem:rm:${slot}`, step: s => ({ ...s, heroMemories: s.heroMemories.map((m, i) => i === slot ? null : m) as typeof s.heroMemories }) }
-      : null,
-    tip.open && !!memory,
-  )
-  return (
-    <>
-      <div
-        {...(memory ? tip.triggerProps : {})}
-        className={`memory-slot-circle${memory ? ' filled' : ''}`}
-        style={memory ? { borderColor: rarityColor, boxShadow: `0 0 10px ${rarityColor}44` } : undefined}
-        onClick={e => { e.stopPropagation(); onOpen() }}
-      >
-        {memory
-          ? <span style={{ color: rarityColor, fontSize: 26, lineHeight: 1 }}>◈</span>
-          : <span className="memory-slot-plus">+</span>}
-      </div>
-      {memory && tip.open && (
-        <FloatingPortal>
-          <div className="memory-info-card" {...tip.floatingProps}>
-            <div className="memory-info-title" style={{ color: rarityColor }}>
-              Memory of {MEMORY_TYPE_LABELS[memory.memoryType]}
-            </div>
-            <div className="memory-info-rarity" style={{ color: rarityColor }}>
-              {RARITY_LABELS[memory.rarity]}
-            </div>
-            {lines.length > 0 ? (
-              <ul className="memory-info-lines">
-                {lines.map((line, i) => (
-                  <li key={i}>
-                    {line.text}
-                    {line.tier > 0 && <span style={{ fontSize: 10, color: '#888' }}> (T{line.tier})</span>}
-                    <ModifierBadge status={lineStatuses[i]} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="memory-info-empty">No affixes configured</div>
-            )}
-            <div className="memory-info-hint">Click to edit</div>
-            <TooltipContributions delta={delta} />
-          </div>
-        </FloatingPortal>
-      )}
-    </>
-  )
-}
+// MemorySlotCircle (the memory-slot circle + its hover tooltip, shared with HeroTraitTree.tsx's
+// origin/discipline/progress rail) lives in components/HeroTraitShared.tsx.
 
 // A searchable combobox for the memory affix rows (matches the searchable-dropdown pattern used elsewhere).
 function SearchableAffixSelect({ value, options, onChange }: {
@@ -686,6 +581,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   const traitId = useBuildStore(s => s.traitId)
   const traitSlotLevels = useBuildStore(s => s.traitSlotLevels)
   const advancedTraitSelections = useBuildStore(s => s.advancedTraitSelections)
+  const traitTreeAllocations = useBuildStore(s => s.traitTreeAllocations)
+  const setTraitTreeAllocations = useBuildStore(s => s.setTraitTreeAllocations)
   // Trait-tier unlocks use the `level` condition (default 90) — the single character-level source.
   const characterLevel = characterLevelFrom(useBuildStore(s => s.conditionState))
   const heroMemories = useBuildStore(s => s.heroMemories)
@@ -916,49 +813,71 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
         <div className="hero-trait-body">
           <div className="trait-main-row">
 
-            {/* Base trait — always selected */}
-            <div className="trait-base-col">
-              {/* Top slot reserved for future Revival Hero Memories. */}
-              <div className="memory-slot-circle disabled" title="Coming Soon">
-                <span className="memory-slot-coming-soon">Coming Soon</span>
-              </div>
-              <div className={`trait-tier-label${baseDisabled ? ' locked' : ''}`}>
-                Base Trait{baseDisabled ? ' (off)' : ''}
-              </div>
-              <div className="trait-slot-level-row">
-                {[1, 2, 3, 4, 5].map(lv => (
-                  <button
-                    key={lv}
-                    className={`trait-slot-level-btn${nodeLevel(SLOT_BASE) === lv && !baseDisabled ? ' active' : ''}`}
-                    onClick={e => { e.stopPropagation(); setSlotLevel(SLOT_BASE, lv) }}
-                  >{lv}</button>
-                ))}
-              </div>
-              <TraitCircle
-                className="trait-circle selected trait-circle-base"
-                name={selectedTrait.variant_name}
-                icon={iconUrl('hero_trait', selectedTrait.icon_url)}
-                checked
-                disabled={baseDisabled}
-                tipName={selectedTrait.variant_name}
-                slotLevel={baseLevel}
-                effects={baseEffects}
-                moonEffects={showArtificialMoon ? selectedTrait.artificial_moon.effects : undefined}
-                onSelect={baseDisabled ? () => enableNode(SLOT_BASE) : undefined}
-                onContextMenu={() => disableNode(SLOT_BASE)}
-              />
-              {/* Holy Domain support slot — BELOW the trait, only when Invulnerability / Divine Intervention grants it. */}
-              {traitGrantsSkillSlot(traitId, advancedTraitSelections) && (
-                <div style={{ marginTop: 10 }}>
-                  <div className="trait-tier-label" style={{ fontSize: 10, marginBottom: 4 }}>Support Slot</div>
-                  <TraitSkillSlot supports={traitSkillSupports} allSkills={allSkills} onChange={setTraitSkillSupports} />
+            {/* Base trait — always selected. Tree-mode traits (Dance of the Deep and onward) hide this
+                column + the divider entirely: the base trait appears ONLY as the always-allocated root
+                node inside HeroTraitTree, so this whole block (and the trait-v-divider next to it) is
+                skipped in that mode. Level-selection state itself is untouched — the trait just stays
+                at whatever level it defaults to (1) since there's no UI here to change it in tree mode. */}
+            {selectedTrait.allocation_mode !== 'tree' && (
+              <>
+                <div className="trait-base-col">
+                  {/* Top slot reserved for future Revival Hero Memories. */}
+                  <div className="memory-slot-circle disabled" title="Coming Soon">
+                    <span className="memory-slot-coming-soon">Coming Soon</span>
+                  </div>
+                  <div className={`trait-tier-label${baseDisabled ? ' locked' : ''}`}>
+                    Base Trait{baseDisabled ? ' (off)' : ''}
+                  </div>
+                  <div className="trait-slot-level-row">
+                    {[1, 2, 3, 4, 5].map(lv => (
+                      <button
+                        key={lv}
+                        className={`trait-slot-level-btn${nodeLevel(SLOT_BASE) === lv && !baseDisabled ? ' active' : ''}`}
+                        onClick={e => { e.stopPropagation(); setSlotLevel(SLOT_BASE, lv) }}
+                      >{lv}</button>
+                    ))}
+                  </div>
+                  <TraitCircle
+                    className="trait-circle selected trait-circle-base"
+                    name={selectedTrait.variant_name}
+                    icon={iconUrl('hero_trait', selectedTrait.icon_url)}
+                    checked
+                    disabled={baseDisabled}
+                    tipName={selectedTrait.variant_name}
+                    slotLevel={baseLevel}
+                    effects={baseEffects}
+                    moonEffects={showArtificialMoon ? selectedTrait.artificial_moon.effects : undefined}
+                    onSelect={baseDisabled ? () => enableNode(SLOT_BASE) : undefined}
+                    onContextMenu={() => disableNode(SLOT_BASE)}
+                  />
+                  {/* Holy Domain support slot — BELOW the trait, only when Invulnerability / Divine Intervention grants it. */}
+                  {traitGrantsSkillSlot(traitId, advancedTraitSelections) && (
+                    <div style={{ marginTop: 10 }}>
+                      <div className="trait-tier-label" style={{ fontSize: 10, marginBottom: 4 }}>Support Slot</div>
+                      <TraitSkillSlot supports={traitSkillSupports} allSkills={allSkills} onChange={setTraitSkillSupports} />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="trait-v-divider" />
+                <div className="trait-v-divider" />
+              </>
+            )}
 
-            {/* Tier columns — one per unlock_level */}
+            {/* Dance of the Deep (Selena 2) and any future tree-mode trait: an allocatable tree replaces
+                the fixed tier columns entirely. Everything else (base circle, level slider, Artificial
+                Moon, Licorice Note panels below) is untouched. */}
+            {selectedTrait.allocation_mode === 'tree' ? (
+              <HeroTraitTree
+                trait={selectedTrait}
+                heroMemories={heroMemories}
+                openMemoryCreator={openMemoryCreator}
+                traitTreeAllocations={traitTreeAllocations}
+                setTraitTreeAllocations={setTraitTreeAllocations}
+                characterLevel={characterLevel}
+                resolveLevelAt={baseLevel}
+              />
+            ) : (
+            /* Tier columns — one per unlock_level */
             <div className="trait-tiers-row">
               {LEVEL_THRESHOLDS.map(threshold => {
                 const group = selectedTrait.advanced_traits.filter(t => t.unlock_level === threshold)
@@ -1065,6 +984,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                 )
               })}
             </div>
+            )}
           </div>
 
           {/* Artificial Moon — only at base level 5 */}

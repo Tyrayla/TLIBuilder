@@ -21,12 +21,47 @@ const baseLoadedBuild: LoadedBuild = {
   buildId: 'b1', buildName: 'Test Build', activeSlot: 0,
   slots: [null, null, null, null], slates: [], slateInventory: [], prisms: [], prismInventory: [],
   conditionState: {}, gear: [], skills: [], characterLevel: 100,
-  traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitSkillSupports: [],
+  traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitTreeAllocations: [],
+  traitSkillSupports: [],
   licoricePreparedSkill: null, elixirIngredients: {},
   heroMemories: [null, null, null], pactSpirits: [null, null, null],
   fates: {}, undetermined: [null, null, null], notes: '', customMods: [],
   targetConfig: DEFAULT_TARGET_CONFIG, loadouts: [], activeLoadoutId: '',
 }
+
+describe('traitTreeAllocations round-trip (via loadBuild — feeds App.getBuildPayload)', () => {
+  it('defaults to [] when absent from a LoadedBuild (pre-existing/older saved build)', () => {
+    // traitTreeAllocations is optional on LoadedBuild specifically so older saved builds and
+    // fixtures that predate the field don't need updating — loadBuild backfills [].
+    const { traitTreeAllocations: _omit, ...withoutField } = baseLoadedBuild
+    useBuildStore.getState().loadBuild(withoutField as LoadedBuild)
+    expect(useBuildStore.getState().traitTreeAllocations).toEqual([])
+  })
+
+  it('a build carrying tree allocations survives loadBuild unchanged (round-trip through the store)', () => {
+    const allocated = ['silencing_severance', 'crimson_endless_dance']
+    useBuildStore.getState().loadBuild({ ...baseLoadedBuild, traitId: 'dance_of_the_deep', traitTreeAllocations: allocated })
+    const s = useBuildStore.getState()
+    expect(s.traitTreeAllocations).toEqual(allocated)
+  })
+
+  it('setTraitTreeAllocations updates the live store value read by getBuildPayload', () => {
+    useBuildStore.getState().loadBuild({ ...baseLoadedBuild, traitId: 'dance_of_the_deep', traitTreeAllocations: [] })
+    useBuildStore.getState().setTraitTreeAllocations(['silencing_severance'])
+    expect(useBuildStore.getState().traitTreeAllocations).toEqual(['silencing_severance'])
+  })
+
+  it('setTraitData only resets traitTreeAllocations on an actual trait switch, not an in-place edit', () => {
+    useBuildStore.getState().loadBuild({ ...baseLoadedBuild, traitId: 'dance_of_the_deep', traitTreeAllocations: ['silencing_severance'] })
+    // Same trait, e.g. a slot-level button edit — must NOT clear the tree allocation.
+    useBuildStore.getState().setTraitData('dance_of_the_deep', [2, 1, 1, 1], [])
+    expect(useBuildStore.getState().traitTreeAllocations).toEqual(['silencing_severance'])
+
+    // A real trait switch clears it.
+    useBuildStore.getState().setTraitData('some_other_trait', [1, 1, 1, 1], [])
+    expect(useBuildStore.getState().traitTreeAllocations).toEqual([])
+  })
+})
 
 describe('deriveMainSkill (via setSkills)', () => {
   it('filters out slots > 5 (passive slots never become mainSkill)', () => {

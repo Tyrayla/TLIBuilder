@@ -8,6 +8,7 @@ export const KNOWN_BUILD_KEYS = new Set<string>([
   // Legacy keys — present on builds saved before the conditionState unification.
   'conditions', 'conditionValues', 'hasPrism', 'traitLevel',
   'gear', 'skills', 'characterLevel', 'traitId', 'traitSlotLevels', 'advancedTraitSelections',
+  'traitTreeAllocations',
   'heroMemories', 'pactSpirits', 'notes', 'customMods',
   // Current fields (loadouts, pact fates/kismets, per-loadout target config, trait skill supports).
   'loadouts', 'activeLoadoutId', 'fates', 'undetermined', 'targetConfig', 'traitSkillSupports',
