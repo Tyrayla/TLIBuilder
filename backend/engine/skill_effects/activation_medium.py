@@ -29,6 +29,33 @@ WIND_RHYTHM_BASE_COOLDOWN = {0: 0.5, 1: 0.6, 2: 0.7, 3: 0.8}
 # One range: optional sign, (lo – hi), optional trailing unit (%, s, m). s/m guarded so "skill"/"m"-words don't match.
 _RANGE = re.compile(r"([+\-−]?)\(\s*(-?[\d.]+)\s*[–—−\-]\s*(-?[\d.]+)\s*\)\s*(%|s(?![A-Za-z])|m(?![A-Za-z]))?")
 
+# The FIXED (non-ranged) per-meter rate that precedes the "up to +(lo-hi)%" cap on the same progression line,
+# e.g. "...+3 % additional damage for every 1m of movement made during the trigger interval, up to +(18-21) %."
+# Data-driven so a future season/tier retune of the rate (it dropped 3%->2% at Rhythm L2, per SS12 _skills.json
+# activation_medium_rhythm.progression) can't silently desync from the hardcoded constant this replaces.
+_RHYTHM_RATE_RE = re.compile(r"([+\-−]?[\d.]+)\s*%\s*additional damage for every 1m")
+_RHYTHM_RATE_FALLBACK = 0.03   # Rhythm's own base (level 0) rate — last-resort default if a level's line can't be parsed.
+
+
+def _rhythm_move_rate_by_level(data: dict) -> dict[int, float]:
+    """Per-level %/meter movement-damage rate for an activation medium using the `rhythm_move_cap` special,
+    parsed from the item's OWN crawled progression text — the same sentence the "up to +(lo-hi)%" cap `val`
+    is selected from (see `apply_slot_effects`'s `rhythm_move_cap` branch). Returns {} if nothing parses."""
+    rates: dict[int, float] = {}
+    for entry in (data or {}).get("progression") or []:
+        lvl = entry.get("level")
+        if lvl is None:
+            continue
+        line = str((entry.get("values") or {}).get("name", ""))
+        m = _RHYTHM_RATE_RE.search(line)
+        if not m:
+            continue
+        try:
+            rates[int(lvl)] = float(m.group(1)) / 100.0
+        except (TypeError, ValueError):
+            continue
+    return rates
+
 
 def _parse_range(sign: str, lo_s: str, hi_s: str, scale: float) -> dict:
     lo, hi = float(lo_s), float(hi_s)
@@ -79,7 +106,7 @@ def _classify(before: str, after: str, unit: str) -> dict | None:
                     desc="% of Cast Speed applied to Cooldown Recovery Speed", unit="%", scale=100.0,
                     stat_key=None, special="wind_share", group=None, wired=True)
     if "movement made during the trigger interval" in a or "movement made during the trigger interval" in b:
-        return dict(identity="rhythm_move_cap", label="Move Cap", desc="Movement damage cap (+3%/m up to this)",
+        return dict(identity="rhythm_move_cap", label="Move Cap", desc="Movement damage cap (per-meter bonus, up to this)",
                     unit="%", scale=100.0, stat_key=None, special="rhythm_move_cap", group=None, wired=True)
     if "willpower" in a:   # Still Attack grants a Willpower support at level N — surfaced; injection is a follow-up.
         return dict(identity="willpower_level", label="Willpower Lv", desc="Grants a Willpower support at this level",
@@ -203,7 +230,13 @@ def apply_slot_effects(*, source, resolved, slot, condition_state, mod_tags, att
                     meters = float(condition_state.get("demolisher_meters_moved", 0) or 0)
                 except (TypeError, ValueError):
                     meters = 0.0
-                emit("dmg_additional", min(0.03 * meters, val), "Rhythm movement damage")
+                try:
+                    _lvl = int(s.get("level", 0) or 0)
+                except (TypeError, ValueError):
+                    _lvl = 0
+                rates = _rhythm_move_rate_by_level(data)
+                rate = rates.get(_lvl, rates.get(0, _RHYTHM_RATE_FALLBACK))
+                emit("dmg_additional", min(rate * meters, val), "Rhythm movement damage")
             elif special == "willpower_level":
                 out.setdefault("inject_supports", []).append({"item_id": "willpower", "level": int(round(val))})
             elif stat_key and r.get("wired"):

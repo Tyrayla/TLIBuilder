@@ -469,24 +469,26 @@ while building it — see `data/verification` cross-links below where the item t
    detector undetected, letting `trait_coverage` claim `'full'` for a trait that actually has an unseen build-
    gated warning branch. Add a lint/test guard (e.g. flag any `status_lines` signature that accepts `**kwargs`
    at all, forcing an explicit named-param audit).
-6. **Rhythm activation medium — per-meter damage rate hardcoded (real, small DPS inaccuracy).**
-   `engine/skill_effects/activation_medium.py`'s `apply_slot_effects` `rhythm_move_cap` branch always computes
-   `dmg_additional = min(0.03 × meters, cap)` — a flat 3%/metre regardless of tier. The crawled per-tier rate is
-   actually **3% / 3% / 2% / 2%** (Rhythm tiers 0–3; confirmed in `data/seasons/SS12/_skills.json`'s
-   `activation_medium_rhythm` progression: "+3% additional damage for every 1m..." at tiers 0/3, "+2%" at tiers
-   1/2). So tiers 2–3 currently overstate the movement-damage bonus by 50% relative (3% modeled vs 2% real).
-   Needs a follow-up DPS fix (rate keyed by tier, mirroring `WIND_RHYTHM_BASE_COOLDOWN`'s per-tier dict) + owner
-   sign-off before changing live DPS output. Surfaced while building `_am_coverage` (see item 8 below); logged in
-   `.wolf/buglog.json` id `activation-medium-coverage-always-none-blanked-tooltip`.
-7. **Rhythm/Instruction's "-80% additional damage for manually used Supported Skill" penalty is unmodeled.**
-   Confirmed real text on `activation_medium_rhythm` and `activation_medium_instruction` (all tiers,
+6. **RESOLVED 2026-07-12 — Rhythm activation medium per-meter damage rate was hardcoded.**
+   `engine/skill_effects/activation_medium.py`'s `apply_slot_effects` `rhythm_move_cap` branch used to always
+   compute `dmg_additional = min(0.03 × meters, cap)` — a flat 3%/metre regardless of tier — even though the
+   crawled per-tier rate is actually **3% / 3% / 2% / 2%** (Rhythm tiers 0–3; confirmed in
+   `data/seasons/SS12/_skills.json`'s `activation_medium_rhythm` progression: "+3% additional damage for every
+   1m..." at tiers 0/3, "+2%" at tiers 1/2), so tiers 2–3 overstated the movement-damage bonus by 50% relative
+   (3% modeled vs 2% real). **Fixed**: the rate is now parsed per-level from the crawled progression data instead
+   of hardcoded, mirroring `WIND_RHYTHM_BASE_COOLDOWN`'s per-tier dict pattern. See
+   `data/verification/activation-mediums.json` (status unchanged at `unverified` — this is a data-fidelity
+   correction, not a new in-game measurement) and `.wolf/buglog.json` id
+   `activation-medium-coverage-always-none-blanked-tooltip`.
+7. **Still open — Rhythm/Instruction's "-80% additional damage for manually used Supported Skill" penalty is
+   unmodeled.** Confirmed real text on `activation_medium_rhythm` and `activation_medium_instruction` (all tiers,
    `data/seasons/SS12/_skills.json`). The engine's cast-rate/trigger-interval model represents these mediums as
    **100% AM-triggered** (pinned by `test_trigger_interval_overrides_cast_rate_generically`) with no notion of a
    player manually casting the supported skill in between triggers, so there's nothing for this penalty to hook
    into. This is exactly why `activation_medium_rhythm` correctly reads `'partial'` (not `'full'`) coverage — the
-   gap is honestly reported, not silently dropped. Open question for the owner: deliberately out-of-scope like
-   the other manual-vs-triggered deferrals already on file (Spell Burst's USE-vs-CAST gate in §0d, Tangle's in
-   §0c), or worth modeling once one of those lands.
+   gap is honestly reported, not silently dropped. **Owner decision (2026-07-12): deferred** — safe to assume
+   nobody manually casts on this build; revisit far down the line if that assumption changes. (Same open-ended
+   deferral class as Spell Burst's USE-vs-CAST gate in §0d, Tangle's in §0c.)
 8. **AM coverage now derives from real wiring, not the blanked display tooltip (shipped 2026-07-12).**
    `engine.tooltip.build_tooltip` blanket-clears `badge_text` on every non-universal line for any
    `activation_medium_*` item (by design — AMs are wired through `activation_medium.py`'s roll parser, not the

@@ -74,12 +74,12 @@ def test_trigger_interval_overrides_cast_rate_generically():
     assert o["skills_per_second"] == pytest.approx(2.0, abs=1e-6)
 
 
-def _emit(medium_id, **sup_kw):
+def _emit(medium_id, condition_state=None, **sup_kw):
     """Run the AM wiring hook against a fresh source; return {stat: amount} it emitted (slot-local, materialized)."""
     from engine.skill_effects.activation_medium import apply_slot_effects
     from engine.models import BuildSource
     src = BuildSource()
-    apply_slot_effects(source=src, resolved=None, slot=1, condition_state={}, mod_tags=set(),
+    apply_slot_effects(source=src, resolved=None, slot=1, condition_state=(condition_state or {}), mod_tags=set(),
                        attached_supports=[_sup(medium_id, **sup_kw)], skills_by_id=_SKILLS)
     eff = src.materialize_for_skill(set(), 1)
     return {e.stat: e.amount for e in eff.source_log}
@@ -105,6 +105,39 @@ def test_minion_medium_emits_minion_damage():
     emitted = _emit("activation_medium_minion",
                     specific_rolls={"minion_dmg_additional": 0.33}, specific_roll_tiers={"minion_dmg_additional": 1})
     assert emitted.get("minion_dmg_additional") == pytest.approx(0.33)
+
+
+# ── Rhythm per-level movement-damage rate (2026-07-12 fix: data-driven, was hardcoded 0.03) ──────
+def test_rhythm_move_rate_by_level_matches_crawled_progression():
+    # Anchors the per-level %/meter rate to SS12's OWN crawled text (activation_medium_rhythm.progression):
+    # it drops 3%->2% at level 2. A future retune (or a regression back to a hardcoded constant) trips this.
+    from engine.skill_effects.activation_medium import _rhythm_move_rate_by_level
+    rates = _rhythm_move_rate_by_level(_SKILLS["activation_medium_rhythm"])
+    assert rates == {0: 0.03, 1: 0.03, 2: 0.02, 3: 0.02}
+
+
+def test_rhythm_move_cap_uses_level_2_rate_not_hardcoded_3_percent():
+    # Level-2 Rhythm: rate is 2%/m (not the old hardcoded 3%/m). meters=3 stays under the level-2 cap
+    # (14-16%, mid 15%), so the emitted dmg_additional exercises the RATE, not the min() clamp.
+    emitted = _emit("activation_medium_rhythm", condition_state={"demolisher_meters_moved": 3},
+                    level=2, specific_roll_tiers={"rhythm_move_cap": 2})
+    assert emitted.get("dmg_additional") == pytest.approx(0.06, abs=1e-9)   # 0.02 * 3, not 0.03 * 3 (0.09)
+
+
+def test_rhythm_move_cap_still_clamps_at_the_cap():
+    # Same level-2 Rhythm, but with enough meters that the uncapped 2%/m value (0.02*20=0.40) blows past
+    # the level-2 cap's mid (0.15) -> min(...) clamps to the cap, confirming the clamp survived the fix.
+    emitted = _emit("activation_medium_rhythm", condition_state={"demolisher_meters_moved": 20},
+                    level=2, specific_roll_tiers={"rhythm_move_cap": 2})
+    assert emitted.get("dmg_additional") == pytest.approx(0.15, abs=1e-9)
+
+
+def test_rhythm_move_cap_uses_3_percent_at_level_0_and_1():
+    # Levels 0 and 1 are unchanged by the fix (still 3%/m) — guards the fix didn't regress the low tiers.
+    for lvl in (0, 1):
+        emitted = _emit("activation_medium_rhythm", condition_state={"demolisher_meters_moved": 3},
+                        level=lvl, specific_roll_tiers={"rhythm_move_cap": lvl})
+        assert emitted.get("dmg_additional") == pytest.approx(0.09, abs=1e-9), f"level {lvl}"
 
 
 # ── Wind Rhythm (server-tick breakpoint helper) ─────────────────────────────────

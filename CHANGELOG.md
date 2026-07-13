@@ -13,6 +13,7 @@
 - Filed 5 tracked-not-fixed limitations surfaced while building the DPS-coverage audit (`backend/engine/coverage.py`) to `docs/BACKLOG.md` §8: tooltip-suppression risk to coverage's "modeled" signal, a real (separate) live-engine bug in `support_mapper._strip_support_target` that drops clauses 2+ on supports like `fragile_resurrection`, a hand-maintained hero-trait advanced-pick mirror with no drift guard, an engine→server layering violation, and a `**kwargs` loophole in the build-gated-param detector. Cross-linked in `data/verification/restoration-subsystem.json` and `data/verification/activation-mediums.json`.
 
 ### Fixes
+- **Rhythm activation medium's movement-damage rate is now tier-correct**: the per-meter bonus was hardcoded to a flat 3% at every tier; it's now sourced per-level from the crawled data (3% / 3% / 2% / 2% for levels 0–3), correcting a prior overstatement at tiers 2–3.
 - **"Cannot inflict Numbed"** no longer overrides a manual Numbed toggle — it now only suppresses the engine's automatic application, matching how Frostbite already behaves. (Only affects builds with both a manual Numbed toggle and a "cannot inflict Numbed" source active.)
 - Importing a malformed or too-new build code now shows a clear error message instead of failing silently or crashing.
 
