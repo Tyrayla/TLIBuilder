@@ -20,65 +20,81 @@ import tools.season_impact as season_impact
 
 # ── _load_catalog_maps ────────────────────────────────────────────────────────────────────────
 
-def _fake_season_manager(monkeypatch, data: dict[str, tuple[dict | None, dict | None]]):
-    """Patch `season_impact.season_manager` to serve `{season: (skills_data, gear_data)}` from
-    `data`, with `list_seasons()` reporting exactly the seasons present as keys."""
+def _fake_season_manager(
+    monkeypatch, data: dict[str, tuple[dict | None, dict | None] | tuple[dict | None, dict | None, dict | None]]
+):
+    """Patch `season_impact.season_manager` to serve `{season: (skills_data, gear_data[, hero_traits_data])}`
+    from `data`, with `list_seasons()` reporting exactly the seasons present as keys. The
+    hero_traits element is optional per-entry (defaults to None) so existing 2-tuple callers keep
+    working. Always patches `load_hero_traits` too — this module's docstring promises hermetic "no
+    real season data" isolation, so a hero-trait load must never fall through to real disk."""
     monkeypatch.setattr(season_impact.season_manager, "list_seasons", lambda: list(data.keys()))
     monkeypatch.setattr(
         season_impact.season_manager, "load_skills",
-        lambda season, raw=False: data.get(season, (None, None))[0],
+        lambda season, raw=False: data.get(season, (None, None, None))[0],
     )
     monkeypatch.setattr(
         season_impact.season_manager, "load_legendary_gear",
-        lambda season: data.get(season, (None, None))[1],
+        lambda season: data.get(season, (None, None, None))[1],
+    )
+    monkeypatch.setattr(
+        season_impact.season_manager, "load_hero_traits",
+        lambda season, raw=False: (data.get(season, (None, None, None)) + (None, None))[2],
     )
 
 
 _SKILLS_A = {"skills": [{"uuid": "u-a", "item_id": "item_a", "name": "Skill A", "skill_type": "active_skill"}]}
 _GEAR_A = {"items": [{"uuid": "g-a", "item_id": "gear_a", "name": "Gear A"}]}
+_TRAITS_A = {"traits": [{"uuid": "t-a", "trait_id": "trait_a", "hero": "Hero A", "variant_name": "Trait A"}]}
 _SKILLS_B = {"skills": [{"uuid": "u-b", "item_id": "item_b", "name": "Skill B", "skill_type": "support_skill"}]}
 _GEAR_B = {"items": [{"uuid": "g-b", "item_id": "gear_b", "name": "Gear B"}]}
+_TRAITS_B = {"traits": [{"uuid": "t-b", "trait_id": "trait_b", "hero": "Hero B", "variant_name": "Trait B"}]}
 
 
 def test_load_catalog_maps_prefers_season_b(monkeypatch):
     _fake_season_manager(monkeypatch, {
-        "SS11": (_SKILLS_A, _GEAR_A),
-        "SS12": (_SKILLS_B, _GEAR_B),
+        "SS11": (_SKILLS_A, _GEAR_A, _TRAITS_A),
+        "SS12": (_SKILLS_B, _GEAR_B, _TRAITS_B),
     })
-    skills_map, gear_map, used = season_impact._load_catalog_maps("SS11", "SS12")
+    skills_map, gear_map, hero_traits_map, used = season_impact._load_catalog_maps("SS11", "SS12")
     assert used == "SS12"
     assert set(skills_map.keys()) == {"u-b"}
     assert skills_map["u-b"]["item_id"] == "item_b"
     assert set(gear_map.keys()) == {"g-b"}
+    assert set(hero_traits_map.keys()) == {"t-b"}
+    assert hero_traits_map["t-b"] == {"trait_id": "trait_b", "hero": "Hero B", "variant_name": "Trait B"}
 
 
 def test_load_catalog_maps_falls_back_to_season_a_when_b_not_on_disk(monkeypatch):
     _fake_season_manager(monkeypatch, {
-        "SS11": (_SKILLS_A, _GEAR_A),
+        "SS11": (_SKILLS_A, _GEAR_A, _TRAITS_A),
         # SS12 not present at all — not an available season.
     })
-    skills_map, gear_map, used = season_impact._load_catalog_maps("SS11", "SS12")
+    skills_map, gear_map, hero_traits_map, used = season_impact._load_catalog_maps("SS11", "SS12")
     assert used == "SS11"
     assert set(skills_map.keys()) == {"u-a"}
+    assert set(hero_traits_map.keys()) == {"t-a"}
 
 
 def test_load_catalog_maps_falls_back_when_season_b_data_is_empty(monkeypatch):
-    # SS12 IS an available season dir, but has neither skills nor gear data on disk (both None) —
-    # must still fall through to season_a rather than returning an empty result early.
+    # SS12 IS an available season dir, but has neither skills, gear, nor hero-traits data on disk
+    # (all None) — must still fall through to season_a rather than returning an empty result early.
     _fake_season_manager(monkeypatch, {
-        "SS11": (_SKILLS_A, _GEAR_A),
-        "SS12": (None, None),
+        "SS11": (_SKILLS_A, _GEAR_A, _TRAITS_A),
+        "SS12": (None, None, None),
     })
-    skills_map, gear_map, used = season_impact._load_catalog_maps("SS11", "SS12")
+    skills_map, gear_map, hero_traits_map, used = season_impact._load_catalog_maps("SS11", "SS12")
     assert used == "SS11"
     assert set(skills_map.keys()) == {"u-a"}
+    assert set(hero_traits_map.keys()) == {"t-a"}
 
 
 def test_load_catalog_maps_both_missing_returns_empty_no_crash(monkeypatch):
     _fake_season_manager(monkeypatch, {})
-    skills_map, gear_map, used = season_impact._load_catalog_maps("SS11", "SS12")
+    skills_map, gear_map, hero_traits_map, used = season_impact._load_catalog_maps("SS11", "SS12")
     assert skills_map == {}
     assert gear_map == {}
+    assert hero_traits_map == {}
     assert used is None
 
 
@@ -690,6 +706,73 @@ def test_run_impact_catalog_missing_buckets_unresolved_not_falsely_not_modeled(t
     assert "WARNING: season catalog not on disk" in md
 
 
+# ── FIX 2 (hero-trait analog) — missing local catalog must bucket the trait as unresolved, never ──
+# falsely "not modeled" NOR falsely "generic-resolved" (the hero-trait equivalent of the "don't
+# guess" stance above — see _hero_trait_impact's `catalog_available` branch docstring).
+
+def test_hero_trait_impact_catalog_unavailable_is_unresolved_no_catalog():
+    """Direct unit call, mirroring the skill side's `catalog_available` gate: with neither season's
+    local catalog on disk, `trait_id`/the bespoke-module check can't be computed at all — must land
+    in its own `unresolved_no_catalog` state, not silently default to has_module=False (which would
+    misreport a possibly-bespoke-modeled trait as 'generic-resolved, spot-check wording')."""
+    entity = {
+        "verdict": "renumbered", "name_before": "Lightning Shadow", "name_after": "Lightning Shadow",
+        "field_changes": [{"path": "base_level.1.value", "before": "0.18", "after": "0.20", "status": "changed"}],
+    }
+    result = season_impact._hero_trait_impact(
+        _LIGHTNING_SHADOW_UUID, entity, {}, {}, {}, catalog_available=False,
+    )
+    assert result["resolution"] == "unresolved_no_catalog"
+    assert result["resolution"] != "unresolved_no_catalog_entry"
+    assert result["resolution"] != "resolved"
+    assert result["has_module"] is None
+    assert result["trait_id"] is None
+    assert result["hero"] is None
+    assert result["registry_module"] is None
+    assert result["registry_function"] is None
+
+
+def test_run_impact_hero_trait_catalog_missing_buckets_unresolved_not_falsely_generic_resolved(tmp_path, monkeypatch):
+    _fake_season_manager(monkeypatch, {})  # neither season on disk anywhere — catalog_available=False
+    monkeypatch.setattr(season_impact, "_VERIFICATION_DIR", str(tmp_path / "no-verification"))
+    monkeypatch.setattr(season_impact, "_FIXTURES_DIR", str(tmp_path / "no-fixtures"))
+
+    types = {
+        "hero_trait": {
+            "counts": {}, "entities": {
+                "u-ls": {
+                    "verdict": "renumbered", "name_before": "Lightning Shadow", "name_after": "Lightning Shadow",
+                    "field_changes": [{"path": "base_level.1.value", "before": "0.18", "after": "0.20", "status": "changed"}],
+                },
+            },
+        },
+    }
+    diff_path = _write_diff_artifact(tmp_path, "SS11", "SS12", types)
+    report = season_impact.run_impact(diff_path)
+    s = report["summary"]
+
+    assert report["catalog_season_used"] is None
+    assert s["catalog_missing"] is True
+    assert s["changed_hero_traits_unresolved_catalog_missing"] == 1
+    # Must NOT be misclassified into either "not modeled"-adjacent bucket — hero traits have no
+    # "not modeled" bucket at all, but must also not be miscounted as bespoke-reverify or as
+    # generic-resolved (a real bug would flip either way if the gate were dropped).
+    assert s["changed_hero_traits_bespoke_reverify"] == 0
+    assert s["changed_hero_traits_generic_resolved"] == 0
+    assert s["changed_hero_traits_unresolved_no_catalog"] == 0
+
+    entry = next(x for x in report["generic"] if x["uuid"] == "u-ls")
+    assert entry["resolution"] == "unresolved_no_catalog"
+    assert entry["resolution"] != "resolved"
+    assert entry["resolution"] != "unresolved_no_catalog_entry"
+    assert entry["has_module"] is None
+
+    md = season_impact.render_markdown(report)
+    assert "WARNING: season catalog not on disk" in md
+    assert "## Changed hero traits — unresolved (season catalog not on disk)" in md
+    assert "Lightning Shadow" in md
+
+
 # ── FIX 3 — localization-mismatch-only entities surface in their own bucket, not the normal ones ─
 
 def test_run_impact_surfaces_localization_mismatch_only_entities(impact_env):
@@ -727,11 +810,14 @@ def test_run_impact_surfaces_localization_mismatch_only_entities(impact_env):
     assert "Weird Skill" in md
 
 
-# ── FIX 4 — entity types outside skill/gear scope with an unrecognized shape render, not vanish ──
+# ── FIX 4 — entity types outside skill/gear/hero_trait scope with an unrecognized shape render, ──
+# not vanish. hero_trait itself is now a KNOWN generic type (wired to _hero_trait_impact — see the
+# "hero-trait impact" section below), so this exercises a genuinely-still-unhandled generic type
+# instead (talent_tree — see `_KNOWN_GENERIC_TYPES`'s docstring for why it isn't wired here yet).
 
 def test_run_impact_unknown_shape_type_recorded_and_rendered(impact_env):
     types = {
-        "hero_trait": {
+        "talent_tree": {
             "counts": {}, "entities": {
                 "u-trait": {"verdict": "reworked", "name_before": "Old Trait", "name_after": "New Trait"},
             },
@@ -741,13 +827,14 @@ def test_run_impact_unknown_shape_type_recorded_and_rendered(impact_env):
     report = season_impact.run_impact(diff_path)
     s = report["summary"]
 
-    assert s["types_skipped_unknown_shape"] == ["hero_trait"]
+    assert s["types_skipped_unknown_shape"] == ["talent_tree"]
     assert report["skills"] == []
     assert report["gear"] == []
+    assert report["generic"] == []
 
     md = season_impact.render_markdown(report)
     assert "Not analyzed by this tool (unrecognized entity shape)" in md
-    assert "hero_trait" in md
+    assert "talent_tree" in md
 
 
 # ── FIX 5 — golden-name matching is a whole-name (word-boundary) match, not raw substring ────────
@@ -863,3 +950,149 @@ def test_run_impact_gear_removed_and_added_stubs_do_not_crash(impact_env):
     md = season_impact.render_markdown(report)  # must not crash on stub shapes
     assert "Old Ring" in md
     assert "New Ring" in md
+
+
+# ── _hero_trait_impact — bespoke-module vs generic-resolved (mirrors _skill_impact's gate) ───────
+# Real SS12 uuids/trait_ids from `data/seasons/SS12/_hero_traits.json` (confirmed by reading that
+# file directly, not hardcoded from the engine's own note) and the REAL `engine.hero_traits._APPLY`
+# registry (imported as `season_impact.HERO_TRAIT_REGISTRY`, not monkeypatched here) — this keeps
+# the has_module split honest about what's actually wired rather than a synthetic stand-in.
+
+_LIGHTNING_SHADOW_UUID = "6d78586f-59f9-5ffb-90ee-2baa48465b6d"  # Erika — has engine/hero_traits/lightning_shadow.py
+_ANGER_UUID = "942dfeb1-16d5-520a-92b2-c65511de739f"             # Rehan — no bespoke module
+
+
+def test_hero_trait_impact_with_bespoke_module_is_reverify():
+    """Lightning Shadow has a bespoke `engine.hero_traits.lightning_shadow` module — a changed
+    trait with a module is RE-VERIFY (its hand-coded coefficient arrays are literal season numbers
+    baked into Python), never 'not modeled'."""
+    assert "lightning_shadow" in season_impact.HERO_TRAIT_REGISTRY  # sanity: still really wired
+    hero_traits_uuid_map = {
+        _LIGHTNING_SHADOW_UUID: {"trait_id": "lightning_shadow", "hero": "Erika", "variant_name": "Lightning Shadow"},
+    }
+    entity = {
+        "verdict": "renumbered", "name_before": "Lightning Shadow", "name_after": "Lightning Shadow",
+        "field_changes": [{"path": "base_level.1.value", "before": "0.18", "after": "0.20", "status": "changed"}],
+    }
+    result = season_impact._hero_trait_impact(
+        _LIGHTNING_SHADOW_UUID, entity, hero_traits_uuid_map, {}, {},
+    )
+    assert result["resolution"] == "resolved"
+    assert result["has_module"] is True
+    assert result["trait_id"] == "lightning_shadow"
+    assert result["hero"] == "Erika"
+    assert result["registry_module"] == "engine.hero_traits.lightning_shadow"
+    assert result["registry_function"] == "apply"
+    assert result["field_change_count"] == 1
+
+
+def test_hero_trait_impact_without_bespoke_module_is_generic_resolved():
+    """Anger has no bespoke `engine/hero_traits/` module — resolves through the same generic
+    mod_parser stat-line pipeline gear/talent text uses. `has_module=False` must NOT be reported as
+    'not modeled'; it's a much weaker 'spot-check the new wording' signal."""
+    assert "anger" not in season_impact.HERO_TRAIT_REGISTRY  # sanity: genuinely no bespoke module
+    hero_traits_uuid_map = {
+        _ANGER_UUID: {"trait_id": "anger", "hero": "Rehan", "variant_name": "Anger"},
+    }
+    entity = {
+        "verdict": "reworked", "name_before": "Anger", "name_after": "Anger",
+        "field_changes": [{"path": "description", "before": "old text", "after": "new text", "status": "changed"}],
+    }
+    result = season_impact._hero_trait_impact(
+        _ANGER_UUID, entity, hero_traits_uuid_map, {}, {},
+    )
+    assert result["resolution"] == "resolved"
+    assert result["has_module"] is False
+    assert result["trait_id"] == "anger"
+    assert result["hero"] == "Rehan"
+    assert result["registry_module"] is None
+    assert result["registry_function"] is None
+
+
+def test_hero_trait_impact_unknown_uuid_is_unresolved_no_catalog_entry():
+    """A uuid absent from the local season catalog can't be resolved to a trait_id at all — must
+    land in the catalog-missing/unresolved bucket, not silently default to has_module=False."""
+    entity = {
+        "verdict": "renumbered", "name_before": "Mystery Trait", "name_after": "Mystery Trait",
+        "field_changes": [],
+    }
+    result = season_impact._hero_trait_impact(
+        "uuid-not-in-catalog", entity, {}, {}, {},
+    )
+    assert result["resolution"] == "unresolved_no_catalog_entry"
+    assert result["has_module"] is None
+    assert result["trait_id"] is None
+    assert result["hero"] is None
+    assert result["registry_module"] is None
+    assert result["registry_function"] is None
+
+
+# ── run_impact / render_markdown — hero-trait rows end-to-end ────────────────────────────────────
+
+def test_run_impact_and_render_markdown_hero_trait_rows(impact_env, monkeypatch):
+    """A changed BESPOKE-module trait (Lightning Shadow) and a changed GENERIC-resolved trait
+    (Anger) each land in their own report bucket and markdown section. 'Not analyzed' keeps listing
+    talent_tree/pactspirit (still genuinely unmapped) but no longer lists hero_trait, now that it's
+    a fully-handled generic type rather than a fallthrough-to-unknown bullet."""
+    hero_traits_data = {
+        "traits": [
+            {"uuid": _LIGHTNING_SHADOW_UUID, "trait_id": "lightning_shadow", "hero": "Erika", "variant_name": "Lightning Shadow"},
+            {"uuid": _ANGER_UUID, "trait_id": "anger", "hero": "Rehan", "variant_name": "Anger"},
+        ]
+    }
+    # impact_env's _fake_season_manager only stubbed skills/gear for SS12 — layer hero-traits on
+    # top of that same fake (never real disk), keeping the module's hermetic guarantee.
+    monkeypatch.setattr(
+        season_impact.season_manager, "load_hero_traits",
+        lambda season, raw=False: hero_traits_data if season == "SS12" else None,
+    )
+
+    types = {
+        "hero_trait": {
+            "counts": {}, "entities": {
+                _LIGHTNING_SHADOW_UUID: {
+                    "verdict": "renumbered", "name_before": "Lightning Shadow", "name_after": "Lightning Shadow",
+                    "field_changes": [{"path": "base_level.1.value", "before": "0.18", "after": "0.20", "status": "changed"}],
+                },
+                _ANGER_UUID: {
+                    "verdict": "reworked", "name_before": "Anger", "name_after": "Anger",
+                    "field_changes": [{"path": "description", "before": "old", "after": "new", "status": "changed"}],
+                },
+            },
+        },
+        "talent_tree": {
+            "counts": {}, "entities": {
+                "u-talent": {"verdict": "renumbered", "name_before": "Some Node", "name_after": "Some Node", "field_changes": []},
+            },
+        },
+        "pactspirit": {
+            "counts": {}, "entities": {
+                "u-pact": {"verdict": "reworked", "name_before": "Some Pact", "name_after": "Some Pact", "field_changes": []},
+            },
+        },
+    }
+    diff_path = _write_diff_artifact(impact_env, "SS11", "SS12", types)
+    report = season_impact.run_impact(diff_path)
+    s = report["summary"]
+
+    assert s["changed_hero_traits_total"] == 2
+    assert s["changed_hero_traits_bespoke_reverify"] == 1
+    assert s["changed_hero_traits_generic_resolved"] == 1
+    assert sorted(s["types_skipped_unknown_shape"]) == ["pactspirit", "talent_tree"]
+
+    reverify_entry = next(t for t in report["generic"] if t["trait_id"] == "lightning_shadow")
+    assert reverify_entry["has_module"] is True
+    generic_entry = next(t for t in report["generic"] if t["trait_id"] == "anger")
+    assert generic_entry["has_module"] is False
+
+    md = season_impact.render_markdown(report)
+    assert "## Changed hero traits — RE-VERIFY (has a bespoke engine module)" in md
+    assert "Lightning Shadow" in md
+    assert "## Changed hero traits — generic-resolved (no bespoke module)" in md
+    assert "Anger" in md
+
+    not_analyzed_idx = md.index("Not analyzed by this tool")
+    not_analyzed_section = md[not_analyzed_idx:]
+    assert "- talent_tree" in not_analyzed_section
+    assert "- pactspirit" in not_analyzed_section
+    assert "- hero_trait" not in not_analyzed_section

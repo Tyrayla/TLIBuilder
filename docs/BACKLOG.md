@@ -329,6 +329,20 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
 ## 4. Data / crawler / import
 - **Crawler & import rework** — DONE. Scraper built; importer/schema rework complete; data reimported in
   split-line (atomic modifier/slot) format.
+- **Crawler-side talent-tree differ upgrade — enable node-level season-diff precision (owner: data-scraper /
+  `tlidb-crawler` repo, follow-up, not blocking).** Found while scoping the `season_impact.py` engine-impact mapper
+  expansion. The season-diff artifact from `tlidb-crawler/tools/season_diff/` currently diffs talent trees only at
+  **whole-tree granularity** — `generic_diff.py::diff_generic_entity` indexes by the top-level
+  `entity:talent_tree:{name}` uuid (24 trees, one uuid each) and does a positional recursive deep-diff producing
+  `field_changes: [{path, before, after, status}]` with paths like `$.nodes[3].effects[0].text`. Individual talent
+  nodes do carry their own stable `uuid` locally (e.g. `data/seasons/SS12/warrior.json` `nodes[].uuid`) and effects
+  have `pooling_uuid`, but the crawler's generic differ never exposes them — a node reorder shifts every subsequent
+  list index, so path-based node identity is unreliable. Consequence: builder-side `season_impact.py` can only
+  surface talent-tree impact at whole-tree/text-parse granularity, not per-node. **Ethereal Prism is worse** — it's
+  a single singleton entity (`entity:ethereal_prism:ethereal_prism`), so any change makes the whole catalog "reworked"
+  with no per-talent identity. Fix: give `talent_tree` a dedicated differ that indexes `nodes[]` by `uuid` and
+  `effects[]` by `pooling_uuid` — the way `skill_diff.py` / `gear_diff.py` already do for skills and gear — instead
+  of falling through to `generic_diff.py`. Prerequisite for trustworthy node-level engine-impact rows.
 - **Master glossary expansion**: keep data/master_glossary.json in sync; expand Help DB glossary terms.
 - **Revisit ~22 unmapped support DPS lines** (ailment/DoT, Tendonslicer, Projectile Penetration) with
   conditions active + autoderive/canvas resolvers.

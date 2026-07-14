@@ -31,6 +31,22 @@ list it, and flag any brand-new affix wording (an `added` line, or the `text_aft
 that `tools.audit_stat_coverage._resolve_craft_affix` can't resolve to a stat key, since that is
 exactly "missing stats" — an affix the engine would otherwise silently ignore.
 
+For each changed HERO_TRAIT — a "generic"-shaped type (the crawler's `season_diff` engine routes it
+through a coarse recursive field-diff, `field_changes: [{path, before, after, status}]`, not the
+skill/gear differs' `line_changes`/`variants`):
+    - Resolve its `trait_id` via the LOCAL season catalog (`data/seasons/<season>/_hero_traits.json`,
+      identity-joined by `uuid`, same shape as skills). Check `engine.hero_traits._APPLY` for that
+      `trait_id`. UNLIKE skills, no bespoke module does NOT mean "not modeled" — most hero traits
+      resolve fine through the generic mod_parser stat-line pipeline (see
+      `engine/hero_traits/README.md`), so a `trait_id` with no module is flagged generic-resolved
+      (spot-check new wording), never NOT MODELED; a `trait_id` WITH a module is flagged RE-VERIFY
+      (its hand-coded coefficient arrays are literal season numbers baked into Python).
+    - Cross-reference `data/verification/*.json` and golden fixtures the same way skills do (hero-
+      trait verification entries already use the same `skills[]` field, e.g. `wind-stalker.json`).
+Other generic-shaped types (`talent_tree`, `ethereal_prism`, `pactspirit`, ...) are NOT mapped yet —
+see the "Not analyzed by this tool" section this renders; they have no per-entity registry to join
+against the way hero_trait does (see `_KNOWN_GENERIC_TYPES`'s docstring).
+
 Usage (from backend/):
     py -3.12 -m tools.season_impact <path-to-season-diff-A-B.json> [--out-dir DIR] [--season NAME]
 
@@ -59,6 +75,7 @@ if _BACKEND not in sys.path:
 
 from persistence import season_manager  # noqa: E402
 from engine.skill_resolver import _REGISTRY as SKILL_REGISTRY  # noqa: E402
+from engine.hero_traits import _APPLY as HERO_TRAIT_REGISTRY  # noqa: E402
 
 # Skill-shaped season_diff types (mirrors tools/rebuild_skills.py's _SKILL_TYPE_DIRS — the set of
 # skill_type values that live in _skills.json and are therefore uuid-resolvable against it).
@@ -68,6 +85,20 @@ _KNOWN_SKILL_TYPES = {
     "activation_medium_skill", "modularization_skill",
 }
 _KNOWN_GEAR_TYPES = {"legendary_gear"}
+
+# "Generic"-shaped season_diff types — everything the crawler's `season_diff` engine routes through
+# its coarse recursive `diff_generic_entity` (field_changes: [{path, before, after, status}]) rather
+# than the fine-grained skill/gear differs. `engine.hero_traits._APPLY` gives hero_trait a real
+# per-entity registry to check (see _hero_trait_impact), so it's the first (and, as of this piece,
+# ONLY) type wired here. talent_tree and ethereal_prism are DELIBERATELY not in this set yet — they
+# have no per-entity registry to join against (core_talent_resolver.py / node_resolver.py /
+# prism_core_talents.py are ~100% generic-text-parse pipelines, not uuid-keyed dispatch tables) and
+# the crawler doesn't expose node-level identity in the diff artifact for talent_tree, so a handler
+# for them needs a different (lower-confidence, text-resolves-or-not) shape — that's a separate
+# piece. pactspirit is deliberately never planned here: no bespoke pact-spirit engine registry
+# exists at all (the one bespoke minion module, `minion_effects/thunder_magus.py`, is keyed by a
+# SKILL item_id and is already covered by the skill branch above).
+_KNOWN_GENERIC_TYPES = {"hero_trait"}
 
 _VERIFICATION_DIR = os.path.join(_REPO, "data", "verification")
 _FIXTURES_DIR = os.path.join(_BACKEND, "tests", "fixtures")
@@ -83,17 +114,19 @@ def _slugify(name: str) -> str:
 
 # ── Local season catalog resolution (uuid -> item_id) ────────────────────────────────────────
 
-def _load_catalog_maps(season_a: str, season_b: str) -> tuple[dict, dict, str | None]:
-    """Return (skills_uuid_map, gear_uuid_map, season_used). Tries season_b (the target season —
-    most likely to be the currently-imported one) then season_a. Neither map depends on the
-    season being ACTIVE (`data/seasons/.active`) — any imported season dir on disk works."""
+def _load_catalog_maps(season_a: str, season_b: str) -> tuple[dict, dict, dict, str | None]:
+    """Return (skills_uuid_map, gear_uuid_map, hero_traits_uuid_map, season_used). Tries season_b
+    (the target season — most likely to be the currently-imported one) then season_a. None of the
+    three maps depend on the season being ACTIVE (`data/seasons/.active`) — any imported season dir
+    on disk works."""
     available = set(season_manager.list_seasons())
     for season in (season_b, season_a):
         if not season or season not in available:
             continue
         skills_data = season_manager.load_skills(season, raw=True)
         gear_data = season_manager.load_legendary_gear(season)
-        if not skills_data and not gear_data:
+        hero_traits_data = season_manager.load_hero_traits(season, raw=True)
+        if not skills_data and not gear_data and not hero_traits_data:
             continue
         skills_map = {}
         for sk in (skills_data or {}).get("skills", []):
@@ -107,8 +140,16 @@ def _load_catalog_maps(season_a: str, season_b: str) -> tuple[dict, dict, str | 
         for it in (gear_data or {}).get("items", []):
             if it.get("uuid"):
                 gear_map[it["uuid"]] = {"item_id": it.get("item_id"), "name": it.get("name")}
-        return skills_map, gear_map, season
-    return {}, {}, None
+        hero_traits_map = {}
+        for tr in (hero_traits_data or {}).get("traits", []):
+            if tr.get("uuid"):
+                hero_traits_map[tr["uuid"]] = {
+                    "trait_id": tr.get("trait_id"),
+                    "hero": tr.get("hero"),
+                    "variant_name": tr.get("variant_name"),
+                }
+        return skills_map, gear_map, hero_traits_map, season
+    return {}, {}, {}, None
 
 
 def _registry_scoped_skill_types(skills_uuid_map: dict) -> set[str]:
@@ -209,10 +250,19 @@ def _classify_type(type_name: str, type_block: dict) -> str:
             return "gear"
         if "line_changes" in e:
             return "skill"
+        if "field_changes" in e:
+            # The generic shape is shared by EVERY type diff_generic_entity handles (hero_trait,
+            # talent_tree, ethereal_prism, pactspirit, craft_base_type, ...) — gate on
+            # _KNOWN_GENERIC_TYPES (an explicit allowlist, not shape alone) so a type this tool has
+            # no registry/join for (e.g. pactspirit) still falls through to "unknown" instead of
+            # silently getting a hollow "generic impact" section with nothing to say.
+            return "generic" if type_name in _KNOWN_GENERIC_TYPES else "unknown"
     if type_name in _KNOWN_GEAR_TYPES:
         return "gear"
     if type_name in _KNOWN_SKILL_TYPES:
         return "skill"
+    if type_name in _KNOWN_GENERIC_TYPES:
+        return "generic"
     return "unknown"
 
 
@@ -374,6 +424,83 @@ def _gear_impact(uuid: str, entity: dict, gear_uuid_map: dict, resolve_affix) ->
     }
 
 
+# ── Hero-trait impact (generic-shaped) ────────────────────────────────────────────────────────
+
+def _hero_trait_impact(
+    uuid: str, entity: dict, hero_traits_uuid_map: dict,
+    verification_index: dict, fixture_index: dict,
+    catalog_available: bool = True,
+) -> dict:
+    """Mirrors `_skill_impact`'s uuid -> local-catalog -> registry join, but keyed on `trait_id`
+    against `engine.hero_traits._APPLY` instead of `item_id` against `skill_resolver._REGISTRY`,
+    and reading the coarse `field_changes` shape `diff_generic_entity` produces instead of
+    `line_changes`.
+
+    Unlike skills, `has_module=False` is NOT a "not modeled" signal: a hero trait with no bespoke
+    `engine/hero_traits/` module is still resolved through the SAME generic mod_parser stat-line
+    pipeline gear/talent text uses (see `engine/hero_traits/README.md`) — most of the ~26 trait
+    variants in `_hero_traits.json` have no bespoke module and work fine. So this only ever reports
+    two asymmetric-confidence buckets for a resolved trait: `has_module=True` -> RE-VERIFY (its
+    hand-coded coefficient arrays, e.g. lightning_shadow.py's `_BASE_ADDITIONAL`, are literally
+    season numbers baked into Python and drift on a renumber); `has_module=False` -> a much weaker
+    "generic-resolved, spot-check new/changed wording still parses" signal, never "not modeled".
+    """
+    name_after = entity.get("name_after") or entity.get("name_before") or uuid
+    name_before = entity.get("name_before") or name_after
+    catalog = hero_traits_uuid_map.get(uuid)
+    trait_id = catalog["trait_id"] if catalog else None
+    hero = catalog["hero"] if catalog else None
+
+    if not catalog_available:
+        # Same "don't guess" stance as _skill_impact's catalog_available branch — neither season's
+        # local catalog is on disk, so trait_id (and therefore the registry check) can't be
+        # computed at all. Surface as its own unresolved state rather than faking a verdict.
+        has_module = None
+        registry_module = None
+        registry_function = None
+        resolution = "unresolved_no_catalog"
+    elif trait_id is not None:
+        has_module = trait_id in HERO_TRAIT_REGISTRY
+        fn = HERO_TRAIT_REGISTRY.get(trait_id)
+        registry_module = fn.__module__ if fn else None
+        registry_function = fn.__qualname__ if fn else None
+        resolution = "resolved"
+    else:
+        has_module = None  # unknown — no local catalog entry to check against
+        registry_module = None
+        registry_function = None
+        resolution = "unresolved_no_catalog_entry"
+
+    verification_ids = sorted(set(
+        verification_index.get(name_after.strip().lower(), [])
+        + verification_index.get(name_before.strip().lower(), [])
+    ))
+    # Hero-trait tests (backend/tests/test_<trait>.py) are inline pytest assertions, not JSON
+    # golden fixtures under backend/tests/fixtures/ — an EMPTY golden_files list here is the
+    # expected, correct outcome for every hero trait, not a sign the match logic is broken.
+    golden_files = _matching_golden_files(fixture_index, trait_id, name_after, name_before)
+
+    field_changes = entity.get("field_changes") or []
+
+    return {
+        "uuid": uuid,
+        "entity_type": "hero_trait",
+        "name": name_after,
+        "name_before": name_before if name_before != name_after else None,
+        "hero": hero,
+        "verdict": entity["verdict"],
+        "trait_id": trait_id,
+        "resolution": resolution,
+        "has_module": has_module,
+        "registry_module": registry_module,
+        "registry_function": registry_function,
+        "verification_ids": verification_ids,
+        "golden_files": golden_files,
+        "field_change_count": len(field_changes),
+        "has_localization_mismatch": bool(entity.get("has_localization_mismatch")),
+    }
+
+
 # ── Main run ───────────────────────────────────────────────────────────────────────────────────
 
 def run_impact(diff_path: str, season_override: str | None = None) -> dict:
@@ -383,9 +510,13 @@ def run_impact(diff_path: str, season_override: str | None = None) -> dict:
     season_a = diff.get("season_a")
     season_b = diff.get("season_b")
     if season_override:
-        skills_uuid_map, gear_uuid_map, catalog_season_used = _load_catalog_maps(season_override, season_override)
+        skills_uuid_map, gear_uuid_map, hero_traits_uuid_map, catalog_season_used = _load_catalog_maps(
+            season_override, season_override
+        )
     else:
-        skills_uuid_map, gear_uuid_map, catalog_season_used = _load_catalog_maps(season_a, season_b)
+        skills_uuid_map, gear_uuid_map, hero_traits_uuid_map, catalog_season_used = _load_catalog_maps(
+            season_a, season_b
+        )
 
     verification_index = _load_verification_index()
     fixture_index = _load_fixture_index()
@@ -400,6 +531,7 @@ def run_impact(diff_path: str, season_override: str | None = None) -> dict:
 
     skills: list[dict] = []
     gear: list[dict] = []
+    generic: list[dict] = []
     localization_mismatches: list[dict] = []
     types_no_baseline: dict[str, dict] = {}
     types_skipped_unknown: list[str] = []
@@ -434,6 +566,16 @@ def run_impact(diff_path: str, season_override: str | None = None) -> dict:
         elif category == "gear":
             for uuid, entity in changed.items():
                 gear.append(_gear_impact(uuid, entity, gear_uuid_map, _resolve_craft_affix))
+        elif category == "generic":
+            # Only hero_trait is wired to _KNOWN_GENERIC_TYPES so far — a future generic type (e.g.
+            # talent_tree, ethereal_prism) needs its own branch here (different catalog, different
+            # join, no registry to check), not a fallthrough onto _hero_trait_impact's shape.
+            if type_name == "hero_trait":
+                for uuid, entity in changed.items():
+                    generic.append(_hero_trait_impact(
+                        uuid, entity, hero_traits_uuid_map,
+                        verification_index, fixture_index, catalog_available=catalog_available,
+                    ))
         else:
             types_skipped_unknown.append(type_name)
 
@@ -445,8 +587,27 @@ def run_impact(diff_path: str, season_override: str | None = None) -> dict:
     unresolved_catalog_missing = [s for s in skills if s["resolution"] == "unresolved_no_catalog"]
     removed = [s for s in skills if s["verdict"] == "removed"]
 
-    verification_ids_touched = sorted({vid for s in skills for vid in s["verification_ids"]})
-    golden_files_touched = sorted({g for s in skills for g in s["golden_files"]})
+    hero_traits_resolved = [t for t in generic if t["entity_type"] == "hero_trait" and t["resolution"] == "resolved"]
+    hero_traits_bespoke = [t for t in hero_traits_resolved if t["has_module"] is True]
+    hero_traits_generic_resolved = [t for t in hero_traits_resolved if t["has_module"] is False]
+    hero_traits_unresolved = [
+        t for t in generic if t["entity_type"] == "hero_trait" and t["resolution"] == "unresolved_no_catalog_entry"
+    ]
+    hero_traits_unresolved_catalog_missing = [
+        t for t in generic if t["entity_type"] == "hero_trait" and t["resolution"] == "unresolved_no_catalog"
+    ]
+    hero_traits_removed = [t for t in generic if t["entity_type"] == "hero_trait" and t["verdict"] == "removed"]
+
+    verification_ids_touched = sorted({
+        vid for s in skills for vid in s["verification_ids"]
+    } | {
+        vid for t in generic for vid in t["verification_ids"]
+    })
+    golden_files_touched = sorted({
+        g for s in skills for g in s["golden_files"]
+    } | {
+        g for t in generic for g in t["golden_files"]
+    })
     gear_with_new_text = [g for g in gear if g["new_affix_texts"]]
     gear_unresolved = [g for g in gear if g["new_affix_unresolved"]]
 
@@ -465,6 +626,13 @@ def run_impact(diff_path: str, season_override: str | None = None) -> dict:
         "changed_gear_total": len(gear),
         "changed_gear_with_new_affix_text": len(gear_with_new_text),
         "changed_gear_new_affix_unresolved": len(gear_unresolved),
+        "changed_hero_traits_total": len(hero_traits_resolved) + len(hero_traits_unresolved)
+        + len(hero_traits_unresolved_catalog_missing),
+        "changed_hero_traits_bespoke_reverify": len(hero_traits_bespoke),
+        "changed_hero_traits_generic_resolved": len(hero_traits_generic_resolved),
+        "changed_hero_traits_unresolved_no_catalog": len(hero_traits_unresolved),
+        "changed_hero_traits_unresolved_catalog_missing": len(hero_traits_unresolved_catalog_missing),
+        "changed_hero_traits_removed": len(hero_traits_removed),
         "types_with_no_historical_baseline": types_no_baseline,
         "types_skipped_unknown_shape": types_skipped_unknown,
         "localization_mismatch_entities_total": len(localization_mismatches),
@@ -479,6 +647,7 @@ def run_impact(diff_path: str, season_override: str | None = None) -> dict:
         "summary": summary,
         "skills": skills,
         "gear": gear,
+        "generic": generic,
         "localization_mismatches": localization_mismatches,
     }
 
@@ -495,10 +664,11 @@ def render_markdown(report: dict) -> str:
             "## WARNING: season catalog not on disk",
             "",
             "Neither season's local catalog (`data/seasons/<season>/_skills.json` / "
-            "`_legendary_gear.json`) was found. The `skill_resolver._REGISTRY`-scope gate could "
-            "NOT be evaluated for a single changed skill below — every one is bucketed "
-            "`unresolved_no_catalog` rather than modeled/not-modeled, since guessing would risk "
-            "flagging genuinely registry-modeled skills (e.g. an `active_skill`) as \"not "
+            "`_legendary_gear.json` / `_hero_traits.json`) was found. The `skill_resolver._REGISTRY`- "
+            "and `hero_traits._APPLY`-scope gates could NOT be evaluated for a single changed skill "
+            "or hero trait below — every one is bucketed `unresolved_no_catalog` rather than "
+            "modeled/not-modeled, since guessing would risk flagging genuinely registry-modeled "
+            "skills/traits (e.g. an `active_skill`, or a trait like Lightning Shadow) as \"not "
             "modeled\". **Import the season locally and re-run this tool** before trusting any "
             "modeled/not-modeled verdict in this report.",
             "",
@@ -540,6 +710,12 @@ def render_markdown(report: dict) -> str:
         f"- **{s['changed_gear_total']}** changed gear items, **{s['changed_gear_with_new_affix_text']}** "
         f"introduce new affix wording, **{s['changed_gear_new_affix_unresolved']}** of those have text "
         f"`mod_parser` cannot currently resolve to a stat key.",
+        f"- **{s['changed_hero_traits_total']}** changed hero traits — **{s['changed_hero_traits_bespoke_reverify']}** "
+        f"have a bespoke `engine/hero_traits/` module (RE-VERIFY — hand-coded coefficients likely drifted), "
+        f"**{s['changed_hero_traits_generic_resolved']}** have none (generic mod_parser pipeline — spot-check "
+        f"new/changed wording, NOT a \"not modeled\" signal), **{s['changed_hero_traits_unresolved_no_catalog']}** "
+        f"unresolved (no local catalog entry). Separately, **{s['changed_hero_traits_removed']}** more were "
+        f"removed entirely.",
     ]
     if s.get("localization_mismatch_entities_total"):
         lines.append(
@@ -636,6 +812,59 @@ def render_markdown(report: dict) -> str:
                 lines.append(f"  - UNRESOLVED [{w['source']}/{w['kind']}]: {w['text']}")
         lines.append("")
 
+    hero_traits = [x for x in report["generic"] if x["entity_type"] == "hero_trait"]
+
+    reverify_traits = [x for x in hero_traits if x["resolution"] == "resolved" and x["has_module"] is True]
+    if reverify_traits:
+        lines += ["## Changed hero traits — RE-VERIFY (has a bespoke engine module)", ""]
+        for tr in sorted(reverify_traits, key=lambda x: x["name"]):
+            lines.append(
+                f"- **{tr['name']}** (`{tr['trait_id']}`, {tr['hero']}, verdict={tr['verdict']}) "
+                f"-> `{tr['registry_module']}::{tr['registry_function']}`"
+            )
+            if tr["verification_ids"]:
+                lines.append(f"  - verification: {', '.join(tr['verification_ids'])}")
+            if tr["golden_files"]:
+                lines.append(f"  - goldens: {', '.join(tr['golden_files'])}")
+        lines.append("")
+
+    generic_resolved_traits = [x for x in hero_traits if x["resolution"] == "resolved" and x["has_module"] is False]
+    if generic_resolved_traits:
+        lines += [
+            "## Changed hero traits — generic-resolved (no bespoke module)", "",
+            "No `engine/hero_traits/` module owns these — they resolve through the SAME generic "
+            "mod_parser stat-line pipeline gear/talent text uses, which is normal for most hero "
+            "traits (see `engine/hero_traits/README.md`). This is NOT a \"not modeled\" finding; "
+            "spot-check that the new/changed wording still parses the way it used to.", "",
+        ]
+        for tr in sorted(generic_resolved_traits, key=lambda x: x["name"]):
+            extra = []
+            if tr["verification_ids"]:
+                extra.append(f"verification: {', '.join(tr['verification_ids'])}")
+            if tr["golden_files"]:
+                extra.append(f"goldens: {', '.join(tr['golden_files'])}")
+            suffix = f" — {'; '.join(extra)}" if extra else ""
+            lines.append(f"- **{tr['name']}** (`{tr['trait_id']}`, {tr['hero']}, verdict={tr['verdict']}){suffix}")
+        lines.append("")
+
+    unresolved_traits = [x for x in hero_traits if x["resolution"] == "unresolved_no_catalog_entry"]
+    if unresolved_traits:
+        lines += ["## Changed hero traits — unresolved (no local season catalog entry)", ""]
+        for tr in sorted(unresolved_traits, key=lambda x: x["name"]):
+            lines.append(f"- **{tr['name']}** (verdict={tr['verdict']}, uuid=`{tr['uuid']}`)")
+        lines.append("")
+
+    catalog_missing_traits = [x for x in hero_traits if x["resolution"] == "unresolved_no_catalog"]
+    if catalog_missing_traits:
+        lines += [
+            "## Changed hero traits — unresolved (season catalog not on disk)", "",
+            "The bespoke-module gate could not be evaluated at all for these (see the WARNING "
+            "at the top of this report) — no RE-VERIFY/generic-resolved verdict is given.", "",
+        ]
+        for tr in sorted(catalog_missing_traits, key=lambda x: x["name"]):
+            lines.append(f"- **{tr['name']}** (verdict={tr['verdict']}, uuid=`{tr['uuid']}`)")
+        lines.append("")
+
     if report["localization_mismatches"]:
         lines += [
             "## Localization mismatch — needs re-crawl before impact can be judged", "",
@@ -657,10 +886,17 @@ def render_markdown(report: dict) -> str:
     if s["types_skipped_unknown_shape"]:
         lines += [
             "## Not analyzed by this tool (unrecognized entity shape) — review manually", "",
-            "Entity types outside skill/gear scope — e.g. `hero_trait` has its own engine "
-            "subsystem (`backend/engine/hero_traits/`) that rebalances season to season, "
-            "`pact_spirit`/`craft_base_type`/`destiny`/`ethereal_prism`/`divinity_slate` are other "
-            "examples — this tool does not (yet) map them to engine code. Review each manually.", "",
+            "Entity types outside skill/gear/hero_trait scope. `talent_tree` "
+            "(`backend/engine/core_talent_resolver.py`/`node_resolver.py`) and `ethereal_prism` "
+            "(`backend/engine/prism_core_talents.py`) are ~100% generic-text-parse pipelines with no "
+            "per-entity registry to check yet, and the crawler doesn't expose node-level identity "
+            "for talent_tree — not yet mapped here (planned as a lower-confidence, separate piece). "
+            "`pactspirit` has NO bespoke engine registry at all — its one real bespoke-minion "
+            "mechanic (`engine/minion_effects/thunder_magus.py`) is keyed by a SKILL item_id and is "
+            "already covered by the skill sections above, so it's never planned here. "
+            "`craft_base_type`/`destiny`/`divinity_slate`/`hero_memories`/`memory_revival`/"
+            "`tower_sequence`/`graft`/`blending_rituals` are pure data with no bespoke engine code. "
+            "Review each manually.", "",
         ]
         for t in s["types_skipped_unknown_shape"]:
             lines.append(f"- {t}")
@@ -699,7 +935,11 @@ def main() -> None:
         f"{s['changed_skills_unresolved_no_catalog']} unresolved / {s['changed_skills_removed']} removed), "
         f"{len(s['verification_entries_touched'])} verification entries touched, "
         f"{len(s['golden_files_likely_to_move'])} goldens likely to move, "
-        f"{s['changed_gear_total']} changed gear ({s['changed_gear_new_affix_unresolved']} with unresolved new affix text)."
+        f"{s['changed_gear_total']} changed gear ({s['changed_gear_new_affix_unresolved']} with unresolved new affix text), "
+        f"{s['changed_hero_traits_total']} changed hero traits "
+        f"({s['changed_hero_traits_bespoke_reverify']} RE-VERIFY / "
+        f"{s['changed_hero_traits_generic_resolved']} generic-resolved / "
+        f"{s['changed_hero_traits_removed']} removed)."
     )
 
 
