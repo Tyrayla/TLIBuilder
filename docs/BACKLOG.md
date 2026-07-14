@@ -533,6 +533,24 @@ while building it — see `data/verification` cross-links below where the item t
    `.wolf/buglog.json` ids `legendary-gear-affix-resolved-keys-catalog-hover` and
    `gear-catalog-hover-affix-blank-badge-no-equipped-build-scope`.
 
+## 9. Conditions engine — condition default-fallback fix (2026-07-14, uncommitted) — follow-ups
+An engine fix (uncommitted) changed how absent `condition_state` keys resolve: the engine now falls back to
+a condition's CATALOG DEFAULT (`data/conditions.json` `default_value`) instead of reading a missing key as
+0/False — previously silently dropping modifiers gated on it (e.g. Dreamweaver's on-hit stacking elemental
+pen) on existing builds. Every catalog default is now active-by-default whenever its source is present. The
+accuracy review surfaced two follow-ups:
+1. **`mercury_points` default = 100 is unsourced.** `data/conditions.json`'s `default_value: 100` has no
+   supporting entry in `data/master_glossary.json` or the TLI Help Database. Now that absent conditions
+   evaluate at their catalog default, 100 is applied by default wherever Mercury Points gates a modifier.
+   Needs an in-game verification pass to confirm 100 is the correct default (upper limit / full-uptime
+   assumption) before it's trusted as more than a placeholder.
+2. **Compounding-defaults effect is undocumented.** With the absent→default fallback, ALL catalog defaults
+   (stacking-pen at max, `enemies_nearby=1` single-target, `current_life_pct`/`enemy_life_pct=100`, various
+   `_stacks` maxima, etc.) are now simultaneously active by default in a single DPS number. Each individual
+   default traces to a source, but no doc addresses the combined baseline assumption. Worth a verification/
+   documentation pass so the default-DPS scenario (what's silently assumed with zero Conditions input) is
+   explicit somewhere.
+
 ## 7. Infra / hosting
 - **Web-hosted version — SHIPPED** (see the top of this doc). Open follow-ups: redeploy automation (currently
   manual `wrangler`/drag-drop of `dist-web/` + `web-data/`); revisit the optional pure-compute extraction below if

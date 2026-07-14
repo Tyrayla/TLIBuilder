@@ -201,3 +201,37 @@ class TestConditionalRecipes:
         on = _build(); on.node_contributions = [dict(contrib)]
         on.condition_state = {"holding_shield": True}
         assert aggregate(on, {}, {}).total("dmg_inc") == pytest.approx(0.15)   # condition on → applied
+
+
+# ---------------------------------------------------------------------------
+# aggregate()'s own backward-compat condition derivation (active_booleans/numeric_vals left None, so
+# aggregate() self-derives via models.conditions.condition_defaults() — engine/aggregator.py:346-362).
+# Must respect the SAME explicit-wins/default-fallback invariants as engine.compute._derive_views,
+# including the `active_booleans.discard(k)` branch.
+# ---------------------------------------------------------------------------
+
+class TestBackwardCompatConditionDefaultFallback:
+    # within_gale (Howling Gale, data/conditions.json) catalog-defaults to True and carries no
+    # trait_id restriction, so it's always present in condition_defaults()'s bool set.
+    _CONTRIB = {"stat_key": "dmg_inc", "amount": 0.25, "text": "x |node|n", "label": "",
+                "condition_expr": "within_gale"}
+
+    def test_explicit_false_discards_a_default_true_condition(self):
+        # An EXPLICIT False for a default-True condition must REMOVE it from the aggregator's
+        # self-derived active_booleans, not leave it active because it was pre-seeded from the catalog
+        # default before condition_state was overlaid — the discard branch.
+        build = _build()
+        build.node_contributions = [dict(self._CONTRIB)]
+        build.condition_state = {"within_gale": False}
+        # active_booleans/numeric_vals both left None (not passed) → aggregate() self-derives.
+        source = aggregate(build, {}, {})
+        assert source.total("dmg_inc") == 0.0
+
+    def test_absent_key_still_falls_back_to_default_true(self):
+        # Contrast: with NO explicit within_gale key at all, the same gated contribution DOES apply
+        # (the catalog default of True), confirming the discard case above is genuinely about the
+        # EXPLICIT False, not about within_gale failing to activate at all.
+        build = _build()
+        build.node_contributions = [dict(self._CONTRIB)]
+        source = aggregate(build, {}, {})
+        assert source.total("dmg_inc") == pytest.approx(0.25)

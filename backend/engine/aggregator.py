@@ -316,9 +316,13 @@ def aggregate(
 
     season_trees:    {tree_slug: season_tree_dict} — pre-loaded season tree data
     filter_data:     the node_type_filter.json dict with a "recipes" key
-    active_booleans: derived from build.condition_state by the fixed-point engine; if None,
-                     derived here for backward-compat single-call usage
-    numeric_vals:    numeric condition values (clamped) for scaling/threshold evaluation
+    active_booleans: derived from build.condition_state by the fixed-point engine; if None, derived here
+                     for backward-compat single-call usage — pre-seeded from each condition's catalog
+                     default (models.conditions.condition_defaults()) then overlaid with
+                     build.condition_state, so an explicit value (including an explicit 0/False) always
+                     wins and only a truly absent key falls back to its default
+    numeric_vals:    numeric condition values (clamped) for scaling/threshold evaluation; same
+                     catalog-default pre-seed + overlay applies when None
     identity_index:  affix_identity(text) → minted pooling_uuid (engine/identity_index.py); None
                      (tests/legacy) → entries stay uuid-less and pool by text identity as before
     """
@@ -339,16 +343,27 @@ def aggregate(
             return None
         return identity_index.get(affix_identity(text))
 
+    # Backward-compat single-call derivation (the fixed-point loop in engine.compute normally pre-derives
+    # and passes both views via its own _derive_views, which applies the SAME catalog-default fallback).
+    # Pre-seeded from each condition's catalog default, then overlaid with build.condition_state — an
+    # explicit value (including an explicit 0/False) always wins; only a truly ABSENT key falls back.
+    if active_booleans is None or numeric_vals is None:
+        from models.conditions import condition_defaults
+        bool_defaults, numeric_defaults = condition_defaults()
     if active_booleans is None:
-        active_booleans = frozenset(
-            k for k, v in build.condition_state.items()
-            if isinstance(v, bool) and v
-        )
+        active_booleans = {k for k, v in bool_defaults.items() if v}
+        for k, v in build.condition_state.items():
+            if isinstance(v, bool):
+                if v:
+                    active_booleans.add(k)
+                else:
+                    active_booleans.discard(k)
+        active_booleans = frozenset(active_booleans)
     if numeric_vals is None:
-        numeric_vals = {
-            k: float(v) for k, v in build.condition_state.items()
-            if not isinstance(v, bool) and isinstance(v, (int, float))
-        }
+        numeric_vals = dict(numeric_defaults)
+        for k, v in build.condition_state.items():
+            if not isinstance(v, bool) and isinstance(v, (int, float)):
+                numeric_vals[k] = float(v)
 
     # Talent-tree nodes + slate slots (incl. Moth/Prairie copy) are now resolved server-side through the
     # unified resolver (engine.node_resolver.resolve_nodes) and injected as build.node_contributions,

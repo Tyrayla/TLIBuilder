@@ -143,13 +143,24 @@ def derive_condition_minimums(source: BuildSource) -> dict[str, float]:
 def _derive_views(
     condition_state: dict[str, float | bool],
 ) -> tuple[frozenset[str], dict[str, float]]:
-    """Split unified condition_state into the two evaluation views the evaluator needs."""
-    active_booleans: set[str] = set()
-    numeric_vals: dict[str, float] = {}
+    """Split unified condition_state into the two evaluation views the evaluator needs.
+
+    Pre-seeded from each condition's CATALOG DEFAULT (models.conditions.condition_defaults), then
+    overlaid with whatever `condition_state` actually carries — an explicit value (including an explicit
+    0/False) always wins. A key genuinely ABSENT from `condition_state` (e.g. an older/sparse stored
+    build missing a newer condition) now evaluates at its catalog default instead of silently reading as
+    0.0/False, matching what the client already shows/seeds for a fresh build.
+    """
+    from models.conditions import condition_defaults
+    bool_defaults, numeric_defaults = condition_defaults()
+    active_booleans: set[str] = {k for k, v in bool_defaults.items() if v}
+    numeric_vals: dict[str, float] = dict(numeric_defaults)
     for k, v in condition_state.items():
         if isinstance(v, bool):
             if v:
                 active_booleans.add(k)
+            else:
+                active_booleans.discard(k)
         elif isinstance(v, (int, float)):
             numeric_vals[k] = float(v)
     return frozenset(active_booleans), numeric_vals
