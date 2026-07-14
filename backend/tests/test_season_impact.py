@@ -810,14 +810,15 @@ def test_run_impact_surfaces_localization_mismatch_only_entities(impact_env):
     assert "Weird Skill" in md
 
 
-# ── FIX 4 — entity types outside skill/gear/hero_trait scope with an unrecognized shape render, ──
-# not vanish. hero_trait itself is now a KNOWN generic type (wired to _hero_trait_impact — see the
-# "hero-trait impact" section below), so this exercises a genuinely-still-unhandled generic type
-# instead (talent_tree — see `_KNOWN_GENERIC_TYPES`'s docstring for why it isn't wired here yet).
+# ── FIX 4 — entity types outside skill/gear/hero_trait/talent_tree/ethereal_prism scope with an ──
+# unrecognized shape render, not vanish. hero_trait/talent_tree/ethereal_prism are all now KNOWN
+# generic types (wired to their own _*_impact — see the sections below), so this exercises a
+# genuinely-still-unhandled generic type instead (pactspirit — deliberately NEVER planned per
+# `_KNOWN_GENERIC_TYPES`'s docstring: no bespoke pact-spirit engine registry exists at all).
 
 def test_run_impact_unknown_shape_type_recorded_and_rendered(impact_env):
     types = {
-        "talent_tree": {
+        "pactspirit": {
             "counts": {}, "entities": {
                 "u-trait": {"verdict": "reworked", "name_before": "Old Trait", "name_after": "New Trait"},
             },
@@ -827,14 +828,14 @@ def test_run_impact_unknown_shape_type_recorded_and_rendered(impact_env):
     report = season_impact.run_impact(diff_path)
     s = report["summary"]
 
-    assert s["types_skipped_unknown_shape"] == ["talent_tree"]
+    assert s["types_skipped_unknown_shape"] == ["pactspirit"]
     assert report["skills"] == []
     assert report["gear"] == []
     assert report["generic"] == []
 
     md = season_impact.render_markdown(report)
     assert "Not analyzed by this tool (unrecognized entity shape)" in md
-    assert "talent_tree" in md
+    assert "pactspirit" in md
 
 
 # ── FIX 5 — golden-name matching is a whole-name (word-boundary) match, not raw substring ────────
@@ -1032,8 +1033,9 @@ def test_hero_trait_impact_unknown_uuid_is_unresolved_no_catalog_entry():
 def test_run_impact_and_render_markdown_hero_trait_rows(impact_env, monkeypatch):
     """A changed BESPOKE-module trait (Lightning Shadow) and a changed GENERIC-resolved trait
     (Anger) each land in their own report bucket and markdown section. 'Not analyzed' keeps listing
-    talent_tree/pactspirit (still genuinely unmapped) but no longer lists hero_trait, now that it's
-    a fully-handled generic type rather than a fallthrough-to-unknown bullet."""
+    pactspirit (still genuinely unmapped, no bespoke pact-spirit registry at all) but no longer
+    lists hero_trait OR talent_tree — both are now fully-handled generic types (their own
+    _hero_trait_impact / _talent_tree_impact branches), not a fallthrough-to-unknown bullet."""
     hero_traits_data = {
         "traits": [
             {"uuid": _LIGHTNING_SHADOW_UUID, "trait_id": "lightning_shadow", "hero": "Erika", "variant_name": "Lightning Shadow"},
@@ -1078,7 +1080,7 @@ def test_run_impact_and_render_markdown_hero_trait_rows(impact_env, monkeypatch)
     assert s["changed_hero_traits_total"] == 2
     assert s["changed_hero_traits_bespoke_reverify"] == 1
     assert s["changed_hero_traits_generic_resolved"] == 1
-    assert sorted(s["types_skipped_unknown_shape"]) == ["pactspirit", "talent_tree"]
+    assert s["types_skipped_unknown_shape"] == ["pactspirit"]
 
     reverify_entry = next(t for t in report["generic"] if t["trait_id"] == "lightning_shadow")
     assert reverify_entry["has_module"] is True
@@ -1093,6 +1095,480 @@ def test_run_impact_and_render_markdown_hero_trait_rows(impact_env, monkeypatch)
 
     not_analyzed_idx = md.index("Not analyzed by this tool")
     not_analyzed_section = md[not_analyzed_idx:]
-    assert "- talent_tree" in not_analyzed_section
     assert "- pactspirit" in not_analyzed_section
     assert "- hero_trait" not in not_analyzed_section
+    assert "- talent_tree" not in not_analyzed_section
+
+
+# ── _talent_tree_impact / _ethereal_prism_impact — GEAR pattern, no per-entity registry ──────────
+# Mirrors the `_gear_impact` tests' style exactly (a `fake_resolve`/`resolve_text` callable injected
+# directly, no deferred `_parse_custom_mod_text` import needed for these unit-level calls) — these
+# two handlers are text-probe/coarse, never the skill/hero_trait uuid->registry join pattern.
+
+def test_talent_tree_impact_clean_text_change_resolvable_and_unresolvable():
+    """A tree with two clean `.text` pairs — one the fake resolver accepts, one it doesn't — must
+    split them correctly: the resolvable line stays OUT of text_changes_unresolved, the unresolvable
+    one is IN it, and granularity is stamped `whole_tree` (never mistaken for per-node precision)."""
+    entity = {
+        "verdict": "renumbered", "name_before": "Frost Tree", "name_after": "Frost Tree",
+        "field_changes": [
+            {"path": "nodes[2].text", "before": "+10% Increased Cold Damage", "after": "+15% Increased Cold Damage", "status": "changed"},
+            {"path": "nodes[5].effects[0].text", "before": "old wording", "after": "totally unresolvable made up affix xyzzy 12345", "status": "changed"},
+        ],
+    }
+
+    def fake_resolve(text: str) -> bool:
+        return "unresolvable" not in text
+
+    result = season_impact._talent_tree_impact("uuid-tree", entity, fake_resolve)
+
+    assert result["entity_type"] == "talent_tree"
+    assert result["granularity"] == "whole_tree"
+    assert len(result["text_changes"]) == 2
+    assert len(result["text_changes_unresolved"]) == 1
+    assert result["text_changes_unresolved"][0]["after"] == "totally unresolvable made up affix xyzzy 12345"
+    resolvable_afters = {tp["after"] for tp in result["text_changes"] if tp["resolved"]}
+    assert "+15% Increased Cold Damage" in resolvable_afters
+    unresolvable_afters = {tp["after"] for tp in result["text_changes_unresolved"]}
+    assert "+15% Increased Cold Damage" not in unresolvable_afters
+    assert result["structural_changes"] == []
+
+
+def test_talent_tree_impact_structural_change_yields_no_fabricated_text():
+    """A length-mismatched `nodes` list (a node added — `_deep_diff` doesn't recurse into a resized
+    list, see `_text_change_candidates`'s docstring) collapses into ONE structural entry with the
+    raw before/after sub-structures — must land in `structural_changes`, and `text_changes` must
+    stay genuinely empty rather than the tool guessing at a fabricated before/after text pair."""
+    entity = {
+        "verdict": "reworked", "name_before": "Frost Tree", "name_after": "Frost Tree",
+        "field_changes": [
+            {
+                "path": "nodes",
+                "before": [{"name": "Node A"}, {"name": "Node B"}],
+                "after": [{"name": "Node A"}, {"name": "Node B"}, {"name": "Node C"}],
+                "status": "changed",
+            },
+        ],
+    }
+    result = season_impact._talent_tree_impact("uuid-tree-2", entity, lambda text: True)
+
+    assert result["text_changes"] == []
+    assert result["text_changes_unresolved"] == []
+    assert len(result["structural_changes"]) == 1
+    assert result["structural_changes"][0]["path"] == "nodes"
+    assert result["structural_changes"][0]["status"] == "changed"
+
+
+_PRISM_BESPOKE_NAMES = sorted(season_impact.PRISM_BESPOKE)  # real registry: "Spell Ripple", "Unmatched Valor"
+
+
+def test_ethereal_prism_impact_bespoke_name_matched_via_non_text_path():
+    """A field_change mentioning a bespoke name in its PATH (not a `.text`-suffixed leaf, so it
+    never becomes a clean text_pair) must still be caught by the name-substring check — the blob
+    stringifies the FULL field_changes payload (path + before + after), not just text_pairs."""
+    assert _PRISM_BESPOKE_NAMES  # sanity: the real registry actually has entries to match against
+    name = "Unmatched Valor"
+    assert name in _PRISM_BESPOKE_NAMES
+    entity = {
+        "verdict": "reworked", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+        "field_changes": [
+            {"path": "prisms.Unmatched Valor.level_effects[2].value", "before": 5, "after": 6, "status": "changed"},
+        ],
+    }
+    result = season_impact._ethereal_prism_impact("uuid-prism-path", entity, lambda text: True)
+
+    assert result["entity_type"] == "ethereal_prism"
+    assert result["granularity"] == "whole_catalog_singleton"
+    assert result["bespoke_names_touched"] == ["Unmatched Valor"]
+    # This field_change is a scalar before/after (not list/dict, not a `.text` path) — neither a
+    # text pair nor a structural change, only the bespoke-name blob check sees it.
+    assert result["text_changes"] == []
+    assert result["structural_changes"] == []
+
+
+def test_ethereal_prism_impact_bespoke_name_matched_via_after_text():
+    name = "Spell Ripple"
+    assert name in _PRISM_BESPOKE_NAMES
+    entity = {
+        "verdict": "reworked", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+        "field_changes": [
+            {"path": "prisms[7].text", "before": "old wording", "after": "Spell Ripple now grants +5% additional damage", "status": "changed"},
+        ],
+    }
+    result = season_impact._ethereal_prism_impact("uuid-prism-text", entity, lambda text: False)
+
+    assert result["bespoke_names_touched"] == ["Spell Ripple"]
+
+
+def test_ethereal_prism_impact_unresolved_text_line_flagged():
+    """A `.text` line the resolver rejects lands in `text_changes_unresolved`, mirroring
+    `_gear_impact`'s `new_affix_unresolved` — the real signal this handler exists for."""
+    entity = {
+        "verdict": "reworked", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+        "field_changes": [
+            {"path": "prisms[1].text", "before": "old", "after": "totally unresolvable made up affix xyzzy 12345", "status": "changed"},
+        ],
+    }
+    result = season_impact._ethereal_prism_impact(
+        "uuid-prism-unresolved", entity, lambda text: "unresolvable" not in text,
+    )
+
+    assert result["granularity"] == "whole_catalog_singleton"
+    assert len(result["text_changes_unresolved"]) == 1
+    assert result["text_changes_unresolved"][0]["after"] == "totally unresolvable made up affix xyzzy 12345"
+    assert result["bespoke_names_touched"] == []
+
+
+# ── run_impact / render_markdown — talent_tree + ethereal_prism rows end-to-end ──────────────────
+# Uses the REAL deferred `_parse_custom_mod_text` (run_impact hardcodes that import, no injection
+# point) — "+20% Increased Fire Damage" / the "totally unresolvable..." probe text are the same
+# real-resolver-verified pair the gear/hero-trait end-to-end tests already rely on elsewhere in
+# this suite.
+
+def test_run_impact_and_render_markdown_talent_tree_and_prism_rows(impact_env):
+    """A changed talent tree (one resolvable + one unresolvable text line) and a changed
+    ethereal_prism singleton (one unresolvable text line + a bespoke-name touch via a non-.text
+    path) each render their own markdown section. 'Not analyzed' keeps listing pactspirit (still
+    genuinely unmapped) but no longer lists talent_tree/ethereal_prism."""
+    types = {
+        "talent_tree": {
+            "counts": {}, "entities": {
+                "u-tree": {
+                    "verdict": "renumbered", "name_before": "Frost Tree", "name_after": "Frost Tree",
+                    "field_changes": [
+                        {"path": "nodes[2].text", "before": "+10% Increased Fire Damage", "after": "+20% Increased Fire Damage", "status": "changed"},
+                        {"path": "nodes[5].effects[0].text", "before": "old wording", "after": "totally unresolvable made up affix xyzzy 12345", "status": "changed"},
+                    ],
+                },
+            },
+        },
+        "ethereal_prism": {
+            "counts": {}, "entities": {
+                "u-prism": {
+                    "verdict": "reworked", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+                    "field_changes": [
+                        {"path": "prisms[1].text", "before": "old", "after": "totally unresolvable made up affix xyzzy 12345", "status": "changed"},
+                        {"path": "prisms.Unmatched Valor.level_effects[2].value", "before": 5, "after": 6, "status": "changed"},
+                    ],
+                },
+            },
+        },
+        "pactspirit": {
+            "counts": {}, "entities": {
+                "u-pact": {"verdict": "reworked", "name_before": "Some Pact", "name_after": "Some Pact", "field_changes": []},
+            },
+        },
+    }
+    diff_path = _write_diff_artifact(impact_env, "SS11", "SS12", types)
+    report = season_impact.run_impact(diff_path)
+    s = report["summary"]
+
+    assert s["changed_talent_trees_total"] == 1
+    assert s["changed_talent_trees_with_text_changes"] == 1
+    assert s["changed_talent_trees_text_unresolved"] == 1
+    assert s["changed_talent_trees_structural_only"] == 0
+
+    assert s["changed_ethereal_prism_total"] == 1
+    assert s["changed_ethereal_prism_with_text_changes"] == 1
+    assert s["changed_ethereal_prism_text_unresolved"] == 1
+    assert s["changed_ethereal_prism_bespoke_names_touched"] == ["Unmatched Valor"]
+
+    assert s["types_skipped_unknown_shape"] == ["pactspirit"]
+
+    md = season_impact.render_markdown(report)
+    assert "## Changed talent trees (whole-tree granularity — no per-node registry)" in md
+    assert "Frost Tree" in md
+    assert "## Changed ethereal prism (singleton — whole catalog, zero per-prism identity)" in md
+    assert "Ethereal Prism" in md
+    assert "Unmatched Valor" in md
+
+    not_analyzed_idx = md.index("Not analyzed by this tool")
+    not_analyzed_section = md[not_analyzed_idx:]
+    assert "- pactspirit" in not_analyzed_section
+    assert "- talent_tree" not in not_analyzed_section
+    assert "- ethereal_prism" not in not_analyzed_section
+
+
+# ── _text_change_candidates — 2026-07-14 silent-drop fix (removed/cleared `.text` lines) ─────────
+# bug-fixed: a `.text`-suffixed path whose `after` is None (or any non-string scalar) matched
+# NEITHER the old text_pairs branch (after isn't a str) NOR structural_changes (neither side is a
+# list/dict) and vanished with nothing to reconcile the loss against. Two real crawler shapes hit
+# this: a dict KEY disappearing (status="removed") and a value nulling out while the key survives
+# (status="changed", after=None) — both must classify identically into `removed_or_cleared`.
+
+def test_talent_tree_impact_removed_text_line_status_removed():
+    """The important one — the fixed bug. A talent line whose wording vanished entirely (dict key
+    gone, status="removed") must land in `text_changes_removed` (path+before preserved), never
+    silently drop, and must NOT show up in `text_changes`/`text_changes_unresolved` — there's no
+    new wording to resolve-check."""
+    entity = {
+        "verdict": "reworked", "name_before": "Frost Tree", "name_after": "Frost Tree",
+        "field_changes": [
+            {"path": "nodes[3].text", "before": "+10% Increased Cold Damage", "after": None, "status": "removed"},
+        ],
+    }
+    result = season_impact._talent_tree_impact("uuid-tree-removed", entity, lambda text: True)
+
+    assert result["text_changes"] == []
+    assert result["text_changes_unresolved"] == []
+    assert len(result["text_changes_removed"]) == 1
+    removed = result["text_changes_removed"][0]
+    assert removed["path"] == "nodes[3].text"
+    assert removed["before"] == "+10% Increased Cold Damage"
+    assert removed["status"] == "removed"
+    assert result["structural_changes"] == []
+    assert result["unclassified_field_changes"] == 0
+
+
+def test_talent_tree_impact_removed_text_line_status_changed_after_none():
+    """The OTHER real crawler shape for the same bug: the key survives in both seasons (`status`
+    stays "changed"), only the VALUE nulls out. Must classify identically — the fix keys off
+    `after` not being a string, not off `status`."""
+    entity = {
+        "verdict": "reworked", "name_before": "Frost Tree", "name_after": "Frost Tree",
+        "field_changes": [
+            {"path": "nodes[4].effects[0].text", "before": "+5% Increased Lightning Damage", "after": None, "status": "changed"},
+        ],
+    }
+    result = season_impact._talent_tree_impact("uuid-tree-cleared", entity, lambda text: True)
+
+    assert result["text_changes"] == []
+    assert result["text_changes_unresolved"] == []
+    assert len(result["text_changes_removed"]) == 1
+    removed = result["text_changes_removed"][0]
+    assert removed["path"] == "nodes[4].effects[0].text"
+    assert removed["before"] == "+5% Increased Lightning Damage"
+    assert removed["status"] == "changed"
+
+
+def test_ethereal_prism_impact_removed_text_line_lands_in_text_changes_removed():
+    """Direct analog for the prism singleton — same fix, same shape."""
+    entity = {
+        "verdict": "reworked", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+        "field_changes": [
+            {"path": "prisms[9].text", "before": "+8% Increased Physical Damage", "after": None, "status": "removed"},
+        ],
+    }
+    result = season_impact._ethereal_prism_impact("uuid-prism-removed", entity, lambda text: True)
+
+    assert result["text_changes"] == []
+    assert result["text_changes_unresolved"] == []
+    assert len(result["text_changes_removed"]) == 1
+    removed = result["text_changes_removed"][0]
+    assert removed["path"] == "prisms[9].text"
+    assert removed["before"] == "+8% Increased Physical Damage"
+    assert result["bespoke_names_touched"] == []
+
+
+def test_run_impact_talent_tree_and_prism_removed_text_counted_in_summary(impact_env):
+    """End-to-end: the removed-line classification must also propagate into the summary counters
+    (`changed_talent_trees_text_removed` / `changed_ethereal_prism_text_removed`), not just the
+    per-entity dict."""
+    types = {
+        "talent_tree": {
+            "counts": {}, "entities": {
+                "u-tree": {
+                    "verdict": "reworked", "name_before": "Frost Tree", "name_after": "Frost Tree",
+                    "field_changes": [
+                        {"path": "nodes[3].text", "before": "+10% Increased Cold Damage", "after": None, "status": "removed"},
+                    ],
+                },
+            },
+        },
+        "ethereal_prism": {
+            "counts": {}, "entities": {
+                "u-prism": {
+                    "verdict": "reworked", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+                    "field_changes": [
+                        {"path": "prisms[9].text", "before": "+8% Increased Physical Damage", "after": None, "status": "changed"},
+                    ],
+                },
+            },
+        },
+    }
+    diff_path = _write_diff_artifact(impact_env, "SS11", "SS12", types)
+    report = season_impact.run_impact(diff_path)
+    s = report["summary"]
+
+    assert s["changed_talent_trees_text_removed"] == 1
+    assert s["changed_ethereal_prism_text_removed"] == 1
+
+    tree_entry = next(t for t in report["generic"] if t["entity_type"] == "talent_tree")
+    assert len(tree_entry["text_changes_removed"]) == 1
+    prism_entry = next(t for t in report["generic"] if t["entity_type"] == "ethereal_prism")
+    assert len(prism_entry["text_changes_removed"]) == 1
+
+
+# ── _text_change_candidates — reconciliation invariant (nothing silently lost) ───────────────────
+
+def test_text_change_candidates_reconciliation_invariant_nothing_lost():
+    """A realistic mix — one resolvable text pair, one removed/cleared line, one structural
+    list-collapse — must ALL be accounted for across the three buckets + unclassified_count, with
+    nothing silently dropped: every input field_change lands in exactly one bucket."""
+    field_changes = [
+        {"path": "nodes[2].text", "before": "+10% Increased Cold Damage", "after": "+15% Increased Cold Damage", "status": "changed"},
+        {"path": "nodes[3].text", "before": "+10% Increased Fire Damage", "after": None, "status": "removed"},
+        {
+            "path": "nodes", "status": "changed",
+            "before": [{"name": "Node A"}, {"name": "Node B"}],
+            "after": [{"name": "Node A"}, {"name": "Node B"}, {"name": "Node C"}],
+        },
+    ]
+    classified = season_impact._text_change_candidates(field_changes)
+
+    assert len(classified["text_pairs"]) == 1
+    assert len(classified["removed_or_cleared"]) == 1
+    assert len(classified["structural_changes"]) == 1
+    assert classified["unclassified_count"] == 0
+    total_accounted = (
+        len(classified["text_pairs"]) + len(classified["removed_or_cleared"])
+        + len(classified["structural_changes"]) + classified["unclassified_count"]
+    )
+    assert total_accounted == len(field_changes)
+
+
+def test_text_change_candidates_unclassifiable_scalar_at_non_text_path_increments_unclassified():
+    """A scalar before/after change at a path that does NOT end `.text` and is not a list/dict —
+    e.g. a tag swap at `$.tags[0]` — matches none of the three real buckets. Must surface as
+    `unclassified_count`, a visible count, not silently disappear."""
+    field_changes = [
+        {"path": "$.tags[0]", "before": "offense", "after": "defense", "status": "changed"},
+    ]
+    classified = season_impact._text_change_candidates(field_changes)
+
+    assert classified["text_pairs"] == []
+    assert classified["removed_or_cleared"] == []
+    assert classified["structural_changes"] == []
+    assert classified["unclassified_count"] == 1
+
+
+def test_talent_tree_impact_unclassified_field_change_surfaces_as_count():
+    """Same invariant, one level up: `_talent_tree_impact` must forward `unclassified_count` as
+    `unclassified_field_changes` rather than dropping it."""
+    entity = {
+        "verdict": "reworked", "name_before": "Frost Tree", "name_after": "Frost Tree",
+        "field_changes": [
+            {"path": "$.tags[0]", "before": "offense", "after": "defense", "status": "changed"},
+        ],
+    }
+    result = season_impact._talent_tree_impact("uuid-tree-unclassified", entity, lambda text: True)
+    assert result["unclassified_field_changes"] == 1
+    assert result["text_changes"] == []
+    assert result["text_changes_removed"] == []
+    assert result["structural_changes"] == []
+
+
+# ── _ethereal_prism_impact — structural branch (correctness gap #3, direct analog of the ────────
+# talent-tree structural test) ────────────────────────────────────────────────────────────────
+
+def test_ethereal_prism_impact_structural_change_yields_no_fabricated_text():
+    """A length-mismatched list-collapse (the prism catalog's `prisms` list gaining an entry)
+    lands in `structural_changes` with ZERO fabricated text pairs — the tool never guesses at a
+    before/after text pair it can't validate."""
+    entity = {
+        "verdict": "reworked", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+        "field_changes": [
+            {
+                "path": "prisms", "status": "changed",
+                "before": [{"name": "Prism A"}, {"name": "Prism B"}],
+                "after": [{"name": "Prism A"}, {"name": "Prism B"}, {"name": "Prism C"}],
+            },
+        ],
+    }
+    result = season_impact._ethereal_prism_impact("uuid-prism-structural", entity, lambda text: True)
+
+    assert result["text_changes"] == []
+    assert result["text_changes_unresolved"] == []
+    assert result["text_changes_removed"] == []
+    assert len(result["structural_changes"]) == 1
+    assert result["structural_changes"][0]["path"] == "prisms"
+    assert result["bespoke_names_touched"] == []
+
+
+# ── talent_tree — added/removed verdicts (both valid _CHANGED_VERDICTS, stub shapes) ─────────────
+
+def test_run_impact_talent_tree_added_and_removed_verdicts_bucket_correctly(impact_env):
+    """engine.py's `added`/`removed` entries are bare {verdict, name_before, name_after} stubs — no
+    field_changes key at all — `_talent_tree_impact` must not KeyError on them, and both verdicts
+    must be processed and counted (added/removed-ness is orthogonal to text/structural buckets,
+    which all stay at zero for a no-field_changes stub)."""
+    types = {
+        "talent_tree": {
+            "counts": {}, "entities": {
+                "u-tree-added": {"verdict": "added", "name_before": None, "name_after": "New Tree"},
+                "u-tree-removed": {"verdict": "removed", "name_before": "Old Tree", "name_after": None},
+            },
+        },
+    }
+    diff_path = _write_diff_artifact(impact_env, "SS11", "SS12", types)
+    report = season_impact.run_impact(diff_path)
+    s = report["summary"]
+
+    assert s["changed_talent_trees_total"] == 2
+    assert s["changed_talent_trees_with_text_changes"] == 0
+    assert s["changed_talent_trees_text_unresolved"] == 0
+    assert s["changed_talent_trees_text_removed"] == 0
+    assert s["changed_talent_trees_structural_only"] == 0
+
+    tree_rows = [t for t in report["generic"] if t["entity_type"] == "talent_tree"]
+    assert {t["name"] for t in tree_rows} == {"New Tree", "Old Tree"}
+    assert {t["verdict"] for t in tree_rows} == {"added", "removed"}
+    for t in tree_rows:
+        assert t["field_change_count"] == 0
+        assert t["unclassified_field_changes"] == 0
+
+    md = season_impact.render_markdown(report)  # must not crash on stub shapes
+    assert "New Tree" in md
+    assert "Old Tree" in md
+
+
+# ── render_markdown — REMOVED sub-line + bold unclassified flag ──────────────────────────────────
+
+def test_render_markdown_talent_tree_removed_line_and_unclassified_flag(impact_env):
+    types = {
+        "talent_tree": {
+            "counts": {}, "entities": {
+                "u-tree": {
+                    "verdict": "reworked", "name_before": "Frost Tree", "name_after": "Frost Tree",
+                    "field_changes": [
+                        {"path": "nodes[3].text", "before": "+10% Increased Cold Damage", "after": None, "status": "removed"},
+                        {"path": "$.tags[0]", "before": "offense", "after": "defense", "status": "changed"},
+                    ],
+                },
+            },
+        },
+    }
+    diff_path = _write_diff_artifact(impact_env, "SS11", "SS12", types)
+    report = season_impact.run_impact(diff_path)
+    s = report["summary"]
+
+    assert s["changed_talent_trees_text_removed"] == 1
+
+    md = season_impact.render_markdown(report)
+    assert "REMOVED [nodes[3].text]: was: +10% Increased Cold Damage" in md
+    assert "**1 unclassified field change(s) (unexpected diff shape, manual review)**" in md
+
+
+def test_render_markdown_ethereal_prism_removed_line_and_unclassified_flag(impact_env):
+    types = {
+        "ethereal_prism": {
+            "counts": {}, "entities": {
+                "u-prism": {
+                    "verdict": "reworked", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+                    "field_changes": [
+                        {"path": "prisms[9].text", "before": "+8% Increased Physical Damage", "after": None, "status": "removed"},
+                        {"path": "$.tags[0]", "before": "offense", "after": "defense", "status": "changed"},
+                    ],
+                },
+            },
+        },
+    }
+    diff_path = _write_diff_artifact(impact_env, "SS11", "SS12", types)
+    report = season_impact.run_impact(diff_path)
+    s = report["summary"]
+
+    assert s["changed_ethereal_prism_text_removed"] == 1
+
+    md = season_impact.render_markdown(report)
+    assert "REMOVED [prisms[9].text]: was: +8% Increased Physical Damage" in md
+    assert "**1 unclassified field change(s) (unexpected diff shape, manual review)**" in md

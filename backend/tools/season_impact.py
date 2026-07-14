@@ -43,9 +43,31 @@ skill/gear differs' `line_changes`/`variants`):
       (its hand-coded coefficient arrays are literal season numbers baked into Python).
     - Cross-reference `data/verification/*.json` and golden fixtures the same way skills do (hero-
       trait verification entries already use the same `skills[]` field, e.g. `wind-stalker.json`).
-Other generic-shaped types (`talent_tree`, `ethereal_prism`, `pactspirit`, ...) are NOT mapped yet —
-see the "Not analyzed by this tool" section this renders; they have no per-entity registry to join
-against the way hero_trait does (see `_KNOWN_GENERIC_TYPES`'s docstring).
+
+For each changed TALENT_TREE and the ETHEREAL_PRISM singleton — also generic-shaped, but with NO
+per-entity registry to join against at all (`core_talent_resolver.py`/`node_resolver.py`/
+`prism_core_talents.py` are ~100% generic-text-parse pipelines, coverage decided at runtime by
+whether text parses, not by dict membership). The GEAR pattern, not the skill/hero_trait pattern:
+    - `talent_tree` diffs at WHOLE-TREE granularity only (the crawler mints a per-node uuid but
+      never surfaces it in the diff artifact). Extract before/after TEXT pairs from `field_changes`
+      (paths ending `.text`); anything the diff collapsed into a raw sub-structure instead (a
+      length-mismatched list — e.g. a node added/removed/reordered) is surfaced separately as a
+      `structural_changes` entry with no extractable text, never guessed at. A `.text`-path whose
+      `after` went to `None`/a non-string scalar (a removed/cleared talent line) is its own
+      `text_changes_removed` bucket — never dropped just because there's no "new" text to check.
+      Every `field_changes` entry lands in exactly one of text/removed/structural or increments
+      `unclassified_field_changes`, so a shape this tool doesn't understand surfaces as a count
+      instead of silently vanishing (see `_text_change_candidates`).
+    - `ethereal_prism` is a SINGLETON entity — any prism change makes the whole ~25-item catalog
+      "reworked" with zero per-prism identity. In addition to the text-resolve check, a NAME-
+      SUBSTRING match against `prism_core_talents._BESPOKE`'s two keys flags whether either bespoke
+      handler was touched — a rename-blind, lower-confidence signal, labeled as such.
+    - Both: run each extracted `after` text through `server._parse_custom_mod_text` (deferred
+      import, same lazy pattern as the gear branch's `_resolve_craft_affix`) and flag what doesn't
+      resolve to a stat key — the real signal, mirroring `_gear_impact`'s `new_affix_unresolved`.
+`pactspirit` is NOT mapped (no bespoke pact-spirit registry exists at all — see
+`_KNOWN_GENERIC_TYPES`'s docstring); neither are the pure-data types (`craft_base_type`, `destiny`,
+`divinity_slate`, `hero_memories`, `memory_revival`, `tower_sequence`, `graft`, `blending_rituals`).
 
 Usage (from backend/):
     py -3.12 -m tools.season_impact <path-to-season-diff-A-B.json> [--out-dir DIR] [--season NAME]
@@ -76,6 +98,7 @@ if _BACKEND not in sys.path:
 from persistence import season_manager  # noqa: E402
 from engine.skill_resolver import _REGISTRY as SKILL_REGISTRY  # noqa: E402
 from engine.hero_traits import _APPLY as HERO_TRAIT_REGISTRY  # noqa: E402
+from engine.prism_core_talents import _BESPOKE as PRISM_BESPOKE  # noqa: E402
 
 # Skill-shaped season_diff types (mirrors tools/rebuild_skills.py's _SKILL_TYPE_DIRS — the set of
 # skill_type values that live in _skills.json and are therefore uuid-resolvable against it).
@@ -88,17 +111,22 @@ _KNOWN_GEAR_TYPES = {"legendary_gear"}
 
 # "Generic"-shaped season_diff types — everything the crawler's `season_diff` engine routes through
 # its coarse recursive `diff_generic_entity` (field_changes: [{path, before, after, status}]) rather
-# than the fine-grained skill/gear differs. `engine.hero_traits._APPLY` gives hero_trait a real
-# per-entity registry to check (see _hero_trait_impact), so it's the first (and, as of this piece,
-# ONLY) type wired here. talent_tree and ethereal_prism are DELIBERATELY not in this set yet — they
-# have no per-entity registry to join against (core_talent_resolver.py / node_resolver.py /
-# prism_core_talents.py are ~100% generic-text-parse pipelines, not uuid-keyed dispatch tables) and
-# the crawler doesn't expose node-level identity in the diff artifact for talent_tree, so a handler
-# for them needs a different (lower-confidence, text-resolves-or-not) shape — that's a separate
-# piece. pactspirit is deliberately never planned here: no bespoke pact-spirit engine registry
-# exists at all (the one bespoke minion module, `minion_effects/thunder_magus.py`, is keyed by a
-# SKILL item_id and is already covered by the skill branch above).
-_KNOWN_GENERIC_TYPES = {"hero_trait"}
+# than the fine-grained skill/gear differs. Two join patterns exist within this category:
+#   - hero_trait: `engine.hero_traits._APPLY` gives it a REAL per-entity registry to check
+#     (uuid -> local catalog trait_id -> registry membership) — the skill-shaped join, just on a
+#     coarser field-diff. See `_hero_trait_impact`.
+#   - talent_tree / ethereal_prism: NO per-entity registry exists to join against at all —
+#     `core_talent_resolver.py` / `node_resolver.py` / `prism_core_talents.py` are ~100%
+#     generic-text-parse pipelines (a talent's/prism's coverage is decided at RUNTIME by whether
+#     its text parses, not by static dict membership), and the crawler doesn't expose per-node
+#     identity in the diff artifact for talent_tree (see _text_change_candidates) nor per-item
+#     identity for the ethereal_prism singleton. These get the GEAR pattern instead: no registry
+#     lookup, just list what changed and flag which new/changed wording the engine's own text
+#     parser can't resolve. See `_talent_tree_impact` / `_ethereal_prism_impact`.
+# pactspirit is deliberately never planned here: no bespoke pact-spirit engine registry exists at
+# all (the one bespoke minion module, `minion_effects/thunder_magus.py`, is keyed by a SKILL
+# item_id and is already covered by the skill branch above).
+_KNOWN_GENERIC_TYPES = {"hero_trait", "talent_tree", "ethereal_prism"}
 
 _VERIFICATION_DIR = os.path.join(_REPO, "data", "verification")
 _FIXTURES_DIR = os.path.join(_BACKEND, "tests", "fixtures")
@@ -501,6 +529,174 @@ def _hero_trait_impact(
     }
 
 
+# ── Text-level probe helpers (talent_tree / ethereal_prism) ──────────────────────────────────────
+# No per-entity registry exists for these two (see _KNOWN_GENERIC_TYPES's docstring) — the GEAR
+# pattern, not the skill/hero_trait pattern: just list what changed and flag which new/changed
+# wording the engine's own text parser can't resolve, the same lightweight signal `_gear_impact`
+# already gets from `tools.audit_stat_coverage._resolve_craft_affix`.
+
+_TEXT_PATH_RE = re.compile(r"\.text$")
+
+
+def _text_change_candidates(field_changes: list[dict]) -> dict:
+    """Classify every entry in a generic-diffed entity's `field_changes` into ONE of three
+    accounted-for buckets, so nothing silently vanishes.
+
+    bug-fixed 2026-07-14: a `.text`-suffixed path whose `after` is `None` (or any other non-string
+    scalar) — e.g. `{"path": "nodes[2].text", "before": "+10% Increased Cold Damage", "after":
+    None, "status": "removed"}`, a removed/cleared talent line — matched NEITHER the old
+    `text_pairs` branch (`isinstance(after, str)` fails) NOR `structural_changes` (neither side is
+    a list/dict), fell through both, and vanished from the report with nothing to reconcile the
+    loss against. `generic_diff.py`'s `_deep_diff` emits this exact shape two ways: a dict KEY
+    disappearing between seasons (`status: "removed"`, `before: a[key]`, `after: None`) and a value
+    nulling out while the key survives in both (`status: "changed"`, `after: None`) — both are real
+    signal a "never silently drop a changed mechanic" tool must not eat.
+
+    Returns {"text_pairs": [...], "removed_or_cleared": [...], "structural_changes": [...],
+    "unclassified_count": int}:
+      - text_pairs: path ends `.text`, `after` is a string — a clean before/after wording pair.
+        The crawler's `_deep_diff` recurses per-index only when a list's length is unchanged
+        between seasons (e.g. no talent-tree node added/removed) — that's the case this covers.
+      - removed_or_cleared: path ends `.text`, `after` is NOT a string (None or any other scalar)
+        — the wording is gone, not merely reworded. No "new" text to resolve-check, but surfaced
+        as-is (path + before + status) since a removed talent line is exactly what
+        re-verification cares about.
+      - structural_changes: `before`/`after` is a list/dict — most notably a LENGTH-MISMATCHED
+        list. `_deep_diff` does NOT recurse into a resized list at all; it emits ONE entry whose
+        `before`/`after` are the RAW SUB-STRUCTURES (e.g. `$.nodes` holding a full list of node
+        dicts when a talent-tree rework adds/removes/reorders a node — the common case for a real
+        season rework, confirmed by reading `generic_diff.py`'s list branch). These carry NO usable
+        before/after TEXT PAIR and no per-node identity to recover from a positional path alone (a
+        reorder shifts every later index) — surfaced as-is (path + status) for manual review, never
+        guessed at via a from-scratch recursive text hunt this tool can't validate without real
+        multi-node-count-change diff data to test against.
+      - unclassified_count: a cheap invariant, not a guess — every entry lands in exactly one of
+        the three lists above or increments this counter, so a future crawler-shape change this
+        tool doesn't yet understand shows up as a nonzero count instead of disappearing again.
+    """
+    text_pairs: list[dict] = []
+    removed_or_cleared: list[dict] = []
+    structural: list[dict] = []
+    unclassified_count = 0
+    for fc in field_changes:
+        path = fc.get("path", "")
+        after = fc.get("after")
+        before = fc.get("before")
+        is_text_path = bool(_TEXT_PATH_RE.search(path))
+        if is_text_path and isinstance(after, str):
+            text_pairs.append({"path": path, "before": before, "after": after})
+        elif isinstance(after, (list, dict)) or isinstance(before, (list, dict)):
+            structural.append({"path": path, "status": fc.get("status")})
+        elif is_text_path:
+            removed_or_cleared.append({"path": path, "before": before, "status": fc.get("status")})
+        else:
+            unclassified_count += 1
+    return {
+        "text_pairs": text_pairs,
+        "removed_or_cleared": removed_or_cleared,
+        "structural_changes": structural,
+        "unclassified_count": unclassified_count,
+    }
+
+
+def _resolve_generic_text(raw_text: str | None, parse_mod) -> bool:
+    """True if `raw_text` resolves to at least one stat key via the engine's own freeform-mod
+    parser. Mirrors `_gear_impact`'s `resolve_affix(w["text"])` check exactly, one level down (the
+    raw parser, not the gear-specific override tables `_resolve_craft_affix` layers on top) — a
+    coarse, single-line probe, NOT the full `core_talent_resolver._classify_effect` pipeline the
+    engine actually runs talent/prism text through (which additionally strips "Max Divinity
+    Effect", splits compound "+X% A and +Y% B" lines, and splits/translates trailing conditions
+    before parsing). A compound or conditional line the real resolver handles fine may show
+    `resolved=False` here — a known, deliberate coarseness of this text-level probe, not a bug."""
+    return bool(parse_mod(raw_text)) if raw_text else False
+
+
+def _talent_tree_impact(uuid: str, entity: dict, resolve_text) -> dict:
+    """Whole-TREE granularity ONLY. The crawler mints one uuid per talent NODE
+    (`entity:talent_node:{tree}:{name}:{col}:{row}`, per tlidb-crawler/schemas/__init__.py) but
+    diffs `talent_tree` via the generic field-diff at the WHOLE-TREE level
+    (`entity:talent_tree:{name}`) — `tools/season_diff/loader.py`'s `SKILL_LIKE_TYPES` doesn't
+    include it, so `_deep_diff` never surfaces per-node identity. No per-entity registry exists to
+    check either way (see module docstring) — this is the GEAR pattern: list which trees changed,
+    extract new/changed wording from `field_changes`, flag whatever the engine's own text parser
+    can't resolve. `granularity` is stamped explicitly so a caller never mistakes this for the
+    skill/hero_trait branches' uuid-precise per-entity resolution."""
+    name_after = entity.get("name_after") or entity.get("name_before") or uuid
+    name_before = entity.get("name_before") or name_after
+    field_changes = entity.get("field_changes") or []
+    classified = _text_change_candidates(field_changes)
+    text_pairs = classified["text_pairs"]
+
+    for tp in text_pairs:
+        tp["resolved"] = resolve_text(tp["after"])
+    unresolved = [tp for tp in text_pairs if not tp["resolved"]]
+
+    return {
+        "uuid": uuid,
+        "entity_type": "talent_tree",
+        "name": name_after,
+        "name_before": name_before if name_before != name_after else None,
+        "verdict": entity["verdict"],
+        "granularity": "whole_tree",
+        "field_change_count": len(field_changes),
+        "text_changes": text_pairs,
+        "text_changes_unresolved": unresolved,
+        "text_changes_removed": classified["removed_or_cleared"],
+        "structural_changes": classified["structural_changes"],
+        "unclassified_field_changes": classified["unclassified_count"],
+        "has_localization_mismatch": bool(entity.get("has_localization_mismatch")),
+    }
+
+
+def _ethereal_prism_impact(uuid: str, entity: dict, resolve_text) -> dict:
+    """SINGLETON entity (`entity:ethereal_prism:ethereal_prism`, per identity.py's singleton
+    convention) — the crawler's diff sees the WHOLE ~25-item prism catalog as ONE entity, so ANY
+    prism talent changing anywhere makes the whole type verdict "reworked" with ZERO per-prism
+    identity. No registry to key against per-prism either way. This does exactly three things:
+    (a) surface that the catalog changed at all (`field_change_count`), (b) a NAME-SUBSTRING check
+    against `engine.prism_core_talents._BESPOKE`'s keys ("Unmatched Valor", "Spell Ripple" as of
+    this writing, read from the module rather than hardcoded so a future bespoke handler is picked
+    up automatically) — a RENAME-BLIND, lower-confidence signal (a same-mechanic rename would miss
+    it; an unrelated line that happens to contain the bespoke name as a substring would false-
+    positive it), (c) the same generic-parser resolve check `_talent_tree_impact` uses."""
+    name_after = entity.get("name_after") or entity.get("name_before") or uuid
+    name_before = entity.get("name_before") or name_after
+    field_changes = entity.get("field_changes") or []
+    classified = _text_change_candidates(field_changes)
+    text_pairs = classified["text_pairs"]
+
+    for tp in text_pairs:
+        tp["resolved"] = resolve_text(tp["after"])
+    unresolved = [tp for tp in text_pairs if not tp["resolved"]]
+
+    # Name-substring match over the FULL field_changes payload (path + stringified before/after),
+    # not just the clean text_pairs — the singleton's item-count changing across seasons is exactly
+    # the length-mismatch "structural" case _text_change_candidates can't extract clean pairs from,
+    # so stringifying the raw before/after keeps the bespoke-name check working even then.
+    blob = " ".join(
+        f"{fc.get('path', '')} {fc.get('before') or ''} {fc.get('after') or ''}"
+        for fc in field_changes
+    )
+    bespoke_names_touched = sorted(name for name in PRISM_BESPOKE if name in blob)
+
+    return {
+        "uuid": uuid,
+        "entity_type": "ethereal_prism",
+        "name": name_after,
+        "name_before": name_before if name_before != name_after else None,
+        "verdict": entity["verdict"],
+        "granularity": "whole_catalog_singleton",
+        "field_change_count": len(field_changes),
+        "text_changes": text_pairs,
+        "text_changes_unresolved": unresolved,
+        "text_changes_removed": classified["removed_or_cleared"],
+        "structural_changes": classified["structural_changes"],
+        "unclassified_field_changes": classified["unclassified_count"],
+        "bespoke_names_touched": bespoke_names_touched,
+        "has_localization_mismatch": bool(entity.get("has_localization_mismatch")),
+    }
+
+
 # ── Main run ───────────────────────────────────────────────────────────────────────────────────
 
 def run_impact(diff_path: str, season_override: str | None = None) -> dict:
@@ -528,6 +724,13 @@ def run_impact(diff_path: str, season_override: str | None = None) -> dict:
     # Deferred import — mirrors tools/audit_stat_coverage.py's own lazy `from server import …`
     # (avoids importing the FastAPI app at module load for callers who never touch gear).
     from tools.audit_stat_coverage import _resolve_craft_affix
+    # Same deferred-import pattern, for the talent_tree / ethereal_prism text-resolve probe —
+    # `_parse_custom_mod_text` is DEFINED in engine.mod_parser but re-exported through server.py
+    # (see server.py's own "server keeps using these exact names" comment); importing it from
+    # `server` (not `engine.mod_parser` directly) keeps this on the same lazy-FastAPI-load path as
+    # the gear import above, per the coordinator's explicit ask, rather than a lighter but
+    # inconsistent direct import.
+    from server import _parse_custom_mod_text
 
     skills: list[dict] = []
     gear: list[dict] = []
@@ -567,14 +770,26 @@ def run_impact(diff_path: str, season_override: str | None = None) -> dict:
             for uuid, entity in changed.items():
                 gear.append(_gear_impact(uuid, entity, gear_uuid_map, _resolve_craft_affix))
         elif category == "generic":
-            # Only hero_trait is wired to _KNOWN_GENERIC_TYPES so far — a future generic type (e.g.
-            # talent_tree, ethereal_prism) needs its own branch here (different catalog, different
-            # join, no registry to check), not a fallthrough onto _hero_trait_impact's shape.
+            # Each generic-shaped type needs its own branch — different catalog/join (hero_trait)
+            # or no registry at all, text-probe only (talent_tree, ethereal_prism) — never a
+            # fallthrough onto another type's shape.
             if type_name == "hero_trait":
                 for uuid, entity in changed.items():
                     generic.append(_hero_trait_impact(
                         uuid, entity, hero_traits_uuid_map,
                         verification_index, fixture_index, catalog_available=catalog_available,
+                    ))
+            elif type_name == "talent_tree":
+                for uuid, entity in changed.items():
+                    generic.append(_talent_tree_impact(
+                        uuid, entity,
+                        lambda text: _resolve_generic_text(text, _parse_custom_mod_text),
+                    ))
+            elif type_name == "ethereal_prism":
+                for uuid, entity in changed.items():
+                    generic.append(_ethereal_prism_impact(
+                        uuid, entity,
+                        lambda text: _resolve_generic_text(text, _parse_custom_mod_text),
                     ))
         else:
             types_skipped_unknown.append(type_name)
@@ -598,18 +813,34 @@ def run_impact(diff_path: str, season_override: str | None = None) -> dict:
     ]
     hero_traits_removed = [t for t in generic if t["entity_type"] == "hero_trait" and t["verdict"] == "removed"]
 
+    # talent_tree / ethereal_prism have no `verification_ids`/`golden_files` keys at all (the GEAR
+    # pattern — no name-matchable registry identity to cross-reference against, same as `gear`
+    # itself never gets a verification/golden cross-ref) — scope the union to hero_trait entries
+    # only, or this would KeyError on the first talent_tree/ethereal_prism row.
     verification_ids_touched = sorted({
         vid for s in skills for vid in s["verification_ids"]
     } | {
-        vid for t in generic for vid in t["verification_ids"]
+        vid for t in generic if t["entity_type"] == "hero_trait" for vid in t["verification_ids"]
     })
     golden_files_touched = sorted({
         g for s in skills for g in s["golden_files"]
     } | {
-        g for t in generic for g in t["golden_files"]
+        g for t in generic if t["entity_type"] == "hero_trait" for g in t["golden_files"]
     })
     gear_with_new_text = [g for g in gear if g["new_affix_texts"]]
     gear_unresolved = [g for g in gear if g["new_affix_unresolved"]]
+
+    talent_trees = [t for t in generic if t["entity_type"] == "talent_tree"]
+    talent_trees_with_text = [t for t in talent_trees if t["text_changes"]]
+    talent_trees_unresolved = [t for t in talent_trees if t["text_changes_unresolved"]]
+    talent_trees_removed_text = [t for t in talent_trees if t["text_changes_removed"]]
+    talent_trees_structural = [t for t in talent_trees if t["structural_changes"]]
+
+    prism_entries = [t for t in generic if t["entity_type"] == "ethereal_prism"]
+    prism_with_text = [t for t in prism_entries if t["text_changes"]]
+    prism_unresolved = [t for t in prism_entries if t["text_changes_unresolved"]]
+    prism_removed_text = [t for t in prism_entries if t["text_changes_removed"]]
+    prism_bespoke_touched = sorted({n for t in prism_entries for n in t["bespoke_names_touched"]})
 
     summary = {
         "changed_skills_total": len(skills),
@@ -633,6 +864,16 @@ def run_impact(diff_path: str, season_override: str | None = None) -> dict:
         "changed_hero_traits_unresolved_no_catalog": len(hero_traits_unresolved),
         "changed_hero_traits_unresolved_catalog_missing": len(hero_traits_unresolved_catalog_missing),
         "changed_hero_traits_removed": len(hero_traits_removed),
+        "changed_talent_trees_total": len(talent_trees),
+        "changed_talent_trees_with_text_changes": len(talent_trees_with_text),
+        "changed_talent_trees_text_unresolved": len(talent_trees_unresolved),
+        "changed_talent_trees_text_removed": len(talent_trees_removed_text),
+        "changed_talent_trees_structural_only": len(talent_trees_structural),
+        "changed_ethereal_prism_total": len(prism_entries),
+        "changed_ethereal_prism_with_text_changes": len(prism_with_text),
+        "changed_ethereal_prism_text_unresolved": len(prism_unresolved),
+        "changed_ethereal_prism_text_removed": len(prism_removed_text),
+        "changed_ethereal_prism_bespoke_names_touched": prism_bespoke_touched,
         "types_with_no_historical_baseline": types_no_baseline,
         "types_skipped_unknown_shape": types_skipped_unknown,
         "localization_mismatch_entities_total": len(localization_mismatches),
@@ -716,6 +957,18 @@ def render_markdown(report: dict) -> str:
         f"new/changed wording, NOT a \"not modeled\" signal), **{s['changed_hero_traits_unresolved_no_catalog']}** "
         f"unresolved (no local catalog entry). Separately, **{s['changed_hero_traits_removed']}** more were "
         f"removed entirely.",
+        f"- **{s['changed_talent_trees_total']}** changed talent trees (whole-tree granularity, no per-node "
+        f"registry) — **{s['changed_talent_trees_with_text_changes']}** have extractable text changes, "
+        f"**{s['changed_talent_trees_text_unresolved']}** of those have wording `mod_parser` cannot currently "
+        f"resolve, **{s['changed_talent_trees_text_removed']}** have a line removed/cleared entirely (re-verify "
+        f"the talent that used to grant it), **{s['changed_talent_trees_structural_only']}** have a "
+        f"node-count/structural change this tool can't extract clean text pairs from (manual review).",
+        f"- ethereal_prism (singleton — any change makes the whole catalog \"reworked\", zero per-prism "
+        f"identity): **{s['changed_ethereal_prism_total']}** changed, "
+        f"**{s['changed_ethereal_prism_with_text_changes']}** have extractable text changes, "
+        f"**{s['changed_ethereal_prism_text_unresolved']}** of those unresolved, "
+        f"**{s['changed_ethereal_prism_text_removed']}** have a line removed/cleared entirely, bespoke handlers "
+        f"touched by NAME (rename-blind): {', '.join(s['changed_ethereal_prism_bespoke_names_touched']) or 'none'}.",
     ]
     if s.get("localization_mismatch_entities_total"):
         lines.append(
@@ -865,6 +1118,67 @@ def render_markdown(report: dict) -> str:
             lines.append(f"- **{tr['name']}** (verdict={tr['verdict']}, uuid=`{tr['uuid']}`)")
         lines.append("")
 
+    talent_trees = [x for x in report["generic"] if x["entity_type"] == "talent_tree"]
+    if talent_trees:
+        lines += [
+            "## Changed talent trees (whole-tree granularity — no per-node registry)", "",
+            "No `core_talent_resolver.py`/`node_resolver.py` registry exists to check per-node — "
+            "these rows are COARSE: which tree changed, and whether the new/changed wording this "
+            "tool could extract still resolves via the engine's own text parser. A tree with only "
+            "`structural_changes` (a node added/removed/reordered) has NO extractable text pair — "
+            "review it manually.", "",
+        ]
+        for tt in sorted(talent_trees, key=lambda x: x["name"]):
+            flag = ""
+            if tt["text_changes_unresolved"]:
+                flag = f" — **{len(tt['text_changes_unresolved'])} new/changed line(s) unresolved by mod_parser**"
+            elif tt["text_changes"]:
+                flag = f" — {len(tt['text_changes'])} changed line(s) (all resolve)"
+            if tt["text_changes_removed"]:
+                flag += f" — **{len(tt['text_changes_removed'])} line(s) removed/cleared entirely**"
+            if tt["structural_changes"]:
+                flag += f" — {len(tt['structural_changes'])} structural change(s) (no extractable text, manual review)"
+            if tt["unclassified_field_changes"]:
+                flag += (f" — **{tt['unclassified_field_changes']} unclassified field change(s) "
+                         f"(unexpected diff shape, manual review)**")
+            lines.append(f"- **{tt['name']}** (verdict={tt['verdict']}){flag}")
+            for w in tt["text_changes_unresolved"]:
+                lines.append(f"  - UNRESOLVED [{w['path']}]: {w['after']}")
+            for w in tt["text_changes_removed"]:
+                lines.append(f"  - REMOVED [{w['path']}]: was: {w['before']}")
+        lines.append("")
+
+    prism_entries = [x for x in report["generic"] if x["entity_type"] == "ethereal_prism"]
+    if prism_entries:
+        lines += [
+            "## Changed ethereal prism (singleton — whole catalog, zero per-prism identity)", "",
+            "The crawler diffs `ethereal_prism` as ONE entity — any prism talent changing anywhere "
+            "makes the whole catalog verdict `reworked`, with no per-prism uuid to key against. "
+            "\"Bespoke handlers touched by NAME\" is a rename-blind, lower-confidence NAME-SUBSTRING "
+            "match against `engine.prism_core_talents._BESPOKE` — NOT an identity check.", "",
+        ]
+        for pr in sorted(prism_entries, key=lambda x: x["name"]):
+            flag = ""
+            if pr["text_changes_unresolved"]:
+                flag = f" — **{len(pr['text_changes_unresolved'])} new/changed line(s) unresolved by mod_parser**"
+            elif pr["text_changes"]:
+                flag = f" — {len(pr['text_changes'])} changed line(s) (all resolve)"
+            if pr["text_changes_removed"]:
+                flag += f" — **{len(pr['text_changes_removed'])} line(s) removed/cleared entirely**"
+            if pr["structural_changes"]:
+                flag += f" — {len(pr['structural_changes'])} structural change(s) (no extractable text, manual review)"
+            if pr["unclassified_field_changes"]:
+                flag += (f" — **{pr['unclassified_field_changes']} unclassified field change(s) "
+                         f"(unexpected diff shape, manual review)**")
+            if pr["bespoke_names_touched"]:
+                flag += f" — bespoke handler(s) touched by name: {', '.join(pr['bespoke_names_touched'])}"
+            lines.append(f"- **{pr['name']}** (verdict={pr['verdict']}){flag}")
+            for w in pr["text_changes_unresolved"]:
+                lines.append(f"  - UNRESOLVED [{w['path']}]: {w['after']}")
+            for w in pr["text_changes_removed"]:
+                lines.append(f"  - REMOVED [{w['path']}]: was: {w['before']}")
+        lines.append("")
+
     if report["localization_mismatches"]:
         lines += [
             "## Localization mismatch — needs re-crawl before impact can be judged", "",
@@ -886,11 +1200,7 @@ def render_markdown(report: dict) -> str:
     if s["types_skipped_unknown_shape"]:
         lines += [
             "## Not analyzed by this tool (unrecognized entity shape) — review manually", "",
-            "Entity types outside skill/gear/hero_trait scope. `talent_tree` "
-            "(`backend/engine/core_talent_resolver.py`/`node_resolver.py`) and `ethereal_prism` "
-            "(`backend/engine/prism_core_talents.py`) are ~100% generic-text-parse pipelines with no "
-            "per-entity registry to check yet, and the crawler doesn't expose node-level identity "
-            "for talent_tree — not yet mapped here (planned as a lower-confidence, separate piece). "
+            "Entity types outside skill/gear/hero_trait/talent_tree/ethereal_prism scope. "
             "`pactspirit` has NO bespoke engine registry at all — its one real bespoke-minion "
             "mechanic (`engine/minion_effects/thunder_magus.py`) is keyed by a SKILL item_id and is "
             "already covered by the skill sections above, so it's never planned here. "
@@ -939,7 +1249,12 @@ def main() -> None:
         f"{s['changed_hero_traits_total']} changed hero traits "
         f"({s['changed_hero_traits_bespoke_reverify']} RE-VERIFY / "
         f"{s['changed_hero_traits_generic_resolved']} generic-resolved / "
-        f"{s['changed_hero_traits_removed']} removed)."
+        f"{s['changed_hero_traits_removed']} removed), "
+        f"{s['changed_talent_trees_total']} changed talent trees "
+        f"({s['changed_talent_trees_text_unresolved']} with unresolved text, "
+        f"{s['changed_talent_trees_structural_only']} structural-only), "
+        f"{s['changed_ethereal_prism_total']} changed ethereal_prism "
+        f"({s['changed_ethereal_prism_text_unresolved']} with unresolved text)."
     )
 
 
