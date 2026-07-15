@@ -3,10 +3,27 @@
 
 # Thunder Spike
 
-- **Status:** ⚠️ Unverified
+- **Status:** 🔶 Partial
 - **Skills affected:** Thunder Spike
 - **Mechanic tags:** conversion, trigger, ailment
+- **Last verified:** 2026-07-15 by Tyra
 - **Backlog:** `SHADOW-02` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
+
+## Setup
+
+2026-07-15, RECOUNT measurement pair. Character level 85, hero Erika (Lightning Shadow trait base tier 1 — this trait is the source of the build's Numbed Effect bonus, not gear/talents), Thunder Spike Lv20, weapon: white "Unforgotten Long Blade" only (154-154 Physical implicit, 1.5 APS, 500 crit rating), no other gear/talents. Target: Lv85 training dummy (see `training-dummy.json`). Setup A: bare Thunder Spike, no supports. Setup B: Setup A + Level 20 Haunt support. Comparison target is the Recount span-average DPS ONLY — per `training-dummy.json`'s own doctrine, the character-sheet tooltip is not a verification source (see notes).
+
+## Raw data points
+
+Setup A (solo): Recount Average DPS 349 (2:17 span). Numbed: flat 1 stack — only the player's own True Body hit applies it in this config (no shadows present).
+
+Setup B (+ Haunt Lv20): Recount Average DPS 810 (2:00 span). Numbed: alternates 1↔2 stacks, ~50% uptime on 2 (avg ≈1.5) — the extra stacks come from Haunt's shadows also applying Thunder Spike's inherent on-hit Numbed (see notes, NEW mechanic).
+
+**Vs-target agreement, Recount only (validates base WAD; supports the intrinsic conversion + inherent on-hit Numbed in aggregate):** solo engine 340.34 vs measured 349 = **−2.5%** (flat-1-stack model, no correction applies — solo genuinely runs at 1 stack, so this is the honest residual: crit RNG / measurement noise / a small conservative bias). Haunt config: engine 789.03 vs measured 810 = −2.6% at the flat-1-stack baseline; corrected for the observed ~1.5-average-stack Numbed uplift, 811.01 (+0.1%). The Haunt correction is the model change here — solo is NOT corrected, since solo never leaves 1 stack.
+
+**Numbed model, quantified:** predicted uplift ≈5.9%/stack at 18% Numbed Effect (`0.05 × 1.18`); applied to the Haunt run's ~1.5-average-stack observation, this closes most of the −2.6% Haunt gap (789.03 → 811.01, +0.1%) — a close match on the per-stack Numbed magnitude, isolated from the WAD/conversion question above since it's a same-run correction.
+
+**Owner-reported in-game observation (2026-07-15), Haunt run only: Numbed stacks alternate 1↔2 in-game, with ~50% uptime on 2 stacks** (avg ≈1.5). The engine deliberately models a flat 1 stack (see `implementation`) — this is a known, now-quantified conservative bias of roughly −2.6% on a Haunt-equipped (shadow-present) baseline; it is NOT a bias on a shadow-free baseline like solo, where flat-1 is exact. Model the alternation only if ailment-uptime + shadow-hit modeling both land (see `docs/BACKLOG.md` §0f and the NEW mechanic note below).
 
 ## Derived / confirmed formula
 
@@ -14,9 +31,16 @@
 
 ## Notes / caveats / open questions
 
-Shipped in the engine; not yet verified in-game. Mercury-style caveat: the Rumbling Thunder default-ON baseline is an ASSUMPTION, not a measurement — needs in-game confirmation of actual buff uptime behavior (does casting cadence realistically sustain the 2s window continuously?) and whether the buff is per-enemy (multiple enemies hit in the same interval) or global.
+**Supported (Tyra, 2026-07-15) — base WAD vs-target agreement**, and supporting evidence for the intrinsic Physical→Lightning conversion and inherent on-hit Numbed: solo engine 340.34 vs measured 349 (−2.5%, uncorrected — solo runs at a genuine flat 1 Numbed stack, so no correction applies); Haunt config engine 789.03 vs measured 810 (−2.6% at the flat-1-stack baseline, +0.1% corrected for the run's observed ~1.5-average Numbed stacks). See `dataPoints` for the full derivation, including the quantified Numbed-per-stack model (≈5.9%/stack at 18% Numbed Effect) and why check 2 (conversion + inherent Numbed) is only supported in aggregate, not isolated (this setup didn't test with conversion or Numbed suppressed). Rumbling Thunder was NOT socketed in this session (Setup B used Haunt, not Rumbling Thunder) — its default-ON assumption remains an unmeasured ASSUMPTION (Mercury-style caveat, unchanged): needs in-game confirmation of actual buff uptime behavior (does casting cadence realistically sustain the 2s window continuously?) and whether the buff is per-enemy or global.
+
+**NEW mechanic observed, unmodeled (owner-reported, 2026-07-15): Shadow hits can themselves apply Thunder Spike's inherent on-hit Numbed**, not only the player's own True Body hit — this is how the Haunt run reaches an average ≈1.5 Numbed stacks (player's flat 1 + a shadow-applied stack, alternating 1↔2 with ~50% uptime on 2) while the solo (no-shadows) run stays at a genuine flat 1. The engine's current flat-1-stack model (see `implementation`) is therefore exact for shadow-free configs and conservatively low (~−2.6% quantified here) once shadows are present. Filed alongside the shadow-hit-dependent NYI ledger in `data/verification/shadow-strike.json` (Numb Magnificent, Frantic Shadow's Attack Speed proc) — same blocker, needs shadow-hit-count/timing modeling to unlock. See `docs/BACKLOG.md` §0f.
+
+**CONFOUND to exclude (accuracy council, 2026-07-15) — do not yet attribute the second Numbed stack solely to Shadow hits.** The hero trait equipped in both runs, Erika's "Lightning Shadow" tier 1 (`data/seasons/SS12/_hero_traits.json:2718`), can ITSELF inflict Numbed independently of Thunder Spike or Shadows: "Start moving … to gain 1 Electrify stack for every 3 m of movement made within the next 1 s, up to 3 stacks … When Electrify is owned, triggers Feline Figure on up to 3 enemies … For every 1 stack(s) of Electrify, Feline Figure inflicts 1 stack(s) of Numbed." If the player moved during either parse, Feline Figure — not a Shadow hit — could be the source of the observed second stack. The owner's observation is recorded as-is above; the follow-up isolation test (SHADOW-01 check 6) must confirm the player was stationary / Electrify inactive throughout before crediting Shadow hits.
+
+**Character-sheet tooltip is non-authoritative — not used as a comparison source.** Per `training-dummy.json`'s own doctrine ("verify against Recount, NEVER the skill tooltip"), this session recorded ONLY Recount span-average DPS vs the engine's `total_dps_vs_target`. The in-game character sheet's own damage/DPS readout was not used for any of the agreement numbers above and is not recorded here.
 
 **Explicitly NYI** (owner decisions 2026-07-15, listed so they're never silently dropped):
+- **Shadow hits applying Thunder Spike's inherent Numbed** (see NEW mechanic above, 2026-07-15) — needs shadow-hit-count/timing modeling.
 - **Numb Magnificent** "30% chance to inflict Numbed … when the supported skill's Shadows hit an enemy" — needs shadow-hit-count expected-value modeling (same blocker as Frantic Shadow's Attack Speed proc, see `shadow-strike.json`).
 - **Tremble Noble** on-crit "+(66–71)% Numbed Effect for 2 s" buff — not modeled.
 - **Tracking Area** entirely unmodeled — see `data/verification/shadow-strike.json` for the full list (Thunder Spike's own "100% Skill Area → Tracking Area" line, the Tracking Area stat family, Ghost Bee destiny, Charging Warcry's +20%).
@@ -37,5 +61,8 @@ Registered in `backend/engine/skill_resolver._REGISTRY` (was previously unregist
 - backend/server.py — inflict_cond_effects (thunder_spike Numbed auto-set)
 - data/conditions.json — thunder_spike_true_body_buff (default_value: 1.0)
 - backend/tests/fixtures/support_skill_golden/thunder_spike.json
-- docs/INGAME_VERIFICATION_BACKLOG.md — SHADOW-02
+- docs/INGAME_VERIFICATION_BACKLOG.md — SHADOW-02 (check 1 supported, check 2 supported in aggregate); SHADOW-01 check 6 (Feline Figure confound to exclude)
+- data/seasons/SS12/_hero_traits.json:2718 — lightning_shadow tier 1 (Erika), "Feline Figure" Numbed-on-Electrify proc
 - memory: .wolf/memory.md 2026-07-15 "Shadow Strike mechanic + Thunder Spike skill" + follow-up entry
+- Tyra (owner), 2026-07-15 — in-game RECOUNT measurement pair (solo vs +Haunt Lv20), character level 85, hero Erika (Lightning Shadow trait base tier 1); reported the Numbed 1↔2 alternation on the Haunt run only, and that Shadow hits (not just the player) can apply Thunder Spike's inherent Numbed
+- engine-agent vs-target comparison report, 2026-07-15 — solo 340.34 vs measured 349 (uncorrected), Haunt 789.03 vs measured 810 (789.03 flat-1 / 811.01 with the Haunt-run's 1.5-avg-stack correction), Numbed-per-stack quantification (≈5.9%/stack at 18% Numbed Effect)

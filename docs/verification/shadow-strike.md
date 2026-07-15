@@ -3,10 +3,25 @@
 
 # Shadow Strike (delivery model)
 
-- **Status:** ⚠️ Unverified
+- **Status:** 🔶 Partial
 - **Skills affected:** Thunder Spike
 - **Mechanic tags:** shotgun, damage-pool, trigger
+- **Last verified:** 2026-07-15 by Tyra
 - **Backlog:** `SHADOW-01` (see `docs/INGAME_VERIFICATION_BACKLOG.md`)
+
+## Setup
+
+2026-07-15, RECOUNT measurement pair + ratio analysis. Character level 85, hero Erika (Lightning Shadow trait base tier 1 — source of the sheet's 18% Numbed Effect, see `thunder-spike.json`), Thunder Spike Lv20, weapon: white "Unforgotten Long Blade" only (154-154 Physical implicit, 1.5 APS, 500 crit rating), no other gear/talents. Target: Lv85 training dummy (see `training-dummy.json`). Setup A: 0 Shadow Quantity (player-hit-only baseline, N=0 shadows). Setup B: Setup A + Level 20 Haunt support (+2 Shadow Quantity → N=2 shadows, all on the same target).
+
+## Raw data points
+
+Setup A (N=0, solo): Recount Average DPS 349 (2:17 span), Highest-5s 410, Average-5s 320. Numbed: flat 1 stack (Thunder Spike's own inherent on-hit application; no shadows present to add more).
+
+Setup B (N=2, + Haunt Lv20): Recount Average DPS 810 (2:00 span), Highest-5s 914, Average-5s 736. Numbed: alternates 1↔2 stacks, ~50% uptime on 2 (avg ≈1.5) — see `thunder-spike.json` notes for the newly-observed mechanism (the SHADOWS, not just the player's own hit, apply Thunder Spike's inherent Numbed here).
+
+**Ratio (isolates the shadow delivery multiplier, but does NOT perfectly cancel — solo runs at 1 Numbed stack, Haunt runs at ~1.5 avg, so a small Numbed-difference component rides along): measured 810/349 ≈ 2.30–2.32 vs predicted `shadow_mult(N=2) = 1 + (1 + 0.30) = 2.30` × Haunt Lv20's own +0.8% support line = 2.3184.** Even accounting for the Numbed-uptime difference between the two runs, this is still the strongest evidence in this session for two specific claims: (1) the shadow term for the first additional shadow beyond the base hit carries roughly +30% weight (the −70% falloff, first application), and (2) the player's own hit contributes as a clean additive `1 +` term, unaffected by the shadow chain ("player-hit independence", Help DB's "Shadow damage and character damage are independent of each other"). It also supports Haunt Lv20 being correctly wired for +2 Shadow Quantity end-to-end (gear/support parsing → N=2 in the delivery formula).
+
+**Caveat — does NOT close SHADOW-01 check 1 in full.** A flat-per-shadow model (`1 + 0.30(N−1)`) and a compounding-chain model agree at N=2 (both give the second shadow weight 0.30, since there is only one "further" shadow); they only diverge starting at a THIRD shadow (flat predicts 1:1.30:1.60 at N=1:2:3, compounding predicts 1:1.30:1.51). This session only has N=0 and N=2 data points, so the flat-vs-compounding falloff *shape* distinction still needs an N=3 config (e.g. Haunt + Frantic Shadow) to close.
 
 ## Derived / confirmed formula
 
@@ -14,9 +29,18 @@ Help DB `shadow-strike`: "Shadows deal the same amount of damage as the player, 
 
 ## Notes / caveats / open questions
 
-Shipped in the engine; not yet verified in-game. Two bugs fixed during implementation (see `.wolf/buglog.json`): `shadow-dmg-additional-generic-pool-leak` (`SHADOW_DMG_ADDITIONAL` had no `tags`, leaking into the generic `_HIT_ADDITIONAL_STATS` pool and buffing ALL hit damage regardless of Shadow Strike — fixed via a `_SHADOW_SCOPED_ADDITIONAL` frozenset) and `shadow-quantity-fuzzy-collision` (the new stat's display name "Shadow Chance Quantity" tied the fuzzy gear-text resolver against "Max Shadow Quantity" — renamed to "Shadow Chance Bonus Count"). Re-confirmed the pool-leak fix holds with real gear: attaching the same gear to `chain_lightning` (not a Shadow Strike skill) does NOT consume `shadow_dmg_additional`.
+**Supported (Tyra, 2026-07-15) — the −70% same-target shadow falloff (first application) and player-hit independence**, via the Setup A (solo, N=0) vs Setup B (+Haunt Lv20, N=2) Recount ratio: measured ≈2.30–2.32 vs predicted 2.3184. See `dataPoints` above for the full derivation, the caveat that the ratio doesn't perfectly cancel (Numbed differs 1 vs ~1.5 avg stacks between the two runs), and the important caveat that this does NOT yet distinguish the flat-per-shadow falloff shape from a compounding-chain shape at N≥3 (both models agree at N=2) — SHADOW-01 check 1 remains open for that distinction. Also supports Haunt's +2 Shadow Quantity wiring end-to-end.
+
+**Still unverified (unchanged by this session):** Despised Shadow's per-cast EV-mix proc granularity (check 3), any shadow-count cap (check 4), Multistrike/cast-multiplier inheritance for shadow hits (check 5), and everything under Explicitly NYI below (Tracking Area, Frantic Shadow's Attack Speed proc, Numb Magnificent, Charging Warcry per-enemy scaling).
+
+**NEW mechanic observed, unmodeled (owner-reported, 2026-07-15): Shadow hits can themselves apply Thunder Spike's inherent on-hit Numbed**, not just the player's own True Body hit — this is how the Haunt (Setup B) run reaches 2 Numbed stacks (player's flat 1 + a shadow-applied stack) while the solo run stays at a flat 1. Filed alongside the existing shadow-hit-dependent NYI ledger below (Numb Magnificent's chance-on-shadow-hit, Frantic Shadow's Attack Speed proc) — same blocker, needs shadow-hit-count/timing modeling to unlock. Consequence for the model: the engine's flat-1-stack Numbed assumption (see `thunder-spike.json`) is only a conservative approximation when shadows are present; solo (no shadows) the flat-1 assumption is exact by this data.
+
+**CONFOUND to exclude (accuracy council, 2026-07-15) — do not yet attribute the second Numbed stack solely to Shadow hits.** The hero trait equipped in both runs, Erika's "Lightning Shadow" tier 1 (`data/seasons/SS12/_hero_traits.json:2718`), can ITSELF inflict Numbed independently of Thunder Spike or Shadows via its "Feline Figure" proc, triggered by movement-based Electrify stacks (1 stack per 3 m moved within 1 s, up to 3; "For every 1 stack(s) of Electrify, Feline Figure inflicts 1 stack(s) of Numbed"). If the player moved during either parse, this trait — not a Shadow hit — could be the source of the observed second stack. The owner's observation is recorded as-is above; the follow-up isolation test (SHADOW-01 check 6) must confirm the player was stationary / Electrify inactive throughout before crediting Shadow hits. See `data/verification/thunder-spike.json` notes for the same confound.
+
+Shipped in the engine; two bugs fixed during implementation (see `.wolf/buglog.json`): `shadow-dmg-additional-generic-pool-leak` (`SHADOW_DMG_ADDITIONAL` had no `tags`, leaking into the generic `_HIT_ADDITIONAL_STATS` pool and buffing ALL hit damage regardless of Shadow Strike — fixed via a `_SHADOW_SCOPED_ADDITIONAL` frozenset) and `shadow-quantity-fuzzy-collision` (the new stat's display name "Shadow Chance Quantity" tied the fuzzy gear-text resolver against "Max Shadow Quantity" — renamed to "Shadow Chance Bonus Count"). Re-confirmed the pool-leak fix holds with real gear: attaching the same gear to `chain_lightning` (not a Shadow Strike skill) does NOT consume `shadow_dmg_additional`.
 
 **Explicitly NYI** (owner decisions 2026-07-15, listed so they're never silently dropped):
+- **Shadow hits applying Thunder Spike's inherent Numbed** (see above, NEW 2026-07-15) — needs shadow-hit-count/timing modeling.
 - **Frantic Shadow** "X% chance to gain +Y% Attack Speed for Z s when Shadows hit enemies" — needs shadow-hit-count expected-value modeling (unlock for this + the next item).
 - **Numb Magnificent** "30% chance to inflict 1 stack of Numbed on enemies within a 10m radius when the supported skill's Shadows hit an enemy" — same reason.
 - **Tracking Area** entirely unmodeled: Thunder Spike's "100% of Skill Area increase/decrease also applied to Shadows' Tracking Area, up to 100%", the dedicated `+% Shadow(s) Tracking Area` stat family, Dual Kismet: Ghost Bee ("+50% Shadow Tracking Area +50% Shadow Strike Skill Area"), and Charging Warcry's "+20% Tracking Area for Shadow Strike Skills while the skill lasts". No AoE/targeting model exists in the engine to consume any of this.
@@ -42,5 +66,8 @@ See `data/verification/thunder-spike.json` for the skill-specific model (WAD, in
 - backend/engine/mod_parser.py — Despised Shadow chance line + craft-base compound regex
 - backend/models/stat.py, backend/models/stat_meta.py — SHADOW_CHANCE_PCT / SHADOW_CHANCE_QUANTITY_FLAT
 - .wolf/buglog.json — shadow-dmg-additional-generic-pool-leak, shadow-quantity-fuzzy-collision
-- docs/INGAME_VERIFICATION_BACKLOG.md — SHADOW-01
+- docs/INGAME_VERIFICATION_BACKLOG.md — SHADOW-01 (check 1 partial, check 2 supported; check 6 has a Feline Figure confound to exclude)
+- data/seasons/SS12/_hero_traits.json:2718 — lightning_shadow tier 1 (Erika), "Feline Figure" Numbed-on-Electrify proc
 - memory: .wolf/memory.md 2026-07-15 "Shadow Strike mechanic + Thunder Spike skill" + follow-up entry
+- Tyra (owner), 2026-07-15 — in-game RECOUNT measurement pair (solo N=0 vs +Haunt Lv20 N=2), character level 85, hero Erika (Lightning Shadow trait base tier 1), Lv85 training dummy; also reported the Numbed 1↔2 alternation on the Haunt run and that Shadow hits (not just the player) can apply Thunder Spike's inherent Numbed
+- engine-agent vs-target comparison report, 2026-07-15 — solo 340.34 vs measured 349, Haunt 789.03 vs measured 810, delivery-ratio decomposition (predicted 2.3184 vs measured ≈2.30–2.32)

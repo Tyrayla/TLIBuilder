@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**68 entries** — ✅ Confirmed: 11 · 🔶 Partial: 7 · ⬜ Pending: 9 · ⚠️ Unverified: 39
+**68 entries** — ✅ Confirmed: 11 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 37
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -24,8 +24,10 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Demolisher / Cripple / Frequent Quake | Groundshaker | damage-pool, restoration, trigger | 🔶 Partial | 2026-07-01 | [demolisher.md](demolisher.md) |
 | Mind Control | Mind Control | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [mind-control.md](mind-control.md) |
 | Path of Flames | Path of Flames | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [path-of-flames.md](path-of-flames.md) |
+| Shadow Strike (delivery model) | Thunder Spike | shotgun, damage-pool, trigger | 🔶 Partial | 2026-07-15 | [shadow-strike.md](shadow-strike.md) |
 | Shotgun (Merge + Web) | Chain Lightning | shotgun, supports, damage-pool | 🔶 Partial | — | [shotgun.md](shotgun.md) |
 | Spell Burst | Spell Burst | breakpoint, tick-rounding, trigger, damage-pool | 🔶 Partial | 2026-06-18 | [spell-burst.md](spell-burst.md) |
+| Thunder Spike | Thunder Spike | conversion, trigger, ailment | 🔶 Partial | 2026-07-15 | [thunder-spike.md](thunder-spike.md) |
 | Wind Rhythm | Wind Rhythm | breakpoint, tick-rounding, trigger, cooldown | 🔶 Partial | 2026-07-02 | [wind-rhythm.md](wind-rhythm.md) |
 | Augmentation (per-Jump compounding) | Chain Lightning | supports, damage-pool, shotgun | ⬜ Pending | — | [augmentation.md](augmentation.md) |
 | Blessings (Focus / Agility) | — | damage-pool, buff | ⬜ Pending | — | [blessings.md](blessings.md) |
@@ -67,12 +69,10 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Prisms (Inverse Image) | — | passive-tree, damage-pool | ⚠️ Unverified | — | [prisms.md](prisms.md) |
 | Reservation / Mana-Life sealing | — | reservation, sustain | ⚠️ Unverified | — | [reservation-sealing.md](reservation-sealing.md) |
 | Restoration / recovery subsystem | — | sustain, defense | ⚠️ Unverified | — | [restoration-subsystem.md](restoration-subsystem.md) |
-| Shadow Strike (delivery model) | Thunder Spike | shotgun, damage-pool, trigger | ⚠️ Unverified | — | [shadow-strike.md](shadow-strike.md) |
 | Sing with the Tide (Selena trait) | Sing with the Tide | hero-trait, buff | ⚠️ Unverified | — | [sing-with-the-tide.md](sing-with-the-tide.md) |
 | Slate inventory + bonus overview | — | build-system, slates | ⚠️ Unverified | — | [slate-inventory.md](slate-inventory.md) |
 | Spirit Magi Growth + stages | — | minion, spirit-magus, growth | ⚠️ Unverified | — | [spirit-magi-growth.md](spirit-magi-growth.md) |
 | Split Shot + supports (spread / Shotgun Effect / channel) | Split Shot | shotgun, projectile, channeled, breakpoint, supports, damage-pool | ⚠️ Unverified | — | [split-shot.md](split-shot.md) |
-| Thunder Spike | Thunder Spike | conversion, trigger, ailment | ⚠️ Unverified | — | [thunder-spike.md](thunder-spike.md) |
 | Unsullied Blade (Rosa trait) | Unsullied Blade | hero-trait, conversion, true-damage | ⚠️ Unverified | — | [unsullied-blade.md](unsullied-blade.md) |
 | Wind Stalker (Erika trait) | Wind Stalker | hero-trait, speed | ⚠️ Unverified | — | [wind-stalker.md](wind-stalker.md) |
 | Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | 2026-07-06 | [minion-dps-engine.md](minion-dps-engine.md) |

@@ -190,6 +190,15 @@ assumption: continuous casting vs a boss → ~permanent uptime) — needs in-gam
   `skill_resolver._REGISTRY`; Thunder Spike is the only one live in v1. Detection is tag-driven off the
   "Shadow Strike" skill tag (not hardcoded to `thunder_spike`), so both light up automatically once registered
   — no Shadow-Strike-specific code needed when that happens.
+- **Numbed stack-alternation uptime** (owner-measured 2026-07-15: in-game Numbed alternates 1↔2 stacks, ~50%
+  uptime on 2) — engine models a flat 1 stack. Quantified: exact on a shadow-free baseline (solo Thunder Spike),
+  ~2.6% conservative once shadows are present (they can independently apply the inherent Numbed — see next
+  bullet). Model the alternation once ailment-uptime work lands.
+- **NEW mechanic (owner-reported 2026-07-15, unmodeled): Shadow hits can themselves apply Thunder Spike's
+  inherent on-hit Numbed**, not only the player's own True Body hit — this is how a Haunt-equipped run reaches
+  an average ≈1.5 Numbed stacks. Needs shadow-hit-count/timing modeling — the same unlock the Frantic Shadow
+  Attack Speed proc and Numb Magnificent both need (see above). See `data/verification/shadow-strike.json` and
+  `data/verification/thunder-spike.json` notes.
 
 ## 0c. Tangles (core shipped 2026-06-17 — follow-ups)
 Shipped: the **Tangle skill type**. A Spell becomes a Tangle via an activator support (**Spell Tangle** /
@@ -436,6 +445,11 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   TODO: sweep the whole offense/defense/derive → display path for similar mismatches (multipliers applied to totals
   but not to the per-line breakdown, proportional-attribution rounding, anything the UI recomputes instead of
   reading from the engine). Goal: the engine emits the breakdown, the frontend just renders it.
+  - **Second instance flagged (2026-07-15, engine agent, during Shadow Strike/Thunder Spike verification):**
+    `OffenseResult.total_dps` already includes enemy-vulnerability effects (e.g. Numbed) in its computation, while
+    only armor/resist mitigation is deferred to the separate `total_dps_vs_target` field — a field-semantics
+    ambiguity (does "vs target" mean "with target mitigation" or "with all target-dependent effects"?) worth
+    picking up as part of this audit. Not yet triaged for a specific display bug; flagged so it isn't lost.
 - **Landing/main screen — add a Discord feedback link**: revisit the app's main screen/landing page (BuildSelectScreen)
   so it contains a direct, visible link to the community Discord for feedback/bug reports/sharing. Pairs with the
   existing About modal's about.tlibuilder.com link; consider a small footer/header social row (Discord + site).

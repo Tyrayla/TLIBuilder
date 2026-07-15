@@ -431,20 +431,21 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 ---
 
 ### SHADOW-01 — Shadow Strike delivery model (multiple checks)
-- Status: ⬜ Unverified. Newly modeled 2026-07-15 (uncommitted). See `data/verification/shadow-strike.json`.
+- Status: 🔶 Partial. Solo (N=0) vs +Haunt Lv20 (N=2) Recount pair measured 2026-07-15 — see
+  `data/verification/shadow-strike.json`. Checks 1 and 2 below have supporting evidence; checks 3–5 remain ⬜.
 - Setup: **Thunder Spike** vs the standard dummy. Base build has 0 Shadow Quantity (Shadows only appear via gear/talent/support). Add shadow sources one at a
   time (**Haunt** support = +2 Shadow Quantity; **Frantic Shadow** legendary = +1; **Despised Shadow**
   legendary = 33% chance +3/+4 Shadows + additional Shadow Damage; **Ronin `ronin_c6_r2`** talent = +1).
 - Checks:
-  1. **Falloff shape.** With N ≥ 2 Shadows (e.g. Haunt + Frantic Shadow = 3), confirm the falloff is a flat
-     per-shadow coefficient (first Shadow full damage, EVERY further Shadow additionally −70%, i.e.
-     `1 + 0.30(N−1)` total shadow-hit weight) as modeled — NOT a compounding chain (each successive Shadow
-     −70% of the PREVIOUS Shadow's already-reduced damage, which would fall off far faster). Compare Recount
-     DPS at N=1 vs N=2 vs N=3 Shadows; the modeled ratios are 1 : 1.30 : 1.60 (additional-shadow-weight terms),
-     not 1 : 1.30 : 1.51 (compounding).
-  2. **Player-hit independence.** Confirm the player's own hit lands and scales independently of the Shadow
-     falloff chain (Help DB: "Shadow damage and character damage are independent of each other") — i.e. the
-     player's damage is not itself subject to the −70% falloff.
+  1. **Falloff shape.** 🔶 Partial. The N=0→N=2 (Haunt) ratio (≈2.30–2.32 measured vs 2.3184 predicted) supports
+     the magnitude of the FIRST −70% falloff step, but a flat-per-shadow model and a compounding-chain model
+     predict the identical value at N=2 — they only diverge at N=3. Still needs an **N=3 config** (e.g. Haunt +
+     Frantic Shadow) to distinguish flat (1 : 1.30 : 1.60) from compounding (1 : 1.30 : 1.51) at N=1 vs N=2 vs N=3.
+  2. **Player-hit independence.** 🔶 Supported (not fully isolated). The same N=0→N=2 ratio is consistent with the
+     player's own hit being a clean, unaffected additive term. Note the ratio doesn't perfectly cancel — the solo
+     run sat at 1 Numbed stack and the Haunt run averaged ≈1.5 (see SHADOW-02), so a small Numbed-difference
+     component rides along; a dedicated isolation test (same Numbed state, vary only shadow count) would close
+     this fully.
   3. **Despised Shadow proc granularity.** Equip Despised Shadow (33% chance +3/+4 Shadows "when using the
      Shadow Strike skill"). Confirm the chance rolls **per cast** (not per fight, not a persistent buff) and
      that Shadows gained from the proc last only that cast (not carried into the next cast). The engine models
@@ -455,20 +456,37 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   5. **Multistrike / cast-multiplier inheritance.** With a Multistrike-capable build, confirm whether Shadows
      also fire on each Multistrike (proportionally increasing shadow hits) or only on the primary cast. Same
      question for any other cast-multiplier mechanic active on Thunder Spike.
+  6. **NEW (added 2026-07-15) — Shadows applying Thunder Spike's inherent Numbed.** Owner-reported: in the
+     +Haunt Lv20 run, Numbed stacks alternated 1↔2 (~50% uptime on 2), where the player's own True Body hit
+     accounts for the base 1 stack and a Shadow hit appears to independently apply an additional stack. Confirm
+     directly (e.g. isolate: does the second stack appear only when a Shadow visibly connects?) and get the
+     actual per-Shadow proc rate/interval, not just the inferred average. Unmodeled — see
+     `data/verification/shadow-strike.json` NYI list.
+     **CONFOUND to exclude before attributing this to shadows (accuracy council, 2026-07-15):** the equipped
+     hero trait in both measurement runs, Erika's "Lightning Shadow" tier 1 (`_hero_traits.json:2718`), can
+     itself inflict Numbed via "Feline Figure" procs — triggered by movement-based Electrify stacks (1 stack
+     per 3 m moved within 1 s, up to 3), independently of Thunder Spike or Shadows. Before crediting the Haunt
+     run's 1↔2 alternation solely to shadow hits, this follow-up test must exclude Feline Figure (e.g. confirm
+     the player was stationary / Electrify inactive throughout the parse).
 - RESULT (per check): Recount Avg DPS (span) + Duration, per Shadow-count config; shadow sources equipped +
   their rolls; Shadow count observed (in-game UI, if shown); Skill level; Screenshot.
 
 ### SHADOW-02 — Thunder Spike skill specifics
-- Status: ⬜ Unverified. Newly modeled 2026-07-15 (uncommitted). See `data/verification/thunder-spike.json`.
+- Status: 🔶 Partial. Solo + Haunt Lv20 Recount pair measured 2026-07-15 — see `data/verification/thunder-spike.json`.
+  Check 1 supported; check 2 supported in aggregate only; check 3 (Rumbling Thunder) still ⬜ — Setup B used
+  Haunt, not Rumbling Thunder.
 - Setup: **Thunder Spike** alone vs the standard dummy, no supports (isolate the base skill first), then add
   **Rumbling Thunder (Noble)** for check 3.
 - Checks:
-  1. **Base WAD.** Confirm 277% Weapon Attack Damage at Lv20 (205% at Lv1) matches the Recount magnitude for
-     a bare Thunder Spike cast.
-  2. **Intrinsic conversion + inherent Numbed.** Confirm 100% of the skill's Physical Damage displays/behaves
-     as Lightning Damage (no separate Physical component), and that True Body hits inflict 1 stack of Numbed
-     on the target (interval 1s) with NO gear/support required — this is a skill-inherent effect, not
-     optional. Watch the dummy's Numbed stack indicator ramp on repeated hits.
+  1. **Base WAD.** 🔶 Supported. Solo Recount 349 vs engine 340.34 (−2.5%, no correction — solo Numbed sits at a
+     genuine flat 1 stack). Supports the magnitude of 277% WAD at Lv20 to within measurement noise (aggregate
+     evidence, not an isolation test). Compare against the character-sheet tooltip is explicitly out of scope —
+     see `training-dummy.json` doctrine.
+  2. **Intrinsic conversion + inherent Numbed.** 🔶 Supported in aggregate only (this pair did not isolate
+     conversion or Numbed-on-hit individually — e.g. no run with Numbed suppressed). Confirm 100% of the
+     skill's Physical Damage displays/behaves as Lightning Damage (no separate Physical component), and that
+     True Body hits inflict 1 stack of Numbed on the target (interval 1s) with NO gear/support required — this
+     is a skill-inherent effect, not optional. Watch the dummy's Numbed stack indicator ramp on repeated hits.
   3. **Rumbling Thunder uptime + default-on sanity.** Socket Rumbling Thunder (Noble). The tier-1 line reads
      "+(45–48)% additional Lightning Damage dealt by the skill to the enemy for 2 s" on a True Body hit. The
      engine currently models this as ALWAYS active (default-on assumption: continuous casting → ~permanent
