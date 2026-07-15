@@ -1572,3 +1572,823 @@ def test_render_markdown_ethereal_prism_removed_line_and_unclassified_flag(impac
     md = season_impact.render_markdown(report)
     assert "REMOVED [prisms[9].text]: was: +8% Increased Physical Damage" in md
     assert "**1 unclassified field change(s) (unexpected diff shape, manual review)**" in md
+
+
+# ── NEW-SHAPE talent_tree / ethereal_prism (2026-07-15) ──────────────────────────────────────────
+# The sibling crawler repo shipped dedicated `talent_diff.py` / `ethereal_prism_diff.py` differs
+# (real per-node-uuid / per-section/per-item identity), replacing the old generic `field_changes`
+# fallback for these two types. Every fixture entity below was produced by actually RUNNING the
+# real crawler differs (`tlidb-crawler/tools/season_diff/talent_diff.py::diff_talent_tree_entity`,
+# `.../ethereal_prism_diff.py::diff_ethereal_prism_entity`) against small synthetic before/after
+# tree/prism dicts and capturing the exact JSON output — never hand-shaped to fit this tool's
+# schema — so these fixtures cannot drift from what the real emitter actually produces. See the
+# reports to the lead for the generating scripts/inputs.
+
+_TALENT_TREE_ADD_REMOVE_COMPARED_ENTITY = {
+    "uuid": "tree-uuid-1", "name_before": "Frost Tree", "name_after": "Frost Tree", "verdict": "reworked",
+    "scalar_changes": {},
+    "node_counts": {"unchanged": 1, "renumbered": 0, "reworked": 1, "regrouped": 0, "added": 1, "removed": 1},
+    "nodes": [
+        {
+            "node_uuid": "node-b", "status": "compared",
+            "talent_id_before": "TA02", "talent_id_after": "TA02",
+            "name_before": "Node B", "name_after": "Node B", "verdict": "reworked",
+            "scalar_changes": {}, "prerequisite_changes": None,
+            "line_changes": {
+                "added": [{"pooling_uuid": "pb2", "modifier_id": None, "text": "totally unresolvable made up affix xyzzy 12345"}],
+                "removed": [{"pooling_uuid": "pb1", "modifier_id": None, "text": "+5% Increased Lightning Damage"}],
+                "renumbered": [], "cosmetic": [], "template_changed": [], "localization_mismatch": [],
+                "regrouped": [], "unchanged_count": 0,
+            },
+            "has_localization_mismatch": False,
+        },
+        {"node_uuid": "node-c", "status": "node_removed", "verdict": "removed", "talent_id": "TA03", "name": "Node C"},
+        {"node_uuid": "node-d", "status": "node_added", "verdict": "added", "talent_id": "TA04", "name": "Node D"},
+    ],
+    "has_localization_mismatch": False,
+}
+
+_TALENT_TREE_PREREQUISITE_CHANGE_ENTITY = {
+    "uuid": "tree-uuid-2", "name_before": "Storm Tree", "name_after": "Storm Tree", "verdict": "reworked",
+    "scalar_changes": {},
+    "node_counts": {"unchanged": 0, "renumbered": 0, "reworked": 1, "regrouped": 0, "added": 0, "removed": 0},
+    "nodes": [
+        {
+            "node_uuid": "node-x", "status": "compared",
+            "talent_id_before": "TX01", "talent_id_after": "TX01",
+            "name_before": "Node X", "name_after": "Node X", "verdict": "reworked", "scalar_changes": {},
+            "prerequisite_changes": {"before": ["ROOT"], "after": ["ROOT", "OTHER"]},
+            "line_changes": {
+                "added": [], "removed": [], "renumbered": [], "cosmetic": [], "template_changed": [],
+                "localization_mismatch": [], "regrouped": [], "unchanged_count": 1,
+            },
+            "has_localization_mismatch": False,
+        },
+    ],
+    "has_localization_mismatch": False,
+}
+
+_TALENT_TREE_POSITION_FALLBACK_COMPARED_ENTITY = {
+    "uuid": "tree-uuid-3", "name_before": "Void Tree", "name_after": "Void Tree", "verdict": "renumbered",
+    "scalar_changes": {},
+    "node_counts": {"unchanged": 0, "renumbered": 1, "reworked": 0, "regrouped": 0, "added": 0, "removed": 0},
+    "nodes": [
+        {
+            "node_uuid": None, "status": "position_fallback", "index": 0,
+            "talent_id_before": "TV01", "talent_id_after": "TV01",
+            "name_before": "Core Node", "name_after": "Core Node", "verdict": "renumbered",
+            "scalar_changes": {}, "prerequisite_changes": None,
+            "line_changes": {
+                "added": [], "removed": [],
+                "renumbered": [{
+                    "pooling_uuid": "pv1", "modifier_id": None,
+                    "text_before": "+5% Increased Void Damage", "text_after": "+9% Increased Void Damage",
+                    "numeric_delta": [{"before": 5, "after": 9, "delta": 4}],
+                }],
+                "cosmetic": [], "template_changed": [], "localization_mismatch": [], "regrouped": [],
+                "unchanged_count": 0,
+            },
+            "has_localization_mismatch": False,
+        },
+    ],
+    "has_localization_mismatch": False,
+}
+
+_TALENT_TREE_POSITION_FALLBACK_REMOVED_ENTITY = {
+    "uuid": "tree-uuid-4", "name_before": "Fallback Tree", "name_after": "Fallback Tree", "verdict": "reworked",
+    "scalar_changes": {},
+    "node_counts": {"unchanged": 1, "renumbered": 0, "reworked": 0, "regrouped": 0, "added": 0, "removed": 1},
+    "nodes": [
+        {"node_uuid": None, "status": "position_fallback_removed", "verdict": "removed", "index": 1,
+         "talent_id": "TF02", "name": "Fallback Two"},
+    ],
+    "has_localization_mismatch": False,
+}
+
+
+def test_talent_tree_per_node_add_remove_and_compared_wording_change():
+    """Real `talent_diff.py` output: one node added, one node removed (structural rows carrying
+    node identity via `name`), and one COMPARED node whose effect wording changed (an added line
+    that doesn't resolve, a removed line) — text_changes/text_changes_removed keyed on
+    `node:<name>.<kind>` paths, node add/remove keyed on bare `node:<name>`."""
+    result = season_impact._talent_tree_impact(
+        "uuid-t1", _TALENT_TREE_ADD_REMOVE_COMPARED_ENTITY,
+        lambda text: "unresolvable" not in text.lower(),
+    )
+
+    assert result["entity_type"] == "talent_tree"
+    assert result["granularity"] == "per_node"
+    assert result["verdict"] == "reworked"
+    assert result["unclassified_field_changes"] == 0
+
+    structural_pairs = {(sc["path"], sc["status"]) for sc in result["structural_changes"]}
+    assert ("node:Node C", "node_removed") in structural_pairs
+    assert ("node:Node D", "node_added") in structural_pairs
+    assert len(result["structural_changes"]) == 2
+
+    assert len(result["text_changes"]) == 1
+    tc = result["text_changes"][0]
+    assert tc["path"] == "node:Node B.added"
+    assert tc["after"] == "totally unresolvable made up affix xyzzy 12345"
+    assert tc["resolved"] is False
+    assert result["text_changes_unresolved"] == [tc]
+
+    assert len(result["text_changes_removed"]) == 1
+    removed = result["text_changes_removed"][0]
+    assert removed["path"] == "node:Node B.removed"
+    assert removed["before"] == "+5% Increased Lightning Damage"
+    assert removed["status"] == "removed"
+
+    # Additive per-node detail carried through untouched.
+    assert result["node_counts"] == _TALENT_TREE_ADD_REMOVE_COMPARED_ENTITY["node_counts"]
+    assert result["tree_scalar_changes"] == {}
+    assert len(result["nodes"]) == 3
+
+
+def test_talent_tree_per_node_prerequisite_change_is_structural_not_text():
+    """A node's `prerequisite_changes` (a topology edge changing, real per-node identity) lands in
+    `structural_changes` at `node:<name>.prerequisites` with the raw before/after prereq lists —
+    never fabricated as a text change, since there's no wording attached to a prerequisite edit."""
+    result = season_impact._talent_tree_impact(
+        "uuid-t2", _TALENT_TREE_PREREQUISITE_CHANGE_ENTITY, lambda text: True,
+    )
+
+    assert result["granularity"] == "per_node"
+    assert result["text_changes"] == []
+    assert result["text_changes_removed"] == []
+    assert len(result["structural_changes"]) == 1
+    sc = result["structural_changes"][0]
+    assert sc["path"] == "node:Node X.prerequisites"
+    assert sc["status"] == "changed"
+    assert sc["before"] == ["ROOT"]
+    assert sc["after"] == ["ROOT", "OTHER"]
+
+
+def test_talent_tree_per_node_position_fallback_compared_node_handled():
+    """A `position_fallback` (no-uuid) COMPARED node with only a `renumbered` line change (no
+    added/removed wording, no prerequisite change) must not crash and must not fabricate any
+    text/removed/structural row — mirrors the legacy path's own 'pure renumber yields nothing'
+    contract, one level down at the per-node granularity."""
+    result = season_impact._talent_tree_impact(
+        "uuid-t3", _TALENT_TREE_POSITION_FALLBACK_COMPARED_ENTITY, lambda text: True,
+    )
+
+    assert result["granularity"] == "per_node"
+    assert result["verdict"] == "renumbered"
+    assert result["text_changes"] == []
+    assert result["text_changes_removed"] == []
+    assert result["structural_changes"] == []
+    assert result["unclassified_field_changes"] == 0
+
+    node_row = result["nodes"][0]
+    assert node_row["status"] == "position_fallback"
+    assert node_row["node_uuid"] is None
+    assert node_row["name"] == "Core Node"
+
+
+def test_talent_tree_per_node_position_fallback_removed_is_structural():
+    """A `position_fallback_removed` stub (a no-uuid node vanishing, matched positionally within
+    the fallback bucket) must land in `structural_changes` at bare `node:<name>` — identical
+    treatment to a uuid-identified `node_removed`."""
+    result = season_impact._talent_tree_impact(
+        "uuid-t4", _TALENT_TREE_POSITION_FALLBACK_REMOVED_ENTITY, lambda text: True,
+    )
+
+    assert result["granularity"] == "per_node"
+    assert len(result["structural_changes"]) == 1
+    assert result["structural_changes"][0] == {"path": "node:Fallback Two", "status": "node_removed"}
+    assert result["text_changes"] == []
+    assert result["text_changes_removed"] == []
+
+
+_PRISM_SECTION_ADD_REMOVE_NAMED_ITEM_ENTITY = {
+    "uuid": "prism-uuid-1", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism", "verdict": "reworked",
+    "sections": {
+        "Base Affix": {
+            "status": "compared", "header_before": "Base Affix /2", "header_after": "Base Affix /2",
+            "added": [{"Modifier": "+20% Increased Cold Damage"}],
+            "removed": [{"Modifier": "+5% Increased Cold Damage"}],
+            "changed": [], "unchanged_count": 1,
+        },
+        "Item": {
+            "status": "compared", "header_before": "Item /2", "header_after": "Item /2",
+            "added": [], "removed": [],
+            "changed": [
+                {"name": "Unmatched Valor", "field_changes": {
+                    "detail": {
+                        "before": ["Grants +5% additional damage"],
+                        "after": ["Grants +5% additional damage", "A brand new bonus line xyzzy 12345"],
+                    },
+                    "tags": {"before": ["offense"], "after": ["offense", "defense"]},
+                }},
+                {"name": "Spell Ripple", "field_changes": {
+                    "detail": {
+                        "before": ["Old wording for ripple"],
+                        "after": ["totally unresolvable made up affix xyzzy 12345"],
+                    },
+                }},
+            ],
+            "unchanged_count": 0,
+        },
+        "New Section": {"status": "section_added", "header": "New Section /1"},
+        "Old Section": {"status": "section_removed", "header": "Old Section /1"},
+    },
+}
+
+_PRISM_UNNAMED_ROW_NO_PROBEABLE_TEXT_ENTITY = {
+    "uuid": "prism-uuid-2", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism", "verdict": "reworked",
+    "sections": {
+        "Weight Table": {
+            "status": "compared", "header_before": "Weight Table /1", "header_after": "Weight Table /1",
+            "added": [{"Weight": 8}], "removed": [{"Weight": 5}], "changed": [], "unchanged_count": 0,
+        },
+    },
+}
+
+
+def test_ethereal_prism_per_section_add_remove_and_named_item_change():
+    """Real `ethereal_prism_diff.py` output: a section added, a section removed, a named item
+    (Unmatched Valor) whose `detail` list RESIZED (structural fallback — never a fabricated
+    positional pair) and whose `tags` changed (structural, not parseable mod wording), a second
+    named item (Spell Ripple) whose SAME-length `detail` list gets a real resolved-vs-unresolved
+    per-index text probe, and an un-named Base Affix row added/removed with probeable text."""
+    result = season_impact._ethereal_prism_impact(
+        "uuid-prism1", _PRISM_SECTION_ADD_REMOVE_NAMED_ITEM_ENTITY,
+        lambda text: "unresolvable" not in text.lower(),
+    )
+
+    assert result["entity_type"] == "ethereal_prism"
+    assert result["granularity"] == "per_section"
+    assert result["unclassified_field_changes"] == 0
+
+    structural_pairs = {(sc["path"], sc["status"]) for sc in result["structural_changes"]}
+    assert ("section:New Section", "section_added") in structural_pairs
+    assert ("section:Old Section", "section_removed") in structural_pairs
+    assert ("section:Item/Unmatched Valor.detail", "changed") in structural_pairs
+    tags_sc = next(sc for sc in result["structural_changes"] if sc["path"] == "section:Item/Unmatched Valor.tags")
+    assert tags_sc["before"] == ["offense"]
+    assert tags_sc["after"] == ["offense", "defense"]
+
+    # Spell Ripple's same-length detail list gets a real per-index text probe, unresolved.
+    unresolved_paths = {tc["path"] for tc in result["text_changes_unresolved"]}
+    assert "section:Item/Spell Ripple.detail[0]" in unresolved_paths
+    spell_ripple_tc = next(tc for tc in result["text_changes"] if tc["path"] == "section:Item/Spell Ripple.detail[0]")
+    assert spell_ripple_tc["before"] == "Old wording for ripple"
+    assert spell_ripple_tc["after"] == "totally unresolvable made up affix xyzzy 12345"
+
+    # Un-named Base Affix row add/remove, each carrying probeable text (not structural fallback).
+    added_texts = {tc["after"] for tc in result["text_changes"]}
+    assert "+20% Increased Cold Damage" in added_texts
+    removed_texts = {tc["before"] for tc in result["text_changes_removed"]}
+    assert "+5% Increased Cold Damage" in removed_texts
+
+    assert result["bespoke_names_touched"] == ["Spell Ripple", "Unmatched Valor"]
+    assert result["sections"][0]["section"]  # additive per-section detail carried through
+
+
+def test_ethereal_prism_per_section_unnamed_row_no_probeable_text_is_structural():
+    """An un-named row whose every field is non-string (e.g. a bare numeric `Weight` column) has
+    NO probeable text — must fall back to `structural_changes`, never a fabricated text pair."""
+    result = season_impact._ethereal_prism_impact(
+        "uuid-prism2", _PRISM_UNNAMED_ROW_NO_PROBEABLE_TEXT_ENTITY, lambda text: True,
+    )
+
+    assert result["granularity"] == "per_section"
+    assert result["text_changes"] == []
+    assert result["text_changes_removed"] == []
+    assert len(result["structural_changes"]) == 2
+    sc_pairs = {(sc["path"], sc["status"]) for sc in result["structural_changes"]}
+    assert ("section:Weight Table/Weight: 8", "added") in sc_pairs
+    assert ("section:Weight Table/Weight: 5", "removed") in sc_pairs
+
+
+# ── Shape dispatch: new-shape routes to per-node/per-section, legacy stays byte-identical ────────
+
+def test_talent_tree_impact_dispatches_new_shape_to_per_node_handler():
+    result = season_impact._talent_tree_impact(
+        "uuid-dispatch", _TALENT_TREE_ADD_REMOVE_COMPARED_ENTITY, lambda text: True,
+    )
+    assert result["granularity"] == "per_node"
+    assert "nodes" in result
+    assert "node_counts" in result
+
+
+def test_ethereal_prism_impact_dispatches_new_shape_to_per_section_handler():
+    result = season_impact._ethereal_prism_impact(
+        "uuid-dispatch", _PRISM_SECTION_ADD_REMOVE_NAMED_ITEM_ENTITY, lambda text: True,
+    )
+    assert result["granularity"] == "per_section"
+    assert "sections" in result
+
+
+def test_talent_tree_impact_legacy_shape_byte_identical_to_hand_built_expectation():
+    """A legacy `field_changes`-shaped entity must take the OLD path byte-identically — the new
+    shape-dispatch gate must not add/rename/drop a single key in the legacy output schema."""
+    entity = {
+        "verdict": "renumbered", "name_before": "Frost Tree", "name_after": "Frost Tree",
+        "field_changes": [
+            {"path": "nodes[2].text", "before": "+10% Increased Cold Damage", "after": "+15% Increased Cold Damage", "status": "changed"},
+        ],
+    }
+    result = season_impact._talent_tree_impact("uuid-legacy", entity, lambda text: True)
+    expected = {
+        "uuid": "uuid-legacy", "entity_type": "talent_tree", "name": "Frost Tree", "name_before": None,
+        "verdict": "renumbered", "granularity": "whole_tree", "field_change_count": 1,
+        "text_changes": [{
+            "path": "nodes[2].text", "before": "+10% Increased Cold Damage",
+            "after": "+15% Increased Cold Damage", "resolved": True,
+        }],
+        "text_changes_unresolved": [], "text_changes_removed": [], "structural_changes": [],
+        "unclassified_field_changes": 0, "has_localization_mismatch": False,
+    }
+    assert result == expected
+
+
+def test_ethereal_prism_impact_legacy_shape_byte_identical_to_hand_built_expectation():
+    """Direct analog for the prism singleton's legacy path."""
+    entity = {
+        "verdict": "reworked", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+        "field_changes": [
+            {"path": "prisms[1].text", "before": "old", "after": "totally unresolvable made up affix xyzzy 12345", "status": "changed"},
+        ],
+    }
+    result = season_impact._ethereal_prism_impact(
+        "uuid-legacy-prism", entity, lambda text: "unresolvable" not in text,
+    )
+    expected = {
+        "uuid": "uuid-legacy-prism", "entity_type": "ethereal_prism", "name": "Ethereal Prism", "name_before": None,
+        "verdict": "reworked", "granularity": "whole_catalog_singleton", "field_change_count": 1,
+        "text_changes": [{
+            "path": "prisms[1].text", "before": "old",
+            "after": "totally unresolvable made up affix xyzzy 12345", "resolved": False,
+        }],
+        "text_changes_unresolved": [{
+            "path": "prisms[1].text", "before": "old",
+            "after": "totally unresolvable made up affix xyzzy 12345", "resolved": False,
+        }],
+        "text_changes_removed": [], "structural_changes": [], "unclassified_field_changes": 0,
+        "bespoke_names_touched": [], "has_localization_mismatch": False,
+    }
+    assert result == expected
+
+
+def test_talent_tree_impact_neither_shape_on_compared_entity_is_unrecognized_shape():
+    """The silent-empty-protection pin: a COMPARED (non-added/removed) entity carrying NEITHER the
+    legacy `field_changes` key NOR the new `nodes`/`node_counts` keys is a genuinely unrecognized
+    artifact shape — `unclassified_field_changes` must bump to 1 and `granularity` must stamp
+    `unrecognized_shape`, never a silent all-zero row. This is the exact case the pre-fix code
+    would have collapsed to `field_changes = entity.get('field_changes') or []` -> an empty,
+    hollow-looking result."""
+    entity = {"verdict": "renumbered", "name_before": "Mystery Tree", "name_after": "Mystery Tree"}
+    result = season_impact._talent_tree_impact("uuid-mystery-tree", entity, lambda text: True)
+
+    assert result["granularity"] == "unrecognized_shape"
+    assert result["unclassified_field_changes"] == 1
+    assert result["field_change_count"] == 0
+    assert result["text_changes"] == []
+    assert result["text_changes_unresolved"] == []
+    assert result["text_changes_removed"] == []
+    assert result["structural_changes"] == []
+
+
+def test_ethereal_prism_impact_neither_shape_on_compared_entity_is_unrecognized_shape():
+    """Direct analog for the prism singleton — same silent-empty-protection pin."""
+    entity = {"verdict": "reworked", "name_before": "Mystery Prism Config", "name_after": "Mystery Prism Config"}
+    result = season_impact._ethereal_prism_impact("uuid-mystery-prism", entity, lambda text: True)
+
+    assert result["granularity"] == "unrecognized_shape"
+    assert result["unclassified_field_changes"] == 1
+    assert result["field_change_count"] == 0
+    assert result["text_changes"] == []
+    assert result["text_changes_unresolved"] == []
+    assert result["text_changes_removed"] == []
+    assert result["structural_changes"] == []
+    assert result["bespoke_names_touched"] == []
+
+
+def test_talent_tree_impact_added_stub_does_not_false_trigger_unrecognized_shape():
+    """A bare `added` stub (engine.py's `{verdict, name_before, name_after}` shape for a brand-new
+    tree) legitimately carries NEITHER `field_changes` NOR `nodes`/`node_counts` — must NOT be
+    mistaken for the unrecognized-shape case; it falls through to the legacy `whole_tree` path with
+    `field_changes` defaulting to `[]`, same as pre-fix behavior."""
+    entity = {"verdict": "added", "name_before": None, "name_after": "New Tree"}
+    result = season_impact._talent_tree_impact("uuid-new-tree", entity, lambda text: True)
+
+    assert result["granularity"] == "whole_tree"
+    assert result["unclassified_field_changes"] == 0
+
+
+def test_talent_tree_impact_removed_stub_does_not_false_trigger_unrecognized_shape():
+    entity = {"verdict": "removed", "name_before": "Old Tree", "name_after": None}
+    result = season_impact._talent_tree_impact("uuid-old-tree", entity, lambda text: True)
+
+    assert result["granularity"] == "whole_tree"
+    assert result["unclassified_field_changes"] == 0
+
+
+def test_ethereal_prism_impact_added_stub_does_not_false_trigger_unrecognized_shape():
+    entity = {"verdict": "added", "name_before": None, "name_after": "New Prism Config"}
+    result = season_impact._ethereal_prism_impact("uuid-new-prism", entity, lambda text: True)
+
+    assert result["granularity"] == "whole_catalog_singleton"
+    assert result["unclassified_field_changes"] == 0
+
+
+def test_ethereal_prism_impact_removed_stub_does_not_false_trigger_unrecognized_shape():
+    entity = {"verdict": "removed", "name_before": "Old Prism Config", "name_after": None}
+    result = season_impact._ethereal_prism_impact("uuid-old-prism", entity, lambda text: True)
+
+    assert result["granularity"] == "whole_catalog_singleton"
+    assert result["unclassified_field_changes"] == 0
+
+
+# ── End-to-end: new-shape talent_tree + new-shape prism through run_impact / render_markdown ─────
+# Uses the REAL deferred `_parse_custom_mod_text` (same convention as the legacy end-to-end test
+# above) — "+20% Increased Cold Damage" and "totally unresolvable made up affix xyzzy 12345" are
+# the same real-resolver-verified resolvable/unresolvable pair already relied on elsewhere in this
+# suite (see `test_run_impact_and_render_markdown_talent_tree_and_prism_rows`).
+
+def test_run_impact_and_render_markdown_new_shape_talent_tree_and_prism_rows(impact_env):
+    """A synthetic artifact containing ONE new-shape talent_tree entity (per-node: add/remove/
+    compared-with-wording-change) and ONE new-shape ethereal_prism entity (per-section: add/
+    remove/named-item-change/un-named-row-change) through the full `run_impact()` +
+    `render_markdown()` pipeline — summary counters and markdown must reflect the per-node/
+    per-section rows exactly like the legacy end-to-end test reflects whole-tree/whole-catalog
+    rows, with no changes needed to either function to consume the new shape."""
+    types = {
+        "talent_tree": {
+            "counts": {}, "entities": {"u-tree-newshape": _TALENT_TREE_ADD_REMOVE_COMPARED_ENTITY},
+        },
+        "ethereal_prism": {
+            "counts": {}, "entities": {"u-prism-newshape": _PRISM_SECTION_ADD_REMOVE_NAMED_ITEM_ENTITY},
+        },
+    }
+    diff_path = _write_diff_artifact(impact_env, "SS11", "SS12", types)
+    report = season_impact.run_impact(diff_path)
+    s = report["summary"]
+
+    assert s["changed_talent_trees_total"] == 1
+    assert s["changed_talent_trees_with_text_changes"] == 1
+    assert s["changed_talent_trees_text_unresolved"] == 1
+    assert s["changed_talent_trees_text_removed"] == 1
+    assert s["changed_talent_trees_structural_only"] == 1
+
+    assert s["changed_ethereal_prism_total"] == 1
+    assert s["changed_ethereal_prism_with_text_changes"] == 1
+    assert s["changed_ethereal_prism_text_unresolved"] == 1
+    assert s["changed_ethereal_prism_text_removed"] == 1
+    assert s["changed_ethereal_prism_bespoke_names_touched"] == ["Spell Ripple", "Unmatched Valor"]
+
+    tree_entry = next(t for t in report["generic"] if t["entity_type"] == "talent_tree")
+    assert tree_entry["granularity"] == "per_node"
+    assert len(tree_entry["nodes"]) == 3
+    prism_entry = next(t for t in report["generic"] if t["entity_type"] == "ethereal_prism")
+    assert prism_entry["granularity"] == "per_section"
+    assert len(prism_entry["sections"]) == 4
+
+    md = season_impact.render_markdown(report)
+    assert "## Changed talent trees (whole-tree granularity — no per-node registry)" in md
+    assert "Frost Tree" in md
+    assert ", per_node)" in md  # gran_tag distinguishes the new-shape row from a legacy whole_tree one
+    assert "## Changed ethereal prism (singleton — whole catalog, zero per-prism identity)" in md
+    assert "Ethereal Prism" in md
+    assert ", per_section)" in md
+    assert "Unmatched Valor" in md or "Spell Ripple" in md
+
+
+# ── Regression pins: review-correctness findings on the per-node/per-section shape ──────────────
+# Seven cases the reviewer enumerated against the fixed `season_impact.py` (see
+# `.wolf/buglog.json` id `season-impact-prism-none-name-crash`): the `_prism_item_display` None
+# guard, `.get()`-based `prerequisite_changes` reads, scalar-carrying structural rows,
+# "unnamed-row"/"unnamed-item" labels, and `_KNOWN_NODE_STATUSES`-gated loud routing on both the
+# node and section levels. Expectations below are derived from the buglog fix description and the
+# fixed code's own docstrings, not from re-deriving the implementation's intermediates.
+
+_PRISM_NONE_NAME_ENTITY = {
+    "uuid": "prism-uuid-none-name", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+    "verdict": "reworked",
+    "sections": {
+        "Item": {
+            "status": "compared",
+            # Added item: name explicitly None but carries probeable `detail` text (text_changes path).
+            "added": [{"name": None, "detail": ["A brand new bonus line xyzzy 12345"]}],
+            # Removed item: name explicitly None with NO probeable text at all (structural fallback).
+            "removed": [{"name": None, "tags": ["offense"]}],
+            "changed": [], "unchanged_count": 0,
+        },
+    },
+}
+
+
+def test_ethereal_prism_per_section_none_name_item_no_crash_labeled_unnamed_item():
+    """The crash pin (`.wolf/buglog.json` id `season-impact-prism-none-name-crash`): an
+    added/removed prism item carrying `name: None` (plausible for a brand-new/untranslated SS13
+    catalog entry) must never raise — pre-fix, `_prism_item_display` returned `item["name"]`
+    unguarded, and the None flowed into `blob_parts` -> `" ".join(blob_parts)`, raising TypeError
+    and aborting the WHOLE `run_impact()` call. Post-fix it must resolve to the literal label
+    "unnamed-item", for both the `added` item (which still has probeable text, so lands in
+    `text_changes`) and the `removed` item (no probeable text, so lands in `structural_changes`)."""
+    result = season_impact._ethereal_prism_impact(
+        "uuid-none-name", _PRISM_NONE_NAME_ENTITY, lambda text: True,
+    )
+    assert result["granularity"] == "per_section"
+
+    added_paths = {tc["path"] for tc in result["text_changes"]}
+    assert "section:Item/unnamed-item" in added_paths
+
+    structural_pairs = {(sc["path"], sc["status"]) for sc in result["structural_changes"]}
+    assert ("section:Item/unnamed-item", "removed") in structural_pairs
+
+    # Reaching this assertion at all is the pin: the blob-join (`" ".join(blob_parts)` feeding
+    # `bespoke_names_touched`) is what crashed pre-fix on a bare `None` label; a clean list return
+    # here means the join completed without a TypeError.
+    assert isinstance(result["bespoke_names_touched"], list)
+
+
+def test_run_impact_prism_none_name_item_run_completes(impact_env):
+    """End-to-end analog of the crash pin: a full `run_impact()` call over an artifact containing
+    the None-name prism entity must complete (not raise) and report exactly one changed
+    ethereal_prism entity — the crash, pre-fix, would have aborted the entire artifact run, not
+    just this one row."""
+    types = {
+        "ethereal_prism": {
+            "counts": {}, "entities": {"uuid-prism-none-name-e2e": _PRISM_NONE_NAME_ENTITY},
+        },
+    }
+    diff_path = _write_diff_artifact(impact_env, "SS12", "SS13", types)
+    report = season_impact.run_impact(diff_path)  # must not raise
+    assert report["summary"]["changed_ethereal_prism_total"] == 1
+    md = season_impact.render_markdown(report)  # must also not raise
+    assert isinstance(md, str)
+
+
+_TALENT_TREE_BOTH_SHAPES_ENTITY = {
+    "uuid": "tree-both-shapes", "name_before": "Ember Tree", "name_after": "Ember Tree", "verdict": "reworked",
+    # Legacy field_changes co-present with the new nodes/node_counts keys — never emitted together
+    # by the crawler today, but the dispatch must still pick a single deterministic winner.
+    "field_changes": [
+        {"path": "nodes[0].text", "before": "old legacy text", "after": "new legacy text only", "status": "changed"},
+    ],
+    "node_counts": {"unchanged": 0, "renumbered": 0, "reworked": 1, "regrouped": 0, "added": 0, "removed": 0},
+    "scalar_changes": {},
+    "nodes": [
+        {
+            "node_uuid": "node-both", "status": "compared",
+            "name_before": "Node Both", "name_after": "Node Both", "verdict": "reworked", "scalar_changes": {},
+            "prerequisite_changes": None,
+            "line_changes": {
+                "added": [{"pooling_uuid": "p1", "modifier_id": "m1",
+                           "text": "totally unresolvable made up affix xyzzy 12345"}],
+                "removed": [], "renumbered": [], "cosmetic": [], "template_changed": [],
+                "localization_mismatch": [], "regrouped": [], "unchanged_count": 0,
+            },
+            "has_localization_mismatch": False,
+        },
+    ],
+    "has_localization_mismatch": False,
+}
+
+
+def test_talent_tree_impact_both_legacy_and_new_shape_new_shape_wins():
+    """An entity carrying BOTH legacy `field_changes` AND new `nodes`/`node_counts` keys must
+    dispatch to the per-node handler deterministically (module docstring: 'New-shape keys win
+    deliberately') — the legacy field_changes text must never leak into the output, and the
+    per-node text change must be the one actually reported."""
+    result = season_impact._talent_tree_impact(
+        "uuid-both-shapes", _TALENT_TREE_BOTH_SHAPES_ENTITY,
+        lambda text: "unresolvable" not in text.lower(),
+    )
+    assert result["granularity"] == "per_node"
+    assert "nodes" in result
+    assert len(result["nodes"]) == 1
+    assert not any(tc["after"] == "new legacy text only" for tc in result["text_changes"])
+    assert any(
+        tc["after"] == "totally unresolvable made up affix xyzzy 12345" for tc in result["text_changes"]
+    )
+
+
+_PRISM_BOTH_SHAPES_ENTITY = {
+    "uuid": "prism-both-shapes", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+    "verdict": "reworked",
+    "field_changes": [
+        {"path": "prisms[0].text", "before": "old legacy prism text", "after": "new legacy prism text only",
+         "status": "changed"},
+    ],
+    "sections": {
+        "Item": {
+            "status": "compared",
+            "added": [{"name": "New Relic", "detail": ["totally unresolvable made up affix xyzzy 12345"]}],
+            "removed": [], "changed": [], "unchanged_count": 0,
+        },
+    },
+}
+
+
+def test_ethereal_prism_impact_both_legacy_and_new_shape_new_shape_wins():
+    """Direct analog for the prism singleton: `sections` must win over co-present legacy
+    `field_changes`."""
+    result = season_impact._ethereal_prism_impact(
+        "uuid-both-shapes-prism", _PRISM_BOTH_SHAPES_ENTITY,
+        lambda text: "unresolvable" not in text.lower(),
+    )
+    assert result["granularity"] == "per_section"
+    assert "sections" in result
+    assert not any(tc["after"] == "new legacy prism text only" for tc in result["text_changes"])
+    assert any(
+        tc["after"] == "totally unresolvable made up affix xyzzy 12345" for tc in result["text_changes"]
+    )
+
+
+_TALENT_TREE_UNRECOGNIZED_NODE_STATUS_ENTITY = {
+    "uuid": "tree-unrec-status", "name_before": "Rime Tree", "name_after": "Rime Tree", "verdict": "reworked",
+    "node_counts": {"unchanged": 0, "renumbered": 0, "reworked": 0, "regrouped": 0, "added": 0, "removed": 0},
+    "nodes": [
+        {"node_uuid": "node-weird", "status": "node_teleported", "name": "Weird Node", "verdict": "changed"},
+    ],
+    "has_localization_mismatch": False,
+}
+
+
+def test_talent_node_unrecognized_status_routes_loudly_as_structural_and_unclassified():
+    """A per-node `status` outside `_KNOWN_NODE_STATUSES` (a future crawler-side status this tool
+    doesn't understand yet) must never silently fall through to the 'compared' parse — it must be
+    tagged `unrecognized_status:<value>` in `structural_changes` AND bump
+    `unclassified_field_changes`, per the buglog fix description."""
+    result = season_impact._talent_tree_impact(
+        "uuid-unrec-node-status", _TALENT_TREE_UNRECOGNIZED_NODE_STATUS_ENTITY, lambda text: True,
+    )
+    assert result["granularity"] == "per_node"
+    assert result["unclassified_field_changes"] == 1
+    assert {"path": "node:Weird Node", "status": "unrecognized_status:node_teleported"} in result["structural_changes"]
+    # Never mistaken for a real comparison — no fabricated text/removed-wording rows.
+    assert result["text_changes"] == []
+    assert result["text_changes_removed"] == []
+
+
+_PRISM_UNRECOGNIZED_SECTION_STATUS_ENTITY = {
+    "uuid": "prism-unrec-status", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+    "verdict": "reworked",
+    "sections": {
+        "Weird Section": {"status": "section_teleported", "header": "Weird Section /1"},
+    },
+}
+
+
+def test_prism_section_unrecognized_status_routes_loudly_as_structural_and_unclassified():
+    """Direct analog for the prism singleton's per-section handler: an unrecognized section
+    `status` (outside `{"section_added", "section_removed", "compared"}`) must never silently fall
+    through to the added/removed/changed reads — it lands loudly in `structural_changes` tagged
+    `unrecognized_status:<value>` AND bumps `unclassified_field_changes`, mirroring
+    `_talent_tree_impact_per_node`'s identical guard per the module docstring."""
+    result = season_impact._ethereal_prism_impact(
+        "uuid-unrec-section-status", _PRISM_UNRECOGNIZED_SECTION_STATUS_ENTITY, lambda text: True,
+    )
+    assert result["granularity"] == "per_section"
+    assert result["unclassified_field_changes"] == 1
+    assert {"path": "section:Weird Section", "status": "unrecognized_status:section_teleported"} \
+        in result["structural_changes"]
+    assert result["text_changes"] == []
+    assert result["text_changes_removed"] == []
+
+
+_PRISM_SCALAR_CHANGED_FIELD_ENTITY = {
+    "uuid": "prism-scalar-field", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+    "verdict": "reworked",
+    "sections": {
+        "Item": {
+            "status": "compared", "added": [], "removed": [],
+            "changed": [
+                {"name": "Ancient Relic", "field_changes": {
+                    "level_req": {"before": 10, "after": 15},
+                    "enabled": {"before": True, "after": False},
+                    "cleared_note": {"before": "something", "after": None},
+                }},
+            ],
+            "unchanged_count": 0,
+        },
+    },
+}
+
+
+def test_prism_section_changed_field_bare_scalar_carries_str_coerced_before_after():
+    """A changed field whose `after` is a bare scalar (int/bool/None, not a str/list) must CARRY
+    its before/after (str-coerced) on the `structural_changes` row, not just path+status — per the
+    buglog fix: 'never-silently-drop applies to VALUES too, not just the fact that something
+    changed.' Covers int, bool, and a None `after` with a non-None `before` in one entity."""
+    result = season_impact._ethereal_prism_impact(
+        "uuid-scalar-field", _PRISM_SCALAR_CHANGED_FIELD_ENTITY, lambda text: True,
+    )
+    assert result["granularity"] == "per_section"
+    by_path = {sc["path"]: sc for sc in result["structural_changes"]}
+
+    level_req = by_path["section:Item/Ancient Relic.level_req"]
+    assert level_req["status"] == "changed"
+    assert level_req["before"] == "10"
+    assert level_req["after"] == "15"
+
+    enabled = by_path["section:Item/Ancient Relic.enabled"]
+    assert enabled["before"] == "True"
+    assert enabled["after"] == "False"
+
+    cleared = by_path["section:Item/Ancient Relic.cleared_note"]
+    assert cleared["before"] == "something"
+    assert cleared["after"] is None
+
+    # None of these fabricate a text_changes row — they're non-string/non-list scalars.
+    assert result["text_changes"] == []
+
+
+_PRISM_UNNAMED_ROW_IN_CHANGED_BUCKET_ENTITY = {
+    "uuid": "prism-unnamed-changed", "name_before": "Ethereal Prism", "name_after": "Ethereal Prism",
+    "verdict": "reworked",
+    "sections": {
+        "Header": {
+            "status": "compared", "added": [], "removed": [],
+            # No "name" key at all on this changed-bucket entry — not expected today (only
+            # `_diff_named_item` runs on named items) but never assumed guaranteed.
+            "changed": [
+                {"field_changes": {
+                    "detail": {"before": ["old wording"], "after": ["new wording xyzzy 12345"]},
+                }},
+            ],
+            "unchanged_count": 0,
+        },
+    },
+}
+
+
+def test_prism_section_unnamed_changed_row_gets_stable_unnamed_row_label():
+    """An un-named entry in a section's `changed` bucket must get the stable label 'unnamed-row',
+    never interpolate literal Python `None` into a report path — per the buglog fix description."""
+    result = season_impact._ethereal_prism_impact(
+        "uuid-unnamed-changed-row", _PRISM_UNNAMED_ROW_IN_CHANGED_BUCKET_ENTITY, lambda text: True,
+    )
+    assert result["granularity"] == "per_section"
+    paths = {tc["path"] for tc in result["text_changes"]}
+    assert "section:Header/unnamed-row.detail[0]" in paths
+    # No path anywhere carries a literal "None" interpolation.
+    assert not any("None" in tc["path"] for tc in result["text_changes"])
+    assert not any("None" in tc["path"] for tc in result["structural_changes"])
+
+
+_TALENT_NODE_PREREQUISITE_ONLY_BEFORE_ENTITY = {
+    "uuid": "tree-prereq-only-before", "name_before": "Gale Tree", "name_after": "Gale Tree", "verdict": "reworked",
+    "node_counts": {"unchanged": 0, "renumbered": 0, "reworked": 1, "regrouped": 0, "added": 0, "removed": 0},
+    "nodes": [
+        {
+            "node_uuid": "node-only-before", "status": "compared",
+            "name_before": "Node Only Before", "name_after": "Node Only Before", "verdict": "reworked",
+            "scalar_changes": {}, "prerequisite_changes": {"before": ["ROOT"]},
+            "line_changes": {
+                "added": [], "removed": [], "renumbered": [], "cosmetic": [], "template_changed": [],
+                "localization_mismatch": [], "regrouped": [], "unchanged_count": 0,
+            },
+            "has_localization_mismatch": False,
+        },
+    ],
+    "has_localization_mismatch": False,
+}
+
+_TALENT_NODE_PREREQUISITE_ONLY_AFTER_ENTITY = {
+    "uuid": "tree-prereq-only-after", "name_before": "Gale Tree", "name_after": "Gale Tree", "verdict": "reworked",
+    "node_counts": {"unchanged": 0, "renumbered": 0, "reworked": 1, "regrouped": 0, "added": 0, "removed": 0},
+    "nodes": [
+        {
+            "node_uuid": "node-only-after", "status": "compared",
+            "name_before": "Node Only After", "name_after": "Node Only After", "verdict": "reworked",
+            "scalar_changes": {}, "prerequisite_changes": {"after": ["ROOT", "NEW"]},
+            "line_changes": {
+                "added": [], "removed": [], "renumbered": [], "cosmetic": [], "template_changed": [],
+                "localization_mismatch": [], "regrouped": [], "unchanged_count": 0,
+            },
+            "has_localization_mismatch": False,
+        },
+    ],
+    "has_localization_mismatch": False,
+}
+
+
+def test_talent_node_prerequisite_changes_only_before_present_no_keyerror():
+    """`prerequisite_changes` carrying ONLY `before` (no `after` key at all) must not KeyError — the
+    tlibuilder side reads via `.get()` with sane defaults rather than assuming the sibling crawler
+    repo's `_diff_prerequisites` always populates both keys."""
+    result = season_impact._talent_tree_impact(
+        "uuid-prereq-only-before", _TALENT_NODE_PREREQUISITE_ONLY_BEFORE_ENTITY, lambda text: True,
+    )
+    assert result["granularity"] == "per_node"
+    sc = next(sc for sc in result["structural_changes"] if sc["path"] == "node:Node Only Before.prerequisites")
+    assert sc["status"] == "changed"
+    assert sc["before"] == ["ROOT"]
+    assert sc["after"] is None
+
+
+def test_talent_node_prerequisite_changes_only_after_present_no_keyerror():
+    """Direct analog with only `after` present (no `before` key at all)."""
+    result = season_impact._talent_tree_impact(
+        "uuid-prereq-only-after", _TALENT_NODE_PREREQUISITE_ONLY_AFTER_ENTITY, lambda text: True,
+    )
+    assert result["granularity"] == "per_node"
+    sc = next(sc for sc in result["structural_changes"] if sc["path"] == "node:Node Only After.prerequisites")
+    assert sc["status"] == "changed"
+    assert sc["before"] is None
+    assert sc["after"] == ["ROOT", "NEW"]

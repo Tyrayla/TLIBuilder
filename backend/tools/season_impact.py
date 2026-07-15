@@ -47,24 +47,41 @@ skill/gear differs' `line_changes`/`variants`):
 For each changed TALENT_TREE and the ETHEREAL_PRISM singleton — also generic-shaped, but with NO
 per-entity registry to join against at all (`core_talent_resolver.py`/`node_resolver.py`/
 `prism_core_talents.py` are ~100% generic-text-parse pipelines, coverage decided at runtime by
-whether text parses, not by dict membership). The GEAR pattern, not the skill/hero_trait pattern:
-    - `talent_tree` diffs at WHOLE-TREE granularity only (the crawler mints a per-node uuid but
-      never surfaces it in the diff artifact). Extract before/after TEXT pairs from `field_changes`
-      (paths ending `.text`); anything the diff collapsed into a raw sub-structure instead (a
-      length-mismatched list — e.g. a node added/removed/reordered) is surfaced separately as a
-      `structural_changes` entry with no extractable text, never guessed at. A `.text`-path whose
-      `after` went to `None`/a non-string scalar (a removed/cleared talent line) is its own
-      `text_changes_removed` bucket — never dropped just because there's no "new" text to check.
-      Every `field_changes` entry lands in exactly one of text/removed/structural or increments
-      `unclassified_field_changes`, so a shape this tool doesn't understand surfaces as a count
-      instead of silently vanishing (see `_text_change_candidates`).
-    - `ethereal_prism` is a SINGLETON entity — any prism change makes the whole ~25-item catalog
-      "reworked" with zero per-prism identity. In addition to the text-resolve check, a NAME-
-      SUBSTRING match against `prism_core_talents._BESPOKE`'s two keys flags whether either bespoke
-      handler was touched — a rename-blind, lower-confidence signal, labeled as such.
-    - Both: run each extracted `after` text through `server._parse_custom_mod_text` (deferred
-      import, same lazy pattern as the gear branch's `_resolve_craft_affix`) and flag what doesn't
-      resolve to a stat key — the real signal, mirroring `_gear_impact`'s `new_affix_unresolved`.
+whether text parses, not by dict membership). Two artifact shapes exist for each, both handled
+(2026-07-15 — the sibling crawler repo shipped dedicated `talent_diff.py`/`ethereal_prism_diff.py`
+differs replacing the old generic-field-diff fallback for these two types; older artifacts still
+use the legacy shape and must keep parsing):
+    - LEGACY (generic field-diff fallback, `field_changes: [{path, before, after, status}]`) —
+      the GEAR pattern: `talent_tree` diffs at WHOLE-TREE granularity only (no per-node identity
+      surfaced in this shape). Extract before/after TEXT pairs from `field_changes` (paths ending
+      `.text`); anything the diff collapsed into a raw sub-structure instead (a length-mismatched
+      list — e.g. a node added/removed/reordered) is surfaced separately as a `structural_changes`
+      entry with no extractable text, never guessed at. A `.text`-path whose `after` went to
+      `None`/a non-string scalar (a removed/cleared talent line) is its own `text_changes_removed`
+      bucket. Every `field_changes` entry lands in exactly one of text/removed/structural or
+      increments `unclassified_field_changes` (see `_text_change_candidates`). `ethereal_prism`
+      under this shape is a SINGLETON entity — any prism change makes the whole ~25-item catalog
+      "reworked" with zero per-prism identity.
+    - NEW (dedicated differ, per-node/per-section identity): `talent_tree` carries `nodes`
+      (per-node-uuid entries, each with its own `line_changes`/`scalar_changes`/
+      `prerequisite_changes`) and `node_counts`; `ethereal_prism` carries `sections` (keyed by
+      normalized header, each with `added`/`removed`/`changed` items). These feed the SAME
+      downstream row schema (`text_changes`/`text_changes_removed`/`structural_changes`/
+      `unclassified_field_changes`) as the legacy shape, just built with real per-node/per-section
+      identity instead of positional field paths — see `_talent_tree_impact_per_node` /
+      `_ethereal_prism_impact_per_section`.
+    - `ethereal_prism` (both shapes): a NAME-SUBSTRING match against `prism_core_talents._BESPOKE`'s
+      two keys flags whether either bespoke handler was touched — a rename-blind, lower-confidence
+      signal, labeled as such.
+    - Both shapes, both types: run each extracted `after` text through `server._parse_custom_mod_text`
+      (deferred import, same lazy pattern as the gear branch's `_resolve_craft_affix`) and flag what
+      doesn't resolve to a stat key — the real signal, mirroring `_gear_impact`'s
+      `new_affix_unresolved`.
+    - Silent-empty protection: an entity of either type carrying NEITHER the legacy `field_changes`
+      key NOR the new `nodes`/`node_counts` (talent_tree) or `sections` (ethereal_prism) keys — and
+      whose verdict isn't a bare `added`/`removed` stub, which legitimately carries neither — is a
+      genuinely unrecognized artifact shape. It is never reported as a hollow all-zero row;
+      `unclassified_field_changes` is bumped to 1 so it surfaces as a count instead of vanishing.
 `pactspirit` is NOT mapped (no bespoke pact-spirit registry exists at all — see
 `_KNOWN_GENERIC_TYPES`'s docstring); neither are the pure-data types (`craft_base_type`, `destiny`,
 `divinity_slate`, `hero_memories`, `memory_revival`, `tower_sequence`, `graft`, `blending_rituals`).
@@ -424,6 +441,23 @@ def _collect_new_wording(entity: dict) -> list[dict]:
     return out
 
 
+def _new_wording_from_line_changes(line_changes: dict) -> list[dict]:
+    """Same extraction as `_collect_new_wording`'s inner `_from_line_changes` helper (added lines
+    + the `text_after` of `template_changed` lines, excluding `renumbered`/`cosmetic`/`regrouped`),
+    but for a BARE `diff_line_pool`-shaped dict with no variant/random_affix wrapping — the shape
+    a talent-tree NODE's `effects[]` line-pool diff comes in (see `talent_diff.py::_compare_node`,
+    which calls the exact same shared `diff_line_pool` skill/gear diffing uses). Kept as a
+    standalone function (not a refactor of `_collect_new_wording`) so the already-tested gear path
+    is untouched."""
+    out: list[dict] = []
+    for entry in (line_changes or {}).get("added", []):
+        out.append({"kind": "added", "modifier_id": entry.get("modifier_id"), "text": entry.get("text")})
+    for entry in (line_changes or {}).get("template_changed", []):
+        out.append({"kind": "template_changed", "modifier_id": entry.get("modifier_id"),
+                    "text": entry.get("text_after")})
+    return out
+
+
 def _gear_impact(uuid: str, entity: dict, gear_uuid_map: dict, resolve_affix) -> dict:
     name_after = entity.get("name_after") or entity.get("name_before") or uuid
     name_before = entity.get("name_before") or name_after
@@ -612,18 +646,44 @@ def _resolve_generic_text(raw_text: str | None, parse_mod) -> bool:
 
 
 def _talent_tree_impact(uuid: str, entity: dict, resolve_text) -> dict:
-    """Whole-TREE granularity ONLY. The crawler mints one uuid per talent NODE
-    (`entity:talent_node:{tree}:{name}:{col}:{row}`, per tlidb-crawler/schemas/__init__.py) but
-    diffs `talent_tree` via the generic field-diff at the WHOLE-TREE level
-    (`entity:talent_tree:{name}`) — `tools/season_diff/loader.py`'s `SKILL_LIKE_TYPES` doesn't
-    include it, so `_deep_diff` never surfaces per-node identity. No per-entity registry exists to
-    check either way (see module docstring) — this is the GEAR pattern: list which trees changed,
-    extract new/changed wording from `field_changes`, flag whatever the engine's own text parser
-    can't resolve. `granularity` is stamped explicitly so a caller never mistakes this for the
-    skill/hero_trait branches' uuid-precise per-entity resolution."""
+    """Dispatches on artifact shape (2026-07-15 — see module docstring's "NEW (dedicated differ)"
+    entry): a `nodes`/`node_counts` entity comes from the crawler's dedicated `talent_diff.py`
+    (real per-node-uuid identity) and is routed to `_talent_tree_impact_per_node`; everything else
+    falls through to the LEGACY whole-tree generic-field-diff path below (unchanged from before
+    this shape was added — older artifacts, and the `added`/`removed` stub shape engine.py emits
+    for a brand-new/deleted tree, both still parse here). A verdict-`added`/`removed` stub
+    legitimately carries NEITHER key — that's expected, not the silent-empty case; a genuinely
+    unrecognized shape on a COMPARED entity is what `unclassified_field_changes=1` below guards
+    against (see module docstring's "Silent-empty protection")."""
     name_after = entity.get("name_after") or entity.get("name_before") or uuid
     name_before = entity.get("name_before") or name_after
-    field_changes = entity.get("field_changes") or []
+    verdict = entity["verdict"]
+
+    # New-shape keys win deliberately if an entity somehow carries BOTH `nodes`/`node_counts` AND
+    # `field_changes` (the two crawler-side differs never co-emit both today, but this keeps the
+    # dispatch a single deterministic priority order rather than an ambiguous either/or).
+    if "nodes" in entity or "node_counts" in entity:
+        return _talent_tree_impact_per_node(uuid, entity, resolve_text, name_after, name_before, verdict)
+
+    field_changes = entity.get("field_changes")
+    if field_changes is None and verdict not in ("added", "removed"):
+        return {
+            "uuid": uuid,
+            "entity_type": "talent_tree",
+            "name": name_after,
+            "name_before": name_before if name_before != name_after else None,
+            "verdict": verdict,
+            "granularity": "unrecognized_shape",
+            "field_change_count": 0,
+            "text_changes": [],
+            "text_changes_unresolved": [],
+            "text_changes_removed": [],
+            "structural_changes": [],
+            "unclassified_field_changes": 1,
+            "has_localization_mismatch": bool(entity.get("has_localization_mismatch")),
+        }
+
+    field_changes = field_changes or []
     classified = _text_change_candidates(field_changes)
     text_pairs = classified["text_pairs"]
 
@@ -636,7 +696,7 @@ def _talent_tree_impact(uuid: str, entity: dict, resolve_text) -> dict:
         "entity_type": "talent_tree",
         "name": name_after,
         "name_before": name_before if name_before != name_after else None,
-        "verdict": entity["verdict"],
+        "verdict": verdict,
         "granularity": "whole_tree",
         "field_change_count": len(field_changes),
         "text_changes": text_pairs,
@@ -648,20 +708,210 @@ def _talent_tree_impact(uuid: str, entity: dict, resolve_text) -> dict:
     }
 
 
+_KNOWN_NODE_STATUSES = frozenset({
+    "node_added", "position_fallback_added", "node_removed", "position_fallback_removed",
+    "compared", "position_fallback",
+})
+
+
+def _talent_node_impact_row(node: dict, resolve_text) -> dict:
+    """One row per talent_diff.py `nodes[]` entry — `node_added`/`node_removed`/
+    `position_fallback_added`/`position_fallback_removed` stubs carry only `name`/`talent_id`;
+    `compared`/`position_fallback` entries carry the full `_compare_node` result (`line_changes`,
+    `scalar_changes`, `prerequisite_changes`, `has_localization_mismatch`). `new_wording` mirrors
+    `_gear_impact`'s `new_affix_texts` (added lines + template_changed's new wording, via
+    `_new_wording_from_line_changes`), each stamped `resolved` through the same text-resolve probe
+    `_talent_tree_impact`'s legacy path uses; `removed_wording` is the line-pool `removed` bucket's
+    raw text — a line vanishing from this node entirely, the per-node analogue of the legacy path's
+    `text_changes_removed`. A `status` outside `_KNOWN_NODE_STATUSES` (a future crawler-side status
+    this tool doesn't understand yet) is flagged `unrecognized_status=True` rather than silently
+    falling through to the "compared" parse below, which would either KeyError-free but WRONGLY
+    treat it as a real comparison, or — worse — silently report zero changes if the unfamiliar
+    node dict happens to lack `line_changes`/`scalar_changes` too."""
+    status = node.get("status")
+    node_uuid = node.get("node_uuid")
+
+    if status in ("node_added", "position_fallback_added", "node_removed", "position_fallback_removed"):
+        added = status in ("node_added", "position_fallback_added")
+        return {
+            "node_uuid": node_uuid,
+            "name": node.get("name"),
+            "name_before": None,
+            "status": status,
+            "verdict": "added" if added else "removed",
+            "new_wording": [],
+            "new_wording_unresolved": [],
+            "removed_wording": [],
+            "scalar_changes": {},
+            "prerequisite_changes": None,
+            "has_localization_mismatch": False,
+            "unrecognized_status": False,
+        }
+
+    if status not in _KNOWN_NODE_STATUSES:
+        return {
+            "node_uuid": node_uuid,
+            "name": node.get("name") or node.get("name_after") or node.get("name_before"),
+            "name_before": None,
+            "status": status,
+            "verdict": node.get("verdict"),
+            "new_wording": [],
+            "new_wording_unresolved": [],
+            "removed_wording": [],
+            "scalar_changes": {},
+            "prerequisite_changes": None,
+            "has_localization_mismatch": False,
+            "unrecognized_status": True,
+        }
+
+    # "compared" or "position_fallback" — full _compare_node shape.
+    name_after = node.get("name_after") or node.get("name_before")
+    name_before = node.get("name_before") or name_after
+    line_changes = node.get("line_changes") or {}
+    new_wording = _new_wording_from_line_changes(line_changes)
+    for w in new_wording:
+        w["resolved"] = bool(resolve_text(w["text"])) if w.get("text") else False
+    unresolved = [w for w in new_wording if not w["resolved"]]
+    removed_wording = [
+        {"modifier_id": entry.get("modifier_id"), "text": entry.get("text")}
+        for entry in line_changes.get("removed", [])
+    ]
+
+    return {
+        "node_uuid": node_uuid,
+        "name": name_after,
+        "name_before": name_before if name_before != name_after else None,
+        "status": status,
+        "verdict": node.get("verdict"),
+        "new_wording": new_wording,
+        "new_wording_unresolved": unresolved,
+        "removed_wording": removed_wording,
+        "scalar_changes": node.get("scalar_changes") or {},
+        "prerequisite_changes": node.get("prerequisite_changes"),
+        "has_localization_mismatch": bool(node.get("has_localization_mismatch")),
+        "unrecognized_status": False,
+    }
+
+
+def _talent_tree_impact_per_node(
+    uuid: str, entity: dict, resolve_text, name_after: str, name_before: str, verdict: str,
+) -> dict:
+    """NEW-shape talent_tree impact (`talent_diff.py`'s per-node-uuid artifact — see module
+    docstring). Builds the exact SAME downstream schema the legacy whole-tree path returns
+    (`text_changes`/`text_changes_unresolved`/`text_changes_removed`/`structural_changes`/
+    `unclassified_field_changes`/`field_change_count`/`granularity`) so `run_impact`'s summary
+    counters and `render_markdown`'s talent-tree section need NO changes to consume either shape —
+    just with real per-node identity feeding each row instead of positional field paths, plus the
+    additive `node_counts`/`tree_scalar_changes`/`nodes` detail for a caller that wants the full
+    per-node breakdown. A whole node appearing/disappearing (`node_added`/`node_removed`) and a
+    node's `prerequisite_changes` (a topology edge changing) both land in `structural_changes` —
+    real signal, but with no "new wording" to resolve-check, mirroring the legacy path's own
+    length-mismatched-list structural bucket."""
+    raw_nodes = entity.get("nodes") or []
+    node_rows = [_talent_node_impact_row(n, resolve_text) for n in raw_nodes]
+
+    text_changes: list[dict] = []
+    text_changes_removed: list[dict] = []
+    structural_changes: list[dict] = []
+    unclassified_count = 0
+
+    for row in node_rows:
+        node_ref = row["name"] or row["node_uuid"] or "?"
+        if row.get("unrecognized_status"):
+            # A node status outside `_KNOWN_NODE_STATUSES` — never silently fall through to a
+            # "compared"-shaped read (see `_talent_node_impact_row`'s docstring); loud in BOTH the
+            # structural-changes list (for a human reading the report) and the unclassified
+            # counter (for the invariant this file's docstring promises).
+            structural_changes.append({
+                "path": f"node:{node_ref}", "status": f"unrecognized_status:{row['status']}",
+            })
+            unclassified_count += 1
+            continue
+        if row["status"] in ("node_added", "position_fallback_added"):
+            structural_changes.append({"path": f"node:{node_ref}", "status": "node_added"})
+            continue
+        if row["status"] in ("node_removed", "position_fallback_removed"):
+            structural_changes.append({"path": f"node:{node_ref}", "status": "node_removed"})
+            continue
+        for w in row["new_wording"]:
+            text_changes.append({
+                "path": f"node:{node_ref}.{w['kind']}", "before": None, "after": w["text"],
+                "resolved": w["resolved"],
+            })
+        for w in row["removed_wording"]:
+            text_changes_removed.append({
+                "path": f"node:{node_ref}.removed", "before": w["text"], "status": "removed",
+            })
+        if row["prerequisite_changes"] is not None:
+            # .get() with sane defaults, not direct indexing — the tlibuilder side must not
+            # assume the sibling crawler repo's `_diff_prerequisites` will always populate both
+            # keys; defensive here is strictly better than a cross-repo shape assumption.
+            prereq = row["prerequisite_changes"]
+            structural_changes.append({
+                "path": f"node:{node_ref}.prerequisites", "status": "changed",
+                "before": prereq.get("before"), "after": prereq.get("after"),
+            })
+
+    text_changes_unresolved = [tc for tc in text_changes if not tc["resolved"]]
+
+    return {
+        "uuid": uuid,
+        "entity_type": "talent_tree",
+        "name": name_after,
+        "name_before": name_before if name_before != name_after else None,
+        "verdict": verdict,
+        "granularity": "per_node",
+        # Count of node-level change RECORDS this row is built from (not a raw field_changes
+        # count, which the legacy shape doesn't have here) — an analogous "how much changed" size.
+        "field_change_count": len(node_rows),
+        "text_changes": text_changes,
+        "text_changes_unresolved": text_changes_unresolved,
+        "text_changes_removed": text_changes_removed,
+        "structural_changes": structural_changes,
+        "unclassified_field_changes": unclassified_count,
+        "has_localization_mismatch": bool(entity.get("has_localization_mismatch")),
+        "node_counts": entity.get("node_counts") or {},
+        "tree_scalar_changes": entity.get("scalar_changes") or {},
+        "nodes": node_rows,
+    }
+
+
 def _ethereal_prism_impact(uuid: str, entity: dict, resolve_text) -> dict:
-    """SINGLETON entity (`entity:ethereal_prism:ethereal_prism`, per identity.py's singleton
-    convention) — the crawler's diff sees the WHOLE ~25-item prism catalog as ONE entity, so ANY
-    prism talent changing anywhere makes the whole type verdict "reworked" with ZERO per-prism
-    identity. No registry to key against per-prism either way. This does exactly three things:
-    (a) surface that the catalog changed at all (`field_change_count`), (b) a NAME-SUBSTRING check
-    against `engine.prism_core_talents._BESPOKE`'s keys ("Unmatched Valor", "Spell Ripple" as of
-    this writing, read from the module rather than hardcoded so a future bespoke handler is picked
-    up automatically) — a RENAME-BLIND, lower-confidence signal (a same-mechanic rename would miss
-    it; an unrelated line that happens to contain the bespoke name as a substring would false-
-    positive it), (c) the same generic-parser resolve check `_talent_tree_impact` uses."""
+    """Dispatches on artifact shape (2026-07-15 — see module docstring's "NEW (dedicated differ)"
+    entry): a `sections` entity comes from the crawler's dedicated `ethereal_prism_diff.py` (real
+    per-section, per-item identity) and is routed to `_ethereal_prism_impact_per_section`;
+    everything else falls through to the LEGACY singleton whole-catalog generic-field-diff path
+    below (unchanged from before this shape was added). Same added/removed-stub and silent-empty
+    guard as `_talent_tree_impact` — see that function's docstring."""
     name_after = entity.get("name_after") or entity.get("name_before") or uuid
     name_before = entity.get("name_before") or name_after
-    field_changes = entity.get("field_changes") or []
+    verdict = entity["verdict"]
+
+    # Same deterministic-priority rationale as `_talent_tree_impact`'s dispatch: new-shape `sections`
+    # wins if an entity somehow carries both it and legacy `field_changes`.
+    if "sections" in entity:
+        return _ethereal_prism_impact_per_section(uuid, entity, resolve_text, name_after, name_before, verdict)
+
+    field_changes = entity.get("field_changes")
+    if field_changes is None and verdict not in ("added", "removed"):
+        return {
+            "uuid": uuid,
+            "entity_type": "ethereal_prism",
+            "name": name_after,
+            "name_before": name_before if name_before != name_after else None,
+            "verdict": verdict,
+            "granularity": "unrecognized_shape",
+            "field_change_count": 0,
+            "text_changes": [],
+            "text_changes_unresolved": [],
+            "text_changes_removed": [],
+            "structural_changes": [],
+            "unclassified_field_changes": 1,
+            "bespoke_names_touched": [],
+            "has_localization_mismatch": bool(entity.get("has_localization_mismatch")),
+        }
+
+    field_changes = field_changes or []
     classified = _text_change_candidates(field_changes)
     text_pairs = classified["text_pairs"]
 
@@ -684,7 +934,7 @@ def _ethereal_prism_impact(uuid: str, entity: dict, resolve_text) -> dict:
         "entity_type": "ethereal_prism",
         "name": name_after,
         "name_before": name_before if name_before != name_after else None,
-        "verdict": entity["verdict"],
+        "verdict": verdict,
         "granularity": "whole_catalog_singleton",
         "field_change_count": len(field_changes),
         "text_changes": text_pairs,
@@ -694,6 +944,184 @@ def _ethereal_prism_impact(uuid: str, entity: dict, resolve_text) -> dict:
         "unclassified_field_changes": classified["unclassified_count"],
         "bespoke_names_touched": bespoke_names_touched,
         "has_localization_mismatch": bool(entity.get("has_localization_mismatch")),
+    }
+
+
+def _prism_item_display(item: dict) -> str:
+    """Best display label for an added/removed prism item — its `name` for named items (the
+    `Item`/`Inverse Image` sections), else the row's own content (un-named `Base Affix`/`Random
+    Affix` table rows carry no id field at all — see `ethereal_prism_diff.py`'s module
+    docstring). `str()`-guarded (matching the "changed"-loop's `str(name)` style below) — a
+    brand-new/untranslated entry (plausible for a fresh SS13 catalog item) can carry `name: None`,
+    and this label flows straight into `blob_parts` -> `" ".join(blob_parts)`, which would raise
+    TypeError on a non-string and crash `run_impact` for the WHOLE artifact, not just this row."""
+    if "name" in item:
+        return str(item["name"]) if item["name"] is not None else "unnamed-item"
+    return " / ".join(f"{k}: {v}" for k, v in item.items())
+
+
+def _prism_item_texts(item: dict) -> list[str]:
+    """Best-effort text-probe strings from a prism item dict. Named items carry `detail`/
+    `implicit` (list[str] description lines — see `ethereal_prism_diff._NAMED_ITEM_LIST_FIELDS`);
+    un-named table rows are bare `{column: value}` dicts confirmed (by direct inspection of
+    `output/SS12/ethereal_prism/ethereal_prism.json`) to key their wording under a `Modifier`
+    column — but `ethereal_prism_diff.py` deliberately keeps no fixed "the text column is always
+    X" assumption (a season could rename/add columns), so every string-valued field on an un-named
+    row is probed rather than hardcoding `"Modifier"`."""
+    texts: list[str] = []
+    for key in ("detail", "implicit"):
+        val = item.get(key)
+        if isinstance(val, list):
+            texts.extend(v for v in val if isinstance(v, str))
+    if "name" not in item:
+        texts.extend(v for v in item.values() if isinstance(v, str))
+    return texts
+
+
+def _ethereal_prism_impact_per_section(
+    uuid: str, entity: dict, resolve_text, name_after: str, name_before: str, verdict: str,
+) -> dict:
+    """NEW-shape ethereal_prism impact (`ethereal_prism_diff.py`'s per-section/per-item artifact —
+    see module docstring). Builds the SAME downstream schema the legacy singleton path returns, so
+    `run_impact`/`render_markdown` need no changes to consume either shape. A whole section
+    appearing/disappearing, an added/removed item with no probeable text (an un-named row that
+    somehow carries no string field), and a named item's `tags` changing (categorization, not
+    parseable mod wording) all land in `structural_changes`; `detail`/`implicit` line changes and
+    un-named row wording get the real text-resolve treatment, mirroring `_gear_impact`'s
+    `new_affix_unresolved`."""
+    sections = entity.get("sections") or {}
+    section_rows: list[dict] = []
+    text_changes: list[dict] = []
+    text_changes_removed: list[dict] = []
+    structural_changes: list[dict] = []
+    blob_parts: list[str] = []
+    unclassified_count = 0
+
+    for header, section in sections.items():
+        status = section.get("status")
+        section_rows.append({"section": header, **section})
+        blob_parts.append(header)
+
+        if status in ("section_added", "section_removed"):
+            structural_changes.append({"path": f"section:{header}", "status": status})
+            continue
+
+        if status != "compared":
+            # A section status outside {"section_added", "section_removed", "compared"} (the only
+            # three `ethereal_prism_diff.diff_ethereal_prism_entity` emits today) — never silently
+            # fall through to the added/removed/changed reads below, which would just come back
+            # empty for an unfamiliar shape and misreport this section as having no changes at
+            # all. Loud in both the structural-changes list and the unclassified counter, mirroring
+            # `_talent_tree_impact_per_node`'s identical guard.
+            structural_changes.append({
+                "path": f"section:{header}", "status": f"unrecognized_status:{status}",
+            })
+            unclassified_count += 1
+            continue
+
+        for item in section.get("added") or []:
+            label = _prism_item_display(item)
+            blob_parts.append(label)
+            texts = _prism_item_texts(item)
+            if not texts:
+                structural_changes.append({"path": f"section:{header}/{label}", "status": "added"})
+                continue
+            for t in texts:
+                blob_parts.append(t)
+                text_changes.append({
+                    "path": f"section:{header}/{label}", "before": None, "after": t,
+                    "resolved": bool(resolve_text(t)),
+                })
+
+        for item in section.get("removed") or []:
+            label = _prism_item_display(item)
+            blob_parts.append(label)
+            texts = _prism_item_texts(item)
+            if not texts:
+                structural_changes.append({"path": f"section:{header}/{label}", "status": "removed"})
+                continue
+            for t in texts:
+                blob_parts.append(t)
+                text_changes_removed.append({
+                    "path": f"section:{header}/{label}", "before": t, "status": "removed",
+                })
+
+        for entry in section.get("changed") or []:
+            name = entry.get("name")
+            # A stable label for path-building — an un-named entry in a `changed` bucket (not
+            # expected today: `ethereal_prism_diff._diff_named_item` only runs on named items, but
+            # never assume the crawler side guarantees it) must not interpolate literal `None` into
+            # a report path.
+            label = name if isinstance(name, str) and name else "unnamed-row"
+            blob_parts.append(str(name) if name is not None else label)
+            for field, fv in (entry.get("field_changes") or {}).items():
+                before, after = fv.get("before"), fv.get("after")
+                blob_parts.append(f"{field} {before} {after}")
+                if field == "tags":
+                    # Categorization, not parseable mod wording — never run through resolve_text.
+                    structural_changes.append({
+                        "path": f"section:{header}/{label}.tags", "status": "changed",
+                        "before": before, "after": after,
+                    })
+                    continue
+                if isinstance(after, str):
+                    text_changes.append({
+                        "path": f"section:{header}/{label}.{field}",
+                        "before": before if isinstance(before, str) else None,
+                        "after": after, "resolved": bool(resolve_text(after)),
+                    })
+                    blob_parts.append(after)
+                elif isinstance(after, list):
+                    before_list = before if isinstance(before, list) else []
+                    if len(before_list) != len(after):
+                        # Resized list (a detail/implicit line added or removed, not just
+                        # reworded) — same anti-pattern `_text_change_candidates` avoids for
+                        # talent-tree structural changes: never fabricate a positional
+                        # before/after pair across a length mismatch. One structural entry,
+                        # never a guessed pairing.
+                        structural_changes.append({
+                            "path": f"section:{header}/{label}.{field}", "status": "changed",
+                        })
+                        continue
+                    for i, a in enumerate(after):
+                        if not isinstance(a, str) or a == before_list[i]:
+                            continue
+                        text_changes.append({
+                            "path": f"section:{header}/{label}.{field}[{i}]",
+                            "before": before_list[i] if isinstance(before_list[i], str) else None,
+                            "after": a, "resolved": bool(resolve_text(a)),
+                        })
+                        blob_parts.append(a)
+                else:
+                    # A scalar, non-string/non-list `after` (e.g. a bool/int/None field this tool
+                    # has no resolve-check for) — still carry before/after (str-coerced) rather
+                    # than dropping them to bare path+status; never-silently-drop applies to VALUES
+                    # too, not just the fact that something changed.
+                    structural_changes.append({
+                        "path": f"section:{header}/{label}.{field}", "status": "changed",
+                        "before": str(before) if before is not None else None,
+                        "after": str(after) if after is not None else None,
+                    })
+
+    text_changes_unresolved = [tc for tc in text_changes if not tc["resolved"]]
+    bespoke_names_touched = sorted(name for name in PRISM_BESPOKE if name in " ".join(blob_parts))
+
+    return {
+        "uuid": uuid,
+        "entity_type": "ethereal_prism",
+        "name": name_after,
+        "name_before": name_before if name_before != name_after else None,
+        "verdict": verdict,
+        "granularity": "per_section",
+        "field_change_count": len(section_rows),
+        "text_changes": text_changes,
+        "text_changes_unresolved": text_changes_unresolved,
+        "text_changes_removed": text_changes_removed,
+        "structural_changes": structural_changes,
+        "unclassified_field_changes": unclassified_count,
+        "bespoke_names_touched": bespoke_names_touched,
+        "has_localization_mismatch": bool(entity.get("has_localization_mismatch")),
+        "sections": section_rows,
     }
 
 
@@ -1141,7 +1569,11 @@ def render_markdown(report: dict) -> str:
             if tt["unclassified_field_changes"]:
                 flag += (f" — **{tt['unclassified_field_changes']} unclassified field change(s) "
                          f"(unexpected diff shape, manual review)**")
-            lines.append(f"- **{tt['name']}** (verdict={tt['verdict']}){flag}")
+            # `granularity` distinguishes a NEW-shape row (real per-node identity, `talent_diff.py`
+            # — see `node_counts`/`nodes` in the JSON report) from the LEGACY whole-tree fallback
+            # this section's intro paragraph above describes; both render through the same bullet.
+            gran_tag = "" if tt["granularity"] == "whole_tree" else f", {tt['granularity']}"
+            lines.append(f"- **{tt['name']}** (verdict={tt['verdict']}{gran_tag}){flag}")
             for w in tt["text_changes_unresolved"]:
                 lines.append(f"  - UNRESOLVED [{w['path']}]: {w['after']}")
             for w in tt["text_changes_removed"]:
@@ -1172,7 +1604,9 @@ def render_markdown(report: dict) -> str:
                          f"(unexpected diff shape, manual review)**")
             if pr["bespoke_names_touched"]:
                 flag += f" — bespoke handler(s) touched by name: {', '.join(pr['bespoke_names_touched'])}"
-            lines.append(f"- **{pr['name']}** (verdict={pr['verdict']}){flag}")
+            # See the talent-tree section's identical `gran_tag` comment above.
+            gran_tag = "" if pr["granularity"] == "whole_catalog_singleton" else f", {pr['granularity']}"
+            lines.append(f"- **{pr['name']}** (verdict={pr['verdict']}{gran_tag}){flag}")
             for w in pr["text_changes_unresolved"]:
                 lines.append(f"  - UNRESOLVED [{w['path']}]: {w['after']}")
             for w in pr["text_changes_removed"]:
