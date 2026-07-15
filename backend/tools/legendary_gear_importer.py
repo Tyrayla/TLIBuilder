@@ -1,4 +1,5 @@
 import re
+import warnings
 
 from engine.modifier_lines import line_text, line_pooling_uuid
 
@@ -60,10 +61,50 @@ def _parse_affix(line) -> dict:
     return parsed
 
 
-def _parse_variant(variant: dict) -> dict:
-    implicits = [_parse_affix(t) for t in (variant.get("implicits") or [])]
-    explicits = [_parse_affix(e) for e in (variant.get("explicits") or [])]
-    return {"implicits": implicits, "explicits": explicits}
+def _dedup_affix_lines(lines: list, item_id: str, variant_state: str, kind: str) -> list:
+    """Drop exact-duplicate affix lines within one item variant's implicits/explicits array — the same
+    crawl artifact `skill_importer._dedup_lines` guards against for skills, seen here on legendary gear:
+    royal_cycle's `corroded` explicits repeats "+1 % Fire Damage per (10-12) Strength" verbatim under two
+    different modifier_ids (51411940 and 51411950). Keyed on collapsed-whitespace line TEXT only — never
+    modifier_id/uuid, because the artifact mints a fresh id per repeat, so an id-inclusive key would miss
+    the exact case this exists to catch.
+
+    Placeholder lines (raw text starting with "<", e.g. "<A Random Attack Sentry or Spell Sentry Affix>")
+    are NEVER deduped: an item can legitimately carry several random-affix slots with identical placeholder
+    wording (each slot resolves against its own `random_affixes` pool entry by POSITION, not by text), and
+    SS12 data confirms this is a real, common shape (10 items have repeated-placeholder variants) — collapsing
+    them would silently delete a real random-affix slot.
+
+    Preserves first-occurrence order. Every drop emits a loud `warnings.warn` (project rule: never fail
+    silently) naming the item, variant, and dropped text so a real import run can be audited, not just a
+    passing test."""
+    seen: set[str] = set()
+    out: list = []
+    for line in lines:
+        text = line_text(line).strip()
+        if not text or text.startswith("<"):
+            out.append(line)
+            continue
+        key = " ".join(text.split())
+        if key in seen:
+            warnings.warn(
+                f"legendary_gear_importer: dropped duplicate {kind} line on "
+                f"item_id={item_id!r} variant={variant_state!r}: {text!r}",
+                stacklevel=2,
+            )
+            continue
+        seen.add(key)
+        out.append(line)
+    return out
+
+
+def _parse_variant(item_id: str, variant_state: str, variant: dict) -> dict:
+    implicits = _dedup_affix_lines(variant.get("implicits") or [], item_id, variant_state, "implicits")
+    explicits = _dedup_affix_lines(variant.get("explicits") or [], item_id, variant_state, "explicits")
+    return {
+        "implicits": [_parse_affix(t) for t in implicits],
+        "explicits": [_parse_affix(e) for e in explicits],
+    }
 
 
 def import_crawler_item(item_data: dict) -> dict:
@@ -71,7 +112,8 @@ def import_crawler_item(item_data: dict) -> dict:
 
     variants: dict[str, dict] = {}
     for v in (item_data.get("variants") or []):
-        variants[v.get("rarity_state", "base")] = _parse_variant(v)
+        state = v.get("rarity_state", "base")
+        variants[state] = _parse_variant(item_id, state, v)
 
     random_affixes: dict[str, list] = {}
     for ra in (item_data.get("random_affixes") or []):

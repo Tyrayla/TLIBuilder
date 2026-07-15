@@ -2050,25 +2050,100 @@ const TAG_ALIASES: Record<string, string> = {
   'Slash Strike': 'Slash-Strike',
 }
 
+// TAG_ALIASES is a small, static table — sort it once at module scope instead of re-sorting on every
+// parseRequiredTags call. Paired with its lowercased form so the per-candidate compare in the hot loop
+// below is a plain string op, not a fresh .toLowerCase() allocation per candidate.
+const SORTED_ALIASES: [aliasLower: string, alias: string][] =
+  Object.keys(TAG_ALIASES)
+    .sort((a, b) => b.length - a.length)
+    .map(alias => [alias.toLowerCase(), alias])
+
+// Pseudo-tags recognized by checkTag() (active/passive slot) but never present in an item's own
+// skill_tags array, so they can't be sourced from the catalog like real tags.
+const PSEUDO_TAGS = ['Active', 'Passive']
+
+// Real tag vocabulary, sourced from the loaded skill catalog (see registerSkillTagVocabulary below).
+// Sorted longest-first (by word count, then char length) so greedy matching in parseRequiredTags
+// consumes a multi-word tag like "Shadow Strike" as one unit before "Shadow" alone could ever match.
+// Stored as [lowercased, display] pairs — matching compares the pre-lowered form directly (this runs
+// per catalog row per keystroke via SkillsScreen's support search), and the display form is what
+// actually gets pushed/compared downstream in checkTag().
+let knownSkillTagsSorted: [tagLower: string, tag: string][] = PSEUDO_TAGS.map(t => [t.toLowerCase(), t])
+
+/**
+ * Populates the tag vocabulary parseRequiredTags matches gate phrases against. Called once the skill
+ * catalog loads (referenceStore.loadReferenceData), so by the time a screen renders the support picker
+ * (which itself requires the catalog to be loaded) the vocabulary reflects the current season's real
+ * skill_tags — including multi-word families like "Shadow Strike" / "Spirit Magus" / "Synthetic Troop"
+ * that a naive whitespace split would otherwise shred into non-matching single-word tags.
+ */
+export function registerSkillTagVocabulary(skills: SkillItem[]): void {
+  const tags = new Set<string>(PSEUDO_TAGS)
+  for (const s of skills) s.skill_tags?.forEach(t => tags.add(t))
+  knownSkillTagsSorted = [...tags]
+    .sort((a, b) => {
+      const wordDelta = b.split(/\s+/).length - a.split(/\s+/).length
+      return wordDelta !== 0 ? wordDelta : b.length - a.length
+    })
+    .map(tag => [tag.toLowerCase(), tag])
+}
+
+// Case-insensitive prefix match that only fires on a real word boundary — so "Attack" never matches
+// as a prefix of some hypothetical "Attacker" tag, and matching stays anchored to whole words. Takes
+// the ALREADY-lowered remaining string (computed once per outer while-iteration by the caller, not
+// once per candidate) and an already-lowered candidate.
+function startsWithWord(remainingLower: string, candidateLower: string): boolean {
+  if (!remainingLower.startsWith(candidateLower)) return false
+  const next = remainingLower[candidateLower.length]
+  return next === undefined || /\s/.test(next)
+}
+
 function parseRequiredTags(phrase: string): string[] {
-  let remaining = phrase
+  let remaining = phrase.trim()
   const tags: string[] = []
-  const sortedAliases = Object.keys(TAG_ALIASES).sort((a, b) => b.length - a.length)
   while (remaining.length > 0) {
+    // Lowered once per remaining-position, not once per candidate — the inner loops below check this
+    // same position against every alias/vocab entry.
+    const remainingLower = remaining.toLowerCase()
     let matched = false
-    for (const alias of sortedAliases) {
-      if (remaining.toLowerCase().startsWith(alias.toLowerCase())) {
+
+    // Genuine spelling renames first: phrase wording differs from the tag's own spelling
+    // (e.g. "Slash Strike" in support text vs. the "Slash-Strike" tag). Kept narrow and explicit —
+    // this is NOT the path for ordinary multi-word tags, which are matched via the real vocabulary
+    // below since their phrase wording already matches the tag spelling verbatim.
+    for (const [aliasLower, alias] of SORTED_ALIASES) {
+      if (startsWithWord(remainingLower, aliasLower)) {
         tags.push(TAG_ALIASES[alias])
         remaining = remaining.slice(alias.length).trim()
         matched = true
         break
       }
     }
-    if (!matched) {
-      const m = remaining.match(/^(\S+)\s*(.*)$/)
-      if (m) { tags.push(m[1]); remaining = m[2] }
-      else break
+    if (matched) continue
+
+    // Real tags from the loaded catalog (longest / most-words first), so a family like
+    // "Shadow Strike" or "Spirit Magus" is consumed whole instead of being split into two
+    // single-word tags that don't exist on their own and can never match.
+    for (const [tagLower, tag] of knownSkillTagsSorted) {
+      if (startsWithWord(remainingLower, tagLower)) {
+        tags.push(tag)
+        remaining = remaining.slice(tag.length).trim()
+        matched = true
+        break
+      }
     }
+    if (matched) continue
+
+    // Nothing recognized: fall back to consuming one literal word, same as the old naive splitter.
+    // checkTag() will find no real tag equal to it, so this fails CLOSED — the support stays hidden
+    // rather than being guessed compatible. That's the deliberately safer default here: it only
+    // fires when a gate phrase's wording doesn't resolve against the currently-loaded catalog (e.g.
+    // vocabulary not yet populated, or a future tag rename the client hasn't caught up to), and a
+    // wrongly-hidden support is a much smaller failure than wrongly exposing an incompatible one
+    // (which could silently attach a support that does nothing / corrupts the DPS calc).
+    const m = remaining.match(/^(\S+)\s*(.*)$/)
+    if (m) { tags.push(m[1]); remaining = m[2] }
+    else break
   }
   return tags
 }
@@ -2149,7 +2224,16 @@ export function isSupportCompatible(
   return alternatives.some(alt => {
     const andGroups = alt.split(/\s+and\s+/i)
     return andGroups.every(group => {
-      const phrase = group.replace(/\s+skills?\s*$/i, '').trim()
+      const trimmedGroup = group.trim()
+      // A "skills that …" predicate embedded as one operand of an AND/OR chain (e.g. "Persistent Skills
+      // and skills that can inflict Ailment", "Spell Skills or skills that can activate Spell Burst").
+      // Same damage/summon heuristic as the whole-raw check above (line ~2146), just applied per
+      // sub-clause so it composes with the connector instead of only firing when the ENTIRE gate is a
+      // bare predicate. (The whole-raw check still runs first and takes priority — it's what keeps a
+      // predicate with its OWN internal "or", like "skills that deal Damage Over Time or inflict
+      // Ailments", from being wrongly cut in half by the split above.)
+      if (/^skills?\s+that\b/i.test(trimmedGroup)) return skillDealsDamage(parentSkill)
+      const phrase = trimmedGroup.replace(/\s+skills?\s*$/i, '').trim()
       const required = parseRequiredTags(phrase)
       return required.every(tag => checkTag(tag, parentSkill.skill_tags, isPassiveSlot))
     })

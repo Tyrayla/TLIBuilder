@@ -5,10 +5,17 @@
     2
   ],
   "default_level": 1,
-  "gate_text": "",
+  "gate_text": "Supports Empower, Defensive, Restoration, Curse, and Warcry Skills.",
   "is_activation_medium": true,
   "level_kind": "tier",
   "lines": [
+    {
+      "badge_text": "",
+      "coverage": null,
+      "kind": "flavor",
+      "text": "Cannot support Channeled Skills.",
+      "values_by_level": null
+    },
     {
       "badge_text": "",
       "coverage": null,

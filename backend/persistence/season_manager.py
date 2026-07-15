@@ -55,6 +55,72 @@ def _normalize_spirit_lines(sp: dict) -> dict:
         if isinstance(r, dict) and "modifiers" in r:
             r["modifiers"] = line_texts(r.get("modifiers"))
     return sp
+
+
+# ── Activation Medium restriction-line recovery (2026-07-15 audit) ─────────────
+# SS12's upstream crawl dropped the "Supports <family> Skills." gate line, the "Cannot support …"
+# exclusion line(s), and the "This skill can only be installed in the Nth Support Skill Slot…" line
+# from 27/28 activation_medium_skill catalog entries (activation_medium_tangle is the lone entry that
+# still carries all three natively). data/activation_medium_restrictions.json restores them verbatim
+# from the last-known-good SS11 crawl, keyed by item_id, uuid-verified against both seasons' skill
+# entries (see the map file's own `_meta` block for the full audit writeup).
+#
+# The gate line MUST land at description_lines[0]: the renderer's isSupportCompatible reads
+# description_lines[0] directly (src/renderer/src/api/client.ts, isSupportCompatible/checkTag area,
+# `firstLine.startsWith('Supports')`), and engine.support_lines.parse_support (backend/engine/
+# support_lines.py) joins description_lines and anchors its _GATE_RE match at the start of that join.
+# engine.tooltip._lines_tiered (the AM tooltip path — activation_medium_skill routes through
+# _TIERED_TYPES, not _lines_active/_lines_passive) also walks description_lines directly for its
+# "fixed" (non-progression) clause list, so prepending here is what surfaces the restored lines in the
+# in-app tooltip too. raw_text is updated in parallel purely so data-consistency tooling (audits, the
+# support_restriction_integrity drift test) that greps raw_text.startswith('Support') stays truthful —
+# no runtime gating or tooltip consumer reads a skill's own raw_text field.
+#
+# Injection is INERT for any entry not in the map, and idempotent/non-duplicating for an entry whose
+# OWN season data already carries the gate line (checked by normalized text match against the item's
+# existing description_lines, not by season name or the map's own present_in_ss12 flag — so a future
+# season, e.g. SS13/SS14, that restores these lines natively needs no code change to stop consulting
+# this map). Runs only on the normalized runtime view (load_skills raw=False); never persisted back to
+# the season's _skills.json file, so identity-aware callers (raw=True) are untouched.
+_AM_RESTRICTIONS_PATH = os.path.join(_DATA_ROOT, 'activation_medium_restrictions.json')
+_am_restrictions_cache: dict | None = None
+
+
+def _load_am_restrictions() -> dict:
+    global _am_restrictions_cache
+    if _am_restrictions_cache is None:
+        if os.path.exists(_AM_RESTRICTIONS_PATH):
+            with open(_AM_RESTRICTIONS_PATH, encoding="utf-8") as f:
+                _am_restrictions_cache = json.load(f)
+        else:
+            _am_restrictions_cache = {}
+    return _am_restrictions_cache
+
+
+def _norm_am_text(s: str) -> str:
+    return " ".join((s or "").split()).strip().lower()
+
+
+def _inject_am_restrictions(sk: dict) -> dict:
+    if sk.get("skill_type") != "activation_medium_skill":
+        return sk
+    entry = _load_am_restrictions().get(sk.get("item_id") or "")
+    if not isinstance(entry, dict):
+        return sk
+    restriction_lines = entry.get("restriction_lines") or []
+    if not restriction_lines:
+        return sk
+    gate_norm = _norm_am_text(restriction_lines[0])
+    existing = sk.get("description_lines") or []
+    if any(_norm_am_text(ln) == gate_norm for ln in existing):
+        return sk  # native data already carries the gate line (e.g. activation_medium_tangle) — inert
+    sk["description_lines"] = list(restriction_lines) + list(existing)
+    raw = sk.get("raw_text")
+    if isinstance(raw, str) and not _norm_am_text(raw).startswith(gate_norm):
+        sk["raw_text"] = " ".join(restriction_lines) + ((" " + raw) if raw else "")
+    return sk
+
+
 _SEASONS_DIR = os.path.normpath(os.path.join(_DATA_ROOT, 'seasons'))
 _ACTIVE_FILE = os.path.join(_SEASONS_DIR, ".active")
 
@@ -213,6 +279,7 @@ def load_skills(season: str, raw: bool = False) -> dict | None:
     if not raw:
         for sk in data.get("skills") or []:
             _normalize_skill_lines(sk)
+            _inject_am_restrictions(sk)
     return data
 
 

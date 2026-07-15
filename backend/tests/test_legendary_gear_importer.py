@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 from tools.legendary_gear_importer import parse_affix_text, import_crawler_item
 
@@ -134,3 +136,99 @@ def test_random_affixes_parsed():
     assert len(opts) == 1
     assert opts[0]["affix_kind"] == "numeric"
     assert opts[0]["modifier_id"] == "53421681"
+
+
+# ── _dedup_affix_lines (via import_crawler_item) ────────────────────────────
+# Mirrors the crawl-artifact shapes recorded in .wolf/buglog.json
+# (id: royal-cycle-corroded-explicit-modifier-id-duplicate).
+
+def _dup_line(modifier_id: str) -> dict:
+    return {
+        "modifier_id": modifier_id,
+        "text": "+1 % Fire Damage per (10-12) Strength",
+        "uuid": "dup-uuid",
+        "pooling_uuid": "dup-pooling-uuid",
+    }
+
+
+def test_duplicate_explicit_lines_deduped_with_warning():
+    """royal_cycle shape: same text/uuid/pooling_uuid repeated under two mint-fresh modifier_ids ->
+    one survivor, one loud warning naming the item/variant."""
+    item_data = {
+        "name": "Test Royal Cycle Duplicate",
+        "variants": [
+            {
+                "rarity_state": "corroded",
+                "implicits": [],
+                "explicits": [_dup_line("51411940"), _dup_line("51411950")],
+            },
+        ],
+    }
+    with pytest.warns(UserWarning) as record:
+        result = import_crawler_item(item_data)
+
+    explicits = result["variants"]["corroded"]["explicits"]
+    assert len(explicits) == 1
+    assert explicits[0]["modifier_id"] == "51411940"  # first occurrence kept
+
+    assert len(record) == 1
+    msg = str(record[0].message)
+    assert "test_royal_cycle_duplicate" in msg
+    assert "corroded" in msg
+
+
+def test_five_times_duplicate_explicit_lines_deduped_with_four_warnings():
+    """cover_the_sun shape: "+25 % Curse Effect" repeated 5x under distinct modifier_ids ->
+    one survivor, one warning per dropped duplicate (4)."""
+    modifier_ids = ["54451920", "54451930", "54451940", "54451950", "54451960"]
+    item_data = {
+        "name": "Test Cover The Sun Duplicate",
+        "variants": [
+            {
+                "rarity_state": "corroded",
+                "implicits": [],
+                "explicits": [
+                    {
+                        "modifier_id": mid,
+                        "text": "+25 % Curse Effect",
+                        "uuid": "curse-uuid",
+                        "pooling_uuid": "curse-pooling-uuid",
+                    }
+                    for mid in modifier_ids
+                ],
+            },
+        ],
+    }
+    with pytest.warns(UserWarning) as record:
+        result = import_crawler_item(item_data)
+
+    explicits = result["variants"]["corroded"]["explicits"]
+    assert len(explicits) == 1
+    assert explicits[0]["modifier_id"] == "54451920"  # first occurrence kept
+    assert len(record) == 4
+
+
+def test_repeated_placeholder_lines_not_deduped():
+    """Placeholder ('<...>') lines legitimately repeat across multiple random-affix slots on one
+    item (resolved by position, not text) -- must pass through untouched, with zero warnings."""
+    item_data = {
+        "name": "Test Repeated Placeholder Item",
+        "variants": [
+            {
+                "rarity_state": "base",
+                "implicits": [],
+                "explicits": [
+                    {"modifier_id": None, "text": "<A Random Attack Sentry or Spell Sentry Affix>"},
+                    {"modifier_id": None, "text": "<A Random Attack Sentry or Spell Sentry Affix>"},
+                ],
+            },
+        ],
+    }
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        result = import_crawler_item(item_data)
+
+    explicits = result["variants"]["base"]["explicits"]
+    assert len(explicits) == 2
+    assert all(e["expression"] == "<A Random Attack Sentry or Spell Sentry Affix>" for e in explicits)
+    assert len(record) == 0
