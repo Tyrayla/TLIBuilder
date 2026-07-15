@@ -437,6 +437,27 @@ export interface Build {
   notes?: string
   customMods?: string[]
   targetConfig?: TargetConfig
+  // Server-stamped, read-only. Never include these in getBuildPayload/encode payloads.
+  createdAt?: number
+  updatedAt?: number
+}
+
+// ── Build folders ────────────────────────────────────────────────────────────
+// Client-generated folder ids: 8+ chars matching [A-Za-z0-9_-]+, never the literal "root".
+export interface BuildFolder {
+  id: string
+  name: string
+  parentId: string | null
+}
+
+export interface FolderManifest {
+  folders: BuildFolder[]
+  // buildId -> folderId. A build with no entry here lives at root.
+  assignments: Record<string, string>
+  // container key ("root" or a folder id) -> ordered build ids within it.
+  order: Record<string, string[]>
+  // container key ("root" or a folder id) -> ordered subfolder ids within it.
+  folderOrder: Record<string, string[]>
 }
 
 export interface TreeNode {
@@ -2425,6 +2446,9 @@ export const api = {
   postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[]; slates?: SavedSlate[]; conditionState?: Record<string, number | boolean | string> }) =>
     post<Build>('/builds', build),
   deleteBuild: (id: string) => del<{ ok: boolean }>(`/builds/${id}`),
+
+  getBuildFolders: () => get<FolderManifest>('/builds/folders'),
+  putBuildFolders: (manifest: FolderManifest) => put<FolderManifest>('/builds/folders', manifest),
 
   encodeBuildCode: (build: object) =>
     post<{ code: string }>('/build-code/encode', { build }),

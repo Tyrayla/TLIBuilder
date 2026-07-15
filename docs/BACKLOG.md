@@ -419,6 +419,13 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
 - **Settings overlay follow-ups**: wire the greyed number-separator + decimal-precision controls; theme/accent;
   move "Show NYI flags" here; build defaults (default level / dummy level); restore-last-build; Open data folder /
   Reset settings / Reset app data.
+- **Deferred test coverage — BuildSelectScreen folder feature.** Component-level coverage for the stateful DnD/CRUD
+  handlers: `reorderBuilds`, `reorderFolders`, `nestFolder`, `assignBuildToFolder`, `handleDeleteFolderConfirm`
+  (reparenting/pruning), `handleDeleteSelected` (partial-failure reconciliation), `handleMoveSelectedTo`,
+  `persistManifest` (PUT-failure recovery), and App.tsx's `assignNewBuildToFolder`. Approach: extract pure
+  state-transition pieces into exported helpers (mirroring `sortBuilds`/`sortFolders`) for unit tests, or RTL
+  flows. Deferred from the 2026-07-15 review council (correctness reviewer flagged; pure helpers are covered,
+  handlers are not).
 
 ## 6. Stats engine v2 (open items)
 - Source coloring (crafted gear by rarity #mods, talents by tree branch); hero-memory base values by rarity

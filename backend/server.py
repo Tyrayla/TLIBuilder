@@ -14,6 +14,7 @@ import uvicorn
 from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
 from persistence import builds_manager
+from persistence import folders_manager
 from persistence import tree_config_manager
 from persistence import season_manager
 import build_code as _build_code
@@ -531,6 +532,40 @@ def delete_build(build_id: str):
     if not builds_manager.delete_build(build_id):
         raise HTTPException(status_code=404, detail="Build not found")
     return {"ok": True}
+
+
+# ── Build folders ─────────────────────────────────────────────────────────────
+# Client-authored folder tree over saved builds — see persistence/folders_manager.py for the manifest
+# shape and validation/cleaning rules. Folders are pure organization; they carry no engine meaning.
+
+class FolderEntry(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+
+    id: str
+    name: str
+    parentId: str | None = None
+
+
+class FoldersManifest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    folders: list[FolderEntry] = []
+    assignments: dict[str, str] = {}
+    order: dict[str, list[str]] = {}
+    folderOrder: dict[str, list[str]] = {}
+
+
+@app.get("/api/builds/folders")
+def get_build_folders():
+    return folders_manager.load()
+
+
+@app.put("/api/builds/folders")
+def put_build_folders(req: FoldersManifest):
+    try:
+        return folders_manager.save(req.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 class BuildCodeEncodeRequest(BaseModel):

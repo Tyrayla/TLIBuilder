@@ -91,6 +91,10 @@ function App() {
   const [saveModalName, setSaveModalName] = useState('')
   const [saveModalSaving, setSaveModalSaving] = useState(false)
   const loadedVersionRef = useRef(0)
+  // Build-folders: which folder a NEW build (started via BuildSelectScreen's "+ New Build" from inside a
+  // folder) should be assigned into on its first successful save. Cleared once consumed (or on opening an
+  // existing build, which cancels any pending new-build folder intent).
+  const pendingNewBuildFolderRef = useRef<string | null>(null)
   const refConditions = useReferenceStore(s => s.conditions)
 
   // Store reads — replaces session useState
@@ -244,7 +248,8 @@ function App() {
     setScreen('build-select')
   }
 
-  const startNewBuild = () => {
+  const startNewBuild = (folderId?: string) => {
+    pendingNewBuildFolderRef.current = folderId ?? null
     const payload = {
       buildId: null, buildName: '', activeSlot: 0,
       slots: [null, null, null, null] as (TreeSlot | null)[], slates: [], slateInventory: [], prisms: [], prismInventory: [], conditionState: {},
@@ -314,6 +319,9 @@ function App() {
   }
 
   const openBuild = async (build: Build) => {
+    // Opening an existing build cancels any pending new-build folder assignment from an abandoned
+    // "+ New Build" flow started (but never saved) from inside a folder.
+    pendingNewBuildFolderRef.current = null
     const rawSlots = (build.slots ?? []) as unknown[]
     const slots: (TreeSlot | null)[] = Array.from({ length: 4 }, (_, i) => sanitizeSlot(rawSlots[i]))
 
@@ -539,6 +547,22 @@ function App() {
     setScreen('tree-selector')
   }
 
+  // Build folders: the first time a build with no prior id gets saved, drop the returned id into whatever
+  // folder was pending (set by startNewBuild when "+ New Build" was clicked from inside a folder). Best-effort
+  // only — a folder-assign failure must never surface as a save failure or block the save flow.
+  const assignNewBuildToFolder = async (savedBuildId: string) => {
+    const folderId = pendingNewBuildFolderRef.current
+    if (!folderId) return
+    pendingNewBuildFolderRef.current = null
+    try {
+      const manifest = await api.getBuildFolders()
+      manifest.assignments[savedBuildId] = folderId
+      await api.putBuildFolders(manifest)
+    } catch {
+      // Folder assignment is best-effort — leave the build unassigned (it lands at root) on failure.
+    }
+  }
+
   const saveBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
@@ -548,6 +572,7 @@ function App() {
     useBuildStore.getState().setBuildName(name)
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
+    if (!build.id && saved.id) await assignNewBuildToFolder(saved.id)
   }
 
   const saveAsBuild = async (name: string) => {
@@ -559,6 +584,7 @@ function App() {
     useBuildStore.getState().setBuildName(name)
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
+    if (saved.id) await assignNewBuildToFolder(saved.id)
   }
 
   const handleSidebarSave = () => {

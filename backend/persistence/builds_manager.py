@@ -1,7 +1,10 @@
 import json
 import os
 import re
+import time
 import uuid
+
+from persistence import folders_manager
 
 _SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
 
@@ -39,7 +42,8 @@ def _parse_nodes(raw: str) -> dict[str, int]:
 
 def _read_file(build_id: str) -> dict:
     data: dict[str, str] = {}
-    with open(_file(build_id)) as f:
+    path = _file(build_id)
+    with open(path) as f:
         for line in f:
             line = line.strip()
             if '=' in line:
@@ -125,8 +129,23 @@ def _read_file(build_id: str) -> dict:
     target_config_raw = data.get('targetConfig', '')
     target_config = json.loads(target_config_raw) if target_config_raw else None
 
+    # Timestamps (epoch seconds). Files predating this field have neither line — fall back to the
+    # file's own mtime for both, so a legacy build still sorts/displays sensibly.
+    created_at_raw = data.get('createdAt', '')
+    updated_at_raw = data.get('updatedAt', '')
+    try:
+        created_at = float(created_at_raw) if created_at_raw else os.path.getmtime(path)
+    except ValueError:
+        created_at = os.path.getmtime(path)
+    try:
+        updated_at = float(updated_at_raw) if updated_at_raw else os.path.getmtime(path)
+    except ValueError:
+        updated_at = os.path.getmtime(path)
+
     return {
         'id': data.get('id', build_id),
+        'createdAt': created_at,
+        'updatedAt': updated_at,
         'name': data.get('name', ''),
         'slots': slots,
         'slates': slates,
@@ -166,6 +185,8 @@ def _write_file(build: dict) -> None:
     with open(_file(build['id']), 'w') as f:
         f.write(f"id={build['id']}\n")
         f.write(f"name={build['name']}\n")
+        f.write(f"createdAt={build.get('createdAt', time.time())}\n")
+        f.write(f"updatedAt={build.get('updatedAt', time.time())}\n")
         for i, slot in enumerate(slots, 1):
             if slot:
                 tree = slot.get('treeName', '')
@@ -247,6 +268,18 @@ def load() -> list[dict]:
 def save_build(build: dict) -> dict:
     if not build.get('id'):
         build['id'] = str(uuid.uuid4())[:8]
+
+    # Timestamps are stamped server-side, never trusted from the client. updatedAt is always "now";
+    # createdAt is preserved from the existing file on disk when there is one, else "now" (first save).
+    now = time.time()
+    created_at = now
+    try:
+        created_at = _read_file(build['id']).get('createdAt', now)
+    except (OSError, ValueError):
+        pass
+    build['createdAt'] = created_at
+    build['updatedAt'] = now
+
     _write_file(build)
     return build
 
@@ -256,4 +289,5 @@ def delete_build(build_id: str) -> bool:
     if not os.path.exists(path):
         return False
     os.remove(path)
+    folders_manager.remove_build(build_id)
     return True

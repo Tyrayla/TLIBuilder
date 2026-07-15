@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Build management
+- **Build folders** — the build select screen now supports folders: create, rename, nest arbitrarily deep, and delete (deleting a folder moves its contents up to the parent). Navigate via folder cards plus a breadcrumb.
+- **Drag-and-drop**: drag builds into folders, onto breadcrumb segments to move them up a level, or between cards to reorder; folders drag the same way. Manually reordering a folder keeps your custom order; otherwise builds sort by most recently saved, newest at top (build files now carry created/updated timestamps, falling back to file time for older builds).
+- **Bulk delete** replaces the per-card Delete button: hit **Select**, check builds, then **Delete (n)** with one confirmation — plus a **Move to…** bulk action.
+- Folder layout is stored locally in a `folders.json` next to your builds; share codes are unaffected. New `GET`/`PUT /api/builds/folders` backend endpoints persist it.
+
 ### New damage mechanics
 - **Damage over Time (skill-DoTs)** — the engine now models the ongoing tick damage of skills that deal Damage over Time directly, rather than only a skill's Hit component. First two skills: **Mind Control** (Erosion) and **Path of Flames** (Fire). Validated against the training dummy to within ~±10% (worst observed case 6%); a small residual on top of *increased*-damage modifiers is still unexplained and under investigation, so treat DoT DPS numbers as an estimate rather than an exact figure for now.
 - **DoT damage scoping expanded**: type-matched "X Damage" sources (e.g. Erosion Damage, Fire Damage) and "Elemental Damage" (Fire/Cold/Lightning, excludes Erosion) now correctly scale a matching skill-DoT, and above-max-skill-level scaling now applies to DoT the same way it already applies to Hit damage.
