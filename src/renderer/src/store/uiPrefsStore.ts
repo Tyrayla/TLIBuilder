@@ -1,5 +1,5 @@
-// Small persisted UI-preference store. Currently just the inert-modifier badge toggle; future
-// renderer-only prefs can hang off here.
+// Small persisted UI-preference store. Started as just the inert-modifier badge toggle; now also
+// gates item-level coverage pills. Future renderer-only prefs can hang off here.
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -11,7 +11,11 @@ import { persist } from 'zustand/middleware'
 export type CatalogSort = 'alpha' | 'dps' | 'coverage'
 
 interface UiPrefsStore {
-  // Show the per-modifier "Unused" / "Unrecognized" engine-coverage badges. Default ON.
+  // Show ALL engine-modeling badges: per-modifier status tags (ModifierBadge — Working/Inactive/
+  // Unused/Unrecognized/Modeled) AND item-level coverage pills (CoverageBadge — Full/Partial/None on
+  // skills, hero traits, and legendaries). One toggle gates both axes. Persisted key name kept as
+  // `showModifierBadges` (pre-dates the CoverageBadge merge) — do not rename, no migration needed.
+  // Default ON.
   showModifierBadges: boolean
   toggleModifierBadges: () => void
   // Support catalog sort order. Default alphabetical; the user can opt into DPS-contribution sorting.

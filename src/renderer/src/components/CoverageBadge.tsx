@@ -7,6 +7,7 @@
 // visually distinct from the outlined `.nyi-tag` and the bordered `.verif-badge` shapes.
 import { FloatingPortal } from '@floating-ui/react'
 import { useFloatingTooltip } from './tooltip/useFloatingTooltip'
+import { useUiPrefs } from '../store/uiPrefsStore'
 
 export type Coverage = 'full' | 'partial' | 'none'
 
@@ -17,10 +18,12 @@ const META: Record<Coverage, { label: string; color: string; bg: string }> = {
 }
 
 // Renders nothing when `coverage` is undefined (older backend / catalog not loaded yet) — never
-// implies "None" by omission.
+// implies "None" by omission. Also gated on the Settings → Display "Modeling badges" toggle
+// (uiPrefsStore.showModifierBadges) — same switch that governs the per-modifier ModifierBadge.
 export function CoverageBadge({ coverage, detail }: { coverage?: Coverage; detail?: string[] }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'top', trigger: 'hover', interactive: false, openDelay: 120 })
-  if (!coverage) return null
+  const show = useUiPrefs((s) => s.showModifierBadges)
+  if (!show || !coverage) return null
   const m = META[coverage]
   const hasDetail = coverage === 'partial' && !!detail?.length
   const plainTitle = coverage === 'full' ? 'Fully modeled — every intrinsic mechanic contributes to DPS.'
