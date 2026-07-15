@@ -39,9 +39,11 @@
     "cold_attack_dmg_flat_min",
     "cold_convert_to_erosion",
     "cold_convert_to_fire",
+    "cold_dmg_additional",
     "cold_dmg_gear_flat_max",
     "cold_dmg_gear_flat_min",
     "cold_dmg_gear_inc",
+    "cold_dmg_inc",
     "cold_resistance",
     "cold_resistance_max_inc",
     "crit_dmg_additional",
@@ -51,8 +53,7 @@
     "crit_rating_inc",
     "crit_rating_inc_per_mana_consumed",
     "defense_inc",
-    "demolisher_charge_speed_inc",
-    "demolisher_consume_dmg_additional",
+    "dexterity",
     "dexterity_additional",
     "dexterity_flat",
     "dexterity_inc",
@@ -85,9 +86,11 @@
     "energy_shield_restored_pct_lost_per_burst",
     "erosion_attack_dmg_flat_max",
     "erosion_attack_dmg_flat_min",
+    "erosion_dmg_additional",
     "erosion_dmg_gear_flat_max",
     "erosion_dmg_gear_flat_min",
     "erosion_dmg_gear_inc",
+    "erosion_dmg_inc",
     "erosion_resistance",
     "erosion_resistance_max_inc",
     "es_regain_to_restoration",
@@ -144,6 +147,7 @@
     "lightning_convert_to_cold",
     "lightning_convert_to_erosion",
     "lightning_convert_to_fire",
+    "lightning_crit_dmg_inc",
     "lightning_curse_taken",
     "lightning_dmg_additional",
     "lightning_dmg_gear_flat_max",
@@ -154,10 +158,10 @@
     "lightning_pen",
     "lightning_resistance",
     "lightning_resistance_max_inc",
+    "lightning_skill_level",
     "lucky_crit",
     "lucky_fire",
     "lucky_lightning",
-    "lucky_physical",
     "main_skill_level",
     "mana_consume_external_blocked",
     "mana_consumed_flat_per_attack_use",
@@ -196,6 +200,7 @@
     "max_mana_additional",
     "max_mana_flat",
     "max_mana_inc",
+    "max_shadow_quantity_flat",
     "max_spell_burst_flat",
     "max_spell_burst_halve_flag",
     "max_temporary_life_pct",
@@ -204,9 +209,6 @@
     "melee_dmg_additional",
     "melee_dmg_inc",
     "melee_skill_level",
-    "movement_bonus_to_attack_speed",
-    "movement_bonus_to_attack_speed_cap",
-    "movement_speed_inc",
     "no_guard_dmg_taken",
     "numbed_lightning_taken",
     "paralysis_dmg_taken",
@@ -221,8 +223,6 @@
     "physical_convert_to_erosion",
     "physical_convert_to_fire",
     "physical_convert_to_lightning",
-    "physical_crit_dmg_inc",
-    "physical_curse_taken",
     "physical_dmg_additional",
     "physical_dmg_gear_flat_max",
     "physical_dmg_gear_flat_min",
@@ -230,7 +230,6 @@
     "physical_dmg_inc",
     "physical_dmg_max_additional",
     "physical_dmg_min_additional",
-    "physical_skill_level",
     "quadruple_dmg_chance",
     "regain_interval_additional",
     "restoration_duration_additional",
@@ -239,6 +238,8 @@
     "restoration_effect_inc",
     "sealed_mana_compensation_additional",
     "sealed_mana_compensation_inc",
+    "shadow_chance_pct",
+    "shadow_chance_quantity_flat",
     "shield_dmg_inc",
     "skill_area_inc",
     "skill_cost_additional",
@@ -249,7 +250,6 @@
     "spell_block_chance_inc",
     "spell_skill_cost_flat",
     "steep_strike_chance",
-    "strength",
     "strength_additional",
     "strength_flat",
     "strength_inc",
@@ -258,15 +258,12 @@
     "temporary_mana_flat",
     "temporary_mana_pct",
     "tide_dmg_taken",
-    "trigger_interval",
     "triple_dmg_chance",
     "unlucky_crit",
     "unlucky_fire",
     "unlucky_lightning",
-    "unlucky_physical",
     "weapon_attack_speed",
-    "weapon_crit_rating_flat",
-    "wind_rhythm_base_cooldown"
+    "weapon_crit_rating_flat"
   ],
   "offense": {
     "above_max_mult": 1.0,
@@ -294,82 +291,53 @@
     "damage_rows": [
       {
         "dps_by_type_vs_target": {
-          "fire": 772.2637751275505,
-          "lightning": 1531.9782639092782,
-          "physical": 5902.604796157399
+          "fire": 1630.445618323554,
+          "lightning": 40230.760907706186
         },
-        "dps_final": 16507.744365859347,
-        "dps_vs_target_final": 8206.846835194227,
+        "dps_final": 85431.03372659131,
+        "dps_vs_target_final": 41861.20652602974,
         "form_index": 0,
         "hit_max_by_type": {
-          "fire": 5315.98292823901,
-          "lightning": 15466.852329711397,
-          "physical": 38590.09829388319
+          "fire": 1177.3129821975242,
+          "lightning": 29855.752332689844
         },
         "hit_min_by_type": {
-          "fire": 2874.5685463810946,
-          "lightning": 781.1541580662322,
-          "physical": 22760.282463127023
+          "fire": 636.6210940771798,
+          "lightning": 14902.531724636354
         },
         "kind": "hit",
-        "name": "Primary Fissure",
+        "name": "Thunder Spike",
         "nyi": [],
-        "pct_of_total": 57.0680752285755
-      },
-      {
-        "dps_by_type_vs_target": {
-          "fire": 580.968784467972,
-          "lightning": 1152.4968261883391,
-          "physical": 4440.489433875101
-        },
-        "dps_final": 12418.663787456959,
-        "dps_vs_target_final": 6173.955044531412,
-        "form_index": 1,
-        "hit_max_by_type": {
-          "fire": 5315.98292823901,
-          "lightning": 15466.852329711397,
-          "physical": 38590.09829388319
-        },
-        "hit_min_by_type": {
-          "fire": 2874.5685463810946,
-          "lightning": 781.1541580662322,
-          "physical": 22760.282463127023
-        },
-        "kind": "hit",
-        "name": "Fissure Ticks (Frequent Quake)",
-        "nyi": [],
-        "pct_of_total": 42.931924771424505
+        "pct_of_total": 100.0
       }
     ],
     "demolisher_area_mode": "both",
-    "demolisher_base_restore": 3.0,
-    "demolisher_cast_rate": 3.0624000000000007,
+    "demolisher_base_restore": 0.0,
+    "demolisher_cast_rate": 0.0,
     "demolisher_cdr_droppable": 0.0,
-    "demolisher_charge_speed_inc": 0,
-    "demolisher_charged_rate": 0.3333333333333333,
+    "demolisher_charge_speed_inc": 0.0,
+    "demolisher_charged_rate": 0.0,
     "demolisher_collapse_pct": 0.0,
-    "demolisher_frequent_quake": true,
-    "demolisher_mismatch": true,
-    "demolisher_mode": "manual",
+    "demolisher_frequent_quake": false,
+    "demolisher_mismatch": false,
+    "demolisher_mode": "",
     "demolisher_over_breakpoint": false,
-    "demolisher_primary_dps": 8206.846835194227,
-    "demolisher_restoration_time": 3.0,
-    "demolisher_restore_to_sustain": 8.187200000000002,
+    "demolisher_primary_dps": 0.0,
+    "demolisher_restoration_time": 0.0,
+    "demolisher_restore_to_sustain": 0.0,
     "demolisher_rhythm_interval": 0.0,
-    "demolisher_secondary_dps": 6173.955044531412,
-    "demolisher_under_breakpoint": true,
+    "demolisher_secondary_dps": 0.0,
+    "demolisher_under_breakpoint": false,
     "double_dmg_chance": 0,
     "double_dmg_factor": 1,
     "effective_level": 20,
     "enemy_mult_by_type": {
       "fire": 0.48999999999999994,
-      "lightning": 0.7349999999999999,
-      "physical": 0.5
+      "lightning": 0.7349999999999999
     },
     "enemy_vuln_by_type": {
       "fire": 1.0,
-      "lightning": 1.5,
-      "physical": 1.0
+      "lightning": 1.5
     },
     "enemy_vuln_sources_by_type": {
       "fire": [
@@ -392,15 +360,6 @@
         "lightning_infiltration_taken",
         "lightning_curse_taken",
         "hit_curse_taken"
-      ],
-      "physical": [
-        "paralysis_dmg_taken",
-        "no_guard_dmg_taken",
-        "knockback_dmg_taken",
-        "tide_dmg_taken",
-        "enemy_nearby_dmg_taken_additional",
-        "physical_curse_taken",
-        "hit_curse_taken"
       ]
     },
     "flat_dmg_max": {
@@ -413,68 +372,33 @@
       "lightning": 10.0,
       "physical": 578.0
     },
-    "generic_add": 17.34698296047972,
+    "generic_add": 3.1483165722623996,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 42894.46935970397,
-        "avg_hit_with_crit": 51387.57429292536,
+        "avg_hit_pre_crit": 23286.10906680045,
+        "avg_hit_with_crit": 27896.75866202694,
         "base_max_by_type": {},
         "base_min_by_type": {},
         "damage_by_type": {
-          "fire": 4095.275737310052,
-          "lightning": 8124.003243888815,
-          "physical": 30675.190378505104
+          "fire": 906.967038137352,
+          "lightning": 22379.1420286631
         },
-        "dps_contribution": 16507.744365859347,
-        "dps_vs_target": 8206.846835194227,
-        "effectiveness_pct": 227.0,
+        "dps_contribution": 85431.03372659131,
+        "dps_vs_target": 41861.20652602974,
+        "effectiveness_pct": 277.0,
         "fires_per_sec": 3.0624000000000007,
         "form_type": "additive",
         "hit_max_by_type": {
-          "fire": 5315.98292823901,
-          "lightning": 15466.852329711397,
-          "physical": 38590.09829388319
+          "fire": 1177.3129821975242,
+          "lightning": 29855.752332689844
         },
         "hit_min_by_type": {
-          "fire": 2874.5685463810946,
-          "lightning": 781.1541580662322,
-          "physical": 22760.282463127023
+          "fire": 636.6210940771798,
+          "lightning": 14902.531724636354
         },
         "hits_per_fire": 1,
-        "name": "Primary Fissure",
-        "nyi": [],
-        "proc_chance": 1.0,
-        "shotgun_falloff": 0.0,
-        "shotgun_mult": 1.0
-      },
-      {
-        "avg_hit_pre_crit": 42894.46935970397,
-        "avg_hit_with_crit": 51387.57429292536,
-        "base_max_by_type": {},
-        "base_min_by_type": {},
-        "damage_by_type": {
-          "fire": 4095.275737310052,
-          "lightning": 8124.003243888815,
-          "physical": 30675.190378505104
-        },
-        "dps_contribution": 12418.663787456959,
-        "dps_vs_target": 6173.955044531412,
-        "effectiveness_pct": 227.0,
-        "fires_per_sec": 1.6666666666666665,
-        "form_type": "additive",
-        "hit_max_by_type": {
-          "fire": 5315.98292823901,
-          "lightning": 15466.852329711397,
-          "physical": 38590.09829388319
-        },
-        "hit_min_by_type": {
-          "fire": 2874.5685463810946,
-          "lightning": 781.1541580662322,
-          "physical": 22760.282463127023
-        },
-        "hits_per_fire": 1,
-        "name": "Fissure Ticks (Frequent Quake)",
+        "name": "Thunder Spike",
         "nyi": [],
         "proc_chance": 1.0,
         "shotgun_falloff": 0.0,
@@ -486,7 +410,7 @@
     "jumps_base": 0,
     "main_stat_damage_bonus": 0.0,
     "main_stats": [
-      "strength"
+      "dexterity"
     ],
     "mana_cost": 5.0,
     "mercury_baptism_dps": 0.0,
@@ -522,14 +446,13 @@
     "shadow_mult": 1.0,
     "shotgun_hits": 1,
     "skill_area_inc": 0.0,
-    "skill_name": "Groundshaker",
+    "skill_name": "Thunder Spike",
     "skill_tags": [
       "Attack",
-      "Melee",
+      "Lightning",
       "Area",
-      "Physical",
-      "Demolisher",
-      "mobility"
+      "Melee",
+      "Shadow Strike"
     ],
     "skills_per_second": 3.0624000000000007,
     "spell_burst_auto": false,
@@ -571,19 +494,22 @@
     "tangle_placeable": 0,
     "target_mitigation_by_type": {
       "fire": 0.48999999999999994,
-      "lightning": 0.48999999999999994,
-      "physical": 0.5
+      "lightning": 0.48999999999999994
     },
-    "total_dps": 28926.408153316304,
-    "total_dps_vs_target": 14380.801879725637,
+    "total_dps": 85431.03372659131,
+    "total_dps_vs_target": 41861.20652602974,
     "trigger_interval": 0.0,
     "triple_dmg_chance": 0,
     "type_add": {
-      "fire": 17.34698296047972,
-      "lightning": 22.941384965234434,
-      "physical": 17.34698296047972
+      "cold": 3.1483165722623996,
+      "erosion": 3.1483165722623996,
+      "fire": 3.1483165722623996,
+      "lightning": 6.099745296886938,
+      "physical": 3.1483165722623996
     },
     "type_inc": {
+      "cold": 0,
+      "erosion": 0,
       "fire": 0,
       "lightning": 0,
       "physical": 0
@@ -631,82 +557,53 @@
       "damage_rows": [
         {
           "dps_by_type_vs_target": {
-            "fire": 772.2637751275505,
-            "lightning": 1531.9782639092782,
-            "physical": 5902.604796157399
+            "fire": 1630.445618323554,
+            "lightning": 40230.760907706186
           },
-          "dps_final": 16507.744365859347,
-          "dps_vs_target_final": 8206.846835194227,
+          "dps_final": 85431.03372659131,
+          "dps_vs_target_final": 41861.20652602974,
           "form_index": 0,
           "hit_max_by_type": {
-            "fire": 5315.98292823901,
-            "lightning": 15466.852329711397,
-            "physical": 38590.09829388319
+            "fire": 1177.3129821975242,
+            "lightning": 29855.752332689844
           },
           "hit_min_by_type": {
-            "fire": 2874.5685463810946,
-            "lightning": 781.1541580662322,
-            "physical": 22760.282463127023
+            "fire": 636.6210940771798,
+            "lightning": 14902.531724636354
           },
           "kind": "hit",
-          "name": "Primary Fissure",
+          "name": "Thunder Spike",
           "nyi": [],
-          "pct_of_total": 57.0680752285755
-        },
-        {
-          "dps_by_type_vs_target": {
-            "fire": 580.968784467972,
-            "lightning": 1152.4968261883391,
-            "physical": 4440.489433875101
-          },
-          "dps_final": 12418.663787456959,
-          "dps_vs_target_final": 6173.955044531412,
-          "form_index": 1,
-          "hit_max_by_type": {
-            "fire": 5315.98292823901,
-            "lightning": 15466.852329711397,
-            "physical": 38590.09829388319
-          },
-          "hit_min_by_type": {
-            "fire": 2874.5685463810946,
-            "lightning": 781.1541580662322,
-            "physical": 22760.282463127023
-          },
-          "kind": "hit",
-          "name": "Fissure Ticks (Frequent Quake)",
-          "nyi": [],
-          "pct_of_total": 42.931924771424505
+          "pct_of_total": 100.0
         }
       ],
       "demolisher_area_mode": "both",
-      "demolisher_base_restore": 3.0,
-      "demolisher_cast_rate": 3.0624000000000007,
+      "demolisher_base_restore": 0.0,
+      "demolisher_cast_rate": 0.0,
       "demolisher_cdr_droppable": 0.0,
-      "demolisher_charge_speed_inc": 0,
-      "demolisher_charged_rate": 0.3333333333333333,
+      "demolisher_charge_speed_inc": 0.0,
+      "demolisher_charged_rate": 0.0,
       "demolisher_collapse_pct": 0.0,
-      "demolisher_frequent_quake": true,
-      "demolisher_mismatch": true,
-      "demolisher_mode": "manual",
+      "demolisher_frequent_quake": false,
+      "demolisher_mismatch": false,
+      "demolisher_mode": "",
       "demolisher_over_breakpoint": false,
-      "demolisher_primary_dps": 8206.846835194227,
-      "demolisher_restoration_time": 3.0,
-      "demolisher_restore_to_sustain": 8.187200000000002,
+      "demolisher_primary_dps": 0.0,
+      "demolisher_restoration_time": 0.0,
+      "demolisher_restore_to_sustain": 0.0,
       "demolisher_rhythm_interval": 0.0,
-      "demolisher_secondary_dps": 6173.955044531412,
-      "demolisher_under_breakpoint": true,
+      "demolisher_secondary_dps": 0.0,
+      "demolisher_under_breakpoint": false,
       "double_dmg_chance": 0,
       "double_dmg_factor": 1,
       "effective_level": 20,
       "enemy_mult_by_type": {
         "fire": 0.48999999999999994,
-        "lightning": 0.7349999999999999,
-        "physical": 0.5
+        "lightning": 0.7349999999999999
       },
       "enemy_vuln_by_type": {
         "fire": 1.0,
-        "lightning": 1.5,
-        "physical": 1.0
+        "lightning": 1.5
       },
       "enemy_vuln_sources_by_type": {
         "fire": [
@@ -729,15 +626,6 @@
           "lightning_infiltration_taken",
           "lightning_curse_taken",
           "hit_curse_taken"
-        ],
-        "physical": [
-          "paralysis_dmg_taken",
-          "no_guard_dmg_taken",
-          "knockback_dmg_taken",
-          "tide_dmg_taken",
-          "enemy_nearby_dmg_taken_additional",
-          "physical_curse_taken",
-          "hit_curse_taken"
         ]
       },
       "flat_dmg_max": {
@@ -750,68 +638,33 @@
         "lightning": 10.0,
         "physical": 578.0
       },
-      "generic_add": 17.34698296047972,
+      "generic_add": 3.1483165722623996,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 42894.46935970397,
-          "avg_hit_with_crit": 51387.57429292536,
+          "avg_hit_pre_crit": 23286.10906680045,
+          "avg_hit_with_crit": 27896.75866202694,
           "base_max_by_type": {},
           "base_min_by_type": {},
           "damage_by_type": {
-            "fire": 4095.275737310052,
-            "lightning": 8124.003243888815,
-            "physical": 30675.190378505104
+            "fire": 906.967038137352,
+            "lightning": 22379.1420286631
           },
-          "dps_contribution": 16507.744365859347,
-          "dps_vs_target": 8206.846835194227,
-          "effectiveness_pct": 227.0,
+          "dps_contribution": 85431.03372659131,
+          "dps_vs_target": 41861.20652602974,
+          "effectiveness_pct": 277.0,
           "fires_per_sec": 3.0624000000000007,
           "form_type": "additive",
           "hit_max_by_type": {
-            "fire": 5315.98292823901,
-            "lightning": 15466.852329711397,
-            "physical": 38590.09829388319
+            "fire": 1177.3129821975242,
+            "lightning": 29855.752332689844
           },
           "hit_min_by_type": {
-            "fire": 2874.5685463810946,
-            "lightning": 781.1541580662322,
-            "physical": 22760.282463127023
+            "fire": 636.6210940771798,
+            "lightning": 14902.531724636354
           },
           "hits_per_fire": 1,
-          "name": "Primary Fissure",
-          "nyi": [],
-          "proc_chance": 1.0,
-          "shotgun_falloff": 0.0,
-          "shotgun_mult": 1.0
-        },
-        {
-          "avg_hit_pre_crit": 42894.46935970397,
-          "avg_hit_with_crit": 51387.57429292536,
-          "base_max_by_type": {},
-          "base_min_by_type": {},
-          "damage_by_type": {
-            "fire": 4095.275737310052,
-            "lightning": 8124.003243888815,
-            "physical": 30675.190378505104
-          },
-          "dps_contribution": 12418.663787456959,
-          "dps_vs_target": 6173.955044531412,
-          "effectiveness_pct": 227.0,
-          "fires_per_sec": 1.6666666666666665,
-          "form_type": "additive",
-          "hit_max_by_type": {
-            "fire": 5315.98292823901,
-            "lightning": 15466.852329711397,
-            "physical": 38590.09829388319
-          },
-          "hit_min_by_type": {
-            "fire": 2874.5685463810946,
-            "lightning": 781.1541580662322,
-            "physical": 22760.282463127023
-          },
-          "hits_per_fire": 1,
-          "name": "Fissure Ticks (Frequent Quake)",
+          "name": "Thunder Spike",
           "nyi": [],
           "proc_chance": 1.0,
           "shotgun_falloff": 0.0,
@@ -823,7 +676,7 @@
       "jumps_base": 0,
       "main_stat_damage_bonus": 0.0,
       "main_stats": [
-        "strength"
+        "dexterity"
       ],
       "mana_cost": 5.0,
       "mercury_baptism_dps": 0.0,
@@ -859,14 +712,13 @@
       "shadow_mult": 1.0,
       "shotgun_hits": 1,
       "skill_area_inc": 0.0,
-      "skill_name": "Groundshaker",
+      "skill_name": "Thunder Spike",
       "skill_tags": [
         "Attack",
-        "Melee",
+        "Lightning",
         "Area",
-        "Physical",
-        "Demolisher",
-        "mobility"
+        "Melee",
+        "Shadow Strike"
       ],
       "skills_per_second": 3.0624000000000007,
       "spell_burst_auto": false,
@@ -908,19 +760,22 @@
       "tangle_placeable": 0,
       "target_mitigation_by_type": {
         "fire": 0.48999999999999994,
-        "lightning": 0.48999999999999994,
-        "physical": 0.5
+        "lightning": 0.48999999999999994
       },
-      "total_dps": 28926.408153316304,
-      "total_dps_vs_target": 14380.801879725637,
+      "total_dps": 85431.03372659131,
+      "total_dps_vs_target": 41861.20652602974,
       "trigger_interval": 0.0,
       "triple_dmg_chance": 0,
       "type_add": {
-        "fire": 17.34698296047972,
-        "lightning": 22.941384965234434,
-        "physical": 17.34698296047972
+        "cold": 3.1483165722623996,
+        "erosion": 3.1483165722623996,
+        "fire": 3.1483165722623996,
+        "lightning": 6.099745296886938,
+        "physical": 3.1483165722623996
       },
       "type_inc": {
+        "cold": 0,
+        "erosion": 0,
         "fire": 0,
         "lightning": 0,
         "physical": 0
@@ -943,25 +798,6 @@
     }
   },
   "stats": {
-    "at_center_dmg_additional": {
-      "category": "Generic",
-      "display_name": "Damage at Center",
-      "slot_sources": [
-        {
-          "amount": 0.32,
-          "label": "Groundshaker: Epicenter",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": null,
-          "source_type": "support",
-          "text": "+32% additional damage at the Center |epicenter"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": "%"
-    },
     "attack_block_chance_inc": {
       "category": "Defense",
       "display_name": "Attack Block Chance",
@@ -1054,88 +890,49 @@
       "total": 2.0,
       "unit": "%"
     },
-    "demolisher_consume_dmg_additional": {
-      "category": "Generic",
-      "display_name": "Demolisher Consume Damage",
-      "slot_sources": [
-        {
-          "amount": 0.45,
-          "label": "Groundshaker: Cripple",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": null,
-          "source_type": "support",
-          "text": "+45% additional damage on the consuming cast |cripple"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": "%"
-    },
     "dmg_additional": {
       "category": "Generic",
       "display_name": "Additional Damage",
       "slot_sources": [
         {
           "amount": 0.2,
-          "label": "Groundshaker: Collapse (Noble) (Rank 5)",
+          "label": "Thunder Spike: Numb (Magnificent) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Groundshaker: Collapse (Noble)",
+          "source_name": "Thunder Spike: Numb (Magnificent)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |groundshaker_collapse_noble|universal"
+          "text": "additional damage for the supported skill |thunder_spike_numb_magnificent|universal"
+        },
+        {
+          "amount": 0.035,
+          "label": "Thunder Spike: Numb (Magnificent) (Tier 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Thunder Spike: Numb (Magnificent)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |thunder_spike_numb_magnificent|specific"
         },
         {
           "amount": 0.2,
-          "label": "Groundshaker: Cripple (Noble) (Rank 5)",
+          "label": "Thunder Spike: Rumbling Thunder (Noble) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Groundshaker: Cripple (Noble)",
+          "source_name": "Thunder Spike: Rumbling Thunder (Noble)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |groundshaker_cripple_noble|universal"
+          "text": "additional damage for the supported skill |thunder_spike_rumbling_thunder_noble|universal"
         },
         {
           "amount": 0.2,
-          "label": "Groundshaker: Epicenter (Magnificent) (Rank 5)",
+          "label": "Thunder Spike: Tremble (Noble) (Rank 5)",
           "points": 1,
           "scope": null,
           "slot": 1,
-          "source_name": "Groundshaker: Epicenter (Magnificent)",
+          "source_name": "Thunder Spike: Tremble (Noble)",
           "source_type": "support",
-          "text": "additional damage for the supported skill |groundshaker_epicenter_magnificent|universal"
-        },
-        {
-          "amount": 0.2,
-          "label": "Groundshaker: Frequent Quake (Magnificent) (Rank 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Groundshaker: Frequent Quake (Magnificent)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |groundshaker_frequent_quake_magnificent|universal"
-        },
-        {
-          "amount": 0.2,
-          "label": "Groundshaker: Wrathful Vault (Noble) (Rank 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Groundshaker: Wrathful Vault (Noble)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |groundshaker_wrathful_vault_noble|universal"
-        },
-        {
-          "amount": 0.21,
-          "label": "Groundshaker: Wrathful Vault (Noble) (Tier 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Groundshaker: Wrathful Vault (Noble)",
-          "source_type": "support",
-          "text": "additional damage for the supported skill |groundshaker_wrathful_vault_noble|specific"
+          "text": "additional damage for the supported skill |thunder_spike_tremble_noble|universal"
         },
         {
           "amount": 0.078,
@@ -1252,25 +1049,6 @@
       "total": 0.0,
       "unit": ""
     },
-    "hit_dmg_additional": {
-      "category": "Generic",
-      "display_name": "Additional Hit Damage",
-      "slot_sources": [
-        {
-          "amount": 0.71,
-          "label": "Groundshaker: Frequent Quake (Magnificent) (Tier 5)",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": "Groundshaker: Frequent Quake (Magnificent)",
-          "source_type": "support",
-          "text": "additional Hit Damage for the supported skill |groundshaker_frequent_quake_magnificent|specific"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": "%"
-    },
     "lightning_attack_dmg_flat_max": {
       "category": "Lightning",
       "display_name": "Max Lightning Attack Damage",
@@ -1313,6 +1091,16 @@
       "category": "Lightning",
       "display_name": "Additional Lightning Damage",
       "slot_sources": [
+        {
+          "amount": 0.465,
+          "label": "Thunder Spike: Rumbling Thunder (Noble) (Tier 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Thunder Spike: Rumbling Thunder (Noble)",
+          "source_type": "support",
+          "text": "additional Lightning Damage dealt by the skill to the enemy |thunder_spike_rumbling_thunder_noble|specific"
+        },
         {
           "amount": 0.15,
           "label": "Electric Overload",
@@ -1406,44 +1194,6 @@
       ],
       "total": 485.0,
       "unit": ""
-    },
-    "movement_bonus_to_attack_speed": {
-      "category": "Attack Speed",
-      "display_name": "Movement Speed Bonus Applied to Attack Speed",
-      "slot_sources": [
-        {
-          "amount": 0.75,
-          "label": "Groundshaker: Wrathful Vault",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": null,
-          "source_type": "support",
-          "text": "75% of Movement Speed \u2192 additional Attack Speed (cap +60%) |wrathful_vault"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": "%"
-    },
-    "movement_bonus_to_attack_speed_cap": {
-      "category": "Attack Speed",
-      "display_name": "Movement\u2192Attack Speed Cap",
-      "slot_sources": [
-        {
-          "amount": 0.6,
-          "label": "Groundshaker: Wrathful Vault",
-          "points": 1,
-          "scope": null,
-          "slot": 1,
-          "source_name": null,
-          "source_type": "support",
-          "text": "Movement\u2192Attack Speed capped at +60% |wrathful_vault"
-        }
-      ],
-      "sources": [],
-      "total": 0.0,
-      "unit": "%"
     },
     "movement_speed": {
       "category": "Character",

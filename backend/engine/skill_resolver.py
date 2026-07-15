@@ -144,6 +144,12 @@ class ResolvedSkill:
     # Empty (the default) → `engine.offense.compute_dot` is a no-op and `total_dps` is untouched — every
     # skill that doesn't intrinsically deal a DoT is byte-identical to before this field existed.
     dot_forms_by_level: dict[int, list[DotForm]] = field(default_factory=dict)
+    # Skill-INHERENT Compulsory Damage-Type Conversion (Thunder Spike: "All of the skill's Physical Damage
+    # will be converted to Lightning Damage" — 100%). {src_type: {dst_type: fraction}}, merged into the SAME
+    # convert/adds-as cascade a gear/talent `<type>_convert_to_<type>` stat drives (engine.offense
+    # ._conversion_fracs / _apply_conversion) — not a separate mechanism. None (default) → every existing
+    # skill's conversion math is byte-identical.
+    intrinsic_convert: dict[str, dict[str, float]] | None = None
 
 
 _REGISTRY: dict[str, Callable[[dict], ResolvedSkill]] = {}
@@ -318,6 +324,46 @@ def _resolve_split_shot(skill_data: dict) -> ResolvedSkill:
         hit_forms_by_level=forms_by_level,
         supported=True,
         shotgun_requires_grant=True,   # base has no Shotgun Effect; Volley grants it
+    )
+
+
+# ── Thunder Spike (Shadow Strike attack) ──────────────────────────────────────────
+# Tags: Attack, Lightning, Area, Melee, Shadow Strike. Main stat Dexterity. A single-thrust weapon attack —
+# 205% Weapon Attack Damage @L1 -> 277% @L20 ("Effectiveness of added damage"), same "N% weapon Attack
+# Damage" progression shape as Split Shot, so it reuses that regex. Two inherent lines:
+#   - "All of the skill's Physical Damage will be converted to Lightning Damage" (100%) — wired via
+#     `intrinsic_convert`, the SAME convert/adds-as cascade a gear/talent conversion stat drives (see
+#     engine.offense._conversion_fracs). NOT a new mechanism.
+#   - "The skill's Shadow Strike True Body inflicts 1 stack of Numbed … on hit" — the Shadow Strike
+#     mechanic itself (Help DB shadow-strike; master_glossary 136 "Phantom") is modeled data-driven off the
+#     "Shadow Strike" skill tag in engine.compute._offense_for_slot / calculate_offense's `shadow=` path;
+#     the Numbed-on-True-Body-hit clause is auto-derived as a ConditionEffect in server.py (mirrors curses
+#     auto-setting enemy_cursed) rather than through engine.ailment_inflict (that scanner only covers
+#     gear/talent/custom-mod TEXT, not a skill's own inherent tooltip line).
+#   - "100% of the increase/decrease on Skill Area is also applied to the Tracking Area of this skill's
+#     Shadows, up to 100%" — AoE/tracking-area is NOT modeled (display stub at most, like
+#     curse_skill_area_inc) — deliberately left OFF the modeled-phrase list below so it stays honest NYI.
+@_register("thunder_spike")
+def _resolve_thunder_spike(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    forms_by_level: dict[int, list[SkillHitForm]] = {}
+    for lvl, values in progression.items():
+        text = " ".join(str(v) for v in values.values())
+        m = _SPLIT_SHOT_WAD_RE.search(text)
+        if not m:
+            continue
+        eff_pct = float(m.group(1))
+        forms_by_level[lvl] = [SkillHitForm("Thunder Spike", eff_pct, "additive")]
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms_by_level,
+        supported=True,
+        main_stat=["dexterity"],
+        intrinsic_convert={"physical": {"lightning": 1.0}},
     )
 
 
@@ -742,6 +788,10 @@ _SKILL_MODELED_PHRASES: dict[str, tuple[str, ...]] = {
     "chromatic_shot": ("shotgun effect falloff", "fires 1 projectile", "hit the same enemy",
                        "projectile quantity"),
     "howling_gale": ("duration for gale", "skill area for gale", "movement speed for gale"),
+    # thunder_spike: the base WAD line + the intrinsic 100% Phys->Lightning conversion ARE modeled
+    # (`intrinsic_convert`). Deliberately NOT whitelisting the True-Body-Numbed or Skill-Area/Tracking-Area
+    # lines (see the resolver's own comment) — they stay honest NYI.
+    "thunder_spike": ("weapon attack damage", "will be converted to lightning damage"),
 }
 
 # A bare standalone duration fragment ("Lasts 10 s.") is never itself a DPS mechanic — it's metadata on

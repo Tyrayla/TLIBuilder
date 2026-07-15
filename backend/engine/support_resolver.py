@@ -326,6 +326,26 @@ def resolve_support_contributions(
                             "condition": cond_expr,
                             "slot": sup.get("slot", 1),
                         })
+                elif "additional lightning damage dealt by the skill to the enemy" in low:
+                    # Rumbling Thunder (Thunder Spike Noble): "When the supported skill's Shadow Strike True
+                    # Body hits an enemy, +(45-48)% additional Lightning Damage dealt by the skill to the
+                    # enemy for 2 s". True Body is ASSUMED to mean the player's own cast (not a Shadow),
+                    # which would happen every cast -> effectively permanent against a boss. Owner-approved:
+                    # modeled as a condition (thunder_spike_true_body_buff, default ON — data/conditions.json),
+                    # reached through the SAME cond_part -> _COND_PATTERNS -> translate_cond gate every other
+                    # tier line above uses — not a new mechanism.
+                    roll = _explicit_roll(sup, line)
+                    frac = roll if roll is not None else _range_mid_fraction(stat_clause)
+                    if frac is not None and frac != 0.0:
+                        out.append({
+                            "stat_key": "lightning_dmg_additional",
+                            "amount": frac,
+                            "text": "additional Lightning Damage dealt by the skill to the enemy |{}|specific".format(item_id),
+                            "label": f"{name} (Tier {tier})",
+                            "source_name": name,
+                            "condition": cond_expr,
+                            "slot": sup.get("slot", 1),
+                        })
                 elif _UNIVERSAL_PHRASE in low:
                     roll = _explicit_roll(sup, line)
                     frac = roll if roll is not None else _range_mid_fraction(stat_clause)
@@ -508,7 +528,7 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
                     "label": name,
                     "slot": sup.get("slot", 1),
                 })
-            effects.extend(map_autoderive_line(line))
+            effects.extend(map_autoderive_line(line, item_id))
 
         # Willpower: compounding per-stack buff whose % is per-level (Descript), applied while standing
         # still. Resolved here (not in the aggregator) so it uses the support's actual level value.

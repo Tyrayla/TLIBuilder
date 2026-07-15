@@ -3742,6 +3742,23 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=25,
         source_types=_T,
     ),
+    # Despised Shadow's "33% chance to gain +3(4) Shadows when using the Shadow Strike skill" — read
+    # directly by engine.offense.calculate_offense's `shadow=` path (NOT the generic additional/chance
+    # pools), so no `tags`/`affects` filtering is needed here.
+    Stat.SHADOW_CHANCE_PCT: StatMeta(
+        "Shadow Chance", "Utility", "chance", "%",
+        subgroup="mechanics",          stacking_rule="additive_chance",
+        ui_priority=64,                source_types=_T,
+    ),
+    # Display name deliberately avoids the bare word "Quantity" (2026-07-15 bug — see .wolf/buglog.json):
+    # "Shadow Chance Quantity" tied 2/3 words with "Max Shadow Quantity" in mod_parser's fuzzy gear-affix
+    # word-overlap resolver, so a bare "Shadow Quantity +N" gear/talent line (Frantic Shadow, craft bases,
+    # the ronin "Shadow Quantity +1" node) could no longer resolve unambiguously to max_shadow_quantity_flat.
+    Stat.SHADOW_CHANCE_QUANTITY_FLAT: StatMeta(
+        "Shadow Chance Bonus Count", "Utility", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=64,                source_types=_T,
+    ),
     Stat.DMG_TO_LIFE_ADDITIONAL: StatMeta(
         "Damage Applied to Life", "Generic", "additional", "%",
         subgroup="damage",             stacking_rule="additive",

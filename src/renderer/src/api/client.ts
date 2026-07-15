@@ -900,6 +900,19 @@ export interface OffenseResult {
   multistrike_mult?: number            // delivery multiplier folded into total_dps
   multistrike_repeat_aps?: number      // attack rate during repeats (base aps × the +20%-increased factor)
   multistrike_chain?: { count: number; prob: number }[]   // chain-length distribution
+  // Shadow Strike (Thunder Spike; Help DB "shadow-strike", glossary id 136 "Phantom"): casting summons
+  // shadow_count Shadows that each repeat the player's attack once against the same target. Multiple Shadows
+  // landing on that target share a Shotgun Effect falloff — the first Shadow at 100%, each further Shadow
+  // retaining 30% — independent of the player's own hit. shadow_count = Max Shadow Quantity (N);
+  // shadow_chance_pct/shadow_chance_quantity = Despised Shadow's "chance to gain +K Shadows" EV-mix inputs;
+  // shadow_dmg_additional = Σ additional Shadow Damage (scales only the shadow portion, never the player's own
+  // hit); shadow_mult = the total delivery multiplier folded into total_dps, same slot as tangle_mult /
+  // multistrike_mult. undefined/0/1.0 when the skill isn't Shadow-Strike-tagged.
+  shadow_count?: number
+  shadow_chance_pct?: number
+  shadow_chance_quantity?: number
+  shadow_dmg_additional?: number
+  shadow_mult?: number
   // Demolisher Charge mode (Groundshaker etc.): the skill regains a single charge over time and consumes it on
   // cast to add the secondary explosion. Primary fissure fires at demolisher_cast_rate, secondary at
   // demolisher_charged_rate. The breakpoint fields drive the restoration-vs-cadence helper. "" / 0 when not a

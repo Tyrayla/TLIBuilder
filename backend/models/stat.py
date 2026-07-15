@@ -960,6 +960,12 @@ class Stat(Enum):
     MAX_WARCRY_SKILL_CHARGES_FLAT = "max_warcry_skill_charges_flat"
     MAX_SHADOW_QUANTITY_FLAT = "max_shadow_quantity_flat"
     SHADOW_DMG_ADDITIONAL = "shadow_dmg_additional"
+    # "N % chance to gain +K Shadows when using the Shadow Strike skill" (Despised Shadow). Kept as two
+    # SEPARATE stats (chance + quantity), not collapsed to an expected shadow count — the Shadow Strike
+    # falloff formula (engine.offense._shadow_multiplier) is nonlinear in shadow count, so the engine
+    # computes the exact per-cast expected-value mix itself: (1-p)*f(N) + p*f(N+K).
+    SHADOW_CHANCE_PCT = "shadow_chance_pct"
+    SHADOW_CHANCE_QUANTITY_FLAT = "shadow_chance_quantity_flat"
     DMG_TO_LIFE_ADDITIONAL = "dmg_to_life_additional"
     ELIXIR_CHARGING_PROGRESS_FLAT = "elixir_charging_progress_flat"
     BEAM_DMG_ADDITIONAL = "beam_dmg_additional"

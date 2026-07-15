@@ -158,6 +158,39 @@ entry used to track is done; nothing open here. `spell_dmg_additional` on the Do
 explicitly EXCLUDED (unmeasured, the deliberate conservative default — see `data/verification/dot-model.json`'s
 open verification item).
 
+## 0f. Shadow Strike + Thunder Spike (core shipped 2026-07-15 — follow-ups)
+Shipped: the **Shadow Strike delivery model** (Help DB `shadow-strike`; master_glossary 136 "Phantom") and the
+**Thunder Spike** skill (registered in `skill_resolver._REGISTRY`; previously unregistered skills compute
+`total_dps = 0.0`). N Shadows repeat the player's own attack; the falloff coefficient is 70% (first Shadow full
+damage, each further Shadow additionally −70%), folded into `total_dps` as a delivery multiplier
+`shadow_mult = 1 + (1 + 0.30·(N−1))·(1 + Σ shadow_dmg_additional)`; player hit is independent of the shadow
+falloff chain. Despised Shadow's "33% chance to gain +3 Shadows" is modeled as a per-cast expected-value mix
+(owner-approved 2026-07-15). Thunder Spike itself: 205%→277% WAD Lv1–20, an intrinsic 100% Physical→Lightning
+conversion (the first skill-intrinsic conversion in the engine — `ResolvedSkill.intrinsic_convert`), and an
+inherent Numbed-on-True-Body-hit (1 stack, interval 1s, wired via a skill-scoped `ConditionEffect` since
+`ailment_inflict.scan_numbed_inflict` only scans gear/talent/custom-mod text, not a skill's own tooltip line).
+Rumbling Thunder's "+45–48% additional Lightning on True Body hit for 2s" is modeled DEFAULT ON (owner-approved
+assumption: continuous casting vs a boss → ~permanent uptime) — needs in-game confirmation. Full detail:
+`data/verification/shadow-strike.json`, `data/verification/thunder-spike.json`;
+`docs/INGAME_VERIFICATION_BACKLOG.md` SHADOW-01/02.
+
+**Explicitly NYI** (owner decisions 2026-07-15 — listed so they're never silently dropped):
+- **Frantic Shadow** "X% chance to gain +Y% Attack Speed for Zs when Shadows hit enemies" and **Numb
+  Magnificent** "30% chance to inflict Numbed … when the supported skill's Shadows hit an enemy" — both need
+  shadow-hit-count expected-value modeling before they can be wired; this EV model is the shared unlock for
+  both proc lines.
+- **Tremble Noble** on-crit "+(66–71)% Numbed Effect for 2s" buff — unmodeled.
+- **Tracking Area entirely unmodeled**: Thunder Spike's own "100% of Skill Area increase/decrease also applied
+  to Shadows' Tracking Area, up to 100%", the dedicated `+% Shadow(s) Tracking Area` stat family, Dual Kismet:
+  Ghost Bee ("+50% Shadow Tracking Area +50% Shadow Strike Skill Area"), and Charging Warcry's "+20% Tracking
+  Area for Shadow Strike Skills while the skill lasts" — no AoE/targeting model exists to consume any of it.
+- **Charging Warcry** "4% additional damage and Ailment Damage per enemy affected" for Shadow Strike skills —
+  per-enemy-affected scaling unmodeled.
+- **Frost Spike / Double Thrusts** — the other two Shadow Strike skills — remain unregistered in
+  `skill_resolver._REGISTRY`; Thunder Spike is the only one live in v1. Detection is tag-driven off the
+  "Shadow Strike" skill tag (not hardcoded to `thunder_spike`), so both light up automatically once registered
+  — no Shadow-Strike-specific code needed when that happens.
+
 ## 0c. Tangles (core shipped 2026-06-17 — follow-ups)
 Shipped: the **Tangle skill type**. A Spell becomes a Tangle via an activator support (**Spell Tangle** /
 **Activation Medium: Tangle**, NOT Manifold); it's then cast by N attached tangles (each a full caster) instead of

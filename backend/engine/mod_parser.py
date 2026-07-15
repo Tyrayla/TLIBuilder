@@ -468,6 +468,35 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": "aim_trigger_flag", "amount": float(m.group(1)), "text": t}]
 
+    # Despised Shadow: "N % chance to gain +K Shadows when using the Shadow Strike skill" → two SEPARATE
+    # stats (chance + quantity), not one collapsed expected-count — engine.offense._shadow_multiplier is
+    # nonlinear in shadow count, so calculate_offense computes the exact per-cast EV mix itself
+    # ((1-p)*f(N) + p*f(N+K)). Both numbers in this line are literal (not `#`-templated to a single
+    # override), so it needs its own regex rather than `_EXPRESSION_STAT_OVERRIDES`.
+    m = re.match(r'([\d.]+)\s*%\s*chance\s+to\s+gain\s+\+?\s*([\d.]+)\s*shadows?\s+when\s+using\s+the\s+shadow\s+strike\s+skill',
+                 t, re.I)
+    if m:
+        return [{"stat_key": "shadow_chance_pct", "amount": float(m.group(1)) / 100.0, "text": t},
+                {"stat_key": "shadow_chance_quantity_flat", "amount": float(m.group(2)), "text": t}]
+
+    # Craft-base "Ultimate Suffix" compound roll: "Shadow Quantity +N (+/-)(A[-B]) % additional Shadow
+    # Damage" — TWO glued clauses (Max Shadow Quantity + additional Shadow Damage) with no separator (no
+    # comma/"and"), so neither the gear clause splitter (server._split_clauses — sentence-period only) nor
+    # the talent compound splitter (core_talent_resolver._split_compound — "and"/comma only) can see the
+    # boundary. 2026-07-15: narrowly scoped to this exact family (not a general glued-clause splitter) —
+    # confirmed present verbatim across multiple _craft_base_types.json Claw/etc. "Ultimate Suffix" rolls.
+    m = re.match(
+        r'shadow\s*quantity\s*\+\s*([\d.]+)\s+([+\-])\s*\(?\s*([\d.]+)(?:\s*[-–]\s*([\d.]+))?\s*\)?\s*%\s*'
+        r'additional\s+shadow\s+damage', t, re.I)
+    if m:
+        qty = float(m.group(1))
+        sign = -1.0 if m.group(2) == '-' else 1.0
+        lo = float(m.group(3))
+        hi = float(m.group(4)) if m.group(4) else lo
+        dmg = sign * (lo + hi) / 2.0
+        return [{"stat_key": "max_shadow_quantity_flat", "amount": qty, "text": t},
+                {"stat_key": "shadow_dmg_additional", "amount": dmg / 100.0, "text": t}]
+
     # "You can cast N additional Curses" → Max Curses (a flat count; "additional" here means +N, not the
     # damage pool, so the generic matchers would mishandle it).
     m = re.match(r'(?:you can cast\s+)?([\d.]+)\s+additional\s+curses?\b', t, re.I)

@@ -2482,6 +2482,50 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         </StatPanel></GridBox>
       )}
 
+      {/* Shadow Strike (Thunder Spike): casting summons Max Shadows shadows that each repeat the player's
+          attack once against the same target. Multiple Shadows landing on that target take their OWN Shotgun
+          Effect falloff — first Shadow 100%, each further Shadow 30% (glossary 136 "Phantom") — so that
+          falloff lives HERE, not in the Shotgunning box above (which only covers same-target projectiles/
+          blades and cast-level same-target hits; it never reads shadow_* fields). Gated on the skill carrying
+          the "Shadow Strike" tag (the same signal engine.compute uses to populate shadow_* at all) rather than
+          shadow_count > 0, so the box still surfaces — at 0 Shadows — for a Shadow Strike skill with nothing
+          granting Shadow Quantity yet, instead of silently vanishing. */}
+      {(hasTag(offense, 'shadow strike') || showAll) && (
+        <GridBox><StatPanel title="Shadow Strike" accent={AMBER}
+          info="Casting summons Max Shadows shadows that each repeat your attack once against the same target. The first Shadow lands at 100%, each further Shadow retains 30% (Shotgun Effect falloff coefficient 70%, glossary 136 'Phantom') — independent of your own hit, which is never subject to this falloff. Σ additional Shadow Damage scales ONLY the shadow portion. Despised Shadow's chance to gain bonus Shadows folds into an expected-value mix rather than a rounded average, since the falloff formula is nonlinear in shadow count.">
+          <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.shadow_mult ?? 1)}</span></Row>
+          <Row label="Max Shadows" breakdown={{
+            title: 'Max Shadow Quantity', keys: ['max_shadow_quantity_flat'], total: offense.shadow_count ?? 0, totalUnit: '',
+            formula: 'Σ Shadow Quantity — gear / support / talent lines granting +Shadow Quantity',
+          }}>{offense.shadow_count ?? 0}</Row>
+          {(offense.shadow_chance_pct ?? 0) > 0 && (
+            <>
+              <Row label="Bonus-Shadow Chance" breakdown={{
+                title: 'Chance for Bonus Shadows', keys: ['shadow_chance_pct'], total: offense.shadow_chance_pct ?? 0, totalUnit: '%',
+                formula: 'Despised Shadow — chance to gain +K Shadows when using the Shadow Strike skill',
+              }}>{dec((offense.shadow_chance_pct ?? 0) * 100)}%</Row>
+              <Row label="Bonus Shadows (+K)" breakdown={{
+                title: 'Bonus Shadow Quantity', keys: ['shadow_chance_quantity_flat'], total: offense.shadow_chance_quantity ?? 0, totalUnit: '',
+                formula: 'Σ Shadow chance quantity — added to Max Shadows on the chance-hit branch',
+              }}>{dec(offense.shadow_chance_quantity ?? 0)}</Row>
+              <Row label="Expected-Value Mix" labelColor="#9ab">
+                {dec((1 - (offense.shadow_chance_pct ?? 0)) * 100)}%·f({offense.shadow_count ?? 0}) + {dec((offense.shadow_chance_pct ?? 0) * 100)}%·f({(offense.shadow_count ?? 0) + Math.round(offense.shadow_chance_quantity ?? 0)})
+              </Row>
+            </>
+          )}
+          <Row label="Additional Shadow Damage" breakdown={{
+            title: 'Σ Additional Shadow Damage', keys: ['shadow_dmg_additional'], total: offense.shadow_dmg_additional ?? 0, totalUnit: '%',
+            formula: 'Σ additional Shadow Damage — scales only the shadow portion of the delivery, never the player\'s own hit',
+          }}>+{dec((offense.shadow_dmg_additional ?? 0) * 100)}%</Row>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#888', margin: '6px 0 2px' }}>Same-target falloff (per Shadow)</div>
+          <Row label="First Shadow">100%</Row>
+          <Row label="Each further Shadow">30%</Row>
+          <div style={{ fontSize: 11, color: '#8a9', lineHeight: 1.45, margin: '4px 0 2px' }}>
+            f(N) = 1 (your hit) + (1 + 0.30×(N−1)) × (1 + Σ additional Shadow Damage) — folded into total_dps as shadow_mult, in the same slot as the cast / tangle / spell-burst / multistrike delivery multipliers.
+          </div>
+        </StatPanel></GridBox>
+      )}
+
       {/* Stub boxes for player mechanics the engine doesn't model yet (Combo / Demolisher / Barrage). These are
           PLAYER mechanics with no minion analogue, so they never show in minion mode (even with Show-all).
           The modeled mechanics above (Tangle / Spell Burst / Channeled / Multistrike) render real data instead. */}

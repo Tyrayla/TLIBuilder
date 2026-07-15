@@ -1023,6 +1023,30 @@ def engine_stats(req: EngineStatsRequest):
     if any(c.get("enabled", True) for c in active_curses) and not core_condition_state.get("enemy_cursed"):
         core_condition_state = {**core_condition_state, "enemy_cursed": True}
 
+    # Thunder Spike: "The skill's Shadow Strike True Body inflicts 1 stack of Numbed … on hit" is an
+    # INTRINSIC skill property, not a mod line, so engine.ailment_inflict.scan_numbed_inflict (which only
+    # scans gear/talent/custom-mod TEXT) can never see it. Auto-derive the same enable+floor pattern
+    # (enemy_numbed + a numbed_stacks floor) via the SAME ConditionEffect/_apply_cond_effects machinery,
+    # sourced from the skill itself — mirrors how curses above auto-set enemy_cursed. requires_dtype=None
+    # (not "lightning"): attack-skill ResolvedSkill.damage_types is never populated (only spell resolvers
+    # set it — see engine.compute's main_dtypes comment), and Thunder Spike's Lightning damage is guaranteed
+    # unconditionally by its own 100% Physical->Lightning conversion, not a build choice.
+    # 2026-07-15 correctness fix: scan ALL slotted (enabled) skills, not just the main skill — mirrors
+    # resolve_curses above (skills_input build-wide), not just `skill_data` (main_skill only). Thunder Spike
+    # slotted as a non-main active skill was still actively casting and inflicting Numbed, but the earlier
+    # main-skill-only check never auto-set enemy_numbed/numbed_stacks for it, silently under-computing any
+    # "+% damage to Numbed enemies" modifier. See .wolf/buglog.json.
+    _intrinsic_numbed_effects: list = []
+    if skills_by_id and any(
+            (skills_by_id.get(s.get("skill_id")) or {}).get("item_id") == "thunder_spike"
+            and s.get("enabled", True)
+            for s in (skills_input or [])):
+        from engine.support_mapper import ConditionEffect as _ThunderSpikeNumbedCE
+        _intrinsic_numbed_effects = [
+            _ThunderSpikeNumbedCE("enemy_numbed", 1.0, "set_true", source="Thunder Spike (True Body hit, assumed)"),
+            _ThunderSpikeNumbedCE("numbed_stacks", 1.0, "max", source="Thunder Spike (True Body hit, assumed)"),
+        ]
+
     # Editable calc-target stats → fractions for the offense mitigation (None keeps the engine's Lv85 defaults).
     _tc = req.target_config
     target_config = None if _tc is None else {
@@ -1060,7 +1084,8 @@ def engine_stats(req: EngineStatsRequest):
         trait_contributions=trait_contributions,
         uptime_mode=req.uptime_mode,
         target_config=target_config,
-        inflict_cond_effects=_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects(),
+        inflict_cond_effects=(_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects()
+                             + _intrinsic_numbed_effects),
     )
     from engine.identity_index import get_identity_index
     result = compute(
@@ -2330,6 +2355,11 @@ _COND_PATTERNS: list[tuple] = [
     # Per-Fervor-Rating scaling: "+X per N Fervor Rating" → ×floor(fervor/N).
     (re.compile(r"per\s+(\d+)\s+fervor\s+rating", re.I), lambda m: {"key": "fervor_rating", "op": "per", "divisor": int(m.group(1))}),
     (re.compile(r"per\s+fervor\s+rating", re.I), {"key": "fervor_rating", "op": "per", "divisor": 1}),
+    # Rumbling Thunder (Thunder Spike Noble): "When the supported skill's Shadow Strike True Body hits an
+    # enemy" — True Body is ASSUMED to mean the player's own cast (not a Shadow), which would happen every
+    # cast, so the owner-approved model is a DEFAULT-ON condition (thunder_spike_true_body_buff,
+    # default_bool=true in data/conditions.json) the user can override off, not an always-on flag.
+    (re.compile(r"shadow\s*strike\s*true\s*body\s*hits?\s*an\s*enem", re.I), "thunder_spike_true_body_buff"),
 ]
 
 

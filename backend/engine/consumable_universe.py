@@ -233,6 +233,12 @@ def consumable_universe() -> frozenset[str]:
                  "has_dormant_entanglement_flag",
                  # display-only tangle mechanic reads (duration/attach range) in calculate_offense's tangle mode
                  "tangle_duration_inc", "tangle_duration_additional", "tangle_attach_range_inc"}
+    # Shadow Strike mode (engine.compute._offense_for_slot / engine.offense.calculate_offense's `shadow=`
+    # path) reads these outside the synthetic passes: Max Shadow Quantity (N_base), Despised Shadow's
+    # chance/quantity EV inputs, and additional Shadow Damage (read explicitly, excluded from the generic
+    # additional pool — see offense._SHADOW_SCOPED_ADDITIONAL).
+    consumed |= {"max_shadow_quantity_flat", "shadow_chance_pct", "shadow_chance_quantity_flat",
+                 "shadow_dmg_additional"}
     # Magister "gain <Blessing> when generating Tangle / activating Spell Burst" full-uptime flags → read in the
     # compute loop to pin the blessing to max. (es_charge_on_generate_flag is intentionally NOT whitelisted — it's
     # recognized-but-unmodeled, so it badges Unconsumed until an ES-recharge model exists.)

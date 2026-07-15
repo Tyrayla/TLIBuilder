@@ -8,6 +8,11 @@
 - **Bulk delete** replaces the per-card Delete button: hit **Select**, check builds, then **Delete (n)** with one confirmation — plus a **Move to…** bulk action.
 - Folder layout is stored locally in a `folders.json` next to your builds; share codes are unaffected. New `GET`/`PUT /api/builds/folders` backend endpoints persist it.
 
+### New skill mechanics
+- **Shadow Strike** — the engine now models Thunder Spike's Shadow-summoning mechanic: N Shadows repeat the player's own attack against a target, with each Shadow beyond the first dealing an additional −70% (the game's Shotgun Effect falloff coefficient); the player's own hit is unaffected. Shadow sources are wired from Haunt, Frantic Shadow, Despised Shadow (including its 33%-chance-for-extra-Shadows roll, modeled as a per-cast expected value), and a Ronin talent node.
+- **Thunder Spike** is now a modeled skill: 205%→277% Weapon Attack Damage, a full Physical→Lightning conversion, and an inherent chance-free Numbed application on hit. Its Rumbling Thunder support (bonus Lightning damage on hit) is modeled as always-active, an assumption still pending an in-game check.
+- Neither mechanic is yet confirmed against live gameplay — see `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json`.
+
 ### New damage mechanics
 - **Damage over Time (skill-DoTs)** — the engine now models the ongoing tick damage of skills that deal Damage over Time directly, rather than only a skill's Hit component. First two skills: **Mind Control** (Erosion) and **Path of Flames** (Fire). Validated against the training dummy to within ~±10% (worst observed case 6%); a small residual on top of *increased*-damage modifiers is still unexplained and under investigation, so treat DoT DPS numbers as an estimate rather than an exact figure for now.
 - **DoT damage scoping expanded**: type-matched "X Damage" sources (e.g. Erosion Damage, Fire Damage) and "Elemental Damage" (Fire/Cold/Lightning, excludes Erosion) now correctly scale a matching skill-DoT, and above-max-skill-level scaling now applies to DoT the same way it already applies to Hit damage.

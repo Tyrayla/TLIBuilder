@@ -92,6 +92,16 @@ _DEFERRED_ADDITIONAL: dict[str, str] = {
 # generic pool so it can't wrongly apply/badge until it gets its own form-scoped reader.
 _FORM_SCOPED_ADDITIONAL: frozenset = frozenset({"steep_strike_additional_dmg", "sweep_slash_additional_dmg"})
 
+# Shadow Damage applies ONLY inside the Shadow Strike delivery multiplier (calculate_offense's `shadow=`
+# path / `_shadow_multiplier`) — never to the player's own hit or to any non-Shadow-Strike skill. Its
+# StatMeta carries no `tags` (universal), so leaving it in the generic per-affix pool below would apply it
+# to EVERY hit on EVERY skill regardless of Shadow Strike (bug — see .wolf/buglog.json: Despised Shadow's
+# "+14-16% additional Shadow Damage" was buffing all hit damage). Read explicitly via
+# source.total("shadow_dmg_additional") instead, which — unlike the generic pool's per-affix-text
+# multiplicative factors — naturally SUMS every source (Σ shadow_dmg_additional, the documented model),
+# matching how tangle_dmg_enhancement_additional's *_enhancement_additional identity sums its sources.
+_SHADOW_SCOPED_ADDITIONAL: frozenset = frozenset({"shadow_dmg_additional"})
+
 # Hit damage additional multiplier stats — each is an independent multiplicative pool.
 # Deferred stats (see _DEFERRED_ADDITIONAL) are excluded and listed in the NYI output.
 _HIT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
@@ -101,6 +111,7 @@ _HIT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
     and "hit" in meta.affects
     and stat.value not in _DEFERRED_ADDITIONAL
     and stat.value not in _FORM_SCOPED_ADDITIONAL
+    and stat.value not in _SHADOW_SCOPED_ADDITIONAL
 ]
 
 # DoT (Damage over Time) additional-damage pool — the whitelisted keys per dot-model.json's audit (only
@@ -785,15 +796,26 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
 _CONV_PRIORITY = ["physical", "lightning", "cold", "fire", "erosion"]
 
 
-def _conversion_fracs(source: BuildSource) -> tuple[dict, dict]:
+def _conversion_fracs(
+    source: BuildSource, intrinsic: dict[str, dict[str, float]] | None = None,
+) -> tuple[dict, dict]:
     """Read convert + adds-as fractions per up-chain (source→dest) pair from `source`. Returns
     (convert, adds), each {src: {dst: frac}}. Convert is capped to ≤100% per source (redistributed by
-    weight). physical_as_elemental adds its % as each of fire/cold/lightning."""
+    weight). physical_as_elemental adds its % as each of fire/cold/lightning.
+
+    `intrinsic` (ResolvedSkill.intrinsic_convert) is an optional skill-INHERENT Compulsory Damage-Type
+    Conversion overlay (e.g. Thunder Spike's "All Physical Damage will be converted to Lightning Damage" —
+    100%), merged into the SAME cascade a gear/talent `<type>_convert_to_<type>` stat drives — not a
+    separate mechanism. A 100% intrinsic conversion dominates the ≤100%-per-source cap below exactly like a
+    gear/talent source would."""
     convert: dict[str, dict[str, float]] = {}
     adds: dict[str, dict[str, float]] = {}
     for i, s in enumerate(_CONV_PRIORITY):
         higher = _CONV_PRIORITY[i + 1:]
         c = {d: max(0.0, source.total(f"{s}_convert_to_{d}")) for d in higher}
+        for d, frac in (intrinsic or {}).get(s, {}).items():
+            if d in higher:
+                c[d] = c.get(d, 0.0) + max(0.0, frac)
         tot = sum(c.values())
         if tot > 1.0:                                  # cap 100% per source, redistribute by weight
             c = {d: v / tot for d, v in c.items()}
@@ -839,6 +861,27 @@ def _apply_conversion(eff_flat: dict, path_inc, path_add,
                 cur = final.get(t, (0.0, 0.0))
                 final[t] = (cur[0] + p[0] * stay * f, cur[1] + p[1] * stay * f)
     return final
+
+
+# ── Shadow Strike (Help DB "shadow-strike"; master_glossary 136 "Phantom") ────────────────────────────────
+# Casting a Shadow Strike skill summons N Shadows; each attacks an enemy in a 9.5m tracking area ONCE, using
+# the same attack as the player (with no other targets, all shadows strike the character's target — matches
+# the engine's single-target default). Shadows deal the same damage as the player; multiple Shadows hitting
+# the SAME enemy take an additional Shotgun Effect falloff — each shadow beyond the first deals (1 −
+# _SHADOW_FALLOFF) of a shadow hit. Shadow damage is INDEPENDENT of the player's own hit (Help DB): the
+# player's hit is the leading "1.0" below and is never itself subject to the falloff chain.
+_SHADOW_FALLOFF = 0.70   # glossary 136 "Phantom" — Shotgun Effect falloff coefficient (fraction LOST)
+
+
+def _shadow_multiplier(n: int, shadow_dmg_additional: float) -> float:
+    """f(0) = 1.0 (just the player's own hit; no Shadows). f(N>=1) = 1 (player) + the shadow portion — first
+    shadow 100%, each further shadow retains (1 − _SHADOW_FALLOFF) = 30%, and the WHOLE shadow portion is
+    scaled by (1 + Σ additional Shadow Damage) — additional Shadow Damage scales ONLY the shadow portion,
+    never the player's own hit (Help DB: "Shadow damage and character damage are independent")."""
+    if n <= 0:
+        return 1.0
+    retain = 1.0 - _SHADOW_FALLOFF
+    return 1.0 + (1.0 + retain * (n - 1)) * (1.0 + shadow_dmg_additional)
 
 
 @dataclass
@@ -1028,6 +1071,16 @@ class OffenseResult:
     tangle_cast_ticks: int = 0         # whole server ticks per tangle cast (cast-speed breakpoint); 0 if untangled
     tangle_cast_to_next_increased: float = 0.0  # +Increased Cast Speed needed for the next faster tick breakpoint
     tangle_cast_to_next_additional: float = 0.0  # +Additional Cast Speed needed for the next faster tick breakpoint
+    # Shadow Strike mode (Help DB "shadow-strike"; master_glossary 136 "Phantom"). shadow_count = Max Shadow
+    # Quantity (N_base); shadow_chance_pct/shadow_chance_quantity = Despised Shadow's "chance to gain +K
+    # Shadows" EV inputs; shadow_dmg_additional = Σ additional Shadow Damage (folded into shadow_mult, not
+    # the generic additional pool); shadow_mult = the delivery multiplier folded into total_dps (like
+    # tangle_mult). 0 / 0.0 / 1.0 when the skill is not a Shadow Strike skill or has no Shadows.
+    shadow_count: int = 0
+    shadow_chance_pct: float = 0.0
+    shadow_chance_quantity: float = 0.0
+    shadow_dmg_additional: float = 0.0
+    shadow_mult: float = 1.0
     # Channeled-attack rate breakpoints (Split Shot: Rapid Advance) — the channel fires on whole 30 Hz ticks
     # (rate = 30 ÷ ticks). 0 when not a channeled attack. Surfaced in the Channeled box.
     channel_attack_ticks: int = 0
@@ -1459,6 +1512,7 @@ def calculate_offense(
     spell_burst: dict | None = None,
     demolisher: dict | None = None,
     add_mod_tags: set[str] | None = None,
+    shadow: dict | None = None,
 ) -> OffenseResult:
     # tangle: when set (the skill has a Tangle activator support), the skill is cast by N tangles instead of the
     # player. `tangle["count"]` = attached tangles on the target (each a full caster). Adds the "tangle" mod tag
@@ -1467,6 +1521,9 @@ def calculate_offense(
     # extra_additional: a skill-intrinsic generic "additional damage" pool (fraction), evaluated
     # by the caller from the skill's intrinsic_additional + condition state (e.g. Focused Slash's
     # Fervor bonus). Applied as one extra multiplicative pool on every hit.
+    # shadow: when set (the skill carries the Shadow Strike tag AND has a nonzero shadow count/chance —
+    # see engine.compute._offense_for_slot), {"count": N_base, "chance_pct": p, "chance_quantity": k} feeds
+    # the _shadow_multiplier EV mix folded into the DPS totals (see the "Shadow Strike mode" block below).
     if not skill.supported:
         return OffenseResult(skill_name=skill.name, supported=False)
 
@@ -1693,7 +1750,7 @@ def calculate_offense(
     # Damage-type conversion: read fractions once. When any conversion is present, compute the per-type
     # inc/add for ALL types (a converted slice can land in a type that had no native flat); otherwise only
     # the flat types (regression-identical to the pre-conversion engine).
-    convert_fracs, adds_fracs = _conversion_fracs(source)
+    convert_fracs, adds_fracs = _conversion_fracs(source, skill.intrinsic_convert)
     has_conversion = any(convert_fracs.values()) or any(adds_fracs.values())
     calc_types = list(DAMAGE_TYPES) if has_conversion else list(flat_dmg.keys())
     # Compulsory conversion (Chromatic Shot): the skill deals each of these elements, so compute their per-type
@@ -2123,6 +2180,30 @@ def calculate_offense(
                        * (1.0 + source.total("tangle_duration_additional"))) if tangle else 0.0
     tangle_attach_range = (8.0 * (1.0 + source.total("tangle_attach_range_inc"))) if tangle else 0.0
 
+    # ── Shadow Strike mode ── `shadow` is set by engine.compute._offense_for_slot when the slot's skill
+    # carries the "Shadow Strike" tag AND has a nonzero baseline count or an active chance-to-gain-Shadows
+    # source. shadow["count"] = Max Shadow Quantity (N_base, e.g. Haunt's "+2 Shadow Quantity"). A
+    # probabilistic "chance to gain +K Shadows" source (Despised Shadow) is folded as the EXACT per-cast
+    # expected-value mix (owner-approved model) — NOT collapsed to an expected shadow count, because
+    # _shadow_multiplier is nonlinear in N. shadow=None (the common case) → shadow_mult stays 1.0, byte-
+    # identical to a plain hit.
+    shadow_count = 0
+    shadow_chance_pct = 0.0
+    shadow_chance_quantity = 0.0
+    shadow_dmg_additional_total = 0.0
+    shadow_mult = 1.0
+    if shadow:
+        shadow_dmg_additional_total = source.total("shadow_dmg_additional")
+        shadow_count = int(shadow.get("count", 0) or 0)
+        shadow_chance_pct = min(1.0, max(0.0, float(shadow.get("chance_pct", 0.0) or 0.0)))
+        shadow_chance_quantity = float(shadow.get("chance_quantity", 0.0) or 0.0)
+        f_base = _shadow_multiplier(shadow_count, shadow_dmg_additional_total)
+        if shadow_chance_pct > 0.0:
+            f_bonus = _shadow_multiplier(shadow_count + int(shadow_chance_quantity), shadow_dmg_additional_total)
+            shadow_mult = (1.0 - shadow_chance_pct) * f_base + shadow_chance_pct * f_bonus
+        else:
+            shadow_mult = f_base
+
     # Spell Burst mode: an eligible Spell cast at full charge consumes all M stacks and auto-recasts the spell
     # M times (the triggering cast also counts → casts_per_burst = M + 1, no damage cap — every stack is a full
     # cast). The charge is a server-timed whole-tick countdown, so it hard-rounds (engine/tick.py); the player's
@@ -2485,7 +2566,7 @@ def calculate_offense(
         _demo_prim_vt = p_vt
         _demo_sec_vt = s_vt
 
-    _delivery = cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult
+    _delivery = cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult * shadow_mult
     total_dps = sum(f.dps_contribution for f in hit_forms) * _delivery
     total_dps_vs_target = sum(f.dps_vs_target for f in hit_forms) * _delivery
     _base_dps_pre_true, _base_vt_pre_true = total_dps, total_dps_vs_target   # hit DPS before true-damage stages
@@ -2627,6 +2708,11 @@ def calculate_offense(
         tangle_cast_ticks=tangle_cast_ticks,
         tangle_cast_to_next_increased=tangle_cast_to_next_increased,
         tangle_cast_to_next_additional=tangle_cast_to_next_additional,
+        shadow_count=shadow_count,
+        shadow_chance_pct=shadow_chance_pct,
+        shadow_chance_quantity=shadow_chance_quantity,
+        shadow_dmg_additional=shadow_dmg_additional_total,
+        shadow_mult=shadow_mult,
         channel_attack_ticks=channel_attack_ticks,
         channel_attack_smooth_sps=channel_attack_smooth_sps,
         channel_attack_to_next_increased=channel_attack_to_next_increased,

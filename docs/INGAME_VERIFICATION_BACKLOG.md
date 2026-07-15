@@ -430,6 +430,55 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ---
 
+### SHADOW-01 — Shadow Strike delivery model (multiple checks)
+- Status: ⬜ Unverified. Newly modeled 2026-07-15 (uncommitted). See `data/verification/shadow-strike.json`.
+- Setup: **Thunder Spike** vs the standard dummy. Base build has 0 Shadow Quantity (Shadows only appear via gear/talent/support). Add shadow sources one at a
+  time (**Haunt** support = +2 Shadow Quantity; **Frantic Shadow** legendary = +1; **Despised Shadow**
+  legendary = 33% chance +3/+4 Shadows + additional Shadow Damage; **Ronin `ronin_c6_r2`** talent = +1).
+- Checks:
+  1. **Falloff shape.** With N ≥ 2 Shadows (e.g. Haunt + Frantic Shadow = 3), confirm the falloff is a flat
+     per-shadow coefficient (first Shadow full damage, EVERY further Shadow additionally −70%, i.e.
+     `1 + 0.30(N−1)` total shadow-hit weight) as modeled — NOT a compounding chain (each successive Shadow
+     −70% of the PREVIOUS Shadow's already-reduced damage, which would fall off far faster). Compare Recount
+     DPS at N=1 vs N=2 vs N=3 Shadows; the modeled ratios are 1 : 1.30 : 1.60 (additional-shadow-weight terms),
+     not 1 : 1.30 : 1.51 (compounding).
+  2. **Player-hit independence.** Confirm the player's own hit lands and scales independently of the Shadow
+     falloff chain (Help DB: "Shadow damage and character damage are independent of each other") — i.e. the
+     player's damage is not itself subject to the −70% falloff.
+  3. **Despised Shadow proc granularity.** Equip Despised Shadow (33% chance +3/+4 Shadows "when using the
+     Shadow Strike skill"). Confirm the chance rolls **per cast** (not per fight, not a persistent buff) and
+     that Shadows gained from the proc last only that cast (not carried into the next cast). The engine models
+     this as a per-cast expected-value mix `(1−p)·f(N_base) + p·f(N_base+k)`.
+  4. **Shadow count cap.** Stack multiple sources (Haunt + Frantic Shadow + Despised Shadow + Ronin node) to
+     reach a high Shadow Quantity. Confirm whether the game caps the total Shadow count at some maximum (the
+     engine currently applies none).
+  5. **Multistrike / cast-multiplier inheritance.** With a Multistrike-capable build, confirm whether Shadows
+     also fire on each Multistrike (proportionally increasing shadow hits) or only on the primary cast. Same
+     question for any other cast-multiplier mechanic active on Thunder Spike.
+- RESULT (per check): Recount Avg DPS (span) + Duration, per Shadow-count config; shadow sources equipped +
+  their rolls; Shadow count observed (in-game UI, if shown); Skill level; Screenshot.
+
+### SHADOW-02 — Thunder Spike skill specifics
+- Status: ⬜ Unverified. Newly modeled 2026-07-15 (uncommitted). See `data/verification/thunder-spike.json`.
+- Setup: **Thunder Spike** alone vs the standard dummy, no supports (isolate the base skill first), then add
+  **Rumbling Thunder (Noble)** for check 3.
+- Checks:
+  1. **Base WAD.** Confirm 277% Weapon Attack Damage at Lv20 (205% at Lv1) matches the Recount magnitude for
+     a bare Thunder Spike cast.
+  2. **Intrinsic conversion + inherent Numbed.** Confirm 100% of the skill's Physical Damage displays/behaves
+     as Lightning Damage (no separate Physical component), and that True Body hits inflict 1 stack of Numbed
+     on the target (interval 1s) with NO gear/support required — this is a skill-inherent effect, not
+     optional. Watch the dummy's Numbed stack indicator ramp on repeated hits.
+  3. **Rumbling Thunder uptime + default-on sanity.** Socket Rumbling Thunder (Noble). The tier-1 line reads
+     "+(45–48)% additional Lightning Damage dealt by the skill to the enemy for 2 s" on a True Body hit. The
+     engine currently models this as ALWAYS active (default-on assumption: continuous casting → ~permanent
+     uptime). Confirm: (a) does a single Thunder Spike cast actually keep the buff up continuously against a
+     standing dummy at your attack speed, or does uptime fall short of 100% at low attack speed? (b) is the
+     buff per-enemy (relevant vs multiple targets) or a single global buff? Compare Recount DPS with Rumbling
+     Thunder socketed vs a same-tier universal "+45% additional damage" support as a sanity check on magnitude.
+- RESULT (per check): Recount Avg DPS (span) + Duration; skill level; supports + rolls; sustained Numbed stack
+  count observed; Screenshot.
+
 ## How results are ingested
 Tyra: for each returned RESULT, configure the same build in the app (matching the tester's exact
 rolls/level/rank/tier) and compare the engine DPS to the reported Recount **span average**. Mark

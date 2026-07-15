@@ -1344,11 +1344,24 @@ def compute(
         # Channeled-scoped mods apply and the skill reports as channeled).
         if overrides.get("add_mod_tags"):
             add_mod_tags = (add_mod_tags or set()) | set(overrides["add_mod_tags"])
+        # ── Shadow Strike mode ── data-driven off the skill's own tags (Help DB: shadow-strike;
+        # master_glossary 136 "Phantom") — any current/future registered Shadow-Strike skill lights this up,
+        # not just Thunder Spike. N_base = Max Shadow Quantity (gear/support/talent, e.g. Haunt's "+2 Shadow
+        # Quantity"); a probabilistic "chance to gain +K Shadows" source (Despised Shadow) feeds the EV mix
+        # in engine.offense.calculate_offense. shadow=None (byte-identical to a plain hit) unless the skill
+        # actually has a nonzero baseline count or an active chance line.
+        shadow = None
+        if "shadow strike" in {t.lower() for t in resolved.tags}:
+            _shadow_n = int(eff.total("max_shadow_quantity_flat"))
+            _shadow_chance = min(1.0, max(0.0, eff.total("shadow_chance_pct")))
+            _shadow_chance_qty = eff.total("shadow_chance_quantity_flat")
+            if _shadow_n > 0 or _shadow_chance > 0:
+                shadow = {"count": _shadow_n, "chance_pct": _shadow_chance, "chance_quantity": _shadow_chance_qty}
         _res = asdict(calculate_offense(
             eff, resolved, level, is_main_skill=is_main, extra_additional=extra,
             support_behavior=_behavior_by_slot.get(slot, {}),
             remove_mod_tags=overrides.get("remove_mod_tags"), tangle=tangle, spell_burst=spell_burst,
-            demolisher=demolisher, add_mod_tags=add_mod_tags))
+            demolisher=demolisher, add_mod_tags=add_mod_tags, shadow=shadow))
         # Surface the intrinsic 'additional damage' pool (applied via offense.intrinsic_add, previously invisible
         # in the breakdown — e.g. Split Shot: Rapid Advance's +% per additional Max Channeled Stack, Focused
         # Slash's Fervor bonus) as labelled breakdown entries for the "Total Additional" panel.
