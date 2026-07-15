@@ -431,16 +431,20 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 ---
 
 ### SHADOW-01 — Shadow Strike delivery model (multiple checks)
-- Status: 🔶 Partial. Solo (N=0) vs +Haunt Lv20 (N=2) Recount pair measured 2026-07-15 — see
-  `data/verification/shadow-strike.json`. Checks 1 and 2 below have supporting evidence; checks 3–5 remain ⬜.
+- Status: 🔶 Partial. Solo (N=0) / +Haunt Lv20 (N=2) / +Haunt+slate (N=3, RUN C) Recount triple measured
+  2026-07-15 — see `data/verification/shadow-strike.json`. **Check 1 is now CONFIRMED** (RUN C closes the
+  flat-vs-compounding falloff-shape discriminator). Check 2 supported/strengthened. **Check 6 is now
+  answered-in-structure** (see below, formula vs attack speed still open); checks 3–5 remain ⬜.
 - Setup: **Thunder Spike** vs the standard dummy. Base build has 0 Shadow Quantity (Shadows only appear via gear/talent/support). Add shadow sources one at a
   time (**Haunt** support = +2 Shadow Quantity; **Frantic Shadow** legendary = +1; **Despised Shadow**
   legendary = 33% chance +3/+4 Shadows + additional Shadow Damage; **Ronin `ronin_c6_r2`** talent = +1).
 - Checks:
-  1. **Falloff shape.** 🔶 Partial. The N=0→N=2 (Haunt) ratio (≈2.30–2.32 measured vs 2.3184 predicted) supports
-     the magnitude of the FIRST −70% falloff step, but a flat-per-shadow model and a compounding-chain model
-     predict the identical value at N=2 — they only diverge at N=3. Still needs an **N=3 config** (e.g. Haunt +
-     Frantic Shadow) to distinguish flat (1 : 1.30 : 1.60) from compounding (1 : 1.30 : 1.51) at N=1 vs N=2 vs N=3.
+  1. **Falloff shape.** ✅ CONFIRMED (2026-07-15, RUN C). Thunder Spike Lv20 + Haunt Lv20 + a "+1 Shadow" slate
+     (N=3) measured 917 DPS vs the N=0 solo baseline (349) = ×2.628. The FLAT model (`1 + (1+0.30·(N−1))`,
+     ×2.60 base × Haunt Lv20's own +0.8% support line = predicted ×2.6208) matches within 0.3%; the
+     COMPOUNDING model (predicted ×2.409) misses by >8% and is rejected. **The same-target Shadow falloff is
+     flat — each shadow beyond the first contributes a flat +30% weight, no per-shadow compounding of the
+     −70% reduction.** See `data/verification/shadow-strike.json` for the full derivation.
   2. **Player-hit independence.** 🔶 Supported (not fully isolated). The same N=0→N=2 ratio is consistent with the
      player's own hit being a clean, unaffected additive term. Note the ratio doesn't perfectly cancel — the solo
      run sat at 1 Numbed stack and the Haunt run averaged ≈1.5 (see SHADOW-02), so a small Numbed-difference
@@ -456,24 +460,40 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   5. **Multistrike / cast-multiplier inheritance.** With a Multistrike-capable build, confirm whether Shadows
      also fire on each Multistrike (proportionally increasing shadow hits) or only on the primary cast. Same
      question for any other cast-multiplier mechanic active on Thunder Spike.
-  6. **NEW (added 2026-07-15) — Shadows applying Thunder Spike's inherent Numbed.** Owner-reported: in the
-     +Haunt Lv20 run, Numbed stacks alternated 1↔2 (~50% uptime on 2), where the player's own True Body hit
-     accounts for the base 1 stack and a Shadow hit appears to independently apply an additional stack. Confirm
-     directly (e.g. isolate: does the second stack appear only when a Shadow visibly connects?) and get the
-     actual per-Shadow proc rate/interval, not just the inferred average. Unmodeled — see
-     `data/verification/shadow-strike.json` NYI list.
-     **CONFOUND to exclude before attributing this to shadows (accuracy council, 2026-07-15):** the equipped
-     hero trait in both measurement runs, Erika's "Lightning Shadow" tier 1 (`_hero_traits.json:2718`), can
-     itself inflict Numbed via "Feline Figure" procs — triggered by movement-based Electrify stacks (1 stack
-     per 3 m moved within 1 s, up to 3), independently of Thunder Spike or Shadows. Before crediting the Haunt
-     run's 1↔2 alternation solely to shadow hits, this follow-up test must exclude Feline Figure (e.g. confirm
-     the player was stationary / Electrify inactive throughout the parse).
+  6. **Shadows applying Thunder Spike's inherent Numbed — answered in STRUCTURE (2026-07-15), formula still
+     open.** Owner-reported and confirmed by follow-up cadence observation: inherent on-hit Numbed stacks per
+     SOURCE-GROUP, not per-hit — "1 sustained stack from the character's own True Body hit + at most 1
+     sustained stack from the clones/shadows COLLECTIVELY", capped at 2 total regardless of shadow count
+     (observed up to 4 shadows/clones). At 1 shadow the split alternates 1↔2 at ~66%/~33% (avg ≈1.33),
+     attack-speed-dependent; at 2 shadows (Haunt) it alternates ~50%/~50% (avg ≈1.5). The training dummy's
+     enormous/unknown Max Life+ES pool rules out master_glossary 762's separate damage-threshold Numbed
+     pathway (1 stack per 10% of Max ES+Life dealt) as the source at this damage level.
+     **Remaining OPEN sub-question: the clone-stack UPTIME FORMULA vs attack speed.** Three calibration points
+     so far (N=1 avg ≈1.33, N=2 avg ≈1.5, N=4 stays <2, approaching the 2-stack structural cap), but no
+     formula fit yet — a discriminating test AT A DIFFERENT ATTACK SPEED is planned to calibrate it.
+     **Numb Magnificent** (`thunder_spike_numb_magnificent`, a separate distinct inflict source from the
+     inherent structure above) was also sampled: 2 shadows → stacks 1–6 (mode ≈4); 4 shadows → stacks 1–9,
+     possibly 10 (sampling limited). An expected-value model (`0.3 × shadow_hits_per_sec × 2s`) predicts
+     ≈+1.8 extra stacks at 2 shadows and ≈+3.6 at 4 shadows, consistent with the samples — supports the shape
+     of a planned EV model, not yet engine-implemented. Still unmodeled — see `data/verification/shadow-strike.json`
+     and `data/verification/thunder-spike.json` for full detail.
+     **CONFOUND, documented for future tests — EXCLUDED for the 2026-07-15 runs (owner testimony, 2026-07-15):**
+     the equipped hero trait in both measurement runs, Erika's "Lightning Shadow" tier 1
+     (`_hero_traits.json:2718`), CAN itself inflict Numbed via "Feline Figure" procs — triggered by
+     movement-based Electrify stacks (1 stack per 3 m moved within 1 s, up to 3), independently of Thunder
+     Spike or Shadows. Owner confirms all 2026-07-15 RECOUNT runs were performed **stationary with no Electrify
+     buffs active** (deliberately let them fall off before testing) — Feline Figure is therefore EXCLUDED as
+     the source of the observed second Numbed stack for these runs; the observed alternation patterns are
+     correctly attributed to shadow-applied Numbed and do not need re-litigating for this data. Any FUTURE
+     test of this check must still confirm stationary / Electrify-inactive state before crediting shadow hits.
 - RESULT (per check): Recount Avg DPS (span) + Duration, per Shadow-count config; shadow sources equipped +
   their rolls; Shadow count observed (in-game UI, if shown); Skill level; Screenshot.
 
 ### SHADOW-02 — Thunder Spike skill specifics
 - Status: 🔶 Partial. Solo + Haunt Lv20 Recount pair measured 2026-07-15 — see `data/verification/thunder-spike.json`.
-  Check 1 supported; check 2 supported in aggregate only; check 3 (Rumbling Thunder) still ⬜ — Setup B used
+  Check 1 supported; check 2 supported in aggregate only (its shadow-applied-Numbed sub-claim is now
+  answered-in-structure — see SHADOW-01 check 6 and `data/verification/thunder-spike.json` for the RUN C plus
+  cadence / Numb Magnificent follow-up data, 2026-07-15); check 3 (Rumbling Thunder) still ⬜ — Setup B used
   Haunt, not Rumbling Thunder.
 - Setup: **Thunder Spike** alone vs the standard dummy, no supports (isolate the base skill first), then add
   **Rumbling Thunder (Noble)** for check 3.

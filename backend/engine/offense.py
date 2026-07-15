@@ -1081,6 +1081,13 @@ class OffenseResult:
     shadow_chance_quantity: float = 0.0
     shadow_dmg_additional: float = 0.0
     shadow_mult: float = 1.0
+    # Phase 1 primitive (2026-07-15, docs/BACKLOG.md §0f): expected Shadow-hit RATE — E[shadow_count] × cast
+    # rate, where E[shadow_count] = shadow_count + shadow_chance_pct·shadow_chance_quantity is the LINEAR
+    # expectation of the Despised-Shadow chance-mix. Distinct from shadow_mult's damage EV mix (which is
+    # NONLINEAR in N via the falloff formula) — this is a hit-count-per-second primitive, not a damage
+    # multiplier. No consumer yet (Frantic Shadow's Attack Speed proc / Numb Magnificent / shadow-applied
+    # Numbed are still NYI — see docs/BACKLOG.md §0f); 0.0 when the skill has no Shadows.
+    shadow_hits_per_sec: float = 0.0
     # Channeled-attack rate breakpoints (Split Shot: Rapid Advance) — the channel fires on whole 30 Hz ticks
     # (rate = 30 ÷ ticks). 0 when not a channeled attack. Surfaced in the Channeled box.
     channel_attack_ticks: int = 0
@@ -2192,6 +2199,7 @@ def calculate_offense(
     shadow_chance_quantity = 0.0
     shadow_dmg_additional_total = 0.0
     shadow_mult = 1.0
+    shadow_hits_per_sec = 0.0
     if shadow:
         shadow_dmg_additional_total = source.total("shadow_dmg_additional")
         shadow_count = int(shadow.get("count", 0) or 0)
@@ -2203,6 +2211,14 @@ def calculate_offense(
             shadow_mult = (1.0 - shadow_chance_pct) * f_base + shadow_chance_pct * f_bonus
         else:
             shadow_mult = f_base
+        # Phase 1 primitive (docs/BACKLOG.md §0f): shadow-HIT-RATE, not a damage multiplier. E[shadow_count]
+        # is the LINEAR chance-mix expectation ((1-p)*N + p*(N+k) = N + p*k) — deliberately NOT the same
+        # quantity as shadow_mult above (that one is nonlinear in N, folding the falloff formula, because
+        # it models damage). `sps` here is the skill's own cast/attack rate at this point in the function
+        # (already reflects any cast-speed breakpoint / tangle-tick rounding applied earlier). No consumer
+        # yet — this only exposes the primitive for a future shadow-hit-count/timing model.
+        expected_shadow_count = shadow_count + shadow_chance_pct * shadow_chance_quantity
+        shadow_hits_per_sec = expected_shadow_count * sps
 
     # Spell Burst mode: an eligible Spell cast at full charge consumes all M stacks and auto-recasts the spell
     # M times (the triggering cast also counts → casts_per_burst = M + 1, no damage cap — every stack is a full
@@ -2713,6 +2729,7 @@ def calculate_offense(
         shadow_chance_quantity=shadow_chance_quantity,
         shadow_dmg_additional=shadow_dmg_additional_total,
         shadow_mult=shadow_mult,
+        shadow_hits_per_sec=shadow_hits_per_sec,
         channel_attack_ticks=channel_attack_ticks,
         channel_attack_smooth_sps=channel_attack_smooth_sps,
         channel_attack_to_next_increased=channel_attack_to_next_increased,

@@ -153,6 +153,18 @@ class TestCalculateOffenseShadowKwarg:
         assert explicit_none.total_dps == pytest.approx(base.total_dps)
         assert base.shadow_mult == pytest.approx(1.0)
         assert base.shadow_count == 0
+        # shadow_hits_per_sec is the linear N + p*k hit-rate primitive (distinct from the nonlinear
+        # shadow_mult damage EV mix) -- with no shadow model attached at all, it must be exactly zero.
+        assert base.shadow_hits_per_sec == pytest.approx(0.0)
+        assert explicit_none.shadow_hits_per_sec == pytest.approx(0.0)
+
+    def test_shadow_hits_per_sec_zero_on_non_shadow_strike_skill_end_to_end(self):
+        # A real non-Shadow-Strike skill (server.engine_stats path, shadow=None wiring from
+        # engine.compute) must report shadow_hits_per_sec == 0.0, mirroring the shadow_mult neutrality
+        # already covered by TestZeroShadowsControl.
+        o = engine_stats(EngineStatsRequest(**make_request("chain_lightning", 14, gear=DUAL_WEAPONS)))
+        d = (o if isinstance(o, dict) else o.model_dump())["offense"]
+        assert d["shadow_hits_per_sec"] == pytest.approx(0.0)
 
     def test_n0_shadow_dict_is_still_neutral(self):
         base = calculate_offense(_flat_attack_source(), _skill(), 1)
@@ -183,6 +195,13 @@ class TestCalculateOffenseShadowKwarg:
         assert r.shadow_count == 1
         assert r.shadow_chance_pct == pytest.approx(0.33)
         assert r.shadow_chance_quantity == pytest.approx(3.0)
+        # shadow_hits_per_sec is the LINEAR chance-mix expectation N + p*k (deliberately NOT the same
+        # quantity as the nonlinear shadow_mult damage EV mix above) -- derived independently from spec,
+        # using the engine's own reported cast/attack rate (skills_per_second), not a re-read of the
+        # implementation's internal `sps` variable.
+        sps = r.skills_per_second
+        expected_shadow_hits_per_sec = (1 + 0.33 * 3) * sps
+        assert r.shadow_hits_per_sec == pytest.approx(expected_shadow_hits_per_sec)
 
     def test_chance_pct_zero_degenerates(self):
         plain = calculate_offense(_flat_attack_source(), _skill(), 1,
@@ -191,6 +210,27 @@ class TestCalculateOffenseShadowKwarg:
                                        shadow={"count": 2, "chance_pct": 0.0, "chance_quantity": 0.0})
         assert plain.shadow_mult == pytest.approx(withshadow.shadow_mult)
         assert plain.shadow_mult == pytest.approx(_shadow_multiplier(2, 0.0))
+
+
+class TestShadowHitsPerSecRate:
+    """shadow_hits_per_sec (offense.py ~2202-2221): the LINEAR chance-mix hit-rate expectation
+    N + p*k, times the skill's own cast/attack rate. Deliberately distinct from shadow_mult, which
+    folds the nonlinear _shadow_multiplier falloff formula for the DAMAGE EV mix. Covers the
+    chance-only and flat-count-only edges the worked example (N=1, p=0.33, k=3) doesn't isolate."""
+
+    def test_chance_only_no_flat_count(self):
+        # count=0, chance_pct=0.33, chance_quantity=3 -> N + p*k = 0 + 0.33*3 = 0.99 exactly.
+        r = calculate_offense(_flat_attack_source(), _skill(), 1,
+                              shadow={"count": 0, "chance_pct": 0.33, "chance_quantity": 3})
+        sps = r.skills_per_second
+        assert r.shadow_hits_per_sec == pytest.approx(0.99 * sps)
+
+    def test_flat_count_only_no_chance(self):
+        # count=2, no chance source at all -> N + p*k collapses to the flat count: 2 exactly.
+        r = calculate_offense(_flat_attack_source(), _skill(), 1,
+                              shadow={"count": 2, "chance_pct": 0.0, "chance_quantity": 0.0})
+        sps = r.skills_per_second
+        assert r.shadow_hits_per_sec == pytest.approx(2.0 * sps)
 
 
 # ── 4. shadow_dmg_additional scoping (regression guard for the pool-leak bug) ────────────────────────

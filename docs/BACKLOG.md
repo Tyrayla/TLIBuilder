@@ -164,7 +164,9 @@ Shipped: the **Shadow Strike delivery model** (Help DB `shadow-strike`; master_g
 `total_dps = 0.0`). N Shadows repeat the player's own attack; the falloff coefficient is 70% (first Shadow full
 damage, each further Shadow additionally −70%), folded into `total_dps` as a delivery multiplier
 `shadow_mult = 1 + (1 + 0.30·(N−1))·(1 + Σ shadow_dmg_additional)`; player hit is independent of the shadow
-falloff chain. Despised Shadow's "33% chance to gain +3 Shadows" is modeled as a per-cast expected-value mix
+falloff chain. **This flat (non-compounding) falloff shape is now CONFIRMED** via a dedicated N=3 in-game
+measurement (RUN C, 2026-07-15 — flat model matched within 0.3%, a compounding-chain alternative was rejected
+by >8%; see `data/verification/shadow-strike.json`). Despised Shadow's "33% chance to gain +3 Shadows" is modeled as a per-cast expected-value mix
 (owner-approved 2026-07-15). Thunder Spike itself: 205%→277% WAD Lv1–20, an intrinsic 100% Physical→Lightning
 conversion (the first skill-intrinsic conversion in the engine — `ResolvedSkill.intrinsic_convert`), and an
 inherent Numbed-on-True-Body-hit (1 stack, interval 1s, wired via a skill-scoped `ConditionEffect` since
@@ -194,11 +196,20 @@ assumption: continuous casting vs a boss → ~permanent uptime) — needs in-gam
   uptime on 2) — engine models a flat 1 stack. Quantified: exact on a shadow-free baseline (solo Thunder Spike),
   ~2.6% conservative once shadows are present (they can independently apply the inherent Numbed — see next
   bullet). Model the alternation once ailment-uptime work lands.
-- **NEW mechanic (owner-reported 2026-07-15, unmodeled): Shadow hits can themselves apply Thunder Spike's
-  inherent on-hit Numbed**, not only the player's own True Body hit — this is how a Haunt-equipped run reaches
-  an average ≈1.5 Numbed stacks. Needs shadow-hit-count/timing modeling — the same unlock the Frantic Shadow
-  Attack Speed proc and Numb Magnificent both need (see above). See `data/verification/shadow-strike.json` and
-  `data/verification/thunder-spike.json` notes.
+- **Shadow-applied inherent Numbed — structure now known (2026-07-15), formula still unmodeled.** Shadow hits
+  can themselves apply Thunder Spike's inherent on-hit Numbed, not only the player's own True Body hit —
+  this is how a Haunt-equipped run reaches an average ≈1.5 Numbed stacks. Follow-up cadence testing
+  (2026-07-15) establishes the STRUCTURE: stacking is per-source-group, not per-hit — 1 sustained stack from
+  the character + at most 1 sustained stack from the shadows/clones collectively, capped at 2 regardless of
+  shadow count (observed to 4). Three calibration points for the clone-uptime formula vs attack speed: N=1
+  avg ≈1.33 (~66%/~33% split), N=2 avg ≈1.5 (~50%/~50%), N=4 stays <2 (approaching the structural cap) — the
+  split is attack-speed-dependent and a test at a different attack speed is planned to fit the formula. The
+  separate falloff-shape question (flat vs compounding per-shadow damage delivery) is now CONFIRMED FLAT via
+  a dedicated N=3 measurement (RUN C, 2026-07-15) — see `data/verification/shadow-strike.json`. Needs
+  shadow-hit-count/timing modeling to engine-implement — the same unlock the Frantic Shadow Attack Speed proc
+  and Numb Magnificent both need (see above; Numb Magnificent now has 2026-07-15 sampled stack ranges at 2
+  and 4 shadows recorded too). See `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json`
+  notes.
 
 ## 0c. Tangles (core shipped 2026-06-17 — follow-ups)
 Shipped: the **Tangle skill type**. A Spell becomes a Tangle via an activator support (**Spell Tangle** /
