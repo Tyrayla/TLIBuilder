@@ -301,6 +301,30 @@ def _apply_cond_effects(condition_state, effects, main_dtypes, manual_keys, auto
             auto_values[e.condition_key] = condition_state[e.condition_key]
 
 
+def _fresh_max_effect_value(effects, key: str, condition_state, main_dtypes) -> float | None:
+    """The max 'max'-mode value among `effects` targeting `key` that pass their gate THIS PASS — the SAME
+    dtype/requires_cond gating `_apply_cond_effects` applies, but evaluated fresh (never reading
+    condition_state[key]'s own carried-over value). Counterpart for a floor that can legitimately DECREASE
+    pass-to-pass (e.g. Thunder Spike's rate-dependent Numbed floor, which tracks a converging `sps`):
+    `_apply_cond_effects`'s normal `max(cur_from_last_pass, value)` ratchets such a floor to its highest-ever
+    transient instead of its converged value. Returns None if no qualifying effect exists (caller decides
+    the no-op default). See .wolf/buglog.json (thunder-spike-numbed-floor-ratchet)."""
+    dtypes = {d.lower() for d in (main_dtypes or [])}
+    best: float | None = None
+    for e in effects or []:
+        if e.condition_key != key or e.mode != "max":
+            continue
+        if e.requires_dtype == "elemental":
+            if not (dtypes & ELEMENTAL):
+                continue
+        elif e.requires_dtype and e.requires_dtype not in dtypes:
+            continue
+        if e.requires_cond and not condition_state.get(e.requires_cond):
+            continue
+        best = e.value if best is None else max(best, e.value)
+    return best
+
+
 def _active_skill_costs(skills_input, skills_by_id, attached_supports, source, condition_state, otbt):
     """Per-cast COST of EVERY enabled active skill (slots 1-5), each summed at its OWN cast/attack rate (cost ≠
     consume; no rotation assumption — each skill's per-cast cost × its use rate). Returns
@@ -993,6 +1017,91 @@ def compute(
                 auto_sources["aim_level"] = f"Aim Level {int(_aim_lvl)}"
                 auto_values["aim_level"] = float(_aim_lvl)
 
+        # Thunder Spike: "The skill's Shadow Strike True Body inflicts 1 stack of Numbed … on hit. Interval:
+        # 1s" is an INTRINSIC skill property, not a mod line, so engine.ailment_inflict.scan_numbed_inflict
+        # (gear/talent/custom-mod TEXT only) can't see it — auto-derived here (moved from server.py
+        # 2026-07-15) via the SAME ConditionEffect/_apply_cond_effects machinery curses use for
+        # enemy_cursed. requires_dtype=None (not "lightning"): attack-skill ResolvedSkill.damage_types is
+        # never populated (only spell resolvers set it), and Thunder Spike's Lightning damage is guaranteed
+        # unconditionally by its own 100% Physical->Lightning conversion, not a build choice.
+        #
+        # Phase 2 (2026-07-15, owner-confirmed via the Rhythm/AM discriminating tests — .wolf/memory.md
+        # "Part B v3"): the flat floor of 1 stack is WRONG — Numbed applications independently stack
+        # (glossary 762: "duration of each stack is calculated independently"), each spaced
+        # s = ceil(I·aps)/aps apart (I = this skill's own stated 1s inflict interval). By the
+        # renewal-reward theorem the expected concurrently-alive count in the ailment's own D=2.0s duration
+        # window is E[stacks] = D/s = D·aps / ceil(I·aps) — a pure function of the slot's EFFECTIVE attack
+        # rate (self-limiting: ceil(I·aps) ≥ I·aps always, so E[stacks] ≤ D/I = 2 — matches the owner's
+        # "never above 2" observation with no extra clamp needed). N-independence CONFIRMED (owner,
+        # 2026-07-15: identical 1↔2 bounce pattern at 0/2/4 shadows) — deliberately no shadow-count term.
+        # Needs the slot's post-slot-materialization rate (incl. any Activation-Medium trigger override),
+        # which only exists here in engine.compute, not in server.py before aggregation — this whole
+        # ConditionEffect pair now lives here instead (was server.py before this Phase-2 change).
+        #
+        # Explicitly NOT modeled (NYI, semantics still open — owner-flagged 2026-07-15): Numb Magnificent's
+        # "30% chance to inflict Numbed when Shadows hit" (shadow-scaled — different from the inherent),
+        # a generic "inflicts Numbed when dealing hit Lightning damage" line, and "Everburn Thunderfires"
+        # ("+1 additional stack", a ×2 overlay) — none of these are line-based sources this block reads.
+        _thunder_spike_numbed_effects: list = []
+        _ts_stacks_this_pass: float | None = None   # rate-dependent floor, recomputed fresh every pass — never
+                                                      # carried into a max() against a prior pass's value (that's
+                                                      # the ratchet bug; see the direct-assign block below)
+        if skills_by_id:
+            from engine.skill_resolver import resolve_skill as _resolve_ts_numbed
+            from engine.offense import compute_skill_rates as _ts_numbed_rates
+            from engine import skill_effects as _ts_skill_effects
+            import math as _ts_numbed_math
+            _TS_NUMBED_I = 1.0   # Thunder Spike's own stated inflict interval (SS12 _skills.json: "Interval: 1 s")
+            _TS_NUMBED_D = 2.0   # Numbed's own per-stack duration (glossary 762: "default duration of Numbed is 2s")
+            for _ts_sk in (skills_input or []):
+                if not _ts_sk.get("enabled", True):
+                    continue
+                _ts_sd = skills_by_id.get(_ts_sk.get("skill_id"))
+                if not _ts_sd or _ts_sd.get("item_id") != "thunder_spike":
+                    continue
+                _ts_resolved = _resolve_ts_numbed(_ts_sd)
+                _ts_mt = ({t.lower() for t in _ts_resolved.tags}
+                          | {t.lower() for t in getattr(_ts_resolved, "extra_damage_mod_tags", [])})
+                _ts_eff = source.materialize_for_skill(_ts_mt, _ts_sk["slot"])
+                # AM trigger overrides (trigger_interval / wind_rhythm_base_cooldown) are only emitted by
+                # skill_effects.apply_slot_effects, which normally runs later (in _offense_for_slot, AFTER
+                # this loop converges) — not yet in `source` at this point. Peek them on a THROWAWAY scratch
+                # source (apply_slot_effects is a pure function of attached_supports/skills_by_id, not of
+                # the converged build state) so compute_skill_rates sees the same effective rate the real
+                # offense pass will use, without double-emitting into the real `source`.
+                _ts_scratch = BuildSource()
+                _ts_skill_effects.apply_slot_effects(
+                    _ts_resolved.skill_id, source=_ts_scratch, resolved=_ts_resolved, slot=_ts_sk["slot"],
+                    condition_state=condition_state, mod_tags=_ts_mt,
+                    attached_supports=build_input.attached_supports, skills_by_id=skills_by_id)
+                # apply_slot_effects emits via add_slotted (slot_entries), which only folds into _entries
+                # through materialize_for_skill — mirrors exactly how _offense_for_slot consumes it later.
+                _ts_scratch = _ts_scratch.materialize_for_skill(_ts_mt, _ts_sk["slot"])
+                if _ts_scratch._entries:
+                    _ts_eff = BuildSource(
+                        _entries=_ts_eff._entries + _ts_scratch._entries,
+                        source_log=_ts_eff.source_log, consumed_stats=_ts_eff.consumed_stats,
+                        _recording=_ts_eff._recording,
+                    )
+                _ts_sps = _ts_numbed_rates(_ts_eff, _ts_resolved).get("sps", 0.0)
+                if _ts_sps <= 0:
+                    continue
+                # Epsilon guard on the breakpoint: float noise landing a hair above an integer multiple of I
+                # (e.g. 2.0000000001) must not flip ceil() up a full unit and drop E[stacks] from 2.0 to 1.33 —
+                # same float-noise-at-breakpoints treatment as the consumed_recently rounding at line ~811.
+                _ts_stacks_this_pass = (_TS_NUMBED_D * _ts_sps) / _ts_numbed_math.ceil(_TS_NUMBED_I * _ts_sps - 1e-9)
+                from engine.support_mapper import ConditionEffect as _ThunderSpikeNumbedCE
+                # Only enemy_numbed (idempotent boolean, set_true) rides the normal _apply_cond_effects path
+                # below — numbed_stacks is rate-dependent (see the direct-assign block after it) and must NOT
+                # be fed through _apply_cond_effects's persistent max-mode (that's the ratchet bug fixed
+                # 2026-07-15; .wolf/buglog.json thunder-spike-numbed-floor-ratchet).
+                _thunder_spike_numbed_effects = [
+                    _ThunderSpikeNumbedCE("enemy_numbed", 1.0, "set_true",
+                                          source="Thunder Spike (True Body hit, assumed)"),
+                ]
+                break  # one thunder_spike slot is enough to establish the floor — if slotted twice, the FIRST
+                       # enabled slot's rate wins (skills_input order); not both slots' floors combined
+
         # Apply auto-derived support condition effects (Inflicts Numbed/Frostbite, Grudge→Paralyze,
         # Electric Overload, Willpower) before clamp/rederive, respecting manually-set values. Non-support
         # "inflicts Numbed" sources (talents/gear/custom mods) ride the same path via inflict_cond_effects.
@@ -1001,8 +1110,32 @@ def compute(
         # call above simply has nothing to apply. A MANUAL user toggle of enemy_numbed / numbed_stacks is
         # NOT force-cleared here — mirrors Frostbite, where a "cannot inflict Frostbite" block likewise only
         # withholds enemy_frostbitten's auto-apply ConditionEffect and never hard-clears a manual toggle.
-        _apply_cond_effects(condition_state, list(cond_effects) + list(build_input.inflict_cond_effects),
+        _apply_cond_effects(condition_state,
+                            list(cond_effects) + list(build_input.inflict_cond_effects) + _thunder_spike_numbed_effects,
                             main_dtypes, manual_cond_keys, auto_sources, auto_values)
+
+        # Thunder Spike's numbed_stacks floor: DIRECT-ASSIGN, not fed through _apply_cond_effects's
+        # persistent max-mode. numbed_stacks is rate-dependent (tracks a converging sps that can legitimately
+        # DECREASE pass-to-pass — e.g. once Aim/Euphoria's -16% attack/cast malus enters `source` on pass 2+,
+        # concrete trigger: aim_trigger_flag sets aim_active at the end of pass 1 via the loop-top trait/aim
+        # block, so the malus is absent from pass 1's `source` and only lands in pass 2's aggregate). Because
+        # condition_state persists across fixed-point iterations, max(cur_from_last_pass, value) would ratchet
+        # to the highest-ever transient instead of the converged value (correctness review finding,
+        # 2026-07-15 — .wolf/buglog.json thunder-spike-numbed-floor-ratchet). Fix: each pass, if the key isn't
+        # manually pinned (live check — genuinely user-set OR this pass's hero-trait override, which already
+        # ran earlier in the loop and takes precedence), recompute THIS PASS's own floor candidates fresh —
+        # this pass's Thunder Spike rate floor maxed with any OTHER pass-invariant auto floor (e.g. High
+        # Voltage's flat 1.0, read fresh via _fresh_max_effect_value so it never reads condition_state's own
+        # carried-over value either) — and overwrite directly. Deliberately does NOT add "numbed_stacks" to
+        # manual_cond_keys: doing so would make THIS pass's write look "manual" to the NEXT pass, permanently
+        # blocking the very re-derivation this fix exists to allow.
+        if _ts_stacks_this_pass is not None and "numbed_stacks" not in manual_cond_keys:
+            _ts_other_floor = _fresh_max_effect_value(
+                list(cond_effects) + list(build_input.inflict_cond_effects), "numbed_stacks",
+                condition_state, main_dtypes)
+            condition_state["numbed_stacks"] = max(_ts_stacks_this_pass, _ts_other_floor or 0.0)
+            auto_sources["numbed_stacks"] = "Thunder Spike (True Body hit, assumed)"
+            auto_values["numbed_stacks"] = condition_state["numbed_stacks"]
 
         maxes = derive_condition_maximums(source)
         mins = derive_condition_minimums(source)

@@ -1023,29 +1023,12 @@ def engine_stats(req: EngineStatsRequest):
     if any(c.get("enabled", True) for c in active_curses) and not core_condition_state.get("enemy_cursed"):
         core_condition_state = {**core_condition_state, "enemy_cursed": True}
 
-    # Thunder Spike: "The skill's Shadow Strike True Body inflicts 1 stack of Numbed … on hit" is an
-    # INTRINSIC skill property, not a mod line, so engine.ailment_inflict.scan_numbed_inflict (which only
-    # scans gear/talent/custom-mod TEXT) can never see it. Auto-derive the same enable+floor pattern
-    # (enemy_numbed + a numbed_stacks floor) via the SAME ConditionEffect/_apply_cond_effects machinery,
-    # sourced from the skill itself — mirrors how curses above auto-set enemy_cursed. requires_dtype=None
-    # (not "lightning"): attack-skill ResolvedSkill.damage_types is never populated (only spell resolvers
-    # set it — see engine.compute's main_dtypes comment), and Thunder Spike's Lightning damage is guaranteed
-    # unconditionally by its own 100% Physical->Lightning conversion, not a build choice.
-    # 2026-07-15 correctness fix: scan ALL slotted (enabled) skills, not just the main skill — mirrors
-    # resolve_curses above (skills_input build-wide), not just `skill_data` (main_skill only). Thunder Spike
-    # slotted as a non-main active skill was still actively casting and inflicting Numbed, but the earlier
-    # main-skill-only check never auto-set enemy_numbed/numbed_stacks for it, silently under-computing any
-    # "+% damage to Numbed enemies" modifier. See .wolf/buglog.json.
-    _intrinsic_numbed_effects: list = []
-    if skills_by_id and any(
-            (skills_by_id.get(s.get("skill_id")) or {}).get("item_id") == "thunder_spike"
-            and s.get("enabled", True)
-            for s in (skills_input or [])):
-        from engine.support_mapper import ConditionEffect as _ThunderSpikeNumbedCE
-        _intrinsic_numbed_effects = [
-            _ThunderSpikeNumbedCE("enemy_numbed", 1.0, "set_true", source="Thunder Spike (True Body hit, assumed)"),
-            _ThunderSpikeNumbedCE("numbed_stacks", 1.0, "max", source="Thunder Spike (True Body hit, assumed)"),
-        ]
+    # Thunder Spike's intrinsic Numbed auto-derive (enemy_numbed + a numbed_stacks floor) MOVED to
+    # engine.compute (2026-07-15, Phase 2 — see .wolf/memory.md "Part B v3"): the floor is now a
+    # RATE-DEPENDENT formula (E[stacks](aps) = D·aps / ceil(I·aps), the confirmed independent-stacking
+    # window model), which needs the slot's effective attack rate post-aggregation/post-slot-materialization
+    # — not available here in server.py before compute() even runs. See engine/compute.py's fixed-point
+    # loop, right before _apply_cond_effects.
 
     # Editable calc-target stats → fractions for the offense mitigation (None keeps the engine's Lv85 defaults).
     _tc = req.target_config
@@ -1084,8 +1067,7 @@ def engine_stats(req: EngineStatsRequest):
         trait_contributions=trait_contributions,
         uptime_mode=req.uptime_mode,
         target_config=target_config,
-        inflict_cond_effects=(_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects()
-                             + _intrinsic_numbed_effects),
+        inflict_cond_effects=(_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects()),
     )
     from engine.identity_index import get_identity_index
     result = compute(

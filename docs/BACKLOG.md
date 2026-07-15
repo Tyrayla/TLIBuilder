@@ -172,9 +172,19 @@ conversion (the first skill-intrinsic conversion in the engine — `ResolvedSkil
 inherent Numbed-on-True-Body-hit (1 stack, interval 1s, wired via a skill-scoped `ConditionEffect` since
 `ailment_inflict.scan_numbed_inflict` only scans gear/talent/custom-mod text, not a skill's own tooltip line).
 Rumbling Thunder's "+45–48% additional Lightning on True Body hit for 2s" is modeled DEFAULT ON (owner-approved
-assumption: continuous casting vs a boss → ~permanent uptime) — needs in-game confirmation. Full detail:
-`data/verification/shadow-strike.json`, `data/verification/thunder-spike.json`;
-`docs/INGAME_VERIFICATION_BACKLOG.md` SHADOW-01/02.
+assumption: continuous casting vs a boss → ~permanent uptime) — needs in-game confirmation. **Numbed-uptime
+formula CONFIRMED same day (2026-07-15, later): shadows do NOT apply Thunder Spike's inherent Numbed at all**
+(N-independence + direct-proof test, superseding an earlier same-day "shadow-applied source-group" hypothesis —
+see the Explicitly NYI list below); the observed 1↔2 alternation is fully explained by the player's own hit
+cadence against Numbed's independent-stacking window, `E[stacks](aps) = 2.0·aps / ceil(1.0·aps)`, reconciling
+all three RECOUNT runs within 0.25%. **Phase 2 is now IMPLEMENTED** (auto-derived fractional `numbed_stacks`
+floor, `backend/engine/compute.py`; verified solo manual +0.23% vs measured 349, zero golden fixture changes,
+2 stale tests updated). Line-based Numbed-inflict sources are a separate, distinct mechanism (refresh
+semantics via a constant floor, not the inherent's window formula): **High Voltage is CONFIRMED CORRECTLY
+MODELED** (its own flat cadence-independent floor already matches the owner's observations); **Numb
+Magnificent** and **Everburn Thunderfire** (SS12 legendary girdle — exists in our data) remain open/unmodeled
+for Thunder Spike specifically — see below. Full detail: `data/verification/shadow-strike.json`,
+`data/verification/thunder-spike.json`; `docs/INGAME_VERIFICATION_BACKLOG.md` SHADOW-01/02.
 
 **Explicitly NYI** (owner decisions 2026-07-15 — listed so they're never silently dropped):
 - **Frantic Shadow** "X% chance to gain +Y% Attack Speed for Zs when Shadows hit enemies" and **Numb
@@ -192,32 +202,53 @@ assumption: continuous casting vs a boss → ~permanent uptime) — needs in-gam
   `skill_resolver._REGISTRY`; Thunder Spike is the only one live in v1. Detection is tag-driven off the
   "Shadow Strike" skill tag (not hardcoded to `thunder_spike`), so both light up automatically once registered
   — no Shadow-Strike-specific code needed when that happens.
-- **Numbed stack-alternation uptime** (owner-measured 2026-07-15: in-game Numbed alternates 1↔2 stacks, ~50%
-  uptime on 2) — engine models a flat 1 stack. Quantified: exact on a shadow-free baseline (solo Thunder Spike),
-  ~2.6% conservative once shadows are present (they can independently apply the inherent Numbed — see next
-  bullet). Model the alternation once ailment-uptime work lands.
-- **Shadow-applied inherent Numbed — structure known (2026-07-15), clone-uptime formula OPEN (phase-slot
-  candidate REFUTED 2026-07-15).** Shadow hits can themselves apply Thunder Spike's inherent on-hit Numbed,
-  not only the player's own True Body hit — this is how a Haunt-equipped run reaches an average ≈1.5 Numbed
-  stacks. Follow-up cadence testing (2026-07-15) establishes the STRUCTURE: stacking is per-source-group, not
-  per-hit — 1 sustained stack from the character + at most 1 sustained stack from the shadows/clones
-  collectively, capped at 2 regardless of shadow count (observed to 4). Three calibration points for the
-  clone-uptime formula vs attack speed: N=1 avg ≈1.33 (~66%/~33% split), N=2 avg ≈1.5 (~50%/~50%), N=4 stays
-  <2 (approaching the structural cap) — the split is attack-speed-dependent. A follow-up **Rhythm-cadence
-  discriminating test (2026-07-15, Part 2)** used the Rhythm activation medium to force an exact attack
-  cadence: 1.0s interval and forced 2 attacks/sec both sustained **100% uptime at 2 stacks**, while a 0.7s
-  interval alternated 1↔2 at a varying, phase-dependent percentage. This **REFUTES** the discrete cast-slot
-  phase-slot candidate model (`.wolf/memory.md` 2026-07-15 "Part B re-derivation"), which had predicted a
-  deterministic 50% overlap at every attack speed including aps=1.0 — flatly contradicted by the measured 100%
-  uptime there. The non-monotonic pattern instead points to an INTERVAL-ALIGNMENT mechanism (cadences dividing
-  evenly into the 1s inherent inflict interval sustain both stacks); **re-derivation is in progress and the
-  clone-uptime FORMULA remains OPEN/UNMODELED** — the phase-slot candidate must not be promoted. The separate
-  falloff-shape question (flat vs compounding per-shadow damage delivery) is now CONFIRMED FLAT via a
-  dedicated N=3 measurement (RUN C, 2026-07-15) — see `data/verification/shadow-strike.json`. Needs
-  shadow-hit-count/timing modeling to engine-implement — the same unlock the Frantic Shadow Attack Speed proc
-  and Numb Magnificent both need (see above; Numb Magnificent now has 2026-07-15 sampled stack ranges at 2
-  and 4 shadows recorded too). See `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json`
-  notes.
+- **Numbed stack-alternation uptime — CONFIRMED FORMULA (2026-07-15, later same day); Phase 2 IMPLEMENTED
+  same session.** Owner-measured 2026-07-15: in-game Numbed alternates 1↔2 stacks; the engine models a
+  flat 1 stack. Superseding all earlier candidates (shadow-applied source-group, discrete phase-slot,
+  interval-alignment — see history below), a later-same-day **N-independence + direct-proof test** established
+  that Shadows contribute NOTHING to Thunder Spike's inherent on-hit Numbed line at any tested count (Rhythm
+  0.7s at N=2 and N=4 shadows bounced 1↔2 identically to the N=0 solo baseline; positioning the main True Body
+  to miss while Shadows — larger Tracking Area — hit produced 0 stacks). The entire 1↔2 alternation is instead
+  explained by the player's own hit cadence against Numbed's independent-stacking window: `E[stacks](aps) =
+  2.0·aps / ceil(1.0·aps)` (I=1s tooltip interval, D=2s master_glossary 762 default duration — "the duration of
+  each stack is calculated independently" corroborates the model). This CONFIRMED formula reconciles all three
+  2026-07-15 RECOUNT runs (solo, +Haunt, RUN C N=3 — all same 1.5 APS baseline) within 0.25%, using a single
+  shadow-count-independent average instead of the earlier per-run bespoke corrections. **Phase 2 is now
+  IMPLEMENTED this same working session**: the formula is auto-derived as the fractional `numbed_stacks` floor
+  (replacing the flat-1 default) in `backend/engine/compute.py`. Verified: solo manual ≈1.5 aps → E=1.5 →
+  +0.23% vs measured 349; zero golden fixture changes; 2 stale tests updated by testing to match.
+- **Shadow-applied inherent Numbed — REFUTED (2026-07-15, later same day), retained here for history.** An
+  earlier same-day hypothesis (structure known: 1 sustained stack from the character + at most 1 from the
+  shadows/clones collectively, capped at 2, three calibration points N=1 avg ≈1.33 / N=2 avg ≈1.5 / N=4 <2) and
+  a subsequent Rhythm-cadence discriminating test that refuted a discrete phase-slot candidate
+  (`.wolf/memory.md` 2026-07-15 "Part B re-derivation") in favor of an interval-alignment candidate were BOTH
+  superseded the same day by the N-independence + direct-proof test above, which shows Shadows never apply the
+  inherent line at all — only the player's own True Body hit does, via the independent-stacking window model.
+  Neither the source-group structure nor the interval-alignment candidate should be engine-implemented; both
+  are retained in `data/verification/shadow-strike.json` / `thunder-spike.json` for their record of the
+  reasoning process. The separate falloff-shape question (flat vs compounding per-shadow damage delivery) is
+  unaffected and remains CONFIRMED FLAT via a dedicated N=3 measurement (RUN C, 2026-07-15).
+- **Line-based Numbed-inflict sources — two distinct mechanisms, correctly distinguished by engine analysis
+  (2026-07-15, later same day).** Owner's explicit caution held: the inherent refutation above does NOT
+  generalize to these — they are a genuinely separate mechanism (refresh semantics via a constant floor, not
+  the inherent's window formula). **Numb Magnificent**'s "30% chance to inflict Numbed … when the supported
+  skill's Shadows hit an enemy" (2026-07-15 sampled stack ranges: 2 shadows 1–6 mode≈4, 4 shadows 1–9 possibly
+  10) still needs the same shadow-hit-count EV modeling as Frantic Shadow's Attack Speed proc — remains
+  unmodeled. **High Voltage** (`high_voltage`, generic support_skill, "Inflicts Numbed when the supported
+  skill deals Hit Lightning Damage", unconditional on-hit) is **CONFIRMED CORRECTLY MODELED**: the engine
+  already applies a flat cadence-independent `numbed_stacks` floor of 1 via `support_mapper.py::map_autoderive_line`
+  (the `inflicts? numbed` branch, ~line 260, explicitly commented `# High Voltage` — support-skill lines never
+  enter `ailment_inflict`'s scan pool, which covers gear/talent/custom/spirit/memory text only), exactly
+  matching the owner's observation (shadows-only hits sustain exactly 1 stack, never 2); the cap-at-2 combined
+  with the main hit falls out of the existing `max()` ConditionEffect machinery (floors don't sum) — no gap
+  here. **Everburn Thunderfire** (`everburn_thunderfire`, SS12 legendary girdle — **exists in our SS12 data**,
+  correcting an earlier same-day "likely uncrawled SS13" note): "Inflicts 1 additional stack(s) of Numbed."
+  Owner-observed bounce shift to 2↔4 (shadow-independent +2 offset) is strong independent supporting evidence
+  for the confirmed window model (a doubled payload per application) — **but is currently NYI for Thunder
+  Spike specifically**: `ailment_inflict`'s pattern-C needs a paired inflict trigger in its own scan, and
+  Thunder Spike's intrinsic trigger isn't wired into that system, so equipped alone on a Thunder Spike build it
+  is silently inert in the engine today. Filed as an explicit NYI/verification item (never silently drop).
+  See `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json` notes for full detail.
 - **Despised Shadow's proc chance is USE-gated, not CAST-gated (owner-stated, 2026-07-15) — SHIPPED
   same-day.** The "33% chance to gain +N Shadows when using the Shadow Strike skill" line does NOT proc off
   triggered casts (Rhythm/Instruction activation-medium triggers on Thunder Spike are CASTs, not USEs — the

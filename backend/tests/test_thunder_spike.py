@@ -16,6 +16,8 @@ matches data/verification/shadow-strike.json's recorded implementation value).
 """
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from engine.models import BuildSource
@@ -319,6 +321,16 @@ def _sup(item_id, stype, level=1, rank=1, slot=1):
     return {"item_id": item_id, "skill_type": stype, "rank": rank, "level": level, "slot": slot}
 
 
+def _ts_expected_stacks(sps: float) -> float:
+    """The Phase 2 (2026-07-15) independent-stacking window formula for Thunder Spike's inherent
+    on-hit Numbed: E[stacks] = D*sps / ceil(I*sps), I=1.0s (skill's own tooltip inflict interval),
+    D=2.0s (master_glossary 762 default Numbed duration). Mirrors engine.compute.py ~1061 exactly --
+    re-derived here from the same formula, not copied from an implementation import, so this is still
+    an independent check of the WIRING (does the engine feed it the right sps?), not the formula's
+    own math (covered directly by TestNumbedStacksFormulaPhase2 below)."""
+    return (2.0 * sps) / math.ceil(1.0 * sps)
+
+
 class TestZeroShadowsControl:
     def test_no_shadow_source_is_plain_attack(self):
         o = _off()["offense"]
@@ -334,18 +346,33 @@ class TestZeroShadowsControl:
 
 class TestNumbedAutoSet:
     """Thunder Spike auto-derives TWO independent conditions from its intrinsic True-Body-Numbed line
-    (server.py's `_intrinsic_numbed_effects`): enemy_numbed (set_true) and numbed_stacks (max-floor 1).
-    Each is gated by its OWN key in manual_keys, so they are overridable independently."""
+    (engine.compute.py ~1004-1071, moved from server.py's old `_intrinsic_numbed_effects` in the Phase 2
+    change below): enemy_numbed (set_true) and numbed_stacks (max-floor, now FRACTIONAL). Each is gated
+    by its OWN key in manual_keys, so they are overridable independently.
+
+    Phase 2 (2026-07-15, owner-measurement-confirmed): the numbed_stacks floor changed from a flat 1.0
+    to the independent-stacking window formula E[stacks] = D*sps / ceil(I*sps) (I=1s inflict interval,
+    D=2s glossary-762 Numbed duration), using the slot's own compute_skill_rates sps (same rate the
+    offense pass uses, including any Activation-Medium trigger override). This reconciles all three
+    owner RECOUNT runs (solo, +Haunt, +Haunt+slate) to within 0.25% -- see data/verification/
+    thunder-spike.json and .wolf/memory.md "Part B v3, FINAL" / "N-independence + direct-proof test".
+    The DUAL_WEAPONS build below (1.3aps + 1.1aps dual-wield, no AM trigger) computes sps=2.64, so the
+    expected stacks are 2.0*2.64/ceil(2.64) = 2.0*2.64/3 = 1.76 (not the old flat 1.0) -- expectations
+    below are DERIVED from the build's own reported skills_per_second, not a hardcoded magic number, so
+    they stay correct if the test's dual-wield weapon stats ever change."""
 
     def test_auto_sets_both_enemy_numbed_and_stacks_floor(self):
         r = _off()
         auto = r.get("auto_conditions") or {}
+        sps = r["offense"]["skills_per_second"]
+        expected_stacks = _ts_expected_stacks(sps)
         assert auto.get("enemy_numbed", {}).get("value") is True
-        assert auto.get("numbed_stacks", {}).get("value", 0.0) >= 1.0
+        assert auto.get("numbed_stacks", {}).get("value", 0.0) == pytest.approx(expected_stacks)
         # numbed_lightning_taken (+5%/stack) is an enemy-damage-taken multiplier -- only visible post
         # target-mitigation (total_dps_vs_target), not the raw outgoing total_dps.
         floored = r["stats"].get("numbed_lightning_taken", {}).get("total", 0.0)
-        assert floored == pytest.approx(0.05)   # 1 stack * 5%/stack
+        assert floored == pytest.approx(0.05 * expected_stacks)   # expected_stacks * 5%/stack
+        assert expected_stacks == pytest.approx(1.76)             # pinned to the dual-wield sps=2.64 case
 
     def test_numbed_stacks_override_removes_the_floor(self):
         # Overriding numbed_stacks (its OWN key) explicitly suppresses the auto max-floor.
@@ -358,17 +385,215 @@ class TestNumbedAutoSet:
 
     def test_enemy_numbed_override_is_independent_of_stacks_floor(self):
         # Overriding enemy_numbed alone (its OWN key) must NOT touch the separate numbed_stacks floor --
-        # each auto-derived condition is gated on its own manual_keys membership.
+        # each auto-derived condition is gated on its own manual_keys membership. Phase 2 (2026-07-15):
+        # expected stacks derived from the build's own sps (2.64 -> 1.76), same as
+        # test_auto_sets_both_enemy_numbed_and_stacks_floor above -- overriding enemy_numbed must not
+        # change it.
         r = _off(extra_conditions={"enemy_numbed": False})
         auto = r.get("auto_conditions") or {}
+        sps = r["offense"]["skills_per_second"]
+        expected_stacks = _ts_expected_stacks(sps)
         assert auto.get("enemy_numbed", {}).get("value") is not True
-        assert auto.get("numbed_stacks", {}).get("value", 0.0) >= 1.0
-        assert r["stats"].get("numbed_lightning_taken", {}).get("total", 0.0) == pytest.approx(0.05)
+        assert auto.get("numbed_stacks", {}).get("value", 0.0) == pytest.approx(expected_stacks)
+        assert r["stats"].get("numbed_lightning_taken", {}).get("total", 0.0) == pytest.approx(0.05 * expected_stacks)
 
     def test_user_can_raise_stacks_explicitly(self):
         low = _off(extra_conditions={"numbed_stacks": 1})
         high = _off(extra_conditions={"numbed_stacks": 10})
         assert high["offense"]["total_dps_vs_target"] > low["offense"]["total_dps_vs_target"]
+
+
+class TestNumbedStacksFormulaPhase2:
+    """Independent coverage of the Phase 2 (2026-07-15) `numbed_stacks` auto-derive formula
+    E[stacks](sps) = D*sps / ceil(I*sps), I=1.0s, D=2.0s (engine.compute.py ~1004-1071), wired from
+    the SAME compute_skill_rates sps the offense pass uses (including AM trigger overrides peeked via
+    a scratch-source apply_slot_effects run). Formula and measurement basis: .wolf/memory.md 2026-07-15
+    "Part B v3, FINAL" / "N-independence + direct-proof test" -- owner-confirmed via RECOUNT
+    reconciliation of solo/+Haunt/+Haunt+slate runs to within 0.25%, and independently via a
+    zero-shadow Rhythm cadence test (permanent 2 stacks at 1.0s/0.5s intervals, 1<->2 alternation at
+    0.7s). See also data/verification/thunder-spike.json."""
+
+    # ── (a) Solo manual 1.5 attacks/sec: the exact RECOUNT reconciliation pin ────────────────────────
+    def test_solo_manual_1_5aps_stacks_exactly_1_5(self):
+        # Single weapon, no dual wield -> weapon_attack_speed IS skills_per_second (no AM trigger).
+        solo_weapon = [weapon("weapon1", "Solo Blade", 100, 150, 1.5, 0)]
+        r = _off(gear=solo_weapon, dual_wield=False)
+        assert r["offense"]["skills_per_second"] == pytest.approx(1.5)
+        auto = r.get("auto_conditions") or {}
+        assert auto.get("numbed_stacks", {}).get("value") == pytest.approx(1.5)
+
+    def test_solo_manual_1_5aps_vs_target_matches_recount_reconciliation_pin(self):
+        # Reconstructs the OWNER'S real RECOUNT verification build (data/verification/thunder-spike.json
+        # "setup"): white "Unforgotten Long Blade" (154-154 Physical implicit, 1.5 APS, 500 crit rating),
+        # no other gear/talents, character level 85, target Lv85 training dummy (the make_request
+        # default). The build's hero trait (Erika, Lightning Shadow tier 1) is the source of its
+        # +18% additional Numbed Effect (data/seasons/SS12/_hero_traits.json:2718) -- injected here as a
+        # bare `numbed_effect_additional` character contribution (the numeric EFFECT of the trait line,
+        # not a re-exercise of the hero-trait resolver code path, which is covered elsewhere) since this
+        # test's job is the numbed_stacks WIRING, not hero-trait resolution.
+        #
+        # Sanity anchor: forcing numbed_stacks=1 (the OLD flat-1 model) on this exact build reproduces
+        # the engine-agent's recorded flat-1 comparison value (340.34, data/verification/
+        # thunder-spike.json "notes") almost exactly -- confirming this reconstruction faithfully mirrors
+        # the real verified build before checking the Phase 2 auto-derived value.
+        weapon_gear = [weapon("weapon1", "Unforgotten Long Blade", 154, 154, 1.5, 500)]
+
+        def _build(char_level=85, extra_conditions=None):
+            req = make_request("thunder_spike", 20, gear=weapon_gear, dual_wield=False,
+                               char_level=char_level, extra_conditions=extra_conditions)
+            req["character"] = req["character"] + [
+                {"stat": "numbed_effect_additional", "amount": 0.18, "label": "Lightning Shadow",
+                 "text": "Erika Lightning Shadow tier 1: +18% additional Numbed Effect"},
+            ]
+            return req
+
+        flat1 = engine_stats(EngineStatsRequest(**_build(extra_conditions={"numbed_stacks": 1})))
+        d_flat1 = flat1 if isinstance(flat1, dict) else flat1.model_dump()
+        assert d_flat1["offense"]["total_dps_vs_target"] == pytest.approx(340.34, abs=0.05)
+
+        r = engine_stats(EngineStatsRequest(**_build()))
+        d = r if isinstance(r, dict) else r.model_dump()
+        assert d["offense"]["skills_per_second"] == pytest.approx(1.5)
+        auto = d.get("auto_conditions") or {}
+        assert auto.get("numbed_stacks", {}).get("value") == pytest.approx(1.5)
+        # The reconciliation pin: predicted 349.82 (.wolf/memory.md RUN A, +0.23% vs the measured 349
+        # RECOUNT average) -- allow a small tolerance around the hand-derived rescaling.
+        assert d["offense"]["total_dps_vs_target"] == pytest.approx(349.82, abs=0.5)
+
+    # ── (b) AM-triggered cadences: both formula cases from the owner's Rhythm discriminating test ─────
+    def test_am_trigger_interval_0_5_gives_stacks_2(self):
+        # trigger_interval=0.5 -> cast rate 2.0/s -> E[stacks] = 2.0*2.0/ceil(2.0) = 2.0 (forced 2/s,
+        # matches the owner's "still 100% uptime" observation).
+        rhythm = {"slot": 1, "item_id": "activation_medium_rhythm", "level": 1, "enabled": True,
+                  "specific_rolls": {"trigger_interval": 0.5}, "specific_roll_tiers": {"trigger_interval": 1}}
+        r = _off(attached_supports=[rhythm])
+        assert r["offense"]["skills_per_second"] == pytest.approx(2.0)
+        auto = r.get("auto_conditions") or {}
+        assert auto.get("numbed_stacks", {}).get("value") == pytest.approx(2.0)
+
+    def test_am_trigger_interval_1_0_gives_stacks_2(self):
+        # trigger_interval=1.0 -> cast rate 1.0/s -> E[stacks] = 2.0*1.0/ceil(1.0) = 2.0 (Rhythm 1.0s,
+        # matches the owner's "permanently 2 Numbed stacks" observation).
+        rhythm = {"slot": 1, "item_id": "activation_medium_rhythm", "level": 1, "enabled": True,
+                  "specific_rolls": {"trigger_interval": 1.0}, "specific_roll_tiers": {"trigger_interval": 1}}
+        r = _off(attached_supports=[rhythm])
+        assert r["offense"]["skills_per_second"] == pytest.approx(1.0)
+        auto = r.get("auto_conditions") or {}
+        assert auto.get("numbed_stacks", {}).get("value") == pytest.approx(2.0)
+
+    # ── (c) A cadence giving a genuinely fractional (non-1.0/1.5/2.0) expectation ──────────────────────
+    def test_am_trigger_interval_0_7_gives_fractional_stacks(self):
+        # trigger_interval=0.7 -> cast rate 1/0.7 = 1.42857.../s (NOT an integer multiple of 1s) ->
+        # E[stacks] = 2*sps/ceil(sps) = 2*(10/7)/2 = 10/7 = 1.428571... -- the owner's Rhythm 0.7s
+        # discriminating test (.wolf/memory.md "Part B v3, FINAL" fit table) observed exactly this
+        # non-integer alternation shape (bounces 1<->2, not a constant).
+        rhythm = {"slot": 1, "item_id": "activation_medium_rhythm", "level": 1, "enabled": True,
+                  "specific_rolls": {"trigger_interval": 0.7}, "specific_roll_tiers": {"trigger_interval": 1}}
+        r = _off(attached_supports=[rhythm])
+        sps = r["offense"]["skills_per_second"]
+        assert sps == pytest.approx(1.0 / 0.7)
+        auto = r.get("auto_conditions") or {}
+        assert auto.get("numbed_stacks", {}).get("value") == pytest.approx(10.0 / 7.0)
+        assert auto.get("numbed_stacks", {}).get("value") == pytest.approx(_ts_expected_stacks(sps))
+        # Not one of the "clean" cadence values (1.0/1.5/2.0) -- confirms this is a genuine fraction.
+        assert auto.get("numbed_stacks", {}).get("value") not in (pytest.approx(1.0), pytest.approx(2.0))
+
+    # ── (d) A manual numbed_stacks override still wins over the auto-derive, even at high sps ─────────
+    def test_manual_override_skips_auto_derive_even_at_high_sps(self):
+        # A high-sps AM trigger would otherwise auto-derive close to the 2.0 structural cap -- a manual
+        # numbed_stacks=5 (its OWN key, in manual_cond_keys) must skip the auto-derive branch entirely
+        # (engine.compute._apply_cond_effects: `if e.condition_key in manual_keys: continue`), not get
+        # max()'d against the formula's output.
+        rhythm = {"slot": 1, "item_id": "activation_medium_rhythm", "level": 1, "enabled": True,
+                  "specific_rolls": {"trigger_interval": 0.5}, "specific_roll_tiers": {"trigger_interval": 1}}
+        r = _off(attached_supports=[rhythm], extra_conditions={"numbed_stacks": 5})
+        assert r["offense"]["skills_per_second"] == pytest.approx(2.0)   # AM trigger did engage
+        auto = r.get("auto_conditions") or {}
+        # The auto-derive branch never ran for this key -- no auto_conditions entry (or a None/falsy one).
+        assert auto.get("numbed_stacks", {}).get("value") in (None, 0.0)
+        assert r["stats"].get("numbed_lightning_taken", {}).get("total", 0.0) == pytest.approx(0.25)  # 5 * 5%
+
+    # ── (e) The formula never exceeds the structural cap of 2.0, at extreme sps values ─────────────────
+    def test_formula_never_exceeds_2_at_extreme_sps(self):
+        # Pure math check of the closed form itself (D/s <= D/I = 2 always, since ceil(I*sps) >= I*sps):
+        # covers sub-1/s, super-1/s, and near the engine's practical ~30/s tick-rate ceiling.
+        for sps in (0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0, 29.0, 29.9):
+            e = _ts_expected_stacks(sps)
+            assert 0.0 < e <= 2.0 + 1e-9, f"sps={sps} produced E[stacks]={e} > 2.0"
+
+    def test_engine_wired_high_sps_stays_at_or_below_2(self):
+        # Confirms the ENGINE (not just the standalone formula) respects the same cap at a high sps
+        # reached via ordinary attack-speed stacking (attack_speed_inc), not an AM trigger.
+        for inc in (2.0, 6.0, 10.0):
+            req = make_request("thunder_spike", 20, gear=DUAL_WEAPONS)
+            req["character"] = req["character"] + [
+                {"stat": "attack_speed_inc", "amount": inc, "label": "Test", "text": "test attack speed"},
+            ]
+            r = engine_stats(EngineStatsRequest(**req))
+            d = r if isinstance(r, dict) else r.model_dump()
+            sps = d["offense"]["skills_per_second"]
+            assert sps > 2.0   # confirm the attack-speed stacking actually pushed sps up meaningfully
+            auto = d.get("auto_conditions") or {}
+            stacks = auto.get("numbed_stacks", {}).get("value", 0.0)
+            assert 0.0 < stacks <= 2.0 + 1e-9
+            assert stacks == pytest.approx(_ts_expected_stacks(sps))
+
+    # ── (f) A genuinely high-aps build hitting the engine's real 30 Hz tick-rate cap ─────────────────
+    def test_engine_extreme_aps_at_tick_cap_stays_at_2(self):
+        # Distinct from (e) above (test_engine_wired_high_sps_stays_at_or_below_2, which stacks
+        # attack_speed_inc up to 10.0 -> sps ~29): this build pushes a real weapon (10.0 base aps) PLUS
+        # heavy attack_speed_inc stacking (+800%) so the reported sps actually SATURATES the engine's
+        # global 30 Hz per-caster tick cap (engine.tick.cap_rate) -- the most extreme aps the real engine
+        # will ever report, not just "high". The auto-derived numbed_stacks must still read straight off
+        # the OUTPUT (auto_conditions), not the formula helper, and stay within the structural cap.
+        solo_weapon = [weapon("weapon1", "Extreme Blade", 100, 150, 10.0, 0)]
+        req = make_request("thunder_spike", 20, gear=solo_weapon, dual_wield=False)
+        req["character"] = req["character"] + [
+            {"stat": "attack_speed_inc", "amount": 8.0, "label": "Test", "text": "extreme attack speed"},
+        ]
+        r = engine_stats(EngineStatsRequest(**req))
+        d = r if isinstance(r, dict) else r.model_dump()
+        sps = d["offense"]["skills_per_second"]
+        assert sps == pytest.approx(30.0)   # confirms the tick cap actually engaged
+        auto = d.get("auto_conditions") or {}
+        stacks = auto.get("numbed_stacks", {}).get("value", 0.0)
+        assert 0.0 < stacks <= 2.0 + 1e-9
+        assert stacks == pytest.approx(2.0)
+
+    # ── (g) The epsilon guard: a build whose raw sps lands a hair ABOVE an exact integer ─────────────
+    def test_engine_float_noise_at_integer_boundary_respects_epsilon_guard(self):
+        # engine.compute.py's numbed_stacks derivation uses ceil(I*sps - 1e-9) (an epsilon guard against
+        # float noise landing a hair above an integer breakpoint and flipping ceil() up a full unit --
+        # same treatment as the consumed_recently rounding at compute.py ~811). weapon_aps=1.12 combined
+        # with attack_speed_inc=5.25 is mathematically 1.12*6.25=7.0 exactly, but float64 multiplication
+        # actually lands the real engine's reported sps at 7.000000000000001 (verified: not fabricated --
+        # this is genuine IEEE-754 rounding from the engine's own multiply, not an injected value). WITHOUT
+        # the epsilon guard, ceil(7.000000000000001)=8 -> E[stacks]=2*7.000000000000001/8=1.75. WITH the
+        # guard, ceil(7.000000000000001 - 1e-9)=7 (correctly landing on the intended side of the 7.0
+        # breakpoint) -> E[stacks]=2*7.000000000000001/7=2.0000000000000004, i.e. the structural cap.
+        #
+        # Deliberately does NOT use the module-level _ts_expected_stacks() helper above for the expected
+        # value -- that helper has NO epsilon term (by design: it mirrors the formula's math, not the
+        # engine's float-noise guard), so at this exact boundary it would itself compute the WRONG
+        # (pre-guard) 1.75 answer. This test's own epsilon-aware expected value is the independent check.
+        solo_weapon = [weapon("weapon1", "Boundary Blade", 100, 150, 1.12, 0)]
+        req = make_request("thunder_spike", 20, gear=solo_weapon, dual_wield=False)
+        req["character"] = req["character"] + [
+            {"stat": "attack_speed_inc", "amount": 5.25, "label": "Test", "text": "boundary attack speed"},
+        ]
+        r = engine_stats(EngineStatsRequest(**req))
+        d = r if isinstance(r, dict) else r.model_dump()
+        sps = d["offense"]["skills_per_second"]
+        assert sps > 7.0   # confirms the float-noise overshoot is real, not exactly 7.0
+        assert sps == pytest.approx(7.0, abs=1e-9)   # ...but negligibly so (genuine float noise, not a gross error)
+        epsilon_aware_expected = (2.0 * sps) / math.ceil(1.0 * sps - 1e-9)
+        no_guard_would_give = (2.0 * sps) / math.ceil(1.0 * sps)
+        assert epsilon_aware_expected == pytest.approx(2.0)
+        assert no_guard_would_give == pytest.approx(1.75)
+        auto = d.get("auto_conditions") or {}
+        stacks = auto.get("numbed_stacks", {}).get("value", 0.0)
+        assert stacks == pytest.approx(epsilon_aware_expected)
+        assert stacks != pytest.approx(no_guard_would_give)
 
 
 class TestNumbedAutoSetSecondarySlot:
@@ -397,7 +622,18 @@ class TestNumbedAutoSetSecondarySlot:
         d = r if isinstance(r, dict) else r.model_dump()
         auto = d.get("auto_conditions") or {}
         assert auto.get("enemy_numbed", {}).get("value") is True
-        assert auto.get("numbed_stacks", {}).get("value", 0.0) >= 1.0
+        # Exact formula expectation (2026-07-15 correctness-review tightening: was a loose `>= 1.0`) --
+        # derived from an INDEPENDENT call of Thunder Spike as the MAIN skill on the exact same
+        # gear/condition_state (DUAL_WEAPONS, char_level=90, dual_wield=True, no supports attached to
+        # either slot). compute_skill_rates is a pure function of the skill's own resolved rate + `source`
+        # (never of which slot number hosts it), so this reproduces the secondary slot's own sps exactly
+        # without re-reading the implementation's internal rate. Cross-checked against the already-pinned
+        # 1.76 value from TestNumbedAutoSet.test_auto_sets_both_enemy_numbed_and_stacks_floor above (same
+        # DUAL_WEAPONS build, sps=2.64).
+        thunder_as_main_sps = _off()["offense"]["skills_per_second"]
+        expected_stacks = _ts_expected_stacks(thunder_as_main_sps)
+        assert expected_stacks == pytest.approx(1.76)
+        assert auto.get("numbed_stacks", {}).get("value", 0.0) == pytest.approx(expected_stacks)
 
     def test_secondary_slot_thunder_spike_disabled_does_not_auto_set(self):
         # Same setup, but the slot-2 Thunder Spike entry is explicitly disabled -> it is NOT casting, so
@@ -662,3 +898,78 @@ class TestDespisedShadowUseVsCastGate:
         assert triggered["shadow_mult"] == pytest.approx(1.0)
         assert triggered["shadow_hits_per_sec"] == pytest.approx(0.0)
         assert triggered["total_dps"] == pytest.approx(plain["total_dps"])
+
+
+class TestNumbedFloorRatchetRegression:
+    """Regression pin for the iteration-lag ratchet bug (buglog id thunder-spike-numbed-floor-ratchet,
+    fixed 2026-07-15, compute.py:1117-1138). numbed_stacks used to be fed through _apply_cond_effects's
+    persistent max-mode ConditionEffect machinery (condition_state[key] = max(cur_from_last_pass, value)),
+    which RATCHETS across engine.compute()'s fixed-point loop iterations: a transient pass-1 sps computed
+    BEFORE an iteration-lagged malus enters `source` permanently locks in a too-high floor that a later,
+    CORRECT (lower-sps) pass can never bring back down. Concrete trigger (buglog): Aim/Euphoria's
+    -16% Attack/Cast Speed malus -- aim_active is only written into condition_state at the END of the pass
+    that reads aim_trigger_flag, so the malus is absent from THAT SAME pass's already-completed
+    aggregate() call and only lands in the NEXT pass's `source`.
+
+    THIS TEST MUST FAIL against the old max-mode (ratchet) implementation: it would converge on the stale
+    pre-malus transient (1.66666...) instead of the correct post-malus converged value (1.4 exactly).
+    The fix (direct-assign each pass, never max()'d against the prior pass) is what makes it pass.
+    """
+
+    def test_aim_euphoria_iteration_lag_converges_to_post_malus_not_pre_malus_transient(self):
+        # Manual verification basis (buglog, owner-confirmed): a single weapon aps=2.5 (no dual wield) +
+        # a raw aim_trigger_flag gear contribution (Aim/Euphoria triggered via gear, not a slotted skill).
+        # Pre-malus (pass 1, before aim_active has entered `source`): sps=2.5,
+        # E[stacks]=2*2.5/ceil(2.5)=1.66666... Post-malus (converged, pass 2+): Aim's -16% Attack Speed
+        # lands as an attack_speed_inc=-0.16 addend once aim_active is live in `source`, giving
+        # sps=2.5*0.84=2.1, E[stacks]=2*2.1/ceil(2.1)=1.4 exactly.
+        aim_gear = {"item_name": "Test Aim Trigger", "contributions": [
+            {"stat": "aim_trigger_flag", "display_value": 1.0, "unit": "", "slot": "amulet",
+             "item_name": "Test Aim Trigger", "text": "Test Aim Trigger:aim_trigger_flag"},
+        ]}
+        solo_weapon = [weapon("weapon1", "Aim Test Blade", 100, 150, 2.5, 0)]
+        r = _off(gear=solo_weapon + [aim_gear], dual_wield=False)
+        d = r["offense"]
+        sps = d["skills_per_second"]
+        # Confirm the malus actually converged into the reported sps (2.1, not the pre-malus 2.5) -- i.e.
+        # aim_active really did engage and settle, not just get read once and dropped.
+        assert sps == pytest.approx(2.1, abs=1e-6)
+        pre_malus_transient = _ts_expected_stacks(2.5)
+        post_malus_converged = _ts_expected_stacks(sps)
+        assert pre_malus_transient == pytest.approx(5.0 / 3.0)      # 1.66666...
+        assert post_malus_converged == pytest.approx(1.4)
+        auto = r.get("auto_conditions") or {}
+        stacks = auto.get("numbed_stacks", {}).get("value", 0.0)
+        assert stacks == pytest.approx(post_malus_converged)
+        assert stacks == pytest.approx(1.4)
+        assert stacks != pytest.approx(pre_malus_transient)         # the ratchet-bug failure mode
+        # Cross-check via the enemy-damage-taken stat, same pattern as TestNumbedAutoSet above.
+        floored = r["stats"].get("numbed_lightning_taken", {}).get("total", 0.0)
+        assert floored == pytest.approx(0.05 * post_malus_converged)
+
+
+class TestHighVoltageFloorStillWorksAfterDirectAssignSplit:
+    """Regression guard (2026-07-15, thunder-spike-numbed-floor-ratchet fix, compute.py:1132-1136): the
+    Thunder Spike direct-assign change must not have clobbered the GENERIC "inflicts Numbed" auto-derive
+    path a non-Thunder-Spike skill uses. High Voltage ("Inflicts Numbed when the supported skill deals Hit
+    Lightning Damage", item_id high_voltage) still rides the normal, pass-invariant _apply_cond_effects
+    max-mode ConditionEffect (support_mapper.map_autoderive_line) -- a flat floor of numbed_stacks=1.0,
+    unaffected by the attached skill's own sps. Also re-read fresh via _fresh_max_effect_value() when a
+    Thunder Spike slot happens to ALSO be present (the "OTHER pass-invariant auto floor" the direct-assign
+    block maxes against), but here there is no Thunder Spike in the build at all -- pure isolation of the
+    generic path."""
+
+    def test_high_voltage_on_lightning_skill_keeps_flat_floor_1(self):
+        high_voltage = _sup("high_voltage", "support_skill", level=1, rank=1, slot=1)
+        r = engine_stats(EngineStatsRequest(**make_request("chain_lightning", 14, gear=DUAL_WEAPONS,
+                                                            attached_supports=[high_voltage])))
+        d = r if isinstance(r, dict) else r.model_dump()
+        auto = d.get("auto_conditions") or {}
+        assert auto.get("enemy_numbed", {}).get("value") is True
+        # Flat floor of exactly 1.0 -- NOT the Thunder Spike rate-dependent formula (this build's own sps
+        # is well above 1.0, so a rate-dependent floor would read differently; the flat 1.0 confirms this
+        # generic path, not an accidental fallthrough into the Thunder Spike direct-assign block).
+        assert d["offense"]["skills_per_second"] > 1.0
+        assert auto.get("numbed_stacks", {}).get("value", 0.0) == pytest.approx(1.0)
+        floored = d["stats"].get("numbed_lightning_taken", {}).get("total", 0.0)
+        assert floored == pytest.approx(0.05)   # 1 stack * 5%/stack

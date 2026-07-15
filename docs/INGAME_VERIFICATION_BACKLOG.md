@@ -437,11 +437,17 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   answered** (Despised Shadow's chance is USE-gated, not CAST-gated — owner-stated, 2026-07-15; the AM-gate
   is now IMPLEMENTED, same batch — see below; per-cast granularity for genuine USE-triggered casts still
   ⬜). **Check 4 is now ANSWERED** (no shadow-count cap
-  observed at tested counts, owner-tested 2026-07-15). **Check 6 is now answered-in-structure, though that
-  structure is itself under review** (see below; the clone-uptime formula vs attack speed is still OPEN — a
-  2026-07-15 Rhythm-cadence test REFUTED the discrete phase-slot candidate, a same-day follow-up test ALSO
-  refuted the interval-alignment candidate that briefly succeeded it, and the independent-stacking/window
-  model is now the working candidate; re-derivation in progress). Check 5 remains ⬜.
+  observed at tested counts, owner-tested 2026-07-15). **Check 6 is now REFUTED-for-the-inherent-line and
+  RESOLVED** (a later-same-day N-independence + direct-proof test — Rhythm 0.7s at N=2/N=4 identical to N=0;
+  main-miss/shadow-hit-only → 0 stacks — shows Shadows never apply Thunder Spike's inherent Numbed at all,
+  superseding the earlier same-day source-group structure hypothesis and the phase-slot/interval-alignment
+  candidates before it. The independent-stacking/window model is now CONFIRMED for the inherent line,
+  `E[stacks](aps) = 2.0·aps/ceil(1.0·aps)`, reconciling all three RECOUNT runs within 0.25%; **Phase 2 is now
+  IMPLEMENTED this same session** (`backend/engine/compute.py`; verified solo manual +0.23% vs measured 349,
+  zero golden changes). Engine analysis then distinguished two separate line-based mechanisms: High Voltage's
+  on-hit line is CONFIRMED CORRECTLY MODELED (its own flat cadence-independent floor already matches
+  observations); Numb Magnificent and Everburn Thunderfire (SS12 legendary girdle, exists in our data) remain
+  open/unmodeled for Thunder Spike specifically; see below). Check 5 remains ⬜.
 - Setup: **Thunder Spike** vs the standard dummy. Base build has 0 Shadow Quantity (Shadows only appear via gear/talent/support). Add shadow sources one at a
   time (**Haunt** support = +2 Shadow Quantity; **Frantic Shadow** legendary = +1; **Despised Shadow**
   legendary = 33% chance +3/+4 Shadows + additional Shadow Damage; **Ronin `ronin_c6_r2`** talent = +1).
@@ -482,8 +488,10 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   5. **Multistrike / cast-multiplier inheritance.** With a Multistrike-capable build, confirm whether Shadows
      also fire on each Multistrike (proportionally increasing shadow hits) or only on the primary cast. Same
      question for any other cast-multiplier mechanic active on Thunder Spike.
-  6. **Shadows applying Thunder Spike's inherent Numbed — answered in STRUCTURE (2026-07-15), formula still
-     open.** Owner-reported and confirmed by follow-up cadence observation: inherent on-hit Numbed stacks per
+  6. **Shadows applying Thunder Spike's inherent Numbed — RESOLVED (2026-07-15, later same day): REFUTED, and
+     the inherent-line uptime formula is CONFIRMED.** See the N-independence + direct-proof test below, which
+     supersedes the source-group structure this check originally chased. History retained: owner-reported and
+     confirmed by follow-up cadence observation, inherent on-hit Numbed stacks per
      SOURCE-GROUP, not per-hit — "1 sustained stack from the character's own True Body hit + at most 1
      sustained stack from the clones/shadows COLLECTIVELY", capped at 2 total regardless of shadow count
      (observed up to 4 shadows/clones). At 1 shadow the split alternates 1↔2 at ~66%/~33% (avg ≈1.33),
@@ -539,6 +547,48 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
      ≈+1.8 extra stacks at 2 shadows and ≈+3.6 at 4 shadows, consistent with the samples — supports the shape
      of a planned EV model, not yet engine-implemented. Still unmodeled — see `data/verification/shadow-strike.json`
      and `data/verification/thunder-spike.json` for full detail.
+
+     **N-independence + direct-proof test (2026-07-15, later same day, verbal report, several repetitions) —
+     RESOLVES check 6: REFUTES shadow-applied inherent Numbed entirely, CONFIRMS the independent-stacking
+     window model.** Owner retested Rhythm 0.7s (previously alternated 1↔2 for both solo N=0 and N=1-shadow
+     configs) at **N=2 shadows (Haunt)** and **N=4 shadows**: both bounced 1↔2 identically to the N=0 baseline
+     — shadow count made no measurable difference. **Direct proof:** the main character's Thunder Spike was
+     positioned so its True Body did NOT hit the target while the Shadows (larger Tracking Area) DID hit it:
+     result 0 Numbed stacks. A Shadow hit alone produced zero inherent Numbed, so Shadows contribute NOTHING to
+     the inherent line — only the player's own True Body hit inflicts it. This **REFUTES** the source-group
+     structure hypothesis above (and, before it, the phase-slot and interval-alignment candidates) — all three
+     are retained in `data/verification/shadow-strike.json` / `thunder-spike.json`, annotated, for their record
+     of the reasoning process, not deleted. The **independent-stacking/window model is now CONFIRMED** for the
+     inherent line: `E[stacks](aps) = 2.0·aps / ceil(1.0·aps)` (I=1s tooltip interval, D=2s master_glossary 762
+     default duration — "the duration of each stack is calculated independently" corroborates the premise).
+     Owner reports this reconciles all three 2026-07-15 RECOUNT runs (solo 349, +Haunt 810, RUN C 917 — all at
+     the same 1.5 APS baseline) within 0.25%, using a single shadow-count-independent average (aps=1.5 → E=1.5
+     stacks) instead of the earlier per-run bespoke corrections — this also resolves the SHADOW-02 check 1
+     corollary flagged just above (RUN A's solo −2.5% residual is the same cadence-driven effect, not a
+     flat-1-exact baseline). **Phase 2 is now IMPLEMENTED this same working session**: the formula is
+     auto-derived as the fractional `numbed_stacks` floor in `backend/engine/compute.py`. Verified: solo manual
+     ≈1.5 aps → E=1.5 → +0.23% vs measured 349; zero golden fixture changes; 2 stale tests updated by testing.
+
+     **Owner's explicit caution (2026-07-15, later same day) held up under engine analysis: this refutation is
+     scoped to the INHERENT line only — line-based Numbed-inflict sources are a genuinely separate mechanism.**
+     Engine analysis distinguished two distinct mechanisms: line-based inflict = refresh semantics (a constant
+     floor), inherent = independent stacking (the window formula above). **Numb Magnificent**'s own "30%
+     chance … when Shadows hit" line still scales with shadow count (consistent with the sampled ranges just
+     above) — still unmodeled, needs the shadow-hit-count EV model. **High Voltage** (`high_voltage`, generic
+     support_skill, "Inflicts Numbed when the supported skill deals Hit Lightning Damage", unconditional
+     on-hit) is **CONFIRMED CORRECTLY MODELED**: the engine already applies a flat cadence-independent
+     `numbed_stacks` floor of 1 via `ailment_inflict.py`, exactly matching the owner's observation
+     (shadows-only hits sustain exactly 1 stack, never 2); the cap-at-2 combined with the main hit falls out of
+     the existing `max()` ConditionEffect machinery (floors don't sum) — no gap here, resolved. **Everburn
+     Thunderfire** (`everburn_thunderfire`, SS12 legendary girdle — **exists in our SS12 data**, correcting an
+     earlier same-day "likely uncrawled SS13" note): "Inflicts 1 additional stack(s) of Numbed." The observed
+     bounce shift to **2↔4** (a shadow-independent +2 offset) is strong independent supporting evidence for the
+     confirmed window model (a doubled payload per application) — **but is currently NYI for Thunder Spike
+     specifically**: `ailment_inflict`'s pattern-C needs a paired inflict trigger in its own scan, and Thunder
+     Spike's intrinsic trigger isn't wired into that system, so equipped alone on a Thunder Spike build it is
+     silently inert in the engine today. Filed as an explicit NYI/verification item (never silently drop).
+     See `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json` for full detail.
+
      **CONFOUND, documented for future tests — EXCLUDED for the 2026-07-15 runs (owner testimony, 2026-07-15):**
      the equipped hero trait in both measurement runs, Erika's "Lightning Shadow" tier 1
      (`_hero_traits.json:2718`), CAN itself inflict Numbed via "Feline Figure" procs — triggered by
@@ -553,23 +603,26 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ### SHADOW-02 — Thunder Spike skill specifics
 - Status: 🔶 Partial. Solo + Haunt Lv20 Recount pair measured 2026-07-15 — see `data/verification/thunder-spike.json`.
-  Check 1 supported; check 2 supported in aggregate only (its shadow-applied-Numbed sub-claim is now
-  answered-in-structure — see SHADOW-01 check 6 and `data/verification/thunder-spike.json` for the RUN C plus
-  cadence / Numb Magnificent follow-up data, 2026-07-15); check 3 (Rumbling Thunder) still ⬜ — Setup B used
-  Haunt, not Rumbling Thunder.
+  Check 1 supported (its unexplained −2.5% residual is now attributed to the same cadence-driven Numbed effect
+  as Haunt, per the confirmed formula below, not a flat-1-exact solo baseline); check 2 supported in aggregate
+  only (its shadow-applied-Numbed sub-claim is now REFUTED and RESOLVED — see SHADOW-01 check 6 and
+  `data/verification/thunder-spike.json` for the RUN C, cadence, N-independence, and Numb Magnificent
+  follow-up data, 2026-07-15); check 3 (Rumbling Thunder) still ⬜ — Setup B used Haunt, not Rumbling Thunder.
 - Setup: **Thunder Spike** alone vs the standard dummy, no supports (isolate the base skill first), then add
   **Rumbling Thunder (Noble)** for check 3.
 - Checks:
   1. **Base WAD.** 🔶 Supported. Solo Recount 349 vs engine 340.34 (−2.5%, no correction applied — the run was
      recorded assuming solo Numbed sits at a flat 1 stack). Supports the magnitude of 277% WAD at Lv20 to
      within measurement noise (aggregate evidence, not an isolation test). **Note (2026-07-15, same day):**
-     the "solo = flat 1 stack" assumption itself is now under review — see SHADOW-01 check 6's solo/Rhythm
-     discriminating test, which showed the character's own hits alone can sustain 2 stacks at some cadences.
-     A corollary hypothesis under review (not confirmed) is that RUN A's ~1.5 aps manual cadence may have
-     averaged closer to ≈1.5 stacks than a flat 1, which could account for most of the −2.5% residual
-     (+0.5 stacks × ~5.9%/stack ≈ +2.95%) — this would not change the WAD-magnitude conclusion, only the
-     Numbed-correction bookkeeping; not promoted, no engine change follows from it yet. Compare against the
-     character-sheet tooltip is explicitly out of scope — see `training-dummy.json` doctrine.
+     the "solo = flat 1 stack" assumption is now SUPERSEDED (2026-07-15, later same day) — see SHADOW-01
+     check 6's N-independence + direct-proof test, which confirmed the independent-stacking window model
+     (`E[stacks](aps) = 2.0·aps/ceil(1.0·aps)`) for the inherent line. At RUN A's ~1.5 aps manual cadence this
+     predicts E≈1.5 stacks, not a flat 1, which accounts for most of the −2.5% residual (+0.5 stacks ×
+     ~5.9%/stack ≈ +2.95%) — this does not change the WAD-magnitude conclusion, only the Numbed-correction
+     bookkeeping. **Phase 2 is now IMPLEMENTED this same session** (auto-deriving the fractional floor from
+     attack speed in `backend/engine/compute.py`; verified solo manual +0.23% vs measured 349, zero golden
+     changes). Compare against the character-sheet tooltip is explicitly out of scope — see
+     `training-dummy.json` doctrine.
   2. **Intrinsic conversion + inherent Numbed.** 🔶 Supported in aggregate only (this pair did not isolate
      conversion or Numbed-on-hit individually — e.g. no run with Numbed suppressed). Confirm 100% of the
      skill's Physical Damage displays/behaves as Lightning Damage (no separate Physical component), and that
