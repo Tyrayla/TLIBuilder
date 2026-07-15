@@ -605,3 +605,60 @@ class TestChanceQuantityStackingCharacterization:
         assert o["shadow_chance_quantity"] == pytest.approx(7.0)    # 3 + 4, additive
         expected = (1.0 - 0.66) * _shadow_multiplier(0, 0.0) + 0.66 * _shadow_multiplier(7, 0.0)
         assert o["shadow_mult"] == pytest.approx(expected)
+
+
+class TestDespisedShadowUseVsCastGate:
+    """Regression guard for the 2026-07-15 USE-vs-CAST fix (buglog id
+    despised-shadow-use-vs-cast-overcount; engine.compute._offense_for_slot ~1353-1364): Despised Shadow's
+    "chance to gain +K Shadows when USING the Shadow Strike skill" is USE-gated, not CAST-gated -- an
+    Activation-Medium/Rhythm-triggered slot fires CASTs, not USEs, so the chance-mix EV must NOT apply
+    there. Haunt's flat "+2 Shadow Quantity" grant and Despised Shadow's own "+% additional Shadow Damage"
+    line (not a "when using" proc) are unaffected. Same trigger detection the Demolisher block uses
+    (eff.total("trigger_interval") > 0 or eff.total("wind_rhythm_base_cooldown") > 0)."""
+
+    _DESPISED = {"item_name": "Despised Shadow", "unresolved_texts": [
+        "33 % chance to gain +3 Shadows when using the Shadow Strike skill",
+        "+(14–16) % additional Shadow Damage",
+    ]}
+    _HAUNT = _sup("haunt", "support_skill", level=1, slot=1)
+    # Real activation_medium_rhythm support, trigger_interval pinned to 0.5s (tier-1 roll) -> cast rate
+    # 1/0.5 = 2.0, confirmed below via skills_per_second (same pattern as
+    # test_activation_mediums.test_trigger_interval_overrides_cast_rate_generically).
+    _RHYTHM_TRIGGER = {"slot": 1, "item_id": "activation_medium_rhythm", "level": 1, "enabled": True,
+                        "specific_rolls": {"trigger_interval": 0.5}, "specific_roll_tiers": {"trigger_interval": 1}}
+
+    def test_am_triggered_zeroes_chance_keeps_flat_and_additional(self):
+        o = _off(gear=DUAL_WEAPONS + [self._DESPISED],
+                 attached_supports=[self._HAUNT, self._RHYTHM_TRIGGER])["offense"]
+        # Confirm the AM trigger actually engaged (real trigger_interval=0.5 -> skills_per_second=2.0).
+        assert o["skills_per_second"] == pytest.approx(2.0, abs=1e-6)
+        assert o["shadow_chance_pct"] == pytest.approx(0.0)
+        assert o["shadow_count"] == 2                                    # Haunt's flat grant, untouched
+        # shadow_hits_per_sec = N * sps with NO chance term (0 + 0*3 collapses to just N).
+        assert o["shadow_hits_per_sec"] == pytest.approx(2 * o["skills_per_second"])
+        assert o["shadow_dmg_additional"] == pytest.approx(0.15)         # Despised Shadow's own line, unaffected
+        assert o["shadow_mult"] == pytest.approx(_shadow_multiplier(2, 0.15))
+        assert o["shadow_mult"] == pytest.approx(2.495)
+
+    def test_manual_control_without_am_chance_applies(self):
+        # Same gear/support set MINUS the AM trigger -- the discriminating control proving the gate is
+        # trigger-conditional, not a global regression: the chance-mix must apply normally here.
+        o = _off(gear=DUAL_WEAPONS + [self._DESPISED], attached_supports=[self._HAUNT])["offense"]
+        assert o["shadow_chance_pct"] == pytest.approx(0.33)
+        assert o["shadow_count"] == 2
+        p, k, n, add = 0.33, 3, 2, 0.15
+        expected_mult = (1.0 - p) * _shadow_multiplier(n, add) + p * _shadow_multiplier(n + k, add)
+        assert o["shadow_mult"] == pytest.approx(expected_mult)
+        assert o["shadow_hits_per_sec"] == pytest.approx((n + p * k) * o["skills_per_second"])
+
+    def test_chance_only_am_triggered_shadow_mode_inert(self):
+        # No flat-count source (no Haunt) -- Despised Shadow's chance alone, AM-triggered: chance is gated
+        # to 0 and there's no flat count, so compute.py's "if _shadow_n > 0 or _shadow_chance > 0" guard is
+        # False -> shadow=None, byte-identical to a plain (non-Shadow-Strike-active) hit.
+        triggered = _off(gear=DUAL_WEAPONS + [self._DESPISED], attached_supports=[self._RHYTHM_TRIGGER])["offense"]
+        plain = _off(gear=DUAL_WEAPONS, attached_supports=[self._RHYTHM_TRIGGER])["offense"]
+        assert triggered["shadow_count"] == 0
+        assert triggered["shadow_chance_pct"] == pytest.approx(0.0)
+        assert triggered["shadow_mult"] == pytest.approx(1.0)
+        assert triggered["shadow_hits_per_sec"] == pytest.approx(0.0)
+        assert triggered["total_dps"] == pytest.approx(plain["total_dps"])

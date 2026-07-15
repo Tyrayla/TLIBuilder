@@ -433,8 +433,15 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 ### SHADOW-01 — Shadow Strike delivery model (multiple checks)
 - Status: 🔶 Partial. Solo (N=0) / +Haunt Lv20 (N=2) / +Haunt+slate (N=3, RUN C) Recount triple measured
   2026-07-15 — see `data/verification/shadow-strike.json`. **Check 1 is now CONFIRMED** (RUN C closes the
-  flat-vs-compounding falloff-shape discriminator). Check 2 supported/strengthened. **Check 6 is now
-  answered-in-structure** (see below, formula vs attack speed still open); checks 3–5 remain ⬜.
+  flat-vs-compounding falloff-shape discriminator). Check 2 supported/strengthened. **Check 3 partially
+  answered** (Despised Shadow's chance is USE-gated, not CAST-gated — owner-stated, 2026-07-15; the AM-gate
+  is now IMPLEMENTED, same batch — see below; per-cast granularity for genuine USE-triggered casts still
+  ⬜). **Check 4 is now ANSWERED** (no shadow-count cap
+  observed at tested counts, owner-tested 2026-07-15). **Check 6 is now answered-in-structure, though that
+  structure is itself under review** (see below; the clone-uptime formula vs attack speed is still OPEN — a
+  2026-07-15 Rhythm-cadence test REFUTED the discrete phase-slot candidate, a same-day follow-up test ALSO
+  refuted the interval-alignment candidate that briefly succeeded it, and the independent-stacking/window
+  model is now the working candidate; re-derivation in progress). Check 5 remains ⬜.
 - Setup: **Thunder Spike** vs the standard dummy. Base build has 0 Shadow Quantity (Shadows only appear via gear/talent/support). Add shadow sources one at a
   time (**Haunt** support = +2 Shadow Quantity; **Frantic Shadow** legendary = +1; **Despised Shadow**
   legendary = 33% chance +3/+4 Shadows + additional Shadow Damage; **Ronin `ronin_c6_r2`** talent = +1).
@@ -454,9 +461,24 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
      Shadow Strike skill"). Confirm the chance rolls **per cast** (not per fight, not a persistent buff) and
      that Shadows gained from the proc last only that cast (not carried into the next cast). The engine models
      this as a per-cast expected-value mix `(1−p)·f(N_base) + p·f(N_base+k)`.
+     **Partially ANSWERED (owner-stated, 2026-07-15, verbal report): the "when using" clause is USE-gated, not
+     CAST-gated** — the standard USE-vs-CAST restriction applies, so it does NOT proc off triggered casts (e.g.
+     Rhythm/Instruction activation-medium triggers on Thunder Spike, which are CASTs, not USEs). **GATE
+     IMPLEMENTED 2026-07-15 (same batch):** `backend/engine/compute.py` (~1353–1364) now zeroes
+     `shadow_chance_pct` whenever the slot is trigger-driven (`trigger_interval` or `wind_rhythm_base_cooldown`
+     > 0 — the same detection Demolisher already uses), leaving `max_shadow_quantity_flat` (flat grants —
+     Haunt, Frantic Shadow) unaffected; manual-use builds are unchanged, only AM/Rhythm-triggered slots are
+     gated off. 3 new tests, full suite 3772/0. See `docs/BACKLOG.md` §0f. This is the FIRST measured instance
+     of the USE/CAST distinction mattering for a modeled mechanic (same deferral class as Spell Burst's
+     USE-vs-CAST gate, SPELLBURST-01/§0d, and Tangle's, TANGLE-01/§0c — both still open). The remaining open
+     sub-question — per-cast granularity for genuine USE-triggered casts, and whether proc'd Shadows carry
+     into the next cast — is still ⬜.
   4. **Shadow count cap.** Stack multiple sources (Haunt + Frantic Shadow + Despised Shadow + Ronin node) to
      reach a high Shadow Quantity. Confirm whether the game caps the total Shadow count at some maximum (the
-     engine currently applies none).
+     engine currently applies none). **ANSWERED (owner-tested, 2026-07-15, verbal report): no cap observed at
+     the tested counts.** Recorded with appropriate hedging — this does not rule out a cap beyond the tested
+     magnitude, only that none was observed at the counts tested; the engine's no-cap assumption now has
+     owner-tested support rather than being a pure assumption.
   5. **Multistrike / cast-multiplier inheritance.** With a Multistrike-capable build, confirm whether Shadows
      also fire on each Multistrike (proportionally increasing shadow hits) or only on the primary cast. Same
      question for any other cast-multiplier mechanic active on Thunder Spike.
@@ -470,7 +492,47 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
      pathway (1 stack per 10% of Max ES+Life dealt) as the source at this damage level.
      **Remaining OPEN sub-question: the clone-stack UPTIME FORMULA vs attack speed.** Three calibration points
      so far (N=1 avg ≈1.33, N=2 avg ≈1.5, N=4 stays <2, approaching the 2-stack structural cap), but no
-     formula fit yet — a discriminating test AT A DIFFERENT ATTACK SPEED is planned to calibrate it.
+     formula fit yet.
+
+     **Rhythm-cadence discriminating test performed (2026-07-15, Part 2, verbal report — no screenshots) —
+     REFUTES the discrete phase-slot candidate model.** Owner used the Rhythm activation medium to force an
+     exact, deterministic attack cadence (baseline: white-blade Erika, Thunder Spike Lv20, +1 shadow via a
+     slate, N=1). Results: **Rhythm 1.0s (1 attack/sec) → permanently 2 Numbed stacks, 100% uptime**
+     ("cannot get it to go lower"); **forced 2 attacks/sec → still 100% uptime at 2 stacks**; **Rhythm 0.7s →
+     alternates 1↔2 with a varying, phase-dependent percentage** (not a single stable fraction). This directly
+     REFUTES the discrete cast-slot phase-race model (recorded in `.wolf/memory.md`, 2026-07-15 "Part B
+     re-derivation"), which predicted a deterministic, aps-invariant mean of exactly 50% overlap at every
+     attack speed — including a zero-spread 50% prediction at aps=1.0, its own stated sharpest test — flatly
+     contradicted by the measured 100% uptime at both 1.0 and 2.0 attacks/sec. The non-monotonic pattern
+     (sustained 100% at 1.0s/0.5s periods, beating/alternating at 0.7s) instead suggests an
+     **INTERVAL-ALIGNMENT mechanism** — cadences dividing evenly into Thunder Spike's own 1s inherent-Numbed
+     inflict interval sustain both the character's and the shadows' stacks simultaneously, while a
+     non-aligning cadence (0.7s) beats against it. **Model re-derivation is in progress; the clone-uptime
+     FORMULA remains OPEN/UNMODELED as of 2026-07-15** — the phase-slot candidate (or any other
+     single-fraction-per-aps candidate) must not be promoted to engine-implemented; the prior phase-slot
+     analysis is retained in `.wolf/memory.md` for its record of the reasoning process but is
+     REFUTED-BY-MEASUREMENT as of this test, not deleted. See `data/verification/shadow-strike.json` for the
+     full derivation.
+
+     **Solo (ZERO shadow sources) + Rhythm discriminating test (2026-07-15, same day, several repetitions
+     each, verbal report) — ALSO REFUTES the interval-alignment candidate.** Same baseline, but with NO
+     shadow sources equipped (isolates the character's own True Body hit only): **Rhythm 1.0s → permanent 2
+     Numbed stacks**; **Rhythm 0.5s → permanent 2 stacks**; **Rhythm 0.7s → 2 stacks ~33% / 1 stack ~66%**.
+     **Consequence:** the interval-alignment candidate above — which attributed the second stack to shadow
+     hits aligning with the character's own inflict interval — is itself now REFUTED: with zero shadows
+     present, the character's own repeated hits alone reach 2 sustained stacks at some cadences, meaning the
+     player's own applications stack independently rather than being capped at "1 sustained stack from the
+     character, period." The **independent-stacking/window model** (each hit within Numbed's duration window
+     contributes its own stack, subject to the glossary-10 cap) is the new working candidate — re-derivation
+     is in progress; NOT confirmed, NOT engine-implemented. **Corollary being checked, not yet confirmed:**
+     the "solo = flat 1 stack" framing used for the RUN A baseline (SHADOW-02 check 1) was always an
+     inference at ordinary manual-cast cadence (~1.5 aps), never itself directly measured at high time
+     resolution — under the new model, ~1.5 aps manual casting might predict roughly 50% uptime at 2 stacks
+     (average ≈1.5) rather than a flat 1, which could help explain RUN A's unexplained solo −2.5% residual:
+     +0.5 average stacks × ~5.9%/stack (18% Numbed Effect) ≈ +2.95%, close to closing that gap. This is a
+     hypothesis under review, not a confirmed correction — no status changes on the strength of it alone. See
+     `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json` for the full
+     derivation.
      **Numb Magnificent** (`thunder_spike_numb_magnificent`, a separate distinct inflict source from the
      inherent structure above) was also sampled: 2 shadows → stacks 1–6 (mode ≈4); 4 shadows → stacks 1–9,
      possibly 10 (sampling limited). An expected-value model (`0.3 × shadow_hits_per_sec × 2s`) predicts
@@ -498,10 +560,16 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 - Setup: **Thunder Spike** alone vs the standard dummy, no supports (isolate the base skill first), then add
   **Rumbling Thunder (Noble)** for check 3.
 - Checks:
-  1. **Base WAD.** 🔶 Supported. Solo Recount 349 vs engine 340.34 (−2.5%, no correction — solo Numbed sits at a
-     genuine flat 1 stack). Supports the magnitude of 277% WAD at Lv20 to within measurement noise (aggregate
-     evidence, not an isolation test). Compare against the character-sheet tooltip is explicitly out of scope —
-     see `training-dummy.json` doctrine.
+  1. **Base WAD.** 🔶 Supported. Solo Recount 349 vs engine 340.34 (−2.5%, no correction applied — the run was
+     recorded assuming solo Numbed sits at a flat 1 stack). Supports the magnitude of 277% WAD at Lv20 to
+     within measurement noise (aggregate evidence, not an isolation test). **Note (2026-07-15, same day):**
+     the "solo = flat 1 stack" assumption itself is now under review — see SHADOW-01 check 6's solo/Rhythm
+     discriminating test, which showed the character's own hits alone can sustain 2 stacks at some cadences.
+     A corollary hypothesis under review (not confirmed) is that RUN A's ~1.5 aps manual cadence may have
+     averaged closer to ≈1.5 stacks than a flat 1, which could account for most of the −2.5% residual
+     (+0.5 stacks × ~5.9%/stack ≈ +2.95%) — this would not change the WAD-magnitude conclusion, only the
+     Numbed-correction bookkeeping; not promoted, no engine change follows from it yet. Compare against the
+     character-sheet tooltip is explicitly out of scope — see `training-dummy.json` doctrine.
   2. **Intrinsic conversion + inherent Numbed.** 🔶 Supported in aggregate only (this pair did not isolate
      conversion or Numbed-on-hit individually — e.g. no run with Numbed suppressed). Confirm 100% of the
      skill's Physical Damage displays/behaves as Lightning Damage (no separate Physical component), and that

@@ -258,12 +258,14 @@
     "temporary_mana_flat",
     "temporary_mana_pct",
     "tide_dmg_taken",
+    "trigger_interval",
     "triple_dmg_chance",
     "unlucky_crit",
     "unlucky_fire",
     "unlucky_lightning",
     "weapon_attack_speed",
-    "weapon_crit_rating_flat"
+    "weapon_crit_rating_flat",
+    "wind_rhythm_base_cooldown"
   ],
   "offense": {
     "above_max_mult": 1.0,

@@ -196,20 +196,46 @@ assumption: continuous casting vs a boss → ~permanent uptime) — needs in-gam
   uptime on 2) — engine models a flat 1 stack. Quantified: exact on a shadow-free baseline (solo Thunder Spike),
   ~2.6% conservative once shadows are present (they can independently apply the inherent Numbed — see next
   bullet). Model the alternation once ailment-uptime work lands.
-- **Shadow-applied inherent Numbed — structure now known (2026-07-15), formula still unmodeled.** Shadow hits
-  can themselves apply Thunder Spike's inherent on-hit Numbed, not only the player's own True Body hit —
-  this is how a Haunt-equipped run reaches an average ≈1.5 Numbed stacks. Follow-up cadence testing
-  (2026-07-15) establishes the STRUCTURE: stacking is per-source-group, not per-hit — 1 sustained stack from
-  the character + at most 1 sustained stack from the shadows/clones collectively, capped at 2 regardless of
-  shadow count (observed to 4). Three calibration points for the clone-uptime formula vs attack speed: N=1
-  avg ≈1.33 (~66%/~33% split), N=2 avg ≈1.5 (~50%/~50%), N=4 stays <2 (approaching the structural cap) — the
-  split is attack-speed-dependent and a test at a different attack speed is planned to fit the formula. The
-  separate falloff-shape question (flat vs compounding per-shadow damage delivery) is now CONFIRMED FLAT via
-  a dedicated N=3 measurement (RUN C, 2026-07-15) — see `data/verification/shadow-strike.json`. Needs
+- **Shadow-applied inherent Numbed — structure known (2026-07-15), clone-uptime formula OPEN (phase-slot
+  candidate REFUTED 2026-07-15).** Shadow hits can themselves apply Thunder Spike's inherent on-hit Numbed,
+  not only the player's own True Body hit — this is how a Haunt-equipped run reaches an average ≈1.5 Numbed
+  stacks. Follow-up cadence testing (2026-07-15) establishes the STRUCTURE: stacking is per-source-group, not
+  per-hit — 1 sustained stack from the character + at most 1 sustained stack from the shadows/clones
+  collectively, capped at 2 regardless of shadow count (observed to 4). Three calibration points for the
+  clone-uptime formula vs attack speed: N=1 avg ≈1.33 (~66%/~33% split), N=2 avg ≈1.5 (~50%/~50%), N=4 stays
+  <2 (approaching the structural cap) — the split is attack-speed-dependent. A follow-up **Rhythm-cadence
+  discriminating test (2026-07-15, Part 2)** used the Rhythm activation medium to force an exact attack
+  cadence: 1.0s interval and forced 2 attacks/sec both sustained **100% uptime at 2 stacks**, while a 0.7s
+  interval alternated 1↔2 at a varying, phase-dependent percentage. This **REFUTES** the discrete cast-slot
+  phase-slot candidate model (`.wolf/memory.md` 2026-07-15 "Part B re-derivation"), which had predicted a
+  deterministic 50% overlap at every attack speed including aps=1.0 — flatly contradicted by the measured 100%
+  uptime there. The non-monotonic pattern instead points to an INTERVAL-ALIGNMENT mechanism (cadences dividing
+  evenly into the 1s inherent inflict interval sustain both stacks); **re-derivation is in progress and the
+  clone-uptime FORMULA remains OPEN/UNMODELED** — the phase-slot candidate must not be promoted. The separate
+  falloff-shape question (flat vs compounding per-shadow damage delivery) is now CONFIRMED FLAT via a
+  dedicated N=3 measurement (RUN C, 2026-07-15) — see `data/verification/shadow-strike.json`. Needs
   shadow-hit-count/timing modeling to engine-implement — the same unlock the Frantic Shadow Attack Speed proc
   and Numb Magnificent both need (see above; Numb Magnificent now has 2026-07-15 sampled stack ranges at 2
   and 4 shadows recorded too). See `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json`
   notes.
+- **Despised Shadow's proc chance is USE-gated, not CAST-gated (owner-stated, 2026-07-15) — SHIPPED
+  same-day.** The "33% chance to gain +N Shadows when using the Shadow Strike skill" line does NOT proc off
+  triggered casts (Rhythm/Instruction activation-medium triggers on Thunder Spike are CASTs, not USEs — the
+  standard USE-vs-CAST restriction applies). Originally logged as a known model limitation (the per-cast
+  expected-value mix applied unconditionally on every cast, overstating DPS for AM-triggered Thunder Spike
+  builds equipped with Despised Shadow); **IMPLEMENTED 2026-07-15, same batch**:
+  `backend/engine/compute.py` (~1353–1364) zeroes `shadow_chance_pct` whenever the slot is trigger-driven
+  (`trigger_interval` or `wind_rhythm_base_cooldown` > 0, the same detection Demolisher already uses),
+  leaving `max_shadow_quantity_flat` (flat grants like Haunt/Frantic Shadow) unaffected — manual-use builds
+  are unchanged, only AM/Rhythm-triggered slots are gated off. 3 new tests, full suite 3772/0. This was the
+  **first measured instance** of the USE/CAST distinction mattering for a modeled mechanic — same deferral
+  class as Spell Burst's USE-vs-CAST gate (§0d) and Tangle's (§0c), both still open. See
+  `data/verification/shadow-strike.json`.
+- **Core Organ slot-page crawl: assessed and declined (owner decision, 2026-07-15).** Considered while
+  gathering Despised Shadow / Vorax grafting data for this Shadow Strike work — a dedicated crawl of per-slot
+  Core Organ pages (`tlidb-crawler`). Owner declined: crafting costs aren't data the engine uses; the Core
+  Organ item itself doesn't matter (only the legendary name it unlocks); multi-slot applicability is already
+  captured (e.g. the Vorax chest page already lists all eligible chest/gloves directly). Not re-proposing.
 
 ## 0c. Tangles (core shipped 2026-06-17 — follow-ups)
 Shipped: the **Tangle skill type**. A Spell becomes a Tangle via an activator support (**Spell Tangle** /

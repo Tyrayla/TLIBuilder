@@ -1353,7 +1353,14 @@ def compute(
         shadow = None
         if "shadow strike" in {t.lower() for t in resolved.tags}:
             _shadow_n = int(eff.total("max_shadow_quantity_flat"))
-            _shadow_chance = min(1.0, max(0.0, eff.total("shadow_chance_pct")))
+            _shadow_triggered = eff.total("trigger_interval") > 0 or eff.total("wind_rhythm_base_cooldown") > 0
+            # Despised Shadow's "chance to gain +K Shadows when USING the Shadow Strike skill" is USE-gated,
+            # not CAST-gated (owner-confirmed 2026-07-15, discovered via the Rhythm/AM discriminating tests)
+            # — an AM/Rhythm-triggered slot fires CASTs, not USEs (the game's standard USE-vs-CAST
+            # restriction), so the chance-mix must not apply there. max_shadow_quantity_flat (a flat grant,
+            # not a "when using" proc — e.g. Haunt, Frantic Shadow) is unaffected. Same trigger detection
+            # Demolisher uses just above (~line 1328).
+            _shadow_chance = 0.0 if _shadow_triggered else min(1.0, max(0.0, eff.total("shadow_chance_pct")))
             _shadow_chance_qty = eff.total("shadow_chance_quantity_flat")
             if _shadow_n > 0 or _shadow_chance > 0:
                 shadow = {"count": _shadow_n, "chance_pct": _shadow_chance, "chance_quantity": _shadow_chance_qty}
