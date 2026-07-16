@@ -1679,8 +1679,14 @@ def get_skills():
     active = season_manager.get_active_season()
     if not active:
         return {"season": None, "skills": []}
-    data = season_manager.load_skills(active)
-    if not data:
+    # Route through _get_skills_data (not a bare season_manager.load_skills) so crawler-mangled entries get
+    # engine.skill_overrides.apply_skill_overrides' corrections BEFORE the tooltip is built. Bypassing it here
+    # previously showed the raw crawler text (e.g. Mana Boil's mangled "Consumes 16.65 % additional Spell
+    # Damage" line) in the Skill panel even though the compute path (which already called _get_skills_data)
+    # had the correct 3%-of-Max-Mana consume — a display-only bug, not a stat-computation bug. See
+    # .wolf/buglog.json "mana-boil-tooltip-bypasses-override".
+    skills_by_id_raw = _get_skills_data(active)
+    if not skills_by_id_raw:
         return {"season": active, "skills": []}
     from engine.tooltip import build_tooltip
     # Which skills CAN contribute to the build's total DPS. Dev-set: an explicit `dps_eligible` in the skill
@@ -1688,7 +1694,7 @@ def get_skills():
     # do not). The user then toggles inclusion per equipped skill (countInDps).
     _DPS_TYPES = {"active_skill", "modularization_skill"}
     skills = []
-    for s in data.get("skills", []):
+    for s in skills_by_id_raw.values():
         out = dict(s)   # enrich a copy; never mutate the loaded store
         out["dps_eligible"] = bool(s["dps_eligible"]) if "dps_eligible" in s else (s.get("skill_type") in _DPS_TYPES)
         # Buff-passive flag: an Aura/Focus-tagged passive grants player buffs (aura_resolver) — lets the UI
@@ -2232,6 +2238,18 @@ _COND_PATTERNS: list[tuple] = [
     # "when having Hasten" payoff lines on items that don't self-grant Hasten gate on the auto-set condition.
     (re.compile(r"having\s+hasten|have\s+hasten", re.I), "has_hasten"),
     (re.compile(r"taken\s+damage\s+in\s+the\s+last|recently\s+taken\s+damage", re.I), "recently_taken_damage"),
+    # "(haven't/have not) been hit recently" — distinct from recently_taken_damage: per the Help DB's Chance to
+    # Avoid Damage entry, "when damage is successfully avoided, the hit is still deemed to be successful, and
+    # the attacker's hit-related effects will still be triggered" — so Damage Avoidance can leave a "hit"
+    # landing with zero damage taken, making "hit" and "damage taken" separate game states. This does NOT
+    # extend to Evade: its Help DB entry says the opposite ("when a hit is evaded, on-hit effects and damage
+    # will not be inflicted") — an evaded attack is not a "hit" at all. Block's entry makes no "hit still
+    # successful" claim either way. Negated form first (file convention). Shared by Preserver of Eternity's
+    # Movement Speed line, the SS12 ethereal-prism Injury Buffer line, and SS13 Deflection lines (belt blends /
+    # legendary gear / marksman) — one condition key reused across all of them; only the Preserver Movement
+    # Speed line is wired to a stat contribution today.
+    (re.compile(r"haven'?t\s+been\s+hit\s+recently|have\s+not\s+been\s+hit\s+recently", re.I), {"not": "recently_hit"}),
+    (re.compile(r"have\s+been\s+hit\s+recently|\bhit\s+recently\b", re.I), "recently_hit"),
     (re.compile(r"used\s+a\s+mobility\s+skill", re.I), "recently_used_mobility"),
     # Consumed-recently threshold gates (Crimson King / Awakening Skull). Driven by the engine's consumed_recently
     # total: "% (Max) Life consumed recently" → % of Max; flat "N Life consumed recently" → flat amount.
@@ -2267,7 +2285,13 @@ _COND_PATTERNS: list[tuple] = [
      lambda m: {"key": "spell_burst_stacks_recently", "op": "per", "divisor": 1,
                 **({"cap": float(m.group(1)) / 100.0} if m.group(1) else {})}),
     # "when activating Spell Burst" (Kismet Ripple's Skill-Area line) → the build's Spell Burst state (default on).
-    (re.compile(r"(?:when\s+)?activating\s+spell\s+burst", re.I), "spell_burst_active"),
+    # SS13 "Afterlight" reworded the global Spell Burst trigger to "consuming"/"is consumed" on several catalog
+    # entries (inconsistently — some kept "activating"); accept both the old and new phrasings so a structured
+    # gear-affix `condition` field (e.g. Solid River / Surging Inspiration / Tranquil Stir, whose raw `condition`
+    # is literally "when consuming Spell Burst" / "when Spell Burst is consumed" in data/seasons/SS13/
+    # _legendary_gear.json) still translates. SS12 data stays selectable, so the old form must keep working too.
+    (re.compile(r"(?:when\s+)?(?:activating|consuming)\s+spell\s+burst|spell\s+burst\s+is\s+(?:activated|consumed)", re.I),
+     "spell_burst_active"),
     # Per-"stack owned" scaling → multiply the contribution by the stack count (floor(val/1)).
     (re.compile(r"(?:per|for\s+every|for\s+each)\s+stack(?:\(s\))?\s+of\s+(focus|agility|tenacity)\s+blessing", re.I),
      lambda m: {"key": f"{m.group(1).lower()}_blessings", "op": "per", "divisor": 1}),

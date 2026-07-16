@@ -3,13 +3,26 @@
 
 # Wind Stalker (Erika trait)
 
-- **Status:** ⚠️ Unverified
+- **Status:** ✅ Confirmed
 - **Skills affected:** Wind Stalker
-- **Mechanic tags:** hero-trait, speed
+- **Mechanic tags:** hero-trait, speed, owner-confirmed, malformed-source-text
+- **Last verified:** 2026-07-16 by Tyra (owner)
+
+## Setup
+
+Not an in-game data-collection test — this is a direct owner confirmation of one engine table (`_CATS_PUNCHES_DMG`), given specifically because the upstream catalog text for this node is MALFORMED. The SS13 `_hero_traits.json` effect text for Cat's Punches (Erika, L75) reads: "...( -18 % additional damage/-12 % additional damage/-6 % additional damage//+6 % additional damage)" — note the double slash `//` between the L3 and L5 clauses, i.e. the L4 slot is genuinely EMPTY in the source text, not just zero-valued. Identical malformed text exists in SS12, so this is not new SS13 breakage. The engine infers 0.0 additional damage for the missing L4 slot. Confirmed only this single table; the rest of Wind Stalker (Interest, Have Fun's virtual Multistrike injection, Cat's Vision, Cat's Scratch, Cat Dive, base) was separately audited as SS12->SS13-clean by catalog/glossary comparison and is NOT covered by this owner-confirmation entry.
+
+## Raw data points
+
+Owner statement, 2026-07-16, verbatim: "Wind stalkers cats punches should be 0 additional dmg gain or loss at lvl 4 based off the data as far as I can see 6% additional at lvl 5, and ten 3 and below are -6% additional descending so the full table is -18,-12,-6,0,+6". Confirmed full per-tier table (additional damage, signed, always active): L1 -18%, L2 -12%, L3 -6%, L4 0% (the empty/malformed slot), L5 +6%. Matches `_CATS_PUNCHES_DMG = [-0.18, -0.12, -0.06, 0.0, 0.06]` in `wind_stalker.py` exactly. Not an independent third-party in-game measurement — a first-party (owner) confirmation resolving an ambiguous/broken source field.
+
+## Derived / confirmed formula
+
+Arithmetic progression, step +6% per tier: L1 -18%, L2 -12%, L3 -6%, L4 0%, L5 +6% additional damage. The L4 = 0% value is an inference filling a genuinely empty slot in the upstream text (see setup), now owner-confirmed correct — do not "fix" it back to a non-zero value without a new owner/in-game source.
 
 ## Notes / caveats / open questions
 
-Shipped in the engine; not yet verified in-game. Erika trait layered on Phase-1 Multistrike; Have Fun = a virtual Lv10 Multistrike.
+Erika trait layered on Phase-1 Multistrike; Have Fun = a virtual Lv10 Multistrike. Cat's Punches L4 additional-damage tier (`_CATS_PUNCHES_DMG[3] = 0.0`) is now owner-confirmed correct, but the reason it needs this entry at all is that the SS13 (and SS12) catalog text has a genuinely EMPTY 4th slot (`...//+6 %...`, double slash) rather than an explicit "0%" — the engine's 0.0 is an inference the owner has since validated, not a value the catalog ever stated. Everything outside this one table (base, Interest, Have Fun, Cat's Vision, Cat's Scratch, Cat Dive) is shipped in the engine and separately audited catalog-clean SS12->SS13, but still not independently verified in-game and is NOT covered by this confirmation.
 
 ## Implementation (engine model)
 
@@ -20,3 +33,5 @@ Modeled in `wind_stalker.py::apply`; base node disabled → base lines off. Base
 - backend/engine/hero_traits/wind_stalker.py
 - backend/tests/test_wind_stalker.py
 - memory: project_multistrike_wind_stalker
+- data/seasons/SS13/_hero_traits.json:5084 — malformed Cat's Punches effect text (empty 4th slot, double slash)
+- owner confirmation (chat), 2026-07-16: full per-tier table -18/-12/-6/0/+6

@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**68 entries** — ✅ Confirmed: 11 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 37
+**70 entries** — ✅ Confirmed: 13 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 37
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -20,6 +20,8 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Support additional-damage pooling | Chain Lightning | damage-pool, supports | ✅ Confirmed | 2026-06-10 | [support-additional-damage-pooling.md](support-additional-damage-pooling.md) |
 | Tangle (tick-rounding + model) | Spell Tangle | tick-rounding, breakpoint, trigger | ✅ Confirmed | 2026-06-19 | [tangle.md](tangle.md) |
 | Training Dummy (calc target) | — | mitigation, methodology, calc-target | ✅ Confirmed | 2026-06-10 | [training-dummy.md](training-dummy.md) |
+| Unsullied Blade (Rosa trait) | Unsullied Blade | hero-trait, conversion, true-damage, owner-confirmed | ✅ Confirmed | 2026-07-16 | [unsullied-blade.md](unsullied-blade.md) |
+| Wind Stalker (Erika trait) | Wind Stalker | hero-trait, speed, owner-confirmed, malformed-source-text | ✅ Confirmed | 2026-07-16 | [wind-stalker.md](wind-stalker.md) |
 | Damage over Time — skill-DoT damage model | Mind Control, Path of Flames | dot, damage-pool, tick-rounding, methodology | 🔶 Partial | 2026-07-10 | [dot-model.md](dot-model.md) |
 | Demolisher / Cripple / Frequent Quake | Groundshaker | damage-pool, restoration, trigger | 🔶 Partial | 2026-07-01 | [demolisher.md](demolisher.md) |
 | Mind Control | Mind Control | dot, damage-pool, channeled, methodology | 🔶 Partial | 2026-07-10 | [mind-control.md](mind-control.md) |
@@ -41,7 +43,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Activation mediums (general parser) | — | trigger, cooldown | ⚠️ Unverified | — | [activation-mediums.md](activation-mediums.md) |
 | Active minion count (adjustable, scales DPS) | — | minion, dps | ⚠️ Unverified | — | [minion-active-count.md](minion-active-count.md) |
 | Berserking Blade (+ supports) | Berserking Blade | skill, buff, per-slot | ⚠️ Unverified | — | [berserking-blade.md](berserking-blade.md) |
-| Chromatic Shot (+ canvas supports) | Chromatic Shot | skill, conversion, shotgun | ⚠️ Unverified | — | [chromatic-shot.md](chromatic-shot.md) |
+| Chromatic Shot (+ canvas supports + SS13 Condensed quartet) | Chromatic Shot | skill, conversion, shotgun, season-data-driven, ailment | ⚠️ Unverified | — | [chromatic-shot.md](chromatic-shot.md) |
 | Conditional / scaling minion modifiers | — | minion, modifier, condition | ⚠️ Unverified | — | [minion-conditional-mods.md](minion-conditional-mods.md) |
 | Core talents (uniqueness / grants) | — | talent, damage-pool | ⚠️ Unverified | — | [core-talents.md](core-talents.md) |
 | Damage conversions | — | conversion, damage-pool | ⚠️ Unverified | — | [damage-conversions.md](damage-conversions.md) |
@@ -54,6 +56,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Frail + Infiltration | — | enemy-vulnerability, ailment | ⚠️ Unverified | — | [frail-infiltration.md](frail-infiltration.md) |
 | Frostbite ailment | — | ailment, enemy-vulnerability | ⚠️ Unverified | — | [frostbite.md](frostbite.md) |
 | High Court Chariot (Rosa trait) | High Court Chariot | hero-trait, defense | ⚠️ Unverified | — | [high-court-chariot.md](high-court-chariot.md) |
+| Hit Recently condition (Preserver of Eternity / Injury Buffer / Deflection lines) | — | condition, trigger, ui-display | ⚠️ Unverified | — | [recently-hit-condition.md](recently-hit-condition.md) |
 | Howling Gale | Howling Gale | skill, channeled | ⚠️ Unverified | — | [howling-gale.md](howling-gale.md) |
 | Isomorphic Arms (weapon transfer) | — | minion, core-talent, god-of-machines | ⚠️ Unverified | — | [isomorphic-arms.md](isomorphic-arms.md) |
 | Licorice Note (Sage trait) | Licorice Note | hero-trait, buff, crit | ⚠️ Unverified | — | [licorice-note.md](licorice-note.md) |
@@ -73,7 +76,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Slate inventory + bonus overview | — | build-system, slates | ⚠️ Unverified | — | [slate-inventory.md](slate-inventory.md) |
 | Spirit Magi Growth + stages | — | minion, spirit-magus, growth | ⚠️ Unverified | — | [spirit-magi-growth.md](spirit-magi-growth.md) |
 | Split Shot + supports (spread / Shotgun Effect / channel) | Split Shot | shotgun, projectile, channeled, breakpoint, supports, damage-pool | ⚠️ Unverified | — | [split-shot.md](split-shot.md) |
-| Unsullied Blade (Rosa trait) | Unsullied Blade | hero-trait, conversion, true-damage | ⚠️ Unverified | — | [unsullied-blade.md](unsullied-blade.md) |
-| Wind Stalker (Erika trait) | Wind Stalker | hero-trait, speed | ⚠️ Unverified | — | [wind-stalker.md](wind-stalker.md) |
+| Talent point budget (max allocatable talent points) | — | talent-tree, resource-budget, ui-display | ⚠️ Unverified | — | [talent-point-budget.md](talent-point-budget.md) |
 | Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | 2026-07-06 | [minion-dps-engine.md](minion-dps-engine.md) |
 | Thunder Magus (Spirit Magus) | Summon Thunder Magus | minion, spirit-magus | ⚠️ Unverified | 2026-07-06 | [thunder-magus.md](thunder-magus.md) |

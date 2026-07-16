@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import Callable, Literal
 import re
 
+from engine.constants import DAMAGE_TYPES
+
 
 @dataclass
 class SkillHitForm:
@@ -110,6 +112,14 @@ class ResolvedSkill:
     # same_target_shotgun_grant). Distinct from spread/trajectory. Chromatic Shot / Icebound keep their innate
     # shotgun (they do NOT set this). Split Shot base sets it True; Volley flips it on. See engine/offense.py.
     shotgun_requires_grant: bool = False
+    # This skill's projectiles shotgun onto a SINGLE target and only a capped number of them "land" (Chromatic
+    # Shot: base 3, up to ~40 with +Projectile Quantity, user-tunable via the chromatic_shots_on_target
+    # condition; Lightchaser forces all to land). This is a property of the skill's PROJECTILE DELIVERY, wholly
+    # independent of `compulsory_elements` — SS12's Chromatic Shot is both compulsory-converted AND shots-capped,
+    # SS13's reworked (plain Physical) Chromatic Shot is NOT compulsory but is STILL shots-capped (the shotgun
+    # mechanic itself was not touched by the SS13 rework). Consumed by offense.py's shots-on-target cap and by
+    # compute.py's chromatic_shots_on_target condition-max/auto-default surfacing. False for every other skill.
+    shots_on_target_cap: bool = False
     # Extra tags merged into the skill's tag set ONLY for damage increased/additional filtering, so a
     # skill can benefit from off-type damage mods. E.g. Moon Strike: ['spell'] → Spell Damage
     # inc/additional apply to its Attack Damage (without making it count as a spell for flat adds).
@@ -435,14 +445,25 @@ def _resolve_chain_lightning(skill_data: dict) -> ResolvedSkill:
 
 # Lenient base-damage line (the element word is optional — Chromatic Shot prints "Spell Damage" or "Spell Fire damage").
 _CHROMA_BASE_RE = re.compile(r"Deals\s+([\d.,]+)\s*-\s*([\d.,]+)\s+Spell(?:\s+[A-Za-z]+)?\s+[Dd]amage", re.I)
-_CHROMATIC_ELEMENTS = ["fire", "cold", "lightning"]
+# Data-driven detection of the compulsory-conversion mechanic itself (SS12: "Each time this skill is cast,
+# forcibly converts all damage dealt by the next skill to a randomly selected type of Elemental Damage" /
+# detailed_description's "...forcibly converting the damage of the next use of this skill to that type...").
+# SS13 deleted this line entirely (Chromatic Shot became a plain Physical spell) — so this is read from the
+# skill's OWN raw_text every resolve, never branched on season. No match → no compulsory conversion.
+_CHROMATIC_FORCED_CONVERT_RE = re.compile(r"forcibly convert", re.I)
 
 
 @_register("chromatic_shot")
 def _resolve_chromatic_shot(skill_data: dict) -> ResolvedSkill:
-    """Chromatic Shot — a Spell whose damage is COMPULSORILY converted to one random/rotated element per cast (see
-    ResolvedSkill.compulsory_elements). Base damage is type-agnostic; the per-element split + expected average happen
-    in offense. Fires 1 + Projectile Quantity projectiles that shotgun one target (falloff 0.70)."""
+    """Chromatic Shot — a Spell. `damage_types` is derived from the skill's OWN `skill_tags` (its native damage
+    type(s), e.g. ["fire","cold","lightning"] pre-SS13, ["physical"] SS13+). `compulsory_elements` mirrors
+    `damage_types` ONLY when the skill's own text still states the "forcibly converts...to a randomly selected
+    type of Elemental Damage" mechanic (see `_CHROMATIC_FORCED_CONVERT_RE`) — empty otherwise, so a season that
+    drops the mechanic (SS13) needs no code change here. When compulsory, base damage is type-agnostic (the
+    per-element split + expected average happen in offense via `base_flat_by_level`); otherwise it's an ordinary
+    per-type spell base (`base_dmg_by_level`), same as any other spell resolver. Fires 1 + Projectile Quantity
+    projectiles that shotgun one target (falloff 0.70), capped at "shots on target" — `shots_on_target_cap=True`
+    unconditionally (that cap is a delivery property, not tied to `compulsory_elements`; see its docstring)."""
     max_level = skill_data.get("max_level", 20)
     base_flat: dict[int, tuple[float, float]] = {}
     effectiveness = 1.0
@@ -463,6 +484,15 @@ def _resolve_chromatic_shot(skill_data: dict) -> ResolvedSkill:
                            hit_count=3, shotgun_falloff=0.70, scales_with_projectiles=True)]
         for lvl in base_flat
     }
+    tags_lower = {str(t).lower() for t in skill_data.get("skill_tags", [])}
+    damage_types = [t for t in DAMAGE_TYPES if t in tags_lower]   # native type(s), in engine order
+    is_compulsory = bool(_CHROMATIC_FORCED_CONVERT_RE.search(str(skill_data.get("raw_text", ""))))
+    compulsory_elements = list(damage_types) if is_compulsory else []
+    # base_dmg_by_level assumes each tagged type independently deals the FULL base tuple — true for the single-
+    # type case observed in every season's data so far (SS13: physical only); flag if a future non-compulsory
+    # multi-type tag set ever appears, since that would double-count instead of splitting the base.
+    base_dmg_by_level = ({} if is_compulsory else
+                         {lvl: {t: dmg for t in damage_types} for lvl, dmg in base_flat.items()})
     return ResolvedSkill(
         skill_id=skill_data["item_id"],
         name=skill_data["name"],
@@ -473,9 +503,14 @@ def _resolve_chromatic_shot(skill_data: dict) -> ResolvedSkill:
         is_spell=True,
         base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
         added_dmg_effectiveness=effectiveness,
-        damage_types=list(_CHROMATIC_ELEMENTS),
-        compulsory_elements=list(_CHROMATIC_ELEMENTS),
-        base_flat_by_level=base_flat,
+        damage_types=damage_types,
+        compulsory_elements=compulsory_elements,
+        base_flat_by_level=base_flat if is_compulsory else {},
+        base_dmg_by_level=base_dmg_by_level,
+        # The shots-on-target shotgun cap is a delivery property (3 projectiles, single-target, capped landing
+        # count) — set unconditionally, NOT gated on is_compulsory, so it survives SS13's compulsory→plain-
+        # Physical rework unchanged. See ResolvedSkill.shots_on_target_cap docstring.
+        shots_on_target_cap=True,
     )
 
 

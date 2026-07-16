@@ -1,7 +1,18 @@
 """Licorice Note (Sage) — scent-bottle Elixir Effect bonuses + the Pungent cross-apply to a designated
 Empower/Curse, slot-scoped. Covers slot-specificity, the designate-one rule, caps, the increased-pool wording,
 Scent of Ambition / Everlasting Nectar, the activation-medium warning, and that other traits are unaffected.
+
+Scent of Ambition's Elixir Effect bonus and Pungent Stimulant Salt's Empower/Curse effect caps are now SEASON
+DATA (read from `_hero_traits.json` via `engine.hero_traits._catalog`, see `licorice_note.py`'s module docstring
+for the 2026-07-16 SS12->SS13 drift fix), not hardcoded literals. Per the pattern established in
+`test_chromatic_shot.py`, tests below explicitly PIN the season for the `engine_stats` round trip (`_resp`'s
+`season` kwarg, default "SS13") rather than riding whatever the app's ambient active season happens to be — so
+this file doesn't silently change meaning at the next season rollover. `test_pungent_and_ambition_both_seasons`
+exercises the SAME code path against both SS12 and SS13 catalog data to guard the property the refactor is
+actually about: correct per-season values with no `if season ==` branch in the trait module.
 """
+import contextlib
+
 import pytest
 from server import engine_stats, EngineStatsRequest
 from tests.mock_build import make_request
@@ -26,22 +37,38 @@ def _gear(pairs):
         for k, v in pairs]}]
 
 
-def _resp(extra_skills=None, slot_levels=None, picks=None, prepared=None, gear=None, supports=None, ingredients=None):
-    req = make_request("chromatic_shot", 20, gear=gear if gear is not None else _gear([("elixir_effect_inc", 0.5)]),
-                       attached_supports=supports or [])
-    for sk in (extra_skills or []):
-        req["skills"].append(sk)
-    if slot_levels is not None:
-        req["trait_id"] = "licorice_note"
-        req["trait_slot_levels"] = slot_levels
-    if picks is not None:
-        req["advanced_trait_selections"] = picks
-    if prepared is not None:
-        req["licorice_prepared_skill"] = prepared
-    if ingredients is not None:
-        req["elixir_ingredients"] = ingredients
-    r = engine_stats(EngineStatsRequest(**req))
-    return r if isinstance(r, dict) else r.model_dump()
+@contextlib.contextmanager
+def _pinned_season(name):
+    """Temporarily set the ACTIVE season for the `engine_stats` round trip below, restoring whatever was active
+    on exit (even on failure). Licorice Note's Scent of Ambition bonus and Pungent's Empower/Curse caps are
+    read straight off each season's own catalog data (see module docstring), so a test going through the live
+    endpoint needs this to stay pinned to the season it's actually testing."""
+    prev = season_manager.get_active_season()
+    season_manager.set_active_season(name)
+    try:
+        yield
+    finally:
+        season_manager.set_active_season(prev)
+
+
+def _resp(extra_skills=None, slot_levels=None, picks=None, prepared=None, gear=None, supports=None,
+          ingredients=None, season="SS13"):
+    with _pinned_season(season):
+        req = make_request("chromatic_shot", 20, gear=gear if gear is not None else _gear([("elixir_effect_inc", 0.5)]),
+                           attached_supports=supports or [])
+        for sk in (extra_skills or []):
+            req["skills"].append(sk)
+        if slot_levels is not None:
+            req["trait_id"] = "licorice_note"
+            req["trait_slot_levels"] = slot_levels
+        if picks is not None:
+            req["advanced_trait_selections"] = picks
+        if prepared is not None:
+            req["licorice_prepared_skill"] = prepared
+        if ingredients is not None:
+            req["elixir_ingredients"] = ingredients
+        r = engine_stats(EngineStatsRequest(**req))
+        return r if isinstance(r, dict) else r.model_dump()
 
 
 def _elixir(r, name_contains):
@@ -76,11 +103,12 @@ def test_artificial_moon_needs_base_l5():
 
 # ── Pungent cross-apply: one designated Empower/Curse, slot-scoped, increased pool, capped ──
 def test_pungent_empower_autoselect_and_cap():
-    # One eligible empower → auto-selected. basis 0.5 × ratio 2.0 = 1.0, capped to empower L1 cap 0.70.
+    # One eligible empower → auto-selected. basis 0.5 × ratio 2.0 = 1.0, capped to SS13 empower L1 cap 0.40
+    # (season-catalog-sourced; SS12's cap was 0.70 — see licorice_note.py's 2026-07-16 drift-fix docstring).
     r = _resp(extra_skills=[{"slot": 2, "skill_id": ELIXIR, "level": 20},
                             {"slot": 3, "skill_id": EMPOWER, "level": 20}],
               slot_levels=[5, 1, 0, 0])
-    assert _empower(r, EMPOWER)["empower_effect_inc"] == pytest.approx(0.70, abs=1e-3)
+    assert _empower(r, EMPOWER)["empower_effect_inc"] == pytest.approx(0.40, abs=1e-3)
 
 
 def test_pungent_requires_designation_when_multiple():
@@ -91,20 +119,21 @@ def test_pungent_requires_designation_when_multiple():
     r = _resp(extra_skills=skills, slot_levels=[5, 1, 0, 0])
     assert _empower(r, EMPOWER)["empower_effect_inc"] == pytest.approx(0.0, abs=1e-3)
     assert _empower(r, EMPOWER2)["empower_effect_inc"] == pytest.approx(0.0, abs=1e-3)
-    # Designate one → only that one gets it.
+    # Designate one → only that one gets it (SS13 empower L1 cap 0.40; see test_pungent_empower_autoselect_and_cap).
     r2 = _resp(extra_skills=skills, slot_levels=[5, 1, 0, 0], prepared=EMPOWER2)
     assert _empower(r2, EMPOWER)["empower_effect_inc"] == pytest.approx(0.0, abs=1e-3)
-    assert _empower(r2, EMPOWER2)["empower_effect_inc"] == pytest.approx(0.70, abs=1e-3)
+    assert _empower(r2, EMPOWER2)["empower_effect_inc"] == pytest.approx(0.40, abs=1e-3)
 
 
 def test_pungent_curse_slot_scoped():
-    # One eligible curse → auto-selected; cross-apply lands on its (increased) curse effect, capped to 0.50.
+    # One eligible curse → auto-selected; cross-apply lands on its (increased) curse effect, capped to the
+    # SS13 curse L1 cap 0.30 (SS12's cap was 0.50 — season-catalog-sourced, see licorice_note.py docstring).
     r = _resp(extra_skills=[{"slot": 2, "skill_id": ELIXIR, "level": 20},
                             {"slot": 3, "skill_id": CURSE, "level": 20}],
               slot_levels=[5, 1, 0, 0])
     c = _curse(r, CURSE)
     assert c is not None
-    assert c["curse_effect_inc"] == pytest.approx(0.50, abs=1e-3)   # 0.5×2.0=1.0 capped to curse L1 cap 0.50
+    assert c["curse_effect_inc"] == pytest.approx(0.30, abs=1e-3)   # 0.5×2.0=1.0 capped to curse L1 cap 0.30
 
 
 def test_pungent_curse_only_designated_when_multiple():
@@ -112,7 +141,7 @@ def test_pungent_curse_only_designated_when_multiple():
               {"slot": 3, "skill_id": CURSE, "level": 20},
               {"slot": 4, "skill_id": "corruption", "level": 20}]
     r = _resp(extra_skills=skills, slot_levels=[5, 1, 0, 0], prepared=CURSE)
-    assert _curse(r, CURSE)["curse_effect_inc"] == pytest.approx(0.50, abs=1e-3)
+    assert _curse(r, CURSE)["curse_effect_inc"] == pytest.approx(0.30, abs=1e-3)   # SS13 curse L1 cap
     assert _curse(r, "corruption")["curse_effect_inc"] == pytest.approx(0.0, abs=1e-3)
 
 
@@ -121,8 +150,38 @@ def test_scent_of_ambition_additional_and_duration():
     r = _resp(extra_skills=[{"slot": 2, "skill_id": ELIXIR, "level": 20}],
               slot_levels=[5, 1, 1, 0], picks=["Scent of Ambition"])
     e = _elixir(r, "Thirst")
-    # (1+0.5 inc)*(1+0.12 AM + 0.24 Ambition) - 1 = 1.5*1.36 - 1 = 1.04
-    assert e["elixir_effect_inc"] == pytest.approx(1.04, abs=1e-3)
+    # SS13 tier-1 Scent of Ambition bonus is 0.18 (season-catalog-sourced; SS12's was 0.24 — see
+    # licorice_note.py's 2026-07-16 drift-fix docstring): (1+0.5 inc)*(1+0.12 AM + 0.18 Ambition) - 1 = 0.95
+    assert e["elixir_effect_inc"] == pytest.approx(0.95, abs=1e-3)
+
+
+def test_pungent_and_ambition_both_seasons():
+    """The whole point of the 2026-07-16 refactor: Scent of Ambition's bonus and Pungent's Empower/Curse caps
+    are read straight off EACH season's own catalog data through the SAME code path (no `if season ==` branch
+    in licorice_note.py) — so the SAME test, just fed a different `season`, must reproduce both the old SS12
+    numbers and the corrected SS13 numbers."""
+    ambition_kw = dict(extra_skills=[{"slot": 2, "skill_id": ELIXIR, "level": 20}],
+                       slot_levels=[5, 1, 1, 0], picks=["Scent of Ambition"])
+    ss12 = _elixir(_resp(season="SS12", **ambition_kw), "Thirst")["elixir_effect_inc"]
+    ss13 = _elixir(_resp(season="SS13", **ambition_kw), "Thirst")["elixir_effect_inc"]
+    assert ss12 == pytest.approx(1.04, abs=1e-3)   # (1.5)*(1+0.12+0.24 SS12 Ambition) - 1
+    assert ss13 == pytest.approx(0.95, abs=1e-3)   # (1.5)*(1+0.12+0.18 SS13 Ambition) - 1
+
+    empower_kw = dict(extra_skills=[{"slot": 2, "skill_id": ELIXIR, "level": 20},
+                                    {"slot": 3, "skill_id": EMPOWER, "level": 20}],
+                      slot_levels=[5, 1, 0, 0])
+    emp_ss12 = _empower(_resp(season="SS12", **empower_kw), EMPOWER)["empower_effect_inc"]
+    emp_ss13 = _empower(_resp(season="SS13", **empower_kw), EMPOWER)["empower_effect_inc"]
+    assert emp_ss12 == pytest.approx(0.70, abs=1e-3)   # SS12 empower L1 cap
+    assert emp_ss13 == pytest.approx(0.40, abs=1e-3)   # SS13 empower L1 cap (corrected)
+
+    curse_kw = dict(extra_skills=[{"slot": 2, "skill_id": ELIXIR, "level": 20},
+                                  {"slot": 3, "skill_id": CURSE, "level": 20}],
+                    slot_levels=[5, 1, 0, 0])
+    curse_ss12 = _curse(_resp(season="SS12", **curse_kw), CURSE)["curse_effect_inc"]
+    curse_ss13 = _curse(_resp(season="SS13", **curse_kw), CURSE)["curse_effect_inc"]
+    assert curse_ss12 == pytest.approx(0.50, abs=1e-3)   # SS12 curse L1 cap
+    assert curse_ss13 == pytest.approx(0.30, abs=1e-3)   # SS13 curse L1 cap (corrected)
 
 
 def test_everlasting_nectar_increased_from_life():

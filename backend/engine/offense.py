@@ -2069,10 +2069,13 @@ def calculate_offense(
             n_proj = max(0, form.hit_count + int(source.total("projectile_quantity_flat")))
         else:
             n_proj = max(1, form.hit_count)
-        # Compulsory skills (Chromatic Shot): only the projectiles that LAND on the target shotgun. Cap the hit
-        # count at "shots on target" (a user input the chromatic_shot module emits — full count under Lightchaser/
-        # tangle; default 7 otherwise). Presence-gated so non-chromatic skills are unaffected.
-        if skill.compulsory_elements:
+        # Shots-on-target shotgun cap (Chromatic Shot): only the projectiles that LAND on the target shotgun. Cap
+        # the hit count at "shots on target" (a user input the chromatic_shot module emits — full count under
+        # Lightchaser/tangle; default 7 otherwise). Gated on the explicit `shots_on_target_cap` delivery flag
+        # (set by the resolver), NOT on `compulsory_elements` — the shotgun-cap mechanic and the compulsory
+        # elemental conversion are independent (SS13's Chromatic Shot dropped compulsory but kept the cap).
+        # Presence-gated so non-chromatic skills are unaffected.
+        if skill.shots_on_target_cap:
             shots = (int(source.total("chromatic_shots_on_target_flat"))
                      if "chromatic_shots_on_target_flat" in source.all_stats() else 7)
             if shots >= 1:

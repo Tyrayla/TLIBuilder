@@ -1,12 +1,22 @@
 """Rosa — High Court Chariot (trait_id "high_court_chariot") end-to-end engine coverage.
 
 Locks: +30% block chance + Artificial Moon per-10-MI; inside-domain additional damage by level; Unbreakable
-Stand's weighted per-enemy (Boss ×5) + 100% cap; Divine Intervention per-MI; the **No Guard** model (base 10% ×
-(1+stacks-lost) × (1+Block-Ratio additional), 2 stacks → +100%); Block Ratio base 30% + Invulnerability + upper
-limit; inside-domain gating; never-silently-drop status surface; non-regression (trait_id=None unchanged).
+Stand's weighted per-enemy (Boss ×5) capped (per-tier cap since SS13, see below); Divine Intervention per-MI;
+the **No Guard** model (base 10% × (1+stacks-lost) × (1+Block-Ratio additional), 2 stacks → +100%); Block Ratio
+base 30% + Invulnerability + upper limit; inside-domain gating; never-silently-drop status surface;
+non-regression (trait_id=None unchanged).
+
+Unbreakable Stand's per-enemy bonus AND its cap are SEASON DATA (read from `_hero_traits.json` via
+`engine.hero_traits._catalog`, see `high_court_chariot.py`'s 2026-07-16 SS12->SS13 drift-fix docstring) — SS12's
+cap was a flat +100% scalar for every tier, SS13's is per-tier (+50/60/70/80/90%). `test_unbreakable_stand_...`
+pins the season explicitly (`_pinned_season`, the pattern established in `test_chromatic_shot.py`) rather than
+riding whatever the app's ambient active season happens to be.
 """
+import contextlib
+
 import pytest
 from server import engine_stats, EngineStatsRequest
+from persistence import season_manager
 from tests.mock_build import make_request
 
 SPELL = "chain_lightning"
@@ -15,6 +25,18 @@ SPELL = "chain_lightning"
 def _val(stats, key):
     v = stats.get(key)
     return (v.get("value", v.get("total", 0)) if isinstance(v, dict) else (v or 0)) or 0
+
+
+@contextlib.contextmanager
+def _pinned_season(name):
+    """Temporarily set the ACTIVE season for the `engine_stats` round trip below, restoring whatever was active
+    on exit (even on failure) — see module docstring."""
+    prev = season_manager.get_active_season()
+    season_manager.set_active_season(name)
+    try:
+        yield
+    finally:
+        season_manager.set_active_season(prev)
 
 
 def _run(*, picks=None, conds=None, slot_levels=(5, 5, 5, 5), trait_id="high_court_chariot", **extra):
@@ -61,14 +83,49 @@ class TestInsideDomainDamage:
         assert inside > outside   # +44% additional (base L5) only applies inside
 
     def test_unbreakable_stand_weighted_enemies_and_cap(self):
-        # +10%/enemy (tier 5) × (1 enemy × 5 Boss weight) = +50% additional damage.
-        one = self._dps(_run(picks=["Unbreakable Stand"], conds={"enemies_in_holy_domain": 1}))
-        base = self._dps(_run(conds={"inside_holy_domain": True}))
-        assert one > base
-        # Cap at +100%: 3 enemies × 5 = 15 × 10% = 150% → capped 100%; 5 enemies same (already capped).
-        cap3 = self._dps(_run(picks=["Unbreakable Stand"], conds={"enemies_in_holy_domain": 3}))
-        cap5 = self._dps(_run(picks=["Unbreakable Stand"], conds={"enemies_in_holy_domain": 5}))
-        assert cap5 == pytest.approx(cap3)
+        # +10%/enemy (tier 5) × (1 enemy × 5 Boss weight) = +50% additional damage. Season-pinned to SS13 (per-
+        # enemy bonus is unchanged from SS12, but the cap below is not — see module docstring).
+        with _pinned_season("SS13"):
+            one = self._dps(_run(picks=["Unbreakable Stand"], conds={"enemies_in_holy_domain": 1}))
+            base = self._dps(_run(conds={"inside_holy_domain": True}))
+            assert one > base
+            # SS13 cap is per-tier: tier 5 = +90% (SS12's was a flat +100% for every tier — see module
+            # docstring). 3 enemies × 5 = 15 × 10% = 150% → capped +90%; 5 enemies same (already capped).
+            cap3 = _run(picks=["Unbreakable Stand"], conds={"enemies_in_holy_domain": 3})
+            cap5 = _run(picks=["Unbreakable Stand"], conds={"enemies_in_holy_domain": 5})
+            assert self._dps(cap5) == pytest.approx(self._dps(cap3))
+            base_inside = 0.44   # base-level-5 "inside Holy Domain" additional damage (unaffected by the drift fix)
+            assert _stat(cap3, "dmg_additional") == pytest.approx(base_inside + 0.90, abs=1e-3)
+
+    def test_unbreakable_stand_cap_ss12_vs_ss13(self):
+        """Same code path (no `if season ==` branch), fed each season's own catalog data: SS12's flat +100%
+        cap vs SS13's per-tier +90% (tier 5) cap — the property the 2026-07-16 drift fix is actually about."""
+        kw = dict(picks=["Unbreakable Stand"], conds={"enemies_in_holy_domain": 3})
+        with _pinned_season("SS12"):
+            ss12 = _stat(_run(**kw), "dmg_additional")
+        with _pinned_season("SS13"):
+            ss13 = _stat(_run(**kw), "dmg_additional")
+        assert ss12 == pytest.approx(0.44 + 1.00, abs=1e-3)
+        assert ss13 == pytest.approx(0.44 + 0.90, abs=1e-3)
+
+    def test_unbreakable_stand_per_enemy_ss12_vs_ss13_at_tier_1(self):
+        """`test_unbreakable_stand_cap_ss12_vs_ss13` above only probes tier 5 (default `slot_levels=(5,5,5,5)`),
+        where SS12's per-enemy bonus (0.10) and SS13's (0.10) happen to be IDENTICAL — only the cap's shape
+        change is exercised there. `_unbreakable_per_enemy` itself drifts at every tier BELOW 5 (SS12
+        .07/.08/.09/.095 vs SS13 .06/.07/.08/.09 for tiers 1-4); a marker/index bug in `_unbreakable_per_enemy`
+        specific to a non-max tier would not be caught by any other test. Pin tier 1 (`slot_levels[1] = 1`,
+        Unbreakable Stand's own slot) with the weighted enemy count kept well under either season's cap (1
+        enemy × the Boss training-dummy weight of 5 = 5 weighted enemies; 0.07×5=0.35 and 0.06×5=0.30 are both
+        far under even SS13's lowest per-tier cap of 0.50) so this isolates the per-enemy value, not the cap."""
+        kw = dict(picks=["Unbreakable Stand"], conds={"enemies_in_holy_domain": 1}, slot_levels=(5, 1, 5, 5))
+        with _pinned_season("SS12"):
+            ss12 = _stat(_run(**kw), "dmg_additional")
+        with _pinned_season("SS13"):
+            ss13 = _stat(_run(**kw), "dmg_additional")
+        base_inside = 0.44   # base-level-5 "inside Holy Domain" additional damage (slot_levels[0] stays 5)
+        assert ss12 == pytest.approx(base_inside + 0.07 * 5, abs=1e-3)   # SS12 tier-1 per-enemy 0.07
+        assert ss13 == pytest.approx(base_inside + 0.06 * 5, abs=1e-3)   # SS13 tier-1 per-enemy 0.06
+        assert ss12 != pytest.approx(ss13)   # the actual drift this test guards — tier 1 SS12 != SS13
 
     def test_divine_intervention_per_mi(self):
         hi = self._dps(_run(picks=["Divine Intervention"], conds={"murderous_intent": 100}))

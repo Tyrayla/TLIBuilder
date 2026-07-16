@@ -14,8 +14,20 @@ No Guard (Desperation): base +10% damage taken, scaled by the channeled stacks l
 (per 1% Block Ratio → +2.4-2.8% No Guard Effect). No Guard is ALSO cast on the player (a self-debuff that the
 "−No Guard Effect on you per 1% Block Ratio" line reduces) — emitted as `no_guard_self_dmg_taken`, which the
 defense engine does not consume yet (NYI badge until the conditional-defense path lands).
+
+Season-catalog-sourced values (2026-07-16 SS12->SS13 drift fix): Unbreakable Stand's per-enemy damage bonus
+AND its cap were confirmed drifted — read live from `_hero_traits.json` via `engine.hero_traits._catalog`
+(identity-joined on `TRAIT_ID` + "Unbreakable Stand"), not hardcoded — see `_unbreakable_per_enemy`/
+`_unbreakable_cap`. The cap is also a REAL shape change (owner-approved): SS12 applied one flat scalar cap
+(+100%) to every tier; SS13 made the cap per-tier (+50/60/70/80/90%). `_catalog.tier_values(allow_scalar=True)`
+resolves both shapes from the SAME code path with no `season ==` branch. Every other per-tier value in this
+module was audited and verified still matching SS13; those stay Python literals for this pass (narrowly
+scoped to the confirmed drift, not a full literal-elimination sweep).
 """
 from __future__ import annotations
+
+from engine.hero_traits import _catalog
+from persistence import season_manager
 
 TRAIT_ID = "high_court_chariot"
 
@@ -24,8 +36,6 @@ _BASE_BLOCK_CHANCE = 0.30                                   # +30% Attack & Spel
 _INSIDE_ADDITIONAL = [0.20, 0.26, 0.32, 0.38, 0.44]        # while inside Holy Domain, +X% additional damage
 _ARTIFICIAL_MOON_BLOCK_PER_10MI = 0.01                      # base L5: +1% Attack & Spell Block Chance / 10 MI
 # ── Advanced picks ──────────────────────────────────────────────────────────────
-_UNBREAKABLE_PER_ENEMY = [0.07, 0.08, 0.09, 0.095, 0.10]   # +X% additional dmg per (weighted) enemy, cap +100%
-_UNBREAKABLE_CAP = 1.00
 _WHIRLWIND_MS = [0.20, 0.30, 0.40, 0.40, 0.50]             # +X% Movement Speed (gated buff, assumed up)
 _INVULN_BLOCK_RATIO = [0.07, 0.09, 0.11, 0.13, 0.15]       # +X% Block Ratio & Upper Limit (inside domain)
 _DIVINE_PER_MI = [0.003, 0.0037, 0.0044, 0.0051, 0.0058]   # +X% additional dmg per 1 Murderous Intent (inside)
@@ -36,6 +46,26 @@ _IMPROVISION_PER_BLOCK = 0.20
 
 _NOGUARD_BASE = 0.10                                        # +10% damage taken
 _HOLY_DOMAIN_MAX_CHANNELED = 2                             # Desperation base Max Channeled Stacks
+
+# Season-catalog-sourced (2026-07-16 SS12->SS13 drift fix): CONFIRMED drifted. The literals below are the SS12
+# values (SS12's cap was a flat scalar, not per-tier — broadcast to all 5 tiers here for the fallback shape),
+# kept ONLY as the last-known-good fallback for a season whose catalog doesn't have this pick at all.
+_UNBREAKABLE_PER_ENEMY_FALLBACK = [0.07, 0.08, 0.09, 0.095, 0.10]
+_UNBREAKABLE_CAP_FALLBACK = [1.00, 1.00, 1.00, 1.00, 1.00]
+
+
+def _unbreakable_per_enemy(season):
+    # "( +6/+7/+8/+9/+10 )% additional damage for each enemy in the Holy Domain , up to ( +50/.../+90 )%
+    # additional damage" (SS13) / "up to +100%" (SS12) — the per-enemy group is the first (only) slash-group
+    # before the "up to" cap.
+    return _catalog.pick_tier_values(season, TRAIT_ID, "Unbreakable Stand",
+                                      fallback=_UNBREAKABLE_PER_ENEMY_FALLBACK)
+
+
+def _unbreakable_cap(season):
+    # allow_scalar=True: resolves BOTH the SS13 per-tier cap and the SS12 flat-scalar cap from one code path.
+    return _catalog.pick_tier_values(season, TRAIT_ID, "Unbreakable Stand", marker="up to ", allow_scalar=True,
+                                      fallback=_UNBREAKABLE_CAP_FALLBACK)
 
 
 def _contrib(stat_key, amount, text, source):
@@ -71,6 +101,10 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     slot_levels = list(slot_levels or [1, 1, 1, 1])
     contribs: list[dict] = []
 
+    # `build_input` is a real BuildInput (with `.season`) on the real compute path; unit tests exercise this
+    # module directly with `build_input=None`, so read it defensively (falls back to the SS12 literals — see
+    # `_catalog.pick_tier_values`'s `fallback` behavior for a falsy season).
+    season = getattr(build_input, "season", None)
     base_lvl = slot_levels[0] if slot_levels else 1
     inside = _flag(condition_state, "inside_holy_domain", True)
     mi = float(condition_state.get("murderous_intent", 100.0))
@@ -107,14 +141,16 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
                 contribs.append(_contrib("spell_block_chance_inc", block,
                                          f"Artificial Moon: +{block * 100:.0f}% Spell Block Chance (per 10 MI)", "Artificial Moon"))
 
-    # ── Unbreakable Stand (45): +dmg per (weighted) enemy, cap +100% ─────────────
+    # ── Unbreakable Stand (45): +dmg per (weighted) enemy, capped (per-tier since SS13; see module docstring) ──
     if "Unbreakable Stand" in picks and inside and _enabled(slot_levels, 1):
         t = _tier(slot_levels, 1)
-        amt = min(_UNBREAKABLE_PER_ENEMY[t] * weighted_enemies, _UNBREAKABLE_CAP)
+        per_enemy = _unbreakable_per_enemy(season)[t]
+        cap = _unbreakable_cap(season)[t]
+        amt = min(per_enemy * weighted_enemies, cap)
         if amt > 0:
             contribs.append(_contrib("dmg_additional", amt,
                                      f"Unbreakable Stand: +{amt * 100:.1f}% additional damage "
-                                     f"({_UNBREAKABLE_PER_ENEMY[t] * 100:.1f}%/enemy ×{weighted_enemies:.0f}, cap 100%)",
+                                     f"({per_enemy * 100:.1f}%/enemy ×{weighted_enemies:.0f}, cap {cap * 100:.0f}%)",
                                      "Unbreakable Stand"))
 
     # ── Whirlwind Advance (45): +Movement Speed (gated buff, assumed up) ─────────
@@ -177,8 +213,15 @@ def stash(*, source, ls_state, inflict_aps):
     ls_state["max_channeled_stacks_flat"] = source.total("max_channeled_stacks_flat")
 
 
-def status_lines(*, slot_levels, advanced_picks, **_):
-    """One status row per trait line so every line is surfaced (never silently dropped)."""
+def status_lines(*, slot_levels, advanced_picks, season=None, **_):
+    """One status row per trait line so every line is surfaced (never silently dropped). `season` (2026-07-16
+    architecture fix) is an explicit, documented input — see `engine/hero_traits/README.md` — so a
+    season-catalog-sourced display number (Unbreakable Stand's cap) is a VISIBLE dependency in the function
+    signature, not a global read hidden in the body. `engine.coverage.trait_coverage`'s build-independent
+    probe supplies the real active season explicitly. The real `/api/engine/stats` call site (`server.py`)
+    does not thread a build-pinned season through this call today, so a None/falsy `season` here falls back
+    to the currently-active season (identical to the pre-fix behavior, and identical to what `apply()`
+    already reads via `build_input.season` on the same request) — never a stale/wrong literal."""
     picks = set(advanced_picks or [])
     out: list[dict] = []
 
@@ -194,7 +237,10 @@ def status_lines(*, slot_levels, advanced_picks, **_):
         working("Artificial Moon: +Block Chance per 10 Murderous Intent", "Artificial Moon")
         info("Artificial Moon: +Holy Domain radius per 10 Murderous Intent", "Artificial Moon")
     if "Unbreakable Stand" in picks:
-        working("Unbreakable Stand: +additional damage per enemy in the Holy Domain (Boss ×5), up to +100%", "Unbreakable Stand")
+        _season = season or season_manager.get_active_season() or ""
+        t = _tier(slot_levels or [1, 1, 1, 1], 1)
+        cap = _unbreakable_cap(_season)[t]
+        working(f"Unbreakable Stand: +additional damage per enemy in the Holy Domain (Boss ×5), up to +{cap * 100:.0f}%", "Unbreakable Stand")
     if "Whirlwind Advance" in picks:
         working("Whirlwind Advance: +Movement Speed after entering/leaving the domain", "Whirlwind Advance")
         info("Whirlwind Advance: restores Murderous Intent on defeating an enemy in the domain", "Whirlwind Advance")

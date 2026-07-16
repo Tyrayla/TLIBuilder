@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-07-16
+
+### Talent trees
+- **Passive tree visual-clarity pass**: node bodies now fill as an allocation meter, connectors light or dim based on whether their prerequisite is satisfied, and hovering previews what a click would do — the auto-allocate path in green, or a right-click cascade-deallocate in red, each showing point cost and DPS delta in the tooltip.
+- **Talent-point counters** — per-tree allocated points now show on the slot rail, alongside a global total against the 115-point budget with a warn-only over-budget state (the 115 cap is an assumed in-game max, pending verification).
+- **Hero trait tree enlarged** — bigger nodes and allocation badges, taller canvas.
+
+### Engine & conditions
+- **SS13 Afterlight engine fixes**: Chromatic Shot, and the Licorice Note / Unsullied Blade / High Court Chariot hero traits, now read their values from the season catalog instead of hardcoded SS12 numbers — several had silently drifted (all over-reporting DPS) since the SS13 rollover. Chromatic Shot's shots-on-target shotgun cap had also gone silently dead under SS13's new Physical-based version of the skill (measured ~49% DPS overstatement on an affected build). Spell Burst's SS13 trigger-wording change ("activating" → "consuming") is now recognized, restoring three mechanics (Squidnova grant, mana loss, Life/ES restore) that had silently stopped firing. Modeled the 4 new SS13 Condensed supports (Physical→element conversion).
+- New **"Have Been Hit Recently"** condition toggle — "(haven't) been hit recently" gear/pact-spirit lines now resolve properly (Preserver of Eternity's Graceful Pace Movement Speed wired to stats; SS12 Injury Buffer and SS13 Deflection lines recognized).
+
+### UI
+- **Build-select screen toolbar regrouped** — create actions (Import Code / New Folder / New Build) are now a single cluster, Dev Tools is tucked into a corner, and Select is a checkbox toggle.
+
+### Fixes
+- **Fixed Dance of the Deep (Selena) builds losing their allocated trait-tree nodes on save/reload.**
+- Fixed a crash opening the talent tree (hooks called after an early return).
+- Fixed the Skill panel showing raw crawler-mangled text (most visibly Mana Boil's consume line — now correctly "Consumes 3% of Max Mana every second"); skill overrides now apply to the skill list/tooltips, not just DPS computation.
+
 ## [0.6.0] - 2026-07-15
 
 ### New Season: SS13 "Afterlight"

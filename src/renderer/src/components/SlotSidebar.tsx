@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { TreeSlot } from '../api/client'
+import { MAX_TALENT_POINTS, slotPointTotal, totalAllocatedPoints } from '../utils/talentPoints'
 
 interface Props {
   slots: (TreeSlot | null)[]
@@ -18,6 +19,8 @@ export default function SlotSidebar({
   onPreview, viewerMode = false, dragDropEnabled = false, onSlotReorder,
 }: Props) {
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
+  const totalPoints = totalAllocatedPoints(slots)
+  const overBudget = totalPoints > MAX_TALENT_POINTS
 
   return (
     <div className="slot-sidebar">
@@ -88,12 +91,25 @@ export default function SlotSidebar({
               }
             } : undefined}
           >
-            <span className="slot-sidebar-name" style={{ color: nameColor }}>
-              {slot?.treeName ?? 'Empty'}
-            </span>
+            <div className="slot-sidebar-btn-body">
+              <span className="slot-sidebar-name" style={{ color: nameColor }}>
+                {slot?.treeName ?? 'Empty'}
+              </span>
+              {slot && (
+                <span className="slot-sidebar-points">{slotPointTotal(slot)} pts</span>
+              )}
+            </div>
           </button>
         )
       })}
+      <div
+        className={`slot-sidebar-total${overBudget ? ' over' : ''}`}
+        title={overBudget ? `Exceeds the assumed in-game maximum of ${MAX_TALENT_POINTS} talent points (pending verification)` : undefined}
+      >
+        {overBudget && <span className="slot-sidebar-total-warn">⚠</span>}
+        <span className="slot-sidebar-total-label">Points</span>
+        <span className="slot-sidebar-total-value">{totalPoints} / {MAX_TALENT_POINTS}</span>
+      </div>
     </div>
   )
 }

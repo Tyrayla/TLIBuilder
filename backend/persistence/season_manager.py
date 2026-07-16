@@ -295,6 +295,7 @@ def save_hero_traits(season: str, data: dict) -> None:
     path = os.path.join(d, "_hero_traits.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+    _hero_traits_indexed_cache.pop(season, None)
 
 
 def load_hero_traits(season: str, raw: bool = False) -> dict | None:
@@ -313,6 +314,29 @@ def delete_hero_traits(season: str) -> None:
     path = os.path.join(_season_dir(season), "_hero_traits.json")
     if os.path.exists(path):
         os.remove(path)
+    _hero_traits_indexed_cache.pop(season, None)
+
+
+# Hero-trait catalog re-indexed by trait_id, cached like `_season_trees_cache` (2026-07-16, licorice_note /
+# unsullied_blade / high_court_chariot drift fix). The bespoke `engine.hero_traits.*` modules read this every
+# fixed-point-loop pass in `engine.compute` (up to `_MAX_ITERS` times per stats calc) to pull their per-tier
+# values straight from the season catalog instead of a hardcoded Python literal — an uncached disk read there
+# would be a hot-path regression, so cache the parsed/normalized dict like every other season-static catalog.
+# Invalidated in `save_hero_traits`/`delete_hero_traits`; a data re-import for the SAME season still needs a
+# backend relaunch to be picked up, same caveat as `_season_trees_cache`.
+_hero_traits_indexed_cache: dict[str, dict[str, dict]] = {}
+
+
+def load_hero_traits_indexed(season: str) -> dict[str, dict]:
+    """{trait_id: trait_dict} for `season`'s hero-trait catalog (normalized runtime view — `effects` lists
+    are plain strings, see `_normalize_trait_lines`). `{}` for a season with no `_hero_traits.json`."""
+    cached = _hero_traits_indexed_cache.get(season)
+    if cached is not None:
+        return cached
+    data = load_hero_traits(season) or {}
+    indexed = {t["trait_id"]: t for t in data.get("traits") or [] if t.get("trait_id")}
+    _hero_traits_indexed_cache[season] = indexed
+    return indexed
 
 
 def save_pact_spirits(season: str, data: dict) -> None:

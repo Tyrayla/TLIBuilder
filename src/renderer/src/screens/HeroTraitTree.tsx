@@ -37,7 +37,7 @@ const MEMORY_RAIL: { slot: number; threshold: number; label: string }[] = [
 
 const CELL = 150
 const NODE_R = 34          // fallback (no x/y on the trait's nodes) — the legacy column/row grid
-const XY_NODE_R = 40       // radial layout — tuned for the 1000×760 viewBox
+const XY_NODE_R = 54       // radial layout — tuned for the 1000×760 viewBox
 const XY_VW = 1000
 const XY_VH = 760
 // Render-side headroom above the data's y=0 plane — a root node at y≈0.10 otherwise sits close enough
@@ -94,8 +94,8 @@ function TreeNodeCircle({ node, cx, cy, baseR, isRoot, isAllocated, isAllocatabl
         )}
         {badge != null && (
           <>
-            <circle cx={cx - r + 9} cy={cy + r - 9} r={10} fill="#0d0d1e" stroke="#c8a86a" strokeWidth={1.5} />
-            <text x={cx - r + 9} y={cy + r - 6} textAnchor="middle" fontSize={9} fontWeight="bold" fill="#e0c890"
+            <circle cx={cx - r + 13} cy={cy + r - 13} r={15} fill="#0d0d1e" stroke="#c8a86a" strokeWidth={2} />
+            <text x={cx - r + 13} y={cy + r - 8} textAnchor="middle" fontSize={15} fontWeight="bold" fill="#ffe6ae"
               style={{ pointerEvents: 'none' }}>{badge}</text>
           </>
         )}

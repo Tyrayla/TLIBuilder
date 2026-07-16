@@ -528,51 +528,69 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
   return (
     <div className="screen build-select">
       <div className="build-select-top">
-        <div className="build-select-spacer">
+        <div className="build-select-corner">
+          {devMode && (
+            <button
+              className="btn btn-sm build-select-devtools"
+              onClick={onDevTools}
+              title="Developer Tools"
+            >
+              Dev Tools
+            </button>
+          )}
           <button
-            className="btn btn-sm"
+            className="btn btn-sm build-select-discord"
             onClick={() => openExternal('https://discord.gg/7hEySM4WYx')}
-            style={{ color: '#c7d0ff', borderColor: '#3a3f8a', background: '#1a1c3a' }}
           >
             Join the Discord to share feedback or bugs you find!
           </button>
         </div>
         <img src={logoSrc} className="build-select-logo" alt="TLI Builder" />
-        <div className="build-select-actions">
-          {selectMode ? (
-            <>
+        {/* Create cluster: the three "add a build" actions, grouped as one unit — Import Code on top,
+            + New Folder / + New Build together in a row beneath it. + New Build stays the sole primary
+            (filled/accent) action; the other two read as secondary. */}
+        <div className="build-select-actions build-select-create-cluster">
+          <button className="btn btn-secondary btn-sm build-select-import" onClick={openImport}>Import Code</button>
+          <div className="build-select-create-row">
+            <button className="btn btn-secondary" onClick={openCreateFolder}>+ New Folder</button>
+            <button className="btn btn-primary" onClick={() => onNewBuild(currentFolderId ?? undefined)}>+ New Build</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Select-mode trigger — pulled out of the create cluster since it's a selection MODE that acts on
+          the build list, not a create action. Presented as a checkbox-style toggle: unchecked = "Select",
+          checked = live selected count + the Delete/Move actions right there. Un-checking it exits select
+          mode via the SAME toggleSelectMode handler the old "Cancel" button used. */}
+      {builds.length > 0 && (
+        <div className="build-select-toolbar">
+          <label className={`select-toggle${selectMode ? ' select-toggle--active' : ''}`}>
+            <input
+              type="checkbox"
+              className="select-toggle-checkbox"
+              checked={selectMode}
+              onChange={toggleSelectMode}
+            />
+            <span className="select-toggle-label">
+              {selectMode ? `${selectedIds.size} selected` : 'Select'}
+            </span>
+          </label>
+          {selectMode && (
+            <div className="select-toggle-actions">
               <button
                 className="btn btn-danger btn-sm"
                 disabled={selectedIds.size === 0}
                 onClick={() => { setDeleteError(null); setDeleteConfirmOpen(true) }}
-              >Delete ({selectedIds.size})</button>
+              >Delete</button>
               <button
                 className="btn btn-secondary btn-sm"
                 disabled={selectedIds.size === 0}
                 onClick={() => setMoveModalOpen(true)}
-              >Move to… ({selectedIds.size})</button>
-              <button className="btn btn-secondary btn-sm" onClick={toggleSelectMode}>Cancel</button>
-            </>
-          ) : (
-            <>
-              {devMode && (
-                <button
-                  className="btn btn-sm"
-                  onClick={onDevTools}
-                  style={{ color: '#ff9800', borderColor: '#5a3a00', background: '#1a0e00' }}
-                  title="Developer Tools"
-                >
-                  Dev Tools
-                </button>
-              )}
-              <button className="btn btn-secondary btn-sm" onClick={openImport}>Import Code</button>
-              {builds.length > 0 && <button className="btn btn-secondary btn-sm" onClick={toggleSelectMode}>Select</button>}
-              <button className="btn btn-secondary" onClick={openCreateFolder}>+ New Folder</button>
-              <button className="btn btn-primary" onClick={() => onNewBuild(currentFolderId ?? undefined)}>+ New Build</button>
-            </>
+              >Move to…</button>
+            </div>
           )}
         </div>
-      </div>
+      )}
 
       <div className="build-breadcrumb">
         <span

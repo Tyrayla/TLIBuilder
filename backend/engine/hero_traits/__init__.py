@@ -20,16 +20,21 @@ _STASH = {m.TRAIT_ID: m.stash for m in _MODULES if hasattr(m, "stash")}
 _STATUS = {m.TRAIT_ID: m.status_lines for m in _MODULES if hasattr(m, "status_lines")}
 _VIRTUAL = {m.TRAIT_ID: m.virtual_supports for m in _MODULES if hasattr(m, "virtual_supports")}
 
-# The two universal, build-independent inputs every status_lines() accepts (see engine.coverage.trait_coverage's
-# probe — the only two arguments that describe a property of the TRAIT itself, not an interaction with another
-# equipped entity).
-_STATUS_BASE_PARAMS = {"slot_levels", "advanced_picks"}
+# The three universal, build-independent inputs every status_lines() accepts (see engine.coverage.trait_coverage's
+# probe). `slot_levels`/`advanced_picks` describe a property of the TRAIT itself. `season` (2026-07-16 architecture
+# fix) is a *global environment* fact — which season's catalog to read season-sourced display numbers from (e.g.
+# a cap that drifted SS12->SS13) — NOT an interaction with another equipped entity the way `main_skill_tags` /
+# `attached_supports` are. Unlike those, `season` never gates whether a line/branch EXISTS (no module branches
+# `if season == ...` — only the NUMBER inside an already-unconditional "working" line differs), so the probe can
+# supply the real active season concretely (see trait_coverage's call) without leaving anything unseen; it is
+# therefore excluded from `build_gated_status_params` the same as `slot_levels`/`advanced_picks`.
+_STATUS_BASE_PARAMS = {"slot_levels", "advanced_picks", "season"}
 
 
 def build_gated_status_params(trait_id: str | None) -> list[str]:
-    """Named parameters (beyond `slot_levels`/`advanced_picks`) that this trait's `status_lines` accepts —
-    e.g. `main_skill_tags`, `attached_supports`, `skills_input`, `skills_by_id`, `prepared_skill`. Those
-    describe an interaction with ANOTHER equipped entity (the main skill, other slots), which is a
+    """Named parameters (beyond `slot_levels`/`advanced_picks`/`season`) that this trait's `status_lines`
+    accepts — e.g. `main_skill_tags`, `attached_supports`, `skills_input`, `skills_by_id`, `prepared_skill`.
+    Those describe an interaction with ANOTHER equipped entity (the main skill, other slots), which is a
     build-specific fact `engine.coverage.trait_coverage`'s single-argument probe leaves at its default
     (None/[]) — so a module that BRANCHES on one of them (a warning/nyi line gated behind `is not None`,
     membership, etc.) may have a line the probe can never see, and 'full' would overclaim it.
@@ -37,7 +42,7 @@ def build_gated_status_params(trait_id: str | None) -> list[str]:
     Detected structurally from the function signature (`inspect.signature`), not a hand-maintained
     per-trait list, so a newly-added gated branch on any FUTURE trait module is caught automatically the
     moment it declares the extra parameter — no coverage.py edit required. `[]` means the module only
-    takes the two universal inputs, so the probe already saw everything it possibly could."""
+    takes the three universal inputs, so the probe already saw everything it possibly could."""
     fn = _STATUS.get(trait_id)
     if not fn:
         return []

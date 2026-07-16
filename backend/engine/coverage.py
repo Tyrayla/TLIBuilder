@@ -482,7 +482,10 @@ def trait_coverage(trait_id: str | None) -> tuple[str, list[str]]:
     `main_skill_tags`/`attached_supports`/`skills_input`/`skills_by_id`/`prepared_skill` are left at their
     defaults: those describe an interaction with ANOTHER equipped entity (the main skill, other slots) that
     is a build-specific fact, not a property of the trait itself, so they're out of scope for a
-    single-argument, build-independent probe (see the report note on `sing_with_the_tide`).
+    single-argument, build-independent probe (see the report note on `sing_with_the_tide`). `season`
+    (2026-07-16 architecture fix) IS supplied concretely — the real active season — because it's a global
+    environment fact the probe can always answer, not a build-specific unknown; it's excluded from
+    `build_gated_status_params` for the same reason (see `hero_traits._STATUS_BASE_PARAMS`).
     Any `status_lines` entry with status 'warning' or 'nyi' -> 'partial' (its text -> coverage_detail);
     none -> 'full', UNLESS `hero_traits.build_gated_status_params` says this trait's `status_lines` accepts
     build-specific inputs beyond the two universal ones (2026-07-12 accuracy fix): those left-at-default
@@ -495,6 +498,7 @@ def trait_coverage(trait_id: str | None) -> tuple[str, list[str]]:
     a hand-maintained per-trait list, so a new gated branch on any future trait is caught automatically.
     """
     from engine import hero_traits
+    from persistence import season_manager
 
     if not hero_traits.has_module(trait_id):
         return "none", []
@@ -503,6 +507,7 @@ def trait_coverage(trait_id: str | None) -> tuple[str, list[str]]:
         trait_id,
         slot_levels=[5, 5, 5, 5],
         advanced_picks=list(_ALL_ADVANCED_PICKS),
+        season=season_manager.get_active_season() or "",
         main_skill_tags=None, main_skill_name=None,
         attached_supports=None, skills_input=None, skills_by_id=None, prepared_skill=None,
     )

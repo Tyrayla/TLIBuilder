@@ -163,11 +163,35 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .build-select-top {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
+  gap: 12px;
 }
 
-.build-select-spacer { /* left placeholder keeps icon centered */ }
+/* Top-left corner — Dev Tools (devMode-gated, de-emphasized so it doesn't compete with the create
+   cluster) stacked above the Discord callout. Both wrap on a narrow window instead of overflowing. */
+.build-select-corner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.build-select-devtools {
+  color: #ff9800;
+  background: transparent;
+  border: 1px dashed #5a3a00;
+  opacity: 0.7;
+}
+.build-select-devtools:hover:not(:disabled) { opacity: 1; }
+
+.build-select-discord {
+  color: #c7d0ff;
+  border: 1px solid #3a3f8a;
+  background: #1a1c3a;
+}
 
 .build-select-logo {
   width: 88px;
@@ -176,11 +200,73 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   filter: drop-shadow(0 0 18px rgba(160, 100, 220, 0.45));
 }
 
-.build-select-actions {
+/* Create cluster — the three "add a build" actions read as one grouped unit: Import Code on top,
+   + New Folder / + New Build together in a row underneath. Right-aligned to match the old
+   justify-self:end placement; wraps instead of overflowing on a narrow window. */
+.build-select-actions.build-select-create-cluster {
   justify-self: end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.build-select-create-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Select-mode row — sits above the build list, distinct from the create cluster since it's a
+   selection MODE acting on the list, not an "add a build" action. */
+.build-select-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 2px 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.select-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid #2a2a4a;
+  background: #1a1a30;
+  transition: border-color 0.12s, background 0.12s;
+}
+.select-toggle:hover { border-color: var(--accent); }
+.select-toggle--active {
+  border-color: var(--accent);
+  background: #241a30;
+}
+
+.select-toggle-checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.select-toggle-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #cfd6e6;
+  white-space: nowrap;
+}
+
+.select-toggle-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .build-select-footer {
@@ -633,6 +719,59 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   word-break: break-word;
   text-align: center;
   width: 100%;
+}
+
+.slot-sidebar-btn-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+}
+
+.slot-sidebar-points {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8888aa;
+}
+
+.slot-sidebar-total {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 8px;
+  border-radius: 5px;
+  background: #0e1230;
+  border: 1px solid #2a2a5a;
+  color: #9988ee;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.slot-sidebar-total-label {
+  color: #8888aa;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.slot-sidebar-total.over {
+  background: #2a1500;
+  border-color: #8a4a00;
+  color: #ffb347;
+}
+
+.slot-sidebar-total.over .slot-sidebar-total-label {
+  color: #ffb347;
+}
+
+.slot-sidebar-total-warn {
+  color: #ff5555;
+  font-size: 14px;
 }
 
 /* ── Build Overview ────────────────────────────────────────────────────────── */
@@ -3910,7 +4049,7 @@ span.gear-affix-label {
 .htt-tree-svg {
   width: 100%;
   aspect-ratio: 1000 / 760;
-  max-height: 66vh;
+  max-height: 78vh;
   min-height: 0;
   border-radius: 10px;
 }

@@ -1,13 +1,37 @@
 """Rosa — Unsullied Blade (trait_id "unsullied_blade"). Spell→Attack damage bridge, Mercury Baptism true damage,
 Realm-of-Mercury mana scaling, the main-hand-only damage split, and the advanced picks. Module unit tests (exact
 amounts, converged scalars fed via ls_state) + engine integration.
+
+NOTE (2026-07-16, review-council finding): every module unit test above calls `t.apply(build_input=None, ...)`,
+so `season = getattr(build_input, "season", None)` is always `None` — `_catalog.pick_tier_values` short-circuits
+straight to the SS12 literal fallback for those. That means Boundless Sanctuary's `_boundless_ele_per_enemy`/
+`_boundless_ele_cap` catalog-read path (added alongside `_catalog`, see the module docstring) was never actually
+exercised by any test. The "Engine integration — Boundless Sanctuary catalog read" section below closes that gap
+by going through the real `engine_stats` endpoint with the active season pinned (the `_pinned_season` pattern
+established in `test_chromatic_shot.py` / `test_high_court_chariot.py`), so it drives a real `build_input.season`
+and reads the real per-season `_hero_traits.json` catalog text, not the fallback.
 """
+import contextlib
+
 import pytest
 from engine.hero_traits import unsullied_blade as t
+from persistence import season_manager
 from server import engine_stats, EngineStatsRequest
 from tests.mock_build import make_request, weapon, DUAL_WEAPONS
 
 WEAPON = [weapon("weapon1", "Blade", 300, 300, 1.5, 500)]
+
+
+@contextlib.contextmanager
+def _pinned_season(name):
+    """Temporarily set the ACTIVE season for the `engine_stats` round trip below, restoring whatever was active
+    on exit (even on failure) — see module docstring."""
+    prev = season_manager.get_active_season()
+    season_manager.set_active_season(name)
+    try:
+        yield
+    finally:
+        season_manager.set_active_season(prev)
 
 
 # ── Module unit tests ──────────────────────────────────────────────────────────────
@@ -197,3 +221,36 @@ def test_mystic_consume_counts_and_realm_restore_feeds_recovery():
     realm = _full(WEAPON)
     assert realm["recovery"]["restoration_mana_per_sec"] > 0.0
     assert _consume_only(realm["consumption"]) == pytest.approx(0.0, abs=1e-6)
+
+
+# ── Engine integration — Boundless Sanctuary catalog read (SS12 vs SS13) ───────────────
+# Real season data (not synthetic): SS12 kept its literal-era values, SS13 rebalanced both the per-enemy
+# bonus AND its cap down a tier. `_boundless_ele_per_enemy`/`_boundless_ele_cap` read this live from each
+# season's own `_hero_traits.json` via `_catalog.pick_tier_values` — same code path for both seasons, no
+# `if season ==` branch (see `unsullied_blade.py`'s 2026-07-16 drift-fix docstring). This must go through the
+# real `engine_stats` endpoint with a real `build_input.season` (unlike every unit test above, which calls
+# `t.apply(build_input=None, ...)` and therefore always short-circuits to the SS12 fallback literal, never
+# touching this catalog-read path at all).
+_BOUNDLESS_PER_ENEMY = {"SS12": [0.06, 0.07, 0.08, 0.09, 0.10], "SS13": [0.05, 0.06, 0.07, 0.08, 0.09]}
+_BOUNDLESS_CAP = {"SS12": [0.60, 0.70, 0.80, 0.90, 1.00], "SS13": [0.50, 0.60, 0.70, 0.80, 0.90]}
+
+
+def _boundless_amt(resp):
+    """The Boundless Sanctuary source's own contribution to Additional Elemental Damage (isolated from the
+    base Realm-of-Mercury +20% that's always also present)."""
+    sources = resp["stats"]["elemental_dmg_additional"]["sources"]
+    return sum(s["amount"] for s in sources if s["source_name"] == "Boundless Sanctuary")
+
+
+@pytest.mark.parametrize("season", ["SS12", "SS13"])
+@pytest.mark.parametrize("tier", [1, 5])
+def test_boundless_sanctuary_catalog_read_per_enemy_and_cap(season, tier):
+    with _pinned_season(season):
+        # Isolate the per-enemy value: weighted enemy count of exactly 1 keeps it well under the cap at every tier.
+        per_enemy_resp = _full(WEAPON, picks=["Boundless Sanctuary"], levels=[5, 1, tier, 1],
+                                conds={"enemies_in_realm": 1, "enemy_count_weight": 1})
+        assert _boundless_amt(per_enemy_resp) == pytest.approx(_BOUNDLESS_PER_ENEMY[season][tier - 1])
+        # Isolate the cap: a large weighted enemy count blows well past per_enemy × enemies for every tier.
+        cap_resp = _full(WEAPON, picks=["Boundless Sanctuary"], levels=[5, 1, tier, 1],
+                          conds={"enemies_in_realm": 50, "enemy_count_weight": 1})
+        assert _boundless_amt(cap_resp) == pytest.approx(_BOUNDLESS_CAP[season][tier - 1])

@@ -80,6 +80,18 @@ export function withNodePoints(s: BuildState, slotIdx: number, nodeId: string, p
 // slot's existing supports. Used by the passive-skill catalog to preview each candidate's DPS contribution:
 //   pick → step = withSkill(slot, candidate), base = current → swap-in result (measured on the MAIN skill,
 //   since a passive/aura buffs the whole build rather than dealing its own hit damage).
+// Replace a slot's ENTIRE node-states map in one step — used to price a MULTI-node change (a forward
+// "path-to-here" allocation that fills prereqs/column-unlocks along the way, or a reverse cascade removal
+// that drops dependents) that withNodePoints's single-node ±1 can't represent. `nodeStates` must be a
+// COMPLETE map (as returned by TreeViewerScreen's solvePathTo / cascadeRemove), not a partial patch.
+export function withNodeStatesMap(s: BuildState, slotIdx: number, nodeStates: Record<string, number>): BuildState {
+  // Defensive copy (matches withNodePoints's convention above) — `nodeStates` is typically the caller's
+  // memoized preview.after, and this must never alias it: a future in-place mutation of the returned
+  // BuildState's slot would otherwise silently corrupt that memoized preview object too.
+  const slots = s.slots.map((slot, i) => (i !== slotIdx || !slot) ? slot : { ...slot, nodeStates: { ...nodeStates } })
+  return { ...s, slots }
+}
+
 // Set a Prism reflected-box cell (keyed "col,row") to a point count (<=0 removes it). The engine prices the
 // reflected copy's marginal DPS — and any stat the prism grants — through the normal prisms payload.
 export function withPrismBoxPoints(s: BuildState, prismId: string, posKey: string, points: number): BuildState {
