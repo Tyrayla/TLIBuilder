@@ -12,8 +12,18 @@ Tyra-confirmed (2026-06-23):
   Infiltration (set via `set_conditions`).
 - Base Max Mercury Points = 100; Utmost Devotion scales it and reads it for its per-point Elemental Damage.
 - Born to Cleanse: Mystic +25% additional Ele (40% retained in Realm) + main-hand additional damage.
+
+Season-catalog-sourced values (2026-07-16 SS12->SS13 drift fix): Boundless Sanctuary's per-enemy Elemental
+Damage bonus and its cap were confirmed drifted (SS12 literals still in code, SS13 rebalanced them) and are
+now read live from `_hero_traits.json` via `engine.hero_traits._catalog` (identity-joined on `TRAIT_ID` +
+"Boundless Sanctuary"), not hardcoded — see `_boundless_ele_per_enemy`/`_boundless_ele_cap`. Every other
+per-tier value in this module was audited and verified still matching SS13; those stay Python literals for
+this pass (narrowly scoped to the confirmed drift, not a full literal-elimination sweep). `_BASE_MAX_MERCURY`
+is owner-confirmed correct but is NOT stated anywhere in the catalog, so it stays a documented literal.
 """
 from __future__ import annotations
+
+from engine.hero_traits import _catalog
 
 TRAIT_ID = "unsullied_blade"
 
@@ -21,15 +31,13 @@ TRAIT_ID = "unsullied_blade"
 _SPELL_DMG_ADD = [0.0, 0.05, 0.10, 0.15, 0.20]            # L2-5 additional Spell Damage (bridges to attacks)
 _REALM_PER_10PCT = 0.02                                    # +2% add AS + +2% add Ele per 10% unsealed mana
 _REALM_MAX_INCREMENTS = 10                                 # cap +20%/+20%
-_BASE_MAX_MERCURY = 100.0
+_BASE_MAX_MERCURY = 100.0    # owner-confirmed (2026-07-16); not stated anywhere in the catalog, not data-derivable
 # ── Advanced picks (per tier 0-4) ───────────────────────────────────────────────────
 _BAPTISM_FRACTION = [0.12, 0.20, 0.28, 0.36, 0.44]       # Baptism of Purity: recorded % of elemental hit damage
 _BAPTISM_MAX_MANA_ADD = 0.20                              # +20% additional Max Mana
 _CLEANSE_MANA_BEFORE_LIFE = 0.25                          # 25% of damage from Mana before Life
 _CLEANSE_ELE_PER_1000 = [0.02, 0.025, 0.03, 0.035, 0.04]  # additional Ele per 1000 Max Mana
 _CLEANSE_ELE_CAP = [0.40, 0.50, 0.60, 0.70, 0.80]
-_BOUNDLESS_ELE_PER_ENEMY = [0.06, 0.07, 0.08, 0.09, 0.10]  # additional Ele per (weighted) enemy in Realm
-_BOUNDLESS_ELE_CAP = [0.60, 0.70, 0.80, 0.90, 1.00]
 _UTMOST_MAX_MERCURY_PER_1000 = 0.10                      # +10% Max Mercury Pts per 1000 Max Mana
 _UTMOST_MAX_MERCURY_CAP = [2.0, 2.5, 3.0, 3.5, 4.0]
 _UTMOST_ELE_PER_POINT = [0.0008, 0.0008, 0.001, 0.001, 0.001]  # additional Ele per Mercury Pt
@@ -37,7 +45,26 @@ _BORN_ELE_MYSTIC = 0.25                                   # Mystic +25% addition
 _BORN_REALM_RETAIN = 0.40                                 # Mystic effects retain 40% in Realm
 _BORN_MAINHAND = [0.20, 0.27, 0.34, 0.41, 0.48]         # additional Main-Hand Weapon damage (Mystic)
 
+# Season-catalog-sourced (2026-07-16 SS12->SS13 drift fix): CONFIRMED drifted. The literals below are the SS12
+# values, kept ONLY as the last-known-good fallback for a season whose catalog doesn't have this pick at all.
+_BOUNDLESS_ELE_PER_ENEMY_FALLBACK = [0.06, 0.07, 0.08, 0.09, 0.10]
+_BOUNDLESS_ELE_CAP_FALLBACK = [0.60, 0.70, 0.80, 0.90, 1.00]
+
 _SLOT_BASE, _SLOT_45, _SLOT_60, _SLOT_75 = 0, 1, 2, 3
+
+
+def _boundless_ele_per_enemy(season):
+    # "For every enemy inside Realm of Mercury , ( +5/+6/+7/+8/+9 )% additional Elemental Damage, up to
+    # ( +50/+60/+70/+80/+90 )% additional damage" — the per-enemy group precedes its own marker phrase.
+    return _catalog.pick_tier_values(season, TRAIT_ID, "Boundless Sanctuary",
+                                      marker="For every enemy inside Realm of Mercury , ",
+                                      fallback=_BOUNDLESS_ELE_PER_ENEMY_FALLBACK)
+
+
+def _boundless_ele_cap(season):
+    return _catalog.pick_tier_values(season, TRAIT_ID, "Boundless Sanctuary",
+                                      marker="additional Elemental Damage, up to ",
+                                      fallback=_BOUNDLESS_ELE_CAP_FALLBACK)
 
 
 def _contrib(stat_key, amount, text, source):
@@ -71,6 +98,10 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     if not _enabled(slot_levels, _SLOT_BASE):                # base node disabled → trait off
         return {"contributions": []}
 
+    # `build_input` is a real BuildInput (with `.season`) on the real compute path; unit tests exercise this
+    # module directly with `build_input=None`, so read it defensively (falls back to the SS12 literals — see
+    # `_catalog.pick_tier_values`'s `fallback` behavior for a falsy season).
+    season = getattr(build_input, "season", None)
     base_lvl = slot_levels[0] if slot_levels else 1
     # Two mutually-exclusive phases. Mystic Mercury (build-up) consumes Mana; Realm of Mercury (DPS state, default)
     # restores Mana and grants the damage bonuses. `mystic` overrides → `realm` (used as "in Realm" by every bonus
@@ -151,9 +182,11 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     # ── Boundless Sanctuary (L60 pick) ──
     if "Boundless Sanctuary" in picks and _enabled(slot_levels, _SLOT_60) and realm:
         t = _tier(slot_levels, _SLOT_60)
-        ele = min(_BOUNDLESS_ELE_PER_ENEMY[t] * weighted_enemies, _BOUNDLESS_ELE_CAP[t])
+        per_enemy = _boundless_ele_per_enemy(season)[t]
+        ele_cap = _boundless_ele_cap(season)[t]
+        ele = min(per_enemy * weighted_enemies, ele_cap)
         if ele > 0:
-            add("elemental_dmg_additional", ele, f"Boundless Sanctuary: +{ele * 100:.1f}% additional Elemental Damage ({_BOUNDLESS_ELE_PER_ENEMY[t] * 100:.0f}%/enemy ×{weighted_enemies:.0f}, cap {_BOUNDLESS_ELE_CAP[t] * 100:.0f}%)", "Boundless Sanctuary")
+            add("elemental_dmg_additional", ele, f"Boundless Sanctuary: +{ele * 100:.1f}% additional Elemental Damage ({per_enemy * 100:.0f}%/enemy ×{weighted_enemies:.0f}, cap {ele_cap * 100:.0f}%)", "Boundless Sanctuary")
 
     # ── Utmost Devotion (L75 pick) ──
     if utmost:

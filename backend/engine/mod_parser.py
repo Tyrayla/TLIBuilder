@@ -803,14 +803,22 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
 
     # Magister "Gains N stack(s) of <Blessing> when activating Spell Burst or generating Tangle" → full-uptime
     # flag the compute loop reads to pin that blessing to its max while the build generates tangles/bursts.
+    # SS13 "Afterlight" reworded the global Spell Burst trigger from "activating" to "consuming" (gerund) /
+    # "is consumed" (passive) — INCONSISTENTLY across the catalog, so both forms must resolve alongside the old
+    # one (SS12 data still on disk and selectable). Season-diff evidence: Magister talent tree + belt-blend
+    # "Gains 1 stack(s) of Focus Blessing when consuming Spell Burst or generating Tangle" (.wolf/season_impact/
+    # season-impact-SS12-SS13.json:18869, data/seasons/SS13/_belt_blends.json blends[16]).
     m = re.search(r'gains?\s+\d+\s+stack(?:s|\(s\))?\s+of\s+(focus|agility|tenacity)\s+blessing\b.*'
-                  r'(?:generating\s+tangle|activating\s+spell\s+burst|spell\s+burst\s+or\s+generating)', t, re.I)
+                  r'(?:generating\s+tangle|(?:activating|consuming)\s+spell\s+burst|spell\s+burst\s+is\s+'
+                  r'(?:activated|consumed)|spell\s+burst\s+or\s+generating)', t, re.I)
     if m:
         return [{"stat_key": f"{m.group(1).lower()}_blessing_full_uptime_flag", "amount": 1.0, "text": t}]
 
     # Magister "When activating Spell Burst or generating Tangle, immediately starts Charging Energy Shield" →
     # recognized but NYI (no ES-recharge timing model yet). Emit a flag so it surfaces instead of silently dropping.
-    if re.search(r'(?:generating\s+tangle|activating\s+spell\s+burst).*immediately\s+starts?\s+charging\s+energy\s+shield', t, re.I):
+    # Same SS13 "consuming"/"is consumed" rewording as above (season-impact-SS12-SS13.json:18851/18926).
+    if re.search(r'(?:generating\s+tangle|(?:activating|consuming)\s+spell\s+burst|spell\s+burst\s+is\s+'
+                 r'(?:activated|consumed)).*immediately\s+starts?\s+charging\s+energy\s+shield', t, re.I):
         return [{"stat_key": "es_charge_on_generate_flag", "amount": 1.0, "text": t}]
 
     # "N% chance … to inflict M additional stack(s) of Wilt" → distinct stat from plain Wilt chance (chance for
@@ -983,17 +991,26 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     # Squiddle source line: "Activating Spell Burst with at least N stack(s) of Max Spell Burst grants … Squidnova"
     # → marker flag carrying the Max-Spell-Burst THRESHOLD (N) as its value, so compute only auto-enables has_squidnova
     # when the build's Max Spell Burst ≥ N (the grant requires ≥N stacks; without this the buff wrongly applied at any M).
-    m = re.match(r'activating\s+spell\s+burst\s+with\s+at\s+least\s+([\d.]+)\s+stack\(?s?\)?\s+of\s+max\s+spell\s+burst\s+grants.*squidnova', t, re.I)
+    # SS13 reworded the lead verb "Activating" → "Consuming" (data/seasons/SS13/_pact_spirits.json main_skill_effect);
+    # both forms must resolve (SS12 data still selectable).
+    m = re.match(r'(?:activating|consuming)\s+spell\s+burst\s+with\s+at\s+least\s+([\d.]+)\s+stack\(?s?\)?\s+of\s+max\s+spell\s+burst\s+grants.*squidnova', t, re.I)
     if m:
         return [{"stat_key": "has_squidnova_flag", "amount": float(m.group(1)), "text": t}]
 
     # ── Burst-activation sustain (fire once per burst trigger; folded into net recovery at the burst rate) ──
-    # "Loses N% current Mana when Spell Burst is activated" (Surging Inspiration).
-    m = re.search(r'loses\s+([\d.]+)\s*%\s*current\s+mana\s+when\s+spell\s+burst\s+is\s+activated', t, re.I)
+    # "Loses N% current Mana when Spell Burst is activated" (Surging Inspiration). SS13 reworded this to passive
+    # voice "Loses N % of current Mana when Spell Burst is consumed" (extra "of", verb "activated"→"consumed") —
+    # both the "of" and both verbs must be accepted (season-impact-SS12-SS13.json:14633/14640, item surging_inspiration).
+    m = re.search(r'loses\s+([\d.]+)\s*%\s*(?:of\s+)?current\s+mana\s+when\s+spell\s+burst\s+is\s+(?:activated|consumed)', t, re.I)
     if m:
         return [{"stat_key": "mana_lost_pct_current_per_burst", "amount": float(m.group(1)) / 100.0, "text": t}]
-    # "Restores N% of Lost Life and Energy Shield when activating Spell Burst" (Solid River) → both pools.
-    m = re.search(r'restores\s+([\d.]+)\s*%\s*of\s+lost\s+life\s+and\s+energy\s+shield\s+when\s+activating\s+spell\s+burst', t, re.I)
+    # "Restores N% of Lost Life and Energy Shield when activating Spell Burst" (Solid River) → both pools. SS13
+    # reworded to "Restores N % of Missing Life and Energy Shield when consuming Spell Burst" — "Lost"/"Missing"
+    # are the same quantity the engine already computes (missing_life/missing_es = max − current, recovery.py),
+    # so this is a wording-only change; both nouns and both trigger verbs are accepted (item solid_river,
+    # season-impact-SS12-SS13.json:13784).
+    m = re.search(r'restores\s+([\d.]+)\s*%\s*of\s+(?:lost|missing)\s+life\s+and\s+energy\s+shield\s+when\s+'
+                  r'(?:activating|consuming)\s+spell\s+burst', t, re.I)
     if m:
         v = float(m.group(1)) / 100.0
         return [{"stat_key": "life_restored_pct_lost_per_burst", "amount": v, "text": t},

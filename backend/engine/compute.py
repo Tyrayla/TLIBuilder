@@ -1511,8 +1511,9 @@ def compute(
     result_offense = None
     slot_offense: dict[int, dict] = {}
     if skill_data and build_input.main_skill and main_enabled:
+        _resolved_main = resolve_skill(skill_data)
         result_offense = _offense_for_slot(
-            resolve_skill(skill_data), build_input.main_skill.level, main_slot, True, skill_dict=skill_data)
+            _resolved_main, build_input.main_skill.level, main_slot, True, skill_dict=skill_data)
         slot_offense[main_slot] = result_offense
         # Channeling: a boolean condition auto-on when the main skill resolves as channeled (inherent, e.g.
         # Icebound Beam, or transformed, e.g. Split Shot + Rapid Advance). Forward-looking — no consumer yet;
@@ -1526,7 +1527,10 @@ def compute(
         # Projectile Hits (Chromatic Shot): the shotgun-hit cap IS the build's projectile count (3 by default,
         # up to ~40 with quantity mods) — not an artificial constant. Report it as the condition's max AND as the
         # auto default (all projectiles land), so the field tracks the count and the user can override downward.
-        if result_offense.get("compulsory_breakdown") and result_offense.get("projectile_count"):
+        # Gated on the resolver's explicit `shots_on_target_cap` delivery flag, NOT `compulsory_breakdown` — the
+        # shotgun-cap mechanic is independent of compulsory elemental conversion (SS13's Chromatic Shot dropped
+        # the latter but kept the former; see ResolvedSkill.shots_on_target_cap).
+        if getattr(_resolved_main, "shots_on_target_cap", False) and result_offense.get("projectile_count"):
             _pc = float(result_offense["projectile_count"])
             maxes["chromatic_shots_on_target"] = _pc
             # Always report the count as the auto value (even when the user has overridden it), so the field's

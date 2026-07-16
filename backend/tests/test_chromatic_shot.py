@@ -1,13 +1,41 @@
-"""Chromatic Shot (chromatic_shot) — a Spell with Compulsory Damage Type Conversion (each cast deals ONE random/
-rotated element; ALL added flat folds into base BEFORE conversion; only the final element's increased/additional
-apply) fired as 3 shotgunning projectiles. Plus its canvas supports Lightchaser + Splendor.
+"""Chromatic Shot (chromatic_shot) — a Spell whose element model is SEASON DATA, not code (see
+engine.skill_resolver._resolve_chromatic_shot, data-driven per the 2026-07-16 fix). Fired as 3 shotgunning
+projectiles, plus its canvas supports Lightchaser + Splendor.
 
-Tyra-confirmed model: headline = expected average across Fire/Cold/Lightning; shotgun first 100% + each subsequent
-30% (falloff 0.70) capped at "shots on target" (default 7, all under Lightchaser/tangle); added flat of EVERY type
-folds in equally.
+  - SS12: Compulsory Damage Type Conversion — each cast deals ONE random/rotated element (Fire/Cold/Lightning);
+    ALL added flat folds into base BEFORE conversion; only the final element's increased/additional apply.
+    Tyra-confirmed model: headline = expected average across the three elements; shotgun first 100% + each
+    subsequent 30% (falloff 0.70) capped at "shots on target" (default 7, all under Lightchaser/tangle).
+  - SS13 ("Afterlight"): the forced-conversion line was deleted upstream and skill_tags changed to
+    ['Physical'] — Chromatic Shot became a plain Physical spell, no compulsory split. Verified real
+    end-to-end output: 529-881 Spell Physical Damage at max level, total_dps 1778.77, compulsory_breakdown {}.
+
+Since the resolver reads this straight from each season's own data (no `if season ==` branch), the SAME test
+run against different season data exercises genuinely different code paths. Most of the tests below are about
+the SS12 compulsory-conversion/shotgun-cap mechanics specifically (per their own docstrings) and PIN the active
+season to SS12 for the engine_stats round trip below, rather than riding whatever the app's ambient active
+season happens to be — so this file doesn't silently change meaning at the next season rollover (see
+`_resp`/`_off`'s `season` kwarg). The SS13-physical-rework tests near the bottom pin "SS13" explicitly.
+
+NOTE (2026-07-16, FIXED — was previously a live bug, see `.wolf/buglog.json` id
+`chromatic-shot-ss13-hardcoded-forced-elemental-conversion`): the two engine call sites that gate the "shots on
+target" shotgun-cap mechanic (`engine/offense.py:2078`, `engine/compute.py:1533`) used to key off
+`skill.compulsory_elements` / `compulsory_breakdown` as a proxy for "this is Chromatic Shot" — empty for SS13's
+reworked (plain Physical) Chromatic Shot, silently disabling the shots-on-target override, Lightchaser's
+homing-forces-all-projectiles, and the `condition_maximums`/`auto_conditions` surfacing under the then-active
+SS13 season even though the underlying "3 projectiles shotgun onto one target, user can cap how many land"
+mechanic is unrelated to whether the damage is compulsorily converted. Both sites now gate on an explicit
+`ResolvedSkill.shots_on_target_cap` delivery flag (set unconditionally at `skill_resolver.py:513` for Chromatic
+Shot, independent of season/compulsory-conversion), so the mechanic fires identically under SS12 and SS13 — see
+`test_ss13_shotgun_shots_on_target_cap_binds_with_elevated_projectiles` below, which pins SS13 and elevates
+`projectile_quantity_flat` so the cap actually binds (the pre-fix regression: cap silently inert, 48.9% DPS
+overstatement).
 """
+import contextlib
+
 import pytest
 from engine.skill_resolver import resolve_skill
+from persistence import season_manager
 from server import engine_stats, EngineStatsRequest
 from tests.mock_build import make_request
 
@@ -15,10 +43,8 @@ LC = "chromatic_shot_lightchaser_magnificent"
 SP = "chromatic_shot_splendor_noble"
 
 
-def _skill_data():
-    import json, os
-    from persistence import season_manager
-    d = season_manager.load_skills("SS12")   # normalized runtime view
+def _skill_data(season="SS12"):
+    d = season_manager.load_skills(season)   # normalized runtime view
     items = d if isinstance(d, list) else d.get("skills") or d.get("items") or []
     return next(x for x in items if x.get("item_id") == "chromatic_shot")
 
@@ -30,21 +56,41 @@ def _flat_item(name, pairs):
         for k, v in pairs]}
 
 
-def _resp(gear=None, supports=None, conds=None):
-    req = make_request("chromatic_shot", 20, attached_supports=supports or [], gear=gear or [],
-                       extra_conditions=conds or {})
-    r = engine_stats(EngineStatsRequest(**req))
-    return r if isinstance(r, dict) else r.model_dump()
+@contextlib.contextmanager
+def _pinned_season(name):
+    """Temporarily set the ACTIVE season for the engine_stats round trip below, restoring whatever was active
+    on exit (even on failure). `resolve_skill` reads compulsory-vs-physical straight off each season's own
+    skill data — see the module docstring — so a test that goes through the live endpoint (`_resp`/`_off`,
+    unlike the direct `resolve_skill(_skill_data(...))` calls) needs this to stay pinned to the season it's
+    actually testing rather than whatever the app has active."""
+    prev = season_manager.get_active_season()
+    season_manager.set_active_season(name)
+    try:
+        yield
+    finally:
+        season_manager.set_active_season(prev)
 
 
-def _off(gear=None, supports=None, conds=None):
-    return _resp(gear=gear, supports=supports, conds=conds)["offense"]
+def _resp(gear=None, supports=None, conds=None, season="SS12"):
+    with _pinned_season(season):
+        req = make_request("chromatic_shot", 20, attached_supports=supports or [], gear=gear or [],
+                           extra_conditions=conds or {})
+        r = engine_stats(EngineStatsRequest(**req))
+        return r if isinstance(r, dict) else r.model_dump()
+
+
+def _off(gear=None, supports=None, conds=None, season="SS12"):
+    return _resp(gear=gear, supports=supports, conds=conds, season=season)["offense"]
 
 
 # ── Resolver ──────────────────────────────────────────────────────────────────
 def test_resolver_fields():
-    r = resolve_skill(_skill_data())
+    """SS12 real skill data: skill_tags carry Fire/Cold/Lightning AND the raw_text still states the
+    "forcibly convert...to a randomly selected type of Elemental Damage" mechanic, so damage_types
+    (derived purely from skill_tags) and compulsory_elements (gated on that raw_text) are identical."""
+    r = resolve_skill(_skill_data("SS12"))
     assert r.is_spell and r.supported
+    assert r.damage_types == ["fire", "cold", "lightning"]
     assert r.compulsory_elements == ["fire", "cold", "lightning"]
     assert r.base_flat_by_level[1] == (8.0, 14.0) and r.base_flat_by_level[20] == (592.0, 1100.0)
     assert r.added_dmg_effectiveness == pytest.approx(1.57)
@@ -212,3 +258,87 @@ def test_splendor_auto_inflicts_three_ailments_and_adds_hit_damage():
     assert sp["total_dps"] > base["total_dps"]                       # universal +20% + ailment vuln + gated hit dmg
     # Splendor's +hit damage is gated on all three ailments, which it auto-applies → per-element differs from base.
     assert sp["compulsory_breakdown"]["cold"]["avg_pre_crit"] > base["compulsory_breakdown"]["cold"]["avg_pre_crit"]
+
+
+# ── SS13 "Afterlight" rework — plain Physical, no compulsory conversion ────────────────────────────────
+# Real season data (not a synthetic payload): SS13 deleted the "forcibly convert...to a randomly selected
+# type of Elemental Damage" line and changed skill_tags from ['Cold','Fire','Lightning'] to ['Physical'].
+# The resolver is data-driven (no `if season ==` branch — see module docstring), so this is the SAME code
+# path as every SS12 test above, just fed SS13's own data.
+def test_resolver_fields_ss13_physical_rework():
+    r = resolve_skill(_skill_data("SS13"))
+    assert r.is_spell and r.supported
+    assert r.damage_types == ["physical"]
+    assert r.compulsory_elements == []                 # no forced-conversion line in SS13's raw_text
+    assert r.base_flat_by_level == {}                   # no type-agnostic pre-conversion pool to fold into
+    assert r.base_dmg_by_level[20] == {"physical": (529.0, 881.0)}   # ordinary per-type spell base
+    # Cast time / mana are unchanged by the rework (same base skill, different damage model).
+    assert r.base_cast_time == pytest.approx(0.65) and r.mana_cost == pytest.approx(8.0)
+
+
+def test_ss13_end_to_end_physical_no_compulsory_split():
+    """Real end-to-end SS13 payload at max level (Tyra-confirmed): straight 529-881 Spell Physical
+    Damage, no per-element compulsory breakdown, no forced elemental conversion of added flat."""
+    off = _off(season="SS13")
+    assert off["compulsory_breakdown"] == {}
+    assert off["flat_dmg_min"] == {"physical": 529.0}
+    assert off["flat_dmg_max"] == {"physical": 881.0}
+    assert off["total_dps"] == pytest.approx(1778.7692307692305)
+    assert off["type_inc"] == {"physical": 0}          # only the native type is tracked, not fire/cold/lightning
+
+
+def test_ss13_shotgun_still_fires_three_projectiles():
+    """The shotgun mechanic itself (3 base projectiles, falloff 0.70) is independent of the compulsory-
+    conversion rework — the resolver sets it unconditionally — so it still fires under SS13. NOTE: this alone
+    does NOT regression-test the shots_on_target_cap fix — 3 <= the default cap of 7 either way, so it passes
+    identically whether the gating is applied or not. See the elevated-projectile tests below for that."""
+    f = _off(season="SS13")["hit_forms"][0]
+    assert f["hits_per_fire"] == 3 and f["shotgun_mult"] == pytest.approx(1.6)
+
+
+def test_ss13_shots_on_target_default_is_all_projectiles():
+    """SS13 mirror of `test_shots_on_target_default_is_all_projectiles`: by default all fired projectiles
+    land. +6 Quantity → 9 fired, 9 land."""
+    off = _off(season="SS13", gear=[_flat_item("R", [("projectile_quantity_flat", 6)])])
+    f = off["hit_forms"][0]
+    assert off["projectile_count"] == 9 and f["hits_per_fire"] == 9
+    assert f["shotgun_mult"] == pytest.approx(1.0 + 8 * 0.30)
+
+
+def test_ss13_shots_on_target_cap_binds_with_elevated_projectiles():
+    """Regression test for the fix: two engine call sites (`offense.py`, `compute.py`) used to gate the
+    shots-on-target cap on `compulsory_elements`/`compulsory_breakdown`, which is EMPTY for SS13's reworked
+    Chromatic Shot — so under the old code the cap was silently inert and all 9 fired projectiles landed
+    regardless of the user's cap. Real Tyra-measured numbers (lead's brief, 2026-07-16): SS13, +6 Projectile
+    Quantity (3 base + 6 = 9 fired), user cap `chromatic_shots_on_target=4` → correct `hits_per_fire=4`,
+    `total_dps=2112.29`. Under the pre-fix bug this was `hits_per_fire=9`, `total_dps=3779.88` (48.9%
+    overstatement) — this test fails against that old gating and passes against the fixed
+    `skill.shots_on_target_cap` flag (season-independent, set unconditionally by the resolver)."""
+    off = _off(season="SS13", gear=[_flat_item("R", [("projectile_quantity_flat", 6)])],
+               conds={"chromatic_shots_on_target": 4})
+    f = off["hit_forms"][0]
+    assert off["projectile_count"] == 9 and f["hits_per_fire"] == 4
+    assert off["total_dps"] == pytest.approx(2112.2884615384614)
+
+
+def test_ss13_condition_maximums_and_auto_conditions_restored():
+    """SS13 mirror of `test_projectile_hits_max_tracks_projectile_count` + `test_shots_on_target_default_...`'s
+    auto-condition assertion: with the old `compulsory_elements`-gated code, SS13's empty compulsory breakdown
+    meant `condition_maximums`/`auto_conditions` for `chromatic_shots_on_target` never got surfaced at all.
+    Fixed, they surface identically to SS12."""
+    r = _resp(season="SS13", gear=[_flat_item("R", [("projectile_quantity_flat", 6)])])
+    assert r["condition_maximums"]["chromatic_shots_on_target"] == pytest.approx(9.0)
+    assert r["auto_conditions"]["chromatic_shots_on_target"] == {
+        "value": 9.0, "source": "Chromatic Shot (all projectiles land)"}
+
+
+def test_ss13_lightchaser_forces_all_projectiles_despite_user_cap():
+    """SS13 mirror of `test_lightchaser_raises_dps_and_forces_all_projectiles`: Lightchaser's homing overrides
+    a lower user shots-on-target cap even though SS13 Chromatic Shot has no compulsory conversion — the
+    homing-forces-all-projectiles mechanic is gated on the same season-independent `shots_on_target_cap` flag."""
+    capped = _off(season="SS13", gear=[_flat_item("R", [("projectile_quantity_flat", 6)])],
+                   conds={"chromatic_shots_on_target": 4})
+    lc = _off(season="SS13", gear=[_flat_item("R", [("projectile_quantity_flat", 6)])],
+              conds={"chromatic_shots_on_target": 4}, supports=_sup(LC))
+    assert capped["hit_forms"][0]["hits_per_fire"] == 4      # user-capped
+    assert lc["hit_forms"][0]["hits_per_fire"] == 9           # homing forces all to land

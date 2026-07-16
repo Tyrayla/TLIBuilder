@@ -2267,7 +2267,13 @@ _COND_PATTERNS: list[tuple] = [
      lambda m: {"key": "spell_burst_stacks_recently", "op": "per", "divisor": 1,
                 **({"cap": float(m.group(1)) / 100.0} if m.group(1) else {})}),
     # "when activating Spell Burst" (Kismet Ripple's Skill-Area line) → the build's Spell Burst state (default on).
-    (re.compile(r"(?:when\s+)?activating\s+spell\s+burst", re.I), "spell_burst_active"),
+    # SS13 "Afterlight" reworded the global Spell Burst trigger to "consuming"/"is consumed" on several catalog
+    # entries (inconsistently — some kept "activating"); accept both the old and new phrasings so a structured
+    # gear-affix `condition` field (e.g. Solid River / Surging Inspiration / Tranquil Stir, whose raw `condition`
+    # is literally "when consuming Spell Burst" / "when Spell Burst is consumed" in data/seasons/SS13/
+    # _legendary_gear.json) still translates. SS12 data stays selectable, so the old form must keep working too.
+    (re.compile(r"(?:when\s+)?(?:activating|consuming)\s+spell\s+burst|spell\s+burst\s+is\s+(?:activated|consumed)", re.I),
+     "spell_burst_active"),
     # Per-"stack owned" scaling → multiply the contribution by the stack count (floor(val/1)).
     (re.compile(r"(?:per|for\s+every|for\s+each)\s+stack(?:\(s\))?\s+of\s+(focus|agility|tenacity)\s+blessing", re.I),
      lambda m: {"key": f"{m.group(1).lower()}_blessings", "op": "per", "divisor": 1}),

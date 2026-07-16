@@ -3,13 +3,26 @@
 
 # Unsullied Blade (Rosa trait)
 
-- **Status:** ⚠️ Unverified
+- **Status:** ✅ Confirmed
 - **Skills affected:** Unsullied Blade
-- **Mechanic tags:** hero-trait, conversion, true-damage
+- **Mechanic tags:** hero-trait, conversion, true-damage, owner-confirmed
+- **Last verified:** 2026-07-16 by Tyra (owner)
+
+## Setup
+
+Not an in-game data-collection test — this is a direct owner confirmation of a single engine constant, given because the value cannot be sourced from the catalog at all (see below). Confirmed once on 2026-06-23 (cited in the module docstring at the time) and RE-CONFIRMED on 2026-07-16 during the SS12->SS13 (Afterlight) rollover audit, when the audit flagged that `_BASE_MAX_MERCURY` has no traceable catalog source. Only `status: confirmed` for this one flat constant — the rest of the module's mechanics (Mercury economy drain rate, Spell->Attack bridge scope, Mercury Baptism true-damage split, etc.) remain unverified in-game and are NOT covered by this confirmation.
+
+## Raw data points
+
+Owner statement, 2026-07-16, verbatim: "Base max mercury is 100 yes." Confirms `_BASE_MAX_MERCURY = 100.0` in `unsullied_blade.py`, unchanged from the 2026-06-23 confirmation. Not an independent third-party in-game measurement — a first-party (owner) confirmation of the engine's existing constant.
+
+## Derived / confirmed formula
+
+Flat constant, no formula: base Max Mercury Points = 100, not level-scaled, emitted as `max_mercury_points_flat`.
 
 ## Notes / caveats / open questions
 
-Shipped in the engine; not yet verified in-game. Spell→attack bridge, Mercury Baptism true-damage stage, per-weapon main-hand split, unsealed_mana into the trait loop.
+The base Max Mercury cap of 100 CANNOT be sourced from the SS13 catalog — the trait's base effect text only says "Upon reaching max Mercury Pts" and never states the numeric cap; the glossary covers Mystic Mercury / Realm of Mercury / Mercury Baptism but not the base cap either. Do NOT confuse this with glossary term `659` ("base upper limit … is 100") — that term belongs to *Murderous Intent*, a DIFFERENT hero trait, and is not a source for this value. The 100 figure exists in the engine purely on the strength of the owner's direct confirmation (2026-06-23, re-confirmed 2026-07-16); everything else in this module (Spell→attack bridge, Mercury Baptism true-damage stage, per-weapon main-hand split, unsealed_mana into the trait loop) is still shipped-but-unverified in-game.
 
 ## Implementation (engine model)
 
@@ -20,3 +33,4 @@ Modeled in `unsullied_blade.py::apply`. Base node disabled (`slot_levels[0] < 1`
 - backend/engine/hero_traits/unsullied_blade.py
 - backend/tests/test_unsullied_blade.py
 - memory: project_unsullied_blade
+- owner confirmation (chat), 2026-07-16, re-confirming 2026-06-23: "Base max mercury is 100 yes."

@@ -20,9 +20,18 @@ Each module exposes:
   Runs at the BOTTOM of each pass. Captures the converged scalars the next pass's `apply` needs (e.g.
   movement-speed total, ailment-duration) plus the inflicting skill's APS (computed by the caller via
   `engine.offense.compute_skill_rates` for the slot that actually inflicts — never main-slot-by-index).
-- `status_lines(*, slot_levels, advanced_picks) -> list[dict]`
+- `status_lines(*, slot_levels, advanced_picks, season) -> list[dict]`
   One `{text, source, status}` per trait line so every line is surfaced (working / informational-NYI),
-  satisfying the never-silently-drop rule.
+  satisfying the never-silently-drop rule. `season` (2026-07-16) is the third universal, build-independent
+  input — a global environment fact (which season's catalog to read a season-sourced display number from,
+  e.g. a cap that drifted between seasons), not an interaction with another equipped entity. A module that
+  doesn't need it ignores it via `**_`; one that formats a season-catalog value into its text (via
+  `engine.hero_traits._catalog`) takes it as an explicit `season=None` keyword param and reads it directly —
+  never a global `persistence.season_manager.get_active_season()` read inside the function body, which is
+  invisible to `engine.coverage.trait_coverage`'s structural `build_gated_status_params` detector. All three
+  universal params are excluded from that detector (`hero_traits._STATUS_BASE_PARAMS`); any OTHER named
+  parameter a module's `status_lines` declares (`main_skill_tags`, `attached_supports`, ...) is a real
+  build-specific dependency that downgrades `trait_coverage` to `'partial'` — see `coverage.py`.
 
 The registry in `__init__.py` dispatches by `trait_id` (no per-trait hardcoding in callers).
 

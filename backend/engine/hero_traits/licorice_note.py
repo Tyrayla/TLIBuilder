@@ -20,8 +20,19 @@ Tyra-confirmed modeling (2026-06-27):
 - Temporal effects carry an uptime multiplier (`_FULL_UPTIME = 1.0` now; the hook for future real-uptime modes).
 
 NYI (surfaced, not dropped): the restoration "cannot be removed" line, and Twinspine Flower (reaping, pending).
+
+Season-catalog-sourced values (2026-07-16 SS12->SS13 drift fix): Scent of Ambition's Elixir Effect bonus, and
+Pungent Stimulant Salt's Empower/Curse effect caps, and Elixir of Immortality's damage cap were all confirmed
+drifted (SS12 literals still in code, SS13 rebalanced them) and are now read live from `_hero_traits.json` via
+`_catalog.py` (identity-joined on `TRAIT_ID` + the advanced-pick name), not hardcoded — see `_scent_of_ambition`,
+`_pungent_empower_cap`/`_pungent_curse_cap`, `_immortality_dmg_cap`. Every other per-tier value in this module
+was audited and verified still matching SS13; those stay Python literals for this pass (narrowly scoped to the
+confirmed drift, not a full literal-elimination sweep).
 """
 from __future__ import annotations
+
+from engine.hero_traits import _catalog
+from persistence import season_manager
 
 TRAIT_ID = "licorice_note"
 
@@ -31,20 +42,49 @@ _SPECIAL_SCENT_SLOT = 3
 _FULL_UPTIME = 1.0   # uptime convention: 100% in Full Uptime mode; one-line hook per effect for real-uptime later
 
 _ARTIFICIAL_MOON_EFFECT = 0.12
-_SCENT_OF_AMBITION = [0.24, 0.27, 0.30, 0.33, 0.36]
 _SCENT_OF_AMBITION_DURATION = -0.30
 _NECTAR_RATIO = [1.0, 1.2, 1.4, 1.6, 1.8]
 _NECTAR_CAP = [0.60, 0.70, 0.80, 0.90, 1.00]
 _PUNGENT_RATIO = [2.0, 2.3, 2.6, 2.9, 3.2]
-_PUNGENT_EMPOWER_CAP = [0.70, 1.00, 1.30, 1.60, 1.90]
-_PUNGENT_CURSE_CAP = [0.50, 0.70, 0.90, 1.10, 1.30]
 # Elixir of Immortality: excess Life/Mana Restoration → Temporary Life/Mana (every 3 excess → 2 temp, capped at
 # IMMORTALITY_TEMP_CAP % of Base Max Life/Mana); +damage per Temporary Life = 5% of Base Max Life OR Temporary
 # Mana = Base Max Mana, up to the cap.
 _IMMORTALITY_TEMP_CAP = [0.20, 0.25, 0.30, 0.40, 0.50]   # % of Base Max Life/Mana
 _IMMORTALITY_DMG_PER_UNIT = [0.01, 0.015, 0.02, 0.025, 0.03]
-_IMMORTALITY_DMG_CAP = [0.10, 0.15, 0.20, 0.25, 0.30]
 _IMMORTALITY_LIFE_UNIT = 0.05    # 1 unit = 5% of Base Max Life
+
+# ── Season-catalog-sourced per-tier values (2026-07-16 SS12->SS13 drift fix) ──────────────────────────────
+# These 3 were CONFIRMED drifted (the Python literals below are the SS12 values, kept ONLY as the
+# last-known-good fallback for a season whose catalog doesn't have this pick at all — see _catalog.py).
+_SCENT_OF_AMBITION_FALLBACK = [0.24, 0.27, 0.30, 0.33, 0.36]
+_PUNGENT_EMPOWER_CAP_FALLBACK = [0.70, 1.00, 1.30, 1.60, 1.90]
+_PUNGENT_CURSE_CAP_FALLBACK = [0.50, 0.70, 0.90, 1.10, 1.30]
+_IMMORTALITY_DMG_CAP_FALLBACK = [0.10, 0.15, 0.20, 0.25, 0.30]
+
+
+def _scent_of_ambition(season):
+    # "( +18/+21/+24/+27/+30 )% additional Elixir Skill Effect after casting Elixir Skill ( 6/6/5/4/3 )
+    # time(s)." — the % group is the first (only) slash-group before the cast-count one.
+    return _catalog.pick_tier_values(season, TRAIT_ID, "Scent of Ambition",
+                                      fallback=_SCENT_OF_AMBITION_FALLBACK)
+
+
+def _pungent_empower_cap(season):
+    return _catalog.pick_tier_values(season, TRAIT_ID, "Pungent Stimulant Salt",
+                                      marker="prepared Empower Skills, up to ",
+                                      fallback=_PUNGENT_EMPOWER_CAP_FALLBACK)
+
+
+def _pungent_curse_cap(season):
+    return _catalog.pick_tier_values(season, TRAIT_ID, "Pungent Stimulant Salt",
+                                      marker="prepared Curse Skills, up to ",
+                                      fallback=_PUNGENT_CURSE_CAP_FALLBACK)
+
+
+def _immortality_dmg_cap(season):
+    return _catalog.pick_tier_values(season, TRAIT_ID, "Elixir of Immortality",
+                                      marker="additional damage, up to ",
+                                      fallback=_IMMORTALITY_DMG_CAP_FALLBACK)
 
 
 def _tier(slot_levels, idx):
@@ -94,6 +134,10 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     if not _enabled(slot_levels, _SLOT_BASE):          # base node disabled → whole trait off
         return {"contributions": []}
     base_lvl = slot_levels[_SLOT_BASE]
+    # `build_input` is a real BuildInput (with `.season`) on the real compute path; unit tests exercise this
+    # module directly with `build_input=None`, so read it defensively (falls back to the SS12 literals — see
+    # `_catalog.pick_tier_values`'s `fallback` behavior for a falsy season).
+    season = getattr(build_input, "season", None)
     c: list[dict] = []
 
     def add(stat, amt, text, source, slot=None):
@@ -114,7 +158,7 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
     # ── Scent of Ambition (L60 pick): global ADDITIONAL Elixir Effect (uptime) + −30% additional Elixir Duration ──
     if "Scent of Ambition" in picks and _enabled(slot_levels, _SLOT_60):
         t = _tier(slot_levels, _SLOT_60)
-        amt = _SCENT_OF_AMBITION[t] * _FULL_UPTIME
+        amt = _scent_of_ambition(season)[t] * _FULL_UPTIME
         add("elixir_effect_additional", amt,
             f"Scent of Ambition: +{amt * 100:.0f}% additional Elixir Skill Effect (after casting elixirs)",
             "Scent of Ambition")
@@ -140,10 +184,11 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
             add("temporary_mana_flat", temp_mana, f"Elixir of Immortality: {temp_mana:.0f} Temporary Mana", "Elixir of Immortality")
         units = (temp_life / (_IMMORTALITY_LIFE_UNIT * base_life) if base_life > 0 else 0.0) \
             + (temp_mana / base_mana if base_mana > 0 else 0.0)
-        dmg = min(units * _IMMORTALITY_DMG_PER_UNIT[t], _IMMORTALITY_DMG_CAP[t])
+        dmg_cap = _immortality_dmg_cap(season)[t]
+        dmg = min(units * _IMMORTALITY_DMG_PER_UNIT[t], dmg_cap)
         if dmg > 1e-9:
             add("dmg_additional", dmg, f"Elixir of Immortality: +{dmg * 100:.0f}% additional damage "
-                f"({units:.0f} Temporary units, cap {_IMMORTALITY_DMG_CAP[t] * 100:.0f}%)", "Elixir of Immortality")
+                f"({units:.0f} Temporary units, cap {dmg_cap * 100:.0f}%)", "Elixir of Immortality")
 
     # ── Everlasting Nectar (L75 pick): INCREASED Elixir Effect from increased Life/Mana (capped) ──
     if "Everlasting Nectar" in picks and _enabled(slot_levels, _SLOT_75):
@@ -164,7 +209,8 @@ def apply(*, build_input, condition_state, ls_state, uptime_mode, slot_levels, a
         if des is not None:
             sid, name, slot, kind = des
             basis = float(ls_state.get("sb_elixir_effect", 0.0))   # slot-2 increased Elixir Effect (the "Bonus")
-            cap = _PUNGENT_EMPOWER_CAP[t] if kind == "empower" else _PUNGENT_CURSE_CAP[t]
+            cap = (_pungent_empower_cap(season)[t] if kind == "empower"
+                   else _pungent_curse_cap(season)[t])
             amt = min(basis * _PUNGENT_RATIO[t] * _FULL_UPTIME, cap)
             if amt > 1e-9 and slot is not None:
                 stat = "empower_effect_inc" if kind == "empower" else "curse_effect_inc"
@@ -199,10 +245,17 @@ def _is_prep_support(sup) -> bool:
             or iid in _PREP_SUPPORT_ITEMS)
 
 
-def status_lines(*, slot_levels, advanced_picks, attached_supports=None, skills_input=None, skills_by_id=None,
-                 prepared_skill=None, **_):
+def status_lines(*, slot_levels, advanced_picks, season=None, attached_supports=None, skills_input=None,
+                 skills_by_id=None, prepared_skill=None, **_):
     """One row per trait line (working / informational / warning / nyi). The Pungent pitfall warning names the
-    buffed Empower/Curse AND the exact Activation Medium / Preparation support on its slot that intercepts it."""
+    buffed Empower/Curse AND the exact Activation Medium / Preparation support on its slot that intercepts it.
+    `season` (2026-07-16 architecture fix) is an explicit, documented input — see `engine/hero_traits/README.md`
+    — so Scent of Ambition's season-catalog-sourced display number is a VISIBLE dependency in the function
+    signature, not a global read hidden in the body. `engine.coverage.trait_coverage`'s build-independent
+    probe supplies the real active season explicitly. The real `/api/engine/stats` call site (`server.py`)
+    does not thread a build-pinned season through this call today, so a None/falsy `season` here falls back
+    to the currently-active season (identical to the pre-fix behavior, and identical to what `apply()`
+    already reads via `build_input.season` on the same request) — never a stale/wrong literal."""
     picks = set(advanced_picks or [])
     slot_levels = list(slot_levels or [1, 1, 1, 1])
     out: list[dict] = []
@@ -256,7 +309,8 @@ def status_lines(*, slot_levels, advanced_picks, attached_supports=None, skills_
 
     if "Scent of Ambition" in picks and _enabled(slot_levels, _SLOT_60):
         t = _tier(slot_levels, _SLOT_60)
-        row(f"Scent of Ambition: +{_SCENT_OF_AMBITION[t] * 100:.0f}% additional Elixir Skill Effect (after casting "
+        amt = _scent_of_ambition(season or season_manager.get_active_season() or "")[t]
+        row(f"Scent of Ambition: +{amt * 100:.0f}% additional Elixir Skill Effect (after casting "
             f"elixirs) − 30% additional Elixir Skill Effect Duration.", "Scent of Ambition", "working")
     if "Elixir of Immortality" in picks and _enabled(slot_levels, _SLOT_60):
         row("Elixir of Immortality: excess Restoration → Temporary Life/Mana (used-first barrier) → +additional "
