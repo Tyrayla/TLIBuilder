@@ -1,0 +1,713 @@
+{
+  "affix_count": 321,
+  "identity_count": 192,
+  "note": "Frozen additional-damage identity partition. Gate for the modifier-identity migration (docs/MODIFIER_UUID_REVIEW.md). Regenerate ONLY on an intended data change.",
+  "partition": {
+    "additional active skill damage": [
+      "-50 % additional Active Skill Damage.",
+      "-80 % additional Active Skill Damage."
+    ],
+    "additional ailment damage when you have at least stack s of agility blessing": [
+      "+17 % additional Ailment Damage when you have at least 8 stack(s) of Agility Blessing",
+      "+20 % additional Ailment Damage when you have at least 8 stack(s) of Agility Blessing"
+    ],
+    "additional area damage for this skill when demolisher charge is consumed": [
+      "+(30–40) % additional Area Damage for this skill when Demolisher Charge is consumed.",
+      "+(34–45) % additional Area Damage for this skill when Demolisher Charge is consumed.",
+      "+(40–50) % additional Area Damage for this skill when Demolisher Charge is consumed.",
+      "+(57–70) % additional Area Damage for this skill when Demolisher Charge is consumed."
+    ],
+    "additional attack damage for each unique type of weapon equipped while dual wielding": [
+      "+5 % additional Attack Damage for each unique type of weapon equipped while Dual Wielding"
+    ],
+    "additional attack damage if you have used a warcry skill in the last s": [
+      "+8 % additional Attack Damage if you have used a Warcry Skill in the last 8s"
+    ],
+    "additional attack damage when holding a one-handed weapon": [
+      "+8 % additional Attack Damage when holding a One-Handed Weapon"
+    ],
+    "additional attack damage when no enemies are nearby": [
+      "+(130–144) % additional Attack Damage when no enemies are Nearby",
+      "+(96–108) % additional Attack Damage when no enemies are Nearby"
+    ],
+    "additional attack fire damage for every max life when at max tenacity blessing stacks up to": [
+      "+1 % additional Attack Fire Damage for every 100 Max Life when at max Tenacity Blessing stacks, up to +(20–30) %",
+      "1.3 % additional Attack Fire Damage for every 100 Max Life when at max Tenacity Blessing stacks, up to +(35–40) %"
+    ],
+    "additional base damage for off-hand weapons": [
+      "+(20–30) % additional Base Damage for Off-Hand Weapons",
+      "+(40–50) % additional Base Damage for Off-Hand Weapons"
+    ],
+    "additional base damage for two-handed weapons": [
+      "+(100–120) % additional Base Damage for Two-Handed Weapons",
+      "+(80–90) % additional Base Damage for Two-Handed Weapons",
+      "+10 % additional Base Damage for Two-Handed Weapons",
+      "+4 % additional Base Damage for Two-Handed Weapons"
+    ],
+    "additional channeled skill damage": [
+      "+(11–15) % additional Channeled Skill damage",
+      "+(7–10) % additional Channeled Skill damage"
+    ],
+    "additional channeled skill damage and ailment damage dealt by channeled skills for every mobility skill cast recently multiplies stacks up to time s": [
+      "+(12–16) % additional Channeled Skill Damage and Ailment Damage dealt by Channeled Skills for every Mobility Skill cast recently (multiplies). Stacks up to 4 time(s)",
+      "+(17–20) % additional Channeled Skill Damage and Ailment Damage dealt by Channeled Skills for every Mobility Skill cast recently (multiplies). Stacks up to 4 time(s)"
+    ],
+    "additional channeled skill damage for every excess stack of min channeled stacks": [
+      "+(20–25) % additional Channeled Skill Damage for every 1 excess stack of Min Channeled Stacks",
+      "+(26–30) % additional Channeled Skill Damage for every 1 excess stack of Min Channeled Stacks"
+    ],
+    "additional cold damage": [
+      "+(10–13) % additional Cold Damage",
+      "+(5–8) % additional Cold Damage"
+    ],
+    "additional cold damage for every stack of focus blessing": [
+      "+(13–14) % additional Cold Damage for every stack of Focus Blessing",
+      "+(18–19) % additional Cold Damage for every stack of Focus Blessing"
+    ],
+    "additional combo finisher damage to an enemy for every infiltration effect the enemy has": [
+      "+(15–20) % additional Combo Finisher Damage to an enemy for every Infiltration Effect the enemy has",
+      "+(20–25) % additional Combo Finisher Damage to an enemy for every Infiltration Effect the enemy has"
+    ],
+    "additional damage against cursed enemies": [
+      "+20 % additional damage against Cursed enemies",
+      "+30 % additional damage against Cursed enemies",
+      "+8 % additional damage against Cursed enemies"
+    ],
+    "additional damage against frostbitten enemies": [
+      "+(36–48) % additional damage against Frostbitten enemies"
+    ],
+    "additional damage against frozen enemies": [
+      "+10 % additional damage against Frozen enemies"
+    ],
+    "additional damage against low life enemies max divinity effect": [
+      "+25 % additional damage against Low Life enemies (Max Divinity Effect: 1)"
+    ],
+    "additional damage and minion damage when equipped with boots": [
+      "+5 % additional damage and Minion Damage when equipped with Boots",
+      "-10 % additional damage and Minion Damage when equipped with Boots"
+    ],
+    "additional damage and minion damage while an elixir skill is active": [
+      "+(15–20) % additional damage and Minion Damage while an Elixir Skill is active",
+      "+(27–32) % additional damage and Minion Damage while an Elixir Skill is active"
+    ],
+    "additional damage applied to life": [
+      "8 % additional damage applied to Life"
+    ],
+    "additional damage at low life": [
+      "+(15–20) % additional damage at Low Life",
+      "+(25–30) % additional damage at Low Life"
+    ],
+    "additional damage dealt by blinded enemies": [
+      "-12 % additional damage dealt by Blinded enemies",
+      "-15 % additional damage dealt by Blinded enemies"
+    ],
+    "additional damage dealt by horizontal projectiles after each jump multiplies": [
+      "+(3–4) % additional damage dealt by Horizontal Projectiles after each Jump (multiplies)",
+      "+(4–6) % additional damage dealt by Horizontal Projectiles after each Jump (multiplies)"
+    ],
+    "additional damage dealt by nearby enemies": [
+      "(-15–-10) % additional damage dealt by Nearby enemies",
+      "(-20–-17) % additional damage dealt by Nearby enemies"
+    ],
+    "additional damage for every combo point consumed on critical strike from combo finishers": [
+      "+(3.0–4.0) % additional damage for every 1 Combo Point consumed on Critical Strike from Combo Finishers",
+      "+(4.0–5.0) % additional damage for every 1 Combo Point consumed on Critical Strike from Combo Finishers"
+    ],
+    "additional damage for every type of ailment or crowd control effect inflicted recently multiplies": [
+      "+3 % additional damage for every type of Ailment or Crowd Control Effect inflicted recently (multiplies)",
+      "+4 % additional damage for every type of Ailment or Crowd Control Effect inflicted recently (multiplies)"
+    ],
+    "additional damage for every type of ailment or crowd control effect the enemy has multiplies": [
+      "-3 % additional damage for every type of Ailment or Crowd Control Effect the enemy has (multiplies)",
+      "-4 % additional damage for every type of Ailment or Crowd Control Effect the enemy has (multiplies)"
+    ],
+    "additional damage for every types of elemental resistance with identical values multiplies": [
+      "+(17–19) % additional damage for every 2 types of Elemental Resistance with identical values (multiplies)"
+    ],
+    "additional damage for every types of resistance with identical values multiplies": [
+      "+(12–13) % additional damage for every 2 types of Resistance with identical values (multiplies)"
+    ],
+    "additional damage for main-hand weapons": [
+      "+(20–35) % additional damage for Main-Hand Weapons"
+    ],
+    "additional damage for minions when having at least command": [
+      "+(30–35) % additional damage for Minions when having at least (70–80) Command",
+      "+(45–50) % additional damage for Minions when having at least (70–80) Command"
+    ],
+    "additional damage for s after using mobility skills": [
+      "+(35–45) % additional damage for 5 s after using Mobility Skills",
+      "+(45–55) % additional damage for 5 s after using Mobility Skills",
+      "+10 % additional damage for 4s after using Mobility Skills"
+    ],
+    "additional damage for the next focus skill triggered for each enemy defeated stacks up to time s": [
+      "+5 % additional damage for the next Focus Skill triggered for each enemy defeated. Stacks up to 10 time(s)",
+      "+5 % additional damage for the next Focus Skill triggered for each enemy defeated. Stacks up to 8 time(s)"
+    ],
+    "additional damage for you and your minions for every elixir skill cast recently stacks up to time s": [
+      "+(13–15) % additional damage for you and your Minions for every Elixir Skill cast recently. Stacks up to 5 time(s)",
+      "+(18–20) % additional damage for you and your Minions for every Elixir Skill cast recently. Stacks up to 5 time(s)"
+    ],
+    "additional damage if the max stacks of focus blessing is not lower than the stacks of other blessings": [
+      "+(11–15) % additional damage if the max stacks of Focus Blessing is not lower than the stacks of other Blessings",
+      "+(8–10) % additional damage if the max stacks of Focus Blessing is not lower than the stacks of other Blessings"
+    ],
+    "additional damage if you have lost life recently": [
+      "+8 % additional damage if you have lost Life recently"
+    ],
+    "additional damage over time": [
+      "-99 % additional Damage Over Time"
+    ],
+    "additional damage per armor up to": [
+      "+(2–3) % additional damage per 10000 Armor, up to +300 %",
+      "+3 % additional damage per (8000–9000) Armor, up to +375 %"
+    ],
+    "additional damage per fervor rating": [
+      "+1 % additional damage per (2–3) Fervor Rating",
+      "+2 % additional damage per 3 Fervor Rating"
+    ],
+    "additional damage per stack of blessing multiplies": [
+      "-1 % additional damage per stack of Blessing (multiplies)",
+      "-2 % additional damage per stack of Blessing (multiplies)"
+    ],
+    "additional damage to blinded enemies": [
+      "+20 % additional damage to Blinded enemies",
+      "+26 % additional damage to Blinded enemies"
+    ],
+    "additional damage to this skill for each support skill slot without a support skill equipped in non-main synthetic troop skills": [
+      "+50 % additional damage to this skill for each Support Skill slot without a Support Skill equipped in Non-Main Synthetic Troop Skills",
+      "+65 % additional damage to this skill for each Support Skill slot without a Support Skill equipped in Non-Main Synthetic Troop Skills"
+    ],
+    "additional damage when at full life": [
+      "+(35–40) % additional damage when at Full Life",
+      "+(45–50) % additional damage when at Full Life"
+    ],
+    "additional damage when having at least armor": [
+      "+(35–40) % additional damage when having at least 25000 Armor",
+      "+(45–50) % additional damage when having at least 25000 Armor"
+    ],
+    "additional damage when having both sealed mana and life": [
+      "+10 % additional damage when having both Sealed Mana and Life"
+    ],
+    "additional damage when unarmed": [
+      "+(15–21) % additional damage when Unarmed",
+      "+(27–33) % additional damage when Unarmed"
+    ],
+    "additional deterioration damage": [
+      "+8 % additional Deterioration Damage"
+    ],
+    "additional deterioration damage if you have dealt a critical strike recently": [
+      "+(30–35) % additional Deterioration Damage if you have dealt a Critical Strike recently",
+      "+(40–45) % additional Deterioration Damage if you have dealt a Critical Strike recently"
+    ],
+    "additional deterioration duration deterioration damage": [
+      "-25 % additional Deterioration Duration +(15–30) % Deterioration Damage"
+    ],
+    "additional elemental and erosion damage": [
+      "-99 % additional Elemental and Erosion Damage"
+    ],
+    "additional elemental and erosion damage additional physical damage": [
+      "-98 % additional Elemental and Erosion Damage +(15–20) % additional Physical Damage"
+    ],
+    "additional elemental damage for attack skills": [
+      "+20 % additional Elemental Damage for Attack Skills",
+      "+32 % additional Elemental Damage for Attack Skills"
+    ],
+    "additional elemental damage for every of the highest stat among strength dexterity and intelligence": [
+      "+1 % additional Elemental Damage for every (18–20) of the highest stat among Strength, Dexterity, and Intelligence",
+      "+1 % additional Elemental Damage for every (28–30) of the highest stat among Strength, Dexterity, and Intelligence"
+    ],
+    "additional elemental damage to enemies with elemental ailments": [
+      "+(18–24) % additional Elemental Damage to enemies with Elemental Ailments",
+      "+(27–35) % additional Elemental Damage to enemies with Elemental Ailments"
+    ],
+    "additional erosion area damage against elites": [
+      "+10 % additional Erosion Area Damage against Elites",
+      "+20 % additional Erosion Area Damage against Elites"
+    ],
+    "additional fire damage": [
+      "+(60–70) % additional Fire Damage",
+      "+(90–100) % additional Fire Damage",
+      "+4 % additional Fire Damage"
+    ],
+    "additional fire damage for every stack of tenacity blessing": [
+      "+(14–15) % additional Fire Damage for every stack of Tenacity Blessing",
+      "+(19–20) % additional Fire Damage for every stack of Tenacity Blessing"
+    ],
+    "additional fire damage for every strength": [
+      "+(7–8) % additional Fire Damage for every 10 Strength",
+      "+(9–10) % additional Fire Damage for every 10 Strength"
+    ],
+    "additional focus speed and focus skill area while transcendence is active additional damage for focus skills while transcendence is active": [
+      "+(30–40) % additional Focus Speed and +(40–48) % Focus Skill Area while Transcendence is active +(25–30) % additional damage for Focus Skills while Transcendence is active"
+    ],
+    "additional hit damage": [
+      "-99 % additional Hit Damage"
+    ],
+    "additional hit damage for skills cast by spell burst": [
+      "+(20–30) % additional Hit Damage for skills cast by Spell Burst",
+      "+(45–55) % additional Hit Damage for skills cast by Spell Burst"
+    ],
+    "additional ignite damage": [
+      "-99 % additional Ignite Damage"
+    ],
+    "additional lightning damage": [
+      "+(15–20) % additional Lightning Damage",
+      "+(25–30) % additional Lightning Damage"
+    ],
+    "additional lightning damage against numbed enemies": [
+      "+(50–75) % additional Lightning Damage against Numbed enemies"
+    ],
+    "additional lightning damage against numbed enemies additional max lightning damage to an enemy when they have at least stack s of numbed": [
+      "+(25–35) % additional Lightning Damage against Numbed enemies +(25–35) % additional Max Lightning Damage to an enemy when they have at least 10 stack(s) of Numbed",
+      "+(40–50) % additional Lightning Damage against Numbed enemies +(40–50) % additional Max Lightning Damage to an enemy when they have at least 10 stack(s) of Numbed"
+    ],
+    "additional lightning damage for every stack of agility blessing": [
+      "+(15–16) % additional Lightning Damage for every stack of Agility Blessing",
+      "+(20–21) % additional Lightning Damage for every stack of Agility Blessing"
+    ],
+    "additional lightning damage per dexterity": [
+      "+(7–8) % additional Lightning Damage per 10 Dexterity",
+      "+(9–10) % additional Lightning Damage per 10 Dexterity"
+    ],
+    "additional max damage": [
+      "+(10–40) % additional Max Damage",
+      "+(6–30) % additional Max Damage",
+      "+12 % additional Max Damage",
+      "+2 % additional Max Damage"
+    ],
+    "additional max damage for minions": [
+      "+12 % additional Max Damage for Minions",
+      "+2 % additional Max Damage for Minions"
+    ],
+    "additional max damage multiplies for each time you inflict numbed recently stacks up to time s": [
+      "+1 % additional Max Damage (multiplies) for each time you inflict Numbed recently. Stacks up to 20 time(s)",
+      "+1 % additional Max Damage (multiplies) for each time you inflict Numbed recently. Stacks up to 35 time(s)"
+    ],
+    "additional melee physical damage when the character is only affected by aura": [
+      "+(16–20) % additional Melee Physical Damage when the character is only affected by 1 Aura",
+      "+(20–25) % additional Melee Physical Damage when the character is only affected by 1 Aura"
+    ],
+    "additional min damage": [
+      "(-20–-1) % additional min damage",
+      "(-30–-6) % additional min damage"
+    ],
+    "additional minion damage": [
+      "+5 % additional Minion Damage"
+    ],
+    "additional minion damage at max bond stacks": [
+      "+(15–20) % additional Minion Damage at Max Bond stacks",
+      "+(20–25) % additional Minion Damage at Max Bond stacks"
+    ],
+    "additional minion damage for each stack of bond": [
+      "+(16–18) % additional Minion Damage for each stack of Bond",
+      "+(22–24) % additional Minion Damage for each stack of Bond"
+    ],
+    "additional minion damage for every minion you have stacks up to times": [
+      "+(10–12) % additional Minion Damage for every Minion you have. Stacks up to 6 times",
+      "+20 % additional Minion Damage for every Minion you have. Stacks up to 6 times"
+    ],
+    "additional minion damage if a synthetic troop skill has been cast recently": [
+      "+8 % additional Minion Damage if a Synthetic Troop Skill has been cast recently"
+    ],
+    "additional minion damage when you have at least stack s of focus blessing": [
+      "+(130–150) % additional Minion Damage when you have at least (6–7) stack(s) of Focus Blessing",
+      "+(80–90) % additional Minion Damage when you have at least 5 stack(s) of Focus Blessing"
+    ],
+    "additional minion damage while having bond": [
+      "+(30–40) % additional Minion Damage while having Bond",
+      "+(45–55) % additional Minion Damage while having Bond"
+    ],
+    "additional numbed effect on critical strike with lightning damage for s": [
+      "+(20–30) % additional Numbed Effect on Critical Strike with Lightning Damage for 2 s",
+      "+(30–40) % additional Numbed Effect on Critical Strike with Lightning Damage for 2 s"
+    ],
+    "additional physical damage while having fervor": [
+      "+8 % additional Physical Damage while having Fervor"
+    ],
+    "additional projectile damage": [
+      "+(10–15) % additional Projectile Damage",
+      "+(20–30) % additional Projectile Damage",
+      "+(30–40) % additional Projectile Damage"
+    ],
+    "additional refraction s for the beam skill additional damage": [
+      "+1 additional refraction(s) for the Beam Skill +(4–8) % additional damage"
+    ],
+    "additional sentry damage": [
+      "+8 % additional Sentry Damage"
+    ],
+    "additional sentry damage for every nearby sentry within m": [
+      "+(11–12) % additional Sentry Damage for every nearby Sentry within 10m",
+      "+(8–10) % additional Sentry Damage for every nearby Sentry within 10m"
+    ],
+    "additional sentry damage if sentry skill is not used in the last s": [
+      "+10 % additional Sentry Damage if Sentry Skill is not used in the last 1 s"
+    ],
+    "additional shadow damage": [
+      "+(14–16) % additional Shadow Damage",
+      "+(20–24) % additional Shadow Damage",
+      "+(24–32) % additional Shadow Damage",
+      "+(40–54) % additional Shadow Damage"
+    ],
+    "additional skill damage when demolisher charge is consumed": [
+      "+(30–40) % additional skill damage when Demolisher Charge is consumed",
+      "+(45–55) % additional skill damage when Demolisher Charge is consumed"
+    ],
+    "additional spell damage additional minion damage": [
+      "-50 % additional Spell Damage -50 % additional Minion Damage",
+      "-80 % additional Spell Damage -80 % additional Minion Damage"
+    ],
+    "additional spell damage at max focus blessings": [
+      "+(15–20) % additional Spell Damage at Max Focus Blessings",
+      "+(7–10) % additional Spell Damage at Max Focus Blessings"
+    ],
+    "additional spell damage for every max mana owned up to": [
+      "+1 % additional Spell Damage for every (75–100) Max Mana owned, up to 70 %",
+      "+2 % additional Spell Damage for every (75–100) Max Mana owned, up to 105 %"
+    ],
+    "additional spell damage max divinity effect": [
+      "+8 % additional Spell Damage (Max Divinity Effect: 1)"
+    ],
+    "additional spell damage when not at full mana": [
+      "+(30–40) % additional Spell Damage when not at Full Mana",
+      "+(50–60) % additional Spell Damage when not at Full Mana"
+    ],
+    "additional spell damage when you have at least stack s of focus blessing": [
+      "+30 % additional Spell Damage when you have at least 6 stack(s) of Focus Blessing",
+      "+35 % additional Spell Damage when you have at least 8 stack(s) of Focus Blessing"
+    ],
+    "additional spirit magus skill damage": [
+      "+(26–40) % additional Spirit Magus Skill Damage",
+      "+(34–52) % additional Spirit Magus Skill Damage"
+    ],
+    "additional spirit magus skill damage max divinity effect": [
+      "-40 % additional Spirit Magus Skill Damage (Max Divinity Effect: 1)"
+    ],
+    "additional spirit magus ultimate damage and ailment damage dealt by ultimate": [
+      "+(10–21) % additional Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate .",
+      "+(8–16) % additional Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate ."
+    ],
+    "additional steep strike damage": [
+      "+(20–30) % additional Steep Strike Damage",
+      "+(40–52) % additional Steep Strike Damage"
+    ],
+    "additional sweep slash damage additional steep strike damage": [
+      "(-100–-80) % additional Sweep Slash Damage; +(140–180) % additional Steep Strike Damage",
+      "(-80–-60) % additional Sweep Slash Damage; +(100–120) % additional Steep Strike Damage"
+    ],
+    "additional synthetic troop minion damage": [
+      "+(1000–1130) % additional Synthetic Troop Minion Damage",
+      "+(720–800) % additional Synthetic Troop Minion Damage"
+    ],
+    "additional thunder focus damage": [
+      "+(25–30) % additional Thunder Focus Damage",
+      "+(35–40) % additional Thunder Focus Damage"
+    ],
+    "additional trauma damage dealt by critical strikes": [
+      "+12 % additional Trauma Damage dealt by Critical Strikes"
+    ],
+    "additional trauma damage multiplies for each critical strike dealt recently stacks up to time s": [
+      "+(17–20) % additional Trauma Damage (multiplies) for each Critical Strike dealt recently. Stacks up to (3–4) time(s)",
+      "+(25–30) % additional Trauma Damage (multiplies) for each Critical Strike dealt recently. Stacks up to (3–4) time(s)"
+    ],
+    "additional wilt damage if you haven t used any restoration skills recently": [
+      "+(10–25) % additional Wilt Damage if you haven't used any Restoration Skills recently"
+    ],
+    "adds additional physical damage when you have at least stack s of agility blessing": [
+      "Adds (160–180) - (200–220) additional Physical Damage when you have at least 8 stack(s) of Agility Blessing",
+      "Adds (200–220) - (330–350) additional Physical Damage when you have at least 8 stack(s) of Agility Blessing"
+    ],
+    "attack skill mana cost additional damage for attack skills": [
+      "+100 % Attack Skill Mana Cost +10 % additional damage for Attack Skills"
+    ],
+    "automatically generates a windfield centered on yourself for s cooldown s you gain storm while inside the windfield additional attack projectile damage": [
+      "Automatically generates a windfield centered on yourself for 8 s. Cooldown: 10 s You gain Storm while inside the windfield +(15–20) % additional Attack Projectile Damage"
+    ],
+    "barrage skills damage increase per wave additional damage for barrage skills": [
+      "Barrage Skills +(50–60) % damage increase per wave +(15–20) % additional damage for Barrage Skills"
+    ],
+    "barrage wave interval and additional barrage skill damage": [
+      "-40 % Barrage Wave Interval and +(15–20) % additional Barrage Skill Damage"
+    ],
+    "beams additional damage": [
+      "+1 Beams +(4–8) % additional damage"
+    ],
+    "bladerunner s dirge additional attack damage for each unique type of weapon equipped while dual wielding": [
+      "Bladerunner's Dirge +8 % additional Attack Damage for each unique type of weapon equipped while Dual Wielding"
+    ],
+    "blur gains an additional effect additional damage over time for each blur rating": [
+      "Blur gains an additional effect: +0.75% additional Damage Over Time for each Blur Rating",
+      "Blur gains an additional effect: +1% additional Damage Over Time for each Blur Rating"
+    ],
+    "blur gains an additional effect damage over time for every blur rating": [
+      "Blur gains an additional effect: +2% Damage Over Time for every 1 Blur Rating",
+      "Blur gains an additional effect: +2.5% Damage Over Time for every 1 Blur Rating"
+    ],
+    "boss can obtain bond additional minion damage while having bond": [
+      "[Boss] Can obtain Bond +5 % additional Minion Damage while having Bond"
+    ],
+    "boss can obtain bond additional minion damage while having bond additional regain interval": [
+      "[Boss] Can obtain Bond +5 % additional Minion Damage while having Bond (-20–-10) % additional Regain Interval"
+    ],
+    "chance to to barrage skill total waves when casting a barrage skill additional damage for barrage skills": [
+      "+(100–125) % chance to +1 to Barrage Skill Total Waves when casting a Barrage Skill +(5–10) % additional damage for Barrage Skills"
+    ],
+    "combo finisher charge s additional combo skill damage": [
+      "+1 Combo Finisher charge(s) +(10–15) % additional Combo Skill Damage"
+    ],
+    "conspire additional base damage for off-hand weapons": [
+      "Conspire +(15–20) % additional Base Damage for Off-Hand Weapons"
+    ],
+    "critical strikes cannot deal additional damage critical strike rating": [
+      "Critical Strikes cannot deal additional damage +100 % Critical Strike Rating"
+    ],
+    "deterioration no longer deals true damage when it expires instead it deals true damage once every s while it lasts the damage gains a additional damage increment each time up to time s": [
+      "Deterioration no longer deals True Damage when it expires. Instead, it deals True Damage once every 0.33s while it lasts. The damage gains a 30 % additional damage increment each time, up to 5 time(s)",
+      "Deterioration no longer deals True Damage when it expires. Instead, it deals True Damage once every 0.33s while it lasts. The damage gains a 45 % additional damage increment each time, up to 5 time(s)"
+    ],
+    "dormant entanglement gains an additional effect spell critical strike rating and additional damage on critical strike for each activated tangle": [
+      "Dormant Entanglement gains an additional effect: +(150–180) Spell Critical Strike Rating and +(18–23) % additional damage on Critical Strike for each activated Tangle",
+      "Dormant Entanglement gains an additional effect: +(195–225) Spell Critical Strike Rating and +(26–30) % additional damage on Critical Strike for each activated Tangle"
+    ],
+    "endless fervor have fervor fervor effect additional damage": [
+      "[Endless Fervor] Have Fervor +12 % Fervor effect +(6–8) % additional damage"
+    ],
+    "enemies with notoriety have giantism additional damage against distant enemies": [
+      "Enemies with Notoriety have Giantism (-49–-45) % additional damage against Distant enemies",
+      "Enemies with Notoriety have Giantism -50 % additional damage against Distant enemies"
+    ],
+    "fervor gains an additional base effect additional attack and ailment damage for every fervor rating": [
+      "Fervor gains an additional base effect: +1% additional Attack and Ailment Damage for every 1 Fervor Rating",
+      "Fervor gains an additional base effect: +3% additional Attack and Ailment Damage for every 4 Fervor Rating"
+    ],
+    "focused strike area skills deal up to additional damage to enemies at the center minions area skills deal up to additional damage to enemies at the center": [
+      "[Focused Strike] Area Skills deal up to +32 % additional damage to enemies at the center Minions' Area Skills deal up to 32 % additional damage to enemies at the center"
+    ],
+    "for every attack skill equipped in a non-main skill slot additional damage multiplies": [
+      "For every Attack Skill equipped in a non-Main Skill slot, +(4–10) % additional damage (multiplies)",
+      "For every Attack Skill equipped in a non-Main Skill slot, +(4–12) % additional damage (multiplies)"
+    ],
+    "for every defensive skill equipped in a non-main skill slot additional damage multiplies": [
+      "For every Defensive Skill equipped in a non-Main Skill slot, +(4–10) % additional damage (multiplies)",
+      "For every Defensive Skill equipped in a non-Main Skill slot, +(4–12) % additional damage (multiplies)"
+    ],
+    "for every evasion s in the last s additional damage multiplies stacks up to times": [
+      "For every 1 Evasion(s) in the last 10s, +(11–13) % additional damage (multiplies). Stacks up to 5 times",
+      "For every 1 Evasion(s) in the last 10s, +(7–10) % additional damage (multiplies). Stacks up to 5 times"
+    ],
+    "for every focus pts of the same skill consumed gain transcendence for s additional damage for focus skills": [
+      "For every (900–1000) Focus Pts of the same skill consumed, gain Transcendence for 4 s +(15–20) % additional damage for Focus Skills"
+    ],
+    "for every growth a spirit magus has it deals additional damage and additional attack and cast speed": [
+      "For every 100 Growth a Spirit Magus has, it deals +(16–18) % additional damage and -3 % additional Attack and Cast Speed",
+      "For every 100 Growth a Spirit Magus has, it deals +(22–25) % additional damage and +1 % additional Attack and Cast Speed"
+    ],
+    "for every life lost by a synthetic troop minion in the last second additional damage stacks up to time s": [
+      "For every 5 % Life lost by a Synthetic Troop Minion in the last second, +(11–15) % additional damage. Stacks up to (18–23) time(s)",
+      "For every 5 % Life lost by a Synthetic Troop Minion in the last second, +(9–10) % additional damage. Stacks up to 13 time(s)"
+    ],
+    "for every mobility skill equipped in a non-main skill slot additional damage multiplies": [
+      "For every Mobility Skill equipped in a non-Main Skill slot, +(4–10) % additional damage (multiplies)",
+      "For every Mobility Skill equipped in a non-Main Skill slot, +(4–12) % additional damage (multiplies)"
+    ],
+    "for every restoration skill equipped in a non-main skill slot additional damage multiplies": [
+      "For every Restoration Skill equipped in a non-Main Skill slot, +(4–10) % additional damage (multiplies)",
+      "For every Restoration Skill equipped in a non-Main Skill slot, +(4–12) % additional damage (multiplies)"
+    ],
+    "for every spell burst charge speed additional hit damage for skills cast by spell burst up to": [
+      "For every +(30–40) % Spell Burst Charge Speed, +(25–30) % additional Hit Damage for skills cast by Spell Burst , up to +180 %",
+      "For every +(40–50) % Spell Burst Charge Speed, +(25–30) % additional Hit Damage for skills cast by Spell Burst , up to +120 %"
+    ],
+    "for every spell skill equipped in a non-main skill slot additional damage multiplies": [
+      "For every Spell Skill equipped in a non-Main Skill slot, +(4–10) % additional damage (multiplies)",
+      "For every Spell Skill equipped in a non-Main Skill slot, +(4–12) % additional damage (multiplies)"
+    ],
+    "frostbitten inflicts frostbite when dealing hit cold damage frostbite effect additional cold damage": [
+      "[Frostbitten] Inflicts Frostbite when dealing Hit Cold Damage +40 % Frostbite Effect +(8–10) % additional Cold Damage"
+    ],
+    "gains elemental resistance penetration equal to your minimum effective elemental resistance additional elemental damage": [
+      "Gains Elemental Resistance Penetration equal to your minimum effective Elemental Resistance +(18–20) % additional Elemental Damage"
+    ],
+    "gains of the added flat damage s base trauma damage adds additional base ailment damage": [
+      "Gains (145–170) % - (355–385) % of the added Flat Damage's Base Trauma Damage Adds -99 % additional Base Ailment Damage",
+      "Gains (190–220) % - (460–505) % of the added Flat Damage's Base Trauma Damage Adds -99 % additional Base Ailment Damage"
+    ],
+    "gains of the added flat damage s base wilt damage adds additional base ailment damage": [
+      "Gains (20–22) % - (24–25) % of the added Flat Damage's Base Wilt Damage Adds -99 % additional Base Ailment Damage",
+      "Gains 25 % - 30 % of the added Flat Damage's Base Wilt Damage Adds -99 % additional Base Ailment Damage"
+    ],
+    "gains of the added flat damage s value as base ignite damage adds additional base ailment damage": [
+      "Gains (105–125) % - (195–225) % of the added Flat Damage's value as Base Ignite Damage Adds -99 % additional Base Ailment Damage",
+      "Gains (135–160) % - (250–295) % of the added Flat Damage's value as Base Ignite Damage Adds -99 % additional Base Ailment Damage"
+    ],
+    "gains the following buffs by turns each buff lasts for s additional erosion damage additional elemental damage additional physical damage": [
+      "Gains the following buffs by turns. Each buff lasts for 8 s: +(35–50) % additional Erosion Damage +(35–50) % additional Elemental Damage +(35–50) % additional Physical Damage",
+      "Gains the following buffs by turns. Each buff lasts for 8 s: +(55–65) % additional Erosion Damage +(55–65) % additional Elemental Damage +(55–65) % additional Physical Damage"
+    ],
+    "gale of the projectile speed bonus is also applied to the additional bonus for projectile damage": [
+      "[Gale] 60 % of the Projectile Speed bonus is also applied to the additional bonus for Projectile Damage"
+    ],
+    "gale of the projectile speed bonus is also applied to the additional bonus for projectile damage projectile speed": [
+      "[Gale] 60 % of the Projectile Speed bonus is also applied to the additional bonus for Projectile Damage +(30–45) % Projectile Speed"
+    ],
+    "god of war s dirge additional damage on critical strike": [
+      "God of War's Dirge +(15–20) % additional damage on Critical Strike"
+    ],
+    "if you have recently moved more than m additional damage dealt by mobility skills": [
+      "If you have recently moved more than 60 m, +(25–35) % additional damage dealt by Mobility Skills",
+      "If you have recently moved more than 60 m, +(50–60) % additional damage dealt by Mobility Skills"
+    ],
+    "in transcendence when a focus skill is triggered there is a chance to trigger it an additional time of the focus speed bonus is also applied to the additional trigger chance additional damage for focus skills": [
+      "In transcendence, when a Focus skill is triggered, there is a (30–40) % chance to trigger it an additional time. 50 % of the Focus Speed bonus is also applied to the additional trigger chance +(15–20) % additional damage for Focus Skills"
+    ],
+    "inflicts cold infiltration on enemies cursed by biting cold additional cold damage": [
+      "Inflicts Cold Infiltration on enemies cursed by Biting Cold +10 % additional Cold Damage"
+    ],
+    "insight additional spell damage additional skill cost": [
+      "[Insight] +30 % additional Spell Damage +25 % additional Skill Cost"
+    ],
+    "last stand block ratio is set to for every attack or spell block chance additional damage up to": [
+      "[Last Stand] Block Ratio is set to 0 % For every +3 % Attack or Spell Block Chance, +2 % additional damage, up to +90 %"
+    ],
+    "main skill is supported by lv cataclysm additional hit fire damage to enemies with max affliction": [
+      "Main Skill is supported by Lv. 40 Cataclysm +(10–12) % additional Hit Fire Damage to enemies with Max Affliction"
+    ],
+    "master escapist max deflection stacks gains max stacks of deflection on evade gains max stacks of deflection if you haven t been hit recently additional evasion on spell damage": [
+      "[Master Escapist] +1 Max Deflection stacks Gains max stacks of Deflection on Evade Gains max stacks of Deflection if you haven't been hit recently +(30–50) % additional Evasion on Spell Damage"
+    ],
+    "max charges additional damage": [
+      "+1 Max Charges +(7–10) % additional damage"
+    ],
+    "max spell burst additional spell damage": [
+      "+1 Max Spell Burst +(10–15) % additional Spell Damage"
+    ],
+    "max tangle quantity additional spell damage": [
+      "+2 Max Tangle Quantity +(12–20) % additional Spell Damage"
+    ],
+    "momentum additional attack damage for the next main skill every s refreshes the interval on defeat": [
+      "[Momentum] +30 % additional Attack Damage for the next Main Skill every 0.5 s. Refreshes the interval on defeat."
+    ],
+    "momentum additional attack damage for the next main skill every s refreshes the interval on defeat additional critical strike rating": [
+      "[Momentum] +30 % additional Attack Damage for the next Main Skill every 0.5 s. Refreshes the interval on defeat. +10 % additional Critical Strike Rating"
+    ],
+    "normal projectiles will return after reaching their max range and will hit enemies on their path again additional projectile damage": [
+      "Normal Projectiles will return after reaching their max range and will hit enemies on their path again (-15–-10) % additional Projectile Damage"
+    ],
+    "only fire damage can be dealt additional fire damage": [
+      "Only Fire Damage can be dealt +10 % additional Fire Damage"
+    ],
+    "origin of erosion gains an additional effect additional erosion damage for you and your minions": [
+      "Origin of Erosion gains an additional effect: +(10–12) % additional Erosion Damage for you and your Minions",
+      "Origin of Erosion gains an additional effect: +(6–8) % additional Erosion Damage for you and your Minions"
+    ],
+    "origin of fire gains an additional effect additional fire damage for you and your minions": [
+      "Origin of Fire gains an additional effect: +(10–12) % additional Fire Damage for you and your Minions",
+      "Origin of Fire gains an additional effect: +(6–8) % additional Fire Damage for you and your Minions"
+    ],
+    "origin of ice gains an additional effect additional cold damage for you and your minions": [
+      "Origin of Ice gains an additional effect: +(10–12) % additional Cold Damage for you and your Minions",
+      "Origin of Ice gains an additional effect: +(6–8) % additional Cold Damage for you and your Minions"
+    ],
+    "origin of rock gains an additional effect additional physical damage for you and your minions": [
+      "Origin of Rock gains an additional effect: +(10–12) % additional Physical Damage for you and your Minions",
+      "Origin of Rock gains an additional effect: +(6–8) % additional Physical Damage for you and your Minions"
+    ],
+    "origin of thunder gains an additional effect additional lightning damage for you and your minions": [
+      "Origin of Thunder gains an additional effect: +(10–12) % additional Lightning Damage for you and your Minions",
+      "Origin of Thunder gains an additional effect: +(6–8) % additional Lightning Damage for you and your Minions"
+    ],
+    "passive skill level additional spirit magus ultimate damage and ailment damage dealt by ultimate": [
+      "+1 Passive Skill Level +(3–4) % additional Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate ."
+    ],
+    "penetrating when dealing fire lightning or cold damage inflicts fire infiltration lightning infiltration or cold infiltration respectively upon inflicting damage additional elemental damage for each type of infiltration effect the enemy has additional spell damage": [
+      "[Penetrating] When dealing Fire, Lightning, or Cold Damage, inflicts Fire Infiltration , Lightning Infiltration , or Cold Infiltration respectively. Upon inflicting damage, +8 % additional Elemental Damage for each type of Infiltration Effect the enemy has +12 % additional Spell Damage"
+    ],
+    "sacrifice changes the base effect of tenacity blessing to additional damage": [
+      "[Sacrifice] Changes the base effect of Tenacity Blessing to: +8% additional damage"
+    ],
+    "sacrifice changes the base effect of tenacity blessing to additional damage own additional stacks of tenacity blessing": [
+      "[Sacrifice] Changes the base effect of Tenacity Blessing to: +8% additional damage Own 1 additional stacks of Tenacity Blessing",
+      "[Sacrifice] Changes the base effect of Tenacity Blessing to: +8% additional damage Own 2 additional stacks of Tenacity Blessing"
+    ],
+    "sentries can activate spell burst additional spell burst charge speed for deployed sentries and additional hit damage for skills cast by spell burst": [
+      "Sentries can activate Spell Burst -20 % additional Spell Burst Charge Speed for deployed Sentries and +(100–110) % additional Hit Damage for skills cast by Spell Burst",
+      "Sentries can activate Spell Burst -20 % additional Spell Burst Charge Speed for deployed Sentries and +(145–155) % additional Hit Damage for skills cast by Spell Burst"
+    ],
+    "sentries can perform multistrike additional damage for deployed sentries when they multistrike": [
+      "Sentries can perform Multistrike +(60–70) % additional damage for deployed Sentries when they Multistrike",
+      "Sentries can perform Multistrike +(95–105) % additional damage for deployed Sentries when they Multistrike"
+    ],
+    "spell damage will not further reduce evasion by default while a defensive skill effect is active additional evasion on spell damage": [
+      "Spell Damage will not further reduce Evasion by default while a Defensive Skill Effect is active. +(10–20) % additional Evasion on Spell Damage"
+    ],
+    "spirit magi are immune to elemental damage additional spirit magus ultimate damage and ailment damage dealt by ultimate": [
+      "Spirit Magi are immune to Elemental Damage +(3–4) % additional Spirit Magus Ultimate Damage and Ailment Damage dealt by Ultimate ."
+    ],
+    "stray bird additional returning projectile damage": [
+      "Stray Bird +(80–100) % additional Returning Projectile Damage",
+      "Stray Bird +50 % additional Returning Projectile Damage"
+    ],
+    "sweep additional attack damage when holding a two-handed weapon attack skill area when holding a two-handed weapon": [
+      "[Sweep] +25 % additional Attack Damage when holding a Two-Handed Weapon +25 % Attack Skill Area when holding a Two-Handed Weapon"
+    ],
+    "takes true damage per second and additional physical damage for every stack of trauma stacks up to time s": [
+      "Takes 300 True Damage per second and +(25–30) % additional Physical Damage for every stack of Trauma . Stacks up to 3 time(s)",
+      "Takes 333 True Damage per second and +(35–40) % additional Physical Damage for every stack of Trauma . Stacks up to 3 time(s)"
+    ],
+    "the max minion quantity for each synthetic troop skill is but additional synthetic troop minion damage for each synthetic troop minion multiplies": [
+      "The Max Minion Quantity for each Synthetic Troop Skill is 1, but +(45–50) % additional Synthetic Troop Minion Damage for each Synthetic Troop Minion (multiplies)",
+      "The Max Minion Quantity for each Synthetic Troop Skill is 1, but +55 % additional Synthetic Troop Minion Damage for each Synthetic Troop Minion (multiplies)"
+    ],
+    "the number of max synthetic troops in map is fixed at additional synthetic troop minion damage": [
+      "The number of Max Synthetic Troops In Map is fixed at 1 +10 % additional Synthetic Troop Minion Damage"
+    ],
+    "thunderclap if you have agility blessing stacks when casting the main skill consumes stack s of agility blessing to make that cast deal additional lightning damage": [
+      "[Thunderclap] If you have Agility Blessing stacks when casting the Main Skill, consumes 1 stack(s) of Agility Blessing to make that cast deal +35 % additional Lightning Damage"
+    ],
+    "to beam skill level additional damage": [
+      "+1 to Beam Skill Level +(4–8) % additional damage"
+    ],
+    "to corresponding elemental skill level for every effective elemental resistance you have additional elemental damage": [
+      "+1 to corresponding Elemental Skill Level for every (30–36) % Effective Elemental Resistance you have +(18–21) % additional Elemental Damage"
+    ],
+    "to max agility blessing stacks additional damage": [
+      "(-1–1) to Max Agility Blessing Stacks +(5–8) % additional damage",
+      "+1 to Max Agility Blessing Stacks +(5–10) % additional damage",
+      "+1 to Max Agility Blessing Stacks +10 % additional damage"
+    ],
+    "to max focus blessing stacks additional damage": [
+      "+1 to Max Focus Blessing Stacks +(5–10) % additional damage",
+      "+1 to Max Focus Blessing Stacks +(5–8) % additional damage",
+      "+1 to Max Focus Blessing Stacks +10 % additional damage"
+    ],
+    "to max tenacity blessing stacks additional damage": [
+      "+1 to Max Tenacity Blessing Stacks +(5–10) % additional damage",
+      "+1 to Max Tenacity Blessing Stacks +(5–8) % additional damage",
+      "+1 to Max Tenacity Blessing Stacks +10 % additional damage"
+    ],
+    "translucent additional lightning damage if you have dealt fire damage recently additional cold damage if you have dealt lightning damage recently additional fire damage if you have dealt cold damage recently additional spell damage": [
+      "[Translucent] +25 % additional Lightning Damage if you have dealt Fire Damage recently +25 % additional Cold Damage if you have dealt Lightning Damage recently +25 % additional Fire Damage if you have dealt Cold Damage recently +12 % additional Spell Damage"
+    ],
+    "upon inflicting damage additional damage for every type of ailment the enemy has multiplies": [
+      "Upon inflicting damage, +(5–6) % additional damage for every type of Ailment the enemy has (multiplies)",
+      "Upon inflicting damage, +(7–8) % additional damage for every type of Ailment the enemy has (multiplies)"
+    ],
+    "when focus skills are equipped in the active skill slot additional focus skill damage focus buff effect": [
+      "When Focus Skills are equipped in the Active Skill Slot: +(15–25) % additional Focus Skill Damage, (-25–-15) % Focus Buff Effect",
+      "When Focus Skills are equipped in the Active Skill Slot: +(30–40) % additional Focus Skill Damage, (-10–-5) % Focus Buff Effect"
+    ],
+    "when focus skills are equipped in the passive skill slot additional focus skill damage focus buff effect": [
+      "When Focus Skills are equipped in the Passive Skill Slot: (-60–-40) % additional Focus Skill Damage, +(90–120) % Focus Buff Effect",
+      "When Focus Skills are equipped in the Passive Skill Slot: (-80–-60) % additional Focus Skill Damage, +(60–80) % Focus Buff Effect"
+    ],
+    "your minions can only deal elemental damage additional minion elemental damage": [
+      "Your Minions can only deal Elemental Damage +(8–10) % additional Minion Elemental Damage"
+    ],
+    "your minions can only deal erosion damage additional minion erosion damage": [
+      "Your Minions can only deal Erosion Damage +(8–10) % additional Minion Erosion Damage"
+    ],
+    "your minions can only deal physical damage additional minion physical damage": [
+      "Your Minions can only deal Physical Damage +(8–10) % additional Minion Physical Damage"
+    ]
+  },
+  "season": "SS13"
+}

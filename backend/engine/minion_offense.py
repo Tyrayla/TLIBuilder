@@ -247,16 +247,23 @@ def _coefficient_overrides(season: str) -> dict:
         return {}
 
 
-def _resolve_coefficient(minion_skill: dict, level: int) -> float:
+def _resolve_coefficient(minion_skill: dict, level: int, season: str | None = None) -> float:
     """Resolve a minion ability's `% of Base Damage` at a level. Precedence: (1) a per-level TABLE in the crawler
     data always wins; (2) if the crawler value is a bare scalar (only the max level captured), fall back to the
     hand-collected override table for the ability, so sub-max scaling is right without editing the crawler data;
-    (3) the scalar itself. See _minion_coefficient_overrides + data/.../_minion_coefficient_overrides.json."""
+    (3) the scalar itself. See _minion_coefficient_overrides + data/.../_minion_coefficient_overrides.json.
+
+    `season` should be the SAME season whose minion data the caller loaded (e.g. `base_stats["_season"]` from
+    `season_manager.load_minion_base_stats`) — never resolved independently here, so an explicit non-active-season
+    load (tests pinning a prior season) resolves that season's overrides, not whatever season happens to be active.
+    Falls back to `get_active_season()` when omitted, preserving the live request-path behavior (and any direct
+    caller — e.g. a test — that doesn't have a season handy)."""
     coeff = minion_skill.get("base_damage_coefficient")
     if isinstance(coeff, dict):
         return _coefficient_at(coeff, level)
-    from persistence import season_manager
-    season = season_manager.get_active_season()
+    if season is None:
+        from persistence import season_manager
+        season = season_manager.get_active_season()
     if season:
         override = _coefficient_overrides(season).get(minion_skill.get("name", ""))
         if override:
@@ -444,7 +451,10 @@ def calculate_minion_offense(
     skill_level_bonus = int(round(source.total("minion_skill_level") + source.total("spirit_magi_skill_level")))
     effective_level = level + max(0, skill_level_bonus)
     above_mult = _above_max_mult(effective_level, _MINION_MAX_LEVEL)
-    coeff = _resolve_coefficient(minion_skill, effective_level)
+    # Thread the SAME season the caller loaded `base_stats` for (stamped on it by `load_minion_base_stats`) into
+    # coefficient resolution — never the global active season — so an explicit prior-season load resolves that
+    # season's override table. `base_stats` lacking the stamp (e.g. a hand-built test dict) falls back to active.
+    coeff = _resolve_coefficient(minion_skill, effective_level, season=(base_stats or {}).get("_season"))
     consts = (base_stats or {}).get("constants") or {}
     shared_base = _interp_level_table((base_stats or {}).get("base_damage_by_level") or {}, effective_level)
     if base_stats is None or shared_base <= 0:

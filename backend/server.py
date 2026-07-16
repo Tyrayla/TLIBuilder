@@ -434,6 +434,14 @@ def _collect_pool(tree_names: list[str]) -> dict:
     core_pool: list[dict] = []
     seen_mods: set[tuple] = set()
     seen_core_names: set[str] = set()
+    # (raw_key, effects-tuple) — collapses only TRUE duplicates (same name AND same granted effect).
+    # A bare raw_key-only set would wrongly collapse distinct talents that share a display name but grant
+    # different effects — e.g. the SS13 Nether King divinity-slate tree has 92 core_talents built from only
+    # 4 raw `name` values ("Micro/Medium/Legendary Medium/Ultimate Nether King Talent Node"), each a genuinely
+    # different draftable option distinguished only by its effect text (see .wolf/buglog.json
+    # "nether-king-core-talent-name-dedup-collapse").
+    seen_core_entries: set[tuple] = set()
+    core_key_counts: dict[str, int] = {}
 
     active = season_manager.get_active_season()
     if not active:
@@ -462,12 +470,25 @@ def _collect_pool(tree_names: list[str]) -> dict:
                 legendary_pool.append(entry)
         for ct in data.get("core_talents", []):
             raw_key = ct.get("display_name_key", "") or ct.get("name", "")
-            if not raw_key or raw_key in seen_core_names:
+            if not raw_key:
                 continue
+            effects = ct.get("effects", [])
+            entry_key = (raw_key, tuple(effects))
+            if entry_key in seen_core_entries:
+                continue
+            seen_core_entries.add(entry_key)
             seen_core_names.add(raw_key)
+            # First talent under a given raw_key keeps the plain "tree:raw_key" key unchanged (matches every
+            # pre-existing tree, where raw_key already uniquely identifies one talent — zero behavior change).
+            # Any FURTHER talent sharing that raw_key but with distinct effects (Nether King's case) gets a
+            # stable "#2", "#3", ... suffix so the frontend's per-talent React key / used-talent tracking
+            # (SlateScreen.tsx: core.key, selectedCoreKey, usedCoreKeys) still treats them as separate options.
+            n = core_key_counts.get(raw_key, 0) + 1
+            core_key_counts[raw_key] = n
+            out_key = f"{tree_name}:{raw_key}" if n == 1 else f"{tree_name}:{raw_key}#{n}"
             # Prefer an explicit name field (may have apostrophes from source); otherwise auto-format
             display_name = ct.get("name") or _format_core_talent_name(raw_key, tree_name)
-            core_pool.append({"key": f"{tree_name}:{raw_key}", "treeName": tree_name, "name": display_name, "effects": ct.get("effects", [])})
+            core_pool.append({"key": out_key, "treeName": tree_name, "name": display_name, "effects": effects})
 
     for ct in (season_manager.load_new_god_talents(active) or []):
         name = ct.get("name", "")

@@ -5,6 +5,14 @@ Scent of Ambition / Everlasting Nectar, the activation-medium warning, and that 
 import pytest
 from server import engine_stats, EngineStatsRequest
 from tests.mock_build import make_request
+from persistence import season_manager
+
+_SS12_ONLY = pytest.mark.skipif(
+    season_manager.get_active_season() != "SS12",
+    reason="SS12-specific ground truth: the Razor Leaf ingredient's tiered damage bonus was rebalanced "
+           "in SS13 (12/13/14/15/16% -> 10/11/12/13/14% per tier). Pending SS13 re-verification "
+           "post-flip, not a deletion.",
+)
 
 ELIXIR = "thirst_dew"          # goes in the Basic Scent Bottle (slot 2)
 EMPOWER = "aim"
@@ -181,6 +189,7 @@ def _resp_ing(ingredients, slot_levels=(5, 1, 0, 0)):
                  slot_levels=list(slot_levels), gear=_gear([("elixir_effect_inc", 0.5)]), ingredients=ingredients)
 
 
+@_SS12_ONLY
 def test_ingredient_razor_leaf_applies_scaled():
     # Razor Leaf (+16% additional damage at base L5) → the CRIT-WEIGHTED pool (offense weights by crit chance),
     # folded into the slot-2 elixir and scaled by Elixir Effect.
@@ -198,6 +207,7 @@ def test_ingredient_reaping_surfaces_nyi():
                for s in (r.get("elixir_statuses") or []))
 
 
+@_SS12_ONLY
 def test_ingredient_tier_scales_with_base_level():
     # Damage ingredients scale with the BASE trait level: L1 → +12%, L5 → +16%.
     lo = _resp_ing({"2": ["Razor Leaf"]}, slot_levels=(1, 1, 0, 0))

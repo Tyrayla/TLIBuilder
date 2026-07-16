@@ -3,6 +3,15 @@ Tyra's in-game dummy tests (ratios; absolute numbers depend on the test build's 
 import pytest
 from server import engine_stats, EngineStatsRequest
 from tests.mock_build import make_request
+from persistence import season_manager
+
+_SS12_ONLY = pytest.mark.skipif(
+    season_manager.get_active_season() != "SS12",
+    reason="SS12-specific ground truth: Icebound Beam's base damage was rebalanced in SS13 "
+           "(206-309/618-928 at L20 vs SS12's 171-257/513-770), and Chilling Spike's Hit Damage "
+           "roll was rebalanced ((-2)-(-1)% -> (-15)-(-13)% at tier 1). Pending SS13 "
+           "re-verification post-flip, not a deletion.",
+)
 
 CHILLING = "icebound_beam_chilling_spike_noble"
 FROSTBITTEN = "icebound_beam_frostbitten_magnificent"
@@ -40,6 +49,7 @@ def test_base_beam_suppressed_while_blades_fire():
 
 
 # ── Chilling Spike: disable suppression + extra blades + signed hit-damage roll ──
+@_SS12_ONLY
 def test_chilling_spike_unsuppresses_beam():
     base = _form(_offense(), "Cold Beam")["dps_contribution"]
     cs = _form(_offense(supports=[_sup(CHILLING)]), "Cold Beam")["dps_contribution"]
@@ -47,6 +57,7 @@ def test_chilling_spike_unsuppresses_beam():
     assert cs == pytest.approx(base * 3.0, rel=0.03)
 
 
+@_SS12_ONLY
 def test_chilling_spike_adds_extra_blades_as_own_form():
     # Chilling Spike's extra blades are now their OWN form (split off Icy Blade). Icy Blade itself is unchanged;
     # the new "Chilling Spike" form carries ~0.69 blade-equivalents on the base 2-blade shotgun (1.35).
@@ -69,6 +80,7 @@ def test_chilling_spike_split_preserves_total():
     assert any(f["name"] == "Chilling Spike" for f in o["hit_forms"])
 
 
+@_SS12_ONLY
 def test_chilling_spike_hit_damage_roll_signed():
     from engine.skill_effects.icebound_beam import chilling_spike_contribution
     from server import _get_skills_data, season_manager

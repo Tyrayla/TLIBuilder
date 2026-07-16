@@ -432,8 +432,16 @@ def load_minion_base_stats(season: str) -> dict | None:
     `base_damage_by_level` + `life_by_group` with two groups (`magus`, `synthetic_troop`). The minion DPS
     engine multiplies the interpolated Base Damage by each minion ability's base-damage coefficient; the group
     (for Life) is chosen from the owner's tags. Hand-curated — the absolute Base Damage/Life are not in the
-    crawler data. Returns None if the file is absent (engine then treats minion DPS as NYI)."""
-    return _load_singleton(season, "_minion_base_stats.json")
+    crawler data. Returns None if the file is absent (engine then treats minion DPS as NYI).
+
+    Stamps a private `_season` key onto the returned dict so downstream coefficient/base-stat resolution (see
+    `engine.minion_offense._resolve_coefficient`) can thread the SAME season the caller loaded here, instead of
+    reaching for `get_active_season()` — this dict is freshly read from disk on every call (no caching), so the
+    stamp never leaks between seasons or callers."""
+    data = _load_singleton(season, "_minion_base_stats.json")
+    if data is not None:
+        data["_season"] = season
+    return data
 
 
 def _save_singleton(season: str, filename: str, data: dict) -> None:

@@ -487,6 +487,56 @@ def test_minion_coefficient_override_precedence():
     assert _resolve_coefficient({"name": "Nonexistent Skill", "base_damage_coefficient": 50.0}, 16) == pytest.approx(50.0)
 
 
+def test_resolve_coefficient_prefers_pinned_season_over_active_global(monkeypatch):
+    """Cross-season regression (SS13 go-live): `_resolve_coefficient` takes an explicit `season` param —
+    threaded by `calculate_minion_offense` from `base_stats["_season"]` (stamped by
+    `season_manager.load_minion_base_stats`) — and must resolve THAT season's override table, never
+    `get_active_season()`, whenever a season is supplied. Before the fix, the function unconditionally called
+    `get_active_season()` and ignored any pinned season entirely.
+
+    SS12's and SS13's real `_minion_coefficient_overrides.json` happen to carry byte-identical Lightning Star
+    tables today (SS13's file is a verbatim port of SS12's, per its own `_note`), so a real-data-only test
+    can't distinguish correct from buggy resolution. This test manufactures a deliberately DIVERGENT SS13
+    table for the same ability name to make the regression observable, then proves the explicitly-pinned
+    SS12 value — not the divergent SS13 one, even though SS13 is active — is what resolves."""
+    from engine.minion_offense import _resolve_coefficient, _coefficient_overrides
+    from persistence import season_manager
+
+    real_overrides = _coefficient_overrides   # capture the genuine lru_cache-wrapped function before patching
+    monkeypatch.setattr(season_manager, "get_active_season", lambda: "SS13")
+    assert season_manager.get_active_season() == "SS13"   # sanity: active really is pinned away from SS12
+
+    def fake_overrides(season):
+        if season == "SS13":
+            return {"Lightning Star": {"16": 999.0, "20": 999.0}}   # deliberately wrong/divergent stand-in
+        return real_overrides(season)   # SS12 (and anything else) resolves the real on-disk table
+    monkeypatch.setattr("engine.minion_offense._coefficient_overrides", fake_overrides)
+
+    skill = {"name": "Lightning Star", "base_damage_coefficient": 232.0}   # bare scalar → override applies
+    # No season pinned → falls back to the active global (SS13) → picks up the fake 999 table.
+    assert _resolve_coefficient(skill, 16) == pytest.approx(999.0)
+    # season="SS12" pinned explicitly (as calculate_minion_offense threads from base_stats["_season"]) resolves
+    # the REAL SS12 table (221 @16) — the pinned season wins even though SS13 is active.
+    assert _resolve_coefficient(skill, 16, season="SS12") == pytest.approx(221.0)
+
+
+def test_thunder_magus_dps_uses_pinned_ss12_season_not_active_ss13(monkeypatch):
+    """End-to-end companion to the unit test above: with the ACTIVE season pinned to SS13 here but
+    `base_stats` explicitly loaded for SS12 (`_thunder_owner_and_stats()` stamps `base_stats["_season"] =
+    "SS12"` via `season_manager.load_minion_base_stats`), Thunder Magus's Base-skill DPS still matches the
+    SS12 in-game-validated number from `test_thunder_magus_enhanced_dps_matches_ingame_validation` (202 DPS
+    at 0% Enhanced chance) — proving `calculate_minion_offense` threads the pinned season into coefficient
+    resolution through the full call path, not just in the unit-level `_resolve_coefficient` call."""
+    from engine.minion_offense import MINION_MODULES
+    from persistence import season_manager
+    monkeypatch.setattr(season_manager, "get_active_season", lambda: "SS13")
+    owner, base_stats = _thunder_owner_and_stats()          # loads SS12 explicitly
+    assert base_stats["_season"] == "SS12"                  # confirms the pin the fix threads through
+    handler = MINION_MODULES["summon_thunder_magus"]
+    dps = handler(BuildSource(), owner, base_stats, 16, 1).total_dps_vs_target
+    assert dps == pytest.approx(202, rel=0.02)   # SS12 measured (0% Enhanced) — same target/tolerance as the golden test
+
+
 def test_thunder_magus_empower_uptime_responds_to_minion_cdr_and_duration():
     """Empower uptime = effective duration ÷ effective cooldown (clamped ≤ 1). Generic minion mods drive it:
     Minion Skill Effect Duration lengthens the 6 s buff, Minion Cooldown Recovery Speed shortens the 10 s cd."""

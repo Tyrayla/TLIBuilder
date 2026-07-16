@@ -84,6 +84,12 @@ def _canonical(resp: dict) -> dict:
 
 _MODELED_SKILLS = sorted(skill_resolver._REGISTRY)
 
+# These four goldens were captured against SS12 data and now legitimately diverge under SS13's rebalance
+# (Chromatic Shot's canvas supports/element reworked, Icebound Beam's base damage raised, Mind Control's
+# and Path of Flames' DoT base rates changed). Pending SS13 re-verification post-flip — do NOT recapture
+# to SS13 output; guard until the mechanics are reconfirmed in-game.
+_SS12_PINNED_GOLDENS = {"chromatic_shot", "icebound_beam", "mind_control", "path_of_flames"}
+
 
 def test_modeled_skills_present():
     """Sanity: the registry is non-empty so the parametrized suite below actually covers something."""
@@ -92,6 +98,11 @@ def test_modeled_skills_present():
 
 @pytest.mark.parametrize("skill_id", _MODELED_SKILLS)
 def test_support_skill_golden(skill_id):
+    if skill_id in _SS12_PINNED_GOLDENS and season_manager.get_active_season() != "SS12":
+        pytest.skip(
+            f"{skill_id}: SS12-pinned golden; SS13 rebalanced this skill's output. Pending SS13 "
+            "re-verification post-flip, not a deletion."
+        )
     os.makedirs(_GOLDEN_DIR, exist_ok=True)
     path = os.path.join(_GOLDEN_DIR, f"{skill_id}.json")
     current = _canonical(engine_stats(EngineStatsRequest(**_request(skill_id))))
