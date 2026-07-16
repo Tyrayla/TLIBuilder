@@ -44,6 +44,52 @@ def test_defaults_when_absent(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# traitTreeAllocations (Selena2 bug: Dance of the Deep node allocations vanished
+# on save/reload because the fixed-schema file writer never persisted them).
+# ---------------------------------------------------------------------------
+
+def test_trait_tree_allocations_roundtrip(tmp_path, monkeypatch):
+    loaded = _save_read(tmp_path, monkeypatch, {
+        "id": "rt4", "name": "T", "slots": [None, None, None, None],
+        "traitTreeAllocations": ["silencing_severance", "drenched_hem"],
+    })
+    assert loaded["traitTreeAllocations"] == ["silencing_severance", "drenched_hem"]
+
+
+def test_trait_tree_allocations_empty_roundtrips_empty(tmp_path, monkeypatch):
+    loaded = _save_read(tmp_path, monkeypatch, {
+        "id": "rt5", "name": "T", "slots": [None, None, None, None],
+        "traitTreeAllocations": [],
+    })
+    assert loaded["traitTreeAllocations"] == []
+
+
+def test_trait_tree_allocations_absent_from_legacy_file_defaults_empty(tmp_path, monkeypatch):
+    # A legacy build file written before this field existed has no trait_tree_allocations= line at
+    # all — _read_file must default to [] rather than raising or leaving the key out.
+    monkeypatch.setenv("TLI_PERSIST_DIR", str(tmp_path))
+    builds_dir = tmp_path / "builds"
+    os.makedirs(builds_dir, exist_ok=True)
+    legacy_content = (
+        "id=legacy-tta\n"
+        "name=Legacy Build\n"
+        "slot1_tree=\n"
+        "slot1_nodes=\n"
+        "slot2_tree=\n"
+        "slot2_nodes=\n"
+        "slot3_tree=\n"
+        "slot3_nodes=\n"
+        "slot4_tree=\n"
+        "slot4_nodes=\n"
+    )
+    with open(builds_dir / "legacy-tta.txt", "w", encoding="utf-8") as f:
+        f.write(legacy_content)
+
+    loaded = builds_manager._read_file("legacy-tta")
+    assert loaded["traitTreeAllocations"] == []
+
+
+# ---------------------------------------------------------------------------
 # Timestamps (createdAt / updatedAt)
 # ---------------------------------------------------------------------------
 

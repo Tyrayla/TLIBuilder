@@ -95,6 +95,8 @@ def _read_file(build_id: str) -> dict:
     trait_slot_levels = json.loads(slot_levels_raw) if slot_levels_raw else [trait_level, 1, 1, 1]
     advanced_raw = data.get('advanced_trait_selections', '')
     advanced_trait_selections = json.loads(advanced_raw) if advanced_raw else []
+    trait_tree_allocations_raw = data.get('trait_tree_allocations', '')
+    trait_tree_allocations = json.loads(trait_tree_allocations_raw) if trait_tree_allocations_raw else []
 
     tss_raw = data.get('trait_skill_supports', '')
     trait_skill_supports = json.loads(tss_raw) if tss_raw else []
@@ -163,6 +165,7 @@ def _read_file(build_id: str) -> dict:
         'traitLevel': trait_level,
         'traitSlotLevels': trait_slot_levels,
         'advancedTraitSelections': advanced_trait_selections,
+        'traitTreeAllocations': trait_tree_allocations,
         'traitSkillSupports': trait_skill_supports,
         'licoricePreparedSkill': licorice_prepared_skill,
         'elixirIngredients': elixir_ingredients,
@@ -222,6 +225,8 @@ def _write_file(build: dict) -> None:
         f.write(f"trait_slot_levels={json.dumps(slot_levels, separators=(',', ':'))}\n")
         advanced = build.get('advancedTraitSelections') or []
         f.write(f"advanced_trait_selections={json.dumps(advanced, separators=(',', ':'))}\n")
+        tree_allocations = build.get('traitTreeAllocations') or []
+        f.write(f"trait_tree_allocations={json.dumps(tree_allocations, separators=(',', ':'))}\n")
         # Trait skill supports (Holy Domain), Licorice Note's prepared skill, and the scent-bottle Elixir
         # ingredients — persisted so they survive save/reload (were previously dropped).
         trait_skill_supports = build.get('traitSkillSupports') or []
