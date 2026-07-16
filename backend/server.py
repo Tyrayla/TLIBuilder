@@ -2238,6 +2238,18 @@ _COND_PATTERNS: list[tuple] = [
     # "when having Hasten" payoff lines on items that don't self-grant Hasten gate on the auto-set condition.
     (re.compile(r"having\s+hasten|have\s+hasten", re.I), "has_hasten"),
     (re.compile(r"taken\s+damage\s+in\s+the\s+last|recently\s+taken\s+damage", re.I), "recently_taken_damage"),
+    # "(haven't/have not) been hit recently" — distinct from recently_taken_damage: per the Help DB's Chance to
+    # Avoid Damage entry, "when damage is successfully avoided, the hit is still deemed to be successful, and
+    # the attacker's hit-related effects will still be triggered" — so Damage Avoidance can leave a "hit"
+    # landing with zero damage taken, making "hit" and "damage taken" separate game states. This does NOT
+    # extend to Evade: its Help DB entry says the opposite ("when a hit is evaded, on-hit effects and damage
+    # will not be inflicted") — an evaded attack is not a "hit" at all. Block's entry makes no "hit still
+    # successful" claim either way. Negated form first (file convention). Shared by Preserver of Eternity's
+    # Movement Speed line, the SS12 ethereal-prism Injury Buffer line, and SS13 Deflection lines (belt blends /
+    # legendary gear / marksman) — one condition key reused across all of them; only the Preserver Movement
+    # Speed line is wired to a stat contribution today.
+    (re.compile(r"haven'?t\s+been\s+hit\s+recently|have\s+not\s+been\s+hit\s+recently", re.I), {"not": "recently_hit"}),
+    (re.compile(r"have\s+been\s+hit\s+recently|\bhit\s+recently\b", re.I), "recently_hit"),
     (re.compile(r"used\s+a\s+mobility\s+skill", re.I), "recently_used_mobility"),
     # Consumed-recently threshold gates (Crimson King / Awakening Skull). Driven by the engine's consumed_recently
     # total: "% (Max) Life consumed recently" → % of Max; flat "N Life consumed recently" → flat amount.

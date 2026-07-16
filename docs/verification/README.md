@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**69 entries** — ✅ Confirmed: 13 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 36
+**70 entries** — ✅ Confirmed: 13 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 37
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -56,6 +56,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Frail + Infiltration | — | enemy-vulnerability, ailment | ⚠️ Unverified | — | [frail-infiltration.md](frail-infiltration.md) |
 | Frostbite ailment | — | ailment, enemy-vulnerability | ⚠️ Unverified | — | [frostbite.md](frostbite.md) |
 | High Court Chariot (Rosa trait) | High Court Chariot | hero-trait, defense | ⚠️ Unverified | — | [high-court-chariot.md](high-court-chariot.md) |
+| Hit Recently condition (Preserver of Eternity / Injury Buffer / Deflection lines) | — | condition, trigger, ui-display | ⚠️ Unverified | — | [recently-hit-condition.md](recently-hit-condition.md) |
 | Howling Gale | Howling Gale | skill, channeled | ⚠️ Unverified | — | [howling-gale.md](howling-gale.md) |
 | Isomorphic Arms (weapon transfer) | — | minion, core-talent, god-of-machines | ⚠️ Unverified | — | [isomorphic-arms.md](isomorphic-arms.md) |
 | Licorice Note (Sage trait) | Licorice Note | hero-trait, buff, crit | ⚠️ Unverified | — | [licorice-note.md](licorice-note.md) |
