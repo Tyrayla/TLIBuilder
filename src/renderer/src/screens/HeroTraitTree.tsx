@@ -131,31 +131,26 @@ export default function HeroTraitTree({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budget, rootId, trait.trait_id])
 
-  // Explicit not-modeled callout — the tree UI is selection/allocation only for a trait with no
-  // registered `hero_traits` engine module (coverage 'none'); make that unambiguous in-UI rather than
-  // leaving it implicit (see the scope note at the top of this file).
-  const notModeledBanner = trait.coverage === 'none' ? (
-    <div className="htt-not-modeled-banner">
-      Selection only — DPS not modeled yet for this trait.
-    </div>
-  ) : null
-
+  // Horizontal strip along the bottom of the tree: the 3 memory sockets side-by-side, with the
+  // points readout alongside them (rather than stacked below, now that the rail itself is a row).
   const memoryRail = (
     <div className="htt-memory-rail">
-      {MEMORY_RAIL.map(({ slot, threshold, label }) => {
-        const memory = heroMemories[slot] ?? null
-        const rarityColor = memory ? MEMORY_RARITY_COLORS[memory.rarity] : undefined
-        const unlocked = characterLevel >= threshold
-        return (
-          <div key={slot} className="htt-memory-slot">
-            <MemorySlotCircle memory={memory} rarityColor={rarityColor} slot={slot} onOpen={() => openMemoryCreator(slot)} />
-            <div className={`trait-tier-label${unlocked ? '' : ' locked'}`}>Lv {threshold} · {label}</div>
-            <div className="htt-memory-hint">
-              {memory ? '1 point granted' : unlocked ? 'Socket a memory for a point' : 'Locked'}
+      <div className="htt-memory-slots-row">
+        {MEMORY_RAIL.map(({ slot, threshold, label }) => {
+          const memory = heroMemories[slot] ?? null
+          const rarityColor = memory ? MEMORY_RARITY_COLORS[memory.rarity] : undefined
+          const unlocked = characterLevel >= threshold
+          return (
+            <div key={slot} className="htt-memory-slot">
+              <MemorySlotCircle memory={memory} rarityColor={rarityColor} slot={slot} onOpen={() => openMemoryCreator(slot)} />
+              <div className={`trait-tier-label${unlocked ? '' : ' locked'}`}>Lv {threshold} · {label}</div>
+              <div className="htt-memory-hint">
+                {memory ? '1 point granted' : unlocked ? 'Socket a memory for a point' : 'Locked'}
+              </div>
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
       <div className="htt-points-readout">
         Points: {traitTreeAllocations.length} / {budget}
         {budget === 0 && (
@@ -167,13 +162,10 @@ export default function HeroTraitTree({
 
   if (!nodes.length || !rootId) {
     return (
-      <>
-        {notModeledBanner}
-        <div className="htt-row">
-          {memoryRail}
-          <div className="panel-empty">This trait's tree data hasn't loaded — no nodes to allocate.</div>
-        </div>
-      </>
+      <div className="htt-row">
+        <div className="panel-empty">This trait's tree data hasn't loaded — no nodes to allocate.</div>
+        {memoryRail}
+      </div>
     )
   }
 
@@ -203,10 +195,7 @@ export default function HeroTraitTree({
   }
 
   return (
-    <>
-      {notModeledBanner}
-      <div className="htt-row">
-      {memoryRail}
+    <div className="htt-row">
       <svg viewBox={`0 0 ${VW} ${VH}`} className="htt-tree-svg">
         <defs>
           {/* Warm glow halos — blur behind, original (crisp) graphic merged on top. */}
@@ -225,7 +214,8 @@ export default function HeroTraitTree({
             </feMerge>
           </filter>
         </defs>
-        <rect x={0} y={0} width={VW} height={VH} className="htt-tree-bg" />
+        {/* No flat backdrop rect here — the tree area shows the screen's own background (matches the
+            rest of the panel) rather than a distinct tint. Only the glow filters + connectors draw. */}
         {connections.map(({ from, to }, i) => {
           const n1 = byId[from]; const n2 = byId[to]
           if (!n1 || !n2) return null
@@ -253,7 +243,7 @@ export default function HeroTraitTree({
           )
         })}
       </svg>
-      </div>
-    </>
+      {memoryRail}
+    </div>
   )
 }
