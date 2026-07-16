@@ -2048,6 +2048,15 @@ export function traitGrantsSkillSlot(traitId: string | null, picks: string[]): b
 
 const TAG_ALIASES: Record<string, string> = {
   'Slash Strike': 'Slash-Strike',
+  // Extended Duration's own gate prose reads "Supports Duration Skills." but no skill in any season
+  // carries a literal "Duration" tag — the real tag family is "Persistent" (Extended Duration's own
+  // skill_tags are ["Persistent","Support"]; e.g. Aegis of Fire is tagged "Persistent"). Without this
+  // alias, parseRequiredTags("Duration") falls through to the unmatched-word branch and checkTag()
+  // always fails closed, so Extended Duration was gated off every skill in the game. Verified by scanning
+  // every "Supports X Skills." gate phrase in both SS12/_skills.json and SS13/_skills.json against the
+  // real skill_tags vocabulary — Duration is the ONLY unmatched case; every other generic gate phrase
+  // already resolves against a real tag.
+  'Duration': 'Persistent',
 }
 
 // TAG_ALIASES is a small, static table — sort it once at module scope instead of re-sorting on every

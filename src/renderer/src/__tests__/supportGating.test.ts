@@ -91,6 +91,19 @@ const SUMMON_THUNDER_MAGUS = skillItem({
   skill_tags: ['Spell', 'Summon', 'Lightning', 'Spirit Magus'],
 })
 
+// Case 5b: the "Duration" -> "Persistent" TAG_ALIASES entry (client.ts ~line 2059). Extended
+// Duration's real gate prose is "Supports Duration Skills." with skill_tags ["Persistent",
+// "Support"], but no skill in any season carries a literal "Duration" tag — the real tag family
+// is "Persistent". Pre-fix, parseRequiredTags("Duration") fell through to the unmatched-word
+// branch and checkTag() always failed closed, so Extended Duration was gated off every skill in
+// the game, including genuinely Persistent-tagged ones like Aegis of Fire. This regression case
+// guards the fix: it would FAIL before the 'Duration': 'Persistent' alias was added.
+const EXTENDED_DURATION = skillItem({
+  item_id: 'extended_duration', name: 'Extended Duration',
+  skill_tags: ['Persistent', 'Support'],
+  description_lines: ['Supports Duration Skills.'],
+})
+
 // Case 5: composite AND gate with a "skills that ..." predicate as one operand — real SS12
 // phrasing found on both Pain Amplification and Shortened Duration.
 const PAIN_AMPLIFICATION = skillItem({
@@ -108,7 +121,7 @@ const FIRE_LIZARD_DISTILLATE = skillItem({
 const REAL_SKILLS: SkillItem[] = [
   HAUNT, THUNDER_SPIKE, INCREASED_AREA, WILT_SPIKE, AEGIS_OF_FIRE,
   RAGING_SLASH, BERSERKING_BLADE, FRIEND_OF_SPIRIT_MAGI, SUMMON_THUNDER_MAGUS,
-  PAIN_AMPLIFICATION, FIRE_LIZARD_DISTILLATE,
+  PAIN_AMPLIFICATION, FIRE_LIZARD_DISTILLATE, EXTENDED_DURATION,
 ]
 
 describe('support-picker gating parser (bug: support-gate-multiword-tag-word-split)', () => {
@@ -154,6 +167,18 @@ describe('support-picker gating parser (bug: support-gate-multiword-tag-word-spl
     it('is incompatible when the parent has the tag but fails the predicate half (no Attack/Spell/Minion/Summon tag)', () => {
       registerSkillTagVocabulary(REAL_SKILLS)
       expect(isSupportCompatible(PAIN_AMPLIFICATION, asParent(FIRE_LIZARD_DISTILLATE), false, 1)).toBe(false)
+    })
+  })
+
+  describe("5b. 'Duration' TAG_ALIASES fix (\"Supports Duration Skills.\" -> Persistent)", () => {
+    it('is compatible with a Persistent-tagged skill (would FAIL pre-fix: "Duration" matched no real tag, gating Extended Duration off every skill)', () => {
+      registerSkillTagVocabulary(REAL_SKILLS)
+      expect(isSupportCompatible(EXTENDED_DURATION, asParent(AEGIS_OF_FIRE), false, 1)).toBe(true)
+    })
+
+    it('is incompatible with a non-Persistent skill (gate still discriminates)', () => {
+      registerSkillTagVocabulary(REAL_SKILLS)
+      expect(isSupportCompatible(EXTENDED_DURATION, asParent(THUNDER_SPIKE), false, 1)).toBe(false)
     })
   })
 
