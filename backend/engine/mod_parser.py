@@ -30,6 +30,23 @@ _GEAR_COND_RE = re.compile(
 # Trailing "for/to this gear" / "to the gear" qualifier (gear-local affix), stripped before normalization.
 _GEAR_SUFFIX_RE = re.compile(r"\s+(?:(?:for|to)\s+this\s+gear|to\s+the\s+gear)\s*$", re.I)
 
+# Trailing MINION scope qualifier ("… for/by Minions [summoned by the supported skill]", "… for Spirit Magi").
+# When present, the CORE (everything before it) is resolved and each result remapped to its minion-scoped stat —
+# so a minion-scoped affix routes to the minion pools instead of leaking into the player's.
+_MINION_SCOPE_SUFFIX_RE = re.compile(
+    r"\s+(?:for|by|dealt by|to|of)\s+(?:minions?|spirit\s+mag(?:i|us|uses))"
+    r"(?:\s+summoned\s+by\s+(?:the\s+supported|this)\s+skill)?\s*$", re.I)
+
+
+def _already_minion_scoped(stat_key: str) -> bool:
+    """A stat that is ALREADY the correct minion/spirit-magi pool — a minion-scope peel must KEEP it as-is
+    (never strict-remap it, which would drop it since it has no further `minion_` twin). Covers the `minion_*`
+    and `spirit_magi_*` pools plus the minion-container stats."""
+    return (
+        stat_key.startswith(("minion_", "spirit_magi_"))
+        or stat_key in ("max_spirit_magi_flat", "extra_max_minions_flat", "minions_inherit_mainhand_weapon")
+    )
+
 # Exact normalized-expression → stat overrides (wording that the fuzzy display-name match would miss or mis-tie).
 _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     # Hero-memory alias: in-game wording "for Combo Finishers" isn't a skill-type scope, so it stays in the
@@ -43,6 +60,14 @@ _EXPRESSION_STAT_OVERRIDES: dict[str, str] = {
     "+(#) % lightning penetration": "lightning_pen",
     "+(#) % erosion penetration":   "erosion_pen",
     "+(#) % elemental penetration": "elemental_pen",
+    # Sign-less twins: talent-node effect wording drops the leading "+" ("1.5 % Lightning Penetration"),
+    # which missed these overrides and fuzzy-tied onto the MINION pen variant (assassin_c5_r3 double-
+    # counted minion pen and lost player pen).
+    "(#) % fire penetration":      "fire_pen",
+    "(#) % cold penetration":      "cold_pen",
+    "(#) % lightning penetration": "lightning_pen",
+    "(#) % erosion penetration":   "erosion_pen",
+    "(#) % elemental penetration": "elemental_pen",
     # Flat-count core-talent lines whose in-game wording differs from the stat's gear display name
     # (reached value-stripped via the trailing-count handler in _parse_custom_mod_text).
     "max sentry quantity":  "max_sentry_quantity_flat",
@@ -180,10 +205,11 @@ _POOL_QUALIFIER_WORDS = frozenset(_POOL_QUALIFIERS)
 # Custom mod text parsing — freeform modifier text → stat contributions
 _CUSTOM_RANGE_RE  = re.compile(r'^\s*([+-]?\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s+(.*)', re.IGNORECASE)
 _CUSTOM_SINGLE_RE = re.compile(r'^\s*([+-]?\d+(?:\.\d+)?)\s*(%?)\s+(.*)', re.IGNORECASE)
-# "Adds N-N <Type> Damage to <Attacks|Spells|Attacks and Spells>" → flat <type>_<dest>_dmg_flat_min/max.
+# "Adds N-N <Type> Damage to <Attacks|Spells|Attacks and Spells|Minions>" → flat <type>_<dest>_dmg_flat_min/max
+# (Minions → minion_<type>_dmg_flat_min/max). Optional "Base" ("Adds N-M Base Lightning Damage to Minions").
 _CUSTOM_ADDS_RE = re.compile(
-    r'^\s*adds\s+([\d.]+)\s*[-–]\s*([\d.]+)\s+(physical|fire|cold|lightning|erosion)\s+damage\s+to\s+'
-    r'(attacks and spells|attacks|spells)\b', re.IGNORECASE)
+    r'^\s*adds\s+([\d.]+)\s*[-–]\s*([\d.]+)\s+(?:base\s+)?(physical|fire|cold|lightning|erosion)\s+damage\s+to\s+'
+    r'(attacks and spells|attacks|spells|minions)\b', re.IGNORECASE)
 # Modifier verbs that appear in game text but not in stat display names — strip before fuzzy match
 _CUSTOM_VERB_RE   = re.compile(r'\b(increased|reduced|more|less)\b', re.IGNORECASE)
 
@@ -240,28 +266,41 @@ def _normalize_for_custom_resolve(text: str) -> str:
     return re.sub(r'\s+', ' ', _CUSTOM_VERB_RE.sub('', text)).strip()
 
 
-def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
-    """Return (stat_key, unit) for a gear affix, or (None, '') if unresolved.
+def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str, bool]:
+    """Return (stat_key, unit, confident) for a gear affix, or (None, '', True) if unresolved.
 
     Pool-strict: an "additional" modifier only matches an `additional` stat, and
     "increased"/"reduced" only an `increased` stat. If the text carries a pool qualifier but no
     same-pool stat matches, the affix is left UNRESOLVED rather than silently placed in the wrong pool.
+
+    `confident` (2026-07-12, coverage strictness): True for an exact `_EXPRESSION_STAT_OVERRIDES` hit
+    (a curated literal-phrase mapping) or a ranked word-overlap match where `extra` is empty — i.e. the
+    query has NO leftover words beyond the matched stat's own display name, so the input text is
+    essentially just that stat's name (a well-formed "+N% <Stat Name>" affix/modifier phrase). False
+    when the match only cleared the LOWER (0.7-with-`extra`) bar — the query carries meaningful words
+    the matched display name doesn't, meaning the source text is bigger than a clean stat phrase (a
+    descriptive/mechanic sentence that merely shares a token or two with a stat name, e.g. a "1
+    additional bolt of lightning" mechanic clause spuriously overlapping "dmg_additional" on the word
+    "additional"). This is a data-driven signal already computed for the accept-threshold choice above —
+    exposed here for `engine.coverage`'s strict classifier, NOT used to change gear/talent/spirit
+    resolution itself (every existing caller still gets its stat_key/unit as before; the fuzzy resolver
+    is unchanged and still the primary GEAR affix path — only a NEW confidence bit is added).
     """
     text = _GEAR_COND_RE.sub("", raw_text)
     norm_expr = _norm_expr(text)
     if norm_expr in _EXPRESSION_STAT_OVERRIDES:
         stat_key = _EXPRESSION_STAT_OVERRIDES[norm_expr]
         unit = "%" if "%" in raw_text else ""
-        return stat_key, unit
+        return stat_key, unit, True
     query = _gear_normalize(text)
     if not query:
-        return None, ""
+        return None, "", True
     # Detect the pool qualifier, then drop it from the query so it neither pollutes the word overlap
     # nor is required to appear in the (qualifier-free) display name.
     want_pool = next((_POOL_QUALIFIERS[w] for w in query if w in _POOL_QUALIFIERS), None)
     query = {w for w in query if w not in _POOL_QUALIFIERS}
     if not query:
-        return None, ""
+        return None, "", True
     is_pct = "%" in raw_text
     scores = []
     for stat_val, dn, dn_words, unit, mtype in _get_gear_candidates():
@@ -272,19 +311,20 @@ def _resolve_gear_stat(raw_text: str) -> tuple[str | None, str]:
             continue
         scores.append((overlap / len(query | dn_words), stat_val, dn, unit))
     if not scores:
-        return None, ""
+        return None, "", True
     scores.sort(key=lambda x: x[0], reverse=True)
     best_score, best_stat, best_dn, best_unit = scores[0]
     extra = query - _gear_normalize(best_dn)
     if best_score < (0.7 if extra else 0.5):
-        return None, ""
+        return None, "", True
+    confident = not extra
     tied = [s for s in scores if s[0] == best_score]
     if len(tied) == 1:
-        return best_stat, best_unit
+        return best_stat, best_unit, confident
     # Break ties within the matched pool (additional → _additional; else _inc for %, _flat otherwise).
     suffix = "_additional" if want_pool == "additional" else ("_inc" if is_pct else "_flat")
     pref = [s for s in tied if s[1].endswith(suffix)]
-    return (pref[0][1], pref[0][3]) if len(pref) == 1 else (None, "")
+    return (pref[0][1], pref[0][3], confident) if len(pref) == 1 else (None, "", True)
 
 
 def _parse_custom_mod_text(text: str) -> list[dict]:
@@ -293,6 +333,58 @@ def _parse_custom_mod_text(text: str) -> list[dict]:
     resolves the RESIDUAL via the unchanged base resolver, then tags the results with the scope and restores
     the ORIGINAL full text (incl. scope words) so the additional pool's affix-identity keeps scoped mods as
     distinct multiplicative factors."""
+    stripped = text.strip()
+    # "Spirit Magi … additional Empower Skill Effect" → the magi Empower Effect (else the leading "Spirit Magi"
+    # strip leaves "additional Empower Skill Effect" and it leaks to the PLAYER's empower_effect_additional).
+    if re.search(r'spirit\s+mag(?:i|us)', stripped, re.I):
+        _me = re.search(r'([\d.]+)\s*%\s*additional\s+empower\s+skill\s+effect', stripped, re.I)
+        if _me:
+            return [{"stat_key": "spirit_magi_empower_effect_additional", "amount": float(_me.group(1)) / 100.0, "text": stripped}]
+
+    # LEADING minion subject: "Minions +N% …" / "Spirit Magi +N% …" (a subject before a value, e.g. Reflection's
+    # "Minions +6% additional damage …") — strip the subject, resolve the core, strict-remap to minion. Requires a
+    # value right after so adjective forms ("Minion Attack Speed", handled by the fuzzy display-name match) are left
+    # alone. Fall through if the core doesn't resolve.
+    m_lead = re.match(r'\s*(?:minions?|spirit\s+mag(?:i|us))\s+(?=[+\-]?\d)', stripped, re.I)
+    if m_lead:
+        core = stripped[m_lead.end():].lstrip()
+        core_results = _parse_custom_mod_text(core)
+        if core_results:
+            from engine.minion_offense import to_minion_stat_strict
+            out = []
+            for d in core_results:
+                if _already_minion_scoped(d["stat_key"]):
+                    out.append({**d, "text": stripped})
+                    continue
+                mk = to_minion_stat_strict(d["stat_key"])
+                if mk is not None:
+                    out.append({**d, "stat_key": mk, "text": stripped})
+            if out:
+                return out
+
+    # MINION scope peel: "… for/by Minions [summoned by the supported skill]" → resolve the CORE and remap each
+    # result to its minion-scoped stat, so the whole line routes to the minion pools (never leaks to the player).
+    # Only adopt it if the core resolves; otherwise fall through so the fuzzy resolver's "Minion X" forms still work.
+    m_scope = _MINION_SCOPE_SUFFIX_RE.search(stripped)
+    if m_scope:
+        core = stripped[:m_scope.start()].rstrip()
+        if core and core != stripped:
+            core_results = _parse_custom_mod_text(core)
+            if core_results:
+                # Use the STRICT remap: a core stat with no minion equivalent is DROPPED (surfaces as
+                # unresolved / red), never passed through — a minion-scoped bonus must not leak into the player's
+                # pools. (If the core doesn't resolve at all we fall through, so fuzzy "Minion X" forms still work.)
+                from engine.minion_offense import to_minion_stat_strict
+                out = []
+                for d in core_results:
+                    if _already_minion_scoped(d["stat_key"]):
+                        out.append({**d, "text": stripped})
+                        continue
+                    mk = to_minion_stat_strict(d["stat_key"])
+                    if mk is not None:
+                        out.append({**d, "stat_key": mk, "text": stripped})
+                return out
+
     residual, scope = detect_skill_scope(text.strip())
     results = _parse_custom_mod_text_base(residual)
     if not results:
@@ -341,6 +433,70 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     # the value so the start-anchored matchers see the number first; the word stays for pool/scope matching.
     t = re.sub(r'^(Additional|Enemies)\s+([+\-]?[\d.]+\s*%?)', r'\2 \1', t, flags=re.I)
 
+    # ── Hasten (community name; game tooltip "Quickness", glossary id 10000106) ───────────────────────────
+    # A keyword buff granting +8% ADDITIONAL Attack/Cast/Move Speed + Mobility-Skill CDR (applied in the
+    # aggregator off the auto-set 'has_hasten' condition). Gear/grafts/talents GRANT it via "Has Hasten".
+    # The graft form combines grant + payoff on one line ("Has Hasten +N% Attack Speed, Cast Speed, and
+    # Movement Speed when having Hasten") — the line self-grants Hasten, so the +N% (INCREASED pool) is
+    # always active. Emit the ungated flag PLUS the three increased-speed contributions (never dropped). Placed
+    # here (before the generic speed matchers) so the whole line resolves as one unit instead of a bare "+N% AS".
+    m = re.search(r'has\s+hasten\s*\+?\s*([\d.]+)\s*%\s*attack\s+speed\s*,?\s*cast\s+speed\s*,?\s*(?:and\s+)?movement\s+speed', t, re.I)
+    if m:
+        v = float(m.group(1)) / 100.0
+        return [{"stat_key": "has_hasten_flag", "amount": 1.0, "text": t},
+                {"stat_key": "attack_speed_inc", "amount": v, "text": t},
+                {"stat_key": "cast_speed_inc", "amount": v, "text": t},
+                {"stat_key": "movement_speed_inc", "amount": v, "text": t}]
+    # Plain grant with no inline payoff ("Has Hasten", "Has Hasten when reaching Max Agility Blessing stacks").
+    # Flag only — the +8% buff is applied in the aggregator. NOTE: a conditional grant's own gate (e.g. the
+    # Max-Agility-Blessing requirement) isn't modeled yet; auto-on approximates the full-uptime combat state.
+    if re.search(r'\bhas\s+hasten\b', t, re.I):
+        return [{"stat_key": "has_hasten_flag", "amount": 1.0, "text": t}]
+    # Attack Aggression (glossary id 10000100): +5% additional Attack Speed & Attack Damage, +10% Move Speed
+    # (applied in the aggregator off the auto-set 'attack_aggression' condition). Gained on attack-skill cast
+    # ("Gain Attack Aggression when casting an attack skill") → auto-on in the attacking/DPS state. Flag only.
+    if re.search(r'\bgains?\s+attack\s+aggression\b', t, re.I):
+        return [{"stat_key": "attack_aggression_flag", "amount": 1.0, "text": t}]
+    # Aim (Euphoria buff): "Triggers Lv. N Aim while standing still" (gear) grants the Aim skill's buff — the flag
+    # carries the Aim LEVEL N (compute auto-enables aim_active + aim_level; the aggregator applies Euphoria's
+    # Ranged/Beam +additional (Ailment) Damage and global -16% Attack/Cast Speed, scaled by level). The "while
+    # standing still / Interval" trigger is treated as full-uptime for now (partial-uptime modeling is a follow-up).
+    # Match either the whole line ("Triggers Lv. 8 Aim while standing still") OR the post-split fragment
+    # ("8 Aim while standing still") — the gear clause splitter breaks on the "Lv." period, so anchor on the
+    # distinctive "<level> Aim … standing still" instead of the "Triggers Lv." prefix.
+    m = re.search(r'([\d.]+)\s+aim\b[^.]*standing\s+still', t, re.I)
+    if m:
+        return [{"stat_key": "aim_trigger_flag", "amount": float(m.group(1)), "text": t}]
+
+    # Despised Shadow: "N % chance to gain +K Shadows when using the Shadow Strike skill" → two SEPARATE
+    # stats (chance + quantity), not one collapsed expected-count — engine.offense._shadow_multiplier is
+    # nonlinear in shadow count, so calculate_offense computes the exact per-cast EV mix itself
+    # ((1-p)*f(N) + p*f(N+K)). Both numbers in this line are literal (not `#`-templated to a single
+    # override), so it needs its own regex rather than `_EXPRESSION_STAT_OVERRIDES`.
+    m = re.match(r'([\d.]+)\s*%\s*chance\s+to\s+gain\s+\+?\s*([\d.]+)\s*shadows?\s+when\s+using\s+the\s+shadow\s+strike\s+skill',
+                 t, re.I)
+    if m:
+        return [{"stat_key": "shadow_chance_pct", "amount": float(m.group(1)) / 100.0, "text": t},
+                {"stat_key": "shadow_chance_quantity_flat", "amount": float(m.group(2)), "text": t}]
+
+    # Craft-base "Ultimate Suffix" compound roll: "Shadow Quantity +N (+/-)(A[-B]) % additional Shadow
+    # Damage" — TWO glued clauses (Max Shadow Quantity + additional Shadow Damage) with no separator (no
+    # comma/"and"), so neither the gear clause splitter (server._split_clauses — sentence-period only) nor
+    # the talent compound splitter (core_talent_resolver._split_compound — "and"/comma only) can see the
+    # boundary. 2026-07-15: narrowly scoped to this exact family (not a general glued-clause splitter) —
+    # confirmed present verbatim across multiple _craft_base_types.json Claw/etc. "Ultimate Suffix" rolls.
+    m = re.match(
+        r'shadow\s*quantity\s*\+\s*([\d.]+)\s+([+\-])\s*\(?\s*([\d.]+)(?:\s*[-–]\s*([\d.]+))?\s*\)?\s*%\s*'
+        r'additional\s+shadow\s+damage', t, re.I)
+    if m:
+        qty = float(m.group(1))
+        sign = -1.0 if m.group(2) == '-' else 1.0
+        lo = float(m.group(3))
+        hi = float(m.group(4)) if m.group(4) else lo
+        dmg = sign * (lo + hi) / 2.0
+        return [{"stat_key": "max_shadow_quantity_flat", "amount": qty, "text": t},
+                {"stat_key": "shadow_dmg_additional", "amount": dmg / 100.0, "text": t}]
+
     # "You can cast N additional Curses" → Max Curses (a flat count; "additional" here means +N, not the
     # damage pool, so the generic matchers would mishandle it).
     m = re.match(r'(?:you can cast\s+)?([\d.]+)\s+additional\s+curses?\b', t, re.I)
@@ -359,11 +515,201 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     if m:
         return [{"stat_key": f"can_only_deal_{m.group(1).lower()}", "amount": 1.0, "text": t}]
 
+    # Self-consume drains → typed consume-rate stats (engine.consumption turns these into life/mana/ES per second).
+    # Anchored on a LEADING "Consumes" so it never matches consumer lines ("… for every N Life CONSUMED recently").
+    # Handles: pct vs flat, current vs Max, Life/Mana/Energy Shield (+ "and <pool>" compound), per-second vs
+    # on-skill-use cadence, and "Interval: N s"/"every N s" (per-sec amount = value ÷ N). A "(a-b)" range → midpoint.
+    if re.match(r'\s*consumes\s', t, re.I):
+        ct = re.sub(r'\(\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*\)',
+                    lambda m: f"{(float(m.group(1)) + float(m.group(2))) / 2:g}", t)
+        cm = re.match(r'\s*consumes\s+([\d.]+)\s*(%?)\s*(?:of\s+)?(current|max)?\s*'
+                      r'(life|mana|energy\s+shield)(?:\s+and\s+(life|mana|energy\s+shield))?(.*)', ct, re.I)
+        if cm:
+            amt, pct, basis, pool1, pool2, rest = cm.groups()
+            val = (float(amt) / 100.0) if pct else float(amt)
+            basis_key = ("pct_current" if (basis or "").lower() == "current"
+                         else "pct_max") if pct else "flat"
+            # Per-event (per-use/cast) vs per-second, and the skill-type SCOPE. "when you use/cast/attack", "on
+            # use/cast/attack", "per cast" → per-event (× a use/cast rate). An "Attack(s)/Attack Skills" scope →
+            # the ATTACK-skill use rate (counts only attack uses); otherwise generic per-use (any skill). Else
+            # per-second / interval. (use-vs-cast nuance is a flagged follow-up; per-event ≈ per-use for now.)
+            _per_event = bool(re.search(
+                r'\b(?:on\s+(?:skill\s+)?use|on\s+cast|on\s+attack|per\s+cast'
+                r'|when\s+(?:you\s+)?(?:use|using|cast|casting|attack|attacking))\b', rest, re.I))
+            if _per_event and re.search(r'\battack', rest, re.I):
+                cadence = "attack_use"
+            elif _per_event:
+                cadence = "cast"
+            else:
+                cadence = "sec"
+            iv = re.search(r'(?:interval\s*:?\s*|every\s+)([\d.]+)\s*s', rest, re.I)
+            if cadence == "sec" and iv and float(iv.group(1)) > 0:
+                val /= float(iv.group(1))
+            out = []
+            for p in (pool1, pool2):
+                if not p:
+                    continue
+                pk = "energy_shield" if "energy" in p.lower() else p.lower()
+                out.append({"stat_key": f"{pk}_consumed_{basis_key}_per_{cadence}", "amount": val, "text": t})
+            if out:
+                return out
+
+    # Per-N-consumed CONSUMER scalings: "+X% <benefit> for every N <Life|Mana> consumed recently[, up to Y%]"
+    # (Tide of the Styx, Compensatory Life, …). NORMALIZE to per-1-unit (X/100 ÷ N) so the consumption loop just
+    # multiplies by consumed_recently and caps. Must precede the generic resolver, which would otherwise fuzzy-match
+    # the stat's display name and drop the ÷N divisor + cap (silent-wrong). Unhandled benefits (crit, flat phys) have
+    # no stat yet → fall through to surface as unresolved (deferred), never mis-resolved.
+    m = re.search(r'([\d.]+)\s*%\s*(.+?)\s+for\s+every\s+([\d.]+)\s+(life|mana)\s+consumed\s+recently'
+                  r'(?:\s*,?\s*up\s+to\s*([\d.]+)\s*%)?', t, re.I)
+    if m:
+        _pct, _benefit, _per_n, _pool, _cap = m.groups()
+        _b, _p = _benefit.strip().lower(), _pool.lower()
+        # Plain "damage" is INCREASED; "additional damage" is the ADDITIONAL pool (bonus-vs-additional rule).
+        _stat = ("dmg_inc_per_life_consumed" if (_p == "life" and _b == "damage")
+                 else "dmg_additional_per_life_consumed" if (_p == "life" and _b == "additional damage")
+                 else "attack_speed_inc_per_life_consumed" if (_p == "life" and "attack speed" in _b)
+                 else "spell_dmg_inc_per_mana_consumed" if (_p == "mana" and "spell damage" in _b)
+                 else "mana_regen_speed_inc_per_mana_consumed" if (_p == "mana" and "mana regeneration speed" in _b)
+                 else None)
+        if _stat and float(_per_n) > 0:
+            out = [{"stat_key": _stat, "amount": (float(_pct) / 100.0) / float(_per_n), "text": t},
+                   {"stat_key": _stat + "_unit", "amount": float(_per_n), "text": t}]
+            if _cap:
+                out.append({"stat_key": _stat + "_cap", "amount": float(_cap) / 100.0, "text": t})
+            return out
+    # Range-collapsed copy for the per-N matchers that carry "(a-b)" ranges in the AMOUNT or the divisor N
+    # (Glacier "(13-15)-(23-26) … per (1000-1050) Mana"; Tyrant "per (880-900) Mana"; Crimson "(-50–-40)%"). Each
+    # paren numeric range → its midpoint (signed, so negative defensive ranges collapse correctly).
+    _tc = re.sub(r'\(\s*([+\-]?\d+(?:\.\d+)?)\s*[-–]\s*([+\-]?\d+(?:\.\d+)?)\s*\)',
+                 lambda mm: f"{(float(mm.group(1)) + float(mm.group(2))) / 2:g}", t)
+
+    # Flat PHYSICAL damage per N consumed (Blade-dancer's Fingers = Life→Attacks; Glacier Caster Shield =
+    # Mana→Attacks+Spells). "Adds A - B Physical Damage to <Attacks|Spells|Attacks and Spells> for every N
+    # <Life|Mana> consumed recently. Stacks up to Z." Normalize per-1-unit (flat/N); the "Stacks up to Z" cap is
+    # stored as a CONSUMED-AMOUNT cap (Z × N) so one cap clamps min AND max proportionally. Only declared
+    # (scope, pool) combos are emitted (attack-life, attack-mana, spell-mana); an undeclared combo → [] (honest NYI).
+    m = re.search(r'adds\s+([\d.]+)\s*[-–]\s*([\d.]+)\s+physical\s+damage\s+to\s+'
+                  r'(attacks?\s+and\s+spells?|attacks?|spells?)\s+for\s+every\s+([\d.]+)\s+'
+                  r'(life|mana)\s+consumed\s+recently(?:\.?\s*stacks?\s+up\s+to\s+([\d.]+))?', _tc, re.I)
+    if m:
+        _mn, _mx, _scope, _n, _pool, _cap_stacks = m.groups()
+        _n = float(_n)
+        _pool = _pool.lower()
+        if _n > 0:
+            _scope = _scope.lower()
+            _classes = (["attack", "spell"] if "and" in _scope
+                        else ["attack"] if "attack" in _scope else ["spell"])
+            _DECLARED = {("attack", "life"), ("attack", "mana"), ("spell", "mana")}
+            if all((c, _pool) in _DECLARED for c in _classes):
+                out = []
+                for c in _classes:
+                    out.append({"stat_key": f"physical_{c}_dmg_flat_min_per_{_pool}_consumed",
+                                "amount": float(_mn) / _n, "text": t})
+                    out.append({"stat_key": f"physical_{c}_dmg_flat_max_per_{_pool}_consumed",
+                                "amount": float(_mx) / _n, "text": t})
+                out.append({"stat_key": f"physical_dmg_flat_per_{_pool}_consumed_unit", "amount": _n, "text": t})
+                if _cap_stacks:
+                    out.append({"stat_key": f"physical_dmg_flat_per_{_pool}_consumed_cap",
+                                "amount": float(_cap_stacks) * _n, "text": t})
+                return out
+            return []   # undeclared (scope, pool) combo → honest NYI (don't emit a dead key)
+
+    # Crit per N consumed (Tyrant's Iron Fist): "+X% Critical Strike Rating and Critical Strike Damage for every N
+    # Mana consumed recently" → increased Crit Rating + additive Crit Damage, normalized per-1-unit (uncapped).
+    m = re.search(r'([\d.]+)\s*%\s*critical\s+strike\s+rating\s+and\s+critical\s+strike\s+damage\s+'
+                  r'for\s+every\s+([\d.]+)\s+(life|mana)\s+consumed\s+recently', _tc, re.I)
+    if m:
+        _pct, _n, _pool = float(m.group(1)), float(m.group(2)), m.group(3).lower()
+        if _n > 0 and _pool == "mana":          # only the mana variant is declared (Tyrant)
+            _u = (_pct / 100.0) / _n
+            return [{"stat_key": "crit_rating_inc_per_mana_consumed", "amount": _u, "text": t},
+                    {"stat_key": "crit_dmg_inc_per_mana_consumed", "amount": _u, "text": t},
+                    {"stat_key": "crit_rating_inc_per_mana_consumed_unit", "amount": _n, "text": t},
+                    {"stat_key": "crit_dmg_inc_per_mana_consumed_unit", "amount": _n, "text": t}]
+        return []                                # undeclared pool → honest NYI
+
+    # Any OTHER "for every N <Life|Mana|ES> consumed recently" consumer (e.g. Compensatory's Mana-Regen-per-consumed)
+    # is NOT modeled yet (Stage G). Short-circuit to unresolved (honest NYI) so the generic resolver below can't
+    # fuzzy-match the value and apply it ALWAYS — dropping the ÷N divisor + cap (silent-wrong). Uses the range-
+    # collapsed copy so a ranged divisor ("for every (880-900) …") is still caught.
+    if re.search(r"for\s+every\s+[\d.]+\s+(?:life|mana|energy\s+shield)\s+consumed\s+recently", _tc, re.I):
+        return []
+
+    # Compound "+N% Critical Strike Rating and Critical Strike Damage" (Crimson King's gated line; the threshold gate
+    # is split off upstream) → BOTH the increased Crit Rating and additive Crit Damage pools. Precedes the generic
+    # resolver (which would fuzzy-match only one side). The per-N crit form above already returned if "for every".
+    m = re.search(r'([\d.]+)\s*%\s*critical\s+strike\s+rating\s+and\s+critical\s+strike\s+damage', t, re.I)
+    if m:
+        _v = float(m.group(1)) / 100.0
+        return [{"stat_key": "crit_rating_inc", "amount": _v, "text": t},
+                {"stat_key": "crit_dmg_inc", "amount": _v, "text": t}]
+
+    # "(-X – -Y)% additional damage taken" (Crimson King's gated defensive line; gate split off upstream). Negative =
+    # the WEARER takes less. TRACKED ONLY — folds into the existing dmg_taken_additional pool (like Tenacity
+    # blessings) but is NOT wired into any defensive/EHP calc yet (Tyra: stat tracking only). Skip enemy-vuln phrasings.
+    if "enem" not in t.lower():
+        m = re.search(r'(-?[\d.]+)\s*%\s*additional\s+damage\s+taken', _tc, re.I)
+        if m:
+            return [{"stat_key": "dmg_taken_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+
     # "+N% additional Curse Effect" → multiplicative Curse Effect pool (e.g. Defile). Must come before the
     # generic Curse Effect matcher so plain "+N% Curse Effect" still maps to the increased pool.
     m = re.search(r'([\d.]+)\s*%\s*additional\s+curse\s+effect', t, re.I)
     if m:
         return [{"stat_key": "curse_effect_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # ── Elixir / dew phrasings (Sage Chromatic Shot build) — phrasings the generic resolver can't map ──
+    # "+N% Elemental and Erosion Resistance" (Resistance Dew) → split the compound name into both pools.
+    # ("Elemental" = Fire/Cold/Lightning, carried by elemental_resistance; erosion_resistance is separate.)
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*elemental\s+and\s+erosion\s+resistance\b', t, re.I)
+    if m:
+        v = float(m.group(1)) / 100.0
+        return [{"stat_key": "elemental_resistance", "amount": v, "text": t},
+                {"stat_key": "erosion_resistance", "amount": v, "text": t}]
+
+    # "+N% Movement Speed, up to +M%" (Swiftness / Scorpion Stinger) → movement_speed_inc. The "up to +M%" is a
+    # soft per-source cap; we model the base bonus (full uptime) and drop the cap clause.
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*movement\s+speed\s*,?\s*up\s+to\b', t, re.I)
+    if m:
+        return [{"stat_key": "movement_speed_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "Adds N% of Max Life to Energy Shield" (Tortoise Shell) → max_life_as_es_pct (derive.py folds it into the ES
+    # flat pool after Max Life is computed, so it then scales with ES inc/additional).
+    m = re.match(r'adds\s+([\d.]+)\s*%\s*of\s+max\s+life\s+to\s+energy\s+shield\b', t, re.I)
+    if m:
+        return [{"stat_key": "max_life_as_es_pct", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "Half of the damage taken bypasses Energy Shield" (Tortoise Shell) → es_bypass_pct FLAG. Surfaced now; the
+    # actual bypass awaits the defensive damage-taken pass. "Half" = 50% when no explicit number is present.
+    if re.search(r'damage\s+taken\s+bypasses\s+energy\s+shield', t, re.I):
+        m2 = re.search(r'([\d.]+)\s*%', t)
+        return [{"stat_key": "es_bypass_pct", "amount": float(m2.group(1)) if m2 else 50.0, "text": t}]
+
+    # "-N% Cursed Effect" bare form (Putrid Toad, Blur-gated) → curse_effect_against_inc (effect of curses on YOU;
+    # negative = less effective). Require the "d" in "Cursed" — "Curse Effect" (no d) is your OWN curse
+    # effectiveness (curse_effect_inc) and must NOT be caught here. The "…against you" phrasing maps via the dict.
+    m = re.match(r'\s*([+\-]?[\d.]+)\s*%\s*cursed\s+effect\b', t, re.I)
+    if m:
+        return [{"stat_key": "curse_effect_against_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "Energy Shield Charge … cannot be interrupted by damage" (White Rhino) → es_uninterruptible flag (surfaced;
+    # no numeric effect until ES-recharge timing is modeled — stops reading as NYI).
+    if re.search(r'energy\s+shield\s+charge\b.*\bcannot\s+be\s+interrupted', t, re.I):
+        return [{"stat_key": "es_uninterruptible", "amount": 1.0, "text": t}]
+
+    # "Damage triggers Lucky/Unlucky" → lucky/unlucky on every damage type (offense rolls each type's range twice and
+    # takes the higher/lower). All ten lucky_/unlucky_<type> stats exist; offense applies them per type (they cancel).
+    if re.search(r'\bdamage\s+triggers\s+lucky\b', t, re.I):
+        return [{"stat_key": f"lucky_{ty}", "amount": 1.0, "text": t}
+                for ty in ("physical", "fire", "cold", "lightning", "erosion")]
+    if re.search(r'\bdamage\s+triggers\s+unlucky\b', t, re.I):
+        return [{"stat_key": f"unlucky_{ty}", "amount": 1.0, "text": t}
+                for ty in ("physical", "fire", "cold", "lightning", "erosion")]
+    # "<Type> Damage is Lucky / Unlucky" or "has Luck / Unluck" (any lead condition like "against Ignited" splits off).
+    m = re.search(r'\b(physical|fire|cold|lightning|erosion)\s+damage\s+(?:is\s+|has\s+)(lucky|unlucky|luck|unluck)\b', t, re.I)
+    if m:
+        pre = "unlucky" if m.group(2).lower().startswith("unluck") else "lucky"
+        return [{"stat_key": f"{pre}_{m.group(1).lower()}", "amount": 1.0, "text": t}]
 
     # "N% [additional] Attack and Cast Speed" → BOTH attack & cast speed (same pool). Explicit because the
     # generic single-stat resolver only catches "Cast Speed" and silently drops the Attack half (Quick Decision /
@@ -375,13 +721,100 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         return [{"stat_key": f"attack_speed_{pool}", "amount": amt, "text": t},
                 {"stat_key": f"cast_speed_{pool}", "amount": amt, "text": t}]
 
+    # ── Minion-scoped forms the generic/fuzzy resolver mis-handles (leading "Minion …") ───────────────────
+    # "N% [additional] Minion Attack and Cast Speed" → BOTH minion speed pools (fuzzy only catches the Cast half).
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*(additional\s+)?minions?\s+attack and cast speed\b', t, re.I)
+    if m:
+        pool = "additional" if m.group(2) else "inc"
+        amt = float(m.group(1)) / 100.0
+        return [{"stat_key": f"minion_attack_speed_{pool}", "amount": amt, "text": t},
+                {"stat_key": f"minion_cast_speed_{pool}", "amount": amt, "text": t}]
+
+    # "Minion Damage penetrates N% <type> Resistance" → minion pen (the player matcher is start-anchored on
+    # "Damage penetrates …", so a leading "Minion" makes it miss; the old override entry is likewise dead).
+    m = re.match(r'minion\s+damage\s+penetrates\s+([\d.]+)\s*%\s*'
+                 r'(elemental|fire|cold|lightning|erosion)\s+resistance', t, re.I)
+    if m:
+        typ = m.group(2).lower()
+        return [{"stat_key": ("minion_elemental_pen" if typ == "elemental" else f"minion_{typ}_pen_inc"),
+                 "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # "N% chance for Minions to deal Double Damage" → generic minion double-damage (fuzzy ties the plural
+    # 'Minions' to the Synthetic-Troop-specific stat).
+    m = re.search(r'([\d.]+)\s*%\s*chance\s+for\s+minions?\s+to\s+deal\s+double\s+damage', t, re.I)
+    if m:
+        return [{"stat_key": "minion_double_dmg_chance", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Talons of Abyss — per-Growth folds (Growth is a per-minion value, applied in minion_offense; the stat name
+    # bakes in the divisor). "For every 20 Growth … it deals +N% additional damage".
+    m = re.search(r'for\s+every\s+20\s+growth\s+a\s+spirit\s+mag(?:i|us)\s+has.*?([\d.]+)\s*%\s*additional\s+damage', t, re.I)
+    if m:
+        return [{"stat_key": "minion_dmg_additional_per_20_growth", "amount": float(m.group(1)) / 100.0, "text": t}]
+    # "For every 40 Growth … +N% additional Ultimate Attack and Cast Speed" (or a split half).
+    m = re.search(r'for\s+every\s+40\s+growth\s+a\s+spirit\s+mag(?:i|us)\s+has.*?([\d.]+)\s*%\s*additional\s+ultimate\s+(attack and cast|attack|cast)\s+speed', t, re.I)
+    if m:
+        amt, which = float(m.group(1)) / 100.0, m.group(2).lower()
+        out = []
+        if which in ("attack", "attack and cast"):
+            out.append({"stat_key": "minion_ultimate_attack_speed_additional_per_40_growth", "amount": amt, "text": t})
+        if which in ("cast", "attack and cast"):
+            out.append({"stat_key": "minion_ultimate_cast_speed_additional_per_40_growth", "amount": amt, "text": t})
+        return out
+
+    # Focused Strike — "Minions' Area Skills deal up to +N% additional damage to enemies at the center" → an
+    # Area-scoped, full-uptime ("up to") minion additional pool (mirrors the player at-center / Epicenter).
+    m = re.search(r'minions?.{0,25}area\s+skills?\s+deal\s+up\s+to\s+\+?([\d.]+)\s*%\s*additional\s+damage.*?at\s+the\s+cent', t, re.I)
+    if m:
+        return [{"stat_key": "minion_at_center_dmg_additional", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Queer Angle — "You and Minions deal Lucky Damage [against …]" → per-type Lucky for the player and/or minions
+    # (the condition clause, e.g. 'against Numbed enemies', is split off upstream). Mirrors the player Lucky parse.
+    if re.search(r'\blucky\s+damage\b', t, re.I):
+        _types = ("physical", "fire", "cold", "lightning", "erosion")
+        _has_minion = bool(re.search(r'\bminions?\b', t, re.I))
+        _has_you = bool(re.search(r'\byou\b', t, re.I)) or not _has_minion
+        out = []
+        if _has_you:
+            out += [{"stat_key": f"lucky_{ty}", "amount": 1.0, "text": t} for ty in _types]
+        if _has_minion:
+            out += [{"stat_key": f"minion_lucky_{ty}", "amount": 1.0, "text": t} for ty in _types]
+        if out:
+            return out
+
+    # "N% Max Life and (Max) Energy Shield" → BOTH increased pools. Explicit because the generic single-stat
+    # resolver only catches the trailing "Max Energy Shield" and silently drops the Max Life half (Heart of the
+    # Storm). Anchored at the value so scoped/other forms don't false-match.
+    m = re.match(r'[+\-]?\s*([\d.]+)\s*%\s*max life and (?:max )?energy shield\b', t, re.I)
+    if m:
+        amt = float(m.group(1)) / 100.0
+        return [{"stat_key": "max_life_inc", "amount": amt, "text": t},
+                {"stat_key": "max_energy_shield_inc", "amount": amt, "text": t}]
+
     # "Has Dormant Entanglement" (Acquaintance core talent / gear) → flag enabling Dormant Entanglement's
     # per-inactivated-tangle bonus (read in compute._offense_for_slot). No value in the text → amount 1.0.
     if re.search(r'\bhas\s+dormant\s+entanglement\b', t, re.I):
         return [{"stat_key": "has_dormant_entanglement_flag", "amount": 1.0, "text": t}]
 
+    # Isomorphic Arms (God of Machines): "Minions gain the Main-Hand Weapon's bonuses" → a flag the aggregator
+    # reads to transfer the main-hand weapon's Base Damage + affixes (NOT its Base Attack Speed / Crit Rating —
+    # glossary "Applied Weapon Bonuses") to the minion pools.
+    if re.search(r'minions?\s+gain\s+the\s+main-?hand\s+weapon', t, re.I):
+        return [{"stat_key": "minions_inherit_mainhand_weapon", "amount": 1.0, "text": t}]
+
+    # Magister "Gains N stack(s) of <Blessing> when activating Spell Burst or generating Tangle" → full-uptime
+    # flag the compute loop reads to pin that blessing to its max while the build generates tangles/bursts.
+    m = re.search(r'gains?\s+\d+\s+stack(?:s|\(s\))?\s+of\s+(focus|agility|tenacity)\s+blessing\b.*'
+                  r'(?:generating\s+tangle|activating\s+spell\s+burst|spell\s+burst\s+or\s+generating)', t, re.I)
+    if m:
+        return [{"stat_key": f"{m.group(1).lower()}_blessing_full_uptime_flag", "amount": 1.0, "text": t}]
+
+    # Magister "When activating Spell Burst or generating Tangle, immediately starts Charging Energy Shield" →
+    # recognized but NYI (no ES-recharge timing model yet). Emit a flag so it surfaces instead of silently dropping.
+    if re.search(r'(?:generating\s+tangle|activating\s+spell\s+burst).*immediately\s+starts?\s+charging\s+energy\s+shield', t, re.I):
+        return [{"stat_key": "es_charge_on_generate_flag", "amount": 1.0, "text": t}]
+
     # "N% chance … to inflict M additional stack(s) of Wilt" → distinct stat from plain Wilt chance (chance for
-    # an EXTRA stack, a separate mechanic — owner-confirmed). Must precede any generic Wilt-chance match.
+    # an EXTRA stack, a separate mechanic — Tyra-confirmed). Must precede any generic Wilt-chance match.
     m = re.search(r'([\d.]+)\s*%\s*chance\b.*?\binflict\s+\d+\s+additional\s+stacks?\s+of\s+wilt', t, re.I)
     if m:
         return [{"stat_key": "wilt_additional_stack_chance", "amount": float(m.group(1)) / 100.0, "text": t}]
@@ -427,6 +860,21 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     m = re.match(r'converts\s+([\d.]+)\s*%\s*of\s+mana\s+cost\s+to\s+life\s+cost', t, re.I)
     if m:
         return [{"stat_key": "mana_cost_to_life_cost", "amount": float(m.group(1)) / 100.0, "text": t}]
+
+    # Skill / Mana Cost AMOUNT modifiers (the cost pools the skill-cost model reads). Deterministic — these MUST
+    # precede the fuzzy fallback, which otherwise mis-routes "increased Mana Cost" to mana_cost_to_life_cost (the
+    # Arcane conversion, matched strictly above). Range-collapsed copy so "+(400-500)% Skill Cost" → midpoint 450.
+    # ("Skills no longer cost Mana" is order-reversed ("cost mana") and handled as the skill_no_mana_cost flag.)
+    if "to life cost" not in _tc.lower():
+        m = re.search(r'([+\-]?[\d.]+)\s*%\s*(increased|reduced)?\s*\b(?:mana|skill)\s+cost\b', _tc, re.I)
+        if m:
+            amt = float(m.group(1)) / 100.0
+            if (m.group(2) or "").lower() == "reduced":
+                amt = -amt
+            return [{"stat_key": "skill_cost_inc", "amount": amt, "text": t}]
+        m = re.search(r'([+\-]?[\d.]+)\s+(?:to\s+)?\b(?:mana|skill)\s+cost\b', _tc, re.I)
+        if m:
+            return [{"stat_key": "skill_cost_flat", "amount": float(m.group(1)), "text": t}]
 
     # Ward: "Adds N% of Sealed Mana/Life as Energy Shield" — flat Max ES = coeff × raw sealed pool (needs
     # sealed mana/life modeling).
@@ -533,10 +981,46 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         return [{"stat_key": "squidnova_effect_inc", "amount": float(m.group(1)) / 100.0, "text": t}]
 
     # Squiddle source line: "Activating Spell Burst with at least N stack(s) of Max Spell Burst grants … Squidnova"
-    # → marker flag so compute can auto-enable the has_squidnova condition when Squiddle is equipped.
-    m = re.match(r'activating\s+spell\s+burst\s+with\s+at\s+least\s+[\d.]+\s+stack\(?s?\)?\s+of\s+max\s+spell\s+burst\s+grants.*squidnova', t, re.I)
+    # → marker flag carrying the Max-Spell-Burst THRESHOLD (N) as its value, so compute only auto-enables has_squidnova
+    # when the build's Max Spell Burst ≥ N (the grant requires ≥N stacks; without this the buff wrongly applied at any M).
+    m = re.match(r'activating\s+spell\s+burst\s+with\s+at\s+least\s+([\d.]+)\s+stack\(?s?\)?\s+of\s+max\s+spell\s+burst\s+grants.*squidnova', t, re.I)
     if m:
-        return [{"stat_key": "has_squidnova_flag", "amount": 1.0, "text": t}]
+        return [{"stat_key": "has_squidnova_flag", "amount": float(m.group(1)), "text": t}]
+
+    # ── Burst-activation sustain (fire once per burst trigger; folded into net recovery at the burst rate) ──
+    # "Loses N% current Mana when Spell Burst is activated" (Surging Inspiration).
+    m = re.search(r'loses\s+([\d.]+)\s*%\s*current\s+mana\s+when\s+spell\s+burst\s+is\s+activated', t, re.I)
+    if m:
+        return [{"stat_key": "mana_lost_pct_current_per_burst", "amount": float(m.group(1)) / 100.0, "text": t}]
+    # "Restores N% of Lost Life and Energy Shield when activating Spell Burst" (Solid River) → both pools.
+    m = re.search(r'restores\s+([\d.]+)\s*%\s*of\s+lost\s+life\s+and\s+energy\s+shield\s+when\s+activating\s+spell\s+burst', t, re.I)
+    if m:
+        v = float(m.group(1)) / 100.0
+        return [{"stat_key": "life_restored_pct_lost_per_burst", "amount": v, "text": t},
+                {"stat_key": "energy_shield_restored_pct_lost_per_burst", "amount": v, "text": t}]
+
+    # ── Destiny kismet Spell Burst lines ──────────────────────────────────────────────────────────────────
+    # "+N to Spell Burst Upper Limit" (Perched River) — Upper Limit == the Max Spell Burst cap.
+    m = re.search(r'\+?\s*([\d.]+)\s+to\s+spell\s+burst\s+upper\s+limit', t, re.I)
+    if m:
+        return [{"stat_key": "max_spell_burst_flat", "amount": float(m.group(1)), "text": t}]
+    # "Halves Spell Burst Upper Limit" (Flash Flood) → flag; compute halves M (floor).
+    if re.search(r'halves\s+spell\s+burst\s+upper\s+limit', t, re.I):
+        return [{"stat_key": "max_spell_burst_halve_flag", "amount": 1.0, "text": t}]
+    # "Critical Strikes have the Lucky / Unlucky effect" (Perched River) → the crit-CHANCE roll takes the higher /
+    # lower of two (effective crit chance = 1−(1−p)² lucky / p² unlucky).
+    if re.search(r'critical\s+strikes?\s+have\s+the\s+unlucky\s+effect', t, re.I):
+        return [{"stat_key": "unlucky_crit", "amount": 1.0, "text": t}]
+    if re.search(r'critical\s+strikes?\s+have\s+the\s+lucky\s+effect', t, re.I):
+        return [{"stat_key": "lucky_crit", "amount": 1.0, "text": t}]
+    # (Flash Flood's "+X% additional Attack and Cast Speed for every Spell Burst triggered recently, up to Y%" resolves
+    # via the generic Attack-and-Cast-Speed matcher above + the "for every Spell Burst triggered recently" per-scaling
+    # condition (server._COND_PATTERNS → spell_burst_stacks_recently), so no dedicated matcher is needed here.)
+    # "+X% Skill Area for each time Spell Burst is activated" (Kismet Ripple) — DISPLAY-only per-burst area (×M in
+    # offense). The lead "When activating Spell Burst," is peeled as the gate (translated in server _COND_PATTERNS).
+    m = re.search(r'([\d.]+)\s*%\s*skill\s+area\s+for\s+each\s+time\s+spell\s+burst\s+is\s+activated', t, re.I)
+    if m:
+        return [{"stat_key": "spell_burst_area_additional_per", "amount": float(m.group(1)) / 100.0, "text": t}]
 
     # Gale: "N% of the Projectile Speed bonus is also applied to the additional bonus for Projectile Damage"
     # — coefficient on increased projectile speed → additional projectile damage (own factor; aggregator).
@@ -629,14 +1113,17 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
     # value-stripped name; accept ONLY a *_flat stat so a stray "+N" can never land in a % pool.
     m = re.match(r'^(.+?)\s+([+\-]\d+(?:\.\d+)?)\s*$', t)
     if m and '%' not in t:
-        stat_key, _u = _resolve_gear_stat(m.group(1).strip())
+        stat_key, _u, _conf = _resolve_gear_stat(m.group(1).strip())
         if stat_key and stat_key.endswith('_flat'):
-            return [{"stat_key": stat_key, "amount": float(m.group(2)), "text": t}]
+            return [{"stat_key": stat_key, "amount": float(m.group(2)), "text": t, "confident": _conf}]
 
-    # "Adds N-N <Type> Damage to Attacks/Spells/Attacks and Spells" → flat added damage min+max.
+    # "Adds N-N <Type> Damage to Attacks/Spells/Attacks and Spells/Minions" → flat added damage min+max.
     m = _CUSTOM_ADDS_RE.match(t)
     if m:
         lo, hi, dtype, dest = float(m.group(1)), float(m.group(2)), m.group(3).lower(), m.group(4).lower()
+        if dest == "minions":
+            return [{"stat_key": f"minion_{dtype}_dmg_flat_min", "amount": lo, "text": t},
+                    {"stat_key": f"minion_{dtype}_dmg_flat_max", "amount": hi, "text": t}]
         dests = ["attack", "spell"] if dest == "attacks and spells" else (["attack"] if dest == "attacks" else ["spell"])
         out: list[dict] = []
         for d in dests:
@@ -650,22 +1137,22 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         val_min = float(m.group(1))
         val_max = float(m.group(2))
         desc = _normalize_for_custom_resolve(m.group(3).strip())
-        stat_key, _unit = _resolve_gear_stat(desc)
+        stat_key, _unit, _conf = _resolve_gear_stat(desc)
         if stat_key:
             if stat_key.endswith("_min"):
                 base = stat_key[:-4]
                 return [
-                    {"stat_key": base + "_min", "amount": val_min, "text": t},
-                    {"stat_key": base + "_max", "amount": val_max, "text": t},
+                    {"stat_key": base + "_min", "amount": val_min, "text": t, "confident": _conf},
+                    {"stat_key": base + "_max", "amount": val_max, "text": t, "confident": _conf},
                 ]
             if stat_key.endswith("_max"):
                 base = stat_key[:-4]
                 return [
-                    {"stat_key": base + "_min", "amount": val_min, "text": t},
-                    {"stat_key": base + "_max", "amount": val_max, "text": t},
+                    {"stat_key": base + "_min", "amount": val_min, "text": t, "confident": _conf},
+                    {"stat_key": base + "_max", "amount": val_max, "text": t, "confident": _conf},
                 ]
             avg = (val_min + val_max) / 2.0
-            return [{"stat_key": stat_key, "amount": avg, "text": t}]
+            return [{"stat_key": stat_key, "amount": avg, "text": t, "confident": _conf}]
         return []
 
     # Single value: "10% additional attack damage" or "500 attack crit rating flat"
@@ -674,9 +1161,9 @@ def _parse_custom_mod_text_base(text: str) -> list[dict]:
         val = float(m.group(1))
         is_pct = bool(m.group(2))
         normalized = _normalize_for_custom_resolve(t)
-        stat_key, _unit = _resolve_gear_stat(normalized)
+        stat_key, _unit, _conf = _resolve_gear_stat(normalized)
         if stat_key:
             amount = val / 100.0 if is_pct else val
-            return [{"stat_key": stat_key, "amount": amount, "text": t}]
+            return [{"stat_key": stat_key, "amount": amount, "text": t, "confident": _conf}]
 
     return []

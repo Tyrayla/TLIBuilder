@@ -4,7 +4,7 @@ Four bound supports, all carrying the universal "+20% additional damage for the 
 (handled generically by support_resolver's rank table — NOT here). Their SPECIFIC lines are bespoke:
 
   - Eye of the Gale (Noble, 5th):  GLOBAL +(20-22)% additional Attack & Cast Speed + 20% Projectile Speed
-        while within the Gale. Owner-confirmed these buff the WHOLE character (not just the Gale), so they are
+        while within the Gale. Tyra-confirmed these buff the WHOLE character (not just the Gale), so they are
         emitted globally (add_with_source), gated on the `within_gale` condition (default ON). Cast Speed also
         feeds the Gale's strike rate (offense's channeled attack_frequency × cast-speed mult). Gale-follows is
         informational. NOTE: a global emit from one slot's hook reaches the Gale's own slot (it materializes
@@ -103,6 +103,22 @@ LINE_SPECS = [
      "keys": ["knockback_chance"], "range_re": None},
     {"support_ids": {RAPID}, "phrase": re.compile(r"additional damage for every 1\s*s", re.I),
      "keys": ["dmg_additional"], "range_re": _RAPID_RE},
+    # Rapid Sweep's stack cap IS modeled (hardcoded `cap 10` in rapid_sweep_contribution + preseed's
+    # `rapid_sweep_stacks` default of 10 — the same "assume sustained REFRESH steady state" convention used
+    # elsewhere, e.g. Berserking Blade's buff stacks). The RAMP/DECAY dynamics (losing 2 stacks per channeled
+    # stack lost, full reset when channeled stacks hit 0) are the thing NOT simulated — approximated away by
+    # assuming steady state, same as the module docstring says. Recognized (keys=[]) rather than NYI, matching
+    # how every other assumed-max stack mechanic in this codebase is treated.
+    # `scoped_only`: these phrases are too generic to trust in an unscoped/global search (a bare "Stacks up to
+    # N time(s)" could belong to ANY stacking buff in the game) — only resolved once a caller has already
+    # identified this exact item (`item_id="howling_gale_rapid_sweep_magnificent"`), never in the plain
+    # `resolve_line_keys(text)` global-search contract other callers rely on.
+    {"support_ids": {RAPID}, "phrase": re.compile(r"stacks up to \d+ time", re.I), "keys": [], "range_re": None,
+     "scoped_only": True},
+    {"support_ids": {RAPID}, "phrase": re.compile(r"channeled stack this skill loses,? loses", re.I),
+     "keys": [], "range_re": None, "scoped_only": True},
+    {"support_ids": {RAPID}, "phrase": re.compile(r"all stacks of this buff are lost", re.I),
+     "keys": [], "range_re": None, "scoped_only": True},
 ]
 
 

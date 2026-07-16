@@ -103,12 +103,18 @@ def _explicit_roll(sup: dict, line: str) -> float | None:
 
 
 # Universal "+% additional damage for the supported skill" by support RANK (1–5). Frame behaviour on
-# Noble/Magnificent supports; rank is a per-support build input (not in the game data). Owner-verified.
+# Noble/Magnificent supports; rank is a per-support build input (not in the game data). Tyra-verified.
 _RANK_TABLE: dict[int, float] = {1: 0.0, 2: 0.04, 3: 0.08, 4: 0.14, 5: 0.20}
 
 _RANKED_TYPES = {"magnificent_support_skill", "noble_support_skill"}
 _UNIVERSAL_PHRASE = "additional damage for the supported skill"
 _NUM_RE = re.compile(r"\d+(?:\.\d+)?")
+
+# A crawler artifact: a progression `name` sometimes glues a "stacking up to N time(s)" clause directly onto
+# a following "When/While/If …" gated sentence with no separating punctuation (~50 lines season-wide, e.g.
+# Crossed Lightning's Chain Lightning Quantity clause run into its Dexterity-threshold damage clause). Split
+# on that exact boundary before any per-line condition parsing (see the specific-tier-line loop below).
+_RUNON_SENTENCE_RE = re.compile(r"(?<=\btime\(s\))\s+(?=(?:when|while|if)\b)", re.I)
 
 # Behavioral (non-stat) support effects, parsed from description text (not hardcoded to skill ids).
 _FALLOFF_RE = re.compile(r"falloff coefficient of the supported skill is\s*(\d+(?:\.\d+)?)\s*%", re.I)
@@ -248,46 +254,111 @@ def resolve_support_contributions(
                         "slot": sup.get("slot", 1),
                     })
 
-        # Bespoke/deferred canvas supports (per engine.skill_effects): their SPECIFIC line is handled by
-        # the skill's module — either a type-A support-path contribution (e.g. Desperation, Fervor) or a
-        # slot/compute-side effect / deferral. Skip the generic parser (it would misread these lines). The
-        # universal +20% above still applies.
-        if item_id in skill_effects.GENERIC_GUARD_IDS:
+        # Bespoke/deferred canvas supports + activation mediums (per engine.skill_effects): their SPECIFIC line is
+        # handled elsewhere — a skill module's type-A contribution, or (activation mediums) the AM roll parser +
+        # slot-level wiring hook. Skip the generic parser (it would misread / double-count these). Universal +20%
+        # above still applies where relevant.
+        if skill_effects.is_guarded(item_id):
             c = skill_effects.support_contribution(sup, data)
             if c:
                 c.setdefault("source_name", name)
                 out.append(c)
             continue
 
-        # 2) Specific tier line(s) from progression[tier] — the support's own roll, NOT rank-scaled.
+        # 2) Specific tier line(s) from progression[tier] — the support's own roll, NOT rank-scaled. Noble/Mag
+        #    ONLY: a STANDARD support's damage lines are resolved by engine.support_resolver.resolve_standard_supports
+        #    (parser + mapper) in the compute loop, so parsing them here too double-counts them (e.g. Critical Strike
+        #    Damage Increase landed as BOTH dmg_additional_on_crit here AND dmg_additional there).
+        if skill_type not in _RANKED_TYPES:
+            continue
         tier = _tier_value(sup.get("level"))
         entry = _progression_for_tier(data.get("progression"), tier)
         if entry:
-            line = str((entry.get("values") or {}).get("name", ""))
-            # Split off & translate a condition ("…when only 1 enemy nearby") so the line is GATED, not
-            # applied always-on. Untranslatable gate → drop the line (don't inflate DPS ungated).
-            stat_clause, cond_part = _split_condition(line)
-            cond_expr = None
-            if cond_part is not None and translate_cond is not None:
-                cond_expr = translate_cond(line) or translate_cond(cond_part)
-                if cond_expr is None:
-                    stat_clause = ""
-            low = stat_clause.lower()
-            if "(multiplies)" in low:
-                pass  # Augmentation's per-Jump compounding line → resolve_support_behavior
-            elif _UNIVERSAL_PHRASE in low:
-                roll = _explicit_roll(sup, line)
-                frac = roll if roll is not None else _range_mid_fraction(stat_clause)
-                if frac is not None and frac != 0.0:
+            full_line = str((entry.get("values") or {}).get("name", ""))
+            # "+X% additional damage for the supported skill when it lands a Critical Strike" (Critical Strike
+            # Damage Increase) → the crit-weighted additional-damage pool (offense scales it by the finalized crit
+            # chance), NOT a plain always-on additional. Its progression is keyed by the LINE TEXT (no "name"
+            # key), so detect it among the values keys + read the level-scaled value. Handled before the generic
+            # condition-split (which would drop the untranslatable crit gate). Matches Razor Leaf's crit weighting.
+            _crit_key = next((k for k in ((entry.get("values") or {}))
+                              if _UNIVERSAL_PHRASE in k.lower() and re.search(r"lands?\s+a\s+critical\s+strike", k, re.I)),
+                             None)
+            if _crit_key:
+                v = _progression_value_for_line(entry, _crit_key)
+                if v:
                     out.append({
-                        "stat_key": "dmg_additional",
-                        "amount": frac,
-                        "text": f"{_UNIVERSAL_PHRASE} |{item_id}|specific",
-                        "label": f"{name} (Tier {tier})",
-                        "source_name": name,
-                        "condition": cond_expr,
-                        "slot": sup.get("slot", 1),
+                        "stat_key": "dmg_additional_on_crit", "amount": v / 100.0,
+                        "text": f"{_UNIVERSAL_PHRASE} on Critical Strike |{item_id}|specific",
+                        "label": f"{name} (Tier {tier})", "source_name": name, "slot": sup.get("slot", 1),
                     })
+                continue
+            # A progression `name` sometimes GLUES two independent sentences with no separating punctuation
+            # (~50 occurrences season-wide, e.g. Crossed Lightning: "...stacking up to 6 time(s) When having at
+            # least 240 Dexterity, +42% additional damage..."). Split on that glue point FIRST, so a following
+            # sentence's own untranslatable gate can't swallow (and zero out) an unrelated preceding clause's
+            # stat text — each sentence is condition-split and resolved independently below.
+            for line in _RUNON_SENTENCE_RE.split(full_line) if full_line else [full_line]:
+                if not line:
+                    continue
+                # Split off & translate a condition ("…when only 1 enemy nearby") so the line is GATED, not
+                # applied always-on. Untranslatable gate → drop the line (don't inflate DPS ungated).
+                stat_clause, cond_part = _split_condition(line)
+                cond_expr = None
+                if cond_part is not None and translate_cond is not None:
+                    cond_expr = translate_cond(line) or translate_cond(cond_part)
+                    if cond_expr is None:
+                        stat_clause = ""
+                low = stat_clause.lower()
+                if "(multiplies)" in low:
+                    pass  # Augmentation's per-Jump compounding line → resolve_support_behavior
+                elif "additional hit damage for the supported skill" in low:
+                    # Generic "+X% additional Hit Damage for the supported skill" → the hit-only additional pool.
+                    # (The universal phrase below only matches "additional DAMAGE…"; this is the "…HIT DAMAGE…" variant.)
+                    roll = _explicit_roll(sup, line)
+                    frac = roll if roll is not None else _range_mid_fraction(stat_clause)
+                    if frac is not None and frac != 0.0:
+                        out.append({
+                            "stat_key": "hit_dmg_additional",
+                            "amount": frac,
+                            "text": "additional Hit Damage for the supported skill |{}|specific".format(item_id),
+                            "label": f"{name} (Tier {tier})",
+                            "source_name": name,
+                            "condition": cond_expr,
+                            "slot": sup.get("slot", 1),
+                        })
+                elif "additional lightning damage dealt by the skill to the enemy" in low:
+                    # Rumbling Thunder (Thunder Spike Noble): "When the supported skill's Shadow Strike True
+                    # Body hits an enemy, +(45-48)% additional Lightning Damage dealt by the skill to the
+                    # enemy for 2 s". True Body is ASSUMED to mean the player's own cast (not a Shadow),
+                    # which would happen every cast -> effectively permanent against a boss. Owner-approved:
+                    # modeled as a condition (thunder_spike_true_body_buff, default ON — data/conditions.json),
+                    # reached through the SAME cond_part -> _COND_PATTERNS -> translate_cond gate every other
+                    # tier line above uses — not a new mechanism.
+                    roll = _explicit_roll(sup, line)
+                    frac = roll if roll is not None else _range_mid_fraction(stat_clause)
+                    if frac is not None and frac != 0.0:
+                        out.append({
+                            "stat_key": "lightning_dmg_additional",
+                            "amount": frac,
+                            "text": "additional Lightning Damage dealt by the skill to the enemy |{}|specific".format(item_id),
+                            "label": f"{name} (Tier {tier})",
+                            "source_name": name,
+                            "condition": cond_expr,
+                            "slot": sup.get("slot", 1),
+                        })
+                elif _UNIVERSAL_PHRASE in low:
+                    roll = _explicit_roll(sup, line)
+                    frac = roll if roll is not None else _range_mid_fraction(stat_clause)
+                    if frac is not None and frac != 0.0:
+                        out.append({
+                            "stat_key": "dmg_additional",
+                            "amount": frac,
+                            "text": f"{_UNIVERSAL_PHRASE} |{item_id}|specific",
+                            "label": f"{name} (Tier {tier})",
+                            "source_name": name,
+                            "condition": cond_expr,
+                            "slot": sup.get("slot", 1),
+                        })
     return out
 
 
@@ -457,7 +528,7 @@ def resolve_standard_supports(attached_supports, skills_by_id, main_cat, main_dt
                     "label": name,
                     "slot": sup.get("slot", 1),
                 })
-            effects.extend(map_autoderive_line(line))
+            effects.extend(map_autoderive_line(line, item_id))
 
         # Willpower: compounding per-stack buff whose % is per-level (Descript), applied while standing
         # still. Resolved here (not in the aggregator) so it uses the support's actual level value.

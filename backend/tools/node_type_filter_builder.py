@@ -1,7 +1,7 @@
 """
-Builds node_type_filter.json from a canonical talent snapshot.
+Builds node_type_filter.json from the active season's crawler-imported trees.
 
-Matches snapshot stat texts (e.g. "+9% Attack Damage") to Stat enum values
+Matches node effect texts (e.g. "+9 % Attack Damage") to Stat enum values
 using Jaccard-like word-overlap scoring against STAT_META display names.
 
 Split rules handle compound modifier texts — these produce multiple
@@ -27,6 +27,8 @@ import json
 import os
 import re
 from datetime import datetime
+
+from engine.core_talent_resolver import _strip_max_div
 
 _DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
@@ -433,10 +435,15 @@ def _match_effect(text: str, candidates: list, overrides: dict) -> list[tuple[st
     return [result] if result else []
 
 
-def build_filter(snapshot: dict) -> dict:
+def build_filter(season_trees: dict[str, dict]) -> dict:
     """
-    Given a TalentSnapshot dict, produce the filter dict with stats, recipes,
-    unresolved, and _meta. Does NOT write to disk.
+    Given season tree data ({tree_slug: season_tree_dict}, as loaded by
+    season_manager.load_all_season_trees), produce the filter dict with stats,
+    recipes, unresolved, and _meta. Does NOT write to disk.
+
+    Source of truth is the crawler-imported trees — the same records the engine
+    resolves nodes from — so recipe texts always carry the canonical scraped
+    wordings (the retired PDF-snapshot path had truncation/suffix-strip drift).
     """
     from models.stat_meta import STAT_META
 
@@ -485,8 +492,12 @@ def build_filter(snapshot: dict) -> dict:
                 type_recipes.append({"stat": stat_val, "rank1": round(rank1, 6), "values": values, "text": text})
             matched_count += 1
 
-    def _process_stat_text(text: str, node_type: str, tree: str):
+    def _process_stat_text(display_text: str, node_type: str, tree: str):
         nonlocal ambiguous_count, unmatched_count, conditional_count
+
+        # Match on the suffix-stripped form — "(Max Divinity Effect: N)" is identity/display-bearing
+        # but its words poison Jaccard scoring. Stored recipe text stays the full original wording.
+        text = _strip_max_div(display_text)
 
         rank1, _ = _parse_value(text)
 
@@ -495,7 +506,7 @@ def build_filter(snapshot: dict) -> dict:
         if key in overrides:
             stat_val = overrides[key]["stat"]
             if stat_val in stat_by_value:
-                _apply_match(stat_val, rank1, text, node_type, tree)
+                _apply_match(stat_val, rank1, display_text, node_type, tree)
                 return
 
         # Conditional texts: try to extract a conditional recipe, then mark unresolved for audit
@@ -507,14 +518,14 @@ def build_filter(snapshot: dict) -> dict:
                 split = _try_split(stripped)
                 if split:
                     for stat_val, sv in split:
-                        _apply_match(stat_val, sv, text, node_type, tree, condition=cond_key)
+                        _apply_match(stat_val, sv, display_text, node_type, tree, condition=cond_key)
                     return
                 result = _jaccard_match(stripped, candidates, overrides)
                 if result:
-                    _apply_match(result[0], result[1], text, node_type, tree, condition=cond_key)
+                    _apply_match(result[0], result[1], display_text, node_type, tree, condition=cond_key)
                     return
             conditional_count += 1
-            unresolved.append({"tree": tree, "node_type": node_type, "text": text, "reason": "conditional"})
+            unresolved.append({"tree": tree, "node_type": node_type, "text": display_text, "reason": "conditional"})
             return
 
         # Split rules — direct apply, bypass staging and collision check
@@ -522,17 +533,17 @@ def build_filter(snapshot: dict) -> dict:
         if split is not None:
             if split:
                 for stat_val, sv in split:
-                    _apply_match(stat_val, sv, text, node_type, tree)
+                    _apply_match(stat_val, sv, display_text, node_type, tree)
             else:
                 unmatched_count += 1
-                unresolved.append({"tree": tree, "node_type": node_type, "text": text, "reason": "unmatched"})
+                unresolved.append({"tree": tree, "node_type": node_type, "text": display_text, "reason": "unmatched"})
             return
 
         # Jaccard matching with staging + multi-text collision check
         query_words = _normalize_words(text)
         if not query_words:
             unmatched_count += 1
-            unresolved.append({"tree": tree, "node_type": node_type, "text": text, "reason": "unmatched"})
+            unresolved.append({"tree": tree, "node_type": node_type, "text": display_text, "reason": "unmatched"})
             return
 
         scores: list[tuple[float, object, str]] = []
@@ -553,35 +564,40 @@ def build_filter(snapshot: dict) -> dict:
             if best_score >= threshold:
                 tied = [s for s in scores if s[0] == best_score]
                 if len(tied) == 1:
-                    staged.append({"stat_val": best_stat.value, "rank1": rank1, "text": text, "node_type": node_type, "tree": tree})
+                    staged.append({"stat_val": best_stat.value, "rank1": rank1, "text": display_text,
+                                   "match_key": key, "node_type": node_type, "tree": tree})
                     return
 
                 is_pct = "%" in text
                 preferred = [s for s in tied if s[1].value.endswith("_inc" if is_pct else "_flat")]
                 if len(preferred) == 1:
                     _, stat, _ = preferred[0]
-                    staged.append({"stat_val": stat.value, "rank1": rank1, "text": text, "node_type": node_type, "tree": tree})
+                    staged.append({"stat_val": stat.value, "rank1": rank1, "text": display_text,
+                                   "match_key": key, "node_type": node_type, "tree": tree})
                     return
 
                 ambiguous_count += 1
                 unresolved.append({
-                    "tree": tree, "node_type": node_type, "text": text,
+                    "tree": tree, "node_type": node_type, "text": display_text,
                     "reason": "ambiguous",
                     "tied": [{"stat": s.value, "display_name": dn, "score": round(sc, 3)} for sc, s, dn in tied],
                 })
                 return
 
         unmatched_count += 1
-        unresolved.append({"tree": tree, "node_type": node_type, "text": text, "reason": "unmatched"})
+        unresolved.append({"tree": tree, "node_type": node_type, "text": display_text, "reason": "unmatched"})
 
-    trees: dict = snapshot.get("trees", {})
-    for tree_name, tree_data in trees.items():
+    for tree_data in (season_trees or {}).values():
+        tree_name = tree_data.get("tree_name", "")
+        if not tree_name:
+            continue
         for node in tree_data.get("nodes", []):
-            nt = node.get("node_type", "")
+            raw_nt = node.get("node_type", "")
+            nt = raw_nt.lower().replace(" talent", "").strip().replace(" ", "_")
             if nt not in ALL_NODE_TYPES:
                 continue
-            for stat_obj in node.get("stats", []):
-                _process_stat_text(stat_obj.get("text", ""), nt, tree_name)
+            for effect in node.get("effects", []) or []:
+                _process_stat_text(effect, nt, tree_name)
 
     # Multi-text collision check for staged Jaccard results
     by_stat: dict[str, list[dict]] = {}
@@ -589,7 +605,7 @@ def build_filter(snapshot: dict) -> dict:
         by_stat.setdefault(m["stat_val"], []).append(m)
 
     for _, matches in by_stat.items():
-        distinct_keys = {_override_key(m["text"]) for m in matches}
+        distinct_keys = {m["match_key"] for m in matches}
         if len(distinct_keys) > 1:
             for m in matches:
                 unmatched_count += 1
@@ -602,7 +618,7 @@ def build_filter(snapshot: dict) -> dict:
 
     meta = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "snapshot_source": snapshot.get("source_file", ""),
+        "source": f"season_trees ({len(season_trees or {})} trees)",
         "matched": matched_count,
         "ambiguous": ambiguous_count,
         "unmatched": unmatched_count,
@@ -697,18 +713,21 @@ def build_node_recipes(season_trees: dict[str, dict]) -> dict[str, list[dict]]:
             seen_stats: set[str] = set()
             seen_cond_pairs: set[tuple[str, str]] = set()
             for effect_text in effects:
-                if _is_conditional(effect_text):
-                    cond_key = _detect_condition(effect_text)
+                # Match on the suffix-stripped form ("(Max Divinity Effect: N)" is identity/display-
+                # bearing but poisons matching); stored recipe text keeps the full original wording.
+                match_text = _strip_max_div(effect_text)
+                if _is_conditional(match_text):
+                    cond_key = _detect_condition(match_text)
                     if cond_key:
                         # Match on the stat portion only (strip the conditional clause),
                         # mirroring _process_stat_text — split combos first, then Jaccard.
-                        stripped = _strip_conditional(effect_text)
+                        stripped = _strip_conditional(match_text)
                         pairs = _try_split(stripped) or []
                         if not pairs:
                             result = _jaccard_match(stripped, candidates, overrides)
                             if result:
                                 pairs = [result]
-                        scaling = _detect_scaling(effect_text)
+                        scaling = _detect_scaling(match_text)
                         for stat_val, rank1 in pairs:
                             # "per/for-each" effects scale by a numeric condition; the gate is
                             # dropped unless it's a separate mechanic (keep_gate).
@@ -738,7 +757,7 @@ def build_node_recipes(season_trees: dict[str, dict]) -> dict[str, list[dict]]:
                                 recipe["condition"] = gate
                             recipes_for_node.append(recipe)
                     continue
-                matches = _match_effect(effect_text, candidates, overrides)
+                matches = _match_effect(match_text, candidates, overrides)
                 for stat_val, rank1 in matches:
                     if stat_val in seen_stats:
                         continue

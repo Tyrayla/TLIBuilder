@@ -1,6 +1,13 @@
+// Share-service calls live in ./share — plain fetch to a PUBLIC host, never the
+// local backend or IPC. Owned by the share-service agent. Imported here so the
+// `api` object can expose them, and getShareBase is re-exported below so existing
+// `import { getShareBase } from './client'` callers keep working.
+import { shareBuildCode, fetchSharedBuildCode, getShareBase } from './share'
+
 let BASE = ''
 let ipcMode = false
 export function getApiBase(): string { return BASE }
+export { getShareBase }
 
 // True in the hosted web build (no Electron preload bridge). Desktop-only UI (auto-update, release channel) hides
 // when this is set — the web app updates by redeploy + refresh, not electron-updater.
@@ -28,6 +35,9 @@ const STATIC_CATALOGS: Record<string, string> = {
   '/hero-memories': 'hero_memories',
   '/conditions': 'conditions',
   '/pact-spirits': 'pact_spirits',
+  '/verification-db': 'verification_db',
+  '/glossary': 'glossary',
+  '/help-db': 'help_db',
 }
 function staticCatalogUrl(path: string): string | null {
   if (!STATIC_DATA_BASE || !staticSeason) return null
@@ -215,43 +225,8 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
 }
 
 // ── Share service ────────────────────────────────────────────────────────────
-// The build-code share service is a PUBLIC host, separate from the local Python
-// backend. Share calls never go through the local backend or Electron IPC —
-// they are plain fetches to SHARE_BASE. The base URL is configurable at build
-// time via the Vite env var VITE_SHARE_BASE_URL; it falls back to production.
-
-const _shareEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
-const SHARE_BASE = (_shareEnv?.VITE_SHARE_BASE_URL ?? 'https://api.tlibuilder.com').replace(/\/+$/, '')
-
-export function getShareBase(): string { return SHARE_BASE }
-
-async function postToShareService<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${SHARE_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000),
-  })
-  if (!res.ok) throw new Error(`POST ${path} → ${res.status}`)
-  return res.json() as Promise<T>
-}
-
-const MAX_SHARE_CODE_BYTES = 512 * 1024 // 512 KB — more than enough for any build code
-
-async function getFromShareService(path: string): Promise<string> {
-  // The share service returns the raw tli1_ code as text/plain.
-  const res = await fetch(`${SHARE_BASE}${path}`, {
-    signal: AbortSignal.timeout(15000),
-  })
-  if (!res.ok) throw new Error(`GET ${path} → ${res.status}`)
-  const len = Number(res.headers.get('content-length') ?? 0)
-  if (len > MAX_SHARE_CODE_BYTES) throw new Error('Shared build code exceeds size limit')
-  // No Content-Length fallback: buffers entire response before rejecting — acceptable
-  // given threat model; a streaming reader would be needed to truly bound a hostile server.
-  const text = await res.text()
-  if (text.length > MAX_SHARE_CODE_BYTES) throw new Error('Shared build code exceeds size limit')
-  return text
-}
+// Moved to ./share (SHARE_BASE, getShareBase, shareBuildCode, fetchSharedBuildCode).
+// Imported at the top of this file and exposed on the `api` object below.
 
 export interface TreeSlot {
   treeName: string
@@ -439,7 +414,7 @@ export interface Build {
   slateInventory?: SlateTemplate[]
   prisms?: PlacedPrism[]
   prismInventory?: CraftedPrism[]
-  conditionState?: Record<string, number | boolean>
+  conditionState?: Record<string, number | boolean | string>
   // Legacy fields — present on builds saved before the conditionState unification.
   // Read-only: never written by the current client; migrated to conditionState on load.
   conditions?: string[]
@@ -451,7 +426,10 @@ export interface Build {
   traitLevel?: number          // legacy field — kept for loading old saves
   traitSlotLevels?: number[]   // [base, lv45, lv60, lv75], each 1–5
   advancedTraitSelections?: string[]
+  traitTreeAllocations?: string[]   // ordered node_ids allocated on a "tree" allocation_mode trait (Dance of the Deep)
   traitSkillSupports?: EquippedSupportSkill[]   // supports socketed into the Holy Domain trait skill slot
+  licoricePreparedSkill?: string | null         // Licorice Note: Empower/Curse the trait prepares
+  elixirIngredients?: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: name}
   heroMemories?: (unknown | null)[]
   pactSpirits?: (unknown | null)[]
   fates?: Record<string, InstalledFate>           // pact fates keyed by "<spiritSlotIdx>:<nodeDataIdx>"
@@ -459,6 +437,27 @@ export interface Build {
   notes?: string
   customMods?: string[]
   targetConfig?: TargetConfig
+  // Server-stamped, read-only. Never include these in getBuildPayload/encode payloads.
+  createdAt?: number
+  updatedAt?: number
+}
+
+// ── Build folders ────────────────────────────────────────────────────────────
+// Client-generated folder ids: 8+ chars matching [A-Za-z0-9_-]+, never the literal "root".
+export interface BuildFolder {
+  id: string
+  name: string
+  parentId: string | null
+}
+
+export interface FolderManifest {
+  folders: BuildFolder[]
+  // buildId -> folderId. A build with no entry here lives at root.
+  assignments: Record<string, string>
+  // container key ("root" or a folder id) -> ordered build ids within it.
+  order: Record<string, string[]>
+  // container key ("root" or a folder id) -> ordered subfolder ids within it.
+  folderOrder: Record<string, string[]>
 }
 
 export interface TreeNode {
@@ -520,10 +519,6 @@ export interface ModPoolEntry {
   node_types: string[]
 }
 
-export interface SnapshotModifier {
-  text: string
-}
-
 export interface StatRecipe {
   stat: string
   rank1: number
@@ -545,15 +540,9 @@ export interface UnresolvedStat {
   tied?: TiedCandidate[]
 }
 
-export interface SnapshotStatus {
-  exists: boolean
-  source_file: string | null
-  generated_at: string | null
-}
-
 export interface NodeTypeFilterMeta {
   generated_at: string
-  snapshot_source: string
+  source: string
   matched: number
   ambiguous: number
   unmatched: number
@@ -570,38 +559,6 @@ export interface RebuildFilterResult {
   stats: Record<string, string[]>
   unresolved: UnresolvedStat[]
   matched_texts: Record<string, string[]>
-}
-
-export interface TalentStat {
-  text: string
-  max_divinity_effect?: true
-}
-
-export interface TalentNode {
-  node_type: string
-  stats: TalentStat[]
-}
-
-export interface CoreTalentEntry {
-  name: string
-  stats: TalentStat[]
-}
-
-export interface NewGodTalent {
-  name: string
-  stats: TalentStat[]
-}
-
-export interface TreeSnapshot {
-  nodes: TalentNode[]
-  core_talents: CoreTalentEntry[]
-}
-
-export interface TalentSnapshot {
-  generated_at: string
-  source_file: string
-  trees: Record<string, TreeSnapshot>
-  new_god_talents: NewGodTalent[]
 }
 
 export interface SlateModifierOption {
@@ -629,7 +586,9 @@ export interface ConditionDef {
   key: string
   label: string
   category?: string
-  value_type: 'boolean' | 'numeric'
+  value_type: 'boolean' | 'numeric' | 'enum'
+  enum_values?: string[]        // value_type === 'enum': the selectable options (a dropdown)
+  default_enum?: string         // value_type === 'enum': default selected option
   numeric_min?: number
   numeric_max?: number | null
   min_base?: number
@@ -656,6 +615,52 @@ export interface ConditionSourceEntry {
 export interface ConditionDefsResponse {
   conditions: ConditionDef[]
   derived_keys: Record<string, string>
+}
+
+// ── Verification knowledge base ──────────────────────────────────────────────
+export type VerificationStatus = 'confirmed' | 'partial' | 'pending' | 'unverified' | 'failed'
+export interface VerificationEntry {
+  id: string
+  title: string
+  status: VerificationStatus
+  skills: string[]
+  tags: string[]
+  lastVerified?: string
+  verifiedBy?: string
+  backlogId?: string
+  setup?: string          // markdown
+  dataPoints?: string     // markdown
+  formula?: string        // markdown
+  implementation?: string // markdown — how the engine actually models it
+  notes?: string          // markdown
+  sources?: string[]
+}
+export interface VerificationDbResponse {
+  entries: VerificationEntry[]
+  tags: string[]
+  skills: string[]
+  statuses: VerificationStatus[]
+}
+
+// ── Glossary + Help DB (term-linking references) ─────────────────────────────
+export interface GlossaryTerm {
+  id: string | null
+  name: string
+  description: string
+  sources: string[]
+}
+export interface GlossaryResponse {
+  season: string | null
+  terms: GlossaryTerm[]
+}
+export interface HelpDbEntry {
+  id: string
+  title: string
+  breadcrumb: string
+  markdown: string
+}
+export interface HelpDbResponse {
+  entries: HelpDbEntry[]
 }
 
 export interface StatSource {
@@ -713,6 +718,32 @@ export interface SkillSlotSummary {
   supported: boolean
 }
 
+// One Euphoria buff granted by a minion Empower (base magnitude → effective, after Empower Effect × uptime).
+export interface MinionEmpowerBuff {
+  label: string
+  stat: string
+  base: number
+  value: number
+  active: boolean
+  note?: string | null
+}
+
+// A minion Empower buff surfaced like a player empower skill: Empower Effect, base→effective cooldown/duration,
+// uptime, and each granted buff's base→effective magnitude. Rendered as its own panel when the form is selected.
+export interface MinionEmpower {
+  name: string
+  empower_effect: number       // 1 + Spirit Magi Empower Effect (multiplier on the buff magnitudes)
+  empower_effect_inc: number   // the raw additional Empower Effect (spirit_magi_empower_effect_additional)
+  base_cooldown: number
+  cooldown: number             // effective = base ÷ (1 + Minion CDR)
+  cdr_inc: number
+  base_duration: number
+  duration: number             // effective = base × (1 + Minion Skill Effect Duration)
+  duration_inc: number
+  uptime: number               // clamp(duration ÷ cooldown, ≤1)
+  buffs: MinionEmpowerBuff[]
+}
+
 export interface HitFormResult {
   name: string
   effectiveness_pct: number
@@ -733,6 +764,31 @@ export interface HitFormResult {
   shotgun_mult: number      // total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
   base_min_by_type: Record<string, number>   // this form's intrinsic base (multi-form spells)
   base_max_by_type: Record<string, number>
+  // Non-empty → this form is NOT-YET-IMPLEMENTED (0 DPS, excluded from % of Total); the strings are the reasons.
+  // Surfaces a minion's non-damage abilities (Empower buffs / locked Ultimates) as visible, selectable forms.
+  nyi?: string[]
+}
+
+// One row of the engine-owned breakdown table (backend/engine/offense.py DamageRow) - the reconciliation
+// contract that replaces the frontend's hand-reconstructed delivery multiplier and back-solved per-type
+// mitigation. Every row is ALREADY fully delivered (cast/tangle/spell-burst/multistrike multiplier applied)
+// and ALREADY split per damage type post-mitigation - nothing here should be multiplied or re-derived.
+// kind="hit" rows mirror hit_forms 1:1 in the same order; kind="true" rows (Mercury Baptism / Spell Ripple)
+// have no HitFormResult of their own - hit_min_by_type/hit_max_by_type/dps_by_type_vs_target are {} for those.
+export interface DamageRow {
+  kind: 'hit' | 'true' | 'dot'   // "dot" emitted for skill-DoT skills (Mind Control, Path of Flames)
+  name: string
+  dps_final: number                  // already x delivery
+  dps_vs_target_final: number        // already x delivery
+  pct_of_total: number               // of total_dps_vs_target; all non-NYI rows sum to 100.0
+  dps_by_type_vs_target: Record<string, number>   // POST-mitigation, per damage type
+  hit_min_by_type: Record<string, number>         // {} for "true"/"dot"
+  hit_max_by_type: Record<string, number>         // {} for "true"/"dot"
+  // The engine's STABLE join key back to hit_forms - use this, never `name` (names are not unique).
+  // 0-based index into hit_forms for kind="hit"; -1 for "true"/"dot" (no HitFormResult of their own).
+  // Optional, like the fields above: the web build can hit a CDN engine older than this renderer.
+  form_index?: number
+  nyi?: string[]                     // non-empty -> not a real damage row; filter it out of the table
 }
 
 export interface OffenseResult {
@@ -740,10 +796,16 @@ export interface OffenseResult {
   supported: boolean   // false = NYI; when false no other fields are meaningful
   effective_level: number
   hit_forms: HitFormResult[]
-  crit_chance: number
+  crit_chance: number            // effective (capped at 1.0, post Lucky/Unlucky crit) — drives DPS
+  crit_chance_uncapped?: number  // true chance from rating (may exceed 1.0) — display-only, surfaces over-cap
+  crit_luck_effect?: string      // '', 'lucky', or 'unlucky'
   crit_multiplier: number
+  double_dmg_chance?: number       // double-damage chance (tag-filtered, capped 100%)
+  triple_dmg_chance?: number
+  quad_dmg_chance?: number
+  double_dmg_factor?: number       // expected-value damage multiplier folded into DPS (1.0 = none)
   steep_strike_chance: number
-  attacks_per_second: number
+  skills_per_second: number
   base_cast_time: number
   total_dps: number
   total_dps_vs_target: number
@@ -769,6 +831,12 @@ export interface OffenseResult {
   tangle_cast_ticks?: number   // whole server ticks per tangle cast (cast-speed breakpoint); 0/undefined if untangled
   tangle_cast_to_next_increased?: number  // +Increased Cast Speed needed for the next faster tick breakpoint
   tangle_cast_to_next_additional?: number  // +Additional Cast Speed needed for the next faster tick breakpoint
+  // Channeled-attack rate breakpoints (Split Shot: Rapid Advance) — the channel fires on whole 30 Hz ticks
+  // (rate = 30 ÷ ticks). 0/undefined when not a channeled attack. Shown in the Channeled box.
+  channel_attack_ticks?: number
+  channel_attack_smooth_sps?: number  // the smooth attack rate BEFORE the 30 Hz breakpoint (the true attack speed)
+  channel_attack_to_next_increased?: number  // +Increased Attack Speed needed for the next faster breakpoint
+  channel_attack_to_next_additional?: number  // +Additional Attack Speed needed for the next faster breakpoint
   // Spell Burst mode (an eligible Spell cast at full charge consumes M stacks and auto-recasts the spell M
   // times; the triggering cast also counts → casts_per_burst = M + 1). The charge is a server-timed whole-tick
   // countdown (hard-rounded breakpoints), so charge speed only helps at integer-tick crossings. spell_burst_mult
@@ -813,6 +881,16 @@ export interface OffenseResult {
   // Combined per-type ENEMY damage multiplier on outgoing damage: (1−armor)(1−resist) × enemy vulnerability
   // (Paralysis/Numbed/Frostbite/curses/…). Only types this skill deals are present. 1.0 = neutral.
   enemy_mult_by_type?: Record<string, number>
+  // Engine-owned breakdown rows (see DamageRow) - the pure-render replacement for hand-reconstructed
+  // per-form/per-type DPS. Includes kind="true" rows (Mercury Baptism / Spell Ripple) that have no
+  // HitFormResult of their own.
+  damage_rows?: DamageRow[]
+  // target_mitigation_by_type[d] x enemy_vuln_by_type[d] == enemy_mult_by_type[d] for every d present.
+  target_mitigation_by_type?: Record<string, number>   // armour/resist half only
+  enemy_vuln_by_type?: Record<string, number>          // vulnerability-product half only
+  // Ordered stat keys _enemy_vuln_mult actually consulted per type - drives the Breakdown popover's source
+  // list instead of a hand-copied key list that can drift from the engine.
+  enemy_vuln_sources_by_type?: Record<string, string[]>
   // Multistrike (attack skills): per-cast delivery multiplier from auto-repeats with increasing damage + the
   // +20% repeat attack speed. mult 1.0 / chance 0 when not multistriking.
   multistrike_chance?: number          // total chance (fraction; 1.16 = 116%)
@@ -822,6 +900,59 @@ export interface OffenseResult {
   multistrike_mult?: number            // delivery multiplier folded into total_dps
   multistrike_repeat_aps?: number      // attack rate during repeats (base aps × the +20%-increased factor)
   multistrike_chain?: { count: number; prob: number }[]   // chain-length distribution
+  // Shadow Strike (Thunder Spike; Help DB "shadow-strike", glossary id 136 "Phantom"): casting summons
+  // shadow_count Shadows that each repeat the player's attack once against the same target. Multiple Shadows
+  // landing on that target share a Shotgun Effect falloff — the first Shadow at 100%, each further Shadow
+  // retaining 30% — independent of the player's own hit. shadow_count = Max Shadow Quantity (N);
+  // shadow_chance_pct/shadow_chance_quantity = Despised Shadow's "chance to gain +K Shadows" EV-mix inputs;
+  // shadow_dmg_additional = Σ additional Shadow Damage (scales only the shadow portion, never the player's own
+  // hit); shadow_mult = the total delivery multiplier folded into total_dps, same slot as tangle_mult /
+  // multistrike_mult. undefined/0/1.0 when the skill isn't Shadow-Strike-tagged.
+  shadow_count?: number
+  shadow_chance_pct?: number
+  shadow_chance_quantity?: number
+  shadow_dmg_additional?: number
+  shadow_mult?: number
+  // Demolisher Charge mode (Groundshaker etc.): the skill regains a single charge over time and consumes it on
+  // cast to add the secondary explosion. Primary fissure fires at demolisher_cast_rate, secondary at
+  // demolisher_charged_rate. The breakpoint fields drive the restoration-vs-cadence helper. "" / 0 when not a
+  // Demolisher skill.
+  demolisher_mode?: string                    // 'rhythm' | 'manual' | '' (not a demolisher skill)
+  demolisher_restoration_time?: number        // seconds to regain 1 charge = base / (1 + Σ charge-speed increased)
+  demolisher_base_restore?: number            // skill's base restoration (Groundshaker 3s)
+  demolisher_charge_speed_inc?: number        // Σ Demolisher Charge Speed INCREASED (the only pool that applies)
+  demolisher_cast_rate?: number               // casts/sec (primary fissure rate)
+  demolisher_charged_rate?: number            // charged casts/sec (secondary explosion rate) ≤ cast_rate
+  demolisher_rhythm_interval?: number         // Rhythm cast interval R (0 = manual/APS)
+  demolisher_mismatch?: boolean               // restoration slower than the cadence → not every cast is charged
+  demolisher_restore_to_sustain?: number      // +Increased Charge Speed needed for every-cast-charged
+  demolisher_cdr_droppable?: number           // Increased Charge Speed droppable while still sustaining
+  demolisher_under_breakpoint?: boolean       // below the every-cast-charged breakpoint
+  demolisher_over_breakpoint?: boolean        // above it (has headroom to drop charge speed)
+  demolisher_collapse_pct?: number            // Collapse tick amplification (fraction) folded into the fissure ticks
+  demolisher_frequent_quake?: boolean         // explosion replaced by 5 primary-fissure hits
+  demolisher_area_mode?: string               // 'both' | 'primary' | 'secondary' (the fissure ENUM)
+  demolisher_primary_dps?: number             // primary-fissure DPS vs target (after delivery)
+  demolisher_secondary_dps?: number           // secondary-explosion / FQ-tick DPS vs target (after delivery)
+  // Activation-medium trigger cadence + Wind Rhythm server-tick panel. trigger_interval 0 = not triggered.
+  trigger_interval?: number
+  wind_rhythm_active?: boolean
+  wind_rhythm_rate?: number
+  wind_rhythm_ticks?: number
+  wind_rhythm_cast_time?: number
+  wind_rhythm_base_cooldown?: number
+  wind_rhythm_bonus?: number
+  wind_rhythm_cdr_to_next?: number
+  wind_rhythm_cast_to_next?: number
+  wind_rhythm_wind_to_next?: number
+  // Spirit Magus (minion) display info — the Growth subsystem's per-minion state (0 for non-magus results).
+  spirit_magi_growth?: number
+  spirit_magi_stage?: number
+  spirit_magi_physique_inc?: number
+  spirit_magi_enhanced_chance?: number
+  spirit_magi_max?: number
+  // A minion Empower buff (e.g. Thundercloud Surge) surfaced like a player empower skill. Null for non-empower.
+  minion_empower?: MinionEmpower | null
   nyi: string[]
   weapon_attack_speed: number
   weapon_aps_gear: number
@@ -841,6 +972,9 @@ export interface OffenseResult {
   generic_add: number          // INCLUDES the main-stat Damage Bonus below
   main_stat_damage_bonus: number  // fraction (0.255 = +25.5%) from the skill's main-stat attributes
   main_stats: string[]            // attributes summed (e.g. ['dexterity','intelligence'])
+  // Skill-intrinsic 'additional damage' pool ({label, amount fraction}) folded into generic_add via
+  // intrinsic_add (e.g. Rapid Advance's per-Max-Channeled-Stack bonus). Shown in the Total Additional panel.
+  intrinsic_additional_sources?: Array<{ label: string; amount: number }>
   skill_tags: string[]
   skill_area_inc: number
 }
@@ -900,6 +1034,117 @@ export interface DefenseResult {
   nyi: string[]
 }
 
+export interface RecoverySource {
+  pool: string                 // 'life' | 'mana' | 'energy_shield'
+  source: string
+  total: number                // total restored per cast (0 for steady-rate sources like Rebirth)
+  duration: number
+  recast?: number              // charge/cooldown cadence (seconds); 0 = no cadence
+  divisor?: number             // what per-sec divides by (= duration in Full Uptime, max(duration, recast) in Effective)
+  per_sec: number
+}
+export interface RecoveryResult {
+  // Restoration (heal-over-time), split by pool
+  restoration_life_per_sec: number
+  restoration_mana_per_sec: number
+  restoration_life_total: number
+  restoration_mana_total: number
+  restoration_es_per_sec: number     // ES restoration from excess Life (Pixie Tear)
+  restoration_es_total: number
+  excess_life_restoration: number    // overflow → Temporary Life / ES (assumed Current Life %)
+  excess_mana_restoration: number
+  restoration_sources: RecoverySource[]
+  // Regain (on-hit, missing-based)
+  life_regain_per_sec: number
+  shield_regain_per_sec: number
+  // Regen (over time)
+  life_regen_per_sec: number
+  mana_regen_per_sec: number
+  // Temporary pools (separate used-first barrier) + totals
+  temporary_life: number
+  temporary_mana: number
+  total_max_life: number             // Base Max Life + Temporary Life (display / EHP barrier)
+  total_max_mana: number
+  // Consumption (self-consume drains) per second
+  consumption_life_per_sec: number
+  consumption_mana_per_sec: number
+  consumption_es_per_sec: number
+  // Active skill's intrinsic per-cast COST per second (cost ≠ consume — a SEPARATE drain that reduces net recovery)
+  skill_cost_mana_per_sec: number
+  skill_cost_life_per_sec: number
+  // Rolling "consumed recently" totals (per-sec × 4s) — drives per-N-consumed affixes + threshold gates
+  consumed_recently_life: number
+  consumed_recently_mana: number
+  consumed_recently_energy_shield: number
+  // Burst-activation sustain (per burst trigger × burst rate), folded into net below
+  burst_mana_lost_per_sec: number
+  burst_life_restore_per_sec: number
+  burst_es_restore_per_sec: number
+  // Net sustain (recovery − consumption; skill life/mana cost NYI)
+  base_mana_regen_per_sec: number   // baseline 7/s + 1.75% Max Mana/s portion of mana regen
+  net_life_per_sec: number
+  net_mana_per_sec: number
+  net_es_per_sec: number
+  // Sustainability verdict per pool + time-to-empty (seconds) when unsustainable (null when sustainable)
+  life_sustainable: boolean
+  mana_sustainable: boolean
+  es_sustainable: boolean
+  life_time_to_empty: number | null
+  mana_time_to_empty: number | null
+  es_time_to_empty: number | null
+  // Steady-state ("stable") pool: the solved % you settle at (100 when nothing consumes that pool) + that flat pool
+  steady_life_pct: number
+  steady_life: number
+  steady_mana_pct: number
+  steady_mana: number
+  steady_es_pct: number
+  steady_es: number
+  // Effective HP (steady-state Life pool + Temporary Life vs the calc target's average mitigation)
+  ehp_life: number
+  nyi: string[]
+}
+
+export interface ConsumptionResult {
+  life_per_sec: number
+  mana_per_sec: number
+  energy_shield_per_sec: number
+  consumed_recently_life: number     // rolling 4s total (drives per-N-consumed affixes + threshold gates)
+  consumed_recently_mana: number
+  consumed_recently_energy_shield: number
+  // Active skill's intrinsic per-cast COST (cost ≠ consume — kept separate from the consumed figures above)
+  skill_cost_mana_per_cast: number
+  skill_cost_life_per_cast: number
+  skill_cost_mana_per_sec: number
+  skill_cost_life_per_sec: number
+  window: number                     // "recently" window (4s)
+  flags: string[]                    // surfaced approximations (e.g. use-vs-cast)
+}
+
+// One active skill's per-cast Mana/Life cost (engine.skill_cost). Cost ≠ consume.
+export interface SkillCostEntry {
+  skill_name: string
+  slot: number
+  mana_per_cast: number              // final per-cast Mana cost (after the Arcane split)
+  life_per_cast: number              // final per-cast Life cost (Arcane-converted)
+  mana_per_sec: number               // mana_per_cast × this skill's cast/attack rate
+  life_per_sec: number
+  base_cost: number
+  support_mult: number               // Π of attached supports' mana multipliers (110% → ×1.10)
+  inc: number                        // skill_cost_inc (+ % Skill/Mana Cost)
+  additional: number
+  reduction: number
+  flat: number
+  arcane_fraction: number            // mana_cost_to_life_cost (0..1)
+  base_is_percent: boolean
+}
+// Skill cost summed across ALL active skills (each at its own use rate). Cost ≠ consume.
+export interface SkillCost {
+  per_skill: SkillCostEntry[]
+  total_mana_per_sec: number
+  total_life_per_sec: number
+  flags: string[]
+}
+
 export interface BlessingEffect { stat: string; per_stack: number; total: number; text: string }
 export interface BlessingSummary {
   type: string
@@ -940,6 +1185,9 @@ export interface StatSheetResponse {
 
   offense?: OffenseResult | null
   defense?: DefenseResult | null
+  recovery?: RecoveryResult | null
+  consumption?: ConsumptionResult | null
+  skill_cost?: SkillCost | null
   custom_mod_statuses?: CustomModStatus[]
   // Gear affix/implicit texts the frontend couldn't resolve, resolved (or reported) backend-side so
   // nothing is silently dropped. resolved:false → still unmodeled (surface it, don't hide it).
@@ -954,6 +1202,11 @@ export interface StatSheetResponse {
   // Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Lets the UI
   // eventually show each setup's DPS independently. Additive — not consumed yet.
   slot_offense?: Record<string, OffenseResult> | null
+  // Per-minion-owner offense ({owner_id: OffenseResult}) for slotted minion owners (Spirit Magi / Synthetic
+  // Troops / Modularization). ONE OffenseResult per owner whose hit_forms are the minion's damage abilities
+  // (like a player multi-form skill), so the UI reuses the player offense panels + form dropdown; unmodelled
+  // minions come back supported=false (NYI, 0 DPS). Additive — folded into Full DPS.
+  minion_offense?: Record<string, OffenseResult> | null
   // Stat keys the engine actually READ for this build (offense/defense/derive/aggregator). A resolved
   // modifier whose mapped stat is here → "Consumed" (green badge).
   consumed_stats?: string[]
@@ -977,6 +1230,10 @@ export interface StatSheetResponse {
   empowers?: EmpowerSummary[]
   empower_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
   empower_stack_conditions?: { key: string; label: string; max: number }[]
+  // Per enabled elixir skill: the buff lines it grants (scaled by Elixir Effect, full uptime) + the applied
+  // Elixir Effect + timing (duration/cooldown/charges) + NYI lines; statuses.
+  elixirs?: ElixirSummary[]
+  elixir_statuses?: { skill_id: string; text: string; resolved: boolean; kind: string }[]
   // Per active curse: Curse Effect / limit / debuff value (scaled) + applied flag; per-curse meta (base stats +
   // NYI lines) keyed by skill_id; NYI statuses; and the over-limit conflict that drives the resolution dropdown.
   curses?: CurseSummary[]
@@ -1025,6 +1282,7 @@ export interface AuraSummary {
   granted: AuraGrant[]
   nyi: string[]
   review?: string[]   // modifiers applied but whose per-level scaling couldn't be verified vs the Lv1 anchor
+  enabled?: boolean   // false → shown in the panel but NOT applied to the build
   stack_condition?: string | null   // settable numeric condition key for this aura's buff stacks
   max_stacks?: number | null
 }
@@ -1038,8 +1296,49 @@ export interface EmpowerSummary {
   granted: EmpowerGrant[]
   nyi: string[]
   review?: string[]
+  enabled?: boolean   // false → shown in the panel but NOT applied to the build
   stack_condition?: string | null
   max_stacks?: number | null
+}
+
+export interface ElixirGrant { stat: string; base: number; amount: number; text: string; no_scale?: boolean; is_elixir_effect?: boolean }
+export interface ElixirSupportSource { name: string; kind: string; value: number }   // kind: 'charge_per_second' | 'max_charge'
+export interface ElixirSummary {
+  skill_id: string
+  name: string
+  level: number
+  elixir_effect_inc: number         // applied Elixir Skill Effect ((1+inc)×(1+additional) − 1)
+  granted: ElixirGrant[]
+  nyi: string[]
+  review?: string[]
+  has_blur?: boolean
+  enabled?: boolean                 // false → shown in the panel but NOT applied to the build
+  duration?: number | null          // base × (1 + Skill Duration) × (1 + Additional Skill Duration) × (1 + Elixir Duration)
+  base_duration?: number | null     // pre-scaling base (for the breakdown)
+  duration_inc?: number             // Σ Skill Effect Duration (fraction)
+  duration_additional?: number      // Skill Effect Duration additional + Elixir Duration (fraction)
+  cooldown?: number | null          // base ÷ (1 + Cooldown Recovery Speed)
+  base_cooldown?: number | null
+  cdr?: number                      // Σ Cooldown Recovery Speed (fraction)
+  charge_per_second?: number        // support gems + global charging-progress pool
+  global_charge_per_second?: number // the global "Elixir Skills gain N charging progress/s" pool
+  base_charges?: number             // skill base charge count (for the breakdown)
+  global_max_charge?: number        // global "+N Max Charge" pool
+  max_charges?: number
+  support_sources?: ElixirSupportSource[]   // per support-gem timing contributions
+  restoration?: ElixirRestoration[]         // restoration tonics: heal-over-time grants (modeled in recovery)
+  charge_threshold?: number | null          // charging progress needed per charge (drives the charge-limited recast)
+  charge_regen?: number | null              // charge time = threshold ÷ charge/sec (seconds; null = no charge cost)
+  recast?: number | null                    // restoration recast cadence = max(cooldown, charge time) (Effective uptime)
+}
+
+export interface ElixirRestoration {
+  pool: string                      // 'life' | 'mana'
+  mode: string                      // 'pct' (fraction of max pool) | 'flat'
+  base_amount: number               // amount × Elixir Effect (pct as a fraction of max, flat as absolute)
+  window: number                    // restoration window in seconds (× Elixir Duration)
+  recast: number                    // recast cadence (max of cooldown, charge-regen time)
+  source: string
 }
 
 export interface CurseSummary {
@@ -1055,6 +1354,7 @@ export interface CurseSummary {
   curse_effect_additional: number
   limit: number
   n_active: number
+  enabled?: boolean           // false → shown in the panel but NOT applied to the build
   applied: boolean            // false when suppressed by an unresolved over-limit conflict
 }
 export interface CurseMeta {
@@ -1090,6 +1390,10 @@ export interface TargetStats {
   // Raw penetration totals (fractions; reduction deltas).
   pen?: { armor: number; all_resistance_reduction: number; elemental: number;
           fire: number; cold: number; lightning: number; erosion: number }
+  // Per-stat penetration source breakdown (incl. skill-scoped pens absent from the global stat_map), keyed by
+  // the pen stat (e.g. "armor_pen"). amount is a fraction (0.225 = 22.5% pen from that source).
+  pen_sources?: Record<string, { source_type: string; label: string; text?: string;
+                                  source_name?: string; amount: number }[]>
 }
 
 export interface NumbedInfo {
@@ -1126,40 +1430,6 @@ export const EMPTY_STAT_SHEET: StatSheetResponse = {
   defense: null,
   consumed_stats: [],
   consumable_universe: [],
-}
-
-export type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged'
-
-export interface DiffNode {
-  index: number
-  node_type: string
-  status: DiffStatus
-  stats_a: TalentStat[] | null
-  stats_b: TalentStat[] | null
-}
-
-export interface DiffNamedTalent {
-  name: string
-  status: DiffStatus
-  stats_a: TalentStat[] | null
-  stats_b: TalentStat[] | null
-}
-
-export interface DiffTree {
-  status: DiffStatus
-  nodes: DiffNode[]
-  core_talents: DiffNamedTalent[]
-}
-
-export interface TalentDiff {
-  summary: {
-    trees_added: number; trees_removed: number
-    nodes_added: number; nodes_removed: number; nodes_changed: number
-    core_talents_added: number; core_talents_removed: number; core_talents_changed: number
-    new_god_added: number; new_god_removed: number; new_god_changed: number
-  }
-  trees: Record<string, DiffTree>
-  new_god_talents: DiffNamedTalent[]
 }
 
 export interface SeasonSummary {
@@ -1201,6 +1471,21 @@ export interface HeroAdvancedTrait {
   icon_url?: string | null      // render via iconUrl('hero_trait', icon_url) → bundled webp
 }
 
+// A tree-allocation node on a "tree" allocation_mode Hero Trait (Selena's Dance of the Deep and onward) —
+// mirrors TreeNode's column/row/effects/icon_url shape so the tree can reuse MiniTree/TreeViewerScreen's
+// SVG grid math, but keyed by node_id (not the passive-tree's id) and with no max_points/current_points
+// (each spendable node is a single allocatable point, gated by adjacency + a Hero-Memory-granted budget).
+export interface HeroTraitTreeNode {
+  node_id: string
+  name: string
+  column: number
+  row: number
+  x?: number   // 0..1, left→right — radial-layout position; falls back to column/row grid math when absent
+  y?: number   // 0..1, top→bottom
+  effects: string[]
+  icon_url?: string | null   // render via iconUrl('hero_trait', icon_url) → bundled webp
+}
+
 export interface HeroTrait {
   trait_id: string
   hero: string
@@ -1210,8 +1495,20 @@ export interface HeroTrait {
   levels: HeroTraitLevel[]
   artificial_moon: { description: string; effects: string[] }
   advanced_traits: HeroAdvancedTrait[]
+  // Licorice Note (Sage) only: Ingredient catalog grouped by the granting trait → categories → items.
+  ingredients?: { trait_name: string; categories: { category: string; items: { name: string; effect: string }[] }[] }[]
   max_level?: number | null
   glossary?: Record<string, { name: string; description: string }>
+  // Tree-based traits only (Selena's Dance of the Deep and onward) — when allocation_mode is 'tree', the
+  // renderer branches to the tree UI instead of the fixed tier-column layout; the fields below drive it.
+  allocation_mode?: string
+  tree_root_id?: string
+  tree_nodes?: HeroTraitTreeNode[]
+  tree_connections?: { from: string; to: string }[]
+  // Build-independent DPS-modeling coverage (engine-computed, additive). Absent on older backends.
+  coverage?: 'full' | 'partial' | 'none'
+  // For 'partial': the mechanics/status lines NOT modeled — show in a tooltip.
+  coverage_detail?: string[]
 }
 
 export interface PactSpiritSlot {
@@ -1268,6 +1565,8 @@ export interface InstalledFate {
   nodeTier: 'micro' | 'medium'
   effectText: string
   iconUrl?: string | null
+  // Chosen roll for each "(lo–hi)" range in effectText, in order. Unset/null entries fall back to the midpoint.
+  rolledValues?: (number | null)[]
 }
 // An Undetermined Fate installed below a spirit's outer node: grants extra micro/medium fate slots (right-to-left).
 export interface UndeterminedFate {
@@ -1278,11 +1577,29 @@ export interface UndeterminedFate {
 export const FATE_MICRO_LIMIT = 9
 export const FATE_MEDIUM_LIMIT = 4
 
-// Substitute each "(lo–hi)" roll range with its midpoint (the default-roll convention).
-export function fateMidEffect(effectText: string): string {
-  return (effectText || '').replace(/\((\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)\)/g, (_m, a, b) => {
-    const mid = (parseFloat(a) + parseFloat(b)) / 2
-    return String(Number.isInteger(mid) ? mid : Math.round(mid * 100) / 100)
+// The "(lo–hi)" roll-range pattern shared by the fate helpers below.
+const FATE_RANGE_RE = /\((\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)\)/g
+
+// Each "(lo–hi)" roll range in a fate effect, in order, with the decimal precision of its bounds.
+export function fateRanges(effectText: string): { lo: number; hi: number; dp: number }[] {
+  const out: { lo: number; hi: number; dp: number }[] = []
+  const re = new RegExp(FATE_RANGE_RE.source, 'g')
+  let m: RegExpExecArray | null
+  while ((m = re.exec(effectText || ''))) {
+    const dp = Math.max((m[1].split('.')[1] || '').length, (m[2].split('.')[1] || '').length)
+    out.push({ lo: parseFloat(m[1]), hi: parseFloat(m[2]), dp })
+  }
+  return out
+}
+
+// Substitute each "(lo–hi)" roll range with the chosen roll (rolledValues[i], in order) or the MAX (hi)
+// default when that entry is unset/null — fates/kismets default to their best roll.
+export function fateEffectWithValues(effectText: string, rolledValues?: (number | null)[]): string {
+  let i = 0
+  return (effectText || '').replace(FATE_RANGE_RE, (_m, _lo, b) => {
+    const chosen = rolledValues?.[i++]
+    const val = (chosen === null || chosen === undefined) ? parseFloat(b) : chosen
+    return String(Number.isInteger(val) ? val : Math.round(val * 100) / 100)
   })
 }
 
@@ -1306,7 +1623,7 @@ export function buildSpiritEffects(
 
   const emitFate = (f: InstalledFate) => {
     if (f.kind === 'dual_kismet' && (dualCount[f.shortName] || 0) < 2) return  // unpaired → no effect
-    effects.push({ text: fateMidEffect(f.effectText), source: `Fate: ${f.shortName}` })
+    effects.push({ text: fateEffectWithValues(f.effectText, f.rolledValues), source: `Fate: ${f.shortName}` })
   }
 
   selected.forEach((sel, si) => {
@@ -1332,7 +1649,7 @@ export function buildSpiritEffects(
       effects.push({ text: '+6 % Minion Damage', source: 'Pact: Undetermined' })
     } else {
       // Every empty extra slot grants the same generic +6% Damage / +6% Minion Damage regardless of micro/medium
-      // (tier only governs size + what can be socketed, per owner).
+      // (tier only governs size + what can be socketed, per Tyra).
       u.slots.forEach(f => {
         if (f) emitFate(f)
         else {
@@ -1603,6 +1920,12 @@ export interface SkillModeledRoll {
   identity: string
   stat_keys: string[]
   ranges_by_tier: Record<number, { min: number; max: number; mid: number }>
+  unit?: string    // display unit ('%' default, 's' for a seconds roll like the Rhythm interval)
+  scale?: number   // stored↔display scale (100 for %, 1 for seconds); display value = stored × scale
+  label?: string   // short panel name (e.g. "Interval", "Cast→CDR")
+  desc?: string    // fuller phrase for hover (e.g. "% of Cast Speed applied to Cooldown Recovery Speed")
+  group?: string | null   // mutually-exclusive selector group (e.g. 'cdr_or_duration'); null = standalone
+  wired?: boolean  // false = recorded/surfaced but not yet applied to the calc
 }
 
 export interface SkillTooltipSpec {
@@ -1612,6 +1935,7 @@ export interface SkillTooltipSpec {
   available_levels: number[]
   lines: SkillTooltipLine[]
   modeled_rolls?: SkillModeledRoll[]   // bespoke canvas-support roll lines (Howling Gale, Berserking Blade, …)
+  is_activation_medium?: boolean       // AM lines: substitute selected roll values into the bands sequentially
 }
 
 export interface SkillItem {
@@ -1633,6 +1957,10 @@ export interface SkillItem {
   // Whether this skill can contribute to the build's total DPS (dev-set; default derived from skill_type).
   dps_eligible?: boolean
   glossary?: Record<string, { name: string; description: string }>
+  // Build-independent DPS-modeling coverage (engine-computed, additive). Absent on older backends.
+  coverage?: 'full' | 'partial' | 'none'
+  // For 'partial': the intrinsic mechanics/affixes NOT modeled — show in a tooltip.
+  coverage_detail?: string[]
 }
 
 export interface EquippedSupportSkill {
@@ -1644,9 +1972,14 @@ export interface EquippedSupportSkill {
   // Rank (1-5) — Noble/Magnificent supports only. Scales the support's universal
   // "+% additional damage for the supported skill" line (R1 0% → R5 20%).
   rank?: number
-  // Explicit per-line rolls (signed fraction) keyed by the line's affix identity. Overrides the
-  // engine's tier-midpoint default for that line. See utils/supportRolls.ts + utils/affixIdentity.ts.
+  // Explicit per-line rolls (signed fraction, or seconds for a time roll) keyed by the roll identity.
+  // Overrides the engine's tier-midpoint default. See utils/supportRolls.ts + utils/affixIdentity.ts.
   specific_rolls?: Record<string, number>
+  // Per-roll tier (activation mediums drop with independent per-roll tiers, e.g. tier-0 move cap + tier-2
+  // interval). Keyed by roll identity → tier. Absent → the support `level` (clamped to that roll's tiers).
+  specific_roll_tiers?: Record<string, number>
+  // Mutually-exclusive selector choice per group (e.g. {'cdr_or_duration': 'duration_additional'}).
+  roll_group_choice?: Record<string, string>
   skill_tags: string[]
   description_lines: string[]
   // Whether this support contributes. Default true; false drops its contributions from the calc.
@@ -1671,14 +2004,26 @@ export interface EquippedSkill {
 }
 
 const PASSIVE_TAGS = new Set(['Aura', 'Spirit Magus', 'Focus'])
+// Support gems are identified by skill_type (authoritative — every support carries one of these) AND the
+// 'Support' tag. They belong ONLY in support slots, never in active/passive skill slots. NOTE: 19 supports
+// also carry a PASSIVE tag (e.g. "Aura Amplification" [Support, Aura], "Focus Buff" [Support, Focus]) because
+// they buff aura/focus/spirit-magus skills — so passive classification MUST exclude supports first, or they
+// leak into passive slots (bug-226).
+const SUPPORT_SKILL_TYPES = new Set([
+  'support_skill', 'noble_support_skill', 'magnificent_support_skill', 'activation_medium_skill',
+])
+
+export function isSupportSkillItem(s: SkillItem): boolean {
+  return SUPPORT_SKILL_TYPES.has(s.skill_type ?? '') || s.skill_tags.includes('Support')
+}
 
 export function isPassiveSkillItem(s: SkillItem): boolean {
-  return s.skill_tags.some(t => PASSIVE_TAGS.has(t))
+  return !isSupportSkillItem(s) && s.skill_tags.some(t => PASSIVE_TAGS.has(t))
 }
 
 export function isActiveSkillItem(s: SkillItem): boolean {
-  return !isPassiveSkillItem(s) &&
-    !s.skill_tags.includes('Support') &&
+  return !isSupportSkillItem(s) &&
+    !isPassiveSkillItem(s) &&
     !s.description_lines[0]?.startsWith('Supports') &&
     !s.name.includes(':')
 }
@@ -1703,27 +2048,111 @@ export function traitGrantsSkillSlot(traitId: string | null, picks: string[]): b
 
 const TAG_ALIASES: Record<string, string> = {
   'Slash Strike': 'Slash-Strike',
+  // Extended Duration's own gate prose reads "Supports Duration Skills." but no skill in any season
+  // carries a literal "Duration" tag — the real tag family is "Persistent" (Extended Duration's own
+  // skill_tags are ["Persistent","Support"]; e.g. Aegis of Fire is tagged "Persistent"). Without this
+  // alias, parseRequiredTags("Duration") falls through to the unmatched-word branch and checkTag()
+  // always fails closed, so Extended Duration was gated off every skill in the game. Verified by scanning
+  // every "Supports X Skills." gate phrase in both SS12/_skills.json and SS13/_skills.json against the
+  // real skill_tags vocabulary — Duration is the ONLY unmatched case; every other generic gate phrase
+  // already resolves against a real tag.
+  'Duration': 'Persistent',
+}
+
+// TAG_ALIASES is a small, static table — sort it once at module scope instead of re-sorting on every
+// parseRequiredTags call. Paired with its lowercased form so the per-candidate compare in the hot loop
+// below is a plain string op, not a fresh .toLowerCase() allocation per candidate.
+const SORTED_ALIASES: [aliasLower: string, alias: string][] =
+  Object.keys(TAG_ALIASES)
+    .sort((a, b) => b.length - a.length)
+    .map(alias => [alias.toLowerCase(), alias])
+
+// Pseudo-tags recognized by checkTag() (active/passive slot) but never present in an item's own
+// skill_tags array, so they can't be sourced from the catalog like real tags.
+const PSEUDO_TAGS = ['Active', 'Passive']
+
+// Real tag vocabulary, sourced from the loaded skill catalog (see registerSkillTagVocabulary below).
+// Sorted longest-first (by word count, then char length) so greedy matching in parseRequiredTags
+// consumes a multi-word tag like "Shadow Strike" as one unit before "Shadow" alone could ever match.
+// Stored as [lowercased, display] pairs — matching compares the pre-lowered form directly (this runs
+// per catalog row per keystroke via SkillsScreen's support search), and the display form is what
+// actually gets pushed/compared downstream in checkTag().
+let knownSkillTagsSorted: [tagLower: string, tag: string][] = PSEUDO_TAGS.map(t => [t.toLowerCase(), t])
+
+/**
+ * Populates the tag vocabulary parseRequiredTags matches gate phrases against. Called once the skill
+ * catalog loads (referenceStore.loadReferenceData), so by the time a screen renders the support picker
+ * (which itself requires the catalog to be loaded) the vocabulary reflects the current season's real
+ * skill_tags — including multi-word families like "Shadow Strike" / "Spirit Magus" / "Synthetic Troop"
+ * that a naive whitespace split would otherwise shred into non-matching single-word tags.
+ */
+export function registerSkillTagVocabulary(skills: SkillItem[]): void {
+  const tags = new Set<string>(PSEUDO_TAGS)
+  for (const s of skills) s.skill_tags?.forEach(t => tags.add(t))
+  knownSkillTagsSorted = [...tags]
+    .sort((a, b) => {
+      const wordDelta = b.split(/\s+/).length - a.split(/\s+/).length
+      return wordDelta !== 0 ? wordDelta : b.length - a.length
+    })
+    .map(tag => [tag.toLowerCase(), tag])
+}
+
+// Case-insensitive prefix match that only fires on a real word boundary — so "Attack" never matches
+// as a prefix of some hypothetical "Attacker" tag, and matching stays anchored to whole words. Takes
+// the ALREADY-lowered remaining string (computed once per outer while-iteration by the caller, not
+// once per candidate) and an already-lowered candidate.
+function startsWithWord(remainingLower: string, candidateLower: string): boolean {
+  if (!remainingLower.startsWith(candidateLower)) return false
+  const next = remainingLower[candidateLower.length]
+  return next === undefined || /\s/.test(next)
 }
 
 function parseRequiredTags(phrase: string): string[] {
-  let remaining = phrase
+  let remaining = phrase.trim()
   const tags: string[] = []
-  const sortedAliases = Object.keys(TAG_ALIASES).sort((a, b) => b.length - a.length)
   while (remaining.length > 0) {
+    // Lowered once per remaining-position, not once per candidate — the inner loops below check this
+    // same position against every alias/vocab entry.
+    const remainingLower = remaining.toLowerCase()
     let matched = false
-    for (const alias of sortedAliases) {
-      if (remaining.toLowerCase().startsWith(alias.toLowerCase())) {
+
+    // Genuine spelling renames first: phrase wording differs from the tag's own spelling
+    // (e.g. "Slash Strike" in support text vs. the "Slash-Strike" tag). Kept narrow and explicit —
+    // this is NOT the path for ordinary multi-word tags, which are matched via the real vocabulary
+    // below since their phrase wording already matches the tag spelling verbatim.
+    for (const [aliasLower, alias] of SORTED_ALIASES) {
+      if (startsWithWord(remainingLower, aliasLower)) {
         tags.push(TAG_ALIASES[alias])
         remaining = remaining.slice(alias.length).trim()
         matched = true
         break
       }
     }
-    if (!matched) {
-      const m = remaining.match(/^(\S+)\s*(.*)$/)
-      if (m) { tags.push(m[1]); remaining = m[2] }
-      else break
+    if (matched) continue
+
+    // Real tags from the loaded catalog (longest / most-words first), so a family like
+    // "Shadow Strike" or "Spirit Magus" is consumed whole instead of being split into two
+    // single-word tags that don't exist on their own and can never match.
+    for (const [tagLower, tag] of knownSkillTagsSorted) {
+      if (startsWithWord(remainingLower, tagLower)) {
+        tags.push(tag)
+        remaining = remaining.slice(tag.length).trim()
+        matched = true
+        break
+      }
     }
+    if (matched) continue
+
+    // Nothing recognized: fall back to consuming one literal word, same as the old naive splitter.
+    // checkTag() will find no real tag equal to it, so this fails CLOSED — the support stays hidden
+    // rather than being guessed compatible. That's the deliberately safer default here: it only
+    // fires when a gate phrase's wording doesn't resolve against the currently-loaded catalog (e.g.
+    // vocabulary not yet populated, or a future tag rename the client hasn't caught up to), and a
+    // wrongly-hidden support is a much smaller failure than wrongly exposing an incompatible one
+    // (which could silently attach a support that does nothing / corrupts the DPS calc).
+    const m = remaining.match(/^(\S+)\s*(.*)$/)
+    if (m) { tags.push(m[1]); remaining = m[2] }
+    else break
   }
   return tags
 }
@@ -1804,7 +2233,16 @@ export function isSupportCompatible(
   return alternatives.some(alt => {
     const andGroups = alt.split(/\s+and\s+/i)
     return andGroups.every(group => {
-      const phrase = group.replace(/\s+skills?\s*$/i, '').trim()
+      const trimmedGroup = group.trim()
+      // A "skills that …" predicate embedded as one operand of an AND/OR chain (e.g. "Persistent Skills
+      // and skills that can inflict Ailment", "Spell Skills or skills that can activate Spell Burst").
+      // Same damage/summon heuristic as the whole-raw check above (line ~2146), just applied per
+      // sub-clause so it composes with the connector instead of only firing when the ENTIRE gate is a
+      // bare predicate. (The whole-raw check still runs first and takes priority — it's what keeps a
+      // predicate with its OWN internal "or", like "skills that deal Damage Over Time or inflict
+      // Ailments", from being wrongly cut in half by the split above.)
+      if (/^skills?\s+that\b/i.test(trimmedGroup)) return skillDealsDamage(parentSkill)
+      const phrase = trimmedGroup.replace(/\s+skills?\s*$/i, '').trim()
       const required = parseRequiredTags(phrase)
       return required.every(tag => checkTag(tag, parentSkill.skill_tags, isPassiveSlot))
     })
@@ -1923,6 +2361,13 @@ export interface LegendaryAffix {
 
   // resolved by backend: structured engine expression if condition text was mapped
   condition_expr?: Record<string, unknown> | string | null
+
+  // Build-independent stat-key resolution (engine-computed via the same resolver `coverage.py` uses;
+  // empty array = the engine recognizes no stat for this text at all). Present on the gear catalog
+  // endpoints (legendary item detail) so a CATALOG hover — no build/equip context — can still classify
+  // a stat-bearing affix instead of rendering no badge. Absent on older backends → fail open (no badge),
+  // same as any other optional resolved field here.
+  resolved_keys?: string[]
 }
 
 export interface LegendaryGearVariant {
@@ -1940,6 +2385,10 @@ export interface LegendaryGearIndexItem {
   name: string
   required_level: number
   base_type: string
+  // Build-independent DPS-modeling coverage (engine-computed, additive). Absent on older backends.
+  coverage?: 'full' | 'partial' | 'none'
+  // For 'partial': the affixes/mechanics NOT modeled — show in a tooltip.
+  coverage_detail?: string[]
 }
 
 export interface LegendaryGearItem {
@@ -2042,6 +2491,9 @@ export interface GearEngineItem {
   // Item-level name for attributing unresolved_texts (e.g. a dual-wield weapon's name). Per-contribution
   // item_name covers typed contributions; this covers the unresolved-text channel.
   item_name?: string
+  // Item-level slot for attributing unresolved_texts to a real slot ("Off-Hand"/"Ring 1") in the breakdown
+  // Source column, instead of a generic "Item". Per-contribution slot covers typed contributions.
+  slot?: string | null
 }
 
 export interface SeasonDiffNode {
@@ -2097,20 +2549,21 @@ export const api = {
   getTree: (name: string) => get<TreeData>(`/tree/${encodeURIComponent(name)}`),
 
   getBuilds: () => get<Build[]>('/builds'),
-  postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[]; slates?: SavedSlate[]; conditionState?: Record<string, number | boolean> }) =>
+  postBuild: (build: { id?: string; name: string; slots: (TreeSlot | null)[]; slates?: SavedSlate[]; conditionState?: Record<string, number | boolean | string> }) =>
     post<Build>('/builds', build),
   deleteBuild: (id: string) => del<{ ok: boolean }>(`/builds/${id}`),
+
+  getBuildFolders: () => get<FolderManifest>('/builds/folders'),
+  putBuildFolders: (manifest: FolderManifest) => put<FolderManifest>('/builds/folders', manifest),
 
   encodeBuildCode: (build: object) =>
     post<{ code: string }>('/build-code/encode', { build }),
   decodeBuildCode: (code: string) =>
     post<{ build: Record<string, unknown> }>('/build-code/decode', { code }),
 
-  // Share service — store/fetch a build code by short id (public host).
-  shareBuildCode: (code: string) =>
-    postToShareService<{ id: string; url: string }>('/b', { code }),
-  fetchSharedBuildCode: (id: string) =>
-    getFromShareService(`/b/${id}`),
+  // Share service — store/fetch a build code by short id (public host). Defined in ./share.
+  shareBuildCode,
+  fetchSharedBuildCode,
 
   // Tree editing (debug tools)
   upsertNode: (tree: string, node: NodeEditData) =>
@@ -2123,26 +2576,6 @@ export const api = {
   getModifierPool: () => get<ModPoolEntry[]>('/modifier-pool'),
 
   // Dev tools
-  parseTalentDoc: async (file: File): Promise<TalentSnapshot> => {
-    if (ipcMode) {
-      rlog('parseTalentDoc (IPC) — reading file bytes')
-      const bytes = new Uint8Array(await file.arrayBuffer())
-      const result = await window.api!.apiFormUpload('/dev/parse-talent-doc', bytes, file.name) as { ok: boolean; status: number; data: TalentSnapshot }
-      if (!result.ok) return Promise.reject(result.data ?? 'Upload failed')
-      return result.data
-    }
-    const form = new FormData()
-    form.append('file', file)
-    const r = await fetch(`${BASE}/dev/parse-talent-doc`, { method: 'POST', body: form })
-    if (!r.ok) return Promise.reject((await r.json()).detail ?? r.statusText)
-    return r.json()
-  },
-  diffSnapshots: (a: TalentSnapshot, b: TalentSnapshot): Promise<TalentDiff> =>
-    post<TalentDiff>('/dev/diff-snapshots', { snapshot_a: a, snapshot_b: b }),
-
-  saveCanonicalSnapshot: (snapshot: TalentSnapshot): Promise<{ ok: boolean; source_file: string; generated_at: string }> =>
-    post<{ ok: boolean; source_file: string; generated_at: string }>('/dev/save-snapshot', { snapshot }),
-  getSnapshotStatus: () => get<SnapshotStatus>('/dev/snapshot-status'),
   rebuildNodeTypeFilter: () => post<RebuildFilterResult>('/dev/rebuild-node-type-filter', {}),
   exportStatMeta: () => post<{ ok: boolean; stat_count: number; path: string }>('/dev/export-stat-meta', {}),
   exportUnmatched: () => post<{ ok: boolean; total: number; unique: number; path: string }>('/dev/export-unmatched', {}),
@@ -2151,10 +2584,6 @@ export const api = {
   deleteNodeTypeFilterOverride: (key: string) => del<{ ok: boolean }>(`/dev/node-type-filter/overrides/${encodeURIComponent(key)}`),
   getStatRecipes: (treeName: string, nodeType: string) =>
     get<StatRecipe[]>(`/dev/stat-recipes/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeType)}`),
-  getSnapshotModifiers: (treeName: string, nodeType: string) =>
-    get<SnapshotModifier[]>(`/dev/snapshot-modifiers/${encodeURIComponent(treeName)}/${encodeURIComponent(nodeType)}`),
-
-  clearSnapshot: () => del<{ ok: boolean }>('/dev/snapshot'),
   clearNodeTypeFilter: () => del<{ ok: boolean }>('/dev/node-type-filter'),
 
   // Seasons
@@ -2223,6 +2652,10 @@ export const api = {
   getCraftBaseTypes: () => get<{ season: string | null; base_types: CraftBaseType[] }>('/craft-base-types'),
   resolveGearAffixes: (texts: string[]) =>
     post<{ results: Record<string, ResolvedAffixFields> }>('/resolve-gear-affixes', { texts }),
+  // Parse-only custom-mod validation (resolved + stat display), no full stats compute — for the editor's live
+  // green/red while typing, so it doesn't wait on the debounced engine pass.
+  validateCustomMods: (texts: string[]) =>
+    post<{ statuses: CustomModStatus[] }>('/validate-custom-mods', { texts }),
   getCraftBaseItems: () => get<{ season: string | null; base_types: CraftBaseItemGroup[] }>('/craft-base-items'),
   clearCraftBaseTypes: () => del<{ ok: boolean }>('/dev/craft-base-types'),
 
@@ -2296,7 +2729,7 @@ export const api = {
   engineStats: (payload: {
     slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
     slates?: SavedSlate[]
-    condition_state?: Record<string, number | boolean>
+    condition_state?: Record<string, number | boolean | string>
     gear?: GearEngineItem[]
     character?: CharacterStatContribution[]
     memory_effects?: EffectInput[]
@@ -2321,6 +2754,11 @@ export const api = {
     post<ModifierMapResponse>('/map-modifiers', { items }),
 
   getConditions: () => get<Record<string, ConditionDef[]>>('/conditions'),
+
+  getVerificationDatabase: () => get<VerificationDbResponse>('/verification-db'),
+
+  getGlossary: () => get<GlossaryResponse>('/glossary'),
+  getHelpDb: () => get<HelpDbResponse>('/help-db'),
 
   // ── Dev: condition manager ─────────────────────────────────────────────────
   devGetStatKeys: () =>
@@ -2347,16 +2785,4 @@ export const api = {
     post<{ ok: boolean }>('/dev/conditions/overrides', { condition_text: conditionText, expression }),
   devDeleteConditionOverride: (conditionText: string) =>
     del<{ ok: boolean }>('/dev/conditions/overrides', { condition_text: conditionText, expression: null }),
-
-  validateAllocate: (
-    tree_name: string,
-    node_states: Record<string, number>,
-    node_id: string,
-    action: 'allocate' | 'deallocate',
-    prereq_satisfied: string[] = [],
-    max_overrides: Record<string, number> = {},
-    extra_column_points: Record<number, number> = {}
-  ) => post<{ allowed: boolean; reason?: string; node_states: Record<string, number> }>('/validate-allocate', {
-    tree_name, node_states, node_id, action, prereq_satisfied, max_overrides, extra_column_points,
-  }),
 }

@@ -1,16 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { FloatingPortal } from '@floating-ui/react'
 import { HeroTrait, HeroAdvancedTrait, HeroMemoryAffix, CreatedHeroMemory, MemoryRarity, MemorySlotSelection, MEMORY_RARITY_COLORS, iconUrl,
   SkillItem, EquippedSupportSkill, isSupportCompatible, traitGrantsSkillSlot, TRAIT_SKILL_PARENT } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
+import { useUiPrefs } from '../store/uiPrefsStore'
 import { characterLevelFrom } from '../utils/conditions'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
-import { useDamageDelta } from '../components/tooltip/useDamageDelta'
-import { TooltipContributions } from '../components/tooltip/TooltipContributions'
-import { ModifierBadge, useTextModifierStatuses, useTextModifierStatus } from '../components/ModifierBadge'
+import { ModifierBadge, useTextModifierStatus } from '../components/ModifierBadge'
+import { CoverageBadge } from '../components/CoverageBadge'
+import { coverageRank, passesModeledOnly } from '../utils/coverage'
 import { dec } from '../utils/num'
 import { traitSlang, traitOrder } from '../utils/heroTraitOrder'
+import EditableRollValue from '../components/EditableRollValue'
+import { TraitTooltipBody, MemorySlotCircle, resolveMemoryEffect, MEMORY_TYPE_LABELS, RARITY_LABELS } from '../components/HeroTraitShared'
+import HeroTraitTree from './HeroTraitTree'
 
 interface Props {
   onBack: () => void
@@ -46,29 +50,24 @@ const MEMORY_TYPES: Record<number, CreatedHeroMemory['memoryType']> = {
   1: 'discipline',
   2: 'progress',
 }
-const MEMORY_TYPE_LABELS: Record<CreatedHeroMemory['memoryType'], string> = {
-  origin: 'Origin',
-  discipline: 'Discipline',
-  progress: 'Progress',
-}
+// MEMORY_TYPE_LABELS and RARITY_LABELS live in components/HeroTraitShared.tsx (also used by
+// MemorySlotCircle there); RARITY_ORDER is only needed for the rarity <select> below.
 const RARITY_ORDER: MemoryRarity[] = ['normal', 'magic', 'rare', 'epic', 'ultimate']
-const RARITY_LABELS: Record<MemoryRarity, string> = {
-  normal: 'Normal', magic: 'Magic', rare: 'Rare', epic: 'Epic', ultimate: 'Ultimate',
-}
 
 // ── Affix / tier helper functions ─────────────────────────────────────────────
 
 function getAffixName(modifier: string): string {
-  // Strip leading optional + and numeric prefix (integer, decimal, or range notation)
-  let name = modifier
-    .replace(/^\+?(?:\d+(?:\.\d+)?|\([^)]+\))\s*%?\s*/, '')
+  // Group all tiers of a modifier under one name (this is the grouping key + dropdown label, NOT the resolved
+  // value). Strip the leading value AND any EMBEDDED values — combo mods carry a second value that scales
+  // across tiers (e.g. "+14% Attack and Cast Speed +14% Minion Attack and Cast Speed"), which would otherwise
+  // fragment each tier into its own "modifier". Embedded fixed values require a leading '+' so incidental
+  // numbers (e.g. "within 8m") aren't stripped.
+  const name = modifier
+    .replace(/^\+?(?:\d+(?:\.\d+)?|\([^)]+\))\s*%?\s*/, '')                 // leading value
+    .replace(/\+?\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)\s*%?\s*/g, '')          // embedded ranges
+    .replace(/\+\d+(?:\.\d+)?\s*%?\s*/g, '')                                // embedded fixed "+N%" values
+    .replace(/\s+/g, ' ')
     .trim()
-  // If nothing was stripped (modifier starts with text), normalize any embedded ranges
-  // to a stable placeholder so all tiers of the same affix group correctly
-  if (name === modifier.trim()) {
-    name = modifier.replace(/\+?\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, '#').trim()
-  }
-  // Capitalize first letter to fix lowercase data entries
   return name ? name[0].toUpperCase() + name.slice(1) : name
 }
 
@@ -159,22 +158,7 @@ function tierValueToPos(ranges: TierRangeInfo[], tier: number, rolledValue: numb
   return r.startPos + Math.min(Math.max(v - r.min, 0), r.max - r.min)
 }
 
-function resolveMemoryEffect(sel: MemorySlotSelection): string {
-  // Ensure leading + for modifiers that start with a digit (handles legacy stored data)
-  const mod = /^\d/.test(sel.modifier) ? '+' + sel.modifier : sel.modifier
-  if (sel.rolledValue === null) return mod
-  const val = Number.isInteger(sel.rolledValue) ? String(sel.rolledValue) : dec(sel.rolledValue)
-  return mod.replace(/\(\d+(?:\.\d+)?[–\-]\d+(?:\.\d+)?\)/g, val)
-}
-
-function getMemoryAffixLines(memory: CreatedHeroMemory): { text: string; tier: number }[] {
-  const out: { text: string; tier: number }[] = []
-  const add = (sel: MemorySlotSelection | null) => { if (sel) out.push({ text: resolveMemoryEffect(sel), tier: sel.tier ?? 0 }) }
-  add(memory.baseStat)
-  for (const fa of memory.fixedAffixes) add(fa)
-  for (const ra of memory.randomAffixes) add(ra)
-  return out
-}
+// resolveMemoryEffect (used by AffixRow below) lives in components/HeroTraitShared.tsx.
 
 // ── Shared trait helpers ──────────────────────────────────────────────────────
 
@@ -194,16 +178,25 @@ function HeroTraitSelect({ traits, value, onChange }: {
   traits: HeroTrait[]; value: string | null; onChange: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const modeledOnly = useUiPrefs(s => s.modeledOnly)
+  const toggleModeledOnly = useUiPrefs(s => s.toggleModeledOnly)
+  const heroTraitSort = useUiPrefs(s => s.heroTraitSort)
+  const setHeroTraitSort = useUiPrefs(s => s.setHeroTraitSort)
   const groups = useMemo(() => {
-    const by = groupByHero(traits)
+    // Never hide the CURRENTLY SELECTED trait behind the "Modeled only" filter — it's already
+    // equipped, so hiding it from the list would just make the dropdown confusing.
+    const visible = traits.filter(t => t.trait_id === value || passesModeledOnly(t.coverage, modeledOnly))
+    const by = groupByHero(visible)
     return Object.entries(by)
       .map(([hero, variants]) => ({
         hero,
-        variants: [...variants].sort((a, b) => traitOrder(a.trait_id) - traitOrder(b.trait_id)),
+        variants: [...variants].sort((a, b) => heroTraitSort === 'coverage'
+          ? (coverageRank(a.coverage) - coverageRank(b.coverage) || traitOrder(a.trait_id) - traitOrder(b.trait_id))
+          : traitOrder(a.trait_id) - traitOrder(b.trait_id)),
         order: Math.min(...variants.map(v => traitOrder(v.trait_id))),
       }))
       .sort((a, b) => a.order - b.order)
-  }, [traits])
+  }, [traits, modeledOnly, heroTraitSort, value])
   const current = traits.find(t => t.trait_id === value) ?? null
   return (
     <div className="ht-dd">
@@ -212,12 +205,26 @@ function HeroTraitSelect({ traits, value, onChange }: {
         {current && traitSlang(current.trait_id) && (
           <span className="ht-dd-slang">{traitSlang(current.trait_id)}</span>
         )}
+        <CoverageBadge coverage={current?.coverage} detail={current?.coverage_detail} />
         <span className="ht-dd-caret">{open ? '▴' : '▾'}</span>
       </button>
       {open && (
         <>
           <div className="ht-dd-backdrop" onClick={() => setOpen(false)} />
           <div className="ht-dd-menu">
+            <div className="ht-dd-controls">
+              <select
+                className="ht-dd-sort-select"
+                value={heroTraitSort}
+                onChange={e => setHeroTraitSort(e.target.value as 'release' | 'coverage')}
+              >
+                <option value="release">Release order</option>
+                <option value="coverage">Coverage</option>
+              </select>
+              <label className="skill-modeled-only-label" title="Hide traits the engine doesn't model at all">
+                <input type="checkbox" checked={modeledOnly} onChange={toggleModeledOnly} /> Modeled only
+              </label>
+            </div>
             {groups.map(g => (
               <div key={g.hero} className="ht-dd-group">
                 <div className="ht-dd-group-label">{g.hero}</div>
@@ -227,6 +234,7 @@ function HeroTraitSelect({ traits, value, onChange }: {
                     onClick={() => { onChange(v.trait_id); setOpen(false) }}>
                     <span className="ht-dd-item-name">{v.variant_name}</span>
                     {traitSlang(v.trait_id) && <span className="ht-dd-slang">{traitSlang(v.trait_id)}</span>}
+                    <CoverageBadge coverage={v.coverage} detail={v.coverage_detail} />
                   </button>
                 ))}
               </div>
@@ -238,41 +246,11 @@ function HeroTraitSelect({ traits, value, onChange }: {
   )
 }
 
-function resolveLevel(text: string, level: number): string {
-  return text.replace(/\(([^)]+)\)/g, (_, inner) => {
-    if (!inner.includes('/')) return `(${inner})`
-    const parts = inner.split('/').map((p: string) => p.trim())
-    return parts[Math.min(level - 1, parts.length - 1)]
-  })
-}
+// resolveLevel and TraitTooltipBody (the `/`-separated Trait-Level 1–5 scaling text resolver and
+// the tooltip content shared with HeroTraitTree.tsx and PlayerStatsScreen.tsx) live in
+// components/HeroTraitShared.tsx.
 
 // ── Tooltip content + trigger components (shared floating primitive) ───────────
-
-export function TraitTooltipBody({ name, slotLevel, effects, moonEffects }: {
-  name: string; slotLevel: number; effects: string[]; moonEffects?: string[]
-}) {
-  return (
-    <>
-      <div className="trait-info-name">{name}</div>
-      <div className="trait-info-level-current">Level {slotLevel}</div>
-      <ul className="trait-info-effects">
-        {effects.map((line, i) =>
-          /^Level \d+$/.test(line)
-            ? <li key={i} className="trait-info-level-header">{line}</li>
-            : <li key={i}>{resolveLevel(line, slotLevel)}</li>
-        )}
-      </ul>
-      {moonEffects && moonEffects.length > 0 && (
-        <>
-          <div className="trait-info-level-header" style={{ color: '#7070cc', marginTop: 8 }}>Artificial Moon</div>
-          <ul className="trait-info-effects">
-            {moonEffects.map((line, i) => <li key={i}>{line}</li>)}
-          </ul>
-        </>
-      )}
-    </>
-  )
-}
 
 // A trait circle (base or advanced) + its hover info tooltip. Hover-only — the tooltip shows
 // only while the icon itself is hovered (non-interactive, so moving onto the card dismisses
@@ -393,60 +371,45 @@ function PickGroup({ nodes, slotLevel, locked, tierDisabled, selectedNames, onSe
   )
 }
 
-// A memory slot circle + its hover info tooltip (only when a memory is socketed).
-function MemorySlotCircle({ memory, rarityColor, slot, onOpen }: {
-  memory: CreatedHeroMemory | null; rarityColor?: string; slot: number; onOpen: () => void
+// MemorySlotCircle (the memory-slot circle + its hover tooltip, shared with HeroTraitTree.tsx's
+// origin/discipline/progress rail) lives in components/HeroTraitShared.tsx.
+
+// A searchable combobox for the memory affix rows (matches the searchable-dropdown pattern used elsewhere).
+function SearchableAffixSelect({ value, options, onChange }: {
+  value: string; options: string[]; onChange: (v: string) => void
 }) {
-  const tip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
-  const lines = memory ? getMemoryAffixLines(memory) : []
-  const lineStatuses = useTextModifierStatuses(lines.map(l => ({ text: l.text, source: 'memory' as const })))
-  // Contribution of this socketed memory: remove it and diff vs the current build.
-  const delta = useDamageDelta(
-    tip.open && memory
-      ? { key: `mem:rm:${slot}`, step: s => ({ ...s, heroMemories: s.heroMemories.map((m, i) => i === slot ? null : m) as typeof s.heroMemories }) }
-      : null,
-    tip.open && !!memory,
-  )
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+  const q = query.trim().toLowerCase()
+  const filtered = q ? options.filter(o => o.toLowerCase().includes(q)) : options
   return (
-    <>
-      <div
-        {...(memory ? tip.triggerProps : {})}
-        className={`memory-slot-circle${memory ? ' filled' : ''}`}
-        style={memory ? { borderColor: rarityColor, boxShadow: `0 0 10px ${rarityColor}44` } : undefined}
-        onClick={e => { e.stopPropagation(); onOpen() }}
-      >
-        {memory
-          ? <span style={{ color: rarityColor, fontSize: 26, lineHeight: 1 }}>◈</span>
-          : <span className="memory-slot-plus">+</span>}
+    <div className="memory-affix-combo" ref={ref}>
+      <div className={`memory-affix-combo-trigger${open ? ' open' : ''}`} onClick={() => { setQuery(''); setOpen(o => !o) }}>
+        <span className={value ? '' : 'memory-affix-combo-placeholder'}>{value || '— None —'}</span>
+        <span className="memory-affix-combo-caret">▾</span>
       </div>
-      {memory && tip.open && (
-        <FloatingPortal>
-          <div className="memory-info-card" {...tip.floatingProps}>
-            <div className="memory-info-title" style={{ color: rarityColor }}>
-              Memory of {MEMORY_TYPE_LABELS[memory.memoryType]}
-            </div>
-            <div className="memory-info-rarity" style={{ color: rarityColor }}>
-              {RARITY_LABELS[memory.rarity]}
-            </div>
-            {lines.length > 0 ? (
-              <ul className="memory-info-lines">
-                {lines.map((line, i) => (
-                  <li key={i}>
-                    {line.text}
-                    {line.tier > 0 && <span style={{ fontSize: 10, color: '#888' }}> (T{line.tier})</span>}
-                    <ModifierBadge status={lineStatuses[i]} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="memory-info-empty">No affixes configured</div>
-            )}
-            <div className="memory-info-hint">Click to edit</div>
-            <TooltipContributions delta={delta} />
+      {open && (
+        <div className="memory-affix-combo-menu">
+          <input autoFocus className="memory-affix-combo-search" placeholder="Search…" value={query}
+            onChange={e => setQuery(e.target.value)} />
+          <div className="memory-affix-combo-list dark-scroll">
+            <div className="memory-affix-combo-opt" onClick={() => { onChange(''); setOpen(false) }}>— None —</div>
+            {filtered.map(o => (
+              <div key={o} className={`memory-affix-combo-opt${o === value ? ' selected' : ''}`}
+                onClick={() => { onChange(o); setOpen(false) }}>{o}</div>
+            ))}
+            {filtered.length === 0 && <div className="memory-affix-combo-empty">No matches</div>}
           </div>
-        </FloatingPortal>
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -493,19 +456,28 @@ function AffixRow({ label, pool, source, current, excludeNames, onChange }: {
     onChange({ modifier, tier, rolledValue: hasRange(modifier) ? value : null })
   }
 
+  // Click-to-edit an exact roll: pick the tier whose value range holds V (prefer the higher tier on overlap),
+  // then set that tier + value. Mirrors the gear editors' tier-match (hero memories have no Desecration).
+  const commitValue = (v: number) => {
+    if (tierRanges.length === 0) return
+    const containing = tierRanges.filter(r => v >= r.min - 1e-6 && v <= r.max + 1e-6)
+    const target = containing.length
+      ? containing.reduce((a, b) => (b.max >= a.max ? b : a))                     // higher tier on overlap
+      : tierRanges.reduce((a, b) => (Math.abs(b.max - v) < Math.abs(a.max - v) ? b : a))  // nearest
+    const clamped = Math.min(target.max, Math.max(target.min, v))
+    onChange({ modifier: target.modifier, tier: target.tier, rolledValue: hasRange(target.modifier) ? clamped : null })
+  }
+  const editDp = Math.max(0, ...tierRanges.flatMap(r => [r.min, r.max].map(n => (String(n).split('.')[1] || '').length)))
+  const editRange: [number, number] = tierRanges.length
+    ? [Math.min(...tierRanges.map(r => r.min)), Math.max(...tierRanges.map(r => r.max))]
+    : [0, 0]
+
   return (
     <>
       <div className="memory-affix-row" {...(resolvedText ? tip.triggerProps : {})}>
         <span className="memory-affix-label">{label}<ModifierBadge status={modStatus} /></span>
         <div className="memory-affix-controls">
-          <select
-            className="memory-affix-select"
-            value={selectedName}
-            onChange={e => handleNameChange(e.target.value)}
-          >
-            <option value="">— None —</option>
-            {names.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+          <SearchableAffixSelect value={selectedName} options={names} onChange={handleNameChange} />
 
           {selectedName && tierRanges.length > 0 && currentTierInfo && (
             <div className="memory-tier-slider-wrapper">
@@ -522,9 +494,14 @@ function AffixRow({ label, pool, source, current, excludeNames, onChange }: {
                     onChange={e => handleSliderChange(parseInt(e.target.value))}
                   />
                 )}
-                <span className="memory-affix-slider-val">
-                  {Number.isInteger(currentTierInfo.value) ? currentTierInfo.value : dec(currentTierInfo.value)}
-                </span>
+                {sliderMax > 0
+                  ? <EditableRollValue
+                      value={currentTierInfo.value} dp={editDp} range={editRange}
+                      onCommit={commitValue}
+                    />
+                  : <span className="memory-affix-slider-val">
+                      {Number.isInteger(currentTierInfo.value) ? currentTierInfo.value : dec(currentTierInfo.value)}
+                    </span>}
               </div>
             </div>
           )}
@@ -631,6 +608,8 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   const traitId = useBuildStore(s => s.traitId)
   const traitSlotLevels = useBuildStore(s => s.traitSlotLevels)
   const advancedTraitSelections = useBuildStore(s => s.advancedTraitSelections)
+  const traitTreeAllocations = useBuildStore(s => s.traitTreeAllocations)
+  const setTraitTreeAllocations = useBuildStore(s => s.setTraitTreeAllocations)
   // Trait-tier unlocks use the `level` condition (default 90) — the single character-level source.
   const characterLevel = characterLevelFrom(useBuildStore(s => s.conditionState))
   const heroMemories = useBuildStore(s => s.heroMemories)
@@ -638,6 +617,14 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   const setHeroMemories = useBuildStore(s => s.setHeroMemories)
   const traitSkillSupports = useBuildStore(s => s.traitSkillSupports)
   const setTraitSkillSupports = useBuildStore(s => s.setTraitSkillSupports)
+  // Licorice Note (Sage) — the Empower/Curse the trait "prepares" (Pungent cross-apply target).
+  const skills = useBuildStore(s => s.skills)
+  const licoricePreparedSkill = useBuildStore(s => s.licoricePreparedSkill)
+  const setLicoricePreparedSkill = useBuildStore(s => s.setLicoricePreparedSkill)
+  const elixirIngredients = useBuildStore(s => s.elixirIngredients)
+  const setElixirIngredients = useBuildStore(s => s.setElixirIngredients)
+  const traitWarnings = (useBuildStore(s => (s.computedStats as { warnings?: { kind: string; text: string }[] | null }).warnings) ?? [])
+    .filter(w => w.kind === 'trait')
   const allSkills = useReferenceStore(s => s.skills) ?? []
   const allTraits = useReferenceStore(s => s.heroTraits) ?? []
   const memoryData = useReferenceStore(s => s.heroMemories)
@@ -798,26 +785,28 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
           {(() => {
             // A memory can't carry the same modifier twice — build each row's exclude set from the
             // affix names chosen in the OTHER rows (fixed/random pools share affixes like Minion Crit Dmg).
-            const all = [draft.baseStat, draft.fixedAffixes[0], draft.fixedAffixes[1], draft.randomAffixes[0], draft.randomAffixes[1]]
-            const excludeFor = (self: MemorySlotSelection | null) => new Set(
-              all.filter(s => s !== self).map(s => s ? getAffixName(s.modifier) : null).filter((n): n is string => !!n)
+            // Lockouts are PER slot-type pool — base / fixed / random each have their own pool, so a modifier
+            // chosen in a Fixed slot must NOT block the same modifier in a Random slot. Only prevent repeats
+            // within the same group (the two Fixed slots share a pool; the two Random slots share a pool).
+            const excludeIn = (group: (MemorySlotSelection | null)[], self: MemorySlotSelection | null) => new Set(
+              group.filter(s => s !== self).map(s => s ? getAffixName(s.modifier) : null).filter((n): n is string => !!n)
             )
             return (
               <>
                 <AffixRow label="Base Stat" pool={memoryData.base_stats} source={MEMORY_SOURCES[creatorSlot]}
-                  current={draft.baseStat} excludeNames={excludeFor(draft.baseStat)}
+                  current={draft.baseStat} excludeNames={excludeIn([draft.baseStat], draft.baseStat)}
                   onChange={sel => setDraft({ ...draft, baseStat: sel })} />
                 <AffixRow label="Fixed 1" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
-                  current={draft.fixedAffixes[0]} excludeNames={excludeFor(draft.fixedAffixes[0])}
+                  current={draft.fixedAffixes[0]} excludeNames={excludeIn(draft.fixedAffixes, draft.fixedAffixes[0])}
                   onChange={sel => setDraft({ ...draft, fixedAffixes: [sel, draft.fixedAffixes[1]] })} />
                 <AffixRow label="Fixed 2" pool={memoryData.fixed_affixes} source={MEMORY_SOURCES[creatorSlot]}
-                  current={draft.fixedAffixes[1]} excludeNames={excludeFor(draft.fixedAffixes[1])}
+                  current={draft.fixedAffixes[1]} excludeNames={excludeIn(draft.fixedAffixes, draft.fixedAffixes[1])}
                   onChange={sel => setDraft({ ...draft, fixedAffixes: [draft.fixedAffixes[0], sel] })} />
                 <AffixRow label="Random 1" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
-                  current={draft.randomAffixes[0]} excludeNames={excludeFor(draft.randomAffixes[0])}
+                  current={draft.randomAffixes[0]} excludeNames={excludeIn(draft.randomAffixes, draft.randomAffixes[0])}
                   onChange={sel => setDraft({ ...draft, randomAffixes: [sel, draft.randomAffixes[1]] })} />
                 <AffixRow label="Random 2" pool={memoryData.random_affixes} source={MEMORY_SOURCES[creatorSlot]}
-                  current={draft.randomAffixes[1]} excludeNames={excludeFor(draft.randomAffixes[1])}
+                  current={draft.randomAffixes[1]} excludeNames={excludeIn(draft.randomAffixes, draft.randomAffixes[1])}
                   onChange={sel => setDraft({ ...draft, randomAffixes: [draft.randomAffixes[0], sel] })} />
               </>
             )
@@ -851,49 +840,71 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
         <div className="hero-trait-body">
           <div className="trait-main-row">
 
-            {/* Base trait — always selected */}
-            <div className="trait-base-col">
-              {/* Top slot reserved for future Revival Hero Memories. */}
-              <div className="memory-slot-circle disabled" title="Coming Soon">
-                <span className="memory-slot-coming-soon">Coming Soon</span>
-              </div>
-              <div className={`trait-tier-label${baseDisabled ? ' locked' : ''}`}>
-                Base Trait{baseDisabled ? ' (off)' : ''}
-              </div>
-              <div className="trait-slot-level-row">
-                {[1, 2, 3, 4, 5].map(lv => (
-                  <button
-                    key={lv}
-                    className={`trait-slot-level-btn${nodeLevel(SLOT_BASE) === lv && !baseDisabled ? ' active' : ''}`}
-                    onClick={e => { e.stopPropagation(); setSlotLevel(SLOT_BASE, lv) }}
-                  >{lv}</button>
-                ))}
-              </div>
-              <TraitCircle
-                className="trait-circle selected trait-circle-base"
-                name={selectedTrait.variant_name}
-                icon={iconUrl('hero_trait', selectedTrait.icon_url)}
-                checked
-                disabled={baseDisabled}
-                tipName={selectedTrait.variant_name}
-                slotLevel={baseLevel}
-                effects={baseEffects}
-                moonEffects={showArtificialMoon ? selectedTrait.artificial_moon.effects : undefined}
-                onSelect={baseDisabled ? () => enableNode(SLOT_BASE) : undefined}
-                onContextMenu={() => disableNode(SLOT_BASE)}
-              />
-              {/* Holy Domain support slot — BELOW the trait, only when Invulnerability / Divine Intervention grants it. */}
-              {traitGrantsSkillSlot(traitId, advancedTraitSelections) && (
-                <div style={{ marginTop: 10 }}>
-                  <div className="trait-tier-label" style={{ fontSize: 10, marginBottom: 4 }}>Support Slot</div>
-                  <TraitSkillSlot supports={traitSkillSupports} allSkills={allSkills} onChange={setTraitSkillSupports} />
+            {/* Base trait — always selected. Tree-mode traits (Dance of the Deep and onward) hide this
+                column + the divider entirely: the base trait appears ONLY as the always-allocated root
+                node inside HeroTraitTree, so this whole block (and the trait-v-divider next to it) is
+                skipped in that mode. Level-selection state itself is untouched — the trait just stays
+                at whatever level it defaults to (1) since there's no UI here to change it in tree mode. */}
+            {selectedTrait.allocation_mode !== 'tree' && (
+              <>
+                <div className="trait-base-col">
+                  {/* Top slot reserved for future Revival Hero Memories. */}
+                  <div className="memory-slot-circle disabled" title="Coming Soon">
+                    <span className="memory-slot-coming-soon">Coming Soon</span>
+                  </div>
+                  <div className={`trait-tier-label${baseDisabled ? ' locked' : ''}`}>
+                    Base Trait{baseDisabled ? ' (off)' : ''}
+                  </div>
+                  <div className="trait-slot-level-row">
+                    {[1, 2, 3, 4, 5].map(lv => (
+                      <button
+                        key={lv}
+                        className={`trait-slot-level-btn${nodeLevel(SLOT_BASE) === lv && !baseDisabled ? ' active' : ''}`}
+                        onClick={e => { e.stopPropagation(); setSlotLevel(SLOT_BASE, lv) }}
+                      >{lv}</button>
+                    ))}
+                  </div>
+                  <TraitCircle
+                    className="trait-circle selected trait-circle-base"
+                    name={selectedTrait.variant_name}
+                    icon={iconUrl('hero_trait', selectedTrait.icon_url)}
+                    checked
+                    disabled={baseDisabled}
+                    tipName={selectedTrait.variant_name}
+                    slotLevel={baseLevel}
+                    effects={baseEffects}
+                    moonEffects={showArtificialMoon ? selectedTrait.artificial_moon.effects : undefined}
+                    onSelect={baseDisabled ? () => enableNode(SLOT_BASE) : undefined}
+                    onContextMenu={() => disableNode(SLOT_BASE)}
+                  />
+                  {/* Holy Domain support slot — BELOW the trait, only when Invulnerability / Divine Intervention grants it. */}
+                  {traitGrantsSkillSlot(traitId, advancedTraitSelections) && (
+                    <div style={{ marginTop: 10 }}>
+                      <div className="trait-tier-label" style={{ fontSize: 10, marginBottom: 4 }}>Support Slot</div>
+                      <TraitSkillSlot supports={traitSkillSupports} allSkills={allSkills} onChange={setTraitSkillSupports} />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="trait-v-divider" />
+                <div className="trait-v-divider" />
+              </>
+            )}
 
-            {/* Tier columns — one per unlock_level */}
+            {/* Dance of the Deep (Selena 2) and any future tree-mode trait: an allocatable tree replaces
+                the fixed tier columns entirely. Everything else (base circle, level slider, Artificial
+                Moon, Licorice Note panels below) is untouched. */}
+            {selectedTrait.allocation_mode === 'tree' ? (
+              <HeroTraitTree
+                trait={selectedTrait}
+                heroMemories={heroMemories}
+                openMemoryCreator={openMemoryCreator}
+                traitTreeAllocations={traitTreeAllocations}
+                setTraitTreeAllocations={setTraitTreeAllocations}
+                characterLevel={characterLevel}
+                resolveLevelAt={baseLevel}
+              />
+            ) : (
+            /* Tier columns — one per unlock_level */
             <div className="trait-tiers-row">
               {LEVEL_THRESHOLDS.map(threshold => {
                 const group = selectedTrait.advanced_traits.filter(t => t.unlock_level === threshold)
@@ -1000,6 +1011,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
                 )
               })}
             </div>
+            )}
           </div>
 
           {/* Artificial Moon — only at base level 5 */}
@@ -1013,6 +1025,99 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
               </div>
             </div>
           )}
+
+          {/* Licorice Note — Pungent prepares ONE Empower/Curse; user designates it when >1 eligible. */}
+          {traitId === 'licorice_note' && (traitSlotLevels[1] ?? 0) >= 1 && (() => {
+            const eligible = (skills || []).filter(sk => sk.slot >= 1 && sk.slot <= 5 && (sk.enabled ?? true)
+              && sk.skill_tags?.some(t => t === 'Empower' || t === 'Curse'))
+            return (
+              <div className="trait-moon-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+                <div className="trait-moon-label">⚗ Pungent — Prepared Empower / Curse</div>
+                {eligible.length === 0 ? (
+                  <span className="trait-moon-effect" style={{ color: '#888' }}>
+                    No Empower or Curse equipped — Pungent has nothing to prepare.
+                  </span>
+                ) : eligible.length === 1 ? (
+                  <span className="trait-moon-effect" style={{ color: '#9ad' }}>
+                    Auto: <b>{eligible[0].name}</b> (only eligible skill) receives the cross-applied Elixir Effect.
+                  </span>
+                ) : (
+                  <>
+                    <select
+                      value={eligible.some(e => e.item_id === licoricePreparedSkill) ? (licoricePreparedSkill ?? '') : ''}
+                      onChange={e => setLicoricePreparedSkill(e.target.value || null)}
+                      style={{ background: '#1a1a2e', color: '#ddd', border: '1px solid #444', borderRadius: 4, padding: '3px 6px', fontSize: 12 }}
+                    >
+                      <option value="">— Select prepared skill —</option>
+                      {eligible.map(e => (
+                        <option key={e.item_id} value={e.item_id}>
+                          {e.name} ({e.skill_tags.includes('Empower') ? 'Empower' : 'Curse'}, slot {e.slot})
+                        </option>
+                      ))}
+                    </select>
+                    {!eligible.some(e => e.item_id === licoricePreparedSkill) && (
+                      <span className="trait-moon-effect" style={{ color: '#d09a4a' }}>
+                        Select which skill the trait prepares — no cross-apply bonus applies until one is chosen.
+                      </span>
+                    )}
+                  </>
+                )}
+                {traitWarnings.map((w, i) => (
+                  <span key={i} className="trait-moon-effect" style={{ color: '#d09a4a' }}>⚠ {w.text}</span>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* Licorice Note — Ingredients: category-locked picker per Scent Bottle (Basic = slot 2, Special = slot 3). */}
+          {traitId === 'licorice_note' && (() => {
+            const catalog = selectedTrait.ingredients ?? []
+            const itemsFor = (group: string, cat: string) =>
+              catalog.find(g => g.trait_name === group)?.categories.find(c => c.category === cat)?.items ?? []
+            const pungent = (traitSlotLevels[1] ?? 0) >= 1
+            const special = advancedTraitSelections.includes('Licorice Tincture Blend') && (traitSlotLevels[3] ?? 0) >= 1
+            // Each Scent Bottle slot → the category slots it offers (category label → available items).
+            const bottles: { slot: number; label: string; cats: { cat: string; items: { name: string; effect: string }[] }[] }[] = [
+              { slot: 2, label: 'Basic Scent Bottle (slot 2)', cats: [
+                { cat: 'Damage Ingredient', items: itemsFor('Licorice Note', 'Damage Ingredient') },
+                { cat: 'Defense Ingredient', items: itemsFor('Licorice Note', 'Defense Ingredient') },
+                ...(pungent ? [{ cat: 'Functional Ingredient', items: itemsFor('Pungent Stimulant Salt', 'Functional Ingredient') }] : []),
+              ] },
+              ...(special ? [{ slot: 3, label: 'Special Scent Bottle (slot 3)', cats: [
+                { cat: 'Special Ingredient', items: itemsFor('Licorice Tincture Blend', 'Special Ingredient') },
+                ...(pungent ? [{ cat: 'Functional Ingredient', items: itemsFor('Pungent Stimulant Salt', 'Functional Ingredient') }] : []),
+              ] }] : []),
+            ]
+            const pick = (slot: number, cat: string, name: string) => {
+              const next = { ...elixirIngredients, [slot]: { ...(elixirIngredients[slot] ?? {}) } }
+              if (name) next[slot][cat] = name
+              else delete next[slot][cat]
+              setElixirIngredients(next)
+            }
+            if (!catalog.length) return null
+            return (
+              <div className="trait-moon-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+                <div className="trait-moon-label">🧪 Scent Bottle Ingredients</div>
+                {bottles.map(b => (
+                  <div key={b.slot} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: '#9ad', minWidth: 150 }}>{b.label}</span>
+                    {b.cats.map(c => (
+                      <select key={c.cat} value={elixirIngredients[b.slot]?.[c.cat] ?? ''}
+                        onChange={e => pick(b.slot, c.cat, e.target.value)}
+                        title={c.cat}
+                        style={{ background: '#1a1a2e', color: '#ddd', border: '1px solid #444', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}>
+                        <option value="">— {c.cat.replace(' Ingredient', '')} —</option>
+                        {c.items.map(it => <option key={it.name} value={it.name}>{it.name}</option>)}
+                      </select>
+                    ))}
+                  </div>
+                ))}
+                <span className="trait-moon-effect" style={{ color: '#777', fontSize: 10 }}>
+                  Ingredients add their base effect to that Scent Bottle's elixir (scaled by Elixir Effect). Defensive / restoration / charge effects are surfaced but not yet modeled.
+                </span>
+              </div>
+            )
+          })()}
         </div>
       ) : (
         <div className="hero-trait-body">

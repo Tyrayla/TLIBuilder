@@ -39,7 +39,8 @@ _AGGREGATOR_PROPAGATION_INPUTS = frozenset({
     "lightning_infiltration_effect_inc",
     "cast_speed_to_spell_burst_charge", "proj_speed_to_proj_dmg", "projectile_speed_inc",
     "movement_speed_inc", "movement_speed_additional",
-    "movement_bonus_to_attack_speed", "movement_bonus_to_cast_speed", "movement_bonus_to_cdr",
+    "movement_bonus_to_attack_speed", "movement_bonus_to_attack_speed_cap",
+    "movement_bonus_to_cast_speed", "movement_bonus_to_cdr",
 })
 
 _ALL_TAGS = [
@@ -138,6 +139,83 @@ def consumable_universe() -> frozenset[str]:
     # engine.utility.apply_empower_buffs reads Empower Skill Effect (and Mass Effect reads max_charge_flat) to
     # scale the Euphoria buffs — outside the synthetic passes.
     consumed |= {"empower_effect_inc", "empower_effect_additional", "max_charge_flat"}
+    # engine.utility.apply_elixir_buffs reads Elixir Skill Effect to scale elixir buffs, plus the timing pools for
+    # the per-elixir display: Skill Effect Duration (inc + additional) and Elixir Duration scale duration, Cooldown
+    # Recovery Speed scales cooldown, Charging Progress + Max Charge feed charges — all outside the synthetic passes.
+    consumed |= {"elixir_effect_inc", "elixir_effect_additional",
+                 "elixir_duration_additional", "elixir_charging_progress_flat",
+                 "skill_effect_duration_inc", "skill_effect_duration_additional", "cdr_speed_inc"}
+    # engine.recovery (post-loop sustain stage) reads the Restoration / Regain / Regen / Temporary-pool stats —
+    # outside the synthetic offense/defense/derive passes, so whitelist them.
+    consumed |= {"restoration_effect_inc", "restoration_effect_additional",
+                 "restoration_duration_inc", "restoration_duration_additional",
+                 "life_regain_inc", "energy_shield_regain_inc", "regain_interval_additional",
+                 "life_regain_interval_additional", "energy_shield_regain_interval_additional",
+                 "life_regen_flat", "life_regen_inc", "life_regen_speed_inc",
+                 "mana_regen_flat", "mana_regen_speed_inc", "mana_regen_pct",
+                 "temporary_life_flat", "temporary_life_pct", "temporary_mana_flat", "temporary_mana_pct",
+                 "max_temporary_life_pct", "max_temporary_mana_pct", "excess_restoration_to_es_pct",
+                 "life_regain_to_restoration", "es_regain_to_restoration"}
+    # engine.minion_offense (minion DPS pass, post-loop) reads Spirit Magi Growth to derive the stage bonuses
+    # and the Enhanced-Skill chance — outside the synthetic offense/defense/derive passes. engine.aggregator's
+    # Origin-of-Thunder buff block scales by Origin of Spirit Magus Effect.
+    consumed |= {"spirit_magi_initial_growth_flat", "spirit_magi_enhanced_skill_chance",
+                 "spirit_magi_origin_effect_inc", "spirit_magi_origin_effect_additional",
+                 "minion_physique_inc", "max_spirit_magi_flat", "minion_projectile_quantity_flat",
+                 "minion_cdr_speed_inc", "minion_skill_effect_duration_inc"}
+    # Minion penetration — read explicitly in engine.minion_offense._minion_target_mitigation (minion damage
+    # penetrates with its OWN pen). Plus the spirit-magi damage/crit pools folded into minion pools for magi.
+    consumed |= {"minion_armor_pen", "minion_elemental_pen", "minion_fire_pen_inc", "minion_cold_pen_inc",
+                 "minion_lightning_pen_inc", "minion_erosion_pen_inc",
+                 "spirit_magi_dmg_inc", "spirit_magi_dmg_additional", "spirit_magi_crit_rating_flat",
+                 "spirit_magi_empower_effect_additional", "minions_inherit_mainhand_weapon",
+                 "minion_skill_level", "spirit_magi_skill_level"}
+    # Phase-1 conditional/scaling minion damage — read explicitly in engine.minion_offense (per-Growth folds,
+    # Focused-Strike at-center full-uptime, Queer-Angle per-type Lucky, multistrike Max Count).
+    consumed |= {"minion_at_center_dmg_additional", "minion_max_multistrike_count_flat",
+                 "minion_dmg_additional_per_20_growth",
+                 "minion_ultimate_attack_speed_additional", "minion_ultimate_cast_speed_additional",
+                 "minion_ultimate_attack_speed_additional_per_40_growth",
+                 "minion_ultimate_cast_speed_additional_per_40_growth"}
+    consumed |= {f"minion_lucky_{t}" for t in ("physical", "fire", "cold", "lightning", "erosion")}
+    # Minion multistrike — read explicitly in calculate_minion_offense (mirrors the player multistrike model).
+    consumed |= {"minion_multistrike_chance", "minion_multistrike_increasing_dmg_inc"}
+    # Minion attack/cast speed pools — read in the rate + multistrike-AS-dilution paths.
+    consumed |= {"minion_attack_speed_inc", "minion_cast_speed_inc",
+                 "minion_attack_speed_additional", "minion_cast_speed_additional"}
+    # engine.consumption (self-consume drains) reads the typed consume-rate stats outside the offense/defense passes.
+    consumed |= {f"{p}_consumed_{b}_per_{c}"
+                 for p in ("life", "mana", "energy_shield")
+                 for b in ("pct_current", "pct_max", "flat")
+                 for c in ("sec", "cast")}
+    consumed |= {f"{p}_consumed_{b}_per_attack_use"
+                 for p in ("life", "mana") for b in ("pct_current", "pct_max", "flat")}
+    consumed |= {"consumed_recently_life", "consumed_recently_mana", "consumed_recently_energy_shield"}
+    # Unsullied Blade (Rosa #2): Mystic-Mercury consume (lock-bypassing), the "only Mystic consumes" lock flag, and
+    # the Realm restore — read in engine.consumption / engine.recovery, outside the synthetic passes.
+    consumed |= {"mana_consumed_pct_current_per_attack_use_mystic", "mana_consume_external_blocked",
+                 "mana_restored_pct_current_per_attack_use"}
+    # AS-per-consumed (Tide) is read in the compute loop's feedback injection, outside the synthetic offense run.
+    consumed |= {"attack_speed_inc_per_life_consumed", "attack_speed_inc_per_life_consumed_cap"}
+    # Per-N-consumed CONSUMERS read in offense only when present (guarded), so the synthetic run wouldn't see them:
+    # flat-phys (Blade-dancer/Glacier) + crit (Tyrant). Whitelist so they badge Consumed (green) when active.
+    consumed |= {f"physical_{c}_dmg_flat_{mm}_per_{p}_consumed"
+                 for (c, p) in (("attack", "life"), ("attack", "mana"), ("spell", "mana"))
+                 for mm in ("min", "max")}
+    consumed |= {"physical_dmg_flat_per_life_consumed_cap", "physical_dmg_flat_per_mana_consumed_cap",
+                 "crit_rating_inc_per_mana_consumed", "crit_dmg_inc_per_mana_consumed"}
+    # Compensatory Life: increased Spell Damage + Mana Regeneration Speed per Mana consumed — folded in-loop into the
+    # REAL spell_dmg_inc / mana_regen_speed_inc stats (engine/compute), so whitelist the consumer + its cap to badge green.
+    consumed |= {"spell_dmg_inc_per_mana_consumed", "spell_dmg_inc_per_mana_consumed_cap",
+                 "mana_regen_speed_inc_per_mana_consumed", "mana_regen_speed_inc_per_mana_consumed_cap"}
+    # Plain "damage per N Life consumed" is INCREASED (folds into generic_inc in offense) — whitelist its cap +
+    # divisor (read only when the consumer is present).
+    consumed |= {"dmg_inc_per_life_consumed", "dmg_inc_per_life_consumed_cap", "dmg_inc_per_life_consumed_unit"}
+    # Per-N divisors (the "N") — read alongside each consumer to floor consumed-recently into discrete stacks.
+    consumed |= {"dmg_additional_per_life_consumed_unit", "attack_speed_inc_per_life_consumed_unit",
+                 "spell_dmg_inc_per_mana_consumed_unit", "crit_rating_inc_per_mana_consumed_unit",
+                 "crit_dmg_inc_per_mana_consumed_unit", "physical_dmg_flat_per_life_consumed_unit",
+                 "physical_dmg_flat_per_mana_consumed_unit", "mana_regen_speed_inc_per_mana_consumed_unit"}
     # engine.utility.apply_reservation reads these for mana/life sealing (Compensation, support-imparted seal,
     # seal-to-life flag, Ward ES from sealed pools) — outside the offense/defense/derive passes.
     consumed |= {"sealed_mana_compensation_inc", "sealed_mana_compensation_additional",
@@ -155,6 +233,17 @@ def consumable_universe() -> frozenset[str]:
                  "has_dormant_entanglement_flag",
                  # display-only tangle mechanic reads (duration/attach range) in calculate_offense's tangle mode
                  "tangle_duration_inc", "tangle_duration_additional", "tangle_attach_range_inc"}
+    # Shadow Strike mode (engine.compute._offense_for_slot / engine.offense.calculate_offense's `shadow=`
+    # path) reads these outside the synthetic passes: Max Shadow Quantity (N_base), Despised Shadow's
+    # chance/quantity EV inputs, and additional Shadow Damage (read explicitly, excluded from the generic
+    # additional pool — see offense._SHADOW_SCOPED_ADDITIONAL).
+    consumed |= {"max_shadow_quantity_flat", "shadow_chance_pct", "shadow_chance_quantity_flat",
+                 "shadow_dmg_additional"}
+    # Magister "gain <Blessing> when generating Tangle / activating Spell Burst" full-uptime flags → read in the
+    # compute loop to pin the blessing to max. (es_charge_on_generate_flag is intentionally NOT whitelisted — it's
+    # recognized-but-unmodeled, so it badges Unconsumed until an ES-recharge model exists.)
+    consumed |= {"focus_blessing_full_uptime_flag", "agility_blessing_full_uptime_flag",
+                 "tenacity_blessing_full_uptime_flag"}
     # Spell Burst mode (offense.calculate_offense / compute._offense_for_slot) reads these outside the synthetic
     # passes: Max Spell Burst (count), the charge-speed pools, and Surging's stacks-per-cast. The burst hit-damage
     # additional pool is already covered — the synthetic skill carries the "spell_burst" tag in _ALL_TAGS.
@@ -165,7 +254,25 @@ def consumable_universe() -> frozenset[str]:
                  "attack_speed_to_spell_burst_charge",
                  "charge_speed_to_spell_burst_hit_dmg", "charge_speed_to_spell_burst_hit_dmg_per",
                  "charge_speed_to_spell_burst_hit_dmg_cap",
-                 "squidnova_effect_inc", "has_squidnova_flag"}
+                 "squidnova_effect_inc", "has_squidnova_flag",
+                 # Hasten / Attack Aggression grant flags — compute reads source.total() to auto-enable the buff conditions.
+                 "has_hasten_flag", "attack_aggression_flag",
+                 # Aim (Euphoria) trigger flag — carries the Aim level; compute reads it to auto-enable aim_active + aim_level.
+                 "aim_trigger_flag",
+                 # Skill-area-per-burst (display-only fold into skill_area_inc), burst-activation sustain (net
+                 # recovery, keyed off burst rate), and Destiny kismet burst lines (halve M + AS/CS-per-burst-recently).
+                 "spell_burst_area_additional", "spell_burst_area_additional_per",
+                 "mana_lost_pct_current_per_burst", "life_restored_pct_lost_per_burst",
+                 "energy_shield_restored_pct_lost_per_burst", "max_spell_burst_halve_flag", "unlucky_crit"}
+
+    # Demolisher Charge subsystem (Groundshaker): restoration speed read in compute's rate helper; the consume/at-center
+    # additional pools + Collapse roll are folded in the demolisher offense block, all outside the synthetic passes.
+    consumed |= {"demolisher_charge_speed_inc", "demolisher_consume_dmg_additional", "at_center_dmg_additional"}
+
+    # Activation-medium rolls: trigger_interval overrides cast rate (compute_skill_rates, presence-gated); cdr_speed_*
+    # drive the Wind Rhythm rate helper (outside the synthetic offense pass); sentry-deployed count is surfaced-only.
+    consumed |= {"trigger_interval", "cdr_speed_inc", "cdr_speed_additional", "sentry_deployed_count_flat",
+                 "wind_rhythm_base_cooldown", "wind_rhythm_share"}
 
     # Channeled mode (offense.calculate_offense) reads the stack-cap pools to set the RESET cadence; they only
     # fire for a channeled skill (Icebound Beam), outside the synthetic passes. projectile_quantity_flat scales
@@ -207,6 +314,19 @@ def consumable_universe() -> frozenset[str]:
     # Chromatic Shot: Lightchaser's main-attribute ratio boost + the shots-on-target shotgun count, both read in
     # offense (presence-gated) outside the synthetic passes — whitelist so they never false-yellow.
     consumed |= {"main_stat_dmg_bonus_inc", "chromatic_shots_on_target_flat"}
+
+    # Skill mana/life COST model (engine.skill_cost, read in the compute loop — outside the synthetic passes).
+    # Frozen Lotus's skill_no_mana_cost flag + the Arcane mana→life conversion + the cost amount pools.
+    consumed |= {"skill_cost_inc", "skill_cost_additional", "skill_cost_reduction", "skill_cost_flat",
+                 "attack_skill_cost_flat", "spell_skill_cost_flat", "mana_cost_to_life_cost", "skill_no_mana_cost"}
+
+    # Damage over Time stage (engine.offense.compute_dot — Mind Control, Path of Flames): the whitelisted
+    # increased/additional pools (dot-model.json). Presence-gated on the skill actually having DoT forms (the
+    # synthetic universe skill has none), so read outside the synthetic offense pass — whitelist so they never
+    # false-yellow. dmg_additional is already covered (hit pool); dot_dmg_additional is read via the per-affix
+    # factor builder (not a literal source.total("dot_dmg_additional") call) so the static scanner in
+    # test_consumable_universe.py doesn't catch it either, but it's genuinely modeled — whitelist it too.
+    consumed |= {"dot_dmg_inc", "fire_dot_dmg_inc", "dot_dmg_additional"}
 
     missing = _SANITY_FLOOR - consumed
     if missing:

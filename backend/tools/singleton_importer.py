@@ -1,8 +1,13 @@
 """
 Importers for singleton crawler files: destiny, ethereal_prism, hero_memories,
 memory_revival, tower_sequence. Each has exactly one file per season.
+
+Of these, only hero_memories carries scraper-minted ModifierLine cells (the others still emit
+plain strings — verified against output/SS12).
 """
 import re
+
+from engine.modifier_lines import line_text, slim_checked
 
 
 def _flatten_sections(data: dict, item_key: str | None = None) -> list[dict]:
@@ -119,9 +124,16 @@ def _parse_memory_affix(it: dict) -> dict:
         weight = int(it.get("Weight", 0))
     except (ValueError, TypeError):
         weight = 0
+    # `modifier` stays a plain string (row shape unchanged); the minted ids ride alongside. The
+    # '+'/capitalize normalization is sign/case-only — identity-invariant — which slim_checked verifies.
+    line = it.get("Modifier", "")
+    ids = slim_checked(line, _normalize_memory_modifier(line_text(line)))
     return {
         "tier": tier,
-        "modifier": _normalize_memory_modifier(it.get("Modifier", "")),
+        "modifier": ids["text"],
+        "uuid": ids["uuid"],
+        "pooling_uuid": ids["pooling_uuid"],
+        "modifier_id": ids["modifier_id"],
         "level": level,
         "weight": weight,
         "source": it.get("Source", ""),
@@ -147,6 +159,7 @@ def import_hero_memories(data: dict, season_name: str) -> dict:
     memory_types = [
         {
             "name": mt.get("name", ""),
+            "uuid": mt.get("uuid"),
             "internal_id": mt.get("internal_id"),
             "icon_url": mt.get("icon_url", ""),
         }
@@ -156,6 +169,7 @@ def import_hero_memories(data: dict, season_name: str) -> dict:
     total = len(fixed_affixes) + len(random_affixes) + len(base_stats)
     return {
         "season": season_name,
+        "uuid": data.get("uuid"),
         "affix_count": total,
         "memory_types": memory_types,
         "fixed_affixes": fixed_affixes,

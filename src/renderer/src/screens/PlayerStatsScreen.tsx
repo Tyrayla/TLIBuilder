@@ -2,10 +2,10 @@ import React, { useState, useMemo, useEffect, useContext, useRef, useLayoutEffec
 import { FloatingPortal } from '@floating-ui/react'
 import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
-import type { OffenseResult, DefenseResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, HeroTrait } from '../api/client'
+import type { OffenseResult, DamageRow, DefenseResult, RecoveryResult, EquippedSkill, StatEntry, EquippedGearItem, TargetStats, BlessingSummary, SkillItem, AuraSummary, ReservationResult, ReservationSummary, CurseSummary, CurseMeta, EmpowerSummary, ElixirSummary, HeroTrait, SkillCost } from '../api/client'
 import { api, buildSpiritEffects, buildMemoryEffects, MEMORY_RARITY_COLORS } from '../api/client'
 import { useReferenceStore } from '../store/referenceStore'
-import { TraitTooltipBody } from './HeroTraitScreen'
+import { TraitTooltipBody } from '../components/HeroTraitShared'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { GearTooltipBody } from '../components/tooltip/bodies/GearTooltipBody'
 import { SpiritTooltipBody } from '../components/tooltip/bodies/SpiritTooltipBody'
@@ -55,13 +55,22 @@ interface Collected {
   amount: number; points: number; slot: number | null
 }
 
+// Qualify a stat's display name by its pool so a combined breakdown (e.g. Max Life = flat/increased/additional,
+// which all share the display name "Max Life") labels each row correctly. Suffix-based and idempotent — a stat
+// whose name already reads "Additional …"/"Increased …" (e.g. dmg_additional → "Additional Damage") is untouched.
+function qualifiedStatName(statKey: string, displayName: string): string {
+  if (/_inc$/.test(statKey) && !/^increased\b/i.test(displayName)) return `Increased ${displayName}`
+  if (/_additional$/.test(statKey) && !/^additional\b/i.test(displayName)) return `Additional ${displayName}`
+  return displayName
+}
+
 function collectSources(keys: string[], stats: Record<string, StatEntry>): { main: Collected[]; slot: Collected[] } {
   const main: Collected[] = []
   const slot: Collected[] = []
   for (const k of keys) {
     const entry = stats[k]
     if (!entry) continue
-    const base = { statKey: k, statName: entry.display_name || k, unit: entry.unit || '' }
+    const base = { statKey: k, statName: qualifiedStatName(k, entry.display_name || k), unit: entry.unit || '' }
     for (const s of entry.sources ?? [])
       main.push({ ...base, source_type: s.source_type, label: s.label, text: s.text, source_name: s.source_name ?? null, amount: s.amount, points: s.points, slot: s.slot ?? null })
     for (const s of entry.slot_sources ?? [])
@@ -106,7 +115,7 @@ function fmtTotalVal(v: number, unit: string): string {
 }
 
 // The title + Total header shared by the main breakdown and each section, so they look identical.
-function BreakdownHeader({ title, total, totalUnit, formula }: { title: string; total?: number; totalUnit?: string; formula?: string }) {
+function BreakdownHeader({ title, total, totalUnit, formula, totalSuffix }: { title: string; total?: number; totalUnit?: string; formula?: string; totalSuffix?: string }) {
   return (
     <>
       <div style={{ marginBottom: 3 }}>
@@ -116,7 +125,10 @@ function BreakdownHeader({ title, total, totalUnit, formula }: { title: string; 
       {total !== undefined && (
         <div style={{ marginBottom: 6, display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <span style={{ fontSize: 10, color: '#888' }}>Total</span>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8f4', fontVariantNumeric: 'tabular-nums' }}>{fmtTotalVal(total, totalUnit ?? '')}</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8f4', fontVariantNumeric: 'tabular-nums' }}>
+            {fmtTotalVal(total, totalUnit ?? '')}
+            {totalSuffix && <span style={{ fontSize: 12, fontWeight: 400, color: '#9a93c0', marginLeft: 6 }}>{totalSuffix}</span>}
+          </span>
         </div>
       )}
     </>
@@ -126,7 +138,7 @@ function BreakdownHeader({ title, total, totalUnit, formula }: { title: string; 
 // Column header row (subgrid) shared by the main table + each section table.
 function BreakdownColHeader() {
   return (
-    <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', paddingBottom: 3, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+    <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', paddingBottom: 3, borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'sticky', top: 0, background: '#0e0e1e', zIndex: 1 }}>
       <span style={{ textAlign: 'right' }}>Value</span><span>Stat</span><span>Source</span><span>Source Name</span>
     </div>
   )
@@ -262,7 +274,7 @@ function ExtraRowView({ e }: { e: ExtraRow }) {
   )
 }
 
-function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, formula, sections }: { title: string; keys: string[]; ctx: BreakdownCtxValue; totalOverride?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[] }) {
+function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, formula, sections, totalSuffix }: { title: string; keys: string[]; ctx: BreakdownCtxValue; totalOverride?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string }) {
   const { main, slot } = collectSources(keys, ctx.statMap)
   // When a row passes its already-derived value (e.g. Max Energy Shield = flat × (1+increased)), show THAT
   // as the header — summing mixed flat/increased/additional keys is meaningless (it printed "0.27" for a 0
@@ -279,13 +291,20 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
   }
   const empty = groupedMain.length === 0 && slotGroups.size === 0 && !(extra && extra.length) && !(sections && sections.length)
   return (
-    <div style={{ minWidth: 340, maxWidth: 520, fontSize: 11 }}>
-      <BreakdownHeader title={title} total={headerVal} totalUnit={headerUnit} formula={formula} />
+    // Flex column that fills the size-capped .tooltip--breakdown height: the title header stays fixed at the top
+    // and the rows scroll into whatever space remains, so the popover always fits the viewport (no top cutoff)
+    // regardless of where the anchor sits or how many sources there are. Mirrors the .tooltip--stat pattern.
+    <div style={{ minWidth: 340, maxWidth: 520, fontSize: 11, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+      <BreakdownHeader title={title} total={headerVal} totalUnit={headerUnit} formula={formula} totalSuffix={totalSuffix} />
       {empty ? <div style={{ color: '#555' }}>No sources found</div> : (
         // ONE grid so every column sizes to the widest entry across ALL rows (header + extras + sources);
         // each row is a subgrid spanning all columns so it keeps its own box (hover/outline) while its
         // cells snap to the shared column tracks. columnGap lives on the parent; subgrids inherit it.
-        <div style={{ display: 'grid', gridTemplateColumns: BD_GRID, columnGap: 8, padding: '0 8px' }}>
+        // Scrollable rows under the fixed header. maxHeight caps the ROWS to ~half the viewport so the whole
+        // popover stays SHORT (never fills the window / hugs the top chrome); flex:1 + min-height:0 keep the
+        // header pinned and let it scroll when long. So the title is always visible whether the anchor is high
+        // or low on-screen — a long breakdown (Max Life's ~40 sources) just scrolls inside this box.
+        <div style={{ display: 'grid', gridTemplateColumns: BD_GRID, columnGap: 8, padding: '0 8px', flex: 1, minHeight: 0, maxHeight: 'min(50vh, 360px)', overflowY: 'auto' }}>
           <BreakdownColHeader />
           {(extra ?? []).map((e, i) => <ExtraRowView key={`e${i}`} e={e} />)}
           {groupedMain.map((g, i) => <BreakdownSourceRow key={`m${i}`} g={g} ctx={ctx} />)}
@@ -322,7 +341,9 @@ function BreakdownBody({ title, keys, ctx, totalOverride, totalUnit, extra, form
 // only) outside a BreakdownCtx provider.
 function Breakdown({ title, keys, children, block, total, totalUnit, extra, formula, sections }: { title: string; keys: string[]; children: React.ReactNode; block?: boolean; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[] }) {
   const ctx = useContext(BreakdownCtx)
-  const tip = useFloatingTooltip({ anchor: 'element', side: 'right', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
+  // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
+  // the right) — a tall breakdown near the top of the screen no longer centers on the row and overflows the top.
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right-start', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
   if (!ctx) return <>{children}</>
   return (
     <>
@@ -356,6 +377,9 @@ const ATTR_COLOR: Record<string, string> = {
 }
 
 function fmtNum(n: number): string {
+  // Displayed stat values FLOOR (match in-game — never round a pool up). The precise value is kept for the
+  // source-breakdown total and all downstream math; only the shown integer floors.
+  n = Math.floor(n)
   if (n >= 1_000_000_000_000_000) return `${dec((n / 1_000_000_000_000_000))}Q`
   if (n >= 1_000_000_000_000)     return `${dec((n / 1_000_000_000_000))}T`
   if (n >= 1_000_000_000)         return `${dec((n / 1_000_000_000))}B`
@@ -380,10 +404,12 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
   label: string; children: React.ReactNode; labelColor?: string;
   onClick?: (e: React.MouseEvent) => void;
   expandable?: boolean; expanded?: boolean;
-  breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[] };
+  breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string };
 }) {
   const ctx = useContext(BreakdownCtx)
-  const tip = useFloatingTooltip({ anchor: 'element', side: 'right', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
+  // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
+  // the right) — a tall breakdown near the top of the screen no longer centers on the row and overflows the top.
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right-start', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
   const bd = !!breakdown && !!ctx
   return (
     <>
@@ -401,7 +427,7 @@ function Row({ label, children, labelColor, onClick, expandable, expanded, break
       {bd && tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--breakdown" {...tip.floatingProps}>
-            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} formula={breakdown!.formula} sections={breakdown!.sections} />
+            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
           </div>
         </FloatingPortal>
       )}
@@ -485,9 +511,12 @@ const ENEMY_TYPES: { label: string; weight: number }[] = [
   { label: 'Normal', weight: 1 },
 ]
 
+// Calc mode ↔ engine uptime_mode: Full Uptime = 'max' (assume-max / 100% uptime), Effective = 'real' (compute the
+// steady state from the build's actual rates: ailment ramp, restoration charge-weighted recast, …). Mapping/Boss
+// are future scenario presets (not yet wired).
 const CALC_MODES: { key: string; label: string; enabled: boolean }[] = [
   { key: 'full_uptime', label: 'Full Uptime', enabled: true },
-  { key: 'effective', label: 'Effective', enabled: false },
+  { key: 'effective', label: 'Effective', enabled: true },
   { key: 'mapping', label: 'Mapping', enabled: false },
   { key: 'boss', label: 'Boss', enabled: false },
 ]
@@ -603,7 +632,11 @@ const DTYPE_LABEL: Record<string, string> = {
 // case-insensitively so spell/attack detection and key selection actually match.
 const hasTag = (offense: OffenseResult, tag: string) => offense.skill_tags.some(t => t.toLowerCase() === tag)
 
-function flatMinKeys(dtype: string, offense: OffenseResult): string[] {
+// The `minion` flag switches these to the minion-scoped stat pools (`minion_*`), skipping the player-only
+// mechanic pushes (attack/spell/melee/tangle/spell-burst) that have no minion analogue. Enemy-vulnerability
+// keys are NOT namespaced — enemy debuffs apply to minion hits the same as player hits.
+function flatMinKeys(dtype: string, offense: OffenseResult, minion = false): string[] {
+  if (minion) return [`minion_${dtype}_dmg_flat_min`]
   const keys = [`${dtype}_dmg_gear_flat_min`]
   if (hasTag(offense,'attack')) keys.push(`${dtype}_attack_dmg_flat_min`)
   if (hasTag(offense,'spell')) keys.push(`${dtype}_spell_dmg_flat_min`)
@@ -611,7 +644,8 @@ function flatMinKeys(dtype: string, offense: OffenseResult): string[] {
   return keys
 }
 
-function flatMaxKeys(dtype: string, offense: OffenseResult): string[] {
+function flatMaxKeys(dtype: string, offense: OffenseResult, minion = false): string[] {
+  if (minion) return [`minion_${dtype}_dmg_flat_max`]
   const keys = [`${dtype}_dmg_gear_flat_max`]
   if (hasTag(offense,'attack')) keys.push(`${dtype}_attack_dmg_flat_max`)
   if (hasTag(offense,'spell')) keys.push(`${dtype}_spell_dmg_flat_max`)
@@ -619,7 +653,8 @@ function flatMaxKeys(dtype: string, offense: OffenseResult): string[] {
   return keys
 }
 
-function genericIncKeys(offense: OffenseResult): string[] {
+function genericIncKeys(offense: OffenseResult, minion = false): string[] {
+  if (minion) return ['minion_dmg_inc']
   const keys = ['dmg_inc']
   if (hasTag(offense,'attack'))     keys.push('attack_dmg_inc')
   if (hasTag(offense,'spell'))      keys.push('spell_dmg_inc')
@@ -631,13 +666,15 @@ function genericIncKeys(offense: OffenseResult): string[] {
   return keys
 }
 
-function typeIncKeys(dtype: string): string[] {
+function typeIncKeys(dtype: string, minion = false): string[] {
+  if (minion) return [`minion_${dtype}_dmg_inc`]
   const keys = [`${dtype}_dmg_inc`]
   if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_inc')
   return keys
 }
 
-function genericAddKeys(offense: OffenseResult): string[] {
+function genericAddKeys(offense: OffenseResult, minion = false): string[] {
+  if (minion) return ['minion_dmg_additional']
   // 'hit_dmg_additional' is generic (untagged) hit-only additional — e.g. Splendor's "+additional Hit Damage".
   // It folds into generic_add in offense, so it belongs in the All-Types breakdown alongside dmg_additional.
   const keys = ['dmg_additional', 'hit_dmg_additional']
@@ -653,50 +690,43 @@ function genericAddKeys(offense: OffenseResult): string[] {
   return keys
 }
 
-function typeAddKeys(dtype: string): string[] {
+function typeAddKeys(dtype: string, minion = false): string[] {
+  if (minion) return [`minion_${dtype}_dmg_additional`]
   const keys = [`${dtype}_dmg_additional`]
   if (['fire', 'cold', 'lightning'].includes(dtype)) keys.push('elemental_dmg_additional')
   return keys
 }
 
-// The enemy-vulnerability stat keys that feed _enemy_vuln_mult for a given damage type — mirrors the engine so
-// the Enemy Multiplier breakdown shows the real sources of the amplification (Numbed/Paralysis/Frostbite/…).
-function enemyVulnKeys(dtype: string, isSpell: boolean): string[] {
-  const keys = ['paralysis_dmg_taken', 'no_guard_dmg_taken', 'knockback_dmg_taken', 'hit_curse_taken', `${dtype}_curse_taken`]
-  if (dtype === 'cold') keys.push('frostbite_cold_taken')
-  if (dtype === 'lightning') keys.push('numbed_lightning_taken')
-  if (dtype === 'fire' || dtype === 'cold' || dtype === 'lightning') keys.push(`${dtype}_infiltration_taken`)
-  if (isSpell) keys.push('frail_spell_taken')
-  return keys
+// Small kind tag next to a row's name — "hit" rows (the common case) get no tag; "true" (Mercury Baptism /
+// Spell Ripple) and "dot" (Mind Control / Path of Flames) rows are add-ons with no hit form of their own, so a
+// tag makes that legible at a glance instead of relying on the name suffix alone.
+const ROW_KIND_TAG: Record<string, { label: string; color: string }> = {
+  true: { label: 'TRUE', color: '#b090e0' },
+  dot: { label: 'DOT', color: '#5ecab0' },
 }
 
-function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
-  const ctx = useContext(BreakdownCtx)
-  const isSpell = hasTag(offense, 'spell')
+function DamageBreakdownTable({ offense, minion = false }: { offense: OffenseResult; minion?: boolean }) {
   const totalDps = offense.total_dps_vs_target
-  // Same-target shotgun multiplier (e.g. Chain Lightning Merge+Web): total_dps_vs_target includes it but the
-  // per-form dps_vs_target does NOT, so every per-form / per-type figure below must apply it to reconcile to
-  // 100% (otherwise both "% of Total" and "Type Contribution" read 1/cast_multiplier). 1.0 when no shotgun.
-  const castMult = offense.cast_multiplier ?? 1
-  // Tangle mode multiplier: total_dps_vs_target multiplies by the attached tangle COUNT (each tangle a full
-  // caster), which per-form dps_vs_target does NOT — so the breakdown applies it alongside the shotgun multiplier
-  // to reconcile to 100%. (Tangle Damage Enhancement is NOT here — it rides the additional pool, already in each
-  // form's damage.) 1 when not tangled (tangle_count 0).
-  const tangleMult = (offense.tangle_count ?? 0) > 0 ? offense.tangle_count : 1
-  // Spell Burst mode multiplier: total_dps_vs_target multiplies by (casts/burst × bursts/sec ÷ aps), which the
-  // per-form dps_vs_target does NOT — so apply it alongside the shotgun/tangle multipliers to reconcile to 100%.
-  // 1 when not bursting. (The spell-burst hit-damage pool is already in each form's damage.)
-  const spellBurstMult = (offense.spell_burst_count ?? 0) > 0 ? (offense.spell_burst_mult ?? 1) : 1
-  const breakdownMult = castMult * tangleMult * spellBurstMult
 
-  // Per-dtype DPS total across all forms (proportional attribution via avg hit)
+  // Only forms that deal DIRECT damage belong in this table / the "All forms (combined)" view — NYI, buff, and
+  // can't-activate forms (a minion's Empower / locked Ultimate) are excluded here (they're still selectable in
+  // the Form dropdown, where selecting one shows its effect). This is what makes the combined page show only
+  // real contributors.
+  // Engine-owned breakdown rows (backend/engine/offense.py DamageRow) — ALREADY fully delivered (cast/tangle/
+  // spell-burst/multistrike multiplier applied) and ALREADY split per damage type post-mitigation. A pure
+  // render of what the backend emits — nothing here is multiplied or re-derived. `displayOffense` has already
+  // narrowed both hit_forms and damage_rows when a single form is selected, so no form-matching is needed here.
+  const rows = (offense.damage_rows ?? []).filter(r => !(r.nyi?.length))
+  // A row's source form, if any. `form_index` — never `name` — is the engine's stable join key back to
+  // hit_forms (names are not guaranteed unique). kind="true"/"dot" rows carry -1 and have no form.
+  const formFor = (r: DamageRow) => { const i = r.form_index ?? -1; return i >= 0 ? offense.hit_forms[i] : undefined }
+  // Percentages only mean something when more than one row shares the denominator.
+  const multiRow = rows.length > 1
+
+  // Per-dtype DPS total across all rows (already post-mitigation — a straight sum, not a re-derived ratio).
   const dtypeDpsTotal: Record<string, number> = {}
   for (const dtype of ALL_DTYPES) {
-    dtypeDpsTotal[dtype] = offense.hit_forms.reduce((sum, form) => {
-      const dtypeAvg = form.damage_by_type[dtype] ?? 0
-      const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-      return sum + prop * form.dps_vs_target * breakdownMult
-    }, 0)
+    dtypeDpsTotal[dtype] = rows.reduce((sum, row) => sum + (row.dps_by_type_vs_target[dtype] ?? 0), 0)
   }
 
   // Shared cell styles. Tight font/padding so all six damage-type columns (incl. Erosion) fit the
@@ -732,7 +762,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               const v = offense.flat_dmg_min[d] ?? 0
               const base = offense.base_dmg_min[d] ?? 0
               return <td key={d} style={v > 0 ? td : tdDim}>
-                {v > 0 ? <Breakdown title={`Added Min — ${DTYPE_LABEL[d]}`} keys={flatMinKeys(d, offense)} total={v} formula={addedFormula}
+                {v > 0 ? <Breakdown title={`Added Min — ${DTYPE_LABEL[d]}`} keys={flatMinKeys(d, offense, minion)} total={v} formula={addedFormula}
                   extra={base > 0 ? [{ value: fmtNum(base), stat: 'Base damage', source: 'Baseline', sourceName: offense.skill_name }] : undefined}>{fmtNum(v)}</Breakdown> : fmtNum(v)}
               </td>
             })}
@@ -744,7 +774,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               const v = offense.flat_dmg_max[d] ?? 0
               const base = offense.base_dmg_max[d] ?? 0
               return <td key={d} style={v > 0 ? td : tdDim}>
-                {v > 0 ? <Breakdown title={`Added Max — ${DTYPE_LABEL[d]}`} keys={flatMaxKeys(d, offense)} total={v} formula={addedFormula}
+                {v > 0 ? <Breakdown title={`Added Max — ${DTYPE_LABEL[d]}`} keys={flatMaxKeys(d, offense, minion)} total={v} formula={addedFormula}
                   extra={base > 0 ? [{ value: fmtNum(base), stat: 'Base damage', source: 'Baseline', sourceName: offense.skill_name }] : undefined}>{fmtNum(v)}</Breakdown> : fmtNum(v)}
               </td>
             })}
@@ -755,7 +785,7 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                dash — a type with no specific modifier reads ×1.00. ── */}
           <tr>
             <td style={tdLbl}>Total Increased</td>
-            <td style={td}><Breakdown title="Total Increased — All Types" keys={genericIncKeys(offense)} total={offense.generic_inc} totalUnit="%" formula="Σ Increased %">{(offense.generic_inc * 100).toFixed(0)}%</Breakdown></td>
+            <td style={td}><Breakdown title="Total Increased — All Types" keys={genericIncKeys(offense, minion)} total={offense.generic_inc} totalUnit="%" formula="Σ Increased %">{(offense.generic_inc * 100).toFixed(0)}%</Breakdown></td>
             {ALL_DTYPES.map(d => {
               // Specific = this type's increase beyond the generic (catch-all) bucket. Types the skill
               // doesn't deal have no entry → treated as generic-only → 0% specific.
@@ -763,14 +793,22 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               const show = specific >= 0.005
               const txt = `${(specific * 100).toFixed(0)}%`
               return <td key={d} style={show ? td : tdDim}>
-                {show ? <Breakdown title={`Total Increased — ${DTYPE_LABEL[d]}`} keys={typeIncKeys(d)} total={specific} totalUnit="%" formula="Σ this type's Increased %">{txt}</Breakdown> : txt}
+                {show ? <Breakdown title={`Total Increased — ${DTYPE_LABEL[d]}`} keys={typeIncKeys(d, minion)} total={specific} totalUnit="%" formula="Σ this type's Increased %">{txt}</Breakdown> : txt}
               </td>
             })}
           </tr>
           <tr>
             <td style={tdLbl}>Total Additional</td>
-            <td style={td}><Breakdown title="Total Additional — All Types" keys={genericAddKeys(offense)} total={offense.generic_add} totalUnit="×" formula="Π (1 + Additional)"
-              extra={offense.main_stat_damage_bonus > 0 ? [{ value: `×${dec((1 + offense.main_stat_damage_bonus))}`, stat: 'Additional Damage', source: 'Main Stat', sourceName: `${offense.main_stats.join(' + ')} Damage Bonus (+${dec((offense.main_stat_damage_bonus * 100))}%)` }] : undefined}>×{dec(offense.generic_add)}</Breakdown></td>
+            <td style={td}><Breakdown title="Total Additional — All Types" keys={genericAddKeys(offense, minion)} total={offense.generic_add} totalUnit="×" formula="Π (1 + Additional)"
+              extra={(() => {
+                const rows: Array<{ value: string; stat: string; source: string; sourceName: string }> = []
+                if (offense.main_stat_damage_bonus > 0) rows.push({ value: `×${dec(1 + offense.main_stat_damage_bonus)}`, stat: 'Additional Damage', source: 'Main Stat', sourceName: `${offense.main_stats.join(' + ')} Damage Bonus (+${dec(offense.main_stat_damage_bonus * 100)}%)` })
+                // Intrinsic 'additional damage' pool (Rapid Advance per-stack, Fervor …): sums into ONE (1+Σ) factor
+                // within generic_add — show a single ×(1+Σ) row labelled with its source(s).
+                const iaSum = (offense.intrinsic_additional_sources ?? []).reduce((s, e) => s + e.amount, 0)
+                if (iaSum > 0) rows.push({ value: `×${dec(1 + iaSum)}`, stat: 'Additional Damage', source: 'Skill', sourceName: (offense.intrinsic_additional_sources ?? []).map(e => e.label).join(' + ') })
+                return rows.length ? rows : undefined
+              })()}>×{dec(offense.generic_add)}</Breakdown></td>
             {ALL_DTYPES.map(d => {
               // Specific = type_add factored over the generic bucket. Types the skill doesn't deal have
               // no entry → ×1.00 (not 1/generic, which would show a phantom multiplier on empty types).
@@ -780,28 +818,29 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
               const show = Math.abs(specificAdd - 1) >= 0.005
               const txt = `×${dec(specificAdd)}`
               return <td key={d} style={show ? td : tdDim}>
-                {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(d)} total={specificAdd} totalUnit="×" formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
+                {show ? <Breakdown title={`Total Additional — ${DTYPE_LABEL[d]}`} keys={typeAddKeys(d, minion)} total={specificAdd} totalUnit="×" formula="Π (1 + Additional)">{txt}</Breakdown> : txt}
               </td>
             })}
           </tr>
           {/* Main-stat Damage Bonus (0.5%/point) is part of Total Additional above — shown as a source inside that
               breakdown (not its own row), since it's one cumulative additional multiplier, not a separate pool. */}
 
-          {/* ── Enemy Multiplier: the cumulative outgoing multiplier the TARGET applies per type — armor/resist
-               mitigation × enemy vulnerability (Paralysis/Numbed/Frostbite/Infiltration/curses). All Types = the
-               net multiplier across the skill's damage (total vs-target ÷ total pre-mitigation). ── */}
+          {/* ── Enemy Multiplier: the cumulative outgoing multiplier the TARGET applies PER TYPE — armor/resist
+               mitigation × enemy vulnerability (Paralysis/Numbed/Frostbite/Infiltration/curses). There is NO
+               meaningful "All Types" aggregate here (unlike Increased/Additional, enemy mitigation+vulnerability
+               is inherently per-type), so that cell is dashed — the real values live in the per-type columns. ── */}
           {offense.enemy_mult_by_type && Object.keys(offense.enemy_mult_by_type).length > 0 && (
             <tr>
               <td style={tdLbl}>Enemy Multiplier</td>
-              <td style={td}>{offense.total_dps > 0 ? `×${dec(offense.total_dps_vs_target / offense.total_dps)}` : '—'}</td>
+              <td style={tdDim}>—</td>
               {ALL_DTYPES.map(d => {
                 const m = offense.enemy_mult_by_type?.[d]
                 if (m === undefined) return <td key={d} style={tdDim}>—</td>
-                // Split the multiplier into (target mitigation) × (Π enemy vulnerability) for the breakdown:
-                // the vuln keys carry the real sources; mitigation = m ÷ that product (the armour/resist part).
-                const vk = enemyVulnKeys(d, isSpell)
-                const vulnProduct = vk.reduce((p, k) => p * (1 + (ctx?.statMap[k]?.total ?? 0)), 1)
-                const mitigation = vulnProduct > 0 ? m / vulnProduct : m
+                // Both halves come straight from the engine now — no back-solve. vk is the ordered stat-key
+                // list the engine actually consulted (enemy_vuln_sources_by_type); mitigation is the engine's
+                // own armour/resist half (target_mitigation_by_type), not m ÷ Π(vuln).
+                const vk = offense.enemy_vuln_sources_by_type?.[d] ?? []
+                const mitigation = offense.target_mitigation_by_type?.[d] ?? m
                 return <td key={d} style={td}>
                   <Breakdown title={`Enemy Multiplier — ${DTYPE_LABEL[d]}`} keys={vk} total={m} totalUnit="×"
                     formula="Target Mitigation × Π(1 + enemy vulnerability)"
@@ -813,26 +852,41 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
             </tr>
           )}
 
-          {/* ── Per hit form ── */}
-          {offense.hit_forms.map(form => {
-            const formMin = ALL_DTYPES.reduce((s, d) => s + (form.hit_min_by_type[d] ?? 0), 0)
-            const formMax = ALL_DTYPES.reduce((s, d) => s + (form.hit_max_by_type[d] ?? 0), 0)
-            const formPct = totalDps > 0 ? `${(form.dps_vs_target * breakdownMult / totalDps * 100).toFixed(0)}%` : '—'
-
-            const multiForm = offense.hit_forms.length > 1
+          {/* ── Per damage row (engine-owned DamageRow — mirrors hit_forms 1:1 for kind="hit", plus any
+               kind="true" true-damage add-ons like Mercury Baptism / Spell Ripple that have no hit form of
+               their own). NYI rows are excluded above. ── */}
+          {rows.map(row => {
+            const form = formFor(row)
+            const hasHitRange = row.kind === 'hit'
+            const formMin = ALL_DTYPES.reduce((s, d) => s + (row.hit_min_by_type[d] ?? 0), 0)
+            const formMax = ALL_DTYPES.reduce((s, d) => s + (row.hit_max_by_type[d] ?? 0), 0)
+            // Blank on a single row: it's trivially 100% of itself, and under a single-form selection the
+            // totals have been rescaled to that form, so the engine's whole-skill pct would be a different
+            // denominator than the one on screen.
+            const formPct = multiRow ? `${row.pct_of_total.toFixed(0)}%` : ''
             return (
-              <React.Fragment key={form.name}>
-                {/* Each form is its own visually-separated area (border + faint background) so multi-form
-                    skills (e.g. Icebound Beam: Cold Beam + Icy Blade) read as distinct damage sources. */}
+              <React.Fragment key={`${row.kind}-${row.name}`}>
+                {/* Each row is its own visually-separated area (border + faint background) so multi-form
+                    skills (e.g. Icebound Beam: Cold Beam + Icy Blade) and true-damage add-ons (Mercury Baptism)
+                    read as distinct damage sources. */}
                 <tr>
-                  {/* Form name only — no full-row banner. A neutral separator line divides forms; the name keeps
+                  {/* Row name only — no full-row banner. A neutral separator line divides rows; the name keeps
                       its own colour to mark it as a distinct damage source. */}
                   <td colSpan={7} style={{
                     paddingTop: 6, paddingBottom: 4, marginTop: 4, fontSize: 13, color: '#e0d0a0', fontWeight: 700,
-                    borderTop: multiForm ? '1px solid rgba(255,255,255,0.10)' : undefined,
+                    borderTop: multiRow ? '1px solid rgba(255,255,255,0.10)' : undefined,
                   }}>
-                    {form.name}
-                    {form.proc_chance < 1.0 && (
+                    {row.name}
+                    {ROW_KIND_TAG[row.kind] && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, color: ROW_KIND_TAG[row.kind].color, marginLeft: 8,
+                        border: `1px solid ${ROW_KIND_TAG[row.kind].color}66`, borderRadius: 3, padding: '1px 5px',
+                        background: 'rgba(255,255,255,0.05)', verticalAlign: 'middle',
+                      }}>
+                        {ROW_KIND_TAG[row.kind].label}
+                      </span>
+                    )}
+                    {form && form.proc_chance < 1.0 && (
                       <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
                         {(form.proc_chance * 100).toFixed(0)}% chance
                       </span>
@@ -843,10 +897,10 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                 </tr>
                 <tr>
                   <td style={tdLbl}>Hit Range</td>
-                  <td style={td}>{fmtNum(formMin)}–{fmtNum(formMax)}</td>
+                  <td style={td}>{hasHitRange ? `${fmtNum(formMin)}–${fmtNum(formMax)}` : '—'}</td>
                   {ALL_DTYPES.map(d => {
-                    const mn = form.hit_min_by_type[d] ?? 0
-                    const mx = form.hit_max_by_type[d] ?? 0
+                    const mn = row.hit_min_by_type[d] ?? 0
+                    const mx = row.hit_max_by_type[d] ?? 0
                     return <td key={d} style={mn > 0 || mx > 0 ? td : tdDim}>
                       {mn > 0 || mx > 0 ? `${fmtNum(mn)}–${fmtNum(mx)}` : '—'}
                     </td>
@@ -854,11 +908,9 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                 </tr>
                 <tr>
                   <td style={tdLbl}>DPS</td>
-                  <td style={{ ...td, color: '#f0c070' }}>{fmtNum(form.dps_vs_target * breakdownMult)}</td>
+                  <td style={{ ...td, color: '#f0c070' }}>{fmtNum(row.dps_vs_target_final)}</td>
                   {ALL_DTYPES.map(d => {
-                    const dtypeAvg = form.damage_by_type[d] ?? 0
-                    const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-                    const dtypeDps = prop * form.dps_vs_target * breakdownMult
+                    const dtypeDps = row.dps_by_type_vs_target[d] ?? 0
                     return <td key={d} style={dtypeDps > 0 ? td : tdDim}>
                       {dtypeDps > 0 ? fmtNum(dtypeDps) : '—'}
                     </td>
@@ -866,13 +918,11 @@ function DamageBreakdownTable({ offense }: { offense: OffenseResult }) {
                 </tr>
                 <tr>
                   <td style={tdSub}>% of Total</td>
-                  {/* "All Types" is the whole, so its own % is trivially 100% — show the form's SHARE only when
-                      there are multiple forms (where it's informative); blank it for a single form. */}
-                  <td style={{ ...td, color: '#aaa' }}>{multiForm ? formPct : ''}</td>
+                  {/* "All Types" is the whole, so its own % is trivially 100% — show the row's SHARE only when
+                      there are multiple rows (where it's informative); blank it for a single row. */}
+                  <td style={{ ...td, color: '#aaa' }}>{multiRow ? formPct : ''}</td>
                   {ALL_DTYPES.map(d => {
-                    const dtypeAvg = form.damage_by_type[d] ?? 0
-                    const prop = form.avg_hit_pre_crit > 0 ? dtypeAvg / form.avg_hit_pre_crit : 0
-                    const dtypeDps = prop * form.dps_vs_target * breakdownMult
+                    const dtypeDps = row.dps_by_type_vs_target[d] ?? 0
                     const pct = totalDps > 0 && dtypeDps > 0 ? `${(dtypeDps / totalDps * 100).toFixed(0)}%` : '—'
                     return <td key={d} style={{ ...td, color: dtypeDps > 0 ? '#888' : '#444' }}>{pct}</td>
                   })}
@@ -1011,11 +1061,15 @@ function _curseDebuffLabel(statKey: string | null): string {
   return `${t.charAt(0).toUpperCase()}${t.slice(1)} Damage taken`
 }
 
-function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta, empower }: { slot: number; skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null }) {
+function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta, empower, elixir }: { slot: number; skill: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null }) {
   const ctx = useContext(BreakdownCtx)
   const conditionState = useBuildStore(s => s.conditionState)
   const setConditionState = useBuildStore(s => s.setConditionState)
   const isPassive = skill.slot >= 6
+  // A disabled buff skill (aura/empower/elixir/curse) is still shown — its stats render greyed with a "Disabled"
+  // banner so the user sees what it WOULD grant — but the engine applies nothing (handled backend-side).
+  const disabled = (aura?.enabled === false) || (empower?.enabled === false)
+    || (elixir?.enabled === false) || (curse?.enabled === false)
   const rows = (isPassive
     ? ['Reservation (Sealing)', 'Aura / Magus / Focus Effect', 'Area of Effect']
     : ['Empower Effect', 'Skill Duration', 'Cooldown', 'Area of Effect']
@@ -1024,13 +1078,19 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
   const fmtGrant = (stat: string, amt: number) =>
     /_flat$/.test(stat) ? fmtNum(amt) : fmtPct(amt)
   return (
-    <StatPanel title={`${slotLabel(slot)} — ${skill.name} (Level ${skill.level})`} accent={AMBER}>
+    <StatPanel title={`${slotLabel(slot)} — ${skill.name} (Level ${skill.level})`} accent={disabled ? '#777' : AMBER}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
         {skill.skill_tags?.map(t => <span key={t} style={{ fontSize: 9, color: '#888', background: '#1a1a2e', borderRadius: 3, padding: '1px 5px' }}>{t}</span>)}
       </div>
+      {disabled && (
+        <div style={{ fontSize: 11, color: '#d09a4a', background: 'rgba(208,154,74,0.12)', border: '1px solid rgba(208,154,74,0.35)', borderRadius: 4, padding: '4px 8px', marginBottom: 6 }}>
+          ⊘ Disabled — stats shown for reference; not applied to your build.
+        </div>
+      )}
       <div style={{ fontSize: 10, color: '#777', marginBottom: 4 }}>
         {isPassive ? 'This skill contributes build-wide (no hit DPS of its own).' : 'Buff / utility skill (no hit DPS of its own).'}
       </div>
+      <div style={{ opacity: disabled ? 0.5 : 1 }}>
       {reservation && (() => {
         const baseSeal = reservation.base_fraction * reservation.pool_max
         const poolLabel = reservation.pool === 'life' ? 'Max Life' : 'Max Mana'
@@ -1229,14 +1289,142 @@ function SkillFoundationPanel({ slot, skill, aura, reservation, curse, curseMeta
             </>
           )}
         </>
+      ) : elixir ? (
+        <>
+          <Row label="Total Elixir Effect" breakdown={{
+            title: 'Total Elixir Effect', keys: ['elixir_effect_inc', 'elixir_effect_additional'],
+            total: elixir.elixir_effect_inc, totalUnit: '%',
+            formula: '(1 + Σ increased) × (1 + Σ additional) − 1',
+          }}>{floorPct(elixir.elixir_effect_inc)}</Row>
+          {/* Timing — display-only (full uptime assumed while enabled). Each carries a source breakdown. */}
+          {elixir.duration != null && (() => {
+            const base = elixir.base_duration ?? elixir.duration!
+            const extra = [{ value: `${dec(base)}s`, stat: 'Base Duration', source: 'Skill', sourceName: elixir.name }]
+            return (
+              <Row label="Duration" breakdown={{
+                title: 'Duration',
+                keys: ['skill_effect_duration_inc', 'skill_effect_duration_additional', 'elixir_duration_additional'],
+                total: elixir.duration!, totalUnit: 's',
+                formula: 'Base × (1 + Skill Duration) × (1 + Additional Duration) × (1 + Elixir Duration)', extra,
+              }}>{dec(elixir.duration!)}s</Row>
+            )
+          })()}
+          {elixir.cooldown != null && (
+            <Row label="Cooldown" breakdown={{
+              title: 'Cooldown', keys: ['cdr_speed_inc'], total: elixir.cooldown, totalUnit: 's',
+              formula: 'Base ÷ (1 + Cooldown Recovery Speed)',
+              extra: [{ value: `${dec(elixir.base_cooldown ?? elixir.cooldown)}s`, stat: 'Base Cooldown', source: 'Skill', sourceName: elixir.name }],
+            }}>{dec(elixir.cooldown)}s</Row>
+          )}
+          {(elixir.charge_per_second ?? 0) > 0 && (() => {
+            const supExtra = (elixir.support_sources ?? [])
+              .filter(s => s.kind === 'charge_per_second' && s.value)
+              .map(s => ({ value: `+${dec(s.value)}`, stat: 'Charging Progress / s', source: 'Support', sourceName: s.name }))
+            return (
+              <Row label="Charge / sec" breakdown={{
+                title: 'Charging Progress / second', keys: ['elixir_charging_progress_flat'],
+                total: elixir.charge_per_second!, totalUnit: '', formula: 'Support gems + global charging pool',
+                extra: supExtra,
+              }}>{dec(elixir.charge_per_second!)}</Row>
+            )
+          })()}
+          {(elixir.max_charges ?? 0) > 0 && (() => {
+            const extra = [{ value: dec(elixir.base_charges ?? elixir.max_charges!), stat: 'Base Charges', source: 'Skill', sourceName: elixir.name },
+              ...(elixir.support_sources ?? [])
+                .filter(s => s.kind === 'max_charge' && s.value)
+                .map(s => ({ value: `+${dec(s.value)}`, stat: 'Max Charges', source: 'Support', sourceName: s.name }))]
+            return (
+              <Row label="Max Charges" breakdown={{
+                title: 'Max Charges', keys: ['max_charge_flat'], total: elixir.max_charges!, totalUnit: '',
+                formula: 'Base + global Max Charge + support gems', extra,
+              }}>{dec(elixir.max_charges!)}</Row>
+            )
+          })()}
+          {/* Restoration recast cadence (Effective uptime): how long to refill before it can be recast. Charge time
+              = charging progress threshold ÷ charge/sec; ∞ when there's no charge generation. */}
+          {(elixir.restoration?.length ?? 0) > 0 && (elixir.charge_threshold ?? 0) > 0 && (() => {
+            const cps = elixir.charge_per_second ?? 0
+            const chargeTime = elixir.charge_regen ?? null
+            const sustainable = cps > 0 && chargeTime != null && chargeTime < 1e8
+            const recast = elixir.recast ?? null
+            return (
+              <Row label="Recast (charge time)" labelColor={sustainable ? undefined : '#e0a050'} breakdown={{
+                title: 'Recast Cadence', keys: [], total: recast ?? undefined, totalUnit: '',
+                formula: 'max(Cooldown, charge time). Charge time = Charge Threshold ÷ Charge/sec. Effective uptime divides Restoration by this.',
+                extra: [
+                  { value: `${dec(elixir.charge_threshold!)}`, stat: 'Charge Threshold', source: 'Skill', sourceName: 'progress per charge' },
+                  { value: cps > 0 ? `÷ ${dec(cps)}/s` : 'no charge gen', stat: 'Charge / sec', source: 'Charging', sourceName: cps > 0 ? `= ${dec(chargeTime!)}s` : 'unsustainable' },
+                  { value: `${dec(elixir.cooldown ?? 0)}s`, stat: 'Cooldown', source: 'Skill', sourceName: 'floor' },
+                ],
+              }}>{sustainable ? `${dec(recast ?? chargeTime!)}s` : '∞ (no charge gen)'}</Row>
+            )
+          })()}
+          {elixir.has_blur && <Row label="Blur" labelColor="#7aa0c0">Active</Row>}
+          <div style={{ fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Grants (full uptime)</div>
+          {elixir.granted.length === 0 && (elixir.restoration?.length ?? 0) === 0 && <div style={{ fontSize: 11, color: '#555' }}>No modeled buff lines.</div>}
+          {(elixir.restoration ?? []).map((rst, i) => {
+            // Restoration tonics grant heal-over-time (modeled in the recovery stage → shown on the Life/Mana
+            // panels). base_amount already × Elixir Effect; pct = fraction of Max pool, flat = absolute. Show the
+            // PER-SECOND rate over the window by default (people read per-second); the full per-cast value is in
+            // the breakdown.
+            const poolLabel = rst.pool === 'mana' ? 'Mana' : rst.pool === 'life' ? 'Life' : rst.pool
+            const win = rst.window || 1
+            const perSec = rst.mode === 'pct' ? `${dec(rst.base_amount * 100 / win)}% Max/s` : `${fmtNum(rst.base_amount / win)}/s`
+            const full = rst.mode === 'pct' ? `${dec(rst.base_amount * 100)}% Max` : fmtNum(rst.base_amount)
+            return (
+              <Row key={`rst${i}`} label={`Restores ${poolLabel}`} labelColor="#5fae79" breakdown={{
+                title: `Restores ${poolLabel}`, keys: [], total: rst.base_amount, totalUnit: rst.mode === 'pct' ? '%' : '',
+                formula: `${full} over ${dec(win)}s (× Elixir Effect) = ${perSec} during the heal. Sustained recovery (recast-limited in Effective) on the ${poolLabel} panel.`,
+                extra: [
+                  { value: full, stat: 'Per cast', source: 'Restoration', sourceName: `over ${dec(win)}s` },
+                  { value: `${dec(win)}s`, stat: 'Window', source: 'Restoration', sourceName: rst.source },
+                ],
+              }}>{perSec}</Row>
+            )
+          })}
+          {elixir.granted.map((g, i) => {
+            // Final = Base × (1 + Elixir Effect) for scaled buffs; flag stats (Lucky, ES-uninterruptible, ES
+            // bypass) carry no_scale and show their base value unchanged. Every grant gets a source breakdown:
+            // its Base comes from the elixir skill, plus the Elixir Effect multiplier step when scaled.
+            const scaled = !g.no_scale && !g.is_elixir_effect && elixir.elixir_effect_inc !== 0
+            const flag = g.no_scale
+            const extra = [
+              { value: flag ? '✓' : fmtGrant(g.stat, g.base), stat: 'Base', source: 'Elixir', sourceName: elixir.name },
+              ...(scaled ? [{ value: `×${dec((1 + elixir.elixir_effect_inc))}`, stat: 'Elixir Effect', source: '', sourceName: `+${Math.round(elixir.elixir_effect_inc * 100)}%` }] : []),
+            ]
+            // Row value is floored (against the player) so it never overstates what the engine uses (e.g. 2.3
+            // projectiles → 2). The breakdown Total shows the TRUE value to 2 decimals (2.3) so the user can see
+            // how far they are from the next breakpoint.
+            return (
+              <Row key={i} label={statMapName(g.stat)} breakdown={{
+                title: statMapName(g.stat), keys: [], total: flag ? undefined : g.amount,
+                totalUnit: /_flat$/.test(g.stat) ? '' : '%',
+                formula: flag ? 'Flag (not scaled by Elixir Effect)' : 'Base × (1 + Elixir Effect)', extra,
+              }}>{flag ? '✓' : fmtGrantFloor(g.stat, g.amount)}</Row>
+            )
+          })}
+          {elixir.nyi.length > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: '#a05a5a', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Not yet modeled</div>
+              {elixir.nyi.map((t, i) => <div key={i} style={{ fontSize: 10, color: '#7a5a5a', lineHeight: 1.4 }}>{t}</div>)}
+            </>
+          )}
+          {(elixir.review?.length ?? 0) > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: '#b08a4a', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 2 }}>Needs manual review (scaling unverified)</div>
+              {elixir.review!.map((t, i) => <div key={i} style={{ fontSize: 10, color: '#8a7550', lineHeight: 1.4 }}>{t}</div>)}
+            </>
+          )}
+        </>
       ) : (
         rows.map(label => <Row key={label} label={label} labelColor="#555">— NYI</Row>)
       )}
+      </div>
     </StatPanel>
   )
 }
 
-function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null }) {
+function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMeta, empower, elixir, skillCost, minion = false }: { offense: OffenseResult | null; slot: number; skill?: EquippedSkill; aura?: AuraSummary | null; reservation?: ReservationSummary | null; curse?: CurseSummary | null; curseMeta?: CurseMeta | null; empower?: EmpowerSummary | null; elixir?: ElixirSummary | null; skillCost?: SkillCost | null; minion?: boolean }) {
   // Character-wide stats the Skill Effects box surfaces (projectile speed / penetration / jumps). Per-skill
   // scoping is Phase-2 engine work; for now we show the build-wide totals with their source breakdowns.
   const bdCtx = useContext(BreakdownCtx)
@@ -1248,25 +1436,134 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
     // No computed offense for this slot. If a skill IS equipped here (passive/buff/curse/empower), show its
     // foundation panel; otherwise the slot is empty.
     return skill
-      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} />
+      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
       : <StatPanel title={slotLabel(slot)} accent={AMBER}><div style={{ fontSize: 12, color: '#555' }}>No skill selected.</div></StatPanel>
   }
 
   if (!offense.supported) {
     return skill
-      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} />
+      ? <SkillFoundationPanel slot={slot} skill={skill} aura={aura} reservation={reservation} curse={curse} curseMeta={curseMeta} empower={empower} elixir={elixir} />
       : (
         <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name}`} accent={AMBER}>
-          <div style={{ fontSize: 12, color: '#ff6b6b' }}>Skill calculation not yet supported.</div>
+          <div style={{ fontSize: 12, color: '#ff6b6b' }}>Not modeled — this skill isn't in the DPS engine yet (0 DPS).</div>
         </StatPanel>
       )
   }
 
+  // A minion Empower/Ultimate NYI form selected on its own (via the Form dropdown) deals no hit — it's a buff or
+  // a locked skill. Show its EFFECT (not the hit-damage / rate / crit panels, which would wrongly display the
+  // Base form's shared numbers). The combined "All forms" view excludes these entirely (DamageBreakdownTable).
+  const nyiFormsSel = (offense.hit_forms ?? []).filter(f => f.nyi?.length)
+  const damageFormsSel = (offense.hit_forms ?? []).filter(f => !(f.nyi?.length))
+  if (nyiFormsSel.length > 0 && damageFormsSel.length === 0) {
+    // A modeled minion Empower (e.g. Thundercloud Surge) — show it like a player empower skill: Empower Effect,
+    // base→effective cooldown/duration, an uptime box, and each Euphoria buff's base→effective magnitude. Each
+    // box carries its formula + source breakdown. The buffs themselves are already folded into the attacks above.
+    const emp = (minion && offense.minion_empower && nyiFormsSel.some(f => f.name === offense.minion_empower!.name))
+      ? offense.minion_empower : null
+    if (emp) {
+      const secHeader: React.CSSProperties = { fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 8, marginBottom: 2 }
+      const effRow: ExtraRow[] = Math.abs(emp.empower_effect - 1) > 1e-9
+        ? [{ value: `×${dec(emp.empower_effect)}`, stat: 'Empower Effect', source: '', sourceName: `+${dec(emp.empower_effect_inc * 100)}%` }]
+        : []
+      return (
+        <StatPanel title={`${offense.skill_name} — ${emp.name}`} accent={AMBER}>
+          <div style={{ fontSize: 11, color: '#8a9', lineHeight: 1.45, marginBottom: 6 }}>
+            Empower buff — folded into the minion's attacks at {dec(emp.uptime * 100)}% uptime (no direct hit of its own).
+          </div>
+          <Row label="Empower Effect" breakdown={{
+            title: 'Empower Effect', keys: ['spirit_magi_empower_effect_additional'],
+            total: emp.empower_effect_inc, totalUnit: '%',
+            formula: '1 + Σ Spirit Magi Empower Effect',
+          }}>{dec(emp.empower_effect_inc * 100)}%</Row>
+          <Row label="Cooldown" breakdown={{
+            title: 'Cooldown', keys: ['minion_cdr_speed_inc'], total: emp.cdr_inc, totalUnit: '%',
+            formula: 'Base Cooldown ÷ (1 + Minion Cooldown Recovery Speed)',
+            extra: [
+              { value: `${dec(emp.base_cooldown)} s`, stat: 'Base Cooldown', source: 'Skill', sourceName: emp.name },
+              ...(emp.cdr_inc ? [{ value: `÷ ${dec(1 + emp.cdr_inc)}`, stat: 'Cooldown Recovery Speed', source: '', sourceName: `+${dec(emp.cdr_inc * 100)}%` }] : []),
+            ],
+          }}>{dec(emp.cooldown)} s</Row>
+          <Row label="Duration" breakdown={{
+            title: 'Duration', keys: ['minion_skill_effect_duration_inc'], total: emp.duration_inc, totalUnit: '%',
+            formula: 'Base Duration × (1 + Minion Skill Effect Duration)',
+            extra: [
+              { value: `${dec(emp.base_duration)} s`, stat: 'Base Duration', source: 'Skill', sourceName: emp.name },
+              ...(emp.duration_inc ? [{ value: `×${dec(1 + emp.duration_inc)}`, stat: 'Skill Effect Duration', source: '', sourceName: `+${dec(emp.duration_inc * 100)}%` }] : []),
+            ],
+          }}>{dec(emp.duration)} s</Row>
+          <Row label="Uptime" breakdown={{
+            title: 'Uptime', keys: [], total: emp.uptime, totalUnit: '%',
+            formula: 'min(1, Duration ÷ Cooldown)',
+            extra: [
+              { value: `${dec(emp.duration)} s`, stat: 'Duration', source: 'effective', sourceName: '' },
+              { value: `÷ ${dec(emp.cooldown)} s`, stat: 'Cooldown', source: 'effective', sourceName: '' },
+            ],
+          }}>{dec(emp.uptime * 100)}%</Row>
+          <div style={secHeader}>Grants (Euphoria)</div>
+          {emp.buffs.map((b, i) => !b.active ? (
+            <Row key={i} label={b.label} labelColor="#6a6a6a">
+              <span style={{ color: '#6a6a6a', fontSize: 11 }}>{b.note ?? 'inactive'}</span>
+            </Row>
+          ) : (
+            <Row key={i} label={b.label} breakdown={{
+              title: b.label, keys: [], total: b.value, totalUnit: '%',
+              formula: 'Base × Empower Effect × Uptime',
+              extra: [
+                { value: `${dec(b.base * 100)}%`, stat: 'Base', source: 'Euphoria', sourceName: emp.name },
+                ...effRow,
+                { value: `×${dec(emp.uptime * 100)}%`, stat: 'Uptime', source: '', sourceName: '' },
+              ],
+            }}>{dec(b.value * 100)}%</Row>
+          ))}
+        </StatPanel>
+      )
+    }
+    return (
+      <StatPanel title={`${offense.skill_name} — ${nyiFormsSel[0].name}`} accent={AMBER}>
+        {nyiFormsSel.map(f => (
+          <div key={f.name} style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#e0d0a0', marginBottom: 3 }}>
+              {f.name}<span style={{ color: '#c8645a', fontWeight: 700, fontSize: 11, marginLeft: 6 }}>NYI</span>
+            </div>
+            {(f.nyi ?? []).map((n, i) => (
+              <div key={i} style={{ fontSize: 12, color: '#b8b0d0', lineHeight: 1.45 }}>{n}</div>
+            ))}
+          </div>
+        ))}
+      </StatPanel>
+    )
+  }
+
   const isSpell = hasTag(offense,'spell')
   const rateLabel = isSpell ? 'Casts per Second' : 'Attacks per Second'
-  const rateKeys = isSpell
+  // Minion abilities are scaled ONLY by minion-scoped speed pools — the player's attack/cast speed (incl. any
+  // Origin +6% AS granted to the SUMMONER) must never appear in a minion's hit-rate breakdown.
+  const rateKeys = minion
+    ? (isSpell
+        ? ['minion_cast_speed_inc', 'minion_cast_speed_additional']
+        : ['minion_attack_speed_inc', 'minion_attack_speed_additional'])
+    : isSpell
     ? ['cast_speed_inc', 'cast_speed_additional', 'combo_starter_cast_speed_additional']
     : ['weapon_attack_speed', 'attack_speed_inc', 'attack_speed_gear', 'attack_speed_mh', 'attack_speed_additional', 'combo_starter_attack_speed_additional']
+  // Firing-rate wording/baseline differ for minions: a minion has no weapon/gear — its rate is an intrinsic base
+  // rate (1 ÷ base attack/cast time) scaled by minion-scoped speed pools only, so the player "Weapon APS × (1 +
+  // Gear)" formula and weapon source must never show. NYI forms (Empower/Ultimate) don't fire → excluded here.
+  const baseRate = offense.base_cast_time > 0 ? 1 / offense.base_cast_time : 0
+  const rateWhat = isSpell ? 'Cast' : 'Attack'
+  const rateForms = offense.hit_forms.filter(f => !(f.nyi?.length))
+  const rateFormula = minion
+    ? `Base ${rateWhat} Rate × (1 + Increased) × Π(1 + Additional)`
+    : (isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional')
+  const rateBaseline: ExtraRow[] | undefined = minion && baseRate > 0
+    ? [{ value: `${dec(baseRate)} /s`, stat: `Base ${rateWhat} Rate`, source: 'Minion', sourceName: `1 ÷ ${dec(offense.base_cast_time)}s base ${rateWhat.toLowerCase()} time` }]
+    : (isSpell && offense.base_cast_time > 0
+        ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
+        : undefined)
+  const rateInfo = minion
+    ? `${rateWhat} Rate = Base Rate × (1 + Increased) × Additional — minion-scoped pools only (no weapon/gear). Multi-form minions list each ability's own firing rate.`
+    : (isSpell ? 'Cast Rate = 1 ÷ Cast Time × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate — some forms fire every cast, others on a slower cadence.'
+      : 'Attack Rate = Weapon APS × (1 + Gear) × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate.')
 
   // Whether this skill lands hits — a precondition for inflicting ailments / crowd control. A skill that deals
   // no hit damage (pure aura/buff/persistent with no strike) can't apply these unless it has special behavior,
@@ -1336,9 +1633,19 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
   ]
   const ccActive = CC.filter(c => stat(c.key) > 0)
 
+  // Damage-over-Time rows (kind="dot" — Mind Control / Path of Flames): whole-skill, engine-computed, but
+  // measured only to within −6%/+4% across 12 parses with an unexplained residual, so any DPS figure that
+  // includes one carries a disclaimer. "Dominant" gates the headline DPS note (a build that's mostly hit damage
+  // with a small DoT add-on doesn't need the caveat on its top-line number — the breakdown table below still has it).
+  const dotRows = (offense.damage_rows ?? []).filter(r => r.kind === 'dot' && !(r.nyi?.length))
+  const hasDot = dotRows.length > 0
+  const dotDps = dotRows.reduce((s, r) => s + r.dps_vs_target_final, 0)
+  const dotDominant = hasDot && offense.total_dps_vs_target > 0 && dotDps / offense.total_dps_vs_target >= 0.5
+  const DOT_DISCLAIMER = 'Damage over Time is modelled and may be off by up to ~10% vs in-game (measured −6% / +4%). Residual under investigation.'
+
   return (
     <>
-      <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name} (Level ${offense.effective_level})`} accent={AMBER}>
+      <StatPanel title={`${slotLabel(slot)} — ${offense.skill_name} (Level ${offense.effective_level})`} accent={AMBER} info={dotDominant ? DOT_DISCLAIMER : undefined}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 6px' }}>
           <span style={{ fontSize: 12, color: '#999' }}>DPS</span>
           <span style={{ fontSize: 17, fontWeight: 700, color: '#f0c070', fontVariantNumeric: 'tabular-nums' }}>
@@ -1362,8 +1669,8 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         )}
       </StatPanel>
 
-      <StatPanel title="Skill Hit Damage" accent={AMBER}>
-        <DamageBreakdownTable offense={offense} />
+      <StatPanel title="Skill Hit Damage" accent={AMBER} info={hasDot ? DOT_DISCLAIMER : undefined}>
+        <DamageBreakdownTable offense={offense} minion={minion} />
       </StatPanel>
 
       {/* Box grid: rate · crit · skill effects always present, then any mechanic boxes that apply (shotgun,
@@ -1372,31 +1679,80 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           capped by columnMax so boxes don't sprawl. */}
       <MasonryGrid columnWidth={220} columnMax={340} gap={6}>
         <GridBox>
-          <StatPanel title="Hit Rate" accent={AMBER}
-            info={isSpell ? 'Cast Rate = 1 ÷ Cast Time × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate — some forms fire every cast, others on a slower cadence.'
-              : 'Attack Rate = Weapon APS × (1 + Gear) × (1 + Increased) × Additional. Multi-form skills list each form\'s own firing rate.'}>
+          <StatPanel title="Hit Rate" accent={AMBER} info={rateInfo}>
             {/* Multi-form skills list each form's own firing rate (forms fire at different cadences — e.g. beam
                 every cast, blade slower); the general cast/attack rate is dropped since the main form duplicates
-                it. Single-form skills show the one general rate. Each row carries its own source breakdown. */}
-            {offense.hit_forms.length > 1 ? (
-              offense.hit_forms.map(f => (
+                it. Single-form skills show the one general rate. Each row carries its own source breakdown.
+                NYI forms (a minion's Empower/Ultimate) don't fire, so they're excluded from the Hit Rate list. */}
+            {minion ? (() => {
+              // Minions: split into ATTACK rate (how often the magus swings) and HIT rate (damage instances
+              // landing/sec). They differ whenever a form lands >1 hit per fire — Thunderlight Arrow's 2 hits
+              // (through + return), so Hit Rate > Attack Rate. Per-form detail lives in each row's breakdown.
+              const totalFires = rateForms.reduce((s, f) => s + f.fires_per_sec, 0)
+              const totalHits = rateForms.reduce((s, f) => s + f.fires_per_sec * (f.hits_per_fire || 1), 0)
+              const encP = offense.spirit_magi_enhanced_chance ?? 0    // Enhanced (replace) chance, for labels
+              const perFormFires: ExtraRow[] = rateForms.map(f => {
+                const isEnh = /enhanced/i.test(f.name)
+                const sn = encP > 0
+                  ? (isEnh
+                      ? `${dec(encP * 100)}% Enhanced chance + fast-insert (fires fast after a Base)`
+                      : `Base share = 1 − ${dec(encP * 100)}% Enhanced`)
+                  : 'firing rate'
+                return { value: `${dec(f.fires_per_sec)}/s`, stat: f.name, source: 'Form', sourceName: sn }
+              })
+              const perFormHits: ExtraRow[] = rateForms.map(f => ({
+                value: `${dec(f.fires_per_sec)}/s × ${f.hits_per_fire || 1} = ${dec(f.fires_per_sec * (f.hits_per_fire || 1))}/s`,
+                stat: f.name, source: 'Form', sourceName: `${f.hits_per_fire || 1} hit${(f.hits_per_fire || 1) === 1 ? '' : 's'}/fire` }))
+              // Minions swing at a shared cadence, but an Enhanced skill REPLACES the Base skill on proc and (for
+              // Thunder) fires with a short recovery right after a Base — so Enhanced lands ABOVE its raw chance
+              // (the "fast insert"). Both forms are further scaled by the Empower cast-slot. Spell out that here
+              // so the per-form rates (which sum to the total) aren't a black box.
+              const attackFormula = rateForms.length > 1
+                ? `${rateFormula} = shared cadence. Enhanced REPLACES Base at its chance; it fires faster right after a Base (fast-insert) so it lands above its raw chance. Both × the Empower cast-slot. Per-form rows sum to the total.`
+                : rateFormula
+              return (
+                <>
+                  <Row label={rateLabel} breakdown={{
+                    title: rateLabel, keys: rateKeys, total: totalFires, totalUnit: ' /s',
+                    formula: attackFormula,
+                    extra: [...(rateBaseline ?? []), ...(rateForms.length > 1 ? perFormFires : [])],
+                  }}>{dec(totalFires)}/s</Row>
+                  {totalHits > totalFires + 1e-6 && (
+                    <Row label="Hits per Second" labelColor="#8aa" breakdown={{
+                      title: 'Hit Rate — damage instances landing / second', keys: [], total: totalHits, totalUnit: ' /s',
+                      formula: 'Σ (form firing rate × hits per fire). Thunderlight Arrow lands 2 hits/cast — the arrow passes through the target, then tracks back and hits again.',
+                      extra: perFormHits,
+                    }}>{dec(totalHits)}/s</Row>
+                  )}
+                </>
+              )
+            })() : rateForms.length > 1 ? (
+              rateForms.map(f => (
                 <Row key={f.name} label={f.name} labelColor="#8aa" breakdown={{
                   title: `${f.name} — firing rate`, keys: rateKeys, total: f.fires_per_sec, totalUnit: ' /s',
-                  formula: isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional, at this form\'s cadence' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional, at this form\'s cadence',
-                  extra: isSpell && offense.base_cast_time > 0
-                    ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
-                    : undefined,
+                  formula: `${rateFormula}, at this form's cadence`,
+                  extra: rateBaseline,
                 }}>{dec(f.fires_per_sec)}/s</Row>
               ))
-            ) : (
-              <Row label={rateLabel} breakdown={{
-                title: rateLabel, keys: rateKeys, total: offense.attacks_per_second, totalUnit: '',
-                formula: isSpell ? '1 ÷ Cast Time × (1 + Increased) × Additional' : 'Weapon APS × (1 + Gear) × (1 + Increased) × Additional',
-                extra: isSpell && offense.base_cast_time > 0
-                  ? [{ value: `${dec(offense.base_cast_time)}s`, stat: 'Base Cast Time', source: 'Baseline', sourceName: offense.skill_name }]
-                  : undefined,
-              }}>{dec(offense.attacks_per_second)}</Row>
-            )}
+            ) : (() => {
+              const isTrig = (offense.trigger_interval ?? 0) > 0
+              // A channeled attack (Split Shot: Rapid Advance) fires at the SMOOTH weapon-APS rate — no 30 Hz
+              // breakpoint (that was a removed Split-Shot quirk), so it uses the normal attack-rate row.
+              return (
+              <Row label={isTrig ? 'Triggers per Second' : rateLabel} breakdown={{
+                title: isTrig ? 'Triggers per Second' : rateLabel, keys: rateKeys,
+                total: offense.skills_per_second, totalUnit: '',
+                formula: isTrig
+                  ? (offense.wind_rhythm_active
+                      ? 'Wind Rhythm trigger rate (tick-quantized — see the Wind Rhythm panel). The skill fires at the medium\'s cadence, not your cast rate.'
+                      : `Triggered by an Activation Medium every ${dec(offense.trigger_interval ?? 0)} s → ${dec(offense.skills_per_second)}/s (overrides your cast rate).`)
+                  : rateFormula,
+                extra: isTrig
+                  ? [{ value: `${dec(offense.trigger_interval ?? 0)} s`, stat: 'Trigger interval', source: 'Medium', sourceName: 'cadence' }]
+                  : rateBaseline,
+              }}>{dec(offense.skills_per_second)}</Row>
+              )
+            })()}
           </StatPanel>
         </GridBox>
 
@@ -1407,29 +1763,137 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                 crit rating shows as a real gear source via weapon_crit_rating_flat. */}
             <Row label="Crit Chance" breakdown={{
               title: 'Crit Chance',
-              keys: isSpell
+              // Minions crit only off their own base (500 CSR, shown as a baseline below) + minion-scoped crit
+              // pools — never the player's weapon/spell/generic crit rating.
+              keys: minion
+                ? ['minion_crit_rating_flat', 'minion_crit_rating_inc']
+                : isSpell
                 ? ['spell_crit_rating_flat', 'spell_crit_rating_inc', 'crit_rating_inc', 'crit_rating_additional', 'projectile_crit_rating_inc']
                 : ['weapon_crit_rating_flat', 'attack_crit_rating_gear', 'attack_crit_rating_mh', 'attack_crit_rating_flat', 'attack_crit_rating_inc', 'crit_rating_inc', 'crit_rating_additional'],
-              total: offense.crit_chance, totalUnit: '%',
-              formula: '(Base + Flat) × (1 + Increased) ÷ 100',
-              extra: isSpell && offense.base_csr > 0
-                ? [{ value: offense.base_csr.toFixed(0), stat: 'Base Crit Rating', source: 'Baseline', sourceName: 'Spell base' }]
-                : undefined,
-            }}>{dec((offense.crit_chance * 100))}%</Row>
+              total: (offense.crit_chance_uncapped ?? offense.crit_chance), totalUnit: '%',
+              formula: '(Base + Flat) × (1 + Increased) ÷ 100 — the true chance from rating (shown here). Crit is '
+                + 'capped at 100% effective, so anything above is wasted except in niche scenarios.'
+                + (offense.crit_luck_effect === 'lucky' ? '  →  Lucky: 1 − (1 − p)²'
+                  : offense.crit_luck_effect === 'unlucky' ? '  →  Unlucky: p²' : ''),
+              extra: [
+                ...((isSpell || minion) && offense.base_csr > 0
+                  ? [{ value: offense.base_csr.toFixed(0), stat: 'Base Crit Rating', source: 'Baseline', sourceName: minion ? 'Minion base' : 'Spell base' }] : []),
+                // Show the effective (capped) chance when the true chance is over 100%, so it's clear crit is maxed.
+                ...((offense.crit_chance_uncapped ?? offense.crit_chance) > 1
+                  ? [{ value: `${dec(offense.crit_chance * 100)}%`, stat: 'Effective (capped)', source: '', sourceName: 'crit caps at 100%' }] : []),
+                ...(offense.crit_luck_effect
+                  ? [{ value: offense.crit_luck_effect === 'lucky' ? 'Lucky' : 'Unlucky',
+                       stat: `Critical Strikes have the ${offense.crit_luck_effect === 'lucky' ? 'Lucky' : 'Unlucky'} effect`,
+                       source: 'Kismet',
+                       sourceName: offense.crit_luck_effect === 'lucky'
+                         ? 'crit-chance rolled twice, higher kept → effective chance shown'
+                         : 'crit-chance rolled twice, lower kept → effective chance shown' }] : []),
+              ],
+            }}>{dec(((offense.crit_chance_uncapped ?? offense.crit_chance) * 100))}%</Row>
             <Row label="Crit Multiplier" breakdown={{
               title: 'Crit Multiplier',
-              keys: ['crit_damage'],
+              // Minions add Crit Damage only from minion-scoped pools; their base multiplier is 150% (constants).
+              keys: minion ? ['minion_crit_dmg_inc'] : ['crit_damage'],
               total: offense.crit_multiplier, totalUnit: '%',
               formula: '150% + Σ Crit Damage',
-              extra: [{ value: '150%', stat: 'Crit Multiplier', source: 'Baseline', sourceName: 'Base ×1.5' }],
+              extra: [{ value: '150%', stat: 'Crit Multiplier', source: 'Baseline', sourceName: minion ? 'Minion base' : 'Base' }],
             }}>{(offense.crit_multiplier * 100).toFixed(0)}%</Row>
+            {(offense.double_dmg_chance ?? 0) > 0 && (
+              <Row label="Double Damage Chance" breakdown={{
+                title: 'Double Damage Chance', totalUnit: '%', total: offense.double_dmg_chance!,
+                keys: minion ? ['minion_double_dmg_chance'] : ['double_dmg_chance', 'attack_double_dmg_chance', 'spell_double_dmg_chance', 'minion_double_dmg_chance', 'synth_double_dmg_chance'],
+                formula: 'Σ Double Damage chance (tag-filtered), capped at 100%. Lifts average DPS like crit.',
+              }}>{dec((offense.double_dmg_chance! * 100))}%</Row>
+            )}
+            {(offense.triple_dmg_chance ?? 0) > 0 && (
+              <Row label="Triple Damage Chance" breakdown={{
+                title: 'Triple Damage Chance', totalUnit: '%', total: offense.triple_dmg_chance, keys: ['triple_dmg_chance'],
+              }}>{dec((offense.triple_dmg_chance! * 100))}%</Row>
+            )}
+            {(offense.quad_dmg_chance ?? 0) > 0 && (
+              <Row label="Quadruple Damage Chance" breakdown={{
+                title: 'Quadruple Damage Chance', totalUnit: '%', total: offense.quad_dmg_chance, keys: ['quadruple_dmg_chance'],
+              }}>{dec((offense.quad_dmg_chance! * 100))}%</Row>
+            )}
           </StatPanel>
         </GridBox>
+
+        {/* Spirit Magi — the minion's Growth-subsystem state (Growth / Stage / Enhanced chance / Physique / Skill
+            Area / Max in Map). Replaces the player Skill Effects box in minion mode. Physique & Skill Area are
+            surfaced but don't change single-target DPS (noted in the info + row formulas). */}
+        {minion && (offense.spirit_magi_stage ?? 0) > 0 && (() => {
+          const growth = offense.spirit_magi_growth ?? 0
+          const stageN = offense.spirit_magi_stage ?? 0
+          const physique = offense.spirit_magi_physique_inc ?? 0
+          const areaInc = offense.skill_area_inc ?? 0
+          const enhChance = offense.spirit_magi_enhanced_chance ?? 0
+          const maxMagi = offense.spirit_magi_max ?? 0
+          // Per-stage bonuses (glossary 759 / in-game tooltip), indexed 0→Stage 1 … 4→Stage 5. The Stage row's
+          // hover breakdown lists all five and marks which are reached, so it's clear what each Stage unlocks.
+          const stageBonuses = [
+            'Spirit Magi active — Physique (per 8 Growth) & Skill Area (per stage) apply from here',
+            '+30% chance to use the Enhanced Skill',
+            'Enhanced Skills become stronger',
+            'Empower Skills become stronger',
+            '+50% additional damage, +10% additional Skill Area, increased Movement Speed & Tracking Area',
+          ]
+          return (
+            <GridBox>
+              <StatPanel title="Spirit Magi" accent={AMBER}
+                info="Spirit Magi grow a Stage per 100 Growth (Stage 5 at 500; Growth caps at 1000). Per 8 Growth they gain +1% Physique; per stage they gain +10% additional Skill Area plus a unique bonus. Physique & Skill Area don't change single-target DPS.">
+                <Row label="Growth" breakdown={{
+                  title: 'Growth', keys: ['spirit_magi_initial_growth_flat'], total: growth, totalUnit: '',
+                  formula: 'Base 100 (Stage 1) + Initial Growth mods (gear / talents / Iris), clamped 100–1000',
+                  extra: [{ value: '100', stat: 'Base Growth', source: 'Baseline', sourceName: 'Stage 1' }],
+                }}>{dec(growth)} / 1000</Row>
+                <Row label="Stage" breakdown={{
+                  title: 'Growth Stages', keys: [], total: stageN, totalUnit: ' / 5',
+                  formula: 'Spirit Magi grow one Stage per 100 Growth (Stage 1 at 100 → Stage 5 at 500; Growth caps at 1000). Each Stage unlocks a bonus:',
+                  // The long effect text goes in the wide `sourceName` column (BD_GRID's 1fr) so it wraps cleanly;
+                  // the short status sits in `stat` (an auto column). Putting long text in `stat` starves the
+                  // Source Name column and wraps it per-character.
+                  extra: stageBonuses.map((b, i) => {
+                    const s = i + 1
+                    return {
+                      value: `Stage ${s}`,
+                      stat: stageN === s ? '◀ current' : stageN > s ? '✓ reached' : `needs ${s * 100}`,
+                      source: '',
+                      sourceName: b,
+                    }
+                  }),
+                }}>{stageN} / 5</Row>
+                <Row label="Enhanced Skill Chance" breakdown={{
+                  title: 'Enhanced Skill Chance', keys: ['spirit_magi_enhanced_skill_chance'], total: enhChance, totalUnit: '%',
+                  formula: 'Σ Enhanced-Skill Chance (gear / talents) + 30% at Growth Stage 2, capped at 100%',
+                  extra: stageN >= 2 ? [{ value: '+30%', stat: 'Growth Stage 2', source: 'Growth', sourceName: 'Enhanced Skill chance' }] : undefined,
+                }}>{dec(enhChance * 100)}%</Row>
+                <Row label="Physique" breakdown={{
+                  title: 'Physique', keys: ['minion_physique_inc'], total: physique, totalUnit: '%',
+                  formula: '+1% per 8 Growth + gear / talent Physique. Does not change single-target DPS.',
+                  extra: [{ value: `+${dec(growth / 8)}%`, stat: 'Growth', source: 'Growth', sourceName: `${dec(growth)} Growth ÷ 8` }],
+                }}>+{dec(physique * 100)}%</Row>
+                <Row label="Skill Area" breakdown={{
+                  title: 'Additional Skill Area', keys: [], total: areaInc, totalUnit: '%',
+                  formula: `+10% additional Skill Area per stage → Stage ${stageN} × 10%. Does not change single-target DPS.`,
+                  extra: [{ value: `+${dec(stageN * 10)}%`, stat: `Growth Stage ${stageN}`, source: 'Growth', sourceName: '+10% additional per stage' }],
+                }}>+{dec(areaInc * 100)}%</Row>
+                <Row label="Max Spirit Magi" breakdown={{
+                  title: 'Max Spirit Magi in Map', keys: ['max_spirit_magi_flat'], total: maxMagi, totalUnit: '',
+                  formula: 'The skill\'s base count + Max Spirit Magi in Map mods — how many fight at once.',
+                }}>{maxMagi}</Row>
+              </StatPanel>
+            </GridBox>
+          )
+        })()}
 
         {/* Skill Effects — one of the 3 always-present boxes. Area/count/speed show for projectile-or-area skills;
             penetrations and jumps only appear when the build actually has them. (Values are build-wide today;
             per-skill scoping is Phase-2.) */}
         {(() => {
+          // Every row here reads player-scoped pools (projectile/area/penetration/jumps/mana), which never apply
+          // to minions — so in minion mode the box is skipped rather than leak player sources (the Spirit Magi
+          // box above carries the minion's Growth info instead).
+          if (minion) return null
           const projSpeedInc = statForSlot('projectile_speed_inc')
           const penetrations = statForSlot('horizontal_projectile_penetration_flat')
           const baseJumps = offense.jumps_base ?? 0
@@ -1440,7 +1904,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             <GridBox>
               <StatPanel title="Skill Effects" accent={AMBER}>
                 {hasTag(offense, 'area') && (
-                  <Row label="Area of Effect">{offense.skill_area_inc !== 0 ? `+${(offense.skill_area_inc * 100).toFixed(0)}%` : '+0%'}</Row>
+                  <Row label="Area of Effect" breakdown={{
+                    title: 'Area of Effect', keys: ['skill_area_inc'],
+                    total: offense.skill_area_inc, totalUnit: '%', formula: 'Σ Increased Skill Area',
+                  }}>{offense.skill_area_inc !== 0 ? `+${(offense.skill_area_inc * 100).toFixed(0)}%` : '+0%'}</Row>
                 )}
                 {hasTag(offense, 'projectile') && (
                   (offense.projectile_count ?? -1) >= 0
@@ -1478,14 +1945,37 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                     formula: `skill base ${baseJumps}${extraJumps ? ` + ${extraJumps} extra (supports)` : ''}`,
                   }}>{totalJumps}</Row>
                 )}
-                {/* Mana Cost — the skill's BASE per-cast cost. Cost reductions/conversions and "Skills no longer cost
-                    Mana" aren't modeled yet, so this is the unmodified base (reservation/sealing is its own panel). */}
-                {manaCost > 0 && (
-                  <Row label="Mana Cost" breakdown={{
-                    title: 'Mana Cost', keys: [], total: manaCost, totalUnit: '',
-                    formula: 'Skill base per-cast cost. Cost reductions / conversions and "Skills no longer cost Mana" are not modeled yet.',
-                  }}>{dec(manaCost)}</Row>
-                )}
+                {/* Mana Cost — the active skill's per-cast cost. When the cost model is available (this is the active
+                    skill), show the COMPUTED cost: (base + flat) × support multipliers × (1 + inc − reduced), with
+                    Frozen Lotus zeroing the base and Arcane paying part as Life. Otherwise the unmodified base. The
+                    per-second drain (cost × cast/attack rate) feeds Net Mana Recovery on the Mana panel. */}
+                {(() => {
+                  const sc = skillCost?.per_skill?.find(s => s.skill_name === offense.skill_name)
+                  if (sc && (sc.mana_per_cast > 0 || sc.life_per_cast > 0)) {
+                    return (
+                      <Row label="Mana Cost" breakdown={{
+                        title: 'Skill Cost (per cast)', keys: [], total: sc.mana_per_cast, totalUnit: '',
+                        formula: 'Per-cast cost = (base + flat Skill Cost) × support multipliers × (1 + increased − reduced). '
+                          + '"Skills no longer cost Mana" zeroes the base; Arcane pays part as Life. The per-second drain '
+                          + '(× your cast/attack rate) feeds Net Mana Recovery — it is a COST, never counted as "consumed".',
+                        extra: [
+                          { value: dec(sc.base_cost), stat: sc.base_is_percent ? 'Base (% Max Mana)' : 'Base', source: 'Skill', sourceName: offense.skill_name },
+                          ...(sc.flat ? [{ value: `+${dec(sc.flat)}`, stat: 'Flat Skill Cost', source: 'Mods', sourceName: '' }] : []),
+                          ...(sc.support_mult !== 1 ? [{ value: `×${dec(sc.support_mult)}`, stat: 'Support multipliers', source: 'Supports', sourceName: '' }] : []),
+                          ...((sc.inc + sc.additional - sc.reduction) ? [{ value: `×${dec(1 + sc.inc + sc.additional - sc.reduction)}`, stat: 'Increased / Reduced', source: 'Mods', sourceName: '' }] : []),
+                          ...(sc.life_per_cast > 0 ? [{ value: `${dec(sc.life_per_cast)} Life`, stat: `Arcane (${dec(sc.arcane_fraction * 100)}% paid as Life)`, source: 'Arcane', sourceName: '' }] : []),
+                        ],
+                      }}>{sc.life_per_cast > 0 ? `${dec(sc.mana_per_cast)} + ${dec(sc.life_per_cast)} Life` : dec(sc.mana_per_cast)}</Row>
+                    )
+                  }
+                  return manaCost > 0 ? (
+                    <Row label="Mana Cost" breakdown={{
+                      title: 'Mana Cost', keys: [], total: manaCost, totalUnit: '',
+                      formula: 'Skill base per-cast cost.',
+                      extra: [{ value: dec(manaCost), stat: 'Base', source: 'Skill', sourceName: offense.skill_name }],
+                    }}>{dec(manaCost)}</Row>
+                  ) : null
+                })()}
               </StatPanel>
             </GridBox>
           )
@@ -1537,10 +2027,10 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           {(offense.tangle_cast_ticks ?? 0) > 0 && (
             <Row label="Cast Rate (per tangle)" breakdown={{
               title: 'Cast Rate (per tangle)', keys: ['cast_speed_inc', 'cast_speed_additional'],
-              total: offense.attacks_per_second, totalUnit: ' /s',
+              total: offense.skills_per_second, totalUnit: ' /s',
               extra: [{ value: `${dec(1 / (offense.base_cast_time || 1))} /s`, stat: 'Base', source: 'Baseline', sourceName: `1 ÷ ${dec(offense.base_cast_time)}s base cast time` }],
               formula: '(1 ÷ base cast time) × (1 + Increased) × Π(1 + Additional), snapped down to the 30 ÷ ticks breakpoint',
-            }}>{dec(offense.attacks_per_second)} /s</Row>
+            }}>{dec(offense.skills_per_second)} /s</Row>
           )}
           {(offense.tangle_cast_ticks ?? 0) > 0 && (() => {
             const incNeed = offense.tangle_cast_to_next_increased ?? 0
@@ -1657,7 +2147,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             extra: [
               { value: `${offense.spell_burst_charge_ticks} ticks`, stat: 'Charge Ticks', source: 'Tick', sourceName: 'ceil(30 × Charge Time)' },
               { value: offense.spell_burst_auto ? 'Auto' : 'Manual', stat: 'Trigger', source: '', sourceName: offense.spell_burst_auto ? 'instant at full charge' : 'gated by cast rate' },
-              ...(offense.spell_burst_auto ? [] : [{ value: `${dec(offense.attacks_per_second)} /s`, stat: 'Cast Rate', source: '', sourceName: 'player casts/sec (30-capped)' }]),
+              ...(offense.spell_burst_auto ? [] : [{ value: `${dec(offense.skills_per_second)} /s`, stat: 'Cast Rate', source: '', sourceName: 'player casts/sec (30-capped)' }]),
             ],
           }}>{dec(offense.spell_burst_rate)}</Row>
           <Row label="Effective casts / sec" breakdown={{
@@ -1687,7 +2177,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
               formula: 'Casts made BETWEEN bursts (manual only) — normal casts that do NOT get the Spell Burst Hit '
                 + 'Damage pool. = per-normal-cast × (cast rate − bursts/sec). Auto-trigger has none (you do not cast manually).',
               extra: [
-                { value: `${dec(Math.max(0, offense.attacks_per_second - offense.spell_burst_rate))} /s`, stat: 'Normal casts / sec', source: '', sourceName: 'cast rate − bursts/sec' },
+                { value: `${dec(Math.max(0, offense.skills_per_second - offense.spell_burst_rate))} /s`, stat: 'Normal casts / sec', source: '', sourceName: 'cast rate − bursts/sec' },
               ],
             }}>{fmtNum(offense.non_spell_burst_dps_vs_target)}</Row>
           )}
@@ -1703,6 +2193,139 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           }}>
             <span style={{ color: '#f0c070' }}>{fmtNum(offense.total_dps_vs_target)}</span>
           </Row>
+        </StatPanel></GridBox>
+      )}
+
+      {(offense.demolisher_mode ?? '') !== '' && (
+        <GridBox><StatPanel title="Demolisher" accent={AMBER}
+          info="A Demolisher skill holds at most one Demolisher Charge, regained over time (base every 3 s, sped by Demolisher Charge Speed increased). The primary fissure lands on every cast; a charged cast consumes the charge to add the secondary explosion. Restoration is smooth real-time. If restoration is slower than your cast cadence, only some casts are charged (a mismatch). Frequent Quake replaces the explosion with 5 fissure hits; Cripple penalises the spreading fissure but exempts the explosion; Collapse amps the fissure ticks.">
+          <Row label="Cast Mode" breakdown={{
+            title: 'Demolisher Cast Mode', keys: [],
+            formula: offense.demolisher_mode === 'rhythm'
+              ? 'Rhythm: an Activation Medium auto-triggers the skill at a fixed interval R (cast rate = 1/R).'
+              : 'Manual: cast rate = your attack rate (APS).',
+            extra: [{ value: offense.demolisher_mode === 'rhythm' ? 'Rhythm' : 'Manual', stat: 'Mode', source: '', sourceName: '' }],
+          }}>{offense.demolisher_mode === 'rhythm' ? 'Rhythm' : 'Manual'}</Row>
+          {(offense.demolisher_rhythm_interval ?? 0) > 0 && (
+            <Row label="Rhythm Interval (R)" breakdown={{
+              title: 'Rhythm Interval', keys: [], total: offense.demolisher_rhythm_interval, totalUnit: ' s',
+              formula: 'The Activation Medium: Rhythm trigger interval. Override via the Config “Rhythm Interval Override”.',
+            }}>{dec(offense.demolisher_rhythm_interval ?? 0)} s</Row>
+          )}
+          <Row label="Restoration Time" breakdown={{
+            title: 'Demolisher Charge Restoration', keys: ['demolisher_charge_speed_inc'],
+            total: offense.demolisher_restoration_time, totalUnit: ' s',
+            extra: [{ value: `${dec(offense.demolisher_base_restore ?? 0)} s`, stat: 'Base', source: 'Baseline', sourceName: 'Base restoration' }],
+            formula: 'Base ÷ (1 + Σ Demolisher Charge Speed Increased). Additional does NOT apply.',
+          }}>{dec(offense.demolisher_restoration_time ?? 0)} s</Row>
+          <Row label="Charge Speed (Increased)" breakdown={{
+            title: 'Demolisher Charge Speed — Increased', keys: ['demolisher_charge_speed_inc'],
+            total: offense.demolisher_charge_speed_inc, totalUnit: '%',
+            formula: 'Σ Demolisher Charge Speed Increased — the only pool that shortens restoration.',
+          }}>+{dec((offense.demolisher_charge_speed_inc ?? 0) * 100)}%</Row>
+          <Row label="Cast Rate" breakdown={{
+            title: 'Cast Rate (Primary Fissure)', keys: [], total: offense.demolisher_cast_rate, totalUnit: ' /s',
+            formula: offense.demolisher_mode === 'rhythm' ? '1 ÷ Rhythm Interval' : 'Attack rate (APS)',
+          }}>{dec(offense.demolisher_cast_rate ?? 0)} /s</Row>
+          <Row label="Charged Rate" breakdown={{
+            title: 'Charged Rate (Secondary Explosion)', keys: [], total: offense.demolisher_charged_rate, totalUnit: ' /s',
+            formula: 'min(Cast Rate, 1 ÷ Restoration Time) — a charge must be ready to consume.',
+            extra: [{ value: offense.demolisher_mismatch ? 'Mismatch' : 'Every cast', stat: 'Charged', source: '',
+              sourceName: offense.demolisher_mismatch ? 'restoration slower than cadence' : 'restoration keeps up' }],
+          }}>{dec(offense.demolisher_charged_rate ?? 0)} /s</Row>
+          {(() => {
+            const rts = offense.demolisher_restore_to_sustain ?? 0
+            const drop = offense.demolisher_cdr_droppable ?? 0
+            const under = !!offense.demolisher_under_breakpoint
+            const hint = under
+              ? `+${dec(rts * 100)}% more Increased Charge Speed → the secondary fires on EVERY cast`
+              : (drop > 0 ? `You can drop up to ${dec(drop * 100)}% Increased Charge Speed and still charge every cast`
+                          : 'Exactly at the breakpoint — every cast is charged')
+            return (
+              <Row label="Breakpoint" labelColor="#9ab" breakdown={{
+                title: 'Restoration ↔ Cadence Breakpoint', keys: [],
+                formula: 'Every cast is charged when Restoration Time ≤ the cast cadence, i.e. (1 + Increased) ≥ Base ÷ cadence. '
+                  + 'Below it, only some casts add the explosion; above it you have headroom to drop charge speed.',
+                extra: [{ value: under ? 'Under' : 'At/Over', stat: 'Status', source: '', sourceName: hint }],
+              }}>{under ? `+${dec(rts * 100)}% to sustain` : (drop > 0 ? `-${dec(drop * 100)}% droppable` : 'At breakpoint')}</Row>
+            )
+          })()}
+          {offense.demolisher_frequent_quake && (
+            <Row label="Frequent Quake" breakdown={{
+              title: 'Frequent Quake', keys: [],
+              formula: 'The max-spread fissure lasts 1.5 s and, instead of exploding, deals 5 fissure hits (1 + 4×0.4 s).',
+            }}>5 fissure hits</Row>
+          )}
+          {(offense.demolisher_collapse_pct ?? 0) > 0 && (
+            <Row label="Collapse" labelColor="#9ab" breakdown={{
+              title: 'Collapse', keys: [], total: offense.demolisher_collapse_pct, totalUnit: '%',
+              formula: 'Amps overlapping fissure ticks: floor(1.6 ÷ R) × 0.5 × roll. Needs Frequent-Quake persistence + '
+                + 'auto/rhythm casting. Approximate at the R = 0.8 / 0.4 floor boundaries (time-averaged).',
+              extra: [{ value: `+${dec((offense.demolisher_collapse_pct ?? 0) * 100)}%`, stat: 'Fissure tick amp', source: 'Collapse', sourceName: 'floor(1.6 ÷ R) × 0.5 × roll' }],
+            }}>+{dec((offense.demolisher_collapse_pct ?? 0) * 100)}%</Row>
+          )}
+          <Row label="Fissure Hits" breakdown={{
+            title: 'Fissure Hits (Config)', keys: [],
+            formula: 'The Config “Groundshaker Fissure Hits” selector — Both / Primary Fissure only / Secondary Explosion only.',
+          }}>{offense.demolisher_area_mode === 'primary' ? 'Primary only'
+              : offense.demolisher_area_mode === 'secondary' ? 'Secondary only' : 'Both'}</Row>
+          <Row label="Primary Fissure DPS" labelColor="#9ad">
+            <span style={{ color: '#f0c070' }}>{fmtNum(offense.demolisher_primary_dps ?? 0)}</span>
+          </Row>
+          <Row label={offense.demolisher_frequent_quake ? 'Fissure Ticks DPS' : 'Secondary Explosion DPS'} labelColor="#9ad">
+            <span style={{ color: '#f0c070' }}>{fmtNum(offense.demolisher_secondary_dps ?? 0)}</span>
+          </Row>
+          <Row label="Combined DPS" labelColor="#9ad" breakdown={{
+            title: 'Combined Skill DPS', keys: [], total: offense.total_dps_vs_target, totalUnit: '',
+            formula: 'Primary fissure (every cast) + secondary explosion / fissure ticks (charged casts).',
+            extra: [
+              { value: fmtNum(offense.demolisher_primary_dps ?? 0), stat: 'Primary', source: '', sourceName: `${dec(offense.demolisher_cast_rate ?? 0)}/s` },
+              { value: fmtNum(offense.demolisher_secondary_dps ?? 0), stat: offense.demolisher_frequent_quake ? 'Fissure Ticks' : 'Secondary', source: '', sourceName: `${dec(offense.demolisher_charged_rate ?? 0)}/s` },
+            ],
+          }}>
+            <span style={{ color: '#f0c070' }}>{fmtNum(offense.total_dps_vs_target)}</span>
+          </Row>
+        </StatPanel></GridBox>
+      )}
+
+      {offense.wind_rhythm_active && (
+        <GridBox><StatPanel title="Wind Rhythm" accent={SKYBLUE}
+          info="Wind Rhythm auto-triggers the supported skill off a per-tier base cooldown, sped by Cooldown Recovery plus a share of your Cast Speed. It is a server-timed countdown (30 Hz), so the trigger rate only steps at whole-tick crossings (like Spell Burst / Tangle) — extra CDR/cast speed only helps when it crosses a tick.">
+          <Row label="Base Cooldown" breakdown={{
+            title: 'Wind Rhythm Base Cooldown', keys: [], total: offense.wind_rhythm_base_cooldown, totalUnit: ' s',
+            formula: 'Per-tier base cooldown of the Wind Rhythm medium (L0 0.5 / L1 0.6 / L2 0.7 / L3 0.8 s).',
+            extra: [{ value: `${dec(offense.wind_rhythm_base_cooldown ?? 0)} s`, stat: 'Base Cooldown', source: 'Medium', sourceName: 'Activation Medium: Wind Rhythm (tier)' }],
+          }}>{dec(offense.wind_rhythm_base_cooldown ?? 0)} s</Row>
+          <Row label="Cast Speed → CDR share" breakdown={{
+            title: 'Cast Speed applied to Cooldown Recovery', keys: [], total: offense.wind_rhythm_bonus, totalUnit: '%',
+            formula: 'The medium applies this % of your Cast Speed (increased × (1 + additional)) to Cooldown Recovery Speed of the trigger.',
+            extra: [{ value: `${dec((offense.wind_rhythm_bonus ?? 0) * 100)}%`, stat: 'Cast Speed → CDR', source: 'Medium', sourceName: 'Wind Rhythm roll (per tier)' }],
+          }}>{dec((offense.wind_rhythm_bonus ?? 0) * 100)}%</Row>
+          <Row label="Trigger Rate" breakdown={{
+            title: 'Wind Rhythm Trigger Rate', keys: [], total: offense.wind_rhythm_rate, totalUnit: ' /s',
+            formula: 'raw = base ÷ (1 + CDR increased + share × cast-speed) ÷ (1 + CDR additional); server = ceil(raw × 30) ÷ 30 (tick-rounded).',
+            extra: [
+              { value: `${offense.wind_rhythm_ticks} ticks`, stat: 'Cadence', source: 'Tick', sourceName: 'ceil(raw × 30)' },
+              { value: `${dec(offense.wind_rhythm_cast_time ?? 0)} s`, stat: 'Server cast time', source: '', sourceName: 'ticks ÷ 30' },
+            ],
+          }}>{dec(offense.wind_rhythm_rate ?? 0)} /s</Row>
+          {(() => {
+            const cdr = offense.wind_rhythm_cdr_to_next ?? 0
+            const cast = offense.wind_rhythm_cast_to_next ?? 0
+            const wind = offense.wind_rhythm_wind_to_next ?? 0
+            const extra: ExtraRow[] = []
+            if (cdr > 0) extra.push({ value: `+${dec(cdr * 100)}%`, stat: 'Increased CDR → next tick', source: '', sourceName: 'raises trigger rate' })
+            if (cast > 0) extra.push({ value: `+${dec(cast * 100)}%`, stat: 'Increased Cast Speed → next tick', source: '', sourceName: 'via the CDR share' })
+            if (wind > 0) extra.push({ value: `+${dec(wind * 100)}%`, stat: 'Wind-bonus % → next tick', source: '', sourceName: 'raises the cast-speed share' })
+            if (!extra.length) extra.push({ value: '—', stat: 'Breakpoint', source: '', sourceName: (offense.wind_rhythm_ticks ?? 0) <= 1 ? 'already at 1 tick (30/s)' : 'no reachable breakpoint' })
+            return (
+              <Row label="Next breakpoint" labelColor="#9ab" breakdown={{
+                title: 'Next faster tick', keys: [], total: offense.wind_rhythm_ticks, totalUnit: ' ticks',
+                formula: 'The trigger rate is tick-quantized. Each lever below independently reaches the next faster tick.',
+                extra,
+              }}>{offense.wind_rhythm_ticks} ticks</Row>
+            )
+          })()}
         </StatPanel></GridBox>
       )}
 
@@ -1723,13 +2346,15 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             title: 'Min Channeled Stacks', keys: ['min_channeled_stacks_flat'], total: offense.channeled_min_stacks, totalUnit: '',
             formula: 'Σ +Min Channeled Stacks — the first round from 0 gains 1 + Min (shortens the ramp)',
           }}>{offense.channeled_min_stacks}</Row>
+          {/* Channeled ATTACKS (Split Shot: Rapid Advance) fire at the SMOOTH attack rate — no 30 Hz breakpoint —
+              so the attack rate is shown in the normal Attacks-per-Second row above, not a channel-specific one. */}
           {(offense.channeled_attack_frequency ?? 0) > 0 && (
             <>
               <Row label="Channel Rate" breakdown={{
                 title: 'Channel Rate', keys: ['cast_speed_inc', 'cast_speed_additional', 'channeled_cast_speed_inc'],
-                total: offense.attacks_per_second, totalUnit: ' /s',
+                total: offense.skills_per_second, totalUnit: ' /s',
                 formula: '1 ÷ Cast Time × (1 + Increased) × Additional — how fast channeled stacks build (0 → Max)',
-              }}>{dec(offense.attacks_per_second)} /s</Row>
+              }}>{dec(offense.skills_per_second)} /s</Row>
               <Row label="Gale Attack Frequency" breakdown={{
                 title: 'Gale Attack Frequency', keys: ['cast_speed_inc', 'cast_speed_additional', 'channeled_attack_frequency_additional'],
                 total: offense.channeled_attack_frequency, totalUnit: ' /s',
@@ -1752,7 +2377,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
                 title: 'Reset Burst Rate', keys: [], total: offense.channeled_burst_rate, totalUnit: ' /s',
                 formula: 'Cast Rate ÷ Uses per Cycle — how often the dump/burst form fires',
                 extra: [
-                  { value: `${dec(offense.attacks_per_second)} /s`, stat: 'Cast Rate', source: '', sourceName: 'uses/sec' },
+                  { value: `${dec(offense.skills_per_second)} /s`, stat: 'Cast Rate', source: '', sourceName: 'uses/sec' },
                   { value: `${dec(offense.channeled_rounds_per_cycle)}`, stat: 'Uses / Cycle', source: '', sourceName: 'max(1, Max − Min)' },
                 ],
               }}>{dec(offense.channeled_burst_rate)} /s</Row>
@@ -1764,7 +2389,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       {/* Damaging-ailment boxes (Ignite=fire / Wilt=erosion / Trauma=physical) — informational: inflict chance +
           scaling mods, with DoT damage flagged NYI (not modeled). Shown when this skill deals the matching type
           (or Show-all). Per-skill scoping + "cannot inflict" override chains in the breakdown are Phase-2. */}
-      {AILMENTS.filter(a => (canHit && dealsType(a.dtype)) || showAll).map(a => {
+      {/* Minions don't model ailments/CC and have no minion-scoped ailment pools, so these player-mechanic
+          boxes are hidden in minion mode (only minion sources belong in a minion's view). */}
+      {!minion && AILMENTS.filter(a => (canHit && dealsType(a.dtype)) || showAll).map(a => {
         const chance = stat(a.chanceKey)
         return (
           <GridBox key={a.key}>
@@ -1790,7 +2417,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
       {/* Non-damage ailment boxes (Numbed=lightning / Frostbite=cold / Freeze=cold) — debuffs on the target.
           Gated to skills that deal the matching type. */}
-      {NONDMG.filter(n => (canHit && dealsType(n.dtype)) || showAll).map(n => (
+      {!minion && NONDMG.filter(n => (canHit && dealsType(n.dtype)) || showAll).map(n => (
         <GridBox key={n.key}>
           <StatPanel title={n.name} accent={n.accent}
             info={n.note ?? `${n.name} debuff applied to enemies hit by ${n.dtype} damage. Values are the build's ${n.name} scaling.`}>
@@ -1812,7 +2439,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
       ))}
 
       {/* Crowd Control — chance-only stats (the effects beyond chance aren't simulated). */}
-      {((canHit && ccActive.length > 0) || showAll) && (
+      {!minion && ((canHit && ccActive.length > 0) || showAll) && (
         <GridBox>
           <StatPanel title="Crowd Control" accent={GREY}
             info="Chance to apply each crowd-control effect on hit. The effects themselves (duration, distance, etc.) aren't simulated yet.">
@@ -1828,8 +2455,9 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         </GridBox>
       )}
 
-      {/* Multistrike (attack skills): the auto-repeat DPS multiplier + its inputs. Shown when this skill has any
-          Multistrike Chance (or Show-all). */}
+      {/* Multistrike (attack skills incl. minions): the auto-repeat DPS multiplier + its inputs. Shown when the
+          skill has Multistrike Chance, or with Show-all (minions included — a minion CAN multistrike). All rows
+          read the offense's own multistrike_* fields — no player stat-map keys — so it's safe for a minion. */}
       {((offense.multistrike_chance ?? 0) > 0 || showAll) && (
         <GridBox><StatPanel title="Multistrike" accent={AMBER}
           info="Using an attack skill has a chance to auto-repeat it: every full 100% chance = +1 guaranteed repeat, the leftover is the chance of one more. Each repeat pays its own attack time (repeats get +20% increased attack speed) and deals increasing damage (the n-th hit of a chain gets (n−1) increment stacks; Initial Count pre-stacks it). DPS multiplier = expected chain damage ÷ (rate × expected chain time).">
@@ -1838,7 +2466,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
           <Row label="Repeat Attack Speed" breakdown={{
             title: 'Repeat Attack Speed', keys: [], total: offense.multistrike_repeat_aps ?? 0, totalUnit: ' /s',
             formula: 'Base Attack Rate × (1 + Increased AS + 0.20) ÷ (1 + Increased AS) — repeats gain +20% INCREASED attack speed; the first hit of a chain does not.',
-            extra: [{ value: `${dec(offense.attacks_per_second)} /s`, stat: 'Base Attack Rate', source: 'Rate', sourceName: 'first hit / no multistrike' }],
+            extra: [{ value: `${dec(offense.skills_per_second)} /s`, stat: 'Base Attack Rate', source: 'Rate', sourceName: 'first hit / no multistrike' }],
           }}>{dec(offense.multistrike_repeat_aps ?? 0)} /s</Row>
           <Row label="Avg Count">{dec(offense.multistrike_avg_count ?? 0)}</Row>
           <Row label="Max Count">{offense.multistrike_max_count ?? 0}</Row>
@@ -1854,16 +2482,59 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
         </StatPanel></GridBox>
       )}
 
-      {/* Stub boxes for mechanics this skill has but the engine doesn't model yet (Combo / Demolisher / Barrage).
-          The modeled mechanics above (Tangle / Spell Burst / Channeled / Multistrike) render real data instead.
-          Show-all reveals every stub regardless of the skill's tags. */}
-      {MECH_STUBS.filter(m => showAll || hasTag(offense, m.tag)).map(m => (
+      {/* Shadow Strike (Thunder Spike): casting summons Max Shadows shadows that each repeat the player's
+          attack once against the same target. Multiple Shadows landing on that target take their OWN Shotgun
+          Effect falloff — first Shadow 100%, each further Shadow 30% (glossary 136 "Phantom") — so that
+          falloff lives HERE, not in the Shotgunning box above (which only covers same-target projectiles/
+          blades and cast-level same-target hits; it never reads shadow_* fields). Gated on the skill carrying
+          the "Shadow Strike" tag (the same signal engine.compute uses to populate shadow_* at all) rather than
+          shadow_count > 0, so the box still surfaces — at 0 Shadows — for a Shadow Strike skill with nothing
+          granting Shadow Quantity yet, instead of silently vanishing. */}
+      {(hasTag(offense, 'shadow strike') || showAll) && (
+        <GridBox><StatPanel title="Shadow Strike" accent={AMBER}
+          info="Casting summons Max Shadows shadows that each repeat your attack once against the same target. The first Shadow lands at 100%, each further Shadow retains 30% (Shotgun Effect falloff coefficient 70%, glossary 136 'Phantom') — independent of your own hit, which is never subject to this falloff. Σ additional Shadow Damage scales ONLY the shadow portion. Despised Shadow's chance to gain bonus Shadows folds into an expected-value mix rather than a rounded average, since the falloff formula is nonlinear in shadow count.">
+          <Row label="DPS Multiplier" labelColor="#d8b878"><span style={{ color: '#f0c070' }}>×{dec(offense.shadow_mult ?? 1)}</span></Row>
+          <Row label="Max Shadows" breakdown={{
+            title: 'Max Shadow Quantity', keys: ['max_shadow_quantity_flat'], total: offense.shadow_count ?? 0, totalUnit: '',
+            formula: 'Σ Shadow Quantity — gear / support / talent lines granting +Shadow Quantity',
+          }}>{offense.shadow_count ?? 0}</Row>
+          {(offense.shadow_chance_pct ?? 0) > 0 && (
+            <>
+              <Row label="Bonus-Shadow Chance" breakdown={{
+                title: 'Chance for Bonus Shadows', keys: ['shadow_chance_pct'], total: offense.shadow_chance_pct ?? 0, totalUnit: '%',
+                formula: 'Despised Shadow — chance to gain +K Shadows when using the Shadow Strike skill',
+              }}>{dec((offense.shadow_chance_pct ?? 0) * 100)}%</Row>
+              <Row label="Bonus Shadows (+K)" breakdown={{
+                title: 'Bonus Shadow Quantity', keys: ['shadow_chance_quantity_flat'], total: offense.shadow_chance_quantity ?? 0, totalUnit: '',
+                formula: 'Σ Shadow chance quantity — added to Max Shadows on the chance-hit branch',
+              }}>{dec(offense.shadow_chance_quantity ?? 0)}</Row>
+              <Row label="Expected-Value Mix" labelColor="#9ab">
+                {dec((1 - (offense.shadow_chance_pct ?? 0)) * 100)}%·f({offense.shadow_count ?? 0}) + {dec((offense.shadow_chance_pct ?? 0) * 100)}%·f({(offense.shadow_count ?? 0) + Math.round(offense.shadow_chance_quantity ?? 0)})
+              </Row>
+            </>
+          )}
+          <Row label="Additional Shadow Damage" breakdown={{
+            title: 'Σ Additional Shadow Damage', keys: ['shadow_dmg_additional'], total: offense.shadow_dmg_additional ?? 0, totalUnit: '%',
+            formula: 'Σ additional Shadow Damage — scales only the shadow portion of the delivery, never the player\'s own hit',
+          }}>+{dec((offense.shadow_dmg_additional ?? 0) * 100)}%</Row>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#888', margin: '6px 0 2px' }}>Same-target falloff (per Shadow)</div>
+          <Row label="First Shadow">100%</Row>
+          <Row label="Each further Shadow">30%</Row>
+          <div style={{ fontSize: 11, color: '#8a9', lineHeight: 1.45, margin: '4px 0 2px' }}>
+            f(N) = 1 (your hit) + (1 + 0.30×(N−1)) × (1 + Σ additional Shadow Damage) — folded into total_dps as shadow_mult, in the same slot as the cast / tangle / spell-burst / multistrike delivery multipliers.
+          </div>
+        </StatPanel></GridBox>
+      )}
+
+      {/* Stub boxes for player mechanics the engine doesn't model yet (Combo / Demolisher / Barrage). These are
+          PLAYER mechanics with no minion analogue, so they never show in minion mode (even with Show-all).
+          The modeled mechanics above (Tangle / Spell Burst / Channeled / Multistrike) render real data instead. */}
+      {!minion && MECH_STUBS.filter(m => showAll || hasTag(offense, m.tag)).map(m => (
         <GridBox key={m.tag}><MechanicStubPanel label={m.label} note={m.note} /></GridBox>
       ))}
 
-      {/* Consume boxes — not wired yet. Made now and hidden (only the Show-all toggle reveals them) so they're
-          easy to populate later with the skill's per-cast / over-time Life & Mana consumption. */}
-      {showAll && (
+      {/* Consume boxes — player-only, not wired yet (Show-all reveals them). Hidden in minion mode. */}
+      {!minion && showAll && (
         <>
           <GridBox><MechanicStubPanel label="Mana Consume" note="Mana consumed by this skill (per cast / over time) is not wired yet." /></GridBox>
           <GridBox><MechanicStubPanel label="Life Consume" note="Life consumed by this skill (per cast / over time) is not wired yet." /></GridBox>
@@ -1876,9 +2547,11 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
 
 // ── Defense panels ────────────────────────────────────────────────────────────
 
-function SubRow({ label, children, breakdown }: { label: string; children: React.ReactNode; breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[] } }) {
+function SubRow({ label, children, breakdown }: { label: string; children: React.ReactNode; breakdown?: { title: string; keys: string[]; total?: number; totalUnit?: string; extra?: ExtraRow[]; formula?: string; sections?: BreakdownSection[]; totalSuffix?: string } }) {
   const ctx = useContext(BreakdownCtx)
-  const tip = useFloatingTooltip({ anchor: 'element', side: 'right', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
+  // 'right-start' top-aligns the breakdown with its row and grows DOWNWARD (flips to left-start with no room on
+  // the right) — a tall breakdown near the top of the screen no longer centers on the row and overflows the top.
+  const tip = useFloatingTooltip({ anchor: 'element', side: 'right-start', trigger: 'hover', pinnable: true, interactive: true, openDelay: 90 })
   const bd = !!breakdown && !!ctx
   return (
     <>
@@ -1890,7 +2563,7 @@ function SubRow({ label, children, breakdown }: { label: string; children: React
       {bd && tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--breakdown" {...tip.floatingProps}>
-            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} formula={breakdown!.formula} sections={breakdown!.sections} />
+            <BreakdownBody title={breakdown!.title} keys={breakdown!.keys} ctx={ctx!} totalOverride={breakdown!.total} totalUnit={breakdown!.totalUnit} extra={breakdown!.extra} formula={breakdown!.formula} sections={breakdown!.sections} totalSuffix={breakdown!.totalSuffix} />
           </div>
         </FloatingPortal>
       )}
@@ -1900,6 +2573,12 @@ function SubRow({ label, children, breakdown }: { label: string; children: React
 
 function fmtPct(v: number): string { return `${(v * 100).toFixed(0)}%` }
 function fmtPct2(v: number): string { return `${dec((v * 100))}%` }
+// Display "rounded against the player" (floored) — used in the elixir tab so a shown value never overstates what
+// the engine actually uses (e.g. 1.59 projectiles → 1, 206.7% → 206%), and the row matches its breakdown total.
+function floorPct(v: number): string { return `${Math.floor(v * 100)}%` }
+function fmtGrantFloor(stat: string, amt: number): string {
+  return /_flat$/.test(stat) ? `${Math.floor(amt)}` : floorPct(amt)
+}
 function fmtSignedPct(v: number): string { return `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%` }
 function fmtMult(v: number): string { return `×${dec((1 + v))}` }
 
@@ -1985,10 +2664,30 @@ const maxResSection = (typeLabel: string, maxKey: string, maxVal: number): Break
   extra: [{ value: '60%', stat: `Max ${typeLabel} Resistance`, source: 'Baseline', sourceName: 'Default' }],
 })
 
-function DefensePanels({ defense, reservation }: { defense: DefenseResult | null; reservation: ReservationResult | null }) {
+// Consume-source stat keys per pool — fed as breakdown `keys` so the Consumed rows show which affixes contribute.
+const _CONSUME_BASES = ['pct_current', 'pct_max', 'flat']
+const LIFE_CONSUME_KEYS = [..._CONSUME_BASES.flatMap(b => [`life_consumed_${b}_per_sec`, `life_consumed_${b}_per_cast`, `life_consumed_${b}_per_attack_use`])]
+const MANA_CONSUME_KEYS = [..._CONSUME_BASES.flatMap(b => [`mana_consumed_${b}_per_sec`, `mana_consumed_${b}_per_cast`, `mana_consumed_${b}_per_attack_use`])]
+const ES_CONSUME_KEYS = _CONSUME_BASES.map(b => `energy_shield_consumed_${b}_per_sec`)
+
+function DefensePanels({ defense, reservation, recovery, skillCost }: { defense: DefenseResult | null; reservation: ReservationResult | null; recovery: RecoveryResult | null; skillCost: SkillCost | null }) {
   if (!defense) {
     return <StatPanel title="Life" accent="#c03030"><div style={{ fontSize: 12, color: '#555' }}>No data.</div></StatPanel>
   }
+  // Sustain rows are folded into the Life / Mana / Energy Shield panels (no separate Sustain area). Each restoration
+  // row's breakdown lists its per-source contributions (per-second = total ÷ max(duration, recast)).
+  const rate = (n: number) => `${fmtNum(n)}/s`
+  const restoreSources = (pool: string) => (recovery?.restoration_sources ?? [])
+    .filter(s => s.pool === pool)
+    .map(s => {
+      const div = s.divisor ?? s.duration
+      // Show exactly what per-sec divides by: the window (≤ recast, or Full Uptime) vs the recast/charge cadence.
+      const how = s.total <= 0 ? 'converted rate'
+        : (s.recast && div >= s.recast && s.recast > s.duration)
+          ? `${fmtNum(s.total)} ÷ ${dec(s.recast)}s recast`
+          : `${fmtNum(s.total)} ÷ ${dec(div)}s window`
+      return { value: rate(s.per_sec), stat: s.source, source: 'Restoration', sourceName: how }
+    })
   // Per-pool seal breakdowns (Σ of each sealing skill's whole-number reservation), reused by the Sealed and
   // Unsealed rows so both surface the same Max − Σ-reservations math on hover/click.
   const sealRows = (pool: 'life' | 'mana') => (reservation?.per_skill ?? [])
@@ -2020,7 +2719,21 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
         <Row label="Max Life" breakdown={{ title: 'Max Life', keys: ['max_life_flat', 'max_life_inc', 'max_life_additional'], total: defense.max_life, formula: LIFE_FORMULA }}>{fmtNum(defense.max_life)}</Row>
         {defense.life_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Life — Flat Added', keys: ['max_life_flat'] }}>{fmtNum(defense.life_flat)}</SubRow>}
         {defense.life_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Life — Increased', keys: ['max_life_inc'] }}>{fmtPct(defense.life_inc)}</SubRow>}
-        {defense.life_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Life — Additional', keys: ['max_life_additional'] }}>{fmtMult(defense.life_additional)}</SubRow>}
+        {defense.life_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Life — Additional', keys: ['max_life_additional'], total: 1 + defense.life_additional, totalUnit: '×', formula: 'Π (1 + Additional)' }}>{fmtMult(defense.life_additional)}</SubRow>}
+        {/* Stable Life: the steady-state Life pool a consume build settles at (where recovery == consumption).
+            Shown only when it differs from Max Life (i.e. the build self-consumes). */}
+        {recovery && recovery.steady_life_pct < 99.5 && (
+          <Row label="Stable Life" labelColor="#d8a050" breakdown={{
+            title: 'Stable Life', keys: [], total: recovery.steady_life, totalUnit: '',
+            totalSuffix: `(${dec(recovery.steady_life_pct)}% of Max Life)`,
+            formula: 'Steady-state Life pool where recovery == consumption (the % your Life settles at × Max Life).',
+            extra: [
+              { value: fmtNum(defense.max_life), stat: 'Max Life', source: 'Base', sourceName: 'full pool' },
+            ],
+            // Row shows only the FLOORED pool (rounds against the player); the breakdown Total keeps the true value
+            // and carries the % to its right.
+          }}>{fmtNum(Math.floor(recovery.steady_life))}</Row>
+        )}
         {(defense.sealed_life ?? 0) > 0 && (
           <>
             <Row label="Sealed Life" labelColor={defense.insufficient_life ? '#e05050' : '#c87820'} breakdown={sealedBreakdown('life', defense.sealed_life!)}>{fmtNum(sealedDisp(defense.max_life, defense.unsealed_life ?? defense.max_life))}</Row>
@@ -2028,19 +2741,159 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
             {defense.insufficient_life && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Life — sealed exceeds Max Life by {fmtNum((defense.sealed_life ?? 0) - defense.max_life)} ({dec((((defense.sealed_life ?? 0) / defense.max_life - 1) * 100))}%)</div>}
           </>
         )}
+        {recovery && recovery.temporary_life > 0 && (<>
+          <Row label="Temporary Life" labelColor="#d08a5a" breakdown={{
+            // keys pull the granting effect(s) (e.g. Elixir of Immortality) from the stat map; the row shows ONLY
+            // the temporary amount, with Base / Total context in the breakdown.
+            title: 'Temporary Life', keys: ['temporary_life_flat', 'temporary_life_pct'], total: recovery.temporary_life, totalUnit: '',
+            formula: 'A separate pool consumed before Base Life — not counted in Max Life.',
+            extra: [
+              { value: fmtNum(recovery.total_max_life - recovery.temporary_life), stat: 'Base Max Life', source: 'Base', sourceName: 'Total pool' },
+              { value: fmtNum(recovery.total_max_life), stat: 'Total Life', source: 'Base + Temporary', sourceName: 'consumed before Base Life' },
+            ],
+          }}>{fmtNum(recovery.temporary_life)}</Row>
+          <Row label="Total Life" breakdown={{
+            title: 'Total Life', keys: [], total: recovery.total_max_life, totalUnit: '',
+            formula: 'Base Max Life + Temporary Life (consumed before Base Life).',
+            extra: [
+              { value: fmtNum(recovery.total_max_life - recovery.temporary_life), stat: 'Base Max Life', source: 'Base', sourceName: '' },
+              { value: `+${fmtNum(recovery.temporary_life)}`, stat: 'Temporary Life', source: 'Recovery', sourceName: 'consumed before Base Life' },
+            ],
+          }}>{fmtNum(recovery.total_max_life)}</Row>
+        </>)}
+        {recovery && recovery.restoration_life_per_sec > 0 && (
+          <Row label="Life Restoration" labelColor="#5fae79" breakdown={{
+            title: 'Life Restoration', keys: [], total: recovery.restoration_life_per_sec, totalUnit: '',
+            formula: 'Σ per-source heal rate (total/cast × Restoration Effect ÷ max(duration, recast)). Full Uptime ignores recast.',
+            extra: restoreSources('life'),
+          }}>{rate(recovery.restoration_life_per_sec)}</Row>
+        )}
+        {/* No "Excess" row: at the assumed Current Life % the overflow rate just mirrors the restoration part of
+            Net Life Sustain, and what it produces (Temporary Life / ES Restoration) is already shown directly.
+            excess_life_restoration is still computed backend-side to feed Immortality / Pixie Tear. */}
+        {recovery && recovery.life_regain_per_sec > 0 && (
+          <Row label="Life Regain" labelColor="#5fae79" breakdown={{
+            title: 'Life Regain', keys: ['life_regain_inc', 'life_regain_interval_additional', 'regain_interval_additional'],
+            total: recovery.life_regain_per_sec, totalUnit: '', formula: 'min(missing × Regain, 30% missing) ÷ interval (0.5s base)',
+          }}>{rate(recovery.life_regain_per_sec)}</Row>
+        )}
+        {recovery && recovery.life_regen_per_sec > 0 && (
+          <Row label="Life Regen" labelColor="#5fae79" breakdown={{
+            title: 'Life Regen', keys: ['life_regen_flat', 'life_regen_inc', 'life_regen_speed_inc'],
+            total: recovery.life_regen_per_sec, totalUnit: '', formula: '(Flat + % of Max Life) × (1 + Regen Speed)',
+          }}>{rate(recovery.life_regen_per_sec)}</Row>
+        )}
+        {recovery && recovery.consumption_life_per_sec > 0 && (
+          <Row label="Life Consumed" labelColor="#d06868" breakdown={{
+            title: 'Life Consumed', keys: LIFE_CONSUME_KEYS, total: recovery.consumption_life_per_sec, totalUnit: '',
+            formula: 'Self-consume drains per second, at the steady-state (unreserved) Life %. % current × current Life + % max × Max + flat, per-cast/use × the use rate. The skill’s own Life COST is a separate line (cost ≠ consume).',
+            extra: recovery.consumed_recently_life > 0 ? [{ value: fmtNum(Math.floor(recovery.consumed_recently_life)),
+              stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes + gates' }] : undefined,
+          }}>{rate(recovery.consumption_life_per_sec)}</Row>
+        )}
+        {recovery && recovery.skill_cost_life_per_sec > 0 && (
+          <Row label="Life Cost" labelColor="#d0a060" breakdown={{
+            title: 'Life Cost (skills)', keys: [], total: recovery.skill_cost_life_per_sec, totalUnit: '',
+            formula: 'Every active skill’s per-cast Life cost (Arcane: Mana cost paid as Life) × its own cast/attack rate, summed. A COST, not consumption — reduces Net Life Recovery but is never counted as "consumed".',
+            extra: (skillCost?.per_skill ?? []).filter(s => s.life_per_sec > 0).map(s => ({
+              value: rate(s.life_per_sec), stat: s.skill_name, source: 'Skill Cost', sourceName: `${dec(s.life_per_cast)}/cast` })),
+          }}>{rate(recovery.skill_cost_life_per_sec)}</Row>
+        )}
+        {recovery && (recovery.restoration_life_per_sec > 0 || recovery.life_regain_per_sec > 0 || recovery.life_regen_per_sec > 0 || recovery.burst_life_restore_per_sec > 0) && (
+          <Row label="Net Life Recovery" labelColor={recovery.life_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
+            title: 'Net Life Recovery', keys: [], total: recovery.net_life_per_sec, totalUnit: '',
+            formula: 'Restoration + Regain + Regen + Spell Burst restore − Consumption − Skill Cost',
+            extra: [
+              ...(recovery.restoration_life_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_life_per_sec)}`, stat: 'Life Restoration', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.life_regain_per_sec > 0 ? [{ value: `+${rate(recovery.life_regain_per_sec)}`, stat: 'Life Regain', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.life_regen_per_sec > 0 ? [{ value: `+${rate(recovery.life_regen_per_sec)}`, stat: 'Life Regen', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.burst_life_restore_per_sec > 0 ? [{ value: `+${rate(recovery.burst_life_restore_per_sec)}`, stat: 'Spell Burst restore', source: 'Recovery', sourceName: 'per burst trigger × burst rate' }] : []),
+              ...(recovery.consumption_life_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_life_per_sec)}`, stat: 'Life Consumed', source: 'Consumption', sourceName: '' }] : []),
+              ...(recovery.skill_cost_life_per_sec > 0 ? [{ value: `−${rate(recovery.skill_cost_life_per_sec)}`, stat: 'Life Cost', source: 'Skill Cost', sourceName: '' }] : []),
+            ],
+          }}>{rate(recovery.net_life_per_sec)}</Row>
+        )}
+        {recovery && (recovery.consumption_life_per_sec > 0 || recovery.skill_cost_life_per_sec > 0) && !recovery.life_sustainable && (
+          <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>
+            Unsustainable{recovery.life_time_to_empty != null ? ` — empties in ${dec(recovery.life_time_to_empty)}s` : ''}
+          </div>
+        )}
       </StatPanel>
 
       <StatPanel title="Mana" accent="#3060c0">
         <Row label="Max Mana" breakdown={{ title: 'Max Mana', keys: ['max_mana_flat', 'max_mana_inc', 'max_mana_additional'], total: defense.max_mana, formula: MANA_FORMULA }}>{fmtNum(defense.max_mana)}</Row>
         {defense.mana_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Mana — Flat Added', keys: ['max_mana_flat'] }}>{fmtNum(defense.mana_flat)}</SubRow>}
         {defense.mana_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Mana — Increased', keys: ['max_mana_inc'] }}>{fmtPct(defense.mana_inc)}</SubRow>}
-        {defense.mana_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Mana — Additional', keys: ['max_mana_additional'] }}>{fmtMult(defense.mana_additional)}</SubRow>}
+        {defense.mana_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Mana — Additional', keys: ['max_mana_additional'], total: 1 + defense.mana_additional, totalUnit: '×', formula: 'Π (1 + Additional)' }}>{fmtMult(defense.mana_additional)}</SubRow>}
+        {/* Stable Mana: the steady-state Mana pool a mana-consume build settles at (recovery == consumption). */}
+        {recovery && recovery.steady_mana_pct < 99.5 && (
+          <Row label="Stable Mana" labelColor="#7090d0" breakdown={{
+            title: 'Stable Mana', keys: [], total: recovery.steady_mana, totalUnit: '',
+            totalSuffix: `(${dec(recovery.steady_mana_pct)}% of Max Mana)`,
+            formula: 'Steady-state Mana pool where recovery == consumption (the % your Mana settles at × Max Mana).',
+            extra: [{ value: fmtNum(defense.max_mana), stat: 'Max Mana', source: 'Base', sourceName: 'full pool' }],
+          }}>{fmtNum(Math.floor(recovery.steady_mana))}</Row>
+        )}
         {(defense.sealed_mana ?? 0) > 0 && (
           <>
             <Row label="Sealed (Reserved) Mana" labelColor={defense.insufficient_mana ? '#e05050' : '#c87820'} breakdown={sealedBreakdown('mana', defense.sealed_mana!)}>{fmtNum(sealedDisp(defense.max_mana, defense.unsealed_mana ?? defense.max_mana))}</Row>
             <Row label="Unsealed (Available) Mana" labelColor={defense.insufficient_mana ? '#e05050' : undefined} breakdown={unsealedBreakdown('mana', defense.max_mana, defense.sealed_mana!, defense.unsealed_mana ?? defense.max_mana)}>{fmtNum(availDisp(defense.unsealed_mana ?? defense.max_mana))}</Row>
             {defense.insufficient_mana && <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>Insufficient Mana — reserved exceeds Max Mana by {fmtNum((defense.sealed_mana ?? 0) - defense.max_mana)} ({dec((((defense.sealed_mana ?? 0) / defense.max_mana - 1) * 100))}%)</div>}
           </>
+        )}
+        {recovery && recovery.temporary_mana > 0 && (
+          <Row label="Temporary Mana" labelColor="#7090d0" breakdown={{
+            title: 'Temporary Mana', keys: [], total: recovery.temporary_mana, totalUnit: '',
+            formula: 'A separate pool consumed before Base Mana — not counted in Max Mana.',
+          }}>{fmtNum(recovery.temporary_mana)}</Row>
+        )}
+        {recovery && recovery.restoration_mana_per_sec > 0 && (
+          <Row label="Mana Restoration" labelColor="#5fae79" breakdown={{
+            title: 'Mana Restoration', keys: [], total: recovery.restoration_mana_per_sec, totalUnit: '',
+            formula: 'Σ per-source heal rate (total/cast × Restoration Effect ÷ max(duration, recast)). Full Uptime ignores recast.',
+            extra: restoreSources('mana'),
+          }}>{rate(recovery.restoration_mana_per_sec)}</Row>
+        )}
+        {recovery && recovery.mana_regen_per_sec > 0 && (
+          <Row label="Mana Regen" labelColor="#5fae79" breakdown={{
+            title: 'Mana Regen', keys: ['mana_regen_flat', 'mana_regen_pct', 'mana_regen_speed_inc'],
+            total: recovery.mana_regen_per_sec, totalUnit: '', formula: 'Baseline (7/s + 1.75% Max Mana/s) + gear/talent Flat + % of Max Mana',
+            extra: [{ value: `+${rate(recovery.base_mana_regen_per_sec)}`, stat: 'Base Mana Regen', source: 'Baseline', sourceName: '7/s + 1.75% Max Mana/s' }],
+          }}>{rate(recovery.mana_regen_per_sec)}</Row>
+        )}
+        {recovery && recovery.consumption_mana_per_sec > 0 && (
+          <Row label="Mana Consumed" labelColor="#d06868" breakdown={{
+            title: 'Mana Consumed', keys: MANA_CONSUME_KEYS, total: recovery.consumption_mana_per_sec, totalUnit: '',
+            formula: 'Self-consume drains per second (unreserved current Mana for % current). The skill’s own Mana COST is a separate line (cost ≠ consume).',
+            extra: recovery.consumed_recently_mana > 0 ? [{ value: fmtNum(Math.floor(recovery.consumed_recently_mana)),
+              stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes (Glacier/Compensatory/Tyrant)' }] : undefined,
+          }}>{rate(recovery.consumption_mana_per_sec)}</Row>
+        )}
+        {recovery && recovery.skill_cost_mana_per_sec > 0 && (
+          <Row label="Mana Cost" labelColor="#d0a060" breakdown={{
+            title: 'Mana Cost (skills)', keys: [], total: recovery.skill_cost_mana_per_sec, totalUnit: '',
+            formula: 'Every active skill’s per-cast Mana cost × its own cast/attack rate, summed. A COST, not consumption — it reduces Net Mana Recovery but is never counted as "consumed". Triggered skills’ costs aren’t excluded yet (no trigger flag).',
+            extra: (skillCost?.per_skill ?? []).filter(s => s.mana_per_sec > 0).map(s => ({
+              value: rate(s.mana_per_sec), stat: s.skill_name, source: 'Skill Cost', sourceName: `${dec(s.mana_per_cast)}/cast` })),
+          }}>{rate(recovery.skill_cost_mana_per_sec)}</Row>
+        )}
+        {recovery && (recovery.restoration_mana_per_sec > 0 || recovery.mana_regen_per_sec > 0) && (
+          <Row label="Net Mana Recovery" labelColor={recovery.mana_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
+            title: 'Net Mana Recovery', keys: [], total: recovery.net_mana_per_sec, totalUnit: '',
+            formula: 'Restoration + Regen − Consumption − Skill Cost − Spell Burst cost',
+            extra: [
+              ...(recovery.restoration_mana_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_mana_per_sec)}`, stat: 'Mana Restoration', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.mana_regen_per_sec > 0 ? [{ value: `+${rate(recovery.mana_regen_per_sec)}`, stat: 'Mana Regen', source: 'Recovery', sourceName: 'incl. baseline' }] : []),
+              ...(recovery.consumption_mana_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_mana_per_sec)}`, stat: 'Mana Consumed', source: 'Consumption', sourceName: '' }] : []),
+              ...(recovery.skill_cost_mana_per_sec > 0 ? [{ value: `−${rate(recovery.skill_cost_mana_per_sec)}`, stat: 'Mana Cost', source: 'Skill Cost', sourceName: '' }] : []),
+              ...(recovery.burst_mana_lost_per_sec > 0 ? [{ value: `−${rate(recovery.burst_mana_lost_per_sec)}`, stat: 'Spell Burst cost', source: 'Recovery', sourceName: 'per burst trigger × burst rate' }] : []),
+            ],
+          }}>{rate(recovery.net_mana_per_sec)}</Row>
+        )}
+        {recovery && (recovery.consumption_mana_per_sec > 0 || recovery.skill_cost_mana_per_sec > 0) && !recovery.mana_sustainable && (
+          <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>
+            Unsustainable{recovery.mana_time_to_empty != null ? ` — empties in ${dec(recovery.mana_time_to_empty)}s` : ''}
+          </div>
         )}
       </StatPanel>
 
@@ -2049,7 +2902,54 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
         <Row label="Max Energy Shield" breakdown={{ title: 'Max Energy Shield', keys: ['max_energy_shield_flat', 'energy_shield_gear_flat', 'max_energy_shield_inc', 'energy_shield_gear_inc', 'max_energy_shield_additional'], total: defense.max_energy_shield, formula: DEF_FORMULA }}>{fmtNum(Math.floor(defense.max_energy_shield))}</Row>
         {defense.es_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Energy Shield — Flat Added', keys: ['max_energy_shield_flat', 'energy_shield_gear_flat'] }}>{fmtNum(defense.es_flat)}</SubRow>}
         {defense.es_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Energy Shield — Increased', keys: ['max_energy_shield_inc', 'energy_shield_gear_inc'] }}>{fmtPct(defense.es_inc)}</SubRow>}
-        {defense.es_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Energy Shield — Additional', keys: ['max_energy_shield_additional'] }}>{fmtMult(defense.es_additional)}</SubRow>}
+        {defense.es_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Energy Shield — Additional', keys: ['max_energy_shield_additional'], total: 1 + defense.es_additional, totalUnit: '×', formula: 'Π (1 + Additional)' }}>{fmtMult(defense.es_additional)}</SubRow>}
+        {/* Stable ES: the steady-state ES pool an ES-consume build settles at (recovery == consumption). */}
+        {recovery && recovery.steady_es_pct < 99.5 && (
+          <Row label="Stable Energy Shield" labelColor="#5aa0d0" breakdown={{
+            title: 'Stable Energy Shield', keys: [], total: recovery.steady_es, totalUnit: '',
+            totalSuffix: `(${dec(recovery.steady_es_pct)}% of Max ES)`,
+            formula: 'Steady-state ES pool where recovery == consumption (the % your ES settles at × Max ES).',
+            extra: [{ value: fmtNum(Math.floor(defense.max_energy_shield)), stat: 'Max Energy Shield', source: 'Base', sourceName: 'full pool' }],
+          }}>{fmtNum(Math.floor(recovery.steady_es))}</Row>
+        )}
+        {recovery && recovery.restoration_es_per_sec > 0 && (
+          <Row label="ES Restoration" labelColor="#5fae79" breakdown={{
+            title: 'Energy Shield Restoration', keys: [], total: recovery.restoration_es_per_sec, totalUnit: '',
+            formula: 'Excess Life restoration applied to ES (Pixie Tear) — cannot Charge or Regain ES.',
+            extra: restoreSources('energy_shield'),
+          }}>{rate(recovery.restoration_es_per_sec)}</Row>
+        )}
+        {recovery && recovery.shield_regain_per_sec > 0 && (
+          <Row label="Shield Regain" labelColor="#5fae79" breakdown={{
+            title: 'Shield Regain', keys: ['energy_shield_regain_inc', 'energy_shield_regain_interval_additional', 'regain_interval_additional'],
+            total: recovery.shield_regain_per_sec, totalUnit: '', formula: 'min(missing × Regain, 30% missing) ÷ interval (0.5s base)',
+          }}>{rate(recovery.shield_regain_per_sec)}</Row>
+        )}
+        {recovery && recovery.consumption_es_per_sec > 0 && (
+          <Row label="ES Consumed" labelColor="#d06868" breakdown={{
+            title: 'Energy Shield Consumed', keys: ES_CONSUME_KEYS, total: recovery.consumption_es_per_sec, totalUnit: '',
+            formula: 'Self-consume drains per second (e.g. Ghost Slaughter consumes Life + ES).',
+            extra: recovery.consumed_recently_energy_shield > 0 ? [{ value: fmtNum(Math.floor(recovery.consumed_recently_energy_shield)),
+              stat: 'Consumed recently (4s)', source: 'Consumption', sourceName: 'drives per-N-consumed affixes' }] : undefined,
+          }}>{rate(recovery.consumption_es_per_sec)}</Row>
+        )}
+        {recovery && (recovery.restoration_es_per_sec > 0 || recovery.shield_regain_per_sec > 0 || recovery.burst_es_restore_per_sec > 0) && (
+          <Row label="Net ES Recovery" labelColor={recovery.es_sustainable ? '#6ddb6d' : '#e05050'} breakdown={{
+            title: 'Net Energy Shield Recovery', keys: [], total: recovery.net_es_per_sec, totalUnit: '',
+            formula: 'ES Restoration + Shield Regain + Spell Burst restore − Consumption',
+            extra: [
+              ...(recovery.restoration_es_per_sec > 0 ? [{ value: `+${rate(recovery.restoration_es_per_sec)}`, stat: 'ES Restoration', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.shield_regain_per_sec > 0 ? [{ value: `+${rate(recovery.shield_regain_per_sec)}`, stat: 'Shield Regain', source: 'Recovery', sourceName: '' }] : []),
+              ...(recovery.burst_es_restore_per_sec > 0 ? [{ value: `+${rate(recovery.burst_es_restore_per_sec)}`, stat: 'Spell Burst restore', source: 'Recovery', sourceName: 'per burst trigger × burst rate' }] : []),
+              ...(recovery.consumption_es_per_sec > 0 ? [{ value: `−${rate(recovery.consumption_es_per_sec)}`, stat: 'ES Consumed', source: 'Consumption', sourceName: '' }] : []),
+            ],
+          }}>{rate(recovery.net_es_per_sec)}</Row>
+        )}
+        {recovery && recovery.consumption_es_per_sec > 0 && !recovery.es_sustainable && (
+          <div style={{ fontSize: 10, color: '#e05050', marginTop: 2 }}>
+            Unsustainable{recovery.es_time_to_empty != null ? ` — empties in ${dec(recovery.es_time_to_empty)}s` : ''}
+          </div>
+        )}
       </StatPanel>
 
       <StatPanel title="Resistances" accent="#7030b0">
@@ -2063,7 +2963,7 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
         <Row label="Armour" breakdown={{ title: 'Armour', keys: ['armor_flat', 'armor_gear_flat', 'armor_inc', 'armor_gear_inc', 'defense_inc', 'armor_additional'], total: defense.armor, formula: DEF_FORMULA }}>{fmtNum(defense.armor)}</Row>
         {defense.armor_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Armour — Flat Added', keys: ['armor_flat', 'armor_gear_flat'] }}>{fmtNum(defense.armor_flat)}</SubRow>}
         {defense.armor_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Armour — Increased', keys: ['armor_inc', 'armor_gear_inc', 'defense_inc'] }}>{fmtPct(defense.armor_inc)}</SubRow>}
-        {defense.armor_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Armour — Additional', keys: ['armor_additional'] }}>{fmtMult(defense.armor_additional)}</SubRow>}
+        {defense.armor_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Armour — Additional', keys: ['armor_additional'], total: 1 + defense.armor_additional, totalUnit: '×', formula: 'Π (1 + Additional)' }}>{fmtMult(defense.armor_additional)}</SubRow>}
         <Row label="Physical Damage Mitigation" breakdown={{ title: 'Physical Damage Mitigation', keys: [], total: defense.armor_phys_mitigation, totalUnit: '%', formula: 'Armor ÷ (0.9×Armor + 3000 + 300×min(Lvl,90)), cap 80%', extra: [{ value: fmtNum(defense.armor), stat: 'Armour', source: 'Rating', sourceName: '' }] }}>{fmtPct2(defense.armor_phys_mitigation)}</Row>
         <Row label="Non-Physical Damage Mitigation" breakdown={{ title: 'Non-Physical Damage Mitigation', keys: ['armor_effective_rate_non_physical_inc'], total: defense.armor_nonphys_mitigation, totalUnit: '%', formula: 'Armor × (60% + Eff. Rate) ÷ same formula (cap 80%)', extra: [{ value: fmtNum(defense.armor), stat: 'Armour', source: 'Rating', sourceName: '' }, { value: '+60%', stat: 'Effective Rate (non-phys)', source: 'Baseline', sourceName: 'Default' }] }}>{fmtPct2(defense.armor_nonphys_mitigation)}</Row>
       </StatPanel>
@@ -2072,7 +2972,7 @@ function DefensePanels({ defense, reservation }: { defense: DefenseResult | null
         <Row label="Evasion" breakdown={{ title: 'Evasion', keys: ['evasion_flat', 'evasion_gear_flat', 'evasion_inc', 'evasion_gear_inc', 'defense_inc', 'evasion_additional'], total: defense.evasion, formula: EVASION_FORMULA }}>{fmtNum(defense.evasion)}</Row>
         {defense.evasion_flat > 0 && <SubRow label="Flat Added" breakdown={{ title: 'Evasion — Flat Added', keys: ['evasion_flat', 'evasion_gear_flat'] }}>{fmtNum(defense.evasion_flat)}</SubRow>}
         {defense.evasion_inc !== 0 && <SubRow label="Increased" breakdown={{ title: 'Evasion — Increased', keys: ['evasion_inc', 'evasion_gear_inc', 'defense_inc'] }}>{fmtPct(defense.evasion_inc)}</SubRow>}
-        {defense.evasion_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Evasion — Additional', keys: ['evasion_additional'] }}>{fmtMult(defense.evasion_additional)}</SubRow>}
+        {defense.evasion_additional !== 0 && <SubRow label="Additional" breakdown={{ title: 'Evasion — Additional', keys: ['evasion_additional'], total: 1 + defense.evasion_additional, totalUnit: '×', formula: 'Π (1 + Additional)' }}>{fmtMult(defense.evasion_additional)}</SubRow>}
         <Row label="Attack Evasion Rate" breakdown={{ title: 'Attack Evasion Rate', keys: [], total: defense.attack_evade_chance, totalUnit: '%', formula: '1 − (Acc×1.15)/(Acc + 0.5×Evasion^0.75), cap 75%', extra: [{ value: fmtNum(defense.evasion), stat: 'Evasion', source: 'Rating', sourceName: '' }] }}>{fmtPct2(defense.attack_evade_chance)}</Row>
         <Row label="Spell Evasion Chance" breakdown={{ title: 'Spell Evasion Chance', keys: [], total: defense.spell_evade_chance, totalUnit: '%', formula: 'Same formula on 60% of Evasion (spell −40%)', extra: [{ value: fmtNum(defense.evasion * 0.6), stat: 'Evasion (×0.6)', source: 'Rating', sourceName: '' }] }}>{fmtPct2(defense.spell_evade_chance)}</Row>
       </StatPanel>
@@ -2134,9 +3034,18 @@ function TargetPanel({ target }: { target: TargetStats | null | undefined }) {
         const amplified = r.effective < 0
         const extra: ExtraRow[] = [{ value: pct(r.base), stat: r.baseStat, source: 'Base', sourceName: src }]
         if (Math.abs(r.reduction) > 1e-9) extra.push({ value: spct(r.reduction), stat: 'Resistance Reduction', source: 'Debuff', sourceName: 'lowers enemy resistance' })
+        // Penetration sources for this row — pulled from target.pen_sources (which carries skill-SCOPED pens that
+        // never reach the global stat_map, so the stat_map `keys` lookup misses them). Shown as a deduction.
+        for (const key of r.penKeys) {
+          for (const s of (target.pen_sources?.[key] ?? [])) {
+            if (Math.abs(s.amount) < 1e-9) continue
+            extra.push({ value: `−${Math.round(s.amount * 100)}%`, stat: `${r.baseStat} Penetration`,
+              source: s.label || s.source_type, sourceName: s.source_name || s.text || '' })
+          }
+        }
         return (
           <Row key={r.label} label={r.label} labelColor={r.color}
-            breakdown={{ title: r.label, keys: r.penKeys, total: r.effective, totalUnit: '%', extra,
+            breakdown={{ title: r.label, keys: [], total: r.effective, totalUnit: '%', extra,
               formula: 'Base − Penetration (penetration is ignored at the hit, it is not a resistance reduction)' }}>
             <span style={{ color: amplified ? '#ff8c6b' : undefined }}>{pct(r.effective)}</span>
           </Row>
@@ -2176,9 +3085,14 @@ export default function PlayerStatsScreen() {
   // the first populated slot via the effect below).
   const selectedSlot = useUiPrefs(s => s.statsSelectedSlot)
   const setSelectedSlot = useUiPrefs(s => s.setStatsSelectedSlot)
-  const [calcMode, setCalcMode] = useState('full_uptime')   // stub; only full_uptime is wired (Phase 2)
+  // Calc mode is the global engine uptime_mode (store-backed, persists across builds): Full Uptime = 'max',
+  // Effective = 'real'. Changing it bumps buildVersion → recompute.
+  const uptimeMode = useBuildStore(s => s.uptimeMode)
+  const setUptimeMode = useBuildStore(s => s.setUptimeMode)
+  const calcMode = uptimeMode === 'real' ? 'effective' : 'full_uptime'
+  const setCalcMode = (mode: string) => setUptimeMode(mode === 'effective' ? 'real' : 'max')
   const [selectedForm, setSelectedForm] = useState<string | null>(null)   // null = all forms combined
-  // Reset the form filter whenever the selected skill changes (forms differ per skill).
+  // Reset the form filter whenever the selected skill changes.
   useEffect(() => { setSelectedForm(null) }, [selectedSlot])
 
   // If the selected slot has no skill (e.g. the main damage skill is parked in slot 2 and slot 1 is
@@ -2263,13 +3177,24 @@ export default function PlayerStatsScreen() {
 
   const offense = (computedStats.offense ?? null) as OffenseResult | null
   const defense = (computedStats.defense ?? null) as DefenseResult | null
+  const recovery = ((computedStats as { recovery?: RecoveryResult | null }).recovery) ?? null
+  const skillCost = ((computedStats as { skill_cost?: SkillCost | null }).skill_cost) ?? null
   const statMap = (computedStats.stats ?? {}) as Record<string, StatEntry>
   const slotOffense = ((computedStats as { slot_offense?: Record<string, OffenseResult> | null }).slot_offense) ?? null
+  const minionOffense = ((computedStats as { minion_offense?: Record<string, OffenseResult> | null }).minion_offense) ?? null
+  // Minion mode: when the selected slot's skill is a minion OWNER, the panels show its ONE minion OffenseResult
+  // (its damage abilities are hit forms — like a player multi-form skill) instead of the owner's damage-less
+  // offense. It flows through the SAME form-dropdown / % of Total path as a player skill.
+  const selectedOwnerId = skills.find(sk => sk.slot === selectedSlot)?.item_id
+  const minionResult = (selectedOwnerId && minionOffense?.[selectedOwnerId]) || null
+  const minionMode = !!minionResult
 
   // slot_offense holds EVERY active slot's offense (incl. the main slot), so index it by the selected
   // slot directly — don't assume the main skill is slot 1. Fall back to the headline offense only if the
-  // per-slot map is absent (legacy response).
-  const shownOffense = slotOffense
+  // per-slot map is absent (legacy response). In minion mode the minion's single OffenseResult drives the panels.
+  const shownOffense = minionMode
+    ? minionResult
+    : slotOffense
     ? (slotOffense[String(selectedSlot)] ?? null)
     : (selectedSlot === 1 ? offense : null)
   // Form filter (Phase 1 = display-only): when a single form is selected, show just its damage by filtering
@@ -2278,13 +3203,28 @@ export default function PlayerStatsScreen() {
   const formNames = shownOffense?.hit_forms?.map(f => f.name) ?? []
   const displayOffense = useMemo(() => {
     if (!shownOffense || !selectedForm) return shownOffense
-    const form = shownOffense.hit_forms.find(f => f.name === selectedForm)
-    if (!form) return shownOffense
+    const idx = shownOffense.hit_forms.findIndex(f => f.name === selectedForm)
+    if (idx < 0) return shownOffense
+    const form = shownOffense.hit_forms[idx]
     const sumVt = shownOffense.hit_forms.reduce((s, f) => s + f.dps_vs_target, 0) || 1
     const sumD = shownOffense.hit_forms.reduce((s, f) => s + f.dps_contribution, 0) || 1
+    // Narrow damage_rows alongside hit_forms. Only the selected form's kind="hit" row survives — kind="true"
+    // add-ons (Mercury Baptism, Spell Ripple) belong to the WHOLE skill, not to one form, and the totals above
+    // have just been rescaled to this form's share, so showing them here would compare two different
+    // denominators. Re-base form_index to 0 so it still indexes the reduced hit_forms on this same object.
+    // Prefer form_index (the engine's stable join key). An older backend — the CDN/web skew that made these
+    // fields optional — omits it entirely, and `undefined === idx` would filter EVERY row out, blanking the
+    // table for the form the user just selected. Fall back to the name in exactly that case.
+    const all = shownOffense.damage_rows ?? []
+    const byIndex = all.filter(r => r.kind === 'hit' && r.form_index === idx)
+    const rows = (byIndex.length
+      ? byIndex
+      : all.filter(r => r.kind === 'hit' && r.form_index === undefined && r.name === selectedForm)
+    ).map(r => ({ ...r, form_index: 0 }))
     return {
       ...shownOffense,
       hit_forms: [form],
+      damage_rows: rows,
       total_dps_vs_target: shownOffense.total_dps_vs_target * (form.dps_vs_target / sumVt),
       total_dps: shownOffense.total_dps * (form.dps_contribution / sumD),
     }
@@ -2294,12 +3234,14 @@ export default function PlayerStatsScreen() {
   const curses = ((computedStats as { curses?: CurseSummary[] | null }).curses) ?? null
   const curseMeta = ((computedStats as { curse_meta?: Record<string, CurseMeta> | null }).curse_meta) ?? null
   const empowers = ((computedStats as { empowers?: EmpowerSummary[] | null }).empowers) ?? null
+  const elixirs = ((computedStats as { elixirs?: ElixirSummary[] | null }).elixirs) ?? null
   const reservation = ((computedStats as { reservation?: ReservationResult | null }).reservation) ?? null
   const selectedSkill = skills.find(sk => sk.slot === selectedSlot)
   const selectedAura = auras?.find(a => a.skill_id === selectedSkill?.item_id) ?? null
   const selectedCurse = curses?.find(c => c.skill_id === selectedSkill?.item_id) ?? null
   const selectedCurseMeta = (curseMeta && selectedSkill?.item_id) ? curseMeta[selectedSkill.item_id] ?? null : null
   const selectedEmpower = empowers?.find(e => e.skill_id === selectedSkill?.item_id) ?? null
+  const selectedElixir = elixirs?.find(e => e.skill_id === selectedSkill?.item_id) ?? null
   const selectedReservation = reservation?.per_skill?.find(
     p => p.skill_id === selectedSkill?.item_id && p.slot === selectedSlot) ?? null
 
@@ -2312,7 +3254,9 @@ export default function PlayerStatsScreen() {
             skills={skills} selected={selectedSlot} onSelect={setSelectedSlot}
             forms={formNames} selectedForm={selectedForm} onSelectForm={setSelectedForm}
             calcMode={calcMode} onCalcMode={setCalcMode} />
-          <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} />
+          {minionMode
+            ? <OffensePanels offense={displayOffense} slot={selectedSlot} minion />
+            : <OffensePanels offense={displayOffense} slot={selectedSlot} skill={selectedSkill} aura={selectedAura} reservation={selectedReservation} curse={selectedCurse} curseMeta={selectedCurseMeta} empower={selectedEmpower} elixir={selectedElixir} skillCost={skillCost} />}
         </div>
 
         {/* Middle — calculation target, attributes, blessings, utility. (Condition-setting controls like Numbed
@@ -2326,7 +3270,7 @@ export default function PlayerStatsScreen() {
 
         {/* Right — defensive pools (trimmed to give the offense table room) */}
         <div style={{ flex: '23', minWidth: '225px', display: 'flex', flexDirection: 'column' }}>
-          <DefensePanels defense={defense} reservation={reservation} />
+          <DefensePanels defense={defense} reservation={reservation} recovery={recovery} skillCost={skillCost} />
         </div>
       </div>
     </BreakdownCtx.Provider>

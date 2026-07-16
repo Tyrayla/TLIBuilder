@@ -58,9 +58,12 @@ def test_howling_gale_coverage():
     assert _is_modeled("howling_gale", "Max Channeled Stacks")
     assert _is_modeled("howling_gale", "Base Attack Frequency")
     assert _is_modeled("howling_gale", "21.5 % additional damage")
-    # informational per-stack effects are NOT modeled (stay as-is, not falsely green)
-    assert not _is_modeled("howling_gale", "Skill Area for Gale")
-    assert not _is_modeled("howling_gale", "Movement Speed for Gale")
+    # 2026-07-12 reclassification: the per-channeled-stack Duration/Skill-Area/Movement-Speed lines are
+    # non-DPS informational properties of the persistent Gale area effect (not omitted mechanics) — see
+    # `skill_resolver._SKILL_MODELED_PHRASES["howling_gale"]`'s docstring — so they now correctly classify
+    # as 'modeled' (green), not falsely-NYI.
+    assert _is_modeled("howling_gale", "Skill Area for Gale")
+    assert _is_modeled("howling_gale", "Movement Speed for Gale")
 
 
 def test_focused_slash_coverage():

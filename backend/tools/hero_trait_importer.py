@@ -102,6 +102,8 @@ def merge_hero_traits(existing: list[dict], incoming: dict) -> list[dict]:
 import re as _re
 from collections import Counter as _Counter
 
+from engine.modifier_lines import line_text, slim, slim_checked
+
 _HERO_RE = _re.compile(r"HeroTraits/([^/]+)/")
 _AM_RE = _re.compile(r"Artificial Moon:\s*.+", _re.I)
 
@@ -159,6 +161,41 @@ def _node_group(trait_id: str, name: str, level_count: int) -> tuple[str, int]:
     return ("pick", 0) if level_count > 1 else ("guaranteed", 0)
 
 
+def _clean_ingredients(data: dict) -> list[dict]:
+    """Carry the crawler's `ingredients[]` (Licorice Note) into the season trait. Each entry is keyed by the granting
+    `trait_name`; per-level entries (Basic/Special, which scale with a trait level) collapse each item's effect
+    across levels into `(a/b/c/d/e)` tier syntax (like advanced nodes); inline-tier entries (Pungent) pass through.
+    Output: [{trait_name, categories: [{category, items: [{name, effect}]}]}]."""
+    out: list[dict] = []
+    for ing in (data.get("ingredients") or []):
+        tname = ing.get("trait_name", "")
+        levels = ing.get("levels") or []
+        if levels:
+            # Per-level categories → gather each item's effect per level (in level order), then collapse to tiers.
+            order: list[str] = []
+            by_cat: dict[str, dict[str, list[str]]] = {}
+            for lv in levels:
+                for cat in (lv.get("categories") or []):
+                    cname = cat.get("category", "")
+                    if cname not in by_cat:
+                        by_cat[cname] = {}
+                        order.append(cname)
+                    for it in (cat.get("items") or []):
+                        by_cat[cname].setdefault(it.get("name", ""), []).append(it.get("effect", ""))
+            categories = [{
+                "category": cname,
+                "items": [{"name": nm, "effect": (_collapse_tiers(effs) or [effs[-1] if effs else ""])[0]}
+                          for nm, effs in by_cat[cname].items()],
+            } for cname in order]
+        else:
+            categories = [{
+                "category": c.get("category", ""),
+                "items": [{"name": it.get("name", ""), "effect": it.get("effect", "")} for it in (c.get("items") or [])],
+            } for c in (ing.get("categories") or [])]
+        out.append({"trait_name": tname, "categories": categories})
+    return out
+
+
 def import_crawler_hero_trait(data: dict) -> dict:
     """Import a single crawler hero trait file (one JSON file per trait variant)."""
     name = data.get("name", "")
@@ -171,23 +208,31 @@ def import_crawler_hero_trait(data: dict) -> dict:
     base = next((t for t in traits if t.get("required_level", 1) == 1), {})
     advanced_raw = [t for t in traits if t.get("required_level", 1) != 1]
 
-    # Extract hero from base trait icon_url
-    icon_url = base.get("icon_url", "")
+    # Extract hero from base trait icon_url. `icon_url` may be JSON `null` (not just absent) for
+    # entities tlidb hasn't backfilled yet at season launch — `.get(..., "")` only covers the
+    # missing-key case, so null-coalesce explicitly. A missing/null icon degrades to no hero-from-
+    # icon rather than crashing the whole import.
+    icon_url = base.get("icon_url") or ""
     hero_m = _HERO_RE.search(icon_url)
     hero = hero_m.group(1) if hero_m else ""
 
-    # Build levels; extract Artificial Moon text when found
-    am_effects: list[str] = []
+    # Build levels; extract Artificial Moon text when found. Stored effects are slim modifier-line
+    # dicts; the AM split CHANGES the wording, so both halves become uuid-less lines (carry rule).
+    am_effects: list[dict] = []
     levels: list[dict] = []
     for lv in (base.get("levels") or []):
-        desc = lv.get("description", "")
+        raw_desc = lv.get("description", "")
+        desc = line_text(raw_desc)
         am_m = _AM_RE.search(desc)
         if am_m and not am_effects:
-            am_effects = [am_m.group(0)]
+            am_effects = [slim(am_m.group(0))]
             desc = desc[: am_m.start()].rstrip()
+            effect = slim(desc) if desc else None            # truncated wording → uuid-less
+        else:
+            effect = slim(raw_desc) if desc else None        # unsplit line → ids carry
         levels.append({
             "level": lv.get("level", 0),
-            "effects": [desc] if desc else [],
+            "effects": [effect] if effect else [],
             "unlock_level": 1,
         })
 
@@ -195,11 +240,18 @@ def import_crawler_hero_trait(data: dict) -> dict:
     # `description` is null); others use `description`. Per-level descriptions are COLLAPSED into a single line
     # using the `(a/b/c/d/e)` tier syntax the resolvers already understand (resolveLevel in the UI,
     # _expandTraitTier in the engine), so the tooltip/engine pick the selected rank instead of listing all tiers.
-    def _adv_effects(t: dict) -> list[str]:
+    def _adv_effects(t: dict) -> list[dict]:
         lv = t.get("levels")
         if lv:
-            return _collapse_tiers([e.get("description", "") for e in lv if e.get("description")])
-        return [t["description"]] if t.get("description") else []
+            lines = [e.get("description") for e in lv if line_text(e.get("description")).strip()]
+            collapsed = _collapse_tiers([line_text(d) for d in lines])
+            if not collapsed:
+                return []
+            # Tier collapse is value-only when tiers differ only in numbers → ids carry from the first
+            # tier line; slim_checked degrades to uuid-less if the tiers differed in wording.
+            return [slim_checked(lines[0], collapsed[0])]
+        d = t.get("description")
+        return [slim(d)] if line_text(d).strip() else []
 
     # Count nodes per unlock level (drives is_pick_one_from_two + the derived grouping).
     level_counts = _Counter(t.get("required_level", 0) for t in advanced_raw)
@@ -215,7 +267,7 @@ def import_crawler_hero_trait(data: dict) -> dict:
             "group_role": role,   # "guaranteed" (always granted) | "pick" (choose 1 of the group)
             "group_id": gid,      # group within the level, top->bottom (0,1,…)
             "effects": _adv_effects(t),
-            "icon_url": t.get("icon_url", ""),
+            "icon_url": t.get("icon_url") or "",
         })
 
     glossary = {
@@ -227,12 +279,14 @@ def import_crawler_hero_trait(data: dict) -> dict:
     return {
         "trait_id": trait_id,
         "hero": hero,
+        "uuid": data.get("uuid"),
         "variant_name": name,
         "description": "",
         "icon_url": icon_url,   # base-trait icon; UI pairs on its basename to a bundled hero_trait webp
         "levels": levels,
         "artificial_moon": {"description": "", "effects": am_effects},
         "advanced_traits": advanced_traits,
+        "ingredients": _clean_ingredients(data),
         "max_level": data.get("max_level"),
         "glossary": glossary,
     }

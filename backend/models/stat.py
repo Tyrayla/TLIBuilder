@@ -82,6 +82,31 @@ class Stat(Enum):
     # Squiddle / Squidnova (pact spirit): bursting grants Squidnova → conditional buff; Effect scales it.
     SQUIDNOVA_EFFECT_INC = "squidnova_effect_inc"
     HAS_SQUIDNOVA_FLAG = "has_squidnova_flag"
+    # Hasten (community name; in-game tooltip "Quickness", glossary id 10000106) + Attack Aggression
+    # (glossary id 10000100): keyword buffs GRANTED by gear/grafts/talents. The grant lines parse to these
+    # marker flags; compute auto-enables the matching condition, and the aggregator applies the buff effects.
+    HAS_HASTEN_FLAG = "has_hasten_flag"
+    ATTACK_AGGRESSION_FLAG = "attack_aggression_flag"
+    # Aim (Euphoria buff): granted by "Triggers Lv. N Aim while standing still" gear or the Aim skill. The flag
+    # carries the Aim LEVEL as its value (like has_squidnova_flag carries a threshold); compute auto-enables
+    # aim_active + aim_level, and the aggregator applies the Euphoria effects (Ranged/Beam scoped).
+    AIM_TRIGGER_FLAG = "aim_trigger_flag"
+    # Skill Area for skills cast by Spell Burst (Prairie Fire / Kismet Ripple) — DISPLAY-only (Skill Area isn't a DPS
+    # lever). Scales by Max Spell Burst M: the support pool is pre-scaled ×min(M,cap) in compute; the _PER pool is
+    # per-burst-stack, scaled ×M in offense. Folded into the displayed skill_area_inc in burst mode.
+    SPELL_BURST_AREA_ADDITIONAL = "spell_burst_area_additional"
+    SPELL_BURST_AREA_ADDITIONAL_PER = "spell_burst_area_additional_per"
+    # Burst-activation sustain (fire ONCE per burst trigger, folded into net recovery at the burst rate).
+    MANA_LOST_PCT_CURRENT_PER_BURST = "mana_lost_pct_current_per_burst"          # Surging Inspiration
+    LIFE_RESTORED_PCT_LOST_PER_BURST = "life_restored_pct_lost_per_burst"        # Solid River
+    ENERGY_SHIELD_RESTORED_PCT_LOST_PER_BURST = "energy_shield_restored_pct_lost_per_burst"
+    # Destiny kismet Flash Flood: "Halves Spell Burst Upper Limit" → halve M. (Its "+X% AS/CS per Spell Burst
+    # triggered recently, up to Y%" resolves as a per-scaling of the generic Attack/Cast Speed additional on the
+    # derived spell_burst_stacks_recently condition — no dedicated stat.)
+    MAX_SPELL_BURST_HALVE_FLAG = "max_spell_burst_halve_flag"
+    # Destiny kismet Perched River: "Critical Strikes have the Unlucky effect" → crit hits roll damage twice, keep the
+    # LOWER (inverse of Lucky). Read in offense; only the crit portion is affected.
+    UNLUCKY_CRIT = "unlucky_crit"
 
     # ── Melee ────────────────────────────────────────────────────────────────
     MELEE_DMG_INC = "melee_dmg_inc"
@@ -114,6 +139,9 @@ class Stat(Enum):
     MINION_SKILL_LEVEL = "minion_skill_level"
     MINION_FIRE_DMG_INC = "minion_fire_dmg_inc"
     MINION_FIRE_PEN_INC = "minion_fire_pen_inc"
+    MINION_COLD_PEN_INC = "minion_cold_pen_inc"
+    MINION_LIGHTNING_PEN_INC = "minion_lightning_pen_inc"
+    MINION_EROSION_PEN_INC = "minion_erosion_pen_inc"
     MINION_COLD_DMG_INC = "minion_cold_dmg_inc"
     MINION_COLD_DMG_ADDITIONAL = "minion_cold_dmg_additional"
     MINION_LIGHTNING_DMG_INC = "minion_lightning_dmg_inc"
@@ -130,7 +158,17 @@ class Stat(Enum):
     MINION_AFFLICTION_PER_SECOND_FLAT = "minion_affliction_per_second_flat"
     MINION_ARMOR_PEN = "minion_armor_pen"
     MINION_DURATION_INC = "minion_duration_inc"
+    # Generic minion Cooldown Recovery Speed + Skill Effect Duration — apply to ALL minion types (Spirit Magi,
+    # Synthetic Troops, Modularization). Read explicitly (no pipeline_stage): CDR shortens a minion skill's
+    # cooldown, Skill Effect Duration lengthens its buff/skill durations → together they drive buff uptime.
+    # Supports (Cooldown Recovery / Extended Duration) on a minion convert to these for ease of use.
+    MINION_CDR_SPEED_INC = "minion_cdr_speed_inc"
+    MINION_SKILL_EFFECT_DURATION_INC = "minion_skill_effect_duration_inc"
     MINION_PHYSIQUE_INC = "minion_physique_inc"
+    # External +Projectile Quantity granted to a minion skill (multiple-projectile supports on the minion link,
+    # a +Proj weapon shared to the minion, etc.). Some minion skills (Thunderlight Arrow) do NOT add firing
+    # projectiles from this — instead each +1 grants additional damage — so it's read explicitly (no pipeline_stage).
+    MINION_PROJECTILE_QUANTITY_FLAT = "minion_projectile_quantity_flat"
     MINION_LIFE_REGAIN_INC = "minion_life_regain_inc"
     MINION_SKILL_AREA_INC = "minion_skill_area_inc"
     MINION_DAMAGING_AILMENT_CHANCE = "minion_damaging_ailment_chance"
@@ -145,6 +183,21 @@ class Stat(Enum):
     MINION_LIGHTNING_DMG_FLAT_MAX = "minion_lightning_dmg_flat_max"
     MINION_EROSION_DMG_FLAT_MIN = "minion_erosion_dmg_flat_min"
     MINION_EROSION_DMG_FLAT_MAX = "minion_erosion_dmg_flat_max"
+    # ── Conditional / scaling minion damage (Phase-1 core-talent wiring) ────────
+    MINION_HIT_DMG_ADDITIONAL = "minion_hit_dmg_additional"                 # additional Hit Damage (folds into additional)
+    MINION_AT_CENTER_DMG_ADDITIONAL = "minion_at_center_dmg_additional"     # Focused Strike — area skills, full-uptime
+    MINION_LUCKY_PHYSICAL = "minion_lucky_physical"                         # Queer Angle — per-type Lucky damage
+    MINION_LUCKY_FIRE = "minion_lucky_fire"
+    MINION_LUCKY_COLD = "minion_lucky_cold"
+    MINION_LUCKY_LIGHTNING = "minion_lucky_lightning"
+    MINION_LUCKY_EROSION = "minion_lucky_erosion"
+    MINION_MAX_MULTISTRIKE_COUNT_FLAT = "minion_max_multistrike_count_flat"  # Max Multistrike Count (K)
+    # Per-Growth per-unit stats (Talons of Abyss) — read explicitly, scaled by the minion's Growth in the pass.
+    MINION_DMG_ADDITIONAL_PER_20_GROWTH = "minion_dmg_additional_per_20_growth"
+    MINION_ULTIMATE_ATTACK_SPEED_ADDITIONAL = "minion_ultimate_attack_speed_additional"
+    MINION_ULTIMATE_CAST_SPEED_ADDITIONAL = "minion_ultimate_cast_speed_additional"
+    MINION_ULTIMATE_AS_ADDITIONAL_PER_40_GROWTH = "minion_ultimate_attack_speed_additional_per_40_growth"
+    MINION_ULTIMATE_CS_ADDITIONAL_PER_40_GROWTH = "minion_ultimate_cast_speed_additional_per_40_growth"
     # Core-talent additional-pool minion mods (subsystem not yet simulated — tracked, Inactive)
     MINION_PHYSICAL_DMG_ADDITIONAL = "minion_physical_dmg_additional"
     MINION_SPELL_DMG_ADDITIONAL = "minion_spell_dmg_additional"
@@ -230,6 +283,14 @@ class Stat(Enum):
     LUCKY_COLD = "lucky_cold"
     LUCKY_FIRE = "lucky_fire"
     LUCKY_EROSION = "lucky_erosion"
+    # Unlucky = the inverse (roll twice, keep the LOWER). Per FINAL damage type, mirrors the Lucky pool; Lucky and
+    # Unlucky on the same type cancel. Plus the crit-CHANCE variants ("Critical Strikes have the Lucky/Unlucky effect").
+    UNLUCKY_PHYSICAL = "unlucky_physical"
+    UNLUCKY_LIGHTNING = "unlucky_lightning"
+    UNLUCKY_COLD = "unlucky_cold"
+    UNLUCKY_FIRE = "unlucky_fire"
+    UNLUCKY_EROSION = "unlucky_erosion"
+    LUCKY_CRIT = "lucky_crit"
     # ── Core-talent "conversion" lines that need other subsystems (tracked, inert until built) ──────────
     # Arcane: active-skill mana cost paid as life instead (cost mechanic; zero DPS impact; needs skill-cost
     #   modeling). NOT consumption, NOT the mana-before-life pool.
@@ -249,6 +310,7 @@ class Stat(Enum):
     CAST_SPEED_TO_SPELL_SENTRY_CAST_FREQ = "cast_speed_to_spell_sentry_cast_freq"
     # Movement-speed bonus shared (coeff) onto Attack/Cast Speed / Cooldown Recovery (aggregator propagation).
     MOVEMENT_BONUS_TO_ATTACK_SPEED = "movement_bonus_to_attack_speed"
+    MOVEMENT_BONUS_TO_ATTACK_SPEED_CAP = "movement_bonus_to_attack_speed_cap"  # upper bound on the converted AS bonus (Wrathful Vault +60%)
     MOVEMENT_BONUS_TO_CAST_SPEED = "movement_bonus_to_cast_speed"
     MOVEMENT_BONUS_TO_CDR = "movement_bonus_to_cdr"
     # Play Safe: flag (1.0) — propagate cast-speed inc + each cast-speed additional onto Spell Burst Charge
@@ -362,6 +424,14 @@ class Stat(Enum):
     TANGLE_DMG_ENHANCEMENT_ADDITIONAL = "tangle_dmg_enhancement_additional"  # SEPARATE multiplier, additive within itself (matches *_enhancement_additional convention)
     TANGLE_CRIT_RATING_FLAT = "tangle_crit_rating_flat"      # added to the tangled skill's crit rating
     TANGLE_ATTACH_RANGE_INC = "tangle_attach_range_inc"      # display/tracked (base 8m); not a DPS factor
+    # Magister "gain 1 stack of <Blessing> when generating Tangle / activating Spell Burst" nodes → full-uptime
+    # flag the compute loop reads to pin that blessing to its max while the build generates tangles/bursts.
+    FOCUS_BLESSING_FULL_UPTIME_FLAG = "focus_blessing_full_uptime_flag"
+    AGILITY_BLESSING_FULL_UPTIME_FLAG = "agility_blessing_full_uptime_flag"
+    TENACITY_BLESSING_FULL_UPTIME_FLAG = "tenacity_blessing_full_uptime_flag"
+    # Magister "immediately starts Charging Energy Shield on generate" → recognized but NYI (needs an ES-recharge
+    # timing model); emitted so the line surfaces (Unconsumed) instead of silently dropping.
+    ES_CHARGE_ON_GENERATE_FLAG = "es_charge_on_generate_flag"
 
     # ── Trauma ───────────────────────────────────────────────────────────────
     TRAUMA_DMG_INC = "trauma_dmg_inc"
@@ -504,6 +574,9 @@ class Stat(Enum):
     ICY_BLADE_EXTRA_BLADE_EQUIV = "icy_blade_extra_blade_equiv"
     ICY_BLADE_FROZEN_BURST_RATE = "icy_blade_frozen_burst_rate"
     JUMP_DMG_FOR_EVERY_ADDITIONAL = "jump_dmg_for_every_additional"  # revisit stacking behavior
+    # Split Shot: Volley grants Shotgun Effect (the base skill "cannot hit the same enemy"). Presence-gated flag
+    # emitted slot-local by skill_effects/split_shot.py; offense uses it to let projectiles shotgun one target.
+    SAME_TARGET_SHOTGUN_GRANT = "same_target_shotgun_grant"
 
     # ── Steep Strike ─────────────────────────────────────────────────────────
     STEEP_STRIKE_CHANCE = "steep_strike_chance"
@@ -542,6 +615,15 @@ class Stat(Enum):
     # ── Critical Strike — Damage ─────────────────────────────────────────────
     CRIT_DMG_INC = "crit_dmg_inc"
     CRIT_DMG_ADDITIONAL = "crit_dmg_additional"
+    # "+X% additional damage when you land a Critical Strike" — an additional-damage pool weighted by the build's
+    # FINALIZED crit chance (effective = X × crit_chance), folded into the additional product in offense. Used by
+    # the Critical Strike Damage Increase support + Licorice Note's Razor Leaf ingredient.
+    DMG_ADDITIONAL_ON_CRIT = "dmg_additional_on_crit"
+    # "For every 400 Max Energy Shield, +X% additional damage, up to +Y%" (Licorice Note's Pixie Tear ingredient).
+    # Per-unit (per 400 ES) and cap are separate stats; offense folds min(max_es/400 × per_unit, cap) into the
+    # additional product. Not scaled by Elixir Effect.
+    DMG_ADDITIONAL_PER_400_ES = "dmg_additional_per_400_es"
+    DMG_ADDITIONAL_PER_400_ES_CAP = "dmg_additional_per_400_es_cap"
     ATTACK_CRIT_DMG_INC = "attack_crit_dmg_inc"
     SPELL_CRIT_DMG_INC = "spell_crit_dmg_inc"
     MINION_CRIT_DMG_INC = "minion_crit_dmg_inc"
@@ -579,7 +661,7 @@ class Stat(Enum):
     MAX_MANA_INC = "max_mana_inc"
     MAX_MANA_ADDITIONAL = "max_mana_additional"
     MANA_REGEN_FLAT = "mana_regen_flat"
-    MANA_REGEN_INC = "mana_regen_inc"
+    MANA_REGEN_SPEED_INC = "mana_regen_speed_inc"
     MANA_REGEN_PCT = "mana_regen_pct"                # % of max mana per second
     MANA_BEFORE_LIFE_INC = "mana_before_life_inc"
     SKILL_COST_FLAT = "skill_cost_flat"              # flat addition to skill cost (negative = reduction)
@@ -590,6 +672,94 @@ class Stat(Enum):
     SKILL_COST_REDUCTION = "skill_cost_reduction"    # legacy / talent-tree source
     SEALED_MANA_COMPENSATION_INC = "sealed_mana_compensation_inc"
     SEALED_MANA_COMPENSATION_ADDITIONAL = "sealed_mana_compensation_additional"
+
+    # ── Consumption (self-consume drains: Mana Boil, life-consume affixes) ─────
+    # Per-event consume rate by pool × basis × cadence. The consumption stage turns these into life/mana/ES drained
+    # per second (pct_current × current pool, pct_max × max pool, flat as-is; per_cast × casts/sec). Gated affixes
+    # (while Fervor / at Full Life) ride the normal condition-gating of their contribution. NOT the skill's intrinsic
+    # mana cost — that (Arcane / Frozen Lotus) stays a separate future gap.
+    LIFE_CONSUMED_PCT_CURRENT_PER_SEC = "life_consumed_pct_current_per_sec"
+    LIFE_CONSUMED_PCT_MAX_PER_SEC = "life_consumed_pct_max_per_sec"
+    LIFE_CONSUMED_FLAT_PER_SEC = "life_consumed_flat_per_sec"
+    LIFE_CONSUMED_PCT_CURRENT_PER_CAST = "life_consumed_pct_current_per_cast"
+    LIFE_CONSUMED_PCT_MAX_PER_CAST = "life_consumed_pct_max_per_cast"
+    LIFE_CONSUMED_FLAT_PER_CAST = "life_consumed_flat_per_cast"
+    MANA_CONSUMED_PCT_CURRENT_PER_SEC = "mana_consumed_pct_current_per_sec"
+    MANA_CONSUMED_PCT_MAX_PER_SEC = "mana_consumed_pct_max_per_sec"
+    MANA_CONSUMED_FLAT_PER_SEC = "mana_consumed_flat_per_sec"
+    MANA_CONSUMED_PCT_CURRENT_PER_CAST = "mana_consumed_pct_current_per_cast"
+    MANA_CONSUMED_PCT_MAX_PER_CAST = "mana_consumed_pct_max_per_cast"
+    MANA_CONSUMED_FLAT_PER_CAST = "mana_consumed_flat_per_cast"
+    ENERGY_SHIELD_CONSUMED_PCT_CURRENT_PER_SEC = "energy_shield_consumed_pct_current_per_sec"
+    ENERGY_SHIELD_CONSUMED_PCT_MAX_PER_SEC = "energy_shield_consumed_pct_max_per_sec"
+    ENERGY_SHIELD_CONSUMED_FLAT_PER_SEC = "energy_shield_consumed_flat_per_sec"
+    # Skill-type-SCOPED per-USE consume ("Consumes X% … when you use Attack Skills"): multiplied by the build's
+    # ATTACK-skill use rate (not the generic cast rate), and counts only attack-skill uses. (per_cast above is the
+    # unscoped "on skill use".)
+    LIFE_CONSUMED_PCT_CURRENT_PER_ATTACK_USE = "life_consumed_pct_current_per_attack_use"
+    LIFE_CONSUMED_PCT_MAX_PER_ATTACK_USE = "life_consumed_pct_max_per_attack_use"
+    LIFE_CONSUMED_FLAT_PER_ATTACK_USE = "life_consumed_flat_per_attack_use"
+    MANA_CONSUMED_PCT_CURRENT_PER_ATTACK_USE = "mana_consumed_pct_current_per_attack_use"
+    MANA_CONSUMED_PCT_MAX_PER_ATTACK_USE = "mana_consumed_pct_max_per_attack_use"
+    MANA_CONSUMED_FLAT_PER_ATTACK_USE = "mana_consumed_flat_per_attack_use"
+    # Unsullied Blade (Rosa #2) mana cycle. Mystic Mercury consume BYPASSES the "Mana can only be consumed by
+    # Mystic Mercury" lock (so the lock can zero every OTHER mana-consume source while this one still counts);
+    # the lock itself is a flag emitted only by Unsullied Blade's base node (off when Utmost Devotion is picked).
+    MANA_CONSUMED_PCT_CURRENT_PER_ATTACK_USE_MYSTIC = "mana_consumed_pct_current_per_attack_use_mystic"
+    MANA_CONSUME_EXTERNAL_BLOCKED = "mana_consume_external_blocked"
+    # Mana RESTORATION per non-channeled attack use (Realm of Mercury restores 15% of unsealed Max Mana/attack;
+    # Born to Cleanse's −30% additional mana restoration applies via the trait before this is emitted).
+    MANA_RESTORED_PCT_CURRENT_PER_ATTACK_USE = "mana_restored_pct_current_per_attack_use"
+    # Derived (written back by the consumption stage so offense / conditions can read the rolling "consumed recently"
+    # total = consumed_per_sec × the "recently" window).
+    CONSUMED_RECENTLY_LIFE = "consumed_recently_life"
+    CONSUMED_RECENTLY_MANA = "consumed_recently_mana"
+    CONSUMED_RECENTLY_ENERGY_SHIELD = "consumed_recently_energy_shield"
+
+    # Per-N-consumed CONSUMER scalings, NORMALIZED to "per 1 unit consumed recently" at parse time (a "+X% per N
+    # consumed" affix → X/100/N). The consumption loop multiplies by consumed_recently and caps, emitting the result
+    # into the live pools (so they converge). Cap is the affix's "up to Y%" (fraction); 0 = uncapped.
+    DMG_ADDITIONAL_PER_LIFE_CONSUMED = "dmg_additional_per_life_consumed"
+    DMG_ADDITIONAL_PER_LIFE_CONSUMED_CAP = "dmg_additional_per_life_consumed_cap"
+    # Plain "+X% damage for every N Life consumed" is INCREASED (per the bonus-vs-additional rule); the
+    # "additional damage" variant above stays additional. Folds into the generic increased pool in offense.
+    DMG_INC_PER_LIFE_CONSUMED = "dmg_inc_per_life_consumed"
+    DMG_INC_PER_LIFE_CONSUMED_CAP = "dmg_inc_per_life_consumed_cap"
+    ATTACK_SPEED_INC_PER_LIFE_CONSUMED = "attack_speed_inc_per_life_consumed"
+    ATTACK_SPEED_INC_PER_LIFE_CONSUMED_CAP = "attack_speed_inc_per_life_consumed_cap"
+    SPELL_DMG_INC_PER_MANA_CONSUMED = "spell_dmg_inc_per_mana_consumed"
+    SPELL_DMG_INC_PER_MANA_CONSUMED_CAP = "spell_dmg_inc_per_mana_consumed_cap"
+    # Compensatory Life: "+X% Mana Regeneration Speed for every N Mana consumed". Folds into mana_regen_speed_inc (the same
+    # stat the flat "Mana Regeneration Speed" affix resolves to), so it flows through the recovery mana-regen path.
+    MANA_REGEN_SPEED_INC_PER_MANA_CONSUMED = "mana_regen_speed_inc_per_mana_consumed"
+    MANA_REGEN_SPEED_INC_PER_MANA_CONSUMED_CAP = "mana_regen_speed_inc_per_mana_consumed_cap"
+    # Per-N-consumed DIVISORS (the "N" in "for every N consumed"). consumed-recently is quantized DOWN to a whole
+    # multiple of N before applying the per-unit benefit — "for every N" procs in discrete stacks, not fractionally.
+    DMG_ADDITIONAL_PER_LIFE_CONSUMED_UNIT = "dmg_additional_per_life_consumed_unit"
+    DMG_INC_PER_LIFE_CONSUMED_UNIT = "dmg_inc_per_life_consumed_unit"
+    ATTACK_SPEED_INC_PER_LIFE_CONSUMED_UNIT = "attack_speed_inc_per_life_consumed_unit"
+    SPELL_DMG_INC_PER_MANA_CONSUMED_UNIT = "spell_dmg_inc_per_mana_consumed_unit"
+    MANA_REGEN_SPEED_INC_PER_MANA_CONSUMED_UNIT = "mana_regen_speed_inc_per_mana_consumed_unit"
+    # Flat PHYSICAL damage added per N consumed recently (Blade-dancer's Fingers = Life→Attacks; Glacier Caster
+    # Shield = Mana→Attacks+Spells). min/max are separate keys; attack/spell scope kept separate (honest scoping).
+    # The "Stacks up to Z time(s)" cap is stored as a CONSUMED-AMOUNT cap (Z × N) so one cap clamps min AND max
+    # proportionally. offense folds: capped = min(consumed_recently, cap); flat += capped × per_unit.
+    PHYSICAL_ATTACK_DMG_FLAT_MIN_PER_LIFE_CONSUMED = "physical_attack_dmg_flat_min_per_life_consumed"
+    PHYSICAL_ATTACK_DMG_FLAT_MAX_PER_LIFE_CONSUMED = "physical_attack_dmg_flat_max_per_life_consumed"
+    PHYSICAL_ATTACK_DMG_FLAT_MIN_PER_MANA_CONSUMED = "physical_attack_dmg_flat_min_per_mana_consumed"
+    PHYSICAL_ATTACK_DMG_FLAT_MAX_PER_MANA_CONSUMED = "physical_attack_dmg_flat_max_per_mana_consumed"
+    PHYSICAL_SPELL_DMG_FLAT_MIN_PER_MANA_CONSUMED = "physical_spell_dmg_flat_min_per_mana_consumed"
+    PHYSICAL_SPELL_DMG_FLAT_MAX_PER_MANA_CONSUMED = "physical_spell_dmg_flat_max_per_mana_consumed"
+    PHYSICAL_DMG_FLAT_PER_LIFE_CONSUMED_CAP = "physical_dmg_flat_per_life_consumed_cap"
+    PHYSICAL_DMG_FLAT_PER_MANA_CONSUMED_CAP = "physical_dmg_flat_per_mana_consumed_cap"
+    # Crit per N consumed (Tyrant's Iron Fist = +5% INCREASED Crit Rating + ADDITIVE Crit Damage per ~890 Mana,
+    # uncapped). Fold into crit_rating_inc and crit_dmg_inc (× consumed_recently_mana) in the offense crit stage.
+    CRIT_RATING_INC_PER_MANA_CONSUMED = "crit_rating_inc_per_mana_consumed"
+    CRIT_DMG_INC_PER_MANA_CONSUMED = "crit_dmg_inc_per_mana_consumed"
+    CRIT_RATING_INC_PER_MANA_CONSUMED_UNIT = "crit_rating_inc_per_mana_consumed_unit"
+    CRIT_DMG_INC_PER_MANA_CONSUMED_UNIT = "crit_dmg_inc_per_mana_consumed_unit"
+    PHYSICAL_DMG_FLAT_PER_LIFE_CONSUMED_UNIT = "physical_dmg_flat_per_life_consumed_unit"
+    PHYSICAL_DMG_FLAT_PER_MANA_CONSUMED_UNIT = "physical_dmg_flat_per_mana_consumed_unit"
 
     # ── Energy Shield ─────────────────────────────────────────────────────────
     MAX_ENERGY_SHIELD_FLAT = "max_energy_shield_flat"
@@ -628,6 +798,9 @@ class Stat(Enum):
     COLD_RESISTANCE_MAX_INC = "cold_resistance_max_inc"
     LIGHTNING_RESISTANCE_MAX_INC = "lightning_resistance_max_inc"
     EROSION_RESISTANCE_MAX_INC = "erosion_resistance_max_inc"
+    # Aggregate max-resistance for Elemental (Fire/Cold/Lightning ONLY — Erosion is NOT elemental). Adds to each
+    # of the three per-type caps in defense._elem_resist. (Tenacity Dew, scaled by Elixir Effect.)
+    MAX_ELEMENTAL_RESISTANCE_INC = "max_elemental_resistance_inc"
     ATTACK_BLOCK_CHANCE_INC = "attack_block_chance_inc"
     SPELL_BLOCK_CHANCE_INC = "spell_block_chance_inc"
     BLOCK_RATIO_INC = "block_ratio_inc"
@@ -658,6 +831,7 @@ class Stat(Enum):
 
     # ── Cooldown Recovery ────────────────────────────────────────────────────
     CDR_SPEED_INC = "cdr_speed_inc"
+    CDR_SPEED_ADDITIONAL = "cdr_speed_additional"   # additional (multiplicative) CDR pool; pairs with CDR_SPEED_INC
     WARCRY_CDR_SPEED_INC = "warcry_cdr_speed_inc"
 
     # ── Skill Mechanics ───────────────────────────────────────────────────────
@@ -670,6 +844,20 @@ class Stat(Enum):
     SKILL_EFFECT_DURATION_INC = "skill_effect_duration_inc"
     SKILL_EFFECT_DURATION_ADDITIONAL = "skill_effect_duration_additional"
     RESTORATION_EFFECT_INC = "restoration_effect_inc"
+    # ── Restoration / Recovery (heal-over-time; see engine/recovery.py) ────────
+    # Restoration total = base × (1 + Σ restoration_effect_inc) × Π(1 + restoration_effect_additional). Duration =
+    # base window × (1 + Σ restoration_duration_inc) × Π(1 + restoration_duration_additional). recovery/sec = total
+    # ÷ max(duration, recast). Temporary Life/Mana = a separate used-first barrier (NOT folded into max_life).
+    RESTORATION_EFFECT_ADDITIONAL = "restoration_effect_additional"
+    RESTORATION_DURATION_INC = "restoration_duration_inc"
+    RESTORATION_DURATION_ADDITIONAL = "restoration_duration_additional"
+    TEMPORARY_LIFE_FLAT = "temporary_life_flat"
+    TEMPORARY_LIFE_PCT = "temporary_life_pct"            # % of Base Max Life granted as Temporary Life
+    TEMPORARY_MANA_FLAT = "temporary_mana_flat"
+    TEMPORARY_MANA_PCT = "temporary_mana_pct"            # % of Base Max Mana granted as Temporary Mana
+    MAX_TEMPORARY_LIFE_PCT = "max_temporary_life_pct"    # cap on Temporary Life (% of Base Max Life)
+    MAX_TEMPORARY_MANA_PCT = "max_temporary_mana_pct"
+    EXCESS_RESTORATION_TO_ES_PCT = "excess_restoration_to_es_pct"   # Pixie Tear: % of excess Life restoration → ES
 
     # ── Reaping ───────────────────────────────────────────────────────────────
     REAPING_DURATION_INC = "reaping_duration_inc"
@@ -716,6 +904,18 @@ class Stat(Enum):
     CC_EFFECT_INC = "cc_effect_inc"
     ILL_OMEN_EFFICIENCY_INC = "ill_omen_efficiency_inc"
     DEMOLISHER_CHARGE_SPEED_INC = "demolisher_charge_speed_inc"
+    # Demolisher supports: Cripple's "+X% additional damage for that cast" (the whole consuming cast); a generic
+    # "at the center" additional-damage pool (Epicenter, reusable by future center-bonus sources).
+    DEMOLISHER_CONSUME_DMG_ADDITIONAL = "demolisher_consume_dmg_additional"
+    AT_CENTER_DMG_ADDITIONAL = "at_center_dmg_additional"
+    # Activation-medium trigger cadence: a seconds-valued OVERRIDE of the cast/trigger rate (cast rate = 1/interval)
+    # for any skill triggered by a medium with an "every X s" cadence (Rhythm/Track/Instruction/Preparation).
+    TRIGGER_INTERVAL = "trigger_interval"
+    # Wind Rhythm: a tick-quantized cadence off a per-tier base cooldown, sped by CDR + a share of Cast Speed.
+    WIND_RHYTHM_BASE_COOLDOWN = "wind_rhythm_base_cooldown"   # seconds (per-tier); presence = Wind Rhythm active
+    WIND_RHYTHM_SHARE = "wind_rhythm_share"                   # fraction of Cast Speed applied to CDR (the roll)
+    # Sentry Activation Medium: how many sentries are deployed at a time (surfaced; distinct from max quantity).
+    SENTRY_DEPLOYED_COUNT_FLAT = "sentry_deployed_count_flat"
     AGILITY_BLESSING_DURATION_INC = "agility_blessing_duration_inc"
     FOCUS_BLESSING_DURATION_INC = "focus_blessing_duration_inc"
     TENACITY_BLESSING_DURATION_INC = "tenacity_blessing_duration_inc"
@@ -760,6 +960,12 @@ class Stat(Enum):
     MAX_WARCRY_SKILL_CHARGES_FLAT = "max_warcry_skill_charges_flat"
     MAX_SHADOW_QUANTITY_FLAT = "max_shadow_quantity_flat"
     SHADOW_DMG_ADDITIONAL = "shadow_dmg_additional"
+    # "N % chance to gain +K Shadows when using the Shadow Strike skill" (Despised Shadow). Kept as two
+    # SEPARATE stats (chance + quantity), not collapsed to an expected shadow count — the Shadow Strike
+    # falloff formula (engine.offense._shadow_multiplier) is nonlinear in shadow count, so the engine
+    # computes the exact per-cast expected-value mix itself: (1-p)*f(N) + p*f(N+K).
+    SHADOW_CHANCE_PCT = "shadow_chance_pct"
+    SHADOW_CHANCE_QUANTITY_FLAT = "shadow_chance_quantity_flat"
     DMG_TO_LIFE_ADDITIONAL = "dmg_to_life_additional"
     ELIXIR_CHARGING_PROGRESS_FLAT = "elixir_charging_progress_flat"
     BEAM_DMG_ADDITIONAL = "beam_dmg_additional"
@@ -789,6 +995,12 @@ class Stat(Enum):
     CANNOT_INFLICT_NUMBED = "cannot_inflict_numbed"
     CANNOT_INFLICT_WILT = "cannot_inflict_wilt"
     ES_UNINTERRUPTIBLE = "es_uninterruptible"
+    # % of Max Life added as flat Energy Shield (Tortoise Shell). Applied in derive.py AFTER Max Life is computed,
+    # folded into the ES flat pool BEFORE max_energy_shield scales by ES inc/additional.
+    MAX_LIFE_AS_ES_PCT = "max_life_as_es_pct"
+    # % of damage taken that bypasses Energy Shield (Tortoise Shell). FLAG only today — surfaced, not yet applied
+    # (waiting on the defensive damage-taken pass). Stored so it is never silently dropped.
+    ES_BYPASS_PCT = "es_bypass_pct"
     IGNITE_STACKS_INFLICTED_FLAT = "ignite_stacks_inflicted_flat"   # +N stacks inflicted (≠ max)
     WILT_STACKS_INFLICTED_FLAT = "wilt_stacks_inflicted_flat"
     EXTRA_MAX_MINIONS_FLAT = "extra_max_minions_flat"

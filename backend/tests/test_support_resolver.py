@@ -147,7 +147,8 @@ _SEASON = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons",
 
 @pytest.mark.skipif(not os.path.exists(_SEASON), reason="season data not present")
 def test_real_web_merge_pools_to_1466():
-    data = json.load(open(_SEASON, encoding="utf-8"))
+    from persistence import season_manager
+    data = season_manager.load_skills("SS12")   # normalized runtime view
     def walk(n):
         if isinstance(n, dict):
             yield n

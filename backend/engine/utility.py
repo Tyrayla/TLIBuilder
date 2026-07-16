@@ -48,6 +48,7 @@ def apply_aura_buffs(source, aura_buffs, aura_meta, active_booleans, numeric_val
         for sid, m in (aura_meta or {}).items():
             slot = m.get("slot")
             blist = by_skill.get(sid, [])
+            enabled = m.get("enabled", True)   # disabled aura: build summary, don't fold buffs into the engine
 
             # ── Phase 1: emit this aura's OWN Aura Effect (e.g. per-stack additional), scoped to the aura's
             # slot so it feeds only this aura's factor (and supports scoped to the same slot stack with it).
@@ -57,7 +58,7 @@ def apply_aura_buffs(source, aura_buffs, aura_meta, active_booleans, numeric_val
                 if not b["is_aura_effect"]:
                     continue
                 g = _gate_mult(b["condition_expr"], active_booleans, numeric_vals)
-                if g == 0.0:
+                if g == 0.0 or not enabled:
                     continue
                 amt = b["base_amount"] * g
                 _emit(source, b["stat_key"], amt, b.get("scope"),
@@ -80,7 +81,7 @@ def apply_aura_buffs(source, aura_buffs, aura_meta, active_booleans, numeric_val
                     amt = base   # the Aura Effect pool itself is NOT scaled by Aura Effect (emitted in phase 1)
                 else:
                     amt = base * factor
-                    if g != 0.0:
+                    if g != 0.0 and enabled:
                         _emit(source, b["stat_key"], amt, b.get("scope"),
                               SourceEntry(stat=b["stat_key"], amount=amt, source_type="aura",
                                           label=b["name"], text=b["text"], points=1,
@@ -92,7 +93,7 @@ def apply_aura_buffs(source, aura_buffs, aura_meta, active_booleans, numeric_val
 
             summaries.append({
                 "skill_id": sid, "name": m["name"], "level": m["level"], "aura_effect_inc": factor - 1.0,
-                "granted": granted, "nyi": m["nyi"], "review": m.get("review") or [],
+                "granted": granted, "nyi": m["nyi"], "review": m.get("review") or [], "enabled": enabled,
                 "stack_condition": m["stack_condition"], "max_stacks": m["max_stacks"],
             })
     finally:
@@ -120,6 +121,7 @@ def apply_empower_buffs(source, empower_buffs, empower_meta, active_booleans, nu
         for sid, m in (empower_meta or {}).items():
             slot = m.get("slot")
             blist = by_skill.get(sid, [])
+            enabled = m.get("enabled", True)   # disabled empower: build summary, don't fold buffs into the engine
 
             # Phase 1: emit this skill's OWN Empower-Effect entries (slot-scoped) — its own line + its supports —
             # so they feed only this empower's factor (not other skills').
@@ -127,7 +129,7 @@ def apply_empower_buffs(source, empower_buffs, empower_meta, active_booleans, nu
                 if not b["is_empower_effect"]:
                     continue
                 g = _gate_mult(b["condition_expr"], active_booleans, numeric_vals)
-                if g == 0.0:
+                if g == 0.0 or not enabled:
                     continue
                 amt = b["base_amount"] * g
                 _emit(source, b["stat_key"], amt, b.get("scope"),
@@ -148,7 +150,7 @@ def apply_empower_buffs(source, empower_buffs, empower_meta, active_booleans, nu
                     amt = base   # the Empower-Effect pool itself is not scaled by Empower Effect
                 else:
                     amt = base * factor
-                    if g != 0.0:
+                    if g != 0.0 and enabled:
                         _emit(source, b["stat_key"], amt, b.get("scope"),
                               SourceEntry(stat=b["stat_key"], amount=amt, source_type="empower",
                                           label=b["name"], text=b["text"], points=1, source_name=b["name"]))
@@ -159,8 +161,134 @@ def apply_empower_buffs(source, empower_buffs, empower_meta, active_booleans, nu
 
             summaries.append({
                 "skill_id": sid, "name": m["name"], "level": m["level"], "empower_effect_inc": factor - 1.0,
-                "granted": granted, "nyi": m["nyi"], "review": m.get("review") or [],
+                "granted": granted, "nyi": m["nyi"], "review": m.get("review") or [], "enabled": enabled,
                 "stack_condition": m["stack_condition"], "max_stacks": m["max_stacks"],
+            })
+    finally:
+        source._recording = prev_rec
+
+    return summaries
+
+
+def apply_elixir_buffs(source, elixir_buffs, elixir_meta, active_booleans, numeric_vals) -> list[dict]:
+    """Scale + emit elixir buffs into `source`; return per-elixir summaries. Mirrors apply_empower_buffs:
+    Elixir Effect is read SLOT-LOCAL (global gear/talents/core-talents like Tailored Remedy + any slot-scoped
+    elixir-effect), buffs are emitted PLAYER-WIDE (slot=None). Increased sums, additional multiplies. Flag stats
+    (lucky_<type>, es_uninterruptible, es_bypass) carry no_scale and are emitted at base. Full uptime → buffs
+    apply at full value; timing (duration/cooldown/charges) is display-only. Recording on so the Elixir-Effect
+    reads register as consumed (elixir-effect mods badge working)."""
+    if not elixir_buffs and not elixir_meta:
+        return []   # nothing equipped. (A pure-restoration tonic has meta + restoration but no buffs → still process.)
+
+    by_skill: dict[str, list[dict]] = {}
+    for b in elixir_buffs:
+        by_skill.setdefault(b["skill_id"], []).append(b)
+
+    prev_rec = source._recording
+    source._recording = True
+    summaries: list[dict] = []
+    try:
+        for sid, m in (elixir_meta or {}).items():
+            slot = m.get("slot")
+            blist = by_skill.get(sid, [])
+            # DISABLED elixir: still build the summary (so the Skill panel shows its stats marked disabled), but do
+            # NOT fold its buffs into the engine.
+            enabled = m.get("enabled", True)
+
+            # Phase 1: emit this elixir's OWN Elixir-Effect entries (slot-scoped), if any.
+            for b in blist:
+                if not b["is_elixir_effect"]:
+                    continue
+                g = _gate_mult(b["condition_expr"], active_booleans, numeric_vals)
+                if g == 0.0 or not enabled:
+                    continue
+                amt = b["base_amount"] * g
+                _emit(source, b["stat_key"], amt, b.get("scope"),
+                      SourceEntry(stat=b["stat_key"], amount=amt, source_type="elixir",
+                                  label=b["name"], text=b["text"], points=1, slot=slot,
+                                  source_name=b["name"]), slot=slot)
+
+            # Slot-local Elixir Effect = global (gear/talents/Tailored Remedy) + this elixir's slot-scoped entries.
+            eff = source.materialize_for_skill(set(), slot=slot) if slot is not None else source
+            factor = (1.0 + eff.total("elixir_effect_inc")) * (1.0 + eff.total("elixir_effect_additional"))
+
+            # Phase 2: emit the player-wide buffs (slot=None), scaled by the factor (gated); flags stay at base.
+            granted: list[dict] = []
+            for b in blist:
+                g = _gate_mult(b["condition_expr"], active_booleans, numeric_vals)
+                base = b["base_amount"] * g
+                if b["is_elixir_effect"]:
+                    amt = base   # the Elixir-Effect pool itself is not scaled by Elixir Effect
+                else:
+                    amt = base if b.get("no_scale") else base * factor
+                    if g != 0.0 and enabled:
+                        _emit(source, b["stat_key"], amt, b.get("scope"),
+                              SourceEntry(stat=b["stat_key"], amount=amt, source_type="elixir",
+                                          label=b["name"], text=b["text"], points=1, source_name=b["name"]))
+                granted.append({
+                    "stat": b["stat_key"], "base": base, "amount": amt, "text": b["phrase"],
+                    "no_scale": bool(b.get("no_scale")), "is_elixir_effect": b["is_elixir_effect"],
+                })
+
+            # Timing (display-only). Duration scales with general Skill Effect Duration (increased + additional) AND
+            # the elixir-specific Elixir Duration pool; cooldown is reduced by Cooldown Recovery Speed; max charges
+            # fold the global "+N Max Charge" pool + the elixir's support gems. The component fields (base_*,
+            # *_global, support_sources) drive the per-row source breakdowns on the Skill panel.
+            t = m.get("timing") or {}
+            dur_inc = source.total("skill_effect_duration_inc")
+            dur_add_general = source.total("skill_effect_duration_additional")
+            dur_add_elixir = source.total("elixir_duration_additional")
+            base_dur = t.get("base_duration")
+            duration = (base_dur * (1.0 + dur_inc) * (1.0 + dur_add_general) * (1.0 + dur_add_elixir)
+                        if base_dur is not None else None)
+            base_cd = t.get("cooldown")
+            cdr = source.total("cdr_speed_inc")
+            cooldown = (base_cd / (1.0 + cdr)) if base_cd is not None else None
+            charges = t.get("charges") or 0.0
+            global_max_charge = source.total("max_charge_flat")
+            global_charge_ps = source.total("elixir_charging_progress_flat")
+            support_charge_ps = t.get("support_charge_per_second") or 0.0
+            support_max_charge = t.get("support_max_charge") or 0.0
+            # Restoration tonics: amount × Elixir Effect, window × Elixir Duration. Recast cadence = max(cooldown,
+            # charge-regen time) — sustained recast is usually CHARGE-limited (charge_threshold ÷ charge/sec from
+            # Hyper Metabolism / Steel Vanguard / Omni-elixir belt; on-defeat charge excluded for single-target),
+            # falling back to cooldown when charge gen is fast. No charge gen → not sustainable (recast → huge → ~0
+            # recovery). The general Restoration Effect/Duration + pct→max-pool resolution happen in engine.recovery.
+            elixir_dur_factor = (1.0 + dur_inc) * (1.0 + dur_add_general) * (1.0 + dur_add_elixir)
+            charge_ps = support_charge_ps + global_charge_ps
+            charge_threshold = t.get("charge_threshold")
+            if charge_threshold and charge_ps > 0:
+                charge_regen = charge_threshold / charge_ps
+            elif charge_threshold:
+                charge_regen = 1.0e9   # has a charge cost but no charge generation → unsustainable
+            else:
+                charge_regen = 0.0     # no charge gating → cooldown-limited
+            recast = max(cooldown or 0.0, charge_regen)
+            restoration_out = [] if not enabled else [{
+                "pool": r["pool"], "mode": r["mode"], "base_amount": r["base_amount"] * factor,
+                "window": r["base_window"] * elixir_dur_factor, "recast": recast, "source": m["name"],
+            } for r in (m.get("restoration") or [])]
+            summaries.append({
+                "restoration": restoration_out,
+                "skill_id": sid, "name": m["name"], "level": m["level"], "elixir_effect_inc": factor - 1.0,
+                "granted": granted, "nyi": m["nyi"], "review": m.get("review") or [], "has_blur": m.get("has_blur"),
+                "enabled": enabled,
+                # Duration = base × (1 + Skill Duration) × (1 + Additional Skill Duration) × (1 + Elixir Duration).
+                "duration": duration, "base_duration": base_dur,
+                "duration_inc": dur_inc, "duration_additional": dur_add_general + dur_add_elixir,
+                # Cooldown = base ÷ (1 + Cooldown Recovery Speed).
+                "cooldown": cooldown, "base_cooldown": base_cd, "cdr": cdr,
+                # Charge/sec = support gems + global charging pool; max charges = base + global pool + support gems.
+                "charge_per_second": support_charge_ps + global_charge_ps,
+                "global_charge_per_second": global_charge_ps,
+                "base_charges": charges, "global_max_charge": global_max_charge,
+                "max_charges": charges + global_max_charge + support_max_charge,
+                "support_sources": t.get("support_sources") or [],
+                # Recast cadence for restoration tonics (Effective uptime): the time to refill, = max(cooldown,
+                # charge time). charge time = charge threshold ÷ charge/sec (or unsustainable with no charge gen).
+                "charge_threshold": charge_threshold,
+                "charge_regen": charge_regen if charge_threshold else None,
+                "recast": recast if (m.get("restoration") or []) else None,
             })
     finally:
         source._recording = prev_rec

@@ -23,7 +23,15 @@ import type { ModifierSource } from '../api/client'
 // distinct from 'working'/"Consumed" which is a build-specific resolved stat. Set directly by the backend tooltip.
 export type ModifierStatus = 'working' | 'inactive' | 'unused' | 'unrecognized' | 'modeled'
 
-type StatBearingAffix = Parameters<typeof affixStatKeys>[0] & { affix_kind?: string }
+type StatBearingAffix = Parameters<typeof affixStatKeys>[0] & {
+  affix_kind?: string
+  raw_text?: string
+  // Build-independent stat-key resolution from the gear catalog endpoint (see `LegendaryAffix` in
+  // client.ts). Used as a fallback ONLY when this affix has no local stat key AND the build-scoped
+  // `unresolved` set doesn't cover it — i.e. a catalog hover, where there's no equipped build to have
+  // asked the backend about this text at all.
+  resolved_keys?: string[]
+}
 export interface TextModifier { text: string | null | undefined; source: ModifierSource; nodeId?: string }
 
 // The stat keys the current build's compute consumed. Call once at a component's top level, then
@@ -82,8 +90,16 @@ function gearStatus(
   if (keys.length === 0) {
     // No local stat key — the backend attempts to resolve the raw text. Flag as unrecognized only if
     // the backend also couldn't (in the unresolved set); otherwise it resolved server-side → no badge.
-    const raw = (affix as { raw_text?: string }).raw_text?.trim()
-    return raw && unresolved?.has(raw) ? 'unrecognized' : null
+    const raw = affix.raw_text?.trim()
+    if (raw && unresolved?.has(raw)) return 'unrecognized'
+    // The `unresolved` set is `gear_mod_statuses` — scoped to the CURRENT EQUIPPED BUILD's compute. A
+    // catalog hover (item not equipped, e.g. browsing the picker) never had its affixes sent through
+    // that compute at all, so absence from `unresolved` here does NOT mean "resolved" — it may just mean
+    // "never asked". Fall back to the affix's own build-independent `resolved_keys` (same resolver
+    // `coverage.py` uses) so a stat-bearing affix is never silently blank on a catalog hover.
+    if (affix.resolved_keys === undefined) return null // older backend / not sent — fail open, no badge
+    if (affix.resolved_keys.length === 0) return 'unrecognized'
+    return classifyKeys(affix.resolved_keys, consumed, universe)
   }
   return classifyKeys(keys, consumed, universe)
 }
@@ -137,18 +153,21 @@ export function useTextModifierStatus(text: string | null | undefined, source: M
 }
 
 // ── Badge ────────────────────────────────────────────────────────────────────────
+// Plain-language, user-facing labels. The four non-'modeled' states used to read as near-synonyms
+// ("Consumed"/"Unconsumed"/"Inactive"/"Unrecognized") — this wording makes the axis explicit: is it
+// modeled at all, and if so, is it active in THIS build right now.
 const LABEL: Record<ModifierStatus, string> = {
-  working: 'Consumed',
-  inactive: 'Inactive',
-  unused: 'Unconsumed',
-  unrecognized: 'Unrecognized (NYI)',
+  working: 'In your DPS',
+  inactive: 'Modeled · unused here',
+  unused: 'Recognized · not modeled',
+  unrecognized: 'Not recognized (NYI)',
   modeled: 'Modeled',
 }
 const TITLE: Record<ModifierStatus, string> = {
-  working: 'Resolved to an engine stat that this build actively consumes.',
+  working: 'Resolved to an engine stat that this build actively consumes — contributing to your DPS right now.',
   inactive: "The engine models this stat, but your selected skill/calculation doesn't read it (it would work on another build).",
-  unused: "Resolves to a stat the engine doesn't read anywhere yet — recognized, not modeled.",
-  unrecognized: "This modifier doesn't map to any stat the engine models yet.",
+  unused: "Recognized text, but resolves to a stat the engine doesn't read anywhere yet — not modeled.",
+  unrecognized: "This modifier doesn't map to any stat the engine models yet (not yet implemented).",
   modeled: "This skill's intrinsic mechanic is modeled by the engine.",
 }
 

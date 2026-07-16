@@ -32,6 +32,12 @@ class SourceEntry:
     # for gear contributions. Lets offense scope a main-hand-only modifier to the weapon1 base share (see
     # BuildSource.main_hand_flat). None for non-weapon sources. Not read by compute.py's stat_map → output-neutral.
     weapon_slot:  str | None = None
+    # Minted language-independent pooling identity (engine/identity_index.py), stamped by the aggregator on
+    # DEFINITION-level contributions only (gear/character/spirit/memory/trait/custom). offense pools by
+    # `pooling_uuid or affix_identity(text)`. None on minted-suffix entries (supports/nodes/cores — their
+    # per-instance text distinctness is deliberate) and on lines with no catalog counterpart (custom rolls).
+    # Not read by compute.py's stat_map → output-neutral.
+    pooling_uuid: str | None = None
 
 
 @dataclass
@@ -157,7 +163,7 @@ class ComputedResult:
     max_hit:           float = 0.0
     crit_chance:       float = 0.0
     crit_multiplier:   float = 1.5
-    effective_dps:     float = 0.0   # avg_hit × attacks_per_second (placeholder)
+    effective_dps:     float = 0.0   # avg_hit × skills_per_second (placeholder)
     breakdown:         dict  = field(default_factory=dict)
 
 
@@ -179,8 +185,8 @@ class BuildInput:
     # Editable calc-target ("dummy") stats as FRACTIONS: {level, armor, fire_res, cold_res, lightning_res,
     # erosion_res}. None → offense uses its historical Lv85 constants.
     target_config: dict | None = None
-    # Unified condition state: boolean conditions store True/False, numeric store float.
-    condition_state: dict[str, float | bool] = field(default_factory=dict)
+    # Unified condition state: boolean conditions store True/False, numeric store float, enum store str.
+    condition_state: dict[str, float | bool | str] = field(default_factory=dict)
     gear:            list[dict] = field(default_factory=list)  # GearEngineItem dicts
     character:       list[dict] = field(default_factory=list)  # CharacterStatContribution dicts
     memory_effects:  list[str]  = field(default_factory=list)  # DEPRECATED: now pre-resolved server-side
@@ -219,6 +225,10 @@ class BuildInput:
     # them by Empower Skill Effect inside the compute loop and folds them in (source_type "empower").
     empower_buffs: list[dict] = field(default_factory=list)
     empower_meta: dict = field(default_factory=dict)
+    # Parsed-but-UNSCALED elixir buffs + per-elixir meta. engine.utility.apply_elixir_buffs scales them by Elixir
+    # Effect inside the compute loop and folds them in player-wide (source_type "elixir"). Full uptime assumed.
+    elixir_buffs: list[dict] = field(default_factory=list)
+    elixir_meta: dict = field(default_factory=dict)
     # Hero trait (Erika Lightning Shadow, …). For traits with a bespoke engine.hero_traits module the
     # module owns resolution; trait_contributions is (re)computed each loop pass by the module and folded
     # by aggregate() like spirit/memory contributions. For non-bespoke traits the server pre-resolves
@@ -227,13 +237,17 @@ class BuildInput:
     trait_slot_levels: list[int] = field(default_factory=list)       # [base, lv45, lv60, lv75], each 1-5
     advanced_trait_selections: list[str] = field(default_factory=list)
     trait_contributions: list[dict] = field(default_factory=list)
+    # Licorice Note (Sage): skill_id of the Empower/Curse the trait prepares (Pungent cross-apply target).
+    licorice_prepared_skill: str | None = None
     # Uptime calc mode: "max" (default; assume-max/legacy behavior) | "real" (compute ramp via engine.uptime).
     uptime_mode: str = "max"
     # Generalized "inflicts Numbed" effects from non-support sources (talents/gear/slates/custom mods),
     # built server-side by engine.ailment_inflict. Same shape as the support cond_effects: floor numbed_stacks
-    # + enable enemy_numbed, gated by hit damage type. `numbed_blocked` hard-overrides (H "cannot inflict").
+    # + enable enemy_numbed, gated by hit damage type. A "cannot inflict Numbed" block line withholds these
+    # effects entirely (engine.ailment_inflict.NumbedInflict.condition_effects() returns [] when blocked) —
+    # it does NOT hard-clear a manually-toggled enemy_numbed/numbed_stacks, mirroring how Frostbite's block
+    # only withholds its own auto-apply ConditionEffect without a separate hard-override field/flag.
     inflict_cond_effects: list = field(default_factory=list)
-    numbed_blocked: bool = False
 
 
 @dataclass
@@ -244,13 +258,18 @@ class StatResult:
     clamp_report:        dict[str, dict]         # {key: {"requested": v, "applied": v}}
     offense:             dict | None = None      # OffenseResult as dict, or None if no skill
     defense:             dict | None = None      # DefenseResult as dict
+    recovery:            dict | None = None      # RecoveryResult as dict (restoration/regain/regen/temp/EHP)
+    consumption:         dict | None = None      # ConsumptionResult as dict (self-consume drains + consumed-recently)
+    skill_cost:          dict | None = None      # SkillCostResult as dict (active skill per-cast Mana/Life cost breakdown)
     skill_slots:         list[dict] | None = None  # per-slot summary: slot, skill_id, skill_name, level, effective_level, supported
     consumed_stats:      list[str] = field(default_factory=list)  # stat keys the offense/defense/derive passes actually read for this build
     target_stats:        dict | None = None       # calc-target armor/resist (base + effective after pen) + active enemy debuffs
     slot_offense:        dict | None = None       # {slot: OffenseResult dict} per active skill slot; headline `offense` = main slot
+    minion_offense:      dict | None = None       # {owner_id: OffenseResult dict} per slotted minion owner — ONE result whose hit_forms are the minion's damage abilities (NYI/supported=False unless the owner has a bespoke module)
     blessings:           list | None = None        # per-blessing display summary (stacks/max/effects); golden-neutral
     aura_summaries:      list | None = None        # per-aura display summary (Aura Effect, granted buffs, NYI)
     empower_summaries:   list | None = None        # per-empower display summary (Empower Effect, granted buffs, NYI)
+    elixir_summaries:    list | None = None        # per-elixir display summary (Elixir Effect, granted buffs, timing, NYI)
     curse_summaries:     list | None = None        # per-curse display summary (Curse Effect, limit, debuff value)
     curse_conflict:      dict | None = None         # set when active curses exceed the limit (needs resolution)
     warnings:            list | None = None         # general build diagnostics (e.g. an ineffective/dead curse)

@@ -118,6 +118,30 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   background: rgba(63,201,176,0.12); border-color: rgba(63,201,176,0.34);
 }
 
+/* Item-level DPS-coverage pill (Full/Partial/None) — a THIRD axis from the per-mod .nyi-tag and the
+   Verification-DB .verif-badge, so it's deliberately a SOLID-filled rounded-full chip (not outlined/tinted)
+   to read as visually distinct at a glance. */
+.coverage-badge {
+  display: inline-block; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+  border-radius: 999px; padding: 1px 6px; margin-left: 6px; vertical-align: middle;
+  white-space: nowrap; cursor: default;
+}
+.coverage-badge--partial { cursor: help; }
+.coverage-badge-tooltip { max-width: 280px; font-size: 11px; line-height: 1.4; padding: 8px 10px; }
+.coverage-badge-tooltip-title { color: #e0a83a; font-weight: 700; margin-bottom: 4px; }
+.coverage-badge-tooltip ul { margin: 0; padding-left: 16px; color: #cfd6e6; }
+
+/* "?" trigger for CoverageLegend — a small round outline button, unobtrusive next to badge clusters. */
+.coverage-legend-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 999px; margin-left: 6px;
+  font-size: 10px; font-weight: 700; line-height: 1; color: #9aa3ad;
+  background: rgba(154,163,173,0.10); border: 1px solid rgba(154,163,173,0.35);
+  cursor: pointer; vertical-align: middle; padding: 0;
+}
+.coverage-legend-btn:hover { color: #cfd6e6; border-color: rgba(207,214,230,0.5); }
+.coverage-legend-body { max-width: 340px; padding: 10px 12px; }
+
 .btn-back {
   background: transparent;
   color: var(--fg);
@@ -224,17 +248,33 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .build-card {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 14px;
   background: var(--bg-card);
   border: 1px solid #2a2a3e;
   border-radius: 6px;
   padding: 14px 20px;
   cursor: pointer;
   transition: border-color 0.12s;
+  position: relative;
 }
 .build-card:hover { border-color: var(--accent); }
+.build-card--selected { border-color: var(--accent); background: #171a30; }
+.build-card-checkbox { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--accent); cursor: pointer; }
 
-.build-card-info { display: flex; align-items: center; gap: 18px; }
+/* Drop-position insertion indicators — a thin accent line pinned to the edge being targeted. */
+.build-card--before::before,
+.folder-card--before::before {
+  content: ''; position: absolute; left: 8px; right: 8px; top: -5px; height: 2px;
+  background: var(--accent); border-radius: 1px;
+}
+.build-card--after::after,
+.folder-card--after::after {
+  content: ''; position: absolute; left: 8px; right: 8px; bottom: -5px; height: 2px;
+  background: var(--accent); border-radius: 1px;
+}
+.folder-card--onto { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: #1c1730; }
+
+.build-card-info { display: flex; align-items: center; gap: 18px; min-width: 0; }
 .build-name { font-size: 15px; font-weight: 600; color: #ffffff; }
 .build-tree { font-size: 11px; color: #888; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .build-pts  { font-size: 12px; color: var(--ok); flex-shrink: 0; }
@@ -246,6 +286,87 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   font-size: 15px;
   line-height: 2.2;
 }
+
+/* ── Build folders ────────────────────────────────────────────────────────── */
+
+.build-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 4px;
+  font-size: 12px;
+  color: #888;
+  flex-shrink: 0;
+}
+.build-breadcrumb-seg {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: background 0.12s, color 0.12s;
+}
+.build-breadcrumb-seg:hover { color: #cfd6e6; background: rgba(255,255,255,0.05); }
+.build-breadcrumb-seg--current { color: var(--fg); font-weight: 600; cursor: default; }
+.build-breadcrumb-seg--current:hover { background: none; }
+.build-breadcrumb-sep { color: #444455; }
+.build-breadcrumb-seg.drop-target {
+  color: #1a1a2e; background: var(--accent); box-shadow: 0 0 0 2px rgba(233,69,96,0.4);
+}
+
+.folder-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #161a2c;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: border-color 0.12s;
+  position: relative;
+}
+.folder-card:hover { border-color: var(--accent); }
+
+/* CSS-drawn folder-tab icon (no image asset, no emoji) — a small tinted tab shape. */
+.folder-card-icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 16px;
+  height: 12px;
+  background: #e0a83a;
+  border-radius: 0 3px 3px 3px;
+}
+.folder-card-icon::before {
+  content: '';
+  position: absolute;
+  top: -4px; left: 0;
+  width: 8px; height: 4px;
+  background: #e0a83a;
+  border-radius: 2px 2px 0 0;
+}
+
+.folder-card-name { font-size: 14px; font-weight: 600; color: #e0a83a; flex: 1; }
+.folder-card-actions { display: flex; gap: 8px; }
+
+.folder-picker-card { width: 340px; max-width: 90vw; }
+.folder-picker-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 4px 0 10px;
+}
+.folder-picker-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #cfd6e6;
+  font-size: 13px;
+  padding: 8px 20px;
+  cursor: pointer;
+}
+.folder-picker-row:hover { background: rgba(255,255,255,0.06); color: #ffffff; }
 
 /* ── Tree Selector ────────────────────────────────────────────────────────── */
 
@@ -942,7 +1063,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .tooltip--node   { background: #0d1b2a; border-color: var(--accent); }
 .tooltip--node .tooltip-title { color: var(--accent); }
 .tooltip--gear   { min-width: 220px; max-width: 300px; }
-.tooltip--breakdown { max-width: 540px; overflow-y: auto; }
+.tooltip--breakdown { max-width: 540px; display: flex; flex-direction: column; overflow: hidden; }
 .tooltip--skill  { max-width: 280px; }
 .tooltip--spirit { /* centered-above is handled by Floating UI placement now */ }
 .tooltip--stat   { width: 230px; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
@@ -2393,6 +2514,13 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   min-width: 28px;
   text-align: right;
 }
+.gear-affix-value--editable { cursor: pointer; border-bottom: 1px dotted #6a5a2a; min-width: 44px; text-align: center; }
+.gear-affix-value--editable:hover { color: #e0c070; border-bottom-color: #c8a050; }
+.gear-affix-value-input {
+  width: 52px; font-size: 12px; font-weight: 700; color: #e0c070; text-align: center;
+  background: #0a0a18; border: 1px solid #5a5a2a; border-radius: 3px; padding: 1px 4px; outline: none;
+}
+.gear-affix-value-input:focus { border-color: #c8a050; }
 
 .gear-placeholder-select {
   background: #0a0a1a;
@@ -2826,10 +2954,13 @@ span.gear-affix-label {
   padding: 8px 10px 6px;
   border-bottom: 1px solid #1a1a3a;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .gear-craft-create-btn {
-  width: 100%;
+  flex: 1;
 }
 .gear-craft-create-btn.active {
   background: #3a1a6a;
@@ -3193,9 +3324,15 @@ span.gear-affix-label {
 .skill-slot-skill-name {
   font-size: 11px;
   color: var(--gold);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.skill-slot-skill-name-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .skill-slot-empty { font-size: 11px; color: #2a2a44; }
@@ -3406,6 +3543,14 @@ span.gear-affix-label {
 .skill-sort-select:focus { border-color: #5555aa; }
 .skill-sort-select option { background: #0e0e1e; color: var(--fg); }
 
+/* "Modeled only" filter checkbox, shared inline with the sort row (skill/support catalogs) and the
+   legendary-gear search bar. Hides coverage==='none' entries. */
+.skill-modeled-only-label {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+  color: #9aa3ad; font-size: 11px; white-space: nowrap; cursor: pointer; user-select: none;
+}
+.skill-modeled-only-label input { cursor: pointer; }
+
 .skill-catalog-list {
   flex: 1;
   overflow-y: auto;
@@ -3593,6 +3738,16 @@ span.gear-affix-label {
 .ht-dd-item.active { color: #ffffff; font-weight: 600; background: #1a1040; }
 .ht-dd-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ht-dd-item .ht-dd-slang { margin-left: auto; }
+.ht-dd-item .coverage-badge:last-child { margin-left: auto; }
+.ht-dd-controls {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px 8px; margin-bottom: 2px; border-bottom: 1px solid #24244a;
+}
+.ht-dd-sort-select {
+  flex: 1; background: #0a0a18; border: 1px solid #2a2a4a; border-radius: 4px;
+  color: var(--fg); font-size: 11px; padding: 3px 6px; outline: none; cursor: pointer;
+}
+.ht-dd-sort-select option { background: #0e0e1e; color: var(--fg); }
 
 .hero-trait-body {
   flex: 1;
@@ -3713,6 +3868,54 @@ span.gear-affix-label {
   width: 12px; height: 12px; background: rgba(12,12,26,0.96); border-left: 1px solid #34345e; border-top: 1px solid #34345e;
 }
 
+/* ── Tree-mode Hero Trait (Selena "Dance of the Deep" and onward) ─────────────
+   Replaces the tier-columns row entirely: the allocatable SVG tree fills the top (dominant), a
+   horizontal memory-socket strip sits along the bottom. */
+.htt-row {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.htt-memory-rail {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  flex-shrink: 0;
+  width: 100%;
+}
+.htt-memory-slots-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 28px;
+}
+.htt-memory-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.htt-memory-hint { font-size: 9px; color: #666688; text-align: center; line-height: 1.3; max-width: 120px; }
+.htt-points-readout {
+  padding-left: 24px;
+  border-left: 1px solid #1e1e3a;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c0c0e0;
+  align-self: center;
+}
+.htt-points-hint { margin-top: 4px; font-size: 10px; font-weight: 400; color: #d09a4a; line-height: 1.3; max-width: 160px; }
+.htt-tree-svg {
+  width: 100%;
+  aspect-ratio: 1000 / 760;
+  max-height: 66vh;
+  min-height: 0;
+  border-radius: 10px;
+}
+.htt-tree-connector { stroke: #362a2a; stroke-width: 2; opacity: 0.7; }
+
 /* Per-slot level selector */
 .trait-slot-level-row { display: flex; gap: 3px; justify-content: center; }
 
@@ -3753,7 +3956,7 @@ span.gear-affix-label {
   overflow: visible;
 }
 .trait-circle:hover:not(.locked) { border-color: #4a4a8a; background: #111130; }
-/* Selected nodes are indicated by the ✓ badge only — no heavy white ring (owner preference). */
+/* Selected nodes are indicated by the ✓ badge only — no heavy white ring (Tyra preference). */
 .trait-circle.selected { background: #121220; }
 .trait-circle.locked { opacity: 0.35; cursor: default; }
 
@@ -4264,6 +4467,31 @@ span.gear-affix-label {
   width: 100%;
 }
 .memory-affix-select:focus { outline: 1px solid #4040aa; }
+
+/* Searchable affix combobox (replaces the plain <select> in the memory creator). */
+.memory-affix-combo { position: relative; width: 100%; }
+.memory-affix-combo-trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  background: #0d0d1e; border: 1px solid #2a2a4a; color: var(--fg); border-radius: 4px;
+  padding: 4px 8px; font-size: 12px; cursor: pointer;
+}
+.memory-affix-combo-trigger.open, .memory-affix-combo-trigger:hover { border-color: #4040aa; }
+.memory-affix-combo-placeholder { color: #666; }
+.memory-affix-combo-caret { color: #777; font-size: 10px; }
+.memory-affix-combo-menu {
+  position: absolute; z-index: 60; top: calc(100% + 2px); left: 0; right: 0;
+  background: #0d0d1e; border: 1px solid #4040aa; border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+.memory-affix-combo-search {
+  width: 100%; box-sizing: border-box; background: #0a0a18; border: none; border-bottom: 1px solid #2a2a4a;
+  color: var(--fg); font-size: 12px; padding: 6px 8px; outline: none;
+}
+.memory-affix-combo-list { max-height: 220px; overflow-y: auto; }
+.memory-affix-combo-opt { padding: 5px 9px; font-size: 12px; color: #c8c8e0; cursor: pointer; }
+.memory-affix-combo-opt:hover { background: #1a1a38; }
+.memory-affix-combo-opt.selected { background: #20204a; color: #e0e0f4; }
+.memory-affix-combo-empty { padding: 6px 9px; font-size: 12px; color: #666; }
 
 /* Unified tier slider */
 .memory-tier-slider-wrapper {
@@ -4882,7 +5110,7 @@ span.gear-affix-label {
 .loadout-area-label { display: flex; align-items: center; gap: 4px; color: #c0c0d8; }
 .loadout-expand { color: #44446a; font-size: 9px; cursor: default; }
 .loadout-area-ctrl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-/* Help/hint text — brighter lavender for readability (owner pick, 2026-06-25). */
+/* Help/hint text — brighter lavender for readability (Tyra pick, 2026-06-25). */
 .loadout-hint { font-size: 12px; color: #cdbff2; line-height: 1.45; }
 .loadout-check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
 
@@ -4946,3 +5174,133 @@ span.gear-affix-label {
 .enemy-field-input .cond-stack-input { width: 56px; }
 .enemy-field-pct { font-size: 10px; color: #6a6a88; }
 .enemy-field-hint { font-size: 10px; color: #6a6a88; }
+
+/* ── Verification Database screen ──────────────────────────────────────────── */
+.verif-screen { display: flex; flex-direction: column; height: 100%; padding: 16px 20px; box-sizing: border-box; gap: 12px; }
+.verif-header { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.verif-header-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.verif-title { margin: 0; font-size: 20px; color: var(--fg); }
+.verif-subtitle { font-size: 12px; color: #6a6a88; }
+
+.verif-body { display: flex; gap: 16px; flex: 1; min-height: 0; }
+.verif-list-pane { display: flex; flex-direction: column; gap: 8px; width: 380px; flex-shrink: 0; min-height: 0; }
+.verif-detail-pane { flex: 1; min-height: 0; overflow-y: auto; background: #0c0c1a; border: 1px solid #22223c; border-radius: 6px; padding: 16px 20px; }
+
+.verif-search-bar { display: flex; align-items: center; gap: 4px; }
+.verif-search-input { flex: 1; background: #0a0a18; border: 1px solid #2a2a4a; border-radius: 4px; color: var(--fg); font-size: 13px; padding: 6px 10px; outline: none; }
+.verif-search-input:focus { border-color: #5555aa; }
+.verif-search-input::placeholder { color: #444; }
+.verif-search-clear { background: none; border: none; color: #666; font-size: 16px; cursor: pointer; padding: 2px 6px; }
+.verif-search-clear:hover { color: #aaa; }
+
+.verif-status-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.verif-chip { background: #14142a; border: 1px solid #2a2a4a; border-radius: 12px; color: #9a9ac0; font-size: 11px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
+.verif-chip:hover { border-color: #4a4a7a; }
+.verif-chip.active { background: #20204a; color: #d0d0f0; border-color: #5555aa; }
+
+.verif-select-row { display: flex; gap: 6px; }
+.verif-select { flex: 1; background: #0a0a18; border: 1px solid #2a2a4a; border-radius: 4px; color: var(--fg); font-size: 12px; padding: 5px 8px; outline: none; }
+.verif-select:focus { border-color: #5555aa; }
+
+.verif-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
+.verif-empty { color: #666; font-size: 13px; padding: 16px 4px; }
+.verif-row { background: #0e0e1e; border: 1px solid #1e1e38; border-radius: 5px; padding: 8px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 5px; }
+.verif-row:hover { border-color: #3a3a66; }
+.verif-row.active { background: #171733; border-color: #5555aa; }
+.verif-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.verif-row-title { font-size: 13px; color: var(--fg); font-weight: 500; }
+.verif-row-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.verif-badge { font-size: 10px; border: 1px solid; border-radius: 10px; padding: 1px 7px; white-space: nowrap; }
+.verif-chip-mini { font-size: 10px; border-radius: 3px; padding: 1px 6px; white-space: nowrap; }
+.verif-chip-skill { background: #1a2033; color: #79c0ff; }
+.verif-chip-tag { background: #201a2e; color: #b892d8; }
+
+.verif-detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.verif-detail-title { margin: 0; font-size: 18px; color: var(--fg); }
+.verif-meta { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #22223c; }
+.verif-meta-row { display: flex; gap: 10px; align-items: baseline; font-size: 12px; color: #c0c0d8; }
+.verif-meta-label { width: 92px; flex-shrink: 0; color: #6a6a88; text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
+.verif-meta-row .verif-chip-mini { margin-right: 4px; }
+.verif-backlog { color: #79c0ff; }
+.verif-backlog em { color: #6a6a88; font-style: normal; font-size: 11px; }
+
+.verif-section { margin-bottom: 16px; }
+.verif-section-title { margin: 0 0 6px; font-size: 12px; color: #8a8ab0; text-transform: uppercase; letter-spacing: 0.05em; }
+.verif-prose { font-size: 13px; color: #cfcfe4; line-height: 1.55; }
+.verif-prose p { margin: 0 0 8px; }
+.verif-prose ul { margin: 4px 0 8px; padding-left: 20px; }
+.verif-prose li { margin: 2px 0; }
+.verif-prose code { background: #14142a; border-radius: 3px; padding: 1px 5px; font-size: 12px; color: #e3b341; }
+.verif-prose strong { color: #f0f0ff; }
+.verif-prose a { color: #79c0ff; }
+.verif-prose h1, .verif-prose h2, .verif-prose h3, .verif-prose h4 { color: #d0d0f0; margin: 10px 0 6px; font-size: 14px; }
+.verif-sources { margin: 0; padding-left: 18px; font-size: 12px; color: #9a9ac0; line-height: 1.5; }
+.verif-sources li { margin: 2px 0; }
+
+/* Term links (color-coded by target) + hover popover + Help-DB article slide-over.
+   NOTE: double-class selectors (.glossary-term.glossary-term--x) so these beat `.verif-prose a` — which
+   otherwise wins on specificity and paints every term link the same blue. */
+.verif-prose-body { display: contents; }
+.glossary-term { border-bottom: 1px dotted; text-decoration: none; }
+/* glossary-only: hover def, no click */
+.glossary-term.glossary-term--glossary { color: #c9a6ff; border-bottom-color: #7a5fb0; cursor: help; }
+.glossary-term.glossary-term--glossary:hover { color: #e0c8ff; border-bottom-color: #c9a6ff; }
+/* Help-DB article: click opens the deep-dive */
+.glossary-term.glossary-term--article { color: #62d996; border-bottom-color: #2f7a55; cursor: pointer; }
+.glossary-term.glossary-term--article:hover { color: #8ee9b6; border-bottom-color: #62d996; }
+/* verification entry: click navigates in-app */
+.glossary-term.glossary-term--entry { color: #6cb6ff; border-bottom-color: #3a6ea5; cursor: pointer; }
+.glossary-term.glossary-term--entry:hover { color: #a6d5ff; border-bottom-color: #6cb6ff; }
+
+/* Header legend explaining the three link colors. */
+.verif-legend { display: inline-flex; gap: 8px; margin-left: auto; align-items: center; }
+.verif-legend-label { font-size: 12px; color: #8a8aa8; }
+.verif-legend-item {
+  font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 11px; border: 1px solid; line-height: 1.5;
+}
+.verif-legend-entry { color: #6cb6ff; border-color: #3a6ea5; background: #0d2233; }
+.verif-legend-article { color: #62d996; border-color: #2f7a55; background: #0e2a1b; }
+.verif-legend-glossary { color: #c9a6ff; border-color: #6a4fa0; background: #1c1030; }
+
+.verif-glossary-pop {
+  position: fixed; z-index: 1000; max-width: 320px; pointer-events: none;
+  background: #14142a; border: 1px solid #4a3a6a; border-radius: 6px; padding: 8px 11px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+}
+.verif-glossary-name { font-size: 12px; font-weight: 600; color: #d8c0ff; margin-bottom: 4px; }
+.verif-glossary-desc { font-size: 12px; color: #cfcfe4; line-height: 1.45; }
+.verif-glossary-more { font-size: 11px; color: #79c0ff; margin-top: 6px; }
+
+/* Mode tabs (Verification / Help / Glossary) in the header. */
+.verif-tabs { display: inline-flex; gap: 4px; }
+.verif-tab {
+  background: #14142a; border: 1px solid #2a2a4a; border-radius: 5px; color: #9a9ac0;
+  font-size: 12px; padding: 5px 12px; cursor: pointer; white-space: nowrap;
+}
+.verif-tab:hover { border-color: #4a4a7a; color: #c8c8e6; }
+.verif-tab.active { background: #20204a; color: #e0e0f4; border-color: #5555aa; }
+
+/* Help-article list-row breadcrumb + column detail header. */
+.verif-row-crumb { font-size: 10px; color: #6a6a88; margin-top: 3px; }
+.verif-detail-head--col { flex-direction: column; align-items: flex-start; gap: 3px; }
+.verif-article-crumb { font-size: 10px; color: #6a6a88; text-transform: uppercase; letter-spacing: 0.03em; }
+.verif-openhelp { margin-top: 14px; }
+
+/* Help-article deep-dive modal (opened by clicking a help-linked term). Reuses .modal-backdrop/.modal-card. */
+.verif-article-modal { width: 600px; max-width: 90vw; max-height: 80vh; display: flex; flex-direction: column; border: 1px solid #2a2a4a; }
+.verif-article-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 20px 10px; }
+.verif-article-heading { min-width: 0; }
+.verif-article-title { margin: 0; font-size: 16px; color: var(--fg); }
+.verif-article-close { background: none; border: none; color: #888; font-size: 15px; cursor: pointer; padding: 2px 6px; line-height: 1; }
+.verif-article-close:hover { color: #ddd; }
+.verif-article-modal-body { flex: 1; overflow-y: auto; padding: 4px 20px 6px; }
+.verif-article-modal .verif-article-foot { margin-top: 0; padding: 9px 20px 14px; }
+
+/* Condensed Help-article prose (blank-line-separated → default <p> gaps read as sparse; tighten them). */
+.verif-article-body { font-size: 12.5px; line-height: 1.5; }
+.verif-article-body p { margin: 0 0 5px; }
+.verif-article-body ul, .verif-article-body ol { margin: 3px 0 6px; padding-left: 18px; }
+.verif-article-body li { margin: 1px 0; }
+.verif-article-body h1, .verif-article-body h2, .verif-article-body h3, .verif-article-body h4 { margin: 11px 0 4px; font-size: 13px; color: #c7c7e6; }
+.verif-article-foot { margin-top: 16px; padding-top: 10px; border-top: 1px solid #22223c; font-size: 11px; color: #6a6a88; }

@@ -11,11 +11,11 @@ gotchas and verify steps live in one place. Humans can read this top-to-bottom; 
 ## Approval-gate policy (every authoring skill obeys this)
 
 1. **Propose, then wait.** Present the EXACT implementation — the code stub AND the per-tier values/formulas —
-   and get the owner's explicit approval before writing anything. Nothing lands that the owner didn't approve.
+   and get Tyra's explicit approval before writing anything. Nothing lands that Tyra didn't approve.
 2. **Surface uncertainties, never guess them in.** Any formula, per-tier number, pooling rule (increased vs
-   additional), or interaction you're not certain of is flagged for the owner to confirm — not silently assumed.
+   additional), or interaction you're not certain of is flagged for Tyra to confirm — not silently assumed.
 3. **Never silently drop.** Every line of a mechanic is either modelled or surfaced (status row / NYI badge).
-4. **No commit without asking.** Author + verify; the owner decides when to commit (and separately, to push).
+4. **No commit without asking.** Author + verify; Tyra decides when to commit (and separately, to push).
 
 ---
 
@@ -44,7 +44,13 @@ gotchas and verify steps live in one place. Humans can read this top-to-bottom; 
   stat (it enters every skill's `consumed_stats`), changes `support_skill_golden/*` + `scope_golden/*`. These are
   usually *additive* — re-capture with the additive-only diff check above. A NEW registered skill (`_register`)
   also auto-captures a new `support_skill_golden/<id>.json`.
-- **`stat_meta` completeness.** Every `Stat` enum member needs a `StatMeta` entry (`test_models_stat_meta.py`).
+- **`stat_meta` completeness.** `StatMeta` is REQUIRED for any node-modifiable / user-facing stat — every
+  `NODE_MODIFIER_POOL` stat must have an entry (enforced by `test_models_stat_meta.py`), and any stat that should
+  show a clean display name in the Calcs breakdown needs one. It is OPTIONAL for engine-injected/derived stats that
+  are read only by explicit key and never surface (e.g. `paralysis_dmg_taken`, the consume `_unit`/`_cap`/flag
+  stats, the per-N-consumed source stats). Access is always graceful (`STAT_META.get(...)`), so a missing entry
+  degrades to "no display name + excluded from the meta-driven pipelines", never a crash. `test_models_stat_meta.py`
+  does NOT assert every `Stat` has meta — only `NODE_MODIFIER_POOL` coverage + validity of the entries present.
 
 ---
 

@@ -26,7 +26,9 @@ _G  = ("legendary_gear", "normal_gear")
 # ── Common affects tuples ──────────────────────────────────────────────────────
 _HIT      = ("hit",)
 _HIT_DOT  = ("hit", "dot")
+_DOT      = ("dot",)   # DoT / ailment damage ONLY (never hit) — e.g. "Additional Ailment Damage dealt by …"
 _ALL_DMGF = ("hit", "dot", "secondary", "reflect")
+_NO_DOT   = ("hit", "secondary", "reflect")   # like _ALL_DMGF but never DoT — Help DB: Armor excluded from DoT
 
 
 STAT_META: dict[Stat, StatMeta] = {
@@ -126,10 +128,12 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Generic ───────────────────────────────────────────────────────────────
+    # MISLABEL fix (dot audit): Armor does not mitigate DoT (Help DB "Damage Form" article: Armor excluded from
+    # DoT), so Armor Penetration against it is inert on the DoT tick. Was _ALL_DMGF (included "dot").
     Stat.ARMOR_PEN: StatMeta(
         "Armor DMG Mitigation Penetration", "Generic", "penetration", "%",
         subgroup="mitigation",    pipeline_stage="mitigation",
-        tags=("physical",),       affects=_ALL_DMGF,
+        tags=("physical",),       affects=_NO_DOT,
         stacking_rule="additive", ui_priority=25,
         source_types=_T,
     ),
@@ -225,8 +229,10 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.ENEMY_NEARBY_DMG_TAKEN_ADDITIONAL: StatMeta(
         "Additional Damage Taken by Nearby Enemies", "Generic", "additional", "%",
-        subgroup="generic_damage",    pipeline_stage="additional",
-        affects=_HIT_DOT,             stacking_rule="additive",
+        # ENEMY-vulnerability multiplier (applied in offense._enemy_vuln_mult, assume in range) — NOT a player
+        # additional pool, so it must stay out of _HIT_ADDITIONAL_STATS (pipeline_stage != "additional").
+        subgroup="generic_damage",    pipeline_stage="enemy_vulnerability",
+        affects=_HIT,                 stacking_rule="additive",
         ui_priority=4,                source_types=_T,
     ),
 
@@ -439,6 +445,13 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=10,
         source_types=_T,
     ),
+    Stat.MINION_HIT_DMG_ADDITIONAL: StatMeta(
+        "Additional Hit Damage for Minions", "Minion", "additional", "%",
+        subgroup="minion_damage",      pipeline_stage="additional",
+        tags=("minion",),              affects=_HIT,
+        stacking_rule="additive",      ui_priority=10,
+        source_types=_T,
+    ),
     Stat.MINION_DMG_MAX: StatMeta(
         "Additional Max Damage for Minions", "Minion", "additional", "%",
         subgroup="minion_damage",      pipeline_stage="additional",
@@ -465,6 +478,27 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="minion_damage",      pipeline_stage="increased_reduced",
         tags=("minion", "fire"),       affects=_HIT_DOT,
         stacking_rule="additive",      ui_priority=10,
+        source_types=_T,
+    ),
+    Stat.MINION_COLD_PEN_INC: StatMeta(
+        "Minion Cold Penetration", "Minion", "penetration", "%",
+        subgroup="minion_penetration",  pipeline_stage="penetration",
+        tags=("minion", "cold"),        affects=_HIT_DOT,
+        stacking_rule="additive",       ui_priority=9,
+        source_types=_T,
+    ),
+    Stat.MINION_LIGHTNING_PEN_INC: StatMeta(
+        "Minion Lightning Penetration", "Minion", "penetration", "%",
+        subgroup="minion_penetration",  pipeline_stage="penetration",
+        tags=("minion", "lightning"),   affects=_HIT_DOT,
+        stacking_rule="additive",       ui_priority=9,
+        source_types=_T,
+    ),
+    Stat.MINION_EROSION_PEN_INC: StatMeta(
+        "Minion Erosion Penetration", "Minion", "penetration", "%",
+        subgroup="minion_penetration",  pipeline_stage="penetration",
+        tags=("minion", "erosion"),     affects=_HIT_DOT,
+        stacking_rule="additive",       ui_priority=9,
         source_types=_T,
     ),
     Stat.MINION_FIRE_PEN_INC: StatMeta(
@@ -571,10 +605,12 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="affliction",         stacking_rule="additive",
         ui_priority=72,                source_types=_T,
     ),
+    # MISLABEL fix (dot audit): same as ARMOR_PEN — Armor is excluded from DoT mitigation, so penetrating it
+    # does nothing to a DoT tick. Was _HIT_DOT.
     Stat.MINION_ARMOR_PEN: StatMeta(
         "Armor DMG Mitigation Penetration for Minions", "Minion", "penetration", "%",
         subgroup="minion_damage",      pipeline_stage="penetration",
-        tags=("minion",),              affects=_HIT_DOT,
+        tags=("minion",),              affects=_HIT,
         stacking_rule="additive",      ui_priority=25,
         source_types=_T,
     ),
@@ -587,6 +623,25 @@ STAT_META: dict[Stat, StatMeta] = {
         "Physique for Minions", "Minion", "increased", "%",
         subgroup="minion_mechanics",   stacking_rule="additive",
         ui_priority=71,                source_types=_TB,
+    ),
+    # Generic minion CDR + Skill Effect Duration (all minion types). No pipeline_stage — read explicitly by the
+    # minion offense (drive buff uptime), never auto-folded into damage. Supports convert to these.
+    Stat.MINION_CDR_SPEED_INC: StatMeta(
+        "Minion Cooldown Recovery Speed", "Minion", "increased", "%",
+        subgroup="minion_mechanics",   stacking_rule="additive",
+        ui_priority=73,                source_types=_TB,
+    ),
+    Stat.MINION_SKILL_EFFECT_DURATION_INC: StatMeta(
+        "Minion Skill Effect Duration", "Minion", "increased", "%",
+        subgroup="minion_mechanics",   stacking_rule="additive",
+        ui_priority=74,                source_types=_TB,
+    ),
+    # +Projectile Quantity for minion skills. No pipeline_stage — read explicitly by the minion offense (some
+    # minion skills convert it to additional damage rather than more projectiles), never auto-folded.
+    Stat.MINION_PROJECTILE_QUANTITY_FLAT: StatMeta(
+        "Projectile Quantity for Minions", "Minion", "added_flat",
+        subgroup="minion_mechanics",   stacking_rule="additive",
+        ui_priority=72,                source_types=_TB,
     ),
     Stat.MINION_LIFE_REGAIN_INC: StatMeta(
         "Life Regain for Minions", "Minion", "increased", "%",
@@ -980,6 +1035,31 @@ STAT_META: dict[Stat, StatMeta] = {
         "Erosion Damage Lucky", "Erosion", "added_flat",
         subgroup="mechanics", tags=("erosion",), ui_priority=85, source_types=_TB,
     ),
+    # Unlucky = inverse of Lucky (roll twice, keep the lower). Mirror the Lucky pool per type + the crit-chance variant.
+    Stat.UNLUCKY_PHYSICAL: StatMeta(
+        "Physical Damage Unlucky", "Physical", "added_flat",
+        subgroup="mechanics", tags=("physical",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.UNLUCKY_LIGHTNING: StatMeta(
+        "Lightning Damage Unlucky", "Lightning", "added_flat",
+        subgroup="mechanics", tags=("lightning",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.UNLUCKY_COLD: StatMeta(
+        "Cold Damage Unlucky", "Cold", "added_flat",
+        subgroup="mechanics", tags=("cold",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.UNLUCKY_FIRE: StatMeta(
+        "Fire Damage Unlucky", "Fire", "added_flat",
+        subgroup="mechanics", tags=("fire",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.UNLUCKY_EROSION: StatMeta(
+        "Erosion Damage Unlucky", "Erosion", "added_flat",
+        subgroup="mechanics", tags=("erosion",), ui_priority=85, source_types=_TB,
+    ),
+    Stat.LUCKY_CRIT: StatMeta(
+        "Lucky Critical Strikes (source)", "Generic", "added_flat",
+        subgroup="mechanics", stacking_rule="additive", ui_priority=60, source_types=_T,
+    ),
     # Core-talent "conversion" lines blocked on other subsystems (tracked → Inactive until those exist).
     Stat.MANA_COST_TO_LIFE_COST: StatMeta(
         "Mana Cost Converted to Life Cost", "Mana", "conversion", "%",
@@ -1015,6 +1095,10 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     Stat.MOVEMENT_BONUS_TO_ATTACK_SPEED: StatMeta(
         "Movement Speed Bonus Applied to Attack Speed", "Attack Speed", "conversion", "%",
+        subgroup="speed", ui_priority=86, source_types=_T,
+    ),
+    Stat.MOVEMENT_BONUS_TO_ATTACK_SPEED_CAP: StatMeta(
+        "Movement→Attack Speed Cap", "Attack Speed", "flat", "%",
         subgroup="speed", ui_priority=86, source_types=_T,
     ),
     Stat.MOVEMENT_BONUS_TO_CAST_SPEED: StatMeta(
@@ -1064,31 +1148,39 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=15,
         source_types=_T,
     ),
+    # MISLABEL fix (dot audit): added-FLAT damage does not feed a skill-DoT's base (in-game test: an "Adds X-Y
+    # Erosion Damage to Spells" ring changed nothing on an Erosion DoT skill — see EROSION_SPELL_DMG_FLAT_MIN/MAX
+    # below for the exact stat that was tested). Applies to every *_ATTACK_DMG_FLAT_MIN/MAX and
+    # *_SPELL_DMG_FLAT_MIN/MAX added-flat stat across all damage types. Was _HIT_DOT on all of them.
+    # CAUTION: this removal is scoped to skill-DoT (measured). The Help DB states AILMENT base damage IS derived
+    # from added-flat damage (Attack ailments: Weapon + added flat; Spell ailments: added flat only) — a future
+    # Trauma/Ignite/Wilt implementation (Phase 3) MUST read these *_flat_min/max stats directly, not via `affects`
+    # (they carry no "dot" now, and never carried an ailment-specific affects flag to begin with).
     Stat.PHYSICAL_ATTACK_DMG_FLAT_MIN: StatMeta(
         "Min Physical Attack Damage", "Physical", "added_flat",
         subgroup="physical_damage",    pipeline_stage="added_flat",
-        tags=("physical", "attack"),   affects=_HIT_DOT,
+        tags=("physical", "attack"),   affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.PHYSICAL_ATTACK_DMG_FLAT_MAX: StatMeta(
         "Max Physical Attack Damage", "Physical", "added_flat",
         subgroup="physical_damage",    pipeline_stage="added_flat",
-        tags=("physical", "attack"),   affects=_HIT_DOT,
+        tags=("physical", "attack"),   affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.PHYSICAL_SPELL_DMG_FLAT_MIN: StatMeta(
         "Min Physical Spell Damage", "Physical", "added_flat",
         subgroup="physical_damage",    pipeline_stage="added_flat",
-        tags=("physical", "spell"),    affects=_HIT_DOT,
+        tags=("physical", "spell"),    affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.PHYSICAL_SPELL_DMG_FLAT_MAX: StatMeta(
         "Max Physical Spell Damage", "Physical", "added_flat",
         subgroup="physical_damage",    pipeline_stage="added_flat",
-        tags=("physical", "spell"),    affects=_HIT_DOT,
+        tags=("physical", "spell"),    affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
@@ -1120,31 +1212,35 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
+    # MISLABEL fix (dot audit): added-flat damage doesn't feed skill-DoT base — see the comment above
+    # PHYSICAL_ATTACK_DMG_FLAT_MIN. Was _HIT_DOT on all four below.
+    # CAUTION: scoped to skill-DoT only — ailment base damage IS derived from added flat per Help DB; Phase 3
+    # (Trauma/Ignite/Wilt) must read these directly, not via `affects`.
     Stat.LIGHTNING_ATTACK_DMG_FLAT_MIN: StatMeta(
         "Min Lightning Attack Damage", "Lightning", "added_flat",
         subgroup="lightning_damage",   pipeline_stage="added_flat",
-        tags=("lightning", "attack"),  affects=_HIT_DOT,
+        tags=("lightning", "attack"),  affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.LIGHTNING_ATTACK_DMG_FLAT_MAX: StatMeta(
         "Max Lightning Attack Damage", "Lightning", "added_flat",
         subgroup="lightning_damage",   pipeline_stage="added_flat",
-        tags=("lightning", "attack"),  affects=_HIT_DOT,
+        tags=("lightning", "attack"),  affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.LIGHTNING_SPELL_DMG_FLAT_MIN: StatMeta(
         "Min Lightning Spell Damage", "Lightning", "added_flat",
         subgroup="lightning_damage",   pipeline_stage="added_flat",
-        tags=("lightning", "spell"),   affects=_HIT_DOT,
+        tags=("lightning", "spell"),   affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.LIGHTNING_SPELL_DMG_FLAT_MAX: StatMeta(
         "Max Lightning Spell Damage", "Lightning", "added_flat",
         subgroup="lightning_damage",   pipeline_stage="added_flat",
-        tags=("lightning", "spell"),   affects=_HIT_DOT,
+        tags=("lightning", "spell"),   affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
@@ -1183,31 +1279,35 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
+    # MISLABEL fix (dot audit): added-flat damage doesn't feed skill-DoT base — see the comment above
+    # PHYSICAL_ATTACK_DMG_FLAT_MIN. Was _HIT_DOT on all four below.
+    # CAUTION: scoped to skill-DoT only — ailment base damage IS derived from added flat per Help DB; Phase 3
+    # (Trauma/Ignite/Wilt) must read these directly, not via `affects`.
     Stat.COLD_ATTACK_DMG_FLAT_MIN: StatMeta(
         "Min Cold Attack Damage", "Cold", "added_flat",
         subgroup="cold_damage",        pipeline_stage="added_flat",
-        tags=("cold", "attack"),       affects=_HIT_DOT,
+        tags=("cold", "attack"),       affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.COLD_ATTACK_DMG_FLAT_MAX: StatMeta(
         "Max Cold Attack Damage", "Cold", "added_flat",
         subgroup="cold_damage",        pipeline_stage="added_flat",
-        tags=("cold", "attack"),       affects=_HIT_DOT,
+        tags=("cold", "attack"),       affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.COLD_SPELL_DMG_FLAT_MIN: StatMeta(
         "Min Cold Spell Damage", "Cold", "added_flat",
         subgroup="cold_damage",        pipeline_stage="added_flat",
-        tags=("cold", "spell"),        affects=_HIT_DOT,
+        tags=("cold", "spell"),        affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.COLD_SPELL_DMG_FLAT_MAX: StatMeta(
         "Max Cold Spell Damage", "Cold", "added_flat",
         subgroup="cold_damage",        pipeline_stage="added_flat",
-        tags=("cold", "spell"),        affects=_HIT_DOT,
+        tags=("cold", "spell"),        affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
@@ -1246,31 +1346,35 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
+    # MISLABEL fix (dot audit): added-flat damage doesn't feed skill-DoT base — see the comment above
+    # PHYSICAL_ATTACK_DMG_FLAT_MIN. Was _HIT_DOT on all four below.
+    # CAUTION: scoped to skill-DoT only — ailment base damage IS derived from added flat per Help DB; Phase 3
+    # (Trauma/Ignite/Wilt) must read these directly, not via `affects`.
     Stat.FIRE_ATTACK_DMG_FLAT_MIN: StatMeta(
         "Min Fire Attack Damage", "Fire", "added_flat",
         subgroup="fire_damage",        pipeline_stage="added_flat",
-        tags=("fire", "attack"),       affects=_HIT_DOT,
+        tags=("fire", "attack"),       affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.FIRE_ATTACK_DMG_FLAT_MAX: StatMeta(
         "Max Fire Attack Damage", "Fire", "added_flat",
         subgroup="fire_damage",        pipeline_stage="added_flat",
-        tags=("fire", "attack"),       affects=_HIT_DOT,
+        tags=("fire", "attack"),       affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.FIRE_SPELL_DMG_FLAT_MIN: StatMeta(
         "Min Fire Spell Damage", "Fire", "added_flat",
         subgroup="fire_damage",        pipeline_stage="added_flat",
-        tags=("fire", "spell"),        affects=_HIT_DOT,
+        tags=("fire", "spell"),        affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.FIRE_SPELL_DMG_FLAT_MAX: StatMeta(
         "Max Fire Spell Damage", "Fire", "added_flat",
         subgroup="fire_damage",        pipeline_stage="added_flat",
-        tags=("fire", "spell"),        affects=_HIT_DOT,
+        tags=("fire", "spell"),        affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
@@ -1316,31 +1420,37 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
+    # MISLABEL fix (dot audit): added-flat damage doesn't feed skill-DoT base. EROSION_SPELL_DMG_FLAT_MIN/MAX is
+    # the exact stat pair the field test used ("Adds X-Y Erosion Damage to Spells" ring — no effect on an Erosion
+    # DoT skill's tick). Was _HIT_DOT on all four below.
+    # CAUTION: this removal is scoped to skill-DoT (measured). The Help DB states AILMENT base damage IS derived
+    # from added-flat damage (Attack ailments: Weapon + added flat; Spell ailments: added flat only) — a future
+    # Trauma/Ignite/Wilt implementation (Phase 3) MUST read these *_flat_min/max stats directly, not via `affects`.
     Stat.EROSION_ATTACK_DMG_FLAT_MIN: StatMeta(
         "Min Erosion Attack Damage", "Erosion", "added_flat",
         subgroup="erosion_damage",     pipeline_stage="added_flat",
-        tags=("erosion", "attack"),    affects=_HIT_DOT,
+        tags=("erosion", "attack"),    affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.EROSION_ATTACK_DMG_FLAT_MAX: StatMeta(
         "Max Erosion Attack Damage", "Erosion", "added_flat",
         subgroup="erosion_damage",     pipeline_stage="added_flat",
-        tags=("erosion", "attack"),    affects=_HIT_DOT,
+        tags=("erosion", "attack"),    affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.EROSION_SPELL_DMG_FLAT_MIN: StatMeta(
         "Min Erosion Spell Damage", "Erosion", "added_flat",
         subgroup="erosion_damage",     pipeline_stage="added_flat",
-        tags=("erosion", "spell"),     affects=_HIT_DOT,
+        tags=("erosion", "spell"),     affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
     Stat.EROSION_SPELL_DMG_FLAT_MAX: StatMeta(
         "Max Erosion Spell Damage", "Erosion", "added_flat",
         subgroup="erosion_damage",     pipeline_stage="added_flat",
-        tags=("erosion", "spell"),     affects=_HIT_DOT,
+        tags=("erosion", "spell"),     affects=_HIT,
         stacking_rule="additive",      ui_priority=40,
         source_types=_TB,
     ),
@@ -1487,6 +1597,14 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Tangle ────────────────────────────────────────────────────────────────
+    # UNVERIFIED (dot audit): Tangle is NOT an ailment despite the "Ailments" UI category — it's a skill-type
+    # (docs/BACKLOG.md §0c): a Spell converted by an activator support and cast by N attached tangle entities.
+    # "hit" is confirmed correct (a Tangle's entities cast the underlying Spell as an ordinary hit). Whether
+    # "dot" is ALSO correct is unresolved, not disproven: SS12 has several plain (non-channeled) persistent-DoT
+    # Spells (black_hole, flame_jet, frost_terra, shadow_swamp) that are plausible Spell Tangle candidates —
+    # if any can be tangled, the tangle entities cast a DoT skill and tangle_dmg_inc/additional would scale it.
+    # No parse or Help DB line rules this out, so "dot" stays in affects pending the in-game check: can Spell
+    # Tangle attach to a persistent-DoT Spell, and if so does +% Tangle Damage scale the resulting DoT tick?
     Stat.TANGLE_DMG_INC: StatMeta(
         "Tangle Damage", "Ailments", "increased", "%",
         subgroup="tangle",             pipeline_stage="increased_reduced",
@@ -1516,6 +1634,8 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
     # Multiplicative additional Tangle Damage (each source its own factor) — Dormant Entanglement + gear/talents.
     # Applies via the tangle tag when the skill is in tangle mode (like other tagged additional pools).
+    # UNVERIFIED (dot audit): see the TANGLE_DMG_INC comment above — whether a tangled persistent-DoT Spell
+    # exists (and is scaled by this stat) is unresolved, not disproven.
     Stat.TANGLE_DMG_ADDITIONAL: StatMeta(
         "Additional Tangle Damage", "Ailments", "additional", "%",
         subgroup="tangle",             pipeline_stage="additional",
@@ -1528,6 +1648,8 @@ STAT_META: dict[Stat, StatMeta] = {
     # the normal additional pool (so it shows in the additional source breakdown) but, unlike regular additional
     # mods (each its own ×(1+x) factor), all *_enhancement_additional sources of a stat SUM into a single factor —
     # see offense._build_additional_factors. tag "tangle" → applies in tangle mode like the other tangle pools.
+    # UNVERIFIED (dot audit): see the TANGLE_DMG_INC comment above — whether a tangled persistent-DoT Spell
+    # exists (and is scaled by this stat) is unresolved, not disproven.
     Stat.TANGLE_DMG_ENHANCEMENT_ADDITIONAL: StatMeta(
         "Tangle Damage Enhancement", "Ailments", "additional", "%",
         subgroup="tangle",             pipeline_stage="additional",
@@ -2089,6 +2211,21 @@ STAT_META: dict[Stat, StatMeta] = {
         affects=_HIT,                  stacking_rule="additive",
         ui_priority=12,                source_types=_T,
     ),
+    Stat.DMG_ADDITIONAL_ON_CRIT: StatMeta(
+        "Additional Damage on Critical Strike", "Generic", "additional", "%",
+        subgroup="additional",         affects=_HIT,
+        stacking_rule="additive",      ui_priority=12, source_types=_T,
+    ),
+    Stat.DMG_ADDITIONAL_PER_400_ES: StatMeta(
+        "Additional Damage per 400 Max Energy Shield", "Generic", "additional", "%",
+        subgroup="additional",         affects=_HIT,
+        stacking_rule="additive",      ui_priority=12, source_types=_T,
+    ),
+    Stat.DMG_ADDITIONAL_PER_400_ES_CAP: StatMeta(
+        "Additional Damage per 400 Max ES (cap)", "Generic", "additional", "%",
+        subgroup="additional",         affects=_HIT,
+        stacking_rule="max",           ui_priority=12, source_types=_T,
+    ),
     Stat.CRIT_DMG_INC: StatMeta(
         "Critical Strike Damage", "Critical Strike", "crit_damage", "%",
         subgroup="crit_damage",        pipeline_stage="crit_damage",
@@ -2257,7 +2394,7 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="mana",               stacking_rule="additive",
         ui_priority=33,                source_types=_TB,
     ),
-    Stat.MANA_REGEN_INC: StatMeta(
+    Stat.MANA_REGEN_SPEED_INC: StatMeta(
         "Mana Regeneration Speed", "Mana", "increased", "%",
         subgroup="mana",               stacking_rule="additive",
         ui_priority=34,                source_types=_T,
@@ -2458,6 +2595,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="defense",            stacking_rule="additive",
         ui_priority=37,                source_types=_T,
     ),
+    Stat.MAX_ELEMENTAL_RESISTANCE_INC: StatMeta(
+        "Max Elemental Resistance", "Defense", "increased", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=37,                source_types=_T,
+    ),
     Stat.ATTACK_BLOCK_CHANCE_INC: StatMeta(
         "Attack Block Chance", "Defense", "increased", "%",
         subgroup="defense",            stacking_rule="additive",
@@ -2545,6 +2687,11 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="utility",            stacking_rule="additive",
         ui_priority=62,                source_types=_T,
     ),
+    Stat.CDR_SPEED_ADDITIONAL: StatMeta(
+        "Cooldown Recovery Speed", "Utility", "additional", "%",
+        subgroup="utility",            stacking_rule="additive",
+        ui_priority=62,                source_types=_T,
+    ),
     Stat.WARCRY_CDR_SPEED_INC: StatMeta(
         "Warcry Cooldown Recovery Speed", "Utility", "increased", "%",
         subgroup="utility",            stacking_rule="additive",
@@ -2587,6 +2734,148 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="skill_mechanics",    stacking_rule="additive",
         ui_priority=66,                source_types=_TB,
     ),
+    Stat.RESTORATION_EFFECT_ADDITIONAL: StatMeta(
+        "Additional Restoration Effect", "Utility", "additional", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=66,                source_types=_T,
+    ),
+    Stat.RESTORATION_DURATION_INC: StatMeta(
+        "Restoration Duration", "Utility", "increased", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=67,                source_types=_T,
+    ),
+    Stat.RESTORATION_DURATION_ADDITIONAL: StatMeta(
+        "Additional Restoration Duration", "Utility", "additional", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=67,                source_types=_T,
+    ),
+    Stat.TEMPORARY_LIFE_FLAT: StatMeta(
+        "Temporary Life", "Utility", "added_flat",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=68,                source_types=_T,
+    ),
+    Stat.TEMPORARY_LIFE_PCT: StatMeta(
+        "Temporary Life (% of Base Max Life)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=68,                source_types=_T,
+    ),
+    Stat.TEMPORARY_MANA_FLAT: StatMeta(
+        "Temporary Mana", "Utility", "added_flat",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=68,                source_types=_T,
+    ),
+    Stat.TEMPORARY_MANA_PCT: StatMeta(
+        "Temporary Mana (% of Base Max Mana)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=68,                source_types=_T,
+    ),
+    Stat.MAX_TEMPORARY_LIFE_PCT: StatMeta(
+        "Max Temporary Life (% of Base Max Life)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=69,                source_types=_T,
+    ),
+    Stat.MAX_TEMPORARY_MANA_PCT: StatMeta(
+        "Max Temporary Mana (% of Base Max Mana)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=69,                source_types=_T,
+    ),
+    Stat.EXCESS_RESTORATION_TO_ES_PCT: StatMeta(
+        "Excess Life Restoration Applied to Energy Shield", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive",
+        ui_priority=69,                source_types=_T,
+    ),
+
+    # ── Consumption (self-consume drains) ──────────────────────────────────────
+    Stat.LIFE_CONSUMED_PCT_CURRENT_PER_SEC: StatMeta(
+        "Life Consumed (% Current / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_PCT_MAX_PER_SEC: StatMeta(
+        "Life Consumed (% Max / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_FLAT_PER_SEC: StatMeta(
+        "Life Consumed (flat / sec)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_PCT_CURRENT_PER_CAST: StatMeta(
+        "Life Consumed (% Current / cast)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_PCT_MAX_PER_CAST: StatMeta(
+        "Life Consumed (% Max / cast)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_FLAT_PER_CAST: StatMeta(
+        "Life Consumed (flat / cast)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_CURRENT_PER_SEC: StatMeta(
+        "Mana Consumed (% Current / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_MAX_PER_SEC: StatMeta(
+        "Mana Consumed (% Max / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_FLAT_PER_SEC: StatMeta(
+        "Mana Consumed (flat / sec)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_CURRENT_PER_CAST: StatMeta(
+        "Mana Consumed (% Current / cast)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_MAX_PER_CAST: StatMeta(
+        "Mana Consumed (% Max / cast)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_FLAT_PER_CAST: StatMeta(
+        "Mana Consumed (flat / cast)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.ENERGY_SHIELD_CONSUMED_PCT_CURRENT_PER_SEC: StatMeta(
+        "Energy Shield Consumed (% Current / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.ENERGY_SHIELD_CONSUMED_PCT_MAX_PER_SEC: StatMeta(
+        "Energy Shield Consumed (% Max / sec)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.ENERGY_SHIELD_CONSUMED_FLAT_PER_SEC: StatMeta(
+        "Energy Shield Consumed (flat / sec)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_PCT_CURRENT_PER_ATTACK_USE: StatMeta(
+        "Life Consumed (% Current / attack use)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_PCT_MAX_PER_ATTACK_USE: StatMeta(
+        "Life Consumed (% Max / attack use)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_CONSUMED_FLAT_PER_ATTACK_USE: StatMeta(
+        "Life Consumed (flat / attack use)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_CURRENT_PER_ATTACK_USE: StatMeta(
+        "Mana Consumed (% Current / attack use)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_PCT_MAX_PER_ATTACK_USE: StatMeta(
+        "Mana Consumed (% Max / attack use)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.MANA_CONSUMED_FLAT_PER_ATTACK_USE: StatMeta(
+        "Mana Consumed (flat / attack use)", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.CONSUMED_RECENTLY_LIFE: StatMeta(
+        "Life Consumed Recently", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=71, source_types=_T),
+    Stat.CONSUMED_RECENTLY_MANA: StatMeta(
+        "Mana Consumed Recently", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=71, source_types=_T),
+    Stat.CONSUMED_RECENTLY_ENERGY_SHIELD: StatMeta(
+        "Energy Shield Consumed Recently", "Utility", "added_flat",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=71, source_types=_T),
+    Stat.DMG_ADDITIONAL_PER_LIFE_CONSUMED: StatMeta(
+        "Additional Damage per Life Consumed", "Generic", "additional", "%",
+        subgroup="additional",         affects=_HIT, stacking_rule="additive", ui_priority=12, source_types=_T),
+    Stat.DMG_ADDITIONAL_PER_LIFE_CONSUMED_CAP: StatMeta(
+        "Additional Damage per Life Consumed (cap)", "Generic", "additional", "%",
+        subgroup="additional",         affects=_HIT, stacking_rule="max", ui_priority=12, source_types=_T),
+    Stat.ATTACK_SPEED_INC_PER_LIFE_CONSUMED: StatMeta(
+        "Attack Speed per Life Consumed", "Utility", "increased", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=72, source_types=_T),
+    Stat.ATTACK_SPEED_INC_PER_LIFE_CONSUMED_CAP: StatMeta(
+        "Attack Speed per Life Consumed (cap)", "Utility", "increased", "%",
+        subgroup="consumption",        stacking_rule="max", ui_priority=72, source_types=_T),
+    Stat.SPELL_DMG_INC_PER_MANA_CONSUMED: StatMeta(
+        "Spell Damage per Mana Consumed", "Spell", "increased", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=72, source_types=_T),
+    Stat.SPELL_DMG_INC_PER_MANA_CONSUMED_CAP: StatMeta(
+        "Spell Damage per Mana Consumed (cap)", "Spell", "increased", "%",
+        subgroup="consumption",        stacking_rule="max", ui_priority=72, source_types=_T),
 
     # ── Reaping ───────────────────────────────────────────────────────────────
     Stat.REAPING_DURATION_INC: StatMeta(
@@ -2744,6 +3033,44 @@ STAT_META: dict[Stat, StatMeta] = {
         subgroup="buff_effect",        stacking_rule="additive",
         ui_priority=72,                source_types=_T,
     ),
+    # Cripple's "+X% additional damage for the consuming cast" — routed to the charged-cast share via the "demolisher"
+    # tag (hand-folded in the demolisher offense block, like spell_burst_hit_dmg_additional). Per-affix.
+    Stat.DEMOLISHER_CONSUME_DMG_ADDITIONAL: StatMeta(
+        "Demolisher Consume Damage", "Generic", "additional", "%",
+        subgroup="damage",             pipeline_stage="additional",
+        tags=("demolisher",),          affects=_HIT,
+        stacking_rule="additive",      ui_priority=25,
+        source_types=_T,
+    ),
+    # Generic "at the center" additional damage (Epicenter etc.) — full-uptime, applies to all hits via the normal pool.
+    Stat.AT_CENTER_DMG_ADDITIONAL: StatMeta(
+        "Damage at Center", "Generic", "additional", "%",
+        subgroup="damage",             pipeline_stage="additional",
+        affects=_HIT,                  stacking_rule="additive",
+        ui_priority=25,                source_types=_T,
+    ),
+    # Activation-medium trigger cadence — a seconds OVERRIDE of the cast/trigger rate (read in compute_skill_rates).
+    Stat.TRIGGER_INTERVAL: StatMeta(
+        "Trigger Interval", "Utility", "flat", "s",
+        subgroup="mechanics",          stacking_rule="overwrite",
+        ui_priority=61,                source_types=_T,
+    ),
+    Stat.WIND_RHYTHM_BASE_COOLDOWN: StatMeta(
+        "Wind Rhythm Base Cooldown", "Utility", "flat", "s",
+        subgroup="mechanics",          stacking_rule="overwrite",
+        ui_priority=61,                source_types=_T,
+    ),
+    Stat.WIND_RHYTHM_SHARE: StatMeta(
+        "Wind Rhythm Cast-Speed Share", "Utility", "flat", "%",
+        subgroup="mechanics",          stacking_rule="overwrite",
+        ui_priority=61,                source_types=_T,
+    ),
+    # Sentry Activation Medium — sentries deployed at a time (surfaced; not the max-quantity stat).
+    Stat.SENTRY_DEPLOYED_COUNT_FLAT: StatMeta(
+        "Sentries Deployed", "Utility", "flat", "",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=64,                source_types=_T,
+    ),
     Stat.AGILITY_BLESSING_DURATION_INC: StatMeta(
         "Agility Blessing Duration", "Buffs", "increased", "%",
         subgroup="buff_effect",        stacking_rule="additive",
@@ -2808,7 +3135,7 @@ STAT_META: dict[Stat, StatMeta] = {
         ui_priority=32,                source_types=_G,
     ),
     Stat.WEAPON_DMG_ADDITIONAL: StatMeta(
-        # Confirmed weapon-LOCAL (owner): scales the weapon's own damage, which then contributes up (like
+        # Confirmed weapon-LOCAL (Tyra): scales the weapon's own damage, which then contributes up (like
         # foldLocalGearDefense). Inert for now (no pipeline_stage) — wire when weapon-damage modeling exists.
         "Additional Damage for Weapons", "Gear", "additional", "%",
         subgroup="gear_base",          stacking_rule="additive",
@@ -3014,6 +3341,40 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=25,
         source_types=_T,
     ),
+    # Skill Area for skills cast by Spell Burst — DISPLAY-only (no tags/affects/pipeline → never enters a damage pool;
+    # hand-folded into the displayed skill_area_inc in burst mode). _PER is the per-burst-stack (×M) variant (Ripple).
+    Stat.SPELL_BURST_AREA_ADDITIONAL: StatMeta(
+        "Spell Burst Skill Area", "Spell", "additional", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    Stat.SPELL_BURST_AREA_ADDITIONAL_PER: StatMeta(
+        "Spell Burst Skill Area (per burst)", "Spell", "additional", "%",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    # Burst-activation sustain (per burst trigger; folded into net recovery at the burst rate).
+    Stat.MANA_LOST_PCT_CURRENT_PER_BURST: StatMeta(
+        "Mana Lost on Spell Burst (% Current)", "Utility", "added_flat", "%",
+        subgroup="consumption",        stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.LIFE_RESTORED_PCT_LOST_PER_BURST: StatMeta(
+        "Life Restored on Spell Burst (% Lost)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive", ui_priority=70, source_types=_T),
+    Stat.ENERGY_SHIELD_RESTORED_PCT_LOST_PER_BURST: StatMeta(
+        "Energy Shield Restored on Spell Burst (% Lost)", "Utility", "added_flat", "%",
+        subgroup="recovery",           stacking_rule="additive", ui_priority=70, source_types=_T),
+    # Destiny kismet Flash Flood: halve Max Spell Burst.
+    Stat.MAX_SPELL_BURST_HALVE_FLAG: StatMeta(
+        "Halves Max Spell Burst (source)", "Spell", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
+    # Destiny kismet Perched River: Critical Strikes have the Unlucky effect (crit rolls take the lower).
+    Stat.UNLUCKY_CRIT: StatMeta(
+        "Unlucky Critical Strikes (source)", "Generic", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=60,                source_types=_T,
+    ),
 
     # ── Minion (new) ──────────────────────────────────────────────────────────
     Stat.MINION_ELEMENTAL_DMG_INC: StatMeta(
@@ -3114,24 +3475,27 @@ STAT_META: dict[Stat, StatMeta] = {
     ),
 
     # ── Elemental Conversion (offensive) ─────────────────────────────────────
+    # MISLABEL fix (dot audit) on all three below: Help DB excludes "conversion ... of the type of damage
+    # dealt" from Damage over Time. Sibling conversion stats (PHYSICAL_AS_LIGHTNING etc., above) correctly
+    # carry no affects tuple at all; these three had picked up _HIT_DOT inconsistently. Was _HIT_DOT.
     Stat.LIGHTNING_AS_EROSION: StatMeta(
         "Lightning Damage as Erosion Damage", "Lightning", "conversion", "%",
         subgroup="conversion",         pipeline_stage="conversion",
-        tags=("lightning",),           affects=_HIT_DOT,
+        tags=("lightning",),           affects=_HIT,
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
     Stat.COLD_AS_EROSION: StatMeta(
         "Cold Damage as Erosion Damage", "Cold", "conversion", "%",
         subgroup="conversion",         pipeline_stage="conversion",
-        tags=("cold",),                affects=_HIT_DOT,
+        tags=("cold",),                affects=_HIT,
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
     Stat.FIRE_AS_EROSION: StatMeta(
         "Fire Damage as Erosion Damage", "Fire", "conversion", "%",
         subgroup="conversion",         pipeline_stage="conversion",
-        tags=("fire",),                affects=_HIT_DOT,
+        tags=("fire",),                affects=_HIT,
         stacking_rule="additive",      ui_priority=30,
         source_types=_T,
     ),
@@ -3378,6 +3742,23 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=25,
         source_types=_T,
     ),
+    # Despised Shadow's "33% chance to gain +3(4) Shadows when using the Shadow Strike skill" — read
+    # directly by engine.offense.calculate_offense's `shadow=` path (NOT the generic additional/chance
+    # pools), so no `tags`/`affects` filtering is needed here.
+    Stat.SHADOW_CHANCE_PCT: StatMeta(
+        "Shadow Chance", "Utility", "chance", "%",
+        subgroup="mechanics",          stacking_rule="additive_chance",
+        ui_priority=64,                source_types=_T,
+    ),
+    # Display name deliberately avoids the bare word "Quantity" (2026-07-15 bug — see .wolf/buglog.json):
+    # "Shadow Chance Quantity" tied 2/3 words with "Max Shadow Quantity" in mod_parser's fuzzy gear-affix
+    # word-overlap resolver, so a bare "Shadow Quantity +N" gear/talent line (Frantic Shadow, craft bases,
+    # the ronin "Shadow Quantity +1" node) could no longer resolve unambiguously to max_shadow_quantity_flat.
+    Stat.SHADOW_CHANCE_QUANTITY_FLAT: StatMeta(
+        "Shadow Chance Bonus Count", "Utility", "added_flat",
+        subgroup="mechanics",          stacking_rule="additive",
+        ui_priority=64,                source_types=_T,
+    ),
     Stat.DMG_TO_LIFE_ADDITIONAL: StatMeta(
         "Damage Applied to Life", "Generic", "additional", "%",
         subgroup="damage",             stacking_rule="additive",
@@ -3409,18 +3790,19 @@ STAT_META: dict[Stat, StatMeta] = {
         stacking_rule="additive",      ui_priority=60, source_types=_T,
     ),
     Stat.ATTACK_AILMENT_DMG_ADDITIONAL: StatMeta(
-        # ailment damage dealt specifically by attacks; inert until ailment DPS is modeled
+        # ailment damage dealt specifically by attacks; DoT-only (never the hit pool) → inert until ailment DPS
+        # is modeled. Was _HIT_DOT, which wrongly inflated HIT damage (e.g. God of Might's +30% boosted hits).
         "Additional Ailment Damage dealt by Attacks", "Ailments", "additional", "%",
         subgroup="ailment_damage",     pipeline_stage="additional",
-        tags=("attack",),              affects=_HIT_DOT,
+        tags=("attack",),              affects=_DOT,
         stacking_rule="additive",      ui_priority=21,
         source_types=_T,
     ),
     Stat.AILMENT_DMG_ADDITIONAL: StatMeta(
-        # inert until ailment DPS is modeled (no skill carries the 'ailment' tag yet)
+        # DoT-only (never the hit pool); inert until ailment DPS is modeled. Was _HIT_DOT (leaked into hits).
         "Additional Ailment Damage", "Ailments", "additional", "%",
         subgroup="ailment_damage",     pipeline_stage="additional",
-        tags=("ailment",),             affects=_HIT_DOT,
+        tags=("ailment",),             affects=_DOT,
         stacking_rule="additive",      ui_priority=12, source_types=_T,
     ),
     Stat.DOT_DMG_ADDITIONAL: StatMeta(
@@ -3469,6 +3851,16 @@ STAT_META: dict[Stat, StatMeta] = {
         "Energy Shield Uninterruptible by Damage", "Defense", "flag",
         subgroup="defense",            stacking_rule="additive",
         ui_priority=80,                source_types=_T,
+    ),
+    Stat.MAX_LIFE_AS_ES_PCT: StatMeta(
+        "Max Life Added as Energy Shield", "Energy Shield", "added_flat", "%",
+        subgroup="energy_shield",      stacking_rule="additive",
+        ui_priority=31,                source_types=_T,
+    ),
+    Stat.ES_BYPASS_PCT: StatMeta(
+        "Damage Bypasses Energy Shield", "Defense", "added_flat", "%",
+        subgroup="defense",            stacking_rule="additive",
+        ui_priority=81,                source_types=_T,
     ),
     Stat.IGNITE_STACKS_INFLICTED_FLAT: StatMeta(
         "Additional Ignite Stacks Inflicted", "Ailments", "added_flat",

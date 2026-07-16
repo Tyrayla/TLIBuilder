@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { IS_WEB } from '../api/client'
 import { useUiPrefs, UI_SCALE_MIN, UI_SCALE_MAX } from '../store/uiPrefsStore'
+import { CoverageLegend } from './CoverageLegend'
 
 type Channel = 'stable' | 'nightly'
 
@@ -95,8 +96,8 @@ export default function SettingsOverlay({ onClose }: { onClose: () => void }) {
             </div>
             <div className="settings-row">
               <div className="settings-row-label">
-                <span>NYI flags</span>
-                <span className="settings-row-hint">Show badges marking modifiers the engine doesn't recognize or use for this build.</span>
+                <span>Modeling badges <CoverageLegend /></span>
+                <span className="settings-row-hint">Show engine-modeling badges — per-modifier status on gear, talents, and spirits, plus Full/Partial/None coverage pills on skills, traits, and legendaries.</span>
               </div>
               <div className="settings-segmented">
                 <button

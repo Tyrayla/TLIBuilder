@@ -6,7 +6,7 @@ description: Add a new user condition/toggle to the TLI Builder engine — a con
 # add-condition
 
 Scaffolds a new condition and gives the exact edit checklist. **Approval-gated** — propose the exact ConditionDef
-(and pattern, if any) and wait for the owner's OK. See `docs/ENGINE_AUTHORING.md` (Add a condition).
+(and pattern, if any) and wait for Tyra's OK. See `docs/ENGINE_AUTHORING.md` (Add a condition).
 
 ## 1. Gather
 - **key** + **label** + **category** ("Hero Trait" for trait-gated, else the relevant group).
@@ -47,3 +47,7 @@ default value or bound you're unsure of.**
 ## 4. Verify
 Run `/engine-verify`. Confirm the condition appears in the Conditionals screen under the right category (and only
 for the selected trait, if gated). Do not commit.
+
+## 5. Verification entry (anti-drift)
+If this condition is part of a mechanic that just shipped, run `/add-verification` so the mechanic gets a
+Verification Database entry (status `unverified` unless already tested). Keeps the engine and the KB in sync.

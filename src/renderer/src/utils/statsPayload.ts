@@ -46,6 +46,26 @@ function weaponClassMap(): Map<string, string> {
   return map
 }
 
+// Base-item implicits the legendary catalog often omits (e.g. a belt base's "+110 Max Life"). Weapon base
+// stats (damage/APS/CSR) are excluded — those are granted via the weapon path, not injected here.
+const _WEAPON_IMPLICIT_RE = /(Physical Damage|Attack Speed|Critical Strike Rating)\s*$/i
+let _baseImplCache: { groups: CraftBaseItemGroup[]; map: Map<string, string[]> } | null = null
+function _baseItemImplicits(baseType: string | undefined | null): string[] {
+  if (!baseType) return []
+  const groups = useReferenceStore.getState().craftBaseItems ?? []
+  if (!_baseImplCache || _baseImplCache.groups !== groups) {
+    const map = new Map<string, string[]>()
+    for (const g of groups) {
+      for (const bi of g.base_items) {
+        const impls = (bi.implicits ?? []).filter(t => t && !_WEAPON_IMPLICIT_RE.test(t))
+        if (impls.length) map.set(bi.name, impls)
+      }
+    }
+    _baseImplCache = { groups, map }
+  }
+  return _baseImplCache.map.get(baseType) ?? []
+}
+
 // Count of distinct weapon classes across equipped weapon slots — drives the auto-set
 // `unique_weapon_types` condition (e.g. Bladerunner's "+X% per unique type of weapon equipped").
 // Resolves each weapon's base_type name to its class via the catalog; an unknown base counts as
@@ -128,6 +148,11 @@ export function buildEngineStatsPayload(s: BuildState) {
     advanced_trait_selections: _effTraitPicks(s),
     trait_effects: buildTraitEffects(s.traitId, s.traitSlotLevels, _effTraitPicks(s),
       useReferenceStore.getState().heroTraits ?? []),
+    // Licorice Note: the Empower/Curse the trait prepares (Pungent cross-apply target). null → auto/none.
+    licorice_prepared_skill: s.licoricePreparedSkill ?? null,
+    // Licorice Note Ingredients: scent-bottle slot → [equipped ingredient names] (flattened from {category: name}).
+    elixir_ingredients: Object.fromEntries(
+      Object.entries(s.elixirIngredients ?? {}).map(([slot, byCat]) => [slot, Object.values(byCat).filter(Boolean)])),
     uptime_mode: s.uptimeMode,
     main_skill: s.mainSkill ?? null,
     // The trait skill slot (Holy Domain) is injected as a synthetic slot-10 skill ONLY when the trait grants it
@@ -149,6 +174,8 @@ export function buildEngineStatsPayload(s: BuildState) {
           rank: sup.rank,
           level: sup.level,
           specific_rolls: sup.specific_rolls,
+          specific_roll_tiers: sup.specific_roll_tiers,
+          roll_group_choice: sup.roll_group_choice,
           slot: sk.slot,
           enabled: sup.enabled !== false,
         }))),
@@ -158,6 +185,8 @@ export function buildEngineStatsPayload(s: BuildState) {
         rank: sup.rank,
         level: sup.level,
         specific_rolls: sup.specific_rolls,
+        specific_roll_tiers: sup.specific_roll_tiers,
+        roll_group_choice: sup.roll_group_choice,
         slot: TRAIT_SKILL_SLOT,
         enabled: sup.enabled !== false,
       })) : []),
@@ -190,8 +219,24 @@ function _buildItemContributions(
   item: EquippedGearItem, slot: GearSlot | null, unresolved?: string[],
 ): GearAffixContribution[] {
   const mutationAffix = item.corrosion_type === 'mutation' ? (item.mutation_resolved_affix ?? null) : null
-  const affixesToProcess = mutationAffix ? [mutationAffix, ...item.affixes] : item.affixes
+  let affixesToProcess = mutationAffix ? [mutationAffix, ...item.affixes] : item.affixes
   const affixOffset = mutationAffix ? 1 : 0
+  // Inject the base ITEM implicit (e.g. a belt base's "+110 Max Life") when the item carries none — the
+  // legendary catalog often omits it, so it'd be silently missing. Appended (indices for customizations stay
+  // put); only when the item has NO implicit already. NOTE: a legendary's own implicit is stored with
+  // affix_kind 'numeric' (e.g. Tide of the Styx's "+1777 Gear Armor"), so `implicit_count` — the number of
+  // leading implicit affixes — is the reliable "already has one" signal; checking affix_kind alone misfires and
+  // DOUBLES the implicit (a base-implicit copy on top of the item's own).
+  const _hasOwnImplicit = (item.implicit_count ?? 0) > 0 || affixesToProcess.some(a => a.affix_kind === 'implicit')
+  if (!_hasOwnImplicit) {
+    const baseImpls = _baseItemImplicits(item.base_type)
+    if (baseImpls.length) {
+      affixesToProcess = [...affixesToProcess, ...baseImpls.map(text => ({
+        raw_text: text, modifier_id: null, expression: text, condition: null,
+        affix_kind: 'implicit' as const, numeric_values: [], affix_type: 'Implicit',
+      }))]
+    }
+  }
   const contributions: GearAffixContribution[] = []
   // Cardinal rule: never silently drop. Any affix the frontend can't turn into a contribution gets
   // its raw text collected here so the backend can resolve it (and report what it still can't).
@@ -544,7 +589,11 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
   for (const item of gear) {
     if (item.slot === null) continue
 
-    if (!Array.isArray(item.slot) && (item.slot === 'weapon1' || item.slot === 'weapon2')) {
+    // Only actual WEAPONS enter the weapon-averaging path. A shield in weapon2 is NOT a weapon: including it
+    // would make a weapon+shield build average the weapon's base stats (APS/damage/CSR) with the shield (e.g.
+    // a 1.5-APS weapon → 1.03), which is wrong. Shields fall through to the standard path so their defense/affix
+    // contributions still apply. (Mirrors isDualWielding, which already excludes shields.)
+    if (!Array.isArray(item.slot) && (item.slot === 'weapon1' || item.slot === 'weapon2') && !isShieldItem(item)) {
       singleWeaponItems.push(item)
       continue
     }
@@ -555,7 +604,10 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     // First slot: emit all contributions (+ any core-talent grants this item carries).
     const unresolved: string[] = []
     const gi = withCoreTalentGrants({ contributions: _buildItemContributions(item, slots[0], unresolved) }, item)
-    result.push(unresolved.length ? { ...gi, unresolved_texts: unresolved } : gi)
+    // Carry item_name + slot on the unresolved push so backend-resolved affixes (e.g. per-consumed flat
+    // damage) attribute to the actual item in the breakdown's Source Name (+ gear tooltip) and to its real
+    // slot in the Source column — not a generic "Gear" / "Item".
+    result.push(unresolved.length ? { ...gi, item_name: item.name, slot: slots[0] ?? null, unresolved_texts: unresolved } : gi)
 
     // Additional slots (same-item dual wield): emit ONLY global affixes.
     // Per the dual-wield mechanic, attacks alternate — weapon base stats (APS, base damage,
@@ -583,7 +635,8 @@ export function buildGearPayload(gear: EquippedGearItem[]): GearEngineItem[] {
     for (const item of singleWeaponItems) {
       const unresolved: string[] = []
       const gi = withCoreTalentGrants({ contributions: _buildItemContributions(item, item.slot as GearSlot, unresolved) }, item)
-      result.push(unresolved.length ? { ...gi, unresolved_texts: unresolved } : gi)
+      // Carry item_name + slot (see note above) so single-weapon unresolved affixes attribute to the item/slot.
+      result.push(unresolved.length ? { ...gi, item_name: item.name, slot: (Array.isArray(item.slot) ? item.slot[0] : item.slot) ?? null, unresolved_texts: unresolved } : gi)
     }
   }
 

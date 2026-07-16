@@ -14,6 +14,7 @@ but stat-key RESOLUTION is deferred (these talents aren't applied by the engine 
 roadmap step, alongside Talent Tree Nodes / Core Talents).
 """
 import re
+from engine.modifier_lines import line_text, line_pooling_uuid
 from tools.legendary_gear_importer import parse_affix_text
 
 # "Medium Talent Lv.0" / "Aromatic Talent Lv.0" / "Core Talents Lv.0" → (kind, level)
@@ -50,7 +51,8 @@ def import_crawler_belt_blends(data: dict) -> dict:
     blends = []
     for e in entries:
         kind, level = _normalize_talent_type(e.get("talent_type", ""))
-        raw_effect = (e.get("effect") or "").strip()
+        line = e.get("effect")                   # ModifierLine dict (legacy: plain string)
+        raw_effect = line_text(line).strip()
 
         talent_name: str | None = None
         effect_text = raw_effect
@@ -80,6 +82,10 @@ def import_crawler_belt_blends(data: dict) -> dict:
             "talent_name": talent_name,
             "effect_raw": raw_effect,
             "effect_text": effect_text,
+            # Minted identity of the VERBATIM scraped line (effect_raw) — effect_text may be a
+            # derived wording (core bracket-strip, aromatic glossary substitution).
+            "uuid": line.get("uuid") if isinstance(line, dict) else None,
+            "pooling_uuid": line_pooling_uuid(line),
             "affix": affix,
             "materials": materials,
         })

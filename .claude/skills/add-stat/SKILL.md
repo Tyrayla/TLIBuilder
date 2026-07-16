@@ -6,10 +6,10 @@ description: Add a new stat to the TLI Builder DPS engine — the Stat enum entr
 # add-stat
 
 Scaffolds a new engine stat and gives the exact edit checklist. **Approval-gated** — propose the exact stat +
-`StatMeta` and wait for the owner's OK before writing. See `docs/ENGINE_AUTHORING.md` (Add a stat, gotchas).
+`StatMeta` and wait for Tyra's OK before writing. See `docs/ENGINE_AUTHORING.md` (Add a stat, gotchas).
 
 ## 1. Gather
-Ask / confirm with the owner:
+Ask / confirm with Tyra:
 - **What the stat represents** and its in-game wording (so the display name + `modifier_type` match).
 - **key** (snake_case) + enum name (SCREAMING_SNAKE).
 - **pipeline_stage** — where the engine reads it: `increased_reduced` | `additional` | `enemy_vulnerability` |
@@ -19,7 +19,7 @@ Ask / confirm with the owner:
 - **Is it read on every engine run?** (a `source.total("key")` in offense/aggregator/defense) → needs the universe.
 
 ## 2. Propose (do not write yet)
-Show the owner the exact additions and the consumed-universe decision:
+Show Tyra the exact additions and the consumed-universe decision:
 ```python
 # backend/models/stat.py  (under the right "# ── category ──" block)
 <ENUM_NAME> = "<snake_key>"
@@ -45,3 +45,7 @@ enemy-vulnerability pool, a `*_dmg_inc` for an increased pool). **Flag any field
 
 ## 4. Verify
 Run `/engine-verify` (at minimum `test_models_stat*.py` + the consumable-universe scan). Do not commit.
+
+## 5. Verification entry (anti-drift)
+If this stat is part of a mechanic that just shipped, run `/add-verification` so the mechanic gets a
+Verification Database entry (status `unverified` unless already tested). Keeps the engine and the KB in sync.

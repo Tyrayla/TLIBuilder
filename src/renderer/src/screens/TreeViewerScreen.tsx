@@ -416,7 +416,9 @@ export default function TreeViewerScreen({
     ],
   })
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null)
-  const [processing, setProcessing] = useState(false)
+  // Allocation is now validated client-side & applied synchronously (no per-click backend round-trip), so there's
+  // no in-flight "processing" state. Kept as a const false purely to feed the node's cursor prop unchanged.
+  const processing = false
   const [search, setSearch] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -606,41 +608,190 @@ export default function TreeViewerScreen({
     return out
   }
 
-  const handleClick = async (nodeId: string, action: 'allocate' | 'deallocate') => {
-    if (processing) return
-    setProcessing(true)
-    try {
-      const res = await api.validateAllocate(treeName, nodeStates, nodeId, action, prismBrokenIds(), prismMaxOverrides(), prismExtraColumnPoints())
-      if (res.allowed) {
-        setNodeStates(res.node_states)
-        if (!previewMode) updateSlotNodeStates(activeSlot, res.node_states)
-        if (treeData && Object.keys(coreTalentSelections).length > 0) {
-          const newTotal = sumPoints(res.node_states)
-          const next = { ...coreTalentSelections }
-          let changed = false
-          for (const idxStr of Object.keys(coreTalentSelections)) {
-            const idx = Number(idxStr)
-            const slot = treeData.core_talent_slots[idx]
-            if (slot && newTotal < slot.threshold) {
-              delete next[idx]
-              changed = true
+  // Pure allocation primitives mirroring the backend validator (models/passive_tree.py). Snapshot the prism-
+  // derived inputs once; every helper takes an explicit `states` map so we can simulate on working copies.
+  const allocPrimitives = () => {
+    const nodes = treeData?.nodes ?? []
+    const conns = treeData?.connections ?? []
+    const byId: Record<string, TreeNode> = {}
+    for (const n of nodes) byId[n.id] = n
+    const broken = new Set(prismBrokenIds())
+    const maxOv = prismMaxOverrides()
+    const extraCol = prismExtraColumnPoints()
+    const thr = (n: TreeNode) => (n.node_type === 'Legendary Medium Talent' ? 1 : 3)
+    const effMax = (id: string) => maxOv[id] ?? (byId[id]?.max_points ?? 0)
+    const colPts = (st: Record<string, number>, col: number): number => {
+      let s = extraCol[col] ?? 0
+      for (const n of nodes) if (n.column === col) s += st[n.id] ?? 0
+      return s
+    }
+    const before = (st: Record<string, number>, col: number): number => {
+      let s = 0
+      for (let c = 0; c < col; c++) s += colPts(st, c)
+      return s
+    }
+    const colUnlocked = (st: Record<string, number>, col: number) => col === 0 || before(st, col) >= col * 3
+    const unmetSources = (st: Record<string, number>, id: string): string[] => {
+      const out: string[] = []
+      for (const { from, to } of conns) {
+        if (to !== id || broken.has(from)) continue
+        const p = byId[from]
+        if (p && (st[from] ?? 0) < thr(p)) out.push(from)
+      }
+      return out
+    }
+    return { nodes, conns, byId, broken, thr, effMax, colPts, before, colUnlocked, unmetSources }
+  }
+
+  // Client-side mirror of the backend allocate/deallocate validator. Runs synchronously so allocating is instant
+  // (no per-click round-trip) — the stats recompute still re-derives everything server-side in the debounced
+  // background. `states` defaults to the live map but can be a working copy (used by the path solver below).
+  // RULES MUST STAY IN LOCKSTEP with PassiveTree.allocate/deallocate.
+  const tryLocalAllocate = (
+    nodeId: string, action: 'allocate' | 'deallocate', states: Record<string, number> = nodeStates,
+  ): { allowed: boolean; nodeStates?: Record<string, number>; reason?: string } => {
+    if (!treeData) return { allowed: false, reason: 'Tree not loaded.' }
+    const P = allocPrimitives()
+    const node = P.byId[nodeId]
+    if (!node) return { allowed: false, reason: 'Node not found.' }
+
+    if (action === 'allocate') {
+      if (!P.colUnlocked(states, node.column))
+        return { allowed: false, reason: `Column ${node.column * 3} is locked — need ${node.column * 3} points in earlier columns.` }
+      const cur = states[nodeId] ?? 0
+      if (cur >= P.effMax(nodeId)) return { allowed: false, reason: `'${node.node_type}' is already at max (${cur}/${P.effMax(nodeId)}).` }
+      const unmet = P.unmetSources(states, nodeId)
+      if (unmet.length) {
+        const p = P.byId[unmet[0]]
+        return { allowed: false, reason: `Requires the connected '${p.node_type}' to have ≥${P.thr(p)} pt(s) first.` }
+      }
+      return { allowed: true, nodeStates: { ...states, [nodeId]: cur + 1 } }
+    }
+
+    // deallocate
+    const cur = states[nodeId] ?? 0
+    if (cur <= 0) return { allowed: false, reason: `'${node.node_type}' already has 0 points.` }
+    const after = { ...states, [nodeId]: cur - 1 }
+    // Removing a point in this column can strand any column to its RIGHT that relied on it for its unlock.
+    for (let col = node.column + 1; col < COLS; col++) {
+      if (P.colPts(after, col) > 0 && P.before(after, col) < col * 3)
+        return { allowed: false, reason: `Cannot remove: column ${col * 3} requires ${col * 3} points in earlier columns.` }
+    }
+    // Dropping below this node's own threshold must not orphan a connected dependant.
+    if (cur - 1 < P.thr(node) && !P.broken.has(nodeId)) {
+      for (const { from, to } of P.conns) {
+        if (from !== nodeId) continue
+        const dep = P.byId[to]
+        if (dep && (states[to] ?? 0) > 0)
+          return { allowed: false, reason: `Cannot remove: '${dep.node_type}' depends on this node having ≥${P.thr(node)} pt(s).` }
+      }
+    }
+    return { allowed: true, nodeStates: after }
+  }
+
+  // "Allocate a path to here": clicking a node further along a chain than you've reached fills the prerequisite
+  // chain (via incoming connections) + any needed column unlocks, then puts 1 point in the target. Every mutation
+  // goes through tryLocalAllocate so the result is always a legal tree state. Returns the new states, or null if
+  // the target can't be reached (e.g. no point budget path satisfies its column unlock).
+  const solvePathTo = (targetId: string): Record<string, number> | null => {
+    const P = allocPrimitives()
+    if (!P.byId[targetId]) return null
+    const CAP = 300
+    let added = 0
+
+    const unlockColumn = (st: Record<string, number>, col: number, seen: Set<string>): Record<string, number> | null => {
+      const needed = col * 3
+      // Earlier-column candidates, preferring already-allocated nodes and lower columns (top up before branching).
+      const cands = P.nodes.filter(n => n.column < col).sort((a, b) =>
+        (((st[b.id] ?? 0) > 0 ? 1 : 0) - ((st[a.id] ?? 0) > 0 ? 1 : 0)) || (a.column - b.column))
+      let guard = 0
+      while (P.before(st, col) < needed) {
+        if (guard++ > CAP || added > CAP) return null
+        let done = false
+        for (const n of cands) {
+          const r = tryLocalAllocate(n.id, 'allocate', st)
+          if (r.allowed && r.nodeStates) { st = r.nodeStates; added++; done = true; break }
+        }
+        if (!done) {
+          // No directly-allocatable earlier node — try to make one reachable via its own prereqs.
+          for (const n of cands) {
+            if ((st[n.id] ?? 0) < P.effMax(n.id)) {
+              const r = ensure(st, n.id, (st[n.id] ?? 0) + 1, seen)
+              if (r) { st = r; done = true; break }
             }
           }
-          if (changed) {
-            setCoreTalentSelections(next)
-            if (!previewMode) updateSlotCoreTalentSelections(activeSlot, next)
-          }
         }
-      } else {
-        flash(res.reason ?? (action === 'allocate'
-          ? 'Cannot allocate — check column unlock & prerequisites.'
-          : 'Cannot remove — would break a prerequisite.'))
+        if (!done) return null
       }
-    } catch {
-      flash('Request failed — is the backend running?')
-    } finally {
-      setProcessing(false)
+      return st
     }
+
+    const ensure = (st: Record<string, number>, id: string, want: number, seen: Set<string>): Record<string, number> | null => {
+      const n = P.byId[id]
+      if (!n) return null
+      if ((st[id] ?? 0) >= want) return st
+      if (want > P.effMax(id) || seen.has(id)) return null
+      const seen2 = new Set(seen).add(id)
+      let guard = 0
+      while ((st[id] ?? 0) < want) {
+        if (guard++ > CAP || added > CAP) return null
+        const r = tryLocalAllocate(id, 'allocate', st)
+        if (r.allowed && r.nodeStates) { st = r.nodeStates; added++; continue }
+        const unmet = P.unmetSources(st, id)
+        if (unmet.length) {
+          let ok = true
+          for (const s of unmet) {
+            const r2 = ensure(st, s, P.thr(P.byId[s]), seen2)
+            if (r2) st = r2; else { ok = false; break }
+          }
+          if (!ok) return null
+          continue
+        }
+        if (!P.colUnlocked(st, n.column)) {
+          const r3 = unlockColumn(st, n.column, seen2)
+          if (r3) { st = r3; continue }
+          return null
+        }
+        return null   // at max / otherwise stuck
+      }
+      return st
+    }
+
+    return ensure({ ...nodeStates }, targetId, 1, new Set())
+  }
+
+  // Apply a new node-state map: mirror it into the store and prune core-talent selections whose threshold no
+  // longer holds (only relevant when points drop).
+  const applyNodeStates = (ns: Record<string, number>) => {
+    setNodeStates(ns)
+    if (!previewMode) updateSlotNodeStates(activeSlot, ns)
+    if (treeData && Object.keys(coreTalentSelections).length > 0) {
+      const newTotal = sumPoints(ns)
+      const next = { ...coreTalentSelections }
+      let changed = false
+      for (const idxStr of Object.keys(coreTalentSelections)) {
+        const idx = Number(idxStr)
+        const slot = treeData.core_talent_slots[idx]
+        if (slot && newTotal < slot.threshold) { delete next[idx]; changed = true }
+      }
+      if (changed) {
+        setCoreTalentSelections(next)
+        if (!previewMode) updateSlotCoreTalentSelections(activeSlot, next)
+      }
+    }
+  }
+
+  const handleClick = (nodeId: string, action: 'allocate' | 'deallocate') => {
+    const res = tryLocalAllocate(nodeId, action)
+    if (res.allowed && res.nodeStates) { applyNodeStates(res.nodeStates); return }
+    // A direct allocate blocked by an unmet prereq / locked column (not an at-max node) → try to auto-fill a path.
+    if (action === 'allocate' && res.reason && !res.reason.includes('at max')) {
+      const path = solvePathTo(nodeId)
+      if (path) { applyNodeStates(path); return }
+    }
+    flash(res.reason ?? (action === 'allocate'
+      ? 'Cannot allocate — check column unlock & prerequisites.'
+      : 'Cannot remove — would break a prerequisite.'))
   }
 
   // ── Debug handlers ─────────────────────────────────────────────────────────

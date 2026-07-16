@@ -34,6 +34,7 @@ export const HERO_TRAIT_ORDER: Record<string, HeroTraitSlang> = {
   sing_with_the_tide: { slang: 'Selena', order: 24 },
   spacetime_illusion: { slang: 'Youga 1', order: 25 },
   spacetime_elapse: { slang: 'Youga 2', order: 26 },
+  dance_of_the_deep: { slang: 'Selena 2', order: 27 },
 }
 
 /** Community slang for a trait (e.g. "Thea 1"), or null if unmapped (new trait not yet listed). */

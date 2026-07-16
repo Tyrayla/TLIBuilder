@@ -27,6 +27,22 @@ class SkillHitForm:
 
 
 @dataclass
+class DotForm:
+    """One Damage-over-Time form a skill deals intrinsically (Mind Control, Path of Flames — dot-model.json).
+    Consumed by `engine.offense.compute_dot`, which reads `base_per_second` at the skill's effective level and
+    applies the DoT damage model (whitelisted increased/additional pools × a resistance-only target
+    multiplier — NO crit, NO armor, NO delivery multiplier; see the `DamageRow` docstring's kind="dot" forward
+    slot in offense.py).
+
+    `duration` (seconds the DoT effect lasts once applied, e.g. 2.0) is NOT consumed by the DPS model — Help
+    DB / in-game confirmed Duration has no effect on a Persistent DoT's steady-state DPS (dot-model.json) —
+    it is carried here purely for display (Skill Effects panel)."""
+    base_per_second: float
+    dtype: str
+    duration: float = 0.0
+
+
+@dataclass
 class IntrinsicAdditional:
     """A skill-intrinsic 'additional damage' pool that scales with a rating value. The rating comes
     from a numeric condition (rating_source='condition', e.g. Focused Slash's Fervor Rating) or from
@@ -44,6 +60,8 @@ class IntrinsicAdditional:
     skill_effect_key: str | None = None  # optional SKILL-LOCAL increased % stat, added into the SAME
                                       # increased pool as effect_key (e.g. 'fervor_effect_skill_inc' for
                                       # Focused Slash: Tranquility) — scales the skill's bonus, not crit
+    label: str = ""                   # display label for the additional-damage breakdown line (e.g. Rapid
+                                      # Advance's per-Max-Channeled-Stack bonus); blank → generic "Skill Intrinsic"
 
 
 @dataclass
@@ -63,7 +81,7 @@ class ChanneledSpec:
     behavior: Literal["reset", "refresh"] = "reset"
     max_from_data: bool = False
     # RESET only: does the use that reaches max ALSO fire the continuous form, or replace it with the burst?
-    # Icebound Beam: ADDITIVE (owner-confirmed — the Icy Blades fire while the beam is still going).
+    # Icebound Beam: ADDITIVE (Tyra-confirmed — the Icy Blades fire while the beam is still going).
     burst_replaces_continuous: bool = False
     # RESET only: when the burst form actually fires (projectile_count ≥ 1), the CONTINUOUS form's damage is
     # suppressed to this fraction (the channel "redistributes" beam damage into the blades). 1.0 = no
@@ -72,7 +90,7 @@ class ChanneledSpec:
     continuous_suppression_when_bursting: float = 1.0
     # Persistent-entity strike rate (e.g. Howling Gale's "Base Attack Frequency 1.5"). When set, the CONTINUOUS
     # form fires at `attack_frequency × cast-speed multiplier` (the spawned entity's rate), NOT the channel cast
-    # rate (aps); aps stays the stack-build rate, shown separately. None → the form fires at aps (Icebound).
+    # rate (sps); sps stays the stack-build rate, shown separately. None → the form fires at sps (Icebound).
     attack_frequency: float | None = None
 
 
@@ -87,6 +105,11 @@ class ResolvedSkill:
     channeled: "ChanneledSpec | None" = None  # set on channeled skills (Icebound Beam, …)
     base_steep_strike_chance: float = 0.0  # intrinsic passive from skill text (e.g. "This skill +20% Steep Strike chance")
     intrinsic_additional: list[IntrinsicAdditional] = field(default_factory=list)
+    # Projectile-scaling form has NO Shotgun Effect by default ("the Projectiles shot by this skill cannot hit the
+    # same enemy") → single-target hit count is 1 until a support grants Shotgun Effect (emits
+    # same_target_shotgun_grant). Distinct from spread/trajectory. Chromatic Shot / Icebound keep their innate
+    # shotgun (they do NOT set this). Split Shot base sets it True; Volley flips it on. See engine/offense.py.
+    shotgun_requires_grant: bool = False
     # Extra tags merged into the skill's tag set ONLY for damage increased/additional filtering, so a
     # skill can benefit from off-type damage mods. E.g. Moon Strike: ['spell'] → Spell Damage
     # inc/additional apply to its Attack Damage (without making it count as a spell for flat adds).
@@ -100,7 +123,13 @@ class ResolvedSkill:
     added_dmg_effectiveness: float = 1.0        # 136% → 1.36; applied to ADDED flat only, NOT base
     damage_types: list[str] = field(default_factory=list)  # e.g. ["lightning"]
     jumps_base: int = 0                         # base Jumps (e.g. Chain Lightning +2); displayed in Skill Effects
-    mana_cost: float = 0.0                       # base per-cast Mana Cost (display only — reductions/conversions NYI)
+    mana_cost: float = 0.0                       # base per-cast Mana Cost magnitude (e.g. 15, or 15 for "15%")
+    mana_cost_is_percent: bool = False           # True when the base cost is a % of Max Mana (e.g. "15%" / channeled)
+    intrinsic_mana_to_life: float = 0.0          # skill-LOCAL Arcane (Bull's Rage: "All Mana costs … converted to Life
+                                                 # costs" → 1.0). The conversion happens BEFORE the %-base resolves, so
+                                                 # a "15%" base becomes 15% of Max LIFE (see engine.skill_cost).
+    demolisher_base_restore: float = 0.0         # Demolisher skills: base seconds to restore 1 Demolisher Charge
+                                                 # (Groundshaker 3s). 0 = not a Demolisher skill. See engine.compute.
     # Main attribute(s) for this skill, lowercased (e.g. ["dexterity", "intelligence"]). Each point of
     # a main-stat attribute grants +0.5% damage to this skill; multi-main-stat skills SUM the attribute
     # totals before applying. Source: TLI Help DB (Strength/Dexterity/Intelligence). Parsed in
@@ -111,6 +140,16 @@ class ResolvedSkill:
     # increased/additional apply. offense computes each element fully and reports the expected average. Empty = off.
     compulsory_elements: list[str] = field(default_factory=list)
     base_flat_by_level: dict[int, tuple[float, float]] = field(default_factory=dict)  # type-agnostic base for compulsory
+    # ── Damage over Time forms (Mind Control, Path of Flames — dot-model.json) ──
+    # Empty (the default) → `engine.offense.compute_dot` is a no-op and `total_dps` is untouched — every
+    # skill that doesn't intrinsically deal a DoT is byte-identical to before this field existed.
+    dot_forms_by_level: dict[int, list[DotForm]] = field(default_factory=dict)
+    # Skill-INHERENT Compulsory Damage-Type Conversion (Thunder Spike: "All of the skill's Physical Damage
+    # will be converted to Lightning Damage" — 100%). {src_type: {dst_type: fraction}}, merged into the SAME
+    # convert/adds-as cascade a gear/talent `<type>_convert_to_<type>` stat drives (engine.offense
+    # ._conversion_fracs / _apply_conversion) — not a separate mechanism. None (default) → every existing
+    # skill's conversion math is byte-identical.
+    intrinsic_convert: dict[str, dict[str, float]] | None = None
 
 
 _REGISTRY: dict[str, Callable[[dict], ResolvedSkill]] = {}
@@ -208,6 +247,123 @@ def _resolve_moon_strike(skill_data: dict) -> ResolvedSkill:
             per=0.01, rating_key="max_mana", rating_source="stat", per_n=100.0, cap=0.70,
         )],
         extra_damage_mod_tags=["spell"],
+    )
+
+
+# ── Groundshaker (Demolisher attack) ─────────────────────────────────────────────
+# Tags: Attack, Melee, Area, Physical, Demolisher. Two WAD-scaled hit forms per cast, both additive:
+#   Primary Fissure  (the pummel, "Fission: Deals N% Weapon Attack Damage") — lands EVERY cast.
+#   Secondary Explosion ("Fissure Secondary Damage: Deals M% Weapon Attack Damage") — only on a CHARGED
+#   (consume) cast. The charged-cast gating + rate + Frequent-Quake/Collapse/Cripple interactions are handled
+#   by the demolisher offense mode (engine.offense + engine.compute); the resolver only supplies the two hits
+#   + the base Demolisher-Charge restoration time.
+_GS_RESTORE_RE = re.compile(r"gains?\s+\d+\s+demolisher\s+charge\s+every\s+([\d.]+)\s*s", re.IGNORECASE)
+
+
+@_register("groundshaker")
+def _resolve_groundshaker(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    forms_by_level: dict[int, list[SkillHitForm]] = {}
+    for lvl, values in progression.items():
+        matches = _BB_FORM_RE.findall(values.get("Descript", ""))
+        if len(matches) != 2:
+            raise ValueError(
+                f"{skill_data.get('item_id', '?')}: expected 2 Groundshaker hit forms at level {lvl}, "
+                f"got {len(matches)}: {values.get('Descript', '')!r}")
+        # matches[0] = Fission (primary fissure), matches[1] = Fissure Secondary Damage (secondary explosion).
+        forms_by_level[lvl] = [
+            SkillHitForm("Primary Fissure", float(matches[0][1]), "additive"),
+            SkillHitForm("Secondary Explosion", float(matches[1][1]), "additive"),
+        ]
+    m = _GS_RESTORE_RE.search(skill_data.get("raw_text", "") or "")
+    base_restore = float(m.group(1)) if m else 3.0
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms_by_level,
+        supported=True,
+        demolisher_base_restore=base_restore,
+    )
+
+
+# ── Split Shot (projectile attack) ───────────────────────────────────────────────
+# Tags: Attack, Projectile, Physical, Ranged, Horizontal. Main stat Dexterity. Fires 1 + intrinsic "+2 Projectile
+# Quantity" = 3 projectiles, dealing a per-level % Weapon Attack Damage (237% @L1 → 347% @L20). Base state
+# spreads and "the Projectiles shot by this skill cannot hit the same enemy" → NO Shotgun Effect (single-target
+# hit count 1) until Volley grants it. The skill DEFINES a dormant Shotgun Effect falloff coefficient of 77% (in
+# the engine's convention that coefficient is the fraction LOST, so a granted subsequent projectile deals 1−0.77).
+# Rapid Advance turns it channeled (installed at slot time by skill_effects/split_shot.py). On-kill extra
+# projectiles (50%/8m/2 targets) are a clear/AoE mechanic → NYI.
+_SPLIT_SHOT_WAD_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%\s*weapon\s+attack\s+damage", re.IGNORECASE)
+_SPLIT_SHOT_FALLOFF = 0.77   # in-game "falloff coefficient" — engine convention: subsequent hit deals (1 − this)
+
+
+@_register("split_shot")
+def _resolve_split_shot(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    forms_by_level: dict[int, list[SkillHitForm]] = {}
+    for lvl, values in progression.items():
+        # WAD % lives in "Effectiveness of added damage" / "damage" / "Descript" — search all values.
+        text = " ".join(str(v) for v in values.values())
+        m = _SPLIT_SHOT_WAD_RE.search(text)
+        if not m:
+            continue
+        eff_pct = float(m.group(1))
+        forms_by_level[lvl] = [SkillHitForm(
+            "Split Shot", eff_pct, "additive",
+            hit_count=3, shotgun_falloff=_SPLIT_SHOT_FALLOFF, scales_with_projectiles=True)]
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms_by_level,
+        supported=True,
+        shotgun_requires_grant=True,   # base has no Shotgun Effect; Volley grants it
+    )
+
+
+# ── Thunder Spike (Shadow Strike attack) ──────────────────────────────────────────
+# Tags: Attack, Lightning, Area, Melee, Shadow Strike. Main stat Dexterity. A single-thrust weapon attack —
+# 205% Weapon Attack Damage @L1 -> 277% @L20 ("Effectiveness of added damage"), same "N% weapon Attack
+# Damage" progression shape as Split Shot, so it reuses that regex. Two inherent lines:
+#   - "All of the skill's Physical Damage will be converted to Lightning Damage" (100%) — wired via
+#     `intrinsic_convert`, the SAME convert/adds-as cascade a gear/talent conversion stat drives (see
+#     engine.offense._conversion_fracs). NOT a new mechanism.
+#   - "The skill's Shadow Strike True Body inflicts 1 stack of Numbed … on hit" — the Shadow Strike
+#     mechanic itself (Help DB shadow-strike; master_glossary 136 "Phantom") is modeled data-driven off the
+#     "Shadow Strike" skill tag in engine.compute._offense_for_slot / calculate_offense's `shadow=` path;
+#     the Numbed-on-True-Body-hit clause is auto-derived as a ConditionEffect in server.py (mirrors curses
+#     auto-setting enemy_cursed) rather than through engine.ailment_inflict (that scanner only covers
+#     gear/talent/custom-mod TEXT, not a skill's own inherent tooltip line).
+#   - "100% of the increase/decrease on Skill Area is also applied to the Tracking Area of this skill's
+#     Shadows, up to 100%" — AoE/tracking-area is NOT modeled (display stub at most, like
+#     curse_skill_area_inc) — deliberately left OFF the modeled-phrase list below so it stays honest NYI.
+@_register("thunder_spike")
+def _resolve_thunder_spike(skill_data: dict) -> ResolvedSkill:
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    forms_by_level: dict[int, list[SkillHitForm]] = {}
+    for lvl, values in progression.items():
+        text = " ".join(str(v) for v in values.values())
+        m = _SPLIT_SHOT_WAD_RE.search(text)
+        if not m:
+            continue
+        eff_pct = float(m.group(1))
+        forms_by_level[lvl] = [SkillHitForm("Thunder Spike", eff_pct, "additive")]
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level=forms_by_level,
+        supported=True,
+        main_stat=["dexterity"],
+        intrinsic_convert={"physical": {"lightning": 1.0}},
     )
 
 
@@ -329,11 +485,13 @@ def _parse_cast_time(cast_speed: str) -> float:
     return float(m.group(1)) if m else 0.0
 
 
-def _parse_mana_cost(raw: object) -> float:
-    """Parse the skill's base per-cast Mana Cost ('8' → 8.0). 0.0 if absent/unparseable. Display-only — cost
-    reductions/conversions and 'Skills no longer cost Mana' are not modeled by the engine yet."""
-    m = re.search(r"[\d.]+", str(raw or ""))
-    return float(m.group(0)) if m else 0.0
+def _parse_mana_cost(raw: object) -> tuple[float, bool]:
+    """Parse the skill's base per-cast Mana Cost → (magnitude, is_percent). '8' → (8.0, False); '15%' → (15.0, True)
+    (a % of Max Mana, e.g. Moon Strike / channeled). 0.0 if absent/unparseable. The cost MODEL (multipliers,
+    Arcane, Frozen Lotus) lives in engine.skill_cost; this just extracts the base."""
+    s = str(raw or "")
+    m = re.search(r"[\d.]+", s)
+    return (float(m.group(0)) if m else 0.0), ("%" in s)
 
 
 def _parse_pct(raw: object, default: float = 1.0) -> float:
@@ -412,7 +570,7 @@ def _resolve_icebound_beam(skill_data: dict) -> ResolvedSkill:
 # Max Channeled Stack" (beyond the base 5) → an intrinsic additional scaling off max_channeled_stacks_flat (gear).
 # Per-channeled-stack Duration/Area/Movement Speed are non-DPS (informational) for a sustained single-target calc.
 _HOWLING_GALE_FREQUENCY = 1.5
-_HOWLING_GALE_PER_ADDITIONAL_MAX_STACK = 0.215   # owner: counts stacks ABOVE base 5; flag — verify in-game
+_HOWLING_GALE_PER_ADDITIONAL_MAX_STACK = 0.215   # Tyra: counts stacks ABOVE base 5; flag — verify in-game
 
 
 @_register("howling_gale")
@@ -451,6 +609,92 @@ def _resolve_howling_gale(skill_data: dict) -> ResolvedSkill:
             per=_HOWLING_GALE_PER_ADDITIONAL_MAX_STACK, rating_key="max_channeled_stacks_flat",
             rating_source="stat", per_n=1.0)],
     )
+
+
+# ── Skill-DoT (Damage over Time) skills — Mind Control, Path of Flames ─────────────────────────────────────
+# Both are Spell / Channeled / Persistent, 2s Damage Over Time, cast speed 0.333 (dot-model.json). Neither
+# has a hit component at all — hit_forms_by_level stays {} (a pure DoT host, like a few other non-hit
+# skills already in this registry) and all damage comes from `dot_forms_by_level` (engine.offense.compute_dot).
+# Same "+21.5% additional damage per +1 ADDITIONAL Max Channeled Stack" intrinsic as Howling Gale, dormant
+# (0.0) at the base 5-stack cap — Tyra-confirmed in-game (dot-model.json).
+_DOT_PER_ADDITIONAL_MAX_STACK = 0.215
+
+# "Deals 222 per second Erosion Damage Over Time" (Mind Control's `values.damage` field) OR "Deals 299
+# Persistent Fire Damage every second." (Path of Flames — its `damage` field is None; the base lives only in
+# `values.Descript`). One tolerant regex covers both orderings/wordings.
+_DOT_BASE_RE = re.compile(
+    r"Deals\s+([\d.,]+)\s*(?:per\s+second\s+)?(?:Persistent\s+)?(\w+)\s+Damage"
+    r"(?:\s+Over\s+Time)?(?:\s+every\s+second)?",
+    re.IGNORECASE,
+)
+# "Damage Over Time effect lasts 2 s" — both skills' persistent DoT duration (display only; see DotForm).
+_DOT_DURATION_RE = re.compile(r"Damage Over Time effect lasts\s+([\d.]+)\s*s", re.IGNORECASE)
+
+
+def _parse_dot_base(text: str) -> tuple[float, str] | None:
+    """Parse a per-level DoT description into (base_per_second, dtype). None if unparseable."""
+    m = _DOT_BASE_RE.search(text or "")
+    return (float(m.group(1).replace(",", "")), m.group(2).lower()) if m else None
+
+
+def _resolve_dot_skill(skill_data: dict, *, base_text_key: str, damage_type: str) -> ResolvedSkill:
+    """Shared resolver for a pure skill-DoT (no hit component): Mind Control (`base_text_key="damage"`) and
+    Path of Flames (`base_text_key="Descript"` — its `damage` progression field is empty/None)."""
+    max_level = skill_data.get("max_level", 20)
+    progression = {entry["level"]: entry["values"] for entry in skill_data.get("progression", [])}
+    duration = 2.0
+    dot_forms: dict[int, list[DotForm]] = {}
+    for lvl, values in progression.items():
+        if lvl > max_level:
+            continue
+        parsed = _parse_dot_base(values.get(base_text_key) or values.get("Descript", ""))
+        if parsed is None:
+            continue
+        base, dtype = parsed
+        dm = _DOT_DURATION_RE.search(values.get("Descript", ""))
+        if dm:
+            duration = float(dm.group(1))
+        dot_forms[lvl] = [DotForm(base_per_second=base, dtype=dtype or damage_type, duration=duration)]
+
+    return ResolvedSkill(
+        skill_id=skill_data["item_id"],
+        name=skill_data["name"],
+        tags=skill_data.get("skill_tags", []),
+        max_level=max_level,
+        hit_forms_by_level={},   # deals no hit damage — only a host for its DoT (+ any attached supports)
+        supported=True,
+        is_spell=True,
+        base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
+        damage_types=[damage_type],
+        dot_forms_by_level=dot_forms,
+        # main_stat is set uniformly by resolve_skill() after the handler returns — not set here (matches
+        # every other resolver's convention).
+        # REFRESH: hold at max 5 channeled stacks (both skills' description text confirms/implies a 5-stack
+        # cap; Path of Flames' SS12 text omits the explicit "Channels up to 5 stacks" line Mind Control has,
+        # so max_from_data=False here mirrors the Icebound Beam fallback precedent).
+        channeled=ChanneledSpec(max_stacks=5, min_stacks=0, behavior="refresh", max_from_data=False),
+        intrinsic_additional=[IntrinsicAdditional(
+            per=_DOT_PER_ADDITIONAL_MAX_STACK, rating_key="max_channeled_stacks_flat",
+            rating_source="stat", per_n=1.0)],
+    )
+
+
+# Mind Control — Tags: Spell, Erosion, Channeled, Persistent. Base per-level DoT lives in the progression's
+# own `damage` field ("Deals 222 per second Erosion Damage Over Time" at L16 → 222/sec). Links (3 base + 1
+# per channeled stack) and `mind_control_links`-scaled supports (Concentrate/Enthrall) are NYI — see
+# .wolf/memory.md; single-link acceptance number only (links don't multiply single-target DPS).
+@_register("mind_control")
+def _resolve_mind_control(skill_data: dict) -> ResolvedSkill:
+    return _resolve_dot_skill(skill_data, base_text_key="damage", damage_type="erosion")
+
+
+# Path of Flames — Tags: Spell, Fire, Channeled, Persistent, Area. Its progression's `damage` field is None
+# at every level (unlike Mind Control) — the per-level base ONLY appears in `values.Descript`
+# ("Fire Path: Deals 299 Persistent Fire Damage every second." at L16 → 299/sec, Tyra-confirmed against the
+# L16 sheet reading 209 = 299 × 0.70).
+@_register("path_of_flames")
+def _resolve_path_of_flames(skill_data: dict) -> ResolvedSkill:
+    return _resolve_dot_skill(skill_data, base_text_key="Descript", damage_type="fire")
 
 
 _MAIN_STAT_NAMES = frozenset({"strength", "dexterity", "intelligence"})
@@ -503,11 +747,61 @@ def _resolve_rosa_holy_domain(skill_data: dict) -> ResolvedSkill:
 # shotgun/projectile/beam handling, Berserking's buff Skill-Area/stack-cap). Phrases are lowercased substrings.
 # NOTE: when a NEW skill is brought to full modeling, add its modeled-mechanic phrases here (or rely on the
 # generic ResolvedSkill rules in classify_intrinsic_line for channeled / intrinsic_additional / steep-strike).
+#
+# 2026-07-12 false-partial fixes (owner-confirmed, coverage-recognition only — no DPS change):
+#   - icebound_beam: "Not affected by beam quantity bonuses and refraction attempt bonuses." is a limitation
+#     clause, not an unmodeled mechanic. Confirmed honored by construction: `extra_beams_flat` (the only
+#     "+N beams/refractions" stat `support_mapper`/`mod_parser` produce) is not in `consumable_universe()` —
+#     no skill anywhere is currently affected by a beam-quantity bonus, and there is no "refraction attempt"
+#     stat at all — so the claim is trivially true for Icebound specifically. Targeted per-skill phrase
+#     (NOT a general "not affected by" rule): several other skills glue an exemption clause onto a SEPARATE,
+#     still-unmodeled mechanic in the same tooltip line (e.g. `blink_arrow` — "always Penetrate targets but
+#     cannot return and are not affected by Projectile Quantity" — the Penetrate/no-Return claim is a distinct
+#     mechanic; `saltpeter_mushroom_distillate` glues "(not affected by the effects of Elixir Skills)" onto its
+#     own unmodeled 25%-chance-to-explode-for-True-Damage proc), so a blanket rule would silently overclaim
+#     those. Keeping this scoped to icebound_beam's own exact clause avoids that.
+#   - chromatic_shot: added below — the compulsory random-element conversion IS modeled
+#     (`ResolvedSkill.compulsory_elements`, `_resolve_chromatic_shot`), and 4 of its 5 flagged lines are
+#     base-state/flavor/already-a-stat (fires-1-projectile, +2 quantity, shotgun falloff, hit-same-enemy —
+#     mirrors icebound_beam/split_shot's identical phrases). The 5th flagged line is glued: "...forcibly
+#     converting the damage of the next use of this skill to that type 10% chance for enemies to explode when
+#     defeated by this skill, dealing True Damage equal to 25% of their Max Life..." — the "10% chance to
+#     explode for True Damage" clause is a GENUINE unmodeled proc (no explode/on-kill-true-damage code exists
+#     anywhere in the engine). Deliberately NOT whitelisting any phrase that would match this glued line (e.g.
+#     "forcibly converting" or "random elemental type") — since `classify_intrinsic_line` greenlights the
+#     WHOLE line's badge_text, not a sub-clause, doing so would silently swallow the still-unmodeled explode
+#     proc too. That line is left to `engine.coverage`'s own clause-splitter (correctly stays unresolved on
+#     both halves), so chromatic_shot stays 'partial' — the honest result; see `.wolf/buglog.json`.
+#   - howling_gale: the 3 per-channeled-stack Duration/Skill-Area/Movement-Speed lines are non-DPS
+#     informational for a sustained single-target calc (`_resolve_howling_gale`'s own comment) — none of the
+#     three feeds `calculate_offense`/`compute_dot` for a single-target number, so they're not modeled mechanics
+#     to omit, just properties of the persistent Gale area effect this calc doesn't need. Targeted (not
+#     general) since "per channeled stack, X" is not a safe cross-skill pattern.
 _SKILL_MODELED_PHRASES: dict[str, tuple[str, ...]] = {
     "icebound_beam": ("shotgun effect falloff", "projectile quantity", "beam reflection",
-                      "fires 1 projectile", "hit the same enemy"),
+                      "fires 1 projectile", "hit the same enemy", "not affected by beam quantity"),
     "berserking_blade": ("skill area for each stack of buff", "stacks up to"),
+    "groundshaker": ("demolisher charge", "fissure", "weapon attack damage",
+                     "restoration speed", "skill area when the skill consumes"),
+    "split_shot": ("weapon attack damage", "fires 1 projectile", "projectile quantity of this skill",
+                   "shotgun effect falloff", "hit the same enemy"),
+    "chromatic_shot": ("shotgun effect falloff", "fires 1 projectile", "hit the same enemy",
+                       "projectile quantity"),
+    "howling_gale": ("duration for gale", "skill area for gale", "movement speed for gale"),
+    # thunder_spike: the base WAD line + the intrinsic 100% Phys->Lightning conversion ARE modeled
+    # (`intrinsic_convert`). Deliberately NOT whitelisting the True-Body-Numbed or Skill-Area/Tracking-Area
+    # lines (see the resolver's own comment) — they stay honest NYI.
+    "thunder_spike": ("weapon attack damage", "will be converted to lightning damage"),
 }
+
+# A bare standalone duration fragment ("Lasts 10 s.") is never itself a DPS mechanic — it's metadata on
+# whatever buff/effect the PRECEDING line already described (the duration is read elsewhere, e.g. a buff's
+# own stack-decay window, wherever the engine models uptime at all). Generalized (not per-skill) because it's
+# a self-contained, information-only shape with no room to glue a second, unrelated mechanic onto it — unlike
+# a "not affected by ..." exemption clause, which several skills DO glue onto a still-unmodeled mechanic (see
+# the icebound_beam note above), a "Lasts N s." line is always exactly one fact and nothing else at every
+# occurrence checked across the SS12 skill catalog (2026-07-12).
+_BARE_DURATION_RE = re.compile(r"^lasts\s+[\d.]+\s*s\.?$", re.I)
 
 
 def classify_intrinsic_line(line: str, resolved: ResolvedSkill) -> str | None:
@@ -519,6 +813,8 @@ def classify_intrinsic_line(line: str, resolved: ResolvedSkill) -> str | None:
     if not resolved.supported:
         return None
     t = (line or "").lower()
+    if _BARE_DURATION_RE.match(t.strip()):
+        return "modeled"
     if resolved.base_steep_strike_chance and "steep strike chance" in t:
         return "modeled"
     if resolved.channeled:
@@ -547,16 +843,27 @@ def resolve_skill(skill_data: dict) -> ResolvedSkill:
     Never falls back to a partial or guessed calculation.
     """
     handler = _REGISTRY.get(skill_data.get("item_id", ""))
-    if handler is None:
-        return ResolvedSkill(
+    if handler is not None:
+        resolved = handler(skill_data)
+    else:
+        # Unregistered (damage NOT modelled) — but the per-cast COST is data-driven, so still carry the cost fields
+        # + the rate primitives (is_spell / cast time) the cost stage needs. supported=False keeps damage at 0.
+        _tags = skill_data.get("skill_tags") or skill_data.get("tags") or []
+        resolved = ResolvedSkill(
             skill_id=skill_data.get("item_id", ""),
             name=skill_data.get("name", ""),
-            tags=[],
+            tags=list(_tags),
             max_level=0,
             hit_forms_by_level={},
             supported=False,
+            is_spell=any(str(t).lower() == "spell" for t in _tags),
+            base_cast_time=_parse_cast_time(skill_data.get("cast_speed", "")),
         )
-    resolved = handler(skill_data)
     resolved.main_stat = _parse_main_stats(skill_data.get("main_stat"))
-    resolved.mana_cost = _parse_mana_cost(skill_data.get("mana_cost"))
+    resolved.mana_cost, resolved.mana_cost_is_percent = _parse_mana_cost(skill_data.get("mana_cost"))
+    # Skill-local Arcane: "All Mana costs … converted to Life costs" (Bull's Rage). Detected from the skill's own
+    # text (generic) → a per-skill conversion that doesn't leak to other skills like the global Arcane stat would.
+    _desc = " ".join(skill_data.get("description_lines") or []) + " " + str(skill_data.get("detailed_description") or "")
+    if re.search(r"mana cost.*converted to life cost", _desc, re.I):
+        resolved.intrinsic_mana_to_life = 1.0
     return resolved

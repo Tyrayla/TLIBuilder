@@ -176,13 +176,12 @@ class TestRecipeValueParity:
     recipe, the unified amount × points reproduces the recipe values[points-1] exactly — no value loss."""
 
     def test_value_parity_vs_recipes(self):
+        from persistence import season_manager
         nr = _load_filter().get("node_recipes", {})
         checked = 0
-        for f in sorted(glob.glob(os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons", "SS12", "*.json"))):
-            if os.path.basename(f).startswith("_"):
-                continue
-            data = json.load(open(f, encoding="utf-8"))
-            tname = data.get("tree_name") or os.path.basename(f).replace(".json", "")
+        # Normalized runtime view (plain-string effects) — the same shape resolve_nodes sees in prod.
+        for slug, data in sorted(season_manager.load_all_season_trees("SS12").items()):
+            tname = data.get("tree_name") or slug
             trees = {tname.lower(): {"tree_name": tname, "nodes": data.get("nodes", [])}}
             for node in data.get("nodes", []):
                 rec = nr.get(node["id"])

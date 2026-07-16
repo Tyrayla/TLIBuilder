@@ -56,6 +56,43 @@ class TestStackScaling:
         assert self._fire_resist(4) == pytest.approx(0.26)
 
 
+class TestAbsentConditionDefaultsToMax:
+    """Regression for the "absent condition_state key silently reads as 0" bug: a build whose stored
+    condition_state simply never carries `elemental_hit_pen_stacks` (e.g. an older/sparse save made before
+    the key existed) must still get the stacking pen at its catalog default (4, full uptime) — NOT 0. An
+    EXPLICIT 0 must still win over that default (the override guard)."""
+
+    # A Dreamweaver rank carrying BOTH stacking elemental-pen lines simultaneously.
+    _BOTH_LINES = [
+        "+1.2 % Elemental Resistance Penetration when hitting an enemy with Elemental Damage, "
+        "stacking up to 4 times",
+        "+3 % Elemental Resistance Penetration every time you hit an enemy with Elemental Damage "
+        "recently. Stacks up to 4 times",
+    ]
+
+    def _run(self, condition_state):
+        return engine_stats(EngineStatsRequest(
+            slots=[None, None, None, None],
+            spirit_effects=self._BOTH_LINES,
+            condition_state=condition_state,
+            skills=[{"slot": 1, "skill_id": "chain_lightning", "level": 14}],
+            main_skill={"skill_id": "chain_lightning", "level": 14}, characterLevel=100))
+
+    def test_absent_key_falls_back_to_catalog_default_max_stacks(self):
+        # condition_state has NO elemental_hit_pen_stacks key at all — must fall back to the catalog
+        # default of 4 (max stacks), not silently evaluate as 0.
+        r = self._run(condition_state={})
+        fire_resist = r["target_stats"]["resists"]["fire"]["effective"]
+        # (0.012 * 4) + (0.03 * 4) = 0.048 + 0.12 = 0.168 total elemental_pen
+        assert fire_resist == pytest.approx(0.30 - 0.168)
+
+    def test_explicit_zero_still_beats_the_default(self):
+        # An EXPLICIT 0 must still win over the catalog default of 4 — the override guard.
+        r = self._run(condition_state={"elemental_hit_pen_stacks": 0})
+        fire_resist = r["target_stats"]["resists"]["fire"]["effective"]
+        assert fire_resist == pytest.approx(0.30)
+
+
 def test_dreamweaver_fully_resolves():
     from persistence.season_manager import load_pact_spirits
     dw = next(s for s in load_pact_spirits("SS12")["spirits"] if s["item_id"] == "dreamweaver")

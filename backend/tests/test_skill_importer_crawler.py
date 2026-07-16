@@ -1,4 +1,5 @@
 import pytest
+from engine.modifier_lines import line_texts
 from tools.skill_importer import import_crawler_skill, import_crawler_skills, merge_skills
 
 _ACTIVE = {
@@ -45,8 +46,9 @@ def test_skill_tags_from_variant():
 
 
 def test_description_lines_from_simple_description():
+    # Stored as slim modifier-line dicts; text is the display/parse surface.
     r = import_crawler_skill(_ACTIVE)
-    assert r["description_lines"] == ["Casts the skill and gains a defensive effect."]
+    assert line_texts(r["description_lines"]) == ["Casts the skill and gains a defensive effect."]
 
 
 def test_raw_text_from_detailed_description():

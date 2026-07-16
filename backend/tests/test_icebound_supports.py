@@ -1,8 +1,17 @@
 """Icebound Beam canvas supports (Chilling Spike, Frostbitten, Ring Blade) — engine behavior validated against
-the owner's in-game dummy tests (ratios; absolute numbers depend on the test build's buffs)."""
+Tyra's in-game dummy tests (ratios; absolute numbers depend on the test build's buffs)."""
 import pytest
 from server import engine_stats, EngineStatsRequest
 from tests.mock_build import make_request
+from persistence import season_manager
+
+_SS12_ONLY = pytest.mark.skipif(
+    season_manager.get_active_season() != "SS12",
+    reason="SS12-specific ground truth: Icebound Beam's base damage was rebalanced in SS13 "
+           "(206-309/618-928 at L20 vs SS12's 171-257/513-770), and Chilling Spike's Hit Damage "
+           "roll was rebalanced ((-2)-(-1)% -> (-15)-(-13)% at tier 1). Pending SS13 "
+           "re-verification post-flip, not a deletion.",
+)
 
 CHILLING = "icebound_beam_chilling_spike_noble"
 FROSTBITTEN = "icebound_beam_frostbitten_magnificent"
@@ -40,6 +49,7 @@ def test_base_beam_suppressed_while_blades_fire():
 
 
 # ── Chilling Spike: disable suppression + extra blades + signed hit-damage roll ──
+@_SS12_ONLY
 def test_chilling_spike_unsuppresses_beam():
     base = _form(_offense(), "Cold Beam")["dps_contribution"]
     cs = _form(_offense(supports=[_sup(CHILLING)]), "Cold Beam")["dps_contribution"]
@@ -47,6 +57,7 @@ def test_chilling_spike_unsuppresses_beam():
     assert cs == pytest.approx(base * 3.0, rel=0.03)
 
 
+@_SS12_ONLY
 def test_chilling_spike_adds_extra_blades_as_own_form():
     # Chilling Spike's extra blades are now their OWN form (split off Icy Blade). Icy Blade itself is unchanged;
     # the new "Chilling Spike" form carries ~0.69 blade-equivalents on the base 2-blade shotgun (1.35).
@@ -69,6 +80,7 @@ def test_chilling_spike_split_preserves_total():
     assert any(f["name"] == "Chilling Spike" for f in o["hit_forms"])
 
 
+@_SS12_ONLY
 def test_chilling_spike_hit_damage_roll_signed():
     from engine.skill_effects.icebound_beam import chilling_spike_contribution
     from server import _get_skills_data, season_manager
@@ -129,8 +141,8 @@ def _eff_frozen_rate(cast_speed_inc=0.0):
 
 
 def test_frozen_proc_hit_aligned_to_channel_rate():
-    # The proc fires on the first beam hit after its 1s cooldown; the beam hits at the channel rate (aps).
+    # The proc fires on the first beam hit after its 1s cooldown; the beam hits at the channel rate (sps).
     # Base ~3/s → lands ~1 proc/s (full). +27% cast speed (~3.8/s) → the cooldown expires between hits, so it
-    # waits for the next hit → effective rate drops below 1.0 (matches the owner's in-game ~3-4% shortfall).
+    # waits for the next hit → effective rate drops below 1.0 (matches Tyra's in-game ~3-4% shortfall).
     assert _eff_frozen_rate(0.0) == pytest.approx(1.0, abs=0.02)
     assert _eff_frozen_rate(0.27) < 0.97

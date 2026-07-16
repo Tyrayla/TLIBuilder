@@ -124,6 +124,24 @@ def test_legendary_gear_strips_affixes_in_code():
     legendary_in_code = next(g for g in payload["gear"] if not g.get("is_crafted"))
     assert "affixes" not in legendary_in_code
 
+def test_round_trip_preserves_trait_tree_allocations():
+    # traitTreeAllocations (Dance of the Deep tree hero trait) has no special handling in
+    # build_code.py — it's opaque, generic dict pass-through like traitSlotLevels /
+    # advancedTraitSelections, so it just needs to survive encode/decode unchanged.
+    build = dict(SAMPLE_BUILD)
+    build["traitId"] = "dance_of_the_deep"
+    build["traitTreeAllocations"] = ["silencing_severance", "drenched_hem", "crimson_endless_dance"]
+    code = encode_build(build)
+    result = decode_build(code, GEAR_CATALOG)
+    assert result["traitTreeAllocations"] == ["silencing_severance", "drenched_hem", "crimson_endless_dance"]
+
+def test_round_trip_absent_trait_tree_allocations_stays_absent():
+    # A build with no traitTreeAllocations key at all (any non-Dance-of-the-Deep build) should not
+    # gain one — build_code.py must not invent keys.
+    code = encode_build(SAMPLE_BUILD)
+    result = decode_build(code, GEAR_CATALOG)
+    assert "traitTreeAllocations" not in result
+
 def test_idempotency():
     code1 = encode_build(SAMPLE_BUILD)
     decoded = decode_build(code1, GEAR_CATALOG)

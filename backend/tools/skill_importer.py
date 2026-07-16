@@ -60,6 +60,8 @@ def merge_skills(existing: list[dict], incoming: list[dict]) -> list[dict]:
 
 import re as _re
 
+from engine.modifier_lines import line_text, line_texts, slim_checked
+
 # The crawler leaves many values as UNREDUCED fractions ("41/4", "21/2", "6/100", "1/2") in both progression
 # values and description text — e.g. Electric Overload's Lv1 "41/4" is 10.25, matching its "10.25 %" base.
 # This plagues every data type, so normalize at import: evaluate a TWO-number N/M group to a clean decimal.
@@ -139,7 +141,7 @@ def extract_durations(lines: list[str]) -> list[dict]:
     kind taxonomy above). One entry per matched clause, in text order; the `source` line is kept for traceability."""
     out: list[dict] = []
     for raw in lines or []:
-        s = (raw or "").strip()
+        s = line_text(raw).strip()
         if not s or (not _DUR_ANY_RE.search(s) and "duration" not in s.lower()):
             continue
         stacked = bool(_DUR_STACKHINT_RE.search(s))
@@ -184,36 +186,72 @@ def _skill_duration(durations: list[dict]) -> float | None:
     return None
 
 
-def _as_lines(val) -> list[str]:
-    """Normalize a description field to a list of non-empty lines (the recrawl emits lists; older data a string)."""
+def _as_lines(val) -> list:
+    """Normalize a description field to a list of non-empty lines. The recrawl emits lists of
+    ModifierLine dicts (older data: plain strings / a single string); empties are dropped by text."""
     if isinstance(val, list):
-        return [str(x) for x in val if str(x).strip()]
-    if isinstance(val, str) and val.strip():
+        return [x for x in val if line_text(x).strip()]
+    if (isinstance(val, str) or isinstance(val, dict)) and line_text(val).strip():
         return [val]
     return []
 
 
-def _dedup_lines(lines: list[str]) -> list[str]:
+def _dedup_lines(lines: list[dict]) -> list[dict]:
     """Drop duplicate description lines (the recrawl emits each effect line twice for most supports — ~59/60
-    support_skill, ~41/60 noble), preserving first-occurrence order. Keyed on collapsed whitespace so trivial
-    spacing differences still dedup. Exact-duplicate description lines are always the crawler artifact, never
-    meaningful, so this is safe across all skill types (active descriptions have no dupes and are unaffected)."""
+    support_skill, ~41/60 noble), preserving first-occurrence order. Keyed on collapsed whitespace of the
+    line TEXT so trivial spacing differences still dedup. Exact-duplicate description lines are always the
+    crawler artifact, never meaningful, so this is safe across all skill types (active descriptions have no
+    dupes and are unaffected)."""
     seen: set[str] = set()
-    out: list[str] = []
+    out: list[dict] = []
     for line in lines:
-        key = " ".join(line.split())
+        key = " ".join(line_text(line).split())
         if key and key not in seen:
             seen.add(key)
             out.append(line)
     return out
 
 
-def import_crawler_skill(data: dict) -> dict:
-    """Import a single crawler skill file (one JSON file per skill).
+# A minion ability deals damage as a coefficient of its (shared) minion Base Damage — "Deals X% of Base Damage"
+# (the "% weapon Attack Damage" wording seen on some minions is a crawler inconsistency meaning the same thing).
+# This is distinct from `effectiveness_of_added_damage` (which scales ADDED flat damage). We mine it so the minion
+# engine can multiply the shared per-level Base Damage table by this coefficient.
+_BASE_DMG_COEFF_RE = _re.compile(r"([\d.]+)\s*%\s*(?:of\s*)?(?:base damage|weapon attack damage)", _re.I)
+
+
+def _base_damage_coefficient(progression: list, lines: list[str]):
+    """Extract a minion ability's '% of Base Damage' hit coefficient. Prefers per-level values mined from
+    `progression`; falls back to the single value in the description lines. Returns {level: pct} (per-level),
+    a float (single value), or None when the skill states no base-damage coefficient (e.g. pure buff skills)."""
+    per_level: dict[int, float] = {}
+    for entry in progression or []:
+        lvl = entry.get("level")
+        if lvl is None:
+            continue
+        text = " ".join(str(v) for v in (entry.get("values") or {}).values())
+        m = _BASE_DMG_COEFF_RE.search(text)
+        if m:
+            per_level[int(lvl)] = float(m.group(1))
+    if per_level:
+        return per_level
+    for line in lines or []:
+        m = _BASE_DMG_COEFF_RE.search(line_text(line))
+        if m:
+            return float(m.group(1))
+    return None
+
+
+def import_crawler_skill(data: dict, owner_id: str | None = None) -> dict:
+    """Import a single crawler skill file (one JSON file per skill), recursing into nested `minion_skills`.
 
     The recrawl emits `simple_description` (Lv1) and `detailed_description` (Lv20) as SPLIT LINE LISTS, plus a
     `sealed_mana` reservation amount. We keep both anchor descriptions (for aura/focus per-level interpolation)
     and `sealed_mana`; `description_lines` mirrors the simple (Lv1) lines for back-compat with existing readers.
+
+    A minion owner (a summon/module skill) nests its minion's abilities under `minion_skills`; we preserve that
+    tree, tag each child with `owner_id`, and mine each child's Base-Damage coefficient. Children are kept ONLY
+    nested (they are not hoisted into the flat top-level skills array), so they never appear in the active-skill
+    picker but stay reachable via their owner for the minion DPS engine + panel.
     """
     name = data.get("name", "")
     item_id = _re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
@@ -223,8 +261,13 @@ def import_crawler_skill(data: dict) -> dict:
         for g in (data.get("glossary") or [])
         if g.get("term_id")
     }
-    simple = _dedup_lines([normalize_fractions(l) for l in _as_lines(variant.get("simple_description"))])
-    detailed = _dedup_lines([normalize_fractions(l) for l in _as_lines(variant.get("detailed_description"))])
+    # Stored line shape: slim {text, uuid, pooling_uuid, modifier_id} dicts. Fraction normalization is a
+    # value-only transform, so the minted ids carry onto the normalized text (identity is value-stripped);
+    # slim_checked verifies that per line and degrades to uuid-less rather than storing a lying identity.
+    simple = _dedup_lines([slim_checked(l, normalize_fractions(line_text(l)))
+                           for l in _as_lines(variant.get("simple_description"))])
+    detailed = _dedup_lines([slim_checked(l, normalize_fractions(line_text(l)))
+                             for l in _as_lines(variant.get("detailed_description"))])
     # Structured combat fields the recrawl now emits directly (cooldown, icon_url) plus two we derive here:
     #   charges  — Help DB: only a skill with a cooldown can hold charges; default 1 (explicit higher counts
     #              aren't reliably stated in the text, so we don't guess — see docs/BACKLOG.md). None = no cooldown.
@@ -236,13 +279,14 @@ def import_crawler_skill(data: dict) -> dict:
     out = {
         "item_id": item_id,
         "name": name,
+        "uuid": data.get("uuid"),
         "internal_id": data.get("internal_id"),
         "skill_type": data.get("skill_type", ""),
         "skill_tags": variant.get("tags") or [],
         "description_lines": simple,                     # Lv1 lines (back-compat readers use this)
         "simple_description": simple,                    # Lv1 anchor (split lines)
         "detailed_description": detailed,                # Lv20 anchor (split lines)
-        "raw_text": " ".join(detailed or simple),
+        "raw_text": " ".join(line_texts(detailed or simple)),
         "max_level": variant.get("max_level"),
         "mana_cost": variant.get("mana_cost"),
         "sealed_mana": variant.get("sealed_mana"),       # reservation amount, e.g. "50%"
@@ -262,6 +306,16 @@ def import_crawler_skill(data: dict) -> dict:
     # derives it from skill_type). Never write null, which would read as "explicitly ineligible".
     if "dps_eligible" in data:
         out["dps_eligible"] = bool(data["dps_eligible"])
+    # Minion-ability metadata: owner back-link + the "% of Base Damage" hit coefficient (only for nested abilities).
+    if owner_id is not None:
+        out["owner_id"] = owner_id
+        coeff = _base_damage_coefficient(out["progression"], detailed or simple)
+        if coeff is not None:
+            out["base_damage_coefficient"] = coeff
+    # Preserve nested minion abilities (the summon/module owner's minion_skills tree), recursing the same builder.
+    children = data.get("minion_skills") or []
+    if children:
+        out["minion_skills"] = [import_crawler_skill(c, owner_id=item_id) for c in children if c.get("name")]
     return out
 
 

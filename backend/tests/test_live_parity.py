@@ -52,7 +52,7 @@ def _source(payload: dict) -> dict:
 
 
 # The offense fields whose divergence would signal a real stale-backend disconnect.
-_KEYS = ("total_dps", "total_dps_vs_target", "attacks_per_second")
+_KEYS = ("total_dps", "total_dps_vs_target", "skills_per_second")
 
 
 @pytest.mark.skipif(_PORT is None, reason="no live dev backend on 8765-8774 (start the app to run live parity)")

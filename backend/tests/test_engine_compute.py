@@ -24,14 +24,48 @@ def _cond(key, **kw) -> ConditionDef:
 
 
 class TestDeriveViews:
-    def test_splits_bool_and_numeric(self):
+    def test_splits_bool_and_numeric(self, monkeypatch):
+        # Catalog defaults: "a" defaults False, "e" defaults True (bools); "c" defaults 1.0, "f" defaults
+        # 9.0 (numerics) — deliberately overlapping AND non-overlapping with condition_state's own keys, so
+        # the test can distinguish "explicit wins" from "absent falls back to default".
+        monkeypatch.setattr(
+            "models.conditions.condition_defaults",
+            lambda: ({"a": False, "e": True}, {"c": 1.0, "f": 9.0}),
+        )
         active, numeric = _derive_views({"a": True, "b": False, "c": 5, "d": 2.5})
-        assert active == frozenset({"a"})        # only truthy booleans
-        assert numeric == {"c": 5.0, "d": 2.5}
+        # bool/numeric split: numeric never leaks into `active`, and vice versa.
+        assert "b" not in numeric and "a" not in numeric and "d" not in active
+        # explicit True overrides its own catalog default (a's default is False).
+        assert "a" in active
+        # a default-True bool ("e") absent from condition_state still surfaces at its catalog default.
+        assert "e" in active
+        # "b" (explicit False, no catalog default) stays inactive.
+        assert "b" not in active
+        assert active == frozenset({"a", "e"})
+        # explicit numeric overrides its catalog default (c: default 1.0, explicit 5.0 wins).
+        assert numeric["c"] == pytest.approx(5.0)
+        # a numeric key absent from condition_state surfaces its catalog default (f: default 9.0).
+        assert numeric["f"] == pytest.approx(9.0)
+        # a numeric key with no catalog default at all still passes through as given.
+        assert numeric["d"] == pytest.approx(2.5)
+        assert numeric == {"c": 5.0, "d": 2.5, "f": 9.0}
 
     def test_bool_never_leaks_into_numeric(self):
         _, numeric = _derive_views({"flag": True})
         assert "flag" not in numeric
+
+    def test_explicit_false_discards_a_default_true_bool(self, monkeypatch):
+        # "e" catalog-defaults to True (like within_gale/inside_holy_domain/etc in the real catalog). An
+        # EXPLICIT False in condition_state must REMOVE it from `active`, not leave it active because it
+        # was pre-seeded from the default before the explicit overlay ran (the `active_booleans.discard(k)`
+        # branch in _derive_views).
+        monkeypatch.setattr(
+            "models.conditions.condition_defaults",
+            lambda: ({"e": True}, {}),
+        )
+        active, _ = _derive_views({"e": False})
+        assert "e" not in active
+        assert active == frozenset()
 
 
 class TestClampAndRederive:

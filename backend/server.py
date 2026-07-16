@@ -4,7 +4,7 @@ import os
 import re
 import socket
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,7 +13,8 @@ import uvicorn
 
 from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
-from persistence import save_manager, builds_manager
+from persistence import builds_manager
+from persistence import folders_manager
 from persistence import tree_config_manager
 from persistence import season_manager
 import build_code as _build_code
@@ -47,8 +48,10 @@ except (OSError, ValueError):
 
 
 def _split_clauses(text: str) -> list[str]:
-    """Split a compound affix into clauses on sentence boundaries (". " NOT inside a decimal like 1.2s)."""
-    return [c.strip() for c in re.split(r'(?<!\d)\.\s+', text or "") if c and c.strip()]
+    """Split a compound affix into clauses on sentence boundaries (". " NOT inside a decimal like 1.2s). A trailing
+    "Stacks up to N time(s)" is the CAP continuation of the preceding per-N affix (Blade-dancer/Glacier flat-phys),
+    NOT a separate clause — keep it attached so the parser captures the cap (and it doesn't badge NYI on its own)."""
+    return [c.strip() for c in re.split(r'(?<!\d)\.\s+(?![Ss]tacks?\s+up\s+to\b)', text or "") if c and c.strip()]
 
 
 def _expand_named_buffs(text: str) -> list[str]:
@@ -350,43 +353,10 @@ def get_tree(name: str):
 
 
 # ── Allocation validation ──────────────────────────────────────────────────────
-
-class AllocateRequest(BaseModel):
-    tree_name: str
-    node_states: dict[str, int]
-    node_id: str
-    action: str  # "allocate" or "deallocate"
-    # Node ids whose prerequisite chain is broken by an installed Prism (anchor + reflected-box cells).
-    prereq_satisfied: list[str] = []
-    # Node id → raised max-point cap (an Ethereal Prism's over-allocation affix).
-    max_overrides: dict[str, int] = {}
-    # Column index → extra points from an Inverse Image's reflected box (virtual cells; count toward unlocks).
-    extra_column_points: dict[int, int] = {}
-
-
-@app.post("/api/validate-allocate")
-def validate_allocate(req: AllocateRequest):
-    if req.tree_name not in TREES:
-        raise HTTPException(status_code=404, detail="Tree not found")
-    tree = _build_tree(req.tree_name)
-    tree.extra_column_points = {int(c): p for c, p in (req.extra_column_points or {}).items()}
-    _broken = set(req.prereq_satisfied)
-    for node_id, pts in req.node_states.items():
-        if node_id in tree.nodes:
-            tree.nodes[node_id].current_points = pts
-
-    if req.action in ("allocate", "deallocate"):
-        try:
-            if req.action == "allocate":
-                tree.allocate(req.node_id, _broken, req.max_overrides)
-            else:
-                tree.deallocate(req.node_id, _broken)
-            return {"allowed": True,
-                    "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
-        except ValueError as e:
-            return {"allowed": False, "reason": str(e),
-                    "node_states": {nid: n.current_points for nid, n in tree.nodes.items()}}
-    raise HTTPException(status_code=400, detail="action must be allocate or deallocate")
+# Interactive point allocation is now validated CLIENT-SIDE (TreeViewerScreen.tryLocalAllocate) so clicks are
+# instant — the old /api/validate-allocate round-trip was removed. The authoritative rules still live in
+# PassiveTree.allocate/deallocate (models/passive_tree.py), covered by test_passive_tree.py +
+# test_ethereal_prism_catalog.py; the client mirror must stay in lockstep with them.
 
 
 # ── Tree editing (debug tools) ─────────────────────────────────────────────────
@@ -464,6 +434,14 @@ def _collect_pool(tree_names: list[str]) -> dict:
     core_pool: list[dict] = []
     seen_mods: set[tuple] = set()
     seen_core_names: set[str] = set()
+    # (raw_key, effects-tuple) — collapses only TRUE duplicates (same name AND same granted effect).
+    # A bare raw_key-only set would wrongly collapse distinct talents that share a display name but grant
+    # different effects — e.g. the SS13 Nether King divinity-slate tree has 92 core_talents built from only
+    # 4 raw `name` values ("Micro/Medium/Legendary Medium/Ultimate Nether King Talent Node"), each a genuinely
+    # different draftable option distinguished only by its effect text (see .wolf/buglog.json
+    # "nether-king-core-talent-name-dedup-collapse").
+    seen_core_entries: set[tuple] = set()
+    core_key_counts: dict[str, int] = {}
 
     active = season_manager.get_active_season()
     if not active:
@@ -492,12 +470,25 @@ def _collect_pool(tree_names: list[str]) -> dict:
                 legendary_pool.append(entry)
         for ct in data.get("core_talents", []):
             raw_key = ct.get("display_name_key", "") or ct.get("name", "")
-            if not raw_key or raw_key in seen_core_names:
+            if not raw_key:
                 continue
+            effects = ct.get("effects", [])
+            entry_key = (raw_key, tuple(effects))
+            if entry_key in seen_core_entries:
+                continue
+            seen_core_entries.add(entry_key)
             seen_core_names.add(raw_key)
+            # First talent under a given raw_key keeps the plain "tree:raw_key" key unchanged (matches every
+            # pre-existing tree, where raw_key already uniquely identifies one talent — zero behavior change).
+            # Any FURTHER talent sharing that raw_key but with distinct effects (Nether King's case) gets a
+            # stable "#2", "#3", ... suffix so the frontend's per-talent React key / used-talent tracking
+            # (SlateScreen.tsx: core.key, selectedCoreKey, usedCoreKeys) still treats them as separate options.
+            n = core_key_counts.get(raw_key, 0) + 1
+            core_key_counts[raw_key] = n
+            out_key = f"{tree_name}:{raw_key}" if n == 1 else f"{tree_name}:{raw_key}#{n}"
             # Prefer an explicit name field (may have apostrophes from source); otherwise auto-format
             display_name = ct.get("name") or _format_core_talent_name(raw_key, tree_name)
-            core_pool.append({"key": f"{tree_name}:{raw_key}", "treeName": tree_name, "name": display_name, "effects": ct.get("effects", [])})
+            core_pool.append({"key": out_key, "treeName": tree_name, "name": display_name, "effects": effects})
 
     for ct in (season_manager.load_new_god_talents(active) or []):
         name = ct.get("name", "")
@@ -562,6 +553,40 @@ def delete_build(build_id: str):
     if not builds_manager.delete_build(build_id):
         raise HTTPException(status_code=404, detail="Build not found")
     return {"ok": True}
+
+
+# ── Build folders ─────────────────────────────────────────────────────────────
+# Client-authored folder tree over saved builds — see persistence/folders_manager.py for the manifest
+# shape and validation/cleaning rules. Folders are pure organization; they carry no engine meaning.
+
+class FolderEntry(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+
+    id: str
+    name: str
+    parentId: str | None = None
+
+
+class FoldersManifest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    folders: list[FolderEntry] = []
+    assignments: dict[str, str] = {}
+    order: dict[str, list[str]] = {}
+    folderOrder: dict[str, list[str]] = {}
+
+
+@app.get("/api/builds/folders")
+def get_build_folders():
+    return folders_manager.load()
+
+
+@app.put("/api/builds/folders")
+def put_build_folders(req: FoldersManifest):
+    try:
+        return folders_manager.save(req.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 class BuildCodeEncodeRequest(BaseModel):
@@ -666,7 +691,7 @@ class EngineStatsRequest(BaseModel):
     slots:           list[SlotData | None]
     slates:          list[dict] = []
     prisms:          list[dict] = []
-    condition_state: dict[str, float | bool] = {}
+    condition_state: dict[str, float | bool | str] = {}   # str: enum-valued conditions (e.g. groundshaker_area_selector)
     gear:            list[dict] = []
     character:       list[dict] = []
     # Each item is either a bare effect string (legacy) or {text, source} where `source` is the hero-memory /
@@ -683,6 +708,12 @@ class EngineStatsRequest(BaseModel):
     trait_id:        str | None = None
     trait_slot_levels: list[int] = []                  # [base, lv45, lv60, lv75], each 1-5
     advanced_trait_selections: list[str] = []
+    # Licorice Note (Sage): the skill_id of the Empower/Curse the trait "prepares" (Pungent cross-apply target).
+    # Auto-resolved to the only eligible skill when exactly one exists; user-picked when >1.
+    licorice_prepared_skill: str | None = None
+    # Licorice Note: equipped Ingredient names per scent-bottle active-skill slot — {slot: [ingredient_name]}.
+    # The server looks each up in the trait's ingredient catalog, tier-expands, and folds it into that elixir.
+    elixir_ingredients: dict[str, list[str]] = {}
     uptime_mode:     str = "max"                        # "max" (default, assume-max) | "real" (compute ramp)
     target_config:   TargetConfigRequest | None = None  # editable calc-target stats; None → Lv85 dummy defaults
 
@@ -699,6 +730,30 @@ def _cached_filter() -> dict:
         from tools.node_type_filter_builder import load_filter
         _filter_cache[season] = load_filter() or {}
     return _filter_cache[season]
+
+
+def _resolve_custom_mod(mod_text: str) -> tuple[list[dict], dict]:
+    """Parse ONE custom-mod line → (contributions, status). SINGLE source of truth for both the engine pass (needs
+    the contributions) and the lightweight /validate-custom-mods endpoint (needs only the status), so the editor's
+    green/red matches EXACTLY what the engine applies. Mirrors the gear/talent paths: try the whole line first;
+    only fall back to a stat-part + translated-condition split if that fails (an untranslatable gate → unresolved)."""
+    from engine.core_talent_resolver import _split_condition
+    cond_expr = None
+    parsed = _parse_custom_mod_text(mod_text)
+    if not parsed:
+        stat_part, cond_part = _split_condition(mod_text)
+        parsed = _parse_custom_mod_text(stat_part)
+        if parsed and cond_part is not None:
+            cond_expr = _translate_condition_expr(mod_text) or _translate_condition_expr(cond_part)
+            if cond_expr is None:
+                parsed = []
+    if parsed:
+        for entry in parsed:
+            if cond_expr is not None:
+                entry["condition"] = cond_expr
+        return parsed, {"text": mod_text, "resolved": True,
+                        "stat_display": ", ".join(_qualified_stat_display(e["stat_key"]) for e in parsed)}
+    return [], {"text": mod_text, "resolved": False, "stat_display": None}
 
 
 @app.post("/api/engine/stats")
@@ -762,39 +817,14 @@ def engine_stats(req: EngineStatsRequest):
     # payload (today's common case) every support stays enabled → byte-identical.
     _disabled_slots = {s.slot for s in req.skills if not s.enabled}
 
-    # Pre-resolve custom mods and build status list for the frontend. Mirror the gear path: split off a
-    # leading/trailing condition ("vs Low Life enemies", "if Ignited", "when only 1 enemy nearby") so the
-    # stat clause resolves and the gate rides on each contribution's `condition` (gated in the aggregator).
-    # An untranslatable gate makes the mod UNRESOLVED (honest NYI), never applied always-on.
-    from engine.core_talent_resolver import _split_condition
+    # Pre-resolve custom mods and build the status list for the frontend, via the shared _resolve_custom_mod
+    # helper (same parse used by the /validate-custom-mods editor endpoint, so green/red matches what's applied).
     custom_contributions: list[dict] = []
     custom_mod_statuses: list[dict] = []
     for mod_text in req.custom_mods:
-        stat_part, cond_part = _split_condition(mod_text)
-        parsed = _parse_custom_mod_text(stat_part)
-        cond_expr = None
-        if parsed and cond_part is not None:
-            cond_expr = _translate_condition_expr(mod_text) or _translate_condition_expr(cond_part)
-            if cond_expr is None:
-                parsed = []
-        if parsed:
-            # Each parsed entry becomes a contribution; all share the same original text + gate.
-            for entry in parsed:
-                if cond_expr is not None:
-                    entry["condition"] = cond_expr
-                custom_contributions.append(entry)
-            display_names = [_qualified_stat_display(e["stat_key"]) for e in parsed]
-            custom_mod_statuses.append({
-                "text": mod_text,
-                "resolved": True,
-                "stat_display": ", ".join(display_names),
-            })
-        else:
-            custom_mod_statuses.append({
-                "text": mod_text,
-                "resolved": False,
-                "stat_display": None,
-            })
+        _contribs, _status = _resolve_custom_mod(mod_text)
+        custom_contributions.extend(_contribs)
+        custom_mod_statuses.append(_status)
 
     # Pre-resolve pact-spirit / hero-memory effects through the unified resolver + build status lists so
     # nothing is silently dropped (cardinal rule), mirroring the custom-mod block above.
@@ -832,7 +862,9 @@ def engine_stats(req: EngineStatsRequest):
         trait_contributions, trait_mod_statuses = [], hero_traits.status_lines(
             req.trait_id, slot_levels=req.trait_slot_levels, advanced_picks=req.advanced_trait_selections,
             main_skill_tags=(skill_data or {}).get("skill_tags"),
-            main_skill_name=(skill_data or {}).get("name"))
+            main_skill_name=(skill_data or {}).get("name"),
+            attached_supports=req.attached_supports, skills_input=skills_input, skills_by_id=skills_by_id,
+            prepared_skill=req.licorice_prepared_skill)
     else:
         trait_contributions, trait_mod_statuses = _resolve_effect_list(req.trait_effects, is_memory=False)
 
@@ -922,45 +954,30 @@ def engine_stats(req: EngineStatsRequest):
             continue
         gi = dict(gi)
         contribs = list(gi.get("contributions") or [])
+        # _resolve_gear_affix_clauses is the shared resolver (also used by the /api/map-modifiers badge endpoint)
+        # so a line the engine applies here can never badge NYI. It handles curse extraction, named-buff expansion
+        # ("Gains <NamedBuff>"), and the compound-clause + condition split (gate translated onto `condition`; an
+        # untranslatable gate → unresolved/honest-NYI, never applied always-on). Cardinal rule: never silently drop.
         for t in texts:
-            # Curse-applying affix? Record it (counts toward the curse limit; magnitude comes from the curse
-            # skill at the affix level) and mark resolved — it has no stat contribution of its own.
-            ac = _extract_affix_curse(t)
-            if ac:
-                affix_curses.append({**ac, "source_label": gi.get("item_name") or "Gear"})
-                gear_mod_statuses.append({"text": t, "resolved": True,
-                                          "stat_display": f"Inflicts {ac['curse_name']} (Lv {ac['level']})"})
-                continue
-            # Expand any "Gains <NamedBuff>" clause via the glossary (so its real lines parse), and split a
-            # compound affix into its clauses. Each clause is resolved independently and reported on its own —
-            # so e.g. "Seals 10% Max Mana. Gains Insatiable Greed" surfaces both the seal and the expanded
-            # "150% of Attack Speed → Spell Burst Charge Speed". Cardinal rule: never silently drop.
-            for clause in _expand_named_buffs(t):
-                # Self-contained special lines encode their own gate/value in the text (e.g. Solid River's
-                # "When Burst Charge Recovery Speed is at least N% …" → the auto-trigger threshold stat), so try
-                # the WHOLE clause first; the threshold rides in the stat value, gated downstream in offense.
-                cond_expr = None
-                parsed = _parse_custom_mod_text(clause)
-                if not parsed:
-                    # Otherwise split off a leading ("If recently moved, +X%") or trailing ("+X% if Ignited") gate
-                    # so the stat clause resolves; the gate is translated onto the contribution's `condition`
-                    # (gated in the aggregator). A gate we can't translate makes the line UNRESOLVED (honest NYI),
-                    # never applied always-on — silently dropping the condition would be worse than a red badge.
-                    stat_part, cond_part = _split_condition(clause)
-                    parsed = _parse_custom_mod_text(stat_part)
-                    if parsed and cond_part is not None:
-                        cond_expr = _translate_condition_expr(clause) or _translate_condition_expr(cond_part)
-                        if cond_expr is None:
-                            parsed = []
+            for cl in _resolve_gear_affix_clauses(t):
+                if cl.get("curse"):
+                    ac = cl["curse"]
+                    affix_curses.append({**ac, "source_label": gi.get("item_name") or "Gear"})
+                    gear_mod_statuses.append({"text": cl["clause"], "resolved": True,
+                                              "stat_display": f"Inflicts {ac['curse_name']} (Lv {ac['level']})"})
+                    continue
+                parsed = cl["parsed"]
                 if parsed:
                     for e in parsed:
                         contribs.append({"stat": e["stat_key"], "display_value": e["amount"], "unit": "",
-                                         "item_name": gi.get("item_name") or "Gear", "text": clause,
-                                         "slot": None, "condition": cond_expr, "scope": e.get("scope")})
+                                         "item_name": gi.get("item_name") or "Gear", "text": cl["clause"],
+                                         # Item-level slot (when sent) so the breakdown Source column names the real
+                                         # slot ("Off-Hand"/"Ring 1") instead of a generic "Item"; None → "Item".
+                                         "slot": gi.get("slot"), "condition": cl["cond_expr"], "scope": e.get("scope")})
                     names = ", ".join(_get_stat_display_name(e["stat_key"]) or e["stat_key"] for e in parsed)
-                    gear_mod_statuses.append({"text": clause, "resolved": True, "stat_display": names})
+                    gear_mod_statuses.append({"text": cl["clause"], "resolved": True, "stat_display": names})
                 else:
-                    gear_mod_statuses.append({"text": clause, "resolved": False, "stat_display": None})
+                    gear_mod_statuses.append({"text": cl["clause"], "resolved": False, "stat_display": None})
         gi["contributions"] = contribs
         gear_resolved.append(gi)
 
@@ -977,6 +994,18 @@ def engine_stats(req: EngineStatsRequest):
     from engine.empower_resolver import resolve_empowers
     empower_buffs, empower_statuses, empower_stack_conditions, empower_meta = resolve_empowers(
         skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr)
+
+    # ── Elixir buffs ─────────────────────────────────────────────────────────
+    # Server parses each enabled elixir skill's buff lines into unscaled contributions (+ folds its support gems'
+    # timing); the engine (utility.apply_elixir_buffs, inside compute) scales them by Elixir Effect and builds the
+    # summaries. Full uptime assumed while enabled.
+    # Licorice Note Ingredients → per-scent-bottle-elixir buff lines (looked up from the trait catalog + tier-expanded).
+    _ingredient_lines = (_build_licorice_ingredient_lines(req.elixir_ingredients, req.trait_slot_levels, active_season)
+                         if req.trait_id == "licorice_note" and req.elixir_ingredients else {})
+    from engine.elixir_resolver import resolve_elixirs
+    elixir_buffs, elixir_statuses, elixir_stack_conditions, elixir_meta = resolve_elixirs(
+        skills_input, skills_by_id, _parse_custom_mod_text, _translate_condition_expr, enabled_supports,
+        ingredient_lines_by_slot=_ingredient_lines)
 
     # ── Curses ───────────────────────────────────────────────────────────────
     # Gather active curses from slotted curse skills + curse-applying affixes; the engine (curse_resolver, inside
@@ -1011,8 +1040,16 @@ def engine_stats(req: EngineStatsRequest):
                 if not _st.get("resolved") and _frostbite_inflict.matches(_st.get("text", "")):
                     _st["resolved"] = True
                     _st["stat_display"] = "Inflicts Frostbite"
-    if active_curses and not core_condition_state.get("enemy_cursed"):
+    # Only ENABLED curses make the enemy cursed (disabled curses are surfaced in the panel but apply nothing).
+    if any(c.get("enabled", True) for c in active_curses) and not core_condition_state.get("enemy_cursed"):
         core_condition_state = {**core_condition_state, "enemy_cursed": True}
+
+    # Thunder Spike's intrinsic Numbed auto-derive (enemy_numbed + a numbed_stacks floor) MOVED to
+    # engine.compute (2026-07-15, Phase 2 — see .wolf/memory.md "Part B v3"): the floor is now a
+    # RATE-DEPENDENT formula (E[stacks](aps) = D·aps / ceil(I·aps), the confirmed independent-stacking
+    # window model), which needs the slot's effective attack rate post-aggregation/post-slot-materialization
+    # — not available here in server.py before compute() even runs. See engine/compute.py's fixed-point
+    # loop, right before _apply_cond_effects.
 
     # Editable calc-target stats → fractions for the offense mitigation (None keeps the engine's Lv85 defaults).
     _tc = req.target_config
@@ -1042,20 +1079,24 @@ def engine_stats(req: EngineStatsRequest):
         curse_meta=curse_meta,
         empower_buffs=empower_buffs,
         empower_meta=empower_meta,
+        elixir_buffs=elixir_buffs,
+        elixir_meta=elixir_meta,
         trait_id=req.trait_id,
         trait_slot_levels=req.trait_slot_levels,
         advanced_trait_selections=req.advanced_trait_selections,
+        licorice_prepared_skill=req.licorice_prepared_skill,
         trait_contributions=trait_contributions,
         uptime_mode=req.uptime_mode,
         target_config=target_config,
-        inflict_cond_effects=_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects(),
-        numbed_blocked=_numbed_inflict.blocked,
+        inflict_cond_effects=(_numbed_inflict.condition_effects() + _frostbite_inflict.condition_effects()),
     )
+    from engine.identity_index import get_identity_index
     result = compute(
         build, season_trees, filter_data,
         skill_data=skill_data,
         skills_input=skills_input or None,
         skills_by_id=skills_by_id or None,
+        identity_index=get_identity_index(active_season) if active_season else None,
     )
     return {
         "stats": result.stat_map,
@@ -1067,6 +1108,9 @@ def engine_stats(req: EngineStatsRequest):
         "auto_conditions": result.auto_conditions,
         "offense": result.offense,
         "defense": result.defense,
+        "recovery": result.recovery,
+        "consumption": result.consumption,
+        "skill_cost": result.skill_cost,
         "custom_mod_statuses": custom_mod_statuses,
         "core_talent_statuses": core_talent_statuses,
         "gear_mod_statuses": gear_mod_statuses,
@@ -1077,6 +1121,9 @@ def engine_stats(req: EngineStatsRequest):
         # Per-active-slot offense ({slot: OffenseResult}); headline `offense` is the main slot. Additive —
         # the renderer doesn't consume it yet.
         "slot_offense": result.slot_offense,
+        # Per-minion-owner offense ({owner_id: [MinionOffenseResult per nested ability]}) for slotted minion
+        # owners (Spirit Magi / Synthetic Troops / Modularization). Additive — folded into FULL DPS by the renderer.
+        "minion_offense": result.minion_offense,
         "consumed_stats": result.consumed_stats,
         # Maximal set of stats the engine can EVER read (all skills/tags) — lets the UI tell "Inactive"
         # (modeled, not for your skill) apart from "Unconsumed" (engine never reads it). Cached per process.
@@ -1095,6 +1142,9 @@ def engine_stats(req: EngineStatsRequest):
         "empowers": result.empower_summaries,
         "empower_statuses": empower_statuses,
         "empower_stack_conditions": empower_stack_conditions,
+        # Per-elixir summary (Elixir Effect + granted buffs + timing + NYI) for the Skill panel, plus statuses.
+        "elixirs": result.elixir_summaries,
+        "elixir_statuses": elixir_statuses,
         # Per-curse summary (Curse Effect, limit, debuff value + applied flag), per-curse meta (base stats + NYI
         # lines) for the Skill panel, NYI statuses, and the over-limit conflict (drives the resolution dropdown).
         "curses": result.curse_summaries,
@@ -1102,7 +1152,12 @@ def engine_stats(req: EngineStatsRequest):
         "curse_statuses": curse_statuses,
         "curse_conflict": result.curse_conflict,
         # General build warnings/diagnostics (e.g. a curse that amplifies a damage type the build doesn't deal).
-        "warnings": result.warnings,
+        # Bespoke-trait status lines flagged "warning" (e.g. Licorice Note's activation-medium pitfall) are merged
+        # here so they surface on the Config screen's warnings banner (trait_mod_statuses itself isn't shown).
+        "warnings": (list(result.warnings or [])
+                     + [{"kind": "trait", "text": s["text"]} for s in trait_mod_statuses
+                        if s.get("status") == "warning"]
+                     + [{"kind": "data", "text": t} for t in (_skills_override_reviews or [])]) or None,
         # Mana/Life sealing: totals (sealed/unsealed pools, insufficient flags) + per-skill seal breakdowns.
         "reservation": result.reservation,
         # Settable per-aura stack conditions ({key,label,max}) for the stack sliders.
@@ -1143,6 +1198,9 @@ def get_conditions():
             entry["numeric_max"] = c.numeric_max
             entry["unit"] = c.unit
             entry["default_value"] = c.default_value   # was omitted → frontend saw undefined → 0 defaults
+        elif c.value_type == "enum":
+            entry["enum_values"] = list(c.enum_values)
+            entry["default_enum"] = c.default_enum
         else:
             entry["default_bool"] = c.default_bool
         if c.key in derived_keys or c.source == "derived":
@@ -1155,98 +1213,106 @@ def get_conditions():
     return result
 
 
-# ── Legacy single save ─────────────────────────────────────────────────────────
+# ── Verification knowledge base ──────────────────────────────────────────────────
 
-class SaveRequest(BaseModel):
-    tree: str
-    nodes: dict[str, int]
-    core_talents: dict[str, str | None] | None = None
-
-
-@app.get("/api/save")
-def get_save():
-    data = save_manager.load()
-    return data if data else {}
+_VERIFICATION_DIR = os.path.join(_DATA_ROOT, "verification")
+# One JSON file per entry; the source of truth for both the in-app viewer and the generated docs index.
+# Kept as a whitelist so a stray/malformed key never leaks into the response.
+_VERIFICATION_STATUSES = ("confirmed", "partial", "pending", "unverified", "failed")
+_VERIFICATION_KEYS = (
+    "id", "title", "status", "skills", "tags", "lastVerified", "verifiedBy",
+    "backlogId", "setup", "dataPoints", "formula", "implementation", "notes", "sources",
+)
 
 
-@app.post("/api/save")
-def post_save(req: SaveRequest):
-    save_manager.save(req.tree, req.nodes, req.core_talents)
-    return {"ok": True}
+def _load_verification_entries() -> list[dict]:
+    """Read every data/verification/*.json entry (skipping unreadable/invalid ones, never silently — a bad
+    file is surfaced as an entry with status 'failed' so it can't hide). Returns entries sorted by title."""
+    entries: list[dict] = []
+    if not os.path.isdir(_VERIFICATION_DIR):
+        return entries
+    for fn in sorted(os.listdir(_VERIFICATION_DIR)):
+        if not fn.endswith(".json"):
+            continue
+        path = os.path.join(_VERIFICATION_DIR, fn)
+        try:
+            with open(path, encoding="utf-8") as f:
+                raw = json.load(f)
+        except (OSError, ValueError) as e:
+            entries.append({
+                "id": os.path.splitext(fn)[0], "title": fn, "status": "failed",
+                "skills": [], "tags": [], "notes": f"⚠ Could not load this entry: {e}", "sources": [],
+            })
+            continue
+        entry = {k: raw[k] for k in _VERIFICATION_KEYS if k in raw}
+        entry.setdefault("id", os.path.splitext(fn)[0])
+        entry.setdefault("title", entry["id"])
+        if entry.get("status") not in _VERIFICATION_STATUSES:
+            entry["status"] = "unverified"
+        entry.setdefault("skills", [])
+        entry.setdefault("tags", [])
+        entries.append(entry)
+    entries.sort(key=lambda e: (e.get("title") or "").lower())
+    return entries
 
 
-@app.delete("/api/save")
-def delete_save():
-    save_manager.clear()
-    return {"ok": True}
+@app.get("/api/verification-db")
+def get_verification_db():
+    """The verification knowledge base: confirmed/partial/pending/unverified/failed mechanic entries plus
+    the facet lists (tags, skills, statuses present) the viewer uses to build its filter chips."""
+    entries = _load_verification_entries()
+    tags = sorted({t for e in entries for t in (e.get("tags") or [])}, key=str.lower)
+    skills = sorted({s for e in entries for s in (e.get("skills") or [])}, key=str.lower)
+    statuses = [s for s in _VERIFICATION_STATUSES if any(e.get("status") == s for e in entries)]
+    return {"entries": entries, "tags": tags, "skills": skills, "statuses": statuses}
+
+
+# ── Glossary + Help DB (term-linking references) ─────────────────────────────────
+
+@app.get("/api/glossary")
+def get_glossary():
+    """The master glossary (in-game term definitions). Used by the Verification DB to link terms on hover.
+    Reads data/master_glossary.json (already the source for named-buff expansion)."""
+    path = os.path.join(_DATA_ROOT, "master_glossary.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {"season": None, "terms": []}
+    terms = [
+        {"id": t.get("id"), "name": t.get("name"), "description": t.get("description"),
+         "sources": t.get("sources") or []}
+        for t in (data.get("terms") or []) if t.get("name") and t.get("description")
+    ]
+    return {"season": data.get("season"), "terms": terms}
+
+
+@app.get("/api/help-db")
+def get_help_db():
+    """The TLI Help Database articles (data/help_db.json, generated by tools/import_help_db.py). The
+    Verification DB opens the matching article for a term's 'Read more' deep-dive. Markdown bodies verbatim."""
+    path = os.path.join(_DATA_ROOT, "help_db.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {"entries": []}
+    return {"entries": data.get("entries") or []}
 
 
 # ── Dev tools ─────────────────────────────────────────────────────────────────
 
-@app.post("/api/dev/parse-talent-doc")
-async def parse_talent_doc(file: UploadFile = File(...)):
-    from tools.talent_parser import parse_document
-    data = await file.read()
-    try:
-        result = parse_document(data, file.filename or "upload",
-                                known_tree_names=list(TREES.keys()))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return result
-
-
-class DiffRequest(BaseModel):
-    snapshot_a: dict
-    snapshot_b: dict
-
-
-@app.post("/api/dev/diff-snapshots")
-def diff_talent_snapshots(req: DiffRequest):
-    from tools.snapshot_diff import diff_snapshots
-    return diff_snapshots(req.snapshot_a, req.snapshot_b)
-
-
-class SaveSnapshotRequest(BaseModel):
-    snapshot: dict
-
-
-@app.post("/api/dev/save-snapshot")
-def save_snapshot(req: SaveSnapshotRequest):
-    from persistence import snapshot_manager
-    snap = req.snapshot
-    if "trees" not in snap or "generated_at" not in snap:
-        raise HTTPException(status_code=400, detail="Invalid snapshot format")
-    snapshot_manager.save(snap)
-    return {"ok": True, "source_file": snap.get("source_file", ""), "generated_at": snap.get("generated_at", "")}
-
-
-@app.get("/api/dev/snapshot-status")
-def snapshot_status():
-    from persistence import snapshot_manager
-    if not snapshot_manager.exists():
-        return {"exists": False, "source_file": None, "generated_at": None}
-    snap = snapshot_manager.load()
-    return {
-        "exists": True,
-        "source_file": snap.get("source_file"),
-        "generated_at": snap.get("generated_at"),
-    }
-
-
 @app.post("/api/dev/rebuild-node-type-filter")
 def rebuild_node_type_filter():
-    from persistence import snapshot_manager
     from tools.node_type_filter_builder import build_filter, build_node_recipes, save_filter
-    snap = snapshot_manager.load()
-    if snap is None:
-        raise HTTPException(status_code=400, detail="No canonical snapshot saved. Upload one first.")
-    result = build_filter(snap)
-
-    # Build per-node-id recipes from the active season's tree data
     active = season_manager.get_active_season()
-    if active:
-        season_trees = season_manager.load_all_season_trees(active)
-        result["node_recipes"] = build_node_recipes(season_trees)
+    if not active:
+        raise HTTPException(status_code=400, detail="No active season — import season trees first.")
+    season_trees = season_manager.load_all_season_trees(active)
+    if not season_trees:
+        raise HTTPException(status_code=400, detail=f"No season trees found for {active}.")
+    result = build_filter(season_trees)
+    result["node_recipes"] = build_node_recipes(season_trees)
 
     save_filter(result)
     _filter_cache.clear()   # invalidate the cached filter so the next compute reparses the rebuilt file
@@ -1317,16 +1383,6 @@ def export_stat_meta():
     return {"ok": True, "stat_count": len(STAT_META), "path": out_path}
 
 
-@app.delete("/api/dev/snapshot")
-def clear_snapshot():
-    from persistence import snapshot_manager
-    import os
-    path = snapshot_manager._PATH
-    if os.path.exists(path):
-        os.remove(path)
-    return {"ok": True}
-
-
 @app.delete("/api/dev/node-type-filter")
 def clear_node_type_filter():
     from tools.node_type_filter_builder import _FILTER_PATH
@@ -1334,28 +1390,6 @@ def clear_node_type_filter():
     if os.path.exists(_FILTER_PATH):
         os.remove(_FILTER_PATH)
     return {"ok": True}
-
-
-@app.get("/api/dev/snapshot-modifiers/{tree_name}/{node_type}")
-def get_snapshot_modifiers(tree_name: str, node_type: str):
-    from persistence import snapshot_manager
-    snap = snapshot_manager.load()
-    if not snap:
-        return []
-    tree = snap.get("trees", {}).get(tree_name)
-    if not tree:
-        return []
-    seen: set[str] = set()
-    texts: list[dict] = []
-    for node in tree.get("nodes", []):
-        if node.get("node_type") != node_type:
-            continue
-        for stat in node.get("stats", []):
-            text = stat.get("text", "")
-            if text and text not in seen:
-                seen.add(text)
-                texts.append({"text": text})
-    return texts
 
 
 @app.get("/api/dev/stat-recipes/{tree_name}/{node_type}")
@@ -1485,6 +1519,7 @@ def import_crawler_tree_endpoint(req: ImportCrawlerTreeRequest):
 
     # New God — routes to _new_god_talents.json, not a regular tree file
     if tree_name == "New God":
+        from tools.season_importer import _effect_line
         talents = []
         for node in req.crawler_data.get("nodes", []):
             if node.get("type") != "core_talent":
@@ -1496,7 +1531,8 @@ def import_crawler_tree_endpoint(req: ImportCrawlerTreeRequest):
             talents.append({
                 "name": raw_name,
                 "item_id": item_id,
-                "effects": node.get("effects") or [],
+                "uuid": node.get("uuid"),
+                "effects": [_effect_line(e) for e in (node.get("effects") or [])],
                 "icon_url": node.get("icon_url", ""),
                 "note": "",
             })
@@ -1557,6 +1593,8 @@ def import_legendary_gear(req: ImportLegendaryGearRequest):
         "items": items,
     }
     season_manager.save_legendary_gear(req.season_name, stored)
+    from engine.coverage import invalidate_legendary_coverage_cache
+    invalidate_legendary_coverage_cache()
     return {"ok": True, "count": len(items), "set_name": stored["set_name"]}
 
 
@@ -1576,6 +1614,8 @@ def import_crawler_legendary_gear_endpoint(req: ImportCrawlerLegendaryGearReques
         "item_count": len(items),
         "items": items,
     })
+    from engine.coverage import invalidate_legendary_coverage_cache
+    invalidate_legendary_coverage_cache()
     return {"ok": True, "count": len(items)}
 
 
@@ -1597,7 +1637,8 @@ def import_crawler_skills_endpoint(req: ImportCrawlerSkillsRequest):
     if not req.season_name.strip():
         raise HTTPException(400, "season_name must not be empty")
     items = import_crawler_skills(req.items)
-    existing = season_manager.load_skills(req.season_name) or {"skills": []}
+    # RAW: preserved entries keep their stored slim modifier-line dicts (see import-skills below).
+    existing = season_manager.load_skills(req.season_name, raw=True) or {"skills": []}
     merged = merge_skills(existing.get("skills", []), items)
     season_manager.save_skills(req.season_name, {
         "season": req.season_name,
@@ -1619,8 +1660,9 @@ def import_skills(req: ImportSkillsRequest):
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Load existing skills for this season and merge
-    existing_data = season_manager.load_skills(req.season_name) or {"skills": []}
+    # Load existing skills for this season and merge — RAW: preserved entries must keep their stored
+    # slim modifier-line dicts (a normalized view saved back would strip the minted identities).
+    existing_data = season_manager.load_skills(req.season_name, raw=True) or {"skills": []}
     merged = merge_skills(existing_data.get("skills", []), incoming)
 
     stored = {
@@ -1664,6 +1706,14 @@ def get_skills():
                           for d in (s.get("description_lines") or [])],
                 "modeled_rolls": [],
             }
+        # Build-independent "is this DPS-modeled" roll-up (Axis A) — additive fields, never overclaims 'full'.
+        # Reuses the tooltip just built above (no recompute). A computation failure falls back to the
+        # conservative 'none' rather than risk a false 'full'.
+        try:
+            from engine.coverage import skill_coverage
+            out["coverage"], out["coverage_detail"] = skill_coverage(s, tooltip=out["tooltip"])
+        except Exception:
+            out["coverage"], out["coverage_detail"] = "none", []
         skills.append(out)
     return {"season": active, "skills": skills}
 
@@ -1694,7 +1744,7 @@ def import_crawler_hero_traits_endpoint(req: ImportCrawlerHeroTraitsRequest):
     if not req.season_name.strip():
         raise HTTPException(400, "season_name must not be empty")
     items = import_crawler_hero_traits(req.items)
-    existing = season_manager.load_hero_traits(req.season_name) or {"traits": []}
+    existing = season_manager.load_hero_traits(req.season_name, raw=True) or {"traits": []}
     merged: list[dict] = existing.get("traits", [])
     for item in items:
         merged = merge_hero_traits(merged, item)
@@ -1720,7 +1770,7 @@ def import_hero_traits(req: ImportHeroTraitRequest):
     except (ValueError, TypeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    existing_data = season_manager.load_hero_traits(req.season_name) or {"traits": []}
+    existing_data = season_manager.load_hero_traits(req.season_name, raw=True) or {"traits": []}
     merged = merge_hero_traits(existing_data.get("traits", []), incoming)
 
     # Derive unique hero count from merged traits
@@ -1744,7 +1794,16 @@ def get_hero_traits():
     data = season_manager.load_hero_traits(active)
     if not data:
         return {"season": active, "traits": []}
-    return {"season": active, "traits": data.get("traits", [])}
+    from engine.coverage import trait_coverage
+    traits = []
+    for t in data.get("traits", []):
+        out = dict(t)
+        try:
+            out["coverage"], out["coverage_detail"] = trait_coverage(t.get("trait_id"))
+        except Exception:
+            out["coverage"], out["coverage_detail"] = "none", []
+        traits.append(out)
+    return {"season": active, "traits": traits}
 
 
 # ── Gear affix stat resolver ───────────────────────────────────────────────────
@@ -1783,6 +1842,10 @@ _MULTI_STAT_OVERRIDES: dict[str, list[str]] = {
     "+(#) armor and evasion":                    ["armor_flat", "evasion_flat"],
     # Life / Mana combos
     "+(#) % max life and max mana":              ["max_life_inc", "max_mana_inc"],
+    # Life / Energy Shield combos (e.g. Heart of the Storm) — single value fans out to BOTH pools. Without this
+    # the fuzzy single-stat resolver grabs only "Energy Shield" and silently drops the Max Life half.
+    "+(#) % max life and max energy shield":     ["max_life_inc", "max_energy_shield_inc"],
+    "+(#) max life and max energy shield":       ["max_life_flat", "max_energy_shield_flat"],
     "+(#) % additional max life max mana and max energy shield": ["max_life_additional", "max_mana_additional", "max_energy_shield_additional"],
 }
 
@@ -2031,6 +2094,26 @@ def _resolve_stacking_pen(text: str) -> list[dict] | None:
     }]
 
 
+# Curated boundaries for the run-on Destiny kismet Spell Burst lines (clauses concatenated with no '+' separator,
+# which the '+digit' splitter misses): a leading "-digit" clause (Mouth of the Spring's "-5% additional damage
+# taken") and bare-word clauses ("Critical Strikes have the Unlucky effect"). ONLY these known shapes — a normal
+# single/dual-stat line has no match and is returned unchanged.
+_RUNON_BOUNDARIES = (
+    re.compile(r'(?=\bCritical Strikes have the Unlucky effect\b)', re.I),
+    re.compile(r'(?= -\d)'),
+    re.compile(r'(?<=Upper Limit) (?=\+)', re.I),   # Flash Flood: "Halves … Upper Limit" | "+8% Attack and Cast Speed…"
+)
+
+
+def _presplit_runon(clause: str) -> list[str]:
+    """Split the known run-on Destiny kismet shapes so each concatenated clause resolves independently. Curated to
+    the boundaries in _RUNON_BOUNDARIES; generic lines pass through unchanged (single-element list)."""
+    parts = [clause]
+    for pat in _RUNON_BOUNDARIES:
+        parts = [s.strip() for p in parts for s in pat.split(p) if s and s.strip()]
+    return parts
+
+
 def _resolve_effect_modifiers(text: str, *, is_memory: bool) -> list[dict]:
     """Resolve a pact-spirit / hero-memory effect string into contributions [{stat_key, amount, text, scope}]
     — the SAME shape as custom_contributions. This is the unified, pool-strict replacement for the old
@@ -2057,26 +2140,31 @@ def _resolve_effect_modifiers(text: str, *, is_memory: bool) -> list[dict]:
     if stacking is not None:
         return [{**d, "text": original} for d in stacking]
     residual, scope = detect_skill_scope(original)
-    stat_clause, cond_part = _split_condition(residual)
-    cond_expr = None
-    if cond_part is not None:
-        # A gate we can't translate must NOT be applied always-on — leave the whole effect unresolved (NYI).
-        cond_expr = _translate_condition_expr(residual) or _translate_condition_expr(cond_part)
-        if cond_expr is None:
-            return []
     out: list[dict] = []
-    for part in re.split(r' (?=\+\d)', stat_clause, maxsplit=1):
-        ne = _norm_expr(part)
-        multi = _MULTI_STAT_OVERRIDES.get(ne)
-        m = _EFFECT_VALUE_RE.match(part)
-        if multi and m:
-            amount = float(m.group(1)) / 100.0 if m.group(2) else float(m.group(1))
-            for sk in multi:
-                out.append({"stat_key": sk, "amount": amount, "text": original, "scope": scope, "condition": cond_expr})
-            continue
-        # Pool-strict single resolver (scope already peeled from `part`; it re-peels harmlessly/idempotently).
-        for d in _parse_custom_mod_text(part):
-            out.append({**d, "text": original, "scope": scope, "condition": cond_expr})
+    # Pre-split the known run-on Destiny kismet shapes into independent segments FIRST, then per segment peel its own
+    # gate + apply the normal +digit dual-stat split. A generic line yields ONE segment → identical to prior behavior
+    # (its trailing gate is still shared across its +digit parts); a run-on's gate binds only to its own clause.
+    for segment in _presplit_runon(residual):
+        stat_clause, cond_part = _split_condition(segment)
+        cond_expr = None
+        if cond_part is not None:
+            # A gate we can't translate must NOT be applied always-on — skip THIS clause (unresolved/NYI), which for a
+            # normal single-segment line leaves the whole effect unresolved exactly as before.
+            cond_expr = _translate_condition_expr(segment) or _translate_condition_expr(cond_part)
+            if cond_expr is None:
+                continue
+        for part in re.split(r' (?=\+\d)', stat_clause, maxsplit=1):
+            ne = _norm_expr(part)
+            multi = _MULTI_STAT_OVERRIDES.get(ne)
+            m = _EFFECT_VALUE_RE.match(part)
+            if multi and m:
+                amount = float(m.group(1)) / 100.0 if m.group(2) else float(m.group(1))
+                for sk in multi:
+                    out.append({"stat_key": sk, "amount": amount, "text": original, "scope": scope, "condition": cond_expr})
+                continue
+            # Pool-strict single resolver (scope already peeled from `part`; it re-peels harmlessly/idempotently).
+            for d in _parse_custom_mod_text(part):
+                out.append({**d, "text": original, "scope": scope, "condition": cond_expr})
     return out
 
 
@@ -2141,8 +2229,16 @@ _COND_PATTERNS: list[tuple] = [
     # (deferred to full Blur modeling); for now it grants its bonus while Blur is active.
     (re.compile(r"blur\s+is\s+active|after\s+blur\s+ends", re.I), "blur_active"),
     (re.compile(r"having\s+squidnova|have\s+squidnova", re.I), "has_squidnova"),
+    # "when having Hasten" payoff lines on items that don't self-grant Hasten gate on the auto-set condition.
+    (re.compile(r"having\s+hasten|have\s+hasten", re.I), "has_hasten"),
     (re.compile(r"taken\s+damage\s+in\s+the\s+last|recently\s+taken\s+damage", re.I), "recently_taken_damage"),
     (re.compile(r"used\s+a\s+mobility\s+skill", re.I), "recently_used_mobility"),
+    # Consumed-recently threshold gates (Crimson King / Awakening Skull). Driven by the engine's consumed_recently
+    # total: "% (Max) Life consumed recently" → % of Max; flat "N Life consumed recently" → flat amount.
+    (re.compile(r"consumed\s+more\s+than\s+\+?([\d.]+)\s*%\s*(?:of\s+)?(?:max\s+)?life\s+recently", re.I),
+     lambda m: {"key": "life_consumed_recently_pct_max", "op": ">", "value": float(m.group(1))}),
+    (re.compile(r"more\s+than\s+([\d.]+)\s+life\s+(?:has\s+been\s+)?consumed\s+recently", re.I),
+     lambda m: {"key": "life_consumed_recently_flat", "op": ">", "value": float(m.group(1))}),
     # "Critical Strike or Reaped" → either condition satisfies it.
     (re.compile(r"landed\s+a\s+critical\s+strike\s+or\s+reaped", re.I), {"or": ["recently_crit", "recently_reaped"]}),
     (re.compile(r"landed\s+a\s+critical\s+strike|critical\s+strike\b.*\brecently\b", re.I), "recently_crit"),
@@ -2164,6 +2260,14 @@ _COND_PATTERNS: list[tuple] = [
      lambda m: {"key": "enemies_nearby", "op": ">=", "value": int(m.group(1))}),
     # Benign cast-timing clauses that describe WHEN, not a gate — always-on (the chance/EV is the mechanic).
     (re.compile(r"when\s+casting\s+a\s+skill|when\s+you\s+cast|on\s+cast\b", re.I), {"const": True}),
+    # "for every Spell Burst triggered recently[, up to Y%]" (Flash Flood kismet) → per-scaling on the derived
+    # spell_burst_stacks_recently count (compute injects it from the burst rate: bursts recently = rate × 4s). The
+    # optional "up to Y%" becomes the contribution cap. MUST precede the generic "activating spell burst" pattern.
+    (re.compile(r"for\s+every\s+spell\s+burst\s+triggered\s+recently(?:\s*,?\s*up\s+to\s+([\d.]+)\s*%)?", re.I),
+     lambda m: {"key": "spell_burst_stacks_recently", "op": "per", "divisor": 1,
+                **({"cap": float(m.group(1)) / 100.0} if m.group(1) else {})}),
+    # "when activating Spell Burst" (Kismet Ripple's Skill-Area line) → the build's Spell Burst state (default on).
+    (re.compile(r"(?:when\s+)?activating\s+spell\s+burst", re.I), "spell_burst_active"),
     # Per-"stack owned" scaling → multiply the contribution by the stack count (floor(val/1)).
     (re.compile(r"(?:per|for\s+every|for\s+each)\s+stack(?:\(s\))?\s+of\s+(focus|agility|tenacity)\s+blessing", re.I),
      lambda m: {"key": f"{m.group(1).lower()}_blessings", "op": "per", "divisor": 1}),
@@ -2177,7 +2281,31 @@ _COND_PATTERNS: list[tuple] = [
     # otherwise shadow them (e.g. "for each time you have Regained" must scale, not just gate on regained).
     (re.compile(r"for\s+each\s+unique\s+type\s+of\s+weapon", re.I), {"key": "unique_weapon_types", "op": "per", "divisor": 1}),
     (re.compile(r"for\s+each\s+time\s+you\s+have\s+regained", re.I), {"key": "regain_stacks", "op": "per", "divisor": 1}),
-    (re.compile(r"for\s+each\s+type\s+of\s+(?:elemental\s+)?ailment", re.I), {"key": "ailment_type_count", "op": "per", "divisor": 1}),
+    (re.compile(r"for\s+(?:each|every)\s+type\s+of\s+(?:elemental\s+)?ailment", re.I), {"key": "ailment_type_count", "op": "per", "divisor": 1}),
+    # ── Minion / core-talent scaling gates (all key off the PLAYER's value, so they reach minion mods too) ──
+    # "per stack of any Blessing" (any blessing type) → the derived any_blessings count (sum of the three).
+    (re.compile(r"(?:per|for\s+every|for\s+each)\s+stack(?:\(s\))?\s+of\s+any\s+blessing", re.I),
+     {"key": "any_blessings", "op": "per", "divisor": 1}),
+    # "for every N remaining Energy[, up to Y%]" (Indifference) → per the player's remaining Energy, capped.
+    (re.compile(r"(?:per|for\s+every|for\s+each)\s+(\d+)\s+remaining\s+energy(?:\s*,?\s*up\s+to\s+\+?([\d.]+)\s*%)?", re.I),
+     lambda m: {"key": "remaining_energy", "op": "per", "divisor": int(m.group(1)),
+                **({"cap": float(m.group(2)) / 100.0} if m.group(2) else {})}),
+    # "for each type of Aura [you/they are affected by]" (Reflection) → the player's UNIQUE active-aura count.
+    (re.compile(r"for\s+(?:each|every)\s+type\s+of\s+aura", re.I), {"key": "aura_type_count", "op": "per", "divisor": 1}),
+    # Active-minion count: "for each Minion you have" (per) or "when you have N Minion(s)" (threshold). Keys off the
+    # config-adjustable active-minion count.
+    (re.compile(r"for\s+(?:each|every)\s+minion\s+you\s+have", re.I), {"key": "active_minions", "op": "per", "divisor": 1}),
+    (re.compile(r"when\s+you\s+have\s+(\d+)\s+minion", re.I),
+     lambda m: {"key": "active_minions", "op": ">=", "value": int(m.group(1))}),
+    (re.compile(r"recently\s+summoned\s+minion", re.I), "recently_summoned_minion"),
+    (re.compile(r"minions?\s+(?:are|that\s+are|when\s+they\s+are)\s+at\s+low\s+life|for\s+minions?\s+at\s+low\s+life", re.I), "minion_low_life"),
+    # Per-Tangle scaling: "+X … for each activated Tangle" / "… per inactivated (dormant) Tangle" → ×the derived
+    # effective count (compute injects active_tangle_count / inactivated_tangle_count each pass). The inactivated /
+    # dormant form MUST precede the generic "tangle" form so it isn't shadowed.
+    (re.compile(r"(?:per|for\s+each|for\s+every)\s+(?:inactivated|dormant)\s+tangle", re.I),
+     {"key": "inactivated_tangle_count", "op": "per", "divisor": 1}),
+    (re.compile(r"(?:per|for\s+each|for\s+every)\s+(?:activated\s+)?tangle", re.I),
+     {"key": "active_tangle_count", "op": "per", "divisor": 1}),
     # "against enemies with Max Affliction" → existing enemy_has_max_affliction condition.
     (re.compile(r"with\s+max\s+affliction|enem(?:y|ies)\s+(?:with|has|have)\s+max\s+affliction", re.I), "enemy_has_max_affliction"),
     (re.compile(r"not\s+wielding\s+a\s+wand\s+or\s+tin\s+staff", re.I), {"not": "wielding_wand_or_tin_staff"}),
@@ -2216,6 +2344,10 @@ _COND_PATTERNS: list[tuple] = [
     (re.compile(r"used\s+a\s+warcry\s+skill\s+(?:in\s+the\s+last|recently)|warcry\s+.*recently", re.I), "recently_warcry"),
     # Recent self-state windows
     (re.compile(r"blocked\s+recently|have\s+blocked\s+in\s+the\s+last|if\s+you\s+have\s+blocked", re.I), "recently_blocked"),
+    # "when equipped with no more than N Elixir Skill(s)" (Tailored Remedy) → elixir_skill_count threshold. Must
+    # precede the generic elixir_active pattern so it isn't swallowed.
+    (re.compile(r"no\s+more\s+than\s+(\d+)\s+elixir\s+skill", re.I),
+     lambda m: {"key": "elixir_skill_count", "op": "<=", "value": int(m.group(1))}),
     (re.compile(r"elixir\s+skill\s+is\s+active|while\s+an?\s+elixir", re.I), "elixir_active"),
     (re.compile(r"defeated\s+an?\s+enemy\s+recently|have\s+defeated\s+an?\s+enemy", re.I), "enemy_defeated_recently"),
     (re.compile(r"(?:while\s+)?having\s+fervor\b|while\s+you\s+have\s+fervor", re.I), "fervor_active"),
@@ -2226,7 +2358,65 @@ _COND_PATTERNS: list[tuple] = [
     # Per-Fervor-Rating scaling: "+X per N Fervor Rating" → ×floor(fervor/N).
     (re.compile(r"per\s+(\d+)\s+fervor\s+rating", re.I), lambda m: {"key": "fervor_rating", "op": "per", "divisor": int(m.group(1))}),
     (re.compile(r"per\s+fervor\s+rating", re.I), {"key": "fervor_rating", "op": "per", "divisor": 1}),
+    # Rumbling Thunder (Thunder Spike Noble): "When the supported skill's Shadow Strike True Body hits an
+    # enemy" — True Body is ASSUMED to mean the player's own cast (not a Shadow), which would happen every
+    # cast, so the owner-approved model is a DEFAULT-ON condition (thunder_spike_true_body_buff,
+    # default_bool=true in data/conditions.json) the user can override off, not an always-on flag.
+    (re.compile(r"shadow\s*strike\s*true\s*body\s*hits?\s*an\s*enem", re.I), "thunder_spike_true_body_buff"),
 ]
+
+
+_INGREDIENT_PREFIX_RE = re.compile(r"^\s*this skill gains(?:\s+an additional base effect)?\s*:?\s*", re.I)
+_INGREDIENT_TIER_RE = re.compile(r"\(([^()]*\/[^()]*)\)")
+# granting trait → which trait_slot_levels index drives its ingredient tier (base/L45/L75).
+_INGREDIENT_TIER_SLOT = {"Licorice Note": 0, "Pungent Stimulant Salt": 1, "Licorice Tincture Blend": 3}
+
+
+def _expand_ingredient_tier(text: str, tier_idx: int) -> str:
+    """Pick the tier value from a '(a/b/c/d/e)' group at tier_idx (0-based, clamped)."""
+    def repl(m):
+        parts = [p.strip() for p in m.group(1).split("/")]
+        return parts[min(max(tier_idx, 0), len(parts) - 1)]
+    return _INGREDIENT_TIER_RE.sub(repl, text)
+
+
+def _build_licorice_ingredient_lines(selections: dict, trait_slot_levels: list, season: str) -> dict:
+    """{scent_bottle_slot:int → [expanded, prefix-stripped ingredient effect lines]} from equipped ingredient names.
+    Each ingredient's tier is driven by its granting trait's slot level (Damage/Defense→base, Functional→L45,
+    Special→L75)."""
+    data = season_manager.load_hero_traits(season) or {}
+    trait = next((t for t in data.get("traits", []) if t.get("trait_id") == "licorice_note"), None)
+    if not trait:
+        return {}
+    catalog: dict[str, tuple[str, int]] = {}      # name → (effect_text, tier_slot_idx)
+    for grp in trait.get("ingredients", []):
+        slot_idx = _INGREDIENT_TIER_SLOT.get(grp.get("trait_name"), 0)
+        for cat in grp.get("categories", []):
+            for it in cat.get("items", []):
+                if it.get("name"):
+                    catalog[it["name"]] = (it.get("effect", ""), slot_idx)
+
+    def _tier(slot_idx: int) -> int:
+        lvl = trait_slot_levels[slot_idx] if slot_idx < len(trait_slot_levels) else 1
+        return max(0, min(4, abs(int(lvl)) - 1))
+
+    out: dict[int, list[str]] = {}
+    for slot_key, names in (selections or {}).items():
+        try:
+            slot = int(slot_key)
+        except (TypeError, ValueError):
+            continue
+        lines = []
+        for nm in (names or []):
+            if nm not in catalog:
+                continue
+            effect, tslot = catalog[nm]
+            txt = _INGREDIENT_PREFIX_RE.sub("", _expand_ingredient_tier(effect, _tier(tslot))).strip()
+            if txt:
+                lines.append(txt)
+        if lines:
+            out[slot] = lines
+    return out
 
 
 def _translate_condition_expr(text: str | None) -> dict | str | None:
@@ -2284,7 +2474,46 @@ def get_legendary_gear_index():
     data = season_manager.load_legendary_gear_index(active)
     if not data:
         return {"season": active, "items": []}
-    return {"season": active, "items": data.get("items", [])}
+    from engine.coverage import legendary_coverage_for_season
+    items = []
+    for it in data.get("items", []):
+        out = dict(it)
+        try:
+            out["coverage"], out["coverage_detail"] = legendary_coverage_for_season(active, it.get("item_id"))
+        except Exception:
+            out["coverage"], out["coverage_detail"] = "none", []
+        items.append(out)
+    return {"season": active, "items": items}
+
+
+def _resolve_gear_affix_clauses(text: str) -> list[dict]:
+    """SINGLE source of truth for resolving a raw gear affix TEXT — used by BOTH the engine's gear loop (to build
+    contributions + statuses) and the /api/map-modifiers badge endpoint (source='gear'). Because both call this,
+    a line the engine applies can never badge NYI (the drift that previously hid consume / per-N-consumed / gated
+    gear lines behind a red badge while the engine resolved them fine).
+
+    Mirrors the gear loop exactly: curse extraction first, then named-buff expansion, then per-clause resolution
+    via _parse_custom_mod_text (falling back to a stat-part + translated-condition split). Returns one dict per
+    clause: {clause, parsed:[{stat_key,amount,scope,...}], cond_expr, resolved, curse}.
+    """
+    from engine.core_talent_resolver import _split_condition
+    ac = _extract_affix_curse(text)
+    if ac:
+        return [{"clause": text, "parsed": [], "cond_expr": None, "resolved": True, "curse": ac}]
+    out: list[dict] = []
+    for clause in _expand_named_buffs(text):
+        cond_expr = None
+        parsed = _parse_custom_mod_text(clause)
+        if not parsed:
+            stat_part, cond_part = _split_condition(clause)
+            parsed = _parse_custom_mod_text(stat_part)
+            if parsed and cond_part is not None:
+                cond_expr = _translate_condition_expr(clause) or _translate_condition_expr(cond_part)
+                if cond_expr is None:
+                    parsed = []
+        out.append({"clause": clause, "parsed": parsed or [], "cond_expr": cond_expr,
+                    "resolved": bool(parsed), "curse": None})
+    return out
 
 
 def _resolve_affix(affix: dict) -> dict:
@@ -2308,6 +2537,15 @@ def _resolve_affix(affix: dict) -> dict:
     text = _GEAR_SUFFIX_RE.sub("", text)
     ne = _norm_expr(text)
     unit = "%" if "%" in raw_text else ""
+    # 0. Per-N-consumed lines ("+X% … for every N <Life|Mana|Energy Shield> consumed recently") expand — via
+    # engine.mod_parser — into a per-unit value PLUS a companion "_unit" divisor (and some into min/max flat + a
+    # cap). A single affix stat_key can't carry the divisor, so resolving one here drops the ÷N and applies the
+    # bonus per-1-consumed (e.g. Tide of the Styx's "+1% Attack Speed per 5000 Life consumed" ballooned to
+    # +169076%). Leave them UNRESOLVED so the engine's gear loop parses them through mod_parser (which emits both
+    # the per-unit and the divisor). Never silently drop.
+    if re.search(r'for\s+every\s+[\d.\s()–\-]+\s+(?:life|mana|energy\s+shield)\s+consumed\s+recently',
+                 raw_text, re.I):
+        return {**affix, "stat_key": None, "unit": unit, "condition_expr": condition_expr}
     # 1. Range-multi: min and max each fan out to multiple stats
     if ne in _RANGE_MULTI_STAT_OVERRIDES:
         rm = _RANGE_MULTI_STAT_OVERRIDES[ne]
@@ -2331,7 +2569,7 @@ def _resolve_affix(affix: dict) -> dict:
         return {**affix, "stat_key": None, "stat_keys": stat_keys,
                 "is_range_split": is_range_split, "unit": unit, "condition_expr": condition_expr}
     # 4. Expression or fuzzy fallback
-    stat_key, unit = _resolve_gear_stat(raw_text)
+    stat_key, unit, _conf = _resolve_gear_stat(raw_text)
     return {**affix, "stat_key": stat_key, "unit": unit, "condition_expr": condition_expr}
 
 
@@ -2366,7 +2604,13 @@ def get_legendary_gear():
     if not data:
         return {"season": active, "items": []}
 
-    _resolve = _resolve_affix
+    def _resolve(a: dict) -> dict:
+        # Additive `resolved_keys` (2026-07-12) — build-independent per-affix stat-key list, the SAME
+        # resolution `engine.coverage._affix_is_modeled` uses (see `_affix_resolved_keys`'s docstring), so
+        # a catalog-hover badge can classify an affix without the build-scoped `gear_mod_statuses` fallback.
+        r = _resolve_affix(a)
+        r["resolved_keys"] = _affix_resolved_keys(r, a.get("raw_text") or "")
+        return r
 
     # New crawler format: items have "variants" dict
     if data.get("items") and data["items"][0].get("variants"):
@@ -2395,7 +2639,7 @@ def get_legendary_gear():
     for item in items:
         for affix in item.get("affixes", []):
             resolved = _resolve(affix)
-            affix.update({k: resolved[k] for k in ("stat_key", "unit") if k in resolved})
+            affix.update({k: resolved[k] for k in ("stat_key", "unit", "resolved_keys") if k in resolved})
             for extra_key in ("stat_keys", "is_range_split", "min_stat_keys", "max_stat_keys", "dual_stat_groups"):
                 if extra_key in resolved:
                     affix[extra_key] = resolved[extra_key]
@@ -2498,6 +2742,7 @@ _craft_bases_cache_season: str | None = None
 
 _skills_cache: dict[str, dict] | None = None  # item_id → skill dict
 _skills_cache_season: str | None = None
+_skills_override_reviews: list[str] = []      # manual-review warnings from skill-data overrides (current season)
 
 
 def _get_skills_data(season: str) -> dict[str, dict]:
@@ -2510,6 +2755,10 @@ def _get_skills_data(season: str) -> dict[str, dict]:
         _skills_cache_season = season
         return _skills_cache
     _skills_cache = {item["item_id"]: item for item in raw.get("skills", []) if "item_id" in item}
+    # Patch crawler-mangled skill text (e.g. Mana Boil) and remember any manual-review warnings for this season.
+    from engine.skill_overrides import apply_skill_overrides
+    global _skills_override_reviews
+    _skills_override_reviews = apply_skill_overrides(_skills_cache, season)
     _skills_cache_season = season
     return _skills_cache
 
@@ -2582,6 +2831,13 @@ def resolve_gear_affixes(req: ResolveGearAffixesRequest):
     return {"results": results}
 
 
+@app.post("/api/validate-custom-mods")
+def validate_custom_mods(req: ResolveGearAffixesRequest):
+    """Parse-only validation of custom-mod lines (resolved + stat display) WITHOUT a full stats compute — lets the
+    custom-mod editor show green/red instantly while typing, decoupled from the (debounced, heavier) engine pass."""
+    return {"statuses": [_resolve_custom_mod(t)[1] for t in req.texts]}
+
+
 class MapModifierItem(BaseModel):
     key: str
     text: str
@@ -2611,20 +2867,69 @@ def _affix_stat_keys(resolved: dict) -> list[str]:
     return out
 
 
-def _resolve_skill_line_keys(text: str) -> list[str]:
+def _affix_resolved_keys(resolved: dict, raw_text: str) -> list[str]:
+    """Build-independent per-affix stat-key list (2026-07-12) — the SAME resolution
+    `engine.coverage._affix_is_modeled` uses to judge legendary-gear coverage, exposed on the affix itself
+    (`resolved_keys`) so a CATALOG HOVER — an item that isn't equipped in the current build — can classify a
+    stat-bearing affix without falling back to the build-scoped `gear_mod_statuses` unresolved set (which
+    only ever covers what's actually equipped). `resolved` must already be `_resolve_affix(affix)`'s output
+    (callers already compute it for the affix's own `stat_key`/`unit` fields — passed in here rather than
+    recomputed, so this never double-resolves the same affix).
+
+    Primary resolver first (`_affix_stat_keys` over the single/multi/range/dual-stat + "special" base-
+    weapon-line classifier that populates the affix badges the gear catalog actually shows); ONLY on total
+    silence there, falls back to the clause resolver (`_resolve_gear_affix_clauses` — curse-infliction /
+    per-N-consumed / condition-gated clauses the single-line classifier doesn't split) — same "only fall
+    back on total silence" order `/api/map-modifiers` and `_affix_is_modeled` both use. Empty list =
+    unrecognized (no key the engine could ever look up for this affix).
+
+    NOTE (known asymmetry, same one `_affix_is_modeled` already flags): a curse-infliction clause resolves
+    to no plain stat_key at all — it feeds `engine.curse_resolver.apply_curses` structurally, not a stat —
+    so a curse-only affix's `resolved_keys` is always `[]` here even though `_affix_is_modeled` treats it as
+    modeled by a documented judgment call. This list can only ever report real stat keys."""
+    keys = _affix_stat_keys(resolved)
+    if keys:
+        return keys
+    out: list[str] = []
+    for cl in _resolve_gear_affix_clauses(raw_text or ""):
+        if cl.get("curse"):
+            continue
+        for e in (cl.get("parsed") or []):
+            k = e.get("stat_key")
+            if k and k not in out:
+                out.append(k)
+    return out
+
+
+def _resolve_skill_line_keys(text: str, item_id: str | None = None, strict: bool = False) -> list[str]:
     """Stat key(s) a structured tooltip line (skill/support, source='skill') resolves to — for badges.
     Tries the support mapper (handles "for the supported skill" damage/capture/conditional lines, with a
     permissive condition set so gated lines still resolve) and falls back to the unified node resolver
-    for general skill stat phrasing. Empty list → the badge shows 'Unrecognized (NYI)'."""
+    for general skill stat phrasing. Empty list → the badge shows 'Unrecognized (NYI)'.
+
+    `item_id`, when given, scopes the bespoke check to that item's OWN specs (see
+    `skill_effects.resolve_line_keys`) — pass it whenever the caller knows which item this line belongs
+    to (e.g. `engine.coverage.skill_coverage`) so a phrase collision with an unrelated bespoke support
+    can't misattribute a stat key. Defaults to `None` (the prior unscoped, global-search behavior) so
+    every existing caller (the /api/map-modifiers endpoint, which has no per-item text, and the badge
+    regression tests) is unaffected.
+
+    `strict` (2026-07-12, coverage classifier only — default False so badges/`/api/map-modifiers` are
+    UNCHANGED): only accept the generic-fallback resolution's keys when they carry NO low-confidence
+    `mod_parser._resolve_gear_stat` fuzzy-overlap hit (see `resolve_effect_text_keys_strict`'s docstring).
+    `map_line`'s bespoke/capture/conditional branches are confident by construction (real regex matches,
+    not word-overlap scoring) EXCEPT its own `map_via_parser` tail, which shares the same fuzzy resolver —
+    filtered the same way via each `StatContribution.confident`. `engine.coverage.skill_coverage` passes
+    `strict=True`; nothing else should."""
     from engine.support_lines import SupportLine, _template
     from engine.support_mapper import map_line, _ADDED_FLAT_RE
-    from engine.node_resolver import resolve_effect_text_keys
+    from engine.node_resolver import resolve_effect_text_keys, resolve_effect_text_keys_strict
     from engine import skill_effects
     # Bespoke canvas-support lines (Howling Gale, Berserking Blade, …) are handled in engine.skill_effects, so
     # the generic mapper below deliberately skips them — without this they'd badge NYI despite being consumed.
     # A non-empty list = a stat line (badge classifies it); [] = a recognized behavioral line whose badge the
     # tooltip already suppresses (so it won't be queried here); None = not bespoke → fall through.
-    bespoke = skill_effects.resolve_line_keys(text)
+    bespoke = skill_effects.resolve_line_keys(text, item_id)
     if bespoke:
         return bespoke
     # Buff-grant lines ("Buffs grant +X% … to this skill") describe a granted buff the engine applies as a
@@ -2651,7 +2956,8 @@ def _resolve_skill_line_keys(text: str) -> list[str]:
                   "focus_blessings": 4, "ignite_stacks": 5, "ailment_type_count": 3,
                   "standing_still": True, "willpower_stacks": 6}
     line = SupportLine(text=text, template=tmpl, scaling=False)
-    keys = [c.stat_key for c in map_line(line, 20, None, permissive)]   # cat=None: skip added-flat (handled above)
+    contribs = map_line(line, 20, None, permissive)   # cat=None: skip added-flat (handled above)
+    keys = [c.stat_key for c in contribs if (c.confident or not strict)]
     if keys:
         return keys
     # Fallback: the unified node resolver maps the stat phrasing itself via stat_meta (which already honors the
@@ -2660,7 +2966,8 @@ def _resolve_skill_line_keys(text: str) -> list[str]:
     # map_line doesn't cover, with NO per-stat table — the parser decides the exact stat from the bare phrasing.
     bare = re.sub(r'^\s*the supported skill\s+', '', text, flags=re.I)
     bare = re.sub(r'\s+(?:for|of)\s+(?:the supported|this) skill\b.*$', '', bare, flags=re.I).strip()
-    return resolve_effect_text_keys(bare, _parse_custom_mod_text, _translate_condition_expr)
+    resolver = resolve_effect_text_keys_strict if strict else resolve_effect_text_keys
+    return resolver(bare, _parse_custom_mod_text, _translate_condition_expr)
 
 
 @app.post("/api/map-modifiers")
@@ -2689,6 +2996,12 @@ def map_modifiers(req: MapModifiersRequest):
             keys = _resolve_skill_line_keys(it.text)
         elif it.source == "gear":
             keys = _affix_stat_keys(_resolve_affix({"raw_text": it.text, "affix_kind": "numeric"}))
+            if not keys:
+                # Catalog resolver found nothing → fall back to the SAME resolver the engine's gear loop uses, so
+                # consume / per-N-consumed / gated lines (which _parse_custom_mod_text handles but the fuzzy
+                # catalog resolver doesn't) badge by what the engine actually applies instead of red NYI.
+                clauses = _resolve_gear_affix_clauses(it.text)
+                keys = [e["stat_key"] for cl in clauses for e in cl["parsed"]]
         else:
             keys = []
         results[it.key] = {"stat_keys": keys}

@@ -1,7 +1,10 @@
 import json
 import os
 import re
+import time
 import uuid
+
+from persistence import folders_manager
 
 _SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
 
@@ -39,7 +42,8 @@ def _parse_nodes(raw: str) -> dict[str, int]:
 
 def _read_file(build_id: str) -> dict:
     data: dict[str, str] = {}
-    with open(_file(build_id)) as f:
+    path = _file(build_id)
+    with open(path) as f:
         for line in f:
             line = line.strip()
             if '=' in line:
@@ -92,6 +96,12 @@ def _read_file(build_id: str) -> dict:
     advanced_raw = data.get('advanced_trait_selections', '')
     advanced_trait_selections = json.loads(advanced_raw) if advanced_raw else []
 
+    tss_raw = data.get('trait_skill_supports', '')
+    trait_skill_supports = json.loads(tss_raw) if tss_raw else []
+    licorice_prepared_skill = data.get('licorice_prepared_skill', '') or None
+    elixir_ingredients_raw = data.get('elixir_ingredients', '')
+    elixir_ingredients = json.loads(elixir_ingredients_raw) if elixir_ingredients_raw else {}
+
     hero_memories_raw = data.get('hero_memories', '')
     hero_memories = json.loads(hero_memories_raw) if hero_memories_raw else [None, None, None]
 
@@ -119,8 +129,23 @@ def _read_file(build_id: str) -> dict:
     target_config_raw = data.get('targetConfig', '')
     target_config = json.loads(target_config_raw) if target_config_raw else None
 
+    # Timestamps (epoch seconds). Files predating this field have neither line — fall back to the
+    # file's own mtime for both, so a legacy build still sorts/displays sensibly.
+    created_at_raw = data.get('createdAt', '')
+    updated_at_raw = data.get('updatedAt', '')
+    try:
+        created_at = float(created_at_raw) if created_at_raw else os.path.getmtime(path)
+    except ValueError:
+        created_at = os.path.getmtime(path)
+    try:
+        updated_at = float(updated_at_raw) if updated_at_raw else os.path.getmtime(path)
+    except ValueError:
+        updated_at = os.path.getmtime(path)
+
     return {
         'id': data.get('id', build_id),
+        'createdAt': created_at,
+        'updatedAt': updated_at,
         'name': data.get('name', ''),
         'slots': slots,
         'slates': slates,
@@ -138,6 +163,9 @@ def _read_file(build_id: str) -> dict:
         'traitLevel': trait_level,
         'traitSlotLevels': trait_slot_levels,
         'advancedTraitSelections': advanced_trait_selections,
+        'traitSkillSupports': trait_skill_supports,
+        'licoricePreparedSkill': licorice_prepared_skill,
+        'elixirIngredients': elixir_ingredients,
         'heroMemories': hero_memories,
         'pactSpirits': pact_spirits,
         'fates': fates,
@@ -157,6 +185,8 @@ def _write_file(build: dict) -> None:
     with open(_file(build['id']), 'w') as f:
         f.write(f"id={build['id']}\n")
         f.write(f"name={build['name']}\n")
+        f.write(f"createdAt={build.get('createdAt', time.time())}\n")
+        f.write(f"updatedAt={build.get('updatedAt', time.time())}\n")
         for i, slot in enumerate(slots, 1):
             if slot:
                 tree = slot.get('treeName', '')
@@ -192,6 +222,13 @@ def _write_file(build: dict) -> None:
         f.write(f"trait_slot_levels={json.dumps(slot_levels, separators=(',', ':'))}\n")
         advanced = build.get('advancedTraitSelections') or []
         f.write(f"advanced_trait_selections={json.dumps(advanced, separators=(',', ':'))}\n")
+        # Trait skill supports (Holy Domain), Licorice Note's prepared skill, and the scent-bottle Elixir
+        # ingredients — persisted so they survive save/reload (were previously dropped).
+        trait_skill_supports = build.get('traitSkillSupports') or []
+        f.write(f"trait_skill_supports={json.dumps(trait_skill_supports, separators=(',', ':'))}\n")
+        f.write(f"licorice_prepared_skill={build.get('licoricePreparedSkill') or ''}\n")
+        elixir_ingredients = build.get('elixirIngredients') or {}
+        f.write(f"elixir_ingredients={json.dumps(elixir_ingredients, separators=(',', ':'))}\n")
         hero_memories = build.get('heroMemories') or [None, None, None]
         f.write(f"hero_memories={json.dumps(hero_memories, separators=(',', ':'))}\n")
         pact_spirits = build.get('pactSpirits') or [None, None, None]
@@ -231,6 +268,18 @@ def load() -> list[dict]:
 def save_build(build: dict) -> dict:
     if not build.get('id'):
         build['id'] = str(uuid.uuid4())[:8]
+
+    # Timestamps are stamped server-side, never trusted from the client. updatedAt is always "now";
+    # createdAt is preserved from the existing file on disk when there is one, else "now" (first save).
+    now = time.time()
+    created_at = now
+    try:
+        created_at = _read_file(build['id']).get('createdAt', now)
+    except (OSError, ValueError):
+        pass
+    build['createdAt'] = created_at
+    build['updatedAt'] = now
+
     _write_file(build)
     return build
 
@@ -240,4 +289,5 @@ def delete_build(build_id: str) -> bool:
     if not os.path.exists(path):
         return False
     os.remove(path)
+    folders_manager.remove_build(build_id)
     return True

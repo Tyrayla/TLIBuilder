@@ -1,9 +1,15 @@
 # In-Game Verification Backlog
 
+> **This doc is the pending test *queue*.** Confirmed/partial results (and modeled-but-untested coverage)
+> live in the **Verification Knowledge Base**: `data/verification/*.json` → `docs/verification/README.md`,
+> viewable in-app via the main-menu **Verification Database** button. When a test here is confirmed, port its
+> RESULT into a KB entry (`/add-verification`) and update the entry's status. Backlog IDs (e.g. `DEMOLISHER-01`)
+> are cross-linked from the KB entries.
+
 Mechanics the **TLI Builder** engine models that need confirming against the live game. Each entry is
 self-contained so a helper can run it without knowing the codebase. **You configure the build, run a
 timed Damage Recount, and report the number + your support rolls + a screenshot — you do not need to
-do any math.** The owner verifies against the engine.
+do any math.** Tyra verifies against the engine.
 
 ---
 
@@ -38,7 +44,7 @@ so it's robust even if your rolls or attributes differ from the engine's.
 **How to report.** Fill the test's RESULT block: the Recount **Average DPS (span)** value(s) and the
 **Duration** of each parse, your support's exact **rolls + rank + tier** (from the support detail panel,
 e.g. "Augmentation +5.7% per Jump, rank 5, tier 1"), the skill level, and a screenshot of the Recount
-panel. Paste it back to the owner.
+panel. Paste it back to Tyra.
 
 ---
 
@@ -65,15 +71,32 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ## Tests
 
+### WIND-RHYTHM-01 — Wind Rhythm cast rate + server breakpoints
+- Status: 🔶 Modeled from Tyra's wrc-six calculator; confirm against the live game.
+- Model: Wind Rhythm triggers off a per-tier **base cooldown** (L0 0.5 / L1 0.6 / L2 0.7 / L3 0.8 s), sped by CDR +
+  a share of Cast Speed. `final_cast = cast_speed_inc × (1 + cast_speed_additional)`;
+  `raw = base / (1 + cdr_speed_inc + wind_bonus × final_cast) / (1 + cdr_speed_additional)`; tick-quantized
+  `server = ceil(raw × 30) / 30` (30 Hz, like Tangle/Spell Burst). Additional cast speed is MULTIPLICATIVE.
+- Checks:
+  1. **Base cooldown per tier** — with 0 CDR / 0 cast speed, the trigger interval = the tier's base (0.5–0.8 s),
+     tick-rounded (e.g. 0.5 → 15 ticks → 0.5 s; 0.6 → 18 ticks).
+  2. **Cast-speed → CDR conversion** — the wind bonus % of your cast-speed bonus feeds CDR: e.g. base 0.5, wind 40%,
+     +100% increased cast → raw 0.5/(1+0.4×1.0)=0.357 → 11 ticks → 0.367 s. Confirm cast speed speeds the trigger.
+  3. **Additional cast speed is multiplicative** — +X% additional cast multiplies the increased before the wind
+     conversion (Tyra: +10% additional shifted the cast breakpoint 350→318 = ÷1.1). Confirm in-game.
+  4. **Server breakpoints** — the rate only steps at whole-tick crossings; confirm the CDR% / cast-speed% /
+     wind-bonus% to the next faster tick match the app's Wind Rhythm panel (mirrors wrc-six.vercel.app).
+- RESULT (per check): Recount Avg DPS (span) + Duration; the wind-bonus roll + tier; CDR%/cast%; Screenshot.
+
 ### CL-BASE-01 — Baseline Chain Lightning DPS
-- Status: ✅ Verified (owner, within ~1%)
+- Status: ✅ Verified (Tyra, within ~1%)
 - Setup: Chain Lightning only, standard isolation build. Note the skill level.
 - Run: one ≥60s parse.
 - Expected: matches the app's DPS for the same level (the app shows the engine number directly).
 - RESULT: confirmed (L14 + 1 support read 160 span-avg vs engine 158).
 
 ### CL-POOL-01 — Support additional-damage lines multiply
-- Status: ✅ Verified (owner; re-confirm via Recount when convenient)
+- Status: ✅ Verified (Tyra; re-confirm via Recount when convenient)
 - Setup: Chain Lightning + one Magnificent + one Noble support, both carrying "+% additional damage for
   the supported skill". Vary their **ranks** (e.g. both rank 1 vs both rank 5).
 - Run: a ≥60s parse at each rank config.
@@ -104,7 +127,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   - Sustained Numbed stacks observed: ____   Skill level: ____   Screenshot: ____   Notes: ____
 
 ### CL-SHOTGUN-01 — Merge + Web shotgun
-- Status: 🔶 Partial (owner saw ~3 hits visually; numeric DPS not yet confirmed)
+- Status: 🔶 Partial (Tyra saw ~3 hits visually; numeric DPS not yet confirmed)
 - Setup: Chain Lightning + **Web (Magnificent)** + **Merge (Noble)**. Compare to the same build with
   **Merge removed** (Web only).
 - Run: ≥60s parse Web-only, then ≥60s parse Web+Merge. Also count the bolts hitting the dummy per cast.
@@ -183,7 +206,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   - Blessing tested + stack count: ____   Skill level: ____   Screenshot: ____   Notes: ____
 
 ### STDSUP-01 — Standard support skills (Chain Lightning L16, no gear/talents)
-- Status: ✅ Verified (owner, 2026-06-10) — all within ±5% of the in-game average (most within ±2%)
+- Status: ✅ Verified (Tyra, 2026-06-10) — all within ±5% of the in-game average (most within ±2%)
 - Setup: Chain Lightning L16 only; dummy 50% armor / 30% elemental resist. Each support at Lv16.
 - Method: compare the engine `total_dps_vs_target` to the Recount span-average (the in-game *Total Spell
   Damage* range is post-mitigation = engine pre-mit × dummy mitigation, lightning/cold ×0.49, physical ×0.50).
@@ -195,7 +218,7 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
   - Note: 60s parses for the two crit/added-cold cases read ~+10% high (variance); 2–4 min parses converged.
 
 ### SPEED-01 — Additional attack/cast speed stacks multiplicatively
-- Status: ✅ Verified (owner, 2026-06-10) → engine fixed
+- Status: ✅ Verified (Tyra, 2026-06-10) → engine fixed
 - Test: 1.5/s base weapon + 10% additional Attack Speed (Dual Wield) + 22.5% additional (Quick Decision)
   → **2.02/s** in-game = ×1.10×1.225 (multiplicative), not ×1.325 (additive).
 - Fix: additional attack/cast speed now pools PER-AFFIX (distinct sources multiply); `_speed_additional_product`.
@@ -249,6 +272,61 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ---
 
+### TANGLE-02 — Per-Tangle modifier scaling + Magister generate nodes
+- Status: ⬜ Pending — verify the newly-wired "per (in)activated Tangle" scaling and the Magister generate-Tangle
+  nodes against the live game.
+- Setup: a Spell + **Spell Tangle** vs the standard dummy. Then:
+  1. **Per activated Tangle.** Equip a line like *Dormant Entanglement gains an additional effect: +(100–120) Spell
+     Crit Rating and +(12–15)% additional damage on Critical Strike **for each activated Tangle***. Confirm the bonus
+     scales by the number of **attached** tangles (×count) — raise the attach count (+apply-additional-Tangle) and
+     confirm the bonus grows proportionally. The engine reads the derived effective count (default = the attach cap;
+     the "Active Tangles" Config field lowers it).
+  2. **Per inactivated Tangle.** With Max Tangle Quantity > attached (≥1 inactivated), confirm a "+X per inactivated
+     Tangle" line scales by (placeable − attached).
+  3. **Active Tangles field.** Confirm the Config "Active Tangles on Target" field left blank/0 uses the full attach
+     cap (shown as the greyed placeholder), and that typing a lower number scales both DPS and the per-tangle bonuses
+     down.
+  4. **Magister Focus-Blessing node** ("Gains 1 stack of Focus Blessing when activating Spell Burst or generating
+     Tangle"): confirm Focus Blessing sits at max on a tangle/spell-burst build (engine models it as full uptime).
+  5. **Magister ES-charge node** ("immediately starts Charging Energy Shield on generate"): currently **recognized
+     but NYI** (no ES-recharge model) — badges Unconsumed. Note the in-game ES behaviour for when that model lands.
+- RESULT (per sub-test): Recount Avg DPS (span) + Duration, before/after; the mod + its roll; count; Screenshot.
+
+---
+
+### DEMOLISHER-01 — Demolisher Charge (Groundshaker) model (multiple checks)
+- Status: 🔶 Partially modeled — the subsystem is shipped (uncommitted); several assumptions need a live confirm.
+  Tyra has already pinned the Collapse step function in prior testing (see below); the rest is unverified.
+- Setup: **Groundshaker** vs the standard dummy. Note skill level, weapon, and every socketed support + its tier/rank.
+  Model recap (what the engine now does):
+  - Restoration = **base 3 s ÷ (1 + Σ Demolisher Charge Speed increased)** — INCREASED pool only, smooth real-time.
+  - Primary fissure (227% WAD) lands **every cast**; secondary explosion (1135% WAD) only on a **charged** cast
+    (charged_rate = min(cast_rate, 1/restoration)). Rhythm mode: cast_rate = 1/R. Manual: cast_rate = APS.
+  - Every-cast-charged breakpoint: (1 + increased) ≥ 3 ÷ cadence. The Demolisher panel surfaces "+X% to sustain" or
+    "-X% droppable".
+- Checks:
+  1. **Smooth vs tick-quantized restoration.** Confirm restoration is NOT hard-rounded to 30 Hz ticks (the model
+     assumes smooth real-time, unlike Spell Burst / Tangle). Vary Demolisher Charge Speed increased and confirm the
+     charged-cast rate scales smoothly (no tick plateaus).
+  2. **Increased-only restoration.** Confirm Demolisher Charge Speed **additional** (if any source exists) does NOT
+     speed restoration — only increased does.
+  3. **Rhythm breakpoint.** At a fixed Rhythm interval R, find the charge-speed increased at which the secondary fires
+     on every cast; expected at (1 + increased) = 3/R. Confirm dropping below re-introduces the mismatch (secondary
+     uptime = R ÷ restoration).
+  4. **Frequent Quake 5-hit.** Confirm the max-spread fissure, instead of exploding, deals **5 fissure hits** (1 + 4×0.4 s)
+     each = a primary-fissure hit — so the FQ secondary total ≈ the single 1135% explosion (5 × 227%), before Collapse.
+     Confirm FQ's **+(66–68)% additional Hit Damage** applies to the fissure hits.
+  5. **Cripple scope.** Confirm the **−90% additional damage while the fissure spreads** hits the **primary fissure**
+     (and, with FQ, the fissure ticks) but **NOT the secondary explosion** (Tyra-observed 46 vs 319 on the primary:
+     319 × 0.10 × 1.45 ≈ 46). Confirm the **+(44–46)% consume** bonus applies to the whole charged cast.
+  6. **Collapse step function.** Already Tyra-pinned: **Collapse% = floor(1.6/R) × 0.5 × roll**, needs FQ persistence
+     + auto/rhythm overlap; boundaries at R = 1.6/n (0.8 and 0.4 time-average between floors). Re-confirm opportunistically.
+  7. **Wrathful Vault movement→AS.** The stat is surfaced but its APPLICATION is a follow-up (movement→AS not wired).
+     Note the in-game jump-cast cadence + how much Movement Speed → Attack Speed for when that model lands.
+- RESULT (per check): Recount Avg DPS (span) + Duration, before/after; the mod + its roll; R / charge-speed; Screenshot.
+
+---
+
 ### SPELLBURST-01 — Spell Burst DPS model + 30/s tick behaviour (multiple checks)
 - Status: 🔶 Partially verified — **combined total DPS matched in-game to within 1.2% over a 4-min test** with matching
   gear (manual triggering, at the **39-charge-tick** breakpoint). Remaining checks below (M-vs-M+1 count, the
@@ -282,21 +360,286 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 ---
 
 ### SPELLBURST-02 — Auto-trigger + charge sources (second pass)
-- Status: 🔶 Partially verified — a **Solid River spell-burst build matched in-game within 2%** (owner, 2026-06-18),
+- Status: 🔶 Partially verified — a **Solid River spell-burst build matched in-game within 2%** (Tyra, 2026-06-18),
   confirming the auto-trigger + charge model. Remaining sub-checks below still ⬜.
   1. **Burst Activation** support → auto-trigger (instant; headline = burst-only, no between-burst casts).
   2. **Solid River** → auto-trigger ONLY when Burst Charge Recovery Speed ≥ ~230–250% of base (drops to manual below
      it). Confirm the exact threshold. Also its **charge→burst-damage**: "+Y% per +X% charge speed, up to +Z%" steps at
      each +X% and caps at Z. And its Vorax'd copy (same line on another item) behaves identically.
   3. **Insatiable Greed** (currently via custom mod): 150% of Attack Speed bonuses shorten the Spell Burst charge.
-  4. **Squiddle/Squidnova**: equipping Squiddle auto-grants the buff → +Spell Damage and (rank 6) +1 Max Spell Burst;
-     confirm whether **Squidnova Effect** (+25/50%) scales the Spell Damage bonus (currently parsed but not scaled).
+  4. **Squiddle/Squidnova**: now modeled (base +16% burst hit damage buff + Effect scaling) — moved to SPELLBURST-03.
 - RESULT: Recount Avg DPS (span) before/after each; the mod + roll; charge & cast speed; Max Spell Burst; Screenshot.
 
 ---
 
+### SPELLBURST-03 — Spell Burst loose ends (Squidnova buff, skill area, sustain, Destiny kismets)
+- Status: ⬜ Unverified. Newly modeled this pass; each item below carries an approximation to confirm in-game.
+  1. **Squidnova base buff**: the buff itself = **+16% additional Hit Damage for skills cast by Spell Burst** (glossary),
+     now modeled (was unmodeled — only the flag + the rank +Spell Damage line existed). **Squidnova Effect (+25/50%)
+     scales ONLY this +16%** (→ +20%/+24%); confirm it does NOT also scale the separate "+% Spell Damage when having
+     Squidnova" rank line (engine assumes it does not). Confirm the +1 Max Spell Burst (rank 6) is a flat +1 (unscaled).
+  2. **Skill-Area-per-Burst** (Prairie Fire "+20% Skill Area … up to 10", Kismet Ripple "+X% per activation"): modeled
+     as DISPLAY-only Skill Area (scales by Max Spell Burst M, capped) — it does NOT change DPS in the engine. Confirm
+     Skill Area isn't expected to move single-target DPS (if it does via more shotgun overlap, that's a separate model).
+  3. **Burst-activation sustain**: "Loses 50% current Mana on Spell Burst" (Surging Inspiration) / "Restores 10% Lost
+     Life+ES on Spell Burst" (Solid River) — modeled as **per burst TRIGGER × the burst rate** (once per sequence, NOT
+     per burst cast), folded into Net Mana/Life Recovery. Confirm it keys off the trigger and the magnitude tracks the
+     burst rate. (Known limitation: the mana drain doesn't yet feed the in-loop steady-state Mana% solve — Net shows it
+     at the current Mana%.)
+  4. **Destiny "Spell Burst Upper Limit"**: "+N to Upper Limit" → +N Max Spell Burst; "Halves Upper Limit" → floor(M/2).
+     Confirm Upper Limit == Max Spell Burst and the halving floors.
+  5. **Flash Flood "+8% AS/CS per Spell Burst triggered recently, up to 40%"**: modeled from the burst rate
+     (bursts recently = rate × 4s, floored, capped at 5 stacks → +40%), converged as a feedback loop. Confirm the "4s
+     recently" window and that it caps at +40%.
+  6. **Perched River "Critical Strikes have the Unlucky effect"**: modeled as a crit-CHANCE effect — the crit chance is
+     rolled twice and the WORSE kept → effective chance = p² (Lucky variant = 1−(1−p)²). The displayed Crit Chance shows
+     the effective value with the Kismet as a source. Confirm it's chance (not crit-damage) and the p² magnitude.
+     Also generalized: per-type Unlucky DAMAGE (roll twice keep lower, mirrors Lucky) is wired for all 5 types +
+     "Damage triggers Unlucky" / "<Type> Damage is Unlucky", in case such lines appear. Recognized-but-NYI:
+     "-5% additional damage taken on Spell Burst Charge" (no EHP/damage-taken model).
+- RESULT (per sub-item): Recount Avg DPS / Net Recovery before-after; the mod + roll; Max Spell Burst; burst rate; Screenshot.
+
+---
+
+### SKILLCOST-01 — Skill mana/life cost model (multiple checks)
+- Status: ⬜ Unverified. The engine now models each skill's per-cast Mana (and Arcane→Life) cost and folds it into
+  **Net Mana/Life Recovery** as a SEPARATE drain (never "Consumed"). Formula assumed (Tyra best-guess), needs
+  confirming: `cost = (base + flat Skill Cost) × Π(support mana multipliers) × (1 + increased − reduced)`.
+- Sub-checks (each: note the skill's in-game Mana/Life cost per cast, your mods/rolls, cast/attack rate, screenshot):
+  1. **Base + cast rate**: a flat-cost skill (e.g. Chromatic Shot) alone — confirm per-cast cost and that cost/sec =
+     per-cast × your cast/attack rate (attacks→APS, casts & channeled→cast rate).
+  2. **Support multipliers**: add Noble/Magnificent/basic supports (each ~110% Mana Multiplier) — confirm they
+     **multiply** the cost (×1.10 each), not add.
+  3. **Formula order (KEY)**: a "+N Skill Cost" flat source + a big "+X% Skill Cost" — does the flat get scaled by the
+     % (engine assumes `(base+flat)×(1+inc)`) or added at the end? **Awakening Skull** is the marquee case: Arcane
+     (100% Mana Cost → Life Cost) + its inflated +(400-500)% / +(30-40) Skill Cost → confirm the **Life cost per cast**
+     (engine predicts ≈ (base+~35)×~5.5 paid as Life) and that it drives a life death-spiral verdict.
+  4. **Frozen Lotus** ("Skills no longer cost Mana"): confirm base cost → 0, BUT a separate "+N Skill Cost" still
+     costs (Frozen Lotus zeroes the BASE only, not the final value).
+  5. **Percentage-base skills**: **Moon Strike** ("1%") — confirm it's 1% of Max Mana per use (scaling with
+     multipliers); **Bull's Rage** ("15%") — confirm it's 15% of Max Mana paid as **Life** (intrinsic conversion; the
+     engine currently DEFERS this Bull's-Rage life-conversion — flag if it matters).
+  6. **Triggered skills**: confirm triggered skills (Tangle/Spell Burst/Activation Medium/Preparation) pay **no** mana
+     cost. (The engine currently can't detect per-slot trigger state — it counts every enabled active skill's cost, so
+     this is the gap to confirm/scope.)
+  7. **"Consumed recently"?**: confirm whether paying a skill's Mana/Life cost counts toward "X Mana/Life consumed
+     recently" for per-N-consumed affixes (Glacier/Compensatory) + threshold gates. The engine currently says **no**
+     (cost is excluded from consumed-recently) — verify.
+- RESULT: per sub-check — the in-game per-cast cost (Mana and/or Life), your supports/mods + rolls, cast/attack rate,
+  Max Mana, before/after Net Mana/Life Recovery, Screenshot.
+
+---
+
+### SHADOW-01 — Shadow Strike delivery model (multiple checks)
+- Status: 🔶 Partial. Solo (N=0) / +Haunt Lv20 (N=2) / +Haunt+slate (N=3, RUN C) Recount triple measured
+  2026-07-15 — see `data/verification/shadow-strike.json`. **Check 1 is now CONFIRMED** (RUN C closes the
+  flat-vs-compounding falloff-shape discriminator). Check 2 supported/strengthened. **Check 3 partially
+  answered** (Despised Shadow's chance is USE-gated, not CAST-gated — owner-stated, 2026-07-15; the AM-gate
+  is now IMPLEMENTED, same batch — see below; per-cast granularity for genuine USE-triggered casts still
+  ⬜). **Check 4 is now ANSWERED** (no shadow-count cap
+  observed at tested counts, owner-tested 2026-07-15). **Check 6 is now REFUTED-for-the-inherent-line and
+  RESOLVED** (a later-same-day N-independence + direct-proof test — Rhythm 0.7s at N=2/N=4 identical to N=0;
+  main-miss/shadow-hit-only → 0 stacks — shows Shadows never apply Thunder Spike's inherent Numbed at all,
+  superseding the earlier same-day source-group structure hypothesis and the phase-slot/interval-alignment
+  candidates before it. The independent-stacking/window model is now CONFIRMED for the inherent line,
+  `E[stacks](aps) = 2.0·aps/ceil(1.0·aps)`, reconciling all three RECOUNT runs within 0.25%; **Phase 2 is now
+  IMPLEMENTED this same session** (`backend/engine/compute.py`; verified solo manual +0.23% vs measured 349,
+  zero golden changes). Engine analysis then distinguished two separate line-based mechanisms: High Voltage's
+  on-hit line is CONFIRMED CORRECTLY MODELED (its own flat cadence-independent floor already matches
+  observations); Numb Magnificent and Everburn Thunderfire (SS12 legendary girdle, exists in our data) remain
+  open/unmodeled for Thunder Spike specifically; see below). Check 5 remains ⬜.
+- Setup: **Thunder Spike** vs the standard dummy. Base build has 0 Shadow Quantity (Shadows only appear via gear/talent/support). Add shadow sources one at a
+  time (**Haunt** support = +2 Shadow Quantity; **Frantic Shadow** legendary = +1; **Despised Shadow**
+  legendary = 33% chance +3/+4 Shadows + additional Shadow Damage; **Ronin `ronin_c6_r2`** talent = +1).
+- Checks:
+  1. **Falloff shape.** ✅ CONFIRMED (2026-07-15, RUN C). Thunder Spike Lv20 + Haunt Lv20 + a "+1 Shadow" slate
+     (N=3) measured 917 DPS vs the N=0 solo baseline (349) = ×2.628. The FLAT model (`1 + (1+0.30·(N−1))`,
+     ×2.60 base × Haunt Lv20's own +0.8% support line = predicted ×2.6208) matches within 0.3%; the
+     COMPOUNDING model (predicted ×2.409) misses by >8% and is rejected. **The same-target Shadow falloff is
+     flat — each shadow beyond the first contributes a flat +30% weight, no per-shadow compounding of the
+     −70% reduction.** See `data/verification/shadow-strike.json` for the full derivation.
+  2. **Player-hit independence.** 🔶 Supported (not fully isolated). The same N=0→N=2 ratio is consistent with the
+     player's own hit being a clean, unaffected additive term. Note the ratio doesn't perfectly cancel — the solo
+     run sat at 1 Numbed stack and the Haunt run averaged ≈1.5 (see SHADOW-02), so a small Numbed-difference
+     component rides along; a dedicated isolation test (same Numbed state, vary only shadow count) would close
+     this fully.
+  3. **Despised Shadow proc granularity.** Equip Despised Shadow (33% chance +3/+4 Shadows "when using the
+     Shadow Strike skill"). Confirm the chance rolls **per cast** (not per fight, not a persistent buff) and
+     that Shadows gained from the proc last only that cast (not carried into the next cast). The engine models
+     this as a per-cast expected-value mix `(1−p)·f(N_base) + p·f(N_base+k)`.
+     **Partially ANSWERED (owner-stated, 2026-07-15, verbal report): the "when using" clause is USE-gated, not
+     CAST-gated** — the standard USE-vs-CAST restriction applies, so it does NOT proc off triggered casts (e.g.
+     Rhythm/Instruction activation-medium triggers on Thunder Spike, which are CASTs, not USEs). **GATE
+     IMPLEMENTED 2026-07-15 (same batch):** `backend/engine/compute.py` (~1353–1364) now zeroes
+     `shadow_chance_pct` whenever the slot is trigger-driven (`trigger_interval` or `wind_rhythm_base_cooldown`
+     > 0 — the same detection Demolisher already uses), leaving `max_shadow_quantity_flat` (flat grants —
+     Haunt, Frantic Shadow) unaffected; manual-use builds are unchanged, only AM/Rhythm-triggered slots are
+     gated off. 3 new tests, full suite 3772/0. See `docs/BACKLOG.md` §0f. This is the FIRST measured instance
+     of the USE/CAST distinction mattering for a modeled mechanic (same deferral class as Spell Burst's
+     USE-vs-CAST gate, SPELLBURST-01/§0d, and Tangle's, TANGLE-01/§0c — both still open). The remaining open
+     sub-question — per-cast granularity for genuine USE-triggered casts, and whether proc'd Shadows carry
+     into the next cast — is still ⬜.
+  4. **Shadow count cap.** Stack multiple sources (Haunt + Frantic Shadow + Despised Shadow + Ronin node) to
+     reach a high Shadow Quantity. Confirm whether the game caps the total Shadow count at some maximum (the
+     engine currently applies none). **ANSWERED (owner-tested, 2026-07-15, verbal report): no cap observed at
+     the tested counts.** Recorded with appropriate hedging — this does not rule out a cap beyond the tested
+     magnitude, only that none was observed at the counts tested; the engine's no-cap assumption now has
+     owner-tested support rather than being a pure assumption.
+  5. **Multistrike / cast-multiplier inheritance.** With a Multistrike-capable build, confirm whether Shadows
+     also fire on each Multistrike (proportionally increasing shadow hits) or only on the primary cast. Same
+     question for any other cast-multiplier mechanic active on Thunder Spike.
+  6. **Shadows applying Thunder Spike's inherent Numbed — RESOLVED (2026-07-15, later same day): REFUTED, and
+     the inherent-line uptime formula is CONFIRMED.** See the N-independence + direct-proof test below, which
+     supersedes the source-group structure this check originally chased. History retained: owner-reported and
+     confirmed by follow-up cadence observation, inherent on-hit Numbed stacks per
+     SOURCE-GROUP, not per-hit — "1 sustained stack from the character's own True Body hit + at most 1
+     sustained stack from the clones/shadows COLLECTIVELY", capped at 2 total regardless of shadow count
+     (observed up to 4 shadows/clones). At 1 shadow the split alternates 1↔2 at ~66%/~33% (avg ≈1.33),
+     attack-speed-dependent; at 2 shadows (Haunt) it alternates ~50%/~50% (avg ≈1.5). The training dummy's
+     enormous/unknown Max Life+ES pool rules out master_glossary 762's separate damage-threshold Numbed
+     pathway (1 stack per 10% of Max ES+Life dealt) as the source at this damage level.
+     **Remaining OPEN sub-question: the clone-stack UPTIME FORMULA vs attack speed.** Three calibration points
+     so far (N=1 avg ≈1.33, N=2 avg ≈1.5, N=4 stays <2, approaching the 2-stack structural cap), but no
+     formula fit yet.
+
+     **Rhythm-cadence discriminating test performed (2026-07-15, Part 2, verbal report — no screenshots) —
+     REFUTES the discrete phase-slot candidate model.** Owner used the Rhythm activation medium to force an
+     exact, deterministic attack cadence (baseline: white-blade Erika, Thunder Spike Lv20, +1 shadow via a
+     slate, N=1). Results: **Rhythm 1.0s (1 attack/sec) → permanently 2 Numbed stacks, 100% uptime**
+     ("cannot get it to go lower"); **forced 2 attacks/sec → still 100% uptime at 2 stacks**; **Rhythm 0.7s →
+     alternates 1↔2 with a varying, phase-dependent percentage** (not a single stable fraction). This directly
+     REFUTES the discrete cast-slot phase-race model (recorded in `.wolf/memory.md`, 2026-07-15 "Part B
+     re-derivation"), which predicted a deterministic, aps-invariant mean of exactly 50% overlap at every
+     attack speed — including a zero-spread 50% prediction at aps=1.0, its own stated sharpest test — flatly
+     contradicted by the measured 100% uptime at both 1.0 and 2.0 attacks/sec. The non-monotonic pattern
+     (sustained 100% at 1.0s/0.5s periods, beating/alternating at 0.7s) instead suggests an
+     **INTERVAL-ALIGNMENT mechanism** — cadences dividing evenly into Thunder Spike's own 1s inherent-Numbed
+     inflict interval sustain both the character's and the shadows' stacks simultaneously, while a
+     non-aligning cadence (0.7s) beats against it. **Model re-derivation is in progress; the clone-uptime
+     FORMULA remains OPEN/UNMODELED as of 2026-07-15** — the phase-slot candidate (or any other
+     single-fraction-per-aps candidate) must not be promoted to engine-implemented; the prior phase-slot
+     analysis is retained in `.wolf/memory.md` for its record of the reasoning process but is
+     REFUTED-BY-MEASUREMENT as of this test, not deleted. See `data/verification/shadow-strike.json` for the
+     full derivation.
+
+     **Solo (ZERO shadow sources) + Rhythm discriminating test (2026-07-15, same day, several repetitions
+     each, verbal report) — ALSO REFUTES the interval-alignment candidate.** Same baseline, but with NO
+     shadow sources equipped (isolates the character's own True Body hit only): **Rhythm 1.0s → permanent 2
+     Numbed stacks**; **Rhythm 0.5s → permanent 2 stacks**; **Rhythm 0.7s → 2 stacks ~33% / 1 stack ~66%**.
+     **Consequence:** the interval-alignment candidate above — which attributed the second stack to shadow
+     hits aligning with the character's own inflict interval — is itself now REFUTED: with zero shadows
+     present, the character's own repeated hits alone reach 2 sustained stacks at some cadences, meaning the
+     player's own applications stack independently rather than being capped at "1 sustained stack from the
+     character, period." The **independent-stacking/window model** (each hit within Numbed's duration window
+     contributes its own stack, subject to the glossary-10 cap) is the new working candidate — re-derivation
+     is in progress; NOT confirmed, NOT engine-implemented. **Corollary being checked, not yet confirmed:**
+     the "solo = flat 1 stack" framing used for the RUN A baseline (SHADOW-02 check 1) was always an
+     inference at ordinary manual-cast cadence (~1.5 aps), never itself directly measured at high time
+     resolution — under the new model, ~1.5 aps manual casting might predict roughly 50% uptime at 2 stacks
+     (average ≈1.5) rather than a flat 1, which could help explain RUN A's unexplained solo −2.5% residual:
+     +0.5 average stacks × ~5.9%/stack (18% Numbed Effect) ≈ +2.95%, close to closing that gap. This is a
+     hypothesis under review, not a confirmed correction — no status changes on the strength of it alone. See
+     `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json` for the full
+     derivation.
+     **Numb Magnificent** (`thunder_spike_numb_magnificent`, a separate distinct inflict source from the
+     inherent structure above) was also sampled: 2 shadows → stacks 1–6 (mode ≈4); 4 shadows → stacks 1–9,
+     possibly 10 (sampling limited). An expected-value model (`0.3 × shadow_hits_per_sec × 2s`) predicts
+     ≈+1.8 extra stacks at 2 shadows and ≈+3.6 at 4 shadows, consistent with the samples — supports the shape
+     of a planned EV model, not yet engine-implemented. Still unmodeled — see `data/verification/shadow-strike.json`
+     and `data/verification/thunder-spike.json` for full detail.
+
+     **N-independence + direct-proof test (2026-07-15, later same day, verbal report, several repetitions) —
+     RESOLVES check 6: REFUTES shadow-applied inherent Numbed entirely, CONFIRMS the independent-stacking
+     window model.** Owner retested Rhythm 0.7s (previously alternated 1↔2 for both solo N=0 and N=1-shadow
+     configs) at **N=2 shadows (Haunt)** and **N=4 shadows**: both bounced 1↔2 identically to the N=0 baseline
+     — shadow count made no measurable difference. **Direct proof:** the main character's Thunder Spike was
+     positioned so its True Body did NOT hit the target while the Shadows (larger Tracking Area) DID hit it:
+     result 0 Numbed stacks. A Shadow hit alone produced zero inherent Numbed, so Shadows contribute NOTHING to
+     the inherent line — only the player's own True Body hit inflicts it. This **REFUTES** the source-group
+     structure hypothesis above (and, before it, the phase-slot and interval-alignment candidates) — all three
+     are retained in `data/verification/shadow-strike.json` / `thunder-spike.json`, annotated, for their record
+     of the reasoning process, not deleted. The **independent-stacking/window model is now CONFIRMED** for the
+     inherent line: `E[stacks](aps) = 2.0·aps / ceil(1.0·aps)` (I=1s tooltip interval, D=2s master_glossary 762
+     default duration — "the duration of each stack is calculated independently" corroborates the premise).
+     Owner reports this reconciles all three 2026-07-15 RECOUNT runs (solo 349, +Haunt 810, RUN C 917 — all at
+     the same 1.5 APS baseline) within 0.25%, using a single shadow-count-independent average (aps=1.5 → E=1.5
+     stacks) instead of the earlier per-run bespoke corrections — this also resolves the SHADOW-02 check 1
+     corollary flagged just above (RUN A's solo −2.5% residual is the same cadence-driven effect, not a
+     flat-1-exact baseline). **Phase 2 is now IMPLEMENTED this same working session**: the formula is
+     auto-derived as the fractional `numbed_stacks` floor in `backend/engine/compute.py`. Verified: solo manual
+     ≈1.5 aps → E=1.5 → +0.23% vs measured 349; zero golden fixture changes; 2 stale tests updated by testing.
+
+     **Owner's explicit caution (2026-07-15, later same day) held up under engine analysis: this refutation is
+     scoped to the INHERENT line only — line-based Numbed-inflict sources are a genuinely separate mechanism.**
+     Engine analysis distinguished two distinct mechanisms: line-based inflict = refresh semantics (a constant
+     floor), inherent = independent stacking (the window formula above). **Numb Magnificent**'s own "30%
+     chance … when Shadows hit" line still scales with shadow count (consistent with the sampled ranges just
+     above) — still unmodeled, needs the shadow-hit-count EV model. **High Voltage** (`high_voltage`, generic
+     support_skill, "Inflicts Numbed when the supported skill deals Hit Lightning Damage", unconditional
+     on-hit) is **CONFIRMED CORRECTLY MODELED**: the engine already applies a flat cadence-independent
+     `numbed_stacks` floor of 1 via `ailment_inflict.py`, exactly matching the owner's observation
+     (shadows-only hits sustain exactly 1 stack, never 2); the cap-at-2 combined with the main hit falls out of
+     the existing `max()` ConditionEffect machinery (floors don't sum) — no gap here, resolved. **Everburn
+     Thunderfire** (`everburn_thunderfire`, SS12 legendary girdle — **exists in our SS12 data**, correcting an
+     earlier same-day "likely uncrawled SS13" note): "Inflicts 1 additional stack(s) of Numbed." The observed
+     bounce shift to **2↔4** (a shadow-independent +2 offset) is strong independent supporting evidence for the
+     confirmed window model (a doubled payload per application) — **but is currently NYI for Thunder Spike
+     specifically**: `ailment_inflict`'s pattern-C needs a paired inflict trigger in its own scan, and Thunder
+     Spike's intrinsic trigger isn't wired into that system, so equipped alone on a Thunder Spike build it is
+     silently inert in the engine today. Filed as an explicit NYI/verification item (never silently drop).
+     See `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json` for full detail.
+
+     **CONFOUND, documented for future tests — EXCLUDED for the 2026-07-15 runs (owner testimony, 2026-07-15):**
+     the equipped hero trait in both measurement runs, Erika's "Lightning Shadow" tier 1
+     (`_hero_traits.json:2718`), CAN itself inflict Numbed via "Feline Figure" procs — triggered by
+     movement-based Electrify stacks (1 stack per 3 m moved within 1 s, up to 3), independently of Thunder
+     Spike or Shadows. Owner confirms all 2026-07-15 RECOUNT runs were performed **stationary with no Electrify
+     buffs active** (deliberately let them fall off before testing) — Feline Figure is therefore EXCLUDED as
+     the source of the observed second Numbed stack for these runs; the observed alternation patterns are
+     correctly attributed to shadow-applied Numbed and do not need re-litigating for this data. Any FUTURE
+     test of this check must still confirm stationary / Electrify-inactive state before crediting shadow hits.
+- RESULT (per check): Recount Avg DPS (span) + Duration, per Shadow-count config; shadow sources equipped +
+  their rolls; Shadow count observed (in-game UI, if shown); Skill level; Screenshot.
+
+### SHADOW-02 — Thunder Spike skill specifics
+- Status: 🔶 Partial. Solo + Haunt Lv20 Recount pair measured 2026-07-15 — see `data/verification/thunder-spike.json`.
+  Check 1 supported (its unexplained −2.5% residual is now attributed to the same cadence-driven Numbed effect
+  as Haunt, per the confirmed formula below, not a flat-1-exact solo baseline); check 2 supported in aggregate
+  only (its shadow-applied-Numbed sub-claim is now REFUTED and RESOLVED — see SHADOW-01 check 6 and
+  `data/verification/thunder-spike.json` for the RUN C, cadence, N-independence, and Numb Magnificent
+  follow-up data, 2026-07-15); check 3 (Rumbling Thunder) still ⬜ — Setup B used Haunt, not Rumbling Thunder.
+- Setup: **Thunder Spike** alone vs the standard dummy, no supports (isolate the base skill first), then add
+  **Rumbling Thunder (Noble)** for check 3.
+- Checks:
+  1. **Base WAD.** 🔶 Supported. Solo Recount 349 vs engine 340.34 (−2.5%, no correction applied — the run was
+     recorded assuming solo Numbed sits at a flat 1 stack). Supports the magnitude of 277% WAD at Lv20 to
+     within measurement noise (aggregate evidence, not an isolation test). **Note (2026-07-15, same day):**
+     the "solo = flat 1 stack" assumption is now SUPERSEDED (2026-07-15, later same day) — see SHADOW-01
+     check 6's N-independence + direct-proof test, which confirmed the independent-stacking window model
+     (`E[stacks](aps) = 2.0·aps/ceil(1.0·aps)`) for the inherent line. At RUN A's ~1.5 aps manual cadence this
+     predicts E≈1.5 stacks, not a flat 1, which accounts for most of the −2.5% residual (+0.5 stacks ×
+     ~5.9%/stack ≈ +2.95%) — this does not change the WAD-magnitude conclusion, only the Numbed-correction
+     bookkeeping. **Phase 2 is now IMPLEMENTED this same session** (auto-deriving the fractional floor from
+     attack speed in `backend/engine/compute.py`; verified solo manual +0.23% vs measured 349, zero golden
+     changes). Compare against the character-sheet tooltip is explicitly out of scope — see
+     `training-dummy.json` doctrine.
+  2. **Intrinsic conversion + inherent Numbed.** 🔶 Supported in aggregate only (this pair did not isolate
+     conversion or Numbed-on-hit individually — e.g. no run with Numbed suppressed). Confirm 100% of the
+     skill's Physical Damage displays/behaves as Lightning Damage (no separate Physical component), and that
+     True Body hits inflict 1 stack of Numbed on the target (interval 1s) with NO gear/support required — this
+     is a skill-inherent effect, not optional. Watch the dummy's Numbed stack indicator ramp on repeated hits.
+  3. **Rumbling Thunder uptime + default-on sanity.** Socket Rumbling Thunder (Noble). The tier-1 line reads
+     "+(45–48)% additional Lightning Damage dealt by the skill to the enemy for 2 s" on a True Body hit. The
+     engine currently models this as ALWAYS active (default-on assumption: continuous casting → ~permanent
+     uptime). Confirm: (a) does a single Thunder Spike cast actually keep the buff up continuously against a
+     standing dummy at your attack speed, or does uptime fall short of 100% at low attack speed? (b) is the
+     buff per-enemy (relevant vs multiple targets) or a single global buff? Compare Recount DPS with Rumbling
+     Thunder socketed vs a same-tier universal "+45% additional damage" support as a sanity check on magnitude.
+- RESULT (per check): Recount Avg DPS (span) + Duration; skill level; supports + rolls; sustained Numbed stack
+  count observed; Screenshot.
+
 ## How results are ingested
-Owner: for each returned RESULT, configure the same build in the app (matching the tester's exact
+Tyra: for each returned RESULT, configure the same build in the app (matching the tester's exact
 rolls/level/rank/tier) and compare the engine DPS to the reported Recount **span average**. Mark
 ✅/❌/🔶; on ❌ note the engine fix. The explicit-roll feature has landed (per-support roll sliders), so
 the app can now match a tester's exact rolls — enter them to compare absolute numbers; otherwise the app

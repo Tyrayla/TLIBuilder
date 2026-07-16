@@ -13,7 +13,7 @@
     "armor_gear_inc",
     "armor_inc",
     "armor_pen",
-    "attack_ailment_dmg_additional",
+    "at_center_dmg_additional",
     "attack_block_chance_inc",
     "attack_crit_dmg_inc",
     "attack_crit_rating_flat",
@@ -23,6 +23,7 @@
     "attack_dmg_additional",
     "attack_dmg_inc",
     "attack_double_dmg_chance",
+    "attack_skill_cost_flat",
     "attack_skill_level",
     "attack_speed_additional",
     "attack_speed_gear",
@@ -43,14 +44,19 @@
     "cold_resistance_max_inc",
     "crit_dmg_additional",
     "crit_dmg_inc",
+    "crit_dmg_inc_per_mana_consumed",
     "crit_rating_additional",
     "crit_rating_inc",
+    "crit_rating_inc_per_mana_consumed",
     "defense_inc",
     "dexterity",
     "dexterity_additional",
     "dexterity_flat",
     "dexterity_inc",
     "dmg_additional",
+    "dmg_additional_on_crit",
+    "dmg_additional_per_400_es",
+    "dmg_additional_per_life_consumed",
     "dmg_avoid_chance",
     "dmg_inc",
     "dmg_max_additional",
@@ -63,10 +69,17 @@
     "elemental_dmg_inc",
     "elemental_pen",
     "elemental_resistance",
+    "enemy_nearby_dmg_taken_additional",
+    "energy_shield_consumed_flat_per_sec",
+    "energy_shield_consumed_pct_current_per_sec",
+    "energy_shield_consumed_pct_max_per_sec",
     "energy_shield_gear_flat",
     "energy_shield_gear_inc",
     "energy_shield_per_sealed_life",
     "energy_shield_per_sealed_mana",
+    "energy_shield_regain_inc",
+    "energy_shield_regain_interval_additional",
+    "energy_shield_restored_pct_lost_per_burst",
     "erosion_attack_dmg_flat_max",
     "erosion_attack_dmg_flat_min",
     "erosion_dmg_gear_flat_max",
@@ -74,12 +87,14 @@
     "erosion_dmg_gear_inc",
     "erosion_resistance",
     "erosion_resistance_max_inc",
+    "es_regain_to_restoration",
     "evasion",
     "evasion_additional",
     "evasion_flat",
     "evasion_gear_flat",
     "evasion_gear_inc",
     "evasion_inc",
+    "excess_restoration_to_es_pct",
     "extra_tangle_applied_flat",
     "ferv",
     "fervor_effect_inc",
@@ -104,6 +119,22 @@
     "intelligence_flat",
     "intelligence_inc",
     "knockback_dmg_taken",
+    "life_consumed_flat_per_attack_use",
+    "life_consumed_flat_per_cast",
+    "life_consumed_flat_per_sec",
+    "life_consumed_pct_current_per_attack_use",
+    "life_consumed_pct_current_per_cast",
+    "life_consumed_pct_current_per_sec",
+    "life_consumed_pct_max_per_attack_use",
+    "life_consumed_pct_max_per_cast",
+    "life_consumed_pct_max_per_sec",
+    "life_regain_inc",
+    "life_regain_interval_additional",
+    "life_regain_to_restoration",
+    "life_regen_flat",
+    "life_regen_inc",
+    "life_regen_speed_inc",
+    "life_restored_pct_lost_per_burst",
     "lightning_as_cold",
     "lightning_as_erosion",
     "lightning_as_fire",
@@ -122,12 +153,32 @@
     "lightning_pen",
     "lightning_resistance",
     "lightning_resistance_max_inc",
+    "lucky_crit",
     "lucky_fire",
     "lucky_lightning",
     "lucky_physical",
     "main_skill_level",
+    "mana_consume_external_blocked",
+    "mana_consumed_flat_per_attack_use",
+    "mana_consumed_flat_per_cast",
+    "mana_consumed_flat_per_sec",
+    "mana_consumed_pct_current_per_attack_use",
+    "mana_consumed_pct_current_per_attack_use_mystic",
+    "mana_consumed_pct_current_per_cast",
+    "mana_consumed_pct_current_per_sec",
+    "mana_consumed_pct_max_per_attack_use",
+    "mana_consumed_pct_max_per_cast",
+    "mana_consumed_pct_max_per_sec",
+    "mana_cost_override",
+    "mana_cost_to_life_cost",
+    "mana_lost_pct_current_per_burst",
+    "mana_regen_flat",
+    "mana_regen_pct",
+    "mana_regen_speed_inc",
+    "mana_restored_pct_current_per_attack_use",
     "max_agility_blessing_stacks_flat",
     "max_electrify_stacks_flat",
+    "max_elemental_resistance_inc",
     "max_energy_shield",
     "max_energy_shield_additional",
     "max_energy_shield_flat",
@@ -137,6 +188,7 @@
     "max_ignite_flat",
     "max_life",
     "max_life_additional",
+    "max_life_as_es_pct",
     "max_life_flat",
     "max_life_inc",
     "max_mana",
@@ -144,6 +196,9 @@
     "max_mana_flat",
     "max_mana_inc",
     "max_spell_burst_flat",
+    "max_spell_burst_halve_flag",
+    "max_temporary_life_pct",
+    "max_temporary_mana_pct",
     "max_tenacity_blessing_stacks_flat",
     "melee_dmg_additional",
     "melee_dmg_inc",
@@ -173,29 +228,51 @@
     "physical_dmg_min_additional",
     "physical_skill_level",
     "quadruple_dmg_chance",
+    "regain_interval_additional",
+    "restoration_duration_additional",
+    "restoration_duration_inc",
+    "restoration_effect_additional",
+    "restoration_effect_inc",
     "sealed_mana_compensation_additional",
     "sealed_mana_compensation_inc",
     "shield_dmg_inc",
+    "skill_cost_additional",
+    "skill_cost_flat",
+    "skill_cost_inc",
+    "skill_cost_reduction",
+    "skill_no_mana_cost",
     "spell_block_chance_inc",
+    "spell_skill_cost_flat",
     "steep_strike_additional_dmg",
     "steep_strike_chance",
     "strength",
     "strength_additional",
     "strength_flat",
     "strength_inc",
+    "temporary_life_flat",
+    "temporary_life_pct",
+    "temporary_mana_flat",
+    "temporary_mana_pct",
     "tide_dmg_taken",
     "triple_dmg_chance",
+    "unlucky_crit",
+    "unlucky_fire",
+    "unlucky_lightning",
+    "unlucky_physical",
     "weapon_attack_speed",
     "weapon_crit_rating_flat"
   ],
   "offense": {
     "above_max_mult": 1.0,
-    "attacks_per_second": 3.0624000000000007,
     "base_cast_time": 0.0,
     "base_csr": 0.0,
     "base_dmg_max": {},
     "base_dmg_min": {},
     "cast_multiplier": 1.0,
+    "channel_attack_smooth_sps": 0.0,
+    "channel_attack_ticks": 0,
+    "channel_attack_to_next_additional": 0.0,
+    "channel_attack_to_next_increased": 0.0,
     "channeled_attack_frequency": 0.0,
     "channeled_behavior": "",
     "channeled_burst_rate": 0.0,
@@ -205,12 +282,120 @@
     "channeled_stacks": 0.0,
     "compulsory_breakdown": {},
     "crit_chance": 0.396,
+    "crit_chance_uncapped": 0.396,
+    "crit_luck_effect": "",
     "crit_multiplier": 1.5,
+    "damage_rows": [
+      {
+        "dps_by_type_vs_target": {
+          "fire": 0.0,
+          "lightning": 0.0,
+          "physical": 0.0
+        },
+        "dps_final": 0.0,
+        "dps_vs_target_final": 0.0,
+        "form_index": 0,
+        "hit_max_by_type": {
+          "fire": 2584.199100841153,
+          "lightning": 7518.727283897334,
+          "physical": 18759.37125055059
+        },
+        "hit_min_by_type": {
+          "fire": 1397.3817360104013,
+          "lightning": 379.733701206936,
+          "physical": 11064.20059471249
+        },
+        "kind": "hit",
+        "name": "Sweep Slash",
+        "nyi": [],
+        "pct_of_total": 0.0
+      },
+      {
+        "dps_by_type_vs_target": {
+          "fire": 11702.754881744924,
+          "lightning": 23215.33999666149,
+          "physical": 89447.07665697897
+        },
+        "dps_final": 250155.57143315475,
+        "dps_vs_target_final": 124365.1715353854,
+        "form_index": 1,
+        "hit_max_by_type": {
+          "fire": 8450.33105975057,
+          "lightning": 24586.238218344282,
+          "physical": 61343.14398930043
+        },
+        "hit_min_by_type": {
+          "fire": 4569.438276754012,
+          "lightning": 1241.7292029466807,
+          "physical": 36179.93594470985
+        },
+        "kind": "hit",
+        "name": "Steep Strike",
+        "nyi": [],
+        "pct_of_total": 100.0
+      }
+    ],
+    "demolisher_area_mode": "both",
+    "demolisher_base_restore": 0.0,
+    "demolisher_cast_rate": 0.0,
+    "demolisher_cdr_droppable": 0.0,
+    "demolisher_charge_speed_inc": 0.0,
+    "demolisher_charged_rate": 0.0,
+    "demolisher_collapse_pct": 0.0,
+    "demolisher_frequent_quake": false,
+    "demolisher_mismatch": false,
+    "demolisher_mode": "",
+    "demolisher_over_breakpoint": false,
+    "demolisher_primary_dps": 0.0,
+    "demolisher_restoration_time": 0.0,
+    "demolisher_restore_to_sustain": 0.0,
+    "demolisher_rhythm_interval": 0.0,
+    "demolisher_secondary_dps": 0.0,
+    "demolisher_under_breakpoint": false,
+    "double_dmg_chance": 0,
+    "double_dmg_factor": 1,
     "effective_level": 20,
     "enemy_mult_by_type": {
       "fire": 0.48999999999999994,
       "lightning": 0.7349999999999999,
       "physical": 0.5
+    },
+    "enemy_vuln_by_type": {
+      "fire": 1.0,
+      "lightning": 1.5,
+      "physical": 1.0
+    },
+    "enemy_vuln_sources_by_type": {
+      "fire": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "fire_infiltration_taken",
+        "fire_curse_taken",
+        "hit_curse_taken"
+      ],
+      "lightning": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "numbed_lightning_taken",
+        "lightning_infiltration_taken",
+        "lightning_curse_taken",
+        "hit_curse_taken"
+      ],
+      "physical": [
+        "paralysis_dmg_taken",
+        "no_guard_dmg_taken",
+        "knockback_dmg_taken",
+        "tide_dmg_taken",
+        "enemy_nearby_dmg_taken_additional",
+        "physical_curse_taken",
+        "hit_curse_taken"
+      ]
     },
     "flat_dmg_max": {
       "fire": 135.0,
@@ -222,18 +407,18 @@
       "lightning": 10.0,
       "physical": 578.0
     },
-    "generic_add": 7.420901555257343,
+    "generic_add": 12.43001010505605,
     "generic_inc": 0,
     "hit_forms": [
       {
-        "avg_hit_pre_crit": 12448.839900662359,
-        "avg_hit_with_crit": 14913.710200993504,
+        "avg_hit_pre_crit": 20851.806833609455,
+        "avg_hit_with_crit": 24980.464586664126,
         "base_max_by_type": {},
         "base_min_by_type": {},
         "damage_by_type": {
-          "fire": 1188.531593090016,
-          "lightning": 2357.749547792319,
-          "physical": 8902.558759780024
+          "fire": 1990.790418425777,
+          "lightning": 3949.230492552135,
+          "physical": 14911.785922631541
         },
         "dps_contribution": 0.0,
         "dps_vs_target": 0.0,
@@ -241,51 +426,59 @@
         "fires_per_sec": 0.0,
         "form_type": "exclusive",
         "hit_max_by_type": {
-          "fire": 1542.8054333380016,
-          "lightning": 4488.792408296915,
-          "physical": 11199.624627194382
+          "fire": 2584.199100841153,
+          "lightning": 7518.727283897334,
+          "physical": 18759.37125055059
         },
         "hit_min_by_type": {
-          "fire": 834.2577528420305,
-          "lightning": 226.70668728772299,
-          "physical": 6605.492892365666
+          "fire": 1397.3817360104013,
+          "lightning": 379.733701206936,
+          "physical": 11064.20059471249
         },
         "hits_per_fire": 1,
         "name": "Sweep Slash",
+        "nyi": [],
         "proc_chance": 0.0,
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
       },
       {
-        "avg_hit_pre_crit": 40707.70647516592,
-        "avg_hit_with_crit": 48767.83235724877,
+        "avg_hit_pre_crit": 68185.4083459029,
+        "avg_hit_with_crit": 81686.11919839168,
         "base_max_by_type": {},
         "base_min_by_type": {},
         "damage_by_type": {
-          "fire": 3886.4983094043528,
-          "lightning": 7709.841021280882,
-          "physical": 29111.36714448068
+          "fire": 6509.884668252291,
+          "lightning": 12913.983710645482,
+          "physical": 48761.53996700514
         },
-        "dps_contribution": 149346.60981083868,
-        "dps_vs_target": 74247.86360321517,
+        "dps_contribution": 250155.57143315475,
+        "dps_vs_target": 124365.1715353854,
         "effectiveness_pct": 308.0,
         "fires_per_sec": 3.0624000000000007,
         "form_type": "exclusive",
         "hit_max_by_type": {
-          "fire": 5044.973767015265,
-          "lightning": 14678.35117513091,
-          "physical": 36622.77253092563
+          "fire": 8450.33105975057,
+          "lightning": 24586.238218344282,
+          "physical": 61343.14398930043
         },
         "hit_min_by_type": {
-          "fire": 2728.0228517934397,
-          "lightning": 741.3308674308541,
-          "physical": 21599.96175803573
+          "fire": 4569.438276754012,
+          "lightning": 1241.7292029466807,
+          "physical": 36179.93594470985
         },
         "hits_per_fire": 1,
         "name": "Steep Strike",
+        "nyi": [],
         "proc_chance": 1.0,
         "shotgun_falloff": 0.0,
         "shotgun_mult": 1.0
+      }
+    ],
+    "intrinsic_additional_sources": [
+      {
+        "amount": 0.9,
+        "label": "Skill Intrinsic"
       }
     ],
     "jumps": 0,
@@ -298,6 +491,7 @@
     "mana_cost": 5.0,
     "mercury_baptism_dps": 0.0,
     "mercury_baptism_fraction": 0.0,
+    "minion_empower": null,
     "multistrike_avg_count": 0.0,
     "multistrike_chain": [],
     "multistrike_chance": 0.0,
@@ -314,13 +508,19 @@
       "Ailment DPS",
       "barrage_dmg_per_wave_inc \u2014 Barrage mechanic \u2014 scales per wave fired, not a flat multiplier",
       "combo_finisher_additional \u2014 Combo finisher only \u2014 applies to finisher hits, not all hits; combo damage model NYI",
-      "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
       "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
       "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
       "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
     ],
     "projectile_base_count": 0,
     "projectile_count": -1,
+    "quad_dmg_chance": 0,
+    "shadow_chance_pct": 0.0,
+    "shadow_chance_quantity": 0.0,
+    "shadow_count": 0,
+    "shadow_dmg_additional": 0.0,
+    "shadow_hits_per_sec": 0.0,
+    "shadow_mult": 1.0,
     "shotgun_hits": 1,
     "skill_area_inc": 0.0,
     "skill_name": "Focused Slash",
@@ -331,6 +531,7 @@
       "Physical",
       "Slash-Strike"
     ],
+    "skills_per_second": 3.0624000000000007,
     "spell_burst_auto": false,
     "spell_burst_auto_source": "",
     "spell_burst_cast_to_next_add": 0.0,
@@ -351,6 +552,11 @@
     "spell_burst_rate": 0.0,
     "spell_ripple_dps": 0.0,
     "spell_ripple_fraction": 0.0,
+    "spirit_magi_enhanced_chance": 0.0,
+    "spirit_magi_growth": 0.0,
+    "spirit_magi_max": 0,
+    "spirit_magi_physique_inc": 0.0,
+    "spirit_magi_stage": 0,
     "steep_strike_chance": 1.0,
     "supported": true,
     "tangle_attach_range": 0.0,
@@ -363,12 +569,19 @@
     "tangle_inactivated": 0,
     "tangle_mult": 1.0,
     "tangle_placeable": 0,
-    "total_dps": 149346.60981083868,
-    "total_dps_vs_target": 74247.86360321517,
+    "target_mitigation_by_type": {
+      "fire": 0.48999999999999994,
+      "lightning": 0.48999999999999994,
+      "physical": 0.5
+    },
+    "total_dps": 250155.57143315475,
+    "total_dps_vs_target": 124365.1715353854,
+    "trigger_interval": 0.0,
+    "triple_dmg_chance": 0,
     "type_add": {
-      "fire": 7.420901555257343,
-      "lightning": 9.814142306827835,
-      "physical": 7.420901555257343
+      "fire": 12.43001010505605,
+      "lightning": 16.43868836393662,
+      "physical": 12.43001010505605
     },
     "type_inc": {
       "fire": 0,
@@ -380,17 +593,29 @@
     "weapon_attack_speed": 2.4000000000000004,
     "weapon_crit_rating_flat": 1200.0,
     "weapon_csr_gear": 0,
-    "weapon_csr_mh": 0
+    "weapon_csr_mh": 0,
+    "wind_rhythm_active": false,
+    "wind_rhythm_base_cooldown": 0.0,
+    "wind_rhythm_bonus": 0.0,
+    "wind_rhythm_cast_time": 0.0,
+    "wind_rhythm_cast_to_next": 0.0,
+    "wind_rhythm_cdr_to_next": 0.0,
+    "wind_rhythm_rate": 0.0,
+    "wind_rhythm_ticks": 0,
+    "wind_rhythm_wind_to_next": 0.0
   },
   "slot_offense": {
     "1": {
       "above_max_mult": 1.0,
-      "attacks_per_second": 3.0624000000000007,
       "base_cast_time": 0.0,
       "base_csr": 0.0,
       "base_dmg_max": {},
       "base_dmg_min": {},
       "cast_multiplier": 1.0,
+      "channel_attack_smooth_sps": 0.0,
+      "channel_attack_ticks": 0,
+      "channel_attack_to_next_additional": 0.0,
+      "channel_attack_to_next_increased": 0.0,
       "channeled_attack_frequency": 0.0,
       "channeled_behavior": "",
       "channeled_burst_rate": 0.0,
@@ -400,12 +625,120 @@
       "channeled_stacks": 0.0,
       "compulsory_breakdown": {},
       "crit_chance": 0.396,
+      "crit_chance_uncapped": 0.396,
+      "crit_luck_effect": "",
       "crit_multiplier": 1.5,
+      "damage_rows": [
+        {
+          "dps_by_type_vs_target": {
+            "fire": 0.0,
+            "lightning": 0.0,
+            "physical": 0.0
+          },
+          "dps_final": 0.0,
+          "dps_vs_target_final": 0.0,
+          "form_index": 0,
+          "hit_max_by_type": {
+            "fire": 2584.199100841153,
+            "lightning": 7518.727283897334,
+            "physical": 18759.37125055059
+          },
+          "hit_min_by_type": {
+            "fire": 1397.3817360104013,
+            "lightning": 379.733701206936,
+            "physical": 11064.20059471249
+          },
+          "kind": "hit",
+          "name": "Sweep Slash",
+          "nyi": [],
+          "pct_of_total": 0.0
+        },
+        {
+          "dps_by_type_vs_target": {
+            "fire": 11702.754881744924,
+            "lightning": 23215.33999666149,
+            "physical": 89447.07665697897
+          },
+          "dps_final": 250155.57143315475,
+          "dps_vs_target_final": 124365.1715353854,
+          "form_index": 1,
+          "hit_max_by_type": {
+            "fire": 8450.33105975057,
+            "lightning": 24586.238218344282,
+            "physical": 61343.14398930043
+          },
+          "hit_min_by_type": {
+            "fire": 4569.438276754012,
+            "lightning": 1241.7292029466807,
+            "physical": 36179.93594470985
+          },
+          "kind": "hit",
+          "name": "Steep Strike",
+          "nyi": [],
+          "pct_of_total": 100.0
+        }
+      ],
+      "demolisher_area_mode": "both",
+      "demolisher_base_restore": 0.0,
+      "demolisher_cast_rate": 0.0,
+      "demolisher_cdr_droppable": 0.0,
+      "demolisher_charge_speed_inc": 0.0,
+      "demolisher_charged_rate": 0.0,
+      "demolisher_collapse_pct": 0.0,
+      "demolisher_frequent_quake": false,
+      "demolisher_mismatch": false,
+      "demolisher_mode": "",
+      "demolisher_over_breakpoint": false,
+      "demolisher_primary_dps": 0.0,
+      "demolisher_restoration_time": 0.0,
+      "demolisher_restore_to_sustain": 0.0,
+      "demolisher_rhythm_interval": 0.0,
+      "demolisher_secondary_dps": 0.0,
+      "demolisher_under_breakpoint": false,
+      "double_dmg_chance": 0,
+      "double_dmg_factor": 1,
       "effective_level": 20,
       "enemy_mult_by_type": {
         "fire": 0.48999999999999994,
         "lightning": 0.7349999999999999,
         "physical": 0.5
+      },
+      "enemy_vuln_by_type": {
+        "fire": 1.0,
+        "lightning": 1.5,
+        "physical": 1.0
+      },
+      "enemy_vuln_sources_by_type": {
+        "fire": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "fire_infiltration_taken",
+          "fire_curse_taken",
+          "hit_curse_taken"
+        ],
+        "lightning": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "numbed_lightning_taken",
+          "lightning_infiltration_taken",
+          "lightning_curse_taken",
+          "hit_curse_taken"
+        ],
+        "physical": [
+          "paralysis_dmg_taken",
+          "no_guard_dmg_taken",
+          "knockback_dmg_taken",
+          "tide_dmg_taken",
+          "enemy_nearby_dmg_taken_additional",
+          "physical_curse_taken",
+          "hit_curse_taken"
+        ]
       },
       "flat_dmg_max": {
         "fire": 135.0,
@@ -417,18 +750,18 @@
         "lightning": 10.0,
         "physical": 578.0
       },
-      "generic_add": 7.420901555257343,
+      "generic_add": 12.43001010505605,
       "generic_inc": 0,
       "hit_forms": [
         {
-          "avg_hit_pre_crit": 12448.839900662359,
-          "avg_hit_with_crit": 14913.710200993504,
+          "avg_hit_pre_crit": 20851.806833609455,
+          "avg_hit_with_crit": 24980.464586664126,
           "base_max_by_type": {},
           "base_min_by_type": {},
           "damage_by_type": {
-            "fire": 1188.531593090016,
-            "lightning": 2357.749547792319,
-            "physical": 8902.558759780024
+            "fire": 1990.790418425777,
+            "lightning": 3949.230492552135,
+            "physical": 14911.785922631541
           },
           "dps_contribution": 0.0,
           "dps_vs_target": 0.0,
@@ -436,51 +769,59 @@
           "fires_per_sec": 0.0,
           "form_type": "exclusive",
           "hit_max_by_type": {
-            "fire": 1542.8054333380016,
-            "lightning": 4488.792408296915,
-            "physical": 11199.624627194382
+            "fire": 2584.199100841153,
+            "lightning": 7518.727283897334,
+            "physical": 18759.37125055059
           },
           "hit_min_by_type": {
-            "fire": 834.2577528420305,
-            "lightning": 226.70668728772299,
-            "physical": 6605.492892365666
+            "fire": 1397.3817360104013,
+            "lightning": 379.733701206936,
+            "physical": 11064.20059471249
           },
           "hits_per_fire": 1,
           "name": "Sweep Slash",
+          "nyi": [],
           "proc_chance": 0.0,
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
         },
         {
-          "avg_hit_pre_crit": 40707.70647516592,
-          "avg_hit_with_crit": 48767.83235724877,
+          "avg_hit_pre_crit": 68185.4083459029,
+          "avg_hit_with_crit": 81686.11919839168,
           "base_max_by_type": {},
           "base_min_by_type": {},
           "damage_by_type": {
-            "fire": 3886.4983094043528,
-            "lightning": 7709.841021280882,
-            "physical": 29111.36714448068
+            "fire": 6509.884668252291,
+            "lightning": 12913.983710645482,
+            "physical": 48761.53996700514
           },
-          "dps_contribution": 149346.60981083868,
-          "dps_vs_target": 74247.86360321517,
+          "dps_contribution": 250155.57143315475,
+          "dps_vs_target": 124365.1715353854,
           "effectiveness_pct": 308.0,
           "fires_per_sec": 3.0624000000000007,
           "form_type": "exclusive",
           "hit_max_by_type": {
-            "fire": 5044.973767015265,
-            "lightning": 14678.35117513091,
-            "physical": 36622.77253092563
+            "fire": 8450.33105975057,
+            "lightning": 24586.238218344282,
+            "physical": 61343.14398930043
           },
           "hit_min_by_type": {
-            "fire": 2728.0228517934397,
-            "lightning": 741.3308674308541,
-            "physical": 21599.96175803573
+            "fire": 4569.438276754012,
+            "lightning": 1241.7292029466807,
+            "physical": 36179.93594470985
           },
           "hits_per_fire": 1,
           "name": "Steep Strike",
+          "nyi": [],
           "proc_chance": 1.0,
           "shotgun_falloff": 0.0,
           "shotgun_mult": 1.0
+        }
+      ],
+      "intrinsic_additional_sources": [
+        {
+          "amount": 0.9,
+          "label": "Skill Intrinsic"
         }
       ],
       "jumps": 0,
@@ -493,6 +834,7 @@
       "mana_cost": 5.0,
       "mercury_baptism_dps": 0.0,
       "mercury_baptism_fraction": 0.0,
+      "minion_empower": null,
       "multistrike_avg_count": 0.0,
       "multistrike_chain": [],
       "multistrike_chance": 0.0,
@@ -509,13 +851,19 @@
         "Ailment DPS",
         "barrage_dmg_per_wave_inc \u2014 Barrage mechanic \u2014 scales per wave fired, not a flat multiplier",
         "combo_finisher_additional \u2014 Combo finisher only \u2014 applies to finisher hits, not all hits; combo damage model NYI",
-        "enemy_nearby_dmg_taken_additional \u2014 Requires 'nearby enemy' condition boolean (not yet wired)",
         "multistrike_increasing_dmg_inc \u2014 Multistrike mechanic \u2014 stacks per successive hit in a multistrike chain, not a flat multiplier",
         "post_mobility_dmg_additional \u2014 Requires 'mobility skill cast recently' condition boolean (not yet created)",
         "two_handed_base_dmg_additional \u2014 May apply to base damage before inc/additional; stacking position unconfirmed \u2014 deferred"
       ],
       "projectile_base_count": 0,
       "projectile_count": -1,
+      "quad_dmg_chance": 0,
+      "shadow_chance_pct": 0.0,
+      "shadow_chance_quantity": 0.0,
+      "shadow_count": 0,
+      "shadow_dmg_additional": 0.0,
+      "shadow_hits_per_sec": 0.0,
+      "shadow_mult": 1.0,
       "shotgun_hits": 1,
       "skill_area_inc": 0.0,
       "skill_name": "Focused Slash",
@@ -526,6 +874,7 @@
         "Physical",
         "Slash-Strike"
       ],
+      "skills_per_second": 3.0624000000000007,
       "spell_burst_auto": false,
       "spell_burst_auto_source": "",
       "spell_burst_cast_to_next_add": 0.0,
@@ -546,6 +895,11 @@
       "spell_burst_rate": 0.0,
       "spell_ripple_dps": 0.0,
       "spell_ripple_fraction": 0.0,
+      "spirit_magi_enhanced_chance": 0.0,
+      "spirit_magi_growth": 0.0,
+      "spirit_magi_max": 0,
+      "spirit_magi_physique_inc": 0.0,
+      "spirit_magi_stage": 0,
       "steep_strike_chance": 1.0,
       "supported": true,
       "tangle_attach_range": 0.0,
@@ -558,12 +912,19 @@
       "tangle_inactivated": 0,
       "tangle_mult": 1.0,
       "tangle_placeable": 0,
-      "total_dps": 149346.60981083868,
-      "total_dps_vs_target": 74247.86360321517,
+      "target_mitigation_by_type": {
+        "fire": 0.48999999999999994,
+        "lightning": 0.48999999999999994,
+        "physical": 0.5
+      },
+      "total_dps": 250155.57143315475,
+      "total_dps_vs_target": 124365.1715353854,
+      "trigger_interval": 0.0,
+      "triple_dmg_chance": 0,
       "type_add": {
-        "fire": 7.420901555257343,
-        "lightning": 9.814142306827835,
-        "physical": 7.420901555257343
+        "fire": 12.43001010505605,
+        "lightning": 16.43868836393662,
+        "physical": 12.43001010505605
       },
       "type_inc": {
         "fire": 0,
@@ -575,7 +936,16 @@
       "weapon_attack_speed": 2.4000000000000004,
       "weapon_crit_rating_flat": 1200.0,
       "weapon_csr_gear": 0,
-      "weapon_csr_mh": 0
+      "weapon_csr_mh": 0,
+      "wind_rhythm_active": false,
+      "wind_rhythm_base_cooldown": 0.0,
+      "wind_rhythm_bonus": 0.0,
+      "wind_rhythm_cast_time": 0.0,
+      "wind_rhythm_cast_to_next": 0.0,
+      "wind_rhythm_cdr_to_next": 0.0,
+      "wind_rhythm_rate": 0.0,
+      "wind_rhythm_ticks": 0,
+      "wind_rhythm_wind_to_next": 0.0
     }
   },
   "stats": {
@@ -704,6 +1074,16 @@
           "source_name": "Focused Slash: Duel (Magnificent)",
           "source_type": "support",
           "text": "additional damage for the supported skill |focused_slash_duel_magnificent|universal"
+        },
+        {
+          "amount": 0.675,
+          "label": "Focused Slash: Duel (Magnificent) (Tier 5)",
+          "points": 1,
+          "scope": null,
+          "slot": 1,
+          "source_name": "Focused Slash: Duel (Magnificent)",
+          "source_type": "support",
+          "text": "additional damage for the supported skill |focused_slash_duel_magnificent|specific"
         },
         {
           "amount": 0.2,

@@ -3,7 +3,7 @@ import type {
   LegendaryGearIndexItem, LegendaryGearItem, CraftBaseItemGroup,
   CraftBaseType, Graft, HeroTrait, HeroMemoryAffix, ConditionDef, SkillItem,
 } from '../api/client'
-import { api } from '../api/client'
+import { api, registerSkillTagVocabulary } from '../api/client'
 
 export interface HeroMemoryData {
   base_stats: HeroMemoryAffix[]
@@ -144,6 +144,9 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
       updates.skills = skillsResult.value.skills
       updates.skillsByName = Object.fromEntries(skillsResult.value.skills.map((s) => [s.name, s]))
       updates.skillsById = Object.fromEntries(skillsResult.value.skills.map((s) => [s.item_id, s]))
+      // Refresh isSupportCompatible's tag vocabulary against THIS season's catalog, so multi-word
+      // support-gate phrases ("Supports Shadow Strike Skills.") match correctly (see client.ts).
+      registerSkillTagVocabulary(skillsResult.value.skills)
       if (skillsResult.value.season) season ??= skillsResult.value.season
     } else { failed.add('skills') }
 
@@ -153,6 +156,7 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
   clearReferenceData: () => {
     // Increment token so any in-flight load discards its result
     loadToken++
+    registerSkillTagVocabulary([]) // reset to the pseudo-tag-only fallback until the next load
     set({ ...freshClearedState() })
   },
 

@@ -7,7 +7,7 @@ trait's positional machinery (Bard Song channel, bubbles, Tide placement, moveme
 delivery) is spatial and not modelled on a stationary dummy — those lines are surfaced via `status_lines`
 (never silently dropped).
 
-Owner-confirmed modeling (2026-06-22):
+Tyra-confirmed modeling (2026-06-22):
 - Two SEPARATE state conditions (`selena_bard` default ON, `selena_loud_song` default OFF) — the UI toggle flips
   between them, but a future revival memory (Ceaseless Tide) enables BOTH at once, so they're independent.
 - `player_on_tide` gates your buffs; `enemy_on_tide` gates the enemy damage-taken / "vs enemies on Tide" lines.

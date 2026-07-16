@@ -6,8 +6,8 @@ import os
 from server import _parse_custom_mod_text as P, _translate_condition_expr as T
 from engine.aura_resolver import resolve_auras
 
-_SKILLS = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons", "SS12", "_skills.json")
-_BY_ID = {s["item_id"]: s for s in json.load(open(_SKILLS, encoding="utf-8"))["skills"]}
+from persistence import season_manager
+_BY_ID = {s["item_id"]: s for s in season_manager.load_skills("SS12")["skills"]}
 
 
 def _resolve(skill_id, level):
@@ -22,15 +22,18 @@ def _attack_base(skill_id, level):
 
 
 def test_cruelty_interpolates_attack_damage_linearly():
-    # Lv1 9.5%, Lv20 19% → Lv16 ~17% (matches the owner's hand-collected Lv16 value). Base values, unscaled.
+    # Lv1 9.5%, Lv20 19% → Lv16 ~17% (matches Tyra's hand-collected Lv16 value). Base values, unscaled.
     assert round(_attack_base("cruelty", 1) * 100, 1) == 9.5
     assert round(_attack_base("cruelty", 20) * 100, 1) == 19.0
     assert round(_attack_base("cruelty", 16) * 100, 1) == 17.0
 
 
-def test_disabled_aura_emits_nothing():
-    buffs, *_ = resolve_auras([{"skill_id": "cruelty", "level": 20, "enabled": False}], _BY_ID, P, T)
-    assert buffs == []
+def test_disabled_aura_resolved_but_marked_disabled():
+    # Disabled auras are STILL resolved (so the Skill panel shows their stats marked "Disabled"); the engine-side
+    # apply_aura_buffs is what skips folding them into the source (see test_utility). meta.enabled flags the state.
+    buffs, _st, _sc, meta = resolve_auras([{"skill_id": "cruelty", "level": 20, "enabled": False}], _BY_ID, P, T)
+    assert buffs != []
+    assert meta["cruelty"]["enabled"] is False
 
 
 def test_non_aura_skill_ignored():

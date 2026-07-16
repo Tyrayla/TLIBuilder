@@ -2,7 +2,7 @@
 
 The Gale strikes at its own Base Attack Frequency 1.5/s (× cast speed), separate from the 3/s channel build rate
 (both surfaced). Spell base (548-913 physical @ L20) is unscaled by effectiveness. "+21.5% additional damage per
-ADDITIONAL Max Channeled Stack" (beyond base 5) scales off max_channeled_stacks_flat (owner read — verify in-game).
+ADDITIONAL Max Channeled Stack" (beyond base 5) scales off max_channeled_stacks_flat (Tyra read — verify in-game).
 """
 import pytest
 from server import engine_stats, EngineStatsRequest
@@ -32,9 +32,9 @@ def test_supported_refresh_channeled():
 
 def test_gale_rate_separate_from_channel_rate():
     o = _offense()
-    aps = o["attacks_per_second"]                 # channel build rate (1/0.333 ≈ 3/s)
-    assert aps == pytest.approx(1.0 / 0.333, rel=1e-3)
-    # Gale strikes at 1.5 × cast-speed mult; at no cast speed = 1.5/s. cs_mult = aps × base_cast_time ≈ 1.0.
+    sps = o["skills_per_second"]                 # channel build rate (1/0.333 ≈ 3/s)
+    assert sps == pytest.approx(1.0 / 0.333, rel=1e-3)
+    # Gale strikes at 1.5 × cast-speed mult; at no cast speed = 1.5/s. cs_mult = sps × base_cast_time ≈ 1.0.
     assert o["channeled_attack_frequency"] == pytest.approx(1.5, rel=1e-3)
     # The damage form fires at the Gale rate, NOT the channel rate.
     form = o["hit_forms"][0]
@@ -62,7 +62,7 @@ def test_cast_speed_scales_gale_rate():
     base = _offense()
     fast = _offense(gear=_gear_with(cast_speed_inc=0.50))   # +50% cast speed → ×1.5 on BOTH channel + Gale rate
     assert fast["channeled_attack_frequency"] == pytest.approx(base["channeled_attack_frequency"] * 1.5, rel=1e-3)
-    assert fast["attacks_per_second"] == pytest.approx(base["attacks_per_second"] * 1.5, rel=1e-3)
+    assert fast["skills_per_second"] == pytest.approx(base["skills_per_second"] * 1.5, rel=1e-3)
 
 
 # ── Phase 2: noble / magnificent canvas supports ──────────────────────────────
@@ -82,14 +82,14 @@ def test_eye_global_cast_speed_scales_rates():
     # Eye tier 1 = +(20-22)% additional Attack & Cast Speed (mid 21%). Cast Speed feeds BOTH the channel build
     # rate and the Gale strike rate (an additional pool → ×1.21).
     eye = _offense(attached_supports=[_sup(EYE)])
-    assert eye["attacks_per_second"] == pytest.approx(base["attacks_per_second"] * 1.21, rel=1e-3)
+    assert eye["skills_per_second"] == pytest.approx(base["skills_per_second"] * 1.21, rel=1e-3)
     assert eye["channeled_attack_frequency"] == pytest.approx(base["channeled_attack_frequency"] * 1.21, rel=1e-3)
 
 
 def test_eye_gated_on_within_gale():
     base = _offense()
     off = _offense(attached_supports=[_sup(EYE)], conds={"within_gale": False})
-    assert off["attacks_per_second"] == pytest.approx(base["attacks_per_second"], rel=1e-3)
+    assert off["skills_per_second"] == pytest.approx(base["skills_per_second"], rel=1e-3)
 
 
 def test_furious_sweep_scales_gale_rate_only():
@@ -97,8 +97,8 @@ def test_furious_sweep_scales_gale_rate_only():
     # Furious tier 1 = +(7.2-7.6)% (mid 7.4%) additional Gale Attack Frequency PER channeled stack × 5 = +37%.
     fs = _offense(attached_supports=[_sup(FURIOUS)])
     assert fs["channeled_attack_frequency"] == pytest.approx(base["channeled_attack_frequency"] * 1.37, rel=1e-3)
-    # The channel BUILD rate (aps) is untouched — Furious scales only the Gale.
-    assert fs["attacks_per_second"] == pytest.approx(base["attacks_per_second"], rel=1e-3)
+    # The channel BUILD rate (sps) is untouched — Furious scales only the Gale.
+    assert fs["skills_per_second"] == pytest.approx(base["skills_per_second"], rel=1e-3)
 
 
 def test_headwind_enemy_vulnerability():

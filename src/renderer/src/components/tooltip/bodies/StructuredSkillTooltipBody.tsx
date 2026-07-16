@@ -10,7 +10,11 @@
 import React from 'react'
 import { ModifierBadge, useTextModifierStatuses } from '../../ModifierBadge'
 import { affixIdentity } from '../../../utils/affixIdentity'
+import { dec } from '../../../utils/num'
 import type { SkillTooltipSpec } from '../../../api/client'
+
+// A (lo–hi) numeric band, e.g. "(0.3–0.5)" / "(-25–-15)" / "(38 - 40)".
+const _BAND_RE = /\(\s*-?\d[\d.]*\s*[–—−-]\s*-?\d[\d.]*\s*\)/g
 
 // Nearest available level ≤ the requested one (else the lowest) — mirrors the backend's level pick.
 function clampLevel(level: number, available: number[]): number {
@@ -35,9 +39,46 @@ export function StructuredSkillTooltipBody(
 ) {
   const lvl = clampLevel(level, spec.available_levels)
 
+  // Activation mediums pack many rolls onto one concatenated line keyed by SYNTHETIC identities, so affix-identity
+  // substitution can't reach them. Instead match each (lo–hi) band to its roll by the band's VALUE RANGE at the
+  // displayed tier (band order differs from parse order across tiers), then substitute the selected value.
+  const amBandLookup = new Map<string, { identity: string; scale: number }>()
+  if (spec.is_activation_medium) {
+    for (const r of spec.modeled_rolls ?? []) {
+      const rng = r.ranges_by_tier?.[lvl]
+      if (!rng) continue
+      const scale = r.scale ?? 100
+      amBandLookup.set(`${(rng.min * scale).toFixed(2)}|${(rng.max * scale).toFixed(2)}`,
+                       { identity: r.identity, scale })
+    }
+  }
   const resolved = spec.lines.map((ln) => {
     let display = ln.values_by_level ? (ln.values_by_level[lvl] ?? ln.text) : ln.text
-    if (specificRolls) {
+    if (spec.is_activation_medium && (spec.modeled_rolls?.length ?? 0)) {
+      // Pass 1 — bands still in the text (e.g. Rhythm's "every (0.3–0.5) s"): match by range at this tier.
+      display = display.replace(_BAND_RE, (m) => {
+        const nums = (m.match(/-?\d[\d.]*/g) ?? []).map(Number)
+        if (nums.length < 2) return m
+        const lo = Math.min(...nums), hi = Math.max(...nums)
+        const hit = amBandLookup.get(`${lo.toFixed(2)}|${hi.toFixed(2)}`)
+        if (!hit) return m
+        const val = specificRolls?.[hit.identity]
+        return val !== undefined ? dec(val * hit.scale) : m
+      })
+      // Pass 2 — the backend pre-renders some tier midpoints into values_by_level (no band left, e.g. Wind Rhythm's
+      // share). Replace each roll's rendered midpoint token with the selected value (boundary-safe, first hit).
+      for (const r of spec.modeled_rolls ?? []) {
+        const rng = r.ranges_by_tier?.[lvl]
+        const sel = specificRolls?.[r.identity]
+        if (!rng || sel === undefined) continue
+        const scale = r.scale ?? 100
+        const rendered = dec(rng.mid * scale)
+        const replacement = dec(sel * scale)
+        if (rendered === replacement) continue
+        const esc = rendered.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        display = display.replace(new RegExp(`(?<![\\d.])${esc}(?![\\d.])`), replacement)
+      }
+    } else if (specificRolls) {
       const roll = specificRolls[affixIdentity(ln.badge_text || display)]
       if (roll !== undefined) display = applyRoll(display, roll)
     }

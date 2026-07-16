@@ -165,49 +165,50 @@ class TestBuildNodeRecipesConditional:
 
 
 # ---------------------------------------------------------------------------
-# build_filter — _meta counter correctness
+# build_filter — _meta counter correctness (tree-driven; the PDF snapshot path is retired)
 # ---------------------------------------------------------------------------
 
-def _minimal_snapshot(texts: list[str], node_type: str = "micro") -> dict:
-    """Build a minimal snapshot dict with one tree and one node per text."""
+def _minimal_trees(texts: list[str], node_type: str = "Micro Talent") -> dict:
+    """Build minimal season-tree data with one tree and one node per text."""
     nodes = []
     for i, text in enumerate(texts):
         nodes.append({
             "id": f"test_c{i}_r0",
             "node_type": node_type,
-            "max_points": 1,
-            "stats": [{"text": text, "value": 0.15}],
+            "max_rank": 1,
+            "effects": [text],
         })
-    return {
-        "source_file": "test",
-        "trees": {"Test Tree": {"tree_name": "Test Tree", "nodes": nodes}},
-    }
+    return {"test_tree": {"tree_name": "Test Tree", "nodes": nodes}}
 
 
 class TestMetaCounters:
     def test_matched_text_increments_matched_not_unmatched(self):
-        snap = _minimal_snapshot(["+15% Attack Damage"])
-        result = build_filter(snap)
+        result = build_filter(_minimal_trees(["+15% Attack Damage"]))
         assert result["_meta"]["unmatched"] == 0
         assert result["_meta"]["matched"] >= 1
 
     def test_conditional_text_increments_conditional_not_unmatched(self):
         # "for every" is conditional but not in _CONDITION_MAP → no cond_key → conditional_count
-        snap = _minimal_snapshot(["+2% Damage for every Stack"])
-        result = build_filter(snap)
+        result = build_filter(_minimal_trees(["+2% Damage for every Stack"]))
         assert result["_meta"]["unmatched"] == 0
         assert result["_meta"]["conditional"] >= 1
 
     def test_unrecognised_text_increments_unmatched(self):
-        snap = _minimal_snapshot(["zzzxxx totally unknown modifier qqq"])
-        result = build_filter(snap)
+        result = build_filter(_minimal_trees(["zzzxxx totally unknown modifier qqq"]))
         assert result["_meta"]["unmatched"] >= 1
 
     def test_conditional_with_known_condition_produces_conditional_recipe(self):
-        snap = _minimal_snapshot(["+15% Attack Damage while holding a Shield"])
-        result = build_filter(snap)
+        result = build_filter(_minimal_trees(["+15% Attack Damage while holding a Shield"]))
         tree_recipes = result.get("recipes", {}).get("Test Tree", {})
         all_recipes = [r for recipes in tree_recipes.values() for r in recipes]
         cond_recipes = [r for r in all_recipes if r.get("condition")]
         assert len(cond_recipes) >= 1
         assert cond_recipes[0]["condition"] == "holding_shield"
+
+    def test_raw_node_type_names_are_normalized(self):
+        # Season trees carry "Legendary Medium Talent" etc. — must normalize to legendary_medium.
+        result = build_filter(_minimal_trees(["+15% Attack Damage"], node_type="Legendary Medium Talent"))
+        recipes = result["recipes"]["Test Tree"]
+        assert list(recipes.keys()) == ["legendary_medium"]
+        # legendary_medium nodes have a single rank
+        assert len(recipes["legendary_medium"][0]["values"]) == 1

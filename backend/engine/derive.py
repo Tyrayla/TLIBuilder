@@ -91,6 +91,20 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
 DERIVED_BY_KEY: dict[str, DerivedStat] = {d.key: d for d in ALL_DERIVED_STATS}
 
 
+def _additional_pool_factor(source: BuildSource, keys: list[str]) -> float:
+    """Combine an ADDITIONAL pool as Π(1 + amount) over each source — so "+25% and +15% additional Max Life"
+    MULTIPLY (×1.25×1.15 = ×1.4375) instead of summing to +40%. Each contribution (positive or negative) is
+    its own multiplicative factor; a negative can't drop the factor below 0. Falls back to (1 + Σ) when
+    contributions were added without source text (e.g. some tests use add() with no source_log)."""
+    entries = [e for e in source.source_log if e.stat in keys]
+    if not entries:
+        return 1.0 + sum(source.total(k) for k in keys)
+    factor = 1.0
+    for e in entries:
+        factor *= max(0.0, 1.0 + e.amount)
+    return factor
+
+
 def derive_stats(source: BuildSource, overrides: dict[str, float] | None = None) -> dict[str, float]:
     """Compute final effective stat values and inject them back into source.
 
@@ -110,11 +124,15 @@ def derive_stats(source: BuildSource, overrides: dict[str, float] | None = None)
             value = max(0.0, float(overrides[d.key]))
         else:
             flat_total = d.base + sum(source.total(k) for k in d.flat_keys)
+            # Tortoise Shell: a % of FINAL Max Life is added as flat Energy Shield BEFORE ES inc/additional scale
+            # it. max_life is derived earlier in this same pass (it precedes max_energy_shield), so read the just-
+            # computed value from `results`. Done inline (not source.add) so it can't accumulate across passes.
+            if d.key == "max_energy_shield":
+                flat_total += results.get("max_life", 0.0) * source.total("max_life_as_es_pct")
             inc_total  = sum(source.total(k) for k in d.inc_keys)
             value      = flat_total * (1.0 + inc_total)
             for pool in d.add_pools:
-                pool_total = sum(source.total(k) for k in pool)
-                value *= (1.0 + pool_total)
+                value *= _additional_pool_factor(source, pool)
             value = max(0.0, value)
         results[d.key] = value
         source.add(d.key, value)

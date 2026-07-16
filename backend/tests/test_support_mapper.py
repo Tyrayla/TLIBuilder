@@ -9,7 +9,8 @@ _SKILLS = os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons",
 
 
 def _by_name():
-    d = json.load(open(_SKILLS, encoding="utf-8"))
+    from persistence import season_manager
+    d = season_manager.load_skills("SS12")   # normalized runtime view (plain-string lines)
     skills = d.get("skills", d) if isinstance(d, dict) else d
     return {s.get("name"): s for s in skills}
 

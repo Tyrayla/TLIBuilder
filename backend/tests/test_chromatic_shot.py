@@ -2,7 +2,7 @@
 rotated element; ALL added flat folds into base BEFORE conversion; only the final element's increased/additional
 apply) fired as 3 shotgunning projectiles. Plus its canvas supports Lightchaser + Splendor.
 
-Owner-confirmed model: headline = expected average across Fire/Cold/Lightning; shotgun first 100% + each subsequent
+Tyra-confirmed model: headline = expected average across Fire/Cold/Lightning; shotgun first 100% + each subsequent
 30% (falloff 0.70) capped at "shots on target" (default 7, all under Lightchaser/tangle); added flat of EVERY type
 folds in equally.
 """
@@ -17,7 +17,8 @@ SP = "chromatic_shot_splendor_noble"
 
 def _skill_data():
     import json, os
-    d = json.load(open(os.path.join(os.path.dirname(__file__), "..", "..", "data", "seasons", "SS12", "_skills.json"), encoding="utf-8"))
+    from persistence import season_manager
+    d = season_manager.load_skills("SS12")   # normalized runtime view
     items = d if isinstance(d, list) else d.get("skills") or d.get("items") or []
     return next(x for x in items if x.get("item_id") == "chromatic_shot")
 
@@ -151,15 +152,15 @@ def _tangled(cs_inc):
 
 def test_tangle_cast_rate_hard_rounds_to_tick_breakpoints():
     """A tangle's per-cast rate snaps to whole server ticks: two different cast speeds that land on the same tick
-    count produce the SAME effective rate (owner-verified 6.04 & 7.44 casts/s → 5 ticks → 6.0/s)."""
+    count produce the SAME effective rate (Tyra-verified 6.04 & 7.44 casts/s → 5 ticks → 6.0/s)."""
     base = 1.0 / 0.65   # chromatic base cast time 0.65s → ~1.538 casts/s before cast speed
     a = _tangled(6.04 / base - 1.0)
     b = _tangled(7.44 / base - 1.0)
     assert a["tangle_cast_ticks"] == 5 and b["tangle_cast_ticks"] == 5
-    assert a["attacks_per_second"] == pytest.approx(6.0) == b["attacks_per_second"]
+    assert a["skills_per_second"] == pytest.approx(6.0) == b["skills_per_second"]
     # One tick faster requires crossing the boundary: just under 6.0/s sits at 6 ticks → 5.0/s.
     slow = _tangled(5.99 / base - 1.0)
-    assert slow["tangle_cast_ticks"] == 6 and slow["attacks_per_second"] == pytest.approx(5.0)
+    assert slow["tangle_cast_ticks"] == 6 and slow["skills_per_second"] == pytest.approx(5.0)
 
 
 def test_untangled_cast_rate_stays_smooth():
@@ -167,7 +168,7 @@ def test_untangled_cast_rate_stays_smooth():
     base = 1.0 / 0.65
     off = _off(gear=[_flat_item("C", [("cast_speed_inc", 6.04 / base - 1.0)])])
     assert off["tangle_cast_ticks"] == 0
-    assert off["attacks_per_second"] == pytest.approx(6.04, abs=1e-3)   # smooth, not snapped to 6.0
+    assert off["skills_per_second"] == pytest.approx(6.04, abs=1e-3)   # smooth, not snapped to 6.0
 
 
 # ── Splendor ──────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import math
 import re
+from engine.affix_identity import affix_identity
 from engine.models import BuildInput, BuildSource, SourceEntry
 
 
@@ -132,6 +133,25 @@ _DUAL_WIELD_BASE_EFFECTS: list[tuple[str, float, str]] = [
     ("attack_speed_additional", 0.10, "+10% additional Attack Speed (Dual Wield)"),
 ]
 
+# Hasten (community name; game tooltip "Quickness", glossary id 10000106): a keyword buff granting +8%
+# ADDITIONAL Attack/Cast/Move Speed (+ Mobility-Skill CDR, a non-DPS sub-effect not separately modeled — no
+# stat key). Applied while the auto-set 'has_hasten' condition is on. The "+N% when having Hasten" gear
+# PAYOFF lines (increased pool) are separate contributions parsed off their own gear text — not here.
+_HASTEN_BASE_EFFECTS: list[tuple[str, float, str]] = [
+    ("attack_speed_additional",   0.08, "+8% additional Attack Speed (Hasten)"),
+    ("cast_speed_additional",     0.08, "+8% additional Cast Speed (Hasten)"),
+    ("movement_speed_additional", 0.08, "+8% additional Movement Speed (Hasten)"),
+]
+
+# Attack Aggression (glossary id 10000100): "Additionally increases Attack Speed and Attack Damage by 5%.
+# Increases Movement Speed by 10%." AS/attack-dmg are the ADDITIONAL pool; Move Speed is the increased pool.
+# Gained on attack-skill cast → applied while the auto-set 'attack_aggression' condition is on.
+_ATTACK_AGGRESSION_BASE_EFFECTS: list[tuple[str, float, str]] = [
+    ("attack_speed_additional", 0.05, "+5% additional Attack Speed (Attack Aggression)"),
+    ("attack_dmg_additional",   0.05, "+5% additional Attack Damage (Attack Aggression)"),
+    ("movement_speed_inc",      0.10, "+10% Movement Speed (Attack Aggression)"),
+]
+
 _NODE_TYPE_LABELS = {
     "micro": "Micro",
     "medium": "Medium",
@@ -251,7 +271,8 @@ def _extract_cond_keys(expr, out: set) -> None:
         out.add(expr["key"])
 
 
-def _apply_effect_contribs(source, contribs, source_type, label, active_booleans, numeric_vals):
+def _apply_effect_contribs(source, contribs, source_type, label, active_booleans, numeric_vals,
+                           stamp=None):
     """Apply pre-resolved pact-spirit / hero-memory contributions (server._resolve_effect_modifiers).
     Gates on the optional translated `condition` exactly like the gear-contribution loop: boolean → on/off,
     'per'/float → scale the amount (capped if the expr carries a cap). Scoped contributions route to
@@ -275,8 +296,11 @@ def _apply_effect_contribs(source, contribs, source_type, label, active_booleans
                 continue
         entry = SourceEntry(stat=stat, amount=amount, source_type=source_type, label=label,
                             text=contrib.get("text", ""), points=1,
-                            source_name=contrib.get("source"))
-        _emit(source, stat, amount, contrib.get("scope"), entry)
+                            source_name=contrib.get("source"),
+                            pooling_uuid=stamp(contrib.get("text")) if stamp else None)
+        # slot-local contributions (e.g. Licorice Note's per-scent-bottle Elixir Effect) route to add_slotted;
+        # default None → unchanged global/scoped behavior for every existing trait/spirit/memory contribution.
+        _emit(source, stat, amount, contrib.get("scope"), entry, slot=contrib.get("slot"))
 
 
 def aggregate(
@@ -285,28 +309,61 @@ def aggregate(
     filter_data: dict,
     active_booleans: frozenset[str] | None = None,
     numeric_vals: dict[str, float] | None = None,
+    identity_index: dict[str, str] | None = None,
 ) -> BuildSource:
     """
     Collect all stat contributions from talent nodes and slates into a BuildSource.
 
     season_trees:    {tree_slug: season_tree_dict} — pre-loaded season tree data
     filter_data:     the node_type_filter.json dict with a "recipes" key
-    active_booleans: derived from build.condition_state by the fixed-point engine; if None,
-                     derived here for backward-compat single-call usage
-    numeric_vals:    numeric condition values (clamped) for scaling/threshold evaluation
+    active_booleans: derived from build.condition_state by the fixed-point engine; if None, derived here
+                     for backward-compat single-call usage — pre-seeded from each condition's catalog
+                     default (models.conditions.condition_defaults()) then overlaid with
+                     build.condition_state, so an explicit value (including an explicit 0/False) always
+                     wins and only a truly absent key falls back to its default
+    numeric_vals:    numeric condition values (clamped) for scaling/threshold evaluation; same
+                     catalog-default pre-seed + overlay applies when None
+    identity_index:  affix_identity(text) → minted pooling_uuid (engine/identity_index.py); None
+                     (tests/legacy) → entries stay uuid-less and pool by text identity as before
     """
     source = BuildSource()
+    # Attach the index for offense's pool_identity — the pooling key is a PURE function of each
+    # entry's text through this index, so same-wording entries key identically regardless of which
+    # emit path produced them (see engine/modifier_lines.pool_identity).
+    source.identity_index = identity_index
 
+    # Stamp a DEFINITION-level contribution's minted pooling identity. Applied ONLY to the gear /
+    # character / spirit / memory / trait / custom loops below — NEVER to supports, core talents, or
+    # node/slate contributions: those carry deliberately-unique minted-suffix texts (`|item_id|role`,
+    # `|core|<name>`, `|tag|node_id`) so per-instance copies MULTIPLY; a definition-level uuid would
+    # collapse them into ADD (a DPS regression). Suffixed texts can't hit the index anyway (it holds
+    # only catalog lines), but the rule is enforced here, not left to that accident.
+    def _stamp(text) -> str | None:
+        if not identity_index or not text:
+            return None
+        return identity_index.get(affix_identity(text))
+
+    # Backward-compat single-call derivation (the fixed-point loop in engine.compute normally pre-derives
+    # and passes both views via its own _derive_views, which applies the SAME catalog-default fallback).
+    # Pre-seeded from each condition's catalog default, then overlaid with build.condition_state — an
+    # explicit value (including an explicit 0/False) always wins; only a truly ABSENT key falls back.
+    if active_booleans is None or numeric_vals is None:
+        from models.conditions import condition_defaults
+        bool_defaults, numeric_defaults = condition_defaults()
     if active_booleans is None:
-        active_booleans = frozenset(
-            k for k, v in build.condition_state.items()
-            if isinstance(v, bool) and v
-        )
+        active_booleans = {k for k, v in bool_defaults.items() if v}
+        for k, v in build.condition_state.items():
+            if isinstance(v, bool):
+                if v:
+                    active_booleans.add(k)
+                else:
+                    active_booleans.discard(k)
+        active_booleans = frozenset(active_booleans)
     if numeric_vals is None:
-        numeric_vals = {
-            k: float(v) for k, v in build.condition_state.items()
-            if not isinstance(v, bool) and isinstance(v, (int, float))
-        }
+        numeric_vals = dict(numeric_defaults)
+        for k, v in build.condition_state.items():
+            if not isinstance(v, bool) and isinstance(v, (int, float)):
+                numeric_vals[k] = float(v)
 
     # Talent-tree nodes + slate slots (incl. Moth/Prairie copy) are now resolved server-side through the
     # unified resolver (engine.node_resolver.resolve_nodes) and injected as build.node_contributions,
@@ -347,6 +404,7 @@ def aggregate(
             points=1,
             # Preserve weapon identity so offense can scope a main-hand-only modifier to the weapon1 base.
             weapon_slot=_gslot if _gslot in ("weapon1", "weapon2") else None,
+            pooling_uuid=_stamp(contrib.get("text") or contrib.get("item_name", "")),
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)
 
@@ -363,6 +421,7 @@ def aggregate(
             label=f"Character · {contrib.get('label', '')}",
             text=contrib.get("text", ""),
             points=1,
+            pooling_uuid=_stamp(contrib.get("text")),
         )
         source.add_with_source(stat, amount, entry)
 
@@ -370,13 +429,13 @@ def aggregate(
     # Resolved by server._resolve_effect_modifiers (the unified pool-strict path; replaces the old
     # _MEMORY_STAT_LOOKUP). Spirit→memory order preserved (multiplicative-pool order); conditional effects
     # gated in _apply_effect_contribs.
-    _apply_effect_contribs(source, build.spirit_contributions, "pact_spirit", "Pact Spirit", active_booleans, numeric_vals)
-    _apply_effect_contribs(source, build.memory_contributions, "hero_memory", "Hero Memory", active_booleans, numeric_vals)
+    _apply_effect_contribs(source, build.spirit_contributions, "pact_spirit", "Pact Spirit", active_booleans, numeric_vals, stamp=_stamp)
+    _apply_effect_contribs(source, build.memory_contributions, "hero_memory", "Hero Memory", active_booleans, numeric_vals, stamp=_stamp)
     # Hero-trait contributions: for a bespoke trait these are recomputed each pass by its hero_traits module
     # (loop-top) so MS↔Numbed coupling converges; folded here BEFORE the Numbed block so additional Numbed
     # Effect is in source when numbed_lightning_taken is computed.
     _apply_effect_contribs(source, getattr(build, "trait_contributions", None) or [],
-                           "hero_trait", "Hero Trait", active_booleans, numeric_vals)
+                           "hero_trait", "Hero Trait", active_booleans, numeric_vals, stamp=_stamp)
 
     # ── Custom mod contributions ──────────────────────────────────────────────
     for contrib in build.custom_contributions:
@@ -403,6 +462,7 @@ def aggregate(
             label="Custom Config",
             text=contrib.get("text", ""),
             points=1,
+            pooling_uuid=_stamp(contrib.get("text")),
         )
         _emit(source, stat, amount, contrib.get("scope"), entry)
 
@@ -499,6 +559,31 @@ def aggregate(
             label=contrib.get("label", "Talent"), text=contrib.get("text", ""), points=1,
         ))
 
+    # ── Isomorphic Arms (God of Machines): minions inherit the Main-Hand Weapon's bonuses ─────────────────
+    # Glossary "Applied Weapon Bonuses": the weapon's Base Damage + affixes transfer to minions, but NOT its
+    # Base Attack Speed / Base Critical Strike Rating. Transfer the main-hand (weapon1) gear contributions to the
+    # minion pools via the STRICT remap — which implements that rule for free: base damage (physical_dmg_gear_flat)
+    # + affix increased/additional/crit/AS map to their minion pools, while the intrinsic weapon_attack_speed /
+    # weapon_crit_rating_flat have no minion equivalent and are DROPPED (never leaked to the player). Runs after
+    # core-talent + node contributions so the flag (from either) is set.
+    if source.total("minions_inherit_mainhand_weapon") > 0:
+        from engine.minion_offense import to_minion_stat_strict
+        for _item in build.gear:
+            for _c in _item.get("contributions", []):
+                if _c.get("slot") != "weapon1":       # main-hand
+                    continue
+                _st = _c.get("stat")
+                _mk = to_minion_stat_strict(_st) if _st else None
+                if _mk is None:                        # base AS/crit + anything without a minion twin → not transferred
+                    continue
+                _v = _c.get("display_value", 0)
+                _amt = _v / 100.0 if _c.get("unit") == "%" else float(_v)
+                if _amt == 0.0:
+                    continue
+                source.add_with_source(_mk, _amt, SourceEntry(
+                    stat=_mk, amount=_amt, source_type="core_talent", label="Isomorphic Arms",
+                    source_name="Isomorphic Arms", text=f"Main-Hand Weapon: {_st}"))
+
     # ── Fervor mechanics ──────────────────────────────────────────────────────
     # Fervor's BASE effects scale per point of Fervor Rating AND are multiplied by Fervor Effect
     # (fervor_effect_inc). Today the only base effect is +2% (generic) Critical Strike Rating per
@@ -547,7 +632,7 @@ def aggregate(
     # above 120 is IGNORED here); Frostbite Effect scales the magnitude. Condensed Frost adds a SEPARATE
     # +0.35%/point for the rating OVER 120 (cap +28%), NOT scaled by Frostbite Effect. frostbite_rating is the
     # auto-derived numeric condition (compute loop). Baked into a cold-tagged stat read by offense's
-    # enemy-vulnerability stage. Both pieces are "additional Cold taken" → one additive pool (owner-confirmed).
+    # enemy-vulnerability stage. Both pieces are "additional Cold taken" → one additive pool (Tyra-confirmed).
     if "enemy_frostbitten" in (active_booleans or frozenset()):
         rating = float((numeric_vals or {}).get("frostbite_rating", 0.0) or 0.0)
         if rating > 0:
@@ -567,7 +652,7 @@ def aggregate(
 
     # ── Bonus propagation: Play Safe (Cast Speed → Spell Burst Charge Speed) ──────
     # When granted (flag stat present), the player's cast-speed INCREASED total and EACH cast-speed
-    # ADDITIONAL affix are ALSO applied to Spell Burst Charge Speed (owner: charge restoration time =
+    # ADDITIONAL affix are ALSO applied to Spell Burst Charge Speed (Tyra: charge restoration time =
     # 2 / (1 + chargeSpeed_inc) / Π(1 + chargeSpeed_additional_i)). Spell Burst charge speed isn't consumed
     # by the engine yet, so this populates the stats ready for when it is, without affecting DPS today.
     if source.total("cast_speed_to_spell_burst_charge") > 0:
@@ -684,6 +769,71 @@ def aggregate(
                 stat=stat_key, amount=amount, source_type="condition",
                 label="Dual Wielding", text=label_text, points=1,
             ))
+
+    # ── Hasten & Attack Aggression buff base effects ──────────────────────────
+    # Boolean keyword buffs, auto-set in compute when the build has a granting line ("Has Hasten" / "Gain
+    # Attack Aggression …"). Fixed additional-pool amounts (distinct source text → their own multiplicative
+    # factors in offense). The dual-wield block above is the template.
+    if "has_hasten" in (active_booleans or frozenset()):
+        for stat_key, amount, label_text in _HASTEN_BASE_EFFECTS:
+            source.add_with_source(stat_key, amount, SourceEntry(
+                stat=stat_key, amount=amount, source_type="condition",
+                label="Hasten", text=label_text, points=1,
+            ))
+    if "attack_aggression" in (active_booleans or frozenset()):
+        for stat_key, amount, label_text in _ATTACK_AGGRESSION_BASE_EFFECTS:
+            source.add_with_source(stat_key, amount, SourceEntry(
+                stat=stat_key, amount=amount, source_type="condition",
+                label="Attack Aggression", text=label_text, points=1,
+            ))
+
+    # ── Aim / Euphoria buff base effects ──────────────────────────────────────
+    # The Aim skill grants Euphoria: "Ranged and Beam Skills +N% additional damage AND +N% additional Ailment
+    # Damage, but -16% Attack and Cast Speed" for 6s (auto-set aim_active from a "Triggers Lv. K Aim …" line).
+    # N scales with the Aim LEVEL: +35% at Lv20, -1%/level below → (15 + level)%. The -16% AS/CS is GLOBAL and
+    # constant at all levels. Per the skill text, Euphoria is NOT affected by Empower — and aggregator base
+    # effects are fixed (never empower-scaled), so this is inherently correct. The +damage lines are Ranged/Beam
+    # scoped via add_scoped: dmg_additional (affects hit+ailment) for "+additional damage", plus ailment_dmg_
+    # additional (ailment-only) for the separate "+additional Ailment Damage" — each applied to both tags.
+    if "aim_active" in (active_booleans or frozenset()):
+        _aim_lvl = float((numeric_vals or {}).get("aim_level", 20.0) or 0.0)
+        _aim_pct = (15.0 + _aim_lvl) / 100.0
+        for stat_key in ("attack_speed_inc", "cast_speed_inc"):
+            source.add_with_source(stat_key, -0.16, SourceEntry(
+                stat=stat_key, amount=-0.16, source_type="condition",
+                label="Aim (Euphoria)", text="-16% Attack and Cast Speed (Aim)", points=1,
+            ))
+        for tag in ("ranged", "beam"):
+            source.add_scoped("dmg_additional", _aim_pct, tag, SourceEntry(
+                stat="dmg_additional", amount=_aim_pct, source_type="condition",
+                label="Aim (Euphoria)", points=1,
+                text=f"+{_aim_pct:.0%} additional Damage for {tag.title()} Skills (Aim Lv {int(_aim_lvl)})"))
+            source.add_scoped("ailment_dmg_additional", _aim_pct, tag, SourceEntry(
+                stat="ailment_dmg_additional", amount=_aim_pct, source_type="condition",
+                label="Aim (Euphoria)", points=1,
+                text=f"+{_aim_pct:.0%} additional Ailment Damage for {tag.title()} Skills (Aim Lv {int(_aim_lvl)})"))
+
+    # ── Origin of Thunder (Spirit Magus summoner buff) ────────────────────────
+    # Summoning a Thunder Magus grants the SUMMONER "Origin of Thunder": +6% additional Attack AND Cast Speed
+    # (constant at all levels) + additional damage scaling with the summon level (2.5% @ Lv1 → 7.25% @ Lv20,
+    # +0.25%/level). Both magnitudes scale by Origin of Spirit Magus Effect = (1 + inc) × (1 + additional) —
+    # the engine-wide effect-scalar convention. Gated by origin_of_thunder (compute auto-sets it + the level
+    # when a Thunder Magus is slotted). Emitted GLOBAL (all skills) via add_with_source, like Aim's AS/CS.
+    if "origin_of_thunder" in (active_booleans or frozenset()):
+        _ot_lvl = float((numeric_vals or {}).get("origin_of_thunder_level", 20.0) or 20.0)
+        _origin_factor = ((1.0 + source.total("spirit_magi_origin_effect_inc"))
+                          * (1.0 + source.total("spirit_magi_origin_effect_additional")))
+        _ot_speed = 0.06 * _origin_factor
+        _ot_dmg = (2.5 + max(0.0, _ot_lvl - 1.0) * 0.25) / 100.0 * _origin_factor
+        for _sk, _lbl in (("attack_speed_additional", "Attack"), ("cast_speed_additional", "Cast")):
+            source.add_with_source(_sk, _ot_speed, SourceEntry(
+                stat=_sk, amount=_ot_speed, source_type="condition",
+                label="Origin of Thunder", source_name="Thunder Magus", points=1,
+                text=f"+{_ot_speed * 100:.2g}% additional {_lbl} Speed (Origin of Thunder)"))
+        source.add_with_source("dmg_additional", _ot_dmg, SourceEntry(
+            stat="dmg_additional", amount=_ot_dmg, source_type="condition",
+            label="Origin of Thunder", source_name="Thunder Magus", points=1,
+            text=f"+{_ot_dmg * 100:.3g}% additional damage (Origin of Thunder Lv {int(_ot_lvl)})"))
 
     # ── Support-granted buff / debuff base effects (roadmap #2) ────────────────
     _booleans = active_booleans or frozenset()

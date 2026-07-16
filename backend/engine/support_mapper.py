@@ -69,6 +69,10 @@ class StatContribution:
     amount: float
     text: str                 # unique pooling identity (support id + line); set by caller wrapper
     modeled: bool = True      # False = captured-but-inert (stored, no DPS effect yet)
+    confident: bool = True    # False = resolved only via mod_parser._resolve_gear_stat's low-confidence
+                               # ranked-overlap fallback (2026-07-12) — engine.coverage's strict classifier
+                               # excludes these; every other path (added-flat, conditional, capture) is
+                               # confident by construction (a real regex match, not word-overlap scoring).
 
 
 # Damage / general stat mapping is no longer table-driven here — map_line delegates to engine.mod_parser
@@ -182,10 +186,17 @@ def map_conditional_line(line: SupportLine, level: int, conds: dict | None) -> l
     has = lambda pat: re.search(pat, t) is not None       # glue-tolerant membership
     base = (_level_value(line, level)[:1] or [_last_number(line.text)])[0] / 100.0
 
-    if has(r"cursed\s*enem"):                                # Grudge — gated on enemy_cursed
+    # Guard (2026-07-12, thunder_core_lightning_lasso_noble false positive): "cursed enem"/"numbed enem" alone
+    # is not enough — Thunder Core's "...launches 1 additional bolt of lightning at Numbed enemies within 10m
+    # nearby..." mentions Numbed enemies purely as a TARGETING clause for a bolt-count mechanic, not a damage
+    # bonus, yet cleared the bare substring check below and got misread as Electric Punishment's own per-stack
+    # damage line. Require the line actually contains "additional damage" (Grudge's/Electric Punishment's own
+    # phrasing) before treating a cursed/numbed mention as one of THEIR damage bonuses — mirrors the Fervor
+    # branch's pre-existing `additional\s*damage` guard below, applied consistently to its sibling branches.
+    if has(r"cursed\s*enem") and has(r"additional\s*damage"):    # Grudge — gated on enemy_cursed
         return [StatContribution("dmg_additional", base, line.text)] if _cbool(conds, "enemy_cursed") else []
 
-    if has(r"numbed\s*enem"):                                # Electric Punishment — flat + per numbed stack
+    if has(r"numbed\s*enem") and has(r"additional\s*damage"):    # Electric Punishment — flat + per numbed stack
         stacks = _cnum(conds, "numbed_stacks")
         if stacks <= 0 and not _cbool(conds, "enemy_numbed"):
             return []
@@ -233,9 +244,16 @@ class ConditionEffect:
     source: str | None = None          # human label of what inflicts this (for the Config "auto" badge)
 
 
-def map_autoderive_line(line: SupportLine) -> list[ConditionEffect]:
+def map_autoderive_line(line: SupportLine, item_id: str | None = None) -> list[ConditionEffect]:
     """Lines that INFLICT a debuff / GRANT a buff → set the relevant condition (effect applied by the
-    existing condition→effect machinery; soft proc-chance ignored, 100% assumed). [] otherwise."""
+    existing condition→effect machinery; soft proc-chance ignored, 100% assumed). [] otherwise.
+
+    `item_id` (optional — defaults to None so existing direct unit-test calls keep their prior behavior)
+    scopes the "buff on Critical Strike" -> electric_overload branch to the Electric Overload support
+    itself. Without it, ANY support whose own bespoke crit-buff text happens to contain that substring
+    (e.g. Thunder Spike: Tremble's "The supported skill gains a buff on Critical Strike: +(66-71)% Numbed
+    Effect for 2 s") would spuriously flip on Electric Overload's own +15% additional Lightning Damage —
+    2026-07-15 bug, see .wolf/buglog.json."""
     t = line.template
     has = lambda pat: re.search(pat, t) is not None
 
@@ -246,7 +264,8 @@ def map_autoderive_line(line: SupportLine) -> list[ConditionEffect]:
         return [ConditionEffect("enemy_frostbitten", 1.0, "set_true", requires_dtype="cold")]
     if has(r"chance\s*to\s*paralyze"):                       # Grudge — needs enemy already Cursed
         return [ConditionEffect("enemy_paralyzed", 1.0, "set_true", requires_cond="enemy_cursed")]
-    if has(r"buff\s*on\s*critical\s*strike"):               # Electric Overload (soft trigger → assume active)
+    if has(r"buff\s*on\s*critical\s*strike") and item_id in (None, "electric_overload"):
+        # Electric Overload (soft trigger → assume active). item_id scoping: see docstring.
         return [ConditionEffect("electric_overload", 1.0, "set_true")]
     if has(r"stack\s*of\s*buff") and has(r"standing\s*still"):                     # Willpower
         return [ConditionEffect("willpower_stacks", 6.0, "max", requires_cond="standing_still")]
@@ -289,10 +308,12 @@ def map_via_parser(line: SupportLine, level: int) -> list[StatContribution]:
         if not vals:
             return []
         v = vals[0]
-        return [StatContribution(d["stat_key"], v / 100.0 if _stat_is_pct(d["stat_key"]) else v, line.text)
+        return [StatContribution(d["stat_key"], v / 100.0 if _stat_is_pct(d["stat_key"]) else v, line.text,
+                                  confident=d.get("confident", True))
                 for d in parsed]
     # Non-scaling line: the text carries the literal value, already pool/type-correct from the parser.
-    return [StatContribution(d["stat_key"], d["amount"], line.text) for d in parsed]
+    return [StatContribution(d["stat_key"], d["amount"], line.text, confident=d.get("confident", True))
+            for d in parsed]
 
 
 def map_line(line: SupportLine, level: int, cat: str | None = None,

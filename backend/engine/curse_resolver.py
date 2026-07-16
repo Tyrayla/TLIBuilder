@@ -89,21 +89,22 @@ def resolve_curses(skills_input, affix_curses, skills_by_id):
     """
     raw: list[dict] = []
     for s in skills_input or []:
-        if not s.get("enabled", True):
-            continue
         sid = s.get("skill_id")
         skill = skills_by_id.get(sid) or {}
         tags = skill.get("skill_tags") or []
         if "Curse" not in tags or skill.get("skill_type") != "active_skill":
             continue
+        # DISABLED curses are still resolved (Skill panel shows them marked "Disabled") but don't count toward the
+        # limit or bake any debuff — apply_curses filters on `enabled`.
         raw.append({"name": skill.get("name", sid), "skill_id": sid, "level": int(s.get("level") or 1),
-                    "skill": skill, "source_label": f"{skill.get('name', sid)} (slot {s.get('slot')})"})
+                    "skill": skill, "source_label": f"{skill.get('name', sid)} (slot {s.get('slot')})",
+                    "enabled": bool(s.get("enabled", True)), "slot": s.get("slot")})
     for a in affix_curses or []:
         name = a.get("curse_name")
         skill = _skill_by_name(skills_by_id, name)
         raw.append({"name": name, "skill_id": skill.get("item_id") or (name or "").strip().lower().replace(" ", "_"),
                     "level": int(a.get("level") or 1), "skill": skill,
-                    "source_label": a.get("source_label") or "Gear"})
+                    "source_label": a.get("source_label") or "Gear", "enabled": True, "slot": None})
 
     # Dedup by curse name — keep only the highest-level instance (same curse doesn't stack; highest level applies).
     best: dict[str, dict] = {}
@@ -111,7 +112,8 @@ def resolve_curses(skills_input, affix_curses, skills_by_id):
         key = (r["name"] or "").strip().lower()
         if not key:
             continue
-        if key not in best or r["level"] > best[key]["level"]:
+        # Prefer an ENABLED instance, then the highest level (a disabled copy must never shadow an enabled one).
+        if key not in best or (r.get("enabled", True), r["level"]) > (best[key].get("enabled", True), best[key]["level"]):
             best[key] = r
 
     active: list[dict] = []
@@ -137,7 +139,8 @@ def resolve_curses(skills_input, affix_curses, skills_by_id):
 
         active.append({
             "curse_name": name, "skill_id": sid, "stat_key": stat_key, "base_amount": base, "level": level,
-            "source_label": r["source_label"], "modeled": modeled, "enabled": True,
+            "source_label": r["source_label"], "modeled": modeled, "enabled": r.get("enabled", True),
+            "slot": r.get("slot"),
         })
         for t in sorted(set(nyi)):
             statuses.append({"skill_id": sid, "text": t, "resolved": False, "kind": "nyi"})
@@ -152,12 +155,17 @@ def resolve_curses(skills_input, affix_curses, skills_by_id):
     return active, statuses, meta
 
 
-def _curse_effect_factor(source) -> tuple[float, float]:
+def _curse_effect_factor(source, slot=None) -> tuple[float, float]:
     """(increased_total, additional_mult) for Curse Effect. Increased sums; additional multiplies PER SOURCE (only
-    Defile today — future-proofed; flag to verify the multiplicative rule once a 2nd additional source exists)."""
-    inc = source.total("curse_effect_inc")
+    Defile today — future-proofed; flag to verify the multiplicative rule once a 2nd additional source exists).
+
+    `slot` makes the read SLOT-LOCAL: the curse's own slot picks up slot-scoped curse-effect sources (e.g. Licorice
+    Note's prepared-curse bonus) on top of the global pool. `materialize_for_skill` shares consumed_stats, so badge
+    recording is preserved; with no slot-scoped sources it returns the same source → identical to the global read."""
+    eff = source.materialize_for_skill(set(), slot=slot) if slot is not None else source
+    inc = eff.total("curse_effect_inc")
     groups: dict[str, float] = defaultdict(float)
-    for e in source.source_log:
+    for e in eff.source_log:
         if e.stat == "curse_effect_additional":
             groups[e.text or e.source_name or e.label or ""] += e.amount
     add_mult = 1.0
@@ -203,13 +211,17 @@ def apply_curses(source, active_curses, condition_state):
                 "resolved": resolved,
             }
 
-        inc, add_mult = _curse_effect_factor(source)
-        factor = (1.0 + inc) * add_mult
+        # Curse Effect is computed PER CURSE (slot-local): a curse's own slot picks up slot-scoped curse-effect
+        # sources (e.g. Licorice Note's prepared-curse bonus); global sources apply to all. With no slot-scoped
+        # source the slot read equals the global read → byte-identical to the old single-factor behavior.
+        def _factor(c):
+            inc, add_mult = _curse_effect_factor(source, slot=c.get("slot"))
+            return inc, add_mult, (1.0 + inc) * add_mult
 
         for c in applied:
             if not c.get("modeled") or not c.get("stat_key"):
                 continue
-            amount = c["base_amount"] * factor
+            amount = c["base_amount"] * _factor(c)[2]
             _emit(source, c["stat_key"], amount, None, SourceEntry(
                 stat=c["stat_key"], amount=amount, source_type="curse",
                 label=c["curse_name"], text=f'{c["curse_name"]} ({c["source_label"]})', points=1,
@@ -218,13 +230,14 @@ def apply_curses(source, active_curses, condition_state):
         applied_ids = {id(c) for c in applied}
         summaries = []
         for c in active_curses:
+            inc, add_mult, factor = _factor(c)
             summaries.append({
                 "skill_id": c["skill_id"], "curse_name": c["curse_name"], "level": c["level"],
                 "stat_key": c["stat_key"], "modeled": c["modeled"], "source_label": c["source_label"],
                 "base_amount": c["base_amount"],
                 "scaled_amount": c["base_amount"] * factor if c.get("modeled") else 0.0,
                 "curse_effect_inc": inc, "curse_effect_additional": add_mult - 1.0,
-                "limit": limit, "n_active": n_active,
+                "limit": limit, "n_active": n_active, "enabled": c.get("enabled", True),
                 "applied": id(c) in applied_ids and bool(c.get("modeled")),
             })
         return summaries, conflict

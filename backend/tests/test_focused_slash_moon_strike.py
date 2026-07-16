@@ -1,7 +1,8 @@
 """Focused Slash + Moon Strike canvas supports, driven end-to-end with baseline 1H swords.
 
-Implemented: Duel (generic conditional), Behead, Fervor (noble), Tranquility, Rainbow, Lunar Ring.
-Deferred (universal +20% still applies): Lunar Eclipse (mana sealing), Wax and Wane (Spell Burst).
+Implemented: Duel (generic conditional), Behead, Fervor (noble), Tranquility, Rainbow, Lunar Ring,
+Lunar Eclipse (mana sealing — engine/utility.py `apply_reservation`, utility.py:462-470).
+Deferred (universal rank line still applies): Wax and Wane (Spell Burst is itself NYI).
 """
 import pytest
 
@@ -116,15 +117,34 @@ class TestMoonStrike:
         ring = _dps("moon_strike", supports=[_sup("moon_strike_lunar_ring_magnificent", _MAG)], mana=2000)
         assert ring == pytest.approx(base)   # circular form does not change single-target DPS
 
+    def test_lunar_eclipse_wired_via_mana_sealing(self):
+        # Lunar Eclipse seals 10% Max Mana and grants +1% additional damage per 100 Mana sealed (capped) —
+        # applied end-to-end by engine/utility.py `apply_reservation` (utility.py:462-470), which detects the
+        # support's "mana sealed" + "up to" description and computes the cap via `_seal_dmg_cap`. This is a
+        # SEPARATE path from the generic support resolver (see TestGuardsAndWiring below), which only ever
+        # emits Lunar Eclipse's universal rank line.
+        # At rank 1 with 20000 Max Mana: 10% sealed = 2000 Mana sealed -> +20% additional damage (well under
+        # the rank-1 cap), so total DPS should be exactly base * 1.20.
+        base = _dps("moon_strike", mana=20000)
+        le = _dps("moon_strike", supports=[_sup("moon_strike_lunar_eclipse_noble", _NOB, rank=1)], mana=20000)
+        assert le == pytest.approx(base * 1.20, rel=1e-6)
 
-class TestGuardsAndDeferrals:
+
+class TestGuardsAndWiring:
+    """Guarded canvas-support specific lines are handled OUTSIDE `resolve_support_contributions` (the generic
+    support resolver): bespoke type-A contributions (Fervor), a dedicated subsystem (Lunar Eclipse — the
+    mana-sealing reservation pass, see TestMoonStrike.test_lunar_eclipse_wired_via_mana_sealing), or genuinely
+    still-deferred (Wax and Wane — Spell Burst is itself NYI). Either way the generic resolver must never emit
+    a bogus/double-counted `dmg_additional` line for them; only the universal rank line (when non-zero) may."""
     @pytest.mark.parametrize("item_id,stype", [
         ("focused_slash_tranquility_magnificent", _MAG),
         ("moon_strike_lunar_ring_magnificent", _MAG),
         ("moon_strike_lunar_eclipse_noble", _NOB),
         ("moon_strike_wax_and_wane_noble", _NOB),
     ])
-    def test_guarded_specifics_emit_no_bogus_damage(self, item_id, stype):
+    def test_guarded_specifics_skip_the_generic_resolver(self, item_id, stype):
+        # rank 1 -> the universal rank line contributes 0%, so ANY dmg_additional here would be a bogus
+        # specific-line emission from the generic resolver (which must skip guarded support ids).
         c = resolve_support_contributions([_sup(item_id, stype)], _SKILLS, _translate_condition_expr)
         assert [x for x in c if x["stat_key"] == "dmg_additional"] == []
 
@@ -135,8 +155,10 @@ class TestGuardsAndDeferrals:
         assert len(steep) == 1
         assert steep[0]["condition"] == {"key": "fervor_rating", "op": ">=", "value": 5.0}
 
-    def test_deferred_universal_still_applies(self):
-        # Lunar Eclipse is deferred, but its universal +20% (rank 5) must still resolve.
+    def test_lunar_eclipse_universal_still_resolves_via_generic_path(self):
+        # Lunar Eclipse's SPECIFIC mana-sealing damage is wired via utility.py (see TestMoonStrike above), but
+        # its universal +20% (rank 5) rank line is a separate contribution that still resolves through the
+        # generic resolver like every other Noble/Magnificent support.
         c = resolve_support_contributions(
             [_sup("moon_strike_lunar_eclipse_noble", _NOB, rank=5)], _SKILLS, _translate_condition_expr)
         uni = [x for x in c if x["stat_key"] == "dmg_additional" and "universal" in x["text"]]

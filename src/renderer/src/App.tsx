@@ -7,6 +7,7 @@ import { useBuildStore } from './store/buildStore'
 import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
 import { useReferenceStore } from './store/referenceStore'
+import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
 import { useUiPrefs } from './store/uiPrefsStore'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
@@ -25,8 +26,9 @@ import SlateScreen from './screens/SlateScreen'
 import PlayerStatsScreen from './screens/PlayerStatsScreen'
 import GearScreen from './screens/GearScreen'
 import SkillsScreen from './screens/SkillsScreen'
+import VerificationDatabaseScreen from './screens/VerificationDatabaseScreen'
 
-type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export'
+type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
 
 interface CascadeModal {
   removingSlot: number
@@ -89,6 +91,10 @@ function App() {
   const [saveModalName, setSaveModalName] = useState('')
   const [saveModalSaving, setSaveModalSaving] = useState(false)
   const loadedVersionRef = useRef(0)
+  // Build-folders: which folder a NEW build (started via BuildSelectScreen's "+ New Build" from inside a
+  // folder) should be assigned into on its first successful save. Cleared once consumed (or on opening an
+  // existing build, which cancels any pending new-build folder intent).
+  const pendingNewBuildFolderRef = useRef<string | null>(null)
   const refConditions = useReferenceStore(s => s.conditions)
 
   // Store reads — replaces session useState
@@ -145,7 +151,7 @@ function App() {
       useBuildStore.getState().flushActiveLoadout()
       const s = useBuildStore.getState()
       if (s.buildId) {
-        const build = { id: s.buildId, name: s.buildName, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
+        const build = { id: s.buildId, name: s.buildName, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitTreeAllocations: s.traitTreeAllocations, traitSkillSupports: s.traitSkillSupports, licoricePreparedSkill: s.licoricePreparedSkill, elixirIngredients: s.elixirIngredients, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
         api.postBuild(build)
           .then(saved => {
             useBuildStore.getState().setBuildId(saved.id ?? null)
@@ -242,12 +248,13 @@ function App() {
     setScreen('build-select')
   }
 
-  const startNewBuild = () => {
+  const startNewBuild = (folderId?: string) => {
+    pendingNewBuildFolderRef.current = folderId ?? null
     const payload = {
       buildId: null, buildName: '', activeSlot: 0,
       slots: [null, null, null, null] as (TreeSlot | null)[], slates: [], slateInventory: [], prisms: [], prismInventory: [], conditionState: {},
       gear: [], skills: [], characterLevel: 100,
-      traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitSkillSupports: [],
+      traitId: null, traitSlotLevels: [1, 1, 1, 1], advancedTraitSelections: [], traitTreeAllocations: [], traitSkillSupports: [], licoricePreparedSkill: null, elixirIngredients: {},
       heroMemories: [null, null, null] as [null, null, null], pactSpirits: [null, null, null] as [null, null, null], fates: {}, undetermined: [null, null, null],
       notes: '', customMods: [], targetConfig: DEFAULT_TARGET_CONFIG,
     }
@@ -312,6 +319,9 @@ function App() {
   }
 
   const openBuild = async (build: Build) => {
+    // Opening an existing build cancels any pending new-build folder assignment from an abandoned
+    // "+ New Build" flow started (but never saved) from inside a folder.
+    pendingNewBuildFolderRef.current = null
     const rawSlots = (build.slots ?? []) as unknown[]
     const slots: (TreeSlot | null)[] = Array.from({ length: 4 }, (_, i) => sanitizeSlot(rawSlots[i]))
 
@@ -326,12 +336,28 @@ function App() {
       selected_random_affixes: g.selected_random_affixes ?? {},
     }))
 
-    // Re-resolve stat fields for crafted items — saved values can become stale
-    // when override entries are added or the resolver improves.
-    const craftedItems = gear.filter(g => g.is_crafted)
-    if (craftedItems.length > 0) {
+    // Migrate OLD saved legendary items onto the CURRENT catalog layout: re-derive each affix array from the
+    // catalog (matched by item_id) so index-based desecration/corrosion lines up again. Older saves can carry a
+    // stale affix layout (from a prior app/catalog version) that made the corrosion toggle swap the wrong slot or
+    // silently no-op; fresh items already match, so re-deriving them is a no-op. Rolls (customizations), corrosion
+    // state, slot, and enable flag are preserved. Crafted/Vorax items have no catalog entry → left untouched.
+    const legendaryCatalog = useReferenceStore.getState().legendaryCatalog
+    if (legendaryCatalog) {
+      const byId = new Map(legendaryCatalog.map(c => [c.item_id, c]))
+      gear = gear.map(item => {
+        if (item.is_crafted || item.is_vorax) return item
+        const cat = byId.get(item.item_id)
+        return cat ? migrateLegendaryItem(item, cat) : item
+      })
+    }
+
+    // Re-resolve stat fields for ALL gear (crafted, legendary, graft) — saved values can become stale
+    // when override entries are added or the resolver improves (e.g. a dual-pool combo like
+    // "Max Life and Max Energy Shield" that previously resolved to only one stat). Keyed purely on
+    // raw_text, which maps deterministically through the same resolver the catalog serve uses.
+    if (gear.length > 0) {
       const texts = [...new Set(
-        craftedItems.flatMap(g => g.affixes
+        gear.flatMap(g => g.affixes
           .filter(a => a.affix_kind === 'numeric')
           .map(a => a.raw_text)
         )
@@ -339,7 +365,6 @@ function App() {
       try {
         const { results } = await api.resolveGearAffixes(texts)
         gear = gear.map(item => {
-          if (!item.is_crafted) return item
           return {
             ...item,
             affixes: item.affixes.map(aff => {
@@ -386,7 +411,10 @@ function App() {
       traitId: build.traitId ?? null,
       traitSlotLevels: build.traitSlotLevels ?? [build.traitLevel ?? 1, 1, 1, 1],
       advancedTraitSelections: build.advancedTraitSelections ?? [],
+      traitTreeAllocations: Array.isArray(build.traitTreeAllocations) ? build.traitTreeAllocations : [],
       traitSkillSupports: build.traitSkillSupports ?? [],
+      licoricePreparedSkill: build.licoricePreparedSkill ?? null,
+      elixirIngredients: build.elixirIngredients ?? {},
       heroMemories: [
         sanitizeHeroMemory((build.heroMemories ?? [])[0]),
         sanitizeHeroMemory((build.heroMemories ?? [])[1]),
@@ -519,26 +547,44 @@ function App() {
     setScreen('tree-selector')
   }
 
+  // Build folders: the first time a build with no prior id gets saved, drop the returned id into whatever
+  // folder was pending (set by startNewBuild when "+ New Build" was clicked from inside a folder). Best-effort
+  // only — a folder-assign failure must never surface as a save failure or block the save flow.
+  const assignNewBuildToFolder = async (savedBuildId: string) => {
+    const folderId = pendingNewBuildFolderRef.current
+    if (!folderId) return
+    pendingNewBuildFolderRef.current = null
+    try {
+      const manifest = await api.getBuildFolders()
+      manifest.assignments[savedBuildId] = folderId
+      await api.putBuildFolders(manifest)
+    } catch {
+      // Folder assignment is best-effort — leave the build unassigned (it lands at root) on failure.
+    }
+  }
+
   const saveBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
-    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
+    const build = { id: s.buildId ?? undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitTreeAllocations: s.traitTreeAllocations, traitSkillSupports: s.traitSkillSupports, licoricePreparedSkill: s.licoricePreparedSkill, elixirIngredients: s.elixirIngredients, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
+    if (!build.id && saved.id) await assignNewBuildToFolder(saved.id)
   }
 
   const saveAsBuild = async (name: string) => {
     useBuildStore.getState().flushActiveLoadout()
     const s = useBuildStore.getState()
-    const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitSkillSupports: s.traitSkillSupports, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
+    const build = { id: undefined, name, slots: s.slots, slates: s.slates, slateInventory: s.slateInventory, prisms: s.prisms, prismInventory: s.prismInventory, conditionState: s.conditionState, gear: s.gear, skills: s.skills, characterLevel: s.characterLevel, traitId: s.traitId, traitSlotLevels: s.traitSlotLevels, advancedTraitSelections: s.advancedTraitSelections, traitTreeAllocations: s.traitTreeAllocations, traitSkillSupports: s.traitSkillSupports, licoricePreparedSkill: s.licoricePreparedSkill, elixirIngredients: s.elixirIngredients, heroMemories: s.heroMemories, pactSpirits: s.pactSpirits, fates: s.fates, undetermined: s.undetermined, notes: s.notes, customMods: s.customMods, targetConfig: s.targetConfig, loadouts: s.loadouts, activeLoadoutId: s.activeLoadoutId }
     const saved = await api.postBuild(build)
     useBuildStore.getState().setBuildId(saved.id ?? null)
     useBuildStore.getState().setBuildName(name)
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
+    if (saved.id) await assignNewBuildToFolder(saved.id)
   }
 
   const handleSidebarSave = () => {
@@ -589,7 +635,10 @@ function App() {
       traitId: s.traitId,
       traitSlotLevels: s.traitSlotLevels,
       advancedTraitSelections: s.advancedTraitSelections,
+      traitTreeAllocations: s.traitTreeAllocations,
       traitSkillSupports: s.traitSkillSupports,
+      licoricePreparedSkill: s.licoricePreparedSkill,
+      elixirIngredients: s.elixirIngredients,
       heroMemories: s.heroMemories,
       pactSpirits: s.pactSpirits,
       fates: s.fates,
@@ -647,7 +696,16 @@ function App() {
           onOpenBuild={openBuild}
           devMode={devMode}
           onDevTools={() => setScreen('dev-tools')}
+          onOpenVerification={() => setScreen('verification')}
         />
+      </div>
+    )
+  }
+
+  if (screen === 'verification') {
+    return (
+      <div className="app-shell">
+        <VerificationDatabaseScreen onBack={() => setScreen('build-select')} />
       </div>
     )
   }

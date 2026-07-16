@@ -82,6 +82,14 @@ def _resolve_node(node_id: str, effects, points: int, label: str, source_text_ta
                         "text": f"{c.get('text', sub)} |{source_text_tag}|{node_id}",
                         "label": label,
                         "condition_expr": cls["condition_expr"],
+                        # Confidence bit from mod_parser._resolve_gear_stat (2026-07-12, coverage
+                        # strictness) — absent/True for every structured regex branch in
+                        # _parse_custom_mod_text; False only for a ranked fuzzy-overlap hit whose query
+                        # carried leftover words beyond the matched stat's own name. Carried through so
+                        # `resolve_effect_text_keys_strict` (below) can exclude low-confidence keys from
+                        # coverage's "is this modeled" check without changing what this function returns
+                        # to every other caller (badges, /api/map-modifiers, the aggregator).
+                        "confident": c.get("confident", True),
                     })
                 statuses.append({"node_id": node_id, "text": sub, "resolved": True, "kind": "stat"})
             else:
@@ -96,6 +104,29 @@ def resolve_effect_text_keys(text, parse_mod, translate_cond) -> list[str]:
     contribs, _ = _resolve_node("__map__", [text], 1, "", "node", parse_mod, translate_cond)
     seen, out = set(), []
     for c in contribs:
+        k = c["stat_key"]
+        if k not in seen:
+            seen.add(k)
+            out.append(k)
+    return out
+
+
+def resolve_effect_text_keys_strict(text, parse_mod, translate_cond) -> list[str]:
+    """Same resolution as `resolve_effect_text_keys`, but excludes any key whose ONLY resolution was a
+    low-confidence fuzzy match (`mod_parser._resolve_gear_stat`'s ranked-overlap fallback with leftover
+    query words — see its docstring). For `engine.coverage`'s strict classifier ONLY (2026-07-12): a
+    coverage check needs "did this resolve via a match we actually trust", not "did this resolve at all"
+    (badges/aggregator still use the permissive `resolve_effect_text_keys` above — this doesn't change
+    what the engine applies or what a badge shows, only what coverage is willing to call 'modeled').
+    Every structured regex branch in `_parse_custom_mod_text` is confident by construction (no `mod_parser
+    ._resolve_gear_stat` call at all, so `confident` defaults True); only its own fuzzy tail can mark a
+    contribution non-confident.
+    """
+    contribs, _ = _resolve_node("__map__", [text], 1, "", "node", parse_mod, translate_cond)
+    seen, out = set(), []
+    for c in contribs:
+        if not c.get("confident", True):
+            continue
         k = c["stat_key"]
         if k not in seen:
             seen.add(k)

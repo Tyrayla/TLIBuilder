@@ -2,7 +2,7 @@
 
 Status: **design confirmed (verbally), Option A implementation greenlit.** Captures the decisions
 from the 2026-06-08 discussion. The core rule — distinct additional affixes **multiply** — is
-owner-confirmed verbally; an in-game DPS spot-check (§7.1) is still queued for when servers return,
+Tyra-confirmed verbally; an in-game DPS spot-check (§7.1) is still queued for when servers return,
 but implementation proceeds now. The immunity tripwire (§6) is the only part shipped so far.
 
 ## 1. Source of truth (TLI Help Database, authoritative)
@@ -22,9 +22,9 @@ adds, different affixes multiply**; a per-stack affix marked **"(multiplies)"** 
 `damage = base × (1 + Σ increased) × Π[ additional factors ]`, where additional factors are:
 
 - **One `(1 + Σ positive)` factor per affix identity**, tag-scoped. Identical affixes (by
-  normalized text) from any sources **add** into that one factor. *(Owner-confirmed: Gravel +
+  normalized text) from any sources **add** into that one factor. *(Tyra-confirmed: Gravel +
   Sun-shooter Long Bow, both `+X% additional Projectile Damage`, ADD.)*
-- **Negatives are a separate concern from positives** (owner-confirmed). A bounded negative affix
+- **Negatives are a separate concern from positives** (Tyra-confirmed). A bounded negative affix
   with a shared stack cap accumulates **additively within its own factor** (e.g. compass
   `−2%/stack, up to 30` → one `×0.40` factor), and that factor then **multiplies** against other
   distinct negative/positive factors. **Distinct or unbounded negatives multiply** (this is what
@@ -80,6 +80,28 @@ pooling: 1.16/1.03/−0.20 vs 1.1664/1.026/0.16). Auditor: `tools/audit_affix_id
 STILL pooled by stat-key (FUTURE, marked in offense.py): attack-speed additional; damage-taken
 additional; `extra_additional` application; "(multiplies)" per-stack compounding.
 
+## 5c. Minted-identity key — SHIPPED (2026-07-07, modifier-identity migration)
+
+The pooling key is now the scraper-minted `pooling_uuid` where one exists:
+`pooling_uuid = uuid5(4d8c3c25-940d-453e-be66-21a9d603aa0e, affix_identity(text))`, minted by
+tlidb-scraper (its `canonical_template` is a byte-for-byte matched pair with
+`engine/affix_identity.py` — neither side may change alone; coordinated two-repo change + fixture
+refreeze + scraper seed migration required). Every imported catalog line stores a slim
+`{text, uuid, pooling_uuid, modifier_id}` (see `engine/modifier_lines.py`; plain-string runtime
+view unwrapped at the `season_manager` load boundary).
+
+At runtime `engine/identity_index.py` builds `affix_identity(text) → pooling_uuid` over the stored
+season files, and the pool sites key by `pool_identity(entry, index) = index.get(identity,
+identity)` — a PURE function of the text, so same-wording entries key identically regardless of
+emit path, and minted-suffix per-instance texts (supports `|id|role`, nodes `|tag|id`, cores
+`|core|<name>`) miss the index and keep multiplying. Provably partition-identical to
+`affix_identity` — gates: `tests/test_pooling_partition.py` (frozen partition + index-equivalence),
+`tests/test_scraper_parity_gate.py` (cross-repo, template-join), `tests/test_identity_crosscheck.py`
+(every stored uuid recomputes from its text; DELETE AT SS13 — after that the scraper's freeze store,
+not recomputation, is the source of truth). `affix_identity` remains the fallback for uuid-less
+lines (custom rolls, engine-minted texts) and the dev-time cross-check for one season; keying on
+the uuid is what lets CN/RU/KO texts attach to the same identities later.
+
 **Note on `(multiplies)`:** the keyword IS on 24+ real legendary affixes (e.g. Marksman Bracers
 `+X% additional damage dealt by Horizontal Projectiles after each Jump (multiplies)`), but **none
 resolve to a stat yet — all NYI** (no `stat_key`, so the renderer skips them and they contribute
@@ -97,7 +119,7 @@ zeroing damage. No current build trips it. (`taken_as` conversions are excluded.
 
 ## 7. Verification status (in-game checks queued; implementation not blocked)
 
-1. **Positives multiply across distinct affixes.** ✅ **Verbally confirmed (owner, 2026-06-08).**
+1. **Positives multiply across distinct affixes.** ✅ **Verbally confirmed (Tyra, 2026-06-08).**
    In-game DPS spot-check still queued for when servers return: dummy DPS `D0`; add one big distinct
    additional (`+50%`) → expect `×1.50`; add a second differently-worded additional of the same type
    → `×2.00` (add) vs `×2.25` (multiply). 25% gap is unmistakable.
@@ -108,7 +130,7 @@ zeroing damage. No current build trips it. (`taken_as` conversions are excluded.
 
 ## 8. Out of scope (for now)
 
-Compass / map modifiers (owner wants these modelled eventually, not now). The per-affix math above
+Compass / map modifiers (Tyra wants these modelled eventually, not now). The per-affix math above
 still applies to on-character negatives (legendary drawbacks, talent `−X%`), which are almost always
 single-instance.
 

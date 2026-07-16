@@ -10,15 +10,21 @@ import { FloatingPortal } from '@floating-ui/react'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { useDamageDeltaList, type DeltaRequest, type StateTransform, type DamageDelta, type LabeledDelta } from '../components/tooltip/useDamageDelta'
 import { TooltipContributions } from '../components/tooltip/TooltipContributions'
-import { legendaryToEquipped } from '../utils/gearItem'
+import { legendaryToEquipped, makeCatalogItem } from '../utils/gearItem'
 import { GearTooltipBody, type GearTooltipItem } from '../components/tooltip/bodies/GearTooltipBody'
 import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, useGearUnresolvedTexts, useTextModifierStatus, useTextModifierStatuses, gearModifierStatus } from '../components/ModifierBadge'
 import {
   rangeDecimals, midpoint, hasRangeValues, reconstructAffixText,
   affixTypeLabel, tooltipAffixText,
 } from '../utils/affixText'
+import { tierForValue, overallRange, signedRange, MAX_CORRODED } from '../utils/affixTiers'
+import EditableRollValue from '../components/EditableRollValue'
 import { useReferenceStore } from '../store/referenceStore'
 import { useBuildStore } from '../store/buildStore'
+import { useUiPrefs } from '../store/uiPrefsStore'
+import { CoverageBadge } from '../components/CoverageBadge'
+import { CoverageLegend } from '../components/CoverageLegend'
+import { coverageRank, passesModeledOnly } from '../utils/coverage'
 
 // A damage-delta request plus the band label it should display under.
 interface GearSlotDelta { label: string; req: DeltaRequest }
@@ -619,6 +625,57 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
     onCorrosionChange(newType, [], newType === 'mutation' ? mutationAffixText : null, updatedAffixes, clearIndices.length > 0 ? clearIndices : undefined)
   }
 
+  // Click-to-edit an exact roll on a legendary explicit: pick the base vs corroded ("T0") variant whose range
+  // holds the value (prefer corroded/desecrated when the corroded-slot budget allows), swap it in, KEEP the
+  // custom value (unlike the toggle, which clears it), and update the corroded-index set.
+  const handleLegendaryValueEdit = (affixIdx: number, explicitIndex: number | undefined, valIdx: number, signedValue: number) => {
+    const baseVariant = catalogItem?.variants?.base
+    const corrVariant = catalogItem?.variants?.corroded
+    const curAffix = getItemAffixes(item)[affixIdx]
+    // No corrosion context → just set the value on the current affix.
+    if (explicitIndex === undefined || !baseVariant || !corrVariant) {
+      const nv = curAffix?.numeric_values[valIdx]
+      setChosenValue(affixIdx, valIdx, nv?.sign === '-' ? -signedValue : signedValue)
+      return
+    }
+    const baseAff = baseVariant.explicits[explicitIndex]
+    const corrAff = corrVariant.explicits[explicitIndex]
+    // Random-affix placeholders have no base/corroded tier ranges — just set the value.
+    if (baseAff?.affix_kind === 'placeholder' || corrAff?.affix_kind === 'placeholder') {
+      const nv = curAffix?.numeric_values[valIdx]
+      setChosenValue(affixIdx, valIdx, nv?.sign === '-' ? -signedValue : signedValue)
+      return
+    }
+    const contains = (aff: LegendaryAffix | undefined) => {
+      const nv = aff?.numeric_values[valIdx]
+      if (!nv || nv.kind !== 'range') return false
+      const [lo, hi] = signedRange(nv)
+      return signedValue >= lo - 1e-6 && signedValue <= hi + 1e-6
+    }
+    const isCurr = corrodedExplicitIndices.includes(explicitIndex)
+    const budgetOk = isCurr || corrodedExplicitIndices.length < MAX_CORRODED
+    const useCorroded = (contains(corrAff) && budgetOk) ? true : contains(baseAff) ? false : (contains(corrAff) ? isCurr : isCurr)
+    const target = useCorroded ? corrAff : baseAff
+    if (!target) return
+
+    const newIndices = useCorroded
+      ? (isCurr ? corrodedExplicitIndices : [...corrodedExplicitIndices, explicitIndex])
+      : corrodedExplicitIndices.filter(i => i !== explicitIndex)
+    const currentAffixes = isLegendaryGearItem(item) ? getItemAffixes(item) : [...(item as EquippedGearItem).affixes]
+    const updatedAffixes = [...currentAffixes]
+    updatedAffixes[affixIdx] = target
+
+    const tnv = target.numeric_values[valIdx]
+    const unsigned = tnv?.sign === '-' ? -signedValue : signedValue
+    const variantChanged = useCorroded !== isCurr
+    const existing = customizations.find(c => c.affix_index === affixIdx)
+    const newChosen = variantChanged ? { [valIdx]: unsigned } : { ...(existing?.chosen_values ?? {}), [valIdx]: unsigned }
+    const newCust = customizations.filter(c => c.affix_index !== affixIdx)
+    newCust.push({ affix_index: affixIdx, chosen_values: newChosen, chosen_placeholder_key: existing?.chosen_placeholder_key ?? null })
+    onCustomizationChange(newCust)
+    onCorrosionChange(newIndices.length > 0 ? 'desecration' : corrosionType, newIndices, null, updatedAffixes, undefined)
+  }
+
   const getRandomGroupForExplicit = (explicitIdx: number): LegendaryRandomAffixGroup | null => {
     if (!catalogItem) return null
     const currentExplicits = explicits
@@ -727,7 +784,6 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
             const listId = `${custPanelId}-${affixIdx}-${valIdx}`
             const unsignedChosen = chosenMap[valIdx] ?? midpoint(nv)
             const signedChosen = nvSign === '-' ? -unsignedChosen : unsignedChosen
-            const displayChosen = dp > 0 ? signedChosen.toFixed(dp) : signedChosen
             return (
               <div key={valIdx} className="gear-slider-row">
                 <input
@@ -742,7 +798,10 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
                 {ticks.length > 0 && (
                   <datalist id={listId}>{ticks.map((t, ti) => <option key={ti} value={t} />)}</datalist>
                 )}
-                <span className="gear-affix-value">{displayChosen}</span>
+                <EditableRollValue
+                  value={signedChosen} dp={dp} range={[actualMin, actualMax]}
+                  onCommit={v => setChosenValue(affixIdx, valIdx, nvSign === '-' ? -v : v)}
+                />
               </div>
             )
           })}
@@ -804,7 +863,6 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
           const listId = `${custPanelId}-${affixIdx}-${valIdx}`
           const unsignedChosen = chosenMap[valIdx] ?? midpoint(nv)
           const signedChosen = nvSign === '-' ? -unsignedChosen : unsignedChosen
-          const displayChosen = dp > 0 ? signedChosen.toFixed(dp) : signedChosen
           return (
             <div key={valIdx} className="gear-slider-row">
               <input
@@ -825,7 +883,15 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
                   {ticks.map((t, ti) => <option key={ti} value={t} />)}
                 </datalist>
               )}
-              <span className="gear-affix-value">{displayChosen}</span>
+              <EditableRollValue
+                value={signedChosen} dp={dp}
+                range={overallRange(
+                  (explicitIndex !== undefined && catalogItem?.variants
+                    ? [catalogItem.variants.base?.explicits[explicitIndex], catalogItem.variants.corroded?.explicits[explicitIndex]].filter((a): a is LegendaryAffix => !!a)
+                    : [affix]),
+                  valIdx) ?? [actualMin, actualMax]}
+                onCommit={v => handleLegendaryValueEdit(affixIdx, explicitIndex, valIdx, v)}
+              />
             </div>
           )
         })}
@@ -838,7 +904,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
     <div className="gear-customize-panel">
       <div className="gear-customize-header">
         {typeLabel && <div className="gear-customize-type">{typeLabel}</div>}
-        <div className="gear-customize-name">{item.name}</div>
+        <div className="gear-customize-name">{item.name}<CoverageLegend /></div>
         {baseType && (() => {
           const baseStats = baseItemImplicits[baseType] ?? []
           const hasStats = baseStats.length > 0
@@ -934,7 +1000,13 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
               {craftImplicits.length > 0 && craftExplicits.length > 0 && (
                 <div className="gear-affix-section-divider" />
               )}
-              {craftExplicits.map((affix, i) => renderAffixRow(affix, implCount + i, catalogItem ? i : undefined))}
+              {craftExplicits.map((affix, i) => {
+                // Editing a build item shows its STORED affixes; swap in the corroded ("T0") variant for the
+                // staged desecrated indices so toggling shows the corroded VALUE live (not just the checkbox).
+                const shown = catalogItem?.variants?.corroded && corrodedExplicitIndices.includes(i)
+                  ? (catalogItem.variants.corroded.explicits[i] ?? affix) : affix
+                return renderAffixRow(shown, implCount + i, catalogItem ? i : undefined)
+              })}
             </>
           )
         })()}
@@ -1314,9 +1386,13 @@ interface CraftSlotRowProps {
   disabledExpressions?: ReadonlySet<string>
   corrupted?: boolean
   corrosionToggle?: { checked: boolean; disabled: boolean; onToggle: () => void }
+  // All tiers (incl. the corroded "0+") for the slot's modifier + the value-edit commit handler. When set,
+  // the roll number becomes click-to-edit: type a value → parent picks the matching tier + desecrates.
+  editTiers?: CraftAffix[]
+  onEditValue?: (valueIndex: number, signedValue: number) => void
 }
 
-function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, corrosionToggle }: CraftSlotRowProps) {
+function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, corrosionToggle, editTiers, onEditValue }: CraftSlotRowProps) {
   const sliderTip = useFloatingTooltip({ anchor: 'cursor', side: 'right' })
   const craftSlotId = useId()
   const rawTiers = useMemo(() => slot.expression ? tiersForModifier(pool, slot.expression) : [], [pool, slot.expression])
@@ -1399,7 +1475,13 @@ function CraftSlotRow({ pool, slot, onChange, disabledExpressions, corrupted, co
                     {ticks.map((t, ti) => <option key={ti} value={t} />)}
                   </datalist>
                 )}
-                <span className="gear-affix-value">{display}</span>
+                {onEditValue && editTiers
+                  ? <EditableRollValue
+                      value={signedChosen} dp={dp}
+                      range={overallRange(editTiers, valIdx) ?? [actualMin, actualMax]}
+                      onCommit={v => onEditValue(valIdx, v)}
+                    />
+                  : <span className="gear-affix-value">{display}</span>}
               </div>
             )
           })}
@@ -1614,6 +1696,27 @@ function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpress
   const dp = Math.max(...numericValues.map(nv => rangeDecimals(nv)), 0)
   const step = dp > 0 ? parseFloat((1 / Math.pow(10, dp)).toFixed(dp)) : 1
 
+  // All tiers for clamping/tier-match (graft mods have tiers; a legendary-source affix is single-tier).
+  const editTiers = !slot.isLegendary && slot.expression ? tiers : (slot.affix ? [slot.affix] : [])
+  // Click-to-edit an exact roll: for graft mods, switch to the tier whose range holds the value (prefer the
+  // better tier); for a legendary-source affix, just set the value. Vorax has no Desecration / corroded slots.
+  const handleEditValue = (valIdx: number, signedValue: number) => {
+    if (!slot.affix) return
+    if (!slot.isLegendary && slot.expression) {
+      const matched = tierForValue(tiers, valIdx, signedValue)
+      if (matched) {
+        const mnv = matched.numeric_values[valIdx]
+        const unsigned = mnv?.sign === '-' ? -signedValue : signedValue
+        const sameTier = matched.raw_text === (slot.affix as GraftAffix).raw_text
+        onChange({ expression: slot.expression, affix: matched, isLegendary: false,
+          chosenValues: sameTier ? { ...slot.chosenValues, [valIdx]: unsigned } : { [valIdx]: unsigned } })
+        return
+      }
+    }
+    const nv = numericValues[valIdx]
+    onChange({ ...slot, chosenValues: { ...slot.chosenValues, [valIdx]: nv?.sign === '-' ? -signedValue : signedValue } })
+  }
+
   return (
     <div className="gear-craft-slot">
       <div className="gear-craft-slot-row">
@@ -1651,7 +1754,6 @@ function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpress
             const listId = `${craftSlotId}-${valIdx}`
             const unsignedChosen = slot.chosenValues[valIdx] ?? midpoint(nv)
             const signedChosen = nvSign === '-' ? -unsignedChosen : unsignedChosen
-            const display = dp > 0 ? signedChosen.toFixed(dp) : signedChosen
             return (
               <div key={valIdx} className="gear-slider-row">
                 <input
@@ -1668,7 +1770,11 @@ function VoraxCraftSlotRow({ graftPool, legPool, slot, onChange, disabledExpress
                     {ticks.map((t, ti) => <option key={ti} value={t} />)}
                   </datalist>
                 )}
-                <span className="gear-affix-value">{display}</span>
+                <EditableRollValue
+                  value={signedChosen} dp={dp}
+                  range={overallRange(editTiers, valIdx) ?? [actualMin, actualMax]}
+                  onCommit={v => handleEditValue(valIdx, v)}
+                />
               </div>
             )
           })}
@@ -2234,6 +2340,35 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
     }
   }
 
+  // Click-to-edit an exact roll: pick the tier whose range holds the value (prefer the better tier), switch
+  // to it, and enable Desecration so the corroded 0+ tier is usable (consuming a corroded slot, max 2).
+  const handleCraftValueEdit = (slotIdx: number, valueIndex: number, signedValue: number) => {
+    const s = slots[slotIdx]
+    if (!s.affix || !s.expression) return
+    // Base slots (0-1) have no tiers / desecration — just set the value in the current affix.
+    if (slotIdx < 2) {
+      const nv = s.affix.numeric_values[valueIndex]
+      const unsigned = nv?.sign === '-' ? -signedValue : signedValue
+      updateSlot(slotIdx, { ...s, chosenValues: { ...s.chosenValues, [valueIndex]: unsigned } })
+      return
+    }
+    const norm = normalizeExpression(s.expression)
+    const section = baseType?.affixes.filter(a => slotIdx < 5 ? a.affix_type.includes('Pre-fix') : a.affix_type.includes('Suffix')) ?? []
+    const tiers = section.filter(a => normalizeExpression(a.expression) === norm)
+    if (corrosionType !== 'desecration') onCorrosionTypeChange('desecration')
+    let matched = tierForValue(tiers, valueIndex, signedValue)
+    // Corroded-slot budget: landing on 0+ when full (and not already 0+) → use the best non-0+ tier instead.
+    if (matched?.tier === '0+' && (s.affix as CraftAffix).tier !== '0+' && corrodedSlotCount >= MAX_CORRODED) {
+      matched = tierForValue(tiers.filter(a => a.tier !== '0+'), valueIndex, signedValue) ?? matched
+    }
+    if (!matched) return
+    const mnv = matched.numeric_values[valueIndex]
+    const unsigned = mnv?.sign === '-' ? -signedValue : signedValue
+    const sameTier = matched.raw_text === s.affix.raw_text
+    const cv = sameTier ? { ...s.chosenValues, [valueIndex]: unsigned } : { [valueIndex]: unsigned }
+    updateSlot(slotIdx, { expression: normalizeExpression(matched.expression), affix: matched, chosenValues: cv })
+  }
+
   const handleCorrosionTypeChange = (newType: 'none' | 'desecration' | 'mutation') => {
     if (newType === corrosionType) return
     const allPrefixes = baseType?.affixes.filter(a => a.affix_type.includes('Pre-fix')) ?? []
@@ -2391,13 +2526,21 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
           const isChecked = showToggle && (slot.affix as CraftAffix).tier === '0+'
           const corrosionToggle = showToggle ? {
             checked: isChecked,
-            disabled: !isChecked && (corrodedSlotCount >= 2 || !slotHasT0Plus[i]),
+            disabled: !isChecked && (corrodedSlotCount >= MAX_CORRODED || !slotHasT0Plus[i]),
             onToggle: () => handleDesecrationToggle(i),
           } : undefined
+          const editTiers: CraftAffix[] | undefined = slot.affix
+            ? (i < 2
+                ? [slot.affix]
+                : (baseType.affixes.filter(a =>
+                    (i < 5 ? a.affix_type.includes('Pre-fix') : a.affix_type.includes('Suffix'))
+                    && normalizeExpression(a.expression) === normalizeExpression(slot.expression ?? ''))))
+            : undefined
           return (
             <React.Fragment key={i}>
               {sectionLabels[i] && <div className="gear-craft-section-label">{sectionLabels[i]}</div>}
-              <CraftSlotRow pool={pools[i]} slot={slot} onChange={next => updateSlot(i, next)} disabledExpressions={craftSlotDisabled[i]} corrupted={isCraftSlotCorrupted(i, slot)} corrosionToggle={corrosionToggle} />
+              <CraftSlotRow pool={pools[i]} slot={slot} onChange={next => updateSlot(i, next)} disabledExpressions={craftSlotDisabled[i]} corrupted={isCraftSlotCorrupted(i, slot)} corrosionToggle={corrosionToggle}
+                editTiers={editTiers} onEditValue={(vi, v) => handleCraftValueEdit(i, vi, v)} />
             </React.Fragment>
           )
         })}
@@ -2458,47 +2601,6 @@ function makeCraftedItem(
 
 // Build the EquippedGearItem for a legendary catalog item customized in the panel (corrosion,
 // random affixes, slider rolls). Mirrors handleAddFromCatalog so the live preview matches.
-function makeCatalogItem(
-  catalogItem: LegendaryGearItem, customizations: CustomizedAffix[],
-  corrosionType: 'none' | 'desecration' | 'mutation', corrodedExplicitIndices: number[],
-  selectedRandomAffixes: Record<number, string>,
-  corrosionBaseAffixes: Array<LegendaryAffix & { modifier_text: string }>, mutationAffixText: string | null,
-): EquippedGearItem {
-  const baseAffixes = getItemAffixes(catalogItem)
-  const implCount = getItemImplicits(catalogItem).length
-  const affixes = [...baseAffixes]
-  if (corrodedExplicitIndices.length > 0 && catalogItem.variants.corroded) {
-    for (const idx of corrodedExplicitIndices) {
-      const corroded = catalogItem.variants.corroded.explicits[idx]
-      if (corroded) affixes[implCount + idx] = corroded
-    }
-  }
-  const allRandomOptions = Object.values(catalogItem.random_affixes).flat().flatMap(g => g.options)
-  for (const [explicitIdxStr, modifierId] of Object.entries(selectedRandomAffixes)) {
-    const explicitIdx = Number(explicitIdxStr)
-    const opt = allRandomOptions.find(o => o.modifier_id === modifierId)
-    if (opt) affixes[implCount + explicitIdx] = opt
-  }
-  const mutationResolvedAffix = corrosionType === 'mutation' && mutationAffixText
-    ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationAffixText) ?? null)
-    : null
-  return {
-    item_id: catalogItem.item_id,
-    name: catalogItem.name,
-    required_level: catalogItem.required_level,
-    affixes,
-    customizations,
-    slot: null,
-    base_type: catalogItem.base_type,
-    implicit_count: implCount,
-    corrosion_type: corrosionType,
-    corroded_explicit_indices: corrodedExplicitIndices,
-    mutation_affix_text: mutationAffixText,
-    mutation_resolved_affix: mutationResolvedAffix,
-    selected_random_affixes: Object.keys(selectedRandomAffixes).length ? selectedRandomAffixes : undefined,
-  }
-}
-
 // ── Item Preview Card ─────────────────────────────────────────────────────────
 
 // Live damage-delta bands for the item currently being built/customized. Prices the in-progress
@@ -2600,6 +2702,10 @@ export default function GearScreen(_props: Props) {
 
   const [selectedGraft, setSelectedGraft] = useState<Graft | null>(null)
   const [search, setSearch] = useState('')
+  const modeledOnly = useUiPrefs(s => s.modeledOnly)
+  const toggleModeledOnly = useUiPrefs(s => s.toggleModeledOnly)
+  const legendarySort = useUiPrefs(s => s.legendarySort)
+  const setLegendarySort = useUiPrefs(s => s.setLegendarySort)
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<LegendaryGearItem | null>(null)
   const [editingBuildIdx, setEditingBuildIdx] = useState<number | null>(null)
   const [customizations, setCustomizations] = useState<CustomizedAffix[]>([])
@@ -2676,13 +2782,19 @@ export default function GearScreen(_props: Props) {
 
   const q = search.trim().toLowerCase()
   const filtered = useMemo(() => {
-    if (!q) return catalogIndex
-    return catalogIndex.filter(item => {
+    const matched = !q ? catalogIndex : catalogIndex.filter(item => {
       if (item.name.toLowerCase().includes(q)) return true
       const full = catalogMap.get(item.item_id)
       return full ? getItemAffixes(full).some(a => a.raw_text.toLowerCase().includes(q)) : false
     })
-  }, [q, catalogIndex, catalogMap])
+    const visible = matched.filter(item => passesModeledOnly(item.coverage, modeledOnly))
+    // 'alpha' preserves the catalog's existing (already name-ordered) default — only 'coverage' reorders.
+    if (legendarySort === 'coverage') {
+      return [...visible].sort((a, b) =>
+        coverageRank(a.coverage) - coverageRank(b.coverage) || a.name.localeCompare(b.name))
+    }
+    return visible
+  }, [q, catalogIndex, catalogMap, modeledOnly, legendarySort])
 
   const customizeItem: LegendaryGearItem | EquippedGearItem | null =
     editingBuildIdx !== null ? (gear[editingBuildIdx] ?? null) : selectedCatalogItem
@@ -2724,11 +2836,15 @@ export default function GearScreen(_props: Props) {
     return (bt?.corrosion_base_affixes ?? []) as Array<LegendaryAffix & { modifier_text: string }>
   }, [legendaryCatalogItem, craftBases])
 
+  // Corrosion edits STAGE locally (like the slider customizations) and only commit in handleSaveBuildItem.
+  // The live preview re-derives the edited item from this staged state via `previewItem`/makeCatalogItem, so
+  // editing an equipped item's corruption no longer mutates the live build until "Save Changes" (bug-223).
+  // `updatedAffixes` is recomputed at preview/commit time, so it's intentionally unused here.
   const handleCorrosionChange = (
     type: 'none' | 'desecration' | 'mutation',
     indices: number[],
     mutationText: string | null,
-    updatedAffixes: LegendaryAffix[] | null,
+    _updatedAffixes: LegendaryAffix[] | null,
     clearRandomAffixIndices?: number[]
   ) => {
     setCorrosionType(type)
@@ -2741,34 +2857,11 @@ export default function GearScreen(_props: Props) {
         return next
       })
     }
-    const mutationResolvedAffix = type === 'mutation' && mutationText
-      ? (corrosionBaseAffixes.find(a => a.modifier_text === mutationText) ?? null)
-      : null
-    if (editingBuildIdx !== null) {
-      const next = [...gear]
-      next[editingBuildIdx] = {
-        ...next[editingBuildIdx],
-        ...(updatedAffixes !== null ? { affixes: updatedAffixes } : {}),
-        corrosion_type: type,
-        corroded_explicit_indices: indices,
-        mutation_affix_text: mutationText,
-        mutation_resolved_affix: mutationResolvedAffix,
-        selected_random_affixes: clearRandomAffixIndices?.length
-          ? Object.fromEntries(Object.entries(selectedRandomAffixes).filter(([k]) => !clearRandomAffixIndices.includes(Number(k))))
-          : selectedRandomAffixes,
-      }
-      setGear(next)
-    }
   }
 
-  const handleRandomAffixChange = (explicitIndex: number, modifierId: string, updatedAffixes: LegendaryAffix[]) => {
-    const next = { ...selectedRandomAffixes, [explicitIndex]: modifierId }
-    setSelectedRandomAffixes(next)
-    if (editingBuildIdx !== null) {
-      const items = [...gear]
-      items[editingBuildIdx] = { ...items[editingBuildIdx], affixes: updatedAffixes, selected_random_affixes: next }
-      setGear(items)
-    }
+  // Random-affix selection also stages only (re-derived at preview/commit). `_updatedAffixes` unused for the same reason.
+  const handleRandomAffixChange = (explicitIndex: number, modifierId: string, _updatedAffixes: LegendaryAffix[]) => {
+    setSelectedRandomAffixes({ ...selectedRandomAffixes, [explicitIndex]: modifierId })
   }
 
   const handleSelectCatalogItem = (indexItem: LegendaryGearIndexItem) => {
@@ -2852,9 +2945,14 @@ export default function GearScreen(_props: Props) {
 
   const handleSaveBuildItem = () => {
     if (editingBuildIdx === null) return
-    const next = [...gear]
-    next[editingBuildIdx] = { ...next[editingBuildIdx], customizations, beltBlend }
-    setGear(next)
+    const orig = gear[editingBuildIdx]
+    // Commit exactly the staged draft the live preview showed: committed affixes + staged corrosion + slider
+    // customizations (previewItem), preserving the item's slot and the staged belt blend (bug-223). Falls back
+    // to the slider-only merge if there's no preview draft (non-legendary build item without catalog backing).
+    const edited = previewItem
+      ? { ...previewItem, slot: orig.slot, beltBlend }
+      : { ...orig, customizations, beltBlend }
+    setGear(gear.map((g, i) => i === editingBuildIdx ? edited : g))
     setEditingBuildIdx(null)
     setCustomizations([])
     resetCorrosion()
@@ -3041,11 +3139,18 @@ export default function GearScreen(_props: Props) {
         text: tooltipAffixText(affix, i, customizations),
         label: affixTypeLabel(affix.affix_type),
       }))
-      const explicitLines = allAffixes.slice(implicitCount).map((affix, i) => ({
-        text: tooltipAffixText(affix, implicitCount + i, customizations),
-        label: affixTypeLabel(affix.affix_type),
-        corroded: corrodedExplicitIndices.includes(i),
-      }))
+      // Swap in the corroded ("T0") variant for staged desecrated indices so the summary shows the corroded
+      // VALUE live (a build-item edit stores base affixes; without this it kept showing base until save+reload).
+      const corrodedVariant = legendaryCatalogItem?.variants?.corroded
+      const explicitLines = allAffixes.slice(implicitCount).map((affix, i) => {
+        const isCorroded = corrodedExplicitIndices.includes(i)
+        const shown = isCorroded && corrodedVariant?.explicits[i] ? corrodedVariant.explicits[i] : affix
+        return {
+          text: tooltipAffixText(shown, implicitCount + i, isCorroded ? undefined : customizations),
+          label: affixTypeLabel(shown.affix_type),
+          corroded: isCorroded,
+        }
+      })
       const allImplicits = mutationLine ? [mutationLine, ...implicitLines] : implicitLines
       if (allImplicits.length > 0 && explicitLines.length > 0) return [...allImplicits, null, ...explicitLines]
       return [...allImplicits, ...explicitLines]
@@ -3059,12 +3164,21 @@ export default function GearScreen(_props: Props) {
     if (craftOpen && selectedGraft) return null // vorax: handled in VoraxEditorPanel
     if (craftOpen) return makeCraftedItem(craftSlots, craftBaseType, craftBaseItem, craftCorrosionType, baseItemImplicits)
     if (customizeItem) {
-      return isLegendaryGearItem(customizeItem)
-        ? makeCatalogItem(customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText)
-        : { ...customizeItem, customizations } // editing a build item → apply pending slider rolls
+      if (isLegendaryGearItem(customizeItem)) {
+        return makeCatalogItem(customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText)
+      }
+      // Editing a build item: re-derive from its catalog legendary so STAGED corrosion / random-affix /
+      // slider edits all show in the live preview WITHOUT mutating the live build (bug-223). Keep the item's
+      // existing slot so this draft is exactly what handleSaveBuildItem will commit. A non-legendary build
+      // item (unresolvable crafted) has no catalog backing → just apply pending slider rolls.
+      if (legendaryCatalogItem) {
+        const derived = makeCatalogItem(legendaryCatalogItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText)
+        return { ...derived, slot: customizeItem.slot ?? null }
+      }
+      return { ...customizeItem, customizations } // editing a build item → apply pending slider rolls
     }
     return null
-  }, [craftOpen, selectedGraft, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, baseItemImplicits, customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText])
+  }, [craftOpen, selectedGraft, craftBaseType, craftBaseItem, craftSlots, craftCorrosionType, baseItemImplicits, customizeItem, customizations, corrosionType, corrodedExplicitIndices, selectedRandomAffixes, corrosionBaseAffixes, mutationAffixText, legendaryCatalogItem])
 
   // The damage-delta request(s) for the live preview:
   //   - Editing an item already PLACED in the build (incl. multi-slot like a dual-equipped ring or
@@ -3296,6 +3410,7 @@ export default function GearScreen(_props: Props) {
               className={`btn btn-sm btn-primary gear-craft-create-btn${craftOpen ? ' active' : ''}`}
               onClick={openCraft}
             >+ Create Item</button>
+            <CoverageLegend />
           </div>
           <div className="gear-search-bar">
             <input
@@ -3309,6 +3424,20 @@ export default function GearScreen(_props: Props) {
             {search && (
               <button className="gear-search-clear" onClick={() => setSearch('')}>✕</button>
             )}
+          </div>
+          <div className="skill-sort-row">
+            <span className="skill-sort-label">Sort</span>
+            <select
+              className="skill-sort-select"
+              value={legendarySort}
+              onChange={e => setLegendarySort(e.target.value as 'alpha' | 'coverage')}
+            >
+              <option value="alpha">Default</option>
+              <option value="coverage">Coverage</option>
+            </select>
+            <label className="skill-modeled-only-label" title="Hide items the engine doesn't model at all">
+              <input type="checkbox" checked={modeledOnly} onChange={toggleModeledOnly} /> Modeled only
+            </label>
           </div>
           <div className="gear-catalog-list">
             {loading && <div className="gear-empty">Loading…</div>}
@@ -3326,6 +3455,7 @@ export default function GearScreen(_props: Props) {
                   onClick={() => handleSelectCatalogItem(item)}
                 >
                   <span className="gear-catalog-item-name">{item.name}</span>
+                  <CoverageBadge coverage={item.coverage} detail={item.coverage_detail} />
                   <span className="gear-catalog-item-level">Lv. {item.required_level}</span>
                 </div>
               )

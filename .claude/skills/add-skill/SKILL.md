@@ -6,7 +6,7 @@ description: Add an active skill (spell, attack, or channeled) to the TLI Builde
 # add-skill
 
 Scaffolds a skill resolver + the wiring checklist. **Approval-gated** — propose the exact resolver + parsed values
-and wait for the owner's OK. Read `docs/ENGINE_AUTHORING.md` (Add a skill resolver) first. Live references:
+and wait for Tyra's OK. Read `docs/ENGINE_AUTHORING.md` (Add a skill resolver) first. Live references:
 `chain_lightning` (spell), `icebound_beam` (channeled multi-form), the slash skills (attack) in
 `backend/engine/skill_resolver.py`; channeled validated in `test_channeled.py` + `[[project_channeled_framework]]`.
 
@@ -15,7 +15,7 @@ and wait for the owner's OK. Read `docs/ENGINE_AUTHORING.md` (Add a skill resolv
   `effectiveness_of_added_damage`, and the per-level `progression` (base damage, hit-form %s, descriptions).
 - Classify: **spell** (intrinsic per-level base + cast time) vs **attack** (weapon-driven, % Weapon Attack Damage)
   vs **channeled** (held; stacks; reset/refresh). Multi-form? (e.g. a continuous hit + a burst).
-- Flag uncertainties for the owner: effectiveness mapping (per-form?), shotgun/projectile behavior, max channeled
+- Flag uncertainties for Tyra: effectiveness mapping (per-form?), shotgun/projectile behavior, max channeled
   stacks if the line omits it, reset-vs-refresh, any redistribution (continuous suppression). **Surface, don't guess.**
 
 ## 2. Propose (do not write yet)
@@ -26,7 +26,7 @@ Fill the matching variant from `templates/resolver.py` (in this skill folder) wi
 - **Channeled:** `ChanneledSpec(max_stacks,min_stacks,behavior,burst_replaces_continuous,
   continuous_suppression_when_bursting)` + per-form `channel_role` ("continuous"/"burst"), `hit_count`,
   `shotgun_falloff`, `scales_with_projectiles`. Cadence `max(1,Max−Min)`; cast rate 3/s.
-Show the owner the filled resolver + the parsed per-level numbers for sign-off.
+Show Tyra the filled resolver + the parsed per-level numbers for sign-off.
 
 ## 3. Apply (after approval)
 - [ ] `backend/engine/skill_resolver.py` — add the `@_register("<id>")` resolver. Reuse module helpers
@@ -39,3 +39,7 @@ Show the owner the filled resolver + the parsed per-level numbers for sign-off.
 ## 4. Verify
 Run `/engine-verify`. A newly `@_register`'d skill auto-captures `tests/fixtures/support_skill_golden/<id>.json`
 (run the golden test twice). Do not commit. Offer RECOUNT validation for channeled skills.
+
+## 5. Verification entry (anti-drift)
+Run `/add-verification` so the new skill gets a Verification Database entry (status `unverified` unless you
+have RECOUNT data). A newly registered skill lacking an entry is flagged by engine-verify's drift check.

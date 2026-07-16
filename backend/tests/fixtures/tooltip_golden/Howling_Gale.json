@@ -23,6 +23,7 @@
   ],
   "default_level": 20,
   "gate_text": null,
+  "is_activation_medium": false,
   "level_kind": "level",
   "lines": [
     {
@@ -96,22 +97,22 @@
       "values_by_level": null
     },
     {
-      "badge_text": "Each channeled stack +2.5 s Duration for Gale.",
-      "coverage": null,
+      "badge_text": "",
+      "coverage": "modeled",
       "kind": "special",
       "text": "Each channeled stack +2.5 s Duration for Gale.",
       "values_by_level": null
     },
     {
-      "badge_text": "Each channeled stack +10% Skill Area for Gale.",
-      "coverage": null,
+      "badge_text": "",
+      "coverage": "modeled",
       "kind": "special",
       "text": "Each channeled stack +10% Skill Area for Gale.",
       "values_by_level": null
     },
     {
-      "badge_text": "Each channeled stack increases Movement Speed for Gale.",
-      "coverage": null,
+      "badge_text": "",
+      "coverage": "modeled",
       "kind": "flavor",
       "text": "Each channeled stack increases Movement Speed for Gale.",
       "values_by_level": null

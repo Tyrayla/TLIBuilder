@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { markdownToHtml } from '../utils/markdown'
+import { sanitizeHtml } from '../utils/sanitizeHtml'
 
 export interface UpdateInfo {
   version: string
@@ -19,12 +20,15 @@ interface Props {
 export default function UpdateBanner({ info, downloading, progress, downloaded, onDownload, onInstall }: Props) {
   const [dismissed, setDismissed] = useState(false)
   const [changelogOpen, setChangelogOpen] = useState(false)
-  // electron-updater's GitHub provider already returns the release notes as HTML — inject those directly.
-  // Only fall back to the markdown converter if the notes don't already look like HTML (e.g. a generic feed).
+  // electron-updater's GitHub provider already returns the release notes as HTML in many cases; fall back
+  // to the markdown converter if the notes don't look like HTML (e.g. a generic feed). Either way, this is
+  // an untrusted upstream string (a GitHub release body) — it ALWAYS goes through sanitizeHtml before
+  // dangerouslySetInnerHTML, never injected verbatim. markdownToHtml already sanitizes its own output too,
+  // so this is defense-in-depth for that branch and the only defense for the "looks like HTML" branch.
   const notesHtml = useMemo(() => {
     const notes = info.releaseNotes || ''
     const looksLikeHtml = /<\/?(h[1-6]|ul|ol|li|p|strong|em|a|code|pre|blockquote|br|div)\b/i.test(notes)
-    return looksLikeHtml ? notes : markdownToHtml(notes)
+    return looksLikeHtml ? sanitizeHtml(notes) : markdownToHtml(notes)
   }, [info.releaseNotes])
 
   if (dismissed) return null

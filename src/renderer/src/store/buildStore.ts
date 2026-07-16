@@ -25,14 +25,20 @@ export interface LoadedBuild {
   slateInventory: SlateTemplate[]
   prisms: PlacedPrism[]
   prismInventory: CraftedPrism[]
-  conditionState: Record<string, number | boolean>
+  conditionState: Record<string, number | boolean | string>
   gear: EquippedGearItem[]
   skills: EquippedSkill[]
   characterLevel: number
   traitId: string | null
   traitSlotLevels: number[]
   advancedTraitSelections: string[]
+  // Optional (unlike its LoadedBuild siblings) so pre-existing LoadedBuild literals — saved builds from
+  // before this field existed, and fixtures in `__tests__` — don't need updating; `loadBuild` defaults it
+  // to `[]` when absent. The live BuildStore field below is always a real string[].
+  traitTreeAllocations?: string[]   // ordered node_ids allocated on a "tree" allocation_mode trait (Dance of the Deep)
   traitSkillSupports: EquippedSupportSkill[]
+  licoricePreparedSkill: string | null   // Licorice Note: skill_id of the Empower/Curse the trait prepares
+  elixirIngredients: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: ingredient name}
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
   pactSpirits: [SelectedPactSpirit | null, SelectedPactSpirit | null, SelectedPactSpirit | null]
   fates: Record<string, InstalledFate>
@@ -63,11 +69,17 @@ interface BuildStore {
   traitId: string | null
   traitSlotLevels: number[]
   advancedTraitSelections: string[]
+  traitTreeAllocations: string[]   // ordered node_ids allocated on a "tree" allocation_mode trait (Dance of the Deep)
   traitSkillSupports: EquippedSupportSkill[]   // supports socketed into the trait skill slot (Holy Domain)
+  licoricePreparedSkill: string | null         // Licorice Note: Empower/Curse the trait prepares (Pungent target)
+  elixirIngredients: Record<number, Record<string, string>>   // Licorice Note: scent-bottle slot → {category: name}
   setTraitId: (id: string | null) => void
   setTraitSlotLevels: (levels: number[]) => void
   setAdvancedTraitSelections: (sels: string[]) => void
+  setTraitTreeAllocations: (allocations: string[]) => void
   setTraitSkillSupports: (supports: EquippedSupportSkill[]) => void
+  setLicoricePreparedSkill: (id: string | null) => void
+  setElixirIngredients: (v: Record<number, Record<string, string>>) => void
 
   // Notes
   notes: string
@@ -82,7 +94,7 @@ interface BuildStore {
   slateInventory: SlateTemplate[]
   prisms: PlacedPrism[]
   prismInventory: CraftedPrism[]
-  conditionState: Record<string, number | boolean>
+  conditionState: Record<string, number | boolean | string>
   gear: EquippedGearItem[]
   characterLevel: number
   heroMemories: [CreatedHeroMemory | null, CreatedHeroMemory | null, CreatedHeroMemory | null]
@@ -99,7 +111,7 @@ interface BuildStore {
   setSlateInventory: (slateInventory: SlateTemplate[]) => void
   setPrisms: (prisms: PlacedPrism[]) => void
   setPrismInventory: (prismInventory: CraftedPrism[]) => void
-  setConditionState: (state: Record<string, number | boolean>) => void
+  setConditionState: (state: Record<string, number | boolean | string>) => void
   setGear: (gear: EquippedGearItem[]) => void
   setCharacterLevel: (level: number) => void
   // Calc-target ("training dummy") stats — per-loadout (a loadout area). Bumps buildVersion to recompute DPS-vs-target.
@@ -185,7 +197,10 @@ const DEFAULT_BUILD: LoadedBuild = {
   traitId: null,
   traitSlotLevels: [1, 1, 1, 1],
   advancedTraitSelections: [],
+  traitTreeAllocations: [],
   traitSkillSupports: [],
+  licoricePreparedSkill: null,
+  elixirIngredients: {},
   heroMemories: [null, null, null],
   pactSpirits: [null, null, null],
   fates: {},
@@ -210,6 +225,7 @@ function deriveMainSkill(skills: EquippedSkill[]): SkillEngineInput | null {
 
 export const useBuildStore = create<BuildStore>((set, get) => ({
   ...DEFAULT_BUILD,
+  traitTreeAllocations: DEFAULT_BUILD.traitTreeAllocations ?? [],
   uptimeMode: 'max',   // global calc pref (not per-build) — persists across build loads
   allSpirits: [],
   spiritsResolved: false,
@@ -238,8 +254,14 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   setTraitSlotLevels: (traitSlotLevels) => set((s) => ({ traitSlotLevels, buildVersion: s.buildVersion + 1 })),
   setAdvancedTraitSelections: (advancedTraitSelections) =>
     set((s) => ({ advancedTraitSelections, buildVersion: s.buildVersion + 1 })),
+  setTraitTreeAllocations: (traitTreeAllocations) =>
+    set((s) => ({ traitTreeAllocations, buildVersion: s.buildVersion + 1 })),
   setTraitSkillSupports: (traitSkillSupports) =>
     set((s) => ({ traitSkillSupports, buildVersion: s.buildVersion + 1 })),
+  setLicoricePreparedSkill: (licoricePreparedSkill) =>
+    set((s) => ({ licoricePreparedSkill, buildVersion: s.buildVersion + 1 })),
+  setElixirIngredients: (elixirIngredients) =>
+    set((s) => ({ elixirIngredients, buildVersion: s.buildVersion + 1 })),
 
   // ── Notes ───────────────────────────────────────────────────────────────────
   // Bump buildVersion so notes edits flag the build dirty. They don't affect DPS, so useBuildCalculation
@@ -247,8 +269,15 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   setNotes: (notes) => set((s) => ({ notes, buildVersion: s.buildVersion + 1 })),
 
   // ── Compound trait setter ────────────────────────────────────────────────────
+  // setTraitData is also called for in-place edits on the CURRENT trait (slot-level buttons, tier picks) —
+  // only reset traitTreeAllocations when traitId actually changes (a real trait switch), so those in-place
+  // edits on a tree-mode trait don't wipe its allocation.
   setTraitData: (traitId, traitSlotLevels, advancedTraitSelections) =>
-    set((s) => ({ traitId, traitSlotLevels, advancedTraitSelections, buildVersion: s.buildVersion + 1 })),
+    set((s) => ({
+      traitId, traitSlotLevels, advancedTraitSelections,
+      traitTreeAllocations: traitId !== s.traitId ? [] : s.traitTreeAllocations,
+      buildVersion: s.buildVersion + 1,
+    })),
 
   // ── Stats-relevant individual setters ───────────────────────────────────────
   setSlots: (slots) => set((s) => ({ slots, buildVersion: s.buildVersion + 1 })),
@@ -317,6 +346,7 @@ export const useBuildStore = create<BuildStore>((set, get) => ({
   loadBuild: (data) =>
     set((s) => ({
       ...data,
+      traitTreeAllocations: data.traitTreeAllocations ?? [],
       mainSkill: deriveMainSkill(data.skills),
       computedStats: EMPTY_STAT_SHEET,
       loadoutStatsCache: {},

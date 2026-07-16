@@ -25,6 +25,8 @@ import { buildEngineStatsPayload, type BuildState } from '../utils/statsPayload'
 import { characterLevelFrom } from '../utils/conditions'
 import { modeledRolledLines } from '../utils/supportRolls'
 import { dec } from '../utils/num'
+import { CoverageBadge } from '../components/CoverageBadge'
+import { coverageRank, passesModeledOnly } from '../utils/coverage'
 
 // djb2 string hash → short base36. Used to fingerprint the build slice the support-pick deltas depend on.
 function hashStr(str: string): string {
@@ -214,32 +216,34 @@ function RefreshButton({ onClick }: { onClick: () => void }) {
 // typing isn't fought by clamping; commits (clamped to [min,max]) on blur / Enter. Re-syncs if the stored
 // value changes externally (e.g. a tier change re-seeds the mid).
 function RollInput(
-  { value, min, max, onCommit }: { value: number; min: number; max: number; onCommit: (frac: number) => void },
+  { value, min, max, onCommit, scale = 100, unit = '%' }:
+  { value: number; min: number; max: number; onCommit: (frac: number) => void; scale?: number; unit?: string },
 ) {
-  const fmt = (frac: number) => dec(frac * 100)
+  // Stored values are in engine units (fraction for %, seconds for a time roll); display is stored × scale.
+  const fmt = (v: number) => dec(v * scale)
   const [text, setText] = useState(fmt(value))
   const [editing, setEditing] = useState(false)
   useEffect(() => { if (!editing) setText(fmt(value)) }, [value, editing])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const commit = () => {
     setEditing(false)
-    const pct = Number(text)
-    if (Number.isNaN(pct)) { setText(fmt(value)); return }
-    const frac = Math.min(max, Math.max(min, pct / 100))
-    onCommit(frac)
-    setText(fmt(frac))
+    const shown = Number(text)
+    if (Number.isNaN(shown)) { setText(fmt(value)); return }
+    const stored = Math.min(max, Math.max(min, shown / scale))
+    onCommit(stored)
+    setText(fmt(stored))
   }
   return (
     <>
       <input
         type="number" className="skill-level-input" style={{ width: 70 }}
-        min={min * 100} max={max * 100} step={0.01} value={text}
+        min={min * scale} max={max * scale} step={0.01} value={text}
         onFocus={() => setEditing(true)}
         onChange={e => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
       />
-      <span style={{ fontSize: 12, opacity: 0.5 }}>% ({dec(min * 100)}–{dec(max * 100)}%)</span>
+      <span style={{ fontSize: 12, opacity: 0.5 }}>{unit} ({dec(min * scale)}–{dec(max * scale)}{unit})</span>
     </>
   )
 }
@@ -259,6 +263,10 @@ function makeSupport(item: SkillItem, supportIndex: number): EquippedSupportSkil
     description_lines: item.description_lines,
     ...(isRankedSupport(item.skill_type) ? { rank: DEFAULT_SUPPORT_RANK } : {}),
     ...(rolls.length ? { specific_rolls: Object.fromEntries(rolls.map(r => [r.identity, r.mid])) } : {}),
+    // Seed each roll's tier (activation mediums have independent per-roll tiers).
+    ...(rolls.some(r => (r.availableTiers?.length ?? 0) > 1)
+      ? { specific_roll_tiers: Object.fromEntries(rolls.map(r => [r.identity, r.availableTiers?.[0] ?? range.default])) }
+      : {}),
   }
 }
 
@@ -282,6 +290,10 @@ export default function SkillsScreen(_props: Props) {
   const setSupportSort = useUiPrefs(s => s.setSupportSort)
   const passiveSort = useUiPrefs(s => s.passiveSort)
   const setPassiveSort = useUiPrefs(s => s.setPassiveSort)
+  const activeSkillSort = useUiPrefs(s => s.activeSkillSort)
+  const setActiveSkillSort = useUiPrefs(s => s.setActiveSkillSort)
+  const modeledOnly = useUiPrefs(s => s.modeledOnly)
+  const toggleModeledOnly = useUiPrefs(s => s.toggleModeledOnly)
   const [fetchedItems, setFetchedItems] = useState<SkillItem[]>([])
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
   const [centerView, setCenterView] = useState<'catalog' | 'detail'>('catalog')
@@ -344,9 +356,10 @@ export default function SkillsScreen(_props: Props) {
         s.description_lines.some(l => l.toLowerCase().includes(q))
       )
     })()
+    const visible = matched.filter(s => passesModeledOnly(s.coverage, modeledOnly))
     // Skills always sort alphabetically (a per-skill DPS sort would be inaccurate).
-    return [...matched].sort((a, b) => a.name.localeCompare(b.name))
-  }, [allItems, focusedSlot, search, equippedSkills])
+    return [...visible].sort((a, b) => a.name.localeCompare(b.name))
+  }, [allItems, focusedSlot, search, equippedSkills, modeledOnly])
 
   const supportCatalogItems = useMemo(() => {
     if (focusedSlot === null || focusedSupportIdx === null || !focusedEquipped) return []
@@ -359,14 +372,16 @@ export default function SkillsScreen(_props: Props) {
       .filter(s => s.support_index !== focusedSupportIdx).map(s => skillFamily(s.item_id, knownIds)))
     const base = allItems.filter(s =>
       !occupiedFamilies.has(skillFamily(s.item_id, knownIds)) && isSupportCompatible(s, focusedEquipped, passive, focusedSupportIdx))
-    if (!supportSearch.trim()) return base
-    const q = supportSearch.toLowerCase()
-    return base.filter(s =>
-      s.name.toLowerCase().includes(q) ||
-      s.skill_tags.some(t => t.toLowerCase().includes(q)) ||
-      s.description_lines.some(l => l.toLowerCase().includes(q))
-    )
-  }, [allItems, focusedSlot, focusedSupportIdx, focusedEquipped, equippedSkills, supportSearch])
+    const matched = !supportSearch.trim() ? base : (() => {
+      const q = supportSearch.toLowerCase()
+      return base.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        s.skill_tags.some(t => t.toLowerCase().includes(q)) ||
+        s.description_lines.some(l => l.toLowerCase().includes(q))
+      )
+    })()
+    return matched.filter(s => passesModeledOnly(s.coverage, modeledOnly))
+  }, [allItems, focusedSlot, focusedSupportIdx, focusedEquipped, equippedSkills, supportSearch, modeledOnly])
 
   // Baseline signature FROZEN when the support panel opens (deps = focused slot/support only, NOT
   // buildVersion), capturing the current build incl. the equipped support at its open-time rolls. So
@@ -402,6 +417,10 @@ export default function SkillsScreen(_props: Props) {
   const sortedSupportCatalog = useMemo(() => {
     if (supportSort === 'alpha') {
       return [...supportCatalogItems].sort((a, b) => a.name.localeCompare(b.name))
+    }
+    if (supportSort === 'coverage') {
+      return [...supportCatalogItems].sort((a, b) =>
+        coverageRank(a.coverage) - coverageRank(b.coverage) || a.name.localeCompare(b.name))
     }
     const score = (i: number) => {
       const d = supportPickDeltas[i]
@@ -440,9 +459,16 @@ export default function SkillsScreen(_props: Props) {
   // different main skills); passive skills honor passiveSort (DPS contribution sinks unresolved/nyi).
   const sortedSkillCatalog = useMemo(() => {
     const isPassive = focusedSlot !== null && isPassiveSlot(focusedSlot)
-    if (!isPassive || passiveSort === 'alpha') {
+    const sortMode = isPassive ? passiveSort : activeSkillSort
+    if (sortMode === 'alpha') {
       return [...skillCatalogItems].sort((a, b) => a.name.localeCompare(b.name))
     }
+    if (sortMode === 'coverage') {
+      return [...skillCatalogItems].sort((a, b) =>
+        coverageRank(a.coverage) - coverageRank(b.coverage) || a.name.localeCompare(b.name))
+    }
+    // 'dps' — passive-only (active skills fall through to 'alpha'/'coverage' above; a per-skill DPS
+    // sort across different main skills is meaningless).
     const score = (i: number) => {
       const d = passivePickDeltas[i]
       return d && d.state === 'value' ? d.absolute : Number.NEGATIVE_INFINITY
@@ -450,7 +476,7 @@ export default function SkillsScreen(_props: Props) {
     return skillCatalogItems.map((it, i) => ({ it, i }))
       .sort((a, b) => score(b.i) - score(a.i))
       .map(x => x.it)
-  }, [skillCatalogItems, passivePickDeltas, passiveSort, focusedSlot])
+  }, [skillCatalogItems, passivePickDeltas, passiveSort, activeSkillSort, focusedSlot])
 
   const selectedSkillItem  = allItems.find(i => i.item_id === selectedSkillId)  ?? null
   const selectedSupportItem = allItems.find(i => i.item_id === selectedSupportId) ?? null
@@ -600,7 +626,11 @@ export default function SkillsScreen(_props: Props) {
             <div className="skill-slot-info">
               <span className="skill-slot-label">{SLOT_LABEL[slot]}</span>
               {eq
-                ? <span className="skill-slot-skill-name">{eq.name}</span>
+                ? <span className="skill-slot-skill-name">
+                    <span className="skill-slot-skill-name-text">{eq.name}</span>
+                    <CoverageBadge coverage={allItems.find(i => i.item_id === eq.item_id)?.coverage}
+                                   detail={allItems.find(i => i.item_id === eq.item_id)?.coverage_detail} />
+                  </span>
                 : <span className="skill-slot-empty">Empty</span>}
             </div>
             {eq && (
@@ -650,20 +680,22 @@ export default function SkillsScreen(_props: Props) {
             />
             {search && <button className="skill-search-clear" onClick={() => setSearch('')}>×</button>}
           </div>
-          {isPassive && (
-            <div className="skill-sort-row">
-              <span className="skill-sort-label">Sort</span>
-              <select
-                className="skill-sort-select"
-                value={passiveSort}
-                onChange={e => setPassiveSort(e.target.value as 'alpha' | 'dps')}
-              >
-                <option value="alpha">Alphabetical</option>
-                <option value="dps">DPS Contribution</option>
-              </select>
-              <RefreshButton onClick={() => setRefreshNonce(n => n + 1)} />
-            </div>
-          )}
+          <div className="skill-sort-row">
+            <span className="skill-sort-label">Sort</span>
+            <select
+              className="skill-sort-select"
+              value={isPassive ? passiveSort : activeSkillSort}
+              onChange={e => (isPassive ? setPassiveSort : setActiveSkillSort)(e.target.value as 'alpha' | 'dps' | 'coverage')}
+            >
+              <option value="alpha">Alphabetical</option>
+              {isPassive && <option value="dps">DPS Contribution</option>}
+              <option value="coverage">Coverage</option>
+            </select>
+            {isPassive && <RefreshButton onClick={() => setRefreshNonce(n => n + 1)} />}
+            <label className="skill-modeled-only-label" title="Hide skills the engine doesn't model at all">
+              <input type="checkbox" checked={modeledOnly} onChange={toggleModeledOnly} /> Modeled only
+            </label>
+          </div>
           <div className="skill-catalog-list">
             {sortedSkillCatalog.length === 0 && (
               <div className="skill-catalog-empty">No skills match your search</div>
@@ -680,7 +712,10 @@ export default function SkillsScreen(_props: Props) {
                       else setPendingLevel(focusedEquipped.level)
                     }}
                   >
-                    <span className="skill-catalog-name">{item.name}</span>
+                    <span className="skill-catalog-name">
+                      {item.name}
+                      <CoverageBadge coverage={item.coverage} detail={item.coverage_detail} />
+                    </span>
                     {isPassive && deltaInline(passiveDeltaById[item.item_id])}
                     <div className="skill-catalog-tags">
                       {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}
@@ -854,12 +889,44 @@ export default function SkillsScreen(_props: Props) {
             </div>
           )}
           {existingSupport && (() => {
+            const supItem = allItems.find(i => i.item_id === existingSupport.item_id)
+            // Activation mediums are TIERED (0–3) with independent per-roll tiers below — the top control is a
+            // tX dropdown that sets the medium tier (base cooldown + the DEFAULT for each roll's tier).
+            if (existingSupport.item_id.startsWith('activation_medium_')) {
+              const rolls = modeledRolledLines(supItem, existingSupport.level)
+              const tiers = [...new Set(rolls.flatMap(r => r.availableTiers ?? []))].sort((a, b) => a - b)
+              if (!tiers.length) return null
+              const setTier = (t: number) => {
+                const rs = modeledRolledLines(supItem, t)
+                const newTiers: Record<string, number> = {}
+                const newRolls: Record<string, number> = {}
+                for (const r of rs) {
+                  const at = r.availableTiers ?? []
+                  const rt = at.includes(t) ? t : (at.filter(x => x <= t).pop() ?? at[0] ?? t)
+                  newTiers[r.identity] = rt
+                  newRolls[r.identity] = r.rangesByTier?.[rt]?.mid ?? r.mid
+                }
+                onSkillsChange(equippedSkills.map(sk => sk.slot === focusedSlot
+                  ? { ...sk, supports: sk.supports.map(s => s.support_index === focusedSupportIdx
+                      ? { ...s, level: t, specific_roll_tiers: newTiers, specific_rolls: newRolls } : s) }
+                  : sk))
+              }
+              return (
+                <div className="skill-level-controls" style={{ marginTop: 6 }}>
+                  <span className="skill-level-label" title="Medium tier — sets the base cooldown and the default tier of each roll below (each roll can still be re-tiered individually)">Tier</span>
+                  <select className="skill-level-input" style={{ width: 60 }} value={existingSupport.level}
+                    onChange={e => setTier(Number(e.target.value))}>
+                    {tiers.map(t => <option key={t} value={t}>T{t}</option>)}
+                  </select>
+                </div>
+              )
+            }
             const lvlRange = supportLevelRange(existingSupport.skill_type)
             const updateLevel = (newLevel: number) => {
               const clamped = Math.max(lvlRange.min, Math.min(lvlRange.max, newLevel))
               // Re-seed each modeled roll to the new tier's midpoint — otherwise the explicit roll
               // overrides the tier and changing the tier alone wouldn't move DPS.
-              const rolls = modeledRolledLines(allItems.find(i => i.item_id === existingSupport.item_id), clamped)
+              const rolls = modeledRolledLines(supItem, clamped)
               const newRolls = rolls.length ? Object.fromEntries(rolls.map(r => [r.identity, r.mid])) : undefined
               onSkillsChange(equippedSkills.map(sk =>
                 sk.slot === focusedSlot
@@ -918,34 +985,88 @@ export default function SkillsScreen(_props: Props) {
               </div>
             )
           })()}
-          {/* Roll inputs — one per engine-modeled rolled line. Type the exact value within the tier range. */}
+          {/* Roll inputs — one slider per engine-modeled rolled line. Activation mediums also get a per-roll tier
+              selector (independent per-affix tiers) and a Duration/Cooldown group selector. */}
           {existingSupport && (() => {
             const supItem = allItems.find(i => i.item_id === existingSupport.item_id)
             const rolls = modeledRolledLines(supItem, existingSupport.level)
             if (!rolls.length) return null
-            const updateRoll = (identity: string, value: number) => {
-              onSkillsChange(equippedSkills.map(sk =>
-                sk.slot === focusedSlot
-                  ? { ...sk, supports: sk.supports.map(s =>
-                        s.support_index === focusedSupportIdx
-                          ? { ...s, specific_rolls: { ...(s.specific_rolls ?? {}), [identity]: value } }
-                          : s
-                      )}
-                  : sk
-              ))
+            const sup = existingSupport
+            const isAM = sup.item_id.startsWith('activation_medium_')
+            const patchSup = (patch: (s: EquippedSupportSkill) => EquippedSupportSkill) =>
+              onSkillsChange(equippedSkills.map(sk => sk.slot === focusedSlot
+                ? { ...sk, supports: sk.supports.map(s => s.support_index === focusedSupportIdx ? patch(s) : s) }
+                : sk))
+            const updateRoll = (identity: string, value: number) =>
+              patchSup(s => ({ ...s, specific_rolls: { ...(s.specific_rolls ?? {}), [identity]: value } }))
+            const tierOf = (r: typeof rolls[number]) =>
+              sup.specific_roll_tiers?.[r.identity]
+              ?? ((r.availableTiers?.includes(sup.level) ? sup.level : r.availableTiers?.[0]) ?? sup.level)
+            const rangeOf = (r: typeof rolls[number]) =>
+              (r.rangesByTier?.[tierOf(r)]) ?? { min: r.min, max: r.max, mid: r.mid }
+            const updateTier = (r: typeof rolls[number], tier: number) => {
+              const rng = r.rangesByTier?.[tier]
+              patchSup(s => ({
+                ...s,
+                specific_roll_tiers: { ...(s.specific_roll_tiers ?? {}), [r.identity]: tier },
+                specific_rolls: { ...(s.specific_rolls ?? {}), [r.identity]: rng ? rng.mid : (s.specific_rolls?.[r.identity] ?? r.mid) },
+              }))
             }
+            const groupChoice = (group: string, opts: typeof rolls) =>
+              sup.roll_group_choice?.[group]
+              ?? (opts.find(o => o.identity === 'duration_additional')?.identity ?? opts[0].identity)
+            const setGroupChoice = (group: string, identity: string) =>
+              patchSup(s => ({ ...s, roll_group_choice: { ...(s.roll_group_choice ?? {}), [group]: identity } }))
+
+            const controls = (r: typeof rolls[number]) => {
+              const rng = rangeOf(r)
+              const cur = sup.specific_rolls?.[r.identity] ?? rng.mid
+              return (<>
+                {isAM && (r.availableTiers?.length ?? 0) > 1 && (
+                  <select className="skill-level-input" style={{ width: 92 }} value={tierOf(r)}
+                    title="Roll tier — each option shows that tier's mid value"
+                    onChange={e => updateTier(r, Number(e.target.value))}>
+                    {r.availableTiers!.map(t => {
+                      const tr = r.rangesByTier?.[t]
+                      const v = tr ? dec(tr.mid * (r.scale ?? 100)) : ''
+                      return <option key={t} value={t}>T{t}{tr ? ` (${v}${r.unit})` : ''}</option>
+                    })}
+                  </select>
+                )}
+                <input type="range" className="gear-affix-slider" style={{ flex: 1 }}
+                  min={rng.min} max={rng.max} step={(rng.max - rng.min) / 100 || 0.001}
+                  value={cur} onChange={e => updateRoll(r.identity, Number(e.target.value))} />
+                <RollInput value={cur} min={rng.min} max={rng.max} scale={r.scale} unit={r.unit}
+                  onCommit={v => updateRoll(r.identity, v)} />
+              </>)
+            }
+
+            const seen = new Set<string>()
             return rolls.map(r => {
-              const cur = existingSupport.specific_rolls?.[r.identity] ?? r.mid
+              if (r.group) {
+                if (seen.has(r.group)) return null
+                seen.add(r.group)
+                const opts = rolls.filter(x => x.group === r.group)
+                const chosenId = groupChoice(r.group, opts)
+                const chosen = opts.find(o => o.identity === chosenId) ?? opts[0]
+                return (
+                  <div key={r.group} className="skill-level-controls" style={{ marginTop: 6, gap: 8 }}>
+                    <select className="skill-level-input" style={{ width: 130 }} value={chosen.identity}
+                      title={chosen.desc} onChange={e => setGroupChoice(r.group!, e.target.value)}>
+                      {opts.map(o => <option key={o.identity} value={o.identity} title={o.desc}>{o.label}</option>)}
+                    </select>
+                    {controls(chosen)}
+                  </div>
+                )
+              }
+              const hover = [r.desc, r.wired === false ? 'Recorded — not yet applied to the calc' : '']
+                .filter(Boolean).join(' — ')
               return (
                 <div key={r.identity} className="skill-level-controls" style={{ marginTop: 6, gap: 8 }}>
-                  <span className="skill-level-label">Roll</span>
-                  <input
-                    type="range" className="gear-affix-slider" style={{ flex: 1 }}
-                    min={r.min} max={r.max} step={(r.max - r.min) / 100 || 0.001}
-                    value={cur}
-                    onChange={e => updateRoll(r.identity, Number(e.target.value))}
-                  />
-                  <RollInput value={cur} min={r.min} max={r.max} onCommit={v => updateRoll(r.identity, v)} />
+                  <span className="skill-level-label" title={hover || undefined}>
+                    {(isAM ? (r.label ?? 'Roll') : 'Roll')}{r.wired === false ? ' *' : ''}
+                  </span>
+                  {controls(r)}
                 </div>
               )
             })
@@ -974,12 +1095,16 @@ export default function SkillsScreen(_props: Props) {
           <select
             className="skill-sort-select"
             value={supportSort}
-            onChange={e => setSupportSort(e.target.value as 'alpha' | 'dps')}
+            onChange={e => setSupportSort(e.target.value as 'alpha' | 'dps' | 'coverage')}
           >
             <option value="alpha">Alphabetical</option>
             <option value="dps">DPS Contribution</option>
+            <option value="coverage">Coverage</option>
           </select>
           <RefreshButton onClick={() => setRefreshNonce(n => n + 1)} />
+          <label className="skill-modeled-only-label" title="Hide supports the engine doesn't model at all">
+            <input type="checkbox" checked={modeledOnly} onChange={toggleModeledOnly} /> Modeled only
+          </label>
         </div>
         <div className="skill-catalog-list" style={{ flex: 1 }}>
           {supportCatalogItems.length === 0 && (
@@ -993,7 +1118,10 @@ export default function SkillsScreen(_props: Props) {
                   className={`skill-catalog-item${selectedSupportId === item.item_id ? ' selected' : ''}`}
                   onClick={() => setSelectedSupportId(item.item_id)}
                 >
-                  <span className="skill-catalog-name">{item.name}</span>
+                  <span className="skill-catalog-name">
+                    {item.name}
+                    <CoverageBadge coverage={item.coverage} detail={item.coverage_detail} />
+                  </span>
                   {deltaInline(supportDeltaById[item.item_id])}
                   <div className="skill-catalog-tags">
                     {item.skill_tags.map(t => <span key={t} className={tagClass(t)}>{t}</span>)}

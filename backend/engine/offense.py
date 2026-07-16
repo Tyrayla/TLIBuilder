@@ -1,12 +1,14 @@
 from __future__ import annotations
 import math
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable, Literal
 
 from engine import uptime
 from engine.models import BuildSource
+from engine.consumption import floored_consumed
 from engine.affix_identity import affix_identity
+from engine.modifier_lines import pool_identity
 from engine.skill_resolver import ResolvedSkill
 from engine.tick import TICK_RATE, cap_rate, period_ticks, rate_from_ticks
 from engine.constants import DAMAGE_TYPES as _DAMAGE_TYPES, ELEMENTAL
@@ -59,7 +61,7 @@ _DOUBLE_DMG_STATS: list[tuple[str, frozenset]] = [
     if meta.pipeline_stage == "double_damage" and "hit" in meta.affects
 ]
 # Triple / Quadruple damage chance — tag-filtered like double. Per-hit you can only get the HIGHEST tier
-# that procs (check quad → triple → double); expected-value multiplier folds all three (owner model).
+# that procs (check quad → triple → double); expected-value multiplier folds all three (Tyra model).
 _TRIPLE_DMG_STATS: list[tuple[str, frozenset]] = [
     (stat.value, frozenset(meta.tags))
     for stat, meta in STAT_META.items()
@@ -76,7 +78,6 @@ _QUAD_DMG_STATS: list[tuple[str, frozenset]] = [
 _DEFERRED_ADDITIONAL: dict[str, str] = {
     "barrage_dmg_per_wave_inc":      "Barrage mechanic — scales per wave fired, not a flat multiplier",
     "combo_finisher_additional":     "Combo finisher only — applies to finisher hits, not all hits; combo damage model NYI",
-    "enemy_nearby_dmg_taken_additional": "Requires 'nearby enemy' condition boolean (not yet wired)",
     "multistrike_increasing_dmg_inc":"Multistrike mechanic — stacks per successive hit in a multistrike chain, not a flat multiplier",
     "post_mobility_dmg_additional":  "Requires 'mobility skill cast recently' condition boolean (not yet created)",
     "two_handed_base_dmg_additional":"May apply to base damage before inc/additional; stacking position unconfirmed — deferred",
@@ -91,6 +92,16 @@ _DEFERRED_ADDITIONAL: dict[str, str] = {
 # generic pool so it can't wrongly apply/badge until it gets its own form-scoped reader.
 _FORM_SCOPED_ADDITIONAL: frozenset = frozenset({"steep_strike_additional_dmg", "sweep_slash_additional_dmg"})
 
+# Shadow Damage applies ONLY inside the Shadow Strike delivery multiplier (calculate_offense's `shadow=`
+# path / `_shadow_multiplier`) — never to the player's own hit or to any non-Shadow-Strike skill. Its
+# StatMeta carries no `tags` (universal), so leaving it in the generic per-affix pool below would apply it
+# to EVERY hit on EVERY skill regardless of Shadow Strike (bug — see .wolf/buglog.json: Despised Shadow's
+# "+14-16% additional Shadow Damage" was buffing all hit damage). Read explicitly via
+# source.total("shadow_dmg_additional") instead, which — unlike the generic pool's per-affix-text
+# multiplicative factors — naturally SUMS every source (Σ shadow_dmg_additional, the documented model),
+# matching how tangle_dmg_enhancement_additional's *_enhancement_additional identity sums its sources.
+_SHADOW_SCOPED_ADDITIONAL: frozenset = frozenset({"shadow_dmg_additional"})
+
 # Hit damage additional multiplier stats — each is an independent multiplicative pool.
 # Deferred stats (see _DEFERRED_ADDITIONAL) are excluded and listed in the NYI output.
 _HIT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
@@ -100,7 +111,103 @@ _HIT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
     and "hit" in meta.affects
     and stat.value not in _DEFERRED_ADDITIONAL
     and stat.value not in _FORM_SCOPED_ADDITIONAL
+    and stat.value not in _SHADOW_SCOPED_ADDITIONAL
 ]
+
+# DoT (Damage over Time) additional-damage pool — the whitelisted keys per dot-model.json's audit (only
+# Damage/Spell Damage/Damage over Time increased sources moved the SS12 meter; the additional side is just
+# these two independent, generic-and-DoT-specific pools). Deliberately NOT `_HIT_ADDITIONAL_STATS`-derived:
+# `dot_dmg_additional`'s stat_meta `affects` is `("dot",)` only (no "hit"), so it is not even a member of
+# that list, and reusing `_HIT_ADDITIONAL_STATS` for consumed-stats recording would badge every unrelated
+# hit-additional stat "Consumed" on every DoT skill (see `_additional_product`'s `keyed_tags` param).
+#
+# NOTE — this is the UNIVERSAL (generic + spell) base pool only. TYPE-scoped and ELEMENTAL-scoped additional
+# keys (e.g. fire_dmg_additional, elemental_dmg_additional) are a SEPARATE, form-dependent pool computed per
+# DoT form in `compute_dot` (see `_dot_type_additional_keys` below) — they can't live in this static list
+# because they vary with `form.dtype`, which this list has no way to express.
+_DOT_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
+    ("dmg_additional", frozenset()),
+    ("dot_dmg_additional", frozenset()),
+]
+
+# DoT (Damage over Time) *increased*-damage pool — the sibling whitelist to `_DOT_ADDITIONAL_STATS` above, so
+# the next cold/lightning/erosion DoT extends a list here instead of editing inline branches in compute_dot.
+# Each entry is (stat_key, gate): `gate(is_spell, form)` decides whether that key applies to THIS DoT form;
+# `None` = always on. Order matters for float-identical summation with the old inline code (dmg_inc,
+# dot_dmg_inc, then conditionally spell_dmg_inc, then conditionally fire_dot_dmg_inc).
+#   - dmg_inc / dot_dmg_inc: always on. Per dot-model.json's audit (isolated the generic "Damage" and
+#     "Damage over Time" increased stats that moved the SS12 meter, confirmed twice on both Mind Control and
+#     Path of Flames).
+#   - spell_dmg_inc: spell skills only. Per the same audit (both measured skills are Spells).
+#   - fire_dot_dmg_inc: fire DoTs only (Path of Flames). NOT independently audited — the recorded audit only
+#     isolated the GENERIC "Damage over Time" stat, never a Fire-specific one. This entry is an INFERENCE from
+#     the confirmed generic-DoT-pool result, not a measurement. It's a DoT-only stat (definitionally lower-
+#     risk than a hit-affecting type-scoped stat like `erosion_dmg_inc`, which is correctly excluded from this
+#     whitelist as UNVERIFIED — it could leak into hit damage). Open verification question filed in
+#     dot-model.json ("fire_dot_dmg_inc applicability is inferred, not measured").
+_DOT_INCREASED_STATS: tuple[tuple[str, Callable[[bool, object], bool] | None], ...] = (
+    ("dmg_inc", None),
+    ("dot_dmg_inc", None),
+    ("spell_dmg_inc", lambda is_spell, form: is_spell),
+    ("fire_dot_dmg_inc", lambda is_spell, form: form.dtype == "fire"),
+)
+
+# ── Owner-confirmed damage-scoping rule (2026-07-10) ───────────────────────────────────────────────────────
+# "X Damage" (increased OR additional) applies to BOTH a hit and an X-type DoT — e.g. fire_dmg_inc /
+# fire_dmg_additional scale a fire DoT, erosion_dmg_inc / erosion_dmg_additional scale an erosion DoT.
+# "Elemental Damage" (elemental_dmg_inc / elemental_dmg_additional) applies to fire/cold/lightning DoTs but
+# NOT erosion (TLI "Elemental" excludes Erosion — reuses `ELEMENTAL`, the SAME set `_target_effective`
+# already uses to keep `elemental_pen` off Erosion, so the definition stays single-sourced).
+#
+# Implemented TYPE-GENERICALLY from `form.dtype` (not a hardcoded per-type list) so a future cold/lightning/
+# physical DoT picks these up automatically. Each `{T}_*` key is guarded against actually existing in
+# STAT_META (`_ALL_STAT_KEYS`) — only `fire_dot_dmg_inc` exists as a `{T}_dot_dmg_inc` stat today; a type
+# lacking one simply contributes nothing extra.
+_ALL_STAT_KEYS: frozenset[str] = frozenset(stat.value for stat in STAT_META)
+
+
+def _dot_type_increased_keys(dtype: str) -> tuple[str, ...]:
+    """Type-scoped + elemental-scoped INCREASED keys that apply to a DoT of `dtype`, per the rule above.
+    `{dtype}_dot_dmg_inc` is included here too (generic derivation) even though today only `fire_dot_dmg_inc`
+    exists and is ALSO listed in `_DOT_INCREASED_STATS` — callers must union/dedupe by key, never sum both
+    verbatim, or fire_dot_dmg_inc would double-count on a fire DoT."""
+    keys = [k for k in (f"{dtype}_dmg_inc", f"{dtype}_dot_dmg_inc") if k in _ALL_STAT_KEYS]
+    if dtype in ELEMENTAL:
+        keys.append("elemental_dmg_inc")
+    return tuple(keys)
+
+
+def _dot_type_additional_keys(dtype: str) -> tuple[str, ...]:
+    """Type-scoped + elemental-scoped ADDITIONAL keys that apply to a DoT of `dtype`, per the rule above.
+    Disjoint from `_DOT_ADDITIONAL_STATS` (dmg_additional/dot_dmg_additional) — no dedup needed."""
+    keys = [k for k in (f"{dtype}_dmg_additional",) if k in _ALL_STAT_KEYS]
+    if dtype in ELEMENTAL:
+        keys.append("elemental_dmg_additional")
+    return tuple(keys)
+
+
+# spell_dmg_additional is EXCLUDED from the DoT additional pool. Unlike spell_dmg_inc (whitelisted in
+# `_DOT_INCREASED_STATS` above because dot-model.json's audit independently MEASURED it), there is no owner
+# statement or recorded measurement establishing that a Spell-scoped ADDITIONAL stat applies to a DoT — the
+# owner's 2026-07-10 damage-scoping rule (below) covers damage TYPES (fire/erosion/…) and Elemental only,
+# never the SPELL form tag for the additional pool, and spell_dmg_inc's measured status on the increased side
+# doesn't transfer to the additional side (increased and additional were audited independently). Per the
+# owner's standing "under-compute is better than over-compute, flag it" policy: excluded here pending an
+# in-game measurement, not included-and-flagged. Open verification item filed in dot-model.json
+# ("spell_dmg_additional applicability on a DoT is unmeasured — excluded pending confirmation").
+
+_DOT_TYPE_INCREASED_KEYS: dict[str, tuple[str, ...]] = {t: _dot_type_increased_keys(t) for t in _DAMAGE_TYPES}
+_DOT_TYPE_ADDITIONAL_KEYS: dict[str, tuple[str, ...]] = {t: _dot_type_additional_keys(t) for t in _DAMAGE_TYPES}
+
+# Precomputed per-dtype (key, tags) lists for the form-scoped additional product in `compute_dot` — built
+# ONCE at module load (mirrors `_DOT_ADDITIONAL_TAGS`'s fast-path purpose above) so the list object handed to
+# `_build_additional_factors` each call is the SAME object every time, not rebuilt per call. Paired with
+# `_DOT_TYPE_ADDITIONAL_POOL_CACHE` below so that identity is actually recognized by the fast path (not just
+# stable-but-ignored).
+_DOT_TYPE_ADDITIONAL_KEYED_TAGS: dict[str, list[tuple[str, frozenset]]] = {
+    t: [(k, frozenset()) for k in keys] for t, keys in _DOT_TYPE_ADDITIONAL_KEYS.items()
+}
+
 
 # Attack speed additional pools (tags read directly from stat_meta)
 _APS_ADDITIONAL_STATS: list[tuple[str, frozenset]] = [
@@ -175,7 +282,7 @@ def _applies_to_dtype(tags: frozenset, dtype_tag: frozenset, mod_tags: set) -> b
     dmg = tags & _DTYPE_TAG_SET
     return ((not dmg) or bool(dmg & dtype_tag)) and _skill_gate(tags, mod_tags)
 
-# Innate base Critical Strike Rating for spells (500 CSR = 5% base crit at 0 gear). Owner-confirmed.
+# Innate base Critical Strike Rating for spells (500 CSR = 5% base crit at 0 gear). Tyra-confirmed.
 _BASE_SPELL_CRIT_RATING = 500.0
 
 # Main-stat Damage Bonus: each point of a skill's main-stat attribute grants +0.5% damage. Multi-main-
@@ -194,8 +301,28 @@ _MAIN_STAT_DAMAGE_PER_POINT = 0.005
 _HIT_ADDITIONAL_TAGS: dict[str, frozenset] = {key: tags for key, tags in _HIT_ADDITIONAL_STATS}
 _HIT_ADDITIONAL_KEYS: frozenset[str] = frozenset(_HIT_ADDITIONAL_TAGS)
 
+# Precomputed sibling for the DoT additional-damage pool (_DOT_ADDITIONAL_STATS, defined above) — same
+# fast-path purpose as _HIT_ADDITIONAL_TAGS/_HIT_ADDITIONAL_KEYS: _build_additional_factors selects these by
+# identity instead of rebuilding a frozenset/dict from the (small, DoT-only) list on every compute_dot call.
+_DOT_ADDITIONAL_TAGS: dict[str, frozenset] = {key: tags for key, tags in _DOT_ADDITIONAL_STATS}
+_DOT_ADDITIONAL_KEYS: frozenset[str] = frozenset(_DOT_ADDITIONAL_TAGS)
 
-def _build_additional_factors(source: BuildSource) -> list[tuple[float, frozenset, str]]:
+# Precomputed sibling for the per-dtype SCOPED additional pool `compute_dot` builds (`{type}_dmg_additional`
+# + `elemental_dmg_additional`, keyed by `_DOT_TYPE_ADDITIONAL_KEYED_TAGS[dtype]`) — same fast-path purpose
+# as `_HIT_ADDITIONAL_TAGS`/`_DOT_ADDITIONAL_TAGS`: `_build_additional_factors` looks this dict up BY id() of
+# the `keyed_tags` list it's handed, so the per-dtype constants above are recognized and skip the generic
+# per-call frozenset()/dict() rebuild, instead of only being "stable but ignored" like a per-call-rebuilt list
+# would be. Populated once at module load, one entry per damage type's precomputed list.
+_DOT_TYPE_ADDITIONAL_POOL_CACHE: dict[int, tuple[frozenset[str], dict[str, frozenset]]] = {
+    id(keyed_tags): (frozenset(k for k, _ in keyed_tags), dict(keyed_tags))
+    for keyed_tags in _DOT_TYPE_ADDITIONAL_KEYED_TAGS.values()
+}
+
+
+def _build_additional_factors(
+    source: BuildSource,
+    keyed_tags: list[tuple[str, frozenset]] = _HIT_ADDITIONAL_STATS,
+) -> list[tuple[float, frozenset, str]]:
     """Per-affix additional factors as (amount, tags, stat_key).
 
     Each DISTINCT affix (by normalized text) becomes its own multiplicative factor; POSITIVE
@@ -204,20 +331,47 @@ def _build_additional_factors(source: BuildSource) -> list[tuple[float, frozense
     Untracked contributions (added via BuildSource.add() with no source_log entry — used by tests)
     are reconciled by stat-key, preserving the old per-key pooling for that case. consumed_stats is
     NOT recorded here (it's recorded in _additional_product only for keys that actually apply).
-    """
+
+    `keyed_tags` selects which additional-damage pool this builds factors for — defaults to the HIT
+    pool (`_HIT_ADDITIONAL_STATS`, byte-identical to the old hardcoded behavior); the DoT stage passes
+    `_DOT_ADDITIONAL_STATS` instead (dot-model.json — a separate whitelist, since `dot_dmg_additional`
+    isn't even a member of `_HIT_ADDITIONAL_STATS`).
+
+    Hot-path note: the HIT case runs for every skill on every recompute, so the two recognized defaults
+    (`_HIT_ADDITIONAL_STATS`, `_DOT_ADDITIONAL_STATS`) are matched by IDENTITY to reuse the precomputed
+    `_HIT_ADDITIONAL_KEYS`/`_HIT_ADDITIONAL_TAGS` (resp. `_DOT_ADDITIONAL_KEYS`/`_DOT_ADDITIONAL_TAGS`)
+    module constants instead of rebuilding a frozenset/dict from scratch on every call. The per-dtype SCOPED
+    DoT additional pools (`_DOT_TYPE_ADDITIONAL_KEYED_TAGS[dtype]`, one precomputed list per damage type) hit
+    the same fast path via an id()-keyed lookup in `_DOT_TYPE_ADDITIONAL_POOL_CACHE` — they can't use the
+    `is`-against-a-single-constant check above since there are 5 of them, one per dtype, but each is still a
+    module-level constant built once, so its `id()` is stable across every `compute_dot` call and safe to key
+    a cache by. Any other `keyed_tags` value (e.g. ad-hoc lists built in tests) falls back to building fresh
+    structures (correct but uncached)."""
+    if keyed_tags is _HIT_ADDITIONAL_STATS:
+        keys = _HIT_ADDITIONAL_KEYS
+        tags_map = _HIT_ADDITIONAL_TAGS
+    elif keyed_tags is _DOT_ADDITIONAL_STATS:
+        keys = _DOT_ADDITIONAL_KEYS
+        tags_map = _DOT_ADDITIONAL_TAGS
+    elif id(keyed_tags) in _DOT_TYPE_ADDITIONAL_POOL_CACHE:
+        keys, tags_map = _DOT_TYPE_ADDITIONAL_POOL_CACHE[id(keyed_tags)]
+    else:
+        keys = frozenset(k for k, _ in keyed_tags)
+        tags_map = dict(keyed_tags)
     factors: list[tuple[float, frozenset, str]] = []
     pos: dict[tuple[str, str], float] = defaultdict(float)
     neg: dict[tuple[str, str], list[float]] = defaultdict(list)
     tracked: dict[str, float] = defaultdict(float)
+    _idx = getattr(source, "identity_index", None)
 
     for e in source.source_log:
-        if e.stat not in _HIT_ADDITIONAL_KEYS:
+        if e.stat not in keys:
             continue
         # "Damage Enhancement" affixes (e.g. Tangle/Combo/Focus Damage Enhancement) are ADDED TOGETHER into a
         # single additional factor (Help DB) rather than each being its own ×(1+x) factor — so pool them by
         # stat-key alone (shared identity), not by text, so two sources sum (50%+50% → +100%) instead of
         # multiplying. Regular additional mods keep their per-text identity (distinct sources multiply).
-        ident = (e.stat, "" if e.stat.endswith("_enhancement_additional") else affix_identity(e.text or ""))
+        ident = (e.stat, "" if e.stat.endswith("_enhancement_additional") else pool_identity(e, _idx))
         if e.amount < 0:
             neg[ident].append(e.amount)
         else:
@@ -225,13 +379,13 @@ def _build_additional_factors(source: BuildSource) -> list[tuple[float, frozense
         tracked[e.stat] += e.amount
 
     for (stat_key, _ident), amt in pos.items():
-        factors.append((amt, _HIT_ADDITIONAL_TAGS[stat_key], stat_key))
+        factors.append((amt, tags_map[stat_key], stat_key))
     for (stat_key, _ident), amts in neg.items():
         for a in amts:
-            factors.append((a, _HIT_ADDITIONAL_TAGS[stat_key], stat_key))
+            factors.append((a, tags_map[stat_key], stat_key))
 
     # Reconcile add()-only contributions per stat-key (raw read, no consumed_stats side effect).
-    for stat_key, tags in _HIT_ADDITIONAL_STATS:
+    for stat_key, tags in keyed_tags:
         raw = sum(v for s, v in source._entries if s == stat_key)
         remainder = raw - tracked.get(stat_key, 0.0)
         if abs(remainder) > 1e-12:
@@ -256,18 +410,23 @@ def _additional_product(
     source: BuildSource,
     factors: list[tuple[float, frozenset, str]],
     predicate: Callable[[frozenset], bool],
+    keyed_tags: list[tuple[str, frozenset]] = _HIT_ADDITIONAL_STATS,
 ) -> float:
     """Product of (1 + amount) over factors whose tags satisfy predicate. Records consumed_stats for every
     skill-applicable additional key — INCLUDING ones with no current contribution — so an "additional damage"
     modifier badges consistently (Consumed) instead of flipping Inactive→Consumed depending on whether
     anything else currently feeds that pool. This mirrors the increased pools, which already record every
     predicate-passing key via source.total(). Type-specific keys that don't apply to the skill/damage type
-    still aren't recorded (they remain correctly Inactive)."""
+    still aren't recorded (they remain correctly Inactive).
+
+    `keyed_tags` is the pool whose keys get badged — defaults to the HIT pool (byte-identical to the old
+    hardcoded behavior). The DoT stage MUST pass `_DOT_ADDITIONAL_STATS` here: recording against the default
+    `_HIT_ADDITIONAL_STATS` would badge every unrelated hit-additional stat "Consumed" on a DoT-only skill."""
     p = 1.0
     for amount, tags, stat_key in factors:
         if predicate(tags):
             p *= (1.0 + amount)
-    _record_applicable_keys(source, _HIT_ADDITIONAL_STATS, predicate)
+    _record_applicable_keys(source, keyed_tags, predicate)
     return p
 
 
@@ -280,13 +439,14 @@ def _speed_additional_product(source: BuildSource, keys, skill_tags_lower: set[s
     keyset = set(tags_for)
     pos: dict[tuple[str, str], float] = defaultdict(float)
     tracked: dict[str, float] = defaultdict(float)
+    _idx = getattr(source, "identity_index", None)
     for e in source.source_log:
         if e.stat not in keyset:
             continue
         tags = tags_for[e.stat]
         if tags and not (tags & skill_tags_lower):
             continue
-        pos[(e.stat, affix_identity(e.text or ""))] += e.amount
+        pos[(e.stat, pool_identity(e, _idx))] += e.amount
         tracked[e.stat] += e.amount
     p = 1.0
     for amt in pos.values():
@@ -309,17 +469,141 @@ def _speed_additional_product(source: BuildSource, keys, skill_tags_lower: set[s
 def additional_total_product(source: BuildSource, key: str) -> float:
     """Π(1 + amount) over DISTINCT affix sources of one additional-pool stat (same-identity positives sum),
     with a total() fallback for untracked contributions (tests add() with no source_log text). Used for Spell
-    Burst Charge Speed additional, which combines per-source like the speed pools (owner: 2 / (1+inc) / Π(1+add_i))."""
+    Burst Charge Speed additional, which combines per-source like the speed pools (Tyra: 2 / (1+inc) / Π(1+add_i))."""
     entries = [e for e in source.source_log if e.stat == key]
     if not entries:
         return 1.0 + source.total(key)
     pos: dict[str, float] = defaultdict(float)
+    _idx = getattr(source, "identity_index", None)
     for e in entries:
-        pos[affix_identity(e.text or "")] += e.amount
+        pos[pool_identity(e, _idx)] += e.amount
     p = 1.0
     for amt in pos.values():
         p *= (1.0 + amt)
     return p
+
+
+def compute_spell_burst_rate(source: BuildSource, sps: float, M: int, auto: bool) -> float:
+    """Bursts-per-second (the burst TRIGGER rate — how often a burst sequence fires, NOT the M+1 casts within one).
+
+    Standalone mirror of the rate math inside calculate_offense's Spell Burst block — KEEP IN SYNC with it. Used by
+    engine.compute to key burst-activation sustain (mana lost / life restored per trigger) and the per-recent-burst
+    AS/CS feedback off the burst rate, both of which must run BEFORE offense. Returns 0.0 when the skill isn't
+    bursting (M < 1)."""
+    if M < 1:
+        return 0.0
+    charge_inc = source.total("spell_burst_charge_speed_inc")
+    charge_factor = max(1e-6, (1.0 + charge_inc) * additional_total_product(source, "spell_burst_charge_speed_additional"))
+    T = 2.0 / charge_factor
+    surging_rate = sps * source.total("spell_burst_chance_gain_stacks_flat")
+    T_eff = min(T, M / surging_rate) if (surging_rate > 0.0 and M > 0) else T
+    charge_ticks = period_ticks(T_eff)
+    if not auto:
+        if source.total("spell_burst_auto_trigger_flag") > 0:
+            auto = True
+        else:
+            _thr = source.total("spell_burst_auto_charge_threshold")
+            if _thr > 0 and (1.0 + charge_inc) >= _thr:
+                auto = True
+    if auto:
+        rate = rate_from_ticks(charge_ticks)
+    elif sps <= 0.0:
+        return 0.0
+    else:
+        ct = max(1, round(TICK_RATE / sps))
+        rate = TICK_RATE / (math.ceil(charge_ticks / ct) * ct)
+    return min(rate, float(TICK_RATE))
+
+
+def compute_demolisher_rate(source: BuildSource, cast_rate: float, base_restore: float,
+                            mode: str = "manual", rhythm_interval: float = 0.0) -> dict:
+    """Demolisher Charge charged-rate + the bidirectional restoration-vs-cadence breakpoint.
+
+    Standalone mirror of the rate reasoning used inside calculate_offense's demolisher block — KEEP IN SYNC.
+    A Demolisher skill holds at most ONE charge, regained every `restoration` seconds (the timer runs only
+    while at 0). Casting while holding the charge CONSUMES it to add the secondary explosion (the primary
+    fissure lands on every cast regardless).
+
+    `cast_rate` is the skill's RESOLVED cast/trigger rate (from compute_skill_rates: manual APS, a trigger-medium
+    cadence, or the Wind Rhythm rate) — Demolisher is now a generic CONSUMER of it. The cadence = 1/cast_rate.
+      restoration = base_restore / (1 + Σ demolisher_charge_speed_inc)   [INCREASED pool ONLY].
+    Every cast is charged iff restoration ≤ cadence; else a charge is ready only every `restoration` s →
+    charged_rate = min(cast_rate, 1/restoration). Breakpoint (every-cast-charged) needs (1 + inc) ≥
+    base/cadence → `restore_to_sustain` / `cdr_droppable`. `mismatch` = the secondary can't fire every cast.
+    Returns 0-rates when base_restore ≤ 0 (skill isn't a Demolisher skill)."""
+    inc = source.total("demolisher_charge_speed_inc")
+    restoration_time = base_restore / (1.0 + inc) if base_restore > 0 else 0.0
+    if base_restore <= 0:
+        return {"mode": mode, "cast_rate": 0.0, "charged_rate": 0.0, "restoration_time": 0.0,
+                "rhythm_interval": rhythm_interval, "charge_speed_inc": inc, "base_restore": base_restore,
+                "mismatch": False, "restore_to_sustain": 0.0, "cdr_droppable": 0.0,
+                "under_breakpoint": False, "over_breakpoint": False}
+    cadence = (1.0 / cast_rate) if cast_rate > 0 else 0.0
+    charged_rate = min(cast_rate, 1.0 / restoration_time) if restoration_time > 0 else cast_rate
+    # Breakpoint in INCREASED charge-speed terms: sustain needs (1 + inc) ≥ base/cadence.
+    inc_needed = (base_restore / cadence - 1.0) if cadence > 0 else 0.0
+    mismatch = restoration_time > cadence + 1e-9
+    return {
+        "mode": mode,
+        "cast_rate": cast_rate,
+        "charged_rate": charged_rate,
+        "restoration_time": restoration_time,
+        "rhythm_interval": rhythm_interval,
+        "charge_speed_inc": inc,
+        "base_restore": base_restore,
+        "mismatch": mismatch,
+        "restore_to_sustain": max(0.0, inc_needed - inc),   # more INCREASED charge speed to reach every-cast-charged
+        "cdr_droppable": max(0.0, inc - inc_needed),         # INCREASED charge speed droppable while still sustaining
+        "under_breakpoint": inc < inc_needed - 1e-9,
+        "over_breakpoint": inc > inc_needed + 1e-9,
+    }
+
+
+def compute_wind_rhythm_rate(source: BuildSource, base_cooldown: float, wind_bonus: float) -> dict:
+    """Wind Rhythm trigger rate — a server-tick breakpoint mechanic (reuses tick.py, like Spell Burst / Tangle).
+
+    The medium triggers off a per-tier base cooldown, sped by Cooldown Recovery + a share (`wind_bonus`) of the
+    supported skill's Cast Speed (Tyra-confirmed via the wrc-six calculator):
+      final_cast = cast_speed_inc × (1 + cast_speed_additional)     # additional cast speed MULTIPLIES the increased
+      raw = base_cooldown / (1 + cdr_speed_inc + wind_bonus × final_cast) / (1 + cdr_speed_additional)
+      server = ceil(raw × 30) / 30   → rate = 30 / ceil(raw × 30)
+    Returns the rate + tick/cast-time detail + a breakpoint scan (CDR%, Cast-speed%, Wind-bonus% to the next
+    faster tick), for the helper panel. Returns 0 rate when base_cooldown ≤ 0 (not Wind Rhythm)."""
+    if base_cooldown <= 0:
+        return {"rate": 0.0, "ticks": 0, "raw_cast_time": 0.0, "server_cast_time": 0.0,
+                "base_cooldown": 0.0, "wind_bonus": 0.0, "cdr_to_next": 0.0, "cast_to_next": 0.0, "wind_to_next": 0.0}
+    cast_inc = source.total("cast_speed_inc")
+    cast_add = source.total("cast_speed_additional")
+    cdr_inc = source.total("cdr_speed_inc")
+    cdr_add = source.total("cdr_speed_additional")
+
+    def _raw(ci, ca, di, da, wb):
+        final_cast = ci * (1.0 + ca)
+        return base_cooldown / max(1.0 + di + wb * final_cast, 1e-6) / max(1.0 + da, 1e-6)
+
+    raw = _raw(cast_inc, cast_add, cdr_inc, cdr_add, wind_bonus)
+    ticks = period_ticks(raw)
+    rate = rate_from_ticks(ticks)
+
+    # Breakpoint scan: the increment of each lever that first drops to a faster (fewer-tick) period.
+    def _to_next(kind: str) -> float:
+        if ticks <= 1:
+            return 0.0
+        d = 0.0
+        while d < 5.0:
+            d += 0.01
+            r2 = (_raw(cast_inc + d, cast_add, cdr_inc, cdr_add, wind_bonus) if kind == "cast"
+                  else _raw(cast_inc, cast_add, cdr_inc + d, cdr_add, wind_bonus) if kind == "cdr"
+                  else _raw(cast_inc, cast_add, cdr_inc, cdr_add, wind_bonus + d))
+            if period_ticks(r2) < ticks:
+                return d
+        return 0.0
+
+    return {
+        "rate": rate, "ticks": ticks, "raw_cast_time": raw, "server_cast_time": ticks / float(TICK_RATE),
+        "base_cooldown": base_cooldown, "wind_bonus": wind_bonus,
+        "cdr_to_next": _to_next("cdr"), "cast_to_next": _to_next("cast"), "wind_to_next": _to_next("wind"),
+    }
 
 # ── Calculation-target defense (the "dummy") ──────────────────────────────────
 # Baseline mitigation the DPS-vs-target number is computed against. Named (not magic numbers) and
@@ -371,6 +655,21 @@ def _target_mitigation(source: BuildSource, dtype: str) -> float:
     return (1.0 - eff_armor) * (1.0 - eff_resist)
 
 
+def _target_mitigation_dot(source: BuildSource, dtype: str) -> float:
+    """Per-type outgoing-damage multiplier vs the calculation target for Damage over Time — RESISTANCE ONLY,
+    no armor term (Help DB: "Armor" is in the list of mechanics that do NOT affect Damage Over Time; in-game
+    confirmed by dot-armor-exclusion.json — Mind Control base 222/sec → ~155/sec vs the dummy's 30% erosion
+    resistance, 222×0.70=155.4, with NO further ×0.49 an armor term would add).
+
+    MUST reuse `_target_effective`'s existing per-type dispatch rather than reimplementing it — that dispatch
+    is what keeps `elemental_pen` off Erosion (TLI "Elemental" excludes Erosion). A fresh implementation is
+    exactly where that bug would be reintroduced, silently overstating every Erosion DoT. Penetration
+    (erosion_pen / <type>_pen / elemental_pen / all_resistance_reduction) still flows through the resistance
+    side exactly as it does for a hit — only the armor factor is dropped."""
+    _eff_armor, eff_resist = _target_effective(source, dtype)
+    return 1.0 - eff_resist
+
+
 # Where the target's base mitigation/resistance comes from (so the UI shows the baseline, not magic numbers).
 TARGET_SOURCE = "Lvl 85 Dummy"
 
@@ -399,6 +698,20 @@ def target_profile(source: BuildSource) -> dict:
         resist = base + all_red          # enemy's actual resistance (after reductions; multipliers go here)
         return {"base": base, "reduction": all_red, "pen": pen, "resist": resist, "effective": resist - pen}
 
+    # Per-stat penetration SOURCES for the panel breakdown. Penetration is often skill-SCOPED (e.g. Awakening
+    # Skull's attack-only Armor Pen), and scoped contributions never enter the global stat_map — so the breakdown's
+    # stat_map lookup finds nothing. We read them straight off this (already skill-materialized) source's
+    # source_log, which carries base PLUS the matching scoped entries, so every source that produced the displayed
+    # pen shows up. Keyed by the stat the panel rows ask for via penKeys.
+    _PEN_KEYS = ("armor_pen", "elemental_pen", "fire_pen", "cold_pen", "lightning_pen", "erosion_pen")
+    pen_sources: dict[str, list] = {}
+    for e in source.source_log:
+        if e.stat in _PEN_KEYS:
+            pen_sources.setdefault(e.stat, []).append({
+                "source_type": e.source_type, "label": e.label, "text": e.text,
+                "source_name": e.source_name, "amount": e.amount,
+            })
+
     return {
         "source": f"Lvl {level} Dummy",
         "armor": {
@@ -419,7 +732,38 @@ def target_profile(source: BuildSource) -> dict:
             "lightning": source.total("lightning_pen"),
             "erosion": source.total("erosion_pen"),
         },
+        # Per-stat source breakdown for the pen rows (incl. skill-scoped pens absent from the global stat_map).
+        "pen_sources": pen_sources,
     }
+
+
+def _enemy_vuln_source_keys(dtype: str, is_spell: bool = False) -> list[str]:
+    """The ordered stat keys `_enemy_vuln_mult` actually consults for `dtype`/`is_spell` — the SINGLE source
+    of truth for both computing the vulnerability multiplier and reporting which stats produced it (surfaced
+    via `OffenseResult.enemy_vuln_sources_by_type` for the frontend's Breakdown popover). `_enemy_vuln_mult`
+    is defined in terms of this list — do not hand-copy it elsewhere (that was the bug this replaces: the
+    frontend used to keep its own parallel copy, `enemyVulnKeys`, which could silently drift from this list)."""
+    keys = [
+        "paralysis_dmg_taken",        # global
+        "no_guard_dmg_taken",         # global (Rosa Desperation — No Guard)
+        "knockback_dmg_taken",        # global (Howling Gale — Headwind; gated by hook on enemy_knocked_back)
+        "tide_dmg_taken",             # global (Selena Sing with the Tide; gated on enemy_on_tide, × Tide Effect)
+        "enemy_nearby_dmg_taken_additional",  # "additional damage taken by enemies within Nm" (Licorice Note Scattered Spore; assume in range)
+    ]
+    if dtype == "cold":
+        keys.append("frostbite_cold_taken")   # Frostbite (+Condensed Frost) — baked in aggregator
+    if dtype == "lightning":
+        keys.append("numbed_lightning_taken")
+    if dtype in ("fire", "cold", "lightning"):
+        keys.append(f"{dtype}_infiltration_taken")  # Infiltration — element-typed
+    if is_spell:
+        keys.append("frail_spell_taken")      # Frail — Spell-form (all damage of a Spell skill)
+    # Curses (applied curse skill, scaled by Curse Effect in apply_curses): the per-type pool keys off the FINAL
+    # converted dtype — so an "increased Lightning Damage taken" curse does nothing once 100% of the lightning is
+    # converted to cold. hit_curse_taken (Timid) is all hit damage.
+    keys.append(f"{dtype}_curse_taken")
+    keys.append("hit_curse_taken")
+    return keys
 
 
 def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) -> float:
@@ -434,26 +778,13 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
     their enemy condition: Paralysis (global), Numbed (lightning), Frail (Spell-form), Infiltration (per
     element type). NOT the defensive dmg_taken family (incoming damage / immunity tripwire) — this is
     outgoing amplification.
+
+    Iterates `_enemy_vuln_source_keys` (the shared source-of-truth key list) rather than hand-listing the
+    stats again, so this multiplier and the reported source list can never drift apart.
     """
-    mult = 1.0 + source.total("paralysis_dmg_taken")        # global
-    mult *= 1.0 + source.total("no_guard_dmg_taken")        # global (Rosa Desperation — No Guard)
-    mult *= 1.0 + source.total("knockback_dmg_taken")       # global (Howling Gale — Headwind; gated by hook on enemy_knocked_back)
-    mult *= 1.0 + source.total("tide_dmg_taken")            # global (Selena Sing with the Tide; gated on enemy_on_tide, × Tide Effect)
-    if dtype == "cold":
-        mult *= 1.0 + source.total("frostbite_cold_taken")  # Frostbite (+Condensed Frost) — baked in aggregator
-    if dtype == "lightning":
-        mult *= 1.0 + source.total("numbed_lightning_taken")
-    if dtype in ("fire", "cold", "lightning"):              # Infiltration — element-typed
-        mult *= 1.0 + source.total(f"{dtype}_infiltration_taken")
-    if is_spell:                                            # Frail — Spell-form (all damage of a Spell skill)
-        mult *= 1.0 + source.total("frail_spell_taken")
-    # Curses (applied curse skill, scaled by Curse Effect in apply_curses): the per-type pool keys off the FINAL
-    # converted dtype — so an "increased Lightning Damage taken" curse does nothing once 100% of the lightning is
-    # converted to cold. hit_curse_taken (Timid) is all hit damage. Distinct curse TYPES multiply (separate
-    # factors); same curse is deduped to one source upstream. Pooling vs the in-game "additional" wording is
-    # FLAGGED for verification (kept multiplicative, like the debuffs above).
-    mult *= 1.0 + source.total(f"{dtype}_curse_taken")
-    mult *= 1.0 + source.total("hit_curse_taken")
+    mult = 1.0
+    for key in _enemy_vuln_source_keys(dtype, is_spell):
+        mult *= 1.0 + source.total(key)
     return mult
 
 
@@ -465,15 +796,26 @@ def _enemy_vuln_mult(source: BuildSource, dtype: str, is_spell: bool = False) ->
 _CONV_PRIORITY = ["physical", "lightning", "cold", "fire", "erosion"]
 
 
-def _conversion_fracs(source: BuildSource) -> tuple[dict, dict]:
+def _conversion_fracs(
+    source: BuildSource, intrinsic: dict[str, dict[str, float]] | None = None,
+) -> tuple[dict, dict]:
     """Read convert + adds-as fractions per up-chain (source→dest) pair from `source`. Returns
     (convert, adds), each {src: {dst: frac}}. Convert is capped to ≤100% per source (redistributed by
-    weight). physical_as_elemental adds its % as each of fire/cold/lightning."""
+    weight). physical_as_elemental adds its % as each of fire/cold/lightning.
+
+    `intrinsic` (ResolvedSkill.intrinsic_convert) is an optional skill-INHERENT Compulsory Damage-Type
+    Conversion overlay (e.g. Thunder Spike's "All Physical Damage will be converted to Lightning Damage" —
+    100%), merged into the SAME cascade a gear/talent `<type>_convert_to_<type>` stat drives — not a
+    separate mechanism. A 100% intrinsic conversion dominates the ≤100%-per-source cap below exactly like a
+    gear/talent source would."""
     convert: dict[str, dict[str, float]] = {}
     adds: dict[str, dict[str, float]] = {}
     for i, s in enumerate(_CONV_PRIORITY):
         higher = _CONV_PRIORITY[i + 1:]
         c = {d: max(0.0, source.total(f"{s}_convert_to_{d}")) for d in higher}
+        for d, frac in (intrinsic or {}).get(s, {}).items():
+            if d in higher:
+                c[d] = c.get(d, 0.0) + max(0.0, frac)
         tot = sum(c.values())
         if tot > 1.0:                                  # cap 100% per source, redistribute by weight
             c = {d: v / tot for d, v in c.items()}
@@ -521,6 +863,27 @@ def _apply_conversion(eff_flat: dict, path_inc, path_add,
     return final
 
 
+# ── Shadow Strike (Help DB "shadow-strike"; master_glossary 136 "Phantom") ────────────────────────────────
+# Casting a Shadow Strike skill summons N Shadows; each attacks an enemy in a 9.5m tracking area ONCE, using
+# the same attack as the player (with no other targets, all shadows strike the character's target — matches
+# the engine's single-target default). Shadows deal the same damage as the player; multiple Shadows hitting
+# the SAME enemy take an additional Shotgun Effect falloff — each shadow beyond the first deals (1 −
+# _SHADOW_FALLOFF) of a shadow hit. Shadow damage is INDEPENDENT of the player's own hit (Help DB): the
+# player's hit is the leading "1.0" below and is never itself subject to the falloff chain.
+_SHADOW_FALLOFF = 0.70   # glossary 136 "Phantom" — Shotgun Effect falloff coefficient (fraction LOST)
+
+
+def _shadow_multiplier(n: int, shadow_dmg_additional: float) -> float:
+    """f(0) = 1.0 (just the player's own hit; no Shadows). f(N>=1) = 1 (player) + the shadow portion — first
+    shadow 100%, each further shadow retains (1 − _SHADOW_FALLOFF) = 30%, and the WHOLE shadow portion is
+    scaled by (1 + Σ additional Shadow Damage) — additional Shadow Damage scales ONLY the shadow portion,
+    never the player's own hit (Help DB: "Shadow damage and character damage are independent")."""
+    if n <= 0:
+        return 1.0
+    retain = 1.0 - _SHADOW_FALLOFF
+    return 1.0 + (1.0 + retain * (n - 1)) * (1.0 + shadow_dmg_additional)
+
+
 @dataclass
 class HitFormResult:
     name: str
@@ -540,6 +903,92 @@ class HitFormResult:
     shotgun_mult: float = 1.0    # total per-occurrence shotgun multiplier (1 + (hits−1)×(1−falloff))
     base_min_by_type: dict[str, float] = field(default_factory=dict)  # this form's intrinsic base (spells)
     base_max_by_type: dict[str, float] = field(default_factory=dict)
+    # Non-empty → this form is NOT-YET-IMPLEMENTED (0 DPS, excluded from % of Total); the strings are the reasons.
+    # Used to surface a minion's non-damage abilities (Empower buffs, locked Ultimates) as visible, selectable
+    # forms in the form dropdown rather than hiding them (never-silently-drop).
+    nyi: list[str] = field(default_factory=list)
+
+
+@dataclass
+class DamageRow:
+    """One row of the engine-owned breakdown table (`OffenseResult.damage_rows`) — the reconciliation
+    contract that lets the frontend stop hand-reconstructing `_delivery` (cast/tangle/spell-burst/multistrike
+    multiplier) and stop back-solving per-type mitigation. Every row here is ALREADY fully delivered and
+    ALREADY split per damage type post-mitigation: nothing is left for the UI to multiply or re-derive.
+    `pct_of_total` is of `OffenseResult.total_dps_vs_target`; summed across every row (all kinds) it equals
+    100.0 (within float tolerance) — see `_finalize_damage_row_pcts`.
+
+    form_index: the STABLE join key back to `OffenseResult.hit_forms` — use this, NOT `name`, to line a row
+      up with its source HitFormResult. `name` is display text only: nothing enforces `HitFormResult.name`
+      uniqueness (the test helper defaults every form to `name="Hit"`; a minion's NYI row is named after the
+      ability itself, which could collide with a damage ability's own name), so `visibleFormNames.has(row.name)`
+      / `forms.find(f => f.name === row.name)`-style joins are a LATENT bug even though today's data has zero
+      duplicate names across every `hit_forms` list (verified across all season goldens). For kind="hit" rows
+      this is the 0-based index of the row's HitFormResult in `hit_forms` (same list, same order — see the
+      "hit" case below); for kind="true"/"dot" rows (no HitFormResult of their own) it is always -1.
+      `combine_minion_forms` re-bases this to the MERGED `hit_forms` list's own position — a per-ability
+      row's ability-local index is NOT what ships once abilities are combined into one result.
+
+    kind:
+      "hit"  — mirrors one `hit_forms[i]` entry, 1:1, same order (form_index == i). dps_final/dps_vs_target_final
+               are that form's dps_contribution/dps_vs_target × the caller's delivery multiplier (1.0 for
+               minions, which fold delivery — `count` — in earlier; see minion_offense.calculate_minion_offense).
+               `nyi` mirrors `hit_forms[i].nyi` exactly (non-empty → 0 DPS, not-yet-implemented ability) so
+               the frontend filters NYI rows out of the breakdown table from the row alone (no index-zip
+               against hit_forms needed — form_index is for the OPPOSITE direction, row → form).
+      "true" — an unmitigated true-damage add-on with NO HitFormResult of its own (Mercury Baptism, Spell
+               Ripple). dps_by_type_vs_target / hit_min_by_type / hit_max_by_type are empty — these are a
+               single already-final number, not a per-type hit roll.
+      "dot"  — FORWARD SLOT for the upcoming DoT damage stage; no "dot" row is emitted today. No DoT ever
+               crits (ailment or otherwise — confirmed by the Help DB's "will not affect" list, and in-game:
+               the control_spell support carries −100% Critical Strike Rating and RAISED Mind Control's DPS),
+               so skip crit_factor/double_dmg_factor entirely. A DoT is a per-second standing effect, not
+               delivered per-cast (tick granularity is deliberately not modelled here), so it must NOT be
+               multiplied by `_delivery` either — cast_multiplier/tangle_mult/spell_burst_mult/multistrike_mult
+               all describe how often a HIT is DELIVERED, which doesn't apply to a standing effect.
+               (Design inference, not a Help DB statement: the Help DB never says a standing effect isn't
+               "delivered" per cast — this is a sound engineering read of "DoT effects deal damage
+               continuously for a period of time", not a cited mechanic. Revisit if a DoT is ever observed
+               scaling with multistrike/tangle/spell-burst count in-game.)
+               dps_final/dps_vs_target_final DO still have the usual pre-target/post-target split (a DoT is
+               mitigated by the target's RESISTANCE — Help DB-confirmed in-game via Mind Control 222/sec base
+               → ~155/sec vs the 30%-erosion-resist dummy, 222×0.70=155.4 — the ×0.49 an armor term would add
+               is absent from the measurement) — they are NOT the same number:
+                 dps_final          = base_per_second × (1 + Σ increased) × Π(1 + additional)
+                 dps_vs_target_final = dps_final × (a RESISTANCE-ONLY multiplier — NO armor term, so no
+                                       armor_pen either). Do not reuse `_target_mitigation` (it multiplies in
+                                       `(1 − eff_armor)`); a sibling `_target_mitigation_dot` will be added
+                                       that applies only `(1 − effective_resistance)`, with erosion_pen /
+                                       <type>_pen / elemental_pen / all_resistance_reduction still feeding
+                                       effective_resistance exactly as they do for a hit. BINDING CONSTRAINT:
+                                       `_target_mitigation_dot` MUST reuse `_target_effective`'s existing
+                                       per-type dispatch (the fire/cold/lightning branch vs the erosion branch)
+                                       rather than reimplementing it — that dispatch is what keeps
+                                       `elemental_pen` off Erosion (TLI "Elemental" excludes Erosion; see
+                                       `_target_effective`'s branch at the top of this file). A fresh
+                                       implementation is exactly where that bug would be reintroduced, silently
+                                       overstating every Erosion DoT.
+               dps_by_type_vs_target IS populated (a DoT has a damage type, unlike a "true" row);
+               hit_min_by_type/hit_max_by_type stay `{}` (a DoT has no hit min/max — it isn't rolled per-hit).
+               To add one: append the row to the SAME `damage_rows` list, fold its dps_final into total_dps
+               AND its dps_vs_target_final into total_dps_vs_target, THEN call `_finalize_damage_row_pcts`.
+               Zero frontend change required — the table already renders whatever rows are in the list.
+    """
+    kind: Literal["hit", "true", "dot"]
+    name: str
+    dps_final: float
+    dps_vs_target_final: float
+    pct_of_total: float
+    # Stable join key back to `hit_forms` — see the class docstring. -1 for kind="true"/"dot" (no HitFormResult
+    # of their own); the 0-based index into `hit_forms` for kind="hit" (re-based on merge — see docstring).
+    form_index: int = -1
+    dps_by_type_vs_target: dict[str, float] = field(default_factory=dict)
+    hit_min_by_type: dict[str, float] = field(default_factory=dict)
+    hit_max_by_type: dict[str, float] = field(default_factory=dict)
+    # Mirrors HitFormResult.nyi for kind="hit" rows (empty for "true"/"dot" — those are never NYI): non-empty
+    # means this row is a not-yet-implemented ability (0 DPS), so the frontend can filter it out of the
+    # breakdown table from the row alone, without zipping damage_rows against hit_forms by index.
+    nyi: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -548,10 +997,18 @@ class OffenseResult:
     supported: bool             # False = NYI; when False no numeric fields are meaningful
     effective_level: int = 0
     hit_forms: list[HitFormResult] = field(default_factory=list)
-    crit_chance: float = 0.0
+    crit_chance: float = 0.0            # EFFECTIVE crit chance (capped at 1.0, post Lucky/Unlucky crit) — drives DPS
+    crit_chance_uncapped: float = 0.0   # TRUE chance from rating (may exceed 1.0) — display-only, surfaces over-cap
+    crit_luck_effect: str = ""          # "", "lucky", or "unlucky" — Critical Strikes have the Lucky/Unlucky effect
     crit_multiplier: float = 1.5
+    # Double / Triple / Quadruple damage CHANCE (tag-filtered, summed pool, capped 100%) + the expected-value
+    # multiplier folded into the average DPS (highest tier per hit). double_dmg_factor=1.0 → no double damage.
+    double_dmg_chance: float = 0.0
+    triple_dmg_chance: float = 0.0
+    quad_dmg_chance: float = 0.0
+    double_dmg_factor: float = 1.0
     steep_strike_chance: float = 0.0
-    attacks_per_second: float = 0.0
+    skills_per_second: float = 0.0
     base_cast_time: float = 0.0        # spell base cast time (seconds); 0 for attacks (weapon-APS driven)
     total_dps: float = 0.0
     total_dps_vs_target: float = 0.0   # total DPS after target dummy mitigation
@@ -584,6 +1041,10 @@ class OffenseResult:
     # main_stat_damage_bonus is the fraction (0.255 = +25.5%); main_stats lists the attributes summed.
     main_stat_damage_bonus: float = 0.0
     main_stats: list[str] = field(default_factory=list)
+    # Skill-intrinsic 'additional damage' pool entries ([{label, amount}]) — the extra_additional folded into
+    # intrinsic_add (e.g. Rapid Advance's per-Max-Channeled-Stack bonus, Focused Slash's Fervor). Populated by
+    # compute (which has the source + condition state); surfaced in the "Total Additional" breakdown panel.
+    intrinsic_additional_sources: list = field(default_factory=list)
     # Skill tags and tag-specific mechanics
     skill_tags: list[str] = field(default_factory=list)
     skill_area_inc: float = 0.0  # total increased area of effect (only when "area" in skill_tags)
@@ -610,11 +1071,34 @@ class OffenseResult:
     tangle_cast_ticks: int = 0         # whole server ticks per tangle cast (cast-speed breakpoint); 0 if untangled
     tangle_cast_to_next_increased: float = 0.0  # +Increased Cast Speed needed for the next faster tick breakpoint
     tangle_cast_to_next_additional: float = 0.0  # +Additional Cast Speed needed for the next faster tick breakpoint
+    # Shadow Strike mode (Help DB "shadow-strike"; master_glossary 136 "Phantom"). shadow_count = Max Shadow
+    # Quantity (N_base); shadow_chance_pct/shadow_chance_quantity = Despised Shadow's "chance to gain +K
+    # Shadows" EV inputs; shadow_dmg_additional = Σ additional Shadow Damage (folded into shadow_mult, not
+    # the generic additional pool); shadow_mult = the delivery multiplier folded into total_dps (like
+    # tangle_mult). 0 / 0.0 / 1.0 when the skill is not a Shadow Strike skill or has no Shadows.
+    shadow_count: int = 0
+    shadow_chance_pct: float = 0.0
+    shadow_chance_quantity: float = 0.0
+    shadow_dmg_additional: float = 0.0
+    shadow_mult: float = 1.0
+    # Phase 1 primitive (2026-07-15, docs/BACKLOG.md §0f): expected Shadow-hit RATE — E[shadow_count] × cast
+    # rate, where E[shadow_count] = shadow_count + shadow_chance_pct·shadow_chance_quantity is the LINEAR
+    # expectation of the Despised-Shadow chance-mix. Distinct from shadow_mult's damage EV mix (which is
+    # NONLINEAR in N via the falloff formula) — this is a hit-count-per-second primitive, not a damage
+    # multiplier. No consumer yet (Frantic Shadow's Attack Speed proc / Numb Magnificent / shadow-applied
+    # Numbed are still NYI — see docs/BACKLOG.md §0f); 0.0 when the skill has no Shadows.
+    shadow_hits_per_sec: float = 0.0
+    # Channeled-attack rate breakpoints (Split Shot: Rapid Advance) — the channel fires on whole 30 Hz ticks
+    # (rate = 30 ÷ ticks). 0 when not a channeled attack. Surfaced in the Channeled box.
+    channel_attack_ticks: int = 0
+    channel_attack_smooth_sps: float = 0.0  # the smooth attack rate BEFORE the 30 Hz breakpoint (the true attack speed)
+    channel_attack_to_next_increased: float = 0.0  # +Increased Attack Speed needed for the next faster breakpoint
+    channel_attack_to_next_additional: float = 0.0  # +Additional Attack Speed needed for the next faster breakpoint
     # Spell Burst mode (an eligible Spell cast at full charge consumes all M stacks and auto-recasts the spell
     # M times — the triggering cast also counts, so casts_per_burst = M + 1). The charge is a server-timed,
     # whole-tick countdown (hard-rounded breakpoints — see engine/tick.py), so charge speed only helps at
     # integer-tick crossings. spell_burst_mult is the TOTAL delivery multiplier folded into total_dps
-    # ( = casts_per_burst × bursts/sec ÷ aps); the per-hit-form damage already carries the spell_burst pools.
+    # ( = casts_per_burst × bursts/sec ÷ sps); the per-hit-form damage already carries the spell_burst pools.
     spell_burst_count: int = 0             # Max Spell Burst (M); 0 = not bursting
     spell_burst_casts_per_burst: int = 0   # M + 1 (the M recasts + the triggering cast)
     spell_burst_charge_ticks: int = 0      # whole-tick charge period (ceil(30 × T_eff))
@@ -643,7 +1127,7 @@ class OffenseResult:
     channeled_min_stacks: int = 0          # Min Channeled Stacks (first round from 0 gains 1 + this)
     channeled_stacks: float = 0.0          # display steady-state stacks (= cap for a sustained channel)
     channeled_rounds_per_cycle: float = 0.0  # uses per RESET cycle = max(1, max − min)
-    channeled_burst_rate: float = 0.0      # reset-burst occurrences/sec (= aps / rounds_per_cycle)
+    channeled_burst_rate: float = 0.0      # reset-burst occurrences/sec (= sps / rounds_per_cycle)
     channeled_behavior: str = ""           # "reset" | "refresh" | "" (not channeled)
     channeled_attack_frequency: float = 0.0  # persistent-entity strike rate (Howling Gale's Gale); 0 = N/A
     projectile_count: int = -1             # projectiles of the projectile-scaling form (Icy Blade); -1 = N/A (no such form)
@@ -663,7 +1147,7 @@ class OffenseResult:
     multistrike_increment: float = 0.0        # effective per-stack increment = base × (1 + additional)
     multistrike_max_count: int = 0            # K = longest possible chain (Max Multistrike Count)
     multistrike_mult: float = 1.0             # delivery multiplier folded into total_dps
-    multistrike_repeat_aps: float = 0.0       # attack rate during repeats = aps × (1 + as_inc + 0.20)/(1 + as_inc)
+    multistrike_repeat_aps: float = 0.0       # attack rate during repeats = sps × (1 + as_inc + 0.20)/(1 + as_inc)
     multistrike_chain: list = field(default_factory=list)  # [{count, prob}] chain-length distribution
     # Mercury Baptism (Rosa Unsullied Blade): recorded fraction of elemental hit damage re-dealt as TRUE damage,
     # and the resulting unmitigated DPS (vs target), folded into total_dps_vs_target.
@@ -673,6 +1157,237 @@ class OffenseResult:
     # (fraction = 0.5 chance × 1.5 = 0.75), folded in unmitigated.
     spell_ripple_fraction: float = 0.0
     spell_ripple_dps: float = 0.0
+    # Demolisher Charge mode (Groundshaker etc.). The skill is cast at a cadence (Rhythm interval / APS); the
+    # primary fissure lands every cast, the secondary explosion only on a CHARGED cast (a held charge, regained
+    # every restoration_time s). The breakpoint fields drive the bidirectional restoration-vs-cadence helper.
+    # All 0 / "" when the skill is not a Demolisher skill.
+    demolisher_mode: str = ""                    # "rhythm" | "manual" | "" (not a demolisher skill)
+    demolisher_restoration_time: float = 0.0     # seconds to regain 1 charge = base / (1 + Σ charge-speed increased)
+    demolisher_base_restore: float = 0.0         # skill's base restoration (Groundshaker 3s)
+    demolisher_charge_speed_inc: float = 0.0     # Σ Demolisher Charge Speed INCREASED (the only pool that applies)
+    demolisher_cast_rate: float = 0.0            # casts/sec (primary fissure rate)
+    demolisher_charged_rate: float = 0.0         # charged casts/sec (secondary explosion rate) ≤ cast_rate
+    demolisher_rhythm_interval: float = 0.0      # Rhythm cast interval R (0 = manual/APS)
+    demolisher_mismatch: bool = False            # restoration slower than the cadence → not every cast is charged
+    demolisher_restore_to_sustain: float = 0.0   # +Increased Charge Speed needed for every-cast-charged
+    demolisher_cdr_droppable: float = 0.0        # Increased Charge Speed droppable while still sustaining
+    demolisher_under_breakpoint: bool = False    # below the every-cast-charged breakpoint
+    demolisher_over_breakpoint: bool = False     # above it (has headroom to drop charge speed)
+    demolisher_collapse_pct: float = 0.0         # Collapse tick amplification (fraction) folded into the fissure ticks
+    demolisher_frequent_quake: bool = False      # explosion replaced by 5 primary-fissure hits
+    demolisher_area_mode: str = "both"           # "both" | "primary" | "secondary" (the fissure ENUM)
+    demolisher_primary_dps: float = 0.0          # primary-fissure DPS vs target (after delivery)
+    demolisher_secondary_dps: float = 0.0        # secondary-explosion / FQ-tick DPS vs target (after delivery)
+    # Activation-medium trigger cadence driving the cast rate (Rhythm/Track/Instruction/Wind Rhythm). 0 = the
+    # skill fires at its own cast/attack rate (no triggering medium). Surfaced so the Hit Rate row reads correctly.
+    trigger_interval: float = 0.0
+    # Wind Rhythm trigger (server-tick breakpoint mechanic). All 0 / False when Wind Rhythm isn't the trigger.
+    wind_rhythm_active: bool = False
+    wind_rhythm_rate: float = 0.0                 # triggers/sec (= cast rate) after tick rounding
+    wind_rhythm_ticks: int = 0                    # whole-tick cadence period (ceil(raw × 30))
+    wind_rhythm_cast_time: float = 0.0            # server cast time (ticks / 30)
+    wind_rhythm_base_cooldown: float = 0.0        # per-tier base cooldown (seconds)
+    wind_rhythm_bonus: float = 0.0               # roll: share of Cast Speed applied to CDR
+    wind_rhythm_cdr_to_next: float = 0.0          # +Increased CDR % to the next faster tick
+    wind_rhythm_cast_to_next: float = 0.0         # +Increased Cast Speed % to the next faster tick
+    wind_rhythm_wind_to_next: float = 0.0         # +Wind-bonus % to the next faster tick
+    # Spirit Magus (minion) display info — the Growth subsystem's per-minion state, surfaced for the minion panel.
+    # All 0 for non-Spirit-Magus results. Growth/Stage/Physique/Skill Area/Enhanced-chance don't (except via the
+    # stage bonuses already folded into the damage forms) feed hit DPS — Physique & Skill Area are display-only.
+    spirit_magi_growth: float = 0.0               # current Growth (100–1000)
+    spirit_magi_stage: int = 0                    # Stage 1–5 (0 = not a Spirit Magus)
+    spirit_magi_physique_inc: float = 0.0         # total Physique % (Growth +1%/8 + gear) — display only
+    spirit_magi_enhanced_chance: float = 0.0      # Enhanced-Skill chance (pool + Stage-2 +30%), capped ≤ 1
+    spirit_magi_max: int = 0                       # Max Spirit Magi in Map (the count that fights)
+    # A minion's Empower buff (e.g. Thundercloud Surge) surfaced like a player empower: base/effective cooldown +
+    # duration, uptime, Empower Effect, and the per-buff magnitudes (base → effective). None for non-empower.
+    minion_empower: dict | None = None
+    # ── Purpose-built breakdown-row contract (engine-owned; see DamageRow) ────────────────────────────────
+    # Replaces the frontend's hand-reconstruction of _delivery and its back-solved per-type mitigation.
+    # kind="hit" rows mirror hit_forms 1:1; kind="true" covers Mercury Baptism / Spell Ripple; kind="dot" is
+    # the forward slot for the upcoming DoT stage (see DamageRow's docstring for the exact slot-in contract).
+    damage_rows: list[DamageRow] = field(default_factory=list)
+    # The two halves of enemy_mult_by_type, split out so the frontend can show/verify them separately instead
+    # of back-solving mitigation as enemy_mult_by_type ÷ its own copy of the vuln stat-key list.
+    # target_mitigation_by_type[d] × enemy_vuln_by_type[d] == enemy_mult_by_type[d] for every d.
+    target_mitigation_by_type: dict[str, float] = field(default_factory=dict)  # armour/resist half only
+    enemy_vuln_by_type: dict[str, float] = field(default_factory=dict)         # vulnerability-product half only
+    # For each type in enemy_vuln_by_type, the ordered stat keys _enemy_vuln_mult actually consulted to build
+    # that type's multiplier (see _enemy_vuln_source_keys — the single source of truth both use). Lets the
+    # Breakdown popover list the real sources without the frontend hand-copying the engine's vuln-key list.
+    # Invariant: Π(1 + source.total(k) for k in enemy_vuln_sources_by_type[d]) == enemy_vuln_by_type[d].
+    enemy_vuln_sources_by_type: dict[str, list[str]] = field(default_factory=dict)
+
+
+def _build_hit_damage_rows(hit_forms: list[HitFormResult], *, delivery: float,
+                           mitigation_fn: Callable[[str], float],
+                           crit_factor: float, double_dmg_factor: float) -> list[DamageRow]:
+    """Build one kind="hit" DamageRow per HitFormResult (same order), fully delivered (× `delivery` — the
+    cast/tangle/spell-burst/multistrike multiplier the caller already computed) and split per damage type
+    using `mitigation_fn(dtype)` — the remaining post-hit multiplier NOT already folded into `damage_by_type`.
+    Player caller: pass target-mitigation ALONE (enemy-vulnerability is already folded into damage_by_type at
+    hit time — see the per-type loop in calculate_offense). Minion caller: pass mitigation × vulnerability
+    combined (neither is pre-folded into the minion's damage_by_type — see calculate_minion_offense).
+
+    Pure read of hit_forms — never mutates it (hit_forms is consumed elsewhere, and displayOffense relies on
+    a pre-delivery RATIO where _delivery cancels; that must keep working byte-identical).
+
+    Share math: damage_by_type[t] already reflects every per-hit factor EXCEPT crit/double-damage (both
+    single skill-level scalars applied uniformly to every type) and this remaining mitigation factor — so
+    `damage_by_type[t] * mitigation_fn(t) * crit_factor * double_dmg_factor` is exactly the per-type slice of
+    the form's own `avg_hit_with_crit` vs-target average; summed over t it reproduces that scalar exactly.
+    Multiplying the form's ALREADY-FINAL dps_vs_target by each type's SHARE of that slice (rather than
+    recomputing a rate from scratch) makes this exact for every form, including ones a caller rewrites after
+    the fact with a different rate (Demolisher's cast/charged-rate rebuild, Chilling Spike's split-off form)
+    — those rewrites only ever rescale a form's total DPS by a scalar uniform across damage types.
+    """
+    rows: list[DamageRow] = []
+    for i, form in enumerate(hit_forms):
+        per_type_vs_target = {
+            t: v * mitigation_fn(t) * crit_factor * double_dmg_factor
+            for t, v in form.damage_by_type.items()
+        }
+        share_total = sum(per_type_vs_target.values())
+        dps_vs_target_final = form.dps_vs_target * delivery
+        dps_by_type_vs_target = (
+            {t: dps_vs_target_final * (v / share_total) for t, v in per_type_vs_target.items()}
+            if share_total > 0.0 else {}
+        )
+        rows.append(DamageRow(
+            kind="hit",
+            name=form.name,
+            form_index=i,   # 0-based index into THIS hit_forms list — the stable join key (see DamageRow docstring)
+            dps_final=form.dps_contribution * delivery,
+            dps_vs_target_final=dps_vs_target_final,
+            pct_of_total=0.0,   # filled by _finalize_damage_row_pcts once the FINAL total is known
+            dps_by_type_vs_target=dps_by_type_vs_target,
+            hit_min_by_type=dict(form.hit_min_by_type),
+            hit_max_by_type=dict(form.hit_max_by_type),
+            nyi=list(form.nyi),
+        ))
+    return rows
+
+
+def _finalize_damage_row_pcts(rows: list[DamageRow], total_dps_vs_target: float) -> None:
+    """Fill pct_of_total on every row (hit + true + any dot rows already appended) so they sum to 100.0 of
+    the FINAL total_dps_vs_target (after true-damage add-ons like Mercury Baptism / Spell Ripple have been
+    folded in by the caller). No-op (rows stay at their DamageRow-construction default 0.0) when the total
+    is zero — an unsupported/zero-damage skill has nothing to reconcile."""
+    if total_dps_vs_target <= 0.0:
+        return
+    for row in rows:
+        row.pct_of_total = row.dps_vs_target_final / total_dps_vs_target * 100.0
+
+
+def compute_dot(
+    source: BuildSource,
+    skill: ResolvedSkill,
+    lookup_level: int,
+    is_spell: bool,
+    extra_additional: float,
+    above_mult: float = 1.0,
+) -> tuple[list[DamageRow], float, float]:
+    """The Damage over Time damage stage (Mind Control, Path of Flames — dot-model.json,
+    dot-armor-exclusion.json, dot-no-crit.json). Presence-gated: `skill.dot_forms_by_level.get(lookup_level)`
+    empty/missing → returns `([], 0.0, 0.0)`, so a non-DoT skill is completely unaffected (byte-identical
+    `total_dps`).
+
+    Per form (one per `DotForm` at this level):
+        dot_dps            = base_per_second × (1 + Σ increased) × Π(1 + additional) × (1 + extra_additional)
+                              × above_mult
+        dot_dps_vs_target   = dot_dps × _target_mitigation_dot(source, dtype)   — RESISTANCE ONLY, no armor.
+    No crit_factor / double_dmg_factor (a DoT never crits — dot-no-crit.json) and no `_delivery` (cast/tangle/
+    spell-burst/multistrike multiplier — a DoT is a standing effect, not delivered per cast; see the
+    `DamageRow` docstring's kind="dot" forward slot).
+
+    `increased` is the WHITELISTED pool (`_DOT_INCREASED_STATS`, named beside `_DOT_ADDITIONAL_STATS`) — NOT
+    `stat_meta`'s `affects` tuple (72 type-scoped increased stats carry a "dot" affects flag with zero
+    in-game verification for DoT; reading `affects` here would silently apply all of them):
+        dmg_inc + dot_dmg_inc (always, per dot-model.json's audit) + spell_dmg_inc (spell skills only, per
+        dot-model.json's audit) + fire_dot_dmg_inc (fire DoTs only — an INFERENCE, NOT independently audited;
+        see `_DOT_INCREASED_STATS`'s comment and the open question filed in dot-model.json)
+    PLUS, per the owner-confirmed damage-scoping rule (2026-07-10, see the comment above
+    `_dot_type_increased_keys`): `{dtype}_dmg_inc` (e.g. `fire_dmg_inc` on a fire DoT), `{dtype}_dot_dmg_inc`
+    if it exists, and `elemental_dmg_inc` when `dtype` is fire/cold/lightning (never erosion). These are
+    UNIONED with the static whitelist above by KEY (not summed twice) — `fire_dot_dmg_inc` is a member of
+    both and must only be counted once.
+    `additional` is the per-affix multiplicative product of exactly `dmg_additional` + `dot_dmg_additional`
+    (`_DOT_ADDITIONAL_STATS`), built the same way the hit pool is (`_build_additional_factors` /
+    `_additional_product`, parametrized to this pool so consumed-stats badging never bleeds into unrelated
+    hit-only additional stats), TIMES a second, form-dependent product over `{dtype}_dmg_additional` /
+    `elemental_dmg_additional` (same 2026-07-10 rule, precomputed per dtype as
+    `_DOT_TYPE_ADDITIONAL_KEYED_TAGS[dtype]` so it hits `_build_additional_factors`'s identity fast path via
+    `_DOT_TYPE_ADDITIONAL_POOL_CACHE`). `spell_dmg_additional` is EXCLUDED from both pools — unmeasured, see
+    the comment above `_DOT_TYPE_INCREASED_KEYS`; only the independently-MEASURED `spell_dmg_inc` is
+    whitelisted, on the increased side only. `extra_additional` is the SAME skill-intrinsic pool
+    `calculate_offense` already threads through the hit pipeline (evaluated by the caller from
+    `skill.intrinsic_additional` + condition state, e.g. Mind Control / Path of Flames' "+21.5% additional
+    damage per +1 ADDITIONAL Max Channeled Stack") — dormant (0.0) at the base channeled-stack count,
+    confirmed in-game.
+
+    `above_mult` — the SAME compounding above-max-level multiplier the hit stage applies
+    (`_above_max_mult(effective_level, skill.max_level)`, computed once by the caller and passed in): per
+    owner confirmation (2026-07-10), above-max-level scaling applies to ALL damage forms, DoT included, not
+    just hit forms. 1.0 at/below max level, so this is a no-op for every skill at or under its cap. (The
+    verification entry now records this as CONFIRMED, not an open question — see dot-model.json.)
+
+    Returns `(dot_rows, dot_dps_total, dot_dps_vs_target_total)`; the caller folds the two totals into
+    `total_dps`/`total_dps_vs_target` and extends `damage_rows` with `dot_rows` BEFORE calling
+    `_finalize_damage_row_pcts`.
+    """
+    forms = skill.dot_forms_by_level.get(lookup_level, [])
+    if not forms:
+        return [], 0.0, 0.0
+
+    dot_add_factors = _build_additional_factors(source, _DOT_ADDITIONAL_STATS)
+    base_additional_product = _additional_product(
+        source, dot_add_factors, lambda tags: True, _DOT_ADDITIONAL_STATS,
+    ) * (1.0 + extra_additional)
+
+    rows: list[DamageRow] = []
+    total = 0.0
+    total_vt = 0.0
+    for form in forms:
+        # Increased pool: the static whitelist UNIONED (by key, order-preserving) with the type/elemental-
+        # scoped keys for this form's damage type — see `_dot_type_increased_keys`'s comment for why this must
+        # be a union, not two independent sums (fire_dot_dmg_inc would otherwise double-count on a fire DoT).
+        increased_keys = [key for key, gate in _DOT_INCREASED_STATS if gate is None or gate(is_spell, form)]
+        _seen = set(increased_keys)
+        for key in _DOT_TYPE_INCREASED_KEYS.get(form.dtype, ()):
+            if key not in _seen:
+                increased_keys.append(key)
+                _seen.add(key)
+        increased = sum(source.total(key) for key in increased_keys)
+
+        # Additional pool: the base (dmg_additional/dot_dmg_additional) product, times a SEPARATE form-scoped
+        # product over the type/elemental-scoped keys (disjoint from the base pool — no dedup needed).
+        # spell_dmg_additional is deliberately NOT included here — unmeasured, see the comment above
+        # `_DOT_TYPE_INCREASED_KEYS`. `scoped_keyed_tags` is the precomputed per-dtype module constant
+        # (`_DOT_TYPE_ADDITIONAL_KEYED_TAGS`) — the SAME list object every call, so it's recognized by
+        # IDENTITY in `_build_additional_factors`'s fast path (`_DOT_TYPE_ADDITIONAL_POOL_CACHE`) instead of
+        # falling into the generic per-call frozenset()/dict() rebuild branch.
+        scoped_keyed_tags = _DOT_TYPE_ADDITIONAL_KEYED_TAGS.get(form.dtype)
+        if scoped_keyed_tags:
+            scoped_factors = _build_additional_factors(source, scoped_keyed_tags)
+            scoped_product = _additional_product(source, scoped_factors, lambda tags: True, scoped_keyed_tags)
+        else:
+            scoped_product = 1.0
+        additional_product = base_additional_product * scoped_product
+
+        dps = form.base_per_second * (1.0 + increased) * additional_product * above_mult
+        dps_vt = dps * _target_mitigation_dot(source, form.dtype)
+        total += dps
+        total_vt += dps_vt
+        rows.append(DamageRow(
+            kind="dot",
+            name=f"{skill.name} (Damage over Time)",
+            form_index=-1,
+            dps_final=dps,
+            dps_vs_target_final=dps_vt,
+            pct_of_total=0.0,   # filled by _finalize_damage_row_pcts once the FINAL total is known
+            dps_by_type_vs_target={form.dtype: dps_vt},
+        ))
+    return rows, total, total_vt
 
 
 def _above_max_mult(effective_level: int, max_level: int) -> float:
@@ -720,7 +1435,7 @@ def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags
     the damage calc stays one-shot post-loop; calculate_offense calls this too, so the APS math has one
     source of truth. Slot-agnostic: computes rates for whatever skill it is given (no main-slot assumption).
 
-    Returns {"aps": float, "base_cast_time": float}.
+    Returns {"sps": float, "base_cast_time": float}.
     """
     if skill_tags_lower is None:
         skill_tags_lower = {t.lower() for t in skill.tags}
@@ -729,15 +1444,47 @@ def compute_skill_rates(source: BuildSource, skill: ResolvedSkill, *, skill_tags
         # Spell: casts/sec = (1 / cast time) × (1 + cast speed inc) × Π(1 + cast speed additional).
         cast_time = skill.base_cast_time or 1.0
         base_cast_time = cast_time
-        aps = (1.0 / cast_time) * (1.0 + source.total("cast_speed_inc"))
-        aps *= _speed_additional_product(source, _CAST_ADDITIONAL_STATS, skill_tags_lower)
+        sps = (1.0 / cast_time) * (1.0 + source.total("cast_speed_inc"))
+        sps *= _speed_additional_product(source, _CAST_ADDITIONAL_STATS, skill_tags_lower)
     else:
-        # APS: base × (1 + per-weapon gear multipliers) × (1 + inc) × additional pools.
+        # APS: base × (1 + per-weapon gear multipliers) × (1 + inc) × additional pools. A channeled ATTACK
+        # (Split Shot: Rapid Advance) uses this SAME weapon-APS path — it keys off weapon attack speed like any
+        # attack (the standard 1.5 base weapon APS × +100% additional = 3/s); calculate_offense then hard-rounds
+        # the rate to 30 Hz tick breakpoints (opt-in regime, engine/tick.py).
         weapon_aps_mult = 1.0 + source.total("attack_speed_gear") + source.total("attack_speed_mh")
-        aps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
-        aps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
+        sps = source.total("weapon_attack_speed") * weapon_aps_mult * (1.0 + source.total("attack_speed_inc"))
+        sps *= _speed_additional_product(source, _APS_ADDITIONAL_STATS, skill_tags_lower)
+        # Movement Speed → additional Attack Speed (Wrathful Vault: "75% of the bonuses for Movement Speed is
+        # also applied to the additional Attack Speed, up to +60%"). movement_bonus_to_attack_speed is the share
+        # (0.75); the optional _cap stat bounds the converted bonus. Presence-gated (non-consuming all_stats check)
+        # so non-source builds don't read/consume it → golden-identical.
+        mbtas = source.total("movement_bonus_to_attack_speed") if "movement_bonus_to_attack_speed" in source.all_stats() else 0.0
+        if mbtas > 0.0:
+            conv = mbtas * max(0.0, source.total("movement_speed_inc"))
+            cap = source.total("movement_bonus_to_attack_speed_cap")
+            if cap > 0.0:
+                conv = min(conv, cap)
+            sps *= (1.0 + conv)
+    # Activation-medium trigger cadence OVERRIDE (Rhythm/Track/Instruction/Preparation/Wind Rhythm): a triggered
+    # skill fires at the medium's cadence, not the player's cast/attack rate. Presence-gated (non-consuming) so
+    # non-triggered skills stay identical. Wind Rhythm is tick-quantized; the "every X s" mediums are exact 1/interval.
+    _present_rate = source.all_stats()
+    if "wind_rhythm_base_cooldown" in _present_rate and source.total("wind_rhythm_base_cooldown") > 0.0:
+        sps = compute_wind_rhythm_rate(source, source.total("wind_rhythm_base_cooldown"),
+                                       source.total("wind_rhythm_share"))["rate"]
+    elif "trigger_interval" in _present_rate and source.total("trigger_interval") > 0.0:
+        sps = 1.0 / source.total("trigger_interval")
     # Global 30 Hz cap: a single caster acts at most once per server tick.
-    return {"aps": cap_rate(aps), "base_cast_time": base_cast_time}
+    return {"sps": cap_rate(sps), "base_cast_time": base_cast_time}
+
+
+def channeled_attack_fire_rate(smooth_sps: float, skill: ResolvedSkill, is_attack: bool) -> float:
+    """The actual fire cadence of a channeled ATTACK. It fires at the SMOOTH attack rate — channeled attacks do
+    NOT snap to 30 Hz breakpoints. (Split Shot: Rapid Advance snapped ~3 seasons ago, but that quirk was removed
+    in-game; breakpoints are unrelated to channeling — verified: the flat-damage-per-consume ramps CONTINUOUSLY
+    with attack speed, which a breakpoint would freeze flat across a whole tick band.) Kept as the single shared
+    entry point (offense DPS path + consumption use-rate) so "how often it fires" stays defined in one place."""
+    return smooth_sps
 
 
 def _spell_flat(source: BuildSource, base_map: dict, eff_mult: float):
@@ -770,6 +1517,9 @@ def calculate_offense(
     remove_mod_tags: set[str] | None = None,
     tangle: dict | None = None,
     spell_burst: dict | None = None,
+    demolisher: dict | None = None,
+    add_mod_tags: set[str] | None = None,
+    shadow: dict | None = None,
 ) -> OffenseResult:
     # tangle: when set (the skill has a Tangle activator support), the skill is cast by N tangles instead of the
     # player. `tangle["count"]` = attached tangles on the target (each a full caster). Adds the "tangle" mod tag
@@ -778,6 +1528,9 @@ def calculate_offense(
     # extra_additional: a skill-intrinsic generic "additional damage" pool (fraction), evaluated
     # by the caller from the skill's intrinsic_additional + condition state (e.g. Focused Slash's
     # Fervor bonus). Applied as one extra multiplicative pool on every hit.
+    # shadow: when set (the skill carries the Shadow Strike tag AND has a nonzero shadow count/chance —
+    # see engine.compute._offense_for_slot), {"count": N_base, "chance_pct": p, "chance_quantity": k} feeds
+    # the _shadow_multiplier EV mix folded into the DPS totals (see the "Shadow Strike mode" block below).
     if not skill.supported:
         return OffenseResult(skill_name=skill.name, supported=False)
 
@@ -802,6 +1555,12 @@ def calculate_offense(
     # into the DPS totals at the end (like cast_multiplier / tangle_mult).
     if spell_burst:
         mod_tags = mod_tags | {"spell_burst"}
+    # Skill-effect-granted tags (e.g. Wrathful Vault makes Groundshaker a Mobility skill) — so Mobility-scoped
+    # damage/crit mods apply. Added to both the damage-mod set and the reported skill_tags.
+    if add_mod_tags:
+        _extra_tags = {t.lower() for t in add_mod_tags}
+        skill_tags_lower = skill_tags_lower | _extra_tags
+        mod_tags = mod_tags | _extra_tags
 
     # 0. Crit — computed here in the offense layer, NOT in the fixed-point loop
     # Weapon CSR (from weapon gear piece) scaled by gear-specific and MH-specific % mods only — ATTACKS ONLY.
@@ -821,16 +1580,53 @@ def calculate_offense(
     # skill — so e.g. "Spell Critical Strike Rating" applies only to spell skills, "Projectile…" only to
     # projectile skills, exactly like the type/skill crit-damage pool above.
     crit_rating_inc = sum(source.total(k) for k, tags in _CRIT_RATING_INC_STATS if not tags or tags & mod_tags)
+    # Crit Rating per Mana consumed recently (Tyrant's Iron Fist) — increased Crit Rating scaled by the rolling
+    # consumed_recently_mana (set on source post-loop). One-directional, so folded here, not in the loop.
+    _crr_per = source.total("crit_rating_inc_per_mana_consumed")
+    if _crr_per:
+        crit_rating_inc += floored_consumed(source.total("consumed_recently_mana"),
+                                            source.total("crit_rating_inc_per_mana_consumed_unit")) * _crr_per
     raw_csr = (base_csr + weapon_csr + other_csr) * (1.0 + crit_rating_inc)
     # 100 CSR = 1% crit chance; divide by 10000 to convert to 0–1 float
-    crit_chance = min(raw_csr / 10000.0, 1.0)
+    # crit_chance_uncapped is the TRUE chance from rating (can exceed 1.0) — surfaced so the user sees over-cap;
+    # the EFFECTIVE crit_chance that drives crit_factor is capped at 1.0 (crit is ineffective above 100%).
+    crit_chance_uncapped = raw_csr / 10000.0
+    crit_chance = min(crit_chance_uncapped, 1.0)
+    # "Critical Strikes have the Lucky / Unlucky effect" (Perched River kismet): the crit-CHANCE roll is made twice —
+    # Lucky keeps the better outcome (crit if EITHER roll succeeds → 1−(1−p)²), Unlucky the worse (crit only if BOTH →
+    # p²). This EFFECTIVE chance drives crit_factor AND the displayed Crit Chance. Lucky+Unlucky cancel (→ unchanged).
+    _lucky_crit = source.total("lucky_crit") > 0.0
+    _unlucky_crit = source.total("unlucky_crit") > 0.0
+    crit_luck_effect = ""   # "", "lucky", or "unlucky" — surfaced so the UI can show the effective-chance source
+    if _lucky_crit and not _unlucky_crit:
+        crit_chance = 1.0 - (1.0 - crit_chance) ** 2
+        crit_luck_effect = "lucky"
+    elif _unlucky_crit and not _lucky_crit:
+        crit_chance = crit_chance * crit_chance
+        crit_luck_effect = "unlucky"
 
     # 1. Effective level — sum all applicable skill level bonuses from gear/talents/memories
 
     # Crit multiplier = 1.5 base + the additive Critical Strike Damage pool (tag-filtered to the skill).
     crit_damage = sum(source.total(key) for key, tags in _CRIT_DMG_STATS if not tags or tags & mod_tags)
+    # Crit Damage per Mana consumed recently (Tyrant's Iron Fist) — additive Crit Damage scaled by consumed_recently.
+    _crd_per = source.total("crit_dmg_inc_per_mana_consumed")
+    if _crd_per:
+        crit_damage += floored_consumed(source.total("consumed_recently_mana"),
+                                        source.total("crit_dmg_inc_per_mana_consumed_unit")) * _crd_per
     crit_mult = 1.5 + crit_damage
     crit_factor = 1.0 + crit_chance * (crit_mult - 1.0)
+
+    def _luck_ratio(mn: float, mx: float, level: int) -> float:
+        """EV-of-the-damage-roll ÷ the midpoint EV, for a given luck level: +1 Lucky (roll twice, keep HIGHER →
+        min + 2/3·range), −1 Unlucky (keep LOWER → min + 1/3·range), 0 normal (midpoint → 1.0). Lucky and Unlucky
+        on the same type cancel to 0. Returns exactly 1.0 at level 0 / zero spread → Lucky-only & no-luck builds
+        stay byte-identical."""
+        if level == 0 or mx <= mn:
+            return 1.0
+        frac = (2.0 / 3.0) if level > 0 else (1.0 / 3.0)
+        R = mx - mn
+        return (mn + frac * R) / (mn + 0.5 * R)
 
     # Double-damage chance — each hit has Σchance probability to deal 2×. Expected-value multiplier on the
     # average (lifts DPS, not the displayed per-hit), tag-filtered like crit. Chance capped at 100% (→ ≤2×).
@@ -897,6 +1693,10 @@ def calculate_offense(
                 existing = flat_dmg.get(dtype, (0.0, 0.0))
                 flat_dmg[dtype] = (existing[0] + scaled_elem_min, existing[1] + scaled_elem_max)
 
+    # (Flat PHYSICAL damage per N consumed — Blade-dancer/Glacier — is folded into the REAL physical_{attack,spell}_
+    # dmg_flat source stats IN the compute loop, so it flows through the full flat→inc→additional pipeline incl.
+    # multi-form spells and shows a source in the breakdown. See engine/compute.py consume block.)
+
     # 3. Per-type inc and additional — precomputed outside the hit form loop.
     #    Inc: skill-tag-filtered incs PLUS the type-specific inc for that dtype.
     #    Additional: each applicable stat is an independent multiplicative pool.
@@ -906,6 +1706,39 @@ def calculate_offense(
     # tag-scope predicates the increased pools use. Each distinct affix multiplies; same-affix
     # positives sum; each negative is its own factor. See docs/ADDITIONAL_DAMAGE_POOLING.md.
     add_factors = _build_additional_factors(source)
+
+    # "+X% additional damage when you land a Critical Strike" (Critical Strike Damage Increase support, Razor Leaf
+    # ingredient): an additional-damage factor WEIGHTED by the build's finalized crit chance — effective = X ×
+    # crit_chance — folded in as a generic (all-type) additional factor. Read unconditionally so the synthetic
+    # consumable-universe run consumes it; contributes nothing when absent.
+    _on_crit_add = source.total("dmg_additional_on_crit")
+    if _on_crit_add:
+        add_factors = add_factors + [(_on_crit_add * crit_chance, frozenset(), "dmg_additional_on_crit")]
+
+    # "For every 400 Max Energy Shield, +X% additional damage, up to +Y%" (Licorice Note's Pixie Tear ingredient):
+    # min(max_es/400 × per_unit, cap), folded as a generic additional factor. Not scaled by Elixir Effect (handled
+    # at emit). Read unconditionally for the consumable-universe run; nothing when absent.
+    _per_400_es = source.total("dmg_additional_per_400_es")
+    if _per_400_es:
+        _es_amt = source.total("max_energy_shield") / 400.0 * _per_400_es
+        _es_cap = source.total("dmg_additional_per_400_es_cap")
+        if _es_cap:
+            _es_amt = min(_es_amt, _es_cap)
+        if _es_amt:
+            add_factors = add_factors + [(_es_amt, frozenset(), "dmg_additional_per_400_es")]
+
+    # "+X% ADDITIONAL damage per N Life consumed recently, up to Y%". per-unit normalized to per-1-life at parse;
+    # consumed-recently is floored to whole N-chunks (discrete "for every N" procs) then × per-unit, capped. (Plain
+    # "damage per N consumed" is INCREASED — folded into generic_inc below, not here.)
+    _per_life_cons = source.total("dmg_additional_per_life_consumed")
+    if _per_life_cons:
+        _lc_amt = floored_consumed(source.total("consumed_recently_life"),
+                                   source.total("dmg_additional_per_life_consumed_unit")) * _per_life_cons
+        _lc_cap = source.total("dmg_additional_per_life_consumed_cap")
+        if _lc_cap:
+            _lc_amt = min(_lc_amt, _lc_cap)
+        if _lc_amt:
+            add_factors = add_factors + [(_lc_amt, frozenset(), "dmg_additional_per_life_consumed")]
 
     # Generic intrinsic additional multiplier — applies uniformly to EVERY damage type (not per-affix):
     #   • extra_additional: skill-intrinsic pool (e.g. Fervor / Moon Strike's mana bonus), evaluated by caller.
@@ -924,7 +1757,7 @@ def calculate_offense(
     # Damage-type conversion: read fractions once. When any conversion is present, compute the per-type
     # inc/add for ALL types (a converted slice can land in a type that had no native flat); otherwise only
     # the flat types (regression-identical to the pre-conversion engine).
-    convert_fracs, adds_fracs = _conversion_fracs(source)
+    convert_fracs, adds_fracs = _conversion_fracs(source, skill.intrinsic_convert)
     has_conversion = any(convert_fracs.values()) or any(adds_fracs.values())
     calc_types = list(DAMAGE_TYPES) if has_conversion else list(flat_dmg.keys())
     # Compulsory conversion (Chromatic Shot): the skill deals each of these elements, so compute their per-type
@@ -1003,14 +1836,20 @@ def calculate_offense(
     # uptime models also call in-loop so the APS math has one source of truth. The 30 Hz per-caster cap
     # (engine/tick.py) is applied inside it; Tangle's N casters / Spell Burst recasts multiply it later.
     _rates = compute_skill_rates(source, skill, skill_tags_lower=skill_tags_lower)
-    aps = _rates["aps"]
+    sps = _rates["sps"]
     base_cast_time = _rates["base_cast_time"]
+
+    # Wind Rhythm trigger panel (server-tick breakpoints) — populated when the skill is triggered by Wind Rhythm.
+    _wind = None
+    if "wind_rhythm_base_cooldown" in _present and source.total("wind_rhythm_base_cooldown") > 0.0:
+        _wind = compute_wind_rhythm_rate(source, source.total("wind_rhythm_base_cooldown"),
+                                         source.total("wind_rhythm_share"))
 
     # ── Tangle cast-speed breakpoints ── A Tangle is a server-scheduled proxy-player, so its per-tangle cast rate
     # hard-rounds to whole server ticks (cast-speed BREAKPOINTS) instead of the player's smooth, continuously-
     # scaling rate: ticks = ceil(cast_time × TICK_RATE), effective casts/sec = TICK_RATE / ticks. So extra cast
     # speed only helps when it crosses an integer-tick boundary (flat dead zones between breakpoints — e.g. 6.04
-    # and 7.44 casts/s both land on 5 ticks → 6.0/s, owner-verified). Quantizing aps here flows the breakpoint
+    # and 7.44 casts/s both land on 5 ticks → 6.0/s, Tyra-verified). Quantizing sps here flows the breakpoint
     # rate into every hit form's DPS and the displayed casts/sec; the attached-tangle count multiplies it after.
     # The 30 Hz per-caster cap still holds via period_ticks' 1-tick floor. See engine/tick.py (opt-in regime).
     tangle_cast_ticks = 0
@@ -1019,21 +1858,33 @@ def calculate_offense(
     # increased pool, so it dilutes against the existing total → ΔI = (1 + current increased) × x.
     tangle_cast_to_next_increased = 0.0
     tangle_cast_to_next_additional = 0.0
-    if tangle and aps > 0.0:
-        _aps_raw = aps                                   # smooth cast speed before tick-rounding
-        tangle_cast_ticks = period_ticks(1.0 / _aps_raw)
-        aps = rate_from_ticks(tangle_cast_ticks)
+    if tangle and sps > 0.0:
+        _sps_raw = sps                                   # smooth cast speed before tick-rounding
+        tangle_cast_ticks = period_ticks(1.0 / _sps_raw)
+        sps = rate_from_ticks(tangle_cast_ticks)
         if tangle_cast_ticks > 1:
             _next_cs = rate_from_ticks(tangle_cast_ticks - 1)   # cast speed needed for (ticks − 1)
-            _x = max(0.0, _next_cs / _aps_raw - 1.0)
+            _x = max(0.0, _next_cs / _sps_raw - 1.0)
             tangle_cast_to_next_additional = _x
             tangle_cast_to_next_increased = (1.0 + source.total("cast_speed_inc")) * _x
 
+    # ── Channeled attacks fire at the SMOOTH attack rate (no 30 Hz breakpoint) ── Split Shot: Rapid Advance
+    # snapped to whole 30 Hz ticks ~3 seasons ago, but that quirk was removed in-game; channeled attacks (likely
+    # all of them) now fire smoothly, and the breakpoint regime is unrelated to channeling. Verified in-game: the
+    # flat-damage-per-consume ramps CONTINUOUSLY with attack speed, which a breakpoint would freeze flat across a
+    # tick band. So `sps` is left as the smooth rate (channeled_attack_fire_rate is a no-op) and the channel-
+    # breakpoint fields stay 0 → the "Attack Ticks / next breakpoint" rows don't render; the normal Attacks-per-
+    # Second row shows the true rate. Fields kept for schema stability / any future skill that genuinely snaps.
+    channel_attack_ticks = 0
+    channel_attack_smooth_sps = 0.0
+    channel_attack_to_next_increased = 0.0
+    channel_attack_to_next_additional = 0.0
+
     # ── Channeled cadence ── 1 stack per use; a RESET skill ramps 0→max over `rounds_per_cycle` uses then
     # dumps + fires its burst form once per cycle. Min Channeled Stacks shortens the ramp (first round gains
-    # 1+Min). The continuous form fires every use (aps); the burst form fires at aps / rounds_per_cycle.
+    # 1+Min). The continuous form fires every use (sps); the burst form fires at sps / rounds_per_cycle.
     # cycle_time is constant here (Icebound never sits AT max → any not-at-max cast speed applies every round),
-    # so both forms anchor to the same aps — see the channeled framework plan. 0 / 1.0 when not channeled.
+    # so both forms anchor to the same sps — see the channeled framework plan. 0 / 1.0 when not channeled.
     ch_max_stacks = 0
     ch_min_stacks = 0
     ch_rounds_per_cycle = 0.0
@@ -1046,17 +1897,17 @@ def calculate_offense(
         ch_max_stacks = max(1, ch_max_stacks)
         ch_min_stacks = max(0, min(ch_min_stacks, ch_max_stacks))
         ch_rounds_per_cycle = uptime.channeled_rounds_per_cycle(ch_max_stacks, ch_min_stacks)
-        ch_burst_rate = aps / ch_rounds_per_cycle if ch_rounds_per_cycle else aps
+        ch_burst_rate = sps / ch_rounds_per_cycle if ch_rounds_per_cycle else sps
         ch_behavior = skill.channeled.behavior
-        # Persistent entity (Gale): its strike rate = attack_frequency × the cast-speed multiplier. aps already =
-        # (1/base_cast_time) × cast-speed product, so cast_speed_mult = aps × base_cast_time and the Gale rate =
-        # attack_frequency × cast_speed_mult. aps stays the channel build rate (shown separately).
+        # Persistent entity (Gale): its strike rate = attack_frequency × the cast-speed multiplier. sps already =
+        # (1/base_cast_time) × cast-speed product, so cast_speed_mult = sps × base_cast_time and the Gale rate =
+        # attack_frequency × cast_speed_mult. sps stays the channel build rate (shown separately).
         if skill.channeled.attack_frequency:
-            cs_mult = aps * base_cast_time if base_cast_time else 1.0
+            cs_mult = sps * base_cast_time if base_cast_time else 1.0
             ch_attack_frequency = skill.channeled.attack_frequency * cs_mult
             # Furious Sweep: +X% additional Gale Attack Frequency per channeled stack. The hook bakes the total
             # (per-stack × current stacks) into channeled_attack_frequency_additional; we apply it as an additional
-            # multiplier on the Gale rate (does NOT touch the channel build rate / aps).
+            # multiplier on the Gale rate (does NOT touch the channel build rate / sps).
             freq_add = source.total("channeled_attack_frequency_additional")
             if freq_add:
                 ch_attack_frequency *= 1.0 + freq_add
@@ -1110,7 +1961,7 @@ def calculate_offense(
                 and form.channel_role == "continuous" and burst_active
                 and not source.total("continuous_suppression_disable")):
             # Chilling Spike (Icebound) sets continuous_suppression_disable → the Cold Beam runs at FULL
-            # damage even while the Icy Blades fire (owner-validated: beam 30-40 vs the normal 9-12).
+            # damage even while the Icy Blades fire (Tyra-validated: beam 30-40 vs the normal 9-12).
             form_add_mult *= skill.channeled.continuous_suppression_when_bursting
 
         damage_by_type: dict[str, float] = {}
@@ -1144,10 +1995,10 @@ def calculate_offense(
                 vuln = _enemy_vuln_mult(source, e, is_spell)
                 e_min = smin * above_mult * vuln * aug_factor * form_add_mult
                 e_max = smax * above_mult * vuln * aug_factor * form_add_mult
-                e_avg = (e_min + e_max) / 2.0
-                if (lucky_damage or source.total(f"lucky_{e}") > 0.0) and e_max > e_min:
-                    R = e_max - e_min
-                    e_avg *= (e_min + (2.0 / 3.0) * R) / (e_min + 0.5 * R)
+                # Lucky (+1) / Unlucky (−1) DAMAGE roll for this type — roll twice keep higher/lower; they cancel.
+                _lvl_e = (1 if (lucky_damage or source.total(f"lucky_{e}") > 0.0) else 0) \
+                    - (1 if source.total(f"unlucky_{e}") > 0.0 else 0)
+                e_avg = ((e_min + e_max) / 2.0) * _luck_ratio(e_min, e_max, _lvl_e)
                 e_mit = _target_mitigation(source, e)
                 compulsory_breakdown[e] = {
                     "hit_min": e_min, "hit_max": e_max, "avg_pre_crit": e_avg,
@@ -1179,26 +2030,27 @@ def calculate_offense(
                 vuln = _enemy_vuln_mult(source, dtype, is_spell)
                 type_min = smin * above_mult * vuln * aug_factor * form_add_mult
                 type_max = smax * above_mult * vuln * aug_factor * form_add_mult
-                avg = (type_min + type_max) / 2.0
-                # Lucky keys off the FINAL type (tested): EV uplift from the spread, applied to the average.
-                if (lucky_damage or source.total(f"lucky_{dtype}") > 0.0) and type_max > type_min:
-                    R = type_max - type_min
-                    avg *= (type_min + (2.0 / 3.0) * R) / (type_min + 0.5 * R)
+                # Lucky (+1) / Unlucky (−1) DAMAGE roll, keyed off the FINAL type (Lucky tested in-game): EV uplift/
+                # downlift from the spread, applied to the average. Lucky + Unlucky on the same type cancel.
+                _lvl_t = (1 if (lucky_damage or source.total(f"lucky_{dtype}") > 0.0) else 0) \
+                    - (1 if source.total(f"unlucky_{dtype}") > 0.0 else 0)
+                avg = ((type_min + type_max) / 2.0) * _luck_ratio(type_min, type_max, _lvl_t)
                 damage_by_type[dtype] = avg
                 hit_min_by_type[dtype] = type_min
                 hit_max_by_type[dtype] = type_max
                 avg_pre += avg
                 avg_pre_vs_target += avg * _target_mitigation(source, dtype)
 
-        # Crit (expected-value) and double-damage (expected-value) both uplift the average, not per-hit.
+        # Crit (expected-value) and double-damage (expected-value) both uplift the average, not per-hit. crit_factor
+        # already reflects the effective crit chance (post Lucky/Unlucky crit).
         avg_post = avg_pre * crit_factor * double_dmg_factor
         avg_post_vs_target = avg_pre_vs_target * crit_factor * double_dmg_factor
 
-        # Per-form firing rate. Default = aps (every use). Channeled: a "burst" form fires once per RESET
-        # cycle (aps / rounds_per_cycle); a "continuous" form fires every use, except when the dump use
+        # Per-form firing rate. Default = sps (every use). Channeled: a "burst" form fires once per RESET
+        # cycle (sps / rounds_per_cycle); a "continuous" form fires every use, except when the dump use
         # REPLACES the continuous hit (burst_replaces_continuous) → it fires (rounds−1)/rounds of the time.
-        # Icebound Beam is additive (beam fires every round, owner-confirmed) so the beam stays at aps.
-        form_rate = aps
+        # Icebound Beam is additive (beam fires every round, Tyra-confirmed) so the beam stays at sps.
+        form_rate = sps
         if skill.channeled and form.channel_role == "burst":
             form_rate = ch_burst_rate
         elif skill.channeled and form.channel_role == "continuous" and ch_attack_frequency:
@@ -1207,7 +2059,7 @@ def calculate_offense(
             form_rate = ch_attack_frequency
         elif (skill.channeled and form.channel_role == "continuous"
               and skill.channeled.burst_replaces_continuous and ch_rounds_per_cycle > 1):
-            form_rate = aps * (ch_rounds_per_cycle - 1.0) / ch_rounds_per_cycle
+            form_rate = sps * (ch_rounds_per_cycle - 1.0) / ch_rounds_per_cycle
         # Projectile count for this form. Projectile-scaling forms (Icy Blade) add +Projectile Quantity to
         # the base count; all projectiles home onto one target and shotgun (1st full + each subsequent
         # ×(1−falloff), linear — every subsequent deals (1−falloff) of the first). Such a form can drop to
@@ -1225,6 +2077,15 @@ def calculate_offense(
                      if "chromatic_shots_on_target_flat" in source.all_stats() else 7)
             if shots >= 1:
                 n_proj = min(n_proj, shots)
+        # Shotgun-Effect gating (Split Shot): a projectile-scaling form on a skill with NO innate Shotgun Effect
+        # ("the Projectiles shot by this skill cannot hit the same enemy") lands only 1 projectile on a single
+        # target UNTIL a support grants Shotgun Effect (Volley → same_target_shotgun_grant). Distinct from
+        # spread/trajectory. Presence-gated so other skills stay byte-identical.
+        if skill.shotgun_requires_grant and form.scales_with_projectiles:
+            granted = ("same_target_shotgun_grant" in source.all_stats()
+                       and source.total("same_target_shotgun_grant") > 0.0)
+            if not granted:
+                n_proj = 1
         form_shotgun = (1.0 + (n_proj - 1) * (1.0 - form.shotgun_falloff)) if n_proj >= 1 else 0.0
 
         # Icebound Beam canvas supports add extra Icy Blade damage onto the projectile-scaling (burst) form:
@@ -1232,8 +2093,8 @@ def calculate_offense(
         #     blade-equivalent count (icy_blade_extra_blade_equiv) fired at the burst rate.
         #   - Ring Blade (Frozen proc): a full extra Icy Blade burst per its cooldown (icy_blade_frozen_burst_rate
         #     = 1/cooldown), gated on enemy_frozen by the support. The proc fires on the FIRST beam hit AFTER each
-        #     cooldown, and the beam hits at the channel rate (aps) — so the EFFECTIVE rate is aps/ceil(aps×cooldown),
-        #     capped at the 1/cooldown ceiling. Higher cast speed pushes it toward the ceiling (owner-validated;
+        #     cooldown, and the beam hits at the channel rate (sps) — so the EFFECTIVE rate is sps/ceil(sps×cooldown),
+        #     capped at the 1/cooldown ceiling. Higher cast speed pushes it toward the ceiling (Tyra-validated;
         #     the small ε absorbs the 0.333s parse so a clean 3/s lands exactly 1 proc/s, not the 4th hit).
         # Ring Blade's Frozen burst stays on Icy Blade (it IS an extra Icy Blade burst); Chilling Spike's extra
         # penetrating blades are split into their OWN form below (chilling_extra), so the total is unchanged but
@@ -1244,10 +2105,10 @@ def calculate_offense(
         if form.scales_with_projectiles:
             frozen_rate = source.total("icy_blade_frozen_burst_rate")
             eff_frozen = 0.0
-            if frozen_rate > 0.0 and aps > 0.0:
+            if frozen_rate > 0.0 and sps > 0.0:
                 cooldown = 1.0 / frozen_rate
-                hits_per_cd = max(1, math.ceil(aps * cooldown - 0.05))
-                eff_frozen = min(frozen_rate, aps / hits_per_cd)
+                hits_per_cd = max(1, math.ceil(sps * cooldown - 0.05))
+                eff_frozen = min(frozen_rate, sps / hits_per_cd)
             chilling_equiv = source.total("icy_blade_extra_blade_equiv")
             chilling_extra = chilling_equiv * form_rate
             form_extra_mult = eff_frozen * form_shotgun   # Frozen burst only — Chilling Spike is its own form
@@ -1326,6 +2187,39 @@ def calculate_offense(
                        * (1.0 + source.total("tangle_duration_additional"))) if tangle else 0.0
     tangle_attach_range = (8.0 * (1.0 + source.total("tangle_attach_range_inc"))) if tangle else 0.0
 
+    # ── Shadow Strike mode ── `shadow` is set by engine.compute._offense_for_slot when the slot's skill
+    # carries the "Shadow Strike" tag AND has a nonzero baseline count or an active chance-to-gain-Shadows
+    # source. shadow["count"] = Max Shadow Quantity (N_base, e.g. Haunt's "+2 Shadow Quantity"). A
+    # probabilistic "chance to gain +K Shadows" source (Despised Shadow) is folded as the EXACT per-cast
+    # expected-value mix (owner-approved model) — NOT collapsed to an expected shadow count, because
+    # _shadow_multiplier is nonlinear in N. shadow=None (the common case) → shadow_mult stays 1.0, byte-
+    # identical to a plain hit.
+    shadow_count = 0
+    shadow_chance_pct = 0.0
+    shadow_chance_quantity = 0.0
+    shadow_dmg_additional_total = 0.0
+    shadow_mult = 1.0
+    shadow_hits_per_sec = 0.0
+    if shadow:
+        shadow_dmg_additional_total = source.total("shadow_dmg_additional")
+        shadow_count = int(shadow.get("count", 0) or 0)
+        shadow_chance_pct = min(1.0, max(0.0, float(shadow.get("chance_pct", 0.0) or 0.0)))
+        shadow_chance_quantity = float(shadow.get("chance_quantity", 0.0) or 0.0)
+        f_base = _shadow_multiplier(shadow_count, shadow_dmg_additional_total)
+        if shadow_chance_pct > 0.0:
+            f_bonus = _shadow_multiplier(shadow_count + int(shadow_chance_quantity), shadow_dmg_additional_total)
+            shadow_mult = (1.0 - shadow_chance_pct) * f_base + shadow_chance_pct * f_bonus
+        else:
+            shadow_mult = f_base
+        # Phase 1 primitive (docs/BACKLOG.md §0f): shadow-HIT-RATE, not a damage multiplier. E[shadow_count]
+        # is the LINEAR chance-mix expectation ((1-p)*N + p*(N+k) = N + p*k) — deliberately NOT the same
+        # quantity as shadow_mult above (that one is nonlinear in N, folding the falloff formula, because
+        # it models damage). `sps` here is the skill's own cast/attack rate at this point in the function
+        # (already reflects any cast-speed breakpoint / tangle-tick rounding applied earlier). No consumer
+        # yet — this only exposes the primitive for a future shadow-hit-count/timing model.
+        expected_shadow_count = shadow_count + shadow_chance_pct * shadow_chance_quantity
+        shadow_hits_per_sec = expected_shadow_count * sps
+
     # Spell Burst mode: an eligible Spell cast at full charge consumes all M stacks and auto-recasts the spell
     # M times (the triggering cast also counts → casts_per_burst = M + 1, no damage cap — every stack is a full
     # cast). The charge is a server-timed whole-tick countdown, so it hard-rounds (engine/tick.py); the player's
@@ -1352,12 +2246,17 @@ def calculate_offense(
     spell_burst_dps_vs_target = 0.0
     non_spell_burst_dps = 0.0
     non_spell_burst_dps_vs_target = 0.0
+    spell_burst_area_display = 0.0   # DISPLAY-only: Skill Area for skills cast by Spell Burst (Prairie Fire / Ripple)
     spell_burst_auto = bool(spell_burst.get("auto")) if spell_burst else False
     spell_burst_auto_source = spell_burst.get("auto_source", "") if spell_burst else ""
     if spell_burst:
         M = max(0, int(spell_burst["count"]))
         spell_burst_count = M
         spell_burst_casts_per_burst = M + 1
+        # Skill-Area-per-Burst (DISPLAY only): support pool is pre-scaled ×min(M,cap) in compute; the _per pool is
+        # per-burst-stack (×M, Kismet Ripple). Added to the shown skill_area_inc below — never touches DPS.
+        spell_burst_area_display = (source.total("spell_burst_area_additional")
+                                    + M * source.total("spell_burst_area_additional_per"))
         # Base charge time 2s, sped by Spell Burst Charge Speed: (1 + Σ inc) additive × Π(1 + add_i) per-source.
         # Play Safe feeds cast-speed bonuses into these pools (aggregator). Higher chargeFactor → shorter charge.
         charge_inc = source.total("spell_burst_charge_speed_inc")
@@ -1371,7 +2270,7 @@ def calculate_offense(
         # expected stacks/cast (spell_burst_chance_gain_stacks_flat) over the (capped) cast rate is an
         # alternative fill that can reach max faster than the base charge. T_eff = min(T, M / surging_rate).
         # Shape flagged for in-game verification (SPELLBURST-01).
-        surging_rate = aps * source.total("spell_burst_chance_gain_stacks_flat")  # stacks/sec (aps already 30-capped)
+        surging_rate = sps * source.total("spell_burst_chance_gain_stacks_flat")  # stacks/sec (sps already 30-capped)
         T_eff = T
         if surging_rate > 0.0 and M > 0:
             T_eff = min(T, M / surging_rate)
@@ -1406,14 +2305,14 @@ def calculate_offense(
                 return 0.0
             ct = max(1, round(TICK_RATE / aps_v))
             return TICK_RATE / (math.ceil(ticks_v / ct) * ct)
-        bursts_per_sec = min(_bursts(aps, charge_ticks), float(TICK_RATE))
+        bursts_per_sec = min(_bursts(sps, charge_ticks), float(TICK_RATE))
         spell_burst_rate = bursts_per_sec
         # Breakpoint helper — the next investment that ACTUALLY raises bursts/sec (and thus DPS); steps that change
         # nothing are skipped. Two levers, scanned so the Play Safe cast→charge coupling is handled exactly:
-        #   • Charge Speed — shortens the charge, dropping ceil(aps·T) at integer crossings → stepped gains.
-        #   • Cast Speed (MANUAL only) — raises aps (the bursts numerator) and, with Play Safe, also feeds charge.
+        #   • Charge Speed — shortens the charge, dropping ceil(sps·T) at integer crossings → stepped gains.
+        #   • Cast Speed (MANUAL only) — raises sps (the bursts numerator) and, with Play Safe, also feeds charge.
         # Auto ignores cast speed (no manual casting); for auto every whole charge tick is a real gain.
-        if charge_add_product > 0 and aps > 0.0:
+        if charge_add_product > 0 and sps > 0.0:
             if spell_burst_auto:
                 if charge_ticks > 1:
                     spell_burst_next_breakpoint_ticks = charge_ticks - 1
@@ -1429,7 +2328,7 @@ def calculate_offense(
                 while dc < 5.0:
                     dc += 0.01
                     ct2 = period_ticks(2.0 / max((1.0 + charge_inc + dc) * charge_add_product, 1e-6))
-                    if _bursts(aps, ct2) > bursts_per_sec + 1e-9:
+                    if _bursts(sps, ct2) > bursts_per_sec + 1e-9:
                         spell_burst_charge_to_next_inc = dc
                         spell_burst_next_breakpoint_ticks = ct2
                         break
@@ -1437,28 +2336,28 @@ def calculate_offense(
                 while dca < 5.0:
                     dca += 0.01
                     ct2 = period_ticks(2.0 / max((1.0 + charge_inc) * charge_add_product * (1.0 + dca), 1e-6))
-                    if _bursts(aps, ct2) > bursts_per_sec + 1e-9:
+                    if _bursts(sps, ct2) > bursts_per_sec + 1e-9:
                         spell_burst_charge_to_next_add = dca
                         break
                 # Cast speed (manual) — raises the bursts numerator; with Play Safe (ps_coeff>0) the coupled share
                 # also shortens the charge. Modeled for both Increased and Additional cast speed.
                 cast_inc = source.total("cast_speed_inc")
                 ps_coeff = source.total("cast_speed_to_spell_burst_charge")  # Play Safe: cast→charge share (0 if none)
-                base_k = aps / (1.0 + cast_inc) if (1.0 + cast_inc) > 0 else aps   # aps = base_k × (1+cast_inc)
+                base_k = sps / (1.0 + cast_inc) if (1.0 + cast_inc) > 0 else sps   # sps = base_k × (1+cast_inc)
                 d = 0.0
                 while d < 5.0:
                     d += 0.01
-                    aps2 = min(base_k * (1.0 + cast_inc + d), float(TICK_RATE))
+                    sps2 = min(base_k * (1.0 + cast_inc + d), float(TICK_RATE))
                     ct2 = period_ticks(2.0 / max((1.0 + charge_inc + ps_coeff * d) * charge_add_product, 1e-6))
-                    if _bursts(aps2, ct2) > bursts_per_sec + 1e-9:
+                    if _bursts(sps2, ct2) > bursts_per_sec + 1e-9:
                         spell_burst_cast_to_next_inc = d
                         break
                 da = 0.0
                 while da < 5.0:
                     da += 0.01
-                    aps2 = min(aps * (1.0 + da), float(TICK_RATE))
+                    sps2 = min(sps * (1.0 + da), float(TICK_RATE))
                     ct2 = period_ticks(2.0 / max((1.0 + charge_inc + ps_coeff * da) * charge_add_product, 1e-6))
-                    if _bursts(aps2, ct2) > bursts_per_sec + 1e-9:
+                    if _bursts(sps2, ct2) > bursts_per_sec + 1e-9:
                         spell_burst_cast_to_next_add = da
                         break
         # Cast accounting (per second). Each burst's triggering cast IS one of the player's casts and is counted
@@ -1468,7 +2367,7 @@ def calculate_offense(
         if spell_burst_auto:
             normal_casts_per_sec = 0.0
         else:
-            normal_casts_per_sec = max(0.0, aps - bursts_per_sec)   # subtract the triggering casts (now burst casts)
+            normal_casts_per_sec = max(0.0, sps - bursts_per_sec)   # subtract the triggering casts (now burst casts)
         # Normal casts deal LESS than burst casts by exactly the spell_burst additional pool (the only per-cast
         # difference between a burst and a normal cast). sb_pool_factor = per_cast_burst / per_cast_normal.
         sb_pool_factor = 1.0
@@ -1477,11 +2376,11 @@ def calculate_offense(
                 sb_pool_factor *= (1.0 + amt)
         sb_pool_factor = max(sb_pool_factor, 1e-9)
         # Fold everything into ONE multiplier on the (burst-damage) per-cast totals so the breakdown table still
-        # reconciles with a single scalar: spell_burst_mult = (burst casts + normal casts ÷ pool) ÷ aps. Auto →
-        # normal term is 0 → mult = (M+1)·bursts/sec ÷ aps (pure burst). The burst/normal split is reported too.
-        if aps > 0.0:
-            burst_share = burst_casts_per_sec / aps
-            normal_share = (normal_casts_per_sec / sb_pool_factor) / aps
+        # reconciles with a single scalar: spell_burst_mult = (burst casts + normal casts ÷ pool) ÷ sps. Auto →
+        # normal term is 0 → mult = (M+1)·bursts/sec ÷ sps (pure burst). The burst/normal split is reported too.
+        if sps > 0.0:
+            burst_share = burst_casts_per_sec / sps
+            normal_share = (normal_casts_per_sec / sb_pool_factor) / sps
             spell_burst_mult = burst_share + normal_share
             base_dps = sum(f.dps_contribution for f in hit_forms)
             base_dps_vt = sum(f.dps_vs_target for f in hit_forms)
@@ -1496,12 +2395,12 @@ def calculate_offense(
     # ── Multistrike (attack skills) ──────────────────────────────────────────────────────────────────────
     # Using an attack skill has a chance to auto-repeat it; the +20% INCREASED attack speed during multistrike applies
     # to the WHOLE chain (first hit included — it is "during multistrike" for attack speed) the moment a swing becomes
-    # a chain (owner-verified by throughput: 116% chance / 1.5 base → measured ~1.92 attacks/sec = the multistrike rate
+    # a chain (Tyra-verified by throughput: 116% chance / 1.5 base → measured ~1.92 attacks/sec = the multistrike rate
     # 1.935, not the 1.78 a "first hit slow, repeats fast" model predicts). When chance ≥ 100% every swing is a chain,
-    # so every attack runs at aps×s. When chance < 100% (rare) the swings that DON'T multistrike are lone base-speed
+    # so every attack runs at sps×s. When chance < 100% (rare) the swings that DON'T multistrike are lone base-speed
     # attacks and get NO +20% — handled per-outcome below. Damage is time-weighted with increasing damage (the n-th
     # attack of a chain gets (n−1) increment stacks; Initial Multistrike Count pre-stacks the count without adding
-    # attacks). multiplier = E[chain damage] ÷ (E[chain time] × aps); for chance ≥ 100% this is s × E[f(L)] ÷ (1 + c).
+    # attacks). multiplier = E[chain damage] ÷ (E[chain time] × sps); for chance ≥ 100% this is s × E[f(L)] ÷ (1 + c).
     # Gated to attack skills (not spell/channeled/mobility/sentry) with chance > 0; reads are presence-gated
     # (mirror enemy_mult / only_deal_cold) so non-multistrike builds stay golden-identical. Plan: docs.
     multistrike_mult = 1.0
@@ -1511,7 +2410,7 @@ def calculate_offense(
     multistrike_max_count = 0
     multistrike_repeat_aps = 0.0
     multistrike_chain: list = []
-    if (is_attack and not skill.channeled
+    if (is_attack and not skill.channeled and not demolisher
             and "mobility" not in skill_tags_lower and "sentry" not in skill_tags_lower
             and "multistrike_chance" in _present and source.total("multistrike_chance") > 0.0):
         c = source.total("multistrike_chance")
@@ -1519,7 +2418,7 @@ def calculate_offense(
         init = source.total("initial_multistrike_count_flat")   # pre-stacks the count (adds NO attacks)
         q = source.total("multistrike_max_count_proc_chance")    # Cat Dive: chance to count an attack at Max Count
         # +20% Attack Speed during multistrike is INCREASED — it adds into the increased AS pool for the REPEAT
-        # attacks (owner-verified: at +9% increased AS, 1.5 → 1.935 = 1.5×(1+0.09+0.20), NOT 1.635×1.20). So the
+        # attacks (Tyra-verified: at +9% increased AS, 1.5 → 1.935 = 1.5×(1+0.09+0.20), NOT 1.635×1.20). So the
         # repeat AS factor dilutes against existing increased AS, like every increased source.
         as_inc = source.total("attack_speed_inc")
         s = (1.0 + as_inc + 0.20) / (1.0 + as_inc)
@@ -1531,7 +2430,7 @@ def calculate_offense(
             # Σ n=1..L of (1 + inc·(init + n − 1)) = L + inc·(init·L + L(L−1)/2)
             base = L + inc * (init * L + L * (L - 1) / 2.0)
             if q > 0.0:
-                # Cat Dive (owner): with prob q, an attack deals damage as the FINAL attack of THIS chain (realized
+                # Cat Dive (Tyra): with prob q, an attack deals damage as the FINAL attack of THIS chain (realized
                 # length L), gaining inc·(L−n) stacks. Σ n=1..L of (L−n) = L(L−1)/2 (final attack & a lone length-1
                 # swing add 0). Independent of init (it cancels). NOT the theoretical max K.
                 base += q * inc * (L * (L - 1) / 2.0)
@@ -1539,11 +2438,11 @@ def calculate_offense(
 
         e_chain = (1.0 - p) * _chain_dmg(1 + G) + p * _chain_dmg(2 + G)
         # Attack-speed application: the roll happens up front. A swing that becomes a multistrike chain (length ≥ 2)
-        # runs the WHOLE chain at the multistrike rate aps×s — the first hit included (it is "during multistrike" for
+        # runs the WHOLE chain at the multistrike rate sps×s — the first hit included (it is "during multistrike" for
         # attack speed, though it still gets 0 increment stacks). A swing that does NOT multistrike — only possible
         # when chance < 100% (G == 0 and the leftover roll fails → a lone length-1 attack) — runs at BASE speed with
         # NO +20%. For chance ≥ 100% every swing is a chain, so this reduces to s × E[f] / (1 + chance).
-        def _chain_time(L: int) -> float:                        # chain duration × aps (normalized)
+        def _chain_time(L: int) -> float:                        # chain duration × sps (normalized)
             return 1.0 if L <= 1 else L / s
         denom = (1.0 - p) * _chain_time(1 + G) + p * _chain_time(2 + G)
         multistrike_mult = e_chain / denom if denom > 0.0 else e_chain
@@ -1551,14 +2450,152 @@ def calculate_offense(
         multistrike_avg_count = 1.0 + c
         multistrike_increment = inc
         multistrike_max_count = K
-        multistrike_repeat_aps = aps * s
+        multistrike_repeat_aps = sps * s
         multistrike_chain = ([{"count": 1 + G, "prob": 1.0}] if p <= 1e-9
                              else [{"count": 1 + G, "prob": 1.0 - p}, {"count": 2 + G, "prob": p}])
 
-    _delivery = cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult
+    # ── Demolisher Charge (Groundshaker etc.) ────────────────────────────────────────────────────────────
+    # The skill is driven by a cast cadence (Rhythm interval, or APS when manual), NOT by attack-speed repeats.
+    # The PRIMARY fissure lands on every cast (cast_rate); the SECONDARY explosion only on a CHARGED cast
+    # (charged_rate — a charge must be held, regained every `restoration` s). We rebuild the two forms' DPS from
+    # those rates (replacing the per-form sps default) and layer the demolisher damage modifiers:
+    #   • demolisher_consume_dmg_additional (Cripple +44-46%) — the consuming cast only → charged-cast SHARE.
+    #   • Cripple −90% "while the fissure spreads" — a separate multiplicative additional factor on the PRIMARY
+    #     (and, with Frequent Quake, the fissure ticks). The secondary EXPLOSION is EXEMPT (fires at max spread).
+    #   • Frequent Quake — the explosion is replaced by fq_ticks primary-fissure hits (1 + 4×0.4s).
+    #   • Collapse — amps the fissure ticks by floor(1.6/R)·0.5·roll (Frequent-Quake persistence + rhythm only).
+    #   • at_center_dmg_additional (Epicenter) is UNTAGGED → already folded into every hit's avg (full uptime).
+    # The fissure ENUM zeroes the non-selected form (kept listed). Non-demolisher path is untouched.
+    demolisher_mode = ""
+    demolisher_restoration_time = 0.0
+    demolisher_cast_rate = 0.0
+    demolisher_charged_rate = 0.0
+    demolisher_rhythm_interval = 0.0
+    demolisher_charge_speed_inc = 0.0
+    demolisher_base_restore = 0.0
+    demolisher_mismatch = False
+    demolisher_restore_to_sustain = 0.0
+    demolisher_cdr_droppable = 0.0
+    demolisher_under_breakpoint = False
+    demolisher_over_breakpoint = False
+    demolisher_collapse_pct = 0.0
+    demolisher_frequent_quake = False
+    demolisher_consume_add = 0.0
+    demolisher_cripple = False
+    demolisher_area_mode = "both"
+    _demo_prim_vt = 0.0
+    _demo_sec_vt = 0.0
+    if demolisher:
+        demolisher_mode = demolisher.get("mode", "manual")
+        demolisher_restoration_time = demolisher.get("restoration_time", 0.0)
+        demolisher_cast_rate = demolisher.get("cast_rate", 0.0)
+        demolisher_charged_rate = demolisher.get("charged_rate", 0.0)
+        demolisher_rhythm_interval = demolisher.get("rhythm_interval", 0.0)
+        demolisher_charge_speed_inc = demolisher.get("charge_speed_inc", 0.0)
+        demolisher_base_restore = demolisher.get("base_restore", 0.0)
+        demolisher_mismatch = bool(demolisher.get("mismatch", False))
+        demolisher_restore_to_sustain = demolisher.get("restore_to_sustain", 0.0)
+        demolisher_cdr_droppable = demolisher.get("cdr_droppable", 0.0)
+        demolisher_under_breakpoint = bool(demolisher.get("under_breakpoint", False))
+        demolisher_over_breakpoint = bool(demolisher.get("over_breakpoint", False))
+        demolisher_frequent_quake = bool(demolisher.get("frequent_quake", False))
+        demolisher_area_mode = demolisher.get("area_mode", "both")
+        demolisher_cripple = bool(demolisher.get("cripple_spread_penalty", False))
+        fq_ticks = int(demolisher.get("fq_ticks", 5))
+        cripple_factor = 0.10 if demolisher_cripple else 1.0
+        demolisher_consume_add = source.total("demolisher_consume_dmg_additional")
+
+        # Collapse: a step function of overlapping still-alive fissures. Needs Frequent-Quake persistence
+        # (fissure lifetime ~1.6s) AND auto/rhythm casting (manual/spaced = no overlap). Amps individual
+        # fissure ticks by floor(1.6/R)·0.5·roll (Tyra-verified across the rhythm table). At the exact floor
+        # boundaries R=0.8 (=1.6/2) and R=0.4 (=1.6/4) the game time-averages between the two floors, so we use
+        # the midpoint there (approximate — flagged). collapse_roll is a fraction (e.g. 0.62 for a +62% roll).
+        collapse_roll = demolisher.get("collapse_roll", 0.0)
+        R = demolisher_rhythm_interval
+        if collapse_roll > 0 and demolisher_frequent_quake and demolisher_mode == "rhythm" and R > 0:
+            n = 1.6 / R
+            nearest = round(n)
+            if nearest >= 1 and abs(n - nearest) < 1e-6:
+                eff_floor = nearest - 0.5            # on a floor boundary → time-averaged midpoint
+            else:
+                eff_floor = math.floor(n)
+            demolisher_collapse_pct = eff_floor * 0.5 * collapse_roll
+
+        cast_rate = demolisher_cast_rate
+        charged_rate = demolisher_charged_rate
+        charged_frac = (charged_rate / cast_rate) if cast_rate > 0 else 0.0
+        allow_primary = demolisher_area_mode != "secondary"
+        allow_secondary = demolisher_area_mode != "primary"
+
+        primary = next((f for f in hit_forms if f.name == "Primary Fissure"), None)
+        secondary = next((f for f in hit_forms if f.name == "Secondary Explosion"), None)
+
+        def _per_fire(form: HitFormResult) -> tuple[float, float]:
+            # Per-cast damage of one form (pre-mit, vs-target), stripped of its sps-based rate.
+            if form is None or form.fires_per_sec <= 0:
+                return 0.0, 0.0
+            return (form.dps_contribution / form.fires_per_sec,
+                    form.dps_vs_target / form.fires_per_sec)
+
+        prim_pm, prim_vt = _per_fire(primary)
+        sec_pm, sec_vt = _per_fire(secondary)
+
+        # Primary fissure — every cast. Cripple −90% on the whole term; consume on the charged share only.
+        prim_consume = 1.0 + charged_frac * demolisher_consume_add
+        p_pm = cast_rate * prim_pm * cripple_factor * prim_consume if allow_primary else 0.0
+        p_vt = cast_rate * prim_vt * cripple_factor * prim_consume if allow_primary else 0.0
+
+        # Secondary — charged casts only. Frequent Quake turns the single explosion into fq_ticks primary-fissure
+        # hits that DO eat Cripple −90% + Collapse; the plain explosion is EXEMPT from Cripple and gets no Collapse.
+        if demolisher_frequent_quake:
+            s_pm = (charged_rate * fq_ticks * prim_pm * cripple_factor
+                    * (1.0 + demolisher_consume_add) * (1.0 + demolisher_collapse_pct)) if allow_secondary else 0.0
+            s_vt = (charged_rate * fq_ticks * prim_vt * cripple_factor
+                    * (1.0 + demolisher_consume_add) * (1.0 + demolisher_collapse_pct)) if allow_secondary else 0.0
+            sec_fires = charged_rate * fq_ticks
+        else:
+            s_pm = charged_rate * sec_pm * (1.0 + demolisher_consume_add) if allow_secondary else 0.0
+            s_vt = charged_rate * sec_vt * (1.0 + demolisher_consume_add) if allow_secondary else 0.0
+            sec_fires = charged_rate
+
+        if primary is not None:
+            primary.dps_contribution = p_pm
+            primary.dps_vs_target = p_vt
+            primary.fires_per_sec = cast_rate if allow_primary else 0.0
+        if secondary is not None:
+            if demolisher_frequent_quake and primary is not None:
+                # Frequent Quake REPLACES the secondary explosion with fissure ticks (each = a primary-fissure
+                # hit). Rebuild the form from the primary's per-hit values so the Skill Hit Damage table shows a
+                # single fissure tick (not the stale 1135% explosion), relabeled, with the FQ tick DPS + rate.
+                idx = hit_forms.index(secondary)
+                hit_forms[idx] = replace(
+                    primary,
+                    name="Fissure Ticks (Frequent Quake)",
+                    dps_contribution=s_pm,
+                    dps_vs_target=s_vt,
+                    fires_per_sec=sec_fires if allow_secondary else 0.0,
+                )
+            else:
+                secondary.dps_contribution = s_pm
+                secondary.dps_vs_target = s_vt
+                secondary.fires_per_sec = sec_fires if allow_secondary else 0.0
+        _demo_prim_vt = p_vt
+        _demo_sec_vt = s_vt
+
+    _delivery = cast_multiplier * tangle_mult * spell_burst_mult * multistrike_mult * shadow_mult
     total_dps = sum(f.dps_contribution for f in hit_forms) * _delivery
     total_dps_vs_target = sum(f.dps_vs_target for f in hit_forms) * _delivery
     _base_dps_pre_true, _base_vt_pre_true = total_dps, total_dps_vs_target   # hit DPS before true-damage stages
+
+    # ── Purpose-built breakdown rows (engine-owned reconciliation; see DamageRow) ─────────────────────────
+    # Vuln (Numbed/Frostbite/Infiltration/curses/Paralysis) is already folded into damage_by_type at hit time
+    # (the per-type loop above applies `vuln` before storing it) — mitigation_fn supplies only the REMAINING
+    # target armour/resist factor, so the two never double-apply.
+    damage_rows: list[DamageRow] = _build_hit_damage_rows(
+        hit_forms, delivery=_delivery,
+        mitigation_fn=lambda dt: _target_mitigation(source, dt),
+        crit_factor=crit_factor, double_dmg_factor=double_dmg_factor,
+    )
 
     # ── Mercury Baptism (Rosa Unsullied Blade) ────────────────────────────────────────────────────────────
     # Records a fraction (0.12-0.44) of non-channeled attack ELEMENTAL hit damage DEALT and re-deals it as TRUE
@@ -1580,6 +2617,12 @@ def calculate_offense(
         mercury_baptism_dps = mbf * elem_vt                  # true damage (unmitigated), vs-target
         total_dps += mbf * elem_premit
         total_dps_vs_target += mbf * elem_vt
+        # kind="true": already-final true damage, no HitFormResult / per-type split of its own (sourced from
+        # the existing, already-correct mercury_baptism_dps — not recomputed here).
+        damage_rows.append(DamageRow(
+            kind="true", name="Mercury Baptism (True Damage)",
+            dps_final=mercury_baptism_dps, dps_vs_target_final=mercury_baptism_dps, pct_of_total=0.0,
+        ))
 
     # ── Spell Ripple (Ethereal Prism) ───────────────────────────────────────────────────────────────────────
     # Spell hits proc a Pulse dealing TRUE damage = 150% of Hit Damage at 50% chance → fraction 0.75 of the spell's
@@ -1593,6 +2636,40 @@ def calculate_offense(
         spell_ripple_dps = srf * _base_vt_pre_true            # true damage (unmitigated), vs-target
         total_dps += srf * _base_dps_pre_true
         total_dps_vs_target += srf * _base_vt_pre_true
+        # kind="true": sourced from the existing, already-correct spell_ripple_dps — not recomputed here.
+        damage_rows.append(DamageRow(
+            kind="true", name="Spell Ripple (True Damage)",
+            dps_final=spell_ripple_dps, dps_vs_target_final=spell_ripple_dps, pct_of_total=0.0,
+        ))
+
+    # ── Damage over Time (Mind Control, Path of Flames) ───────────────────────────────────────────────────
+    # Presence-gated: a skill with no DoT forms at this level contributes nothing (dot_rows stays empty,
+    # totals untouched) — every existing non-DoT skill's total_dps is byte-identical. See dot-model.json /
+    # dot-armor-exclusion.json / dot-no-crit.json and compute_dot's docstring.
+    dot_rows, dot_dps, dot_dps_vs_target = compute_dot(
+        source, skill, lookup_level, is_spell, extra_additional, above_mult,
+    )
+    if dot_rows:
+        total_dps += dot_dps
+        total_dps_vs_target += dot_dps_vs_target
+        damage_rows.extend(dot_rows)
+
+    # target_mitigation_by_type × enemy_vuln_by_type == enemy_mult_by_type — derived from the SAME two calls
+    # enemy_mult_by_type is built from below, so the identity is exact (not just float-close).
+    target_mitigation_by_type = {
+        dt: _target_mitigation(source, dt)
+        for dt in DAMAGE_TYPES
+        if any(f.hit_max_by_type.get(dt, 0.0) > 0.0 for f in hit_forms)
+    }
+    enemy_vuln_by_type = {
+        dt: _enemy_vuln_mult(source, dt, is_spell)
+        for dt in target_mitigation_by_type
+    }
+    enemy_vuln_sources_by_type = {
+        dt: _enemy_vuln_source_keys(dt, is_spell)
+        for dt in target_mitigation_by_type
+    }
+    _finalize_damage_row_pcts(damage_rows, total_dps_vs_target)
 
     return OffenseResult(
         skill_name=skill.name,
@@ -1600,9 +2677,12 @@ def calculate_offense(
         effective_level=effective_level,
         hit_forms=hit_forms,
         crit_chance=crit_chance,
+        crit_chance_uncapped=crit_chance_uncapped,
+        crit_luck_effect=crit_luck_effect,
         crit_multiplier=crit_mult,
+        double_dmg_chance=q2, triple_dmg_chance=q3, quad_dmg_chance=q4, double_dmg_factor=double_dmg_factor,
         steep_strike_chance=steep_chance,
-        attacks_per_second=aps,
+        skills_per_second=sps,
         base_cast_time=base_cast_time,
         total_dps=total_dps,
         total_dps_vs_target=total_dps_vs_target,
@@ -1624,8 +2704,9 @@ def calculate_offense(
         generic_add=generic_add,
         main_stat_damage_bonus=main_stat_bonus,
         main_stats=list(skill.main_stat),
-        skill_tags=skill.tags,
-        skill_area_inc=source.total("skill_area_inc") if "area" in skill_tags_lower else 0.0,
+        skill_tags=(skill.tags + [t for t in (add_mod_tags or set())
+                                  if t.lower() not in {x.lower() for x in skill.tags}]),
+        skill_area_inc=(source.total("skill_area_inc") + spell_burst_area_display) if "area" in skill_tags_lower else 0.0,
         cast_multiplier=cast_multiplier,
         shotgun_hits=shotgun_hits,
         # Only jump skills consume extra_jumps_flat (reading source.total marks it consumed) — guard on jumps_base
@@ -1643,6 +2724,16 @@ def calculate_offense(
         tangle_cast_ticks=tangle_cast_ticks,
         tangle_cast_to_next_increased=tangle_cast_to_next_increased,
         tangle_cast_to_next_additional=tangle_cast_to_next_additional,
+        shadow_count=shadow_count,
+        shadow_chance_pct=shadow_chance_pct,
+        shadow_chance_quantity=shadow_chance_quantity,
+        shadow_dmg_additional=shadow_dmg_additional_total,
+        shadow_mult=shadow_mult,
+        shadow_hits_per_sec=shadow_hits_per_sec,
+        channel_attack_ticks=channel_attack_ticks,
+        channel_attack_smooth_sps=channel_attack_smooth_sps,
+        channel_attack_to_next_increased=channel_attack_to_next_increased,
+        channel_attack_to_next_additional=channel_attack_to_next_additional,
         spell_burst_count=spell_burst_count,
         spell_burst_casts_per_burst=spell_burst_casts_per_burst,
         spell_burst_charge_ticks=spell_burst_charge_ticks,
@@ -1677,10 +2768,13 @@ def calculate_offense(
         # loop above, so re-reading is golden-neutral; reading types the skill doesn't deal would wrongly mark
         # their enemy-vuln stats "Consumed".
         enemy_mult_by_type={
-            dt: _target_mitigation(source, dt) * _enemy_vuln_mult(source, dt, is_spell)
-            for dt in ("physical", "fire", "cold", "lightning", "erosion")
-            if any(f.hit_max_by_type.get(dt, 0.0) > 0.0 for f in hit_forms)
+            dt: target_mitigation_by_type[dt] * enemy_vuln_by_type[dt]
+            for dt in target_mitigation_by_type
         },
+        damage_rows=damage_rows,
+        target_mitigation_by_type=target_mitigation_by_type,
+        enemy_vuln_by_type=enemy_vuln_by_type,
+        enemy_vuln_sources_by_type=enemy_vuln_sources_by_type,
         multistrike_chance=multistrike_chance,
         multistrike_avg_count=multistrike_avg_count,
         multistrike_increment=multistrike_increment,
@@ -1692,6 +2786,34 @@ def calculate_offense(
         mercury_baptism_dps=mercury_baptism_dps,
         spell_ripple_fraction=spell_ripple_fraction,
         spell_ripple_dps=spell_ripple_dps,
+        demolisher_mode=demolisher_mode,
+        demolisher_restoration_time=demolisher_restoration_time,
+        demolisher_base_restore=demolisher_base_restore,
+        demolisher_charge_speed_inc=demolisher_charge_speed_inc,
+        demolisher_cast_rate=demolisher_cast_rate,
+        demolisher_charged_rate=demolisher_charged_rate,
+        demolisher_rhythm_interval=demolisher_rhythm_interval,
+        demolisher_mismatch=demolisher_mismatch,
+        demolisher_restore_to_sustain=demolisher_restore_to_sustain,
+        demolisher_cdr_droppable=demolisher_cdr_droppable,
+        demolisher_under_breakpoint=demolisher_under_breakpoint,
+        demolisher_over_breakpoint=demolisher_over_breakpoint,
+        demolisher_collapse_pct=demolisher_collapse_pct,
+        demolisher_frequent_quake=demolisher_frequent_quake,
+        demolisher_area_mode=demolisher_area_mode,
+        demolisher_primary_dps=_demo_prim_vt * _delivery,
+        demolisher_secondary_dps=_demo_sec_vt * _delivery,
+        trigger_interval=(1.0 / sps if (_wind is not None and sps > 0)
+                          else (source.total("trigger_interval") if "trigger_interval" in _present else 0.0)),
+        wind_rhythm_active=_wind is not None,
+        wind_rhythm_rate=(_wind or {}).get("rate", 0.0),
+        wind_rhythm_ticks=(_wind or {}).get("ticks", 0),
+        wind_rhythm_cast_time=(_wind or {}).get("server_cast_time", 0.0),
+        wind_rhythm_base_cooldown=(_wind or {}).get("base_cooldown", 0.0),
+        wind_rhythm_bonus=(_wind or {}).get("wind_bonus", 0.0),
+        wind_rhythm_cdr_to_next=(_wind or {}).get("cdr_to_next", 0.0),
+        wind_rhythm_cast_to_next=(_wind or {}).get("cast_to_next", 0.0),
+        wind_rhythm_wind_to_next=(_wind or {}).get("wind_to_next", 0.0),
         nyi=[
             "Support skill flat damage adds",
             "Elemental conversion",

@@ -4,8 +4,13 @@
   - Lunar Ring (mag):  a "circular attack" proc on Steep Strike, chance scaling with Max Mana. The circular
                        form is just a Steep Strike that hits around you — DPS-NEUTRAL for single target — so
                        we only TRACK the proc chance (moon_strike_circular_chance) for later surfacing.
-  - Lunar Eclipse (noble): DEFERRED — additional damage per 100 sealed Mana (seals 10% Max Mana, removes the
-                       skill's Mana cost). Needs the Mana-sealing system; only the universal +20% applies now.
+  - Lunar Eclipse (noble): WIRED — seals 10% Max Mana (removes the skill's Mana cost) and grants +1% additional
+                       damage per 100 Mana sealed, up to a per-rank cap. The mana-sealing/reservation system
+                       (engine/utility.py `apply_reservation`) detects this support's "mana sealed" + "up to"
+                       description, computes the cap via `_seal_dmg_cap`, and emits the `dmg_additional` bonus
+                       (utility.py:462-470). Guarded here only so the generic tier-line parser doesn't ALSO try
+                       to read its progression line (which would double-count); the universal rank line still
+                       applies on top, unaffected by the guard.
   - Wax and Wane (noble):  DEFERRED — Spell Burst interaction (Spell Burst is itself NYI in the engine).
 """
 from __future__ import annotations
@@ -43,8 +48,9 @@ def _slot_sups(attached_supports, slot: int, skills_by_id) -> dict[str, tuple[di
     return out
 
 
-# All four specific lines are bespoke or deferred → keep them out of the generic parser (the universal
-# +20% rank line still applies to each).
+# All four specific lines are bespoke, handled elsewhere (apply_slot_effects below, or — Lunar Eclipse —
+# engine/utility.py's mana-sealing pass) or still deferred (Wax and Wane) → keep them out of the generic
+# parser (the universal rank line still applies to each regardless).
 GUARD_IDS = frozenset({LUNAR_RING, RAINBOW, LUNAR_ECLIPSE, WAX_AND_WANE})
 CONTRIB_HOOKS: dict = {}
 

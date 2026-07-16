@@ -5,11 +5,19 @@
     2
   ],
   "default_level": 1,
-  "gate_text": "",
+  "gate_text": "Supports Empower, Defensive, Restoration, Curse, and Warcry Skills.",
+  "is_activation_medium": true,
   "level_kind": "tier",
   "lines": [
     {
-      "badge_text": "The supported skill +15.5 % additional Cooldown Recovery Speed",
+      "badge_text": "",
+      "coverage": null,
+      "kind": "flavor",
+      "text": "Cannot support Channeled Skills.",
+      "values_by_level": null
+    },
+    {
+      "badge_text": "",
       "coverage": null,
       "kind": "scaling",
       "text": "",
@@ -20,7 +28,7 @@
       }
     },
     {
-      "badge_text": "+15.5 % additional Duration for the supported skill",
+      "badge_text": "",
       "coverage": null,
       "kind": "scaling",
       "text": "",
@@ -31,19 +39,120 @@
       }
     },
     {
-      "badge_text": "Always attempts to trigger the supported skill when there is a boss within (6–20) m.",
+      "badge_text": "",
       "coverage": null,
       "kind": "special",
       "text": "Always attempts to trigger the supported skill when there is a boss within (6–20) m.",
       "values_by_level": null
     },
     {
-      "badge_text": "Interval: 0.1s",
+      "badge_text": "",
       "coverage": null,
       "kind": "special",
       "text": "Interval: 0.1s",
       "values_by_level": null
     }
   ],
-  "modeled_rolls": []
+  "modeled_rolls": [
+    {
+      "desc": "Additional Cooldown Recovery Speed",
+      "group": "cdr_or_duration",
+      "identity": "cdr_additional",
+      "label": "Cooldown Recovery",
+      "ranges_by_tier": {
+        "0": {
+          "max": 0.25,
+          "mid": 0.225,
+          "min": 0.2
+        },
+        "1": {
+          "max": 0.19,
+          "mid": 0.155,
+          "min": 0.12
+        },
+        "2": {
+          "max": 0.11,
+          "mid": 0.09,
+          "min": 0.07
+        },
+        "3": {
+          "max": -0.15,
+          "mid": -0.2,
+          "min": -0.25
+        }
+      },
+      "scale": 100.0,
+      "stat_keys": [
+        "cdr_speed_additional"
+      ],
+      "unit": "%",
+      "wired": true
+    },
+    {
+      "desc": "Additional Duration for the supported skill",
+      "group": "cdr_or_duration",
+      "identity": "duration_additional",
+      "label": "Duration",
+      "ranges_by_tier": {
+        "0": {
+          "max": 0.25,
+          "mid": 0.225,
+          "min": 0.2
+        },
+        "1": {
+          "max": 0.19,
+          "mid": 0.155,
+          "min": 0.12
+        },
+        "2": {
+          "max": 0.11,
+          "mid": 0.09,
+          "min": 0.07
+        },
+        "3": {
+          "max": -0.15,
+          "mid": -0.2,
+          "min": -0.25
+        }
+      },
+      "scale": 100.0,
+      "stat_keys": [
+        "skill_effect_duration_additional"
+      ],
+      "unit": "%",
+      "wired": true
+    },
+    {
+      "desc": "Trigger radius (metres)",
+      "group": null,
+      "identity": "radius",
+      "label": "Radius",
+      "ranges_by_tier": {
+        "0": {
+          "max": 20.0,
+          "mid": 13.0,
+          "min": 6.0
+        },
+        "1": {
+          "max": 20.0,
+          "mid": 13.0,
+          "min": 6.0
+        },
+        "2": {
+          "max": 20.0,
+          "mid": 13.0,
+          "min": 6.0
+        },
+        "3": {
+          "max": 20.0,
+          "mid": 13.0,
+          "min": 6.0
+        }
+      },
+      "scale": 1.0,
+      "stat_keys": [],
+      "unit": "m",
+      "wired": false
+    }
+  ]
 }

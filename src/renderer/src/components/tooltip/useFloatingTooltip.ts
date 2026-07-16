@@ -45,7 +45,9 @@ export function useFloatingTooltip(opts: UseFloatingTooltipOptions): FloatingToo
     middleware: [
       offset(8),
       flip({ padding: viewportPadding }),
-      shift({ padding: viewportPadding }),
+      // crossAxis: shift along the CROSS axis too so a side-placed (left/right) tooltip that's taller than the
+      // space beside its anchor slides vertically to stay on-screen instead of overflowing the top/bottom edge.
+      shift({ padding: viewportPadding, crossAxis: true }),
       // variable size: cap to available height, let the body scroll if genuinely too tall
       size({
         padding: viewportPadding,

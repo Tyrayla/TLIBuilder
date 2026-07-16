@@ -3,7 +3,7 @@
 A placed Ethereal Prism can REPLACE the tree's Core Talent (named implicit), ADD an effect to it (Haze), or ADD a
 named talent without replacing (do-not-replace, Slot 3). All are gated by the tree's core-talent point threshold (24).
 
-Modelling rule (owner): **all-or-nothing** per talent — a talent contributes ONLY if its whole effect resolves
+Modelling rule (Tyra): **all-or-nothing** per talent — a talent contributes ONLY if its whole effect resolves
 (generic stat parse) or it has a bespoke handler. Otherwise it contributes nothing and is badged NYI, so a
 half-modelled talent never misleads the user. Two bespoke handlers exist: Unmatched Valor (fixed Fervor 130) and
 Spell Ripple (true-damage proc); everything else goes through the generic parser.
