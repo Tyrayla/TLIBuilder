@@ -2,34 +2,66 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-15
+
+### New Season: SS13 "Afterlight"
+- **SS13 "Afterlight" is live** — full new-season data: new and rebalanced skills, legendary gear, pact spirits, talent trees, and hero traits, plus the new **Nether King** god talent tree and its Divinity slate data.
+- **Nether King's Divinity slate is fully craftable** — all 92 talent nodes are selectable and appear correctly in the slate picker (fixed a same-day issue where a name-collision bug had silently collapsed 88 of the 92 nodes down to a handful of duplicates).
+- **Glossary expanded** for the new SS13 mechanics, including newly-added Dance of the Deep terms sourced directly from the game database.
+
+### Hero traits
+- **Selena — Dance of the Deep**, Selena's SS13 hero trait, is now browsable and selectable: its node tree, Dance Step and its Crimson Dash / Agonizing Revival / Eternal Sleep variants, Activation Medium: Terra, Crimson Tide/Shade, and more are documented in the in-app glossary. **Its DPS is not yet modeled** — too many interlocking unknown mechanics (Crimson Tide, Dance Step/Eternal Sleep, Crimson Shade summons, Ominous Curse, Terra Charge, Catalyst: Ground) to model accurately yet. Selecting it has no effect on computed stats; tracked in `data/verification/dance-of-the-deep.json` (status: unverified).
+
+### New skill mechanics
+- **Shadow Strike** — the engine now models Thunder Spike's Shadow-summoning mechanic: N Shadows repeat the player's own attack against a target, with each Shadow beyond the first dealing reduced damage (the game's Shotgun Effect falloff, confirmed flat rather than compounding via in-game testing); the player's own hit is unaffected. Shadow sources are wired from Haunt, Frantic Shadow, Despised Shadow (its 33%-chance-for-extra-Shadows roll, correctly gated to manual use only — it doesn't proc off Rhythm/Instruction-triggered casts), and a Ronin talent node.
+- **Thunder Spike** is now a fully modeled skill: 205%→277% Weapon Attack Damage, a full Physical→Lightning conversion, and an inherent Numbed application on hit with an in-game-measured uptime formula. Both Shadow Strike and Thunder Spike were validated against in-game Recount testing and moved from unverified to partially confirmed in the Verification Database — see `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json` for the full write-up, including a couple of remaining unmodeled edge cases (Numb Magnificent's shadow-hit-count proc chance, Everburn Thunderfire on Thunder Spike specifically).
+- **Damage over Time (skill-DoTs)** — the engine now models the ongoing tick damage of skills that deal Damage over Time directly, rather than only a skill's Hit component. First two skills: **Mind Control** (Erosion) and **Path of Flames** (Fire). Validated against the training dummy to within ~±10%; treat DoT DPS numbers as an estimate for now. Type-matched "X Damage" sources and "Elemental Damage" now correctly scale a matching skill-DoT, and above-max-skill-level scaling applies to DoT the same way it applies to Hit damage.
+- **Split Shot** — new skill with four supports, including Collaboration and Rapid Advance's channeled-transform behavior.
+- **Spell Burst** completed end-to-end: Squidnova's buff, skill area, sustain, and kismet interactions are wired; **Lucky/Unlucky** critical strikes are modeled (Perched River kismet), with your true (uncapped) crit chance surfaced in Calcs.
+- **Tangles**: per-Tangle modifier scaling and Magister's generate-Tangle nodes are now wired.
+- New activation-medium roll system built around **Wind Rhythm**, plus the **Demolisher** and **Groundshaker** skills.
+
+### Minions
+- **Minion DPS is now modeled** — a dedicated minion engine (Spirit Magus, Thunder Magus, and more) covers minion Multistrike, Empower, per-skill scaling, and supports attached to a minion, mirroring the player damage model.
+- **Known limitation:** SS13 minion base values are a stopgap carried over from SS12 pending fresh in-game measurement of the new season's numbers — treat minion DPS as provisional until re-measured.
+
+### Sustain: Mana/Life consumption and recovery
+- New **Restoration** engine — Regain, Regen, and effective-HP (EHP) now feed a dedicated recovery/sustain display, alongside a steady-state Life%/Mana solve ("Stable Life").
+- Per-skill mana/life cost is now modeled and folded into sustain, including intrinsic cost conversions (e.g. Bull's Rage's mana-to-life conversion) and Compensatory Life.
+- **Elixir system** — scent-bottle buffs scaled by Elixir Effect, including Licorice Note (Sage hero trait) ingredients and cross-apply.
+
+### Gear, hero memory, and talents
+- **Editable roll values** — click a number in the gear or hero-memory editor to set an exact roll instead of only dragging a slider.
+- Hero memory gets **searchable affix dropdowns** and per-slot-type affix lockouts, with combo-mod tiers grouped under one modifier.
+- **Fate/Kismet roll values** are now settable exactly, with roll ranges shown in the UI instead of just the midpoint.
+- **Path allocation** — clicking a distant talent node now fills in the prerequisite chain to reach it, instead of requiring each node in between to be clicked individually.
+- **Gear corruption edits are staged** instead of applying live, so you can back out before committing.
+- Fixed: a "+X% Max Life and Max Energy Shield" gear affix that fed only Energy Shield; negative-range affix parsing that failed to show a slider; a missing base-item implicit when a legendary omits it; a Max Life + Energy Shield combo that dropped the Life half; Additional Life/Mana/Energy Shield/Armor/Evasion now correctly multiply per source instead of summing.
+
 ### Build management
 - **Build folders** — the build select screen now supports folders: create, rename, nest arbitrarily deep, and delete (deleting a folder moves its contents up to the parent). Navigate via folder cards plus a breadcrumb.
 - **Drag-and-drop**: drag builds into folders, onto breadcrumb segments to move them up a level, or between cards to reorder; folders drag the same way. Manually reordering a folder keeps your custom order; otherwise builds sort by most recently saved, newest at top (build files now carry created/updated timestamps, falling back to file time for older builds).
 - **Bulk delete** replaces the per-card Delete button: hit **Select**, check builds, then **Delete (n)** with one confirmation — plus a **Move to…** bulk action.
 - Folder layout is stored locally in a `folders.json` next to your builds; share codes are unaffected. New `GET`/`PUT /api/builds/folders` backend endpoints persist it.
 
-### New skill mechanics
-- **Shadow Strike** — the engine now models Thunder Spike's Shadow-summoning mechanic: N Shadows repeat the player's own attack against a target, with each Shadow beyond the first dealing an additional −70% (the game's Shotgun Effect falloff coefficient); the player's own hit is unaffected. Shadow sources are wired from Haunt, Frantic Shadow, Despised Shadow (including its 33%-chance-for-extra-Shadows roll, modeled as a per-cast expected value), and a Ronin talent node.
-- **Thunder Spike** is now a modeled skill: 205%→277% Weapon Attack Damage, a full Physical→Lightning conversion, and an inherent chance-free Numbed application on hit. Its Rumbling Thunder support (bonus Lightning damage on hit) is modeled as always-active, an assumption still pending an in-game check.
-- **2026-07-15 in-game measurement:** a solo-vs-Haunt Recount pair supports the base Weapon Attack Damage (−2.5% raw) and the shotgun falloff/player-hit-independence shape (ratio ≈2.30–2.32 measured vs 2.3184 predicted). Both entries move from `unverified` to `partial` — see `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json` for the full data and a newly observed unmodeled mechanic (Shadow hits can themselves apply Thunder Spike's inherent Numbed).
-- **2026-07-15 follow-up measurement (same day):** a third Recount run at N=3 shadows (Haunt + a "+1 Shadow" slate, 917 DPS) **confirms the shadow-delivery falloff is FLAT, not compounding** (measured ×2.628 vs flat-model ×2.6208, compounding rejected by >8%). Additional cadence testing establishes the STRUCTURE of shadow-applied inherent Numbed (per-source-group, capped at 2 stacks regardless of shadow count) and rules out the glossary damage-threshold Numbed pathway as its source at dummy-HP scale; the clone-uptime formula vs attack speed remains open for a follow-up test. Numb Magnificent's chance-inflict stack ranges were also sampled (still unmodeled). See `data/verification/shadow-strike.json` and `data/verification/thunder-spike.json` for full detail.
-- **2026-07-15 second follow-up (Rhythm-cadence test, verbal report):** a discriminating test using the Rhythm activation medium to force exact attack cadence **refutes** the previously-derived discrete phase-slot candidate for the clone-Numbed uptime formula — 1.0s and forced-2/s cadences both sustained 100% uptime at 2 stacks (the model had predicted 50%), while a 0.7s cadence beat between 1 and 2 stacks; an interval-alignment mechanism is now suspected, and re-derivation is in progress (the formula stays unmodeled). Also newly recorded: **Despised Shadow's extra-Shadows chance is USE-gated, not CAST-gated** — it does not proc off Rhythm/Instruction-triggered casts (first measured case of the USE/CAST distinction mattering for a modeled mechanic). The gate **landed the same day**: AM/Rhythm-triggered slots no longer roll the chance (manual-use builds are unaffected), closing what was briefly a known conservative-inaccuracy limitation of the per-cast expected-value model. Also: **no Shadow-count cap was observed** at the counts tested. See `data/verification/shadow-strike.json`, `data/verification/thunder-spike.json`, and `docs/BACKLOG.md` §0f.
-- **2026-07-15 third follow-up (N-independence test, verbal report, later same day):** retesting the Rhythm 0.7s cadence at N=2 and N=4 shadows produced the SAME bounce pattern as N=0, and a config where the main hit deliberately missed while Shadows hit produced 0 Numbed stacks — **shadows do not apply Thunder Spike's inherent Numbed at all**, refuting the earlier same-day "source-group" hypothesis (and the phase-slot/interval-alignment candidates before it). The **independent-stacking window model is now CONFIRMED** for the inherent line — `E[stacks](aps) = 2.0·aps / ceil(1.0·aps)` — reconciling all three RECOUNT runs within 0.25%. **Phase 2 shipped the same session**: the formula now auto-derives a fractional `numbed_stacks` floor from attack speed (solo manual ≈1.5 aps → +0.23% vs measured 349; zero golden fixture changes). Follow-up engine analysis distinguished two separate mechanisms: **High Voltage**'s unconditional on-hit Numbed line is a genuinely different mechanism (a flat cadence-independent floor) and was already correctly modeled — it exactly matches the owner's observed 1-stack refresh behavior. **Everburn Thunderfire** (a real SS12 legendary girdle, not uncrawled SS13 content as first suspected) is filed as an explicit NYI item — equipped alone on Thunder Spike it's currently silently inert, since the ailment-inflict system's paired-trigger scan isn't wired for Thunder Spike's intrinsic trigger. Numb Magnificent's shadow-hit-count chance line remains unmodeled. See `data/verification/shadow-strike.json`, `data/verification/thunder-spike.json`, and `docs/BACKLOG.md` §0f.
-
-### New damage mechanics
-- **Damage over Time (skill-DoTs)** — the engine now models the ongoing tick damage of skills that deal Damage over Time directly, rather than only a skill's Hit component. First two skills: **Mind Control** (Erosion) and **Path of Flames** (Fire). Validated against the training dummy to within ~±10% (worst observed case 6%); a small residual on top of *increased*-damage modifiers is still unexplained and under investigation, so treat DoT DPS numbers as an estimate rather than an exact figure for now.
-- **DoT damage scoping expanded**: type-matched "X Damage" sources (e.g. Erosion Damage, Fire Damage) and "Elemental Damage" (Fire/Cold/Lightning, excludes Erosion) now correctly scale a matching skill-DoT, and above-max-skill-level scaling now applies to DoT the same way it already applies to Hit damage.
-
-### Hero traits
-- **Selena's SS13 hero trait "Dance of the Deep"** is now selectable (tree + node text). Its damage/mechanics are **not yet modeled** — too many unknown mechanics (Crimson Tide, Dance Step/Eternal Sleep, Crimson Shade summons, Ominous Curse, Terra Charge, Catalyst: Ground) to model accurately before SS13's in-game data is available. Selecting it has no effect on computed stats yet; tracked in `data/verification/dance-of-the-deep.json`.
-
-### Internal / docs
-- Filed 5 tracked-not-fixed limitations surfaced while building the DPS-coverage audit (`backend/engine/coverage.py`) to `docs/BACKLOG.md` §8: tooltip-suppression risk to coverage's "modeled" signal, a real (separate) live-engine bug in `support_mapper._strip_support_target` that drops clauses 2+ on supports like `fragile_resurrection`, a hand-maintained hero-trait advanced-pick mirror with no drift guard, an engine→server layering violation, and a `**kwargs` loophole in the build-gated-param detector. Cross-linked in `data/verification/restoration-subsystem.json` and `data/verification/activation-mediums.json`.
+### Verification & reference
+- New **Verification Knowledge Base** — searchable in-app (Verification Database, main menu) and in `docs/verification/`, tracking confirmed in-game behavior and modeled-but-untested coverage for every mechanic, cross-linked to the in-app glossary.
+- **DPS-coverage badges** (Full / Partial / None) now appear across skill, support, and gear catalogs, so what's fully modeled is clear at a glance.
+- Reference browser: 3-mode tabs, click-through glossary/Help DB terms with navigation history and colored links.
 
 ### Fixes
+- **Extended Duration support is selectable again** — a long-standing bug gated it off every skill.
 - **Rhythm activation medium's movement-damage rate is now tier-correct**: the per-meter bonus was hardcoded to a flat 3% at every tier; it's now sourced per-level from the crawled data (3% / 3% / 2% / 2% for levels 0–3), correcting a prior overstatement at tiers 2–3.
 - **"Cannot inflict Numbed"** no longer overrides a manual Numbed toggle — it now only suppresses the engine's automatic application, matching how Frostbite already behaves. (Only affects builds with both a manual Numbed toggle and a "cannot inflict Numbed" source active.)
 - Importing a malformed or too-new build code now shows a clear error message instead of failing silently or crashing.
+- Ailment-damage additional and crit-strike supports no longer inflate hits they shouldn't apply to; per-N-consumed gear lines no longer inflate stats; fixed gear implicit double-counting and weapon+shield attack-speed averaging; channeled Split Shot now fires at the correct smooth attack rate.
+
+### Security
+- **Renderer hardened against XSS**: all HTML rendering (including update-notes display) now runs through a shared sanitizer with an allowlist, closing a path where a malicious changelog/release-notes entry could have run arbitrary code; external links now open with `rel="noopener noreferrer"`; added clickjacking protection headers to the web deploy.
+
+### Known limitations
+- **Selena's Dance of the Deep and the new Terra skills** are selectable but not yet DPS-modeled — SS13 in-game data for these mechanics is still being gathered.
+- **SS13 minion base values** are an SS12 stopgap pending re-measurement against the new season.
 
 ---
 
