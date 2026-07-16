@@ -1330,6 +1330,17 @@ export default function TreeViewerScreen({
     </div>
   )
 
+  // Stable identity for TreeNodeG's `onInteract` prop (2026-07-16 review-performance fix, part 2).
+  // Hoisted ABOVE the early returns below (2026-07-16 hotfix): both are hooks, and hooks must run
+  // unconditionally on every render. The first render (treeData === null) used to skip straight past
+  // them via the `!treeData` early return, then a later render (treeData loaded) reached them — React
+  // saw a longer hook list than the previous render and threw "Rendered more hooks than during the
+  // previous render." The ref starts as a no-op; `interactRef.current` is only ever written by the
+  // plain (non-hook) assignment further down, which itself only runs on renders that reach the tree
+  // markup — exactly the renders where something could call `onInteract`.
+  const interactRef = useRef<(node: TreeNode, isRight: boolean) => void>(() => {})
+  const stableInteract = useCallback((n: TreeNode, isRight: boolean) => interactRef.current(n, isRight), [])
+
   // ── Early returns ──────────────────────────────────────────────────────────
 
   if (loadError) {
@@ -1468,21 +1479,20 @@ export default function TreeViewerScreen({
     setPlacingPrism(null)
   }
 
-  // Stable identity for TreeNodeG's `onInteract` prop (2026-07-16 review-performance fix, part 2).
   // `handleNodeInteract` closes over debugMode/debugTool/handleClick/tryLocalAllocate/etc — none of it
   // useCallback'd, and stabilizing that whole ~8-function allocation chain (so ITS identity only changes
   // when something it actually depends on changes) is a much larger refactor than this fix round calls for.
   // Standard workaround: fold the placingPrism branch in HERE (not at the render site, where a ternary
   // would reintroduce a fresh arrow every render and re-break the memo) so there's a single "what interacting
-  // with a node does right now" value, stash it in a ref updated every render (always current, never stale),
-  // and hand TreeNodeG a useCallback with an EMPTY dep array that only ever reads through the ref. The
-  // returned function's identity is then permanently stable — it's the ref indirection, not the dep array,
-  // doing the work, since the real behavior legitimately changes every render (debugMode, placingPrism, etc).
+  // with a node does right now" value, and stash it in `interactRef` (hoisted above the early returns,
+  // near the top of the component) — updated every render (always current, never stale) so `stableInteract`,
+  // itself declared with an EMPTY dep array, only ever reads through the ref. The returned function's
+  // identity is then permanently stable — it's the ref indirection, not the dep array, doing the work,
+  // since the real behavior legitimately changes every render (debugMode, placingPrism, etc). This
+  // assignment itself is NOT a hook — plain code, safe to sit after the early returns above.
   const currentInteract: (node: TreeNode, isRight: boolean) => void =
     placingPrism ? (n) => placePrismAt(n) : handleNodeInteract
-  const interactRef = useRef(currentInteract)
   interactRef.current = currentInteract
-  const stableInteract = useCallback((n: TreeNode, isRight: boolean) => interactRef.current(n, isRight), [])
 
   const removePrism = () => {
     if (!treePrism) return
