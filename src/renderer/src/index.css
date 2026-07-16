@@ -721,6 +721,59 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   width: 100%;
 }
 
+.slot-sidebar-btn-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+}
+
+.slot-sidebar-points {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8888aa;
+}
+
+.slot-sidebar-total {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 8px;
+  border-radius: 5px;
+  background: #0e1230;
+  border: 1px solid #2a2a5a;
+  color: #9988ee;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.slot-sidebar-total-label {
+  color: #8888aa;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.slot-sidebar-total.over {
+  background: #2a1500;
+  border-color: #8a4a00;
+  color: #ffb347;
+}
+
+.slot-sidebar-total.over .slot-sidebar-total-label {
+  color: #ffb347;
+}
+
+.slot-sidebar-total-warn {
+  color: #ff5555;
+  font-size: 14px;
+}
+
 /* ── Build Overview ────────────────────────────────────────────────────────── */
 
 .build-overview {
