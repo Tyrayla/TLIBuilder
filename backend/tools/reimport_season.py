@@ -182,9 +182,20 @@ def step_tower(season, crawl):    return _singleton(season, crawl, "tower_sequen
 
 
 def step_filter(season: str, crawl: str) -> str:
-    """Mirrors /api/dev/rebuild-node-type-filter: tree-driven build over the runtime (string) view."""
+    """Mirrors /api/dev/rebuild-node-type-filter: tree-driven build over the runtime (string) view.
+
+    `data/node_type_filter.json` is a single GLOBAL file the engine reads for whatever season is
+    currently active (`data/seasons/.active`) — it carries no season namespace of its own. Rebuilding
+    it from a season that ISN'T the active one would silently clobber the live engine's stat-matching
+    data with a different season's node texts. Guard: only rebuild when `season` is the active season;
+    otherwise skip (the filter for `season` gets built for real once `.active` flips to it — normally
+    via /api/dev/rebuild-node-type-filter or by re-running this step after flipping .active).
+    """
     from persistence import season_manager
     from tools.node_type_filter_builder import build_filter, build_node_recipes, save_filter
+    active = season_manager.get_active_season()
+    if active is not None and active != season:
+        return f"SKIPPED — active season is {active!r}, not {season!r} (filter left untouched)"
     season_trees = season_manager.load_all_season_trees(season)
     if not season_trees:
         raise RuntimeError(f"no season trees for {season} — run the trees step first")

@@ -208,8 +208,11 @@ def import_crawler_hero_trait(data: dict) -> dict:
     base = next((t for t in traits if t.get("required_level", 1) == 1), {})
     advanced_raw = [t for t in traits if t.get("required_level", 1) != 1]
 
-    # Extract hero from base trait icon_url
-    icon_url = base.get("icon_url", "")
+    # Extract hero from base trait icon_url. `icon_url` may be JSON `null` (not just absent) for
+    # entities tlidb hasn't backfilled yet at season launch — `.get(..., "")` only covers the
+    # missing-key case, so null-coalesce explicitly. A missing/null icon degrades to no hero-from-
+    # icon rather than crashing the whole import.
+    icon_url = base.get("icon_url") or ""
     hero_m = _HERO_RE.search(icon_url)
     hero = hero_m.group(1) if hero_m else ""
 
@@ -264,7 +267,7 @@ def import_crawler_hero_trait(data: dict) -> dict:
             "group_role": role,   # "guaranteed" (always granted) | "pick" (choose 1 of the group)
             "group_id": gid,      # group within the level, top->bottom (0,1,…)
             "effects": _adv_effects(t),
-            "icon_url": t.get("icon_url", ""),
+            "icon_url": t.get("icon_url") or "",
         })
 
     glossary = {

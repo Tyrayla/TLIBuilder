@@ -175,3 +175,58 @@ def test_leveled_advanced_base_and_hero_still_correct():
     r = import_crawler_hero_trait(_LEVELED_ADV)
     assert r["hero"] == "Erika"
     assert len(r["levels"]) == 1  # the required_level==1 base, not the advanced nodes
+
+
+# Regression: `icon_url` can be JSON `null` (key present, value None) — not just absent — for
+# entities tlidb hasn't backfilled yet at season launch (matches the real crawled Dance of the
+# Deep shape). Pre-fix, the importer read the icon with `base.get("icon_url", "")`: the default
+# only substitutes when the KEY is missing, not when it's present with value None, so this
+# returned None. That None was then fed straight into `_HERO_RE.search(None)`, which raises
+# `TypeError: expected string or bytes-like object` — the whole import of the trait would blow up
+# before this test's assertions were ever reached. The fix null-coalesces with `... or ""` at both
+# the base-trait site and the advanced-node loop, so a null icon degrades to "" (no hero-from-icon)
+# instead of crashing the import.
+_NULL_ICON_TRAIT = {
+    "name": "Dance of the Deep",
+    "max_level": 8,
+    "traits": [
+        {
+            "name": "Dance of the Deep",
+            "required_level": 1,
+            "levels": [{"level": 1, "description": "some base effect"}],
+            "description": None,
+            "icon_url": None,
+        },
+        {
+            "name": "Undertow",
+            "required_level": 45,
+            "levels": [],
+            "description": "some advanced effect",
+            "icon_url": None,
+        },
+    ],
+    "glossary": [],
+}
+
+
+def test_null_icon_url_on_base_and_advanced_node_does_not_raise():
+    # Would have raised TypeError pre-fix (see comment above) — reaching these asserts at all is
+    # part of the regression coverage.
+    r = import_crawler_hero_trait(_NULL_ICON_TRAIT)
+    assert r["trait_id"] == "dance_of_the_deep"
+    assert r["hero"] == ""
+    assert r["icon_url"] == ""
+
+
+def test_null_icon_url_advanced_node_degrades_gracefully():
+    r = import_crawler_hero_trait(_NULL_ICON_TRAIT)
+    assert len(r["advanced_traits"]) == 1
+    adv = r["advanced_traits"][0]
+    assert adv["name"] == "Undertow"
+    assert adv["icon_url"] == ""
+
+
+def test_null_icon_url_trait_still_produced_not_dropped():
+    result = import_crawler_hero_traits([_NULL_ICON_TRAIT])
+    assert len(result) == 1
+    assert result[0]["trait_id"] == "dance_of_the_deep"
