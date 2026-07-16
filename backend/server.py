@@ -1679,8 +1679,14 @@ def get_skills():
     active = season_manager.get_active_season()
     if not active:
         return {"season": None, "skills": []}
-    data = season_manager.load_skills(active)
-    if not data:
+    # Route through _get_skills_data (not a bare season_manager.load_skills) so crawler-mangled entries get
+    # engine.skill_overrides.apply_skill_overrides' corrections BEFORE the tooltip is built. Bypassing it here
+    # previously showed the raw crawler text (e.g. Mana Boil's mangled "Consumes 16.65 % additional Spell
+    # Damage" line) in the Skill panel even though the compute path (which already called _get_skills_data)
+    # had the correct 3%-of-Max-Mana consume — a display-only bug, not a stat-computation bug. See
+    # .wolf/buglog.json "mana-boil-tooltip-bypasses-override".
+    skills_by_id_raw = _get_skills_data(active)
+    if not skills_by_id_raw:
         return {"season": active, "skills": []}
     from engine.tooltip import build_tooltip
     # Which skills CAN contribute to the build's total DPS. Dev-set: an explicit `dps_eligible` in the skill
@@ -1688,7 +1694,7 @@ def get_skills():
     # do not). The user then toggles inclusion per equipped skill (countInDps).
     _DPS_TYPES = {"active_skill", "modularization_skill"}
     skills = []
-    for s in data.get("skills", []):
+    for s in skills_by_id_raw.values():
         out = dict(s)   # enrich a copy; never mutate the loaded store
         out["dps_eligible"] = bool(s["dps_eligible"]) if "dps_eligible" in s else (s.get("skill_type") in _DPS_TYPES)
         # Buff-passive flag: an Aura/Focus-tagged passive grants player buffs (aura_resolver) — lets the UI

@@ -28,12 +28,27 @@ import re
 # with Empower Effect (it's an Empower skill) — that scaling is applied downstream by apply_empower_buffs, so the
 # numbers here are the UNSCALED base values.
 SKILL_OVERRIDES: dict[str, dict] = {
+    # DURABLE NOTE (owner-confirmed 2026-07-16, .wolf/buglog.json bug-253): the crawler's mangled line —
+    # "Consumes 16.65 % additional Spell Damage while the skill lasts Mana every second" — is ALWAYS wrong as
+    # Mana Boil's consume, no matter what season re-crawls it. 16.65% is the Lv20 Empower-scaled Euphoria
+    # Spell-Damage bonus (simple_description gives 10% at Lv1; max_level is 20 in both the SS12 and SS13
+    # catalogs, so there is no Lv21 rank — do not extrapolate one) glued by the crawler onto the "Consumes … Mana
+    # every second" clause. The TRUE, in-game-confirmed consume is "3% of Max Mana every second" at EVERY rank
+    # (it does not scale with skill level — only Empower Effect scales it, same as the Spell-Damage buff). If a
+    # future recrawl reproduces text containing "Consumes 16.65 % additional Spell Damage" (or any other
+    # percentage glued onto the Spell-Damage clause instead of the Mana clause), `expects_contains` below will
+    # still match and this override will keep re-applying the correction — do NOT "fix" this by changing the
+    # consume percentage to whatever the crawler reports next; re-verify the 3%-of-Max-Mana figure in-game
+    # before ever changing it. If `expects_contains` ever stops matching (snippet_gone in
+    # apply_skill_overrides()), the override is skipped and surfaced as a manual-review warning instead of
+    # silently reapplying a possibly-stale correction — that's the intended fail-safe, not a bug.
     "mana_boil": {
         "authored_season": "SS12",
         "reason": ("Crawler merged the consume clause into the Spell Damage clause "
                    "('Consumes 16.65 % additional Spell Damage while the skill lasts Mana every second'). "
                    "Truth: consume is 3% of Max Mana every second at ALL ranks; Euphoria is +16.65% additional "
-                   "Spell Damage at Lv20 (10% at Lv1, 17% at Lv21). Both scale with Empower Effect."),
+                   "Spell Damage at Lv20 (10% at Lv1; max_level is 20, no Lv21 rank exists). Both scale with "
+                   "Empower Effect."),
         "expects_contains": "Consumes 16.65 % additional Spell Damage",
         "detailed_description": [
             "Gains Euphoria upon casting the skill:",
