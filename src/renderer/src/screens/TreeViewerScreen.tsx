@@ -10,7 +10,10 @@ import { ModifierBadge, useConsumedStatSet, useConsumableUniverse, type Modifier
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
 import { TooltipShell } from '../components/tooltip/TooltipShell'
 import { NodeTooltipBody } from '../components/tooltip/bodies/NodeTooltipBody'
-import { useDamageDelta, withNodePoints, withPrismBoxPoints } from '../components/tooltip/useDamageDelta'
+import {
+  useDamageDelta, withNodePoints, withPrismBoxPoints, withNodeStatesMap, type LabeledDelta,
+} from '../components/tooltip/useDamageDelta'
+import { nodeThreshold, diffAdded, diffRemoved, nodeStatesSignature } from '../utils/passiveTreeDiff'
 
 const COLS = 7
 const ROWS = 5
@@ -23,12 +26,39 @@ const HEADER = 42
 const CELL_W = VW / COLS
 const CELL_H = (VH - HEADER) / ROWS
 const NODE_R = 26
+// The allocation arc is gone (2026-07-16 restructure) — allocation is now the node's FILL PROPORTION itself
+// (see bodyFill/the fill-wipe rect in TreeNodeG), and the rarity ring alone owns the outer border, bolder
+// than it's ever been now that it isn't sharing radius with a meter. Three channels, three meanings, zero
+// overlap: fill = points, ring = rarity, connectors = path open/closed.
+// Node body / neutral-dark tokens (Task 3b): the OLD unallocated fill (#0e1230) was ~55% saturated blue-violet
+// — competing with the violet meter instead of receding behind it. Desaturated toward near-neutral dark so the
+// violet fill (unchanged hue, #533483) is the only saturated thing in the node.
+const NODE_EMPTY_FILL = '#1c1c24'
+// Prism marker + search halo: STATIC per-node indicators (shown for however many nodes qualify, not
+// hover-gated), so these are the ones the "bullseye" complaint was actually about — pulled back in now
+// that there's no thick arc to clear (was +10/+13 to clear a 5px arc; the ring alone only needs +1.75px
+// of clearance over its own bolder-but-still-modest stroke).
+const PRISM_MARK_R = NODE_R + 5
+const SEARCH_HALO_R = NODE_R + 8
+// Hover preview rings sit OUTSIDE those — they're transient/hover-only (at most one or two nodes at a time),
+// so a touch more radius here doesn't reinstate the permanent-bullseye problem. Two dedicated, non-overlapping
+// radii so a node that's BOTH previewable-forward (green) and previewable-in-a-cascade (red) at once — a
+// partial (not-full) node whose direct deallocate is blocked (a column-strand dependency today; a threshold
+// break too, if a shipped tree ever gives a node a threshold below its max_points — see the reversePreview
+// comment below and utils/passiveTreeDiff.ts's nodeThreshold doc) — shows both without either winning a
+// color tie-break. The common single-preview case uses the inner radius; the outer slot is only reached
+// when both are active on the same node simultaneously.
+const PREVIEW_R = NODE_R + 11
+const PREVIEW_R_OUTER = NODE_R + 14
 
 function nodeX(col: number) { return col * CELL_W + CELL_W / 2 }
 function nodeY(row: number) { return HEADER + row * CELL_H + CELL_H / 2 }
 function sumPoints(states: Record<string, number>) {
   return Object.values(states).reduce((a, b) => a + b, 0)
 }
+// nodeThreshold/diffAdded/diffRemoved live in utils/passiveTreeDiff.ts (extracted so they're independently
+// unit-testable — see that file's header for the nodeThreshold/max_points independence note). Single
+// definition; allocPrimitives/repairAllocations/the hover preview below all call the imported versions.
 
 const NODE_TYPES = ['Micro Talent', 'Medium Talent', 'Legendary Medium Talent'] as const
 // Prism reflected effect = source effect × (1 + roll/100), where the roll is the prism's value for the SOURCE
@@ -59,24 +89,28 @@ const RARITY_RING_COLOR: Record<string, string> = {
   default: '#d0d0d0',
 }
 
-function nodeColors(node: TreeNode, states: Record<string, number>, locked: boolean) {
+// Only the text color was ever consumed downstream (the node-body fill/border are computed inline in
+// TreeNodeG, from `locked`/`pts`/`full` directly) — this used to also return a dead fill/stroke pair from
+// a third, unused palette; trimmed to the one thing anyone reads.
+function nodeTextColor(node: TreeNode, states: Record<string, number>, locked: boolean): string {
   const pts = states[node.id] ?? 0
   const full = pts >= node.max_points
-  return {
-    fill:   locked ? '#222233' : full ? '#533483' : '#0f3460',
-    stroke: locked ? '#333344' : full ? '#e94560' : '#3a5a9a',
-    text:   locked ? '#444455' : full ? '#ffffff'  : '#e0e0e0',
-  }
+  return locked ? '#444455' : full ? '#ffffff' : '#e0e0e0'
 }
 
 type DebugTool = 'create' | 'type' | 'link'
+
+// A hypothetical multi-node change the hover preview is pricing — a forward "path-to-here" allocation, or
+// a reverse cascade removal. `after` is the COMPLETE resulting node-states map (for withNodeStatesMap);
+// `changed` is the diff (added or removed points) keyed by node id, purely for ring/connector membership.
+interface TreePreview { after: Record<string, number>; changed: Record<string, number>; cost: number }
 
 interface TreeNodeGProps {
   node: TreeNode
   cx: number
   cy: number
   pts: number
-  colors: { fill: string; stroke: string; text: string }
+  textColor: string
   locked: boolean
   isLinkSrc: boolean
   isHit: boolean
@@ -86,31 +120,81 @@ interface TreeNodeGProps {
   onInteract: (node: TreeNode, isRight: boolean) => void
   maxOverride?: number      // raised cap from an Ethereal Prism's over-allocation affix
   inPrismBox?: boolean      // node sits inside a placed Ethereal Prism's effect area
+  previewAdd?: boolean      // this node would gain points under the currently-hovered forward preview
+  previewRemove?: boolean   // this node would lose points under the currently-hovered reverse cascade preview
+  // Non-null ONLY for the node whose id === hoveredNodeId (the render-site call narrows every other node
+  // to `null` — 2026-07-16 perf fix, see the render-site comment). Two benefits: (1) React.memo sees a
+  // stable `null` reference for the 34 non-hovered nodes across a hover-only re-render instead of a fresh
+  // shared TreePreview object every tick, and (2) it retires a suspected race the correctness review raised
+  // — this used to be the SAME object passed to every node, gated only by that node's OWN tip.open, which
+  // assumed at most one node's tooltip could be open at once; now a node whose local tip.open is transiently
+  // true but whose id no longer matches hoveredNodeId (e.g. mid mouse-cross between two adjacent nodes)
+  // gets `null` here regardless, so showForward/showReverse (which also require `!!forwardPreview`) can't
+  // price or display its neighbor's preview even in that frame.
+  forwardPreview?: TreePreview | null
+  reversePreview?: TreePreview | null
+  onHoverChange: (id: string, open: boolean) => void
 }
 
 // A single passive-tree node (SVG group) plus its hover tooltip, routed through the shared
 // floating-tooltip primitive. Element-anchored; damage-delta band wired (NYI until backend).
-function TreeNodeG({
-  node, cx, cy, pts, colors, locked, isLinkSrc, isHit, isSearching, processing, debugMode, onInteract,
-  maxOverride, inPrismBox,
+//
+// Wrapped in React.memo: hover state used to be local to each node's own useFloatingTooltip, but it's now
+// lifted to the parent (hoveredNodeId, tracked via onHoverChange below) so the connector <line>s can know
+// which edges belong to the previewed path/cascade — which means the PARENT re-renders on every hover
+// transition, recreating props for all 35 nodes. The parent only passes a non-null forwardPreview/
+// reversePreview to the ONE node that's actually hovered (see the render-site call below) — every other
+// node always gets the same `null` reference for both — so memo's default shallow-prop comparison is
+// enough to skip the other 34 on a hover-only re-render (previewAdd/previewRemove are already primitive
+// booleans, so those compare fine on their own).
+function TreeNodeGImpl({
+  node, cx, cy, pts, textColor, locked, isLinkSrc, isHit, isSearching, processing, debugMode, onInteract,
+  maxOverride, inPrismBox, previewAdd, previewRemove, forwardPreview, reversePreview, onHoverChange,
 }: TreeNodeGProps) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
   const activeSlot = useBuildStore(s => s.activeSlot)
-  // Marginal per-point delta: step the hovered node by +1 (or -1 when maxed) vs the current build.
-  // Derive the current points from the SAME store snapshot used for the baseline — NOT the render-time
-  // `pts` — so the step is always exactly one rank off the base. Using `pts` (local tree state) here
-  // can desync from the store the engine prices against, yielding a 2-rank delta or a zeroed one
-  // (bug-129 class).
+  // Tell the parent when THIS node is the hovered one (tied to the same floating-ui hover state that opens
+  // the tooltip, not a separate mouseenter listener, so the two can never desync). The functional guard in
+  // the parent's setter (`cur === id ? null : cur`) protects against a stale close firing after a new node's
+  // open when the mouse crosses two adjacent nodes.
+  useEffect(() => { onHoverChange(node.id, tip.open) }, [tip.open, node.id, onHoverChange])
   const maxPts = maxOverride ?? node.max_points     // Ethereal over-allocation raises the cap
   const full = pts >= maxPts
   const icon = iconUrl('talent_tree', node.icon_url)
-  // Rarity ring = the node border (white micro / blue medium / orange legendary). Always shown — even on
-  // locked nodes — so rarity reads at a glance; lock/allocation state comes from the dimmed icon + the
-  // absence of the outer progress arc instead. Allocation is a separate OUTER arc so the two never overlap.
+  // Rarity ring = the node border (white micro / blue medium / orange legendary), the ONLY thing the outer
+  // ring carries now that allocation moved to the fill itself — always shown, even on locked nodes, so
+  // rarity reads at a glance regardless of allocation state.
   const rarityColor = RARITY_RING_COLOR[node.node_type] ?? RARITY_RING_COLOR.default
   const frac = maxPts > 0 ? Math.min(1, pts / maxPts) : 0
-  const delta = useDamageDelta(
-    tip.open ? {
+
+  // Marginal delta: normally a plain ±1 step (current behavior, preserved as the fallback for a fully-maxed
+  // node whose single point can be legally refunded — no path/cascade applies there). When a forward path or
+  // a real reverse cascade IS being previewed, price that instead — a multi-node change can span more than
+  // one rank, so the ±1 step would silently under/over-report it (see bug-139: base+step must always be
+  // priced from the SAME states, exactly one hypothetical apart — a multi-node path needs its own transform,
+  // not the single-node one, to keep that guarantee).
+  const showForward = tip.open && !!forwardPreview
+  const showReverse = tip.open && !!reversePreview
+  // Cache key: a signature of the resulting AFTER map, not the scalar point-cost — two different paths to
+  // the same node can cost the same total points while landing on different node-state maps (especially in
+  // previewMode, where in-place nodeStates edits never bump buildVersion), so a cost-only key would let the
+  // second hover silently reuse the first's stale delta (bug-tree-hover-preview-cost-keyed-cache-collision).
+  const forwardDelta = useDamageDelta(
+    showForward ? {
+      key: `nodepath:${activeSlot}:${node.id}:${nodeStatesSignature(forwardPreview!.after)}`,
+      step: s => withNodeStatesMap(s, activeSlot, forwardPreview!.after),
+    } : null,
+    showForward,
+  )
+  const reverseDelta = useDamageDelta(
+    showReverse ? {
+      key: `nodecascade:${activeSlot}:${node.id}:${nodeStatesSignature(reversePreview!.after)}`,
+      step: s => withNodeStatesMap(s, activeSlot, reversePreview!.after),
+    } : null,
+    showReverse,
+  )
+  const fallbackDelta = useDamageDelta(
+    tip.open && !showForward && !showReverse ? {
       key: `node:${activeSlot}:${node.id}`,
       step: s => {
         const cur = s.slots[activeSlot]?.nodeStates?.[node.id] ?? 0
@@ -118,8 +202,25 @@ function TreeNodeG({
         return withNodePoints(s, activeSlot, node.id, tgt)
       },
     } : null,
-    tip.open,
+    tip.open && !showForward && !showReverse,
   )
+  const labeledDeltas: LabeledDelta[] = []
+  if (showForward) {
+    labeledDeltas.push({ label: `+${forwardPreview!.cost} pt${forwardPreview!.cost === 1 ? '' : 's'}`, delta: forwardDelta })
+  }
+  if (showReverse) {
+    labeledDeltas.push({ label: `-${reversePreview!.cost} pt${reversePreview!.cost === 1 ? '' : 's'}`, delta: reverseDelta })
+  }
+  // Node body: the EMPTY color underneath the fill-wipe (drawn just below). `locked` (column-gated) stays its
+  // own dark shade regardless of point count — an access state, not a fill state.
+  const bodyFill = locked ? '#191925' : NODE_EMPTY_FILL
+  // Preview ring radii: both get their OWN dedicated slot (no color-precedence tie-break) — see PREVIEW_R /
+  // PREVIEW_R_OUTER above. A node that's simultaneously reachable-forward AND would cascade in reverse (not
+  // full, and its own direct deallocate is blocked — a column-strand dependency today) shows both, red inner /
+  // green outer, rather than one hiding the other.
+  const bothPreview = !!previewAdd && !!previewRemove
+  const removeRingR = PREVIEW_R
+  const addRingR = bothPreview ? PREVIEW_R_OUTER : PREVIEW_R
   return (
     <>
       <g
@@ -132,7 +233,7 @@ function TreeNodeG({
         onContextMenu={e => { e.preventDefault(); onInteract(node, true) }}
       >
         {isSearching && isHit && (
-          <circle cx={cx} cy={cy} r={NODE_R + 9}
+          <circle cx={cx} cy={cy} r={SEARCH_HALO_R}
             fill="rgba(233,192,70,0.12)"
             stroke="#e9c046"
             strokeWidth={2}
@@ -141,15 +242,47 @@ function TreeNodeG({
         )}
         {/* Inside a placed Ethereal Prism's effect area: a violet marker ring (modify-in-place). */}
         {inPrismBox && (
-          <circle cx={cx} cy={cy} r={NODE_R + 7} fill="none" stroke="#c79bff" strokeWidth={1.5}
+          <circle cx={cx} cy={cy} r={PRISM_MARK_R} fill="none" stroke="#c79bff" strokeWidth={1.5}
             strokeDasharray="3 3" opacity={0.55} style={{ pointerEvents: 'none' }} />
         )}
-        {/* Node body + rarity-colored border (white/blue/orange by type). */}
+        {/* Hover preview rings: green = this node would GAIN points via the forward path-to-here preview,
+            red = it would LOSE points via the reverse cascade preview (real cascades only — see
+            reversePreview's gating in the parent). Both can render at once (see bothPreview above) —
+            separate radii so one never hides the other. */}
+        {previewRemove && (
+          <circle cx={cx} cy={cy} r={removeRingR} fill="none"
+            stroke="#e94560" strokeWidth={1.5}
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+        {previewAdd && (
+          <circle cx={cx} cy={cy} r={addRingR} fill="none"
+            stroke="#6be946" strokeWidth={1.5}
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+        {/* Node body: EMPTY base circle (locked shade, or the desaturated near-neutral NODE_EMPTY_FILL) plus,
+            when unlocked, a bottom-up violet WIPE clipped to the same circle — the fill level IS the meter now
+            (replaces the old separate progress arc). Border is the rarity ring, alone on its radius. */}
         <circle cx={cx} cy={cy} r={NODE_R}
-          fill={isLinkSrc ? '#2a4a2a' : (locked ? '#191925' : '#0e1230')}
+          fill={isLinkSrc ? '#2a4a2a' : bodyFill}
           stroke={isLinkSrc ? '#6be946' : rarityColor}
-          strokeWidth={node.node_type === 'Legendary Medium Talent' ? 3 : 2.5}
+          strokeWidth={node.node_type === 'Legendary Medium Talent' ? 5 : 4}
         />
+        {!locked && pts > 0 && (
+          <>
+            <clipPath id={`nfill-${node.id}`}><circle cx={cx} cy={cy} r={NODE_R} /></clipPath>
+            {/* Height = frac of the full diameter, anchored to the bottom of the circle; the clip truncates it
+                into a level "liquid" line inside the circular vessel instead of a literal rectangle. */}
+            <rect
+              x={cx - NODE_R} y={cy + NODE_R - 2 * NODE_R * frac}
+              width={NODE_R * 2} height={2 * NODE_R * frac + 1}
+              fill="#533483"
+              clipPath={`url(#nfill-${node.id})`}
+              style={{ pointerEvents: 'none' }}
+            />
+          </>
+        )}
         {icon && (
           <>
             <clipPath id={`nclip-${node.id}`}><circle cx={cx} cy={cy} r={NODE_R - 3} /></clipPath>
@@ -159,34 +292,20 @@ function TreeNodeG({
               width={(NODE_R - 3) * 2} height={(NODE_R - 3) * 2}
               clipPath={`url(#nclip-${node.id})`}
               preserveAspectRatio="xMidYMid slice"
-              // Allocated nodes show the icon bright; locked/empty are dimmed so the tree reads at a glance.
-              opacity={locked ? 0.22 : full ? 0.95 : 0.5}
+              // Locked/empty stay dimmed. Maxed is fully opaque (solid violet behind it, no boundary to muddy).
+              // Partial (1..maxPts-1) is bumped up from the old flat 0.5 to 0.75 — the fill boundary now passes
+              // BEHIND the icon at those ranks (it didn't before: the old 3-state fill was flat across the
+              // whole circle), so a more opaque icon reads consistently over the two-tone body instead of
+              // showing a visible seam through translucent icon art.
+              opacity={locked ? 0.22 : full ? 0.95 : pts > 0 ? 0.75 : 0.5}
               style={{ pointerEvents: 'none' }}
             />
-          </>
-        )}
-        {/* Allocation = outer progress arc on its own radius, so it never overlaps the rarity border.
-            Faint full track + a red arc filled to pts/max (starts at 12 o'clock). */}
-        {!locked && (
-          <>
-            <circle cx={cx} cy={cy} r={NODE_R + 4}
-              fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={2.5}
-              style={{ pointerEvents: 'none' }}
-            />
-            {pts > 0 && (
-              <circle cx={cx} cy={cy} r={NODE_R + 4}
-                fill="none" stroke="#e94560" strokeWidth={2.5}
-                pathLength={1} strokeDasharray={`${frac} 1`} strokeLinecap="round"
-                transform={`rotate(-90 ${cx} ${cy})`}
-                style={{ pointerEvents: 'none' }}
-              />
-            )}
           </>
         )}
         <text
           x={cx} y={cy + 4}
           textAnchor="middle"
-          fill={colors.text}
+          fill={textColor}
           fontSize={11}
           fontWeight="bold"
           fontFamily="Segoe UI"
@@ -202,7 +321,7 @@ function TreeNodeG({
       {tip.open && (
         <FloatingPortal>
           <div className="tooltip tooltip--node" {...tip.floatingProps}>
-            <TooltipShell title={`${node.node_type} ${pts}/${maxPts}`} delta={delta}>
+            <TooltipShell title={`${node.node_type} ${pts}/${maxPts}`} delta={fallbackDelta} deltas={labeledDeltas}>
               <NodeTooltipBody node={node} pts={pts} />
             </TooltipShell>
           </div>
@@ -211,6 +330,7 @@ function TreeNodeG({
     </>
   )
 }
+const TreeNodeG = React.memo(TreeNodeGImpl)
 
 // A reflected COPY rendered in an Inverse Image's mirror box: shows the SOURCE node (point-reflected from the
 // other side), allocatable with broken connection-prereqs (only the column threshold gates it). Its own tooltip
@@ -244,28 +364,31 @@ function ReflectedNodeG({ col, row, src, pts, unlocked, posKey, mult, prismId, o
         onClick={e => { e.preventDefault(); onAlloc(true) }}
         onContextMenu={e => { e.preventDefault(); onAlloc(false) }}>
         {/* Reflected-copy marker ring (violet, dashed) */}
-        <circle cx={cx} cy={cy} r={NODE_R + 7} fill="none" stroke="#c79bff" strokeWidth={1.5}
+        <circle cx={cx} cy={cy} r={PRISM_MARK_R} fill="none" stroke="#c79bff" strokeWidth={1.5}
           strokeDasharray="3 3" opacity={0.6} style={{ pointerEvents: 'none' }} />
-        <circle cx={cx} cy={cy} r={NODE_R} fill={unlocked ? '#0e1230' : '#191925'}
-          stroke={rarity} strokeWidth={src.node_type === 'Legendary Medium Talent' ? 3 : 2.5} />
+        {/* Same fill-is-the-meter treatment as the normal node (TreeNodeG): the arc is gone, the rarity ring
+            alone owns the border (bolder), and allocation reads as a bottom-up violet wipe of the body. */}
+        <circle cx={cx} cy={cy} r={NODE_R} fill={unlocked ? NODE_EMPTY_FILL : '#191925'}
+          stroke={rarity} strokeWidth={src.node_type === 'Legendary Medium Talent' ? 5 : 4} />
+        {unlocked && pts > 0 && (
+          <>
+            <clipPath id={`rfill-${posKey}`}><circle cx={cx} cy={cy} r={NODE_R} /></clipPath>
+            <rect
+              x={cx - NODE_R} y={cy + NODE_R - 2 * NODE_R * frac}
+              width={NODE_R * 2} height={2 * NODE_R * frac + 1}
+              fill="#533483"
+              clipPath={`url(#rfill-${posKey})`}
+              style={{ pointerEvents: 'none' }}
+            />
+          </>
+        )}
         {icon && (
           <>
             <clipPath id={`rclip-${posKey}`}><circle cx={cx} cy={cy} r={NODE_R - 3} /></clipPath>
             <image href={icon} x={cx - (NODE_R - 3)} y={cy - (NODE_R - 3)}
               width={(NODE_R - 3) * 2} height={(NODE_R - 3) * 2} clipPath={`url(#rclip-${posKey})`}
-              preserveAspectRatio="xMidYMid slice" opacity={!unlocked ? 0.22 : full ? 0.95 : 0.5}
+              preserveAspectRatio="xMidYMid slice" opacity={!unlocked ? 0.22 : full ? 0.95 : pts > 0 ? 0.75 : 0.5}
               style={{ pointerEvents: 'none' }} />
-          </>
-        )}
-        {unlocked && (
-          <>
-            <circle cx={cx} cy={cy} r={NODE_R + 4} fill="none" stroke="rgba(255,255,255,0.08)"
-              strokeWidth={2.5} style={{ pointerEvents: 'none' }} />
-            {pts > 0 && (
-              <circle cx={cx} cy={cy} r={NODE_R + 4} fill="none" stroke="#c79bff" strokeWidth={2.5}
-                pathLength={1} strokeDasharray={`${frac} 1`} strokeLinecap="round"
-                transform={`rotate(-90 ${cx} ${cy})`} style={{ pointerEvents: 'none' }} />
-            )}
           </>
         )}
         <text x={cx} y={cy + 4} textAnchor="middle" fill="#fff" fontSize={11} fontWeight="bold"
@@ -576,9 +699,9 @@ export default function TreeViewerScreen({
     for (const n of treeData.nodes) if ((next[n.id] ?? 0) > effMax(n)) next[n.id] = effMax(n)
     const incoming: Record<string, string[]> = {}
     for (const { from, to } of treeData.connections) (incoming[to] ??= []).push(from)
-    const byId = Object.fromEntries(treeData.nodes.map(n => [n.id, n]))
+    const byId = nodeIndex
     const broken = new Set(brokenIds)
-    const thr = (n: TreeNode) => n.node_type === 'Legendary Medium Talent' ? 1 : 3
+    const thr = nodeThreshold
     let changed = true
     while (changed) {
       changed = false
@@ -608,17 +731,26 @@ export default function TreeViewerScreen({
     return out
   }
 
+  // Node-id index, memoized off treeData alone (not rebuilt per allocPrimitives() call). Perf prerequisite for
+  // the hover preview below: tryLocalAllocate/solvePathTo/cascadeRemove all call allocPrimitives(), and hover
+  // now triggers those on every mouseenter across the tree (not just on click), so rebuilding this
+  // Object.fromEntries-equivalent from scratch each time would have added up fast.
+  const nodeIndex = useMemo(() => {
+    const byId: Record<string, TreeNode> = {}
+    for (const n of (treeData?.nodes ?? [])) byId[n.id] = n
+    return byId
+  }, [treeData])
+
   // Pure allocation primitives mirroring the backend validator (models/passive_tree.py). Snapshot the prism-
   // derived inputs once; every helper takes an explicit `states` map so we can simulate on working copies.
   const allocPrimitives = () => {
     const nodes = treeData?.nodes ?? []
     const conns = treeData?.connections ?? []
-    const byId: Record<string, TreeNode> = {}
-    for (const n of nodes) byId[n.id] = n
+    const byId = nodeIndex
     const broken = new Set(prismBrokenIds())
     const maxOv = prismMaxOverrides()
     const extraCol = prismExtraColumnPoints()
-    const thr = (n: TreeNode) => (n.node_type === 'Legendary Medium Talent' ? 1 : 3)
+    const thr = nodeThreshold
     const effMax = (id: string) => maxOv[id] ?? (byId[id]?.max_points ?? 0)
     const colPts = (st: Record<string, number>, col: number): number => {
       let s = extraCol[col] ?? 0
@@ -781,6 +913,17 @@ export default function TreeViewerScreen({
     }
   }
 
+  // Right-click "remove, cascading if needed": force nodeId down by 1, then repair the WHOLE tree against the
+  // same prism-derived caps/broken-ids the normal allocator uses — repairAllocations already cascades off
+  // anything no longer legal (an unmet prereq threshold, or a now-unaffordable column unlock), so reuse it
+  // rather than re-deriving the same rule set a third time. Returns null if there's nothing to remove.
+  const cascadeRemove = (nodeId: string): Record<string, number> | null => {
+    const cur = nodeStates[nodeId] ?? 0
+    if (cur <= 0) return null
+    const tentative = { ...nodeStates, [nodeId]: cur - 1 }
+    return repairAllocations(tentative, prismMaxOverrides(), prismBrokenIds())
+  }
+
   const handleClick = (nodeId: string, action: 'allocate' | 'deallocate') => {
     const res = tryLocalAllocate(nodeId, action)
     if (res.allowed && res.nodeStates) { applyNodeStates(res.nodeStates); return }
@@ -789,10 +932,58 @@ export default function TreeViewerScreen({
       const path = solvePathTo(nodeId)
       if (path) { applyNodeStates(path); return }
     }
+    // A direct deallocate blocked by a stranded column / orphaned dependent (not the trivial "already 0" case)
+    // → cascade-remove the full set that has to go, mirroring the allocate-side auto-fill above. This is the
+    // fix for the old pain point: right-click on an upstream node used to just fail and flash a reason, forcing
+    // the user to walk the chain leaf-first by hand.
+    if (action === 'deallocate' && res.reason && !res.reason.includes('already has 0 points')) {
+      const cascade = cascadeRemove(nodeId)
+      if (cascade) { applyNodeStates(cascade); return }
+    }
     flash(res.reason ?? (action === 'allocate'
       ? 'Cannot allocate — check column unlock & prerequisites.'
       : 'Cannot remove — would break a prerequisite.'))
   }
+
+  // ── Hover preview (forward path-to / reverse cascade-remove) ────────────────────────────────
+  // Lifted to the parent (not computed per-node) because the connector <line>s are drawn once in the parent
+  // SVG and need to know which edges belong to the currently-previewed path/cascade. `hoveredNodeId` is kept
+  // in lockstep with each TreeNodeG's own tooltip-open state (see TreeNodeG's onHoverChange effect), not a
+  // separate mouseenter listener, so there's exactly one source of truth for "what's hovered".
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
+  const setHovered = useCallback((id: string, isOpen: boolean) => {
+    setHoveredNodeId(cur => (isOpen ? id : (cur === id ? null : cur)))
+  }, [])
+
+  // Forward: what allocating `hoveredNodeId` would actually do — mirrors handleClick's own allocate branch
+  // (direct allocate first, solvePathTo fallback second) so the preview never lies about what a click will do.
+  const forwardPreview = useMemo((): TreePreview | null => {
+    if (!hoveredNodeId) return null
+    const node = nodeIndex[hoveredNodeId]
+    if (!node) return null
+    const direct = tryLocalAllocate(hoveredNodeId, 'allocate')
+    let after: Record<string, number> | null = null
+    if (direct.allowed && direct.nodeStates) after = direct.nodeStates
+    else if (direct.reason && !direct.reason.includes('at max')) after = solvePathTo(hoveredNodeId)
+    if (!after) return null
+    const changed = diffAdded(nodeStates, after)
+    if (Object.keys(changed).length === 0) return null
+    return { after, changed, cost: Object.values(changed).reduce((a, b) => a + b, 0) }
+  }, [hoveredNodeId, nodeStates, nodeIndex, treePrism])
+
+  // Reverse: only populated when removing WOULD cascade (tryLocalAllocate's direct deallocate is blocked) — a
+  // plain 3/3 → 2/3 with no dependents must stay silent (task requirement: no red on every hover).
+  const reversePreview = useMemo((): TreePreview | null => {
+    if (!hoveredNodeId) return null
+    if ((nodeStates[hoveredNodeId] ?? 0) <= 0) return null
+    const direct = tryLocalAllocate(hoveredNodeId, 'deallocate')
+    if (direct.allowed) return null
+    const after = cascadeRemove(hoveredNodeId)
+    if (!after) return null
+    const changed = diffRemoved(nodeStates, after)
+    if (Object.keys(changed).length === 0) return null
+    return { after, changed, cost: Object.values(changed).reduce((a, b) => a + b, 0) }
+  }, [hoveredNodeId, nodeStates, nodeIndex, treePrism])
 
   // ── Debug handlers ─────────────────────────────────────────────────────────
 
@@ -1277,6 +1468,22 @@ export default function TreeViewerScreen({
     setPlacingPrism(null)
   }
 
+  // Stable identity for TreeNodeG's `onInteract` prop (2026-07-16 review-performance fix, part 2).
+  // `handleNodeInteract` closes over debugMode/debugTool/handleClick/tryLocalAllocate/etc — none of it
+  // useCallback'd, and stabilizing that whole ~8-function allocation chain (so ITS identity only changes
+  // when something it actually depends on changes) is a much larger refactor than this fix round calls for.
+  // Standard workaround: fold the placingPrism branch in HERE (not at the render site, where a ternary
+  // would reintroduce a fresh arrow every render and re-break the memo) so there's a single "what interacting
+  // with a node does right now" value, stash it in a ref updated every render (always current, never stale),
+  // and hand TreeNodeG a useCallback with an EMPTY dep array that only ever reads through the ref. The
+  // returned function's identity is then permanently stable — it's the ref indirection, not the dep array,
+  // doing the work, since the real behavior legitimately changes every render (debugMode, placingPrism, etc).
+  const currentInteract: (node: TreeNode, isRight: boolean) => void =
+    placingPrism ? (n) => placePrismAt(n) : handleNodeInteract
+  const interactRef = useRef(currentInteract)
+  interactRef.current = currentInteract
+  const stableInteract = useCallback((n: TreeNode, isRight: boolean) => interactRef.current(n, isRight), [])
+
   const removePrism = () => {
     if (!treePrism) return
     if (treePrism.kind === 'inverse_image') {
@@ -1358,7 +1565,16 @@ export default function TreeViewerScreen({
         )}
 
         <div className="viewer-main">
-          <div className="viewer-canvas">
+          {/* Inline, not a `.viewer-canvas` CSS rule — index.css is off-limits right now (the owner has a
+              second, unrelated conversation live in it building a points-out-of-115 display). Scoped to just
+              this screen's canvas, not the app-wide `--bg` token (#1a1a2e, ~27% saturated navy) — desaturated
+              near-neutral AND pushed darker than NODE_EMPTY_FILL (#1c1c24) on purpose: the empty node body
+              used to be darker than the canvas (#0e1230 under the old #1a1a2e), reading as recessed; now that
+              the empty fill is a touch lighter, the canvas has to go darker still for nodes to read as raised
+              chips rather than holes. Inline style (not an SVG <rect>) so it also covers `.viewer-canvas`'s
+              4px/8px padding strip — a rect confined to the SVG's own bounds would leave that strip showing
+              the old page background and read as an unintended border. */}
+          <div className="viewer-canvas" style={{ background: '#101014' }}>
             <svg
               viewBox={`0 0 ${VW} ${VH}`}
               width="100%"
@@ -1396,10 +1612,39 @@ export default function TreeViewerScreen({
                 const oy = dist ? dy / dist * NODE_R : 0
                 const isLinked = debugMode && debugTool === 'link' &&
                   (from === linkFrom || to === linkFrom)
+                // Preview overlays win over the plain lit/dim state coloring, but never over the debug link
+                // highlight. Re-examined 2026-07-16: this tie-break was originally justified by a false
+                // invariant ("thr(n) === n.max_points always" — not true, see nodeThreshold's doc comment in
+                // utils/passiveTreeDiff.ts) and that justification undersold how often an edge lands in BOTH
+                // diffs. hoveredNodeId itself is a member of both forwardPreview.changed and
+                // reversePreview.changed whenever the two previews are simultaneously non-null (forward always
+                // adds +1 to it; a real reverse cascade always removes from it first) — so EVERY edge touching
+                // hoveredNodeId goes both-tagged in that situation, at the exact same frequency as the node-level
+                // bothPreview case (TreeNodeG), not rarer than it. What IS genuinely rare is two DIFFERENT nodes
+                // — one added via a forward path-fill, one dropped via a reverse cascade (column-strand or,
+                // once a shipped tree diverges thr from max_points, a threshold break) — happening to share a
+                // direct edge; that coincidence doesn't depend on hoveredNodeId at all. Either way, a LINE
+                // (unlike TreeNodeG's node, which has two separate ring radii to show both at once) can only
+                // carry one stroke color, so a plain precedence tie is the right shape of fix regardless of
+                // which case triggers it — kept as reverse-wins (not worth a second offset line for what's
+                // still one edge's ambiguity) since it's more useful to flag "this connection is about to
+                // break" than "this connection would extend" when both are momentarily true.
+                const inReverse = !!reversePreview &&
+                  (reversePreview.changed[from] != null || reversePreview.changed[to] != null)
+                const inForward = !!forwardPreview &&
+                  (forwardPreview.changed[from] != null || forwardPreview.changed[to] != null)
+                // Lit = the prereq this edge depends on is actually satisfied (the "from" node has reached its
+                // threshold) — dimmed DOWN when it isn't, so the allocated set reads as one connected shape
+                // instead of 25 nodes read one at a time.
+                const satisfied = (nodeStates[from] ?? 0) >= nodeThreshold(n1)
+                const stroke = isLinked ? '#e9c046'
+                  : inReverse ? '#e94560'
+                  : inForward ? '#6be946'
+                  : satisfied ? '#6b78b8' : '#2a3050'
                 return (
                   <line key={i}
                     x1={x1 + ox} y1={y1 + oy} x2={x2 - ox} y2={y2 - oy}
-                    stroke={isLinked ? '#e9c046' : '#6b78b8'}
+                    stroke={stroke}
                     strokeWidth={isLinked ? 3.5 : 3}
                     strokeLinecap="round"
                   />
@@ -1438,7 +1683,7 @@ export default function TreeViewerScreen({
                 const cy = nodeY(node.row)
                 const pts = nodeStates[node.id] ?? 0
                 const locked = !isColUnlocked(node.column)
-                const colors = nodeColors(node, nodeStates, locked)
+                const textColor = nodeTextColor(node, nodeStates, locked)
                 const isLinkSrc = debugMode && debugTool === 'link' && linkFrom === node.id
                 const isHit = !isSearching || searchHits.has(node.id)
                 return (
@@ -1448,16 +1693,25 @@ export default function TreeViewerScreen({
                     cx={cx}
                     cy={cy}
                     pts={pts}
-                    colors={colors}
+                    textColor={textColor}
                     locked={locked}
                     isLinkSrc={isLinkSrc}
                     isHit={isHit}
                     isSearching={isSearching}
                     processing={processing}
                     debugMode={debugMode}
-                    onInteract={placingPrism ? (n => placePrismAt(n)) : handleNodeInteract}
+                    onInteract={stableInteract}
                     maxOverride={ethMaxOverrides[node.id]}
                     inPrismBox={ethBoxNodeIds.has(node.id)}
+                    previewAdd={!!forwardPreview?.changed[node.id]}
+                    previewRemove={!!reversePreview?.changed[node.id]}
+                    // Only the actually-hovered node ever prices a preview delta (see showForward/showReverse,
+                    // both gated on tip.open), so every OTHER node gets the same `null` reference here on every
+                    // render — a stable prop React.memo's shallow comparison can skip on, instead of a fresh
+                    // TreePreview object identity that would defeat memo for all 35 nodes on every hover tick.
+                    forwardPreview={node.id === hoveredNodeId ? forwardPreview : null}
+                    reversePreview={node.id === hoveredNodeId ? reversePreview : null}
+                    onHoverChange={setHovered}
                   />
                 )
               })}
