@@ -363,7 +363,7 @@ function Breakdown({ title, keys, children, block, total, totalUnit, extra, form
 
 const DTYPE_COLOR: Record<string, string> = {
   physical:  '#e0d0b0',
-  fire:      '#e87030',
+  fire:      'var(--fire)',
   cold:      '#60b8e8',
   lightning: '#e0d040',
   erosion:   '#80c878',

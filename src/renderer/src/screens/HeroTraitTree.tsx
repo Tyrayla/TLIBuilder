@@ -87,8 +87,8 @@ function TreeNodeCircle({ node, cx, cy, baseR, isRoot, isAllocated, isAllocatabl
         )}
         {active && (
           <>
-            <circle cx={cx + r - 8} cy={cy - r + 8} r={9} fill="#1a3a1a" stroke="#6bcb77" strokeWidth={1.5} />
-            <text x={cx + r - 8} y={cy - r + 11} textAnchor="middle" fontSize={9} fontWeight="bold" fill="#6bcb77"
+            <circle cx={cx + r - 13} cy={cy - r + 13} r={15} fill="#1a3a1a" stroke="#6bcb77" strokeWidth={1.5} />
+            <text x={cx + r - 13} y={cy - r + 18} textAnchor="middle" fontSize={15} fontWeight="bold" fill="#6bcb77"
               style={{ pointerEvents: 'none' }}>✓</text>
           </>
         )}
