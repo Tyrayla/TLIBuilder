@@ -4215,12 +4215,6 @@ span.gear-affix-label {
   line-height: 1.55;
 }
 
-.skill-level-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .skill-level-label {
   font-size: 12px;
   font-weight: 600;
