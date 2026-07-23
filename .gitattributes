@@ -1,0 +1,19 @@
+# Normalize line endings. Repo baseline: git decides text vs binary and stores LF.
+* text=auto
+
+# Generated verification docs (backend/tools/gen_verification_docs.py) are written with
+# encoding="utf-8", newline="\n" and stored LF in the index. Pin eol=lf so core.autocrlf=true
+# stops flip-flopping the working-tree copy to CRLF on every regen (pure churn, not a change).
+# Matches both docs/verification/<id>.md and docs/verification/README.md.
+docs/verification/*.md eol=lf
+
+# Known-binary asset types — never run through text normalization / autocrlf.
+# .webp is the repo's largest tracked binary class (icons under data/ and web-data/).
+*.webp binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.gif binary
+*.woff binary
+*.woff2 binary
