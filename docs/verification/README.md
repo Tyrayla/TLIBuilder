@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**71 entries** — ✅ Confirmed: 13 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 38
+**72 entries** — ✅ Confirmed: 13 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 39
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -78,5 +78,6 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Spirit Magi Growth + stages | — | minion, spirit-magus, growth | ⚠️ Unverified | — | [spirit-magi-growth.md](spirit-magi-growth.md) |
 | Split Shot + supports (spread / Shotgun Effect / channel) | Split Shot | shotgun, projectile, channeled, breakpoint, supports, damage-pool | ⚠️ Unverified | — | [split-shot.md](split-shot.md) |
 | Talent point budget (max allocatable talent points) | — | talent-tree, resource-budget, ui-display | ⚠️ Unverified | — | [talent-point-budget.md](talent-point-budget.md) |
+| Torturer's Touch (Affliction + Reaping) — tuning math and frame-quantization theory | Affliction, Reaping | dot, stacking, true-damage, trigger, breakpoint, tick-rounding, damage-pool | ⚠️ Unverified | — | [torturers-touch-reaping.md](torturers-touch-reaping.md) |
 | Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | 2026-07-06 | [minion-dps-engine.md](minion-dps-engine.md) |
 | Thunder Magus (Spirit Magus) | Summon Thunder Magus | minion, spirit-magus | ⚠️ Unverified | 2026-07-06 | [thunder-magus.md](thunder-magus.md) |
