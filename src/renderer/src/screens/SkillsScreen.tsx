@@ -11,6 +11,8 @@ import {
   getSupportEnergyCost,
   getMaxEnergy,
   hasEffortlessCommandEnergy,
+  computeSkillSlotEligibility,
+  computeInvalidSkillSlots,
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
@@ -134,6 +136,21 @@ function cleanDescLines(lines: string[]): string[] {
 }
 
 function isPassiveSlot(slot: number) { return slot > 5 }
+
+// Copy for an active-slot skill that's currently soft-invalidated (equipped, but its enabling talent/trait
+// isn't). Only two skill tags can ever land here — see computeSkillSlotEligibility in api/client.ts.
+function invalidSlotReason(skillTags: string[]): string {
+  if (skillTags.includes('Focus')) {
+    return 'Focus skills require the Knowledgeable talent to be equipped in an active slot. This skill stays ' +
+      'equipped but contributes nothing until Knowledgeable is selected again or the skill is moved/removed.'
+  }
+  if (skillTags.includes('Spirit Magus')) {
+    return "Spirit Magus skills require Iris's Vigilant Breeze or Growing Breeze base trait to be equipped " +
+      'in an active slot. This skill stays equipped but contributes nothing until that trait is selected ' +
+      'again or the skill is moved/removed.'
+  }
+  return 'This skill cannot occupy an active slot. It stays equipped but contributes nothing.'
+}
 
 // "Family" key: a base skill/support and its Precise variant collapse to the same family, so the catalog can
 // keep only one of a family socketable at once. A Precise variant's item_id is `precise_<base_id>` — but ONLY
@@ -284,8 +301,21 @@ export default function SkillsScreen(_props: Props) {
   const characterLevel = characterLevelFrom(conditionState)
   const prisms = useBuildStore(s => s.prisms)
   const slots = useBuildStore(s => s.slots)
+  const slates = useBuildStore(s => s.slates)
+  const traitId = useBuildStore(s => s.traitId)
+  const beltBlends = useReferenceStore(s => s.beltBlends)
   // +1000 Max Energy comes from a placed Effortless Command Ethereal Prism (≥24 pts) — not a manual toggle.
   const hasPrism = hasEffortlessCommandEnergy(prisms, slots)
+  // Build-state-aware active-slot exemptions (Knowledgeable → Focus, Iris Vigilant Breeze/Growing Breeze →
+  // Spirit Magus) + the resulting soft-invalidated active slots (equipped skill still there, but its
+  // enabling talent/trait isn't) — computed once and shared by the catalog filter below and the per-slot
+  // error UI. `sources` mirrors the four/five core-talent grant paths — see computeSkillSlotEligibility.
+  const skillSlotEligibility = useMemo(
+    () => computeSkillSlotEligibility(traitId, slots, { slates, gear, beltBlends: beltBlends ?? undefined, prisms }),
+    [traitId, slots, slates, gear, beltBlends, prisms])
+  const invalidSkillSlots = useMemo(
+    () => new Set(computeInvalidSkillSlots(equippedSkills, skillSlotEligibility)),
+    [equippedSkills, skillSlotEligibility])
   const cachedSkills = useReferenceStore(s => s.skills)
   const supportSort = useUiPrefs(s => s.supportSort)
   const setSupportSort = useUiPrefs(s => s.setSupportSort)
@@ -341,7 +371,7 @@ export default function SkillsScreen(_props: Props) {
     if (focusedSlot === null) return []
     let base = isPassiveSlot(focusedSlot)
       ? allItems.filter(isPassiveSkillItem)
-      : allItems.filter(isActiveSkillItem)
+      : allItems.filter(s => isActiveSkillItem(s, skillSlotEligibility))
     if (isPassiveSlot(focusedSlot)) {
       // Precise/base aura mutual exclusivity: a base aura and its "Precise: …" variant share a family and
       // can't both be socketed; same-name auras don't double-socket either. Exclude any candidate whose
@@ -363,7 +393,7 @@ export default function SkillsScreen(_props: Props) {
     const visible = matched.filter(s => passesModeledOnly(s.coverage, modeledOnly))
     // Skills always sort alphabetically (a per-skill DPS sort would be inaccurate).
     return [...visible].sort((a, b) => a.name.localeCompare(b.name))
-  }, [allItems, focusedSlot, search, equippedSkills, modeledOnly])
+  }, [allItems, focusedSlot, search, equippedSkills, modeledOnly, skillSlotEligibility])
 
   const supportCatalogItems = useMemo(() => {
     if (focusedSlot === null || focusedSupportIdx === null || !focusedEquipped) return []
@@ -630,10 +660,11 @@ export default function SkillsScreen(_props: Props) {
       {slots.map(slot => {
         const eq = getEquipped(slot)
         const isActive = focusedSlot === slot
+        const invalid = !!eq && invalidSkillSlots.has(slot)
         return (
           <div
             key={slot}
-            className={`skill-slot-row${eq ? ' occupied' : ''}${isActive ? ' active' : ''}`}
+            className={`skill-slot-row${eq ? ' occupied' : ''}${isActive ? ' active' : ''}${invalid ? ' invalid' : ''}`}
             onClick={() => selectSkillSlot(slot)}
           >
             <div className="skill-slot-info">
@@ -643,6 +674,9 @@ export default function SkillsScreen(_props: Props) {
                     <span className="skill-slot-skill-name-text">{eq.name}</span>
                     <CoverageBadge coverage={allItems.find(i => i.item_id === eq.item_id)?.coverage}
                                    detail={allItems.find(i => i.item_id === eq.item_id)?.coverage_detail} />
+                    {invalid && (
+                      <span className="skill-slot-invalid-badge" title={invalidSlotReason(eq.skill_tags)}>!</span>
+                    )}
                   </span>
                 : <span className="skill-slot-empty">Empty</span>}
             </div>
@@ -815,6 +849,9 @@ export default function SkillsScreen(_props: Props) {
             </div>
           </div>
         </div>
+        {invalidSkillSlots.has(focusedSlot) && (
+          <div className="skill-invalid-banner">{invalidSlotReason(focusedEquipped.skill_tags)}</div>
+        )}
         <div className="skill-panel-divider" />
 
         <div className="skill-support-slots-section">

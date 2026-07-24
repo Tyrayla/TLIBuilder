@@ -2021,11 +2021,148 @@ export function isPassiveSkillItem(s: SkillItem): boolean {
   return !isSupportSkillItem(s) && s.skill_tags.some(t => PASSIVE_TAGS.has(t))
 }
 
-export function isActiveSkillItem(s: SkillItem): boolean {
+// ── Two game rules let a normally-passive-tagged skill occupy an ACTIVE skill slot ──────────────────
+// 1. Steel Vanguard's "Knowledgeable" core talent ("Focus Skills can be equipped to Active Skill slots").
+//    Its "Max Divinity Effect: 1" caps how many times the NODE's own effect applies, NOT how many Focus
+//    skills may be equipped — so there is deliberately no count cap here. Like every core talent,
+//    "Knowledgeable" can be GRANTED by any of four sources — mirrors backend/engine/core_talent_resolver.py
+//    `_collect` (tree slot, slate isCore slot, legendary gear "[Name] …" affix, belt blend) — dedup'd
+//    "first wins, counts once" there. A 5th, narrower path exists via a REPLACE-type Ethereal Prism whose
+//    short name matches the talent (backend/engine/prism_core_talents.py); no current-season prism replaces
+//    to "Knowledgeable" (checked SS12 + SS13 `_ethereal_prism.json`), so that path is a forward-compat hook,
+//    not a live one today.
+// 2. Iris's Vigilant Breeze OR Growing Breeze base trait ("Merged Spirit Magi" — active slots hold Spirit
+//    Magus skills). Both trait_ids carry the identical enabling clause in `_hero_traits.json` — confirmed
+//    in-game, both allow it.
+// All are build-state facts, so the active/passive classification needs read access to that state. Computed
+// once via computeSkillSlotEligibility and threaded through as a plain flags object — callers with no build
+// state (or no rule active) simply omit it, which reproduces the old static behavior exactly.
+export interface SkillSlotEligibility {
+  focusActiveEligible: boolean       // "Knowledgeable" granted — Focus skills may occupy active slots
+  spiritMagusActiveEligible: boolean // Iris's Vigilant Breeze or Growing Breeze base trait selected — ditto for Spirit Magus
+}
+const NO_SLOT_ELIGIBILITY: SkillSlotEligibility = { focusActiveEligible: false, spiritMagusActiveEligible: false }
+
+// Additional (optional) build-state sources computeSkillSlotEligibility can check beyond the talent-tree
+// slots it always has — see the four/five-source comment above. Every field is optional so existing callers
+// (and the fixture-driven test suite) that only pass (traitId, slots) keep reproducing the prior
+// tree-slot-only behavior byte-for-byte.
+export interface SkillSlotEligibilitySources {
+  slates?: SavedSlate[]
+  gear?: EquippedGearItem[]
+  // Belt Blends catalog (referenceStore.beltBlends) — needed to resolve a belt's equipped blend talent_id
+  // to the granted talent's display name. Omitted → belt-blend grants of "Knowledgeable" can't be detected
+  // (none exist in the current SS12/SS13 catalogs, so this degrades to today's exact behavior, not a
+  // false invalidation).
+  beltBlends?: BeltBlend[]
+  prisms?: PlacedPrism[]
+}
+
+const KNOWLEDGEABLE_TREE_NAME = 'Steel Vanguard'
+const KNOWLEDGEABLE_TALENT_ID = 'steel_vanguard_knowledgeable'   // core talent display_name_key (data/seasons/*/steel_vanguard.json)
+const KNOWLEDGEABLE_TALENT_NAME = 'Knowledgeable'                // core talent display name — how slates/gear/belt-blend/prism sources grant it
+// Both Iris base traits carry the identical "casting the Active Skill is considered as casting the Trait
+// Skill as well" clause for Spirit Magus skills (data/seasons/*/_hero_traits.json — vigilant_breeze,
+// growing_breeze). Confirmed in-game: both allow a Spirit Magus skill in an active slot.
+const MERGED_SPIRIT_MAGI_TRAIT_IDS = new Set(['vigilant_breeze', 'growing_breeze'])
+
+// Source 2 — a slate slot flagged isCore grants its coreName talent (core_talent_resolver.py `_collect` #2).
+function _slateGrantsTalent(slates: SavedSlate[] | undefined, talentName: string): boolean {
+  return (slates ?? []).some(slate => (slate.slots ?? []).some(sd => sd.isCore && sd.coreName === talentName))
+}
+
+// Source 3 — a legendary gear "[Name] …" bracket-named affix grants the bracketed talent by name
+// (core_talent_resolver.py `_collect` #3). Mirrors statsPayload.ts's grantedTalentsOf/_BRACKET_RE; kept
+// local (not imported) so client.ts never depends on a utils module.
+const _BRACKET_TALENT_RE = /^\s*\[([^\]]+)\]/
+function _gearGrantsTalent(gear: EquippedGearItem[] | undefined, talentName: string): boolean {
+  return (gear ?? []).some(item => (item.affixes ?? []).some(a => {
+    const m = _BRACKET_TALENT_RE.exec(a.raw_text ?? '')
+    return !!m && m[1].trim() === talentName
+  }))
+}
+
+// Source 4 — the belt's equipped blend grants its talent_name (core_talent_resolver.py `_collect` #4).
+// Requires the belt-blend catalog (referenceStore.beltBlends) to resolve talent_id → talent_name; absent
+// catalog → this source contributes nothing (see SkillSlotEligibilitySources.beltBlends doc).
+function _beltBlendGrantsTalent(
+  gear: EquippedGearItem[] | undefined, beltBlends: BeltBlend[] | undefined, talentName: string,
+): boolean {
+  if (!beltBlends || beltBlends.length === 0) return false
+  const blendById = new Map(beltBlends.map(b => [b.talent_id, b]))
+  return (gear ?? []).some(item => {
+    const isBelt = Array.isArray(item.slot) ? item.slot.includes('belt') : item.slot === 'belt'
+    if (!isBelt || !item.beltBlend) return false
+    return blendById.get(item.beltBlend)?.talent_name === talentName
+  })
+}
+
+// Source 5 (narrow) — a REPLACE-type Ethereal Prism named after the talent it replaces
+// (prism_core_talents.py resolve_prism_core_talents, is_replace path), gated the same 24-point threshold as
+// hasEffortlessCommandEnergy above. No current-season prism is named "Knowledgeable" — this only fires if a
+// future season adds one.
+function _prismGrantsTalent(
+  prisms: PlacedPrism[] | undefined, slots: (TreeSlot | null)[], talentName: string,
+): boolean {
+  return (prisms ?? []).some(p => {
+    if (p.kind !== 'ethereal_prism' || p.ethereal?.shortName !== talentName) return false
+    if (!p.ethereal.implicit?.startsWith('Replaces the Core Talent')) return false
+    const ns = slots.find(s => s?.treeName === p.treeName)?.nodeStates ?? {}
+    return Object.values(ns).reduce((a, b) => a + (b || 0), 0) >= 24
+  })
+}
+
+/** Derive the two active-slot exemption flags from current build state (talent-tree slots + selected hero
+ * trait, plus the optional `sources` for the other core-talent grant paths — see SkillSlotEligibilitySources). */
+export function computeSkillSlotEligibility(
+  traitId: string | null,
+  slots: (TreeSlot | null)[],
+  sources: SkillSlotEligibilitySources = {},
+): SkillSlotEligibility {
+  const treeGrantsKnowledgeable = slots.some(sl =>
+    sl?.treeName === KNOWLEDGEABLE_TREE_NAME &&
+    Object.values(sl.coreTalentSelections ?? {}).includes(KNOWLEDGEABLE_TALENT_ID))
+  const focusActiveEligible = treeGrantsKnowledgeable
+    || _slateGrantsTalent(sources.slates, KNOWLEDGEABLE_TALENT_NAME)
+    || _gearGrantsTalent(sources.gear, KNOWLEDGEABLE_TALENT_NAME)
+    || _beltBlendGrantsTalent(sources.gear, sources.beltBlends, KNOWLEDGEABLE_TALENT_NAME)
+    || _prismGrantsTalent(sources.prisms, slots, KNOWLEDGEABLE_TALENT_NAME)
+  return { focusActiveEligible, spiritMagusActiveEligible: !!traitId && MERGED_SPIRIT_MAGI_TRAIT_IDS.has(traitId) }
+}
+
+// Shared by isActiveSkillItem (catalog SkillItem) and the equipped-slot validity check below (which only has
+// an EquippedSkill's own skill_tags, not a full catalog SkillItem) — the single place PASSIVE_TAGS membership
+// gates whether a skill is admissible to an active slot, so the rule is never re-expressed in two places.
+function tagsAdmissibleInActiveSlot(skillTags: string[], eligibility: SkillSlotEligibility): boolean {
+  if (!skillTags.some(t => PASSIVE_TAGS.has(t))) return true
+  if (skillTags.includes('Focus') && eligibility.focusActiveEligible) return true
+  if (skillTags.includes('Spirit Magus') && eligibility.spiritMagusActiveEligible) return true
+  return false
+}
+
+export function isActiveSkillItem(s: SkillItem, eligibility: SkillSlotEligibility = NO_SLOT_ELIGIBILITY): boolean {
   return !isSupportSkillItem(s) &&
-    !isPassiveSkillItem(s) &&
+    tagsAdmissibleInActiveSlot(s.skill_tags, eligibility) &&
     !s.description_lines[0]?.startsWith('Supports') &&
     !s.name.includes(':')
+}
+
+/**
+ * Soft-invalidation check for an ALREADY-EQUIPPED active-slot skill (slots 1-5): still legal given the
+ * current build state? Never used to strip anything — callers use this to flag the slot as an error and to
+ * zero its contribution (invalid_slots in the engine payload), while leaving the equipped skill in place so
+ * the user can fix it by re-adding the talent/trait rather than losing their setup.
+ */
+export function isEquippedActiveSkillValid(skillTags: string[], eligibility: SkillSlotEligibility): boolean {
+  return tagsAdmissibleInActiveSlot(skillTags, eligibility)
+}
+
+/** All active-slot (1-5) indices whose equipped skill is currently invalid given build state. Computed once
+ * here so the per-slot error UI and the engine's invalid_slots payload field never disagree. */
+export function computeInvalidSkillSlots(skills: EquippedSkill[], eligibility: SkillSlotEligibility): number[] {
+  return skills
+    .filter(sk => sk.slot <= 5 && !isEquippedActiveSkillValid(sk.skill_tags, eligibility))
+    .map(sk => sk.slot)
 }
 
 // Compound tag aliases: support text spelling → canonical skill tag
@@ -2736,6 +2873,10 @@ export const api = {
     spirit_effects?: EffectInput[]
     main_skill?: SkillEngineInput | null
     skills?: SkillSlotInput[]
+    // Slot indices (1-5) whose equipped skill is soft-invalidated (e.g. a Focus/Spirit Magus skill parked in
+    // an active slot without its enabling talent/trait) — the engine zeros that slot's contribution without
+    // the skill being removed from `skills`. See computeInvalidSkillSlots.
+    invalid_slots?: number[]
     custom_mods?: string[]
     attached_supports?: AttachedSupportInput[]
   }): Promise<StatSheetResponse> => post<StatSheetResponse>('/engine/stats', payload),

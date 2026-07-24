@@ -700,6 +700,11 @@ class EngineStatsRequest(BaseModel):
     spirit_effects:  list[str | dict] = []
     main_skill:      SkillEngineInput | None = None   # kept for backward compat
     skills:          list[SkillSlotInput] = []         # all equipped skills with slot info
+    # Slot indices whose enabling talent/trait no longer permits the skill sitting there (renderer computes this —
+    # it holds the trait/core-talent state). SOFT invalidation: we don't drop the skill, we make the slot fully
+    # inert (no damage, no stat/modifier contribution, no reservation cost — same as if the slot were empty).
+    # Absent/empty is the default, so older clients/build codes behave exactly as before.
+    invalid_slots:   list[int] = []
     custom_mods:     list[str] = []
     attached_supports: list[dict] = []                 # main skill's supports: {item_id, skill_type, rank, level}
     characterLevel:  int | None = None                 # player level — seeds the `level` condition (per-level scaling, e.g. Brutality)
@@ -811,11 +816,17 @@ def engine_stats(req: EngineStatsRequest):
         main_skill = SkillRef(skill_id=req.main_skill.skill_id, level=req.main_skill.level)
         skill_data = skills_by_id.get(req.main_skill.skill_id)
 
-    skills_input = [{"slot": s.slot, "skill_id": s.skill_id, "level": s.level, "enabled": s.enabled}
+    # Soft-invalidation: a slot in invalid_slots is folded into the SAME "enabled" gate a user-disabled skill
+    # already uses everywhere downstream (offense, reservation/sealing, auras/empowers/elixirs, curses, minion
+    # offense, and the support host-enable gate below) — so it becomes fully inert with zero new branching.
+    _invalid_slot_set = set(req.invalid_slots or [])
+    skills_input = [{"slot": s.slot, "skill_id": s.skill_id, "level": s.level,
+                     "enabled": s.enabled and s.slot not in _invalid_slot_set}
                     for s in req.skills]
     # Host-enable gate: a disabled active/passive skill removes that slot's supports too. With no `skills`
-    # payload (today's common case) every support stays enabled → byte-identical.
-    _disabled_slots = {s.slot for s in req.skills if not s.enabled}
+    # payload (today's common case) every support stays enabled → byte-identical. Invalid slots fold in here too,
+    # so a support attached to an invalidated slot is dropped along with it (no orphaned stat contribution).
+    _disabled_slots = {s.slot for s in req.skills if not s.enabled} | _invalid_slot_set
 
     # Pre-resolve custom mods and build the status list for the frontend, via the shared _resolve_custom_mod
     # helper (same parse used by the /validate-custom-mods editor endpoint, so green/red matches what's applied).
