@@ -33,7 +33,22 @@ const NODE_R = 26
 // Node body / neutral-dark tokens (Task 3b): the OLD unallocated fill (#0e1230) was ~55% saturated blue-violet
 // — competing with the violet meter instead of receding behind it. Desaturated toward near-neutral dark so the
 // violet fill (unchanged hue, #533483) is the only saturated thing in the node.
-const NODE_EMPTY_FILL = '#1c1c24'
+// 2026-07-24 readability pass: the empty fill and the canvas behind it (#1c1c24 on #101014) differed by
+// ~1.13:1 — below the threshold at which an edge-less shape is visible at all, so an unallocated node read
+// purely as a floating ring with nothing inside it. Both surfaces move up together: the canvas onto the app's
+// own --bg-abyss (so the tree stops looking like a separate, darker application) and the node body far enough
+// above it to clear ~1.6:1, which is where a fill starts reading as a raised chip. The violet allocation fill
+// (#533483, unchanged) is still the only saturated thing in the node, so the three channels stay disjoint:
+// fill proportion = points, ring = rarity, connectors = path open/closed.
+const NODE_EMPTY_FILL = '#3a4759'
+// Locked (column threshold not met) — deliberately below the empty fill but still clear of the canvas, so
+// "locked" reads as recessed rather than as another invisible hole.
+const NODE_LOCKED_FILL = '#1d2531'
+// Reads the token rather than duplicating its literal — three theme retunes have already happened and a
+// copied hex would silently drift on the fourth. Applied as an inline style rather than an SVG <rect> so it
+// also covers `.viewer-canvas`'s 4px/8px padding strip; a rect confined to the SVG bounds would leave that
+// strip showing the page background and read as an unintended border.
+const CANVAS_BG = 'var(--bg-abyss)'
 // Prism marker + search halo: STATIC per-node indicators (shown for however many nodes qualify, not
 // hover-gated), so these are the ones the "bullseye" complaint was actually about — pulled back in now
 // that there's no thick arc to clear (was +10/+13 to clear a 5px arc; the ring alone only needs +1.75px
@@ -95,7 +110,7 @@ const RARITY_RING_COLOR: Record<string, string> = {
 function nodeTextColor(node: TreeNode, states: Record<string, number>, locked: boolean): string {
   const pts = states[node.id] ?? 0
   const full = pts >= node.max_points
-  return locked ? '#444455' : full ? '#ffffff' : '#e0e0e0'
+  return locked ? '#748295' : full ? '#ffffff' : '#dce5ee'   // matches the --fg-body rung
 }
 
 type DebugTool = 'create' | 'type' | 'link'
@@ -213,7 +228,7 @@ function TreeNodeGImpl({
   }
   // Node body: the EMPTY color underneath the fill-wipe (drawn just below). `locked` (column-gated) stays its
   // own dark shade regardless of point count — an access state, not a fill state.
-  const bodyFill = locked ? '#191925' : NODE_EMPTY_FILL
+  const bodyFill = locked ? NODE_LOCKED_FILL : NODE_EMPTY_FILL
   // Preview ring radii: both get their OWN dedicated slot (no color-precedence tie-break) — see PREVIEW_R /
   // PREVIEW_R_OUTER above. A node that's simultaneously reachable-forward AND would cascade in reverse (not
   // full, and its own direct deallocate is blocked — a column-strand dependency today) shows both, red inner /
@@ -368,7 +383,7 @@ function ReflectedNodeG({ col, row, src, pts, unlocked, posKey, mult, prismId, o
           strokeDasharray="3 3" opacity={0.6} style={{ pointerEvents: 'none' }} />
         {/* Same fill-is-the-meter treatment as the normal node (TreeNodeG): the arc is gone, the rarity ring
             alone owns the border (bolder), and allocation reads as a bottom-up violet wipe of the body. */}
-        <circle cx={cx} cy={cy} r={NODE_R} fill={unlocked ? NODE_EMPTY_FILL : '#191925'}
+        <circle cx={cx} cy={cy} r={NODE_R} fill={unlocked ? NODE_EMPTY_FILL : NODE_LOCKED_FILL}
           stroke={rarity} strokeWidth={src.node_type === 'Legendary Medium Talent' ? 5 : 4} />
         {unlocked && pts > 0 && (
           <>
@@ -426,7 +441,7 @@ function PrismAnchorG({ prism, cx, cy, onEdit, onRemove }: {
         onClick={e => { e.preventDefault(); onEdit() }}
         onContextMenu={e => { e.preventDefault(); onRemove() }}>
         <clipPath id="prism-anchor-clip"><circle cx={cx} cy={cy} r={NODE_R - 2} /></clipPath>
-        <circle cx={cx} cy={cy} r={NODE_R} fill="#1a1326" stroke={ring} strokeWidth={3} />
+        <circle cx={cx} cy={cy} r={NODE_R} fill={NODE_EMPTY_FILL} stroke={ring} strokeWidth={3} />
         <image href={iconUrl('prism', prism.iconUrl) ?? undefined}
           x={cx - NODE_R + 2} y={cy - NODE_R + 2} width={(NODE_R - 2) * 2} height={(NODE_R - 2) * 2}
           clipPath="url(#prism-anchor-clip)" style={{ filter: tint ? RARE_TINT : undefined }} />
@@ -1275,14 +1290,15 @@ export default function TreeViewerScreen({
       {treeData && (
         <>
           <div className="viewer-header-center">
+            {/* Token classes, not inline hexes — these two sat side by side in two unrelated hand-rolled
+                palettes (solid #3a1a1a vs solid #1a1a3a) and read as buttons from two different apps.
+                Reselect is a neutral navigation action, so it takes --secondary; only Reset is destructive. */}
             <button
-              className="btn btn-sm"
-              style={{ background: '#3a1a1a', color: '#ff6b6b' }}
+              className="btn btn-sm btn-danger"
               onClick={handleReset}
             >Reset</button>
             <button
-              className="btn btn-sm"
-              style={{ background: '#1a1a3a', color: '#8888ff' }}
+              className="btn btn-sm btn-secondary"
               onClick={onReselect}
               title="Clear this tree and pick a different one"
             >Reselect</button>
@@ -1307,8 +1323,8 @@ export default function TreeViewerScreen({
               )}
               {!isPrimary(treeName) && (
                 <button
-                  className="btn btn-sm"
-                  style={{ marginLeft: 14, background: '#241a3a', color: '#c79bff' }}
+                  className="btn btn-sm btn-accent"
+                  style={{ marginLeft: 14 }}
                   onClick={() => { setPlacingPrism(null); setExpandedSlot(null); setPrismOverlayOpen(true) }}
                   title="Craft and install prisms"
                 >◈ Add Prism</button>
@@ -1575,16 +1591,7 @@ export default function TreeViewerScreen({
         )}
 
         <div className="viewer-main">
-          {/* Inline, not a `.viewer-canvas` CSS rule — index.css is off-limits right now (the owner has a
-              second, unrelated conversation live in it building a points-out-of-115 display). Scoped to just
-              this screen's canvas, not the app-wide `--bg` token (#1a1a2e, ~27% saturated navy) — desaturated
-              near-neutral AND pushed darker than NODE_EMPTY_FILL (#1c1c24) on purpose: the empty node body
-              used to be darker than the canvas (#0e1230 under the old #1a1a2e), reading as recessed; now that
-              the empty fill is a touch lighter, the canvas has to go darker still for nodes to read as raised
-              chips rather than holes. Inline style (not an SVG <rect>) so it also covers `.viewer-canvas`'s
-              4px/8px padding strip — a rect confined to the SVG's own bounds would leave that strip showing
-              the old page background and read as an unintended border. */}
-          <div className="viewer-canvas" style={{ background: '#101014' }}>
+          <div className="viewer-canvas" style={{ background: CANVAS_BG }}>
             <svg
               viewBox={`0 0 ${VW} ${VH}`}
               width="100%"
@@ -1650,7 +1657,10 @@ export default function TreeViewerScreen({
                 const stroke = isLinked ? '#e9c046'
                   : inReverse ? '#e94560'
                   : inForward ? '#6be946'
-                  : satisfied ? '#6b78b8' : '#2a3050'
+                  // Both retuned for the lifted canvas: the unsatisfied dim (#2a3050) was set against a
+                  // near-black #101014 and all but disappeared once the canvas came up, taking the "this
+                  // path exists but isn't open yet" cue with it.
+                  : satisfied ? '#5d6d84' : '#2d3849'
                 return (
                   <line key={i}
                     x1={x1 + ox} y1={y1 + oy} x2={x2 - ox} y2={y2 - oy}
@@ -1824,7 +1834,7 @@ export default function TreeViewerScreen({
                       <>{ghostBox(a.col, a.row, 'gp')}{ghostBox(6 - a.col, 4 - a.row, 'gr')}</>
                     ) : ghostSpan('ges')}
                     <clipPath id="ghost-prism-clip"><circle cx={acx} cy={acy} r={NODE_R - 2} /></clipPath>
-                    <circle cx={acx} cy={acy} r={NODE_R} fill="#1a1326" stroke={rare ? '#c79bff' : '#e9c046'} strokeWidth={3} opacity={0.85} />
+                    <circle cx={acx} cy={acy} r={NODE_R} fill={NODE_EMPTY_FILL} stroke={rare ? '#c79bff' : '#e9c046'} strokeWidth={3} opacity={0.85} />
                     <image href={iconUrl('prism', placingPrism.iconUrl) ?? undefined}
                       x={acx - NODE_R + 2} y={acy - NODE_R + 2} width={(NODE_R - 2) * 2} height={(NODE_R - 2) * 2}
                       clipPath="url(#ghost-prism-clip)"

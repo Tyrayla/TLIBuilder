@@ -202,7 +202,10 @@ function TreeCard({
   const isSearchHit = searchActive && searchMatchCount > 0
   const isSearchMiss = searchActive && searchMatchCount === 0
 
-  const borderColor = isSearchHit ? '#e9c046' : isSelected ? '#3a5a8a' : '#1e2535'
+  // Fill-led: an unselected card carries no outline at all — its own colour tint separates it from the
+  // canvas (see .tree-card in index.css). Selection is signalled by the card's OWN accent as the border,
+  // not by a generic blue, so the selected card stays inside its column's colour identity.
+  const borderColor = isSearchHit ? '#e9c046' : isSelected ? color : 'transparent'
 
   function handleClick() {
     if (isSelectable) onSelect()
@@ -212,11 +215,11 @@ function TreeCard({
   return (
     <div
       className={`tree-card${isPrim ? ' tree-card-primary' : ''}${isSelected ? ' tree-card-selected' : ''}${isLocked ? ' tree-card-locked' : ''}${isSelectable ? ' tree-card-selectable' : ''}${isSearchHit ? ' tree-card-search-hit' : ''}${isSearchMiss ? ' tree-card-search-miss' : ''}`}
-      style={{ borderColor, cursor: isClickable ? 'pointer' : 'default' }}
+      style={{ borderColor, cursor: isClickable ? 'pointer' : 'default', '--tree-accent': color } as React.CSSProperties}
       onClick={isClickable ? handleClick : undefined}
     >
       <div className="tree-card-accent" style={{ background: color }} />
-      <div className="tree-card-name" style={{ color: isLocked ? '#444455' : '#ffffff' }}>
+      <div className="tree-card-name" style={{ color: isLocked ? '#8a97a6' : '#ffffff' }}>
         {name}
       </div>
       {isSearchHit && <span className="tree-card-match-badge">{searchMatchCount}</span>}

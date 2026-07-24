@@ -371,7 +371,7 @@ export default function BuildOverviewScreen() {
       <div className="cond-screen-header">
         <span>Config</span>
         {activeCondCount > 0 && <span className="panel-header-badge">{activeCondCount} active</span>}
-        <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9aa', cursor: 'pointer', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+        <label className="header-toggle">
           <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />
           Show all
         </label>
