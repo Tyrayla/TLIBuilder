@@ -399,6 +399,11 @@ function App() {
       prismInventory: build.prismInventory ?? [],
       conditionState: build.conditionState ?? migrateOldConditions(build.conditions, build.conditionValues),
       gear,
+      // Mapped verbatim — a saved/imported skill placement is never dropped or auto-repaired here, even one
+      // that's illegal for the current trait/talent state (e.g. a Focus skill in an active slot without
+      // Knowledgeable). Soft-invalidation is a live derivation of (skills, traitId, slots) — see
+      // computeSkillSlotEligibility / computeInvalidSkillSlots in api/client.ts — so it recomputes correctly
+      // for whatever traitId/slots this same payload carries below, with no separate pass needed here.
       skills: (build.skills ?? []).map(s => ({
         ...s,
         supports: (s.supports ?? []).map((sup: EquippedSupportSkill) => ({
