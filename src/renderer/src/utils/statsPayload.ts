@@ -3,6 +3,7 @@ import {
   LegendaryAffix, CustomizedAffix, EffectInput,
   buildCharacterContributions, buildMemoryEffects, buildSpiritEffects, buildTraitEffects, withGuaranteedPicks,
   traitGrantsSkillSlot, TRAIT_SKILL_SLOT, TRAIT_SKILL_ID,
+  computeSkillSlotEligibility, computeInvalidSkillSlots,
 } from '../api/client'
 import { itemHasSlot } from './gearItem'
 import { characterLevelFrom } from './conditions'
@@ -124,6 +125,12 @@ export function buildEngineStatsPayload(s: BuildState) {
   const charLevel = characterLevelFrom(s.conditionState)
   const _traitSkillActive = traitGrantsSkillSlot(s.traitId, s.advancedTraitSelections)
     && (s.traitSkillSupports?.length ?? 0) > 0
+  // Soft-invalidation: active-slot skills (Focus / Spirit Magus) that lost their enabling talent/trait stay
+  // equipped but contribute nothing — computed once here from the same rule the Skills screen's error UI uses
+  // (see computeSkillSlotEligibility / computeInvalidSkillSlots in api/client.ts), so the two never disagree.
+  const _invalidSlots = computeInvalidSkillSlots(s.skills, computeSkillSlotEligibility(s.traitId, s.slots, {
+    slates: s.slates, gear: s.gear, beltBlends: useReferenceStore.getState().beltBlends ?? undefined, prisms: s.prisms,
+  }))
   return {
     slots: s.slots,
     slates: s.slates,
@@ -163,6 +170,9 @@ export function buildEngineStatsPayload(s: BuildState) {
       })),
       ...(_traitSkillActive ? [{ slot: TRAIT_SKILL_SLOT, skill_id: TRAIT_SKILL_ID, level: 1, enabled: true }] : []),
     ],
+    // Slot indices whose equipped skill lost its enabling talent/trait (soft-invalidation) — the engine must
+    // zero that slot's contribution without the skill being removed from `skills` above.
+    invalid_slots: _invalidSlots,
     // Every skill slot carries its own supports. Each support is tagged with its host skill's slot so the
     // engine folds it only into that slot's offense pass (add_slotted) — a non-main-slot skill (e.g. the
     // main damage skill parked in slot 2) gets its supports computed too, not just slot 1's.

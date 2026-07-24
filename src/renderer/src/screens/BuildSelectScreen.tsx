@@ -216,7 +216,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
         setImportError("Couldn't fetch the shared build (link may be invalid or the service is unavailable).")
       } else {
         const msg = e instanceof Error ? e.message : String(e)
-        setImportError(msg.includes('400') ? 'Invalid or unrecognized build code.' : 'Failed to import — try again.')
+        setImportError(msg.includes('400') ? "This doesn't look like a TLI Builder code. Paste a tli1_… code or share link from TLI Builder — in-game build codes aren't supported." : 'Failed to import — try again.')
       }
     } finally {
       setImporting(false)
@@ -787,11 +787,11 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
           <div className="modal-card share-modal-card" onClick={e => e.stopPropagation()}>
             <div className="modal-accent" />
             <h3 className="modal-title">Import Build Code</h3>
-            <p className="share-modal-hint">Paste a build code shared by someone else to load their build.</p>
+            <p className="share-modal-hint">Paste a TLI Builder code (tli1_…) or share link to load a build. In-game build codes from Torchlight: Infinite aren't supported.</p>
             <textarea
               ref={importRef}
               className="share-code-area share-code-area--input"
-              placeholder="Paste tli1_… code here"
+              placeholder="Paste a tli1_… code or share link…"
               value={importCode}
               onChange={e => { setImportCode(e.target.value); setImportError(null); setImportWarnings([]); setImportConfirmed(false) }}
               onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleImport() }}

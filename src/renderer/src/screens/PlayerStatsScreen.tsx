@@ -363,7 +363,7 @@ function Breakdown({ title, keys, children, block, total, totalUnit, extra, form
 
 const DTYPE_COLOR: Record<string, string> = {
   physical:  '#e0d0b0',
-  fire:      '#e87030',
+  fire:      'var(--fire)',
   cold:      '#60b8e8',
   lightning: '#e0d040',
   erosion:   '#80c878',
@@ -456,31 +456,39 @@ function StatPanel({
   const tip = useFloatingTooltip({ anchor: 'element', side: 'bottom', trigger: 'click', interactive: true })
   const showCollapsed = collapsible && collapsed
   return (
-    <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderLeft: `3px solid ${accent}`, borderRadius: 4, marginBottom: 6 }}>
+    // The box had NO background of its own — just an 8%-white hairline — so the body was pixel-identical to
+    // the page behind it and the whole panel read as a floating label rather than a container. It now carries
+    // a real fill one ramp step above the canvas, plus a real border; the accent still owns the left edge.
+    <div style={{
+      background: 'var(--bg-card)',
+      borderLeft: `3px solid ${accent}`,
+      borderRadius: 4, marginBottom: 6, overflow: 'hidden',
+    }}>
       <div
         style={{
-          // Uniform cool-charcoal header across every box (category is conveyed by the accent left border, not the
-          // header tint) so Channeled / Skill Effects / Skill Damage etc. all read the same — but with a bit more
-          // depth/color than a flat grey.
+          // Uniform header across every box (category is conveyed by the accent left border, not the header
+          // tint) so Channeled / Skill Effects / Skill Damage etc. all read the same. Opaque --bg-inset rather
+          // than the old translucent rgba(86,98,130,0.18): a wash over a transparent parent inherited whatever
+          // was behind it and separated from nothing.
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '5px 10px', background: 'rgba(86,98,130,0.18)', userSelect: 'none',
+          padding: '5px 10px', background: 'var(--bg-inset)', userSelect: 'none',
         }}
       >
         <span
           {...(info ? tip.triggerProps : {})}
-          style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#ccc', cursor: info ? 'help' : 'default', outline: info && tip.open ? '1px solid #fff' : undefined, outlineOffset: 3 }}
+          style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--fg-body)', cursor: info ? 'help' : 'default', outline: info && tip.open ? '1px solid #fff' : undefined, outlineOffset: 3 }}
         >
-          {title}{info ? <span style={{ color: '#888', fontWeight: 400, marginLeft: 5 }}>ⓘ</span> : null}
+          {title}{info ? <span style={{ color: 'var(--fg-muted)', fontWeight: 400, marginLeft: 5 }}>ⓘ</span> : null}
         </span>
         {collapsible && (
-          <span onClick={() => setCollapsed(c => !c)} style={{ color: '#888', fontSize: 13, lineHeight: 1, cursor: 'pointer', padding: '0 2px' }}>
+          <span onClick={() => setCollapsed(c => !c)} style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1, cursor: 'pointer', padding: '0 2px' }}>
             {collapsed ? '+' : '−'}
           </span>
         )}
       </div>
       {info && tip.open && (
         <FloatingPortal>
-          <div className="tooltip" {...tip.floatingProps} style={{ ...(tip.floatingProps as { style?: React.CSSProperties }).style, maxWidth: 320, fontSize: 11, lineHeight: 1.4, padding: '8px 10px', color: '#cfd6e6' }}>
+          <div className="tooltip" {...tip.floatingProps} style={{ ...(tip.floatingProps as { style?: React.CSSProperties }).style, maxWidth: 320, fontSize: 11, lineHeight: 1.4, padding: '8px 10px', color: 'var(--fg-body)' }}>
             {info}
           </div>
         </FloatingPortal>

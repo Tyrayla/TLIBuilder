@@ -11,6 +11,8 @@ import {
   getSupportEnergyCost,
   getMaxEnergy,
   hasEffortlessCommandEnergy,
+  computeSkillSlotEligibility,
+  computeInvalidSkillSlots,
 } from '../api/client'
 import { useBuildStore } from '../store/buildStore'
 import { useReferenceStore } from '../store/referenceStore'
@@ -135,6 +137,21 @@ function cleanDescLines(lines: string[]): string[] {
 
 function isPassiveSlot(slot: number) { return slot > 5 }
 
+// Copy for an active-slot skill that's currently soft-invalidated (equipped, but its enabling talent/trait
+// isn't). Only two skill tags can ever land here — see computeSkillSlotEligibility in api/client.ts.
+function invalidSlotReason(skillTags: string[]): string {
+  if (skillTags.includes('Focus')) {
+    return 'Focus skills require the Knowledgeable talent to be equipped in an active slot. This skill stays ' +
+      'equipped but contributes nothing until Knowledgeable is selected again or the skill is moved/removed.'
+  }
+  if (skillTags.includes('Spirit Magus')) {
+    return "Spirit Magus skills require Iris's Vigilant Breeze or Growing Breeze base trait to be equipped " +
+      'in an active slot. This skill stays equipped but contributes nothing until that trait is selected ' +
+      'again or the skill is moved/removed.'
+  }
+  return 'This skill cannot occupy an active slot. It stays equipped but contributes nothing.'
+}
+
 // "Family" key: a base skill/support and its Precise variant collapse to the same family, so the catalog can
 // keep only one of a family socketable at once. A Precise variant's item_id is `precise_<base_id>` — but ONLY
 // when that base id actually exists, otherwise the name itself contains "Precise". E.g. "Precise Restrain"
@@ -250,22 +267,23 @@ function RollInput(
 
 // Build a fresh EquippedSupportSkill from a catalog item (default rank/tier + tier-mid rolls). Shared
 // by assignSupport and the catalog DPS-delta preview transform.
-function makeSupport(item: SkillItem, supportIndex: number): EquippedSupportSkill {
+function makeSupport(item: SkillItem, supportIndex: number, level?: number): EquippedSupportSkill {
   const range = supportLevelRange(item.skill_type)
-  const rolls = modeledRolledLines(item, range.default)
+  const seedLevel = level === undefined ? range.default : Math.max(range.min, Math.min(range.max, level))
+  const rolls = modeledRolledLines(item, seedLevel)
   return {
     support_index: supportIndex,
     item_id: item.item_id,
     name: item.name,
     skill_type: item.skill_type ?? 'support_skill',
-    level: range.default,
+    level: seedLevel,
     skill_tags: item.skill_tags,
     description_lines: item.description_lines,
     ...(isRankedSupport(item.skill_type) ? { rank: DEFAULT_SUPPORT_RANK } : {}),
     ...(rolls.length ? { specific_rolls: Object.fromEntries(rolls.map(r => [r.identity, r.mid])) } : {}),
     // Seed each roll's tier (activation mediums have independent per-roll tiers).
     ...(rolls.some(r => (r.availableTiers?.length ?? 0) > 1)
-      ? { specific_roll_tiers: Object.fromEntries(rolls.map(r => [r.identity, r.availableTiers?.[0] ?? range.default])) }
+      ? { specific_roll_tiers: Object.fromEntries(rolls.map(r => [r.identity, r.availableTiers?.[0] ?? seedLevel])) }
       : {}),
   }
 }
@@ -283,8 +301,21 @@ export default function SkillsScreen(_props: Props) {
   const characterLevel = characterLevelFrom(conditionState)
   const prisms = useBuildStore(s => s.prisms)
   const slots = useBuildStore(s => s.slots)
+  const slates = useBuildStore(s => s.slates)
+  const traitId = useBuildStore(s => s.traitId)
+  const beltBlends = useReferenceStore(s => s.beltBlends)
   // +1000 Max Energy comes from a placed Effortless Command Ethereal Prism (≥24 pts) — not a manual toggle.
   const hasPrism = hasEffortlessCommandEnergy(prisms, slots)
+  // Build-state-aware active-slot exemptions (Knowledgeable → Focus, Iris Vigilant Breeze/Growing Breeze →
+  // Spirit Magus) + the resulting soft-invalidated active slots (equipped skill still there, but its
+  // enabling talent/trait isn't) — computed once and shared by the catalog filter below and the per-slot
+  // error UI. `sources` mirrors the four/five core-talent grant paths — see computeSkillSlotEligibility.
+  const skillSlotEligibility = useMemo(
+    () => computeSkillSlotEligibility(traitId, slots, { slates, gear, beltBlends: beltBlends ?? undefined, prisms }),
+    [traitId, slots, slates, gear, beltBlends, prisms])
+  const invalidSkillSlots = useMemo(
+    () => new Set(computeInvalidSkillSlots(equippedSkills, skillSlotEligibility)),
+    [equippedSkills, skillSlotEligibility])
   const cachedSkills = useReferenceStore(s => s.skills)
   const supportSort = useUiPrefs(s => s.supportSort)
   const setSupportSort = useUiPrefs(s => s.setSupportSort)
@@ -301,6 +332,9 @@ export default function SkillsScreen(_props: Props) {
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null)
   const [selectedSupportId, setSelectedSupportId] = useState<string | null>(null)
   const [pendingLevel, setPendingLevel] = useState(20)
+  // Pre-equip level/tier for a support selected in the catalog but not yet slotted — separate from
+  // pendingLevel (that one belongs to the active-skill assign flow, range 1-40 always).
+  const [pendingSupportLevel, setPendingSupportLevel] = useState(20)
   const [search, setSearch] = useState('')
   const [supportSearch, setSupportSearch] = useState('')
   // Bumped by the catalog refresh button to re-snapshot the swap-delta baseline (which is otherwise frozen
@@ -337,7 +371,7 @@ export default function SkillsScreen(_props: Props) {
     if (focusedSlot === null) return []
     let base = isPassiveSlot(focusedSlot)
       ? allItems.filter(isPassiveSkillItem)
-      : allItems.filter(isActiveSkillItem)
+      : allItems.filter(s => isActiveSkillItem(s, skillSlotEligibility))
     if (isPassiveSlot(focusedSlot)) {
       // Precise/base aura mutual exclusivity: a base aura and its "Precise: …" variant share a family and
       // can't both be socketed; same-name auras don't double-socket either. Exclude any candidate whose
@@ -359,7 +393,7 @@ export default function SkillsScreen(_props: Props) {
     const visible = matched.filter(s => passesModeledOnly(s.coverage, modeledOnly))
     // Skills always sort alphabetically (a per-skill DPS sort would be inaccurate).
     return [...visible].sort((a, b) => a.name.localeCompare(b.name))
-  }, [allItems, focusedSlot, search, equippedSkills, modeledOnly])
+  }, [allItems, focusedSlot, search, equippedSkills, modeledOnly, skillSlotEligibility])
 
   const supportCatalogItems = useMemo(() => {
     if (focusedSlot === null || focusedSupportIdx === null || !focusedEquipped) return []
@@ -481,6 +515,12 @@ export default function SkillsScreen(_props: Props) {
   const selectedSkillItem  = allItems.find(i => i.item_id === selectedSkillId)  ?? null
   const selectedSupportItem = allItems.find(i => i.item_id === selectedSupportId) ?? null
 
+  // Reset the pre-equip level/tier stepper to the newly-picked support's default whenever the
+  // catalog selection changes, so it always starts sensible rather than carrying over the last pick.
+  useEffect(() => {
+    setPendingSupportLevel(supportLevelRange(selectedSupportItem?.skill_type).default)
+  }, [selectedSupportId])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── energy ─────────────────────────────────────────────────────────────────
   const totalEnergyCost = equippedSkills.reduce((total, sk) =>
     total + (sk.supports ?? []).reduce((s, sup) =>
@@ -580,7 +620,7 @@ export default function SkillsScreen(_props: Props) {
     if (!selectedSupportItem || focusedSlot === null || focusedSupportIdx === null) return
     const parent = focusedEquipped
     if (!parent) return
-    const newSupport = makeSupport(selectedSupportItem, focusedSupportIdx)
+    const newSupport = makeSupport(selectedSupportItem, focusedSupportIdx, pendingSupportLevel)
     const updated: EquippedSkill = {
       ...parent,
       supports: [
@@ -589,7 +629,10 @@ export default function SkillsScreen(_props: Props) {
       ],
     }
     onSkillsChange(equippedSkills.map(s => s.slot === focusedSlot ? updated : s))
-    setFocusedSupportIdx(null)
+    // The panel stays open (focusedSupportIdx no longer clears), so pickBaseSig's memo deps never change
+    // on their own — re-snapshot it here so the catalog DPS-delta numbers are relative to the
+    // just-equipped state instead of stale pre-equip numbers until the user hits Refresh.
+    setRefreshNonce(n => n + 1)
     setSelectedSupportId(null)
     setSupportSearch('')
   }
@@ -617,10 +660,11 @@ export default function SkillsScreen(_props: Props) {
       {slots.map(slot => {
         const eq = getEquipped(slot)
         const isActive = focusedSlot === slot
+        const invalid = !!eq && invalidSkillSlots.has(slot)
         return (
           <div
             key={slot}
-            className={`skill-slot-row${eq ? ' occupied' : ''}${isActive ? ' active' : ''}`}
+            className={`skill-slot-row${eq ? ' occupied' : ''}${isActive ? ' active' : ''}${invalid ? ' invalid' : ''}`}
             onClick={() => selectSkillSlot(slot)}
           >
             <div className="skill-slot-info">
@@ -630,6 +674,9 @@ export default function SkillsScreen(_props: Props) {
                     <span className="skill-slot-skill-name-text">{eq.name}</span>
                     <CoverageBadge coverage={allItems.find(i => i.item_id === eq.item_id)?.coverage}
                                    detail={allItems.find(i => i.item_id === eq.item_id)?.coverage_detail} />
+                    {invalid && (
+                      <span className="skill-slot-invalid-badge" title={invalidSlotReason(eq.skill_tags)}>!</span>
+                    )}
                   </span>
                 : <span className="skill-slot-empty">Empty</span>}
             </div>
@@ -670,6 +717,23 @@ export default function SkillsScreen(_props: Props) {
                 Cancel
               </button>
             )}
+            {/* Always rendered (never conditionally mounted) so the header's height is identical whether or
+                not a skill is selected — hidden via visibility, not removed, to reserve its space. */}
+            <div
+              className="skill-level-controls"
+              style={{
+                marginLeft: 'auto',
+                ...(selectedSkillItem ? null : { visibility: 'hidden', pointerEvents: 'none' }),
+              }}
+            >
+              <span className="skill-level-label">Level</span>
+              <button className="skill-level-btn" tabIndex={selectedSkillItem ? 0 : -1} onClick={() => setPendingLevel(l => Math.max(1, l - 1))}>−</button>
+              <input
+                type="number" className="skill-level-input" min={1} max={40} value={pendingLevel} tabIndex={selectedSkillItem ? 0 : -1}
+                onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) setPendingLevel(Math.max(1, Math.min(40, v))) }}
+              />
+              <button className="skill-level-btn" tabIndex={selectedSkillItem ? 0 : -1} onClick={() => setPendingLevel(l => Math.min(40, l + 1))}>+</button>
+            </div>
           </div>
           <div className="skill-search-bar">
             <input
@@ -727,17 +791,6 @@ export default function SkillsScreen(_props: Props) {
           </div>
           {selectedSkillItem && (
             <div className="skill-center-catalog-footer">
-              <div className="skill-level-row">
-                <span className="skill-level-label">Level</span>
-                <div className="skill-level-controls">
-                  <button className="skill-level-btn" onClick={() => setPendingLevel(l => Math.max(1, l - 1))}>−</button>
-                  <input
-                    type="number" className="skill-level-input" min={1} max={40} value={pendingLevel}
-                    onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) setPendingLevel(Math.max(1, Math.min(40, v))) }}
-                  />
-                  <button className="skill-level-btn" onClick={() => setPendingLevel(l => Math.min(40, l + 1))}>+</button>
-                </div>
-              </div>
               <button className="btn btn-primary" style={{ width: '100%' }} onClick={assignSkill}>
                 Assign {selectedSkillItem.name} to {SLOT_LABEL[focusedSlot]}
               </button>
@@ -796,6 +849,9 @@ export default function SkillsScreen(_props: Props) {
             </div>
           </div>
         </div>
+        {invalidSkillSlots.has(focusedSlot) && (
+          <div className="skill-invalid-banner">{invalidSlotReason(focusedEquipped.skill_tags)}</div>
+        )}
         <div className="skill-panel-divider" />
 
         <div className="skill-support-slots-section">
@@ -869,86 +925,140 @@ export default function SkillsScreen(_props: Props) {
             <span className={`skill-support-cost-badge${existingSupport ? '' : ' dim'}`} style={{ marginLeft: 6 }}>{cost} Energy</span>
           </div>
           <div className="skill-support-panel-parent">{SLOT_LABEL[focusedSlot]}: {focusedEquipped.name}</div>
-          {existingSupport && (
-            <div className="skill-support-current">
-              <span className="skill-support-current-label">Equipped:</span>
-              <SkillHoverTooltip name={existingSupport.name}
-                                 item={allItems.find(i => i.item_id === existingSupport.item_id)}
-                                 level={existingSupport.level}
-                                 specificRolls={existingSupport.specific_rolls}
-                                 descLines={existingSupport.description_lines}>
-                {tp => <span {...tp} className="skill-support-current-name" style={{ cursor: 'help' }}>{existingSupport.name}</span>}
-              </SkillHoverTooltip>
-              <button
-                className={`btn btn-sm ${existingSupport.enabled === false ? 'btn-danger' : 'btn-success'}`}
-                style={{ marginLeft: 6 }}
-                title="Enable/disable this support in the calculation"
-                onClick={() => toggleSupportEnabled(focusedSupportIdx)}
-              >{existingSupport.enabled === false ? 'Disabled' : 'Enabled'}</button>
-              <button className="skill-slot-remove" onClick={e => removeSupport(focusedSupportIdx, e)}>×</button>
-            </div>
-          )}
-          {existingSupport && (() => {
-            const supItem = allItems.find(i => i.item_id === existingSupport.item_id)
-            // Activation mediums are TIERED (0–3) with independent per-roll tiers below — the top control is a
-            // tX dropdown that sets the medium tier (base cooldown + the DEFAULT for each roll's tier).
-            if (existingSupport.item_id.startsWith('activation_medium_')) {
-              const rolls = modeledRolledLines(supItem, existingSupport.level)
-              const tiers = [...new Set(rolls.flatMap(r => r.availableTiers ?? []))].sort((a, b) => a - b)
-              if (!tiers.length) return null
-              const setTier = (t: number) => {
-                const rs = modeledRolledLines(supItem, t)
-                const newTiers: Record<string, number> = {}
-                const newRolls: Record<string, number> = {}
-                for (const r of rs) {
-                  const at = r.availableTiers ?? []
-                  const rt = at.includes(t) ? t : (at.filter(x => x <= t).pop() ?? at[0] ?? t)
-                  newTiers[r.identity] = rt
-                  newRolls[r.identity] = r.rangesByTier?.[rt]?.mid ?? r.mid
+          <div className="skill-support-current">
+            <span className="skill-support-current-label">Equipped:</span>
+            {existingSupport ? (
+              <>
+                <SkillHoverTooltip name={existingSupport.name}
+                                   item={allItems.find(i => i.item_id === existingSupport.item_id)}
+                                   level={existingSupport.level}
+                                   specificRolls={existingSupport.specific_rolls}
+                                   descLines={existingSupport.description_lines}>
+                  {tp => <span {...tp} className="skill-support-current-name" style={{ cursor: 'help' }}>{existingSupport.name}</span>}
+                </SkillHoverTooltip>
+                <button
+                  className={`btn btn-sm ${existingSupport.enabled === false ? 'btn-danger' : 'btn-success'}`}
+                  style={{ marginLeft: 6 }}
+                  title="Enable/disable this support in the calculation"
+                  onClick={() => toggleSupportEnabled(focusedSupportIdx)}
+                >{existingSupport.enabled === false ? 'Disabled' : 'Enabled'}</button>
+                <button className="skill-slot-remove" onClick={e => removeSupport(focusedSupportIdx, e)}>×</button>
+              </>
+            ) : (
+              <span className="skill-support-current-name" style={{ opacity: 0.5 }}>none</span>
+            )}
+          </div>
+          {/* Single top-anchored level/tier control. Priority: a not-yet-equipped catalog pick (standard
+              Level/Tier types only — pre-equip) > the equipped support's own control (standard stepper, or
+              the activation-medium tier dropdown) > nothing, if neither applies. Rank and per-roll inputs
+              below stay post-equip-only. */}
+          {(() => {
+            // Inner content only (no wrapper div) — the wrapper below is ALWAYS rendered with the same
+            // class/style so this region's height never shifts as you select/equip/switch support types.
+            const content = (() => {
+              if (selectedSupportItem
+                  && selectedSupportItem.item_id !== existingSupport?.item_id
+                  && !selectedSupportItem.item_id.startsWith('activation_medium_')) {
+                const range = supportLevelRange(selectedSupportItem.skill_type)
+                const updatePendingSupportLevel = (newLevel: number) =>
+                  setPendingSupportLevel(Math.max(range.min, Math.min(range.max, newLevel)))
+                return (
+                  <>
+                    <span className="skill-level-label">{supportLevelLabel(selectedSupportItem.skill_type)}</span>
+                    <button className="skill-level-btn" onClick={() => updatePendingSupportLevel(pendingSupportLevel - 1)}>−</button>
+                    <input
+                      className="skill-level-input"
+                      type="number"
+                      min={range.min}
+                      max={range.max}
+                      value={pendingSupportLevel}
+                      onChange={e => updatePendingSupportLevel(Number(e.target.value) || range.min)}
+                    />
+                    <button className="skill-level-btn" onClick={() => updatePendingSupportLevel(pendingSupportLevel + 1)}>+</button>
+                  </>
+                )
+              }
+              if (!existingSupport) return null
+              const supItem = allItems.find(i => i.item_id === existingSupport.item_id)
+              // Activation mediums are TIERED (0–3) with independent per-roll tiers below — the top control is a
+              // tX dropdown that sets the medium tier (base cooldown + the DEFAULT for each roll's tier).
+              if (existingSupport.item_id.startsWith('activation_medium_')) {
+                const rolls = modeledRolledLines(supItem, existingSupport.level)
+                const tiers = [...new Set(rolls.flatMap(r => r.availableTiers ?? []))].sort((a, b) => a - b)
+                if (!tiers.length) return null
+                const setTier = (t: number) => {
+                  const rs = modeledRolledLines(supItem, t)
+                  const newTiers: Record<string, number> = {}
+                  const newRolls: Record<string, number> = {}
+                  for (const r of rs) {
+                    const at = r.availableTiers ?? []
+                    const rt = at.includes(t) ? t : (at.filter(x => x <= t).pop() ?? at[0] ?? t)
+                    newTiers[r.identity] = rt
+                    newRolls[r.identity] = r.rangesByTier?.[rt]?.mid ?? r.mid
+                  }
+                  onSkillsChange(equippedSkills.map(sk => sk.slot === focusedSlot
+                    ? { ...sk, supports: sk.supports.map(s => s.support_index === focusedSupportIdx
+                        ? { ...s, level: t, specific_roll_tiers: newTiers, specific_rolls: newRolls } : s) }
+                    : sk))
                 }
-                onSkillsChange(equippedSkills.map(sk => sk.slot === focusedSlot
-                  ? { ...sk, supports: sk.supports.map(s => s.support_index === focusedSupportIdx
-                      ? { ...s, level: t, specific_roll_tiers: newTiers, specific_rolls: newRolls } : s) }
-                  : sk))
+                return (
+                  <>
+                    <span className="skill-level-label" title="Medium tier — sets the base cooldown and the default tier of each roll below (each roll can still be re-tiered individually)">Tier</span>
+                    <select className="skill-level-input" style={{ width: 60 }} value={existingSupport.level}
+                      onChange={e => setTier(Number(e.target.value))}>
+                      {tiers.map(t => <option key={t} value={t}>T{t}</option>)}
+                    </select>
+                  </>
+                )
+              }
+              const lvlRange = supportLevelRange(existingSupport.skill_type)
+              const updateLevel = (newLevel: number) => {
+                const clamped = Math.max(lvlRange.min, Math.min(lvlRange.max, newLevel))
+                // Re-seed each modeled roll to the new tier's midpoint — otherwise the explicit roll
+                // overrides the tier and changing the tier alone wouldn't move DPS.
+                const rolls = modeledRolledLines(supItem, clamped)
+                const newRolls = rolls.length ? Object.fromEntries(rolls.map(r => [r.identity, r.mid])) : undefined
+                onSkillsChange(equippedSkills.map(sk =>
+                  sk.slot === focusedSlot
+                    ? { ...sk, supports: sk.supports.map(s =>
+                          s.support_index === focusedSupportIdx ? { ...s, level: clamped, specific_rolls: newRolls } : s
+                        )}
+                    : sk
+                ))
               }
               return (
-                <div className="skill-level-controls" style={{ marginTop: 6 }}>
-                  <span className="skill-level-label" title="Medium tier — sets the base cooldown and the default tier of each roll below (each roll can still be re-tiered individually)">Tier</span>
-                  <select className="skill-level-input" style={{ width: 60 }} value={existingSupport.level}
-                    onChange={e => setTier(Number(e.target.value))}>
-                    {tiers.map(t => <option key={t} value={t}>T{t}</option>)}
-                  </select>
-                </div>
+                <>
+                  <span className="skill-level-label">{supportLevelLabel(existingSupport.skill_type)}</span>
+                  <button className="skill-level-btn" onClick={() => updateLevel(existingSupport.level - 1)}>−</button>
+                  <input
+                    className="skill-level-input"
+                    type="number"
+                    min={lvlRange.min}
+                    max={lvlRange.max}
+                    value={existingSupport.level}
+                    onChange={e => updateLevel(Number(e.target.value) || lvlRange.min)}
+                  />
+                  <button className="skill-level-btn" onClick={() => updateLevel(existingSupport.level + 1)}>+</button>
+                </>
               )
-            }
-            const lvlRange = supportLevelRange(existingSupport.skill_type)
-            const updateLevel = (newLevel: number) => {
-              const clamped = Math.max(lvlRange.min, Math.min(lvlRange.max, newLevel))
-              // Re-seed each modeled roll to the new tier's midpoint — otherwise the explicit roll
-              // overrides the tier and changing the tier alone wouldn't move DPS.
-              const rolls = modeledRolledLines(supItem, clamped)
-              const newRolls = rolls.length ? Object.fromEntries(rolls.map(r => [r.identity, r.mid])) : undefined
-              onSkillsChange(equippedSkills.map(sk =>
-                sk.slot === focusedSlot
-                  ? { ...sk, supports: sk.supports.map(s =>
-                        s.support_index === focusedSupportIdx ? { ...s, level: clamped, specific_rolls: newRolls } : s
-                      )}
-                  : sk
-              ))
-            }
+            })()
+
+            // Always-rendered wrapper (same class/style regardless of branch) reserves the row's space.
+            // When nothing applies, fall back to a same-shaped placeholder hidden via visibility so the
+            // "Equipped:" line above and Rank/roll controls below never shift.
             return (
-              <div className="skill-level-controls" style={{ marginTop: 6 }}>
-                <span className="skill-level-label">{supportLevelLabel(existingSupport.skill_type)}</span>
-                <button className="skill-level-btn" onClick={() => updateLevel(existingSupport.level - 1)}>−</button>
-                <input
-                  className="skill-level-input"
-                  type="number"
-                  min={lvlRange.min}
-                  max={lvlRange.max}
-                  value={existingSupport.level}
-                  onChange={e => updateLevel(Number(e.target.value) || lvlRange.min)}
-                />
-                <button className="skill-level-btn" onClick={() => updateLevel(existingSupport.level + 1)}>+</button>
+              <div
+                className="skill-level-controls"
+                style={{ marginTop: 6, ...(content ? null : { visibility: 'hidden', pointerEvents: 'none' }) }}
+              >
+                {content ?? (
+                  <>
+                    <span className="skill-level-label">Level</span>
+                    <button className="skill-level-btn" tabIndex={-1}>−</button>
+                    <input className="skill-level-input" type="number" value={1} readOnly tabIndex={-1} />
+                    <button className="skill-level-btn" tabIndex={-1}>+</button>
+                  </>
+                )}
               </div>
             )
           })()}

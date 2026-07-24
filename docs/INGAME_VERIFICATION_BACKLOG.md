@@ -401,6 +401,40 @@ Default tolerance: **±3%** (Recount combat variance; tighten with longer parses
 
 ---
 
+### SPELLBURST-04 — Tidewell: Torrent (Magnificent) — per-stack multiplicative consume? (community claim)
+- Status: ⬜ Unverified — **community claim + one supporting-but-muddled A/B run.** Claim (lily_trotter, Discord,
+  2026-07-20): the support's "+100% additional Hit Damage for these Torrents for each stack consumed" compounds
+  **per stack** ((1+1.0)^N, so 2 stacks = ×4 on the consuming Torrents), not additively (1+1.0×N = ×3).
+  Tidewell + this support are **not yet modeled in the engine** (no `skill_resolver` entry) — resolve this before/with
+  an `add-skill`/`add-support` pass.
+- Preliminary data (owner, 2026-07-20, geared character — NOT clean): Level-85 Recount A/B, Tidewell + Torrent
+  support both runs, no charge-recovery-speed sources. A = 0 Max Spell Burst (consume never fires): span avg
+  **6,963,537** over 2:00. B = Beacon only (+2 Max Spell Burst): span avg **10,539,164** over 2:23 (still counting).
+  Ratio **1.5135×** (highest-5s ratio 1.62×). Under a one-buffed-eruption-per-recharge model (~2 s/stack charge →
+  ~4 s cycle, 0.8 s eruptions), additive caps at ≤1.40× at any cast speed while multiplicative predicts 1.50–1.60×
+  — the observed 1.51× excludes additive **under that model only**.
+- Consume cadence (owner-clarified, 2026-07-20): consumption happens **per eruption/wave** — an eruption consumes
+  and buffs its own Torrents; it is NOT the initial cast consuming once and buffing every Torrent for the area's
+  lifetime. Each eruption is the 2-Torrent baseline (no Undertow Noble +Torrents), and the eruption interval is
+  affected by cast speed / additional cast speed.
+- Remaining confounds (why this is not confirmed): the test character is geared (unknown cast speed → unknown
+  eruption interval), and it's unestablished whether the consume strictly requires **max** stacks (tooltip: "if
+  Spell Burst is at max stacks" — one buffed eruption per ~4 s recharge) or can fire on partial stacks per
+  eruption, which changes the uptime math and what the 1.51× discriminates.
+- Re-test on a **clean character** (later this league): Tidewell + Torrent support only, standard dummy, ≥60 s span,
+  zero cast-speed/charge-speed/Terra sources. Vary ONE thing:
+  1. **Max-stacks gate**: watch stack pips vs eruptions — does a consume fire only at max stacks (both stacks at
+     once, ~1 buffed eruption per recharge), or can an eruption consume a partial stack as it fills? Count
+     buffed-hit frequency vs the ~2 s/stack charge time.
+  2. **Additive vs multiplicative**: A/B/C with 0 / +1 (if a +1 Max source exists) / +2 Max Spell Burst. Per-stack
+     ×2 predicts the 1-stack and 2-stack uplifts differ by more than additive (+100% vs +200%) would.
+  3. Cross-check vs SPELLBURST-01's charge model (2 s/stack, tick-rounded) — does this support's consume respect
+     the same charge cadence?
+- RESULT: Recount Avg DPS (span) + Duration per arm; Max Spell Burst per arm; charge/cast speed (should be 0);
+  stack-pip observations; Screenshots. Credit: **lily_trotter (Discord)** if the multiplicative claim confirms.
+
+---
+
 ### SKILLCOST-01 — Skill mana/life cost model (multiple checks)
 - Status: ⬜ Unverified. The engine now models each skill's per-cast Mana (and Arcane→Life) cost and folds it into
   **Net Mana/Life Recovery** as a SEPARATE drain (never "Consumed"). Formula assumed (Tyra best-guess), needs

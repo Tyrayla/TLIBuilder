@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-07-24
+
+### Theme & readability
+- **App-wide theme overhaul.** The interface moves to a cool blue-grey ("Steel+") palette built on a single 8-step surface ramp, replacing the patchwork of hand-picked dark blues and purples that had accumulated across screens. The practical change: the page background is now the *darkest* surface and panels sit above it, so cards read as raised rather than as holes punched into the background.
+- **Panels are actually panels now.** The stat boxes on Calcs and the category cards on Config previously had no background of their own — they were a faint hairline over the page, so nothing read as a container. They now carry a real fill with a distinct header strip, separated by contrast rather than by outlines, which removes the boxed-in grid look.
+- **Text is white-led.** Body text moves to near-white with a single neutral grey scale beneath it, retiring the mix of lavender and blue-grey tints that made labels look muddy. Config's toggle labels in particular were rendering at a muted-label tint despite being the screen's main content.
+- **Talent tree is legible.** Unallocated nodes were nearly invisible against the canvas (about 1.13:1 contrast — you were effectively reading the rings alone); nodes now sit at roughly 1.87:1 and read as filled chips. Connector lines, column labels, and locked-node text were retuned to match.
+- **Tree selector columns carry their god's colour.** Each column's identity colour tinted only a 6px strip at the top, so a column scanned as a grey card with a stripe. The colour now runs through the whole card, with the selected tree brightest in its column and selection outlined in the column's own colour.
+- Buttons share one shape across variants — Reset, Reselect and Add Prism were each hand-styled with their own palette and read as controls from three different applications.
+
+### Skills
+- **Focus and Spirit Magus skills are now correctly allowed in active slots** when your build enables it — Steel Vanguard's "Knowledgeable" core talent (resolved from all five grant paths: tree slot, slate, legendary bracket affix, belt blend, and ethereal prism) and Iris's Vigilant Breeze / Growing Breeze base traits. Previously both were flatly excluded from the catalog regardless of build state.
+- **Turning off the enabling talent no longer strips your setup.** A skill parked in a slot it's no longer permitted in stays equipped and shows a per-slot error badge and banner, but contributes nothing — no damage, no stat contribution, no reservation. The same applies on import.
+- Support levels are quicker to set, and level selectors sit consistently at the top of their panel.
+
+### Import / Export
+- **The importer now says plainly that Torchlight: Infinite's own in-game build codes aren't supported**, in both the hint and the failure message, and mentions that share links work — which the importer has always accepted but never advertised.
+- **Importing with unsaved changes asks about your work only once the import is known to be viable.** Previously the "Save before importing?" prompt appeared before the pasted code had been validated at all, so an unusable code still made you decide about unsaved work for an import that was always going to fail.
+
+### Verification Database
+- New entries for **Ill Omen + Reap Purification** and **Torturer's Touch (Affliction + Reaping)** (research capture, unverified).
+- New entries covering the slot rules above, including the **Iris slot-2 "no attacking or casting action" restriction**, which is deliberately *not* modeled — Dazzling Bloom, the common pick for that slot, contradicts the predicate the description implies. Recorded as an open verification item rather than guessed at.
+
+### Fixes
+- Fire damage-type text now clears WCAG AA contrast on the new surfaces.
+- The hero-trait active checkmark badge is scaled to match the allocation badge.
+- Line endings are normalised via `.gitattributes`, ending the CRLF churn on generated verification docs.
+
 ## [0.6.1] - 2026-07-16
 
 ### Talent trees

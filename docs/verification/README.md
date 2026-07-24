@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**70 entries** — ✅ Confirmed: 13 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 37
+**75 entries** — ✅ Confirmed: 13 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 42
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -58,6 +58,9 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | High Court Chariot (Rosa trait) | High Court Chariot | hero-trait, defense | ⚠️ Unverified | — | [high-court-chariot.md](high-court-chariot.md) |
 | Hit Recently condition (Preserver of Eternity / Injury Buffer / Deflection lines) | — | condition, trigger, ui-display | ⚠️ Unverified | — | [recently-hit-condition.md](recently-hit-condition.md) |
 | Howling Gale | Howling Gale | skill, channeled | ⚠️ Unverified | — | [howling-gale.md](howling-gale.md) |
+| Ill Omen (Ominous curse) + Reap Purification conversion (Psychic) | Ominous, Reap Purification | curse, stacking, conversion, trigger, damage-pool, true-damage | ⚠️ Unverified | — | [ill-omen.md](ill-omen.md) |
+| Iris "Merged Spirit Magi" — Spirit Magus skills in Active Skill slots (soft-invalidation gating) | Spirit Magus skills (Spirit Magus-tagged) | hero-trait, slot-gating, soft-invalidation, trigger | ⚠️ Unverified | — | [merged-spirit-magi-active-slots.md](merged-spirit-magi-active-slots.md) |
+| Iris "Vigilant" — second-skill-slot restriction while Merged (SHELVED, not modeled) | Merged Spirit Magi (Iris "Vigilant" state) | hero-trait, slot-gating, methodology | ⚠️ Unverified | — | [iris-second-skill-slot-restriction.md](iris-second-skill-slot-restriction.md) |
 | Isomorphic Arms (weapon transfer) | — | minion, core-talent, god-of-machines | ⚠️ Unverified | — | [isomorphic-arms.md](isomorphic-arms.md) |
 | Licorice Note (Sage trait) | Licorice Note | hero-trait, buff, crit | ⚠️ Unverified | — | [licorice-note.md](licorice-note.md) |
 | Life/Mana consumption subsystem | — | sustain, cost | ⚠️ Unverified | — | [consumption-subsystem.md](consumption-subsystem.md) |
@@ -76,6 +79,8 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Slate inventory + bonus overview | — | build-system, slates | ⚠️ Unverified | — | [slate-inventory.md](slate-inventory.md) |
 | Spirit Magi Growth + stages | — | minion, spirit-magus, growth | ⚠️ Unverified | — | [spirit-magi-growth.md](spirit-magi-growth.md) |
 | Split Shot + supports (spread / Shotgun Effect / channel) | Split Shot | shotgun, projectile, channeled, breakpoint, supports, damage-pool | ⚠️ Unverified | — | [split-shot.md](split-shot.md) |
+| Steel Vanguard "Knowledgeable" — Focus Skills in Active Skill slots (soft-invalidation gating) | Focus skills (Focus-tagged) | core-talent, slot-gating, soft-invalidation, reservation, sealing, trigger | ⚠️ Unverified | — | [knowledgeable-focus-active-slots.md](knowledgeable-focus-active-slots.md) |
 | Talent point budget (max allocatable talent points) | — | talent-tree, resource-budget, ui-display | ⚠️ Unverified | — | [talent-point-budget.md](talent-point-budget.md) |
+| Torturer's Touch (Affliction + Reaping) — tuning math and frame-quantization theory | Affliction, Reaping | dot, stacking, true-damage, trigger, breakpoint, tick-rounding, damage-pool | ⚠️ Unverified | — | [torturers-touch-reaping.md](torturers-touch-reaping.md) |
 | Minion DPS engine | — | minion, dps-engine | ⚠️ Unverified | 2026-07-06 | [minion-dps-engine.md](minion-dps-engine.md) |
 | Thunder Magus (Spirit Magus) | Summon Thunder Magus | minion, spirit-magus | ⚠️ Unverified | 2026-07-06 | [thunder-magus.md](thunder-magus.md) |

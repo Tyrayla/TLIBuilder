@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type {
   LegendaryGearIndexItem, LegendaryGearItem, CraftBaseItemGroup,
-  CraftBaseType, Graft, HeroTrait, HeroMemoryAffix, ConditionDef, SkillItem,
+  CraftBaseType, Graft, HeroTrait, HeroMemoryAffix, ConditionDef, SkillItem, BeltBlend,
 } from '../api/client'
 import { api, registerSkillTagVocabulary } from '../api/client'
 
@@ -24,6 +24,10 @@ interface ReferenceStore {
   heroTraits: HeroTrait[] | null
   heroMemories: HeroMemoryData | null
   conditions: Record<string, ConditionDef[]> | null
+  // Belt Blends (Blending Rituals) catalog — needed to resolve a belt's equipped blend talent_id → the
+  // granted core talent's display name (source 4 of the four core-talent grant paths; see
+  // computeSkillSlotEligibility in api/client.ts).
+  beltBlends: BeltBlend[] | null
   // Skill/support catalog (carries each item's structured `tooltip` spec). Shared by SkillsScreen and
   // the Stats page, which looks up a contribution's source skill/support by name (`skillsByName`).
   skills: SkillItem[] | null
@@ -54,6 +58,7 @@ function freshClearedState() {
     heroTraits: null as HeroTrait[] | null,
     heroMemories: null as HeroMemoryData | null,
     conditions: null as Record<string, ConditionDef[]> | null,
+    beltBlends: null as BeltBlend[] | null,
     skills: null as SkillItem[] | null,
     skillsByName: null as Record<string, SkillItem> | null,
     skillsById: null as Record<string, SkillItem> | null,
@@ -84,6 +89,7 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
       api.getHeroMemories(),
       api.getConditions(),
       api.getSkills(),
+      api.getBeltBlends(),
     ])
 
     // Bail if a newer load (or clear) has superseded this one
@@ -93,6 +99,7 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
       idxResult, catalogResult, baseItemsResult,
       baseTypesResult, graftsResult, traitsResult,
       memoriesResult, conditionsResult, skillsResult,
+      beltBlendsResult,
     ] = results
 
     const failed = new Set<string>()
@@ -149,6 +156,11 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
       registerSkillTagVocabulary(skillsResult.value.skills)
       if (skillsResult.value.season) season ??= skillsResult.value.season
     } else { failed.add('skills') }
+
+    if (beltBlendsResult.status === 'fulfilled') {
+      updates.beltBlends = beltBlendsResult.value.blends
+      if (beltBlendsResult.value.season) season ??= beltBlendsResult.value.season
+    } else { failed.add('beltBlends') }
 
     set({ ...updates, season, referenceResolved: true, failedCatalogs: failed })
   },

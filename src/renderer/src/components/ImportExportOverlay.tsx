@@ -36,7 +36,10 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
   const [dirtyPrompt, setDirtyPrompt] = useState(false)
   const [dirtySaveName, setDirtySaveName] = useState(buildName)
   const [dirtySaving, setDirtySaving] = useState(false)
-  const pendingCodeRef = useRef<string | null>(null)
+  // Cache of the last successfully validated + decoded build, so the dirty
+  // Save/Discard prompt can apply it directly instead of re-decoding. Cleared
+  // whenever the pasted code changes, so a stale decode can never be applied.
+  const decodedBuildRef = useRef<Build | null>(null)
 
   const importRef = useRef<HTMLTextAreaElement>(null)
 
@@ -85,6 +88,11 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
     })
   }
 
+  const applyDecodedBuild = (build: Build) => {
+    onImport(build)
+    onClose()
+  }
+
   const doImport = async (code: string) => {
     setImporting(true)
     setImportError(null)
@@ -99,14 +107,24 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
         setImportConfirmed(true)
         return
       }
-      onImport({ ...(build as unknown as Build), name: 'New Build' })
-      onClose()
+      // Validation (and any version-compatibility confirmation) has now
+      // passed. Only at this point do we know the import can proceed, so
+      // only now do we ask about unsaved changes — never before the code
+      // has been proven real.
+      const decoded = { ...(build as unknown as Build), name: 'New Build' }
+      decodedBuildRef.current = decoded
+      if (isDirty) {
+        setDirtySaveName(buildName)
+        setDirtyPrompt(true)
+        return
+      }
+      applyDecodedBuild(decoded)
     } catch (e: unknown) {
       if (e instanceof ShareFetchError) {
         setImportError("Couldn't fetch the shared build (link may be invalid or the service is unavailable).")
       } else {
         const msg = e instanceof Error ? e.message : String(e)
-        setImportError(msg.includes('400') ? 'Invalid or unrecognized build code.' : 'Failed to import — try again.')
+        setImportError(msg.includes('400') ? "This doesn't look like a TLI Builder code. Paste a tli1_… code or share link from TLI Builder — in-game build codes aren't supported." : 'Failed to import — try again.')
       }
     } finally {
       setImporting(false)
@@ -116,12 +134,6 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
   const handleImportClick = () => {
     const code = importCode.trim()
     if (!code) return
-    if (isDirty) {
-      pendingCodeRef.current = code
-      setDirtySaveName(buildName)
-      setDirtyPrompt(true)
-      return
-    }
     doImport(code)
   }
 
@@ -131,14 +143,14 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
     try {
       await onSaveFirst(name)
       setDirtyPrompt(false)
-      if (pendingCodeRef.current) doImport(pendingCodeRef.current)
+      if (decodedBuildRef.current) applyDecodedBuild(decodedBuildRef.current)
     } catch { /* save failed — leave dirty prompt open */ }
     finally { setDirtySaving(false) }
   }
 
   const handleDirtyDiscard = () => {
     setDirtyPrompt(false)
-    if (pendingCodeRef.current) doImport(pendingCodeRef.current)
+    if (decodedBuildRef.current) applyDecodedBuild(decodedBuildRef.current)
   }
 
   const tabsAndContent = (
@@ -216,17 +228,20 @@ export default function ImportExportOverlay({ isDirty, buildId, buildName, getBu
 
       {tab === 'import' && (
         <>
-          <p className="share-modal-hint">Paste a build code to load it. This will replace your current build.</p>
+          <p className="share-modal-hint">Paste a TLI Builder code (tli1_…) or share link to load a build. This will replace your current build. In-game build codes from Torchlight: Infinite aren't supported.</p>
           <textarea
             ref={importRef}
             className="share-code-area share-code-area--input"
-            placeholder="Paste tli1_… code here"
+            placeholder="Paste a tli1_… code or share link…"
             value={importCode}
             onChange={e => {
               setImportCode(e.target.value)
               setImportError(null)
               setImportWarnings([])
               setImportConfirmed(false)
+              // The code has changed since the last successful decode (if any) —
+              // that cached build must never be applied for different input.
+              decodedBuildRef.current = null
             }}
             onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleImportClick() }}
           />
