@@ -946,6 +946,27 @@ def compute(
                         text=(_orig.text if _orig else "Critical Strike Damage per Mana consumed recently"),
                         source_name=(_orig.source_name if _orig else "Mana Consumed")))
 
+            # Increased Crit Rating per-Mana-consumed (Tyrant's Iron Fist): "+X% Critical Strike Rating for every N
+            # Mana consumed recently" is INCREASED Crit Rating → fold per-unit × consumed-recently-mana (discrete
+            # N-chunks; this affix has no cap) into the REAL crit_rating_inc pool in-loop, so it's summed by
+            # offense._CRIT_RATING_INC_STATS AND shows a labeled source in the crit-rating breakdown (replaces the old
+            # display-only post-loop fold in offense.py). One-directional (crit doesn't feed consumption). Sibling of
+            # the crit_dmg_inc block above; reads the same _cons_now.consumed_recently_mana (proven == post-loop).
+            _crr_per = source.total("crit_rating_inc_per_mana_consumed")
+            if _crr_per:
+                # Read in the loop (outside the offense recording window) → record so the gear line badges Consumed, not Inactive.
+                source.consumed_stats.update({"crit_rating_inc_per_mana_consumed", "crit_rating_inc_per_mana_consumed_unit"})
+                _crr_amt = _floored(_cons_now.consumed_recently_mana,
+                                    source.total("crit_rating_inc_per_mana_consumed_unit")) * _crr_per
+                if _crr_amt:
+                    _orig = next((e for e in source.source_log if e.stat == "crit_rating_inc_per_mana_consumed"), None)
+                    source.add_with_source("crit_rating_inc", _crr_amt, SourceEntry(
+                        stat="crit_rating_inc", amount=_crr_amt,
+                        source_type=(_orig.source_type if _orig else "gear"),
+                        label=(_orig.label if _orig else "Gear · Item"), points=1,
+                        text=(_orig.text if _orig else "Critical Strike Rating per Mana consumed recently"),
+                        source_name=(_orig.source_name if _orig else "Mana Consumed")))
+
         # Inject auto-computed condition values from aggregated stats
         from models.conditions import ALL_CONDITIONS
         for _c in ALL_CONDITIONS:
