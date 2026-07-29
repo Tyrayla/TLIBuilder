@@ -1608,12 +1608,11 @@ def calculate_offense(
     # 1. Effective level — sum all applicable skill level bonuses from gear/talents/memories
 
     # Crit multiplier = 1.5 base + the additive Critical Strike Damage pool (tag-filtered to the skill).
+    # Crit Damage per Mana consumed recently (Tyrant's Iron Fist) is folded into the REAL crit_dmg_inc pool in
+    # compute.py's consumption loop (like Compensatory Life / Tide of the Styx), so it's already summed here AND
+    # shows a labeled source in the crit-multiplier breakdown — no separate post-loop fold needed. (The crit-RATING
+    # sibling at crit_rating_inc is still folded below; it has the same display gap, tracked for a follow-up spec.)
     crit_damage = sum(source.total(key) for key, tags in _CRIT_DMG_STATS if not tags or tags & mod_tags)
-    # Crit Damage per Mana consumed recently (Tyrant's Iron Fist) — additive Crit Damage scaled by consumed_recently.
-    _crd_per = source.total("crit_dmg_inc_per_mana_consumed")
-    if _crd_per:
-        crit_damage += floored_consumed(source.total("consumed_recently_mana"),
-                                        source.total("crit_dmg_inc_per_mana_consumed_unit")) * _crd_per
     crit_mult = 1.5 + crit_damage
     crit_factor = 1.0 + crit_chance * (crit_mult - 1.0)
 

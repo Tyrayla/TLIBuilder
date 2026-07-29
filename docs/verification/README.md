@@ -5,7 +5,7 @@
 
 Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: `data/verification/*.json` (viewable in-app via the main-menu **Verification Database** button). The pending/untested test queue lives in `docs/INGAME_VERIFICATION_BACKLOG.md`.
 
-**75 entries** — ✅ Confirmed: 13 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 42
+**76 entries** — ✅ Confirmed: 13 · 🔶 Partial: 9 · ⬜ Pending: 9 · ⚠️ Unverified: 43
 
 | Mechanic | Skills | Tags | Status | Last verified | File |
 |----------|--------|------|--------|---------------|------|
@@ -46,6 +46,7 @@ Confirmed in-game behavior + the modeled-but-untested backlog. Source of truth: 
 | Chromatic Shot (+ canvas supports + SS13 Condensed quartet) | Chromatic Shot | skill, conversion, shotgun, season-data-driven, ailment | ⚠️ Unverified | — | [chromatic-shot.md](chromatic-shot.md) |
 | Conditional / scaling minion modifiers | — | minion, modifier, condition | ⚠️ Unverified | — | [minion-conditional-mods.md](minion-conditional-mods.md) |
 | Core talents (uniqueness / grants) | — | talent, damage-pool | ⚠️ Unverified | — | [core-talents.md](core-talents.md) |
+| Critical Strike Rating & Critical Strike Damage per Mana consumed recently (Tyrant's Iron Fist) | — | legendary, consumption-subsystem, crit, tick-rounding, damage-pool | ⚠️ Unverified | — | [tyrants-iron-fist-crit-per-mana.md](tyrants-iron-fist-crit-per-mana.md) |
 | Damage conversions | — | conversion, damage-pool | ⚠️ Unverified | — | [damage-conversions.md](damage-conversions.md) |
 | Dance of the Deep (Selena trait) | Dance of the Deep | hero-trait, not-modeled, selection-only | ⚠️ Unverified | — | [dance-of-the-deep.md](dance-of-the-deep.md) |
 | Dreamweaver spirit | — | pact-spirit, penetration | ⚠️ Unverified | — | [dreamweaver.md](dreamweaver.md) |

@@ -705,6 +705,24 @@ function typeAddKeys(dtype: string, minion = false): string[] {
   return keys
 }
 
+// Crit Multiplier's additive Critical Strike Damage pool (player-only; minions use the single
+// 'minion_crit_dmg_inc' key). Mirrors backend/engine/offense.py's _CRIT_DMG_STATS EXACTLY — every
+// STAT_META entry with pipeline_stage=="crit_damage" and "hit" in affects, minus the minion one:
+// crit_dmg_inc + crit_dmg_additional are untagged (always apply); attack/spell/projectile/sentry/combo
+// and the skill's own damage type each gate their own pool. 'crit_damage' (the old key here) was never a
+// real stat_map entry — the breakdown showed no sources at all until this matched the actual per-key
+// pools the engine sums.
+function critDmgKeys(offense: OffenseResult): string[] {
+  const keys = ['crit_dmg_inc', 'crit_dmg_additional']
+  if (hasTag(offense, 'attack')) keys.push('attack_crit_dmg_inc')
+  if (hasTag(offense, 'spell')) keys.push('spell_crit_dmg_inc')
+  if (hasTag(offense, 'projectile')) keys.push('projectile_crit_dmg_inc')
+  if (hasTag(offense, 'sentry')) keys.push('sentry_crit_dmg_inc')
+  if (hasTag(offense, 'combo')) keys.push('combo_finisher_crit_dmg_inc')
+  for (const dtype of ALL_DTYPES) if (hasTag(offense, dtype)) keys.push(`${dtype}_crit_dmg_inc`)
+  return keys
+}
+
 // Small kind tag next to a row's name — "hit" rows (the common case) get no tag; "true" (Mercury Baptism /
 // Spell Ripple) and "dot" (Mind Control / Path of Flames) rows are add-ons with no hit form of their own, so a
 // tag makes that legible at a glance instead of relying on the name suffix alone.
@@ -1801,7 +1819,7 @@ function OffensePanels({ offense, slot, skill, aura, reservation, curse, curseMe
             <Row label="Crit Multiplier" breakdown={{
               title: 'Crit Multiplier',
               // Minions add Crit Damage only from minion-scoped pools; their base multiplier is 150% (constants).
-              keys: minion ? ['minion_crit_dmg_inc'] : ['crit_damage'],
+              keys: minion ? ['minion_crit_dmg_inc'] : critDmgKeys(offense),
               total: offense.crit_multiplier, totalUnit: '%',
               formula: '150% + Σ Crit Damage',
               extra: [{ value: '150%', stat: 'Crit Multiplier', source: 'Baseline', sourceName: minion ? 'Minion base' : 'Base' }],

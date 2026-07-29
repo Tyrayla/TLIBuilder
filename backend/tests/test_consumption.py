@@ -214,6 +214,14 @@ def test_g_flat_phys_raises_dps_and_crit_per_consumed_raises_crit():
     assert _pf["total"] == pytest.approx(2 * 19.5)
     assert tyrant["offense"]["crit_chance"] > base["offense"]["crit_chance"]      # +Crit Rating per Mana consumed
     assert tyrant["offense"]["crit_multiplier"] > base["offense"]["crit_multiplier"]  # +Crit Damage per Mana consumed
+    # NUMERIC PIN (engine refactor: post-loop fold in offense.py → in-loop injection into crit_dmg_inc in compute.py).
+    # consumed_recently_mana = 300/s × 4s = 1200; floor(1200/890) = 1 stack × 5% = +0.05 crit_dmg_inc → base 1.50 + 0.05.
+    # EXACT pin (not just ">") proves the in-loop injection is byte-identical to the old post-loop fold.
+    assert tyrant["offense"]["crit_multiplier"] == pytest.approx(1.55)
+    _cdi = tyrant["stats"]["crit_dmg_inc"]
+    assert _cdi["total"] == pytest.approx(0.05)
+    assert len(_cdi["sources"]) >= 1                       # the labeled "Mana Consumed" source now appears in-loop
+    assert "crit_dmg_inc_per_mana_consumed" in set(tyrant["consumed_stats"])  # badges Consumed, not Inactive
 
 
 def test_per_n_consumed_is_discrete_floored():
