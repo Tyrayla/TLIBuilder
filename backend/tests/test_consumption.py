@@ -285,6 +285,25 @@ def test_compensatory_mana_regen_per_mana_consumed_raises_regen():
     assert comp["recovery"]["mana_regen_per_sec"] > base["recovery"]["mana_regen_per_sec"]
 
 
+def test_h_spelldmg_manaregen_per_consumed_badge_consumed():
+    # REGRESSION (bug-221-class): the shared spell_dmg/mana_regen per-mana-consumed loop in compute.py now marks
+    # its keys in consumed_stats — Compensatory Life's two per-consumed affixes badge Consumed, not Inactive
+    # (previously the fold applied the bonus but never logged it as consumed, so the UI showed the mod Inactive).
+    g = [{"item_name": "T", "contributions": [
+        {"stat": "mana_consumed_flat_per_sec", "display_value": 300, "unit": "", "slot": "helmet", "item_name": "T", "text": "m"},
+        {"stat": "mana_regen_flat", "display_value": 99999, "unit": "", "slot": "helmet", "item_name": "T", "text": "r"}]}]
+    req = make_request("chain_lightning", 14, gear=g)
+    req["custom_mods"] = [
+        "+5 % Spell Damage for every 100 Mana consumed recently, up to 216 %",
+        "+(3-4) % Mana Regeneration Speed for every 100 Mana consumed recently, up to 360 %",
+    ]
+    r = engine_stats(EngineStatsRequest(**req))
+    r = r if isinstance(r, dict) else r.model_dump()
+    cs = set(r["consumed_stats"])
+    assert "spell_dmg_inc_per_mana_consumed" in cs
+    assert "mana_regen_speed_inc_per_mana_consumed" in cs
+
+
 def test_steady_state_life_solves_to_equilibrium():
     # 50% current-Life/sec drain + 300/s regen → settles where recovery == consumption (net ≈ 0), sustainable.
     r = _resp([("life_consumed_pct_current_per_sec", 0.50), ("life_regen_flat", 300)])
