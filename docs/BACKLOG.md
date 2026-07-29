@@ -268,6 +268,23 @@ for Thunder Spike specifically — see below. Full detail: `data/verification/sh
   Organ item itself doesn't matter (only the legendary name it unlocks); multi-slot applicability is already
   captured (e.g. the Vorax chest page already lists all eligible chest/gloves directly). Not re-proposing.
 
+## 0g. Crit-multiplier per-source breakdown (shipped 2026-07-28 — follow-ups)
+Shipped (commit `e0c02db`, `team1-live`): the crit-DAMAGE per-mana-consumed term (Tyrant's Iron Fist,
+`crit_dmg_inc_per_mana_consumed`) moved from a display-only post-loop fold in `offense.py` into an in-loop
+injection into the real `crit_dmg_inc` pool inside `compute.py`'s consumption loop, so it now shows a labeled
+breakdown source instead of being folded invisibly into the total. Two follow-ups surfaced during that work,
+explicitly out of scope of it:
+1. **Consistency, engine-lane — move `crit_rating_inc_per_mana_consumed` in-loop too.** The crit-RATING sibling
+   (`offense.py:1583-1588`) is still a post-loop fold — no breakdown source, and it's now the lone post-loop
+   holdout among the per-consumed folds. Follow-up: move it in-loop the same way, so it also earns a breakdown
+   source. Same pattern as the crit-damage change; will need a filled `.claude/rules/engine-task-spec.md` before
+   any code is written.
+2. **Pre-existing latent bug, bug-221 class — spell_dmg / mana_regen per-consumed loop doesn't mark `consumed_stats`.**
+   The shared spell_dmg / mana_regen per-mana consumption loop in `compute.py` (around line 889) does NOT mark its
+   stat keys in `consumed_stats`, so Compensatory Life / mana-regen-per-mana-consumed affixes badge "Inactive" in
+   the UI despite actually contributing to the computed stats. Pre-existing, not introduced by and out of scope of
+   the crit-multiplier work above. Fix: mark those keys consumed the same way the other per-consumed folds already do.
+
 ## 0c. Tangles (core shipped 2026-06-17 — follow-ups)
 Shipped: the **Tangle skill type**. A Spell becomes a Tangle via an activator support (**Spell Tangle** /
 **Activation Medium: Tangle**, NOT Manifold); it's then cast by N attached tangles (each a full caster) instead of
