@@ -222,6 +222,14 @@ def test_g_flat_phys_raises_dps_and_crit_per_consumed_raises_crit():
     assert _cdi["total"] == pytest.approx(0.05)
     assert len(_cdi["sources"]) >= 1                       # the labeled "Mana Consumed" source now appears in-loop
     assert "crit_dmg_inc_per_mana_consumed" in set(tyrant["consumed_stats"])  # badges Consumed, not Inactive
+    # NUMERIC PIN (companion refactor: the crit-RATING term moved from the same offense.py post-loop fold to an
+    # in-loop injection into crit_rating_inc in compute.py). Same 1 stack × 5% = +0.05 crit_rating_inc.
+    # EXACT pin proves the in-loop injection is byte-identical to the old post-loop fold for the rating half too.
+    assert tyrant["offense"]["crit_chance"] == pytest.approx(0.126)
+    _cri = tyrant["stats"]["crit_rating_inc"]
+    assert _cri["total"] == pytest.approx(0.05)
+    assert len(_cri["sources"]) >= 1                       # the labeled "Mana Consumed" source now appears in-loop
+    assert "crit_rating_inc_per_mana_consumed" in set(tyrant["consumed_stats"])  # badges Consumed, not Inactive
 
 
 def test_per_n_consumed_is_discrete_floored():

@@ -1579,13 +1579,10 @@ def calculate_offense(
     # crit_rating_inc/additional plus the tag-specific increases (attack/spell/projectile) that match this
     # skill — so e.g. "Spell Critical Strike Rating" applies only to spell skills, "Projectile…" only to
     # projectile skills, exactly like the type/skill crit-damage pool above.
+    # Crit Rating per Mana consumed recently (Tyrant's Iron Fist) is folded into the REAL crit_rating_inc pool in
+    # compute.py's consumption loop (like the crit_dmg_inc sibling / Tide of the Styx), so it's already summed here
+    # AND shows a labeled source in the crit-rating breakdown — no separate post-loop fold needed.
     crit_rating_inc = sum(source.total(k) for k, tags in _CRIT_RATING_INC_STATS if not tags or tags & mod_tags)
-    # Crit Rating per Mana consumed recently (Tyrant's Iron Fist) — increased Crit Rating scaled by the rolling
-    # consumed_recently_mana (set on source post-loop). One-directional, so folded here, not in the loop.
-    _crr_per = source.total("crit_rating_inc_per_mana_consumed")
-    if _crr_per:
-        crit_rating_inc += floored_consumed(source.total("consumed_recently_mana"),
-                                            source.total("crit_rating_inc_per_mana_consumed_unit")) * _crr_per
     raw_csr = (base_csr + weapon_csr + other_csr) * (1.0 + crit_rating_inc)
     # 100 CSR = 1% crit chance; divide by 10000 to convert to 0–1 float
     # crit_chance_uncapped is the TRUE chance from rating (can exceed 1.0) — surfaced so the user sees over-cap;
