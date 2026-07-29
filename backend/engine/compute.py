@@ -891,6 +891,10 @@ def compute(
                 _per = source.total(_key)
                 if not _per:
                     continue
+                # Read in the loop (outside the offense recording window) → record the keys this fold reads so the
+                # gear line badges Consumed, not Inactive — same bookkeeping the physical-flat and crit per-consumed
+                # folds already do. Pure badge marking; changes no computed value.
+                source.consumed_stats.update({_key, f"{_key}_unit", f"{_key}_cap"})
                 _amt = _floored(_cons_now.consumed_recently_mana, source.total(f"{_key}_unit")) * _per
                 _cap = source.total(f"{_key}_cap")
                 if _cap:
