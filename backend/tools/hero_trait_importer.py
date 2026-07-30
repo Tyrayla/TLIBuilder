@@ -100,6 +100,7 @@ def merge_hero_traits(existing: list[dict], incoming: dict) -> list[dict]:
 # ── Crawler-format importer ────────────────────────────────────────────────
 
 import re as _re
+import warnings
 from collections import Counter as _Counter
 
 from engine.modifier_lines import line_text, slim, slim_checked
@@ -159,6 +160,93 @@ def _node_group(trait_id: str, name: str, level_count: int) -> tuple[str, int]:
     if override:
         return override
     return ("pick", 0) if level_count > 1 else ("guaranteed", 0)
+
+
+# Dance of the Deep (Selena's second hero trait) is the ONLY hero_trait entry using a tree-allocation
+# schema (allocation_mode:"tree" + tree_root_id + tree_nodes[column/row/x/y] + tree_connections edges)
+# instead of the generic advanced_traits/group_id/is_pick_one_from_two schema every other trait uses.
+# That layout is OWNER HAND-AUTHORED (owner-confirmed 2026-07-30, not sourced from TLIDB) and is restored
+# here byte-for-byte from main's pre-regression _hero_traits.json - node_ids/column/row/x/y/edges are
+# NEVER re-derived. Only the CONTENT (effects text, icon_url) is refreshed, from this season's live
+# recrawl - keyed onto the fixed layout by the raw crawler node name, same as every other trait's
+# advanced nodes (see `advanced_traits` below, which this reuses rather than re-deriving parsing logic).
+_DANCE_OF_THE_DEEP_TREE_ROOT = "dance_of_the_deep"
+_DANCE_OF_THE_DEEP_LAYOUT = [
+    # (node_id, raw crawler node name to match against `advanced_traits`, column, row, x, y)
+    ("silencing_severance", "Silencing Severance", 1, 1, 0.72, 0.27),
+    ("drenched_hem", "Drenched Hem", 1, 2, 0.87, 0.52),
+    ("the_paradise", "The Paradise I Curse", 3, 1, 0.28, 0.27),
+    ("the_cycle", "The Cycle I Resist", 3, 2, 0.13, 0.52),
+    ("crimson_endless_dance", "Crimson Endless Dance", 5, 1, 0.67, 0.6),
+    ("dreambreakers_gyre", "Dreambreaker's Gyre", 7, 1, 0.5, 0.36),
+    ("layered_hem", "Layered Hem", 7, 2, 0.38, 0.6),
+    ("lonely_ensemble", "Lonely Ensemble", 7, 3, 0.5, 0.82),
+]
+_DANCE_OF_THE_DEEP_CONNECTIONS = [
+    (_DANCE_OF_THE_DEEP_TREE_ROOT, "silencing_severance"),
+    ("silencing_severance", "drenched_hem"),
+    (_DANCE_OF_THE_DEEP_TREE_ROOT, "the_paradise"),
+    ("the_paradise", "the_cycle"),
+    (_DANCE_OF_THE_DEEP_TREE_ROOT, "crimson_endless_dance"),
+    (_DANCE_OF_THE_DEEP_TREE_ROOT, "dreambreakers_gyre"),
+    ("dreambreakers_gyre", "layered_hem"),
+    ("layered_hem", "lonely_ensemble"),
+]
+
+
+def _dance_of_the_deep_hub_effects(levels: list[dict], am_effects: list[dict]) -> list[str]:
+    """Collapse the 5 base-trait level lines into ONE tiered line (same `(a/b/c/d/e)` syntax as every
+    other collapsed node), plus the Artificial Moon line as a second entry - mirrors main's hub-node
+    shape exactly."""
+    level_texts = [line_text(e) for lv in levels for e in lv.get("effects", [])]
+    hub_effects = list(_collapse_tiers(level_texts))
+    if am_effects:
+        hub_effects.append(line_text(am_effects[0]))
+    return hub_effects
+
+
+def _dance_of_the_deep_tree_fields(advanced_traits: list[dict], levels: list[dict],
+                                    am_effects: list[dict], variant_name: str, icon_url: str) -> dict | None:
+    """allocation_mode/tree_root_id/tree_nodes/tree_connections for Dance of the Deep - hand-authored
+    layout above, content pulled from `advanced_traits` (already collapsed via `_adv_effects`).
+    Returns None (caller falls back to the generic advanced_traits schema) unless every hand-authored
+    node name is actually present in this data - guards against a synthetic/degenerate fixture that
+    happens to slug to trait_id "dance_of_the_deep" (e.g. a minimal regression fixture for an unrelated
+    bug) being force-fit into a tree with missing nodes."""
+    by_name = {a["name"]: a for a in advanced_traits}
+    missing = [name for _, name, *_ in _DANCE_OF_THE_DEEP_LAYOUT if name not in by_name]
+    if missing:
+        # Loud, not silent: this fallback reproduces the exact flat-list regression this fix exists
+        # to fix, so a future recrawl renaming/dropping one of the 8 hand-authored node names must
+        # surface here rather than silently degrading to the generic advanced_traits schema again.
+        warnings.warn(
+            f"hero_trait_importer: dance_of_the_deep tree layout missing node name(s) {missing!r} in "
+            f"this data - falling back to the flat advanced_traits schema instead of allocation_mode:'tree'",
+            stacklevel=2,
+        )
+        return None
+    nodes = [{
+        "node_id": _DANCE_OF_THE_DEEP_TREE_ROOT,
+        "name": variant_name,
+        "column": 4, "row": 0, "x": 0.5, "y": 0.1,
+        "effects": _dance_of_the_deep_hub_effects(levels, am_effects),
+        "icon_url": icon_url or None,
+    }]
+    for node_id, name, column, row, x, y in _DANCE_OF_THE_DEEP_LAYOUT:
+        matched = by_name[name]   # guaranteed present — every name was checked above
+        nodes.append({
+            "node_id": node_id,
+            "name": matched["name"],
+            "column": column, "row": row, "x": x, "y": y,
+            "effects": [line_text(e) for e in matched["effects"]],
+            "icon_url": matched.get("icon_url") or None,
+        })
+    return {
+        "allocation_mode": "tree",
+        "tree_root_id": _DANCE_OF_THE_DEEP_TREE_ROOT,
+        "tree_nodes": nodes,
+        "tree_connections": [{"from": f, "to": t} for f, t in _DANCE_OF_THE_DEEP_CONNECTIONS],
+    }
 
 
 def _clean_ingredients(data: dict) -> list[dict]:
@@ -276,7 +364,7 @@ def import_crawler_hero_trait(data: dict) -> dict:
         if g.get("term_id")
     }
 
-    return {
+    result = {
         "trait_id": trait_id,
         "hero": hero,
         "uuid": data.get("uuid"),
@@ -285,11 +373,19 @@ def import_crawler_hero_trait(data: dict) -> dict:
         "icon_url": icon_url,   # base-trait icon; UI pairs on its basename to a bundled hero_trait webp
         "levels": levels,
         "artificial_moon": {"description": "", "effects": am_effects},
-        "advanced_traits": advanced_traits,
         "ingredients": _clean_ingredients(data),
         "max_level": data.get("max_level"),
         "glossary": glossary,
     }
+    tree_fields = (
+        _dance_of_the_deep_tree_fields(advanced_traits, levels, am_effects, name, icon_url)
+        if trait_id == _DANCE_OF_THE_DEEP_TREE_ROOT else None
+    )
+    if tree_fields is not None:
+        result.update(tree_fields)
+    else:
+        result["advanced_traits"] = advanced_traits
+    return result
 
 
 def import_crawler_hero_traits(items_data: list[dict]) -> list[dict]:

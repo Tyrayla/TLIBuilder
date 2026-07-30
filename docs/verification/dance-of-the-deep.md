@@ -9,13 +9,13 @@
 
 ## Notes / caveats / open questions
 
-Not modeled — tracked intentionally. All node effect VALUES and the exotic mechanics above (Crimson Tide, Dance Step/Eternal Sleep, Crimson Shade summons, Ominous Curse, Terra Charge, Catalyst: Ground) are pending in-game verification once SS13 launches and tlidb data becomes available. Do not model any of this from guesswork; re-visit via `/add-hero-trait` + this entry once real data exists. Source of the transcribed node text is owner-supplied in-game screenshots (pre-launch), not tlidb.
+Not modeled — tracked intentionally. All node effect VALUES and the exotic mechanics above (Crimson Tide, Dance Step/Eternal Sleep, Crimson Shade summons, Ominous Curse, Terra Charge, Catalyst: Ground) are pending in-game verification once SS13 launches and tlidb data becomes available. Do not model any of this from guesswork; re-visit via `/add-hero-trait` + this entry once real data exists. Sourcing is mixed: the tree TOPOLOGY (which nodes connect to which, their grid layout/positions) is owner-hand-authored from pre-launch in-game screenshots, not tlidb. The NODE NAMES and glossary entries, however, are tlidb-sourced from the live recrawl now that SS13 is on tlidb — e.g. `the_paradise`/`the_cycle` node names ('The Paradise I Curse' / 'The Cycle I Resist') and glossary term_ids 80063-80065 (the Dance Step sub-variants: Crimson Dash, Agonizing Revival, Eternal Sleep) were freshly fetched from their individual tlidb pages, not re-typed from an old screenshot.
 
 ## Implementation (engine model)
 
 SELECTION-ONLY. Trait node text is transcribed verbatim into `data/seasons/SS13/_hero_traits.json` (`trait_id: dance_of_the_deep`) so the tree is browsable and selectable in the builder, but **no DPS/mechanic effect is modeled in the engine** — there is no `hero_traits/dance_of_the_deep.py` module and no registry entry. Selecting this trait or any of its child nodes has zero effect on computed stats.
 
-Allocation model (UI/data shape only, not a stat effect): a connected tree rooted at the level-15 base node `dance_of_the_deep`, which is always active once the trait is selected. The player earns one allocation point per socketed Hero Memory at character levels 45/60/75 (budget = count of socketed Hero Memories), and allocation is adjacency-gated — a node can only be allocated if a path of already-allocated nodes connects it back to the root.
+Allocation model (UI/data shape only, not a stat effect): a connected tree rooted at the base node `dance_of_the_deep` (`unlock_level: 1`, matching the project-wide convention for base nodes across hero traits), which is always active once the trait is selected. The player earns one allocation point per socketed Hero Memory at character levels 45/60/75 (budget = count of socketed Hero Memories), and allocation is adjacency-gated — a node can only be allocated if a path of already-allocated nodes connects it back to the root.
 
 Topology (root = `dance_of_the_deep`):
 - `dance_of_the_deep` → `silencing_severance` → `drenched_hem`
@@ -27,5 +27,5 @@ Node mechanics referenced by the transcribed text — Crimson Tide, Dance Step /
 
 ## Sources
 
-- data/seasons/SS13/_hero_traits.json (trait_id: dance_of_the_deep — verbatim node text, owner-supplied screenshots)
+- data/seasons/SS13/_hero_traits.json (trait_id: dance_of_the_deep — tree topology/layout owner-hand-authored; node names and glossary entries tlidb-sourced via live recrawl)
 - docs/BACKLOG.md (Hero Traits, item 2 — Selena SS13 Dance of the Deep sub-bullet)

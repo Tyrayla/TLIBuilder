@@ -222,13 +222,13 @@ function TreeCard({
 
   return (
     <div
-      className={`tree-card${isPrim ? ' tree-card-primary' : ''}${isSelected ? ' tree-card-selected' : ''}${isLocked ? ' tree-card-locked' : ''}${isSelectable ? ' tree-card-selectable' : ''}${isSearchHit ? ' tree-card-search-hit' : ''}${isSearchMiss ? ' tree-card-search-miss' : ''}`}
+      className={`tree-card${isPrim ? ' tree-card-primary' : ''}${isSelected ? ' tree-card-selected' : ''}${isLocked ? ' tree-card-locked' : ''}${isSelectable ? ' tree-card-selectable' : ''}${isSearchHit ? ' tree-card-search-hit' : ''}${isSearchMiss ? ' tree-card-search-miss' : ''}${icon ? ' tree-card-has-icon' : ''}`}
       style={{ borderColor, cursor: isClickable ? 'pointer' : 'default', '--tree-accent': color } as React.CSSProperties}
       onClick={isClickable ? handleClick : undefined}
     >
+      {icon && <img className="tree-card-bg-icon" src={icon} alt="" />}
       <div className="tree-card-accent" style={{ background: color }} />
       <div className="tree-card-name" style={{ color: isLocked ? '#8a97a6' : '#ffffff' }}>
-        {icon && <img className="tree-card-icon" src={icon} alt="" />}
         {name}
       </div>
       {isSearchHit && <span className="tree-card-match-badge">{searchMatchCount}</span>}
