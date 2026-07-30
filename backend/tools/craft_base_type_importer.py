@@ -126,6 +126,20 @@ def import_crawler_craft_base_type(data: dict) -> dict:
             parsed["modifier_text"] = text
             corrosion_base_affixes.append(parsed)
 
+    # Sweet Dream Affix rows arrive in one of two shapes depending on which DOM path the crawler
+    # took (see tlidb-crawler schemas/__init__.py CraftBaseTypeRecord.sweet_dream_affixes): the
+    # historical dedicated-pane shape (Tier/Modifier/Level/Weight, same as corrosion_base) or the
+    # 2026-07-30 fallback shape filtered from the shared #Affix pane (Affix Effect/Source/Type,
+    # same as all_affixes). Normalize both into the same modifier_text/parsed shape.
+    sweet_dream_affixes = []
+    for a in (data.get("sweet_dream_affixes") or []):
+        line = a.get("Modifier") if "Modifier" in a else a.get("Affix Effect", "")
+        text = line_text(line).strip()
+        if text:
+            parsed = _parse_affix_line(line)
+            parsed["modifier_text"] = text
+            sweet_dream_affixes.append(parsed)
+
     return {
         "item_id": item_id,
         "name": name,
@@ -133,6 +147,7 @@ def import_crawler_craft_base_type(data: dict) -> dict:
         "affixes": affixes,
         "base_items": base_items,
         "corrosion_base_affixes": corrosion_base_affixes,
+        "sweet_dream_affixes": sweet_dream_affixes,
     }
 
 

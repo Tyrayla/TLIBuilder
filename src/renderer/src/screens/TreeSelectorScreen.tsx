@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { api, TreeSlot } from '../api/client'
+import { api, iconUrl, TreeSlot } from '../api/client'
 import { GROUPS, canAddTree, findShiftCandidate } from '../treeGroups'
 import SlotSidebar from '../components/SlotSidebar'
 import { useBuildStore } from '../store/buildStore'
 
 interface Props {
   treeColors: Record<string, string>
+  treeIcons?: Record<string, string | null>
   onSelectTree: (treeName: string) => void
   onRemoveTree: (slotIndex: number) => void
   onSlotClick: (slotIndex: number) => void
@@ -33,12 +34,13 @@ function contextLabel(slots: (TreeSlot | null)[]): string {
 }
 
 export default function TreeSelectorScreen({
-  treeColors, onSelectTree, onRemoveTree, onSlotClick,
+  treeColors, treeIcons = {}, onSelectTree, onRemoveTree, onSlotClick,
   onSlotReorder, onGoToTree, onBack, onGoToSelector, onShiftUp, onPreview, previewMode = false,
 }: Props) {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
   const [localColors, setLocalColors] = useState<Record<string, string>>(treeColors)
+  const [localIcons, setLocalIcons] = useState<Record<string, string | null>>(treeIcons)
 
   // Cross-tree node search: matches maps tree name → match count (null = not searching).
   const [search, setSearch] = useState('')
@@ -58,13 +60,16 @@ export default function TreeSelectorScreen({
     if (Object.keys(treeColors).length === 0) {
       api.getTrees().then(trees => {
         const colors: Record<string, string> = {}
-        trees.forEach(t => { colors[t.name] = t.color })
+        const icons: Record<string, string | null> = {}
+        trees.forEach(t => { colors[t.name] = t.color; icons[t.name] = t.icon_url ?? null })
         setLocalColors(colors)
+        setLocalIcons(icons)
       })
     } else {
       setLocalColors(treeColors)
+      setLocalIcons(treeIcons)
     }
-  }, [treeColors])
+  }, [treeColors, treeIcons])
 
   const shiftCandidate = findShiftCandidate(slots)
 
@@ -134,6 +139,7 @@ export default function TreeSelectorScreen({
                 <TreeCard
                   name={primary}
                   color={localColors[primary] || '#e94560'}
+                  icon={iconUrl('talent_tree_selector', localIcons[primary])}
                   isPrimary
                   selectedSlot={previewMode ? -1 : slotOf(primary, slots)}
                   selectable={previewMode ? true : canAddTree(primary, slots)}
@@ -152,6 +158,7 @@ export default function TreeSelectorScreen({
                         key={name}
                         name={name}
                         color={localColors[name] || '#0f3460'}
+                        icon={iconUrl('talent_tree_selector', localIcons[name])}
                         selectedSlot={previewMode ? -1 : slotOf(name, slots)}
                         selectable={previewMode ? true : canAddTree(name, slots)}
                         onSelect={() => onSelectTree(name)}
@@ -176,12 +183,13 @@ export default function TreeSelectorScreen({
 }
 
 function TreeCard({
-  name, color, isPrimary: isPrim, selectedSlot, selectable,
+  name, color, icon, isPrimary: isPrim, selectedSlot, selectable,
   onSelect, onRemove, onGoToTree, shiftCandidate, onShiftUp, previewMode = false,
   searchActive = false, searchMatchCount = 0,
 }: {
   name: string
   color: string
+  icon?: string | null
   isPrimary?: boolean
   selectedSlot: number
   selectable: boolean
@@ -220,6 +228,7 @@ function TreeCard({
     >
       <div className="tree-card-accent" style={{ background: color }} />
       <div className="tree-card-name" style={{ color: isLocked ? '#8a97a6' : '#ffffff' }}>
+        {icon && <img className="tree-card-icon" src={icon} alt="" />}
         {name}
       </div>
       {isSearchHit && <span className="tree-card-match-badge">{searchMatchCount}</span>}

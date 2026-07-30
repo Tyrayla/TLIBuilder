@@ -2678,7 +2678,7 @@ export interface SeasonDiff {
 }
 
 export const api = {
-  getTrees: () => get<{ name: string; color: string }[]>('/trees'),
+  getTrees: () => get<{ name: string; color: string; icon_url?: string | null }[]>('/trees'),
 
   // Cross-tree node search for the overview — trees with nodes matching the query + per-tree match count.
   searchTrees: (q: string) => get<{ name: string; match_count: number }[]>(`/tree-search?q=${encodeURIComponent(q)}`),

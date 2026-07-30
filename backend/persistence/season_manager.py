@@ -549,6 +549,14 @@ def delete_tower_sequence(season: str) -> None:
     _delete_singleton(season, "_tower_sequence.json")
 
 
+def load_talent_tree_selector_icons(season: str) -> dict | None:
+    """{tree_name_with_underscores: icon_url} for the god/goddess talent-tree SELECTOR cards (the
+    outer picker grid, distinct from in-tree node icons). Sourced from data-scraper's direct
+    TLIDB verification; New_God and Nether_King are a confirmed real gap (no icon upstream) and
+    are simply absent from the map, not an error."""
+    return _load_singleton(season, "_talent_tree_selector_icons.json")
+
+
 def save_divinity_slates(season: str, data: dict) -> None:
     _save_singleton(season, "_divinity_slates.json", data)
 
