@@ -267,7 +267,16 @@ def _core_effect_status(effect: str) -> dict:
 
 @app.get("/api/trees")
 def get_trees():
-    return [{"name": name, "color": entry["color"]} for name, entry in TREES.items()]
+    active = season_manager.get_active_season()
+    icons = (season_manager.load_talent_tree_selector_icons(active) if active else None) or {}
+    return [
+        {
+            "name": name,
+            "color": entry["color"],
+            "icon_url": icons.get(name.replace(" ", "_")),
+        }
+        for name, entry in TREES.items()
+    ]
 
 
 @app.get("/api/tree-search")

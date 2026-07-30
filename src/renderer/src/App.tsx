@@ -72,6 +72,7 @@ function App() {
   const [appError, setAppError] = useState('')
   const [screen, setScreen] = useState<Screen>('build-select')
   const [treeColors, setTreeColors] = useState<Record<string, string>>({})
+  const [treeIcons, setTreeIcons] = useState<Record<string, string | null>>({})
   const [cascadeModal, setCascadeModal] = useState<CascadeModal | null>(null)
   const [previewTree, setPreviewTree] = useState<string | null>(null)
   const [previewSource, setPreviewSource] = useState<Screen>('build-overview')
@@ -129,8 +130,10 @@ function App() {
         setAppReady(true)
         api.getTrees().then(trees => {
           const colors: Record<string, string> = {}
-          trees.forEach(t => { colors[t.name] = t.color })
+          const icons: Record<string, string | null> = {}
+          trees.forEach(t => { colors[t.name] = t.color; icons[t.name] = t.icon_url ?? null })
           setTreeColors(colors)
+          setTreeIcons(icons)
         })
         api.getPactSpirits()
           .then(res => {
@@ -759,6 +762,7 @@ function App() {
       <>
         <TreeSelectorScreen
           treeColors={treeColors}
+          treeIcons={treeIcons}
           onSelectTree={handleSelectTree}
           onRemoveTree={handleRemoveTree}
           onSlotClick={handleSlotClick}
