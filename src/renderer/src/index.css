@@ -606,9 +606,13 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
     color-mix(in srgb, var(--tree-accent) 30%, var(--bg-card)) 0%,
     color-mix(in srgb, var(--tree-accent) 12%, var(--bg-card)) 45%,
     color-mix(in srgb, var(--tree-accent)  5%, var(--bg-card)) 100%);
-  border: 2px solid;
   border-radius: 5px;
   overflow: hidden;
+  /* No border/ring at all — selection is signalled purely by the background gradient going
+     brighter (.tree-card-selected below). A ring here previously consumed layout space (border)
+     or, even as a non-consuming box-shadow, still traced a visible outline the owner doesn't want;
+     the accent tint alone is the identity now. Keeping .tree-card free of any per-child bleed
+     hacks was the actual point of the earlier box-shadow experiment — that holds either way. */
   transition: transform 0.12s, box-shadow 0.12s;
   min-height: 0;
   position: relative;
@@ -679,7 +683,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 
 .tree-card-btn {
-  padding: 6px 0;
+  padding: 4px 0;
   font-size: 11px;
   font-weight: 700;
   color: #ffffff;
