@@ -525,15 +525,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .tree-selector { overflow: hidden; }
 
-.screen-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--bg-panel);
-  flex-shrink: 0;
-}
-
 .selector-body {
   display: flex;
   flex: 1;
@@ -667,9 +658,9 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   z-index: 0;
   pointer-events: none;
   background: linear-gradient(180deg,
-    color-mix(in srgb, var(--tree-accent) 45%, transparent) 0%,
-    color-mix(in srgb, var(--tree-accent) 30%, transparent) 50%,
-    color-mix(in srgb, var(--tree-accent) 55%, #05070c) 100%);
+    color-mix(in srgb, var(--tree-accent) 20%, transparent) 0%,
+    color-mix(in srgb, var(--tree-accent) 10%, transparent) 50%,
+    color-mix(in srgb, var(--tree-accent) 38%, #05070c) 100%);
 }
 
 .tree-card-name {
@@ -826,8 +817,33 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   text-align: center;
   transition: border-color 0.1s, background 0.1s;
   flex: 1;
+  position: relative;
+  overflow: hidden;
 }
 .slot-sidebar-btn:hover { border-color: var(--border-strong); }
+
+/* Full-bleed tree icon for a filled slot, same treatment as .tree-card-bg-icon — sits behind
+   .slot-sidebar-btn-body (promoted to z-index:1 below) via a --slot-accent scrim. */
+.slot-sidebar-bg-icon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+}
+.slot-sidebar-btn.has-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--slot-accent) 14%, transparent) 0%,
+    color-mix(in srgb, var(--slot-accent) 22%, transparent) 50%,
+    color-mix(in srgb, var(--slot-accent) 55%, #05070c) 100%);
+}
 
 .slot-sidebar-name {
   font-size: 16px;
@@ -836,6 +852,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   word-break: break-word;
   text-align: center;
   width: 100%;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
 }
 
 .slot-sidebar-btn-body {
@@ -844,6 +861,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   align-items: center;
   gap: 3px;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .slot-sidebar-points {
@@ -858,18 +877,44 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   justify-content: center;
   gap: 6px;
   margin-top: 4px;
-  padding: 8px;
+  padding: 4px 10px;
   border-radius: 5px;
   background: #2a2550;
   border: 1px solid var(--border);
-  color: #9988ee;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
+  line-height: 1.25;
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.slot-sidebar-total-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 0%;
+  background: linear-gradient(90deg, #5a4bb8, #7d6be0);
+  transition: width 0.15s;
+}
+
+.slot-sidebar-total.over .slot-sidebar-total-fill {
+  background: linear-gradient(90deg, #8a4a00, #ffb347);
+}
+
+/* Text stays a fixed, near-white colour with a dark shadow regardless of the fill/accent theme
+   underneath it (purple normally, amber once over-cap) — matching the bar's own palette made the
+   label/value nearly disappear once the fill reached full width. */
+.slot-sidebar-total-label,
+.slot-sidebar-total-value,
+.slot-sidebar-total-warn {
+  position: relative;
+  z-index: 1;
+  color: #f4f2ff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.85);
 }
 
 .slot-sidebar-total-label {
-  color: var(--fg-muted);
   font-weight: 600;
   text-transform: uppercase;
   font-size: 10px;
@@ -879,15 +924,9 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .slot-sidebar-total.over {
   background: #2a1500;
   border-color: #8a4a00;
-  color: #ffb347;
-}
-
-.slot-sidebar-total.over .slot-sidebar-total-label {
-  color: #ffb347;
 }
 
 .slot-sidebar-total-warn {
-  color: #ff5555;
   font-size: 14px;
 }
 
@@ -1155,19 +1194,29 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .tree-viewer { display: flex; flex-direction: column; }
 
-.viewer-header {
+/* Single shared header rule for TreeSelectorScreen's and TreeViewerScreen's non-preview headers
+   (via components/ScreenHeader.tsx), plus the preview variants of both (preview-mode-header,
+   preview-viewer-header), which layer their own modifier class on top of this same base — the
+   independent .screen-header/.viewer-header rules used to drift apart in padding; one rule can't. */
+.app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 14px;
+  /* Measured live in the dev server: TreeViewerScreen's non-preview header (core-talent circle
+     badge + label) renders at 120px border-box height, the tallest of the two real usages —
+     TreeSelectorScreen's plain-text header only needs 68px. min-height pins both to the tallest
+     case so neither the header row nor (via the shared flex column beneath it) SlotSidebar's
+     4 slot cards grow/shrink depending on which screen is showing. */
+  min-height: 120px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--bg-panel);
   gap: 12px;
   flex-shrink: 0;
 }
 
-.viewer-header-left   { flex: 1; display: flex; align-items: center; gap: 8px; }
-.viewer-header-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.viewer-header-right  { display: flex; align-items: center; gap: 12px; }
+.app-header-left   { flex: 1; display: flex; align-items: center; gap: 8px; }
+.app-header-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.app-header-right  { display: flex; align-items: center; gap: 12px; }
 
 .tree-search-bar {
   position: relative;
@@ -1563,7 +1612,11 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   display: flex;
   flex-direction: column;
   background: var(--bg-abyss);
-  border-right: 1px solid var(--bg-surface);
+  /* --bg-panel, not --bg-surface: every other sidebar/chrome divider in the app (including
+     .slot-sidebar's own border-right) uses --bg-panel. The mismatch here was the seam reported on
+     tree-selector/tree-viewer — this border runs the full app height and crosses .app-header's
+     border-bottom at a T-junction; two different border tones meeting there read as a visual notch. */
+  border-right: 1px solid var(--bg-panel);
   padding: 10px 8px;
   overflow-y: auto;
   gap: 2px;
