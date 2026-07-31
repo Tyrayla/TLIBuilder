@@ -70,6 +70,13 @@ def _expand_named_buffs(text: str) -> list[str]:
 # Set in __main__ so the lifespan handler can print it after uvicorn is ready
 _SERVER_PORT = 8765
 _VERBOSE = False
+# True ONLY when this module is served over a real network socket by uvicorn (set in __main__ right
+# before uvicorn.run, after _SERVER_PORT is the real bound port). The in-process ASGI dispatch used by
+# the Pyodide web-build worker (src/renderer/src/web/computeWorker.ts) imports this module and calls
+# `app` directly with a headerless scope and never runs __main__, so this stays False there. The
+# DNS-rebinding Host-header guard below keys off this flag so it applies to the network path ONLY —
+# the in-browser worker has no network exposure and thus no rebinding surface to defend.
+_SERVED_OVER_NETWORK = False
 # TLI_DEV_MODE=1 is set by Electron in dev; defaults to off (fail-closed).
 # To enable dev routes when running server.py standalone: set TLI_DEV_MODE=1.
 IS_DEV = os.environ.get("TLI_DEV_MODE", "0") == "1"
@@ -117,6 +124,35 @@ app.add_middleware(
 async def _gate_dev_routes(request: Request, call_next):
     if not IS_DEV and request.url.path.startswith("/api/dev/"):
         return JSONResponse({"detail": "Not found"}, status_code=404)
+    return await call_next(request)
+
+
+def _loopback_host_allowlist(port: int) -> frozenset[str]:
+    """The exact Host header values a network-served backend accepts: the loopback host:port(s) it
+    actually binds to. 127.0.0.1 is the real bind address; localhost is the equivalent name that
+    legitimate desktop clients also use (src/main/index.ts and src/renderer/src/api/client.ts both
+    reach the backend at http://127.0.0.1:<port>, so they send Host: 127.0.0.1:<port>). [::1] is
+    included deliberately so an IPv6-loopback client is not silently broken — it is a loopback literal
+    that cannot be DNS-rebound, so allowing it adds no rebinding surface. Host is matched case-
+    insensitively (HTTP authority is case-insensitive); the port is read from _SERVER_PORT, the same
+    source of truth used at bind time, so the allowlist always tracks the real bound port."""
+    return frozenset(f"{h}:{port}" for h in ("127.0.0.1", "localhost", "[::1]"))
+
+
+@app.middleware("http")
+async def _validate_host_header(request: Request, call_next):
+    # DNS-rebinding defense (CWE-352): a remote page that rebinds its own hostname to 127.0.0.1 can
+    # reach this backend on the loopback interface and, being "same-origin", read/modify local state
+    # (/api/builds, season changes, and in dev /api/dev/* file read+write). The browser still sends
+    # the ATTACKER's hostname in the Host header, so we reject any Host that is not the exact loopback
+    # host:port we bound to. CORS cannot help here because the rebound request is same-origin.
+    # Guarded by _SERVED_OVER_NETWORK so this runs on the uvicorn NETWORK path ONLY: the in-process
+    # Pyodide web-worker dispatch (headerless scope, no network exposure) leaves the flag False and is
+    # never subject to this check — that is the web-build compute path and must keep working untouched.
+    if _SERVED_OVER_NETWORK:
+        host = (request.headers.get("host") or "").strip().lower()
+        if host not in _loopback_host_allowlist(_SERVER_PORT):
+            return JSONResponse({"detail": "Invalid host header"}, status_code=400)
     return await call_next(request)
 
 
@@ -795,7 +831,11 @@ def engine_stats(req: EngineStatsRequest):
             if node_id:
                 m = re.match(r"^(.+)_c\d+_r\d+$", node_id)
                 if m:
-                    needed_slugs.add(m.group(1))
+                    # Normalize the slate-derived slug exactly like the treeName branch above.
+                    # selectedNodeId is untrusted (carried through a shared tli1_ code); without
+                    # _slug() a value like "../../secret_c1_r1" would reach load_season_tree as a
+                    # path segment (CWE-22). _slug() is idempotent on a legitimate slug.
+                    needed_slugs.add(_slug(m.group(1)))
     for prism in (req.prisms or []):                       # a Prism reflects nodes of its own tree
         if prism.get("treeName"):
             needed_slugs.add(_slug(prism["treeName"]))
@@ -3403,6 +3443,9 @@ if __name__ == "__main__":
     vlog(f"[server] __main__ start — preferred port: {args.port}")
     _SERVER_PORT = find_free_port(args.port)
     vlog(f"[server] find_free_port selected: {_SERVER_PORT}")
+    # Now that we hold the real bound port, arm the DNS-rebinding Host-header guard for the network
+    # path. Only reachable here (never on import), so the in-process web-worker dispatch stays exempt.
+    _SERVED_OVER_NETWORK = True
     vlog(f"[server] calling uvicorn.run — lifespan will print ready signal")
     uvicorn.run(app, host="127.0.0.1", port=_SERVER_PORT, log_level="warning")
     vlog(f"[server] uvicorn.run returned (process exiting)")

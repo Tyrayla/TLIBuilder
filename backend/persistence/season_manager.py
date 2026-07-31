@@ -157,6 +157,32 @@ def _season_dir(season: str) -> str:
     return os.path.join(_SEASONS_DIR, season)
 
 
+def _season_file_path(season: str, filename: str) -> str:
+    """Resolve `filename` inside the season directory, refusing any traversal (CWE-22).
+
+    `filename` is a full leaf name such as "war_god.json" or "_skills.json". The tree-slug
+    portion can originate from an untrusted slate `selectedNodeId` (carried through a shared
+    tli1_ build code) and flows straight into os.path.join()/open() here, so a path
+    separator, drive letter, or ".." must never be allowed to climb out of
+    data/seasons/<season>/. `_season_dir` already validates the season; this validates the
+    leaf. Paired with the source-side _slug() normalization in server.engine_stats for
+    defense in depth."""
+    base = _season_dir(season)
+    if (not filename
+            or filename in (".", "..")
+            or ".." in filename
+            or ":" in filename
+            or "/" in filename or "\\" in filename
+            or os.sep in filename
+            or (os.altsep and os.altsep in filename)):
+        raise ValueError(f"Unsafe season file name: {filename!r}")
+    path = os.path.join(base, filename)
+    # Defense in depth: the resolved leaf must sit directly inside the season directory.
+    if os.path.dirname(os.path.realpath(path)) != os.path.realpath(base):
+        raise ValueError(f"Unsafe season file name: {filename!r}")
+    return path
+
+
 def load_all_season_trees(season: str, raw: bool = False) -> dict[str, dict]:
     """Return {slug: tree_data} for all tree files in the season (excludes _ prefixed files)."""
     d = _season_dir(season)
@@ -179,7 +205,7 @@ _season_trees_cache: dict[tuple[str, str], dict] = {}
 
 
 def load_season_tree(season: str, tree_slug: str, raw: bool = False) -> dict | None:
-    path = os.path.join(_season_dir(season), f"{tree_slug}.json")
+    path = _season_file_path(season, f"{tree_slug}.json")
     if raw:
         # Raw stored shape (slim modifier-line dicts intact) — fresh read, never cached.
         if not os.path.exists(path):
@@ -200,7 +226,7 @@ def load_season_tree(season: str, tree_slug: str, raw: bool = False) -> dict | N
 def save_season_tree(season: str, tree_name: str, tree_slug: str, data: dict) -> None:
     d = _season_dir(season)
     os.makedirs(d, exist_ok=True)
-    path = os.path.join(d, f"{tree_slug}.json")
+    path = _season_file_path(season, f"{tree_slug}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     # Invalidate (don't insert `data` — it holds the RAW stored shape with slim modifier-line

@@ -39,7 +39,12 @@ def _load_and_extract(season: str, file: str) -> tuple[list[dict], str]:
         loader_fn, extract_fn = _LOADERS[file]
         data = loader_fn(season)
     else:
-        path = os.path.join(season_manager._season_dir(season), f"{file}.json")
+        # `file` is an untrusted path segment; route through the same season-dir traversal
+        # guard as load_season_tree so it cannot escape data/seasons/<season>/ (CWE-22).
+        try:
+            path = season_manager._season_file_path(season, f"{file}.json")
+        except ValueError:
+            raise HTTPException(status_code=404, detail=f"File not found: {file!r}")
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail=f"File not found: {file!r}")
         with open(path, encoding="utf-8") as f:
