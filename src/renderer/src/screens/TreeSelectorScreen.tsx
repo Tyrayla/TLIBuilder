@@ -213,11 +213,6 @@ function TreeCard({
   const isSearchHit = searchActive && searchMatchCount > 0
   const isSearchMiss = searchActive && searchMatchCount === 0
 
-  // Fill-led: an unselected card carries no outline at all — its own colour tint separates it from the
-  // canvas (see .tree-card in index.css). Selection is signalled by the card's OWN accent as the border,
-  // not by a generic blue, so the selected card stays inside its column's colour identity.
-  const borderColor = isSearchHit ? '#e9c046' : isSelected ? color : 'transparent'
-
   function handleClick() {
     if (isSelectable) onSelect()
     else if (isSelected && onGoToTree) onGoToTree()
@@ -226,7 +221,7 @@ function TreeCard({
   return (
     <div
       className={`tree-card${isPrim ? ' tree-card-primary' : ''}${isSelected ? ' tree-card-selected' : ''}${isLocked ? ' tree-card-locked' : ''}${isSelectable ? ' tree-card-selectable' : ''}${isSearchHit ? ' tree-card-search-hit' : ''}${isSearchMiss ? ' tree-card-search-miss' : ''}${icon ? ' tree-card-has-icon' : ''}`}
-      style={{ borderColor, cursor: isClickable ? 'pointer' : 'default', '--tree-accent': color } as React.CSSProperties}
+      style={{ cursor: isClickable ? 'pointer' : 'default', '--tree-accent': color } as React.CSSProperties}
       onClick={isClickable ? handleClick : undefined}
     >
       {icon && <img className="tree-card-bg-icon" src={icon} alt="" />}
@@ -235,20 +230,22 @@ function TreeCard({
         {name}
       </div>
       {isSearchHit && <span className="tree-card-match-badge">{searchMatchCount}</span>}
-      {isSelected && (
-        <div
-          className="tree-card-btn tree-card-btn-remove"
-          onClick={e => { e.stopPropagation(); onRemove() }}
-        >
-          Remove
-        </div>
-      )}
+      {/* Shift renders above Remove — Remove always sits last/at the very bottom of the card,
+          whether or not a shift candidate is also present on this card. */}
       {shiftCandidate && onShiftUp && (
         <div
           className="tree-card-shift"
           onClick={e => { e.stopPropagation(); onShiftUp(shiftCandidate.fromSlot) }}
         >
           ↑ Move to Slot 2
+        </div>
+      )}
+      {isSelected && (
+        <div
+          className="tree-card-btn tree-card-btn-remove"
+          onClick={e => { e.stopPropagation(); onRemove() }}
+        >
+          Remove
         </div>
       )}
     </div>
