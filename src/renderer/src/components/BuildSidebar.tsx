@@ -130,6 +130,7 @@ function LoadoutBar({ onManage }: { onManage: (v: 'list' | 'create') => void }) 
 
 export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave, onSaveAs, onGoBack }: Props) {
   const isTreeActive = screen === 'tree-selector' || screen === 'tree-viewer'
+    || screen === 'preview-selector' || screen === 'preview-viewer'
   const [showSettings, setShowSettings] = useState(false)
   const [loadoutView, setLoadoutView] = useState<null | 'list' | 'create'>(null)
   const sidebarWidth = useUiPrefs(s => s.sidebarWidth)

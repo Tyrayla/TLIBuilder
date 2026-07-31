@@ -5,6 +5,8 @@ import SlotSidebar from '../components/SlotSidebar'
 import ScreenHeader from '../components/ScreenHeader'
 import { useBuildStore } from '../store/buildStore'
 
+const EMPTY_SLOTS: null[] = [null, null, null, null]
+
 interface Props {
   treeColors: Record<string, string>
   treeIcons?: Record<string, string | null>
@@ -13,7 +15,6 @@ interface Props {
   onSlotClick: (slotIndex: number) => void
   onSlotReorder: (fromSlot: number, toSlot: number) => void
   onGoToTree?: (slotIndex: number) => void
-  onBack: () => void
   onGoToSelector: () => void
   onShiftUp: (fromSlot: number) => void
   onPreview: () => void
@@ -36,7 +37,7 @@ function contextLabel(slots: (TreeSlot | null)[]): string {
 
 export default function TreeSelectorScreen({
   treeColors, treeIcons = {}, onSelectTree, onRemoveTree, onSlotClick,
-  onSlotReorder, onGoToTree, onBack, onGoToSelector, onShiftUp, onPreview, previewMode = false,
+  onSlotReorder, onGoToTree, onGoToSelector, onShiftUp, onPreview, previewMode = false,
 }: Props) {
   const slots = useBuildStore(s => s.slots)
   const activeSlot = useBuildStore(s => s.activeSlot)
@@ -74,49 +75,37 @@ export default function TreeSelectorScreen({
 
   const shiftCandidate = findShiftCandidate(slots)
 
-  const normalHeader = (
+  // Preview mode renders through the same ScreenHeader now — no bespoke header, no background
+  // watermark on this screen (the card grid fills nearly the whole area, so a tiled watermark
+  // barely showed through anyway). The header text alone is the preview signal here.
+  const header = (
     <ScreenHeader
       left={
         <h2 style={{ fontSize: 16, color: '#aaa', fontWeight: 500, margin: 0 }}>
-          {contextLabel(slots)}
+          {previewMode
+            ? <><strong style={{ color: '#bbaaff' }}>Preview Mode</strong> — browse freely, nothing is saved to your build</>
+            : contextLabel(slots)}
         </h2>
       }
     />
   )
 
-  const previewHeader = (
-    <div className="app-header preview-mode-header">
-      <button className="btn-back" onClick={onBack} style={{ alignSelf: 'flex-start', marginTop: 2 }}>
-        ← Build Overview
-      </button>
-      <div className="preview-header-content">
-        <div className="preview-header-badge">◈ PREVIEW MODE</div>
-        <div className="preview-header-title">Browse Trees</div>
-        <div className="preview-header-sub">
-          Click any tree to explore its nodes — nothing is saved to your build
-        </div>
-      </div>
-      <div style={{ width: 60, flexShrink: 0 }} />
-    </div>
-  )
-
   return (
     <div className="screen tree-selector">
-      {previewMode ? previewHeader : normalHeader}
+      {header}
       <div className="selector-body">
-        {!previewMode && (
-          <SlotSidebar
-            slots={slots}
-            activeSlot={activeSlot}
-            treeColors={localColors}
-            treeIcons={localIcons}
-            onOverview={onGoToSelector}
-            onSlotClick={onSlotClick}
-            onPreview={onPreview}
-            dragDropEnabled
-            onSlotReorder={onSlotReorder}
-          />
-        )}
+        <SlotSidebar
+          slots={previewMode ? EMPTY_SLOTS : slots}
+          activeSlot={previewMode ? -1 : activeSlot}
+          treeColors={localColors}
+          treeIcons={localIcons}
+          onOverview={onGoToSelector}
+          onSlotClick={onSlotClick}
+          onPreview={onPreview}
+          inPreview={previewMode}
+          dragDropEnabled={!previewMode}
+          onSlotReorder={onSlotReorder}
+        />
         <div className="tree-main">
           <div className="tree-overview-search">
             <div className="tree-search-bar">

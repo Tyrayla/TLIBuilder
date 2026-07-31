@@ -558,6 +558,12 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   state-transition pieces into exported helpers (mirroring `sortBuilds`/`sortFolders`) for unit tests, or RTL
   flows. Deferred from the 2026-07-15 review council (correctness reviewer flagged; pure helpers are covered,
   handlers are not).
+- **Deferred test coverage — TreeViewerScreen.tsx preview-guard sites.** 5 `previewMode` store-mutation guard sites
+  (`if (!previewMode)` gating `updateSlotNodeStates`/`updateSlotCoreTalentSelections`); only 2 are covered by a
+  behavioral test (the node-allocate interaction path, `src/renderer/src/__tests__/App.previewWiring.test.tsx`).
+  The other 3 remain untested: `handleReset`, `handleCoreTalentSelect`, and the prism-overlay `onUpdatePlaced`
+  re-validation path. Accepted gap, not urgent — the 2 tested sites cover the primary/most-traveled interaction —
+  tracked so it isn't forgotten (2026-07-31).
 
 ## 6. Stats engine v2 (open items)
 - Source coloring (crafted gear by rarity #mods, talents by tree branch); hero-memory base values by rarity

@@ -719,39 +719,6 @@ function App() {
   }
 
 
-  if (screen === 'preview-selector') {
-    return (
-      <TreeSelectorScreen
-        treeColors={treeColors}
-        onSelectTree={handlePreviewTree}
-        onRemoveTree={() => {}}
-        onSlotClick={() => {}}
-        onSlotReorder={() => {}}
-        onBack={() => setScreen(previewSource)}
-        onGoToSelector={() => {}}
-        onShiftUp={() => {}}
-        onPreview={() => {}}
-        previewMode
-      />
-    )
-  }
-
-  if (screen === 'preview-viewer' && previewTree) {
-    return (
-      <TreeViewerScreen
-        treeName={previewTree}
-        treeColor={treeColors[previewTree] ?? '#e94560'}
-        treeColors={treeColors}
-        treeIcons={treeIcons}
-        onBack={() => setScreen('preview-selector')}
-        onSlotClick={() => {}}
-        onReselect={() => setScreen('preview-selector')}
-        previewMode
-      />
-    )
-  }
-
-
   // ── Screens with sidebar ──────────────────────────────────────────────────
 
   let screenContent: React.ReactNode = <div style={{ color: '#888', padding: 20 }}>Unknown screen state</div>
@@ -769,7 +736,6 @@ function App() {
           onSlotClick={handleSlotClick}
           onSlotReorder={handleSlotReorder}
           onGoToTree={handleSlotClick}
-          onBack={() => setScreen('build-overview')}
           onGoToSelector={() => {}}
           onShiftUp={handleShiftUp}
           onPreview={goToPreview}
@@ -801,6 +767,35 @@ function App() {
         </>
       )
     }
+  } else if (screen === 'preview-selector') {
+    screenContent = (
+      <TreeSelectorScreen
+        treeColors={treeColors}
+        treeIcons={treeIcons}
+        onSelectTree={handlePreviewTree}
+        onRemoveTree={() => {}}
+        onSlotClick={() => {}}
+        onSlotReorder={() => {}}
+        onGoToSelector={() => {}}
+        onShiftUp={() => {}}
+        onPreview={() => setScreen(previewSource)}
+        previewMode
+      />
+    )
+  } else if (screen === 'preview-viewer' && previewTree) {
+    screenContent = (
+      <TreeViewerScreen
+        treeName={previewTree}
+        treeColor={treeColors[previewTree] ?? '#e94560'}
+        treeColors={treeColors}
+        treeIcons={treeIcons}
+        onBack={() => setScreen('preview-selector')}
+        onSlotClick={() => {}}
+        onReselect={() => setScreen('preview-selector')}
+        onPreview={() => setScreen(previewSource)}
+        previewMode
+      />
+    )
   } else if (screen === 'import-export') {
     screenContent = (
       <ImportExportOverlay
