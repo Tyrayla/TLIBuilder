@@ -47,3 +47,6 @@ src/renderer/public/backend-py.zip
 # Private dev vault (handoffs, plans, agent notes). Tracked in a SEPARATE private repo, never here.
 docs/local/
 
+# Planner draft scratch — authoritative plans are published to <umbrella>/shared/plans/, not here.
+plans/
+
