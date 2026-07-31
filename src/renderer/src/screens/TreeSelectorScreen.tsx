@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { api, iconUrl, TreeSlot } from '../api/client'
 import { GROUPS, canAddTree, findShiftCandidate } from '../treeGroups'
 import SlotSidebar from '../components/SlotSidebar'
+import ScreenHeader from '../components/ScreenHeader'
 import { useBuildStore } from '../store/buildStore'
 
 interface Props {
@@ -74,16 +75,17 @@ export default function TreeSelectorScreen({
   const shiftCandidate = findShiftCandidate(slots)
 
   const normalHeader = (
-    <div className="screen-header">
-      <button className="btn-back" onClick={onBack}>← Build Overview</button>
-      <h2 style={{ fontSize: 16, color: '#aaa', fontWeight: 500 }}>
-        {contextLabel(slots)}
-      </h2>
-    </div>
+    <ScreenHeader
+      left={
+        <h2 style={{ fontSize: 16, color: '#aaa', fontWeight: 500, margin: 0 }}>
+          {contextLabel(slots)}
+        </h2>
+      }
+    />
   )
 
   const previewHeader = (
-    <div className="screen-header preview-mode-header">
+    <div className="app-header preview-mode-header">
       <button className="btn-back" onClick={onBack} style={{ alignSelf: 'flex-start', marginTop: 2 }}>
         ← Build Overview
       </button>
@@ -107,6 +109,7 @@ export default function TreeSelectorScreen({
             slots={slots}
             activeSlot={activeSlot}
             treeColors={localColors}
+            treeIcons={localIcons}
             onOverview={onGoToSelector}
             onSlotClick={onSlotClick}
             onPreview={onPreview}

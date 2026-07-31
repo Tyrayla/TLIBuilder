@@ -742,6 +742,7 @@ function App() {
         treeName={previewTree}
         treeColor={treeColors[previewTree] ?? '#e94560'}
         treeColors={treeColors}
+        treeIcons={treeIcons}
         onBack={() => setScreen('preview-selector')}
         onSlotClick={() => {}}
         onReselect={() => setScreen('preview-selector')}
@@ -787,6 +788,7 @@ function App() {
             treeName={slot.treeName}
             treeColor={treeColors[slot.treeName] ?? '#e94560'}
             treeColors={treeColors}
+            treeIcons={treeIcons}
             onBack={() => setScreen('tree-selector')}
             onSlotClick={handleSlotClick}
             onReselect={handleReselect}

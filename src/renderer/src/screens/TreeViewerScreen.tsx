@@ -3,6 +3,7 @@ import { FloatingPortal, useFloating, autoUpdate, offset, flip, shift, size } fr
 import { api, getApiBase, iconUrl, TreeData, TreeNode, CoreTalentSlotOption,
   PrismCatalogItem, CraftedPrism, PlacedPrism, PrismRolls, EtherealCatalog, EtherealConfig } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
+import ScreenHeader from '../components/ScreenHeader'
 import PrismOverlay, { RARE_TINT, condensePrismImplicit } from '../components/PrismOverlay'
 import { isPrimary } from '../treeGroups'
 import { useBuildStore } from '../store/buildStore'
@@ -482,6 +483,7 @@ interface Props {
   treeName: string
   treeColor: string
   treeColors: Record<string, string>
+  treeIcons?: Record<string, string | null>
   onBack: () => void
   onSlotClick: (slotIndex: number) => void
   onReselect: () => void
@@ -493,7 +495,7 @@ interface Props {
 }
 
 export default function TreeViewerScreen({
-  treeName, treeColor, treeColors,
+  treeName, treeColor, treeColors, treeIcons,
   onBack, onSlotClick, onReselect,
   onSlotReorder, onPreview,
   previewMode = false, devMode = false, deprecatedTools = false,
@@ -1266,8 +1268,8 @@ export default function TreeViewerScreen({
   // ── Header ─────────────────────────────────────────────────────────────────
 
   const header = previewMode ? (
-    <div className="viewer-header preview-viewer-header">
-      <div className="viewer-header-left">
+    <div className="app-header preview-viewer-header">
+      <div className="app-header-left">
         <button className="btn-back" onClick={onBack}>← Back to Preview</button>
         {coreTalentWidget}
       </div>
@@ -1275,75 +1277,76 @@ export default function TreeViewerScreen({
         <div className="preview-header-badge" style={{ fontSize: 10, padding: '2px 10px' }}>◈ PREVIEW MODE</div>
         <span className="viewer-tree-name" style={{ color: treeColor, fontSize: 20 }}>{treeName}</span>
       </div>
-      <div className="viewer-header-right">
+      <div className="app-header-right">
         <span style={{ fontSize: 11, color: '#555577', fontStyle: 'italic' }}>explore freely — nothing saved</span>
         <span className="viewer-points">Points: {total}</span>
       </div>
     </div>
   ) : (
-    <div className="viewer-header">
-      <div className="viewer-header-left">
-        <button className="btn-back" onClick={onBack}>← Back</button>
-        <span className="viewer-tree-name" style={{ color: treeColor }}>{treeName}</span>
-        {coreTalentWidget}
-      </div>
-      {treeData && (
+    <ScreenHeader
+      left={
         <>
-          <div className="viewer-header-center">
-            {/* Token classes, not inline hexes — these two sat side by side in two unrelated hand-rolled
-                palettes (solid #3a1a1a vs solid #1a1a3a) and read as buttons from two different apps.
-                Reselect is a neutral navigation action, so it takes --secondary; only Reset is destructive. */}
-            <button
-              className="btn btn-sm btn-danger"
-              onClick={handleReset}
-            >Reset</button>
-            <button
-              className="btn btn-sm btn-secondary"
-              onClick={onReselect}
-              title="Clear this tree and pick a different one"
-            >Reselect</button>
-            {/* Hidden while placing a prism so the placement banner can't overlap (and be clicked through to) these. */}
-            {!placingPrism && <>
-              <div className="tree-search-bar">
-                <input
-                  className="tree-search-input"
-                  type="text"
-                  placeholder="Search nodes…"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                />
-                {search && (
-                  <button className="tree-search-clear" onClick={() => setSearch('')}>✕</button>
-                )}
-              </div>
-              {isSearching && (
-                <span className="tree-search-count">
-                  {searchHits.size} match{searchHits.size !== 1 ? 'es' : ''}
-                </span>
+          <span className="viewer-tree-name" style={{ color: treeColor }}>{treeName}</span>
+          {coreTalentWidget}
+        </>
+      }
+      center={treeData && (
+        <>
+          {/* Token classes, not inline hexes — these two sat side by side in two unrelated hand-rolled
+              palettes (solid #3a1a1a vs solid #1a1a3a) and read as buttons from two different apps.
+              Reselect is a neutral navigation action, so it takes --secondary; only Reset is destructive. */}
+          <button
+            className="btn btn-sm btn-danger"
+            onClick={handleReset}
+          >Reset</button>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={onReselect}
+            title="Clear this tree and pick a different one"
+          >Reselect</button>
+          {/* Hidden while placing a prism so the placement banner can't overlap (and be clicked through to) these. */}
+          {!placingPrism && <>
+            <div className="tree-search-bar">
+              <input
+                className="tree-search-input"
+                type="text"
+                placeholder="Search nodes…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              {search && (
+                <button className="tree-search-clear" onClick={() => setSearch('')}>✕</button>
               )}
-              {!isPrimary(treeName) && (
-                <button
-                  className="btn btn-sm btn-accent"
-                  style={{ marginLeft: 14 }}
-                  onClick={() => { setPlacingPrism(null); setExpandedSlot(null); setPrismOverlayOpen(true) }}
-                  title="Craft and install prisms"
-                >◈ Add Prism</button>
-              )}
-            </>}
-          </div>
-          <div className="viewer-header-right">
-            {devMode && deprecatedTools && (
-              <button
-                className={`btn btn-sm debug-toggle${debugMode ? ' active' : ''}`}
-                onClick={() => { setDebugMode(d => !d); setLinkFrom(null) }}
-                title="Toggle debug tools"
-              >⚙ Debug</button>
+            </div>
+            {isSearching && (
+              <span className="tree-search-count">
+                {searchHits.size} match{searchHits.size !== 1 ? 'es' : ''}
+              </span>
             )}
-            <span className="viewer-points">Points: {total}</span>
-          </div>
+            {!isPrimary(treeName) && (
+              <button
+                className="btn btn-sm btn-accent"
+                style={{ marginLeft: 14 }}
+                onClick={() => { setPlacingPrism(null); setExpandedSlot(null); setPrismOverlayOpen(true) }}
+                title="Craft and install prisms"
+              >◈ Add Prism</button>
+            )}
+          </>}
         </>
       )}
-    </div>
+      right={treeData && (
+        <>
+          {devMode && deprecatedTools && (
+            <button
+              className={`btn btn-sm debug-toggle${debugMode ? ' active' : ''}`}
+              onClick={() => { setDebugMode(d => !d); setLinkFrom(null) }}
+              title="Toggle debug tools"
+            >⚙ Debug</button>
+          )}
+          <span className="viewer-points">Points: {total}</span>
+        </>
+      )}
+    />
   )
 
   // Stable identity for TreeNodeG's `onInteract` prop (2026-07-16 review-performance fix, part 2).
@@ -1581,6 +1584,7 @@ export default function TreeViewerScreen({
             slots={slots}
             activeSlot={activeSlot}
             treeColors={treeColors}
+            treeIcons={treeIcons}
             onOverview={onBack}
             onSlotClick={onSlotClick}
             onPreview={onPreview}
