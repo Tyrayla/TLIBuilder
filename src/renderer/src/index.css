@@ -530,6 +530,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  position: relative;
 }
 
 .tree-main {
@@ -538,6 +539,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .tree-overview-search {
@@ -738,6 +741,11 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   padding: 10px 8px;
   border-right: 1px solid var(--bg-panel);
   background: var(--bg-deep);
+  /* Above the preview watermark (a sibling z-index:0 layer in .selector-body/.viewer-body) — a
+     positioned z-index:0 element otherwise paints above non-positioned static siblings regardless
+     of DOM order, so an opaque background alone isn't enough to stay on top of it. */
+  position: relative;
+  z-index: 1;
 }
 
 .slot-sidebar-overview {
@@ -764,51 +772,54 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   margin-bottom: 6px;
 }
 .slot-sidebar-preview:hover { background: #221050; color: #bbaaff; }
+/* Reads as "Exit Preview" (red/danger, same palette as .tree-card-btn-remove) while actually
+   browsing in preview — clicking it exits back to wherever preview was entered from. */
+.slot-sidebar-preview.active {
+  background: #3a1c1c;
+  color: #ff8888;
+  border-color: #7a3a3a;
+}
+.slot-sidebar-preview.active:hover { background: #3a1515; color: #ffaaaa; }
 
-/* ── Preview mode header ──────────────────────────────────────────────────── */
+/* ── Preview watermark ────────────────────────────────────────────────────── */
+/* Sole signal that a screen is in preview mode — both TreeSelectorScreen and TreeViewerScreen
+   render through the plain ScreenHeader now, no bespoke badge/back-button. */
 
-.preview-mode-header {
-  min-height: 82px;
-  padding: 12px 16px;
-  align-items: center;
-  border-bottom: 2px solid #2a1a5a;
-  background: linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-surface) 100%);
+.preview-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.preview-header-content {
-  flex: 1;
+/* Centered + oversized (200% both axes) BEFORE rotating, so the tiled block still covers every
+   corner of the container edge-to-edge after the -24deg rotation regardless of the container's
+   aspect ratio — the previous fixed top/left/width/height offsets left the bottom-right mostly
+   uncovered on a wide canvas. */
+.preview-watermark-tiles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200%;
+  height: 200%;
+  transform: translate(-50%, -50%) rotate(-24deg);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  text-align: center;
+  justify-content: center;
+  gap: 56px;
+  opacity: 0.12;
 }
 
-.preview-header-badge {
-  display: inline-block;
-  font-size: 10px;
+.preview-watermark-line {
+  white-space: nowrap;
   font-weight: 800;
-  letter-spacing: 2.5px;
-  color: #9988ee;
+  letter-spacing: 12px;
+  font-size: 38px;
+  color: #b6acff;
   text-transform: uppercase;
-  background: #1a1040;
-  padding: 3px 12px;
-  border-radius: 4px;
-  border: 1px solid #4a3a8a;
 }
-
-.preview-header-title {
-  font-size: 26px;
-  font-weight: 800;
-  color: #ffffff;
-  line-height: 1;
-}
-
-.preview-header-sub {
-  font-size: 12px;
-  color: #7766aa;
-  font-style: italic;
-}
+.preview-watermark-line:nth-child(even) { padding-left: 120px; }
 
 .slot-sidebar-btn {
   display: flex;
@@ -1198,10 +1209,11 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 .tree-viewer { display: flex; flex-direction: column; }
 
-/* Single shared header rule for TreeSelectorScreen's and TreeViewerScreen's non-preview headers
-   (via components/ScreenHeader.tsx), plus the preview variants of both (preview-mode-header,
-   preview-viewer-header), which layer their own modifier class on top of this same base — the
-   independent .screen-header/.viewer-header rules used to drift apart in padding; one rule can't. */
+/* Single shared header rule for TreeSelectorScreen and TreeViewerScreen (via
+   components/ScreenHeader.tsx) — both screens' preview modes render through this same header too
+   now (no more bespoke preview-mode-header/preview-viewer-header variants; preview identity comes
+   from the watermark instead). The old independent .screen-header/.viewer-header rules used to
+   drift apart in padding; one shared rule can't. */
 .app-header {
   display: flex;
   align-items: center;
@@ -1270,6 +1282,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  position: relative;
 }
 
 .viewer-main {
@@ -1278,6 +1291,8 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .viewer-canvas {
@@ -1285,6 +1300,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   overflow: hidden;
   padding: 4px 8px;
   min-height: 0;
+  position: relative;
 }
 
 .viewer-status {

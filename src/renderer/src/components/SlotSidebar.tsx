@@ -10,6 +10,7 @@ interface Props {
   onOverview: () => void
   onSlotClick: (slotIndex: number) => void
   onPreview?: () => void
+  inPreview?: boolean
   viewerMode?: boolean
   dragDropEnabled?: boolean
   onSlotReorder?: (fromSlot: number, toSlot: number) => void
@@ -17,7 +18,7 @@ interface Props {
 
 export default function SlotSidebar({
   slots, activeSlot, treeColors, treeIcons = {}, onOverview, onSlotClick,
-  onPreview, viewerMode = false, dragDropEnabled = false, onSlotReorder,
+  onPreview, inPreview = false, viewerMode = false, dragDropEnabled = false, onSlotReorder,
 }: Props) {
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
   const totalPoints = totalAllocatedPoints(slots)
@@ -29,8 +30,11 @@ export default function SlotSidebar({
         Overview
       </button>
       {onPreview && (
-        <button className="slot-sidebar-preview" onClick={onPreview}>
-          Preview
+        <button
+          className={`slot-sidebar-preview${inPreview ? ' active' : ''}`}
+          onClick={onPreview}
+        >
+          {inPreview ? 'Exit Preview' : 'Preview'}
         </button>
       )}
       {slots.map((slot, i) => {
@@ -97,7 +101,7 @@ export default function SlotSidebar({
             {icon && <img className="slot-sidebar-bg-icon" src={icon} alt="" />}
             <div className="slot-sidebar-btn-body">
               <span className="slot-sidebar-name" style={{ color: nameColor }}>
-                {slot?.treeName ?? 'Empty'}
+                {slot?.treeName ?? (inPreview ? 'Preview Mode' : 'Empty')}
               </span>
               {slot && (
                 <span className="slot-sidebar-points">{slotPointTotal(slot)} pts</span>

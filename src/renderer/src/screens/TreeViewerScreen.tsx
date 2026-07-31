@@ -4,6 +4,7 @@ import { api, getApiBase, iconUrl, TreeData, TreeNode, CoreTalentSlotOption,
   PrismCatalogItem, CraftedPrism, PlacedPrism, PrismRolls, EtherealCatalog, EtherealConfig } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 import ScreenHeader from '../components/ScreenHeader'
+import PreviewWatermark from '../components/PreviewWatermark'
 import PrismOverlay, { RARE_TINT, condensePrismImplicit } from '../components/PrismOverlay'
 import { isPrimary } from '../treeGroups'
 import { useBuildStore } from '../store/buildStore'
@@ -15,6 +16,8 @@ import {
   useDamageDelta, withNodePoints, withPrismBoxPoints, withNodeStatesMap, type LabeledDelta,
 } from '../components/tooltip/useDamageDelta'
 import { nodeThreshold, diffAdded, diffRemoved, nodeStatesSignature } from '../utils/passiveTreeDiff'
+
+const EMPTY_SLOTS: null[] = [null, null, null, null]
 
 const COLS = 7
 const ROWS = 5
@@ -1267,25 +1270,17 @@ export default function TreeViewerScreen({
 
   // ── Header ─────────────────────────────────────────────────────────────────
 
-  const header = previewMode ? (
-    <div className="app-header preview-viewer-header">
-      <div className="app-header-left">
-        <button className="btn-back" onClick={onBack}>← Back to Preview</button>
-        {coreTalentWidget}
-      </div>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-        <div className="preview-header-badge" style={{ fontSize: 10, padding: '2px 10px' }}>◈ PREVIEW MODE</div>
-        <span className="viewer-tree-name" style={{ color: treeColor, fontSize: 20 }}>{treeName}</span>
-      </div>
-      <div className="app-header-right">
-        <span style={{ fontSize: 11, color: '#555577', fontStyle: 'italic' }}>explore freely — nothing saved</span>
-        <span className="viewer-points">Points: {total}</span>
-      </div>
-    </div>
-  ) : (
+  // Preview mode renders through the exact same header as the normal viewer now — no bespoke
+  // header block, just a "Preview Mode" label prefixed onto the tree name plus the background
+  // watermark below (this is the screen the owner wants the watermark on — "it needs to appear
+  // in each tree", not the selector grid). The one real behavioral gate that must survive the
+  // merge: prisms stay excluded from preview (a real inventory mechanic tied to the actual build,
+  // same reason treePrism is undefined in preview).
+  const header = (
     <ScreenHeader
       left={
         <>
+          {previewMode && <strong style={{ color: '#bbaaff', marginRight: 8 }}>Preview Mode</strong>}
           <span className="viewer-tree-name" style={{ color: treeColor }}>{treeName}</span>
           {coreTalentWidget}
         </>
@@ -1323,7 +1318,7 @@ export default function TreeViewerScreen({
                 {searchHits.size} match{searchHits.size !== 1 ? 'es' : ''}
               </span>
             )}
-            {!isPrimary(treeName) && (
+            {!previewMode && !isPrimary(treeName) && (
               <button
                 className="btn btn-sm btn-accent"
                 style={{ marginLeft: 14 }}
@@ -1579,28 +1574,28 @@ export default function TreeViewerScreen({
       )}
 
       <div className="viewer-body">
-        {!previewMode && (
-          <SlotSidebar
-            slots={slots}
-            activeSlot={activeSlot}
-            treeColors={treeColors}
-            treeIcons={treeIcons}
-            onOverview={onBack}
-            onSlotClick={onSlotClick}
-            onPreview={onPreview}
-            viewerMode
-            dragDropEnabled
-            onSlotReorder={onSlotReorder}
-          />
-        )}
+        <SlotSidebar
+          slots={previewMode ? EMPTY_SLOTS : slots}
+          activeSlot={previewMode ? -1 : activeSlot}
+          treeColors={treeColors}
+          treeIcons={treeIcons}
+          onOverview={onBack}
+          onSlotClick={onSlotClick}
+          onPreview={onPreview}
+          inPreview={previewMode}
+          viewerMode
+          dragDropEnabled={!previewMode}
+          onSlotReorder={onSlotReorder}
+        />
 
         <div className="viewer-main">
           <div className="viewer-canvas" style={{ background: CANVAS_BG }}>
+            {previewMode && <PreviewWatermark />}
             <svg
               viewBox={`0 0 ${VW} ${VH}`}
               width="100%"
               height="100%"
-              style={{ display: 'block' }}
+              style={{ display: 'block', position: 'relative', zIndex: 1 }}
               onContextMenu={e => e.preventDefault()}
             >
               {COL_LABELS.map((label, col) => {
