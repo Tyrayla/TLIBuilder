@@ -183,12 +183,13 @@ const LEGENDARY_ORIENTATIONS: Record<LegendaryKind, [number, number][][]> = {
 
 function getOrientationCells(kind: SlateKind, shapeIndex: number, orientationIndex: number): [number, number][] {
   if (kind === 'base') return BASE_SHAPES[shapeIndex]?.rotations[orientationIndex] ?? BASE_SHAPES[0].rotations[0]
-  return LEGENDARY_ORIENTATIONS[kind as LegendaryKind][orientationIndex] ?? LEGENDARY_ORIENTATIONS[kind as LegendaryKind][0]
+  const orientations = LEGENDARY_ORIENTATIONS[kind as LegendaryKind]
+  return orientations?.[orientationIndex] ?? orientations?.[0] ?? [[0, 0]]
 }
 
 function getOrientationCount(kind: SlateKind): number {
   if (kind === 'base') return 4
-  return LEGENDARY_ORIENTATIONS[kind as LegendaryKind].length
+  return LEGENDARY_ORIENTATIONS[kind as LegendaryKind]?.length ?? 0
 }
 
 function getCenterOffset(cells: [number, number][]): [number, number] {
@@ -600,7 +601,7 @@ const MOTH_DELTA: Record<MothDirection, [number, number]> = { above: [-1,0], bel
 function getMothModifier(moth: PlacedSlate, placed: PlacedSlate[]): string | null {
   if (!moth.mothDirection) return null
   const [mr, mc] = moth.anchor
-  const [dr, dc] = MOTH_DELTA[moth.mothDirection]
+  const [dr, dc] = MOTH_DELTA[moth.mothDirection] ?? [0, 0]
   const target = placed.find(s => s.id !== moth.id && s.cells.some(([r, c]) => `${r},${c}` === `${mr + dr},${mc + dc}`))
   if (!target) return null
   const effects = getBottomEffects(target)
@@ -631,7 +632,7 @@ function copyMediumLines(slate: PlacedSlate, placed: PlacedSlate[], dirs: [numbe
 function slateCopyLines(slate: PlacedSlate, placed: PlacedSlate[]): string[] {
   if (slate.kind === 'spark_of_moth_fire') { const m = getMothModifier(slate, placed); return m ? [m] : [] }
   if (slate.kind === 'when_sparks_set_prairie_ablaze') return getPrairieModifiers(slate, placed)
-  if (slate.kind === 'space_rift') return slate.mothDirection ? copyMediumLines(slate, placed, [MOTH_DELTA[slate.mothDirection]], true) : []
+  if (slate.kind === 'space_rift') return slate.mothDirection ? copyMediumLines(slate, placed, [MOTH_DELTA[slate.mothDirection] ?? [0, 0]], true) : []
   if (slate.kind === 'residence_of_stars') return copyMediumLines(slate, placed, Object.values(MOTH_DELTA), false)
   return []
 }
@@ -795,7 +796,7 @@ function ShapePanel({ creator, treeColors, onRotate, onSelectOrientation, onSele
   const { kind, orientationIndex, shapeIndex, treeType } = creator
   const color = kind === 'base'
     ? (treeType ? treeColors[treeType] ?? '#888' : '#888')
-    : LEGENDARY_META[kind as LegendaryKind].color
+    : LEGENDARY_META[kind as LegendaryKind]?.color ?? '#888'
   const count = getOrientationCount(kind)
 
   const legLabel = (idx: number) => {
@@ -853,7 +854,7 @@ function ShapePanel({ creator, treeColors, onRotate, onSelectOrientation, onSele
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#666', marginBottom: 8 }}>
             {count > 1 ? 'Rotation' : 'Shape'}
           </div>
-          {LEGENDARY_ORIENTATIONS[kind as LegendaryKind].map((offsets, idx) => {
+          {(LEGENDARY_ORIENTATIONS[kind as LegendaryKind] ?? []).map((offsets, idx) => {
             const active = idx === orientationIndex
             return (
               <button key={idx} onClick={() => onSelectOrientation(idx)} style={{
@@ -899,8 +900,8 @@ function SlateTooltipBody({ slate, treeColors, placed: allPlaced, noDelta }: {
   const mediumCopyLines = isMediumCopy ? slateCopyLines(slate, allPlaced) : []
   const color = slate.kind === 'base'
     ? (treeColors[slate.treeType ?? ''] ?? '#666')
-    : LEGENDARY_META[slate.kind as LegendaryKind].color
-  const label = slate.kind === 'base' ? 'Base Slate' : LEGENDARY_META[slate.kind as LegendaryKind].label
+    : LEGENDARY_META[slate.kind as LegendaryKind]?.color ?? '#666'
+  const label = slate.kind === 'base' ? 'Base Slate' : LEGENDARY_META[slate.kind as LegendaryKind]?.label ?? 'Slate'
 
   const mothMod = isMoth ? getMothModifier(slate, allPlaced) : null
   const prairieMods = isPrairie ? getPrairieModifiers(slate, allPlaced) : []
@@ -1055,7 +1056,7 @@ function SlateOverview({ placed, hideHeading }: { placed: PlacedSlate[]; hideHea
     for (const slate of placed) {
       if (slate.kind === 'spark_of_moth_fire') { lines.push(...mothBottomLines(slate, placed)); continue }
       if (slate.kind === 'when_sparks_set_prairie_ablaze') { lines.push(...prairieBottomLines(slate, placed)); continue }
-      if (slate.kind === 'space_rift') { lines.push(...(slate.mothDirection ? copyMediumLines(slate, placed, [MOTH_DELTA[slate.mothDirection]], true) : [])); continue }
+      if (slate.kind === 'space_rift') { lines.push(...(slate.mothDirection ? copyMediumLines(slate, placed, [MOTH_DELTA[slate.mothDirection] ?? [0, 0]], true) : [])); continue }
       if (slate.kind === 'residence_of_stars') { lines.push(...copyMediumLines(slate, placed, Object.values(MOTH_DELTA), false)); continue }
       for (const s of slate.slots) {
         if (s.isCore && s.selectedCoreKey) {
@@ -1391,7 +1392,7 @@ export default function SlateScreen({ treeColors }: Props) {
           .then(pool => setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, pool, poolLoading: false } }))
           .catch(() => setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, poolLoading: false } }))
       }, 0)
-    } else if (SLOT_CONFIG[kind].poolScope === 'all') {
+    } else if (SLOT_CONFIG[kind]?.poolScope === 'all') {
       setTimeout(() => {
         setMode(prev => (prev.type !== 'creating' && prev.type !== 'editing') ? prev : { ...prev, creator: { ...prev.creator, poolLoading: true } })
         api.getSlatePoolAll()
@@ -1529,7 +1530,7 @@ export default function SlateScreen({ treeColors }: Props) {
     const { kind, treeType, slots, pool, poolLoading, openPicker, pickerSearch, mothDirection } = creator
     const accentColor = kind === 'base'
       ? (treeType ? treeColors[treeType] ?? '#888' : '#888')
-      : LEGENDARY_META[kind as LegendaryKind].color
+      : LEGENDARY_META[kind as LegendaryKind]?.color ?? '#888'
     const sections = getSections(kind)
     const showDividers = kind === 'base'
     // "Add to Inventory" is available while CREATING once the slate is meaningfully configured (≥1 modifier slot
@@ -1573,7 +1574,7 @@ export default function SlateScreen({ treeColors }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexShrink: 0 }}>
           <SlateIcon kind={kind} treeType={treeType} shapeIndex={creator.shapeIndex} size={28} />
           <span style={{ fontSize: 17, fontWeight: 700, color: kind === 'base' ? '#ccc' : accentColor }}>
-            {kind === 'base' ? 'Base Slate' : LEGENDARY_META[kind as LegendaryKind].label}
+            {kind === 'base' ? 'Base Slate' : LEGENDARY_META[kind as LegendaryKind]?.label ?? 'Slate'}
           </span>
           {mode.type === 'creating' && (
             <span style={{ marginLeft: 'auto', fontSize: 11, color: '#666' }}>Click the board to place</span>
@@ -1650,18 +1651,26 @@ export default function SlateScreen({ treeColors }: Props) {
                   <div style={{ flex: 1, height: 1, background: '#252545' }} />
                 </div>
               )}
-              {indices.map(idx => (
-                <ModifierSlot key={idx} slot={slots[idx]} index={idx} allSlots={slots} pool={pool}
-                  isOpen={openPicker === idx} search={openPicker === idx ? pickerSearch : ''}
-                  accentColor={accentColor}
-                  onTogglePicker={() => handleTogglePicker(idx)}
-                  onCycleType={() => handleCycleSlotType(idx)}
-                  onSelect={mod => handleSelectModifier(idx, mod)}
-                  onSelectCore={core => handleSelectCore(idx, core)}
-                  onClear={() => updateSlot(idx, { selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [], nodeType: null })}
-                  onSearchChange={s => updateCreator({ pickerSearch: s })}
-                />
-              ))}
+              {indices.map(idx => {
+                // slots[idx] can go briefly undefined under rapid place/remove input (a
+                // stale-snapshot race between the local `slots` view and the store) — skip
+                // rendering rather than let ModifierSlot deref a missing slot and crash the
+                // whole app (no error boundary existed here before this fix landed).
+                const slot = slots[idx]
+                if (!slot) return null
+                return (
+                  <ModifierSlot key={idx} slot={slot} index={idx} allSlots={slots} pool={pool}
+                    isOpen={openPicker === idx} search={openPicker === idx ? pickerSearch : ''}
+                    accentColor={accentColor}
+                    onTogglePicker={() => handleTogglePicker(idx)}
+                    onCycleType={() => handleCycleSlotType(idx)}
+                    onSelect={mod => handleSelectModifier(idx, mod)}
+                    onSelectCore={core => handleSelectCore(idx, core)}
+                    onClear={() => updateSlot(idx, { selectedNodeId: null, selectedCoreKey: null, coreName: null, effects: [], nodeType: null })}
+                    onSearchChange={s => updateCreator({ pickerSearch: s })}
+                  />
+                )
+              })}
             </div>
           ))}
 
@@ -1762,10 +1771,10 @@ export default function SlateScreen({ treeColors }: Props) {
 
   const ghostColor = creator
     ? (creator.kind === 'base' && creator.treeType ? treeColors[creator.treeType] ?? '#888'
-        : creator.kind !== 'base' ? LEGENDARY_META[creator.kind as LegendaryKind].color : '#888')
+        : creator.kind !== 'base' ? LEGENDARY_META[creator.kind as LegendaryKind]?.color ?? '#888' : '#888')
     : dragSlate
       ? (dragSlate.slate.kind === 'base' ? treeColors[dragSlate.slate.treeType ?? ''] ?? '#888'
-          : LEGENDARY_META[dragSlate.slate.kind as LegendaryKind].color)
+          : LEGENDARY_META[dragSlate.slate.kind as LegendaryKind]?.color ?? '#888')
       : '#888'
 
   return (
@@ -1854,7 +1863,7 @@ export default function SlateScreen({ treeColors }: Props) {
                 const isConflicted = conflictedCells.has(key)
                 const isGhostValid = ghostValidCells.has(key)
                 const sColor = slate
-                  ? (slate.kind === 'base' ? treeColors[slate.treeType ?? ''] ?? '#666' : LEGENDARY_META[slate.kind as LegendaryKind].color)
+                  ? (slate.kind === 'base' ? treeColors[slate.treeType ?? ''] ?? '#666' : LEGENDARY_META[slate.kind as LegendaryKind]?.color ?? '#666')
                   : null
                 const isSelected = slate?.id === editingSlateId
 

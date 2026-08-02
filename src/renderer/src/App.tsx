@@ -3,6 +3,7 @@ import { initApi, api, Build, TreeSlot, EquippedGearItem, EquippedSupportSkill, 
 import { migrateOldConditions, buildDefaultConditionState } from './utils/conditions'
 import { snapshotAllAreas } from './utils/loadoutAreas'
 import { DEFAULT_TARGET_CONFIG, sanitizeTargetConfig } from './utils/targetPresets'
+import { getBuildPayload } from './utils/buildPayload'
 import { useBuildStore } from './store/buildStore'
 import type { LoadedBuild } from './store/buildStore'
 import { useBuildCalculation } from './store/useBuildCalculation'
@@ -11,6 +12,7 @@ import { migrateLegendaryItem } from './utils/gearItem'
 import { useMappingStore } from './store/mappingStore'
 import { useUiPrefs } from './store/uiPrefsStore'
 import UpdateBanner, { UpdateInfo } from './components/UpdateBanner'
+import ErrorBoundary from './components/ErrorBoundary'
 import BuildSidebar from './components/BuildSidebar'
 import ImportExportOverlay from './components/ImportExportOverlay'
 import HeroTraitScreen from './screens/HeroTraitScreen'
@@ -626,37 +628,6 @@ function App() {
     finally { setSaveModalSaving(false) }
   }
 
-  const getBuildPayload = () => {
-    useBuildStore.getState().flushActiveLoadout()
-    const s = useBuildStore.getState()
-    return {
-      name: s.buildName,
-      loadouts: s.loadouts,
-      activeLoadoutId: s.activeLoadoutId,
-      characterLevel: s.characterLevel,
-      slots: s.slots,
-      slates: s.slates, slateInventory: s.slateInventory,
-      prisms: s.prisms, prismInventory: s.prismInventory,
-      conditionState: s.conditionState,
-      gear: s.gear,
-      skills: s.skills,
-      traitId: s.traitId,
-      traitSlotLevels: s.traitSlotLevels,
-      advancedTraitSelections: s.advancedTraitSelections,
-      traitTreeAllocations: s.traitTreeAllocations,
-      traitSkillSupports: s.traitSkillSupports,
-      licoricePreparedSkill: s.licoricePreparedSkill,
-      elixirIngredients: s.elixirIngredients,
-      heroMemories: s.heroMemories,
-      pactSpirits: s.pactSpirits,
-      fates: s.fates,
-      undetermined: s.undetermined,
-      notes: s.notes,
-      customMods: s.customMods,
-      targetConfig: s.targetConfig,
-    }
-  }
-
   const handleSidebarNav = (target: string) => {
     if (target === 'tree-selector') {
       goToTreeSelector()
@@ -845,7 +816,13 @@ function App() {
             onGoBack={goToBuildSelect}
           />
           <div className="app-content">
-            {screenContent}
+            {/* Inner boundary, keyed on screen — a crash confined to one screen's render can
+                recover by navigating away (remounts this boundary) without a full page reload,
+                and the persistent BuildSidebar/nav stays alive throughout. Defense-in-depth on
+                top of the root boundary in main.tsx, not a replacement for it. */}
+            <ErrorBoundary key={screen}>
+              {screenContent}
+            </ErrorBoundary>
           </div>
         </div>
       </div>

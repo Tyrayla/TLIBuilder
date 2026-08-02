@@ -564,6 +564,17 @@ support gate (Terrain of Malice), per-curse Player Stats panel. Engine: `backend
   The other 3 remain untested: `handleReset`, `handleCoreTalentSelect`, and the prism-overlay `onUpdatePlaced`
   re-validation path. Accepted gap, not urgent — the 2 tested sites cover the primary/most-traveled interaction —
   tracked so it isn't forgotten (2026-07-31).
+- **SlateScreen.tsx — shared lookup-helper cleanup (crash-fix review, 2026-08-02).** The 2026-08-02 crash fix added
+  ~13 individual guard sites across 4 lookup tables (`LEGENDARY_META`, `LEGENDARY_ORIENTATIONS`, `SLOT_CONFIG`,
+  `MOTH_DELTA`) — each call site does its own `?? fallback`. A shared helper (e.g. `legendaryMeta(kind)` /
+  `orientationsFor(kind)` style lookup functions) would read cleaner than the current inline repetition.
+  Readability cleanup, not urgent.
+- **SlateScreen.tsx — `handleRotate` divide-by-zero site is currently unreachable, but undocumented (crash-fix
+  review, 2026-08-02).** `handleRotate` does `(creator.orientationIndex + 1) % getOrientationCount(creator.kind)`,
+  and `getOrientationCount()` now returns `0` for an unrecognized kind (part of the same crash fix) — a `%0` would
+  produce `NaN`. Currently unreachable because the Rotate button is gated on `count > 1`, so this can't be hit with
+  the present UI. Worth a defensive comment at the `%` site noting that invariant, or a regression test, so a
+  future refactor that changes the gating condition doesn't silently reopen the NaN path.
 
 ## 6. Stats engine v2 (open items)
 - Source coloring (crafted gear by rarity #mods, talents by tree branch); hero-memory base values by rarity
