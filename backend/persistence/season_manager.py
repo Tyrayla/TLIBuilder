@@ -555,20 +555,12 @@ def save_memory_revival(season: str, data: dict) -> None:
     _save_singleton(season, "_memory_revival.json", data)
 
 
-def load_memory_revival(season: str) -> dict | None:
-    return _load_singleton(season, "_memory_revival.json")
-
-
 def delete_memory_revival(season: str) -> None:
     _delete_singleton(season, "_memory_revival.json")
 
 
 def save_tower_sequence(season: str, data: dict) -> None:
     _save_singleton(season, "_tower_sequence.json", data)
-
-
-def load_tower_sequence(season: str) -> dict | None:
-    return _load_singleton(season, "_tower_sequence.json")
 
 
 def delete_tower_sequence(season: str) -> None:
@@ -585,10 +577,6 @@ def load_talent_tree_selector_icons(season: str) -> dict | None:
 
 def save_divinity_slates(season: str, data: dict) -> None:
     _save_singleton(season, "_divinity_slates.json", data)
-
-
-def load_divinity_slates(season: str) -> dict | None:
-    return _load_singleton(season, "_divinity_slates.json")
 
 
 def delete_divinity_slates(season: str) -> None:

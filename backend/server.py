@@ -446,31 +446,7 @@ def toggle_connection(name: str, req: ConnectionRequest):
     return {"ok": True}
 
 
-# ── Modifier pool ──────────────────────────────────────────────────────────────
-
-@app.get("/api/modifier-pool")
-def get_modifier_pool():
-    from models.node_modifier_pool import NODE_MODIFIER_POOL
-    from models.stat_meta import STAT_META
-    from tools.node_type_filter_builder import load_filter
-    _ALL_TYPES = ["micro", "medium", "legendary_medium"]
-    filt = load_filter()
-    stats_map: dict = filt["stats"] if filt else {}
-    result = []
-    for stat, mod in NODE_MODIFIER_POOL.items():
-        meta = STAT_META.get(stat)
-        node_types = stats_map.get(stat.value, _ALL_TYPES)
-        result.append({
-            "stat": stat.value,
-            "display_name": meta.display_name if meta else stat.value,
-            "unit": meta.unit if meta else "",
-            "micro_increment": mod.micro_increment,
-            "medium_increment": mod.medium_increment,
-            "legendary_increment": mod.legendary_increment,
-            "node_types": node_types,
-        })
-    return result
-
+# ── Slate pool ─────────────────────────────────────────────────────────────────
 
 def _collect_pool(tree_names: list[str]) -> dict:
     magic_pool: list[dict] = []
@@ -1399,41 +1375,6 @@ def export_stat_meta():
     return {"ok": True, "stat_count": len(STAT_META), "path": out_path}
 
 
-@app.delete("/api/dev/node-type-filter")
-def clear_node_type_filter():
-    from tools.node_type_filter_builder import _FILTER_PATH
-    import os
-    if os.path.exists(_FILTER_PATH):
-        os.remove(_FILTER_PATH)
-    return {"ok": True}
-
-
-@app.get("/api/dev/stat-recipes/{tree_name}/{node_type}")
-def get_stat_recipes(tree_name: str, node_type: str):
-    from tools.node_type_filter_builder import load_filter
-    from models.stat_meta import STAT_META
-    from models.stat import Stat
-    filt = load_filter()
-    if not filt:
-        return []
-    recipes = filt.get("recipes", {}).get(tree_name, {}).get(node_type, [])
-    result = []
-    for r in recipes:
-        try:
-            stat_enum = Stat(r["stat"])
-            meta = STAT_META.get(stat_enum)
-            display_name = meta.display_name if meta else r["stat"]
-        except ValueError:
-            display_name = r["stat"]
-        result.append({
-            "stat": r["stat"],
-            "rank1": r["rank1"],
-            "values": r["values"],
-            "display_name": display_name,
-        })
-    return result
-
-
 # ── Seasons ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/seasons")
@@ -1467,55 +1408,6 @@ def set_active_season(req: SetActiveSeasonRequest):
 def delete_season(season_name: str):
     season_manager.delete_season(season_name)
     return {"ok": True}
-
-
-class ImportSeasonRequest(BaseModel):
-    season_name: str
-    nodes: list[dict]
-
-
-@app.post("/api/dev/import-season")
-def import_season(req: ImportSeasonRequest):
-    from tools.season_importer import build_slug_map, import_nodes
-    if not req.season_name.strip():
-        raise HTTPException(status_code=400, detail="season_name must not be empty")
-    slug_map = build_slug_map()
-    tree_data = import_nodes(req.nodes, slug_map)
-    trees_imported: list[str] = []
-    skipped: list[str] = []
-    for slug, data in tree_data.items():
-        if slug not in slug_map:
-            skipped.append(slug)
-            continue
-        tree_name = slug_map[slug]
-        canonical_slug = tree_name.lower().replace(" ", "_")
-        data["season"] = req.season_name
-        season_manager.save_season_tree(req.season_name, tree_name, canonical_slug, data)
-        trees_imported.append(tree_name)
-    return {"ok": True, "trees_imported": sorted(trees_imported), "skipped": sorted(skipped)}
-
-
-class ImportNewGodTalentsRequest(BaseModel):
-    season_name: str
-    items: list[dict]
-
-
-@app.post("/api/dev/import-new-god-talents")
-def import_new_god_talents(req: ImportNewGodTalentsRequest):
-    if not req.season_name.strip():
-        raise HTTPException(status_code=400, detail="season_name must not be empty")
-    talents = [
-        {
-            "name": item.get("name", ""),
-            "item_id": item.get("item_id", ""),
-            "effects": item.get("effect_lines", []),
-            "note": " ".join(item.get("note_lines", [])),
-        }
-        for item in req.items
-        if item.get("name")
-    ]
-    season_manager.save_new_god_talents(req.season_name, talents)
-    return {"ok": True, "count": len(talents)}
 
 
 class ImportCrawlerTreeRequest(BaseModel):
@@ -1572,48 +1464,6 @@ def import_crawler_tree_endpoint(req: ImportCrawlerTreeRequest):
     }
 
 
-class ImportLegendaryGearRequest(BaseModel):
-    season_name: str
-    file_data: dict
-
-
-@app.post("/api/dev/import-legendary-gear")
-def import_legendary_gear(req: ImportLegendaryGearRequest):
-    if not req.season_name.strip():
-        raise HTTPException(status_code=400, detail="season_name must not be empty")
-    raw = req.file_data
-    items_raw = raw.get("items", [])
-    if not isinstance(items_raw, list):
-        raise HTTPException(status_code=400, detail="file_data.items must be a list")
-
-    def _clean_affix(affix: dict) -> dict:
-        return {k: v for k, v in affix.items() if k != "source_line"}
-
-    items = [
-        {
-            "item_id": item.get("item_id", ""),
-            "name": item.get("name", ""),
-            "required_level": item.get("required_level"),
-            "affix_count": item.get("affix_count"),
-            "affixes": [_clean_affix(a) for a in (item.get("affixes") or [])],
-        }
-        for item in items_raw
-        if isinstance(item, dict) and item.get("item_id")
-    ]
-
-    stored = {
-        "season": req.season_name,
-        "set_name": raw.get("set_name", "Legendary Gear"),
-        "extract_date": raw.get("extract_date"),
-        "parsed_item_count": raw.get("parsed_item_count", len(items)),
-        "items": items,
-    }
-    season_manager.save_legendary_gear(req.season_name, stored)
-    from engine.coverage import invalidate_legendary_coverage_cache
-    invalidate_legendary_coverage_cache()
-    return {"ok": True, "count": len(items), "set_name": stored["set_name"]}
-
-
 class ImportCrawlerLegendaryGearRequest(BaseModel):
     season_name: str
     items: list[dict]
@@ -1637,11 +1487,6 @@ def import_crawler_legendary_gear_endpoint(req: ImportCrawlerLegendaryGearReques
 
 # ── Skills ─────────────────────────────────────────────────────────────────────
 
-class ImportSkillsRequest(BaseModel):
-    season_name: str
-    file_data: dict
-
-
 class ImportCrawlerSkillsRequest(BaseModel):
     season_name: str
     items: list[dict]
@@ -1653,7 +1498,8 @@ def import_crawler_skills_endpoint(req: ImportCrawlerSkillsRequest):
     if not req.season_name.strip():
         raise HTTPException(400, "season_name must not be empty")
     items = import_crawler_skills(req.items)
-    # RAW: preserved entries keep their stored slim modifier-line dicts (see import-skills below).
+    # RAW: preserved entries keep their stored slim modifier-line dicts (a normalized view saved
+    # back would strip the minted identities).
     existing = season_manager.load_skills(req.season_name, raw=True) or {"skills": []}
     merged = merge_skills(existing.get("skills", []), items)
     season_manager.save_skills(req.season_name, {
@@ -1662,32 +1508,6 @@ def import_crawler_skills_endpoint(req: ImportCrawlerSkillsRequest):
         "skills": merged,
     })
     return {"ok": True, "added": len(items), "total": len(merged)}
-
-
-@app.post("/api/dev/import-skills")
-def import_skills(req: ImportSkillsRequest):
-    from tools.skill_importer import parse_skill_file, merge_skills
-
-    if not req.season_name.strip():
-        raise HTTPException(status_code=400, detail="season_name must not be empty")
-
-    try:
-        incoming = parse_skill_file(req.file_data)
-    except (ValueError, TypeError) as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    # Load existing skills for this season and merge — RAW: preserved entries must keep their stored
-    # slim modifier-line dicts (a normalized view saved back would strip the minted identities).
-    existing_data = season_manager.load_skills(req.season_name, raw=True) or {"skills": []}
-    merged = merge_skills(existing_data.get("skills", []), incoming)
-
-    stored = {
-        "season": req.season_name,
-        "skill_count": len(merged),
-        "skills": merged,
-    }
-    season_manager.save_skills(req.season_name, stored)
-    return {"ok": True, "added": len(incoming), "total": len(merged)}
 
 
 @app.get("/api/skills")
@@ -1750,11 +1570,6 @@ def clear_skills():
 
 # ── Hero Traits ────────────────────────────────────────────────────────────────
 
-class ImportHeroTraitRequest(BaseModel):
-    season_name: str
-    file_data: dict
-
-
 class ImportCrawlerHeroTraitsRequest(BaseModel):
     season_name: str
     items: list[dict]
@@ -1778,34 +1593,6 @@ def import_crawler_hero_traits_endpoint(req: ImportCrawlerHeroTraitsRequest):
         "traits": merged,
     })
     return {"ok": True, "added": len(items), "total": len(merged), "heroes": heroes}
-
-
-@app.post("/api/dev/import-hero-traits")
-def import_hero_traits(req: ImportHeroTraitRequest):
-    from tools.hero_trait_importer import parse_hero_trait_file, merge_hero_traits
-
-    if not req.season_name.strip():
-        raise HTTPException(status_code=400, detail="season_name must not be empty")
-
-    try:
-        incoming = parse_hero_trait_file(req.file_data)
-    except (ValueError, TypeError) as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    existing_data = season_manager.load_hero_traits(req.season_name, raw=True) or {"traits": []}
-    merged = merge_hero_traits(existing_data.get("traits", []), incoming)
-
-    # Derive unique hero count from merged traits
-    heroes = len({t["hero"] for t in merged if t.get("hero")})
-
-    stored = {
-        "season": req.season_name,
-        "hero_count": heroes,
-        "trait_count": len(merged),
-        "traits": merged,
-    }
-    season_manager.save_hero_traits(req.season_name, stored)
-    return {"ok": True, "hero": incoming.get("hero", ""), "total": len(merged), "heroes": heroes}
 
 
 @app.get("/api/hero-traits")
@@ -2613,28 +2400,6 @@ def _resolve_affix(affix: dict) -> dict:
     return {**affix, "stat_key": stat_key, "unit": unit, "condition_expr": condition_expr}
 
 
-class ResolveModRequest(BaseModel):
-    text: str
-
-
-@app.post("/api/resolve-mod")
-def resolve_mod(req: ResolveModRequest):
-    """Resolve a single freeform modifier text string to stat contributions.
-
-    Used by the frontend for real-time validation feedback as the user types.
-    Returns a list of resolved stat contributions (may be empty if unresolved).
-    """
-    results = _parse_custom_mod_text(req.text)
-    resolved = [
-        {
-            **r,
-            "display_name": _get_stat_display_name(r["stat_key"]) or r["stat_key"],
-        }
-        for r in results
-    ]
-    return {"text": req.text, "resolved": resolved}
-
-
 @app.get("/api/legendary-gear")
 def get_legendary_gear():
     active = season_manager.get_active_season()
@@ -2686,17 +2451,6 @@ def get_legendary_gear():
     return {"season": active, "items": items}
 
 
-@app.get("/api/divinity-slates")
-def get_divinity_slates():
-    active = season_manager.get_active_season()
-    if not active:
-        return {"season": None, "items": []}
-    data = season_manager.load_divinity_slates(active)
-    if not data:
-        return {"season": active, "items": []}
-    return {"season": active, "items": data.get("items", [])}
-
-
 @app.delete("/api/dev/hero-traits")
 def clear_hero_traits():
     active = season_manager.get_active_season()
@@ -2735,14 +2489,6 @@ def get_pact_spirits():
     if not data:
         return {"season": active, "spirits": []}
     return {"season": active, "spirits": data.get("spirits", [])}
-
-
-@app.delete("/api/dev/pact-spirits")
-def clear_pact_spirits():
-    active = season_manager.get_active_season()
-    if active:
-        season_manager.delete_pact_spirits(active)
-    return {"ok": True}
 
 
 # ── Craft Base Types ───────────────────────────────────────────────────────────
@@ -3048,16 +2794,6 @@ def map_modifiers(req: MapModifiersRequest):
     return {"results": results}
 
 
-@app.delete("/api/dev/craft-base-types")
-def clear_craft_base_types():
-    global _craft_bases_cache
-    _craft_bases_cache = None
-    active = season_manager.get_active_season()
-    if active:
-        season_manager.delete_craft_base_types(active)
-    return {"ok": True}
-
-
 # ── Grafts ─────────────────────────────────────────────────────────────────────
 
 class ImportCrawlerGraftsRequest(BaseModel):
@@ -3106,14 +2842,6 @@ def get_grafts():
     return {"season": active, "grafts": _resolve_grafts(data.get("grafts", []))}
 
 
-@app.delete("/api/dev/grafts")
-def clear_grafts():
-    active = season_manager.get_active_season()
-    if active:
-        season_manager.delete_grafts(active)
-    return {"ok": True}
-
-
 # ── Belt Blends (Blending Rituals) ───────────────────────────────────────────────
 
 class ImportCrawlerBeltBlendsRequest(BaseModel):
@@ -3140,14 +2868,6 @@ def get_belt_blends():
     if not data:
         return {"season": active, "blends": [], "glossary": {}}
     return {"season": active, "blends": data.get("blends", []), "glossary": data.get("glossary", {})}
-
-
-@app.delete("/api/dev/belt-blends")
-def clear_belt_blends():
-    active = season_manager.get_active_season()
-    if active:
-        season_manager.delete_belt_blends(active)
-    return {"ok": True}
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -3246,17 +2966,6 @@ def import_memory_revival_endpoint(req: ImportSingletonRequest):
     return {"ok": True, "count": parsed["affix_count"]}
 
 
-@app.get("/api/memory-revival")
-def get_memory_revival():
-    active = season_manager.get_active_season()
-    if not active:
-        return {"season": None, "affixes": []}
-    data = season_manager.load_memory_revival(active)
-    if not data:
-        return {"season": active, "affixes": []}
-    return {"season": active, "affixes": data.get("affixes", [])}
-
-
 @app.post("/api/dev/import-tower-sequence")
 def import_tower_sequence_endpoint(req: ImportSingletonRequest):
     from tools.singleton_importer import import_tower_sequence
@@ -3265,17 +2974,6 @@ def import_tower_sequence_endpoint(req: ImportSingletonRequest):
     parsed = import_tower_sequence(req.data, req.season_name)
     season_manager.save_tower_sequence(req.season_name, parsed)
     return {"ok": True, "count": parsed["entry_count"]}
-
-
-@app.get("/api/tower-sequence")
-def get_tower_sequence():
-    active = season_manager.get_active_season()
-    if not active:
-        return {"season": None, "entries": []}
-    data = season_manager.load_tower_sequence(active)
-    if not data:
-        return {"season": active, "entries": []}
-    return {"season": active, "entries": data.get("entries", [])}
 
 
 class DiffSeasonsRequest(BaseModel):

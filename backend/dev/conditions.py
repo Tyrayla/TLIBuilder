@@ -212,11 +212,6 @@ def delete_definition(key: str):
     return {"ok": True}
 
 
-@router.get("/derived-keys")
-def get_derived_keys():
-    return _read_conditions().get("derived_keys", {})
-
-
 class DerivedKeyIn(BaseModel):
     bool_key: str
     stack_key: str
@@ -268,11 +263,6 @@ def get_source_items(text: str):
     if not active:
         return {"items": []}
     return {"items": _collect_items_for_condition(active, text)}
-
-
-@router.get("/overrides")
-def get_overrides():
-    return _read_overrides()
 
 
 class OverrideIn(BaseModel):

@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Pyodide backend worker (web build only). Loads Pyodide + the backend Python + the engine-data bundle, then
 // serves the FastAPI app as a general in-browser backend: it dispatches ANY (method, path, body) through the
-// real ASGI app, so every endpoint (engine/stats, trees, resolve-mod, build-code, slate-pool, …) works exactly
+// real ASGI app, so every endpoint (engine/stats, trees, build-code, slate-pool, …) works exactly
 // like the server — off the main thread so the UI never blocks. Protocol:
 //   main -> worker: { type:'init', backendUrl, dataBase, season, persistSnapshot } | { type:'request', id, method, path, bodyJson }
 //   worker -> main: { type:'progress', msg } | { type:'ready' } | { type:'persist', snapshot }
