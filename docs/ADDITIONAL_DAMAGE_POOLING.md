@@ -73,7 +73,7 @@ predicates. Identity = `engine/affix_identity.py::affix_identity` (strips signs/
 placeholder/punctuation; keeps the hyphen). `add()`-only contributions (no source_log) reconcile by
 stat-key, preserving legacy behavior. Gear now threads affix `raw_text` (renderer
 `statsPayload._buildItemContributions` → `GearAffixContribution.text` → `aggregator` SourceEntry).
-Legacy `pipeline.py` / `/engine/compute` marked DEPRECATED. Tests: `TestAdditionalPooling` in
+Legacy `pipeline.py` / `/engine/compute` removed 2026-08-02 (dead-code cleanup). Tests: `TestAdditionalPooling` in
 `tests/test_engine_offense.py` (real affix strings; ★ cases empirically fail under old stat-key
 pooling: 1.16/1.03/−0.20 vs 1.1664/1.026/0.16). Auditor: `tools/audit_affix_identities.py`.
 

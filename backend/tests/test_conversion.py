@@ -143,7 +143,7 @@ class TestBonusPropagation:
         from engine.aggregator import aggregate
         from engine.models import BuildInput
         bi = BuildInput(slots=[], slates=[], season=None, condition_state={}, gear=[], character=[],
-                        memory_effects=[], spirit_effects=[], main_skill=None, custom_contributions=[],
+                        main_skill=None, custom_contributions=[],
                         attached_support_contributions=[], support_behavior={}, attached_supports=[],
                         core_talent_contributions=ct)
         return aggregate(bi, frozenset(), {})

@@ -2844,25 +2844,6 @@ export const api = {
     get<SlatePool>(`/slate-pool/${encodeURIComponent(primaryTree)}`),
   getSlatePoolAll: () => get<SlatePool>('/slate-pool-all'),
 
-  engineCompute: (payload: {
-    slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
-    slates?: SavedSlate[]
-    conditions?: string[]
-    skill: {
-      name: string; skill_type: string; tags: string[]; damage_types: string[]
-      base_level: number; extra_levels?: number
-      base_dmg_min?: number; base_dmg_max?: number; base_csr?: number
-    }
-    enemy?: {
-      fire_resistance?: number; cold_resistance?: number
-      lightning_resistance?: number; erosion_resistance?: number; armor?: number
-    }
-  }) => post<{
-    avg_hit: number; min_hit: number; max_hit: number
-    crit_chance: number; crit_multiplier: number; effective_dps: number
-    breakdown: Record<string, unknown>
-  }>('/engine/compute', payload),
-
   engineStats: (payload: {
     slots: ({ treeName: string; nodeStates: Record<string, number> } | null)[]
     slates?: SavedSlate[]

@@ -665,50 +665,6 @@ def decode_build_code(req: BuildCodeDecodeRequest):
 
 # ── Engine ─────────────────────────────────────────────────────────────────────
 
-class SkillConfigRequest(BaseModel):
-    name:          str
-    skill_type:    str           # "attack" | "spell"
-    tags:          list[str]
-    damage_types:  list[str]
-    base_level:    int
-    extra_levels:  int   = 0
-    base_dmg_min:  float = 0.0
-    base_dmg_max:  float = 0.0
-    base_csr:      float = 0.0
-
-class EnemyConfigRequest(BaseModel):
-    fire_resistance:       float = 0.0
-    cold_resistance:       float = 0.0
-    lightning_resistance:  float = 0.0
-    erosion_resistance:    float = 0.0
-    armor:                 float = 0.0
-
-class EngineComputeRequest(BaseModel):
-    slots:      list[SlotData | None]
-    slates:     list[dict] = []
-    prisms:     list[dict] = []
-    skill:      SkillConfigRequest
-    enemy:      EnemyConfigRequest = EnemyConfigRequest()
-    conditions: list[str] = []
-
-@app.post("/api/engine/compute")
-def engine_compute(req: EngineComputeRequest):
-    # DEPRECATED: legacy path (engine.pipeline). No renderer caller; /api/engine/stats (offense.py)
-    # is the source of truth. Known-divergent additional pooling — see docs/ADDITIONAL_DAMAGE_POOLING.md.
-    from engine.resolver import compute
-    from engine.models import BuildInput, SkillConfig, EnemyConfig
-    result = compute(BuildInput(
-        slots=[s.model_dump() if s else None for s in req.slots],
-        slates=req.slates,
-        skill=SkillConfig(**req.skill.model_dump()),
-        enemy=EnemyConfig(**req.enemy.model_dump()),
-        season=season_manager.get_active_season() or "",
-        conditions=req.conditions,
-    ))
-    from dataclasses import asdict
-    return asdict(result)
-
-
 class SkillEngineInput(BaseModel):
     skill_id: str
     level:    int = 1

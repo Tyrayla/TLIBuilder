@@ -39,12 +39,6 @@ def test_speed_additional_pools_present():
     assert "attack_speed_additional" in u and "cast_speed_additional" in u
 
 
-# pipeline.py is the DEPRECATED legacy engine (/api/engine/compute, no renderer caller). Its reads don't
-# reflect the live badge path, so exclude it — the stats it reads but the live engine doesn't are genuine
-# yellow gaps (e.g. elemental_dmg_inc, double_dmg_chance), not universe misses.
-_DEPRECATED_ENGINE_FILES = {"pipeline.py"}
-
-
 def test_all_live_engine_stat_reads_are_in_universe():
     """Scan EVERY live engine file for `source.total/get/sum("literal")` and assert each real stat is in the
     universe. This is the whack-a-mole guard: a modeled read added anywhere (offense/defense/derive/compute/
@@ -54,8 +48,6 @@ def test_all_live_engine_stat_reads_are_in_universe():
     engine_dir = os.path.join(os.path.dirname(__file__), "..", "engine")
     reads: dict[str, set] = {}
     for f in glob.glob(os.path.join(engine_dir, "*.py")):
-        if os.path.basename(f) in _DEPRECATED_ENGINE_FILES:
-            continue
         text = open(f, encoding="utf-8").read()
         for m in re.findall(r'source\.(?:total|get|sum)\(\s*"([a-z0-9_]+)"\s*\)', text):
             reads.setdefault(m, set()).add(os.path.basename(f))

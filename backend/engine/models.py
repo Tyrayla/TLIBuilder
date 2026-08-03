@@ -41,28 +41,6 @@ class SourceEntry:
 
 
 @dataclass
-class SkillConfig:
-    name:           str
-    skill_type:     str              # "attack" | "spell"
-    tags:           list[str]        # ["attack", "melee", "area", ...] — mechanics tags
-    damage_types:   list[str]        # ["fire", "physical", ...] — what damage the skill deals
-    base_level:     int
-    extra_levels:   int   = 0        # bonus levels from gear/talents ON TOP of base_level
-    base_dmg_min:   float = 0.0
-    base_dmg_max:   float = 0.0
-    base_csr:       float = 0.0      # base critical strike rating (from weapon/spell)
-
-
-@dataclass
-class EnemyConfig:
-    fire_resistance:       float = 0.0
-    cold_resistance:       float = 0.0
-    lightning_resistance:  float = 0.0
-    erosion_resistance:    float = 0.0
-    armor:                 float = 0.0
-
-
-@dataclass
 class BuildSource:
     """Flat list of (stat_value_string, numeric_amount) from all build sources."""
     _entries: list[tuple[str, float]] = field(default_factory=list)
@@ -157,17 +135,6 @@ class BuildSource:
 
 
 @dataclass
-class ComputedResult:
-    avg_hit:           float = 0.0
-    min_hit:           float = 0.0
-    max_hit:           float = 0.0
-    crit_chance:       float = 0.0
-    crit_multiplier:   float = 1.5
-    effective_dps:     float = 0.0   # avg_hit × skills_per_second (placeholder)
-    breakdown:         dict  = field(default_factory=dict)
-
-
-@dataclass
 class SkillRef:
     """Minimal skill reference passed from the frontend to the engine."""
     skill_id: str
@@ -180,8 +147,6 @@ class BuildInput:
     slots:      list[dict | None]       # TreeSlot dicts: {treeName, nodeStates}
     slates:     list[dict]              # SavedSlate dicts from the build
     season:     str                     # active season name for data lookups
-    skill:      SkillConfig | None = None
-    enemy:      EnemyConfig | None = None
     # Editable calc-target ("dummy") stats as FRACTIONS: {level, armor, fire_res, cold_res, lightning_res,
     # erosion_res}. None → offense uses its historical Lv85 constants.
     target_config: dict | None = None
@@ -189,8 +154,6 @@ class BuildInput:
     condition_state: dict[str, float | bool | str] = field(default_factory=dict)
     gear:            list[dict] = field(default_factory=list)  # GearEngineItem dicts
     character:       list[dict] = field(default_factory=list)  # CharacterStatContribution dicts
-    memory_effects:  list[str]  = field(default_factory=list)  # DEPRECATED: now pre-resolved server-side
-    spirit_effects:  list[str]  = field(default_factory=list)  # DEPRECATED: now pre-resolved server-side
     # Pre-resolved pact-spirit / hero-memory contributions (server._resolve_effect_modifiers). Same shape as
     # custom_contributions plus an optional `condition` gate (translated expr) — applied/gated in aggregate().
     spirit_contributions: list[dict] = field(default_factory=list)

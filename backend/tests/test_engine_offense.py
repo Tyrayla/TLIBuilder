@@ -1,7 +1,6 @@
 """
 Tests: engine/offense.py — calculate_offense() orchestration: the supported flag, crit-chance
 and APS formulas, dummy-target mitigation, hit-form summing, and steep-strike proc splitting.
-The per-hit damage math itself is covered by test_engine_pipeline.py.
 """
 import pytest
 from engine.models import BuildSource, SourceEntry
