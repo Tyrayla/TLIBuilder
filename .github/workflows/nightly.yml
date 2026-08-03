@@ -24,7 +24,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install Python dependencies
-        run: pip install fastapi "uvicorn[standard]" pydantic python-multipart pyinstaller
+        run: pip install fastapi "uvicorn[standard]" pydantic pyinstaller
 
       - name: Build backend with PyInstaller
         run: python -m PyInstaller backend/backend.spec --distpath backend-dist --workpath backend-build --noconfirm

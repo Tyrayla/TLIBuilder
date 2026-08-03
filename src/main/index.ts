@@ -406,20 +406,6 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('api-form-upload', async (_event, path: string, fileBytes: Uint8Array, fileName: string) => {
-    const url = `http://127.0.0.1:${PYTHON_PORT}/api${path}`
-    try {
-      const form = new FormData()
-      form.append('file', new Blob([Buffer.from(fileBytes)]), fileName)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const res = await fetch(url, { method: 'POST', body: form as any })
-      const data = await res.json().catch(() => null)
-      return { ok: res.ok, status: res.status, data }
-    } catch (e) {
-      return { ok: false, status: 0, data: null, error: String(e) }
-    }
-  })
-
   ipcMain.handle('download-update', () => autoUpdater.downloadUpdate())
   // isSilent=true → the NSIS update installs without the wizard/UAC (per-user install); isForceRunAfter=true relaunches.
   ipcMain.handle('install-update', () => autoUpdater.quitAndInstall(true, true))

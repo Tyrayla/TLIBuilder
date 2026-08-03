@@ -70,7 +70,7 @@ async function init(msg: InitMsg): Promise<void> {
 
   progress('Loading Python packages…')
   await py.loadPackage('micropip')
-  await py.runPythonAsync(`import micropip\nawait micropip.install(['fastapi', 'python-multipart'])`)
+  await py.runPythonAsync(`import micropip\nawait micropip.install(['fastapi'])`)
 
   progress('Loading game data…')
   const [backendZip, dataZip] = await Promise.all([
