@@ -15,7 +15,6 @@ from models.passive_tree import PassiveTree
 from models.passive_node import PassiveNode, NodeType
 from persistence import builds_manager
 from persistence import folders_manager
-from persistence import tree_config_manager
 from persistence import season_manager
 import build_code as _build_code
 from engine.skill_scope import detect_skill_scope
@@ -166,21 +165,6 @@ app.mount("/icons", StaticFiles(directory=_ICONS_DIR, check_dir=False), name="ic
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
-
-def _tree_from_config(name: str, config: dict) -> PassiveTree:
-    tree = PassiveTree(name)
-    for n in config["nodes"]:
-        tree.add_node(PassiveNode(
-            id=n["id"],
-            node_type=NodeType(n["node_type"]),
-            column=n["column"],
-            row=n["row"],
-            max_points=n["max_points"],
-        ))
-    for conn in config["connections"]:
-        tree.add_connection(conn["from"], conn["to"])
-    return tree
-
 
 def _tree_from_season_data(name: str, data: dict) -> PassiveTree:
     from models.core_talent import CoreTalent, CoreTalentSlot
@@ -402,48 +386,6 @@ def get_tree(name: str):
 # instant — the old /api/validate-allocate round-trip was removed. The authoritative rules still live in
 # PassiveTree.allocate/deallocate (models/passive_tree.py), covered by test_passive_tree.py +
 # test_ethereal_prism_catalog.py; the client mirror must stay in lockstep with them.
-
-
-# ── Tree editing (debug tools) ─────────────────────────────────────────────────
-
-class NodeEditRequest(BaseModel):
-    id: str
-    column: int
-    row: int
-    node_type: str
-    max_points: int
-
-
-@app.post("/api/tree/{name}/node")
-def upsert_node(name: str, req: NodeEditRequest):
-    if name not in TREES:
-        raise HTTPException(status_code=404, detail="Tree not found")
-    base_tree = _build_tree(name)
-    tree_config_manager.upsert_node(name, base_tree, req.model_dump())
-    return {"ok": True}
-
-
-@app.delete("/api/tree/{name}/node/{node_id}")
-def remove_node(name: str, node_id: str):
-    if name not in TREES:
-        raise HTTPException(status_code=404, detail="Tree not found")
-    base_tree = _build_tree(name)
-    tree_config_manager.remove_node(name, base_tree, node_id)
-    return {"ok": True}
-
-
-class ConnectionRequest(BaseModel):
-    src: str
-    dst: str
-
-
-@app.post("/api/tree/{name}/connection")
-def toggle_connection(name: str, req: ConnectionRequest):
-    if name not in TREES:
-        raise HTTPException(status_code=404, detail="Tree not found")
-    base_tree = _build_tree(name)
-    tree_config_manager.toggle_connection(name, base_tree, req.src, req.dst)
-    return {"ok": True}
 
 
 # ── Slate pool ─────────────────────────────────────────────────────────────────

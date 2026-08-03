@@ -87,9 +87,6 @@ ALL_DERIVED_STATS: list[DerivedStat] = [
     # directly as the NET bonus = (1+Σinc)×(1+Σadditional) − 1.
 ]
 
-# Fast lookup by output key
-DERIVED_BY_KEY: dict[str, DerivedStat] = {d.key: d for d in ALL_DERIVED_STATS}
-
 
 def _additional_pool_factor(source: BuildSource, keys: list[str]) -> float:
     """Combine an ADDITIONAL pool as Π(1 + amount) over each source — so "+25% and +15% additional Max Life"

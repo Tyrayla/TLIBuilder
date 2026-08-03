@@ -77,10 +77,6 @@ _SKIP_KW = re.compile(
     r"stacks of buffs|after moving", re.I)
 
 
-def _tmpl(k: str) -> str:
-    return re.sub(r"\s+", " ", re.sub(r"[0-9]+(?:[.,][0-9]+)?", "#", k)).strip()
-
-
 def _classify(template: str) -> tuple[str, str, str]:
     low = template.lower()
     for rx, st, sk, nt in _COMPILED:

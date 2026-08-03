@@ -6,8 +6,6 @@ type Tab = 'diff' | 'seasons' | 'tools' | 'conditions'
 
 interface Props {
   onBack: () => void
-  deprecatedTools: boolean
-  onToggleDeprecatedTools: () => void
   onSeasonChange?: () => void
 }
 
@@ -1731,7 +1729,7 @@ function ConditionsTab() {
 
 // ── Main screen ────────────────────────────────────────────────────────────
 
-export default function DevToolsScreen({ onBack, deprecatedTools, onToggleDeprecatedTools, onSeasonChange }: Props) {
+export default function DevToolsScreen({ onBack, onSeasonChange }: Props) {
   const [tab, setTab] = useState<Tab>('seasons')
 
   return (
@@ -1746,14 +1744,6 @@ export default function DevToolsScreen({ onBack, deprecatedTools, onToggleDeprec
           fontSize: 10, fontWeight: 700, color: '#ff9800', background: '#2a1a00',
           padding: '2px 6px', borderRadius: 3, border: '1px solid #5a3a00',
         }}>DEV MODE</span>
-        <label style={{
-          marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8,
-          cursor: 'pointer', fontSize: 12,
-          color: deprecatedTools ? '#ff9800' : '#555',
-        }}>
-          <input type="checkbox" checked={deprecatedTools} onChange={onToggleDeprecatedTools} />
-          Deprecated Tools
-        </label>
       </div>
 
       <div style={{

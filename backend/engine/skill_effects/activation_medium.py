@@ -20,9 +20,6 @@ import re
 
 from engine.models import SourceEntry
 
-RHYTHM = "activation_medium_rhythm"
-WIND_RHYTHM = "activation_medium_wind_rhythm"
-
 # Wind Rhythm per-tier base cooldown (seconds) — L0 0.5 / L1 0.6 / L2 0.7 / L3 0.8 (Tyra + calculator).
 WIND_RHYTHM_BASE_COOLDOWN = {0: 0.5, 1: 0.6, 2: 0.7, 3: 0.8}
 
@@ -153,10 +150,8 @@ def is_activation_medium(item_id: str | None) -> bool:
     return bool(item_id) and item_id.startswith("activation_medium_")
 
 
-# Every activation medium is guarded (its concatenated line is handled here, not the generic resolver). The exact
-# id set is derived from the catalog at import via the skills data is not available here, so guard by prefix in
-# support_resolver instead — we expose a marker + the known DPS-driving ids for convenience.
-GUARD_PREFIX = "activation_medium_"
+# Every activation medium is guarded (its concatenated line is handled here, not the generic resolver). The
+# guard is by prefix, via is_activation_medium() in support_resolver — no per-id list needed.
 CONTRIB_HOOKS: dict = {}
 GUARD_IDS = frozenset()   # prefix-guarded (see support_resolver); no per-id list needed
 

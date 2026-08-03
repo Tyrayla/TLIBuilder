@@ -17,7 +17,6 @@ from engine.models import SourceEntry
 from engine.support_resolver import _progression_for_tier, _tier_value, _explicit_roll
 
 SKILL_ID = "focused_slash"
-DUEL = "focused_slash_duel_magnificent"
 TRANQUILITY = "focused_slash_tranquility_magnificent"
 BEHEAD = "focused_slash_behead_noble"
 FERVOR = "focused_slash_fervor_noble"

@@ -31,20 +31,6 @@ _SUFFIX_TYPES = {"Basic Suffix", "Advanced Suffix", "Ultimate Suffix"}
 _BASE_TYPES = {"Base Affix"}
 
 
-def _parse_tier(tier_str: str) -> float:
-    """Convert tier string to sortable float. '0+' → -0.5, '0' → 0, '1' → 1, etc."""
-    s = str(tier_str).strip()
-    if s.endswith("+"):
-        try:
-            return float(s[:-1]) - 0.5
-        except ValueError:
-            return -0.5
-    try:
-        return float(s)
-    except ValueError:
-        return 999.0
-
-
 def import_crawler_craft_base_type(data: dict) -> dict:
     name = data.get("name", "")
     item_id = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")

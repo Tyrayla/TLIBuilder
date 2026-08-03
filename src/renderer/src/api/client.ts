@@ -501,14 +501,6 @@ export interface TreeData {
   node_prefix: string
 }
 
-export interface NodeEditData {
-  id: string
-  column: number
-  row: number
-  node_type: string
-  max_points: number
-}
-
 export interface TiedCandidate {
   stat: string
   display_name: string
@@ -2660,14 +2652,6 @@ export const api = {
   // Share service — store/fetch a build code by short id (public host). Defined in ./share.
   shareBuildCode,
   fetchSharedBuildCode,
-
-  // Tree editing (debug tools)
-  upsertNode: (tree: string, node: NodeEditData) =>
-    post<{ ok: boolean }>(`/tree/${encodeURIComponent(tree)}/node`, node),
-  removeNode: (tree: string, nodeId: string) =>
-    del<{ ok: boolean }>(`/tree/${encodeURIComponent(tree)}/node/${encodeURIComponent(nodeId)}`),
-  toggleConnection: (tree: string, src: string, dst: string) =>
-    post<{ ok: boolean }>(`/tree/${encodeURIComponent(tree)}/connection`, { src, dst }),
 
   // Dev tools
   rebuildNodeTypeFilter: () => post<RebuildFilterResult>('/dev/rebuild-node-type-filter', {}),

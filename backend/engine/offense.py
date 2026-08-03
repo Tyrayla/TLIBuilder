@@ -670,10 +670,6 @@ def _target_mitigation_dot(source: BuildSource, dtype: str) -> float:
     return 1.0 - eff_resist
 
 
-# Where the target's base mitigation/resistance comes from (so the UI shows the baseline, not magic numbers).
-TARGET_SOURCE = "Lvl 85 Dummy"
-
-
 def target_profile(source: BuildSource) -> dict:
     """The calculation target's defenses, with each step SEPARATED so the UI can show derivation:
       base          → the dummy baseline constant (TARGET_*),

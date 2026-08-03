@@ -14,12 +14,6 @@ _DATA_ROOT = os.environ.get('TLI_DATA_DIR') or os.path.normpath(
 _CONDITIONS_PATH = os.path.join(_DATA_ROOT, 'conditions.json')
 _OVERRIDES_PATH = os.path.join(_DATA_ROOT, 'condition_phrase_overrides.json')
 
-_SOURCE_FILES = {
-    "legendary": "_legendary_gear",
-    "grafts":    "_grafts",
-    "craft":     "_craft_base_types",
-}
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -239,7 +233,6 @@ def delete_derived_key(bool_key: str):
 
 @router.get("/sources")
 def get_sources():
-    from models.conditions import CONDITIONS_BY_KEY
     active = season_manager.get_active_season()
     if not active:
         return {"season": None, "entries": []}

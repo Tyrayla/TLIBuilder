@@ -79,7 +79,6 @@ function App() {
   const [previewTree, setPreviewTree] = useState<string | null>(null)
   const [previewSource, setPreviewSource] = useState<Screen>('build-overview')
   const [devMode, setDevMode] = useState(false)
-  const [deprecatedTools, setDeprecatedTools] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [unsavedPromptOpen, setUnsavedPromptOpen] = useState(false)
   const [unsavedSaveName, setUnsavedSaveName] = useState('')
@@ -659,7 +658,7 @@ function App() {
   // ── Sidebar-less screens ──────────────────────────────────────────────────
 
   if (screen === 'dev-tools') {
-    return <DevToolsScreen onBack={() => setScreen('build-select')} deprecatedTools={deprecatedTools} onToggleDeprecatedTools={() => setDeprecatedTools(d => !d)} onSeasonChange={() => {
+    return <DevToolsScreen onBack={() => setScreen('build-select')} onSeasonChange={() => {
           useReferenceStore.getState().clearReferenceData()
           useReferenceStore.getState().loadReferenceData()
           useMappingStore.getState().clear() // modifier->stat mapping is per data version
@@ -731,8 +730,6 @@ function App() {
             onReselect={handleReselect}
             onSlotReorder={handleSlotReorder}
             onPreview={goToPreview}
-            devMode={devMode}
-            deprecatedTools={deprecatedTools}
           />
           {cascadeOverlay}
         </>

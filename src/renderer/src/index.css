@@ -2057,50 +2057,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .changelog-body a { color: #7090e8; text-decoration: none; }
 .changelog-body a:hover { text-decoration: underline; }
 
-/* ── Debug toolbar ────────────────────────────────────────────────────────── */
-
-.debug-toggle {
-  background: var(--bg-surface);
-  color: #8888cc;
-  border: 1px solid var(--border);
-}
-.debug-toggle.active {
-  background: var(--border);
-  color: #aaaaff;
-  border-color: #5555aa;
-}
-
-.debug-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 5px 14px;
-  background: var(--bg-deep);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.debug-tools { display: flex; gap: 6px; }
-
-.debug-tool-btn {
-  background: var(--bg-surface);
-  color: #8888cc;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-}
-.debug-tool-btn.active {
-  background: var(--border);
-  color: #c0c0ff;
-  border-color: #6666cc;
-}
-.debug-tool-btn:hover:not(.active) { background: var(--bg-panel); }
-
-.debug-hint {
-  font-size: 11px;
-  color: #6666aa;
-  font-style: italic;
-}
-
 /* ── Stat Sheet ─────────────────────────────────────────────────────────────── */
 
 .stat-sheet {

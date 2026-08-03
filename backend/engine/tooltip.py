@@ -144,16 +144,6 @@ def _is_dup(a: str, b: str) -> bool:
     return len(sa & sb) / min(len(sa), len(sb)) >= 0.6
 
 
-def _merge_detail(authoritative: list[str], extra: list[str]) -> list[str]:
-    """Keep all authoritative (progression-derived) clauses; append only the extra (description_lines)
-    clauses that don't duplicate one — so per-level/detailed copies win over the simple summary."""
-    out = list(authoritative)
-    for c in extra:
-        if not any(_is_dup(c, k) for k in out):
-            out.append(c)
-    return out
-
-
 # ── clause splitting ───────────────────────────────────────────────────────────
 # Tiered run-ons glue several clauses with no reliable delimiter. Split after a clause's
 # "for the supported/this skill" suffix or a sentence period, and before a leading +/-number
