@@ -74,9 +74,9 @@ async function init(msg: InitMsg): Promise<void> {
 
   progress('Loading game data…')
   const [backendZip, dataZip] = await Promise.all([
-    // 'reload' bypasses the HTTP cache: backend-py.zip has a fixed filename, and some browsers (Brave) serve a
-    // stale copy to worker fetches despite must-revalidate — which would run an outdated backend after a deploy.
-    fetchBytes(msg.backendUrl, 'reload'),
+    // backendUrl carries a ?v=<content-hash> cache-buster (pyodideCompute), so normal HTTP caching is safe —
+    // a new deploy changes the URL, and unchanged deploys hit the browser cache instead of re-downloading.
+    fetchBytes(msg.backendUrl),
     fetchBytes(`${msg.dataBase}/engine-data.zip`),
   ])
   py.FS.mkdir('/be'); py.unpackArchive(backendZip, 'zip', { extractDir: '/be' })

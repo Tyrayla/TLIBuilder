@@ -78,7 +78,8 @@ spirit working after the reimport.
 ## Shipped — Web-hosted version (2026-06-16)
 TLI Builder runs in the browser at **tlibuilder.com** (Cloudflare Pages app + `tlibuilder-data` Pages project for
 catalogs/icons/engine-data; info page at **about.tlibuilder.com** off the `gh-pages` branch). The pure-Python engine
-runs in a Pyodide Web Worker (Path B: `import server` with bundled fastapi/pydantic wheels); catalogs/icons load from
+runs in a Pyodide Web Worker (Path B: `import server`; fastapi/pydantic wheels are micropip-installed at init, not
+vendored); catalogs/icons load from
 the data CDN. Builds + last-session save persist client-side via **main-thread IndexedDB** (the worker snapshots
 `/persist` and the main thread owns storage; in-worker IDBFS was unreliable in Brave). Verified in Chrome/Edge/Brave.
 Merged to `dev`. Cloudflare Web Analytics enabled. **Remaining (optional):** see §7.
@@ -721,7 +722,10 @@ accuracy review surfaced two follow-ups:
   mapping is pure given the text) so repeated lines across gear/talents/supports + successive recomputes are
   near-free. Pairs with the build-hash result-cache idea.
 - **Web compute: extract a pure `compute_stat_sheet(dict)->dict`** (future optimization). The web build runs the
-  engine in Pyodide by reusing the whole backend (`import server`) with bundled fastapi/pydantic wheels (Path B,
-  chosen for low risk). Extracting the orchestration + helper closure out of the 3242-line `server.py` into a
+  engine in Pyodide by reusing the whole backend (`import server`; fastapi/pydantic micropip-installed at init —
+  Path B, chosen for low risk; owner decision 2026-08-03: keep fastapi for desktop/web consistency). Shipping-weight
+  pass 2026-08-03: backend-py.zip ships a tools/ allowlist only, engine-data.zip skips CDN-catalog-only files, and
+  the zip URL carries a ?v= content hash (replaced the cache:'reload' every-visit re-download workaround — do not
+  re-add it). Extracting the orchestration + helper closure out of the 3242-line `server.py` into a
   fastapi-free module would shave ~2 MB (cached) + ~1 s one-time init off the web worker. Only worth it if web
   init/payload becomes a problem.

@@ -21,6 +21,19 @@ import server  # noqa: E402
 
 DATA = server._DATA_ROOT
 
+# Files whose only readers on the web are unreachable. The six season files + help_db.json feed catalog
+# endpoints the web client never calls — it intercepts those paths and serves the transformed JSON from the
+# data CDN (client.ts STATIC_CATALOGS); shipping the raw files too was ~40% of the zip for nothing.
+# node_type_filter_overrides.json is different: its only readers are /api/dev override endpoints (DevTools,
+# desktop-only). NOTE: this list is safe only while STATIC_CATALOGS covers those endpoints — a future
+# un-intercepted reader would degrade silently to empty (season_manager.load_* returns None on a missing
+# file), so re-check here before de-listing a catalog. The engine itself never opens any of these.
+_WEB_SKIP_ROOT = {"help_db.json", "node_type_filter_overrides.json"}
+_WEB_SKIP_SEASON = {
+    "_craft_base_types.json", "_craft_base_items.json", "_grafts.json",
+    "_pact_spirits.json", "_hero_memories.json", "_legendary_gear_index.json",
+}
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -38,13 +51,13 @@ def main() -> None:
         # Root-level config the engine reads (json at the data root; skip dirs incl. images/ builds/ seasons/).
         for name in sorted(os.listdir(DATA)):
             p = os.path.join(DATA, name)
-            if os.path.isfile(p) and name.endswith(".json"):
+            if os.path.isfile(p) and name.endswith(".json") and name not in _WEB_SKIP_ROOT:
                 z.write(p, name); n += 1
         # The active season's files (trees, _skills.json, _belt_blends.json, ...).
         sdir = os.path.join(DATA, "seasons", season)
         for name in sorted(os.listdir(sdir)):
             p = os.path.join(sdir, name)
-            if os.path.isfile(p):
+            if os.path.isfile(p) and name not in _WEB_SKIP_SEASON:
                 z.write(p, f"seasons/{season}/{name}"); n += 1
 
     size = os.path.getsize(zpath)
