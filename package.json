@@ -14,13 +14,17 @@
     "build:release": "npm run build:backend && npm run build && electron-builder --win",
     "build:web": "python backend/tools/export_backend_bundle.py && vite build --config vite.web.config.mts --mode web && node -e \"require('fs').renameSync('dist-web/index.web.html','dist-web/index.html')\"",
     "build:web:data": "python backend/tools/export_web_data.py && python backend/tools/export_engine_bundle.py",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false",
-    "test": "vitest run"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false && tsc --noEmit -p e2e/tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "npm run build && npm run build:web && playwright test -c e2e",
+    "test:e2e:web": "npm run build:web && playwright test -c e2e --project=web",
+    "test:e2e:electron": "npm run build && set PW_NO_WEBSERVER=1&& playwright test -c e2e --project=electron"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@floating-ui/react": "^0.27.19",
     "@lexical/react": "^0.45.0",
+    "@playwright/test": "^1.62.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/react-test-renderer": "^18.3.1",

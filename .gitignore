@@ -44,6 +44,10 @@ web-data/
 dist-web/
 src/renderer/public/backend-py.zip
 
+# Playwright E2E artifacts (traces, screenshots, error contexts)
+test-results/
+playwright-report/
+
 # Private dev vault (handoffs, plans, agent notes). Tracked in a SEPARATE private repo, never here.
 docs/local/
 

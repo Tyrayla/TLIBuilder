@@ -729,3 +729,32 @@ accuracy review surfaced two follow-ups:
   re-add it). Extracting the orchestration + helper closure out of the 3242-line `server.py` into a
   fastapi-free module would shave ~2 MB (cached) + ~1 s one-time init off the web worker. Only worth it if web
   init/payload becomes a problem.
+
+## 10. E2E testing (Playwright, `e2e/`) — Phase 3 partial (2026-08-04)
+
+Harness + first journeys landed (`e2e/`: web = dist-web + Pyodide via static server on 8800, electron =
+`_electron.launch` on `out/main/index.js` with isolated temp userData/data/port). Green: web smoke (worker boot,
+tree load, persistence across reload), electron smoke (IPC round trip, isolated port + data dir), journeys
+build-code round trip + unsaved-changes guard. Run: `npm run test:e2e`. Remaining from
+`docs/TEST_EXPANSION_PLAN.md` Phase 3:
+
+- **New-build-to-DPS journey** — create → tree → gear → skill+support → finite non-zero DPS on Calcs.
+- **Persistence across restart (electron)** — save → close → relaunch (worker-scoped `e2eDirs` already persists
+  state across launches; needs the journey itself).
+- **Folder CRUD + drag-and-drop journey** (BuildSelectScreen).
+- **`data-testid` pass** — journeys currently use structural class selectors (`.modal-card`, `.build-card`,
+  `.build-sidebar`, `textarea.share-code-area`) against plan step 3; add testids and migrate.
+- **Hermetic web target** — the web build still fetches catalogs from the live CDN (`VITE_STATIC_DATA_BASE`);
+  serve a local mirror of `web-data/` + catalog exports so CI needs no network.
+- **CI job** — run the web project per push once a workflow exists; electron nightly.
+
+### Findings surfaced by the E2E work (app-side, owner-acknowledged 2026-08-04)
+
+- **Fresh builds are instantly dirty.** "+ New Build" shows `Save *` before any user edit — something in the
+  condition/loadout bootstrap bumps `buildVersion` past `loadedVersionRef` right after `startNewBuild()`. Means the
+  unsaved-changes guard (renderer modal + native close prompt) arms on untouched builds. Same applies after an
+  import. Find the bump and fold it into the loaded snapshot.
+- **Build codes: surface the hero/trait identity on import.** Excluding build name/id from `tli1_` codes is correct
+  and stays. Wanted soon: the character identity (hero trait name) should show up for an imported build (e.g. the
+  sidebar showing the trait/hero name instead of the bare "New Build" placeholder). Owner-requested 2026-08-04;
+  not started.
