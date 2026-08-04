@@ -19,19 +19,24 @@
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
+    "@floating-ui/react": "^0.27.19",
+    "@lexical/react": "^0.45.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/react-test-renderer": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.1",
+    "dompurify": "^3.4.11",
     "electron": "^31.0.2",
     "electron-builder": "^24.13.3",
     "electron-vite": "^5.0.0",
+    "lexical": "^0.45.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-test-renderer": "^18.3.1",
     "typescript": "^5.5.2",
     "vite": "^5.3.1",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "zustand": "^5.0.13"
   },
   "build": {
     "appId": "com.tlibuilder.app",
@@ -40,11 +45,10 @@
       "buildResources": "build"
     },
     "files": [
+      "out/**",
+      "resources/**",
       "!**/.vscode/*",
-      "!src/*",
-      "!electron.vite.config.{js,ts,mjs,cjs}",
-      "!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}",
-      "!{.env,.env.*,.npmrc,pnpm-lock.yaml}"
+      "!**/*.map"
     ],
     "win": {
       "executableName": "TLIBuilder",
@@ -60,7 +64,7 @@
         "to": "data",
         "filter": [
           "**/*",
-          "!builds/.gitkeep"
+          "!builds/**"
         ]
       }
     ],
@@ -80,12 +84,6 @@
     }
   },
   "dependencies": {
-    "@floating-ui/react": "^0.27.19",
-    "@lexical/react": "^0.45.0",
-    "@types/dompurify": "^3.0.5",
-    "dompurify": "^3.4.11",
-    "electron-updater": "^6.8.3",
-    "lexical": "^0.45.0",
-    "zustand": "^5.0.13"
+    "electron-updater": "^6.8.3"
   }
 }
