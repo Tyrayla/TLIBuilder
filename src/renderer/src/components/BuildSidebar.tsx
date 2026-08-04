@@ -6,6 +6,8 @@ import SettingsOverlay from './SettingsOverlay'
 import LoadoutOverlay from './LoadoutOverlay'
 import type { OffenseResult } from '../api/client'
 import { dec } from '../utils/num'
+import { characterSummary } from '../utils/characterSummary'
+import { characterLevelFrom } from '../utils/conditions'
 
 interface Props {
   screen: string
@@ -133,6 +135,13 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
     || screen === 'preview-selector' || screen === 'preview-viewer'
   const [showSettings, setShowSettings] = useState(false)
   const [loadoutView, setLoadoutView] = useState<null | 'list' | 'create'>(null)
+  // Live character identity for the OPEN build — also what identifies a freshly imported build
+  // (codes carry no name, so the header alone would just read "New Build"). Level subscribes as a
+  // primitive so unrelated condition edits don't re-render the whole sidebar.
+  const traitId = useBuildStore(s => s.traitId)
+  const level = useBuildStore(s => characterLevelFrom(s.conditionState))
+  const heroTraits = useReferenceStore(s => s.heroTraits)
+  const { identity } = characterSummary({ traitId }, heroTraits)
   const sidebarWidth = useUiPrefs(s => s.sidebarWidth)
   const setSidebarWidth = useUiPrefs(s => s.setSidebarWidth)
 
@@ -159,6 +168,9 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
     <div className="build-sidebar">
       <div className="sidebar-build-name" title={buildName || 'New Build'}>
         {buildName || 'New Build'}
+      </div>
+      <div className="sidebar-hero" title={identity ? `Lv ${level} ${identity}` : `Lv ${level} · no hero trait`}>
+        Lv {level}{identity ? <> <span className="sidebar-hero-name">{identity}</span></> : <span className="sidebar-hero-none"> · no hero trait</span>}
       </div>
       <div className="sidebar-save-row">
         <button className="sidebar-save-btn" onClick={onSave}>

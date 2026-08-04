@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { api, Build, BuildFolder, FolderManifest, IS_WEB } from '../api/client'
 import { resolveImportInput, ShareFetchError } from '../utils/resolveImportInput'
 import { checkBuildCompatibility } from '../utils/buildCompat'
+import { characterSummary } from '../utils/characterSummary'
+import { useReferenceStore } from '../store/referenceStore'
 import SettingsOverlay from '../components/SettingsOverlay'
 import logoSrc from '../assets/logo.png'
 
@@ -11,11 +13,6 @@ interface Props {
   devMode?: boolean
   onDevTools?: () => void
   onOpenVerification?: () => void
-}
-
-function slotSummary(build: Build): string {
-  const names = build.slots.filter(Boolean).map(s => s!.treeName)
-  return names.length ? names.join(' · ') : 'No trees selected'
 }
 
 function totalPoints(build: Build): number {
@@ -104,6 +101,7 @@ type DragOver =
   | null
 
 export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, onDevTools, onOpenVerification }: Props) {
+  const heroTraits = useReferenceStore(s => s.heroTraits)
   const [builds, setBuilds] = useState<Build[]>([])
   const [manifest, setManifest] = useState<FolderManifest>(EMPTY_MANIFEST)
   const [loading, setLoading] = useState(true)
@@ -673,7 +671,14 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
                 )}
                 <div className="build-card-info">
                   <span className="build-name">{build.name}</span>
-                  <span className="build-tree">{slotSummary(build)}</span>
+                  {(() => {
+                    const { level, identity } = characterSummary(build, heroTraits)
+                    return (
+                      <span className="build-hero">
+                        Lv {level}{identity && <> <span className="build-hero-name">{identity}</span></>}
+                      </span>
+                    )
+                  })()}
                   <span className="build-pts">{totalPoints(build)} pts</span>
                 </div>
               </div>
