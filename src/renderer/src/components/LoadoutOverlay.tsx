@@ -333,7 +333,7 @@ function PushPanel({ loadout, loadouts, onApply, onClose }: {
   }
   return (
     <div className="modal-backdrop" {...backdrop}>
-      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ minWidth: 380 }}>
+      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ minWidth: 'min(380px, calc(100vw - 24px))' }}>
         <div className="modal-accent" />
         <h3 className="modal-title">Share areas from “{loadout.name}”</h3>
         <div className="loadout-body">
@@ -377,7 +377,7 @@ function ConfirmDelete({ name, onConfirm, onCancel }: { name: string; onConfirm:
   const backdrop = useBackdropClose(onCancel)
   return (
     <div className="modal-backdrop" {...backdrop}>
-      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ minWidth: 340 }}>
+      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ minWidth: 'min(340px, calc(100vw - 24px))' }}>
         <div className="modal-accent" />
         <h3 className="modal-title">Delete “{name}”?</h3>
         <div className="loadout-body" style={{ fontSize: 12, color: '#aab' }}>

@@ -5625,3 +5625,50 @@ span.gear-affix-label {
 .verif-article-body li { margin: 1px 0; }
 .verif-article-body h1, .verif-article-body h2, .verif-article-body h3, .verif-article-body h4 { margin: 11px 0 4px; font-size: 13px; color: var(--fg-faint); }
 .verif-article-foot { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--bg-panel); font-size: 11px; color: var(--fg-dim); }
+
+/* ============================================================================
+   Mobile M0 (<=768px): the sidebar collapses into an overlay drawer, modals fit
+   the viewport, touch targets grow. Desktop is unaffected - the Electron window
+   minimum is 1100px wide, so none of this block ever fires there.
+   ========================================================================== */
+.sidebar-mobile-toggle { display: none; }
+.sidebar-mobile-backdrop { display: none; }
+
+@media (max-width: 768px) {
+  /* Floating drawer toggle - bottom-left, thumb-reachable, above content but below modals. */
+  .sidebar-mobile-toggle {
+    display: flex; align-items: center; justify-content: center;
+    position: fixed; bottom: 14px; left: 12px; z-index: 95;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--bg-btn); color: var(--fg); font-size: 18px;
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+  .sidebar-mobile-backdrop {
+    display: block; position: fixed; left: 0; right: 0; top: 30px; bottom: 0;
+    background: rgba(0, 0, 0, 0.5); z-index: 85;
+  }
+  .sidebar-shell {
+    position: fixed; top: 30px; bottom: 0; left: 0; z-index: 90;
+    height: auto;              /* the base rule's height:100% would drop `bottom` and push the
+                                  Back-to-Builds row below the fold */
+    width: 250px !important;   /* overrides the inline resizable width - resize is desktop-only */
+    transform: translateX(-105%);
+    transition: transform 0.2s ease;
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.45);
+  }
+  .sidebar-shell.mobile-open { transform: none; }
+  /* While the drawer is open its own bottom-left corner (Back to Builds) sits where the toggle
+     floats — hide the toggle; backdrop tap, nav tap, or Escape closes. */
+  .sidebar-mobile-toggle.is-open { display: none; }
+  .sidebar-resize-handle { display: none; }
+
+  /* Comfortable touch targets in the drawer. */
+  .sidebar-nav-btn { padding: 10px; font-size: 13px; }
+
+  /* No modal may exceed the viewport - kills the 420-460px min-widths on phones. */
+  .modal-card { min-width: 0; width: calc(100vw - 24px); max-width: calc(100vw - 24px); }
+  .share-modal-card, .import-export-modal, .loadout-modal-card, .stat-editor-card {
+    min-width: 0; max-width: calc(100vw - 24px);
+  }
+}
