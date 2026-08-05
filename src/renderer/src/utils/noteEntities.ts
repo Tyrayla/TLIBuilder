@@ -79,7 +79,7 @@ export function resolveNoteEntity(type: NoteEntityType, key: string, ctx: NoteRe
   switch (type) {
     case 'item': {
       const g = ctx.gear.find(i => i.item_id === key)
-      if (g) return { ...base, name: g.name, color: gearQualityColor(g), source: 'build',
+      if (g) return { ...base, name: g.displayName ?? g.name, color: gearQualityColor(g), source: 'build',
         lines: [g.base_type ?? '', ...g.affixes.map(a => a.raw_text).filter(Boolean).slice(0, 10)].filter(Boolean) }
       // Catalog: the FULL legendary catalog carries the affixes (variants); the lightweight index has only base_type.
       const cat = ctx.reference.legendaryCatalog?.find(i => i.item_id === key || i.name === key)

@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
+import LoadProgressBar from './components/LoadProgressBar'
 import logoSrc from './assets/logo.png'
 import './index.css'
 
@@ -18,6 +19,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         path, turning one rare rendering race into total data loss. */}
     <ErrorBoundary>
       <App />
+      <LoadProgressBar />
     </ErrorBoundary>
   </React.StrictMode>
 )

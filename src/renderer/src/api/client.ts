@@ -2505,6 +2505,9 @@ export interface CustomizedAffix {
 export interface EquippedGearItem {
   item_id: string
   name: string
+  // Player-given label. Display-only: shown in equipment slots / Items in Build / note mentions,
+  // while tooltips, the editor, and the preview keep the true `name` so items stay identifiable.
+  displayName?: string
   required_level: number
   affixes: LegendaryAffix[]
   customizations: CustomizedAffix[]

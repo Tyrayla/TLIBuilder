@@ -41,8 +41,12 @@ _UMBRELLA = os.path.dirname(os.path.dirname(_BACKEND))  # .../TLI/
 
 # path (relative to this file) -> expected SHA-256 of its bytes
 EXPECTED = {
+    # 2026-08-05 owner-requested additive field: gear items carry optional `displayName`
+    # (player label), stripped through encode AND carried through legendary rehydrate on
+    # decode. Wire format unchanged — prefix/pipeline/SCHEMA_VERSION untouched; old codes
+    # decode identically, the new key is simply absent on them.
     os.path.join(_BACKEND, "build_code.py"):
-        "2d8b33c93c3b7a0a4bfde81975858eb744d8dc65161181c1e1924ae973c5aa0f",
+        "eed1103ebc0f42685640279c05a05d0b99783d6973b588bcee10f84b8a726be3",
     os.path.join(_UMBRELLA, "tlibuilder-code-share", "build_code.py"):
         "3414670932ad486afb77c0d15a28fbfb2e58c579fa5745795f54a771129782d4",
 }

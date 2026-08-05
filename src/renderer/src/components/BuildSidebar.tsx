@@ -188,6 +188,8 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
     {mobileOpen && <div className="sidebar-mobile-backdrop" onClick={() => setMobileOpen(false)} />}
     <div className={`sidebar-shell${mobileOpen ? ' mobile-open' : ''}`} style={{ width: sidebarWidth }}>
     <div className="build-sidebar">
+      <button className="sidebar-nav-btn sidebar-back" onClick={onGoBack}>← Back to Builds</button>
+      <div className="sidebar-divider" />
       <div className="sidebar-build-name" title={buildName || 'New Build'}>
         {buildName || 'New Build'}
       </div>
@@ -225,12 +227,11 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
       <div className="sidebar-divider" />
 
       <NavBtn label="Import / Export" active={screen === 'import-export'} onClick={() => nav('import-export')} />
+      {/* The "NYI flags" toggle moved to Settings → Display (defaults ON). */}
       <NavBtn label="⚙ Settings" active={false} onClick={() => setShowSettings(true)} />
 
+      {/* Intentional trailing filler — keeps the nav packed at the top now that nothing sits at the bottom. */}
       <div className="sidebar-spacer" />
-
-      {/* The "NYI flags" toggle moved to Settings → Display (defaults ON). */}
-      <button className="sidebar-nav-btn sidebar-back" onClick={onGoBack}>← Back to Builds</button>
     </div>
       <div className="sidebar-resize-handle" onMouseDown={startResize} title="Drag to resize the sidebar" />
     </div>

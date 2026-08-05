@@ -4,6 +4,7 @@ import { api, getApiBase, iconUrl, TreeData, TreeNode, CoreTalentSlotOption,
   PrismCatalogItem, CraftedPrism, PlacedPrism, PrismRolls, EtherealCatalog, EtherealConfig } from '../api/client'
 import SlotSidebar from '../components/SlotSidebar'
 import ScreenHeader from '../components/ScreenHeader'
+import LoadingState from '../components/LoadingState'
 import PreviewWatermark from '../components/PreviewWatermark'
 import PrismOverlay, { RARE_TINT, condensePrismImplicit } from '../components/PrismOverlay'
 import { isPrimary } from '../treeGroups'
@@ -1274,9 +1275,7 @@ export default function TreeViewerScreen({
     return (
       <div className="screen tree-viewer">
         {header}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
-          Loading {treeName}…
-        </div>
+        <LoadingState label={`Loading ${treeName}…`} />
       </div>
     )
   }

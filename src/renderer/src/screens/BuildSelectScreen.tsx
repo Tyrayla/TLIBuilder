@@ -5,6 +5,7 @@ import { checkBuildCompatibility } from '../utils/buildCompat'
 import { characterSummary } from '../utils/characterSummary'
 import { useReferenceStore } from '../store/referenceStore'
 import SettingsOverlay from '../components/SettingsOverlay'
+import LoadingState from '../components/LoadingState'
 import logoSrc from '../assets/logo.png'
 
 interface Props {
@@ -613,7 +614,7 @@ export default function BuildSelectScreen({ onNewBuild, onOpenBuild, devMode, on
       </div>
 
       {loading ? (
-        <p style={{ color: '#888', marginTop: 8 }}>Loading…</p>
+        <LoadingState label="Loading builds…" />
       ) : builds.length === 0 ? (
         <div className="empty-state">
           <p>No saved builds yet.</p>

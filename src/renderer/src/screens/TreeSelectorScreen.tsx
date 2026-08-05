@@ -3,6 +3,7 @@ import { api, iconUrl, TreeSlot } from '../api/client'
 import { GROUPS, canAddTree, findShiftCandidate } from '../treeGroups'
 import SlotSidebar from '../components/SlotSidebar'
 import ScreenHeader from '../components/ScreenHeader'
+import LoadingState from '../components/LoadingState'
 import { useBuildStore } from '../store/buildStore'
 
 const EMPTY_SLOTS: null[] = [null, null, null, null]
@@ -58,6 +59,8 @@ export default function TreeSelectorScreen({
     return () => clearTimeout(t)
   }, [search])
 
+  const [treesFailed, setTreesFailed] = useState(false)
+  const [treesResolved, setTreesResolved] = useState(false)
   useEffect(() => {
     if (Object.keys(treeColors).length === 0) {
       api.getTrees().then(trees => {
@@ -66,12 +69,19 @@ export default function TreeSelectorScreen({
         trees.forEach(t => { colors[t.name] = t.color; icons[t.name] = t.icon_url ?? null })
         setLocalColors(colors)
         setLocalIcons(icons)
-      })
+        setTreesResolved(true)
+      }).catch(() => setTreesFailed(true))
     } else {
       setLocalColors(treeColors)
       setLocalIcons(treeIcons)
+      setTreesResolved(true)
     }
   }, [treeColors, treeIcons])
+  // The card grid's names come from the hardcoded GROUPS registry, but colors/art/validity come
+  // from the catalog — rendering the grid before that lands shows wrong-colored, art-less,
+  // clickable stand-ins. Show a spinner until the fetch actually settles (an explicit resolved
+  // flag, not emptiness — a legitimately empty catalog must not spin forever).
+  const treesLoading = !treesFailed && !treesResolved
 
   const shiftCandidate = findShiftCandidate(slots)
 
@@ -125,6 +135,11 @@ export default function TreeSelectorScreen({
               </span>
             )}
           </div>
+          {treesLoading ? (
+            <LoadingState label="Loading talent trees…" />
+          ) : treesFailed ? (
+            <div className="panel-empty">Couldn't load the tree catalog — restart to retry.</div>
+          ) : (
           <div className="tree-grid">
             {GROUPS.map(({ primary, trees }) => (
               <div key={primary} className="tree-group-col">
@@ -168,6 +183,7 @@ export default function TreeSelectorScreen({
               </div>
             ))}
           </div>
+          )}
         </div>
       </div>
     </div>

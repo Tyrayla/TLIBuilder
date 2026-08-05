@@ -64,6 +64,8 @@ def _strip_gear_item(item: dict) -> dict:
     stripped: dict = {
         "item_id": item.get("item_id"),
         "name": item.get("name"),
+        # Player-given display label (additive, optional — absent unless the user renamed the item).
+        "displayName": item.get("displayName") or None,
         "slot": item.get("slot"),
         "base_type": item.get("base_type") or None,
         "is_crafted": is_crafted,
@@ -137,6 +139,10 @@ def _rehydrate_gear_item(item: dict, gear_by_id: dict[str, dict]) -> dict:
     rehydrated["customizations"] = item.get("customizations", [])
     if item.get("base_type"):
         rehydrated["base_type"] = item["base_type"]
+    # Player-given display label survives the round trip (crafted/vorax keep it via the
+    # early pass-through above; rehydrated legendaries must carry it explicitly).
+    if item.get("displayName"):
+        rehydrated["displayName"] = item["displayName"]
 
     # Flatten variants → affixes so the frontend receives an EquippedGearItem
     # shape (flat affixes list) rather than a LegendaryGearItem shape (variants dict).

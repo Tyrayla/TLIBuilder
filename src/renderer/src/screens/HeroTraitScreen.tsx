@@ -7,6 +7,7 @@ import { useBuildStore } from '../store/buildStore'
 import { useUiPrefs } from '../store/uiPrefsStore'
 import { characterLevelFrom } from '../utils/conditions'
 import { useFloatingTooltip } from '../components/tooltip/useFloatingTooltip'
+import LoadingState from '../components/LoadingState'
 import { ModifierBadge, useTextModifierStatus } from '../components/ModifierBadge'
 import { CoverageBadge } from '../components/CoverageBadge'
 import { coverageRank, passesModeledOnly } from '../utils/coverage'
@@ -748,7 +749,7 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
   if (loading) {
     return (
       <div className="hero-trait-screen">
-        <div className="hero-trait-body"><div className="panel-empty">Loading traits…</div></div>
+        <div className="hero-trait-body"><LoadingState label="Loading hero traits…" /></div>
       </div>
     )
   }

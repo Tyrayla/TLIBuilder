@@ -38,6 +38,9 @@ interface ReferenceStore {
   referenceResolved: boolean
   // Keys of catalogs whose fetch rejected — for per-screen failed-state UI
   failedCatalogs: Set<string>
+  // Per-fetch settle counters for the global load-progress pill (LoadProgressBar).
+  loadDone: number
+  loadTotal: number
 
   loadReferenceData: () => Promise<void>
   clearReferenceData: () => void
@@ -64,6 +67,8 @@ function freshClearedState() {
     skillsById: null as Record<string, SkillItem> | null,
     referenceResolved: false,
     failedCatalogs: new Set<string>(),
+    loadDone: 0,
+    loadTotal: 0,
   }
 }
 
@@ -79,18 +84,26 @@ export const useReferenceStore = create<ReferenceStore>((set) => ({
   loadReferenceData: async () => {
     const myToken = ++loadToken
 
-    const results = await Promise.allSettled([
-      api.getLegendaryGearIndex(),
-      api.getLegendaryGear(),
-      api.getCraftBaseItems(),
-      api.getCraftBaseTypes(),
-      api.getGrafts(),
-      api.getHeroTraits(),
-      api.getHeroMemories(),
-      api.getConditions(),
-      api.getSkills(),
-      api.getBeltBlends(),
-    ])
+    // Each fetch bumps loadDone as it settles so the progress pill can show real progress
+    // rather than a spinner-until-everything blob. Ticks are ignored once superseded.
+    const track = <T,>(p: Promise<T>): Promise<T> => {
+      p.finally(() => { if (myToken === loadToken) set(s => ({ loadDone: s.loadDone + 1 })) }).catch(() => {})
+      return p
+    }
+    const fetches = [
+      track(api.getLegendaryGearIndex()),
+      track(api.getLegendaryGear()),
+      track(api.getCraftBaseItems()),
+      track(api.getCraftBaseTypes()),
+      track(api.getGrafts()),
+      track(api.getHeroTraits()),
+      track(api.getHeroMemories()),
+      track(api.getConditions()),
+      track(api.getSkills()),
+      track(api.getBeltBlends()),
+    ] as const
+    set({ loadDone: 0, loadTotal: fetches.length })
+    const results = await Promise.allSettled(fetches)
 
     // Bail if a newer load (or clear) has superseded this one
     if (myToken !== loadToken) return
