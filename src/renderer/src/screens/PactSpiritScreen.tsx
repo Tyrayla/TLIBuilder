@@ -452,6 +452,9 @@ export default function PactSpiritScreen(_props: Props) {
 
         {activeSlot !== null && (
           <div ref={panelRef} className="pact-spirit-right-panel">
+            {/* Mobile-only (hidden by CSS on desktop): the stacked picker fills the screen there,
+                so it needs an explicit way out besides tapping another slot. */}
+            <button className="pact-picker-close" onClick={() => setActiveSlot(null)}>✕ Close</button>
             <div className="pact-spirit-search-row">
               <input className="pact-spirit-search" placeholder="Search spirits…" value={search} onChange={e => setSearch(e.target.value)} autoFocus />
             </div>

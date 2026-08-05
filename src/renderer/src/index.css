@@ -2323,7 +2323,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .gear-slots-panel {
   flex: 22;
   min-width: 160px;
-  background: var(--bg-deep);
   border-right: 1px solid var(--bg-panel);
   display: flex;
   flex-direction: column;
@@ -2409,6 +2408,18 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .gear-slot-remove:hover { color: #ff6b6b; background: rgba(255,80,80,0.1); }
 
+/* Same geometry as the remove button, non-destructive hover — cloning is not deleting. */
+.gear-slot-dup {
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 12px;
+  padding: 1px 4px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  line-height: 1;
+}
+.gear-slot-dup:hover { color: var(--fg); background: var(--bg-surface); }
+
 .gear-slot-drag-over {
   background: var(--bg-surface);
   outline: 1px solid #5555aa;
@@ -2454,7 +2465,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .gear-build-panel {
   flex: 22;
   min-width: 160px;
-  background: var(--bg-deep);
   border-right: 1px solid var(--bg-panel);
   display: flex;
   flex-direction: column;
@@ -2529,7 +2539,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .gear-customize-panel {
   width: 280px;
   flex-shrink: 0;
-  background: var(--bg-deep);
   border-right: 1px solid var(--bg-panel);
   display: flex;
   flex-direction: column;
@@ -3560,7 +3569,6 @@ span.gear-affix-label {
 .skill-slots-panel {
   flex: 20;
   min-width: 150px;
-  background: var(--bg-deep);
   border-right: 1px solid var(--bg-panel);
   display: flex;
   flex-direction: column;
@@ -3759,7 +3767,6 @@ span.gear-affix-label {
   flex-direction: column;
   border-right: 1px solid var(--bg-panel);
   overflow: hidden;
-  background: var(--bg-deep);
 }
 
 .skill-center-empty {
@@ -4548,7 +4555,6 @@ span.gear-affix-label {
 .skill-support-panel {
   flex: 36;
   min-width: 180px;
-  background: var(--bg-deep);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -5670,5 +5676,265 @@ span.gear-affix-label {
   .modal-card { min-width: 0; width: calc(100vw - 24px); max-width: calc(100vw - 24px); }
   .share-modal-card, .import-export-modal, .loadout-modal-card, .stat-editor-card {
     min-width: 0; max-width: calc(100vw - 24px);
+  }
+}
+
+/* ── Slate board layout (desktop base) — colors stay inline in SlateScreen.tsx
+   like the rest of that screen; the LAYOUT lives here so the mobile rules
+   below can restack it without !important. ── */
+.slate-body { display: flex; flex: 1; overflow: hidden; }
+.slate-left {
+  width: 320px; flex-shrink: 0;
+  background: #12121e; border-right: 1px solid #2a2a4a;
+  padding: 14px 16px;
+  display: flex; flex-direction: column;
+}
+.slate-board-wrap {
+  flex: 1; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  overflow: auto;
+}
+.slate-bonuses { position: absolute; top: 12px; right: 12px; z-index: 5; }
+.slate-bonuses-panel { width: 240px; max-height: calc(100vh - 160px); }
+
+/* ============================================================================
+   Mobile M1 (<=768px): per-screen stacking. Every failure below was the same
+   shape - a no-wrap flex row of panes with fixed widths / min-width floors,
+   clipped by an overflow:hidden ancestor. Rows become columns, floors drop,
+   and the stacked body scrolls vertically.
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* Config: 3 hard-coded condition columns squeezed beside a fixed 300px aside
+     rendered as color slivers. Stack: conditions single-column, mods below. */
+  .config-body { flex-direction: column; overflow-y: auto; }
+  .config-conditions { flex: none; }
+  .cond-grid { overflow-y: visible; flex: none; }
+  .cond-columns { flex-direction: column; }
+  .config-custommods { width: auto; }
+
+  /* Gear: 4 side-by-side panels needed 760px minimum. Stack them at natural
+     height — owner preference is one long page scroll over squished internal
+     sections. Only the 300+-item catalog keeps its own bounded scroll. */
+  .gear-body { flex-direction: column; overflow-y: auto; }
+  .gear-slots-panel, .gear-build-panel, .gear-customize-panel {
+    flex: none; width: auto; min-width: 0; max-height: none;
+  }
+  .gear-catalog { flex: none; width: auto; min-width: 0; max-height: 80vh; }
+  /* Internal flex:1 scrollers collapse to 0 in a natural-height stack — let them flow. */
+  .gear-customize-affixes { flex: none; overflow-y: visible; }
+  .gear-preview-card { max-height: none; }
+
+  /* Skills: slot column + catalog + supports needed 550px; the support panel
+     was clipped entirely. Stack in slot -> catalog -> supports order. */
+  .skills-body { flex-direction: column; overflow-y: auto; }
+  .skill-slots-panel, .skill-center-panel, .skill-support-panel {
+    flex: none; width: auto; min-width: 0;
+  }
+  .skill-center-panel, .skill-support-panel { max-height: 75vh; }
+
+  /* Hero traits: base column + N tier columns in one 32px-gapped row. Stack
+     the row and let tier columns wrap; drop the 240px dropdown floor. */
+  .hero-trait-header { flex-wrap: wrap; }
+  .ht-dd { min-width: 0; }
+  .hero-trait-body { padding: 12px; }
+  .trait-main-row { flex-direction: column; align-items: stretch; gap: 16px; }
+  .trait-v-divider { display: none; }
+  .trait-tiers-row { flex-wrap: wrap; gap: 16px; justify-content: center; }
+
+  /* Tree selector: 192px slot rail + one column per god = sliver cards. The
+     rail becomes a 2-wide grid on top; god columns wrap two-up below. */
+  .selector-body { flex-direction: column; overflow-y: auto; }
+  .slot-sidebar { width: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
+  .tree-main { flex: none; }
+  .tree-overview-search .tree-search-input { width: 100%; }
+  .tree-grid { flex-wrap: wrap; overflow: visible; }
+  .tree-group-col { flex: 1 1 42%; min-width: 150px; }
+
+  /* Slate board: fixed 320px palette beside a 452px board. Stack; the board
+     pane keeps overflow:auto so the full-size grid pans with touch. */
+  .slate-body { flex-direction: column; overflow-y: auto; }
+  .slate-left { width: auto; flex: none; border-right: none; }
+  .slate-board-wrap { flex: none; min-height: 480px; justify-content: flex-start; }
+}
+
+/* ============================================================================
+   Mobile M1.1 (<=768px): owner-feedback fixes from live phone testing.
+   ========================================================================== */
+/* Slate drag: cells must own the touch gesture or the browser claims it for
+   scrolling and cancels the pointer drag. Global (harmless on desktop). */
+.slate-cell { touch-action: none; }
+
+@media (max-width: 768px) {
+  /* Gear: the craft/customize editor column was omitted from the stack rules -
+     flex-basis:0% in a column resolves to height 0, so + Create Item appeared
+     to do nothing. */
+  .gear-editor-column { flex: none; width: auto; min-width: 0; max-height: none; overflow: visible; }
+
+  /* Skills: the Assign footer sat below the scrolling catalog, offscreen.
+     Reorder the flex column so it sits directly under the search/sort rows. */
+  .skill-center-catalog-header { order: -4; }
+  .skill-search-bar { order: -3; }
+  .skill-sort-row { order: -2; }
+  .skill-center-catalog-footer { order: -1; border-top: none; border-bottom: 1px solid var(--bg-panel); }
+
+  /* Config: the Custom Modifiers editor is an absolutely-positioned textarea -
+     in the stacked auto-height column it collapsed to 0px. Give it a real box,
+     and trim the desktop padding. */
+  .build-overview { padding: 10px; }
+  .cmods-editor { min-height: 160px; }
+
+  /* Slate board: bonuses panel overlaid the board; stack it above instead. */
+  .slate-board-wrap { flex-direction: column; align-items: stretch; }
+  .slate-bonuses { position: static; align-self: flex-end; padding: 8px 8px 0; }
+  .slate-bonuses-panel { width: 100%; max-height: 40vh; }
+
+  /* Pact spirits: 205px card + 10 fixed-size node columns can't share 390px.
+     Stack card above nodes and shrink the fixed node circles to fit. */
+  .pact-spirit-body { flex-direction: column; overflow-y: auto; }
+  .pact-spirit-right-panel { width: auto; }
+  .pact-spirit-row { grid-template-columns: 1fr; }
+  .pact-node.node-inner { width: 22px; height: 22px; }
+  .pact-node.node-mid { width: 32px; height: 32px; }
+  .pact-node.node-outer { width: 38px; height: 38px; }
+
+  /* Hero trait tree (Dance of the Deep): the 1000x760 viewBox squeezed to
+     390px made 54-unit nodes ~21px. Render the SVG oversized and pan. */
+  .htt-row { overflow-x: auto; }
+  .htt-tree-svg { width: 680px; min-width: 680px; max-height: none; }
+  .htt-memory-rail { flex-wrap: wrap; }
+
+  /* Talent selector: tree cards squeezed flex:1 clipped their own Remove
+     button; give cards natural height. */
+  .tree-subtrees { flex: none; }
+  .tree-card { flex: none; min-height: 56px; overflow: visible; }
+  .tree-overview-search { flex-wrap: wrap; }
+
+  /* Talent viewer: header was pinned to 120px tall and couldn't wrap; the
+     820x586 canvas squeezed nodes to ~12px. Stack the body, let the header
+     wrap, and render the SVG near full size with two-axis pan. */
+  .app-header { min-height: 0; flex-wrap: wrap; gap: 6px; }
+  .app-header-left, .app-header-center, .app-header-right { flex: 1 1 100%; }
+  .tree-search-bar .tree-search-input { width: 100%; }
+  .viewer-body { flex-direction: column; overflow-y: auto; }
+  .viewer-main { flex: none; }
+  .viewer-canvas { overflow: auto; min-height: 62vh; }
+  .viewer-canvas svg { width: 760px; min-width: 760px; height: auto; }
+}
+
+/* ── Craft editor (all platforms): section labels pin to the top of the slot
+   scroller so BASE/PREFIXES/SUFFIXES never scroll out of reach. Opaque canvas
+   fill so slot rows pass underneath invisibly. ── */
+.gear-craft-section-label {
+  position: sticky; top: 0; z-index: 3;
+  background: var(--bg);
+}
+
+@media (max-width: 768px) {
+  /* Pact spirits: rows kept desktop flex:1/min-height:0 and crushed, letting
+     node strips slide behind the next card. Natural height + breathing room. */
+  .pact-spirit-row { flex: none; min-height: min-content; row-gap: 6px; padding-bottom: 14px; }
+  .pact-nodes-area { align-content: start; }
+}
+
+/* ── Unified editor shell (all platforms, all three editors — crafted, Vorax,
+   AND the legendary customize panel, which shares the class): content is never
+   squeezed into an internal scrollbox by the preview. Slots/affixes render at
+   full natural height, the preview flows after them, and the PANEL scrolls
+   only when the window is genuinely too short. ── */
+.gear-customize-panel.gear-craft-mode { overflow-y: auto; }
+.gear-craft-mode .gear-craft-slots-scroll,
+.gear-craft-mode .gear-customize-affixes { flex: none; overflow: visible; min-height: 0; }
+.gear-craft-mode .gear-preview-card { flex-shrink: 0; }
+.gear-craft-mode .gear-craft-actions,
+.gear-craft-mode .gear-customize-actions {
+  position: sticky; bottom: 0; z-index: 3;
+  background: var(--bg);
+  padding: 10px;
+  border-top: 1px solid var(--bg-panel);
+}
+
+/* Visual unification across all three editors (crafted / Vorax / legendary —
+   gear-craft-mode marks the SHARED EDITOR SHELL, not just crafting): the panel
+   sits on the app canvas, the preview is a bg-card card on it, section labels
+   are quiet inset headers (no full-bleed bars), one 10px content inset, one
+   action-row style. */
+.gear-craft-mode .gear-craft-section-label {
+  border-bottom: 1px solid var(--border);
+  margin: 6px 10px 2px;
+  padding: 6px 0 4px;
+  letter-spacing: 1.2px;
+}
+.gear-craft-mode .gear-customize-affixes { padding: 8px 10px; }
+.gear-craft-mode .gear-customize-header { padding: 8px 10px; }
+.gear-craft-mode .gear-customize-actions { justify-content: stretch; }
+.gear-craft-mode .gear-customize-actions .btn { flex: 1; }
+.gear-craft-mode .gear-confirm-btn { background: var(--bg-btn); color: var(--fg); }
+.gear-craft-mode .gear-preview-card {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  border-radius: 6px;
+  margin: 8px 10px 10px 0;
+  padding: 12px 14px;
+}
+@media (max-width: 768px) {
+  .gear-craft-mode .gear-preview-card { margin: 8px 10px; }
+}
+
+/* Pact spirit picker close button - mobile-only escape hatch. */
+.pact-picker-close { display: none; }
+@media (max-width: 768px) {
+  .pact-picker-close {
+    display: block; width: 100%; margin-bottom: 8px;
+    padding: 10px; border-radius: 6px; border: 1px solid var(--border-strong);
+    background: var(--bg-surface); color: var(--fg); font-size: 13px;
+  }
+}
+
+/* ── Gear desktop layout: Equipment + Items in Build condensed into ONE column,
+   and the freed width goes to the craft editor, which lays its slot list and
+   the item preview side by side - no more preview pushing slots out of view.
+   The wrapper is display:contents by default so mobile stacking is untouched. ── */
+.gear-left-stack { display: contents; }
+
+@media (min-width: 769px) {
+  .gear-left-stack { display: flex; flex-direction: column; flex: 27; min-width: 210px; }
+  .gear-left-stack .gear-slots-panel { flex: 0 1 auto; width: auto; min-width: 0; }
+  .gear-left-stack .gear-build-panel { flex: 1 1 0; width: auto; min-width: 0; min-height: 120px; }
+
+  /* Editor shell: a bounded two-column grid. The ENTIRE form (header, corruption,
+     slots, actions) lives in column 1 at one uniform width; the preview is a
+     parallel column 2 spanning every row. Capped so it never balloons. Applies
+     to the legendary customize panel too — deliberately, so all three editors
+     share one look. */
+  /* Grows with the window (weighted against the catalog) so wide screens widen
+     the PREVIEW column — the form column caps at 440px and the preview takes
+     the rest, keeping affix lines on one line wherever the width allows. The
+     catalog keeps a readable floor so item names don't truncate at 1280. */
+  .gear-editor-column:has(.gear-craft-mode) { flex: 34 1 auto; min-width: 340px; max-width: 880px; }
+  /* The wide footprint and second grid track exist only while a preview card is actually
+     rendered — ItemPreviewCard returns null pre-selection, and an empty reserved track
+     would leave the editor half-blank. */
+  .gear-editor-column:has(.gear-preview-card) { min-width: 540px; }
+  .gear-catalog { min-width: 260px; }
+  .gear-customize-panel.gear-craft-mode {
+    width: auto;
+    display: grid;
+    grid-template-columns: minmax(290px, 380px);
+    column-gap: 12px;
+    align-content: start;
+    justify-content: start;
+  }
+  .gear-customize-panel.gear-craft-mode:has(.gear-preview-card) {
+    grid-template-columns: minmax(290px, 380px) minmax(250px, 480px);
+  }
+  .gear-craft-mode > * { grid-column: 1; min-width: 0; }
+  .gear-craft-mode .gear-preview-card {
+    grid-column: 2;
+    grid-row: 1 / 99;
+    align-self: start;
+    position: sticky; top: 0;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
   }
 }

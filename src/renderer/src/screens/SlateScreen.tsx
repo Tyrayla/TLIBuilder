@@ -991,9 +991,9 @@ function SlateTooltipBody({ slate, treeColors, placed: allPlaced, noDelta }: {
 
 // Saved-slate thumbnail in the inventory grid: click to place, right-click to delete, hover for a floating
 // detail tooltip (built from the template — no placed instance, so no DPS delta).
-function InventoryTile({ template, color, treeColors, onPlace, onDelete }: {
+function InventoryTile({ template, color, treeColors, onPlace, onDelete, onDuplicate }: {
   template: SlateTemplate; color: string; treeColors: Record<string, string>
-  onPlace: () => void; onDelete: () => void
+  onPlace: () => void; onDelete: () => void; onDuplicate: () => void
 }) {
   const tip = useFloatingTooltip({ anchor: 'element', side: 'right' })
   const pseudo: PlacedSlate = {
@@ -1012,6 +1012,16 @@ function InventoryTile({ template, color, treeColors, onPlace, onDelete }: {
           background: '#16162a', border: `1px solid ${color}55`, borderRadius: 7, cursor: 'pointer',
         }}>
         <SlateIcon kind={template.kind as SlateKind} treeType={template.treeType} shapeIndex={template.shapeIndex} size={48} />
+        <button
+          onClick={e => { e.stopPropagation(); onDuplicate() }}
+          title="Duplicate — tweak a copy and compare"
+          style={{
+            position: 'absolute', top: -6, right: -6, width: 18, height: 18, padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--bg-surface)', color: 'var(--fg-muted)', border: `1px solid ${color}55`, borderRadius: 5,
+            fontSize: 11, cursor: 'pointer', lineHeight: 1,
+          }}
+        >⧉</button>
       </div>
       {tip.open && (
         <FloatingPortal>
@@ -1426,6 +1436,17 @@ export default function SlateScreen({ treeColors }: Props) {
     setSlateInventory(useBuildStore.getState().slateInventory.filter(t => t.id !== id))
   }
 
+  // Clone a saved slate so small variants can be compared side by side.
+  function duplicateTemplate(id: string) {
+    const inv = useBuildStore.getState().slateInventory
+    const src = inv.find(t => t.id === id)
+    if (!src) return
+    // Prefixed + random — same-millisecond duplicates must never share an id (the inventory
+    // upsert Map and delete-by-id would silently collapse or double-delete them).
+    const copy = { ...(JSON.parse(JSON.stringify(src)) as typeof src), id: `dup-${Date.now()}-${Math.random()}` }
+    setSlateInventory([...inv, copy])
+  }
+
   function updateSlot(idx: number, patch: Partial<CreatorSlot>) {
     if (!creator) return
     updateCreator({ slots: creator.slots.map((s, i) => i === idx ? { ...s, ...patch } : s) })
@@ -1752,7 +1773,7 @@ export default function SlateScreen({ treeColors }: Props) {
                   : LEGENDARY_META[t.kind as LegendaryKind]?.color ?? '#666'
                 return (
                   <InventoryTile key={t.id} template={t} color={color} treeColors={treeColors}
-                    onPlace={() => placeFromTemplate(t)} onDelete={() => deleteTemplate(t.id)} />
+                    onPlace={() => placeFromTemplate(t)} onDelete={() => deleteTemplate(t.id)} onDuplicate={() => duplicateTemplate(t.id)} />
                 )
               })}
             </div>
@@ -1796,18 +1817,20 @@ export default function SlateScreen({ treeColors }: Props) {
         )}
       </div>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {/* Layout lives on the classes (index.css) so the mobile stacking rules can override
+          without !important; this screen's colors stay inline like the rest of the file. */}
+      <div className="slate-body">
         {/* Left panel */}
-        <div style={{ width: 320, flexShrink: 0, background: '#12121e', borderRight: '1px solid #2a2a4a', padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
+        <div className="slate-left">
           {mode.type === 'choosing' ? renderChooserPanel() : creator ? renderCreatorPanel() : renderIdlePanel()}
         </div>
 
         {/* Board */}
-        <div {...boardTip.triggerProps} style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto' }}>
-          {/* Collapsible Slate Bonuses panel — top-right of the board area */}
-          <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 5 }}>
+        <div {...boardTip.triggerProps} className="slate-board-wrap">
+          {/* Collapsible Slate Bonuses panel — top-right of the board area (stacks above the board on mobile) */}
+          <div className="slate-bonuses">
             {bonusesOpen ? (
-              <div className="dark-scroll" style={{ width: 240, maxHeight: 'calc(100vh - 160px)', overflowY: 'auto', background: '#101020', border: '1px solid #2a2a4a', borderRadius: 8, boxShadow: '0 6px 24px rgba(0,0,0,0.55)' }}>
+              <div className="dark-scroll slate-bonuses-panel" style={{ overflowY: 'auto', background: '#101020', border: '1px solid #2a2a4a', borderRadius: 8, boxShadow: '0 6px 24px rgba(0,0,0,0.55)' }}>
                 <button onClick={() => setBonusesOpen(false)} style={{
                   position: 'sticky', top: 0, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '9px 13px', background: '#16162a', border: 'none', borderBottom: '1px solid #2a2a4a',
@@ -1912,6 +1935,7 @@ export default function SlateScreen({ treeColors }: Props) {
 
                 return (
                   <div key={key}
+                    className="slate-cell"
                     onClick={() => handleCellClick(row, col)}
                     onPointerDown={() => handleCellPointerDown(row, col)}
                     onContextMenu={e => {

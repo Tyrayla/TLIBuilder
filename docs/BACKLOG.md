@@ -758,3 +758,30 @@ build-code round trip + unsaved-changes guard. Run: `npm run test:e2e`. Remainin
   and stays. Wanted soon: the character identity (hero trait name) should show up for an imported build (e.g. the
   sidebar showing the trait/hero name instead of the bare "New Build" placeholder). Owner-requested 2026-08-04;
   not started.
+
+### Loading states instead of placeholder content (owner-requested 2026-08-04, queued next after mobile M1)
+
+Talent screen, gear, and other catalog-driven screens render placeholder images/layouts while data loads,
+and those placeholders have drifted badly out of date ("currently they are very wrong"). Replace them with
+explicit loading indicators (spinner/skeleton that conveys NO information) so nothing wrong is ever shown
+pre-load, rather than trying to keep placeholder content in sync with the real layouts.
+
+### Gear follow-ups (owner-requested 2026-08-05, after the mobile M1 commit)
+
+- **Editor action rows**: when editing an existing build item, add a second action row - Duplicate under
+  Add to Build/Save, Remove-from-build under Cancel. Consider retiring the per-row duplicate/remove icons
+  on the Items in Build list once it lands.
+- **Custom item naming**: any build item (Vorax, crafted, legendary) can be renamed by the player so
+  creators can label items ("Timemark 7 Ring", "Early Resists"). Name field in the editor; names already
+  ride in EquippedGearItem.name so codec impact should be nil - verify KNOWN_BUILD_KEYS untouched.
+
+### Mobile M1 — shipped 2026-08-05 (this commit)
+
+Shipped: per-screen <=768px stacking (config, gear, skills, hero traits incl. oversized pannable
+Dance-of-the-Deep tree, tree selector/viewer with wrapping header + pannable canvas, slates incl.
+touch-drag via touch-action, pact spirits incl. mobile picker close), drawer-open build landing on
+Hero Traits (all platforms), unified gear editor shell (crafted/Vorax/legendary: natural-height form,
+parallel sticky preview card on desktop, uniform edges/surfaces), Equipment+Items-in-Build condensed
+to one desktop column, duplicate actions for build items and slate templates, gear/skills panel
+backgrounds matched to the app canvas. Deferred to M2 (see items above): tap tooltips, tree pinch-zoom,
+folder DnD alternatives, hermetic CDN, testid pass, remaining e2e journeys, loading-state replacement.

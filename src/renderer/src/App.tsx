@@ -32,6 +32,9 @@ import VerificationDatabaseScreen from './screens/VerificationDatabaseScreen'
 
 type Screen = 'build-select' | 'build-overview' | 'tree-selector' | 'tree-viewer' | 'preview-selector' | 'preview-viewer' | 'dev-tools' | 'slate-board' | 'stats' | 'gear' | 'skills' | 'hero-traits' | 'pact-spirits' | 'notes' | 'import-export' | 'verification'
 
+// Where a build lands when created or opened — picking the character is the natural first step.
+const BUILD_LANDING_SCREEN: Screen = 'hero-traits'
+
 interface CascadeModal {
   removingSlot: number
   shiftingTree: string
@@ -265,7 +268,7 @@ function App() {
     useBuildStore.getState().loadBuild({ ...payload, ...ensureLoadouts(payload) })
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
-    setScreen('build-overview')
+    setScreen(BUILD_LANDING_SCREEN)
   }
 
   // ── Build import sanitizers ───────────────────────────────────────────────
@@ -446,7 +449,7 @@ function App() {
     useBuildStore.getState().flushActiveLoadout()
     loadedVersionRef.current = useBuildStore.getState().buildVersion
     setIsDirty(false)
-    setScreen('build-overview')
+    setScreen(BUILD_LANDING_SCREEN)
   }
 
   const goToTreeSelector = () => {

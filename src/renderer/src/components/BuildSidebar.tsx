@@ -137,7 +137,11 @@ export default function BuildSidebar({ screen, buildName, isDirty, onNav, onSave
   const [loadoutView, setLoadoutView] = useState<null | 'list' | 'create'>(null)
   // ≤768px the sidebar collapses into an overlay drawer (see the mobile block in index.css);
   // the floating toggle opens it and any navigation closes it. Desktop ignores all of this.
-  const [mobileOpen, setMobileOpen] = useState(false)
+  // Starts OPEN on mobile: the sidebar mounts when a build opens, and the drawer doubling as the
+  // build's landing menu beats dropping the user on a screen with no visible navigation.
+  const [mobileOpen, setMobileOpen] = useState(
+    () => (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches) ?? false,
+  )
   const nav = (target: string) => { setMobileOpen(false); onNav(target) }
   useEffect(() => {
     if (!mobileOpen) return

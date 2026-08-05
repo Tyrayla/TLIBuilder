@@ -901,7 +901,7 @@ function CustomizePanel({ item, customizations, isEditing, onCustomizationChange
   }
 
   return (
-    <div className="gear-customize-panel">
+    <div className="gear-customize-panel gear-craft-mode">
       <div className="gear-customize-header">
         {typeLabel && <div className="gear-customize-type">{typeLabel}</div>}
         <div className="gear-customize-name">{item.name}<CoverageLegend /></div>
@@ -1972,7 +1972,7 @@ function VoraxEditorPanel({ graft, catalog, catalogIndex, onAddToBuild, onClose,
   const voraxPreviewDeltas = useGearPreviewDeltas(voraxPreviewItem, VORAX_GRAFT_SLOTS[graft.item_id]?.[0])
 
   return (
-    <div className="gear-customize-panel">
+    <div className="gear-customize-panel gear-craft-mode">
       <div className="gear-craft-editing-header">
         <div className="gear-craft-editing-header-top">
           <span className="gear-craft-base-name">{getVoraxDisplayName(graft)} (Vorax)</span>
@@ -2466,7 +2466,7 @@ function CraftEditorPanel({ craftBases, craftBasesLoaded, craftBasesFailed, craf
   }
 
   return (
-    <div className="gear-customize-panel">
+    <div className="gear-customize-panel gear-craft-mode">
       <div className="gear-craft-editing-header">
         <div className="gear-craft-editing-header-top">
           {classification && <span className="gear-craft-classification">{classification}</span>}
@@ -2918,6 +2918,20 @@ export default function GearScreen(_props: Props) {
     setSelectedRandomAffixes(item.selected_random_affixes ?? {})
   }
 
+  // Clone a build item so small variants can be compared side by side. The copy must not
+  // claim the original's equipment slot — the user assigns it (or swaps) explicitly.
+  const handleDuplicateBuildItem = (idx: number) => {
+    // Duplicating the row that's open in the editor copies the LIVE draft the preview shows
+    // (mirroring handleSaveBuildItem), not the stale committed item.
+    const source = idx === editingBuildIdx && previewItem ? { ...previewItem, beltBlend } : gear[idx]
+    const copy = JSON.parse(JSON.stringify(source)) as EquippedGearItem
+    copy.slot = null
+    const next = [...gear]
+    next.splice(idx + 1, 0, copy)
+    setGear(next)
+    if (editingBuildIdx !== null && editingBuildIdx > idx) setEditingBuildIdx(editingBuildIdx + 1)
+  }
+
   const handleRemoveBuildItem = (idx: number) => {
     const next = [...gear]
     next.splice(idx, 1)
@@ -3249,6 +3263,9 @@ export default function GearScreen(_props: Props) {
       </div>
 
       <div className="gear-body">
+        {/* Panels 1+2 share one column (desktop) — frees width for the craft editor's side-by-side
+            preview. On mobile the wrapper is display:contents and the panels stack as before. */}
+        <div className="gear-left-stack">
         {/* Panel 1: Equipment Slots */}
         <div className="gear-slots-panel">
           <div className="gear-slots-title">Equipment</div>
@@ -3325,12 +3342,18 @@ export default function GearScreen(_props: Props) {
                 )}
               </GearHoverTooltip>
               <button
+                className="gear-slot-dup"
+                onClick={() => handleDuplicateBuildItem(i)}
+                title="Duplicate — tweak a copy and compare"
+              >⧉</button>
+              <button
                 className="gear-slot-remove"
                 onClick={() => handleRemoveBuildItem(i)}
                 title="Remove"
               >×</button>
             </div>
           ))}
+        </div>
         </div>
 
         {/* Panel 3: Customize or Craft */}

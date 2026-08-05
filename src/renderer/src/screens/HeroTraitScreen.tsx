@@ -636,12 +636,16 @@ export default function HeroTraitScreen({ onBack: _onBack }: Props) {
 
   const loading = !referenceResolved && allTraits.length === 0
 
-  // Auto-select first trait when none selected
+  // Auto-select the first trait only for a brand-new (never-saved) build. Builds now LAND on
+  // this screen when opened, so an unconditional auto-select would silently write a trait into
+  // an opened trait-less build — marking it dirty and clearing tree allocations for a
+  // DPS-affecting change the user never made.
+  const buildId = useBuildStore(s => s.buildId)
   useEffect(() => {
-    if (!loading && traitId === null && allTraits.length > 0) {
+    if (!loading && traitId === null && buildId === null && allTraits.length > 0) {
       setTraitData(allTraits[0].trait_id, [1, 1, 1, 1], [])
     }
-  }, [loading, traitId, allTraits])
+  }, [loading, traitId, buildId, allTraits])
 
   const selectedTrait = allTraits.find(t => t.trait_id === traitId) ?? null
 

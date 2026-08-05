@@ -54,3 +54,7 @@ docs/local/
 # Planner draft scratch — authoritative plans are published to <umbrella>/shared/plans/, not here.
 plans/
 
+
+# Mobile audit screenshot sweeps (regenerate via e2e/mobile-audit.mjs)
+e2e/mobile-audit*/
+e2e/*.png
