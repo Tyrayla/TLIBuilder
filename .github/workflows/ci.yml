@@ -36,6 +36,15 @@ jobs:
 
       - run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch private game data
+        env:
+          TLI_DATA_TOKEN: ${{ secrets.TLI_DATA_TOKEN }}
+        run: node scripts/fetch-data.mjs
+
       - name: Run backend test suite
         working-directory: backend
         run: python -m pytest -q | Tee-Object -FilePath pytest-output.txt

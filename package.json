@@ -14,6 +14,7 @@
     "build:release": "npm run build:backend && npm run build && electron-builder --win",
     "build:web": "python backend/tools/export_backend_bundle.py && vite build --config vite.web.config.mts --mode web && node -e \"require('fs').renameSync('dist-web/index.web.html','dist-web/index.html')\"",
     "build:web:data": "python backend/tools/export_web_data.py && python backend/tools/export_engine_bundle.py",
+    "fetch:data": "node scripts/fetch-data.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false && tsc --noEmit -p e2e/tsconfig.json",
     "test": "vitest run",
     "test:e2e": "npm run build && npm run build:web && playwright test -c e2e",
@@ -70,6 +71,10 @@
           "**/*",
           "!builds/**"
         ]
+      },
+      {
+        "from": "DATA-LICENSE.md",
+        "to": "data/DATA-LICENSE.md"
       }
     ],
     "nsis": {

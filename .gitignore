@@ -17,9 +17,10 @@ tsconfig.*.tsbuildinfo
 dev-err.txt
 dev-out.txt
 
-# Local user data
-data/builds/*
-!data/builds/.gitkeep
+# Game dataset — NOT tracked in this repo. Fetched from the private tli-data repo at build
+# time via `npm run fetch:data` (see README "Development setup"). This also covers
+# data/builds/, which is local user runtime data.
+data/
 
 # OpenWolf and Claude Code — local AI tooling, not for version control
 .wolf/

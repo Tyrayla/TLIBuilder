@@ -37,6 +37,11 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Fetch private game data
+        env:
+          TLI_DATA_TOKEN: ${{ secrets.TLI_DATA_TOKEN }}
+        run: node scripts/fetch-data.mjs
+
       - name: Compute nightly version
         id: ver
         shell: pwsh
