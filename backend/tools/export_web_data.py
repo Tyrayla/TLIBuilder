@@ -40,15 +40,18 @@ CATALOGS = {
 }
 
 
-# CORS allowlist Function, written verbatim into <out>/functions/_middleware.js on every export.
-# APP_PAGES_PROJECT is the APP's Pages project name so its preview deploys can load data.
-_CORS_MIDDLEWARE_JS = """// Cloudflare Pages Function — CORS allowlist for the TLI Builder data CDN.
+# CORS allowlist Worker, written verbatim into <out>/_worker.js on every export.
+# Pages ADVANCED mode (a _worker.js) is required: a functions/_middleware.js is NOT compiled
+# by `wrangler pages deploy <dir>`, and a Pages platform default adds
+# `Access-Control-Allow-Origin: *` that a static `_headers` can't remove. The Worker serves the
+# asset via env.ASSETS.fetch(), DELETES that wildcard, and sets ours only for allowlisted
+# origins. APP_PAGES_PROJECT is the APP's Pages project name so its preview deploys can load data.
+_CORS_WORKER_JS = """// Cloudflare Pages advanced-mode Worker — CORS allowlist for the TLI Builder data CDN.
 //
-// Why a Function instead of a static `_headers` line: a static header can only emit ONE
-// `Access-Control-Allow-Origin` value, so locking to the apex would break the app's
-// preview deploys, www, and local dev. This reflects the request Origin back only when
-// it is on the allowlist below, and refuses everyone else — so third-party sites still
-// can't fetch the dataset from a visitor's browser, but our own surfaces keep working.
+// Advanced mode (this _worker.js) handles EVERY request: it serves the static asset via
+// env.ASSETS.fetch(), then rewrites CORS so only our own origins get an
+// Access-Control-Allow-Origin. It DELETES any pre-existing ACAO (e.g. a platform default
+// wildcard) before conditionally setting ours, so a disallowed origin gets none.
 //
 // This is browser-side friction only. It does NOT stop server-side scraping (a backend
 // with no Origin header gets the file) — the data terms in DATA-LICENSE.md cover that.
@@ -80,31 +83,37 @@ function isAllowedOrigin(origin) {
   return false;
 }
 
-export async function onRequest(context) {
-  const { request, next } = context;
-  const origin = request.headers.get('Origin');
-  const allow = isAllowedOrigin(origin);
+export default {
+  async fetch(request, env) {
+    const origin = request.headers.get('Origin');
+    const allow = isAllowedOrigin(origin);
 
-  // Preflight (only fires if a request ever adds a custom header; simple GETs skip it).
-  if (request.method === 'OPTIONS') {
-    const headers = new Headers({ Vary: 'Origin' });
-    if (allow) {
-      headers.set('Access-Control-Allow-Origin', origin);
-      headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-      headers.set('Access-Control-Max-Age', '86400');
+    // Preflight (only fires if a request ever adds a custom header; simple GETs skip it).
+    if (request.method === 'OPTIONS') {
+      const headers = new Headers({ Vary: 'Origin' });
+      if (allow) {
+        headers.set('Access-Control-Allow-Origin', origin);
+        headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        headers.set('Access-Control-Max-Age', '86400');
+      }
+      return new Response(null, { status: 204, headers });
     }
-    return new Response(null, { status: 204, headers });
-  }
 
-  const response = await next();
-  // Reflect Origin per-request so caches never serve one origin's grant to another.
-  // (Pages Function responses aren't edge-cached by default; Vary:Origin covers browsers.)
-  response.headers.append('Vary', 'Origin');
-  if (allow) {
-    response.headers.set('Access-Control-Allow-Origin', origin);
-  }
-  return response;
-}
+    const assetResponse = await env.ASSETS.fetch(request);
+    const response = new Response(assetResponse.body, assetResponse);
+    // Reflect Origin per-request; delete any platform-default wildcard first so a
+    // disallowed origin ends up with no Access-Control-Allow-Origin at all.
+    response.headers.append('Vary', 'Origin');
+    response.headers.delete('Access-Control-Allow-Origin');
+    if (allow) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+    }
+    if (!response.headers.has('Cache-Control')) {
+      response.headers.set('Cache-Control', 'public, max-age=3600');
+    }
+    return response;
+  },
+};
 """
 
 
@@ -147,21 +156,21 @@ def main() -> None:
     with open(os.path.join(args.out, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump({"season": season}, f)
 
-    # Cloudflare Pages _headers: caching only. CORS is NOT set here — a static header can emit
-    # just one allowed origin, which would break the app's preview deploys, www, and local dev.
-    # An allowlisting Pages Function (functions/_middleware.js, written below) owns CORS instead:
-    # it reflects the Origin only for our own surfaces, so third-party sites can't fetch the
-    # dataset from a visitor's browser. (Browser-side friction only; the data terms in
-    # DATA-LICENSE.md cover server-side scraping, which no CORS rule can stop.)
-    # Cache for an hour (season-in-path means a new season is a new URL; re-exports propagate within the hour).
+    # Cloudflare Pages _headers: caching only (ignored under advanced mode, but harmless — the
+    # Worker sets Cache-Control itself). CORS is owned by _worker.js below, not here: a static
+    # header can only emit one allowed origin (breaking previews/www/local dev) and can't remove
+    # the platform default wildcard. Cache for an hour.
     with open(os.path.join(args.out, "_headers"), "w", encoding="utf-8", newline="\n") as f:
         f.write("/*\n  Cache-Control: public, max-age=3600\n")
 
-    # The CORS allowlist Function. Emitted here so a fresh web-data/ export always ships it.
-    fns_dir = os.path.join(args.out, "functions")
-    os.makedirs(fns_dir, exist_ok=True)
-    with open(os.path.join(fns_dir, "_middleware.js"), "w", encoding="utf-8", newline="\n") as f:
-        f.write(_CORS_MIDDLEWARE_JS)
+    # The CORS allowlist Worker (Pages advanced mode). Emitted so a fresh web-data/ export always
+    # ships it. Remove any stale functions/ dir from an older export — a _worker.js and functions/
+    # together is ambiguous, and only the Worker actually compiles under `wrangler pages deploy`.
+    stale_fns = os.path.join(args.out, "functions")
+    if os.path.isdir(stale_fns):
+        shutil.rmtree(stale_fns, ignore_errors=True)
+    with open(os.path.join(args.out, "_worker.js"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(_CORS_WORKER_JS)
 
     # Ship the data terms at the CDN root, so anyone who takes the served files also takes the
     # notice (the terms travel with the data instead of living only in the repo).
